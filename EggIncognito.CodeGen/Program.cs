@@ -34,7 +34,7 @@ switch (command)
         return await RunGenerate(args, flags, defaultYaml, defaultFix, defaultOut);
 
     default:
-        Console.Error.WriteLine($"Unknown command: {command}");
+        await Console.Error.WriteLineAsync($"Unknown command: {command}");
         PrintHelp();
         return 1;
 }
@@ -58,7 +58,7 @@ static async Task<int> RunGenerate(string[] args, Dictionary<string, string> fla
     if (flags.ContainsKey("--bake"))
     {
         var typeMap = EndpointTypeMap.Build(endpoints);
-        Console.WriteLine("Baking fixtures...");
+        await Console.Out.WriteLineAsync("Baking fixtures...");
         FixtureBaker.Bake(fixturesPath, typeMap);
     }
 
@@ -80,10 +80,10 @@ static async Task<int> RunGenerate(string[] args, Dictionary<string, string> fla
         return 1;
     }
 
-    Console.WriteLine($"Generating {gen.Language} server -> {outputDir}");
+    await Console.Out.WriteLineAsync($"Generating {gen.Language} server -> {outputDir}");
     Directory.CreateDirectory(outputDir);
     gen.Generate(endpoints, fixturesPath, outputDir, port);
-    Console.WriteLine($"Done. See {outputDir}/README.md for run instructions.");
+    await Console.Out.WriteLineAsync($"Done. See {outputDir}/README.md for run instructions.");
     return 0;
 }
 

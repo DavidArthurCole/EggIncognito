@@ -1,0 +1,24 @@
+{
+  "events": {
+    "events": [
+      {
+        "identifier": "test-event-1",
+        "type": "earnings-bonus",
+        "multiplier": 2.0,
+        "secondsRemaining": 3600.0
+      },
+      {
+        "identifier": "test-event-2",
+        "type": "piggy-bonus",
+        "multiplier": 2.0,
+        "secondsRemaining": 7200.0
+      },
+      {
+        "identifier": "test-event-3",
+        "type": "artifact-drop-rate",
+        "multiplier": 2.0,
+        "secondsRemaining": 10800.0
+      }
+    ]
+  }
+}

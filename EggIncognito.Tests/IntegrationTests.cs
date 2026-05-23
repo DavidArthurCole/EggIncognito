@@ -17,10 +17,10 @@ public sealed class EggIncApiFactory : WebApplicationFactory<Program>
         while (dir != null)
         {
             if (dir.GetFiles("*.slnx").Length > 0 || dir.GetFiles("*.sln").Length > 0)
-                return Path.Combine(dir.FullName, "EggIncognito", "Fixtures");
+                return Path.Combine(dir.FullName, "EggIncognito.Tests", "TestFixtures");
             dir = dir.Parent;
         }
-        return Path.Combine(AppContext.BaseDirectory, "Fixtures");
+        return Path.Combine(AppContext.BaseDirectory, "TestFixtures");
     }
 }
 

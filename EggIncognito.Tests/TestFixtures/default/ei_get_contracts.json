@@ -1,0 +1,12 @@
+{
+  "contracts": [
+    {
+      "identifier": "test-contract",
+      "name": "Test Contract",
+      "egg": "TACHYON",
+      "coopAllowed": true,
+      "maxCoopSize": 2,
+      "lengthSeconds": 86400.0
+    }
+  ]
+}
