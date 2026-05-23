@@ -1,0 +1,63 @@
+{
+  "events": {
+    "events": [
+      {
+        "identifier": "piggy-bonus",
+        "secondsRemaining": 259200.0,
+        "type": "piggy-bonus",
+        "multiplier": 5.0,
+        "subtitle": "5x Piggy Bank Fill Rate",
+        "startTime": 1750464000.0,
+        "duration": 345600.0
+      },
+      {
+        "identifier": "earnings-bonus",
+        "secondsRemaining": 172800.0,
+        "type": "earnings-bonus",
+        "multiplier": 10.0,
+        "subtitle": "10x Earnings",
+        "startTime": 1750377600.0,
+        "duration": 345600.0
+      },
+      {
+        "identifier": "artifact-drop-rate",
+        "secondsRemaining": 86400.0,
+        "type": "artifact-drop-rate",
+        "multiplier": 3.0,
+        "subtitle": "3x Artifact Drop Rate",
+        "startTime": 1750550400.0,
+        "duration": 172800.0
+      }
+    ]
+  },
+  "contracts": {
+    "contracts": [
+      {
+        "identifier": "spring-chickens-2026",
+        "name": "Spring Chickens",
+        "description": "Deliver quantum eggs for the spring harvest.",
+        "egg": "QUANTUM",
+        "coopAllowed": true,
+        "maxCoopSize": 6,
+        "maxBoosts": 12,
+        "minutesPerToken": 60.0,
+        "chickenRunCooldownMinutes": 180.0,
+        "startTime": 1750464000.0,
+        "expirationTime": 1751155200.0,
+        "lengthSeconds": 604800.0,
+        "gradeSpecs": [
+          {
+            "grade": "GRADE_AAA",
+            "goals": [
+              {"type": "EGGS_LAID", "targetAmount": 5.0e19, "rewardType": "SOUL_EGGS", "rewardAmount": 6.0},
+              {"type": "EGGS_LAID", "targetAmount": 2.0e20, "rewardType": "EGGS_OF_PROPHECY", "rewardAmount": 1.0}
+            ],
+            "lengthSeconds": 604800.0
+          }
+        ]
+      }
+    ],
+    "serverTime": 1750550400.0,
+    "maxEop": 1000
+  }
+}

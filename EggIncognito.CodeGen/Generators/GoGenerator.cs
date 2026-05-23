@@ -1,0 +1,192 @@
+using System.Text;
+
+namespace EggIncognito.CodeGen.Generators;
+
+public sealed class GoGenerator : IServerGenerator
+{
+    public string Language => "Go";
+
+    public void Generate(IReadOnlyList<EndpointEntry> endpoints, string fixturesPath, string outputDir, int port)
+    {
+        var routes = new StringBuilder();
+        foreach (var ep in endpoints)
+            routes.AppendLine($"\tmux.HandleFunc(\"/{ep.Path}\", makeHandler(\"{ep.Slug}\"))");
+
+        var server = $$"""
+            package main
+
+            import (
+            	"encoding/base64"
+            	"fmt"
+            	"net/http"
+            	"os"
+            	"path/filepath"
+            )
+
+            var fixturesPath = getEnv("FIXTURES_PATH", {{Quote(fixturesPath)}})
+
+            func main() {
+            	port := getEnv("PORT", "{{port}}")
+            	mux := http.NewServeMux()
+            	registerRoutes(mux)
+            	fmt.Printf("EggIncognito Go mock server :%s  fixtures: %s\n", port, fixturesPath)
+            	if err := http.ListenAndServe(":"+port, mux); err != nil {
+            		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+            		os.Exit(1)
+            	}
+            }
+
+            // GENERATED - do not edit by hand; re-run EggIncognito.CodeGen generate go
+            func registerRoutes(mux *http.ServeMux) {
+            {{routes.ToString().TrimEnd()}}
+            }
+
+            func makeHandler(slug string) http.HandlerFunc {
+            	return func(w http.ResponseWriter, r *http.Request) {
+            		if r.Method != http.MethodPost {
+            			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+            			return
+            		}
+            		if err := r.ParseForm(); err != nil {
+            			http.Error(w, "bad request", http.StatusBadRequest)
+            			return
+            		}
+            		fixture := loadFixture(slug, extractEid(r.FormValue("data")))
+            		w.Header().Set("Content-Type", "text/html")
+            		fmt.Fprint(w, base64.StdEncoding.EncodeToString(fixture))
+            	}
+            }
+
+            func loadFixture(slug, eid string) []byte {
+            	if eid != "" {
+            		if data, err := os.ReadFile(filepath.Join(fixturesPath, "eids", eid, slug+".binpb")); err == nil {
+            			return data
+            		}
+            	}
+            	if data, err := os.ReadFile(filepath.Join(fixturesPath, "default", slug+".binpb")); err == nil {
+            		return data
+            	}
+            	return []byte{}
+            }
+
+            // extractEid reads AuthenticatedMessage.user_id (field 6, wire type 2) from base64 data.
+            func extractEid(data string) string {
+            	raw, err := base64.StdEncoding.DecodeString(data)
+            	if err != nil || len(raw) == 0 {
+            		return ""
+            	}
+            	return readProtoString(raw, 6)
+            }
+
+            func readProtoString(data []byte, fieldNum uint64) string {
+            	i := 0
+            	for i < len(data) {
+            		tag, n := decodeVarint(data[i:])
+            		if n == 0 {
+            			break
+            		}
+            		i += n
+            		fn, wt := tag>>3, tag&7
+            		switch wt {
+            		case 0:
+            			_, n = decodeVarint(data[i:])
+            			i += n
+            		case 1:
+            			i += 8
+            		case 2:
+            			length, n := decodeVarint(data[i:])
+            			i += n
+            			if fn == fieldNum && i+int(length) <= len(data) {
+            				return string(data[i : i+int(length)])
+            			}
+            			i += int(length)
+            		case 5:
+            			i += 4
+            		default:
+            			return ""
+            		}
+            	}
+            	return ""
+            }
+
+            func decodeVarint(b []byte) (uint64, int) {
+            	var x uint64
+            	var s uint
+            	for i, v := range b {
+            		if i >= 10 {
+            			return 0, 0
+            		}
+            		x |= uint64(v&0x7f) << s
+            		s += 7
+            		if v < 0x80 {
+            			return x, i + 1
+            		}
+            	}
+            	return 0, 0
+            }
+
+            func getEnv(key, fallback string) string {
+            	if v := os.Getenv(key); v != "" {
+            		return v
+            	}
+            	return fallback
+            }
+            """;
+
+        File.WriteAllText(Path.Combine(outputDir, "server.go"), server, new UTF8Encoding(false));
+
+        File.WriteAllText(Path.Combine(outputDir, "go.mod"), """
+            module egginc-mock
+
+            go 1.21
+            """, new UTF8Encoding(false));
+
+        WriteReadme(outputDir, port, fixturesPath,
+            run: "go run .",
+            prereqs: "Go 1.21+");
+    }
+
+    private static string Quote(string s) => "\"" + s.Replace("\\", "\\\\") + "\"";
+
+    internal static void WriteReadme(string outputDir, int port, string fixturesPath, string run, string prereqs)
+    {
+        File.WriteAllText(Path.Combine(outputDir, "README.md"), $"""
+            # EggIncognito Mock Server
+
+            Generated by `EggIncognito.CodeGen`. Do not edit by hand.
+
+            ## Prerequisites
+
+            {prereqs}
+
+            ## Setup
+
+            Bake fixtures first (converts JSON fixtures to binary proto):
+
+            ```sh
+            dotnet run --project EggIncognito.CodeGen -- bake
+            ```
+
+            ## Run
+
+            ```sh
+            {run}
+            ```
+
+            Server starts on port {port}.
+
+            ## Configuration
+
+            | Variable | Default | Description |
+            |---|---|---|
+            | `FIXTURES_PATH` | `{fixturesPath}` | Path to EggIncognito/Fixtures directory |
+            | `PORT` | `{port}` | HTTP listen port |
+
+            ## Regenerate
+
+            ```sh
+            dotnet run --project EggIncognito.CodeGen -- generate {Path.GetFileName(outputDir)}
+            ```
+            """, new UTF8Encoding(false));
+    }
+}

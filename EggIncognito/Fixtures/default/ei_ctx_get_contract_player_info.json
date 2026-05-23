@@ -1,0 +1,46 @@
+{
+  "grade": "GRADE_AAA",
+  "totalCxp": 10876810.0,
+  "status": "COMPLETE",
+  "lastEvaluationTime": 1779508563.194997,
+  "lastEvaluationVersion": "cxp-v0.2.0",
+  "gradeScore": 0.0,
+  "targetSoulPower": 11.0,
+  "targetGradeScore": 181250.0,
+  "soulPower": 28.074885172045363,
+  "gradeProgress": 0.0,
+  "seasonCxp": 0.0,
+  "issueScore": 0.0,
+  "seasonProgress": [
+    {
+      "seasonId": "winter_2024",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 696893.0
+    },
+    {
+      "seasonId": "fall_2024",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 360027.0
+    },
+    {
+      "seasonId": "summer_2023",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 409332.0
+    },
+    {
+      "seasonId": "summer_2024",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 474560.0
+    },
+    {
+      "seasonId": "fall_2023",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 616892.0
+    },
+    {
+      "seasonId": "spring_2024",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 449628.0
+    }
+  ]
+}

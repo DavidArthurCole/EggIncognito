@@ -1,0 +1,31 @@
+{
+  "contractIdentifier": "spring-chickens-2026",
+  "coopIdentifier": "mock-coop-1",
+  "totalAmount": 1.5e19,
+  "secondsRemaining": 518400.0,
+  "allMembersReporting": true,
+  "contributors": [
+    {
+      "userId": "EI0000000000000001",
+      "userName": "MockPlayer",
+      "active": true,
+      "contributionAmount": 9.0e18,
+      "contributionRate": 1.2e14,
+      "soulPower": 14.5,
+      "eop": 50,
+      "boostTokens": 3,
+      "platform": "IOS"
+    },
+    {
+      "userId": "EI0000000000000002",
+      "userName": "TestFarmer",
+      "active": true,
+      "contributionAmount": 6.0e18,
+      "contributionRate": 8.0e13,
+      "soulPower": 12.0,
+      "eop": 40,
+      "boostTokens": 2,
+      "platform": "DROID"
+    }
+  ]
+}

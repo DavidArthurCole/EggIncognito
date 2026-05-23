@@ -1,0 +1,71 @@
+{
+  "success": true,
+  "activeMissions": [
+    {
+      "ship": "ATREGGIES",
+      "status": "EXPLORING",
+      "durationType": "EPIC",
+      "fuel": [
+        {
+          "egg": "TACHYON",
+          "amount": 2000000000000.0
+        },
+        {
+          "egg": "DILITHIUM",
+          "amount": 6000000000000.0
+        },
+        {
+          "egg": "ANTIMATTER",
+          "amount": 6000000000000.0
+        },
+        {
+          "egg": "DARK_MATTER",
+          "amount": 6000000000000.0
+        }
+      ],
+      "durationSeconds": 138240.0,
+      "secondsRemaining": 138043.2554090023,
+      "identifier": "agxhdXhicmFpbmhvbWVyFgsSCUVJTWlzc2lvbhiAgPje4s7PCgw",
+      "capacity": 234,
+      "missionLog": "Captain's Log, Star Date 20220307.2. The crew that has chartered this ship concerns me. Their objectives seem out of a video game.",
+      "qualityBump": 2.17,
+      "level": 7,
+      "targetArtifact": "BOOK_OF_BASAN",
+      "type": "STANDARD",
+      "resetIndex": 0
+    },
+    {
+      "ship": "ATREGGIES",
+      "status": "EXPLORING",
+      "durationType": "EPIC",
+      "fuel": [
+        {
+          "egg": "TACHYON",
+          "amount": 2000000000000.0
+        },
+        {
+          "egg": "DILITHIUM",
+          "amount": 6000000000000.0
+        },
+        {
+          "egg": "ANTIMATTER",
+          "amount": 6000000000000.0
+        },
+        {
+          "egg": "DARK_MATTER",
+          "amount": 6000000000000.0
+        }
+      ],
+      "durationSeconds": 138240.0,
+      "secondsRemaining": 138170.6313560009,
+      "identifier": "agxhdXhicmFpbmhvbWVyFgsSCUVJTWlzc2lvbhiAgPiuqbu7Cgw",
+      "capacity": 234,
+      "missionLog": "Captain's Log, Star Date 20220307.2. The crew that has chartered this ship concerns me. Their objectives seem out of a video game.",
+      "qualityBump": 2.17,
+      "level": 7,
+      "targetArtifact": "BOOK_OF_BASAN",
+      "type": "STANDARD",
+      "resetIndex": 0
+    }
+  ]
+}

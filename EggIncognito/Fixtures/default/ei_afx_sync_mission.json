@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "activeMissions": [
+    {
+      "ship": "HENERPRISE",
+      "status": "EXPLORING",
+      "durationType": "LONG",
+      "identifier": "mock-mission-001",
+      "durationSeconds": 86400.0,
+      "secondsRemaining": 43200.0,
+      "capacity": 35,
+      "level": 10
+    }
+  ]
+}

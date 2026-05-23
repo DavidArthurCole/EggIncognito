@@ -1,0 +1,8 @@
+# Ignore all real EID directories - they contain personal account data
+*
+!.gitignore
+# Allow synthetic test EIDs (fake accounts, safe to commit)
+!EI0000000000000001
+!EI0000000000000001/**
+!EI0000000000000002
+!EI0000000000000002/**

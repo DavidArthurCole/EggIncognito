@@ -1,0 +1,6 @@
+@EggIncognito_HostAddress = http://localhost:5032
+
+GET {{EggIncognito_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

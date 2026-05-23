@@ -1,0 +1,22 @@
+{
+  "events": [
+    {
+      "identifier": "piggy-bonus",
+      "secondsRemaining": 259200.0,
+      "type": "piggy-bonus",
+      "multiplier": 5.0,
+      "subtitle": "5x Piggy Bank Fill Rate",
+      "startTime": 1750464000.0,
+      "duration": 345600.0
+    },
+    {
+      "identifier": "earnings-bonus",
+      "secondsRemaining": 172800.0,
+      "type": "earnings-bonus",
+      "multiplier": 10.0,
+      "subtitle": "10x Earnings",
+      "startTime": 1750377600.0,
+      "duration": 345600.0
+    }
+  ]
+}

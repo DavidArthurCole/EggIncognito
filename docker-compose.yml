@@ -1,0 +1,11 @@
+services:
+  mock-api:
+    build: .
+    ports:
+      - "5080:8080"
+      - "5443:8443"
+    volumes:
+      - ./EggIncognito/Fixtures:/app/Fixtures
+      - ./certs:/app/certs:ro
+    environment:
+      - FixturesPath=/app/Fixtures

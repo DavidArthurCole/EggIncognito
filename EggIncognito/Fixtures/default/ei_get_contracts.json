@@ -1,0 +1,86 @@
+{
+  "contracts": [
+    {
+      "identifier": "spring-chickens-2026",
+      "name": "Spring Chickens",
+      "description": "Deliver quantum eggs for the spring harvest.",
+      "egg": "QUANTUM",
+      "coopAllowed": true,
+      "maxCoopSize": 6,
+      "maxBoosts": 12,
+      "minutesPerToken": 60.0,
+      "chickenRunCooldownMinutes": 180.0,
+      "startTime": 1750464000.0,
+      "expirationTime": 1751155200.0,
+      "lengthSeconds": 604800.0,
+      "gradeSpecs": [
+        {
+          "grade": "GRADE_C",
+          "goals": [
+            {"type": "EGGS_LAID", "targetAmount": 1.0e17, "rewardType": "SOUL_EGGS", "rewardAmount": 3.0},
+            {"type": "EGGS_LAID", "targetAmount": 5.0e17, "rewardType": "EGGS_OF_PROPHECY", "rewardAmount": 1.0}
+          ],
+          "lengthSeconds": 604800.0
+        },
+        {
+          "grade": "GRADE_B",
+          "goals": [
+            {"type": "EGGS_LAID", "targetAmount": 5.0e17, "rewardType": "SOUL_EGGS", "rewardAmount": 4.0},
+            {"type": "EGGS_LAID", "targetAmount": 2.0e18, "rewardType": "EGGS_OF_PROPHECY", "rewardAmount": 1.0}
+          ],
+          "lengthSeconds": 604800.0
+        },
+        {
+          "grade": "GRADE_A",
+          "goals": [
+            {"type": "EGGS_LAID", "targetAmount": 2.0e18, "rewardType": "SOUL_EGGS", "rewardAmount": 5.0},
+            {"type": "EGGS_LAID", "targetAmount": 8.0e18, "rewardType": "EGGS_OF_PROPHECY", "rewardAmount": 1.0}
+          ],
+          "lengthSeconds": 604800.0
+        },
+        {
+          "grade": "GRADE_AA",
+          "goals": [
+            {"type": "EGGS_LAID", "targetAmount": 8.0e18, "rewardType": "SOUL_EGGS", "rewardAmount": 5.0},
+            {"type": "EGGS_LAID", "targetAmount": 4.0e19, "rewardType": "EGGS_OF_PROPHECY", "rewardAmount": 1.0}
+          ],
+          "lengthSeconds": 604800.0
+        },
+        {
+          "grade": "GRADE_AAA",
+          "goals": [
+            {"type": "EGGS_LAID", "targetAmount": 5.0e19, "rewardType": "SOUL_EGGS", "rewardAmount": 6.0},
+            {"type": "EGGS_LAID", "targetAmount": 2.0e20, "rewardType": "EGGS_OF_PROPHECY", "rewardAmount": 1.0}
+          ],
+          "lengthSeconds": 604800.0
+        }
+      ]
+    },
+    {
+      "identifier": "the-long-haul-2026",
+      "name": "The Long Haul",
+      "description": "A lengthy antimatter egg contract.",
+      "egg": "ANTIMATTER",
+      "coopAllowed": true,
+      "maxCoopSize": 4,
+      "maxBoosts": 8,
+      "minutesPerToken": 60.0,
+      "chickenRunCooldownMinutes": 180.0,
+      "startTime": 1750377600.0,
+      "expirationTime": 1751068800.0,
+      "lengthSeconds": 1209600.0,
+      "gradeSpecs": [
+        {
+          "grade": "GRADE_AAA",
+          "goals": [
+            {"type": "EGGS_LAID", "targetAmount": 1.0e22, "rewardType": "SOUL_EGGS", "rewardAmount": 5.0},
+            {"type": "EGGS_LAID", "targetAmount": 5.0e22, "rewardType": "EGGS_OF_PROPHECY", "rewardAmount": 1.0}
+          ],
+          "lengthSeconds": 1209600.0
+        }
+      ]
+    }
+  ],
+  "serverTime": 1750550400.0,
+  "maxEop": 1000
+}

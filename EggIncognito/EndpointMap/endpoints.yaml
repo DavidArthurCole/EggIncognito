@@ -1,0 +1,184 @@
+endpoints:
+  # ei/* - 33 endpoints
+  - path: ei/auto_join_coop
+    requestType: AutoJoinCoopRequest
+    responseType: JoinCoopResponse
+  - path: ei/clean_accounts
+    requestType: CleanAccountRequest
+    responseType: AuthenticatedMessage
+  - path: ei/clear_all_user_data
+    requestType: ClearAllUserDataRequest
+    responseType: AuthenticatedMessage
+  - path: ei/confirm_royalty_delivery
+    requestType: AuthenticatedMessage
+    responseType: AuthenticatedMessage
+  - path: ei/contract_sim_poll
+    requestType: ContractSimConfig
+    responseType: ContractSimPollResponse
+  - path: ei/contract_sim_update
+    requestType: ContractSimResultUpdate
+    responseType: AuthenticatedMessage
+  - path: ei/coop_status
+    requestType: ContractCoopStatusRequest
+    responseType: ContractCoopStatusResponse
+  - path: ei/coop_status_basic
+    requestType: ContractCoopStatusRequest
+    responseType: ContractCoopStatusResponse
+  - path: ei/create_coop
+    requestType: CreateCoopRequest
+    responseType: CreateCoopResponse
+  - path: ei/daily_gift_info
+    requestType: AuthenticatedMessage
+    responseType: DailyGiftInfo
+  - path: ei/did_config_change
+    requestType: ConfigRequest
+    responseType: ConfigResponse
+  - path: ei/first_contact_secure
+    requestType: EggIncFirstContactRequest
+    responseType: EggIncFirstContactResponse
+  - path: ei/get_config
+    requestType: ConfigRequest
+    responseType: ConfigResponse
+  - path: ei/get_contracts
+    requestType: ContractsRequest
+    responseType: ContractsResponse
+  - path: ei/get_events
+    requestType: AuthenticatedMessage
+    responseType: EggIncCurrentEvents
+  - path: ei/get_periodicals
+    requestType: GetPeriodicalsRequest
+    responseType: PeriodicalsResponse
+  - path: ei/get_sales
+    requestType: SalesInfoRequest
+    responseType: SalesInfo
+  - path: ei/get_shell_showcase
+    requestType: AuthenticatedMessage
+    responseType: ShellShowcase
+  - path: ei/gift_player_coop_secure
+    requestType: GiftPlayerCoopRequest
+    responseType: AuthenticatedMessage
+  - path: ei/join_coop
+    requestType: JoinCoopRequest
+    responseType: JoinCoopResponse
+  - path: ei/kick_player_coop
+    requestType: KickPlayerCoopRequest
+    responseType: AuthenticatedMessage
+  - path: ei/leave_coop
+    requestType: LeaveCoopRequest
+    responseType: AuthenticatedMessage
+  - path: ei/query_coop
+    requestType: QueryCoopRequest
+    responseType: QueryCoopResponse
+  - path: ei/report_player_coop
+    requestType: ReportPlayerCoopRequest
+    responseType: AuthenticatedMessage
+  - path: ei/save_backup_secure
+    requestType: Backup
+    responseType: SaveBackupResponse
+  - path: ei/send_chicken_run_coop
+    requestType: SendChickenRunCoopRequest
+    responseType: AuthenticatedMessage
+  - path: ei/showcase_listing_info
+    requestType: AuthenticatedMessage
+    responseType: AuthenticatedMessage
+  - path: ei/showcase_vote
+    requestType: AuthenticatedMessage
+    responseType: AuthenticatedMessage
+  - path: ei/process_shells_actions
+    requestType: ShellsActionBatch
+    rawResponse: "OK"
+  - path: ei/submit_to_showcase
+    requestType: SubmitShellShowcaseRequest
+    responseType: AuthenticatedMessage
+  - path: ei/sync_path_of_virtue
+    requestType: SyncPathOfVirtueRequest
+    responseType: SyncPathOfVirtueResponse
+  - path: ei/update_coop_permissions
+    requestType: UpdateCoopPermissionsRequest
+    responseType: UpdateCoopPermissionsResponse
+  - path: ei/update_coop_status_secure
+    requestType: ContractCoopStatusUpdateRequest
+    responseType: ContractCoopStatusUpdateResponse
+  - path: ei/user_data_info
+    requestType: UserDataInfoRequest
+    responseType: UserDataInfoResponse
+
+  # ei_afx/* - 12 endpoints
+  - path: ei_afx/abort_mission
+    requestType: MissionRequest
+    responseType: AuthenticatedMessage
+  - path: ei_afx/authenticate_artifact
+    requestType: AuthenticatedMessage
+    responseType: AuthenticateArtifactResponse
+  - path: ei_afx/collect_contract_artifacts
+    requestType: CollectContractArtifactRewardsRequest
+    responseType: AuthenticatedMessage
+  - path: ei_afx/collect_season_artifacts
+    requestType: CollectSeasonArtifactRewardsRequest
+    responseType: AuthenticatedMessage
+  - path: ei_afx/complete_mission
+    requestType: MissionRequest
+    responseType: CompleteMissionResponse
+  - path: ei_afx/config
+    requestType: ArtifactsConfigurationRequest
+    responseType: ArtifactsConfigurationResponse
+  - path: ei_afx/consume_artifact
+    requestType: ConsumeArtifactRequest
+    responseType: ConsumeArtifactResponse
+  - path: ei_afx/craft_artifact
+    requestType: CraftArtifactRequest
+    responseType: CraftArtifactResponse
+  - path: ei_afx/demote_artifact
+    requestType: AuthenticatedMessage
+    responseType: AuthenticateArtifactResponse
+  - path: ei_afx/get_active_missions_v2
+    requestType: GetActiveMissionsRequest
+    responseType: GetActiveMissionsResponse
+  - path: ei_afx/launch_mission
+    requestType: MissionRequest
+    responseType: MissionResponse
+  - path: ei_afx/set_artifact
+    requestType: SetArtifactRequest
+    responseType: SetArtifactResponse
+  - path: ei_afx/sync_mission
+    requestType: MissionRequest
+    responseType: GetActiveMissionsResponse
+
+  # ei_ctx/* - 6 endpoints
+  - path: ei_ctx/confirm_season_reward
+    requestType: ContractSeasonRewardConfirmationRequest
+    responseType: AuthenticatedMessage
+  - path: ei_ctx/get_contract_evaluation
+    requestType: AuthenticatedMessage
+    responseType: ContractEvaluation
+  - path: ei_ctx/get_contract_player_info
+    requestType: AuthenticatedMessage
+    responseType: ContractPlayerInfo
+  - path: ei_ctx/get_contracts_archive
+    requestType: AuthenticatedMessage
+    responseType: ContractsArchive
+  - path: ei_ctx/get_leaderboard_info
+    requestType: AuthenticatedMessage
+    responseType: LeaderboardInfo
+  - path: ei_ctx/get_season_infos_v2
+    requestType: AuthenticatedMessage
+    responseType: ContractSeasonInfos
+
+  # ei_data/* - 4 endpoints
+  - path: ei_data/log_actions
+    requestType: GenericActionBatchRequest
+    rawResponse: "SUCCESS"
+  - path: ei_data/log_contract_action
+    requestType: ContractAction
+    rawResponse: "SUCCESS"
+  - path: ei_data/log_currency_flow
+    requestType: CurrencyFlowBatchRequest
+    rawResponse: "SUCCESS"
+  - path: ei_data/log_purchase
+    requestType: VerifyPurchaseRequest
+    responseType: VerifyPurchaseResponse
+
+  # ei_srv/* - 1 endpoint
+  - path: ei_srv/subscription_status
+    requestType: AuthenticatedMessage
+    responseType: AuthenticatedMessage
