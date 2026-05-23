@@ -1,13 +1,40 @@
-# EggIncognito
+<h1 align="center">EggIncognito</h1>
 
-Stateless mock server for the Egg Inc API (`auxbrain.com`). Accepts the same base64-encoded protobuf POST format as the real API and returns configurable fixture responses.
+<p align="center">
+  <a href="https://github.com/DavidArthurCole/EggIncognito/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/DavidArthurCole/EggIncognito/ci.yml?branch=main" alt="CI"></a>
+  <a href="https://discord.davidarthurcole.me"><img src="https://img.shields.io/badge/discord-join%20server-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
+</p>
 
-## Setup
+<p align="center">
+  <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/go"><img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go"></a>
+  <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/python"><img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white" alt="Python"></a>
+  <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/javascript"><img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black" alt="JavaScript"></a>
+  <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/java"><img src="https://img.shields.io/badge/Java-ED8B00?logo=openjdk&logoColor=white" alt="Java"></a>
+  <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/kotlin"><img src="https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin"></a>
+  <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/ruby"><img src="https://img.shields.io/badge/Ruby-CC342D?logo=ruby&logoColor=white" alt="Ruby"></a>
+  <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/csharp"><img src="https://img.shields.io/badge/C%23-512BD4?logo=dotnet&logoColor=white" alt="C#"></a>
+</p>
+
+Stateless mock server for the Egg Inc API (`auxbrain.com`). Accepts the same base64-encoded protobuf POST format as the real API and returns configurable fixture responses from disk.
+
+## Quick start
+
+Run locally:
 
 ```sh
-dotnet run --project EggIncognito       # http://localhost:5080
-docker compose up                        # http://localhost:5080 (fixtures volume-mounted)
-dotnet test EggIncognito.slnx           # run tests
+dotnet run --project EggIncognito
+```
+
+Or with Docker (fixtures volume-mounted from `./EggIncognito/Fixtures`):
+
+```sh
+docker compose up
+```
+
+Both listen on `http://localhost:5080`. To run tests:
+
+```sh
+dotnet test EggIncognito.slnx
 ```
 
 ### HTTPS
@@ -20,7 +47,7 @@ certs/
   server.key
 ```
 
-- Local: `https://localhost:5443` (default `HttpsPort` is 8443, docker-compose maps it to 5443)
+- Local: `https://localhost:5443`
 - Docker: mount `./certs:/app/certs:ro` (already in `docker-compose.yml`)
 - `CertsPath`, `HttpPort`, and `HttpsPort` config keys override the defaults
 - The `certs/` directory is gitignored - never commit private keys
@@ -82,6 +109,7 @@ All scripts are PowerShell Core and run cross-platform with `pwsh`.
 | `Sync-Proto.ps1` | Download latest `ei.proto` from [elgranjero/EggIncProtos](https://github.com/elgranjero/EggIncProtos) |
 | `Sync-Endpoints.ps1` | Diff APK endpoint strings against `endpoints.yaml` |
 | `Export-Collection.ps1` | Generate a Postman v2.1 collection JSON from `endpoints.yaml` |
+| `Extract-Fixtures.ps1` | Extract fixture files from a mitmproxy `.mitm` capture |
 | `Publish-Fixtures.ps1` | Push fixture data to the orphan `fixtures` branch |
 | `Publish-Generated.ps1` | Generate and push each language server to its `generated/<lang>` branch |
 
@@ -90,6 +118,7 @@ pwsh scripts/Sync-Proto.ps1
 pwsh scripts/Sync-Endpoints.ps1 -ApkPath ./apks/split_config.arm64_v8a.apk
 pwsh scripts/Sync-Endpoints.ps1 -GooglePlayEmail you@gmail.com
 pwsh scripts/Export-Collection.ps1
+pwsh scripts/Extract-Fixtures.ps1 -FlowsFile ./captures/session.mitm
 pwsh scripts/Publish-Fixtures.ps1
 pwsh scripts/Publish-Generated.ps1
 ```
@@ -126,7 +155,6 @@ Then `dotnet build`. Add a fixture file under `Fixtures/default/` if a non-empty
 `EggIncognito.CodeGen` generates complete self-contained mock server projects from the same `endpoints.yaml` and fixture files. Generated servers need no proto library - they serve pre-baked binary fixtures directly.
 
 ```sh
-dotnet run --project EggIncognito.CodeGen -- bake
 dotnet run --project EggIncognito.CodeGen -- generate go
 dotnet run --project EggIncognito.CodeGen -- generate python
 dotnet run --project EggIncognito.CodeGen -- generate javascript
@@ -136,10 +164,10 @@ dotnet run --project EggIncognito.CodeGen -- generate ruby
 dotnet run --project EggIncognito.CodeGen -- generate csharp
 ```
 
-Output goes to `generated/<language>/`. Each project includes a README with run instructions. The `generated/` directory is gitignored - regenerate as needed, or clone a pre-built branch:
+Output goes to `generated/<language>/`. Each project includes a README with run instructions. Pre-built branches are linked at the top of this page, or clone directly:
 
 ```sh
-git clone --branch generated/go --depth 1 <repo-url> egg-inc-mock
+git clone --branch generated/go --depth 1 https://github.com/DavidArthurCole/EggIncognito egg-inc-mock-go
 ```
 
 | Flag | Default | Description |
