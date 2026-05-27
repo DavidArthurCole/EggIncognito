@@ -15,7 +15,7 @@
   <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/csharp"><img src="https://img.shields.io/badge/C%23-512BD4?logo=dotnet&logoColor=white" alt="C#"></a>
 </p>
 
-Stateless mock server for the Egg Inc API (`auxbrain.com`). Accepts the same base64-encoded protobuf POST format as the real API and returns configurable fixture responses from disk.
+Stateless mock server for the [Egg, Inc.](https://eggincgame.com/) API. Accepts the same base-64 protobuf POST format as the real API, and returns configurable fixture responses from disk.
 
 ## Quick start
 
