@@ -8,7 +8,7 @@ import io.ktor.server.routing.*
 import java.io.File
 import java.util.Base64
 
-val FIXTURES_PATH: String = System.getenv("FIXTURES_PATH") ?: "Fixtures"
+var FIXTURES_PATH: String = System.getenv("FIXTURES_PATH") ?: "Fixtures"
 
 fun main() {
     val port = System.getenv("PORT")?.toIntOrNull() ?: {PORT}
@@ -29,7 +29,7 @@ private suspend fun serve(call: ApplicationCall, slug: String) {
     call.respondText(Base64.getEncoder().encodeToString(fixture), io.ktor.http.ContentType.Text.Html)
 }
 
-private fun loadFixture(slug: String, eid: String): ByteArray {
+internal fun loadFixture(slug: String, eid: String): ByteArray {
     if (eid.isNotEmpty()) {
         val f = File(FIXTURES_PATH, "eids/$eid/$slug.binpb")
         if (f.exists()) return f.readBytes()
@@ -40,7 +40,7 @@ private fun loadFixture(slug: String, eid: String): ByteArray {
 }
 
 /** Read AuthenticatedMessage.user_id (field 6, wire type 2) from base64 data. */
-private fun extractEid(data: String): String {
+internal fun extractEid(data: String): String {
     if (data.isEmpty()) return ""
     return try { readProtoString(Base64.getDecoder().decode(data), 6) } catch (e: Exception) { "" }
 }

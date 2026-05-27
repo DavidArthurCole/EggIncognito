@@ -22,6 +22,9 @@
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito\EggIncognito.csproj" />
     <ProjectReference Include="..\EggIncognito.Generator\EggIncognito.Generator.csproj" />
+    <ProjectReference Include="..\EggIncognito.CodeGen\EggIncognito.CodeGen.csproj">
+      <Aliases>CodeGen</Aliases>
+    </ProjectReference>
   </ItemGroup>
 
 </Project>

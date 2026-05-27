@@ -8,7 +8,7 @@ import java.nio.file.*;
 import java.util.Base64;
 
 public class Server {
-    private static final String FIXTURES_PATH =
+    static String FIXTURES_PATH =
         System.getenv().getOrDefault("FIXTURES_PATH", "Fixtures");
 
     public static void main(String[] args) {
@@ -25,7 +25,7 @@ public class Server {
         ctx.contentType("text/html").result(Base64.getEncoder().encodeToString(fixture));
     }
 
-    private static byte[] loadFixture(String slug, String eid) {
+    static byte[] loadFixture(String slug, String eid) {
         if (eid != null && !eid.isEmpty()) {
             var p = Path.of(FIXTURES_PATH, "eids", eid, slug + ".binpb");
             if (Files.exists(p)) try { return Files.readAllBytes(p); } catch (IOException ignored) {}
@@ -36,7 +36,7 @@ public class Server {
     }
 
     /** Read AuthenticatedMessage.user_id (field 6, wire type 2) from base64 data. */
-    private static String extractEid(String data) {
+    static String extractEid(String data) {
         if (data == null || data.isEmpty()) return "";
         try {
             return readProtoString(Base64.getDecoder().decode(data), 6);

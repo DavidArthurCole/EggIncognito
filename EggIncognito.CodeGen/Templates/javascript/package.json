@@ -2,7 +2,7 @@
   "name": "egginc-mock",
   "version": "1.0.0",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "scripts": { "start": "node server.js", "test": "node --test server.test.js" },
   "dependencies": { "express": "^4.19.0" },
   "engines": { "node": ">=18" }
 }

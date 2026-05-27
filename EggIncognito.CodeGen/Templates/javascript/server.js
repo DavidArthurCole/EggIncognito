@@ -4,7 +4,7 @@ const express = require('express');
 const fs      = require('fs');
 const path    = require('path');
 
-const FIXTURES_PATH = process.env.FIXTURES_PATH ?? 'Fixtures';
+let FIXTURES_PATH = process.env.FIXTURES_PATH ?? 'Fixtures';
 const PORT          = parseInt(process.env.PORT ?? '{PORT}', 10);
 
 const app = express();
@@ -72,6 +72,10 @@ function decodeVarint(buf, pos) {
 // GENERATED ROUTES - do not edit by hand
 {ROUTES}
 
-app.listen(PORT, () => {
-  console.log(`EggIncognito JS mock server :${PORT}  fixtures: ${FIXTURES_PATH}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`EggIncognito JS mock server :${PORT}  fixtures: ${FIXTURES_PATH}`);
+  });
+}
+
+module.exports = { extractEid, loadFixture };
