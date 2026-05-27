@@ -37,7 +37,7 @@ jobs:
       - name: Generate stubs
         run: |
           for lang in go python javascript java kotlin ruby csharp; do
-            dotnet run --project EggIncognito.CodeGen --configuration Release --no-build -- generate $lang
+            dotnet run --project EggIncognito.CodeGen --configuration Release --no-build -- generate $lang --bake
           done
 
       - name: Upload generated stubs

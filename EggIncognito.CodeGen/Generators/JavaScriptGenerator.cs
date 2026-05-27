@@ -19,7 +19,7 @@ public sealed class JavaScriptGenerator : IServerGenerator
             const fs      = require('fs');
             const path    = require('path');
 
-            const FIXTURES_PATH = process.env.FIXTURES_PATH ?? {{JsStr(fixturesPath)}};
+            const FIXTURES_PATH = process.env.FIXTURES_PATH ?? 'Fixtures';
             const PORT          = parseInt(process.env.PORT ?? '{{port}}', 10);
 
             const app = express();
@@ -105,10 +105,9 @@ public sealed class JavaScriptGenerator : IServerGenerator
             }
             """, new UTF8Encoding(false));
 
-        GoGenerator.WriteReadme(outputDir, port, fixturesPath,
+        GoGenerator.WriteReadme(outputDir, port,
             run: "npm install\nnode server.js",
             prereqs: "Node.js 18+");
     }
 
-    private static string JsStr(string s) => "'" + s.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
 }

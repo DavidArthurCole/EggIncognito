@@ -23,7 +23,7 @@ public sealed class GoGenerator : IServerGenerator
             	"path/filepath"
             )
 
-            var fixturesPath = getEnv("FIXTURES_PATH", {{Quote(fixturesPath)}})
+            var fixturesPath = getEnv("FIXTURES_PATH", "Fixtures")
 
             func main() {
             	port := getEnv("PORT", "{{port}}")
@@ -141,14 +141,12 @@ public sealed class GoGenerator : IServerGenerator
             go 1.21
             """, new UTF8Encoding(false));
 
-        WriteReadme(outputDir, port, fixturesPath,
+        WriteReadme(outputDir, port,
             run: "go run .",
             prereqs: "Go 1.21+");
     }
 
-    private static string Quote(string s) => "\"" + s.Replace("\\", "\\\\") + "\"";
-
-    internal static void WriteReadme(string outputDir, int port, string fixturesPath, string run, string prereqs)
+    internal static void WriteReadme(string outputDir, int port, string run, string prereqs)
     {
         File.WriteAllText(Path.Combine(outputDir, "README.md"), $"""
             # EggIncognito Mock Server
@@ -159,15 +157,9 @@ public sealed class GoGenerator : IServerGenerator
 
             {prereqs}
 
-            ## Setup
-
-            Bake fixtures first (converts JSON fixtures to binary proto):
-
-            ```sh
-            dotnet run --project EggIncognito.CodeGen -- bake
-            ```
-
             ## Run
+
+            Fixtures are pre-baked and included. Start the server:
 
             ```sh
             {run}
@@ -179,13 +171,13 @@ public sealed class GoGenerator : IServerGenerator
 
             | Variable | Default | Description |
             |---|---|---|
-            | `FIXTURES_PATH` | `{fixturesPath}` | Path to EggIncognito/Fixtures directory |
+            | `FIXTURES_PATH` | `Fixtures` | Path to fixtures directory |
             | `PORT` | `{port}` | HTTP listen port |
 
             ## Regenerate
 
             ```sh
-            dotnet run --project EggIncognito.CodeGen -- generate {Path.GetFileName(outputDir)}
+            dotnet run --project EggIncognito.CodeGen -- generate {Path.GetFileName(outputDir)} --bake
             ```
             """, new UTF8Encoding(false));
     }

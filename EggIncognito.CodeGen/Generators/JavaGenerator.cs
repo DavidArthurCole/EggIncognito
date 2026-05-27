@@ -27,7 +27,7 @@ public sealed class JavaGenerator : IServerGenerator
 
             public class Server {
                 private static final String FIXTURES_PATH =
-                    System.getenv().getOrDefault("FIXTURES_PATH", {{JavaStr(fixturesPath)}});
+                    System.getenv().getOrDefault("FIXTURES_PATH", "Fixtures");
 
                 public static void main(String[] args) {
                     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "{{port}}"));
@@ -131,15 +131,39 @@ public sealed class JavaGenerator : IServerGenerator
                                 <mainClass>com.egginc.mock.Server</mainClass>
                             </configuration>
                         </plugin>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-assembly-plugin</artifactId>
+                            <version>3.7.1</version>
+                            <configuration>
+                                <archive>
+                                    <manifest>
+                                        <mainClass>com.egginc.mock.Server</mainClass>
+                                    </manifest>
+                                </archive>
+                                <descriptorRefs>
+                                    <descriptorRef>jar-with-dependencies</descriptorRef>
+                                </descriptorRefs>
+                                <appendAssemblyId>true</appendAssemblyId>
+                            </configuration>
+                            <executions>
+                                <execution>
+                                    <id>make-assembly</id>
+                                    <phase>package</phase>
+                                    <goals>
+                                        <goal>single</goal>
+                                    </goals>
+                                </execution>
+                            </executions>
+                        </plugin>
                     </plugins>
                 </build>
             </project>
             """, new UTF8Encoding(false));
 
-        GoGenerator.WriteReadme(outputDir, port, fixturesPath,
+        GoGenerator.WriteReadme(outputDir, port,
             run: "mvn compile exec:java",
             prereqs: "Java 17+, Maven 3.8+");
     }
 
-    private static string JavaStr(string s) => "\"" + s.Replace("\\", "\\\\") + "\"";
 }

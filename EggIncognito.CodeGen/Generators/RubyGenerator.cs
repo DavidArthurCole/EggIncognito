@@ -17,7 +17,7 @@ public sealed class RubyGenerator : IServerGenerator
             require 'sinatra'
             require 'base64'
 
-            FIXTURES_PATH = ENV.fetch('FIXTURES_PATH', {{RbStr(fixturesPath)}})
+            FIXTURES_PATH = ENV.fetch('FIXTURES_PATH', 'Fixtures')
             set :port, (ENV['PORT'] || '{{port}}').to_i
             set :bind, '0.0.0.0'
 
@@ -89,10 +89,9 @@ public sealed class RubyGenerator : IServerGenerator
             gem 'sinatra', '~> 4.0'
             """, new UTF8Encoding(false));
 
-        GoGenerator.WriteReadme(outputDir, port, fixturesPath,
+        GoGenerator.WriteReadme(outputDir, port,
             run: "bundle install\nruby server.rb",
             prereqs: "Ruby 3.1+, Bundler");
     }
 
-    private static string RbStr(string s) => "'" + s.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
 }

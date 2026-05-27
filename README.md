@@ -155,13 +155,13 @@ Then `dotnet build`. Add a fixture file under `Fixtures/default/` if a non-empty
 `EggIncognito.CodeGen` generates complete self-contained mock server projects from the same `endpoints.yaml` and fixture files. Generated servers need no proto library - they serve pre-baked binary fixtures directly.
 
 ```sh
-dotnet run --project EggIncognito.CodeGen -- generate go
-dotnet run --project EggIncognito.CodeGen -- generate python
-dotnet run --project EggIncognito.CodeGen -- generate javascript
-dotnet run --project EggIncognito.CodeGen -- generate java
-dotnet run --project EggIncognito.CodeGen -- generate kotlin
-dotnet run --project EggIncognito.CodeGen -- generate ruby
-dotnet run --project EggIncognito.CodeGen -- generate csharp
+dotnet run --project EggIncognito.CodeGen -- generate go --bake
+dotnet run --project EggIncognito.CodeGen -- generate python --bake
+dotnet run --project EggIncognito.CodeGen -- generate javascript --bake
+dotnet run --project EggIncognito.CodeGen -- generate java --bake
+dotnet run --project EggIncognito.CodeGen -- generate kotlin --bake
+dotnet run --project EggIncognito.CodeGen -- generate ruby --bake
+dotnet run --project EggIncognito.CodeGen -- generate csharp --bake
 ```
 
 Output goes to `generated/<language>/`. Each project includes a README with run instructions. Pre-built branches are linked at the top of this page, or clone directly:

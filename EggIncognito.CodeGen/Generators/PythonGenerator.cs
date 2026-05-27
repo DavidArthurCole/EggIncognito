@@ -25,7 +25,7 @@ public sealed class PythonGenerator : IServerGenerator
             from flask import Flask, request, Response
 
             app = Flask(__name__)
-            FIXTURES_PATH = os.environ.get("FIXTURES_PATH", {{PyStr(fixturesPath)}})
+            FIXTURES_PATH = os.environ.get("FIXTURES_PATH", "Fixtures")
             PORT = int(os.environ.get("PORT", "{{port}}"))
 
 
@@ -110,10 +110,9 @@ public sealed class PythonGenerator : IServerGenerator
             flask>=3.0
             """, new UTF8Encoding(false));
 
-        GoGenerator.WriteReadme(outputDir, port, fixturesPath,
+        GoGenerator.WriteReadme(outputDir, port,
             run: "pip install -r requirements.txt\npython server.py",
             prereqs: "Python 3.11+");
     }
 
-    private static string PyStr(string s) => "r\"" + s.Replace("\"", "\\\"") + "\"";
 }

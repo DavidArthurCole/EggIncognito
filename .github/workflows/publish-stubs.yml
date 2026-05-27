@@ -27,7 +27,7 @@ jobs:
         run: dotnet build --configuration Release
 
       - name: Generate ${{ matrix.language }} stubs
-        run: dotnet run --project EggIncognito.CodeGen --configuration Release --no-build -- generate ${{ matrix.language }}
+        run: dotnet run --project EggIncognito.CodeGen --configuration Release --no-build -- generate ${{ matrix.language }} --bake
 
       - name: Publish to generated/${{ matrix.language }}
         run: |

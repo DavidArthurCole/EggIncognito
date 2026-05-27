@@ -22,7 +22,7 @@ public sealed class CSharpGenerator : IServerGenerator
             </Solution>
             """, new UTF8Encoding(false));
 
-        GoGenerator.WriteReadme(outputDir, port, fixturesPath,
+        GoGenerator.WriteReadme(outputDir, port,
             run: "dotnet run --project EggIncognito",
             prereqs: ".NET 10 SDK");
     }

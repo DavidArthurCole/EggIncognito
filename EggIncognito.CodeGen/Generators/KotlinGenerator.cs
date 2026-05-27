@@ -26,7 +26,7 @@ public sealed class KotlinGenerator : IServerGenerator
             import java.io.File
             import java.util.Base64
 
-            val FIXTURES_PATH: String = System.getenv("FIXTURES_PATH") ?: {{KtStr(fixturesPath)}}
+            val FIXTURES_PATH: String = System.getenv("FIXTURES_PATH") ?: "Fixtures"
 
             fun main() {
                 val port = System.getenv("PORT")?.toIntOrNull() ?: {{port}}
@@ -102,6 +102,7 @@ public sealed class KotlinGenerator : IServerGenerator
             plugins {
                 kotlin("jvm") version "2.0.21"
                 application
+                id("com.github.johnrengelman.shadow") version "8.1.1"
             }
             repositories { mavenCentral() }
             dependencies {
@@ -112,10 +113,9 @@ public sealed class KotlinGenerator : IServerGenerator
             application { mainClass.set("ServerKt") }
             """, new UTF8Encoding(false));
 
-        GoGenerator.WriteReadme(outputDir, port, fixturesPath,
+        GoGenerator.WriteReadme(outputDir, port,
             run: "./gradlew run",
             prereqs: "Kotlin 2.0+, JDK 17+, Gradle 8+");
     }
 
-    private static string KtStr(string s) => "\"" + s.Replace("\\", "\\\\") + "\"";
 }
