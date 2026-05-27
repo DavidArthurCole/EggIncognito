@@ -27,11 +27,15 @@ jobs:
         run: dotnet build --configuration Release
 
       - name: Generate ${{ matrix.language }} stubs
-        run: dotnet run --project EggIncognito.CodeGen --configuration Release --no-build -- generate ${{ matrix.language }} --bake
+        env:
+          LANGUAGE: ${{ matrix.language }}
+        run: dotnet run --project EggIncognito.CodeGen --configuration Release --no-build -- generate "$LANGUAGE" --bake
 
       - name: Publish to generated/${{ matrix.language }}
+        env:
+          LANGUAGE: ${{ matrix.language }}
         run: |
-          BRANCH="generated/${{ matrix.language }}"
+          BRANCH="generated/${LANGUAGE}"
           SOURCE_SHA=$(git rev-parse --short HEAD)
 
           git config user.name "github-actions[bot]"
@@ -44,13 +48,13 @@ jobs:
             git worktree add --orphan -b "${BRANCH}" /tmp/pub
           fi
 
-          rsync -a --delete --exclude='.git' "generated/${{ matrix.language }}/" /tmp/pub/
+          rsync -a --delete --exclude='.git' "generated/${LANGUAGE}/" /tmp/pub/
 
           cd /tmp/pub
           git add -A
           if git diff --cached --quiet; then
             echo "No changes."
           else
-            git commit -m "chore: regenerate ${{ matrix.language }} stubs (main@${SOURCE_SHA})"
+            git commit -m "chore: regenerate ${LANGUAGE} stubs (main@${SOURCE_SHA})"
             git push origin "${BRANCH}"
           fi
