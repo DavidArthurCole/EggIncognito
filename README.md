@@ -5,6 +5,11 @@
   <a href="https://discord.davidarthurcole.me"><img src="https://img.shields.io/badge/discord-join%20server-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
+Stateless mock server for the [Egg, Inc.](https://eggincgame.com/) API. Accepts the same base-64 protobuf POST format as the real API, and returns configurable fixture responses from disk.
+
+<h1 align="center">Quick Start</h1>
+
+<h3 align="center">Download a Pre-built Server</h3>
 <p align="center">
   <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/go"><img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go"></a>
   <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/python"><img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white" alt="Python"></a>
@@ -15,11 +20,7 @@
   <a href="https://github.com/DavidArthurCole/EggIncognito/tree/generated/csharp"><img src="https://img.shields.io/badge/C%23-512BD4?logo=dotnet&logoColor=white" alt="C#"></a>
 </p>
 
-Stateless mock server for the [Egg, Inc.](https://eggincgame.com/) API. Accepts the same base-64 protobuf POST format as the real API, and returns configurable fixture responses from disk.
-
-## Quick start
-
-Run locally:
+Or clone, and run locally:
 
 ```sh
 dotnet run --project EggIncognito
