@@ -31,7 +31,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: maven
+          cache: gradle
 
       - name: Build EggIncognito
         run: dotnet build --configuration Release --verbosity minimal
@@ -87,9 +87,10 @@ jobs:
       - name: Build Java JAR
         run: |
           TAG="${GITHUB_REF_NAME}"
-          mvn -q package -DskipTests -f generated/java/pom.xml
-          cp generated/java/target/mock-1.0.0-jar-with-dependencies.jar \
-            "eggincognito-java-${TAG}.jar"
+          cd generated/java
+          gradle -q shadowJar --no-daemon
+          cd ../..
+          cp generated/java/build/libs/*-all.jar "eggincognito-java-${TAG}.jar"
 
       - name: Build Kotlin JAR
         run: |

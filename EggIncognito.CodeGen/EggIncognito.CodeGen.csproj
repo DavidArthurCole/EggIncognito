@@ -10,4 +10,8 @@
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito\EggIncognito.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Templates\**\*" />
+  </ItemGroup>
 </Project>
