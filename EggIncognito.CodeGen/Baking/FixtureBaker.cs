@@ -10,8 +10,9 @@ public static class FixtureBaker
         int count = 0, skipped = 0;
         foreach (var jsonFile in Directory.EnumerateFiles(fixturesPath, "*.json", SearchOption.AllDirectories))
         {
-            var slug = Path.GetFileNameWithoutExtension(jsonFile);
-            if (!typeMap.TryGetValue(slug, out var descriptor))
+            var relative = Path.GetRelativePath(fixturesPath, jsonFile).Replace('\\', '/');
+            var endpointPath = ExtractEndpointPath(relative);
+            if (endpointPath is null || !typeMap.TryGetValue(endpointPath, out var descriptor))
             {
                 skipped++;
                 continue;
@@ -34,5 +35,18 @@ public static class FixtureBaker
         if (skipped > 0)
             Console.WriteLine($"  (skipped {skipped} file(s) with no matching endpoint)");
         return count;
+    }
+
+    private static string? ExtractEndpointPath(string relative)
+    {
+        if (relative.StartsWith("default/"))
+            return relative["default/".Length..].Replace(".json", "");
+        if (relative.StartsWith("eids/"))
+        {
+            var rest = relative["eids/".Length..];
+            var slash = rest.IndexOf('/');
+            return slash >= 0 ? rest[(slash + 1)..].Replace(".json", "") : null;
+        }
+        return null;
     }
 }

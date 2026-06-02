@@ -1,7 +1,0 @@
-{
-  "seasons": [
-    {"scope": "season-2026-spring", "name": "Spring 2026"},
-    {"scope": "all-time", "name": "All Time"}
-  ],
-  "allTimeScope": "all-time"
-}

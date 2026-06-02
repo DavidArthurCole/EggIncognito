@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -26,6 +27,7 @@ var apiSalt = Environment.GetEnvironmentVariable("EGG_INC_API_SALT")
         "  Bash:       export EGG_INC_API_SALT='...'");
 
 var repoRoot = FindRepoRoot();
+var liveTypeMap = LoadEndpointTypes(repoRoot);
 var fixturesOut = Path.Combine(repoRoot, "EggIncognito", "Fixtures", "eids", eid);
 Directory.CreateDirectory(fixturesOut);
 
@@ -97,15 +99,16 @@ foreach (var (path, baseUrl, innerBuilder, wrap) in endpoints)
             ? Decompress(authMsg.Message.ToByteArray())
             : authMsg.Message.ToByteArray();
 
-        var json = FormatResponse(path, inner);
+        var json = FormatResponse(path, inner, liveTypeMap);
         if (json is null)
         {
             Console.WriteLine("no parser");
             continue;
         }
 
-        var slug = path.Replace('/', '_');
-        var outFile = Path.Combine(fixturesOut, slug + ".json");
+        var slug = path;
+        var outFile = Path.Combine(fixturesOut, Fixture(slug));
+        Directory.CreateDirectory(Path.GetDirectoryName(outFile)!);
         await File.WriteAllTextAsync(outFile, json, Encoding.UTF8);
         Console.WriteLine($"OK -> {slug}.json");
     }
@@ -128,7 +131,10 @@ static void RunFromHar(string harPath, bool overwrite)
 
     var eid = Environment.GetEnvironmentVariable("EGG_INC_EID");
     const string eidPlaceholder = "EI0000000000000000";
-    var outDir = Path.Combine(FindRepoRoot(), "EggIncognito", "Fixtures", "default");
+    var fixturesRoot = Path.Combine(FindRepoRoot(), "EggIncognito", "Fixtures");
+    var outDir = Path.Combine(fixturesRoot, "default");
+    var stagedDir = Path.Combine(fixturesRoot, "staged");
+    var requestsDir = Path.Combine(fixturesRoot, "requests");
     Directory.CreateDirectory(outDir);
 
     Console.WriteLine($"Output: {outDir}");
@@ -140,22 +146,29 @@ static void RunFromHar(string harPath, bool overwrite)
     using var doc = JsonDocument.Parse(File.ReadAllBytes(harPath));
     var entries = doc.RootElement.GetProperty("log").GetProperty("entries").EnumerateArray();
 
+    var typeMap = LoadEndpointTypes(FindRepoRoot());
+    var requestTypeMap = LoadRequestTypes(FindRepoRoot());
     var counts = new HarCounts();
     var seen = new HashSet<string>(StringComparer.Ordinal);
+    var reqErrorSeen = new HashSet<string>(StringComparer.Ordinal);
+    var dirs = new HarDirs(outDir, stagedDir, requestsDir, typeMap, requestTypeMap);
     foreach (var entry in entries)
-        ProcessHarEntry(entry, eid, eidPlaceholder, outDir, overwrite, seen, counts);
+        ProcessHarEntry(entry, eid, eidPlaceholder, dirs, overwrite, seen, counts, reqErrorSeen);
 
     Console.WriteLine();
-    Console.WriteLine($"new={counts.Wrote}  upd={counts.Upd}  diff={counts.Diff}  same={counts.Same}  err={counts.Err}  -> {outDir}");
+    Console.WriteLine($"new={counts.Wrote}  upd={counts.Upd}  diff={counts.Diff}  same={counts.Same}  loss={counts.Loss}  err={counts.Err}  -> {outDir}");
+    if (counts.Diff > 0 && !overwrite)
+        Console.WriteLine($"Staged diffs -> {stagedDir}  (review, then re-run with --overwrite)");
 }
 
 static void ProcessHarEntry(JsonElement entry, string? eid, string eidPlaceholder,
-    string outDir, bool overwrite, HashSet<string> seen, HarCounts counts)
+    HarDirs dirs, bool overwrite, HashSet<string> seen, HarCounts counts,
+    HashSet<string> reqErrorSeen)
 {
-    (string path, string json)? decoded;
+    (string path, string json, string? requestJson, string? autoType, int confidence)? decoded;
     try
     {
-        decoded = TryDecodeEntry(entry, eid, eidPlaceholder);
+        decoded = TryDecodeEntry(entry, eid, eidPlaceholder, dirs.TypeMap, dirs.RequestTypeMap, reqErrorSeen);
     }
     catch (Exception ex)
     {
@@ -167,18 +180,60 @@ static void ProcessHarEntry(JsonElement entry, string? eid, string eidPlaceholde
     if (decoded is null) return;
     if (!seen.Add(decoded.Value.path)) return;
 
-    var (path, json) = decoded.Value;
-    var slug = path.Replace('/', '_');
-    switch (WriteFixture(Path.Combine(outDir, slug + ".json"), json, overwrite))
+    var (path, json, requestJson, autoType, confidence) = decoded.Value;
+    var slug = path;
+    if (SeederConfig.AlwaysSkip.Contains(slug)) return;
+
+    var outFile = Path.Combine(dirs.OutDir, Fixture(slug));
+    if (File.Exists(outFile))
+    {
+        var existing = File.ReadAllText(outFile, Encoding.UTF8);
+        if (CountJsonObjects(json) < CountJsonObjects(existing))
+        {
+            counts.Loss++;
+            Console.WriteLine($"  loss  {slug}.json  (skipped - fewer objects than existing)");
+            return;
+        }
+    }
+
+    if (autoType is not null)
+    {
+        var confidenceStr = confidence >= 80 ? $"confidence: {confidence}%" : $"confidence: {confidence}% - verify before committing";
+        Console.WriteLine($"  auto  {slug}.json  (detected as {autoType}, {confidenceStr})");
+        if (confidence >= 85)
+            AddToEndpointsYaml(autoType, path);
+    }
+
+    switch (WriteFixture(outFile, json, overwrite))
     {
         case "wrote": counts.Wrote++; Console.WriteLine($"  wrote {slug}.json"); break;
         case "upd":   counts.Upd++;   Console.WriteLine($"  upd   {slug}.json"); break;
         case "same":  counts.Same++;  break;
-        case "diff":  counts.Diff++;  Console.WriteLine($"  diff  {slug}.json  (use --overwrite to update)"); break;
+        case "diff":
+            counts.Diff++;
+            var stagedFile = Path.Combine(dirs.StagedDir, Fixture(slug));
+            Directory.CreateDirectory(Path.GetDirectoryName(stagedFile)!);
+            File.WriteAllText(stagedFile, json, Encoding.UTF8);
+            Console.WriteLine($"  diff  {slug}.json  (staged)");
+            break;
+    }
+
+    if (requestJson is not null)
+    {
+        var reqFile = Path.Combine(dirs.RequestsDir, slug + ".request.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(reqFile)!);
+        if (!File.Exists(reqFile))
+        {
+            var scrubbed = eid is not null ? requestJson.Replace(eid, eidPlaceholder) : requestJson;
+            File.WriteAllText(reqFile, scrubbed, Encoding.UTF8);
+            Console.WriteLine($"  req   {slug}.request.json  (wrote)");
+        }
     }
 }
 
-static (string path, string json)? TryDecodeEntry(JsonElement entry, string? eid, string eidPlaceholder)
+static (string path, string json, string? requestJson, string? autoType, int confidence)? TryDecodeEntry(JsonElement entry, string? eid, string eidPlaceholder,
+    IReadOnlyDictionary<string, string> typeMap, IReadOnlyDictionary<string, string> requestTypeMap,
+    HashSet<string> reqErrorSeen)
 {
     var req = entry.GetProperty("request");
     var res = entry.GetProperty("response");
@@ -196,14 +251,29 @@ static (string path, string json)? TryDecodeEntry(JsonElement entry, string? eid
     else
         bodyText = rawText.Trim();
 
-    var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(Convert.FromBase64String(bodyText));
+    byte[] respBytes;
+    try { respBytes = Convert.FromBase64String(bodyText); }
+    catch (FormatException) { return null; }
+
+    var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(respBytes);
     var inner = outer.Compressed ? Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
 
-    var json = FormatResponse(path, inner);
-    if (json is null) return null;
+    var requestJson = ExtractRequestJson(req, path, requestTypeMap, reqErrorSeen);
 
-    return (path, eid is not null ? json.Replace(eid, eidPlaceholder) : json);
+    var json = FormatResponse(path, inner, typeMap);
+    if (json is null)
+    {
+        var (detected, detectedJson, confidence) = AutoDetect(inner);
+        if (detected is not null && detectedJson is not null)
+            return (path, eid is not null ? detectedJson.Replace(eid, eidPlaceholder) : detectedJson, requestJson, detected, confidence);
+        return null;
+    }
+
+    return (path, eid is not null ? json.Replace(eid, eidPlaceholder) : json, requestJson, null, 0);
 }
+
+
+static string Fixture(string slug) => slug + ".json";
 
 static string GetEntryPath(JsonElement entry)
 {
@@ -215,20 +285,28 @@ static string WriteFixture(string path, string json, bool overwrite)
 {
     if (!File.Exists(path))
     {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, json, Encoding.UTF8);
         return "wrote";
     }
     var existing = File.ReadAllText(path, Encoding.UTF8);
-    if (existing == json) return "same";
+    if (NormalizeFloats(existing.Trim()) == NormalizeFloats(json.Trim())) return "same";
     if (!overwrite) return "diff";
     File.WriteAllText(path, json, Encoding.UTF8);
     return "upd";
 }
 
+static string NormalizeFloats(string json) =>
+    Regex.Replace(json, @"(?<=[:\[,\s])(-?\d+)\.0(?=[,\}\]\s\r\n])", "$1");
+
+static string ObfuscateCoopIds(string json) =>
+    Regex.Replace(json, @"""coopIdentifier"":\s*""([^""]+)""",
+        m => $@"""coopIdentifier"": ""{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(m.Groups[1].Value)))[..12].ToLowerInvariant()}""");
+
 static string NormalizePath(string url)
 {
     var path = new Uri(url).AbsolutePath.TrimStart('/');
-    return Regex.Replace(path, @"/EI\d+$", "");
+    return Regex.Replace(path, @"/EI\d+.*$", "");
 }
 
 static byte[] BuildFirstContact(string eid)
@@ -338,70 +416,16 @@ static string ComputeCode(byte[] messageBytes, string phrase)
     return Convert.ToHexString(SHA256.HashData(combined)).ToLowerInvariant();
 }
 
-static string? FormatResponse(string path, byte[] inner)
+static string? FormatResponse(string path, byte[] inner, IReadOnlyDictionary<string, string> typeMap)
 {
-    var fmt = JsonFormatter.Default;
+    if (!typeMap.TryGetValue(path, out var typeName)) return null;
     try
     {
-        IMessage? msg = path switch
-        {
-            "ei/auto_join_coop" => Ei.JoinCoopResponse.Parser.ParseFrom(inner),
-            "ei/clean_accounts" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/clear_all_user_data" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/confirm_royalty_delivery" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/contract_sim_poll" => Ei.ContractSimPollResponse.Parser.ParseFrom(inner),
-            "ei/contract_sim_update" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/coop_status" => Ei.ContractCoopStatusResponse.Parser.ParseFrom(inner),
-            "ei/coop_status_basic" => Ei.ContractCoopStatusResponse.Parser.ParseFrom(inner),
-            "ei/create_coop" => Ei.CreateCoopResponse.Parser.ParseFrom(inner),
-            "ei/daily_gift_info" => Ei.DailyGiftInfo.Parser.ParseFrom(inner),
-            "ei/did_config_change" => Ei.ConfigResponse.Parser.ParseFrom(inner),
-            "ei/first_contact_secure" => Ei.EggIncFirstContactResponse.Parser.ParseFrom(inner),
-            "ei/get_config" => Ei.ConfigResponse.Parser.ParseFrom(inner),
-            "ei/get_contracts" => Ei.ContractsResponse.Parser.ParseFrom(inner),
-            "ei/get_events" => Ei.EggIncCurrentEvents.Parser.ParseFrom(inner),
-            "ei/get_periodicals" => Ei.PeriodicalsResponse.Parser.ParseFrom(inner),
-            "ei/get_sales" => Ei.SalesInfo.Parser.ParseFrom(inner),
-            "ei/get_shell_showcase" => Ei.ShellShowcase.Parser.ParseFrom(inner),
-            "ei/gift_player_coop_secure" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/join_coop" => Ei.JoinCoopResponse.Parser.ParseFrom(inner),
-            "ei/kick_player_coop" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/leave_coop" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/query_coop" => Ei.QueryCoopResponse.Parser.ParseFrom(inner),
-            "ei/report_player_coop" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/save_backup_secure" => Ei.SaveBackupResponse.Parser.ParseFrom(inner),
-            "ei/send_chicken_run_coop" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/showcase_listing_info" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/showcase_vote" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/submit_to_showcase" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei/sync_path_of_virtue" => Ei.SyncPathOfVirtueResponse.Parser.ParseFrom(inner),
-            "ei/update_coop_permissions" => Ei.UpdateCoopPermissionsResponse.Parser.ParseFrom(inner),
-            "ei/update_coop_status_secure" => Ei.ContractCoopStatusUpdateResponse.Parser.ParseFrom(inner),
-            "ei/user_data_info" => Ei.UserDataInfoResponse.Parser.ParseFrom(inner),
-            "ei_afx/abort_mission" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei_afx/authenticate_artifact" => Ei.AuthenticateArtifactResponse.Parser.ParseFrom(inner),
-            "ei_afx/collect_contract_artifacts" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei_afx/collect_season_artifacts" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei_afx/complete_mission" => Ei.CompleteMissionResponse.Parser.ParseFrom(inner),
-            "ei_afx/config" => Ei.ArtifactsConfigurationResponse.Parser.ParseFrom(inner),
-            "ei_afx/consume_artifact" => Ei.ConsumeArtifactResponse.Parser.ParseFrom(inner),
-            "ei_afx/craft_artifact" => Ei.CraftArtifactResponse.Parser.ParseFrom(inner),
-            "ei_afx/demote_artifact" => Ei.AuthenticateArtifactResponse.Parser.ParseFrom(inner),
-            "ei_afx/get_active_missions_v2" => Ei.GetActiveMissionsResponse.Parser.ParseFrom(inner),
-            "ei_afx/launch_mission" => Ei.MissionResponse.Parser.ParseFrom(inner),
-            "ei_afx/set_artifact" => Ei.SetArtifactResponse.Parser.ParseFrom(inner),
-            "ei_afx/sync_mission" => Ei.GetActiveMissionsResponse.Parser.ParseFrom(inner),
-            "ei_ctx/confirm_season_reward" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            "ei_ctx/get_contract_evaluation" => Ei.ContractEvaluation.Parser.ParseFrom(inner),
-            "ei_ctx/get_contract_player_info" => Ei.ContractPlayerInfo.Parser.ParseFrom(inner),
-            "ei_ctx/get_contracts_archive" => Ei.ContractsArchive.Parser.ParseFrom(inner),
-            "ei_ctx/get_leaderboard_info" => Ei.LeaderboardInfo.Parser.ParseFrom(inner),
-            "ei_ctx/get_season_infos_v2" => Ei.ContractSeasonInfos.Parser.ParseFrom(inner),
-            "ei_data/log_purchase" => Ei.VerifyPurchaseResponse.Parser.ParseFrom(inner),
-            "ei_srv/subscription_status" => Ei.AuthenticatedMessage.Parser.ParseFrom(inner),
-            _ => null,
-        };
-        return msg is null ? null : fmt.Format(msg);
+        var msg = ParseByTypeName(typeName, inner);
+        if (msg is null) return null;
+        var formatted = PrettyPrint(JsonFormatter.Default.Format(msg));
+        if (path == "ei_ctx/get_contracts_archive") formatted = ObfuscateCoopIds(formatted);
+        return formatted;
     }
     catch
     {
@@ -409,12 +433,268 @@ static string? FormatResponse(string path, byte[] inner)
     }
 }
 
+static IMessage? ParseByTypeName(string typeName, byte[] data)
+{
+    var type = SeederConfig.EiAssembly.GetType($"Ei.{typeName}");
+    var parser = type?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
+                      ?.GetValue(null) as MessageParser;
+    return parser?.ParseFrom(data);
+}
+
+static IReadOnlyDictionary<string, string> LoadEndpointTypes(string repoRoot)
+{
+    var yaml = File.ReadAllText(Path.Combine(repoRoot, "EggIncognito", "EndpointMap", "endpoints.yaml"));
+    var result = new Dictionary<string, string>(StringComparer.Ordinal);
+    string? currentPath = null;
+    foreach (var line in yaml.Split('\n'))
+    {
+        var pathMatch = Regex.Match(line, @"^\s+-\s+path:\s+(.+)$");
+        if (pathMatch.Success) { currentPath = pathMatch.Groups[1].Value.Trim(); continue; }
+
+        if (currentPath is null) continue;
+
+        var typeMatch = Regex.Match(line, @"^\s+responseType:\s+(.+)$");
+        if (typeMatch.Success)
+        {
+            result[currentPath] = typeMatch.Groups[1].Value.Trim();
+            currentPath = null;
+            continue;
+        }
+
+        if (Regex.IsMatch(line, @"^\s+rawResponse:")) currentPath = null;
+    }
+    return result;
+}
+
+
+static IReadOnlyDictionary<string, string> LoadRequestTypes(string repoRoot)
+{
+    var yaml = File.ReadAllText(Path.Combine(repoRoot, "EggIncognito", "EndpointMap", "endpoints.yaml"));
+    var result = new Dictionary<string, string>(StringComparer.Ordinal);
+    string? currentPath = null;
+    foreach (var line in yaml.Split('\n'))
+    {
+        var pathMatch = Regex.Match(line, @"^\s+-\s+path:\s+(.+)$");
+        if (pathMatch.Success) { currentPath = pathMatch.Groups[1].Value.Trim(); continue; }
+
+        if (currentPath is null) continue;
+
+        var typeMatch = Regex.Match(line, @"^\s+requestType:\s+(.+)$");
+        if (typeMatch.Success)
+        {
+            result[currentPath] = typeMatch.Groups[1].Value.Trim();
+            currentPath = null;
+            continue;
+        }
+
+        if (Regex.IsMatch(line, @"^\s+rawResponse:")) currentPath = null;
+    }
+    return result;
+}
+
+static string? ExtractRequestJson(JsonElement reqEl, string path, IReadOnlyDictionary<string, string> requestTypeMap,
+    HashSet<string> reqErrorSeen)
+{
+    if (!requestTypeMap.TryGetValue(path, out var typeName)) return null;
+    try
+    {
+        string? dataValue = null;
+        if (reqEl.TryGetProperty("postData", out var postData))
+        {
+            if (postData.TryGetProperty("params", out var parms))
+            {
+                foreach (var p in parms.EnumerateArray())
+                {
+                    if (p.TryGetProperty("name", out var name) && name.GetString() == "data")
+                    {
+                        // form URL encoding: + is decoded as space by mitmproxy - restore it
+                        dataValue = p.GetProperty("value").GetString()?.Replace(' ', '+');
+                        break;
+                    }
+                }
+            }
+            if (dataValue is null && postData.TryGetProperty("text", out var text))
+            {
+                var raw = text.GetString() ?? "";
+                var idx = raw.IndexOf("data=", StringComparison.Ordinal);
+                if (idx >= 0) dataValue = Uri.UnescapeDataString(raw[(idx + 5)..].Replace("+", "%2B"));
+            }
+        }
+        if (dataValue is null) return null; // no form body - path-param or empty request
+
+        var reqBytes = Convert.FromBase64String(dataValue);
+        var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(reqBytes);
+        var inner = outer.Compressed ? Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
+        var msg = ParseByTypeName(typeName, inner);
+        if (msg is null)
+        {
+            if (reqErrorSeen.Add(path))
+                Console.Error.WriteLine($"  req   {path}: no parser for requestType '{typeName}'");
+            return null;
+        }
+        return PrettyPrint(JsonFormatter.Default.Format(msg));
+    }
+    catch (Exception ex)
+    {
+        if (reqErrorSeen.Add(path))
+            Console.Error.WriteLine($"  req   {path}: {ex.GetType().Name}: {ex.Message}");
+        return null;
+    }
+}
+
+static string PrettyPrint(string json)
+{
+    var sb = new StringBuilder(json.Length * 2);
+    int depth = 0, i = 0;
+    bool inString = false, escape = false;
+    while (i < json.Length)
+    {
+        char c = json[i++];
+        if (escape) { sb.Append(c); escape = false; continue; }
+        if (inString) { AppendInString(sb, c, ref inString, ref escape); continue; }
+        AppendStructural(sb, json, c, ref i, ref depth, ref inString);
+    }
+    return sb.ToString();
+}
+
+static void AppendInString(StringBuilder sb, char c, ref bool inString, ref bool escape)
+{
+    sb.Append(c);
+    if (c == '\\') escape = true;
+    else if (c == '"') inString = false;
+}
+
+static void AppendStructural(StringBuilder sb, string json, char c, ref int i, ref int depth, ref bool inString)
+{
+    switch (c)
+    {
+        case ' ': case '\t': case '\r': case '\n': break;
+        case '"': inString = true; sb.Append(c); break;
+        case '{': case '[': AppendOpen(sb, json, c, ref i, ref depth); break;
+        case '}': case ']': sb.AppendLine(); sb.Append(' ', --depth * 2); sb.Append(c); break;
+        case ',': sb.Append(c); sb.AppendLine(); sb.Append(' ', depth * 2); break;
+        case ':': sb.Append(": "); break;
+        default: sb.Append(c); break;
+    }
+}
+
+static void AppendOpen(StringBuilder sb, string json, char open, ref int i, ref int depth)
+{
+    sb.Append(open);
+    int j = i;
+    while (j < json.Length && char.IsWhiteSpace(json[j])) j++;
+    if (j < json.Length && (json[j] == '}' || json[j] == ']'))
+    {
+        sb.Append(json[j]);
+        i = j + 1;
+    }
+    else
+    {
+        sb.AppendLine();
+        sb.Append(' ', ++depth * 2);
+    }
+}
+
+static int CountJsonObjects(string json)
+{
+    int count = 0;
+    bool inString = false, escape = false;
+    foreach (char c in json)
+    {
+        if (escape) { escape = false; continue; }
+        if (inString)
+        {
+            if (c == '\\') escape = true;
+            else if (c == '"') inString = false;
+            continue;
+        }
+        if (c == '"') inString = true;
+        else if (c == '{') count++;
+    }
+    return count;
+}
+
+static (string? typeName, string? json, int confidence) AutoDetect(byte[] data)
+{
+    string? bestType = null;
+    string? bestJson = null;
+    int bestScore = 0;
+    int secondBestScore = 0;
+
+    foreach (var type in SeederConfig.EiAssembly.GetTypes()
+        .Where(t => t.Namespace == "Ei" && !t.IsAbstract && typeof(IMessage).IsAssignableFrom(t)))
+    {
+        var (score, json) = TryParseAs(type, data);
+        if (score > bestScore)
+        {
+            secondBestScore = bestScore;
+            bestScore = score;
+            bestType = type.Name;
+            bestJson = json;
+        }
+        else if (score > secondBestScore)
+        {
+            secondBestScore = score;
+        }
+    }
+
+    if (bestScore < 2) return (null, null, 0);
+    int confidence = secondBestScore == 0 ? 100 : Math.Min(99, (int)((double)bestScore / (bestScore + secondBestScore) * 100));
+    return (bestType, bestJson is null ? null : PrettyPrint(bestJson), confidence);
+}
+
+static void AddToEndpointsYaml(string typeName, string endpointPath)
+{
+    var repoRoot = FindRepoRoot();
+    var yamlPath = Path.Combine(repoRoot, "EggIncognito", "EndpointMap", "endpoints.yaml");
+    var yaml = File.ReadAllText(yamlPath);
+
+    if (yaml.Contains($"path: {endpointPath}")) return;
+
+    var ns = endpointPath.Split('/')[0];
+    var sectionComment = $"  # {ns}/";
+    var insertAfter = yaml.LastIndexOf(sectionComment);
+    if (insertAfter < 0) return;
+
+    var sectionEnd = yaml.IndexOf("\n\n", insertAfter);
+    if (sectionEnd < 0) sectionEnd = yaml.Length;
+
+    var newEntry = $"\n  - path: {endpointPath}\n    requestType: AuthenticatedMessage\n    responseType: {typeName}";
+    yaml = yaml.Insert(sectionEnd, newEntry);
+    File.WriteAllText(yamlPath, yaml);
+
+    yaml = Regex.Replace(yaml, $@"\n  - {Regex.Escape(endpointPath)}[^\n]*", "");
+    File.WriteAllText(yamlPath, yaml);
+
+    Console.WriteLine($"  yaml  added {endpointPath} -> {typeName} to endpoints.yaml");
+}
+
+static (int score, string? json) TryParseAs(Type type, byte[] data)
+{
+    try
+    {
+        var parser = type.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
+                         ?.GetValue(null) as MessageParser;
+        if (parser is null) return (0, null);
+        var json = JsonFormatter.Default.Format(parser.ParseFrom(data));
+        return (json.Count(c => c == ':'), json);
+    }
+    catch (InvalidProtocolBufferException)
+    {
+        return (0, null);
+    }
+}
+
 static byte[] Decompress(byte[] compressed)
 {
     using var input = new MemoryStream(compressed);
-    using var zlib = new ZLibStream(input, CompressionMode.Decompress);
+    // GZip magic: 1f 8b. ZLib magic: 78 xx. Fall back to GZip for iOS clients.
+    Stream decompressor = compressed.Length >= 2 && compressed[0] == 0x1f && compressed[1] == 0x8b
+        ? new GZipStream(input, CompressionMode.Decompress)
+        : new ZLibStream(input, CompressionMode.Decompress);
     using var output = new MemoryStream();
-    zlib.CopyTo(output);
+    decompressor.CopyTo(output);
+    decompressor.Dispose();
     return output.ToArray();
 }
 

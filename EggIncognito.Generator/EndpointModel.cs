@@ -5,12 +5,13 @@ namespace EggIncognito.Generator;
 
 public sealed class EndpointModel
 {
-    public EndpointModel(string path, string requestType, string responseType, string? rawResponse = null)
+    public EndpointModel(string path, string requestType, string responseType, string? rawResponse = null, bool pathParam = false)
     {
         Path = path;
         RequestType = requestType;
         ResponseType = responseType;
         RawResponse = rawResponse;
+        PathParam = pathParam;
     }
 
     public string Path { get; }
@@ -18,6 +19,7 @@ public sealed class EndpointModel
     public string ResponseType { get; }
     /// <summary>When set, the endpoint returns this literal string instead of encoded protobuf.</summary>
     public string? RawResponse { get; }
+    public bool PathParam { get; }
 }
 
 public static class EndpointParser
@@ -26,6 +28,7 @@ public static class EndpointParser
     {
         var results = new List<EndpointModel>();
         string? path = null, requestType = null, responseType = null, rawResponse = null;
+        bool pathParam = false;
 
         foreach (var rawLine in yaml.Split('\n'))
         {
@@ -34,9 +37,10 @@ public static class EndpointParser
             if (trimmed.StartsWith("- path:"))
             {
                 if (path != null)
-                    results.Add(Emit(path, requestType, responseType, rawResponse));
+                    results.Add(Emit(path, requestType, responseType, rawResponse, pathParam));
                 path = trimmed.Substring("- path:".Length).Trim().TrimEnd('/');
                 requestType = responseType = rawResponse = null;
+                pathParam = false;
             }
             else if (trimmed.StartsWith("requestType:"))
                 requestType = trimmed.Substring("requestType:".Length).Trim();
@@ -44,20 +48,23 @@ public static class EndpointParser
                 responseType = trimmed.Substring("responseType:".Length).Trim();
             else if (trimmed.StartsWith("rawResponse:"))
                 rawResponse = trimmed.Substring("rawResponse:".Length).Trim().Trim('"');
+            else if (trimmed.StartsWith("pathParam:"))
+                pathParam = trimmed.Substring("pathParam:".Length).Trim() == "true";
         }
 
         if (path != null)
-            results.Add(Emit(path, requestType, responseType, rawResponse));
+            results.Add(Emit(path, requestType, responseType, rawResponse, pathParam));
 
         return results;
     }
 
-    private static EndpointModel Emit(string path, string? req, string? res, string? raw) =>
+    private static EndpointModel Emit(string path, string? req, string? res, string? raw, bool pathParam) =>
         new EndpointModel(
             path,
             req ?? "AuthenticatedMessage",
             res ?? "AuthenticatedMessage",
-            raw);
+            raw,
+            pathParam);
 
     public static string ToClassName(string path) =>
         string.Concat(

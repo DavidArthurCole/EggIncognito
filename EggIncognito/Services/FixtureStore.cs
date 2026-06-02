@@ -39,17 +39,19 @@ public sealed class FixtureStore : IFixtureStore
 
     public TRes Get<TRes>(string path, string? eid = null) where TRes : IMessage<TRes>, new()
     {
-        if (eid is not null)
+        var cleanPath = path.TrimEnd('/');
+        while (true)
         {
-            var eidKey = $"eids/{eid}/{Slugify(path)}";
-            if (_fixtures.TryGetValue(eidKey, out var eidBytes))
+            if (eid is not null && _fixtures.TryGetValue($"eids/{eid}/{cleanPath}", out var eidBytes))
                 return Parse<TRes>(eidBytes);
+            if (_fixtures.TryGetValue($"default/{cleanPath}", out var defaultBytes))
+                return Parse<TRes>(defaultBytes);
+
+            var lastSlash = cleanPath.LastIndexOf('/');
+            var firstSlash = cleanPath.IndexOf('/');
+            if (lastSlash <= firstSlash) break;
+            cleanPath = cleanPath[..lastSlash];
         }
-
-        var defaultKey = $"default/{Slugify(path)}";
-        if (_fixtures.TryGetValue(defaultKey, out var defaultBytes))
-            return Parse<TRes>(defaultBytes);
-
         return new TRes();
     }
 
@@ -58,7 +60,4 @@ public sealed class FixtureStore : IFixtureStore
         var json = Encoding.UTF8.GetString(jsonBytes);
         return JsonParser.Default.Parse<TRes>(json);
     }
-
-    private static string Slugify(string path) =>
-        path.TrimEnd('/').Replace('/', '_');
 }

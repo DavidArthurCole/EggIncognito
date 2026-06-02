@@ -37,7 +37,7 @@ public sealed class FixtureStoreTests : IDisposable
     [Fact]
     public void ReturnsFixtureWhenDefaultExists()
     {
-        WriteFixture("default/ei_first_contact_secure.json", "{}");
+        WriteFixture("default/ei/first_contact_secure.json", "{}");
         var store = CreateStore();
         var result = store.Get<Ei.AuthenticatedMessage>("ei/first_contact_secure");
         Assert.NotNull(result);
@@ -46,8 +46,8 @@ public sealed class FixtureStoreTests : IDisposable
     [Fact]
     public void PrefersEidFixtureOverDefault()
     {
-        WriteFixture("default/ei_get_periodicals.json", "{}");
-        WriteFixture("eids/EI0000000000000001/ei_get_periodicals.json", "{}");
+        WriteFixture("default/ei/get_periodicals.json", "{}");
+        WriteFixture("eids/EI0000000000000001/ei/get_periodicals.json", "{}");
 
         var store = CreateStore();
 
@@ -61,7 +61,7 @@ public sealed class FixtureStoreTests : IDisposable
     [Fact]
     public void FallsBackToDefaultWhenEidFixtureMissing()
     {
-        WriteFixture("default/ei_get_periodicals.json", "{}");
+        WriteFixture("default/ei/get_periodicals.json", "{}");
 
         var store = CreateStore();
         var result = store.Get<Ei.PeriodicalsResponse>("ei/get_periodicals", "EI_NONEXISTENT");
@@ -69,9 +69,9 @@ public sealed class FixtureStoreTests : IDisposable
     }
 
     [Fact]
-    public void SlugifiesPathCorrectly()
+    public void UsesGroupedPathForLookup()
     {
-        WriteFixture("default/ei_afx_launch_mission.json", "{}");
+        WriteFixture("default/ei_afx/launch_mission.json", "{}");
 
         var store = CreateStore();
         var result = store.Get<Ei.MissionResponse>("ei_afx/launch_mission");

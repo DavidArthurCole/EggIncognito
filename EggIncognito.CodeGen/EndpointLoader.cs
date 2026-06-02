@@ -4,7 +4,7 @@ namespace EggIncognito.CodeGen;
 
 public record EndpointEntry(string Path, string RequestType, string ResponseType)
 {
-    public string Slug => Path.TrimEnd('/').Replace('/', '_');
+    public string Slug => Path.TrimEnd('/');
 }
 
 public static class EndpointLoader

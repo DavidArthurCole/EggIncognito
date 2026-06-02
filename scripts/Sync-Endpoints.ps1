@@ -210,7 +210,19 @@ foreach ($m in [System.Text.RegularExpressions.Regex]::Matches($yamlContent, '(?
 }
 Write-Host "Found $($yamlEndpoints.Count) endpoint(s) in endpoints.yaml."
 
-$newEndpoints = $apkEndpoints | Where-Object { -not $yamlEndpoints.Contains($_) }
+$excludedEndpoints = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+$excludedSection = ($yamlContent -split '(?m)^excluded:')[1]
+if ($excludedSection) {
+    foreach ($m in [System.Text.RegularExpressions.Regex]::Matches($excludedSection, '(?m)^\s{2}-\s+(.+)$')) {
+        $entry = $m.Groups[1].Value.Trim() -replace '\s*#.*$', ''
+        $null = $excludedEndpoints.Add($entry)
+    }
+}
+if ($excludedEndpoints.Count -gt 0) {
+    Write-Host "Excluding $($excludedEndpoints.Count) suppressed endpoint(s)."
+}
+
+$newEndpoints = $apkEndpoints | Where-Object { -not $yamlEndpoints.Contains($_) -and -not $excludedEndpoints.Contains($_) }
 $removedEndpoints = $yamlEndpoints | Where-Object { $p = $_; -not ($apkEndpoints -contains $p) } | Sort-Object
 
 Write-Host ""

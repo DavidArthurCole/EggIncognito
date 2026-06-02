@@ -9,7 +9,7 @@ public sealed class PythonGenerator : IServerGenerator
 
     private static string BuildRoutes(IReadOnlyList<EndpointEntry> endpoints) =>
         string.Join("\n\n", endpoints.Select(ep =>
-            $"@app.post(\"/{ep.Path}\")\ndef handle_{ep.Slug}():\n    return _serve(\"{ep.Slug}\")"));
+            $"@app.post(\"/{ep.Path}\")\ndef handle_{ep.Slug.Replace('/', '_')}():\n    return _serve(\"{ep.Slug}\")"));
 
     public void Generate(IReadOnlyList<EndpointEntry> endpoints, string fixturesPath, string outputDir, int port)
     {

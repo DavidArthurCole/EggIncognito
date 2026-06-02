@@ -45,7 +45,6 @@ public sealed class CodeGenGeneratorTests : IDisposable
         new GoGenerator().Generate(_endpoints, "Fixtures", _outputDir, 5080);
         var content = File.ReadAllText(Path.Combine(_outputDir, "server.go"));
         Assert.Contains("ei/test_endpoint", content);
-        Assert.Contains("ei_test_endpoint", content);
     }
 
     [Fact]

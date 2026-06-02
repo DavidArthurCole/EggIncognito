@@ -1,0 +1,57 @@
+﻿{
+  "seasons": [
+    {
+      "scope": "spring_2023",
+      "name": "Spring 2023"
+    },
+    {
+      "scope": "summer_2023",
+      "name": "Summer 2023"
+    },
+    {
+      "scope": "fall_2023",
+      "name": "Fall 2023"
+    },
+    {
+      "scope": "winter_2024",
+      "name": "Winter 2024"
+    },
+    {
+      "scope": "spring_2024",
+      "name": "Spring 2024"
+    },
+    {
+      "scope": "summer_2024",
+      "name": "Summer 2024"
+    },
+    {
+      "scope": "fall_2024",
+      "name": "Fall 2024"
+    },
+    {
+      "scope": "winter_2025",
+      "name": "Winter 2025"
+    },
+    {
+      "scope": "spring_2025",
+      "name": "Spring 2025"
+    },
+    {
+      "scope": "summer_2025",
+      "name": "Summer 2025"
+    },
+    {
+      "scope": "fall_2025",
+      "name": "Fall 2025"
+    },
+    {
+      "scope": "winter_2026",
+      "name": "Winter 2026"
+    },
+    {
+      "scope": "spring_2026",
+      "name": "Spring 2026"
+    }
+  ],
+  "allTimeScope": "ALL_TIME"
+}

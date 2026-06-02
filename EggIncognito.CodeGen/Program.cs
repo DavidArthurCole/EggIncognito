@@ -55,13 +55,6 @@ static async Task<int> RunGenerate(string[] args, Dictionary<string, string> fla
     var yamlPath = flags.GetValueOrDefault("--yaml", defaultYaml);
     var endpoints = EndpointLoader.Load(yamlPath);
 
-    if (flags.ContainsKey("--bake"))
-    {
-        var typeMap = EndpointTypeMap.Build(endpoints);
-        await Console.Out.WriteLineAsync("Baking fixtures...");
-        FixtureBaker.Bake(fixturesPath, typeMap);
-    }
-
     IServerGenerator? gen = language switch
     {
         "go" => new GoGenerator(),
@@ -83,6 +76,17 @@ static async Task<int> RunGenerate(string[] args, Dictionary<string, string> fla
     await Console.Out.WriteLineAsync($"Generating {gen.Language} server -> {outputDir}");
     Directory.CreateDirectory(outputDir);
     gen.Generate(endpoints, fixturesPath, outputDir, port);
+
+    if (flags.ContainsKey("--bake") && gen.Language != "C#")
+    {
+        var outFixtures = Path.Combine(outputDir, "Fixtures");
+        await Console.Out.WriteLineAsync("Copying fixtures...");
+        CopyDirectory(fixturesPath, outFixtures);
+        var typeMap = EndpointTypeMap.Build(endpoints);
+        await Console.Out.WriteLineAsync("Baking fixtures...");
+        FixtureBaker.Bake(outFixtures, typeMap);
+    }
+
     await Console.Out.WriteLineAsync($"Done. See {outputDir}/README.md for run instructions.");
     return 0;
 }
@@ -106,6 +110,18 @@ static void PrintHelp()
           dotnet run --project EggIncognito.CodeGen -- generate csharp
           dotnet run --project EggIncognito.CodeGen -- generate python --bake
         """);
+}
+
+static void CopyDirectory(string src, string dst)
+{
+    Directory.CreateDirectory(dst);
+    foreach (var file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
+    {
+        if (file.EndsWith(".binpb", StringComparison.OrdinalIgnoreCase)) continue;
+        var dest = Path.Combine(dst, Path.GetRelativePath(src, file));
+        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+        File.Copy(file, dest, overwrite: true);
+    }
 }
 
 static Dictionary<string, string> ParseFlags(string[] args)
