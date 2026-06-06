@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="Proto\ei.proto" GrpcServices="None" />
+    <Protobuf Include="Proto\ei.proto" ProtoRoot="Proto" GrpcServices="None" />
   </ItemGroup>
 
   <ItemGroup>

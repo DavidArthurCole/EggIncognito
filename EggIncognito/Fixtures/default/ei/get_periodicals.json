@@ -1,40 +1,60 @@
-{
+﻿{
   "sales": {},
   "events": {
     "events": [
       {
-        "identifier": "event-5-22",
-        "secondsRemaining": 20713.551279067993,
-        "type": "research-sale",
-        "multiplier": 0.3,
-        "subtitle": "70% OFF RESEARCH!",
-        "startTime": 1779465600.0,
-        "duration": 86400.0,
+        "identifier": "event-5-31-2",
+        "secondsRemaining": 35742.85447597504,
+        "type": "mission-capacity",
+        "multiplier": 2,
+        "subtitle": "DOUBLE CAPACITY!",
+        "startTime": 1780243200,
+        "duration": 172800,
         "ccOnly": false
+      },
+      {
+        "identifier": "event-6-1",
+        "secondsRemaining": 35742.854316949844,
+        "type": "earnings-boost",
+        "multiplier": 2,
+        "subtitle": "2x EARNINGS!",
+        "startTime": 1780329600,
+        "duration": 86400,
+        "ccOnly": false
+      },
+      {
+        "identifier": "ultra-6-1",
+        "secondsRemaining": 35742.853910923004,
+        "type": "drone-boost",
+        "multiplier": 4,
+        "subtitle": "4x DRONE REWARDS!",
+        "startTime": 1780329600,
+        "duration": 86400,
+        "ccOnly": true
       }
     ]
   },
   "contracts": {
     "contracts": [
       {
-        "identifier": "model-kits-2026",
-        "egg": "CUSTOM_EGG",
+        "identifier": "time-to-vote-2026",
+        "egg": "TACHYON",
         "coopAllowed": true,
-        "maxCoopSize": 3,
-        "expirationTime": 1780934400.0,
-        "lengthSeconds": 432000.0,
-        "name": "Model Kits",
-        "description": "3D printable model kits are exploding in popularity, transmitted digitally they still need filament to be built",
+        "maxCoopSize": 6,
+        "expirationTime": 1782144000,
+        "lengthSeconds": 604800,
+        "name": "Time To Vote",
+        "description": "The time for excuses is over! now with the help of Tachyon technology, you can vote in literally no time at all!",
         "debug": false,
         "maxBoosts": 0,
-        "maxSoulEggs": 0.0,
+        "maxSoulEggs": 0,
         "minClientVersion": 71,
-        "minutesPerToken": 60.0,
+        "minutesPerToken": 60,
         "goalSets": [
           {}
         ],
-        "startTime": 1779120000.0,
-        "chickenRunCooldownMinutes": 180.0,
+        "startTime": 1780329600,
+        "chickenRunCooldownMinutes": 180,
         "leggacy": false,
         "gradeSpecs": [
           {
@@ -42,150 +62,508 @@
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 44000000.0,
+                "targetAmount": 100000000000,
                 "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 17000.0,
-                "targetSoulEggs": 1000.0
+                "rewardAmount": 21000,
+                "targetSoulEggs": 1000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 10000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "money_printer",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 10000.0
+                "targetAmount": 1800000000000,
+                "rewardType": "EPIC_RESEARCH_ITEM",
+                "rewardSubType": "epic_multiplier",
+                "rewardAmount": 1,
+                "targetSoulEggs": 10000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 28000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 4300000000000,
+                "rewardType": "SOUL_EGGS",
                 "rewardSubType": "",
-                "rewardAmount": 5000.0,
-                "targetSoulEggs": 25000.0
+                "rewardAmount": 36000,
+                "targetSoulEggs": 25000
               }
             ],
-            "lengthSeconds": 86400.0
+            "lengthSeconds": 259200
           },
           {
             "grade": "GRADE_B",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 57000000000.0,
+                "targetAmount": 2800000000000,
                 "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 32000.0,
-                "targetSoulEggs": 100000.0
+                "rewardAmount": 38000,
+                "targetSoulEggs": 100000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1400000000000.0,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 5000.0,
-                "targetSoulEggs": 250000.0
+                "targetAmount": 51000000000000,
+                "rewardType": "EPIC_RESEARCH_ITEM",
+                "rewardSubType": "epic_multiplier",
+                "rewardAmount": 2,
+                "targetSoulEggs": 250000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 6500000000000.0,
-                "rewardType": "ARTIFACT_CASE",
+                "targetAmount": 200000000000000,
+                "rewardType": "SOUL_EGGS",
                 "rewardSubType": "",
-                "rewardAmount": 32.0,
-                "targetSoulEggs": 500000.0
+                "rewardAmount": 600000,
+                "targetSoulEggs": 500000
               }
             ],
-            "lengthSeconds": 172800.0
+            "lengthSeconds": 345600
           },
           {
             "grade": "GRADE_A",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1700000000000.0,
+                "targetAmount": 33000000000000,
                 "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 50000.0,
-                "targetSoulEggs": 10000000.0
+                "rewardAmount": 60000,
+                "targetSoulEggs": 10000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 120000000000000.0,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 8000.0,
-                "targetSoulEggs": 50000000.0
+                "targetAmount": 940000000000000,
+                "rewardType": "EPIC_RESEARCH_ITEM",
+                "rewardSubType": "epic_multiplier",
+                "rewardAmount": 2,
+                "targetSoulEggs": 50000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 890000000000000.0,
-                "rewardType": "ARTIFACT_CASE",
+                "targetAmount": 5200000000000000,
+                "rewardType": "SOUL_EGGS",
                 "rewardSubType": "",
-                "rewardAmount": 50.0,
-                "targetSoulEggs": 200000000.0
+                "rewardAmount": 140000000,
+                "targetSoulEggs": 200000000
               }
             ],
-            "lengthSeconds": 259200.0
+            "lengthSeconds": 432000
           },
           {
             "grade": "GRADE_AA",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 410000000000000.0,
+                "targetAmount": 2000000000000000,
                 "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 150000.0,
-                "targetSoulEggs": 1000000000.0
+                "rewardAmount": 170000,
+                "targetSoulEggs": 1000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1.5e+16,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 15000.0,
-                "targetSoulEggs": 25000000000.0
+                "targetAmount": 1e+17,
+                "rewardType": "EPIC_RESEARCH_ITEM",
+                "rewardSubType": "epic_multiplier",
+                "rewardAmount": 2,
+                "targetSoulEggs": 25000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 6.1e+16,
-                "rewardType": "ARTIFACT_CASE",
-                "rewardSubType": "",
-                "rewardAmount": 130.0,
-                "targetSoulEggs": 100000000000.0
+                "targetAmount": 3e+17,
+                "rewardType": "BOOST",
+                "rewardSubType": "boost_beacon_orange",
+                "rewardAmount": 1,
+                "targetSoulEggs": 100000000000
               }
             ],
-            "lengthSeconds": 345600.0
+            "lengthSeconds": 518400
           },
           {
             "grade": "GRADE_AAA",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1e+16,
+                "targetAmount": 57000000000000000,
                 "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 320000.0,
-                "targetSoulEggs": 100000000000.0
+                "rewardAmount": 370000,
+                "targetSoulEggs": 100000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 1.1e+18,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 35000,
+                "targetSoulEggs": 5000000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 2.1e+18,
+                "rewardType": "BOOST",
+                "rewardSubType": "boost_beacon_orange",
+                "rewardAmount": 2,
+                "targetSoulEggs": 50000000000000
+              }
+            ],
+            "lengthSeconds": 604800
+          }
+        ],
+        "ccOnly": false,
+        "seasonId": "spring_2026",
+        "defaultShellIds": [
+          ""
+        ],
+        "customEggId": ""
+      },
+      {
+        "identifier": "thermal-runaway-2026",
+        "egg": "CUSTOM_EGG",
+        "coopAllowed": true,
+        "maxCoopSize": 10,
+        "expirationTime": 1781539200,
+        "lengthSeconds": 345600,
+        "name": "Thermal Runaway",
+        "description": "A massive chemical tank has entered thermal runaway and will explode if it isn't cooled. An emergency order has just be placed for gigatons of ICE!",
+        "debug": false,
+        "maxBoosts": 0,
+        "maxSoulEggs": 0,
+        "minClientVersion": 71,
+        "minutesPerToken": 60,
+        "goalSets": [
+          {}
+        ],
+        "startTime": 1779724800,
+        "chickenRunCooldownMinutes": 180,
+        "leggacy": false,
+        "gradeSpecs": [
+          {
+            "grade": "GRADE_C",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 22000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 15000,
+                "targetSoulEggs": 1000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 9500000000,
+                "rewardType": "SHELL_SCRIPT",
+                "rewardSubType": "",
+                "rewardAmount": 5,
+                "targetSoulEggs": 10000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 41000000000,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 4500,
+                "targetSoulEggs": 25000
+              }
+            ],
+            "lengthSeconds": 86400
+          },
+          {
+            "grade": "GRADE_B",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 6600000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 29000,
+                "targetSoulEggs": 100000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 270000000000,
+                "rewardType": "SHELL_SCRIPT",
+                "rewardSubType": "",
+                "rewardAmount": 11,
+                "targetSoulEggs": 250000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 1300000000000,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 7000,
+                "targetSoulEggs": 500000
+              }
+            ],
+            "lengthSeconds": 86400
+          },
+          {
+            "grade": "GRADE_A",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 820000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 50000,
+                "targetSoulEggs": 10000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 79000000000000,
+                "rewardType": "SHELL_SCRIPT",
+                "rewardSubType": "",
+                "rewardAmount": 18,
+                "targetSoulEggs": 50000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 850000000000000,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 12000,
+                "targetSoulEggs": 200000000
+              }
+            ],
+            "lengthSeconds": 172800
+          },
+          {
+            "grade": "GRADE_AA",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 420000000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 140000,
+                "targetSoulEggs": 1000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 14000000000000000,
+                "rewardType": "SHELL_SCRIPT",
+                "rewardSubType": "",
+                "rewardAmount": 35,
+                "targetSoulEggs": 25000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 1.2e+17,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 32000,
+                "targetSoulEggs": 100000000000
+              }
+            ],
+            "lengthSeconds": 259200
+          },
+          {
+            "grade": "GRADE_AAA",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 19000000000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 300000,
+                "targetSoulEggs": 100000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 6.2e+17,
+                "rewardType": "SHELL_SCRIPT",
+                "rewardSubType": "",
+                "rewardAmount": 70,
+                "targetSoulEggs": 5000000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 9.1e+17,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 60000,
+                "targetSoulEggs": 50000000000000
+              }
+            ],
+            "lengthSeconds": 345600
+          }
+        ],
+        "ccOnly": false,
+        "seasonId": "spring_2026",
+        "defaultShellIds": [
+          ""
+        ],
+        "customEggId": "ice"
+      },
+      {
+        "identifier": "model-kits-2026",
+        "egg": "CUSTOM_EGG",
+        "coopAllowed": true,
+        "maxCoopSize": 3,
+        "expirationTime": 1780934400,
+        "lengthSeconds": 432000,
+        "name": "Model Kits",
+        "description": "3D printable model kits are exploding in popularity, transmitted digitally they still need filament to be built",
+        "debug": false,
+        "maxBoosts": 0,
+        "maxSoulEggs": 0,
+        "minClientVersion": 71,
+        "minutesPerToken": 60,
+        "goalSets": [
+          {}
+        ],
+        "startTime": 1779120000,
+        "chickenRunCooldownMinutes": 180,
+        "leggacy": false,
+        "gradeSpecs": [
+          {
+            "grade": "GRADE_C",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 44000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 17000,
+                "targetSoulEggs": 1000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 10000000000,
+                "rewardType": "BOOST",
+                "rewardSubType": "money_printer",
+                "rewardAmount": 1,
+                "targetSoulEggs": 10000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 28000000000,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 5000,
+                "targetSoulEggs": 25000
+              }
+            ],
+            "lengthSeconds": 86400
+          },
+          {
+            "grade": "GRADE_B",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 57000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 32000,
+                "targetSoulEggs": 100000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 1400000000000,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 5000,
+                "targetSoulEggs": 250000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 6500000000000,
+                "rewardType": "ARTIFACT_CASE",
+                "rewardSubType": "",
+                "rewardAmount": 32,
+                "targetSoulEggs": 500000
+              }
+            ],
+            "lengthSeconds": 172800
+          },
+          {
+            "grade": "GRADE_A",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 1700000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 50000,
+                "targetSoulEggs": 10000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 120000000000000,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 8000,
+                "targetSoulEggs": 50000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 890000000000000,
+                "rewardType": "ARTIFACT_CASE",
+                "rewardSubType": "",
+                "rewardAmount": 50,
+                "targetSoulEggs": 200000000
+              }
+            ],
+            "lengthSeconds": 259200
+          },
+          {
+            "grade": "GRADE_AA",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 410000000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 150000,
+                "targetSoulEggs": 1000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 15000000000000000,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 15000,
+                "targetSoulEggs": 25000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 61000000000000000,
+                "rewardType": "ARTIFACT_CASE",
+                "rewardSubType": "",
+                "rewardAmount": 130,
+                "targetSoulEggs": 100000000000
+              }
+            ],
+            "lengthSeconds": 345600
+          },
+          {
+            "grade": "GRADE_AAA",
+            "goals": [
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 10000000000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 320000,
+                "targetSoulEggs": 100000000000
               },
               {
                 "type": "EGGS_LAID",
                 "targetAmount": 2.5e+17,
                 "rewardType": "GOLD",
                 "rewardSubType": "",
-                "rewardAmount": 30000.0,
-                "targetSoulEggs": 5000000000000.0
+                "rewardAmount": 30000,
+                "targetSoulEggs": 5000000000000
               },
               {
                 "type": "EGGS_LAID",
                 "targetAmount": 4.1e+17,
                 "rewardType": "ARTIFACT_CASE",
                 "rewardSubType": "",
-                "rewardAmount": 240.0,
-                "targetSoulEggs": 50000000000000.0
+                "rewardAmount": 240,
+                "targetSoulEggs": 50000000000000
               }
             ],
-            "lengthSeconds": 432000.0
+            "lengthSeconds": 432000
           }
         ],
         "ccOnly": false,
@@ -196,216 +574,254 @@
         "customEggId": "pegg"
       },
       {
-        "identifier": "mothers-day-mistake-2026",
+        "identifier": "f1-trs-2023",
         "egg": "TACHYON",
         "coopAllowed": true,
-        "maxCoopSize": 7,
-        "expirationTime": 1780329600.0,
-        "lengthSeconds": 604800.0,
-        "name": "Mother...",
-        "description": "Every year millions screw up Mother's day. Forgot the breakfast? The card? The flowers? Time for a do-over",
+        "maxCoopSize": 10,
+        "expirationTime": 1780675200,
+        "lengthSeconds": 432000,
+        "name": "TRS",
+        "description": "(2023) The Formula Egg Racing series has added a new features called the 'Tachyon Rewind System' (TRS) which allows drivers to rewind time a few seconds to correct a mistake. Teams need suppliers!",
         "debug": false,
         "maxBoosts": 0,
-        "maxSoulEggs": 0.0,
+        "maxSoulEggs": 0,
         "minClientVersion": 71,
-        "minutesPerToken": 60.0,
+        "minutesPerToken": 60,
         "goalSets": [
           {}
         ],
-        "startTime": 1778515200.0,
-        "chickenRunCooldownMinutes": 180.0,
-        "leggacy": false,
+        "startTime": 1780070400,
+        "chickenRunCooldownMinutes": 180,
+        "leggacy": true,
         "gradeSpecs": [
           {
             "grade": "GRADE_C",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 140000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "soul_mirror_orange",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 1000.0
+                "targetAmount": 530000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 17000,
+                "targetSoulEggs": 1000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 2600000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "tachyon_prism_purple_big",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 10000.0
+                "targetAmount": 8700000000000,
+                "rewardType": "EGGS_OF_PROPHECY",
+                "rewardSubType": "",
+                "rewardAmount": 1,
+                "targetSoulEggs": 10000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 6100000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "jimbos_orange_big",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 25000.0
+                "targetAmount": 17000000000000,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 5000,
+                "targetSoulEggs": 25000
               }
             ],
-            "lengthSeconds": 259200.0
+            "modifiers": [
+              {
+                "dimension": "EARNINGS",
+                "value": 4
+              }
+            ],
+            "lengthSeconds": 345600
           },
           {
             "grade": "GRADE_B",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 4300000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "money_printer",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 100000.0
+                "targetAmount": 5300000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 32000,
+                "targetSoulEggs": 100000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 78000000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "boost_beacon_purple",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 250000.0
+                "targetAmount": 100000000000000,
+                "rewardType": "EGGS_OF_PROPHECY",
+                "rewardSubType": "",
+                "rewardAmount": 1,
+                "targetSoulEggs": 250000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 310000000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "soul_beacon_orange",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 500000.0
+                "targetAmount": 370000000000000,
+                "rewardType": "SOUL_EGGS",
+                "rewardSubType": "",
+                "rewardAmount": 500000,
+                "targetSoulEggs": 500000
               }
             ],
-            "lengthSeconds": 345600.0
+            "modifiers": [
+              {
+                "dimension": "EARNINGS",
+                "value": 3
+              }
+            ],
+            "lengthSeconds": 345600
           },
           {
             "grade": "GRADE_A",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 48000000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "money_printer",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 10000000.0
+                "targetAmount": 29000000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 50000,
+                "targetSoulEggs": 10000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1300000000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "tachyon_prism_orange",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 50000000.0
+                "targetAmount": 950000000000000,
+                "rewardType": "EGGS_OF_PROPHECY",
+                "rewardSubType": "",
+                "rewardAmount": 1,
+                "targetSoulEggs": 50000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 7800000000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "tachyon_prism_orange_big",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 200000000.0
+                "targetAmount": 5300000000000000,
+                "rewardType": "ARTIFACT_CASE",
+                "rewardSubType": "",
+                "rewardAmount": 50,
+                "targetSoulEggs": 200000000
               }
             ],
-            "lengthSeconds": 432000.0
+            "modifiers": [
+              {
+                "dimension": "SHIPPING_CAPACITY",
+                "value": 1.5
+              }
+            ],
+            "lengthSeconds": 345600
           },
           {
             "grade": "GRADE_AA",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 3100000000000000.0,
-                "rewardType": "BOOST",
-                "rewardSubType": "soul_beacon_orange",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 1000000000.0
+                "targetAmount": 2100000000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 150000,
+                "targetSoulEggs": 1000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1.4e+17,
-                "rewardType": "BOOST",
-                "rewardSubType": "tachyon_prism_orange_big",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 25000000000.0
+                "targetAmount": 1.1e+17,
+                "rewardType": "EGGS_OF_PROPHECY",
+                "rewardSubType": "",
+                "rewardAmount": 1,
+                "targetSoulEggs": 25000000000
               },
               {
                 "type": "EGGS_LAID",
                 "targetAmount": 3.9e+17,
-                "rewardType": "BOOST",
-                "rewardSubType": "boost_beacon_orange",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 100000000000.0
+                "rewardType": "ARTIFACT_CASE",
+                "rewardSubType": "",
+                "rewardAmount": 130,
+                "targetSoulEggs": 100000000000
               }
             ],
-            "lengthSeconds": 518400.0
+            "modifiers": [
+              {
+                "dimension": "SHIPPING_CAPACITY",
+                "value": 1.5
+              }
+            ],
+            "lengthSeconds": 432000
           },
           {
             "grade": "GRADE_AAA",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1e+17,
-                "rewardType": "BOOST",
-                "rewardSubType": "tachyon_prism_orange",
-                "rewardAmount": 2.0,
-                "targetSoulEggs": 100000000000.0
+                "targetAmount": 41000000000000000,
+                "rewardType": "PIGGY_FILL",
+                "rewardSubType": "",
+                "rewardAmount": 320000,
+                "targetSoulEggs": 100000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1.6e+18,
-                "rewardType": "BOOST",
-                "rewardSubType": "soul_beacon_orange",
-                "rewardAmount": 3.0,
-                "targetSoulEggs": 5000000000000.0
+                "targetAmount": 1.3e+18,
+                "rewardType": "EGGS_OF_PROPHECY",
+                "rewardSubType": "",
+                "rewardAmount": 1,
+                "targetSoulEggs": 5000000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 2.4e+18,
-                "rewardType": "BOOST",
-                "rewardSubType": "boost_beacon_orange",
-                "rewardAmount": 2.0,
-                "targetSoulEggs": 50000000000000.0
+                "targetAmount": 4.1e+18,
+                "rewardType": "ARTIFACT_CASE",
+                "rewardSubType": "",
+                "rewardAmount": 240,
+                "targetSoulEggs": 50000000000000
               }
             ],
-            "lengthSeconds": 604800.0
+            "modifiers": [
+              {
+                "dimension": "SHIPPING_CAPACITY",
+                "value": 1.5
+              }
+            ],
+            "lengthSeconds": 432000
           }
         ],
-        "ccOnly": false,
-        "seasonId": "spring_2026",
+        "ccOnly": true,
+        "seasonId": "spring_2023",
         "defaultShellIds": [
           ""
         ],
         "customEggId": ""
       },
       {
-        "identifier": "back-to-school-2018",
-        "egg": "TACHYON",
+        "identifier": "pumpkin-pie",
+        "egg": "CUSTOM_EGG",
         "coopAllowed": true,
-        "maxCoopSize": 2,
-        "expirationTime": 1780070400.0,
-        "lengthSeconds": 432000.0,
-        "name": "Back To School",
-        "description": "(2018) Back-to-school students are in need of a refresher, Teachers need tachyon eggs to send kids back in time to review material they forgot over summer.",
+        "maxCoopSize": 25,
+        "expirationTime": 1780675200,
+        "lengthSeconds": 518400,
+        "name": "Pumpkin Pie",
+        "description": "(2019) It's that time of year, when what is widely considered the greatest pie hits center stage: Pumpkin Pie.",
         "debug": false,
         "maxBoosts": 0,
-        "maxSoulEggs": 0.0,
+        "maxSoulEggs": 0,
         "minClientVersion": 71,
-        "minutesPerToken": 60.0,
+        "minutesPerToken": 120,
         "goalSets": [
           {
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 3000000000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 5000000000000000,
+                "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 8000.0,
-                "targetSoulEggs": 50000000000.0
+                "rewardAmount": 75000,
+                "targetSoulEggs": 50000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 7.5e+16,
+                "targetAmount": 5e+17,
                 "rewardType": "EGGS_OF_PROPHECY",
                 "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 50000000000000.0
+                "rewardAmount": 1,
+                "targetSoulEggs": 10000000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 2.5e+18,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 100000,
+                "targetSoulEggs": 10000000000000000
               }
             ]
           },
@@ -413,25 +829,33 @@
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 75000000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 50000000000000,
+                "rewardType": "SOUL_EGGS",
                 "rewardSubType": "",
-                "rewardAmount": 2500.0,
-                "targetSoulEggs": 5000.0
+                "rewardAmount": 50000,
+                "targetSoulEggs": 10000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 2000000000000000.0,
+                "targetAmount": 3000000000000000,
+                "rewardType": "GOLD",
+                "rewardSubType": "",
+                "rewardAmount": 10000,
+                "targetSoulEggs": 2000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 7000000000000000,
                 "rewardType": "EGGS_OF_PROPHECY",
                 "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 2000000000.0
+                "rewardAmount": 1,
+                "targetSoulEggs": 2000000000
               }
             ]
           }
         ],
-        "startTime": 1779465600.0,
-        "chickenRunCooldownMinutes": 60.0,
+        "startTime": 1780070400,
+        "chickenRunCooldownMinutes": 180,
         "leggacy": true,
         "gradeSpecs": [
           {
@@ -439,581 +863,348 @@
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 14000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 3400000000,
+                "rewardType": "SOUL_EGGS",
                 "rewardSubType": "",
-                "rewardAmount": 1000.0,
-                "targetSoulEggs": 1000.0
+                "rewardAmount": 600,
+                "targetSoulEggs": 1000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 290000000000.0,
+                "targetAmount": 390000000000,
                 "rewardType": "EGGS_OF_PROPHECY",
                 "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 10000.0
+                "rewardAmount": 1,
+                "targetSoulEggs": 10000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 730000000000.0,
-                "rewardType": "SHELL_SCRIPT",
+                "targetAmount": 1100000000000,
+                "rewardType": "GOLD",
                 "rewardSubType": "",
-                "rewardAmount": 20.0,
-                "targetSoulEggs": 25000.0
+                "rewardAmount": 5000,
+                "targetSoulEggs": 25000
               }
             ],
-            "lengthSeconds": 172800.0
+            "lengthSeconds": 259200
           },
           {
             "grade": "GRADE_B",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 540000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 1800000000000,
+                "rewardType": "SOUL_EGGS",
                 "rewardSubType": "",
-                "rewardAmount": 1700.0,
-                "targetSoulEggs": 100000.0
+                "rewardAmount": 44000,
+                "targetSoulEggs": 100000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 11000000000000.0,
+                "targetAmount": 15000000000000,
                 "rewardType": "EGGS_OF_PROPHECY",
                 "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 250000.0
+                "rewardAmount": 1,
+                "targetSoulEggs": 250000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 42000000000000.0,
-                "rewardType": "SHELL_SCRIPT",
+                "targetAmount": 34000000000000,
+                "rewardType": "GOLD",
                 "rewardSubType": "",
-                "rewardAmount": 30.0,
-                "targetSoulEggs": 500000.0
+                "rewardAmount": 8000,
+                "targetSoulEggs": 500000
               }
             ],
-            "lengthSeconds": 259200.0
+            "lengthSeconds": 345600
           },
           {
             "grade": "GRADE_A",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 7200000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 45000000000000,
+                "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 3000.0,
-                "targetSoulEggs": 10000000.0
+                "rewardAmount": 60000,
+                "targetSoulEggs": 10000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 220000000000000.0,
+                "targetAmount": 1800000000000000,
                 "rewardType": "EGGS_OF_PROPHECY",
                 "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 50000000.0
+                "rewardAmount": 1,
+                "targetSoulEggs": 50000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1100000000000000.0,
-                "rewardType": "ARTIFACT_CASE",
+                "targetAmount": 9400000000000000,
+                "rewardType": "GOLD",
                 "rewardSubType": "",
-                "rewardAmount": 50.0,
-                "targetSoulEggs": 200000000.0
+                "rewardAmount": 14000,
+                "targetSoulEggs": 200000000
               }
             ],
-            "lengthSeconds": 345600.0
+            "lengthSeconds": 432000
           },
           {
             "grade": "GRADE_AA",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 500000000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 12000000000000000,
+                "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 7000.0,
-                "targetSoulEggs": 1000000000.0
+                "rewardAmount": 160000,
+                "targetSoulEggs": 1000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 2.6e+16,
+                "targetAmount": 1.2e+17,
                 "rewardType": "EGGS_OF_PROPHECY",
                 "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 25000000000.0
+                "rewardAmount": 1,
+                "targetSoulEggs": 25000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 8.2e+16,
-                "rewardType": "ARTIFACT_CASE",
+                "targetAmount": 1e+18,
+                "rewardType": "GOLD",
                 "rewardSubType": "",
-                "rewardAmount": 130.0,
-                "targetSoulEggs": 100000000000.0
+                "rewardAmount": 38000,
+                "targetSoulEggs": 100000000000
               }
             ],
-            "lengthSeconds": 432000.0
+            "lengthSeconds": 518400
           },
           {
             "grade": "GRADE_AAA",
             "goals": [
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 8000000000000000.0,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 15000.0,
-                "targetSoulEggs": 100000000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 2.7e+17,
-                "rewardType": "EGGS_OF_PROPHECY",
-                "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 5000000000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 4.6e+17,
-                "rewardType": "ARTIFACT_CASE",
-                "rewardSubType": "",
-                "rewardAmount": 240.0,
-                "targetSoulEggs": 50000000000000.0
-              }
-            ],
-            "lengthSeconds": 432000.0
-          }
-        ],
-        "ccOnly": false,
-        "seasonId": "",
-        "defaultShellIds": [
-          ""
-        ],
-        "customEggId": ""
-      },
-      {
-        "identifier": "kid-cold-2021",
-        "egg": "MEDICAL",
-        "coopAllowed": true,
-        "maxCoopSize": 4,
-        "expirationTime": 1779897600.0,
-        "lengthSeconds": 345600.0,
-        "name": "Sick Kids",
-        "description": "(2021) With school back in session, it's sniffly nose season and children's cold cures are running low!",
-        "debug": false,
-        "maxBoosts": 0,
-        "maxSoulEggs": 0.0,
-        "minClientVersion": 71,
-        "minutesPerToken": 15.0,
-        "goalSets": [
-          {
-            "goals": [
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 1000000000000000.0,
-                "rewardType": "PIGGY_LEVEL_BUMP",
-                "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 50000000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 7.5e+16,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 35000.0,
-                "targetSoulEggs": 50000000000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 2e+17,
-                "rewardType": "ARTIFACT_CASE",
-                "rewardSubType": "",
-                "rewardAmount": 250.0,
-                "targetSoulEggs": 1e+16
-              }
-            ]
-          },
-          {
-            "goals": [
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 10000000000000.0,
-                "rewardType": "PIGGY_FILL",
-                "rewardSubType": "",
-                "rewardAmount": 25000.0,
-                "targetSoulEggs": 10000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 200000000000000.0,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 7500.0,
-                "targetSoulEggs": 2000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 1000000000000000.0,
-                "rewardType": "ARTIFACT_CASE",
-                "rewardSubType": "",
-                "rewardAmount": 100.0,
-                "targetSoulEggs": 2000000000.0
-              }
-            ]
-          }
-        ],
-        "startTime": 1779292800.0,
-        "chickenRunCooldownMinutes": 180.0,
-        "leggacy": true,
-        "gradeSpecs": [
-          {
-            "grade": "GRADE_C",
-            "goals": [
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 2500000000.0,
-                "rewardType": "PIGGY_FILL",
-                "rewardSubType": "",
-                "rewardAmount": 15000.0,
-                "targetSoulEggs": 1000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 60000000000.0,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 2300.0,
-                "targetSoulEggs": 10000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 150000000000.0,
-                "rewardType": "SOUL_EGGS",
-                "rewardSubType": "",
-                "rewardAmount": 28000.0,
-                "targetSoulEggs": 25000.0
-              }
-            ],
-            "lengthSeconds": 172800.0
-          },
-          {
-            "grade": "GRADE_B",
-            "goals": [
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 62000000000.0,
-                "rewardType": "PIGGY_FILL",
-                "rewardSubType": "",
-                "rewardAmount": 29000.0,
-                "targetSoulEggs": 100000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 490000000000.0,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 4500.0,
-                "targetSoulEggs": 250000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 1100000000000.0,
-                "rewardType": "SOUL_EGGS",
-                "rewardSubType": "",
-                "rewardAmount": 500000.0,
-                "targetSoulEggs": 500000.0
-              }
-            ],
-            "lengthSeconds": 172800.0
-          },
-          {
-            "grade": "GRADE_A",
-            "goals": [
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 1900000000000.0,
-                "rewardType": "PIGGY_FILL",
-                "rewardSubType": "",
-                "rewardAmount": 50000.0,
-                "targetSoulEggs": 10000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 170000000000000.0,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 7000.0,
-                "targetSoulEggs": 50000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 1200000000000000.0,
-                "rewardType": "ARTIFACT_CASE",
-                "rewardSubType": "",
-                "rewardAmount": 47.0,
-                "targetSoulEggs": 200000000.0
-              }
-            ],
-            "lengthSeconds": 259200.0
-          },
-          {
-            "grade": "GRADE_AA",
-            "goals": [
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 1600000000000000.0,
-                "rewardType": "PIGGY_FILL",
-                "rewardSubType": "",
-                "rewardAmount": 140000.0,
-                "targetSoulEggs": 1000000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 4e+16,
-                "rewardType": "GOLD",
-                "rewardSubType": "",
-                "rewardAmount": 14000.0,
-                "targetSoulEggs": 25000000000.0
-              },
               {
                 "type": "EGGS_LAID",
                 "targetAmount": 1.3e+17,
-                "rewardType": "ARTIFACT_CASE",
-                "rewardSubType": "",
-                "rewardAmount": 120.0,
-                "targetSoulEggs": 100000000000.0
-              }
-            ],
-            "lengthSeconds": 345600.0
-          },
-          {
-            "grade": "GRADE_AAA",
-            "goals": [
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 1e+16,
                 "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 300000.0,
-                "targetSoulEggs": 100000000000.0
+                "rewardAmount": 350000,
+                "targetSoulEggs": 100000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 2.4e+17,
+                "targetAmount": 2.2e+18,
+                "rewardType": "EGGS_OF_PROPHECY",
+                "rewardSubType": "",
+                "rewardAmount": 1,
+                "targetSoulEggs": 5000000000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 3.3e+18,
                 "rewardType": "GOLD",
                 "rewardSubType": "",
-                "rewardAmount": 28000.0,
-                "targetSoulEggs": 5000000000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 3.9e+17,
-                "rewardType": "ARTIFACT_CASE",
-                "rewardSubType": "",
-                "rewardAmount": 220.0,
-                "targetSoulEggs": 50000000000000.0
+                "rewardAmount": 70000,
+                "targetSoulEggs": 50000000000000
               }
             ],
-            "lengthSeconds": 345600.0
+            "lengthSeconds": 518400
           }
         ],
         "ccOnly": false,
         "seasonId": "",
         "defaultShellIds": [
           ""
-        ]
+        ],
+        "customEggId": "pumpkin"
       },
       {
-        "identifier": "more-housing-2026",
-        "egg": "CUSTOM_EGG",
+        "identifier": "mars-fuel-2023",
+        "egg": "FUSION",
         "coopAllowed": true,
-        "maxCoopSize": 4,
-        "expirationTime": 1779724800.0,
-        "lengthSeconds": 518400.0,
-        "name": "More Housing",
-        "description": "The trend of increased housing development is driving demand for alternative wood products, raw supplies are needed!",
+        "maxCoopSize": 6,
+        "expirationTime": 1780502400,
+        "lengthSeconds": 518400,
+        "name": "Martian Power",
+        "description": "(2023) The Mars colonies are in need of power and are inviting egg farmers to create the fuel on location!",
         "debug": false,
         "maxBoosts": 0,
-        "maxSoulEggs": 0.0,
+        "maxSoulEggs": 0,
         "minClientVersion": 71,
-        "minutesPerToken": 60.0,
+        "minutesPerToken": 60,
         "goalSets": [
           {}
         ],
-        "startTime": 1777910400.0,
-        "chickenRunCooldownMinutes": 180.0,
-        "leggacy": false,
+        "startTime": 1779897600,
+        "chickenRunCooldownMinutes": 180,
+        "leggacy": true,
         "gradeSpecs": [
           {
             "grade": "GRADE_C",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 720000000.0,
+                "targetAmount": 97000000000,
                 "rewardType": "PIGGY_LEVEL_BUMP",
                 "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 1000.0
+                "rewardAmount": 1,
+                "targetSoulEggs": 1000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 78000000000.0,
-                "rewardType": "EPIC_RESEARCH_ITEM",
-                "rewardSubType": "accounting_tricks",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 10000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 200000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 1500000000000,
+                "rewardType": "SOUL_EGGS",
                 "rewardSubType": "",
-                "rewardAmount": 5000.0,
-                "targetSoulEggs": 25000.0
+                "rewardAmount": 8000,
+                "targetSoulEggs": 10000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 3900000000000,
+                "rewardType": "SHELL_SCRIPT",
+                "rewardSubType": "",
+                "rewardAmount": 13,
+                "targetSoulEggs": 25000
               }
             ],
-            "lengthSeconds": 172800.0
+            "lengthSeconds": 345600
           },
           {
             "grade": "GRADE_B",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 190000000000.0,
+                "targetAmount": 2000000000000,
                 "rewardType": "PIGGY_LEVEL_BUMP",
                 "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 100000.0
+                "rewardAmount": 1,
+                "targetSoulEggs": 100000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 4000000000000.0,
-                "rewardType": "EPIC_RESEARCH_ITEM",
-                "rewardSubType": "accounting_tricks",
-                "rewardAmount": 2.0,
-                "targetSoulEggs": 250000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 18000000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 16000000000000,
+                "rewardType": "SOUL_EGGS",
                 "rewardSubType": "",
-                "rewardAmount": 8000.0,
-                "targetSoulEggs": 500000.0
+                "rewardAmount": 230000,
+                "targetSoulEggs": 250000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 32000000000000,
+                "rewardType": "SHELL_SCRIPT",
+                "rewardSubType": "",
+                "rewardAmount": 22,
+                "targetSoulEggs": 500000
               }
             ],
-            "lengthSeconds": 259200.0
+            "lengthSeconds": 345600
           },
           {
             "grade": "GRADE_A",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 4600000000000.0,
+                "targetAmount": 32000000000000,
                 "rewardType": "PIGGY_LEVEL_BUMP",
                 "rewardSubType": "",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 10000000.0
+                "rewardAmount": 1,
+                "targetSoulEggs": 10000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 210000000000000.0,
-                "rewardType": "EPIC_RESEARCH_ITEM",
-                "rewardSubType": "accounting_tricks",
-                "rewardAmount": 2.0,
-                "targetSoulEggs": 50000000.0
-              },
-              {
-                "type": "EGGS_LAID",
-                "targetAmount": 1500000000000000.0,
-                "rewardType": "GOLD",
+                "targetAmount": 1400000000000000,
+                "rewardType": "SOUL_EGGS",
                 "rewardSubType": "",
-                "rewardAmount": 14000.0,
-                "targetSoulEggs": 200000000.0
+                "rewardAmount": 27000000,
+                "targetSoulEggs": 50000000
+              },
+              {
+                "type": "EGGS_LAID",
+                "targetAmount": 8000000000000000,
+                "rewardType": "SHELL_SCRIPT",
+                "rewardSubType": "",
+                "rewardAmount": 35,
+                "targetSoulEggs": 200000000
               }
             ],
-            "lengthSeconds": 345600.0
+            "lengthSeconds": 432000
           },
           {
             "grade": "GRADE_AA",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 840000000000000.0,
-                "rewardType": "PIGGY_LEVEL_BUMP",
+                "targetAmount": 10000000000000000,
+                "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 2.0,
-                "targetSoulEggs": 1000000000.0
+                "rewardAmount": 160000,
+                "targetSoulEggs": 1000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1.5e+16,
-                "rewardType": "EPIC_RESEARCH_ITEM",
-                "rewardSubType": "accounting_tricks",
-                "rewardAmount": 2.0,
-                "targetSoulEggs": 25000000000.0
+                "targetAmount": 1.6e+17,
+                "rewardType": "ARTIFACT_CASE",
+                "rewardSubType": "",
+                "rewardAmount": 60,
+                "targetSoulEggs": 25000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1e+17,
-                "rewardType": "GOLD",
+                "targetAmount": 4.7e+17,
+                "rewardType": "SHELL_SCRIPT",
                 "rewardSubType": "",
-                "rewardAmount": 38000.0,
-                "targetSoulEggs": 100000000000.0
+                "rewardAmount": 75,
+                "targetSoulEggs": 100000000000
               }
             ],
-            "lengthSeconds": 432000.0
+            "lengthSeconds": 518400
           },
           {
             "grade": "GRADE_AAA",
             "goals": [
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 1.8e+16,
-                "rewardType": "PIGGY_LEVEL_BUMP",
+                "targetAmount": 83000000000000000,
+                "rewardType": "PIGGY_FILL",
                 "rewardSubType": "",
-                "rewardAmount": 2.0,
-                "targetSoulEggs": 100000000000.0
+                "rewardAmount": 350000,
+                "targetSoulEggs": 100000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 3.9e+17,
-                "rewardType": "EPIC_RESEARCH_ITEM",
-                "rewardSubType": "afx_mission_time",
-                "rewardAmount": 1.0,
-                "targetSoulEggs": 5000000000000.0
+                "targetAmount": 8.5e+17,
+                "rewardType": "ARTIFACT_CASE",
+                "rewardSubType": "",
+                "rewardAmount": 120,
+                "targetSoulEggs": 5000000000000
               },
               {
                 "type": "EGGS_LAID",
-                "targetAmount": 6e+17,
-                "rewardType": "GOLD",
+                "targetAmount": 1.3e+18,
+                "rewardType": "SHELL_SCRIPT",
                 "rewardSubType": "",
-                "rewardAmount": 70000.0,
-                "targetSoulEggs": 50000000000000.0
+                "rewardAmount": 125,
+                "targetSoulEggs": 50000000000000
               }
             ],
-            "lengthSeconds": 518400.0
+            "lengthSeconds": 518400
           }
         ],
         "ccOnly": false,
-        "seasonId": "spring_2026",
+        "seasonId": "summer_2023",
         "defaultShellIds": [
-          ""
-        ],
-        "customEggId": "wood"
+          "ei_farm_mars",
+          "ei_farm_hardscape_mars"
+        ]
       }
     ],
-    "serverTime": 1779531286.452345,
-    "totalEop": 163.0,
+    "serverTime": 1780380257.149094,
+    "totalEop": 163,
     "customEggs": [
       {
         "identifier": "carbon-fiber",
         "name": "CARBON FIBER",
-        "value": 500.0,
+        "value": 500,
         "hatcheryId": "ei_hatchery_custom_ce_carbonfiber",
-        "hatcheryMaxX": 15.0,
+        "hatcheryMaxX": 15,
         "icon": {
           "name": "carbon-fiber_ce_icon",
           "directory": "eggs",
@@ -1040,15 +1231,15 @@
             "value": 1.05
           }
         ],
-        "iconWidth": 512.0,
-        "iconHeight": 512.0
+        "iconWidth": 512,
+        "iconHeight": 512
       },
       {
         "identifier": "chocolate",
         "name": "CHOCOLATE",
-        "value": 5.0,
+        "value": 5,
         "hatcheryId": "ei_hatchery_custom_cechocolate",
-        "hatcheryMaxX": 15.0,
+        "hatcheryMaxX": 15,
         "icon": {
           "name": "chocolate_img",
           "directory": "eggs",
@@ -1068,22 +1259,22 @@
           },
           {
             "dimension": "AWAY_EARNINGS",
-            "value": 2.0
+            "value": 2
           },
           {
             "dimension": "AWAY_EARNINGS",
-            "value": 3.0
+            "value": 3
           }
         ],
-        "iconWidth": 512.0,
-        "iconHeight": 512.0
+        "iconWidth": 512,
+        "iconHeight": 512
       },
       {
         "identifier": "easter",
         "name": "EASTER",
         "value": 0.05,
         "hatcheryId": "ei_hatchery_custom_ceeaster",
-        "hatcheryMaxX": 10.0,
+        "hatcheryMaxX": 10,
         "icon": {
           "name": "easter_ce_icon",
           "directory": "eggs",
@@ -1110,8 +1301,8 @@
             "value": 1.05
           }
         ],
-        "iconWidth": 512.0,
-        "iconHeight": 512.0
+        "iconWidth": 512,
+        "iconHeight": 512
       },
       {
         "identifier": "firework",
@@ -1145,15 +1336,15 @@
             "value": 1.05
           }
         ],
-        "iconWidth": 512.0,
-        "iconHeight": 512.0
+        "iconWidth": 512,
+        "iconHeight": 512
       },
       {
         "identifier": "flame-retardant",
         "name": "FLAME RETARDANT",
-        "value": 50.0,
+        "value": 50,
         "hatcheryId": "ei_hatchery_custom_ceflameretardant",
-        "hatcheryMaxX": 15.0,
+        "hatcheryMaxX": 15,
         "icon": {
           "name": "flame-retardant_ce_icon",
           "directory": "eggs",
@@ -1180,13 +1371,13 @@
             "value": 0.75
           }
         ],
-        "iconWidth": 1024.0,
-        "iconHeight": 1024.0
+        "iconWidth": 1024,
+        "iconHeight": 1024
       },
       {
         "identifier": "ice",
         "name": "ICE",
-        "value": 2.0,
+        "value": 2,
         "hatcheryId": "ei_hatchery_custom_cefridge",
         "hatcheryMaxX": 11.5,
         "icon": {
@@ -1215,15 +1406,15 @@
             "value": 0.95
           }
         ],
-        "iconWidth": 1024.0,
-        "iconHeight": 1024.0
+        "iconWidth": 1024,
+        "iconHeight": 1024
       },
       {
         "identifier": "lithium",
         "name": "LITHIUM",
-        "value": 100.0,
+        "value": 100,
         "hatcheryId": "ei_hatchery_custom_celithium",
-        "hatcheryMaxX": 21.0,
+        "hatcheryMaxX": 21,
         "icon": {
           "name": "lithium_ce_icon",
           "directory": "eggs",
@@ -1250,15 +1441,15 @@
             "value": 0.9
           }
         ],
-        "iconWidth": 512.0,
-        "iconHeight": 512.0
+        "iconWidth": 512,
+        "iconHeight": 512
       },
       {
         "identifier": "pegg",
         "name": "P.E.G.G.",
-        "value": 10.0,
+        "value": 10,
         "hatcheryId": "ei_hatchery_custom_ce3dprinter",
-        "hatcheryMaxX": 15.0,
+        "hatcheryMaxX": 15,
         "icon": {
           "name": "pegg_ce_icon",
           "directory": "eggs",
@@ -1285,15 +1476,15 @@
             "value": 1.05
           }
         ],
-        "iconWidth": 512.0,
-        "iconHeight": 512.0
+        "iconWidth": 512,
+        "iconHeight": 512
       },
       {
         "identifier": "pumpkin",
         "name": "PUMPKIN",
         "value": 0.99,
         "hatcheryId": "ei_hatchery_custom_cepumpkin",
-        "hatcheryMaxX": 12.0,
+        "hatcheryMaxX": 12,
         "icon": {
           "name": "pumpkin_ce_icon",
           "directory": "eggs",
@@ -1320,15 +1511,15 @@
             "value": 1.05
           }
         ],
-        "iconWidth": 1024.0,
-        "iconHeight": 1024.0
+        "iconWidth": 1024,
+        "iconHeight": 1024
       },
       {
         "identifier": "silicon",
         "name": "SILICON",
-        "value": 50.0,
+        "value": 50,
         "hatcheryId": "ei_hatchery_custom_cesilicon",
-        "hatcheryMaxX": 24.0,
+        "hatcheryMaxX": 24,
         "icon": {
           "name": "silicon_ce_icon",
           "directory": "eggs",
@@ -1355,15 +1546,15 @@
             "value": 1.05
           }
         ],
-        "iconWidth": 512.0,
-        "iconHeight": 512.0
+        "iconWidth": 512,
+        "iconHeight": 512
       },
       {
         "identifier": "waterballoon",
         "name": "WATERBALLOON",
         "value": 0.1,
         "hatcheryId": "ei_hatchery_custom_cewaterballoon",
-        "hatcheryMaxX": 12.0,
+        "hatcheryMaxX": 12,
         "icon": {
           "name": "waterballoon_ce_icon",
           "directory": "eggs",
@@ -1390,15 +1581,15 @@
             "value": 0.95
           }
         ],
-        "iconWidth": 512.0,
-        "iconHeight": 512.0
+        "iconWidth": 512,
+        "iconHeight": 512
       },
       {
         "identifier": "wood",
         "name": "WOOD",
-        "value": 2.0,
+        "value": 2,
         "hatcheryId": "ei_hatchery_custom_cewood",
-        "hatcheryMaxX": 24.0,
+        "hatcheryMaxX": 24,
         "icon": {
           "name": "wood_ce_icon",
           "directory": "eggs",
@@ -1422,11 +1613,11 @@
           },
           {
             "dimension": "AWAY_EARNINGS",
-            "value": 2.0
+            "value": 2
           }
         ],
-        "iconWidth": 512.0,
-        "iconHeight": 512.0
+        "iconWidth": 512,
+        "iconHeight": 512
       }
     ],
     "currentSeason": {
@@ -1436,34 +1627,34 @@
           "grade": "GRADE_C",
           "goals": [
             {
-              "cxp": 3000.0,
+              "cxp": 3000,
               "rewardType": "SHELL_SCRIPT",
               "rewardSubType": "",
-              "rewardAmount": 20.0
+              "rewardAmount": 20
             },
             {
-              "cxp": 6000.0,
+              "cxp": 6000,
               "rewardType": "PIGGY_FILL",
               "rewardSubType": "",
-              "rewardAmount": 150000.0
+              "rewardAmount": 150000
             },
             {
-              "cxp": 9000.0,
+              "cxp": 9000,
               "rewardType": "GOLD",
               "rewardSubType": "",
-              "rewardAmount": 20000.0
+              "rewardAmount": 20000
             },
             {
-              "cxp": 15000.0,
+              "cxp": 15000,
               "rewardType": "EGGS_OF_PROPHECY",
               "rewardSubType": "",
-              "rewardAmount": 1.0
+              "rewardAmount": 1
             },
             {
-              "cxp": 30000.0,
+              "cxp": 30000,
               "rewardType": "BOOST",
               "rewardSubType": "boost_beacon_orange",
-              "rewardAmount": 3.0
+              "rewardAmount": 3
             }
           ]
         },
@@ -1471,34 +1662,34 @@
           "grade": "GRADE_B",
           "goals": [
             {
-              "cxp": 8000.0,
+              "cxp": 8000,
               "rewardType": "SHELL_SCRIPT",
               "rewardSubType": "",
-              "rewardAmount": 30.0
+              "rewardAmount": 30
             },
             {
-              "cxp": 16000.0,
+              "cxp": 16000,
               "rewardType": "PIGGY_FILL",
               "rewardSubType": "",
-              "rewardAmount": 400000.0
+              "rewardAmount": 400000
             },
             {
-              "cxp": 24000.0,
+              "cxp": 24000,
               "rewardType": "GOLD",
               "rewardSubType": "",
-              "rewardAmount": 30000.0
+              "rewardAmount": 30000
             },
             {
-              "cxp": 40000.0,
+              "cxp": 40000,
               "rewardType": "EGGS_OF_PROPHECY",
               "rewardSubType": "",
-              "rewardAmount": 1.0
+              "rewardAmount": 1
             },
             {
-              "cxp": 80000.0,
+              "cxp": 80000,
               "rewardType": "ARTIFACT_CASE",
               "rewardSubType": "",
-              "rewardAmount": 150.0
+              "rewardAmount": 150
             }
           ]
         },
@@ -1506,34 +1697,34 @@
           "grade": "GRADE_A",
           "goals": [
             {
-              "cxp": 20000.0,
+              "cxp": 20000,
               "rewardType": "SHELL_SCRIPT",
               "rewardSubType": "",
-              "rewardAmount": 50.0
+              "rewardAmount": 50
             },
             {
-              "cxp": 40000.0,
+              "cxp": 40000,
               "rewardType": "PIGGY_FILL",
               "rewardSubType": "",
-              "rewardAmount": 600000.0
+              "rewardAmount": 600000
             },
             {
-              "cxp": 60000.0,
+              "cxp": 60000,
               "rewardType": "GOLD",
               "rewardSubType": "",
-              "rewardAmount": 40000.0
+              "rewardAmount": 40000
             },
             {
-              "cxp": 100000.0,
+              "cxp": 100000,
               "rewardType": "EGGS_OF_PROPHECY",
               "rewardSubType": "",
-              "rewardAmount": 1.0
+              "rewardAmount": 1
             },
             {
-              "cxp": 200000.0,
+              "cxp": 200000,
               "rewardType": "ARTIFACT_CASE",
               "rewardSubType": "",
-              "rewardAmount": 250.0
+              "rewardAmount": 250
             }
           ]
         },
@@ -1541,34 +1732,34 @@
           "grade": "GRADE_AA",
           "goals": [
             {
-              "cxp": 35000.0,
+              "cxp": 35000,
               "rewardType": "SHELL_SCRIPT",
               "rewardSubType": "",
-              "rewardAmount": 70.0
+              "rewardAmount": 70
             },
             {
-              "cxp": 70000.0,
+              "cxp": 70000,
               "rewardType": "PIGGY_FILL",
               "rewardSubType": "",
-              "rewardAmount": 1000000.0
+              "rewardAmount": 1000000
             },
             {
-              "cxp": 105000.0,
+              "cxp": 105000,
               "rewardType": "GOLD",
               "rewardSubType": "",
-              "rewardAmount": 60000.0
+              "rewardAmount": 60000
             },
             {
-              "cxp": 200000.0,
+              "cxp": 200000,
               "rewardType": "EGGS_OF_PROPHECY",
               "rewardSubType": "",
-              "rewardAmount": 1.0
+              "rewardAmount": 1
             },
             {
-              "cxp": 320000.0,
+              "cxp": 320000,
               "rewardType": "ARTIFACT_CASE",
               "rewardSubType": "",
-              "rewardAmount": 350.0
+              "rewardAmount": 350
             }
           ]
         },
@@ -1576,40 +1767,40 @@
           "grade": "GRADE_AAA",
           "goals": [
             {
-              "cxp": 80000.0,
+              "cxp": 80000,
               "rewardType": "SHELL_SCRIPT",
               "rewardSubType": "",
-              "rewardAmount": 100.0
+              "rewardAmount": 100
             },
             {
-              "cxp": 160000.0,
+              "cxp": 160000,
               "rewardType": "PIGGY_FILL",
               "rewardSubType": "",
-              "rewardAmount": 2000000.0
+              "rewardAmount": 2000000
             },
             {
-              "cxp": 240000.0,
+              "cxp": 240000,
               "rewardType": "GOLD",
               "rewardSubType": "",
-              "rewardAmount": 100000.0
+              "rewardAmount": 100000
             },
             {
-              "cxp": 400000.0,
+              "cxp": 400000,
               "rewardType": "EGGS_OF_PROPHECY",
               "rewardSubType": "",
-              "rewardAmount": 1.0
+              "rewardAmount": 1
             },
             {
-              "cxp": 700000.0,
+              "cxp": 700000,
               "rewardType": "ARTIFACT_CASE",
               "rewardSubType": "",
-              "rewardAmount": 500.0
+              "rewardAmount": 500
             }
           ]
         }
       ],
       "name": "Spring 2026",
-      "startTime": 1774274400.0
+      "startTime": 1774274400
     }
   }
 }

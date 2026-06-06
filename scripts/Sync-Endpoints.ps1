@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Extracts Egg Inc API endpoints from an APK and compares against endpoints.yaml.
+    Extracts Egg, Inc. API endpoints from an APK and compares against endpoints.yaml.
 
 .DESCRIPTION
     Obtains the arm64 split APK via one of three methods (in priority order):

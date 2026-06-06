@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Extract Egg Inc API fixture responses from mitmproxy capture files.
+    Extract Egg, Inc. API fixture responses from mitmproxy capture files.
 
 .DESCRIPTION
     Exports captured flows to HAR via mitmdump, then decodes each protobuf
@@ -77,7 +77,7 @@ function Invoke-ExtractSingle([string] $mitm) {
         if ($Overwrite) { $seederArgs += '--overwrite' }
 
         dotnet @seederArgs
-        if ($LASTEXITCODE -ne 0) { Write-Warning "Seeder failed for $mitm." }
+        if ($LASTEXITCODE -ne 0) { Write-Warning "Seeder failed for $mitm - not archiving."; return }
     } finally {
         Remove-Item -Path $harFile -Force -ErrorAction SilentlyContinue
     }

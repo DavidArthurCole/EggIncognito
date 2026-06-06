@@ -1,4 +1,4 @@
-{
+﻿{
   "success": true,
   "activeMissions": [
     {
@@ -8,29 +8,29 @@
       "fuel": [
         {
           "egg": "TACHYON",
-          "amount": 2000000000000.0
+          "amount": 2000000000000
         },
         {
           "egg": "DILITHIUM",
-          "amount": 6000000000000.0
+          "amount": 6000000000000
         },
         {
           "egg": "ANTIMATTER",
-          "amount": 6000000000000.0
+          "amount": 6000000000000
         },
         {
           "egg": "DARK_MATTER",
-          "amount": 6000000000000.0
+          "amount": 6000000000000
         }
       ],
-      "durationSeconds": 138240.0,
-      "secondsRemaining": 138043.2554090023,
-      "identifier": "agxhdXhicmFpbmhvbWVyFgsSCUVJTWlzc2lvbhiAgPje4s7PCgw",
-      "capacity": 234,
-      "missionLog": "Captain's Log, Star Date 20220307.2. The crew that has chartered this ship concerns me. Their objectives seem out of a video game.",
-      "qualityBump": 2.17,
-      "level": 7,
-      "targetArtifact": "BOOK_OF_BASAN",
+      "durationSeconds": 138240,
+      "secondsRemaining": 1262.582531929016,
+      "identifier": "agxhdXhicmFpbmhvbWVyFgsSCUVJTWlzc2lvbhiAgPjuh8uoCgw",
+      "capacity": 498,
+      "missionLog": "The center of the Galaxy does kinda look like an Egg!",
+      "qualityBump": 2.48,
+      "level": 8,
+      "targetArtifact": "SHIP_IN_A_BOTTLE",
       "type": "STANDARD",
       "resetIndex": 0
     },
@@ -41,29 +41,62 @@
       "fuel": [
         {
           "egg": "TACHYON",
-          "amount": 2000000000000.0
+          "amount": 2000000000000
         },
         {
           "egg": "DILITHIUM",
-          "amount": 6000000000000.0
+          "amount": 6000000000000
         },
         {
           "egg": "ANTIMATTER",
-          "amount": 6000000000000.0
+          "amount": 6000000000000
         },
         {
           "egg": "DARK_MATTER",
-          "amount": 6000000000000.0
+          "amount": 6000000000000
         }
       ],
-      "durationSeconds": 138240.0,
-      "secondsRemaining": 138170.6313560009,
-      "identifier": "agxhdXhicmFpbmhvbWVyFgsSCUVJTWlzc2lvbhiAgPiuqbu7Cgw",
-      "capacity": 234,
-      "missionLog": "Captain's Log, Star Date 20220307.2. The crew that has chartered this ship concerns me. Their objectives seem out of a video game.",
-      "qualityBump": 2.17,
-      "level": 7,
-      "targetArtifact": "BOOK_OF_BASAN",
+      "durationSeconds": 138240,
+      "secondsRemaining": 1409.6305480003357,
+      "identifier": "agxhdXhicmFpbmhvbWVyFgsSCUVJTWlzc2lvbhiAgPjurbaRCAw",
+      "capacity": 498,
+      "missionLog": "If I had known this ship propels itself by distorting space-time, I might have reconsidered signing up.",
+      "qualityBump": 2.48,
+      "level": 8,
+      "targetArtifact": "QUANTUM_METRONOME",
+      "type": "STANDARD",
+      "resetIndex": 0
+    },
+    {
+      "ship": "ATREGGIES",
+      "status": "EXPLORING",
+      "durationType": "EPIC",
+      "fuel": [
+        {
+          "egg": "TACHYON",
+          "amount": 2000000000000
+        },
+        {
+          "egg": "DILITHIUM",
+          "amount": 6000000000000
+        },
+        {
+          "egg": "ANTIMATTER",
+          "amount": 6000000000000
+        },
+        {
+          "egg": "DARK_MATTER",
+          "amount": 6000000000000
+        }
+      ],
+      "durationSeconds": 138240,
+      "secondsRemaining": 1546.2812991142273,
+      "identifier": "agxhdXhicmFpbmhvbWVyFgsSCUVJTWlzc2lvbhiAgPjOho3cCAw",
+      "capacity": 498,
+      "missionLog": "Set a course for Earth. Engage!",
+      "qualityBump": 2.48,
+      "level": 8,
+      "targetArtifact": "QUANTUM_METRONOME",
       "type": "STANDARD",
       "resetIndex": 0
     }

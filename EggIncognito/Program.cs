@@ -20,7 +20,20 @@ builder.WebHost.ConfigureKestrel((context, opts) =>
 });
 
 builder.Services.AddControllers();
+builder.Services.AddHttpClient("inspector", c =>
+{
+    // Match the real client's headers so auxbrain accepts inspector-built requests.
+    c.DefaultRequestHeaders.Add("User-Agent",
+        "Dalvik/2.1.0 (Linux; U; Android 9; SM-G960U1 Build/PPR1.180610.011)");
+    c.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AutomaticDecompression = System.Net.DecompressionMethods.GZip,
+});
 builder.Services.AddSingleton<IBehaviorService, BehaviorService>();
+builder.Services.AddSingleton<IEndpointCatalog, EndpointCatalog>();
+builder.Services.AddSingleton<IProtoReflection, ProtoReflection>();
+builder.Services.AddSingleton<ITransportPipeline, TransportPipeline>();
 builder.Services.AddSingleton<IFixtureStore>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
@@ -31,6 +44,17 @@ builder.Services.AddSingleton<IFixtureStore>(sp =>
 });
 
 var app = builder.Build();
+
+// Static files MUST short-circuit before routing: SimulationController has a
+// catch-all [HttpOptions("/{**slug}")] that otherwise makes every GET report
+// 405 (Allow: OPTIONS). UseDefaultFiles maps /inspector/ -> /inspector/index.html.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+app.UseRouting();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok());
+app.MapGet("/inspector", () => Results.Redirect("/inspector/"));
+
+app.Logger.LogInformation("WebRootPath = {WebRoot}", app.Environment.WebRootPath);
 await app.RunAsync();

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EggIncognito - Transport Inspector</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Transport Inspector</h1>
+    <span class="sub">build, visualize, and send Egg, Inc. API requests</span>
+    <span id="signStatus" class="badge"></span>
+  </header>
+
+  <main>
+    <aside id="endpointList" class="panel">
+      <h2>Endpoints</h2>
+      <input id="endpointFilter" placeholder="filter..." />
+      <div id="endpoints"></div>
+    </aside>
+
+    <section id="builder" class="panel">
+      <h2>Request <span id="reqTypeLabel" class="muted"></span></h2>
+
+      <details id="envPanel" open>
+        <summary>Environment (BasicRequestInfo overrides)</summary>
+        <div id="envFields" class="fields"></div>
+      </details>
+
+      <div class="tree-head">
+        <span>Fields</span>
+        <label class="raw-toggle"><input type="checkbox" id="rawToggle" /> raw JSON</label>
+      </div>
+      <div id="fieldTree" class="fields"></div>
+      <textarea id="rawJson" class="hidden" spellcheck="false"></textarea>
+
+      <div class="sendbar">
+        <button id="buildBtn">Build</button>
+        <select id="target">
+          <option value="real">Real auxbrain</option>
+          <option value="mock">Local mock</option>
+        </select>
+        <button id="sendBtn" disabled>Send</button>
+      </div>
+    </section>
+
+    <section id="pipeline" class="panel">
+      <h2>Pipeline</h2>
+      <div id="stages" class="muted">Build a request to see the transform pipeline.</div>
+      <h2>Response</h2>
+      <div id="response" class="muted">No response yet.</div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

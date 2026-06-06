@@ -1,0 +1,13 @@
+{
+  "contracts": [
+    {
+      "identifier": "spring-2025",
+      "name": "Spring Cleaning",
+      "description": "A single-contract sample returned by the EggIncognito mock.",
+      "egg": "EDIBLE",
+      "coopAllowed": true
+    }
+  ],
+  "notFound": [],
+  "serverTime": 1717286400.0
+}

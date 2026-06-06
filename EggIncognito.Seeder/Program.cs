@@ -158,7 +158,15 @@ static void RunFromHar(string harPath, bool overwrite)
     Console.WriteLine();
     Console.WriteLine($"new={counts.Wrote}  upd={counts.Upd}  diff={counts.Diff}  same={counts.Same}  loss={counts.Loss}  err={counts.Err}  -> {outDir}");
     if (counts.Diff > 0 && !overwrite)
-        Console.WriteLine($"Staged diffs -> {stagedDir}  (review, then re-run with --overwrite)");
+    {
+        Console.WriteLine($"Staged: {counts.Diff} diff(s) - re-run with --overwrite to apply");
+        foreach (var staged in Directory.EnumerateFiles(stagedDir, "*.json", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(stagedDir, staged);
+            var orig = Path.Combine(outDir, rel);
+            Console.WriteLine($"  code-insiders --diff \"{orig}\" \"{staged}\"");
+        }
+    }
 }
 
 static void ProcessHarEntry(JsonElement entry, string? eid, string eidPlaceholder,
@@ -214,7 +222,8 @@ static void ProcessHarEntry(JsonElement entry, string? eid, string eidPlaceholde
             var stagedFile = Path.Combine(dirs.StagedDir, Fixture(slug));
             Directory.CreateDirectory(Path.GetDirectoryName(stagedFile)!);
             File.WriteAllText(stagedFile, json, Encoding.UTF8);
-            Console.WriteLine($"  diff  {slug}.json  (staged)");
+            Console.WriteLine($"  diff  {slug}.json");
+            Console.WriteLine($"        code-insiders --diff \"{Path.Combine(dirs.OutDir, Fixture(slug))}\" \"{stagedFile}\"");
             break;
     }
 
@@ -315,7 +324,7 @@ static byte[] BuildFirstContact(string eid)
     {
         EiUserId = eid,
         DeviceId = eid,
-        ClientVersion = 71,
+        ClientVersion = 72,
         Platform = Ei.Platform.Droid,
         Rinfo = BuildRInfo(eid),
     };
@@ -334,7 +343,7 @@ static byte[] BuildPeriodicals(string eid)
         SecondsFullGametime = 400000,
         SecondsFullRealtime = 25000000,
         SoulEggs = 1_000_000_000.0,
-        CurrentClientVersion = 71,
+        CurrentClientVersion = 72,
     };
     return req.ToByteArray();
 }
@@ -381,9 +390,9 @@ static byte[] BuildGetActiveMissions(string eid)
 static Ei.BasicRequestInfo BuildRInfo(string eid) => new()
 {
     EiUserId = eid,
-    ClientVersion = 71,
-    Version = "1.35.5",
-    Build = "111334",
+    ClientVersion = 72,
+    Version = "1.35.7",
+    Build = "111343",
     Platform = "DROID",
     Country = "US",
     Language = "en",
@@ -533,6 +542,12 @@ static string? ExtractRequestJson(JsonElement reqEl, string path, IReadOnlyDicti
             return null;
         }
         return PrettyPrint(JsonFormatter.Default.Format(msg));
+    }
+    catch (InvalidProtocolBufferException ex) when (ex.Message.Contains("ended unexpectedly"))
+    {
+        if (reqErrorSeen.Add(path))
+            Console.Error.WriteLine($"  req   {path}: truncated (HAR capture limit)");
+        return null;
     }
     catch (Exception ex)
     {
@@ -687,15 +702,31 @@ static (int score, string? json) TryParseAs(Type type, byte[] data)
 
 static byte[] Decompress(byte[] compressed)
 {
-    using var input = new MemoryStream(compressed);
-    // GZip magic: 1f 8b. ZLib magic: 78 xx. Fall back to GZip for iOS clients.
-    Stream decompressor = compressed.Length >= 2 && compressed[0] == 0x1f && compressed[1] == 0x8b
-        ? new GZipStream(input, CompressionMode.Decompress)
-        : new ZLibStream(input, CompressionMode.Decompress);
-    using var output = new MemoryStream();
-    decompressor.CopyTo(output);
-    decompressor.Dispose();
-    return output.ToArray();
+    // GZip: 1f 8b header
+    if (compressed.Length >= 2 && compressed[0] == 0x1f && compressed[1] == 0x8b)
+    {
+        using var i = new MemoryStream(compressed);
+        using var gz = new GZipStream(i, CompressionMode.Decompress);
+        using var o = new MemoryStream(); gz.CopyTo(o); return o.ToArray();
+    }
+    // ZLib: try first (has 2-byte header)
+    try
+    {
+        using var i = new MemoryStream(compressed);
+        using var zl = new ZLibStream(i, CompressionMode.Decompress);
+        using var o = new MemoryStream(); zl.CopyTo(o); return o.ToArray();
+    }
+    catch (InvalidDataException) { }
+    // Raw Deflate: no header
+    try
+    {
+        using var i = new MemoryStream(compressed);
+        using var df = new DeflateStream(i, CompressionMode.Decompress);
+        using var o = new MemoryStream(); df.CopyTo(o); return o.ToArray();
+    }
+    catch (InvalidDataException) { }
+    // Return raw - Compressed flag may be set but bytes are uncompressed proto
+    return compressed;
 }
 
 static string FindRepoRoot()

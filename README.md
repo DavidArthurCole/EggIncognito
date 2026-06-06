@@ -138,7 +138,7 @@ The exported collection (`EggIncognito-postman-collection.json`) can be imported
 | `EggIncognito` | ASP.NET Core net10.0 - controllers, fixtures, startup |
 | `EggIncognito.Generator` | Roslyn `IIncrementalGenerator` (netstandard2.0) - reads `endpoints.yaml`, emits one controller per endpoint |
 | `EggIncognito.Tests` | xUnit - unit tests for the generator and `FixtureStore`, plus `WebApplicationFactory` integration tests |
-| `EggIncognito.Seeder` | Console app - calls the real Egg Inc API and writes responses as fixture files |
+| `EggIncognito.Seeder` | Console app - calls the real Egg, Inc. API and writes responses as fixture files |
 | `EggIncognito.CodeGen` | Code generator - converts fixtures to binary proto and generates mock servers in other languages |
 
 Controllers are generated into `obj/` at build time and are not checked in. To add an endpoint, edit `endpoints.yaml` only:

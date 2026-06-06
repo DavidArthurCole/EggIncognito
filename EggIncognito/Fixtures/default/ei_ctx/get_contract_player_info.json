@@ -1,46 +1,87 @@
-{
+﻿{
   "grade": "GRADE_AAA",
-  "totalCxp": 10876810.0,
+  "totalCxp": 17850269,
   "status": "COMPLETE",
-  "lastEvaluationTime": 1779508563.194997,
+  "lastEvaluationTime": 1780328004.815219,
   "lastEvaluationVersion": "cxp-v0.2.0",
-  "gradeScore": 0.0,
-  "targetSoulPower": 11.0,
-  "targetGradeScore": 181250.0,
-  "soulPower": 28.074885172045363,
-  "gradeProgress": 0.0,
-  "seasonCxp": 0.0,
-  "issueScore": 0.0,
+  "gradeScore": 590705,
+  "targetSoulPower": 11,
+  "targetGradeScore": 136250,
+  "soulPower": 32.67258515113119,
+  "gradeProgress": 0,
+  "seasonCxp": 556188,
+  "issueScore": 0,
   "seasonProgress": [
     {
-      "seasonId": "winter_2024",
+      "seasonId": "spring_2024",
+      "activeDEP": false,
       "startingGrade": "GRADE_AAA",
-      "totalCxp": 696893.0
+      "totalCxp": 501571
     },
     {
-      "seasonId": "fall_2024",
+      "seasonId": "spring_2023",
+      "activeDEP": false,
       "startingGrade": "GRADE_AAA",
-      "totalCxp": 360027.0
-    },
-    {
-      "seasonId": "summer_2023",
-      "startingGrade": "GRADE_AAA",
-      "totalCxp": 409332.0
-    },
-    {
-      "seasonId": "summer_2024",
-      "startingGrade": "GRADE_AAA",
-      "totalCxp": 474560.0
+      "totalCxp": 66465
     },
     {
       "seasonId": "fall_2023",
+      "activeDEP": false,
       "startingGrade": "GRADE_AAA",
-      "totalCxp": 616892.0
+      "totalCxp": 609762
     },
     {
-      "seasonId": "spring_2024",
+      "seasonId": "summer_2024",
+      "activeDEP": false,
       "startingGrade": "GRADE_AAA",
-      "totalCxp": 449628.0
+      "totalCxp": 583753
+    },
+    {
+      "seasonId": "summer_2023",
+      "activeDEP": false,
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 356342
+    },
+    {
+      "seasonId": "fall_2024",
+      "activeDEP": true,
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 589988
+    },
+    {
+      "seasonId": "winter_2024",
+      "activeDEP": false,
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 727031
+    },
+    {
+      "seasonId": "winter_2025",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 31652
+    },
+    {
+      "seasonId": "summer_2025",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 570068,
+      "cxpLastRewardGiven": 400000
+    },
+    {
+      "seasonId": "fall_2025",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 677881,
+      "cxpLastRewardGiven": 400000
+    },
+    {
+      "seasonId": "winter_2026",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 708765,
+      "cxpLastRewardGiven": 640000
+    },
+    {
+      "seasonId": "spring_2026",
+      "startingGrade": "GRADE_AAA",
+      "totalCxp": 556188,
+      "cxpLastRewardGiven": 400000
     }
   ]
 }

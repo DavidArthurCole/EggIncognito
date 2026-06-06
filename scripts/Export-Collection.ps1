@@ -242,7 +242,7 @@ $collection = [ordered]@{
     info = [ordered]@{
         '_postman_id' = 'egg-inc-test-api'
         name = 'EggIncognito'
-        description = 'Mock server for the Egg Inc API (auxbrain.com). Each request POSTs base64-encoded protobuf bytes as a form field named "data". Responses are also base64-encoded protobuf. Start the server: dotnet run --project EggIncognito'
+        description = 'Mock server for the Egg, Inc. API (auxbrain.com). Each request POSTs base64-encoded protobuf bytes as a form field named "data". Responses are also base64-encoded protobuf. Start the server: dotnet run --project EggIncognito'
         schema = 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
     }
     variable = @(
@@ -256,7 +256,7 @@ $collection = [ordered]@{
             key = 'userId'
             value = ''
             type = 'string'
-            description = 'Your Egg Inc EID (e.g. EI1234567890123456). Used by the pre-request script to build AuthenticatedMessage proto bytes.'
+            description = 'Your Egg, Inc. EID (e.g. EI1234567890123456). Used by the pre-request script to build AuthenticatedMessage proto bytes.'
         }
     )
     item = @($folderItems) + @($simFolder)
