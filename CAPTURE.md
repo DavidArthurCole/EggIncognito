@@ -40,27 +40,36 @@ You will need:
 
 ### 1. Start the proxy on your computer
 
-Run the capture tool:
+Capture is part of the main app. Start the app, then turn the proxy on - either from the GUI or
+with a launch flag.
+
+From the GUI: run `dotnet run --project EggIncognito`, open the Capture tab at
+`http://localhost:5080/capture/`, and click **Start capture**. Click **Stop capture** to turn it off.
+
+To auto-start the proxy at launch:
 
 ```
-dotnet run --project EggIncognito.Tooling -- capture --eid EI1234567890123456 --label iphone
+dotnet run --project EggIncognito -- --capture
 ```
 
-On start, the tool prints two things you need:
+On start, the app prints / surfaces two things you need:
 
-- The **listening port** (default `8080`).
-- The **root CA path**. It exports a self-signed root CA to `captures/eggincognito-ca.cer`.
+- The **listening port** (default `8080`, configurable via the `CapturePort` setting).
+- The **root CA path** (default `captures/eggincognito-ca.cer`, configurable via `CaPath`). A
+  self-signed root CA is exported there on first run.
 
-Leave this running. It will print a live log line for each captured Egg, Inc. flow.
+Leave the proxy running. The Capture tab shows a live row for each captured Egg, Inc. flow.
 
-The flags are all optional:
+Capture behavior is configured via app settings / environment variables (defaults shown):
 
-| Flag | Default | What it does |
+| Setting | Default | What it does |
 |---|---|---|
-| `--port <n>` | `8080` | The port the proxy listens on. |
-| `--eid EI...` | (also read from the `EGG_INC_EID` env var) | Your Egg, Inc. EID. Used to scrub your EID out of saved endpoints and to name the HAR file. To be used in the filename, it must match `^EI\d{16,}$`. |
-| `--label <name>` | (none) | A label added to the HAR filename (for example `iphone`). |
-| `--overwrite` | (off) | Overwrite existing endpoints instead of staging diffs for review. |
+| `CapturePort` | `8080` | The port the proxy listens on. |
+| `EGG_INC_EID` | (env var) | Your Egg, Inc. EID. Used to scrub your EID out of saved endpoints and to name the HAR file. To be used in the filename, it must match `^EI\d{16,}$`. |
+| `CaptureLabel` | (none) | A label added to the HAR filename (for example `iphone`). |
+| `CaptureOverwrite` | (off) | Overwrite existing endpoints instead of staging diffs for review. |
+| `CapturePath` | `captures/` | Directory the HAR is written to. |
+| `CaPath` | `captures/eggincognito-ca.cer` | The persisted root CA file. |
 
 ### 2. Find your computer's LAN IP address
 
@@ -107,15 +116,16 @@ Open Egg, Inc. on the phone and play / navigate around. Watch your computer's co
 
 The more you do in the game, the more endpoints get captured.
 
-### 7. Finish with Ctrl-C
+### 7. Finish by stopping capture
 
-When you are done, press **Ctrl-C** in the computer's console. The proxy stops and, in one pass:
+When you are done, click **Stop capture** on the Capture tab (or stop the app). On stop, in one pass:
 
-- The HAR is written to `captures/session[_label][_EID].har`.
+- The HAR is written to `captures/session[_label][_EID].har` (under `CapturePath`).
 - The `routes.yaml` editor saves once.
-- A summary line prints: `new=.. upd=.. diff=.. same=.. loss=.. err=..`, followed by a self-repair report.
+- The captured flow counts (`new / upd / diff / same / loss / err`) and the self-repair report are
+  available from the dashboard.
 
-If no Egg, Inc. traffic was seen, it prints `No auxbrain flows captured.` (see Troubleshooting).
+If no Egg, Inc. traffic was seen, no HAR is written (see Troubleshooting).
 
 ---
 

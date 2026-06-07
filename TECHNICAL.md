@@ -10,11 +10,12 @@ Internals and reference for [EggIncognito](README.md). For the capture walkthrou
 
 | Project | Purpose |
 |---|---|
-| `EggIncognito` | ASP.NET Core (net10.0) - the mock server: controllers, endpoints, startup. Also hosts the shared library code (`Services/EndpointExtractor.cs`, `Services/EndpointStore.cs`, `Services/TransportPipeline.cs`, `Services/AuxbrainHosts.cs`) used by the other tools. |
+| `EggIncognito` | ASP.NET Core (net10.0) - the single app: mock controllers, the Inspector (`/inspector/`) and capture (`/capture/`) SPAs + their controllers, and the CLI subcommands in `Cli/` (`emit-types`, `check-endpoints`, `export-collection`). |
+| `EggIncognito.Core` | Class lib (net10.0) - the shared library code (`Services/EndpointExtractor.cs`, `Services/EndpointStore.cs`, `Services/TransportPipeline.cs`, `Services/RouteCatalog.cs`, `Services/AuxbrainHosts.cs`, etc.) plus the `Ei.*` proto types (`Proto/ei.proto` built by Grpc.Tools). No web dependency. |
+| `EggIncognito.Capture` | Class lib (net10.0) - the capture engine: `UnobtaniumCaptureProxy` (selective-decrypt of auxbrain only), `CaptureHub`/`FlowProcessor`/`FlowDecoder`/`HarWriter`, and `CaptureSession` (start/stop lifecycle owner). Refs Core. See [CAPTURE.md](CAPTURE.md). |
 | `EggIncognito.Generator` | Roslyn `IIncrementalGenerator` (netstandard2.0) - reads `routes.yaml` and emits one controller per endpoint at build time. |
-| `EggIncognito.Tests` | xUnit - unit tests for the generator, `EndpointStore`, the extraction pipeline, and `WebApplicationFactory` integration tests. |
-| `EggIncognito.Seeder` | Console app - a thin CLI over the extraction pipeline. Calls the real Egg, Inc. API to seed per-EID endpoints, replays a HAR (`--from-har`), or identifies an unknown proto blob (`--decode`). |
-| `EggIncognito.Tooling` | Console app - the pure-C# capture proxy (`capture` command). Selective-decrypts only auxbrain hosts, feeds captured flows to `EndpointExtractor` in-process, and writes a HAR. See [CAPTURE.md](CAPTURE.md). |
+| `EggIncognito.Tests` | xUnit - unit tests for the generator, `EndpointStore`, the extraction pipeline, capture, the CLI ports, and `WebApplicationFactory` integration tests. |
+| `EggIncognito.Seeder` | Console app - a thin CLI over the extraction pipeline. Calls the real Egg, Inc. API to seed per-EID endpoints, replays a HAR (`--from-har`), or identifies an unknown proto blob (`--decode`). Refs Core. |
 
 Controllers are generated into `obj/` at build time and are NOT checked in (never edit generated files). To add an endpoint, edit `routes.yaml` only:
 
@@ -26,7 +27,7 @@ Controllers are generated into `obj/` at build time and are NOT checked in (neve
 
 Then run `dotnet build`. Add an endpoint file under `EggIncognito/Endpoints/default/<namespace>/` if a non-default response is needed.
 
-The extraction pipeline lives in `EggIncognito/Services/EndpointExtractor.cs` and exposes one per-flow method `ProcessFlow(url, method, status, requestDataB64, responseBodyB64)`. Both the HAR replay path (Seeder `--from-har`) and the in-process capture path (Tooling `capture`) funnel through it, so they cannot diverge.
+The extraction pipeline lives in `EggIncognito.Core/Services/EndpointExtractor.cs` and exposes one per-flow method `ProcessFlow(url, method, status, requestDataB64, responseBodyB64)`. Both the HAR replay path (Seeder `--from-har`) and the in-process capture path (the in-app capture proxy, driven by `CaptureSession`) funnel through it, so they cannot diverge.
 
 ## Distribution
 
@@ -55,14 +56,21 @@ cp -r EggIncognito/Endpoints ./publish/Endpoints
 | `CertsPath` | `<app dir>/certs` | Directory containing `server.crt` and `server.key` |
 | `HttpPort` | `8080` | HTTP port when certs are present (overrides ASPNETCORE_URLS) |
 | `HttpsPort` | `8443` | HTTPS port (only active when certs are present) |
-| `EGG_INC_EID` | required for live seeding | EID for the Seeder live-API mode and the Tooling capture default |
+| `EGG_INC_EID` | required for live seeding | EID for the Seeder live-API mode and the in-app capture default |
+| `CapturePort` | `8080` | Port the capture proxy listens on |
+| `CapturePath` | `<repo>/captures` | Directory the capture HAR is written to |
+| `CaPath` | `<CapturePath>/eggincognito-ca.cer` | The persisted capture root CA file |
 | `EGG_INC_API_SALT` | required for live seeding | API signing phrase for the Seeder live-API mode |
 
-## Maintenance scripts
+## Maintenance subcommands
 
-Two PowerShell Core scripts (run with `pwsh`) remain, both being ported to the unified `EggIncognito` CLI and slated for removal. The proto-refresh, APK-diff, mitmproxy-extract, and publish scripts have been removed; HAR extraction now goes through `EggIncognito.Seeder -- --from-har` (see [CAPTURE.md](CAPTURE.md)).
+The former PowerShell maintenance scripts are now subcommands of the unified `EggIncognito` CLI,
+dispatched before the web host boots. The proto-refresh, APK-diff, mitmproxy-extract, and publish
+scripts have been removed; HAR extraction goes through `EggIncognito.Seeder -- --from-har` (see
+[CAPTURE.md](CAPTURE.md)).
 
-| Script | Purpose |
+| Command | Purpose |
 |---|---|
-| `Export-Collection.ps1` | Generate a Postman v2.1 collection from `routes.yaml` |
-| `Check-Endpoints.ps1` | Report routes with a missing or empty endpoint |
+| `dotnet run --project EggIncognito -- export-collection [--output <path>]` | Generate a Postman v2.1 collection from `routes.yaml` |
+| `dotnet run --project EggIncognito -- check-endpoints [--update]` | Report routes with a missing or empty endpoint; `--update` rewrites the `endpoint_status:` block |
+| `dotnet run --project EggIncognito -- emit-types` | Regenerate `wwwroot/capture/types.d.ts` from the capture records |

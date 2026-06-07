@@ -63,13 +63,15 @@ Endpoint JSON is [Google.Protobuf JSON](https://protobuf.dev/programming-guides/
 
 ## Capture your own data
 
-Want endpoints from a real account? `EggIncognito.Tooling` is a built-in capture proxy that records real Egg, Inc. traffic from your phone and turns it into endpoints automatically. It decrypts **only** auxbrain hosts and passes all other traffic through untouched, so the rest of your phone keeps working.
+Want endpoints from a real account? The app has a built-in capture proxy that records real Egg, Inc. traffic from your phone and turns it into endpoints automatically. It decrypts **only** auxbrain hosts and passes all other traffic through untouched, so the rest of your phone keeps working.
+
+Run the app and open the Capture tab at `http://localhost:5080/capture/`, then click **Start capture** (or launch with `--capture` to auto-start the proxy):
 
 ```sh
-dotnet run --project EggIncognito.Tooling -- capture --eid EI... --label iphone
+dotnet run --project EggIncognito -- --capture
 ```
 
-Point your phone's Wi-Fi proxy at your computer, install the printed certificate, and play the game. Each captured flow becomes an endpoint on disk.
+Point your phone's Wi-Fi proxy at your computer, install the printed certificate, and play the game. Each captured flow becomes an endpoint on disk. Stop the proxy from the same Capture tab.
 
 ➡️ **Full step-by-step device guide: [CAPTURE.md](CAPTURE.md)**
 
