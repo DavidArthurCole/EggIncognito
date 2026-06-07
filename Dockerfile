@@ -12,12 +12,12 @@ RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
-COPY EggIncognito/Fixtures /app/Fixtures
+COPY EggIncognito/Endpoints /app/Endpoints
 
-VOLUME ["/app/Fixtures"]
+VOLUME ["/app/Endpoints"]
 
 ENV ASPNETCORE_URLS=http://+:8080
-ENV FixturesPath=/app/Fixtures
+ENV EndpointsPath=/app/Endpoints
 
 EXPOSE 8080
 EXPOSE 8443

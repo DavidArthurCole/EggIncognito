@@ -16,7 +16,7 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Build_Unwrapped_HasFourStagesAndSkipsAuthMessage()
+    public void Build_Unwrapped_PassesThroughWithRealBytes()
     {
         var pipe = Build();
         var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
@@ -25,7 +25,15 @@ public class TransportPipelineTests
 
         Assert.Collection(result.Stages,
             s => Assert.Equal("proto-encode", s.Name),
-            s => { Assert.Equal("authenticated-message", s.Name); Assert.Contains("skipped", s.Note); },
+            s =>
+            {
+                // No empty "skipped" card: the request IS the proto bytes, posted as-is.
+                Assert.Equal("passthrough", s.Name);
+                Assert.Equal("payload", s.Role);
+                Assert.False(s.Skipped);
+                Assert.Equal(inner.Length, s.ByteLength);
+                Assert.Equal(Convert.ToBase64String(inner), s.Base64);
+            },
             s => Assert.Equal("base64", s.Name),
             s => Assert.Equal("form-urlencode", s.Name));
         Assert.Equal(Convert.ToBase64String(inner), result.FinalBase64);
@@ -42,7 +50,9 @@ public class TransportPipelineTests
         var result = pipe.Build(inner, wrap: true);
 
         var authStage = result.Stages.Single(s => s.Name == "authenticated-message");
-        Assert.Null(authStage.Note); // signed, no warning
+        Assert.Equal("envelope", authStage.Role);
+        // Signed: the note is the envelope explainer, not an unsigned warning.
+        Assert.DoesNotContain("UNSIGNED", authStage.Note);
         // The wrapped bytes must parse back into an AuthenticatedMessage with a non-empty code.
         var wrapped = Convert.FromBase64String(authStage.Base64!);
         var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(wrapped);
@@ -60,7 +70,7 @@ public class TransportPipelineTests
         var result = pipe.Build(inner, wrap: true);
 
         var authStage = result.Stages.Single(s => s.Name == "authenticated-message");
-        Assert.Contains("unsigned", authStage.Note);
+        Assert.Contains("UNSIGNED", authStage.Note);
     }
 
     [Fact]
@@ -101,23 +111,30 @@ public class TransportPipelineTests
     }
 }
 
-public class EndpointCatalogTests
+public class RouteCatalogTests
 {
     private const string Yaml = """
-endpoints:
+routes:
   - path: ei/first_contact_secure
-    requestType: EggIncFirstContactRequest
-    responseType: EggIncFirstContactResponse
+    request: EggIncFirstContactRequest
+    requestWrapped: true
+    response: EggIncFirstContactResponse
+    responseWrapped: true
   - path: ei_ctx/get_contracts_info
-    requestType: ContractsInfoRequest
-    responseType: ContractsInfoResponse
+    request: ContractsInfoRequest
+    response: ContractsInfoResponse
   - path: ei/process_shells_actions
-    requestType: ShellsActionBatch
+    request: ShellsActionBatch
     rawResponse: "OK"
   - path: ei_ctx/get_contract_evaluation
     requestType: AuthenticatedMessage
-    responseType: ContractEvaluation
+    response: ContractEvaluation
     pathParam: true
+  - path: ei_srv/subscription_status
+    response: UserSubscriptionInfo
+    responseWrapped: true
+    pathParam: true
+    pathParamOnly: true
 
 excluded:
   - ei/kb
@@ -127,11 +144,11 @@ fixture_status:
     - ei/clean_accounts
 """;
 
-    private static EndpointCatalog Build()
+    private static RouteCatalog Build()
     {
         var path = Path.GetTempFileName();
         File.WriteAllText(path, Yaml);
-        return new EndpointCatalog(path);
+        return new RouteCatalog(path);
     }
 
     [Fact]
@@ -140,7 +157,7 @@ fixture_status:
         var cat = Build();
         // ei/kb (excluded) and ei/clean_accounts (fixture_status) must NOT be endpoints.
         Assert.Null(cat.Get("ei/kb"));
-        Assert.Equal(4, cat.All().Count);
+        Assert.Equal(5, cat.All().Count);
     }
 
     [Fact]
@@ -148,15 +165,39 @@ fixture_status:
     {
         var e = Build().Get("ei_ctx/get_contracts_info");
         Assert.NotNull(e);
-        Assert.Equal("ContractsInfoRequest", e!.RequestType);
-        Assert.Equal("ContractsInfoResponse", e.ResponseType);
-        Assert.False(e.Wrap);
+        Assert.Equal("ContractsInfoRequest", e!.Request);
+        Assert.Equal("ContractsInfoResponse", e.Response);
+        Assert.False(e.RequestWrapped);
+        Assert.False(e.ResponseWrapped);
     }
 
     [Fact]
-    public void Parse_FirstContact_IsMarkedWrap()
+    public void Parse_FirstContact_IsMarkedRequestWrapped()
     {
-        Assert.True(Build().Get("ei/first_contact_secure")!.Wrap);
+        var e = Build().Get("ei/first_contact_secure")!;
+        Assert.True(e.RequestWrapped);
+        Assert.True(e.ResponseWrapped);
+    }
+
+    [Fact]
+    public void Parse_SubscriptionStatus_IsPathParamOnlyWithKnownResponse()
+    {
+        var e = Build().Get("ei_srv/subscription_status")!;
+        Assert.True(e.PathParamOnly);
+        Assert.True(e.PathParam);
+        Assert.Null(e.Request);
+        Assert.Equal("UserSubscriptionInfo", e.Response);
+        Assert.True(e.ResponseWrapped);
+    }
+
+    [Fact]
+    public void Parse_LegacyAuthenticatedMessageRequest_NormalizesToWrapped()
+    {
+        // ei_ctx/get_contract_evaluation still uses legacy requestType: AuthenticatedMessage.
+        var e = Build().Get("ei_ctx/get_contract_evaluation")!;
+        Assert.Null(e.Request);
+        Assert.True(e.RequestWrapped);
+        Assert.Equal("ContractEvaluation", e.Response);
     }
 
     [Fact]

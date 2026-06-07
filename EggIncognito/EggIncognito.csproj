@@ -7,24 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.Protobuf" Version="3.29.3" />
-    <PackageReference Include="Grpc.Tools" Version="2.71.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Protobuf Include="Proto\ei.proto" ProtoRoot="Proto" GrpcServices="None" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
     <ProjectReference Include="..\EggIncognito.Generator\EggIncognito.Generator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="EndpointMap\endpoints.yaml" />
+    <AdditionalFiles Include="RouteMap\routes.yaml" />
   </ItemGroup>
 </Project>

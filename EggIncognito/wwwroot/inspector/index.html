@@ -28,8 +28,13 @@
         <div id="envFields" class="fields"></div>
       </details>
 
+      <div id="pathParamRow" class="path-param-row hidden">
+        <label for="pathParamValue">URL path parameter (e.g. EID)</label>
+        <input id="pathParamValue" placeholder="EI1234567890123456" />
+      </div>
+
       <div class="tree-head">
-        <span>Fields</span>
+        <span>Request fields <span class="muted">(the request message body)</span></span>
         <label class="raw-toggle"><input type="checkbox" id="rawToggle" /> raw JSON</label>
       </div>
       <div id="fieldTree" class="fields"></div>
@@ -52,6 +57,19 @@
       <div id="response" class="muted">No response yet.</div>
     </section>
   </main>
+
+  <section id="logsPanel" class="panel logs-panel">
+    <div class="logs-head">
+      <h2>Logs</h2>
+      <div class="logs-controls">
+        <label><input type="radio" name="logLevel" value="basic" checked /> basic</label>
+        <label><input type="radio" name="logLevel" value="advanced" /> advanced</label>
+        <label class="logs-follow"><input type="checkbox" id="logsAutoScroll" checked /> follow</label>
+        <button id="logsClear" type="button">clear view</button>
+      </div>
+    </div>
+    <div id="logs" class="logs"></div>
+  </section>
 
   <script type="module" src="app.js"></script>
 </body>

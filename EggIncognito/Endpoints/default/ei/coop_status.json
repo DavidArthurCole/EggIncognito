@@ -1,0 +1,6096 @@
+﻿{
+  "contractIdentifier": "ten-ten",
+  "totalAmount": 1.0690669118781386e+18,
+  "coopIdentifier": "redacted-8db70ab88d02",
+  "contributors": [
+    {
+      "userId": "EI0000000000000000",
+      "userName": "redacted-1934d0ef799d",
+      "contributionAmount": 2.898630552738151e+17,
+      "active": true,
+      "platform": "IOS",
+      "contributionRate": 3801224962789.8755,
+      "timeCheatDetected": false,
+      "soulPower": 32.67258515113119,
+      "boostTokens": 25,
+      "buffHistory": [
+        {
+          "eggLayingRate": 1.17,
+          "earnings": 1,
+          "serverTimestamp": 91540.98922300339
+        },
+        {
+          "eggLayingRate": 1.17,
+          "earnings": 2,
+          "serverTimestamp": 91534.14788794518
+        },
+        {
+          "eggLayingRate": 1,
+          "earnings": 1,
+          "serverTimestamp": 83755.26949000359
+        },
+        {
+          "eggLayingRate": 1.17,
+          "earnings": 2,
+          "serverTimestamp": 80468.44200706482
+        },
+        {
+          "eggLayingRate": 1,
+          "earnings": 1,
+          "serverTimestamp": 80437.96569895744
+        },
+        {
+          "eggLayingRate": 1.17,
+          "earnings": 1,
+          "serverTimestamp": 73497.72348308563
+        }
+      ],
+      "boostTokensSpent": 4,
+      "productionParams": {
+        "farmPopulation": 14883750000,
+        "farmCapacity": 14883750000,
+        "elr": 303.65255262930333,
+        "ihr": 218.43509757447538,
+        "sr": 3801224962069,
+        "delivered": 2.898630552738151e+17
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 5.129466334620712e+22,
+        "eggsOfProphecy": "231",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 20
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 12
+          },
+          {
+            "id": "epic_clucking",
+            "level": 20
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 100
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 10
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 40
+          },
+          {
+            "id": "silo_capacity",
+            "level": 20
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 10
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 20
+          },
+          {
+            "id": "hold_to_research",
+            "level": 20
+          },
+          {
+            "id": "soul_eggs",
+            "level": 140
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 20
+          },
+          {
+            "id": "drone_rewards",
+            "level": 20
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 20
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 30
+          },
+          {
+            "id": "warp_shift",
+            "level": 16
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 5
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 60
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 10
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 6.484337684130489e+69,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "3720937500",
+          "3720937500",
+          "3720937500",
+          "3720937500"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 150
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 50
+          },
+          {
+            "id": "multi_layering",
+            "level": 3
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 50
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 25
+          },
+          {
+            "id": "eggsistor",
+            "level": 100
+          },
+          {
+            "id": "micro_coupling",
+            "level": 5
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 25
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 500
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 1
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 25
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 10
+          }
+        ],
+        "boostTokensOnHand": 25,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "GREATER",
+              "rarity": "LEGENDARY",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "QUANTUM_METRONOME",
+              "level": "GREATER",
+              "rarity": "LEGENDARY",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "INTERSTELLAR_COMPASS",
+              "level": "GREATER",
+              "rarity": "LEGENDARY",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "TACHYON_DEFLECTOR",
+              "level": "GREATER",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          }
+        ],
+        "artifactInventoryScore": "495223",
+        "farmAppearance": {
+          "shellConfigs": [
+            {
+              "assetType": "CHICKEN_UNIVERSE",
+              "index": 0,
+              "shellIdentifier": "ei_hab_chicken_universe_future_white"
+            },
+            {
+              "assetType": "CHICKEN_UNIVERSE",
+              "index": 1,
+              "shellIdentifier": "ei_hab_chicken_universe_future_white"
+            },
+            {
+              "assetType": "CHICKEN_UNIVERSE",
+              "index": 2,
+              "shellIdentifier": "ei_hab_chicken_universe_future_white"
+            },
+            {
+              "assetType": "CHICKEN_UNIVERSE",
+              "index": 3,
+              "shellIdentifier": "ei_hab_chicken_universe_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 0,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 1,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 2,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 3,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 4,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 5,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 6,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 7,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 8,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 9,
+              "shellIdentifier": "ei_silo_1_large_future_white"
+            },
+            {
+              "assetType": "MAILBOX",
+              "index": 0,
+              "shellIdentifier": "ei_mailbox_empty_future_white"
+            },
+            {
+              "assetType": "TROPHY_CASE",
+              "index": 0,
+              "shellIdentifier": "ei_trophy_case_future_white"
+            },
+            {
+              "assetType": "GROUND",
+              "index": 0,
+              "shellIdentifier": "ei_farm_fresh_snow"
+            },
+            {
+              "assetType": "HARDSCAPE",
+              "index": 0,
+              "shellIdentifier": "ei_farm_hardscape_winter"
+            },
+            {
+              "assetType": "HYPERLOOP",
+              "index": 0,
+              "shellIdentifier": "ei_hyperloop_stop_future_white"
+            },
+            {
+              "assetType": "DEPOT_7",
+              "index": 0,
+              "shellIdentifier": "ei_depot_7_future_white"
+            },
+            {
+              "assetType": "LAB_6",
+              "index": 0,
+              "shellIdentifier": "ei_lab_6_future_white"
+            },
+            {
+              "assetType": "HATCHERY_SUPERMATERIAL",
+              "index": 0,
+              "shellIdentifier": "ei_hatchery_supermaterial_future_white"
+            },
+            {
+              "assetType": "HOA_3",
+              "index": 0,
+              "shellIdentifier": "ei_hoa_3_future_white"
+            },
+            {
+              "assetType": "MISSION_CONTROL_3",
+              "index": 0,
+              "shellIdentifier": "ei_mission_control_3_future_white"
+            },
+            {
+              "assetType": "FUEL_TANK_4",
+              "index": 0,
+              "shellIdentifier": "ei_fuel_tank_4_future_white"
+            },
+            {
+              "assetType": "HYPERLOOP_TRACK",
+              "index": 0,
+              "shellIdentifier": "ei_hyperloop_stop_future_white"
+            },
+            {
+              "assetType": "MAILBOX_FULL",
+              "index": 0,
+              "shellIdentifier": "ei_mailbox_empty_future_white"
+            }
+          ],
+          "shellSetConfigs": [
+            {
+              "element": "HEN_HOUSE",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "HEN_HOUSE",
+              "index": 1,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "HEN_HOUSE",
+              "index": 2,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "HEN_HOUSE",
+              "index": 3,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 1,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 2,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 3,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 4,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 5,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 6,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 7,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 8,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "SILO",
+              "index": 9,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "MAILBOX",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "TROPHY_CASE",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "HYPERLOOP",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "DEPOT",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "LAB",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "HATCHERY",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "HOA",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "MISSION_CONTROL",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            },
+            {
+              "element": "FUEL_TANK",
+              "index": 0,
+              "shellSetIdentifier": "future_white",
+              "variationIdentifier": "",
+              "decoratorIdentifier": "sd_winter"
+            }
+          ],
+          "configureChickensByGroup": false,
+          "groupConfigs": [
+            {
+              "assetType": "CHICKEN",
+              "groupIdentifier": "ei_chicken_sumatra"
+            },
+            {
+              "assetType": "HAT",
+              "groupIdentifier": "ei_hat_football_helmet_red"
+            }
+          ],
+          "chickenConfigs": [
+            {
+              "chickenIdentifier": "ei_chicken_chron",
+              "hatIdentifier": "ei_hat_chron"
+            },
+            {
+              "chickenIdentifier": "ei_chicken_submarine",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_hazmat",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_hoverpack",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_hangglider",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_rocket",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_biplane",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_balloons",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_dragonwings",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_ufo",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_flamingotube",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_turtletube",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_scuba",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "",
+              "hatIdentifier": "ei_hat_merhen"
+            }
+          ],
+          "lightingConfigEnabled": true,
+          "lightingConfig": {
+            "lightDir": {
+              "x": -0.0496908,
+              "y": 0.9938081,
+              "z": -0.09937953
+            },
+            "lightDirectColor": {
+              "x": 1,
+              "y": 0.984,
+              "z": 0.85,
+              "w": 1
+            },
+            "lightDirectIntensity": 0.24585195,
+            "lightAmbientColor": {
+              "x": 0.878,
+              "y": 0.878,
+              "z": 1,
+              "w": 1
+            },
+            "lightAmbientIntensity": 0.01,
+            "fogColor": {
+              "x": 0.6117647,
+              "y": 0.4745098,
+              "z": 0.45490196,
+              "w": 1
+            },
+            "fogNear": -50,
+            "fogFar": 10,
+            "fogDensity": 0.2
+          }
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "3720937500",
+          "3720937500",
+          "3720937500",
+          "3720937500"
+        ],
+        "timestamp": -250.95889806747437
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "77b82c5a6eba4b6e98e0213f6f19ec86",
+      "finalized": false,
+      "recentlyActive": true,
+      "ccMember": true
+    },
+    {
+      "userId": "gAAAAABqJF7OdWICPcWS4kKrWf84l3iE1MELOaxzjPseco2lLqopzN9vNZbHCjHb339BHHZMusKtEFIB1sZD93sfCPXMMyEHDvzw0CroHqNVX1y98dTAOFg=",
+      "userName": "redacted-261a592b2b0c",
+      "contributionAmount": 1.9844071751938896e+17,
+      "active": true,
+      "platform": "DROID",
+      "contributionRate": 3421102467198.879,
+      "timeCheatDetected": false,
+      "soulPower": 24.911207147954688,
+      "boostTokens": 19,
+      "buffHistory": [
+        {
+          "eggLayingRate": 1.13,
+          "earnings": 1,
+          "serverTimestamp": 86198.6775560379
+        },
+        {
+          "eggLayingRate": 1,
+          "earnings": 1,
+          "serverTimestamp": 64159.679616212845
+        },
+        {
+          "eggLayingRate": 1.13,
+          "earnings": 1,
+          "serverTimestamp": 64099.13453197479
+        }
+      ],
+      "boostTokensSpent": 6,
+      "productionParams": {
+        "farmPopulation": 14526540000,
+        "farmCapacity": 14526540000,
+        "elr": 238.55233941000003,
+        "ihr": 256.1323307176542,
+        "sr": 3421102465859.8335,
+        "delivered": 1.9844071751938896e+17
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 5.4406085044294957e+17,
+        "eggsOfProphecy": "162",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 20
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 12
+          },
+          {
+            "id": "epic_clucking",
+            "level": 20
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 100
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 10
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 0
+          },
+          {
+            "id": "silo_capacity",
+            "level": 20
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 10
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 20
+          },
+          {
+            "id": "hold_to_research",
+            "level": 20
+          },
+          {
+            "id": "soul_eggs",
+            "level": 140
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 20
+          },
+          {
+            "id": "drone_rewards",
+            "level": 20
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 20
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 30
+          },
+          {
+            "id": "warp_shift",
+            "level": 0
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 5
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 60
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 10
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 2.4024382407487133e+68,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "3631635000",
+          "3631635000",
+          "3631635000",
+          "3631635000"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 150
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 50
+          },
+          {
+            "id": "multi_layering",
+            "level": 3
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 50
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 25
+          },
+          {
+            "id": "eggsistor",
+            "level": 100
+          },
+          {
+            "id": "micro_coupling",
+            "level": 5
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 25
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 500
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 1
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 25
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 10
+          }
+        ],
+        "boostTokensOnHand": 19,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "TACHYON_DEFLECTOR",
+              "level": "NORMAL",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "INTERSTELLAR_COMPASS",
+              "level": "GREATER",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "QUANTUM_METRONOME",
+              "level": "NORMAL",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "GREATER",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          }
+        ],
+        "artifactInventoryScore": "202536",
+        "farmAppearance": {
+          "configureChickensByGroup": false,
+          "lightingConfigEnabled": false
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "3631635000",
+          "3631635000",
+          "3631635000",
+          "3631635000"
+        ],
+        "timestamp": -775.89470911026
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "075443f591f549a6afe9972d3d77b1e3",
+      "finalized": false,
+      "recentlyActive": true,
+      "ccMember": true
+    },
+    {
+      "userId": "gAAAAABqJF7OHqpudBggZdhheaNjbPiAPDxR1oxIy-XjXUQ9ern1I0nvQkT1AycHwVz0EfTiosDGF53Ai14JdtiH0BMXDFUhnDJM6lDtsKNi89PkZxy8jf0=",
+      "userName": "redacted-626434c747a7",
+      "contributionAmount": 1.7732664792091837e+17,
+      "active": true,
+      "platform": "IOS",
+      "contributionRate": 3292368849014.1177,
+      "timeCheatDetected": false,
+      "soulPower": 20.052951296941963,
+      "boostTokens": 17,
+      "buffHistory": [
+        {
+          "eggLayingRate": 1.12,
+          "earnings": 1,
+          "serverTimestamp": 87959.94280409813
+        },
+        {
+          "eggLayingRate": 1,
+          "earnings": 1,
+          "serverTimestamp": 69848.65056586266
+        }
+      ],
+      "boostTokensSpent": 8,
+      "productionParams": {
+        "farmPopulation": 14288400000,
+        "farmCapacity": 14288400000,
+        "elr": 230.42249999999993,
+        "ihr": 131.50199999999998,
+        "sr": 3314813741676,
+        "delivered": 1.7732664792091837e+17
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 12758637979598452,
+        "eggsOfProphecy": "91",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          2
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 20
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 12
+          },
+          {
+            "id": "epic_clucking",
+            "level": 20
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 100
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 10
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 0
+          },
+          {
+            "id": "silo_capacity",
+            "level": 20
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 10
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 20
+          },
+          {
+            "id": "hold_to_research",
+            "level": 20
+          },
+          {
+            "id": "soul_eggs",
+            "level": 140
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 20
+          },
+          {
+            "id": "drone_rewards",
+            "level": 20
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 20
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 30
+          },
+          {
+            "id": "warp_shift",
+            "level": 0
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 5
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 60
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 10
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 3.205198012653431e+68,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "3572100000",
+          "3572100000",
+          "3572100000",
+          "3572100000"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 150
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 50
+          },
+          {
+            "id": "multi_layering",
+            "level": 3
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 50
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 25
+          },
+          {
+            "id": "eggsistor",
+            "level": 100
+          },
+          {
+            "id": "micro_coupling",
+            "level": 5
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 25
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 500
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 1
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 25
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 10
+          }
+        ],
+        "boostTokensOnHand": 17,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "DILITHIUM_MONOCLE",
+              "level": "GREATER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "QUANTUM_METRONOME",
+              "level": "GREATER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "INTERSTELLAR_COMPASS",
+              "level": "GREATER",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "LESSER",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "QUANTUM_STONE",
+                "level": "LESSER",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "GREATER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          }
+        ],
+        "artifactInventoryScore": "274478",
+        "farmAppearance": {
+          "configureChickensByGroup": true,
+          "groupConfigs": [
+            {
+              "assetType": "CHICKEN",
+              "groupIdentifier": ""
+            },
+            {
+              "assetType": "HAT",
+              "groupIdentifier": ""
+            }
+          ],
+          "lightingConfigEnabled": false
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "3572100000",
+          "3572100000",
+          "3572100000",
+          "3572100000"
+        ],
+        "timestamp": -7943.665403842926
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "a15de6dc501f4e4383e702fed218de93",
+      "finalized": false,
+      "recentlyActive": false,
+      "ccMember": true
+    },
+    {
+      "userId": "gAAAAABqJF7OTcfHSFkNVQvIDT-se7mfXtc68a2NVhycVjC8q1nBiCJYT5Frkc7c4nx3tIzIL8zLLaP1izkqIHy8UxgNGresCkd7KRMp9GUTZubYd4Ld-mI=",
+      "userName": "redacted-93607b5b625c",
+      "contributionAmount": 1.47982535711598e+17,
+      "active": true,
+      "platform": "DROID",
+      "contributionRate": 3206907957724.4624,
+      "timeCheatDetected": false,
+      "soulPower": 25.36913202756633,
+      "boostTokens": 14,
+      "buffHistory": [
+        {
+          "eggLayingRate": 1.13,
+          "earnings": 1,
+          "serverTimestamp": 91340.36279988289
+        },
+        {
+          "eggLayingRate": 1,
+          "earnings": 1,
+          "serverTimestamp": 70191.36428499222
+        },
+        {
+          "eggLayingRate": 1.13,
+          "earnings": 1,
+          "serverTimestamp": 70086.26847887039
+        }
+      ],
+      "boostTokensSpent": 5,
+      "productionParams": {
+        "farmPopulation": 14526540000,
+        "farmCapacity": 14526540000,
+        "elr": 220.76199545400002,
+        "ihr": 318.81197423923226,
+        "sr": 3258192824630.1665,
+        "delivered": 1.47982535711598e+17
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 4.266104439366369e+19,
+        "eggsOfProphecy": "125",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 20
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 12
+          },
+          {
+            "id": "epic_clucking",
+            "level": 20
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 100
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 10
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 0
+          },
+          {
+            "id": "silo_capacity",
+            "level": 20
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 10
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 20
+          },
+          {
+            "id": "hold_to_research",
+            "level": 20
+          },
+          {
+            "id": "soul_eggs",
+            "level": 140
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 20
+          },
+          {
+            "id": "drone_rewards",
+            "level": 20
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 20
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 30
+          },
+          {
+            "id": "warp_shift",
+            "level": 0
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 5
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 60
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 10
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 5.732117692305053e+67,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "3631635000",
+          "3631635000",
+          "3631635000",
+          "3631635000"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 150
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 50
+          },
+          {
+            "id": "multi_layering",
+            "level": 3
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 50
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 25
+          },
+          {
+            "id": "eggsistor",
+            "level": 100
+          },
+          {
+            "id": "micro_coupling",
+            "level": 5
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 25
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 500
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 1
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 25
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 10
+          }
+        ],
+        "boostTokensOnHand": 14,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "GREATER",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "QUANTUM_METRONOME",
+              "level": "NORMAL",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "INTERSTELLAR_COMPASS",
+              "level": "GREATER",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "TACHYON_DEFLECTOR",
+              "level": "NORMAL",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          }
+        ],
+        "artifactInventoryScore": "391869",
+        "farmAppearance": {
+          "configureChickensByGroup": false,
+          "lightingConfigEnabled": false
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "3631635000",
+          "3631635000",
+          "3631635000",
+          "3631635000"
+        ],
+        "timestamp": -22925.049610853195
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "0ef69a366be34a61a0d6ed0bfecbb5b9",
+      "finalized": false,
+      "recentlyActive": false,
+      "ccMember": false
+    },
+    {
+      "userId": "gAAAAABqJF7OQfoPYvzumAw_wmefLyp49uqnBW-aLoVc1eKziUihkb9yKcbIDvqHui5ConFXtxJOOPCQ5h3bBKedJz8_QXdViIs4FK4lYDMkaZJyh-04tSk=",
+      "userName": "redacted-b75dabce1a88",
+      "contributionAmount": 1.161868241709224e+17,
+      "active": true,
+      "platform": "IOS",
+      "contributionRate": 1963712815491.0203,
+      "timeCheatDetected": false,
+      "soulPower": 27.15043981422035,
+      "boostTokens": 16,
+      "buffHistory": [
+        {
+          "eggLayingRate": 1.15,
+          "earnings": 1.6,
+          "serverTimestamp": 91961.14142298698
+        },
+        {
+          "eggLayingRate": 1.13,
+          "earnings": 1,
+          "serverTimestamp": 69951.4848151207
+        },
+        {
+          "eggLayingRate": 1.15,
+          "earnings": 1.6,
+          "serverTimestamp": 65673.23126292229
+        },
+        {
+          "eggLayingRate": 1.13,
+          "earnings": 1,
+          "serverTimestamp": 65660.8575720787
+        }
+      ],
+      "boostTokensSpent": 8,
+      "productionParams": {
+        "farmPopulation": 14365319648,
+        "farmCapacity": 14486850000,
+        "elr": 178.91425455750002,
+        "ihr": 130.2,
+        "sr": 1963712815403.55,
+        "delivered": 1.161868241709224e+17
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 6.006159951743728e+18,
+        "eggsOfProphecy": "198",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          3,
+          5,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          5,
+          5
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 20
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 12
+          },
+          {
+            "id": "epic_clucking",
+            "level": 20
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 100
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 10
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 0
+          },
+          {
+            "id": "silo_capacity",
+            "level": 20
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 10
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 20
+          },
+          {
+            "id": "hold_to_research",
+            "level": 20
+          },
+          {
+            "id": "soul_eggs",
+            "level": 140
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 20
+          },
+          {
+            "id": "drone_rewards",
+            "level": 20
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 20
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 30
+          },
+          {
+            "id": "warp_shift",
+            "level": 0
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 5
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 60
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 10
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 1.1725524665927542e+61,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "3591329912",
+          "3591329912",
+          "3591329912",
+          "3591329912"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 127
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 50
+          },
+          {
+            "id": "multi_layering",
+            "level": 2
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 50
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 23
+          },
+          {
+            "id": "eggsistor",
+            "level": 73
+          },
+          {
+            "id": "micro_coupling",
+            "level": 4
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 21
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 260
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 0
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 10
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 5
+          }
+        ],
+        "boostTokensOnHand": 16,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "TACHYON_DEFLECTOR",
+              "level": "NORMAL",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "QUANTUM_METRONOME",
+              "level": "NORMAL",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "INTERSTELLAR_COMPASS",
+              "level": "GREATER",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "GREATER",
+              "rarity": "LEGENDARY",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          }
+        ],
+        "artifactInventoryScore": "567094",
+        "farmAppearance": {
+          "configureChickensByGroup": false,
+          "lightingConfigEnabled": false
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "3621712500",
+          "3621712500",
+          "3621712500",
+          "3621712500"
+        ],
+        "timestamp": -6539.533449888229
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "49c6a35908154432b25f0776728b7896",
+      "finalized": false,
+      "recentlyActive": false,
+      "ccMember": false
+    },
+    {
+      "userId": "gAAAAABqJF7O9B0MS7ym1icZ9TA6Jn-IXdn3HpBEDFnFCfO7R77BE64tK8v_huXQrg9i2bRTN7k2aFKe7cPOiq3PBQXb_4jjygsrcEGRT5mbZmW_-NTnjYw=",
+      "userName": "redacted-0209e1badb1f",
+      "contributionAmount": 93787500376442510,
+      "active": true,
+      "platform": "DROID",
+      "contributionRate": 1955405293160.607,
+      "timeCheatDetected": false,
+      "soulPower": 14.384107627703566,
+      "boostTokens": 3,
+      "buffHistory": [
+        {
+          "eggLayingRate": 1,
+          "earnings": 1.2,
+          "serverTimestamp": 92124.17051196098
+        },
+        {
+          "eggLayingRate": 1,
+          "earnings": 1,
+          "serverTimestamp": 35574.46382808685
+        }
+      ],
+      "boostTokensSpent": 22,
+      "productionParams": {
+        "farmPopulation": 10922958323,
+        "farmCapacity": 13693050000,
+        "elr": 179.01853199999996,
+        "ihr": 18086.640000000003,
+        "sr": 2294647079317.1665,
+        "delivered": 93787500376442510
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 20868669399942,
+        "eggsOfProphecy": "46",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          3,
+          3,
+          3,
+          4,
+          3,
+          3,
+          3,
+          3,
+          3,
+          4,
+          3,
+          3,
+          3,
+          4,
+          3,
+          5,
+          3,
+          4,
+          0
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 20
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 12
+          },
+          {
+            "id": "epic_clucking",
+            "level": 20
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 75
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 10
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 0
+          },
+          {
+            "id": "silo_capacity",
+            "level": 20
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 10
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 20
+          },
+          {
+            "id": "hold_to_research",
+            "level": 7
+          },
+          {
+            "id": "soul_eggs",
+            "level": 113
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 13
+          },
+          {
+            "id": "drone_rewards",
+            "level": 20
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 16
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 30
+          },
+          {
+            "id": "warp_shift",
+            "level": 0
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 0
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 0
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 0
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 1.2498797267946198e+69,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "2769907448",
+          "2717685719",
+          "2717683270",
+          "2717681886"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 150
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 50
+          },
+          {
+            "id": "multi_layering",
+            "level": 3
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 50
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 25
+          },
+          {
+            "id": "eggsistor",
+            "level": 100
+          },
+          {
+            "id": "micro_coupling",
+            "level": 5
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 25
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 500
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 1
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 25
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 10
+          }
+        ],
+        "activeBoosts": [
+          {
+            "boostId": "tachyon_prism_blue_big",
+            "timeRemaining": 61.73942519770672,
+            "referenceValue": 0
+          },
+          {
+            "boostId": "tachyon_prism_blue_big",
+            "timeRemaining": 62.389205471145445,
+            "referenceValue": 0
+          },
+          {
+            "boostId": "tachyon_prism_blue_big",
+            "timeRemaining": 62.78918816195828,
+            "referenceValue": 0
+          },
+          {
+            "boostId": "soul_mirror_orange",
+            "timeRemaining": 62954.22755577607,
+            "referenceValue": 0
+          },
+          {
+            "boostId": "tachyon_prism_purple_v2",
+            "timeRemaining": 99.08520531655401,
+            "referenceValue": 0
+          }
+        ],
+        "boostTokensOnHand": 3,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "NORMAL",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "QUANTUM_METRONOME",
+              "level": "LESSER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "INTERSTELLAR_COMPASS",
+              "level": "LESSER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "DILITHIUM_MONOCLE",
+              "level": "LESSER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          }
+        ],
+        "artifactInventoryScore": "46688",
+        "farmAppearance": {
+          "configureChickensByGroup": false,
+          "lightingConfigEnabled": false
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "3423262500",
+          "3423262500",
+          "3423262500",
+          "3423262500"
+        ],
+        "timestamp": -2811.9455320835114
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "99e54aea680f4944a38be50bba45c3eb",
+      "finalized": false,
+      "recentlyActive": false,
+      "ccMember": false
+    },
+    {
+      "userId": "gAAAAABqJF7OKkK-1pEZ06N94Se3wdrXMlsPCs61JfImQrjBfvPAYD95zs739xjvjyZuaf3iKC-wM8cU4cBS6V_Qc-H-gJosjCb0-GOdqP1uX212hCvukEw=",
+      "userName": "redacted-f934a2a8332a",
+      "contributionAmount": 27313758380758204,
+      "active": true,
+      "platform": "DROID",
+      "contributionRate": 4029844655677.37,
+      "timeCheatDetected": false,
+      "soulPower": 26.11771279510505,
+      "boostTokens": 3,
+      "boostTokensSpent": 9,
+      "productionParams": {
+        "farmPopulation": 14526540000,
+        "farmCapacity": 14526540000,
+        "elr": 277.41256042500004,
+        "ihr": 130.2,
+        "sr": 4107033510264.8335,
+        "delivered": 27313758380758204
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 3.74734413326151e+18,
+        "eggsOfProphecy": "178",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          4
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 20
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 12
+          },
+          {
+            "id": "epic_clucking",
+            "level": 20
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 100
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 10
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 40
+          },
+          {
+            "id": "silo_capacity",
+            "level": 20
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 10
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 20
+          },
+          {
+            "id": "hold_to_research",
+            "level": 20
+          },
+          {
+            "id": "soul_eggs",
+            "level": 140
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 20
+          },
+          {
+            "id": "drone_rewards",
+            "level": 20
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 20
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 30
+          },
+          {
+            "id": "warp_shift",
+            "level": 9
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 5
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 60
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 10
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 9.763750513556186e+64,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "3631635000",
+          "3631635000",
+          "3631635000",
+          "3631635000"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 150
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 50
+          },
+          {
+            "id": "multi_layering",
+            "level": 3
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 50
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 25
+          },
+          {
+            "id": "eggsistor",
+            "level": 100
+          },
+          {
+            "id": "micro_coupling",
+            "level": 5
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 25
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 435
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 0
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 25
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 10
+          }
+        ],
+        "boostTokensOnHand": 3,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "TUNGSTEN_ANKH",
+              "level": "NORMAL",
+              "rarity": "LEGENDARY",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "QUANTUM_METRONOME",
+              "level": "GREATER",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "INTERSTELLAR_COMPASS",
+              "level": "GREATER",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "GREATER",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "TACHYON_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          }
+        ],
+        "artifactInventoryScore": "375810",
+        "farmAppearance": {
+          "configureChickensByGroup": false,
+          "lightingConfigEnabled": false
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "3631635000",
+          "3631635000",
+          "3631635000",
+          "3631635000"
+        ],
+        "timestamp": -7450.528501033783
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "f0b0defd7aa74e869cc8468f1a52b578",
+      "finalized": false,
+      "recentlyActive": false,
+      "ccMember": true
+    },
+    {
+      "userId": "gAAAAABqJF7O9Y2VsBjmDF_PHaPE8J5eTeHznF4th_Dz8v3QAQqym4AVmX0wREZzv-7Ybs8Cij5uk1NSqpZTaewvDGweVSxqxeyv3OCHVHE3Y0A-9afYLpo=",
+      "userName": "redacted-6a769866f45a",
+      "contributionAmount": 14800378103531706,
+      "active": true,
+      "platform": "IOS",
+      "contributionRate": 501045334646.2653,
+      "timeCheatDetected": false,
+      "soulPower": 28.335110829678904,
+      "boostTokens": 13,
+      "buffHistory": [
+        {
+          "eggLayingRate": 1.13,
+          "earnings": 1,
+          "serverTimestamp": 48980.96691894531
+        }
+      ],
+      "boostTokensSpent": 0,
+      "productionParams": {
+        "farmPopulation": 6342853132,
+        "farmCapacity": 11811744000,
+        "elr": 78.99368399999999,
+        "ihr": 270.1835504044892,
+        "sr": 617486671142.6666,
+        "delivered": 14800378103531706
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 4.3909737642934057e+18,
+        "eggsOfProphecy": "225",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 20
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 12
+          },
+          {
+            "id": "epic_clucking",
+            "level": 20
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 100
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 10
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 0
+          },
+          {
+            "id": "silo_capacity",
+            "level": 20
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 10
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 20
+          },
+          {
+            "id": "hold_to_research",
+            "level": 20
+          },
+          {
+            "id": "soul_eggs",
+            "level": 140
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 20
+          },
+          {
+            "id": "drone_rewards",
+            "level": 20
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 20
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 30
+          },
+          {
+            "id": "warp_shift",
+            "level": 0
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 5
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 60
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 10
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 3.40307040268098e+59,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "1585713301",
+          "1585713267",
+          "1585713281",
+          "1585713283"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 100
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 37
+          },
+          {
+            "id": "multi_layering",
+            "level": 1
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 42
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 12
+          },
+          {
+            "id": "eggsistor",
+            "level": 39
+          },
+          {
+            "id": "micro_coupling",
+            "level": 3
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 14
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 0
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 0
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 0
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 0
+          }
+        ],
+        "boostTokensOnHand": 13,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "GREATER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "DILITHIUM_MONOCLE",
+              "level": "GREATER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "THE_CHALICE",
+              "level": "GREATER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "TACHYON_DEFLECTOR",
+              "level": "NORMAL",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "QUANTUM_STONE",
+                "level": "NORMAL",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          }
+        ],
+        "artifactInventoryScore": "1253734",
+        "farmAppearance": {
+          "configureChickensByGroup": true,
+          "groupConfigs": [
+            {
+              "assetType": "CHICKEN",
+              "groupIdentifier": ""
+            },
+            {
+              "assetType": "HAT",
+              "groupIdentifier": ""
+            }
+          ],
+          "lightingConfigEnabled": false
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "2952936000",
+          "2952936000",
+          "2952936000",
+          "2952936000"
+        ],
+        "timestamp": -653.1231551170349
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "744ec8bbc94d49ff87462362e1d138d0",
+      "finalized": false,
+      "recentlyActive": true,
+      "ccMember": false
+    },
+    {
+      "userId": "gAAAAABqJF7OBbNiPu6SqZ1I1tXJE0nDQSR8lBtVCOEIG8AgUg0rGy3Sje7yqHCn5Ocm8BoOQuYnTSvnC1RmZOCNkMfsVKXi3dDOHrBT3RXn0_Rxk7sUguU=",
+      "userName": "redacted-a465cde7b4f6",
+      "contributionAmount": 1938886882157143,
+      "active": true,
+      "platform": "IOS",
+      "contributionRate": 124655708844.08257,
+      "timeCheatDetected": false,
+      "soulPower": 18.20386085837071,
+      "boostTokens": 7,
+      "buffHistory": [
+        {
+          "eggLayingRate": 1.08,
+          "earnings": 1,
+          "serverTimestamp": 17920.012236118317
+        }
+      ],
+      "boostTokensSpent": 2,
+      "productionParams": {
+        "farmPopulation": 644571321,
+        "farmCapacity": 13812120000,
+        "elr": 193.39319999999992,
+        "ihr": 124,
+        "sr": 2363776782442.1665,
+        "delivered": 1938886882157143
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 81314332268856900,
+        "eggsOfProphecy": "27",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          2,
+          0,
+          1,
+          5,
+          3,
+          5,
+          3,
+          3,
+          5,
+          3,
+          4,
+          5,
+          5,
+          3
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 20
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 12
+          },
+          {
+            "id": "epic_clucking",
+            "level": 20
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 100
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 10
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 0
+          },
+          {
+            "id": "silo_capacity",
+            "level": 20
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 10
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 20
+          },
+          {
+            "id": "hold_to_research",
+            "level": 20
+          },
+          {
+            "id": "soul_eggs",
+            "level": 140
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 20
+          },
+          {
+            "id": "drone_rewards",
+            "level": 20
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 20
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 30
+          },
+          {
+            "id": "warp_shift",
+            "level": 0
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 5
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 18
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 3
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 5.8151706358948415e+63,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "161151415",
+          "161141863",
+          "161139580",
+          "161138463"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 150
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 50
+          },
+          {
+            "id": "multi_layering",
+            "level": 3
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 50
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 25
+          },
+          {
+            "id": "eggsistor",
+            "level": 100
+          },
+          {
+            "id": "micro_coupling",
+            "level": 5
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 25
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 457
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 0
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 21
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 10
+          }
+        ],
+        "boostTokensOnHand": 7,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "TACHYON_DEFLECTOR",
+              "level": "LESSER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "INTERSTELLAR_COMPASS",
+              "level": "NORMAL",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "QUANTUM_METRONOME",
+              "level": "NORMAL",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "NORMAL",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            }
+          }
+        ],
+        "artifactInventoryScore": "40267",
+        "farmAppearance": {
+          "configureChickensByGroup": false,
+          "lightingConfigEnabled": false
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "3453030000",
+          "3453030000",
+          "3453030000",
+          "3453030000"
+        ],
+        "timestamp": -7682.903090000153
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "cbca4ccf0ff6413fa2b350e08b90bc17",
+      "finalized": false,
+      "recentlyActive": false,
+      "ccMember": false
+    },
+    {
+      "userId": "gAAAAABqJF7O299zlbQ5nYCClqyCN-qZsKl9V3jA8a3PXHrZtUOlISNs2wJXfSI6aJCukPF1kQX-jUPQ4ZdoJ6v-xT8pIRROoV8mJIbwjafUiBuIXcX68Es=",
+      "userName": "redacted-6c07819791b3",
+      "contributionAmount": 1426607538606180.2,
+      "active": true,
+      "platform": "IOS",
+      "contributionRate": 44623329526.52938,
+      "timeCheatDetected": false,
+      "soulPower": 22.661192971051232,
+      "boostTokens": 14,
+      "buffHistory": [
+        {
+          "eggLayingRate": 1.13,
+          "earnings": 1,
+          "serverTimestamp": 8813.39710187912
+        }
+      ],
+      "boostTokensSpent": 9,
+      "productionParams": {
+        "farmPopulation": 288819616,
+        "farmCapacity": 14288400000,
+        "elr": 154.55285999999995,
+        "ihr": 1415038.9169424376,
+        "sr": 885939230348,
+        "delivered": 1426607538606180.2
+      },
+      "leech": false,
+      "autojoined": false,
+      "farmInfo": {
+        "soulEggs": 146275636037803,
+        "eggsOfProphecy": "201",
+        "permitLevel": 1,
+        "hyperloopStation": true,
+        "eggMedalLevel": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        "epicResearch": [
+          {
+            "id": "hold_to_hatch",
+            "level": 15
+          },
+          {
+            "id": "epic_hatchery",
+            "level": 20
+          },
+          {
+            "id": "epic_internal_incubators",
+            "level": 10
+          },
+          {
+            "id": "video_doubler_time",
+            "level": 10
+          },
+          {
+            "id": "epic_clucking",
+            "level": 2
+          },
+          {
+            "id": "epic_multiplier",
+            "level": 67
+          },
+          {
+            "id": "cheaper_contractors",
+            "level": 10
+          },
+          {
+            "id": "bust_unions",
+            "level": 8
+          },
+          {
+            "id": "cheaper_research",
+            "level": 10
+          },
+          {
+            "id": "epic_silo_quality",
+            "level": 3
+          },
+          {
+            "id": "silo_capacity",
+            "level": 15
+          },
+          {
+            "id": "int_hatch_sharing",
+            "level": 1
+          },
+          {
+            "id": "int_hatch_calm",
+            "level": 20
+          },
+          {
+            "id": "accounting_tricks",
+            "level": 6
+          },
+          {
+            "id": "hold_to_research",
+            "level": 10
+          },
+          {
+            "id": "soul_eggs",
+            "level": 140
+          },
+          {
+            "id": "prestige_bonus",
+            "level": 10
+          },
+          {
+            "id": "drone_rewards",
+            "level": 12
+          },
+          {
+            "id": "epic_egg_laying",
+            "level": 16
+          },
+          {
+            "id": "transportation_lobbyist",
+            "level": 23
+          },
+          {
+            "id": "warp_shift",
+            "level": 0
+          },
+          {
+            "id": "prophecy_bonus",
+            "level": 5
+          },
+          {
+            "id": "afx_mission_time",
+            "level": 60
+          },
+          {
+            "id": "afx_mission_capacity",
+            "level": 10
+          }
+        ],
+        "eggType": "EDIBLE",
+        "cashOnHand": 7.417239776734599e+65,
+        "habs": [
+          18,
+          18,
+          18,
+          18
+        ],
+        "habPopulation": [
+          "72205838",
+          "72205474",
+          "72204220",
+          "72204084"
+        ],
+        "vehicles": [
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11
+        ],
+        "trainLength": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10
+        ],
+        "silosOwned": 10,
+        "commonResearch": [
+          {
+            "id": "comfy_nests",
+            "level": 50
+          },
+          {
+            "id": "nutritional_sup",
+            "level": 40
+          },
+          {
+            "id": "better_incubators",
+            "level": 15
+          },
+          {
+            "id": "excitable_chickens",
+            "level": 25
+          },
+          {
+            "id": "hab_capacity1",
+            "level": 8
+          },
+          {
+            "id": "internal_hatchery1",
+            "level": 10
+          },
+          {
+            "id": "padded_packaging",
+            "level": 30
+          },
+          {
+            "id": "hatchery_expansion",
+            "level": 10
+          },
+          {
+            "id": "bigger_eggs",
+            "level": 1
+          },
+          {
+            "id": "internal_hatchery2",
+            "level": 10
+          },
+          {
+            "id": "leafsprings",
+            "level": 30
+          },
+          {
+            "id": "vehicle_reliablity",
+            "level": 2
+          },
+          {
+            "id": "rooster_booster",
+            "level": 25
+          },
+          {
+            "id": "coordinated_clucking",
+            "level": 50
+          },
+          {
+            "id": "hatchery_rebuild1",
+            "level": 1
+          },
+          {
+            "id": "usde_prime",
+            "level": 1
+          },
+          {
+            "id": "hen_house_ac",
+            "level": 50
+          },
+          {
+            "id": "superfeed",
+            "level": 35
+          },
+          {
+            "id": "microlux",
+            "level": 10
+          },
+          {
+            "id": "compact_incubators",
+            "level": 10
+          },
+          {
+            "id": "lightweight_boxes",
+            "level": 40
+          },
+          {
+            "id": "excoskeletons",
+            "level": 2
+          },
+          {
+            "id": "internal_hatchery3",
+            "level": 15
+          },
+          {
+            "id": "improved_genetics",
+            "level": 30
+          },
+          {
+            "id": "traffic_management",
+            "level": 2
+          },
+          {
+            "id": "motivational_clucking",
+            "level": 50
+          },
+          {
+            "id": "driver_training",
+            "level": 30
+          },
+          {
+            "id": "shell_fortification",
+            "level": 60
+          },
+          {
+            "id": "egg_loading_bots",
+            "level": 2
+          },
+          {
+            "id": "super_alloy",
+            "level": 50
+          },
+          {
+            "id": "even_bigger_eggs",
+            "level": 5
+          },
+          {
+            "id": "internal_hatchery4",
+            "level": 30
+          },
+          {
+            "id": "quantum_storage",
+            "level": 20
+          },
+          {
+            "id": "genetic_purification",
+            "level": 100
+          },
+          {
+            "id": "internal_hatchery5",
+            "level": 250
+          },
+          {
+            "id": "time_compress",
+            "level": 20
+          },
+          {
+            "id": "hover_upgrades",
+            "level": 25
+          },
+          {
+            "id": "graviton_coating",
+            "level": 7
+          },
+          {
+            "id": "grav_plating",
+            "level": 25
+          },
+          {
+            "id": "chrystal_shells",
+            "level": 100
+          },
+          {
+            "id": "autonomous_vehicles",
+            "level": 5
+          },
+          {
+            "id": "neural_linking",
+            "level": 30
+          },
+          {
+            "id": "telepathic_will",
+            "level": 50
+          },
+          {
+            "id": "enlightened_chickens",
+            "level": 150
+          },
+          {
+            "id": "dark_containment",
+            "level": 25
+          },
+          {
+            "id": "atomic_purification",
+            "level": 50
+          },
+          {
+            "id": "multi_layering",
+            "level": 3
+          },
+          {
+            "id": "timeline_diversion",
+            "level": 50
+          },
+          {
+            "id": "wormhole_dampening",
+            "level": 25
+          },
+          {
+            "id": "eggsistor",
+            "level": 100
+          },
+          {
+            "id": "micro_coupling",
+            "level": 5
+          },
+          {
+            "id": "neural_net_refine",
+            "level": 25
+          },
+          {
+            "id": "matter_reconfig",
+            "level": 0
+          },
+          {
+            "id": "timeline_splicing",
+            "level": 0
+          },
+          {
+            "id": "hyper_portalling",
+            "level": 25
+          },
+          {
+            "id": "relativity_optimization",
+            "level": 10
+          }
+        ],
+        "activeBoosts": [
+          {
+            "boostId": "tachyon_prism_orange",
+            "timeRemaining": 830.7406470697108,
+            "referenceValue": 0
+          },
+          {
+            "boostId": "boost_beacon_purple",
+            "timeRemaining": 833.024434081811,
+            "referenceValue": 0
+          }
+        ],
+        "boostTokensOnHand": 14,
+        "equippedArtifacts": [
+          {
+            "spec": {
+              "name": "THE_CHALICE",
+              "level": "NORMAL",
+              "rarity": "EPIC",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "LIFE_STONE",
+                "level": "LESSER",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "LIFE_STONE",
+                "level": "LESSER",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "TUNGSTEN_ANKH",
+              "level": "NORMAL",
+              "rarity": "LEGENDARY",
+              "egg": "UNKNOWN"
+            },
+            "stones": [
+              {
+                "name": "LIFE_STONE",
+                "level": "LESSER",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "LIFE_STONE",
+                "level": "LESSER",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              },
+              {
+                "name": "LIFE_STONE",
+                "level": "LESSER",
+                "rarity": "COMMON",
+                "egg": "UNKNOWN"
+              }
+            ]
+          },
+          {
+            "spec": {
+              "name": "TACHYON_DEFLECTOR",
+              "level": "NORMAL",
+              "rarity": "RARE",
+              "egg": "UNKNOWN"
+            }
+          },
+          {
+            "spec": {
+              "name": "ORNATE_GUSSET",
+              "level": "GREATER",
+              "rarity": "COMMON",
+              "egg": "UNKNOWN"
+            }
+          }
+        ],
+        "artifactInventoryScore": "485364",
+        "farmAppearance": {
+          "shellConfigs": [
+            {
+              "assetType": "MONOLITH",
+              "index": 0,
+              "shellIdentifier": "ei_hab_monolith_woodyellow"
+            },
+            {
+              "assetType": "MONOLITH",
+              "index": 1,
+              "shellIdentifier": "ei_hab_monolith_woodyellow"
+            },
+            {
+              "assetType": "MONOLITH",
+              "index": 2,
+              "shellIdentifier": "ei_hab_monolith_woodyellow"
+            },
+            {
+              "assetType": "MONOLITH",
+              "index": 3,
+              "shellIdentifier": "ei_hab_monolith_woodyellow"
+            },
+            {
+              "assetType": "SILO_0_LARGE",
+              "index": 0,
+              "shellIdentifier": "ei_silo_0_large_woodyellow"
+            },
+            {
+              "assetType": "SILO_0_LARGE",
+              "index": 1,
+              "shellIdentifier": "ei_silo_0_large_woodyellow"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 2,
+              "shellIdentifier": "ei_silo_1_large_woodyellow"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 3,
+              "shellIdentifier": "ei_silo_1_large_woodyellow"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 4,
+              "shellIdentifier": "ei_silo_1_large_woodyellow"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 5,
+              "shellIdentifier": "ei_silo_1_large_woodyellow"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 6,
+              "shellIdentifier": "ei_silo_1_large_woodyellow"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 7,
+              "shellIdentifier": "ei_silo_1_large_woodyellow"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 8,
+              "shellIdentifier": "ei_silo_1_large_woodyellow"
+            },
+            {
+              "assetType": "SILO_1_LARGE",
+              "index": 9,
+              "shellIdentifier": "ei_silo_1_large_woodyellow"
+            },
+            {
+              "assetType": "MAILBOX",
+              "index": 0,
+              "shellIdentifier": "ei_mailbox_empty_woodyellow"
+            },
+            {
+              "assetType": "TROPHY_CASE",
+              "index": 0,
+              "shellIdentifier": "ei_trophy_case_woodyellow"
+            },
+            {
+              "assetType": "GROUND",
+              "index": 0,
+              "shellIdentifier": "ei_farm_redwood"
+            },
+            {
+              "assetType": "HARDSCAPE",
+              "index": 0,
+              "shellIdentifier": "ei_farm_hardscape_burrow"
+            },
+            {
+              "assetType": "HYPERLOOP",
+              "index": 0,
+              "shellIdentifier": "ei_hyperloop_stop_underground"
+            },
+            {
+              "assetType": "DEPOT_7",
+              "index": 0,
+              "shellIdentifier": "ei_depot_7_woodyellow"
+            },
+            {
+              "assetType": "LAB_6",
+              "index": 0,
+              "shellIdentifier": "ei_lab_6_woodyellow"
+            },
+            {
+              "assetType": "HATCHERY_TERRAFORM",
+              "index": 0,
+              "shellIdentifier": "ei_hatchery_terraform_woodyellow"
+            },
+            {
+              "assetType": "HOA_1",
+              "index": 0,
+              "shellIdentifier": "ei_hoa_1_woodyellow"
+            },
+            {
+              "assetType": "HOA_3",
+              "index": 0,
+              "shellIdentifier": "ei_hoa_3_woodyellow"
+            },
+            {
+              "assetType": "MISSION_CONTROL_3",
+              "index": 0,
+              "shellIdentifier": "ei_mission_control_3_woodyellow"
+            },
+            {
+              "assetType": "FUEL_TANK_1",
+              "index": 0,
+              "shellIdentifier": "ei_fuel_tank_1_woodyellow"
+            },
+            {
+              "assetType": "FUEL_TANK_3",
+              "index": 0,
+              "shellIdentifier": "ei_fuel_tank_3_woodyellow"
+            },
+            {
+              "assetType": "HYPERLOOP_TRACK",
+              "index": 0,
+              "shellIdentifier": "ei_hyperloop_stop_underground"
+            },
+            {
+              "assetType": "MAILBOX_FULL",
+              "index": 0,
+              "shellIdentifier": "ei_mailbox_empty_woodyellow"
+            }
+          ],
+          "shellSetConfigs": [
+            {
+              "element": "HEN_HOUSE",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "HEN_HOUSE",
+              "index": 1,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "HEN_HOUSE",
+              "index": 2,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "HEN_HOUSE",
+              "index": 3,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 1,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 2,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 3,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 4,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 5,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 6,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 7,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 8,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "SILO",
+              "index": 9,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "MAILBOX",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "TROPHY_CASE",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "HARDSCAPE",
+              "index": 0,
+              "shellSetIdentifier": "burrow",
+              "variationIdentifier": "",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "DEPOT",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "LAB",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "HATCHERY",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "HOA",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "MISSION_CONTROL",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            },
+            {
+              "element": "FUEL_TANK",
+              "index": 0,
+              "shellSetIdentifier": "woodyellow",
+              "variationIdentifier": "mint_green",
+              "decoratorIdentifier": ""
+            }
+          ],
+          "configureChickensByGroup": false,
+          "groupConfigs": [
+            {
+              "assetType": "CHICKEN",
+              "groupIdentifier": ""
+            },
+            {
+              "assetType": "HAT",
+              "groupIdentifier": ""
+            }
+          ],
+          "chickenConfigs": [
+            {
+              "chickenIdentifier": "ei_chicken_big_hat",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_big_hat",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_huge",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_longneck",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_radiation",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_sketch",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_crystal",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_aprilfools",
+              "hatIdentifier": ""
+            },
+            {
+              "chickenIdentifier": "ei_chicken_chick",
+              "hatIdentifier": ""
+            }
+          ],
+          "lightingConfigEnabled": true,
+          "lightingConfig": {
+            "lightDir": {
+              "x": -0.64249253,
+              "y": 0.64249253,
+              "z": 0.41762015
+            },
+            "lightDirectColor": {
+              "x": 1,
+              "y": 0.984,
+              "z": 0.85,
+              "w": 1
+            },
+            "lightDirectIntensity": 0.55907327,
+            "lightAmbientColor": {
+              "x": 0.84705883,
+              "y": 0.80784315,
+              "z": 0.9490196,
+              "w": 1
+            },
+            "lightAmbientIntensity": 0.34508985,
+            "fogColor": {
+              "x": 1,
+              "y": 1,
+              "z": 1,
+              "w": 1
+            },
+            "fogNear": -50,
+            "fogFar": 10,
+            "fogDensity": 0.2
+          }
+        },
+        "clientVersion": 72,
+        "habCapacity": [
+          "3572100000",
+          "3572100000",
+          "3572100000",
+          "3572100000"
+        ],
+        "timestamp": -8802.787986040115
+      },
+      "contractIdentifier": "ten-ten",
+      "chickenRunCooldown": 0,
+      "uuid": "d49f31d04e7e4a82b8430e28afa90274",
+      "finalized": false,
+      "recentlyActive": false,
+      "ccMember": false
+    }
+  ],
+  "secondsRemaining": 771222.6091029644,
+  "allMembersReporting": false,
+  "gracePeriodSecondsRemaining": 814422.6091029644,
+  "autoGenerated": false,
+  "creatorId": "EI12345",
+  "public": false,
+  "clientTimestamp": 1780768482.490724,
+  "allGoalsAchieved": false,
+  "clearedForExit": false,
+  "grade": "GRADE_AAA",
+  "responseStatus": "NO_ERROR"
+}

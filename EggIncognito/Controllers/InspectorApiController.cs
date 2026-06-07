@@ -14,31 +14,27 @@ namespace EggIncognito.Controllers;
 [ApiController]
 [Route("api/inspector")]
 public sealed class InspectorApiController(
-    IEndpointCatalog catalog,
+    IRouteCatalog catalog,
     IProtoReflection reflection,
     ITransportPipeline pipeline,
-    IHttpClientFactory httpFactory) : ControllerBase
+    IHttpClientFactory httpFactory,
+    ILogger<InspectorApiController> logger) : ControllerBase
 {
-    // Hosts the UI is allowed to POST to. Prevents the /send route from being an open proxy.
-    private static readonly string[] AllowedSendHostSuffixes =
-    [
-        "auxbrain.com",
-        "auxbrainhome.appspot.com",
-    ];
-
     [HttpGet("endpoints")]
     public IActionResult Endpoints()
     {
         var list = catalog.All()
-            .Where(e => e.RequestType is not null)
             .Select(e => new
             {
                 e.Path,
                 @namespace = e.Path.Split('/')[0],
-                e.RequestType,
-                e.ResponseType,
+                e.Request,
+                e.Response,
+                e.RequestWrapped,
+                e.ResponseWrapped,
                 e.PathParam,
-                e.Wrap,
+                e.PathParamOnly,
+                e.RawResponse,
             });
         return Ok(list);
     }
@@ -47,9 +43,12 @@ public sealed class InspectorApiController(
     public IActionResult Schema(string typeName)
     {
         var schema = reflection.Schema(typeName);
-        return schema is null
-            ? NotFound(new { error = $"unknown message type '{typeName}'" })
-            : Ok(schema);
+        if (schema is null)
+            throw new ApiException(
+                $"unknown message type '{typeName}'",
+                "Type not found in the compiled proto. Check spelling, or run scripts/Sync-Proto.ps1 if it is a new upstream type.",
+                StatusCodes.Status404NotFound);
+        return Ok(schema);
     }
 
     [HttpGet("env-defaults")]
@@ -68,7 +67,10 @@ public sealed class InspectorApiController(
         var parser = reflection.FindParser(body.RequestType);
         var descriptor = reflection.FindMessage(body.RequestType);
         if (parser is null || descriptor is null)
-            return BadRequest(new { error = $"unknown request type '{body.RequestType}'" });
+            throw new ApiException(
+                $"unknown request type '{body.RequestType}'",
+                "Type not found in the compiled proto. Check the endpoint's request type in routes.yaml.",
+                StatusCodes.Status400BadRequest);
 
         IMessage message;
         try
@@ -79,7 +81,10 @@ public sealed class InspectorApiController(
         }
         catch (Exception ex)
         {
-            return BadRequest(new { error = $"invalid request JSON: {ex.Message}" });
+            throw new ApiException(
+                $"invalid request JSON: {ex.Message}",
+                $"Field values do not match {body.RequestType}. Check field types in the schema panel.",
+                StatusCodes.Status400BadRequest);
         }
 
         var inner = message.ToByteArray();
@@ -99,8 +104,7 @@ public sealed class InspectorApiController(
     [HttpPost("send")]
     public async Task<IActionResult> Send([FromBody] SendRequest body)
     {
-        if (!IsAllowedUrl(body.Url, out var uri))
-            return BadRequest(new { error = "target URL host is not allowed" });
+        var uri = ResolveAllowedUrl(body.Url);
 
         var client = httpFactory.CreateClient("inspector");
         var content = new StringContent(body.FormBody,
@@ -113,8 +117,16 @@ public sealed class InspectorApiController(
         }
         catch (Exception ex)
         {
-            return Ok(new { error = $"send failed: {ex.Message}" });
+            logger.LogWarning(ex, "send {Host}{Path} -> FAILED", uri.Host, uri.AbsolutePath);
+            // In-band error: the SPA renders this inline rather than as an HTTP failure.
+            return Ok(new ApiError(
+                $"send failed: {ex.Message}",
+                "Check the target host is reachable and the URL is correct.",
+                StatusCodes.Status502BadGateway));
         }
+
+        logger.LogInformation("send {Host}{Path} -> HTTP {Status} (signing {Signing})",
+            uri.Host, uri.AbsolutePath, (int)resp.StatusCode, pipeline.CanSign ? "ready" : "off");
 
         var raw = (await resp.Content.ReadAsStringAsync()).Trim();
         var parser = body.ResponseType is not null
@@ -129,6 +141,8 @@ public sealed class InspectorApiController(
             decode.Stages,
             json = decode.Json,
             error = decode.Error,
+            resolution = decode.Error is null ? null
+                : "No known response type for this endpoint. Add a `response:` type in routes.yaml so the body can be decoded.",
         });
     }
 
@@ -181,20 +195,28 @@ public sealed class InspectorApiController(
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static bool IsAllowedUrl(string url, out Uri uri)
+    // Validates the send target against the host allowlist and returns the parsed Uri,
+    // or throws ApiException with a resolution. Prevents /send from being an open proxy.
+    private static Uri ResolveAllowedUrl(string url)
     {
-        uri = null!;
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)) return false;
-        if (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps) return false;
-        var host = parsed.Host;
-        var ok = host is "localhost" or "127.0.0.1"
-                 || AllowedSendHostSuffixes.Any(s =>
-                        host.Equals(s, StringComparison.OrdinalIgnoreCase) ||
-                        host.EndsWith("." + s, StringComparison.OrdinalIgnoreCase));
-        if (!ok) return false;
-        uri = parsed;
-        return true;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
+            || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+            throw new ApiException(
+                $"invalid target URL '{url}'",
+                "URL must be an absolute http(s) URL.",
+                StatusCodes.Status400BadRequest);
+
+        if (IsAllowedHost(parsed.Host)) return parsed;
+
+        throw new ApiException(
+            $"target URL host '{parsed.Host}' is not allowed",
+            "Allowed hosts: localhost, 127.0.0.1, *.auxbrain.com, auxbrainhome.appspot.com, and its <service>-dot-auxbrainhome.appspot.com subdomains.",
+            StatusCodes.Status400BadRequest);
     }
+
+    // The /send target allowlist = auxbrain hosts (shared rule) plus localhost for the mock.
+    internal static bool IsAllowedHost(string host) =>
+        host is "localhost" or "127.0.0.1" || AuxbrainHosts.IsAuxbrain(host);
 
     // BasicRequestInfo defaults - mirrors the Seeder's BuildRInfo constants.
     private static readonly object DefaultRInfo = new

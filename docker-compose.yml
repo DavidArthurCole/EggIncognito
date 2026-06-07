@@ -5,7 +5,7 @@ services:
       - "5080:8080"
       - "5443:8443"
     volumes:
-      - ./EggIncognito/Fixtures:/app/Fixtures
+      - ./EggIncognito/Endpoints:/app/Endpoints
       - ./certs:/app/certs:ro
     environment:
-      - FixturesPath=/app/Fixtures
+      - EndpointsPath=/app/Endpoints

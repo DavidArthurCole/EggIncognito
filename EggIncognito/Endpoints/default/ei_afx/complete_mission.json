@@ -1,0 +1,4046 @@
+﻿{
+  "success": true,
+  "info": {
+    "ship": "ATREGGIES",
+    "status": "COMPLETE",
+    "durationType": "EPIC",
+    "fuel": [
+      {
+        "egg": "TACHYON",
+        "amount": 2000000000000
+      },
+      {
+        "egg": "DILITHIUM",
+        "amount": 6000000000000
+      },
+      {
+        "egg": "ANTIMATTER",
+        "amount": 6000000000000
+      },
+      {
+        "egg": "DARK_MATTER",
+        "amount": 6000000000000
+      }
+    ],
+    "durationSeconds": 138240,
+    "secondsRemaining": -25.901237964630127,
+    "identifier": "agxhdXhicmFpbmhvbWVyFgsSCUVJTWlzc2lvbhiAgPjuh8uoCgw",
+    "capacity": 498,
+    "missionLog": "Lay in a course for the Deltegg Quadrant!",
+    "qualityBump": 2.48,
+    "level": 8,
+    "targetArtifact": "SHIP_IN_A_BOTTLE",
+    "type": "STANDARD",
+    "resetIndex": 0
+  },
+  "artifacts": [
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TUNGSTEN_ANKH",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-L7Vw4wIDA"
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PROPHECY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-L72opELDA"
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N6Yz44KDA"
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_TOTEM",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_TOTEM",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_DEFLECTOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-J6P_csJDA"
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PROPHECY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TUNGSTEN_ANKH",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOUL_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHELL_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_DEFLECTOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "LESSER",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N6YyLkIDA"
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N7DybQIDA"
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "LESSER",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N7_iroIDA"
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_TOTEM",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-L7Vw4wKDA"
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_DEFLECTOR",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PROPHECY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_DEFLECTOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PROPHECY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PROPHECY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHELL_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-M7G5ewKDA"
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PROPHECY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "LESSER",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-L7Vw4wJDA"
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N6Yz44JDA"
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_DEFLECTOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PROPHECY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-L72otEIDA"
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PROPHECY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N7jkJcLDA"
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "LESSER",
+        "rarity": "EPIC",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-I6nwZAIDA"
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_TOTEM",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N7_iroKDA"
+    },
+    {
+      "spec": {
+        "name": "LUNAR_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIFE_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOUL_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TUNGSTEN_ANKH",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PROPHECY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-L7Vw4wLDA"
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "NORMAL",
+        "rarity": "EPIC",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-O7y4qgLDA"
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-O7y4ugIDA"
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N7_iroJDA"
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TUNGSTEN_ANKH",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_TOTEM",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TUNGSTEN_ANKH",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PUZZLE_CUBE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TUNGSTEN_ANKH",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "MERCURYS_LENS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TUNGSTEN_ANKH",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_DEFLECTOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_TOTEM",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-O7HmtAKDA"
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-J6P_csLDA"
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N6YyLkKDA"
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DILITHIUM_MONOCLE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LIGHT_OF_EGGENDIL",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TITANIUM_ACTUATOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TERRA_STONE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "GOLD_METEORITE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BOOK_OF_BASAN",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CLARITY_STONE_FRAGMENT",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "NEODYMIUM_MEDALLION",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "LESSER",
+        "rarity": "RARE",
+        "egg": "UNKNOWN"
+      },
+      "serverId": "agxhdXhicmFpbmhvbWVyGwsSDkVJUmFyZUFydGlmYWN0GICA-N7jkNcIDA"
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "VIAL_MARTIAN_DUST",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "QUANTUM_METRONOME",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "INTERSTELLAR_COMPASS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_DEFLECTOR",
+        "level": "INFERIOR",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "BEAK_OF_MIDAS",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TAU_CETI_GEODE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "TACHYON_DEFLECTOR",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SOLAR_TITANIUM",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "AURELIAN_BROOCH",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHELL_STONE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "ORNATE_GUSSET",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "PHOENIX_FEATHER",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "LUNAR_TOTEM",
+        "level": "GREATER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "THE_CHALICE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "CARVED_RAINSTICK",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "SHIP_IN_A_BOTTLE",
+        "level": "LESSER",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    },
+    {
+      "spec": {
+        "name": "DEMETERS_NECKLACE",
+        "level": "NORMAL",
+        "rarity": "COMMON",
+        "egg": "UNKNOWN"
+      }
+    }
+  ],
+  "eiUserId": "EI0000000000000000"
+}

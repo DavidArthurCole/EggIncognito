@@ -1,0 +1,17 @@
+﻿{
+  "originalTransactionId": "redacted-ef50b8798c34",
+  "periodEnd": 1782945704.448,
+  "status": "ACTIVE",
+  "autoRenew": true,
+  "history": [
+    {
+      "timestamp": 1780353708.768,
+      "message": "SUBSCRIPTION_PURCHASED"
+    }
+  ],
+  "platform": "DROID",
+  "subscriptionLevel": "STANDARD",
+  "storeStatus": "SUBSCRIPTION_STATE_ACTIVE",
+  "nextSubscriptionLevel": "STANDARD",
+  "acknowledged": true
+}

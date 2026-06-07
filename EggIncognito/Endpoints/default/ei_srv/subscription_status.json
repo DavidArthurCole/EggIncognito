@@ -1,0 +1,389 @@
+﻿{
+  "originalTransactionId": "redacted-375307910e8f",
+  "periodEnd": 1737129724.012,
+  "status": "EXPIRED",
+  "autoRenew": false,
+  "history": [
+    {
+      "timestamp": 1689610901.729,
+      "message": "SUBSCRIPTION_PURCHASED"
+    },
+    {
+      "timestamp": 1689610908.840976,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689610955.016924,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689611058.097732,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689611742.162978,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689611915.644635,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689612021.980217,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689612468.125103,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689614465.152349,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689615403.598631,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689619106.892951,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689620177.912369,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689620186.713365,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689620188.051136,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689623196.457588,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689623547.514634,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689626889.238512,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689637636.630795,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689719117.455584,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689720686.490549,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689727173.147677,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689727343.933124,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689794240.7761,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689799586.35073,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689811365.138863,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689859366.29201,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689861965.20915,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689865756.184294,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689867240.610935,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689880581.054634,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689889661.793872,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689983117.859831,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689992497.922788,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1689992581.668698,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690027887.329917,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690028611.895197,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690028629.361139,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690030858.230761,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690037851.51817,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690077745.610784,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690110408.423628,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690153686.351445,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690153715.488416,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690154458.231933,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690158326.800972,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690235452.181966,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690238644.725073,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690289285.893209,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690393143.43021,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690394077.878307,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690396696.488826,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690402352.670127,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690404165.090676,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690458285.849704,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690485291.470574,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690500101.667315,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690501380.607918,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690587401.818686,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690644243.892505,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690666847.519175,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690835208.496953,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690835235.192947,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1690890400.614612,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1691151044.108951,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1691165438.886171,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1691173209.527022,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1691218137.287046,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1691327772.845386,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1691599166.021678,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1691810195.807691,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1691856855.226406,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1691878298.630662,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1692033242.860691,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1692211738.949228,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1692211969.855808,
+      "message": "Subscription verified and updated at request of client."
+    },
+    {
+      "timestamp": 1692288134.516,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1694966533.724,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1697558535.565,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1700236935.816,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1702828932.979,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1705507352.439,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1708185736.486,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1710691335.343,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1713369735.561,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1715961733.89,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1718640135.781,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1721232135.099,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1723910534.248,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1726588933.48,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1729180932.935,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1731859332.21,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1734451334.382,
+      "message": "SUBSCRIPTION_RENEWED"
+    },
+    {
+      "timestamp": 1735912381.201,
+      "message": "SUBSCRIPTION_CANCELED"
+    },
+    {
+      "timestamp": 1737129725.864,
+      "message": "SUBSCRIPTION_EXPIRED"
+    }
+  ],
+  "platform": "DROID",
+  "subscriptionLevel": "PRO",
+  "storeStatus": "SUBSCRIPTION_STATE_EXPIRED",
+  "nextSubscriptionLevel": "PRO",
+  "acknowledged": true
+}

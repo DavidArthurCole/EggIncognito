@@ -1,0 +1,28 @@
+namespace EggIncognito.Tooling.Capture;
+
+// A single HTTP header (name + value). Lists preserve wire order and allow duplicate names.
+public sealed record HttpHeader(string Name, string Value);
+
+// One captured request/response pair, normalized to the fields the fixture pipeline + HAR need.
+// RequestDataB64 is the base64 `data` form value (null for an empty body); ResponseBodyB64 is
+// the base64-encoded response body exactly as it came off the wire (the AuthenticatedMessage).
+// RequestHeaders/ResponseHeaders are the raw on-the-wire headers (redaction happens downstream at
+// display time, mirroring how bodies are handled).
+public sealed record CapturedFlow(
+    string Url, string Method, int Status, string? RequestDataB64, string ResponseBodyB64,
+    IReadOnlyList<HttpHeader>? RequestHeaders = null,
+    IReadOnlyList<HttpHeader>? ResponseHeaders = null);
+
+// Thin abstraction over the concrete proxy engine so the pre-1.0 Unobtanium API churn is
+// contained behind one seam. The capture command depends only on this.
+public interface ICaptureProxy : IAsyncDisposable
+{
+    // Raised once per completed auxbrain request/response pair on a decrypted flow.
+    event Action<CapturedFlow>? FlowCaptured;
+
+    // Start listening on the given port. Ensures + trusts the root CA and writes it to caPath.
+    Task StartAsync(int port, string caPath, CancellationToken ct);
+
+    // Stop listening and untrust the root CA from the local machine if it was added.
+    Task StopAsync();
+}

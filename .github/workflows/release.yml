@@ -6,9 +6,12 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
-  release:
+  # Self-contained, single-file builds of the EggIncognito app per runtime, with the Endpoints/
+  # response set bundled alongside the executable.
+  binaries:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,102 +26,62 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: ${{ runner.os }}-nuget-
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.21"
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
-
-      - name: Build EggIncognito
-        run: dotnet build --configuration Release --verbosity minimal
-
-      - name: Generate all stubs with baked fixtures
-        run: |
-          for lang in go python javascript java kotlin ruby csharp; do
-            dotnet run --project EggIncognito.CodeGen --configuration Release --no-build -- generate $lang --bake
-          done
-
-      - name: Build Go binaries
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          cd generated/go
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
-            OS="${target%/*}"
-            ARCH="${target#*/}"
-            EXT=""
-            [ "$OS" = "windows" ] && EXT=".exe"
-            OUT="eggincognito-${TAG}-${OS}-${ARCH}${EXT}"
-            GOOS=$OS GOARCH=$ARCH go build -o "$OUT" .
-            ARCHIVE="eggincognito-go-${TAG}-${OS}-${ARCH}.tar.gz"
-            [ "$OS" = "windows" ] && ARCHIVE="eggincognito-go-${TAG}-${OS}-${ARCH}.zip"
-            if [ "$OS" = "windows" ]; then
-              zip -r "../../$ARCHIVE" "$OUT" Fixtures/
-            else
-              tar -czf "../../$ARCHIVE" "$OUT" Fixtures/
-            fi
-            rm "$OUT"
-          done
-
-      - name: Build C# binaries
+      - name: Build self-contained binaries
         run: |
           TAG="${GITHUB_REF_NAME}"
           for rid in linux-x64 linux-arm64 osx-arm64 win-x64; do
-            OUT="published-csharp-${rid}"
-            dotnet publish generated/csharp/EggIncognito/EggIncognito.csproj \
+            OUT="publish-${rid}"
+            dotnet publish EggIncognito/EggIncognito.csproj \
               --configuration Release \
               --runtime "$rid" \
               --self-contained true \
               -p:PublishSingleFile=true \
+              -p:NoBrowser=true \
               --output "$OUT"
-            ARCHIVE="eggincognito-csharp-${TAG}-${rid}.tar.gz"
-            [[ "$rid" == win-* ]] && ARCHIVE="eggincognito-csharp-${TAG}-${rid}.zip"
+            # Bundle the endpoint response set next to the executable (the app reads ./Endpoints,
+            # overridable with EndpointsPath).
+            cp -r EggIncognito/Endpoints "$OUT/Endpoints"
+            ARCHIVE="eggincognito-${TAG}-${rid}.tar.gz"
+            [[ "$rid" == win-* ]] && ARCHIVE="eggincognito-${TAG}-${rid}.zip"
             if [[ "$rid" == win-* ]]; then
-              zip -r "$ARCHIVE" "$OUT/"
+              (cd "$OUT" && zip -r "../$ARCHIVE" .)
             else
-              tar -czf "$ARCHIVE" "$OUT/"
+              tar -czf "$ARCHIVE" -C "$OUT" .
             fi
             rm -rf "$OUT"
           done
 
-      - name: Build Java JAR
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          cd generated/java
-          gradle -q shadowJar --no-daemon
-          cd ../..
-          cp generated/java/build/libs/*-all.jar "eggincognito-java-${TAG}.jar"
-
-      - name: Build Kotlin JAR
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          cd generated/kotlin
-          gradle -q shadowJar --no-daemon
-          cd ../..
-          cp generated/kotlin/build/libs/*-all.jar "eggincognito-kotlin-${TAG}.jar"
-
-      - name: Create source archives
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          for lang in python javascript ruby; do
-            tar -czf "eggincognito-${lang}-${TAG}.tar.gz" -C generated "$lang"
-          done
-
-      - name: Attach assets to release
+      - name: Attach binaries to release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: false
+          generate_release_notes: true
           files: |
-            eggincognito-go-*.tar.gz
-            eggincognito-go-*-windows-*.zip
-            eggincognito-csharp-*-linux-*.tar.gz
-            eggincognito-csharp-*-osx-*.tar.gz
-            eggincognito-csharp-*-win-*.zip
-            eggincognito-java-*.jar
-            eggincognito-kotlin-*.jar
-            eggincognito-python-*.tar.gz
-            eggincognito-javascript-*.tar.gz
-            eggincognito-ruby-*.tar.gz
+            eggincognito-*-linux-*.tar.gz
+            eggincognito-*-osx-*.tar.gz
+            eggincognito-*-win-*.zip
+
+  # Publish the container image to GHCR, tagged with the release tag and `latest`.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # GHCR image names must be lowercase; the repo name has capitals.
+      - name: Lowercase image name
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ github.ref_name }}
+            ${{ steps.img.outputs.name }}:latest

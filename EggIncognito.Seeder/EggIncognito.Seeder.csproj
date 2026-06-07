@@ -8,6 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EggIncognito\EggIncognito.csproj" />
+    <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
   </ItemGroup>
 </Project>

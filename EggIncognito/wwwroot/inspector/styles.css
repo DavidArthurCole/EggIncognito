@@ -172,6 +172,13 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
   border-radius: 50%; font-size: 11px; font-weight: 700;
 }
 .stage-head .sname { font-family: var(--mono); font-weight: 600; }
+.stage-head .srole {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); border: 1px solid var(--border);
+  padding: 1px 5px; border-radius: 3px;
+}
+.stage.role-envelope .stage-head .srole { color: var(--accent); border-color: var(--accent); }
+.stage.role-payload .stage-head .srole { color: var(--accent2); border-color: var(--accent2); }
 .stage-head .slen { margin-left: auto; color: var(--muted); font-size: 11px; }
 .stage-body { padding: 8px 10px; font-size: 12px; }
 .stage-desc { color: var(--muted); margin-bottom: 6px; }
@@ -204,4 +211,58 @@ pre.json {
   max-height: 360px;
   overflow: auto;
 }
+.path-param-row { margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.path-param-row.hidden { display: none; }
+.path-param-row label { font-size: 12px; color: var(--muted); }
+.path-param-row input {
+  background: var(--bg); border: 1px solid var(--border); color: inherit;
+  border-radius: 4px; padding: 4px 6px; font-family: var(--mono); font-size: 12px;
+}
+.wrap-note {
+  font-size: 11px; color: var(--accent);
+  margin-bottom: 8px; padding: 6px 8px;
+  border-left: 2px solid var(--accent); background: rgba(245,197,66,.06);
+}
 .error-box { color: var(--err); font-family: var(--mono); font-size: 12px; }
+.error-fix { margin-top: 6px; font-size: 12px; color: var(--accent); }
+.error-fix .fix-label { font-weight: 600; opacity: .85; }
+.error-details {
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(255,255,255,.03);
+  padding: 6px 8px;
+  border-radius: 4px;
+  max-height: 160px;
+  overflow: auto;
+}
+
+/* --- logs panel --- */
+.logs-panel { margin: 0 16px 16px; }
+.logs-head { display: flex; align-items: center; gap: 16px; }
+.logs-head h2 { margin: 0; }
+.logs-controls { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
+.logs-controls label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.logs-controls .logs-follow { margin-left: 4px; }
+.logs-controls button {
+  background: var(--panel2); color: inherit; border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+}
+.logs {
+  margin-top: 8px;
+  font-family: var(--mono); font-size: 11px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px; max-height: 280px; overflow: auto;
+}
+.log { display: flex; gap: 8px; align-items: baseline; padding: 1px 0; flex-wrap: wrap; }
+.log-time { color: var(--muted); }
+.log-level { width: 64px; opacity: .8; }
+.log-cat { color: var(--accent2); }
+.log-msg { flex: 1; word-break: break-word; }
+.log-warning .log-level { color: var(--accent); }
+.log-error .log-level, .log-critical .log-level { color: var(--err); }
+.log-exc {
+  flex-basis: 100%; margin: 2px 0 4px 72px; color: var(--err);
+  white-space: pre-wrap; font-size: 10px;
+}

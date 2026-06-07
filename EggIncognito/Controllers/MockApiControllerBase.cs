@@ -6,9 +6,9 @@ using EggIncognito.Services;
 namespace EggIncognito.Controllers;
 
 [ApiController]
-public abstract class MockApiControllerBase(IFixtureStore fixtures, IBehaviorService behaviors) : ControllerBase
+public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorService behaviors) : ControllerBase
 {
-    private readonly IFixtureStore _fixtures = fixtures;
+    private readonly IEndpointStore _endpoints = endpoints;
     private readonly IBehaviorService _behaviors = behaviors;
 
     protected Task<IActionResult> HandleAsync<TRes>(string path, string? data, string? sim = null)
@@ -19,11 +19,12 @@ public abstract class MockApiControllerBase(IFixtureStore fixtures, IBehaviorSer
             var behavior = _behaviors.Get(sim);
             if (behavior is null)
             {
-                return Task.FromResult<IActionResult>(BadRequest(new
-                {
-                    error = "unknown sim",
-                    valid = _behaviors.All().Select(b => b.Name).ToArray()
-                }));
+                var valid = _behaviors.All().Select(b => b.Name).ToArray();
+                throw new ApiException(
+                    $"unknown sim '{sim}'",
+                    "Use one of the valid sim names listed in details, or omit ?sim to get the endpoint response.",
+                    StatusCodes.Status400BadRequest,
+                    new { valid });
             }
             foreach (var kvp in behavior.ExtraHeaders ?? new Dictionary<string, string>())
                 Response.Headers[kvp.Key] = kvp.Value;
@@ -39,7 +40,7 @@ public abstract class MockApiControllerBase(IFixtureStore fixtures, IBehaviorSer
             });
         }
         string? eid = ExtractEid(data);
-        var response = _fixtures.Get<TRes>(path, eid);
+        var response = _endpoints.Get<TRes>(path, eid);
         var encoded = Convert.ToBase64String(response.ToByteArray());
         return Task.FromResult<IActionResult>(Content(encoded, "text/html"));
     }
@@ -51,11 +52,12 @@ public abstract class MockApiControllerBase(IFixtureStore fixtures, IBehaviorSer
             var behavior = _behaviors.Get(sim);
             if (behavior is null)
             {
-                return Task.FromResult<IActionResult>(BadRequest(new
-                {
-                    error = "unknown sim",
-                    valid = _behaviors.All().Select(b => b.Name).ToArray()
-                }));
+                var valid = _behaviors.All().Select(b => b.Name).ToArray();
+                throw new ApiException(
+                    $"unknown sim '{sim}'",
+                    "Use one of the valid sim names listed in details, or omit ?sim to get the endpoint response.",
+                    StatusCodes.Status400BadRequest,
+                    new { valid });
             }
             foreach (var kvp in behavior.ExtraHeaders ?? new Dictionary<string, string>())
                 Response.Headers[kvp.Key] = kvp.Value;

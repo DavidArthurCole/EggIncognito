@@ -1,0 +1,507 @@
+﻿{
+  "scope": "spring_2026",
+  "grade": "GRADE_AAA",
+  "topEntries": [
+    {
+      "rank": 1,
+      "alias": "redacted-3a50ecac8ac3",
+      "score": 742522
+    },
+    {
+      "rank": 2,
+      "alias": "redacted-2155d49356e0",
+      "score": 741837
+    },
+    {
+      "rank": 3,
+      "alias": "redacted-7e98f8b8adc2",
+      "score": 741606
+    },
+    {
+      "rank": 4,
+      "alias": "redacted-2c121220a0c5",
+      "score": 740817
+    },
+    {
+      "rank": 5,
+      "alias": "redacted-5bbdb85b8c11",
+      "score": 740477
+    },
+    {
+      "rank": 6,
+      "alias": "redacted-9a71d139d525",
+      "score": 740324
+    },
+    {
+      "rank": 7,
+      "alias": "redacted-4c1479ed72cc",
+      "score": 739990
+    },
+    {
+      "rank": 8,
+      "alias": "redacted-99fe9ae84260",
+      "score": 739935
+    },
+    {
+      "rank": 9,
+      "alias": "redacted-36474de0107e",
+      "score": 739933
+    },
+    {
+      "rank": 10,
+      "alias": "redacted-fe7f37182546",
+      "score": 739683
+    },
+    {
+      "rank": 11,
+      "alias": "redacted-47d2c1aa0dae",
+      "score": 739568
+    },
+    {
+      "rank": 12,
+      "alias": "redacted-3b3075b6caeb",
+      "score": 738880
+    },
+    {
+      "rank": 13,
+      "alias": "redacted-39868edb1ea5",
+      "score": 738618
+    },
+    {
+      "rank": 14,
+      "alias": "redacted-d56a234c0132",
+      "score": 738614
+    },
+    {
+      "rank": 15,
+      "alias": "redacted-f243560f7ba7",
+      "score": 738378
+    },
+    {
+      "rank": 16,
+      "alias": "redacted-ee51668effe3",
+      "score": 738293
+    },
+    {
+      "rank": 17,
+      "alias": "redacted-7f6787b52fcb",
+      "score": 738145
+    },
+    {
+      "rank": 18,
+      "alias": "redacted-4e2590144b83",
+      "score": 738100
+    },
+    {
+      "rank": 19,
+      "alias": "redacted-ef73224d1258",
+      "score": 737818
+    },
+    {
+      "rank": 20,
+      "alias": "redacted-f2749d4b4d31",
+      "score": 737517
+    },
+    {
+      "rank": 21,
+      "alias": "redacted-05cf4f22519d",
+      "score": 737333
+    },
+    {
+      "rank": 22,
+      "alias": "redacted-5bcb15b82fdb",
+      "score": 737236
+    },
+    {
+      "rank": 23,
+      "alias": "redacted-4b4f83c91130",
+      "score": 737195
+    },
+    {
+      "rank": 24,
+      "alias": "redacted-a86fd18a7a75",
+      "score": 737036
+    },
+    {
+      "rank": 25,
+      "alias": "redacted-5e959bfb4fa5",
+      "score": 736973
+    },
+    {
+      "rank": 26,
+      "alias": "redacted-2679e8a92d74",
+      "score": 736948
+    },
+    {
+      "rank": 27,
+      "alias": "redacted-c1483f9d0547",
+      "score": 736768
+    },
+    {
+      "rank": 28,
+      "alias": "redacted-7cc7cfe713c2",
+      "score": 736568
+    },
+    {
+      "rank": 29,
+      "alias": "redacted-f1700f4f3fd6",
+      "score": 736561
+    },
+    {
+      "rank": 30,
+      "alias": "redacted-e22b9a8c3a3d",
+      "score": 736530
+    },
+    {
+      "rank": 31,
+      "alias": "redacted-a29cd3dd4944",
+      "score": 736485
+    },
+    {
+      "rank": 32,
+      "alias": "redacted-c52403bafdcb",
+      "score": 736295
+    },
+    {
+      "rank": 33,
+      "alias": "redacted-829629d27508",
+      "score": 736291
+    },
+    {
+      "rank": 34,
+      "alias": "redacted-a089d3d1e817",
+      "score": 736075
+    },
+    {
+      "rank": 35,
+      "alias": "redacted-3b0208f7f69f",
+      "score": 736069
+    },
+    {
+      "rank": 36,
+      "alias": "redacted-5affeb3dadc4",
+      "score": 735964
+    },
+    {
+      "rank": 37,
+      "alias": "redacted-44f228d9be65",
+      "score": 735904
+    },
+    {
+      "rank": 38,
+      "alias": "redacted-15979459ef88",
+      "score": 735879
+    },
+    {
+      "rank": 39,
+      "alias": "redacted-c677eda113d4",
+      "score": 735806
+    },
+    {
+      "rank": 40,
+      "alias": "redacted-1ee35f437d77",
+      "score": 735745
+    },
+    {
+      "rank": 41,
+      "alias": "redacted-4fe3bf7138ee",
+      "score": 735634
+    },
+    {
+      "rank": 42,
+      "alias": "redacted-5c7d8c0c0e95",
+      "score": 735600
+    },
+    {
+      "rank": 43,
+      "alias": "redacted-57ba6848f89b",
+      "score": 735225
+    },
+    {
+      "rank": 44,
+      "alias": "redacted-4f4a427884fa",
+      "score": 735122
+    },
+    {
+      "rank": 45,
+      "alias": "redacted-bf937b5ce7fb",
+      "score": 735114
+    },
+    {
+      "rank": 46,
+      "alias": "redacted-4718946105d6",
+      "score": 735069
+    },
+    {
+      "rank": 47,
+      "alias": "redacted-ace925050dc5",
+      "score": 734676
+    },
+    {
+      "rank": 48,
+      "alias": "redacted-2de8cbcb7c85",
+      "score": 734658
+    },
+    {
+      "rank": 49,
+      "alias": "redacted-71c062b121e1",
+      "score": 734415
+    },
+    {
+      "rank": 50,
+      "alias": "redacted-a3f8995d5b98",
+      "score": 734239
+    },
+    {
+      "rank": 51,
+      "alias": "redacted-947084e9527e",
+      "score": 734124
+    },
+    {
+      "rank": 52,
+      "alias": "redacted-3730a0d71a9c",
+      "score": 734011
+    },
+    {
+      "rank": 53,
+      "alias": "redacted-c35920ca566d",
+      "score": 733857
+    },
+    {
+      "rank": 54,
+      "alias": "redacted-c5c40433ac1f",
+      "score": 733736
+    },
+    {
+      "rank": 55,
+      "alias": "redacted-ff15b1304911",
+      "score": 733616
+    },
+    {
+      "rank": 56,
+      "alias": "redacted-a34b74e194f1",
+      "score": 733404
+    },
+    {
+      "rank": 57,
+      "alias": "redacted-f65a77862f5f",
+      "score": 733363
+    },
+    {
+      "rank": 58,
+      "alias": "redacted-8eb043ac6e7e",
+      "score": 733252
+    },
+    {
+      "rank": 59,
+      "alias": "redacted-76e873f0473b",
+      "score": 733138
+    },
+    {
+      "rank": 60,
+      "alias": "redacted-865002f034ad",
+      "score": 732833
+    },
+    {
+      "rank": 61,
+      "alias": "redacted-a255443b7f8c",
+      "score": 732737
+    },
+    {
+      "rank": 62,
+      "alias": "redacted-ad5145546831",
+      "score": 732258
+    },
+    {
+      "rank": 63,
+      "alias": "redacted-99aaadb5c89a",
+      "score": 732070
+    },
+    {
+      "rank": 64,
+      "alias": "redacted-683ff88cce17",
+      "score": 732017
+    },
+    {
+      "rank": 65,
+      "alias": "redacted-bf159715564e",
+      "score": 731939
+    },
+    {
+      "rank": 66,
+      "alias": "redacted-7accd3fb1154",
+      "score": 731823
+    },
+    {
+      "rank": 67,
+      "alias": "redacted-a2e97c54fe2d",
+      "score": 731711
+    },
+    {
+      "rank": 68,
+      "alias": "redacted-55ef0b99316f",
+      "score": 731667
+    },
+    {
+      "rank": 69,
+      "alias": "redacted-ddc628576a6b",
+      "score": 731555
+    },
+    {
+      "rank": 70,
+      "alias": "redacted-9fcf5bf44578",
+      "score": 731527
+    },
+    {
+      "rank": 71,
+      "alias": "redacted-f9baf3efc245",
+      "score": 731508
+    },
+    {
+      "rank": 72,
+      "alias": "redacted-bb5e250d55af",
+      "score": 731333
+    },
+    {
+      "rank": 73,
+      "alias": "redacted-7b01727e3dd1",
+      "score": 731308
+    },
+    {
+      "rank": 74,
+      "alias": "redacted-ab46c5094b25",
+      "score": 731176
+    },
+    {
+      "rank": 75,
+      "alias": "redacted-bf82d4091d05",
+      "score": 731041
+    },
+    {
+      "rank": 76,
+      "alias": "redacted-3db74110342c",
+      "score": 730984
+    },
+    {
+      "rank": 77,
+      "alias": "redacted-32303c799770",
+      "score": 730406
+    },
+    {
+      "rank": 78,
+      "alias": "redacted-357317184735",
+      "score": 730302
+    },
+    {
+      "rank": 79,
+      "alias": "redacted-a18f7727eb88",
+      "score": 730296
+    },
+    {
+      "rank": 80,
+      "alias": "redacted-4d63b32fe1c6",
+      "score": 730015
+    },
+    {
+      "rank": 81,
+      "alias": "redacted-b3d5d0f7aadf",
+      "score": 729866
+    },
+    {
+      "rank": 82,
+      "alias": "redacted-5d8de83001f5",
+      "score": 729641
+    },
+    {
+      "rank": 83,
+      "alias": "redacted-3ed84799d6ae",
+      "score": 729609
+    },
+    {
+      "rank": 84,
+      "alias": "redacted-443605b26cfe",
+      "score": 729592
+    },
+    {
+      "rank": 85,
+      "alias": "redacted-0673dae5fcca",
+      "score": 729484
+    },
+    {
+      "rank": 86,
+      "alias": "redacted-9a58379db50a",
+      "score": 729384
+    },
+    {
+      "rank": 87,
+      "alias": "redacted-f75131ab9b8a",
+      "score": 729349
+    },
+    {
+      "rank": 88,
+      "alias": "redacted-c681a2b9fadd",
+      "score": 729290
+    },
+    {
+      "rank": 89,
+      "alias": "redacted-86acde2b7cf5",
+      "score": 729184
+    },
+    {
+      "rank": 90,
+      "alias": "redacted-c4a0dec910a0",
+      "score": 729147
+    },
+    {
+      "rank": 91,
+      "alias": "redacted-9193b1b93e15",
+      "score": 729075
+    },
+    {
+      "rank": 92,
+      "alias": "redacted-5aa9646c927e",
+      "score": 729009
+    },
+    {
+      "rank": 93,
+      "alias": "redacted-bd0ab7d5bfe1",
+      "score": 728978
+    },
+    {
+      "rank": 94,
+      "alias": "redacted-a1cbd754ed10",
+      "score": 728947
+    },
+    {
+      "rank": 95,
+      "alias": "redacted-40ccaa5a0522",
+      "score": 728459
+    },
+    {
+      "rank": 96,
+      "alias": "redacted-723061c29a8e",
+      "score": 728446
+    },
+    {
+      "rank": 97,
+      "alias": "redacted-958545c90a7d",
+      "score": 728404
+    },
+    {
+      "rank": 98,
+      "alias": "redacted-2c0eca8b983d",
+      "score": 727739
+    },
+    {
+      "rank": 99,
+      "alias": "redacted-d1ad862e36df",
+      "score": 727403
+    },
+    {
+      "rank": 100,
+      "alias": "redacted-27637e2a1985",
+      "score": 727013
+    }
+  ],
+  "count": 34925
+}

@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Generates a Postman v2.1 collection JSON from endpoints.yaml.
+    Generates a Postman v2.1 collection JSON from routes.yaml.
 
 .DESCRIPTION
-    Reads EggIncognito/EndpointMap/endpoints.yaml and produces a Postman
+    Reads EggIncognito/RouteMap/routes.yaml and produces a Postman
     collection with one request per endpoint, grouped by API namespace
     (ei, ei_afx, ei_ctx, ei_data, ei_srv).
 
@@ -30,14 +30,14 @@ param([string] $OutputPath)
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$yamlPath = Join-Path $repoRoot 'EggIncognito' 'EndpointMap' 'endpoints.yaml'
+$yamlPath = Join-Path $repoRoot 'EggIncognito' 'RouteMap' 'routes.yaml'
 $protoPath = Join-Path $repoRoot 'EggIncognito' 'Proto' 'ei.proto'
 $outPath = if ($OutputPath) { $OutputPath } else {
     Join-Path $repoRoot 'EggIncognito-postman-collection.json'
 }
 
 if (-not (Test-Path $yamlPath)) {
-    Write-Error "endpoints.yaml not found at: $yamlPath"
+    Write-Error "routes.yaml not found at: $yamlPath"
     exit 1
 }
 
@@ -53,7 +53,7 @@ $entries = $pattern.Matches($yaml) | ForEach-Object {
     }
 }
 
-Write-Host "Loaded $($entries.Count) endpoint(s) from endpoints.yaml."
+Write-Host "Loaded $($entries.Count) endpoint(s) from routes.yaml."
 
 # Parse ei.proto to build a map of message name -> field lines
 # Best-effort: captures "optional/repeated/required <type> <name> = <N>;"

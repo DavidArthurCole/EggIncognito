@@ -8,10 +8,14 @@ public sealed class EggIncApiFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseSetting("FixturesPath", FindFixturesPath());
+        // Not "Development" - keeps startup-only dev conveniences (e.g. auto-opening the
+        // inspector in a browser) from firing during the test host.
+        builder.UseEnvironment("Testing");
+        builder.UseSetting("EndpointsPath", FindEndpointsPath());
+        builder.UseSetting("NoBrowser", "true");
     }
 
-    private static string FindFixturesPath()
+    private static string FindEndpointsPath()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)

@@ -1,0 +1,13 @@
+{
+  "//": "Enables editor type-checking of the dashboard ES modules against types.d.ts (generated from the C# records via `dotnet run --project EggIncognito.Tooling -- emit-types`). Pure editor tooling - no build step, the files ship as-is.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": false
+  },
+  "include": ["*.js", "types.d.ts"]
+}
