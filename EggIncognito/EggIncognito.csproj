@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
+    <ProjectReference Include="..\EggIncognito.Capture\EggIncognito.Capture.csproj" />
     <ProjectReference Include="..\EggIncognito.Generator\EggIncognito.Generator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pre-1.0: pin exactly. 0.9.x is the DI/ASP.NET-Core rewrite (Unobtanium.Web.Proxy). -->
+    <PackageReference Include="Unobtanium.Web.Proxy" Version="[0.9.1-beta.2]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -18,7 +18,7 @@ public sealed class EndpointStoreTests : IDisposable
     private EndpointStore CreateStore() =>
         new(_tempDir, NullLogger<EndpointStore>.Instance);
 
-    private void WriteFixture(string relativePath, string json)
+    private void WriteEndpoint(string relativePath, string json)
     {
         var full = Path.Combine(_tempDir, relativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
@@ -26,7 +26,7 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     [Fact]
-    public void ReturnsDefaultInstanceWhenNoFixture()
+    public void ReturnsDefaultInstanceWhenNoEndpoint()
     {
         var store = CreateStore();
         var result = store.Get<Ei.AuthenticatedMessage>("ei/first_contact_secure");
@@ -35,19 +35,19 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     [Fact]
-    public void ReturnsFixtureWhenDefaultExists()
+    public void ReturnsEndpointWhenDefaultExists()
     {
-        WriteFixture("default/ei/first_contact_secure.json", "{}");
+        WriteEndpoint("default/ei/first_contact_secure.json", "{}");
         var store = CreateStore();
         var result = store.Get<Ei.AuthenticatedMessage>("ei/first_contact_secure");
         Assert.NotNull(result);
     }
 
     [Fact]
-    public void PrefersEidFixtureOverDefault()
+    public void PrefersEidEndpointOverDefault()
     {
-        WriteFixture("default/ei/get_periodicals.json", "{}");
-        WriteFixture("eids/EI0000000000000001/ei/get_periodicals.json", "{}");
+        WriteEndpoint("default/ei/get_periodicals.json", "{}");
+        WriteEndpoint("eids/EI0000000000000001/ei/get_periodicals.json", "{}");
 
         var store = CreateStore();
 
@@ -59,9 +59,9 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     [Fact]
-    public void FallsBackToDefaultWhenEidFixtureMissing()
+    public void FallsBackToDefaultWhenEidEndpointMissing()
     {
-        WriteFixture("default/ei/get_periodicals.json", "{}");
+        WriteEndpoint("default/ei/get_periodicals.json", "{}");
 
         var store = CreateStore();
         var result = store.Get<Ei.PeriodicalsResponse>("ei/get_periodicals", "EI_NONEXISTENT");
@@ -71,7 +71,7 @@ public sealed class EndpointStoreTests : IDisposable
     [Fact]
     public void UsesGroupedPathForLookup()
     {
-        WriteFixture("default/ei_afx/launch_mission.json", "{}");
+        WriteEndpoint("default/ei_afx/launch_mission.json", "{}");
 
         var store = CreateStore();
         var result = store.Get<Ei.MissionResponse>("ei_afx/launch_mission");
@@ -79,7 +79,7 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     [Fact]
-    public void DoesNotThrowWhenFixturesDirMissing()
+    public void DoesNotThrowWhenEndpointsDirMissing()
     {
         var store = new EndpointStore(
             Path.Combine(_tempDir, "does_not_exist"),

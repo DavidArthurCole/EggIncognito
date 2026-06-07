@@ -1,12 +1,12 @@
 using EggIncognito.Services;
 using Google.Protobuf;
 
-namespace EggIncognito.Tooling.Dashboard;
+namespace EggIncognito.Capture;
 
 // Decodes a captured flow's raw base64 into readable JSON for the dashboard, in both a redacted
 // (safe display) and a raw form. The actual proto-framing heuristic lives in the EggIncognito
 // library (EndpointExtractor.DecodeRequestBody) so the dashboard view can never drift from what the
-// fixture pipeline writes. This class is a thin wrapper: load the type maps, call the shared
+// endpoint pipeline writes. This class is a thin wrapper: load the type maps, call the shared
 // decoder, redact.
 public sealed class FlowDecoder
 {
@@ -21,10 +21,10 @@ public sealed class FlowDecoder
         _requestWrapped = EndpointExtractor.LoadRequestWrapped(repoRoot);
     }
 
-    //   Json    - redacted JSON for safe display (PII tokenized, same as written to fixtures)
+    //   Json    - redacted JSON for safe display (PII tokenized, same as written to endpoints)
     //   JsonRaw - the unredacted JSON (shown only when the UI redaction setting is Off)
     //   Type    - the resolved proto type name (yaml-mapped or auto-detected), or null
-    //   Known   - true when the type came from routes.yaml (a fixture we already understand)
+    //   Known   - true when the type came from routes.yaml (an endpoint we already understand)
     public sealed record DecodeResult(string? Json, string? JsonRaw, string? Type, bool Known);
 
     public string? KnownResponseType(string path) =>

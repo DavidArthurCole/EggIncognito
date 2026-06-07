@@ -1,13 +1,12 @@
 using EggIncognito.Services;
-using EggIncognito.Tooling.Dashboard;
 
-namespace EggIncognito.Tooling.Capture;
+namespace EggIncognito.Capture;
 
 // The core per-flow work of the capture command, lifted out of the inline Task.Run lambda in
 // CaptureCommand.RunAsync so it is unit-testable and no longer needs the Console.SetOut(null)
 // suppression hack (the extractor is put in Quiet mode instead). For each captured flow it:
 //   - appends a HAR entry (the durable hand-off artifact),
-//   - runs the fixture extractor (decode + redact + self-repair routes.yaml + write/stage),
+//   - runs the endpoint extractor (decode + redact + self-repair routes.yaml + write/stage),
 //   - derives the per-flow outcome (wrote/upd/diff/same/loss) from the extractor's Counts delta,
 //   - decodes display JSON (raw + redacted, with proto type names) via FlowDecoder,
 //   - computes git-style diff +/- counts for a "diff" outcome,
@@ -42,10 +41,10 @@ public sealed class FlowProcessor
         var req = _decoder.DecodeRequest(displayPath, flow.RequestDataB64);
         var resp = _decoder.DecodeResponse(displayPath, flow.ResponseBodyB64);
         // "Known" = both sides resolve to yaml-mapped types (or the request has no body), i.e. this
-        // is a fixture we already fully understand.
+        // is an endpoint we already fully understand.
         var known = resp.Known && (req.Known || flow.RequestDataB64 is null);
 
-        // For a diff outcome, compute git-style +/- line counts (existing fixture vs the staged new
+        // For a diff outcome, compute git-style +/- line counts (existing endpoint vs the staged new
         // one) so the UI can show how big the change is.
         var (added, removed) = outcome == "diff" ? DiffCounts(_repoRoot, displayPath) : (0, 0);
 
@@ -80,7 +79,7 @@ public sealed class FlowProcessor
         return "";
     }
 
-    // Git-style +/- line counts for a staged fixture diff: lines present in the new (staged) file
+    // Git-style +/- line counts for a staged endpoint diff: lines present in the new (staged) file
     // but not the existing one are "added"; lines in the existing but not the new are "removed".
     // Multiset comparison, so duplicate lines count correctly.
     internal static (int added, int removed) DiffCounts(string repoRoot, string path)

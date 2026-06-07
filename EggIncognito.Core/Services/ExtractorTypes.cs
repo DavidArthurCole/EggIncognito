@@ -63,7 +63,7 @@ public static class SeederConfig
     // fields than the runner-up. A true tie (equal field counts among exact matches) is flagged.
     public static AutoWriteVerdict ClassifyAutoWrite(int bestScore, int secondBestScore)
     {
-        if (bestScore < ExactBonus) return AutoWriteVerdict.Reject;   // winner did not round-trip
+        if (bestScore < ExactBonus) return AutoWriteVerdict.Reject; // winner did not round-trip
         if (secondBestScore < ExactBonus) return AutoWriteVerdict.Write; // sole exact = decisive
         var bestFields = bestScore - ExactBonus;
         var secondFields = secondBestScore - ExactBonus;

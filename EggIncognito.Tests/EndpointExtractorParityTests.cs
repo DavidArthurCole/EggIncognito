@@ -6,7 +6,7 @@ using Google.Protobuf;
 namespace EggIncognito.Tests;
 
 // Proves the in-process per-flow path (ProcessFlow) and the HAR-file path (RunFromHar) produce
-// byte-identical fixtures + identical yaml/self-repair effects for the same flow. This is the
+// byte-identical endpoints + identical yaml/self-repair effects for the same flow. This is the
 // guard that the capture proxy (which feeds ProcessFlow) cannot diverge from the Seeder's
 // established --from-har behavior.
 public class EndpointExtractorParityTests
@@ -46,7 +46,7 @@ needs_capture:
         return Convert.ToBase64String(outer.ToByteArray());
     }
 
-    private static string FixturePath(string root) =>
+    private static string EndpointPath(string root) =>
         Path.Combine(root, "EggIncognito", "Endpoints", "default", Slug + ".json");
 
     [Fact]
@@ -61,8 +61,8 @@ needs_capture:
         inProc.Save();
 
         Assert.Equal(Slug, path);
-        Assert.True(File.Exists(FixturePath(inProcRoot)));
-        var inProcFixture = File.ReadAllText(FixturePath(inProcRoot));
+        Assert.True(File.Exists(EndpointPath(inProcRoot)));
+        var inProcEndpoint = File.ReadAllText(EndpointPath(inProcRoot));
 
         // --- HAR-file path: synthesize a HAR carrying the identical flow ---
         var harRoot = MakeRepo();
@@ -73,11 +73,11 @@ needs_capture:
         harExtractor.RunFromHar(harFile);
         harExtractor.Save();
 
-        Assert.True(File.Exists(FixturePath(harRoot)));
-        var harFixture = File.ReadAllText(FixturePath(harRoot));
+        Assert.True(File.Exists(EndpointPath(harRoot)));
+        var harEndpoint = File.ReadAllText(EndpointPath(harRoot));
 
-        // Byte-for-byte fixture parity + identical write tally.
-        Assert.Equal(harFixture, inProcFixture);
+        // Byte-for-byte endpoint parity + identical write tally.
+        Assert.Equal(harEndpoint, inProcEndpoint);
         Assert.Equal(1, inProc.Counts.Wrote);
         Assert.Equal(inProc.Counts.Wrote, harExtractor.Counts.Wrote);
     }
@@ -91,7 +91,7 @@ needs_capture:
 
         Assert.Null(ex.ProcessFlow(Url, "GET", 200, null, responseB64));
         Assert.Null(ex.ProcessFlow(Url, "POST", 404, null, responseB64));
-        Assert.False(File.Exists(FixturePath(root)));
+        Assert.False(File.Exists(EndpointPath(root)));
     }
 
     [Fact]
@@ -106,7 +106,7 @@ needs_capture:
         Assert.Equal(1, ex.Counts.Wrote);
     }
 
-    // The dashboard "Save as fixture" button: the live capture already processed (and deduped) the
+    // The dashboard "Save as endpoint" button: the live capture already processed (and deduped) the
     // flow, so ProcessFlow would skip it. ForceWriteEndpoint must bypass dedup AND force-overwrite.
     [Fact]
     public void ForceWriteEndpoint_BypassesDedupAndOverwrites()
@@ -123,7 +123,7 @@ needs_capture:
 
         // ForceWriteEndpoint writes it anyway.
         Assert.Equal(Slug, ex.ForceWriteEndpoint(Url, "POST", 200, null, responseB64));
-        Assert.True(File.Exists(FixturePath(root)));
+        Assert.True(File.Exists(EndpointPath(root)));
     }
 
     [Fact]

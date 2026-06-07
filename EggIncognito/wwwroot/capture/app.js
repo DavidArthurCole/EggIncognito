@@ -20,7 +20,7 @@ import {
 import { setPaused, updateCount } from "./stats.js";
 import { renderDetail } from "./detail.js";
 import { clearFlows } from "./flowlist.js";
-import { postJson } from "./api.js";
+import { postJson, startCapture, stopCapture, captureStatus } from "./api.js";
 import { loadSnapshot, loadStats, loadSensitiveKeys } from "./loaders.js";
 import { openStream } from "./sse.js";
 import { setIcon } from "./icons.js";
@@ -112,7 +112,43 @@ document.addEventListener("keydown", (e) => {
   if (!notifMenu.classList.contains("hidden")) closeMenu(notifMenu, notifBtn);
 });
 
+// Capture lifecycle control (the proxy is off by default; Start/Stop toggle it at runtime).
+const captureStartBtn = document.getElementById("captureStartBtn");
+const captureStopBtn = document.getElementById("captureStopBtn");
+const captureStatusEl = document.getElementById("captureStatus");
+
+function reflectCaptureStatus(status) {
+  const running = !!(status && status.running);
+  if (captureStatusEl) {
+    captureStatusEl.textContent = running
+      ? `running (port ${status.port}, ${status.activeClients} client${status.activeClients === 1 ? "" : "s"})`
+      : "stopped";
+  }
+  if (captureStartBtn) captureStartBtn.disabled = running;
+  if (captureStopBtn) captureStopBtn.disabled = !running;
+}
+
+async function refreshCaptureStatus() {
+  reflectCaptureStatus(await captureStatus());
+}
+
+if (captureStartBtn) {
+  captureStartBtn.addEventListener("click", async () => {
+    captureStartBtn.disabled = true;
+    await startCapture();
+    await refreshCaptureStatus();
+  });
+}
+if (captureStopBtn) {
+  captureStopBtn.addEventListener("click", async () => {
+    captureStopBtn.disabled = true;
+    await stopCapture();
+    await refreshCaptureStatus();
+  });
+}
+
 setPaused(false);
 updateCount();
 reflectRedactionMode();
+refreshCaptureStatus();
 Promise.all([loadSnapshot(), loadStats(), loadSensitiveKeys()]).then(openStream);

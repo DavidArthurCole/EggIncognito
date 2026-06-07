@@ -1,8 +1,8 @@
-namespace EggIncognito.Tooling.Dashboard;
+namespace EggIncognito.Capture;
 
 // One captured flow, shaped for the live dashboard. Carries both the decoded-for-display JSON
 // (so the browser shows readable proto, not base64) and the raw base64 (so a flow can be
-// re-saved as a fixture). Id is a monotonic counter assigned by the hub; Timestamp is stamped
+// re-saved as an endpoint). Id is a monotonic counter assigned by the hub; Timestamp is stamped
 // at publish time (the workflow runtime forbids Date.Now in some contexts, but this is a normal
 // app, so DateTime.Now here is fine).
 public sealed record DashboardFlow(
@@ -11,20 +11,20 @@ public sealed record DashboardFlow(
     string Path,
     string Method,
     int Status,
-    string? RequestJson,        // redacted (safe display)
-    string? ResponseJson,       // redacted (safe display)
+    string? RequestJson, // redacted (safe display)
+    string? ResponseJson, // redacted (safe display)
     string ResponseB64,
     string? RequestDataB64,
     // Proto type names for display. *Type is the decoded type (yaml-mapped or auto-detected).
-    // Known = both request and response resolved to yaml-mapped types (a fixture we already know),
-    // so the UI can show types + a "known" state instead of the Save-as-fixture action.
+    // Known = both request and response resolved to yaml-mapped types (an endpoint we already know),
+    // so the UI can show types + a "known" state instead of the Save-as-endpoint action.
     string? RequestType = null,
     string? ResponseType = null,
     bool Known = false,
-    // Fixture-write outcome from the extractor: "wrote" | "upd" | "diff" | "same" | "loss" | "" .
+    // Endpoint-write outcome from the extractor: "wrote" | "upd" | "diff" | "same" | "loss" | "" .
     // Surfaced in the UI so the console does not need to print capture/diff/loss lines.
     string Outcome = "",
-    // For a "diff" outcome: git-style line counts of the staged change vs the existing fixture.
+    // For a "diff" outcome: git-style line counts of the staged change vs the existing endpoint.
     int DiffAdded = 0,
     int DiffRemoved = 0,
     // Unredacted JSON, shown only when the UI redaction setting is Off. Kept separate so the

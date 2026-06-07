@@ -2,13 +2,13 @@
 
 Part of [EggIncognito](README.md) - see the main README for the project overview.
 
-This is a step-by-step, beginner-friendly guide for capturing real Egg, Inc. (auxbrain.com) network traffic from a phone and turning it into mock-server fixtures. You do not need any prior experience with proxies or MITM (man-in-the-middle) work. Just follow the steps in order.
+This is a step-by-step, beginner-friendly guide for capturing real Egg, Inc. (auxbrain.com) network traffic from a phone and turning it into mock-server endpoints. You do not need any prior experience with proxies or MITM (man-in-the-middle) work. Just follow the steps in order.
 
 ---
 
 ## What this does (in plain terms)
 
-EggIncognito includes a built-in capture proxy written in C#. Your phone sends its traffic through this proxy running on your computer. The proxy looks at the Egg, Inc. requests and responses, decodes them, and saves them as fixture files the mock server can replay later.
+EggIncognito includes a built-in capture proxy written in C#. Your phone sends its traffic through this proxy running on your computer. The proxy looks at the Egg, Inc. requests and responses, decodes them, and saves them as endpoint files the mock server can replay later.
 
 The most important safety property: **the proxy only decrypts traffic to Egg, Inc. servers.** Everything else passes through untouched.
 
@@ -58,9 +58,9 @@ The flags are all optional:
 | Flag | Default | What it does |
 |---|---|---|
 | `--port <n>` | `8080` | The port the proxy listens on. |
-| `--eid EI...` | (also read from the `EGG_INC_EID` env var) | Your Egg, Inc. EID. Used to scrub your EID out of saved fixtures and to name the HAR file. To be used in the filename, it must match `^EI\d{16,}$`. |
+| `--eid EI...` | (also read from the `EGG_INC_EID` env var) | Your Egg, Inc. EID. Used to scrub your EID out of saved endpoints and to name the HAR file. To be used in the filename, it must match `^EI\d{16,}$`. |
 | `--label <name>` | (none) | A label added to the HAR filename (for example `iphone`). |
-| `--overwrite` | (off) | Overwrite existing fixtures instead of staging diffs for review. |
+| `--overwrite` | (off) | Overwrite existing endpoints instead of staging diffs for review. |
 
 ### 2. Find your computer's LAN IP address
 
@@ -124,7 +124,7 @@ If no Egg, Inc. traffic was seen, it prints `No auxbrain flows captured.` (see T
 For every Egg, Inc. flow, in a single pass, the tool:
 
 1. Appends an entry to the HAR.
-2. Decodes the flow, redacts PII, and writes a fixture to `EggIncognito/Endpoints/default/<namespace>/<endpoint>.json`.
+2. Decodes the flow, redacts PII, and writes an endpoint to `EggIncognito/Endpoints/default/<namespace>/<endpoint>.json`.
 3. "Self-repairs" `routes.yaml` - newly-seen endpoint and type information is filled in automatically.
 
 A live `  capture ei/<endpoint>` log line prints per captured flow.
@@ -133,11 +133,11 @@ A live `  capture ei/<endpoint>` log line prints per captured flow.
 
 ## What you get
 
-- **Fixtures** under `EggIncognito/Endpoints/default/`, grouped by namespace.
+- **Endpoints** under `EggIncognito/Endpoints/default/`, grouped by namespace.
 - **A HAR file** in `captures/`.
 - **`routes.yaml`** updated with any newly-seen endpoints and types.
 
-Without `--overwrite`, changed fixtures are **staged for review** rather than overwritten, so you can inspect diffs before applying them.
+Without `--overwrite`, changed endpoints are **staged for review** rather than overwritten, so you can inspect diffs before applying them.
 
 The `captures/` directory is gitignored, because it can contain player data and the CA certificate.
 
@@ -145,7 +145,7 @@ The `captures/` directory is gitignored, because it can contain player data and 
 
 ## Re-running a capture
 
-The **HAR file is the durable artifact.** Once you have it, you can reproduce the exact same fixtures without the phone, by replaying the HAR through the Seeder:
+The **HAR file is the durable artifact.** Once you have it, you can reproduce the exact same endpoints without the phone, by replaying the HAR through the Seeder:
 
 ```
 dotnet run --project EggIncognito.Seeder -- --from-har captures/session_iphone_EI....har
@@ -153,7 +153,7 @@ dotnet run --project EggIncognito.Seeder -- --from-har captures/session_iphone_E
 
 Add `--overwrite` to apply changes instead of staging them.
 
-The in-process capture path and the file replay path are kept in sync, so this produces the same fixtures as the live capture. It is safe and idempotent to re-run.
+The in-process capture path and the file replay path are kept in sync, so this produces the same endpoints as the live capture. It is safe and idempotent to re-run.
 
 ---
 
@@ -168,4 +168,4 @@ The in-process capture path and the file replay path are kept in sync, so this p
 
 ## How it works under the hood
 
-For the wire format, architecture, and how flows become fixtures, see [TECHNICAL.md](TECHNICAL.md).
+For the wire format, architecture, and how flows become endpoints, see [TECHNICAL.md](TECHNICAL.md).

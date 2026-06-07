@@ -1,7 +1,5 @@
-extern alias Tooling;
 using System.Text.Json;
-using Cap = Tooling::EggIncognito.Tooling.Capture;
-using Dash = Tooling::EggIncognito.Tooling.Dashboard;
+using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
@@ -13,14 +11,14 @@ public class HeaderRedactorTests
     [Fact]
     public void Build_RedactsSensitive_KeepsRawCopy()
     {
-        var headers = new List<Cap::HttpHeader>
+        var headers = new List<HttpHeader>
         {
             new("Authorization", "Bearer secret-token"),
             new("Content-Type", "application/x-www-form-urlencoded"),
             new("Cookie", "sid=abc123"),
         };
 
-        var (redacted, raw) = Dash::HeaderRedactor.Build(headers);
+        var (redacted, raw) = HeaderRedactor.Build(headers);
 
         // Redacted copy: secrets masked, others intact.
         Assert.Equal("redacted", redacted[0].Value);
@@ -38,28 +36,28 @@ public class HeaderRedactorTests
     [Fact]
     public void Build_CaseInsensitiveSensitiveMatch()
     {
-        var (redacted, _) = Dash::HeaderRedactor.Build([new Cap::HttpHeader("AUTHORIZATION", "x")]);
+        var (redacted, _) = HeaderRedactor.Build([new HttpHeader("AUTHORIZATION", "x")]);
         Assert.Equal("redacted", redacted[0].Value);
     }
 
     [Fact]
     public void Build_NullOrEmpty_ReturnsEmpty()
     {
-        var (r1, raw1) = Dash::HeaderRedactor.Build(null);
+        var (r1, raw1) = HeaderRedactor.Build(null);
         Assert.Empty(r1);
         Assert.Empty(raw1);
-        var (r2, _) = Dash::HeaderRedactor.Build([]);
+        var (r2, _) = HeaderRedactor.Build([]);
         Assert.Empty(r2);
     }
 
     [Fact]
     public void HarWriter_IncludesRawHeaders()
     {
-        var har = new Cap::HarWriter();
-        har.Add(new Cap::CapturedFlow(
+        var har = new HarWriter();
+        har.Add(new CapturedFlow(
             "https://www.auxbrain.com/ei/x", "POST", 200, "ZGF0YQ==", "cmVzcA==",
-            RequestHeaders: [new Cap::HttpHeader("Authorization", "Bearer raw-secret")],
-            ResponseHeaders: [new Cap::HttpHeader("Content-Type", "application/octet-stream")]));
+            RequestHeaders: [new HttpHeader("Authorization", "Bearer raw-secret")],
+            ResponseHeaders: [new HttpHeader("Content-Type", "application/octet-stream")]));
 
         using var doc = JsonDocument.Parse(har.ToHar());
         var entry = doc.RootElement.GetProperty("log").GetProperty("entries")[0];

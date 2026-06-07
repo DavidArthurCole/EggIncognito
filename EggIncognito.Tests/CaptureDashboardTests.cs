@@ -1,22 +1,21 @@
-extern alias Tooling;
 using Google.Protobuf;
-using Dash = Tooling::EggIncognito.Tooling.Dashboard;
+using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
 // Unit tests for the live-capture dashboard backend (CaptureHub broker + FlowDecoder).
 // CaptureHub is an in-memory ring-buffered broker with per-subscriber channels; FlowDecoder
-// reuses the fixture pipeline primitives to turn raw base64 into readable JSON.
+// reuses the endpoint pipeline primitives to turn raw base64 into readable JSON.
 public class CaptureDashboardTests
 {
     // Quick factory for a placeholder DashboardFlow. Id/Timestamp are owned by the hub.
-    private static Dash::DashboardFlow F(string path = "ei/x") =>
+    private static DashboardFlow F(string path = "ei/x") =>
         new(0, "", path, "POST", 200, null, null, "AAEC", null);
 
     [Fact]
     public void Publish_AssignsMonotonicIds_StartingAtOne()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         var first = hub.Publish(F(), "t1");
         var second = hub.Publish(F(), "t2");
 
@@ -29,7 +28,7 @@ public class CaptureDashboardTests
     [Fact]
     public void Publish_StampsProvidedTimestamp()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         var stored = hub.Publish(F(), "2026-06-06T00:00:00Z");
 
         Assert.NotNull(stored);
@@ -39,7 +38,7 @@ public class CaptureDashboardTests
     [Fact]
     public void Snapshot_ReturnsPublishedFlows_OldestFirst()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.Publish(F("ei/a"), "t1");
         hub.Publish(F("ei/b"), "t2");
         hub.Publish(F("ei/c"), "t3");
@@ -54,7 +53,7 @@ public class CaptureDashboardTests
     [Fact]
     public void Publish_WhenPaused_ReturnsNull_AndDoesNotBuffer()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.Publish(F(), "t1");
         var before = hub.Snapshot().Count;
 
@@ -68,7 +67,7 @@ public class CaptureDashboardTests
     [Fact]
     public void Clear_EmptiesBuffer()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.Publish(F(), "t1");
         hub.Publish(F(), "t2");
 
@@ -80,7 +79,7 @@ public class CaptureDashboardTests
     [Fact]
     public void Find_ReturnsMatchingFlow_NullForMissing()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         var stored = hub.Publish(F("ei/found"), "t1");
 
         Assert.NotNull(stored);
@@ -95,7 +94,7 @@ public class CaptureDashboardTests
     [Fact]
     public void Subscribe_DeliversPublishedFlow_ThenStopsAfterDispose()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         var (reader, subscription) = hub.Subscribe();
 
         hub.Publish(F("ei/live"), "t1");
@@ -111,7 +110,7 @@ public class CaptureDashboardTests
     }
 
     // Drain all currently-queued envelopes; return the Paths of the "flow" ones.
-    private static List<string> DrainFlowPaths(System.Threading.Channels.ChannelReader<Dash::CaptureEnvelope> reader)
+    private static List<string> DrainFlowPaths(System.Threading.Channels.ChannelReader<CaptureEnvelope> reader)
     {
         var paths = new List<string>();
         while (reader.TryRead(out var env))
@@ -123,7 +122,7 @@ public class CaptureDashboardTests
     [Fact]
     public void RingBuffer_CapsAt500_DroppingOldest()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         for (int i = 0; i < 600; i++)
             hub.Publish(F("ei/x"), "t");
 
@@ -164,7 +163,7 @@ routes:
     public void DecodeResponse_KnownType_ReturnsJsonAndKnownType()
     {
         var repo = MakeRepo();
-        var decoder = new Dash::FlowDecoder(repo);
+        var decoder = new FlowDecoder(repo);
 
         var r = decoder.DecodeResponse("ei/get_periodicals", WrappedResponseB64());
 
@@ -177,7 +176,7 @@ routes:
     public void DecodeResponse_GarbageBase64_ReturnsNullJson()
     {
         var repo = MakeRepo();
-        var decoder = new Dash::FlowDecoder(repo);
+        var decoder = new FlowDecoder(repo);
 
         var r = decoder.DecodeResponse("ei/get_periodicals", "!!!notbase64");
 
@@ -188,7 +187,7 @@ routes:
     public void DecodeRequest_Null_ReturnsNullJson()
     {
         var repo = MakeRepo();
-        var decoder = new Dash::FlowDecoder(repo);
+        var decoder = new FlowDecoder(repo);
 
         Assert.Null(decoder.DecodeRequest("ei/get_periodicals", null).Json);
     }
@@ -198,7 +197,7 @@ routes:
     [Fact]
     public void StatsSnapshot_FreshHub_CertWaiting_AllZero()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         var s = hub.StatsSnapshot();
 
         Assert.Equal("Waiting", s.CertState);
@@ -219,7 +218,7 @@ routes:
     [Fact]
     public void RecordConnection_NewIp_TracksDevice_ButStaysWaiting()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
 
         var s = hub.StatsSnapshot();
@@ -234,7 +233,7 @@ routes:
     [Fact]
     public void RecordAuxbrainConnect_FreshHub_StaysWaiting()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.RecordAuxbrainConnect();
 
         // Seeing an auxbrain CONNECT alone is not proof of (un)trust - decrypt may still succeed.
@@ -244,7 +243,7 @@ routes:
     [Fact]
     public void Publish_Auxbrain_FlipsToTrusted_AndCountsCapture()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.Publish(F("ei/x"), "t", isAuxbrain: true);
 
         var s = hub.StatsSnapshot();
@@ -257,7 +256,7 @@ routes:
     [Fact]
     public void CertState_DoesNotDowngrade_OnceTrusted()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.Publish(F("ei/x"), "t", isAuxbrain: true);
         hub.RecordDecryptError("x", "t");
 
@@ -270,7 +269,7 @@ routes:
     [Fact]
     public void RecordDecryptError_AfterConnection_FlipsToUntrusted()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
         hub.RecordDecryptError("boom", "t");
 
@@ -283,7 +282,7 @@ routes:
     [Fact]
     public void Publish_Passthrough_ReturnsNull_CountsPassthrough_NotBuffered()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         var result = hub.Publish(F("ei/x"), "t", isAuxbrain: false);
 
         Assert.Null(result);
@@ -296,7 +295,7 @@ routes:
     [Fact]
     public void UniqueEndpoints_CountsDistinctPaths()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.Publish(F("ei/a"), "t", isAuxbrain: true);
         hub.Publish(F("ei/a"), "t", isAuxbrain: true);
         hub.Publish(F("ei/b"), "t", isAuxbrain: true);
@@ -307,7 +306,7 @@ routes:
     [Fact]
     public void Bytes_TrackedPerEndpoint_BiggestReflectsPath()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         // F's ResponseB64 is "AAEC" (length 4), so this flow contributes bytes.
         hub.Publish(F("ei/big"), "t", isAuxbrain: true);
 
@@ -319,7 +318,7 @@ routes:
     [Fact]
     public void RecordConnection_SameIpTwice_DeviceCountStaysOne()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
         hub.RecordConnection(1, "192.168.1.5", "t");
 
@@ -329,7 +328,7 @@ routes:
     [Fact]
     public void Device_TracksFirstLastSeenAndConnectionCount()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "10:00:00");
         hub.RecordConnection(2, "192.168.1.5", "10:00:05");
 
@@ -343,11 +342,11 @@ routes:
     [Fact]
     public void Device_SingleDevice_GetsLastUserAgent()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
         var flow = F("ei/x") with
         {
-            RequestHeadersRaw = new[] { new Dash::DashboardHeader("User-Agent", "EggInc/1.34 iOS", false) },
+            RequestHeadersRaw = new[] { new DashboardHeader("User-Agent", "EggInc/1.34 iOS", false) },
         };
         hub.Publish(flow, "t");
 
@@ -358,12 +357,12 @@ routes:
     [Fact]
     public void Device_MultipleDevices_NoUserAgentAttribution()
     {
-        var hub = new Dash::CaptureHub();
+        var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
         hub.RecordConnection(2, "192.168.1.6", "t");
         var flow = F("ei/x") with
         {
-            RequestHeadersRaw = new[] { new Dash::DashboardHeader("User-Agent", "EggInc/1.34 iOS", false) },
+            RequestHeadersRaw = new[] { new DashboardHeader("User-Agent", "EggInc/1.34 iOS", false) },
         };
         hub.Publish(flow, "t");
 

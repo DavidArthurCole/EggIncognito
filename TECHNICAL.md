@@ -10,10 +10,10 @@ Internals and reference for [EggIncognito](README.md). For the capture walkthrou
 
 | Project | Purpose |
 |---|---|
-| `EggIncognito` | ASP.NET Core (net10.0) - the mock server: controllers, fixtures, startup. Also hosts the shared library code (`Services/EndpointExtractor.cs`, `Services/EndpointStore.cs`, `Services/TransportPipeline.cs`, `Services/AuxbrainHosts.cs`) used by the other tools. |
+| `EggIncognito` | ASP.NET Core (net10.0) - the mock server: controllers, endpoints, startup. Also hosts the shared library code (`Services/EndpointExtractor.cs`, `Services/EndpointStore.cs`, `Services/TransportPipeline.cs`, `Services/AuxbrainHosts.cs`) used by the other tools. |
 | `EggIncognito.Generator` | Roslyn `IIncrementalGenerator` (netstandard2.0) - reads `routes.yaml` and emits one controller per endpoint at build time. |
 | `EggIncognito.Tests` | xUnit - unit tests for the generator, `EndpointStore`, the extraction pipeline, and `WebApplicationFactory` integration tests. |
-| `EggIncognito.Seeder` | Console app - a thin CLI over the extraction pipeline. Calls the real Egg, Inc. API to seed per-EID fixtures, replays a HAR (`--from-har`), or identifies an unknown proto blob (`--decode`). |
+| `EggIncognito.Seeder` | Console app - a thin CLI over the extraction pipeline. Calls the real Egg, Inc. API to seed per-EID endpoints, replays a HAR (`--from-har`), or identifies an unknown proto blob (`--decode`). |
 | `EggIncognito.Tooling` | Console app - the pure-C# capture proxy (`capture` command). Selective-decrypts only auxbrain hosts, feeds captured flows to `EndpointExtractor` in-process, and writes a HAR. See [CAPTURE.md](CAPTURE.md). |
 
 Controllers are generated into `obj/` at build time and are NOT checked in (never edit generated files). To add an endpoint, edit `routes.yaml` only:
@@ -24,7 +24,7 @@ Controllers are generated into `obj/` at build time and are NOT checked in (neve
   response: MyResponseType
 ```
 
-Then run `dotnet build`. Add a fixture file under `EggIncognito/Endpoints/default/<namespace>/` if a non-default response is needed.
+Then run `dotnet build`. Add an endpoint file under `EggIncognito/Endpoints/default/<namespace>/` if a non-default response is needed.
 
 The extraction pipeline lives in `EggIncognito/Services/EndpointExtractor.cs` and exposes one per-flow method `ProcessFlow(url, method, status, requestDataB64, responseBodyB64)`. Both the HAR replay path (Seeder `--from-har`) and the in-process capture path (Tooling `capture`) funnel through it, so they cannot diverge.
 

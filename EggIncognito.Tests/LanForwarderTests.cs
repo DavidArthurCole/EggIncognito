@@ -1,7 +1,6 @@
-extern alias Tooling;
 using System.Net;
 using System.Text;
-using Cap = Tooling::EggIncognito.Tooling.Capture;
+using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
@@ -19,7 +18,7 @@ public class LanForwarderTests
                    "Proxy-Connection: keep-alive\r\n" +
                    "Keep-Alive: timeout=5";
 
-        var cleaned = Cap::LanForwarder.CleanConnectHead(head);
+        var cleaned = LanForwarder.CleanConnectHead(head);
 
         Assert.DoesNotContain("Connection:", cleaned);
         Assert.DoesNotContain("Proxy-Connection:", cleaned);
@@ -33,7 +32,7 @@ public class LanForwarderTests
     {
         // iOS sends Host with no port; Kestrel needs it to match the CONNECT authority exactly.
         var head = "CONNECT www.auxbrain.com:443 HTTP/1.1\r\nHost: www.auxbrain.com";
-        var cleaned = Cap::LanForwarder.CleanConnectHead(head);
+        var cleaned = LanForwarder.CleanConnectHead(head);
         Assert.Contains("Host: www.auxbrain.com:443\r\n", cleaned);
         Assert.DoesNotContain("Host: www.auxbrain.com\r\n", cleaned);
     }
@@ -42,7 +41,7 @@ public class LanForwarderTests
     public void CleanConnectHead_AddsHostWhenMissing()
     {
         var head = "CONNECT www.auxbrain.com:443 HTTP/1.1";
-        var cleaned = Cap::LanForwarder.CleanConnectHead(head);
+        var cleaned = LanForwarder.CleanConnectHead(head);
         Assert.Contains("Host: www.auxbrain.com:443\r\n", cleaned);
     }
 
@@ -51,20 +50,20 @@ public class LanForwarderTests
     {
         var mapped = IPAddress.Parse("192.168.1.50").MapToIPv6();
         Assert.True(mapped.IsIPv4MappedToIPv6);
-        Assert.Equal("192.168.1.50", Cap::LanForwarder.DeviceIp(mapped));
+        Assert.Equal("192.168.1.50", LanForwarder.DeviceIp(mapped));
     }
 
     [Fact]
     public void DeviceIp_PlainIPv4Unchanged()
     {
-        Assert.Equal("10.0.0.1", Cap::LanForwarder.DeviceIp(IPAddress.Parse("10.0.0.1")));
+        Assert.Equal("10.0.0.1", LanForwarder.DeviceIp(IPAddress.Parse("10.0.0.1")));
     }
 
     [Fact]
     public void IndexOfDoubleCrlf_FindsBlankLine()
     {
         var bytes = Encoding.ASCII.GetBytes("HEAD line\r\nSecond\r\n\r\nbody");
-        var idx = Cap::LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length);
+        var idx = LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length);
         // The \r\n\r\n begins right after "Second".
         Assert.Equal(Encoding.ASCII.GetBytes("HEAD line\r\nSecond").Length, idx);
     }
@@ -73,6 +72,6 @@ public class LanForwarderTests
     public void IndexOfDoubleCrlf_NotPresent_ReturnsMinusOne()
     {
         var bytes = Encoding.ASCII.GetBytes("no blank line here\r\nstill none");
-        Assert.Equal(-1, Cap::LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length));
+        Assert.Equal(-1, LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length));
     }
 }

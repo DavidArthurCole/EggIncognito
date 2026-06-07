@@ -1,13 +1,13 @@
 using System.Text;
 using EggIncognito.Services;
 
-namespace EggIncognito.Tooling.Capture;
+namespace EggIncognito.Capture;
 
 // Pure wire-body helpers for the capture proxy's response/request handlers, factored out of
 // UnobtaniumCaptureProxy so the three-shape normalization can be unit-tested without a live proxy.
 public static class WireBody
 {
-    // Normalize a decrypted response body to the canonical responseB64 the fixture pipeline +
+    // Normalize a decrypted response body to the canonical responseB64 the endpoint pipeline +
     // decoder expect: base64 of the AuthenticatedMessage bytes. The wire body arrives in THREE
     // shapes depending on the endpoint and the client's Accept-Encoding:
     //   1. base64 TEXT (the API's normal framing)            -> use the text as-is

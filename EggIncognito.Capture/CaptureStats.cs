@@ -1,4 +1,4 @@
-namespace EggIncognito.Tooling.Dashboard;
+namespace EggIncognito.Capture;
 
 // Inferred state of the capture cert's trust on the connected device. We cannot query the
 // device's trust store, so this is derived from observed traffic:

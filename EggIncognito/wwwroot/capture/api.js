@@ -26,3 +26,8 @@ export async function getJson(url) {
     return null;
   }
 }
+
+// Runtime capture lifecycle control (the proxy is off by default; toggled from the Capture tab).
+export const startCapture = () => postJson("/api/capture/start");
+export const stopCapture = () => postJson("/api/capture/stop");
+export const captureStatus = () => getJson("/api/capture/status");

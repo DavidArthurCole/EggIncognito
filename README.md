@@ -36,12 +36,12 @@ docker compose up
 Both listen on `http://localhost:5080`. Point your Egg, Inc. client at that address and you're done.
 
 ```sh
-dotnet test EggIncognito.slnx   # run the tests
+dotnet test EggIncognito.slnx
 ```
 
 ## Configuring responses
 
-Responses come from fixture files on disk. They live in `EggIncognito/Endpoints/`, grouped by API namespace:
+Responses come from endpoint files on disk. They live in `EggIncognito/Endpoints/`, grouped by API namespace:
 
 ```
 Endpoints/
@@ -55,21 +55,21 @@ Endpoints/
       ...
 ```
 
-The fixture key is the API path (e.g. `ei/first_contact_secure`). The server checks for a per-EID fixture first, then falls back to the default.
+The endpoint key is the API path (e.g. `ei/first_contact_secure`). The server checks for a per-EID endpoint first, then falls back to the default.
 
-Fixture JSON is [Google.Protobuf JSON](https://protobuf.dev/programming-guides/proto3/#json) (camelCase). An empty `{}` returns all-default field values, and a missing fixture behaves the same way. To change a response, just edit (or add) the matching `.json` file.
+Endpoint JSON is [Google.Protobuf JSON](https://protobuf.dev/programming-guides/proto3/#json) (camelCase). An empty `{}` returns all-default field values, and a missing endpoint behaves the same way. To change a response, just edit (or add) the matching `.json` file.
 
 **Per-EID overrides:** drop a file at `Endpoints/eids/<EID>/<path>.json`. The server reads `user_id` from the incoming request to pick the right directory.
 
 ## Capture your own data
 
-Want fixtures from a real account? `EggIncognito.Tooling` is a built-in capture proxy that records real Egg, Inc. traffic from your phone and turns it into fixtures automatically. It decrypts **only** auxbrain hosts and passes all other traffic through untouched, so the rest of your phone keeps working.
+Want endpoints from a real account? `EggIncognito.Tooling` is a built-in capture proxy that records real Egg, Inc. traffic from your phone and turns it into endpoints automatically. It decrypts **only** auxbrain hosts and passes all other traffic through untouched, so the rest of your phone keeps working.
 
 ```sh
 dotnet run --project EggIncognito.Tooling -- capture --eid EI... --label iphone
 ```
 
-Point your phone's Wi-Fi proxy at your computer, install the printed certificate, and play the game. Each captured flow becomes a fixture on disk.
+Point your phone's Wi-Fi proxy at your computer, install the printed certificate, and play the game. Each captured flow becomes an endpoint on disk.
 
 ➡️ **Full step-by-step device guide: [CAPTURE.md](CAPTURE.md)**
 

@@ -23,8 +23,8 @@ public class RedactorTests
         var json = $"{{ \"{field}\": \"super-secret-value-123\" }}";
         var red = SeederNS.Redactor.Redact(json);
         Assert.DoesNotContain("super-secret-value-123", red);
-        Assert.Contains($"\"{field}\":", red);          // key preserved
-        Assert.Contains("redacted-", red);               // value tokenized
+        Assert.Contains($"\"{field}\":", red); // key preserved
+        Assert.Contains("redacted-", red); // value tokenized
     }
 
     [Fact]

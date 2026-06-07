@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace EggIncognito.Tooling.Capture;
+namespace EggIncognito.Capture;
 
 // Accumulates captured flows and writes a HAR 1.2 file whose shape is exactly what
 // EggIncognito.Services.EndpointExtractor reads back:
@@ -65,7 +65,7 @@ public sealed class HarWriter
             log = new
             {
                 version = "1.2",
-                creator = new { name = "EggIncognito.Tooling", version = "1.0" },
+                creator = new { name = "EggIncognito.Capture", version = "1.0" },
                 entries = _entries,
             },
         };

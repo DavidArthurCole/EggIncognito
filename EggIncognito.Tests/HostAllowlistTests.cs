@@ -23,7 +23,7 @@ public class HostAllowlistTests
     [InlineData("auxbrainhome.appspot.com.evil.com")]
     [InlineData("evil.com-dot-auxbrainhome.appspot.com")] // dot in the service label
     [InlineData("notauxbrain.com")]
-    [InlineData("-dot-auxbrainhome.appspot.com")]          // empty service label
+    [InlineData("-dot-auxbrainhome.appspot.com")] // empty service label
     public void Rejects_BadHosts(string host) =>
         Assert.False(InspectorApiController.IsAllowedHost(host));
 

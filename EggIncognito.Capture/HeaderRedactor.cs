@@ -1,6 +1,5 @@
-using EggIncognito.Tooling.Capture;
 
-namespace EggIncognito.Tooling.Dashboard;
+namespace EggIncognito.Capture;
 
 // Redacts sensitive HTTP header values for dashboard display. The HAR keeps raw headers (durable
 // artifact); the dashboard shows redacted values by default and the unredacted copy only when the

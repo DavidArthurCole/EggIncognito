@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace EggIncognito.Tooling.Capture;
+namespace EggIncognito.Capture;
 
 // Parsed command-line options for the `capture` subcommand. Folds in the args.Contains / Get*Option
 // parsing that used to open RunAsync, plus the HAR-filename derivation, so the command method reads

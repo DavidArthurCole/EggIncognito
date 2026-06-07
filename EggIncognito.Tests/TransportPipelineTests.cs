@@ -139,7 +139,7 @@ routes:
 excluded:
   - ei/kb
 
-fixture_status:
+endpoint_status:
   empty:
     - ei/clean_accounts
 """;
@@ -155,7 +155,7 @@ fixture_status:
     public void Parse_ReadsOnlyEndpointsSection()
     {
         var cat = Build();
-        // ei/kb (excluded) and ei/clean_accounts (fixture_status) must NOT be endpoints.
+        // ei/kb (excluded) and ei/clean_accounts (endpoint_status) must NOT be endpoints.
         Assert.Null(cat.Get("ei/kb"));
         Assert.Equal(5, cat.All().Count);
     }

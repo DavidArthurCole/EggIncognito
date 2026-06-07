@@ -1,8 +1,23 @@
 using System.Security.Cryptography.X509Certificates;
+using EggIncognito.Cli;
 using EggIncognito.Logging;
 using EggIncognito.Services;
 
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("EggIncognito.Tests")]
+
+// CLI subcommand dispatch: these run and exit without booting the web host. Anything else
+// (no args, or `serve` + flags like --capture) falls through to the web app below.
+if (args.Length > 0 && args[0] is "emit-types" or "check-endpoints" or "export-collection")
+{
+    var rest = args[1..];
+    return args[0] switch
+    {
+        "emit-types" => TypeEmitter.Run(RepoPaths.FindRoot()),
+        "check-endpoints" => CheckEndpointsCommand.Run(rest),
+        "export-collection" => ExportCollectionCommand.Run(rest),
+        _ => 1,
+    };
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,6 +73,22 @@ builder.Services.AddSingleton<IEndpointStore>(sp =>
         ?? Path.Combine(AppContext.BaseDirectory, "Endpoints");
     return new EndpointStore(path, logger);
 });
+builder.Services.AddSingleton(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var repoRoot = EggIncognito.Cli.RepoPaths.FindRoot();
+    var capturePath = config["CapturePath"] ?? Path.Combine(repoRoot, "captures");
+    var caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
+    var opts = new EggIncognito.Capture.CaptureSessionOptions(
+        Port: int.TryParse(config["CapturePort"], out var cp) ? cp : 8080,
+        Eid: config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID"),
+        Label: config["CaptureLabel"],
+        Overwrite: config.GetValue("CaptureOverwrite", false),
+        Verbose: config.GetValue("CaptureVerbose", false),
+        CapturePath: capturePath,
+        CaPath: caPath);
+    return new EggIncognito.Capture.CaptureSession(repoRoot, opts);
+});
 
 var app = builder.Build();
 
@@ -74,8 +105,9 @@ app.UseStaticFiles();
 app.UseRouting();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok());
-app.MapGet("/", () => Results.Redirect("/inspector/"));
+// `/` serves wwwroot/index.html (the landing page) via UseDefaultFiles; no redirect.
 app.MapGet("/inspector", () => Results.Redirect("/inspector/"));
+app.MapGet("/capture", () => Results.Redirect("/capture/"));
 
 // Flush and close the per-startup log file cleanly on shutdown.
 app.Lifetime.ApplicationStopping.Register(fileLogProvider.Dispose);
@@ -110,4 +142,16 @@ if (app.Environment.IsDevelopment() &&
     });
 }
 
+// Opt-in capture auto-start: `--capture` (or Capture=true config) brings the proxy up once the
+// host is listening. Off by default; otherwise toggled at runtime via POST /api/capture/start.
+if (app.Configuration.GetValue("capture", false) || args.Contains("--capture"))
+{
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        var sess = app.Services.GetRequiredService<EggIncognito.Capture.CaptureSession>();
+        _ = sess.StartAsync(CancellationToken.None);
+    });
+}
+
 await app.RunAsync();
+return 0;

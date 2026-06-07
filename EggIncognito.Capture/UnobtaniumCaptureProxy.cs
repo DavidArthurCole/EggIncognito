@@ -7,7 +7,7 @@ using Unobtanium.Web.Proxy.Events;
 using Unobtanium.Web.Proxy.Services;
 using EggIncognito.Services;
 
-namespace EggIncognito.Tooling.Capture;
+namespace EggIncognito.Capture;
 
 // ICaptureProxy on Unobtanium.Web.Proxy 0.9.x (a DI/ASP.NET-Core hosted-service rewrite of the
 // old Titanium engine). The whole point is selective decryption: ShouldDecryptNewConnection
@@ -38,8 +38,8 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
     // successfully decrypted flow proves trust and permanently disarms the inference for the session.
     private static readonly TimeSpan TrustGrace = TimeSpan.FromSeconds(8);
     private readonly object _trustGate = new();
-    private bool _trustProven;          // a flow decrypted -> CA is trusted; never re-arm
-    private bool _untrustedReported;    // fired DecryptError once; don't spam
+    private bool _trustProven; // a flow decrypted -> CA is trusted; never re-arm
+    private bool _untrustedReported; // fired DecryptError once; don't spam
     private Timer? _trustTimer;
 
     // True when this run minted a BRAND-NEW root CA (no persisted root.pfx existed) - the device
@@ -53,10 +53,10 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
 
     // Connection + health signals for the dashboard. Device connect/disconnect carry the REAL
     // device IP (from the LAN forwarder); the proxy itself only ever sees loopback.
-    public event Action<int, string?>? ClientConnected;     // (activeCount, realDeviceIp)
-    public event Action<int, string?>? ClientDisconnected;  // (activeCount, realDeviceIp)
-    public event Action? AuxbrainConnect;                   // an auxbrain CONNECT was decrypted
-    public event Action<string>? DecryptError;              // a TLS/decrypt error message
+    public event Action<int, string?>? ClientConnected; // (activeCount, realDeviceIp)
+    public event Action<int, string?>? ClientDisconnected; // (activeCount, realDeviceIp)
+    public event Action? AuxbrainConnect; // an auxbrain CONNECT was decrypted
+    public event Action<string>? DecryptError; // a TLS/decrypt error message
 
     public bool Verbose { get; set; }
     public event Action<string>? Trace;

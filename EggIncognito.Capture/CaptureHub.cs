@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 
-namespace EggIncognito.Tooling.Dashboard;
+namespace EggIncognito.Capture;
 
 // In-memory broker between the capture proxy and the dashboard browser(s).
 //
@@ -15,7 +15,7 @@ namespace EggIncognito.Tooling.Dashboard;
 // singleton so the controller and the capture loop share one hub.
 public sealed class CaptureHub
 {
-    private const int BufferCap = 500;       // recent flows kept for snapshot / reconnect
+    private const int BufferCap = 500; // recent flows kept for snapshot / reconnect
     private const int SubscriberQueueCap = 256;
     private const string KindFlow = "flow";
     private const string KindStats = "stats";
@@ -45,7 +45,7 @@ public sealed class CaptureHub
     private CertState _certState = CertState.Waiting;
 
     // When paused, Publish records nothing and broadcasts no flow (dashboard view only - the
-    // proxy keeps tunneling and the fixture/HAR pipeline is governed separately). Stats/connection
+    // proxy keeps tunneling and the endpoint/HAR pipeline is governed separately). Stats/connection
     // events still update so the cert pill and device info stay accurate while paused.
     public bool Paused { get; set; }
 

@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace EggIncognito.Tooling.Capture;
+namespace EggIncognito.Capture;
 
 // Unobtanium 0.9.x binds its proxy listener to 127.0.0.1 (loopback) with no option to change it,
 // so a phone on the LAN cannot reach it directly. This is a tiny TCP forwarder that listens on

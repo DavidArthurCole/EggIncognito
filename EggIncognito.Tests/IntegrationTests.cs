@@ -45,7 +45,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task FirstContactSecure_NoEid_ReturnsDefaultFixture()
+    public async Task FirstContactSecure_NoEid_ReturnsDefaultEndpoint()
     {
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent(null));
         response.EnsureSuccessStatusCode();
@@ -58,7 +58,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task FirstContactSecure_WithKnownEid_ReturnsEidFixture()
+    public async Task FirstContactSecure_WithKnownEid_ReturnsEidEndpoint()
     {
         const string eid = "EI0000000000000002";
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent(eid));
@@ -72,7 +72,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task FirstContactSecure_WithUnknownEid_FallsBackToDefaultFixture()
+    public async Task FirstContactSecure_WithUnknownEid_FallsBackToDefaultEndpoint()
     {
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent("EI9999999999999999"));
         response.EnsureSuccessStatusCode();
@@ -83,7 +83,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task GetPeriodicals_DefaultFixture_ReturnsTwoEvents()
+    public async Task GetPeriodicals_DefaultEndpoint_ReturnsTwoEvents()
     {
         var response = await _client.PostAsync("/ei/get_periodicals", MakeFormContent(null));
         response.EnsureSuccessStatusCode();

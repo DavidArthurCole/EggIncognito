@@ -16,10 +16,10 @@ public sealed record SchemaField(
     string Name,
     string JsonName,
     int Number,
-    string Type,            // proto field type, e.g. "string", "uint32", "message", "enum"
+    string Type, // proto field type, e.g. "string", "uint32", "message", "enum"
     bool Repeated,
     bool Required,
-    string? MessageType,    // set when Type == "message" (short Ei type name)
+    string? MessageType, // set when Type == "message" (short Ei type name)
     IReadOnlyList<SchemaEnumValue>? EnumValues);
 
 public sealed record SchemaMessage(string Name, IReadOnlyList<SchemaField> Fields);
