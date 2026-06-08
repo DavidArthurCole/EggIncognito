@@ -1,5 +1,3 @@
-// EggIncognito.Core/Services/EndpointExtractor.cs
-//
 // the endpoint-extraction pipeline. Lives in Core so it can be driven two ways with identical
 // behavior:
 //   - from a HAR file (the `from-har` CLI subcommand), via RunFromHar / ProcessHarEntry
@@ -64,7 +62,7 @@ public sealed class EndpointExtractor
         return new EndpointExtractor(dirs, eid, eidPlaceholder, overwrite);
     }
 
-    // ---- Per-flow entry point. THE single contract both the HAR and in-process paths use. ----
+    // Per-flow entry point. The single contract both the HAR and in-process paths use.
     //
     // requestDataB64 is the base64 `data` param value (or null for an empty body);
     // responseBodyB64 is the base64-encoded response body (the AuthenticatedMessage on the wire).
@@ -114,7 +112,7 @@ public sealed class EndpointExtractor
         return decoded.Path;
     }
 
-    // ---- HAR-file driver. Iterates log.entries[] and feeds each through ProcessFlow. ----
+    // HAR-file driver. Iterates log.entries[] and feeds each through ProcessFlow.
     public void RunFromHar(string harPath)
     {
         using var doc = JsonDocument.Parse(File.ReadAllBytes(harPath));
@@ -153,7 +151,7 @@ public sealed class EndpointExtractor
     // both call this at the end of a session.
     public void Save() => _dirs.Yaml.Save();
 
-    // ---- decode (was TryDecodeEntry) ----
+    // Decode a single flow into a DecodedEntry (redacted), or null if it cannot be parsed.
     private DecodedEntry? TryDecode(string path, string? requestDataB64, string responseBodyB64)
     {
         byte[] respBytes;
@@ -179,7 +177,7 @@ public sealed class EndpointExtractor
         return new DecodedEntry(path, Scrub(json), request, null, 0, 0);
     }
 
-    // ---- write (was the back half of ProcessHarEntry) ----
+    // Write a decoded entry to disk (or stage a diff), tracking the per-outcome counts.
     // forceOverwrite: explicit user save - skip the fewer-objects loss guard and always overwrite.
     private void WriteDecoded(DecodedEntry decoded, bool forceOverwrite = false)
     {
@@ -295,7 +293,7 @@ public sealed class EndpointExtractor
             if (yaml.RemoveFromNeedsCapture(path)) Counts.WroteYaml = true;
     }
 
-    // ---- request decode (was ExtractRequestJson, now takes the raw data string) ----
+    // Decode the request `data` value into redacted JSON for the endpoint's stored request.
     private RequestDecode ExtractRequestJson(string? dataValue, string path)
     {
         try
@@ -379,7 +377,7 @@ public sealed class EndpointExtractor
             Console.WriteLine("  note: routes.yaml updated -> run scripts/Check-Endpoints.ps1 -Update to refresh endpoint_status");
     }
 
-    // ---- static pure helpers ----
+    // Static pure helpers.
 
     // Pull the base64 `data` value from a HAR request entry (form param or raw text body).
     public static string? ReadRequestData(JsonElement reqEl)

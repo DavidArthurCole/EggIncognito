@@ -1,5 +1,3 @@
-// EggIncognito/Services/ApiExceptionHandler.cs
-//
 // App-wide exception handler (registered via AddExceptionHandler + UseExceptionHandler).
 // Maps ApiException to its structured ApiError body; maps anything unhandled to a generic
 // 500 whose resolution points at the logs. Applies to all controllers and minimal-API

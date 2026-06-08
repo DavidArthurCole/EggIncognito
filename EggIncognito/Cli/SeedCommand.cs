@@ -4,13 +4,12 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Cli;
 
-// Endpoint-acquisition subcommands, folded in from the former standalone EggIncognito.Seeder exe.
-// Three modes the GUI cannot do on its own:
+// Endpoint-acquisition subcommands. Three modes the GUI does not cover:
 //   seed              live-API mode - batch-hit the real auxbrain API for a fixed endpoint set and
 //                     write decoded JSON to Endpoints/eids/<EID>/ (Inspector send is view-only,
 //                     one-at-a-time, no disk write).
-//   from-har <file>   replay a pre-existing HAR into Endpoints/default/ (capture only does live).
-//   decode <base64>   auto-detect the proto type of an arbitrary blob (Inspector decodes a KNOWN
+//   from-har <file>   replay a HAR into Endpoints/default/ (capture only does live).
+//   decode <base64>   auto-detect the proto type of an arbitrary blob (Inspector decodes a known
 //                     type only).
 // All three are thin shims over EggIncognito.Core (EndpointExtractor + TransportPipeline).
 public static class SeedCommand
@@ -190,7 +189,7 @@ public static class SeedCommand
         return 0;
     }
 
-    // ---- live-mode request builders + signing inputs (seeding specifics, not part of extraction) ----
+    // live-mode request builders + signing inputs (seeding specifics, not part of extraction)
 
     private static byte[] BuildFirstContact(string eid) => new Ei.EggIncFirstContactRequest
     {

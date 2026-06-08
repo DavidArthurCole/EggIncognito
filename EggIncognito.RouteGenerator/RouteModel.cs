@@ -90,7 +90,7 @@ public static class RouteParser
     }
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
 
-    // Normalization shared (by convention) with RouteCatalog and RouteLoader.
+    // Normalization shared (by convention) with RouteCatalog.
     // New `request`/`response` keys win. Legacy `requestType`/`responseType` are read as
     // aliases; the literal "AuthenticatedMessage" in a legacy field means "signed/wrapped
     // envelope, inner type not yet known" -> null inner type + the matching wrapped flag.

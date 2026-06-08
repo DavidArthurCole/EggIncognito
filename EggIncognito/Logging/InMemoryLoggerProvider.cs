@@ -1,5 +1,3 @@
-// EggIncognito/Logging/InMemoryLoggerProvider.cs
-//
 // An ILoggerProvider that mirrors every log event into the in-memory ring buffer the
 // Inspector Logs panel reads. Registered alongside (not instead of) console, so adding a
 // remote sink later (e.g. Serilog/Papertrail) is purely additive.

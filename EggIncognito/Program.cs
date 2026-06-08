@@ -25,7 +25,7 @@ if (args.Length > 0 && args[0] is "emit-types" or "check-endpoints" or "export-c
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Logging: console (default) + in-memory ring buffer (Inspector Logs panel) +
+// Logging: console (default) + in-memory ring buffer (Inspector Logs panel) +
 // one file per process start. The standard ILoggerProvider model keeps these swappable;
 // a remote sink (Papertrail/Seq/OTel) can be added alongside without touching call sites.
 var logStore = new InMemoryLogStore(capacity: 2000);

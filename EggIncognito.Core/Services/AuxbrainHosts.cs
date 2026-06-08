@@ -1,5 +1,3 @@
-// EggIncognito.Core/Services/AuxbrainHosts.cs
-//
 // Single source of truth for "is this an Egg, Inc. (auxbrain) host". Two consumers:
 //   - InspectorApiController, which also allows localhost as a /send target.
 //   - the capture proxy, which decrypts ONLY auxbrain hosts and passes everything else through.

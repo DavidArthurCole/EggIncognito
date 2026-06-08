@@ -1,9 +1,7 @@
-// EggIncognito.Core/Services/ProtoFraming.cs
-//
 // Shared low-level framing/codec helpers for the wire format, so the capture pipeline,
 // the dashboard decoder, and the Transport Inspector all decode base64 the same way.
-// Decompression lives on EndpointExtractor (gzip/zlib/deflate tolerant); this is the
-// home for the tolerant base64 decode that used to be duplicated across consumers.
+// Decompression lives on EndpointExtractor (gzip/zlib/deflate tolerant); the tolerant
+// base64 decode lives here.
 
 namespace EggIncognito.Services;
 

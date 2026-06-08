@@ -84,7 +84,7 @@ export function isSensitiveKey(keyName) {
   return redactionMode === "blur" && keyName != null && sensitiveKeys.has(keyName);
 }
 
-// --- show-headers preference (default off) --------------------------------
+// show-headers preference (default off)
 
 const SHOW_HEADERS_KEY = "capture.showHeaders";
 let showHeaders = localStorage.getItem(SHOW_HEADERS_KEY) === "true";
@@ -108,7 +108,7 @@ export function showRawHeaders() {
   return redactionMode === "off";
 }
 
-// --- auto-scroll preference (default on) ----------------------------------
+// auto-scroll preference (default on)
 
 const AUTOSCROLL_KEY = "capture.autoScroll";
 let autoScroll = localStorage.getItem(AUTOSCROLL_KEY) !== "false"; // default true
@@ -118,7 +118,7 @@ export function setAutoScroll(value) {
   localStorage.setItem(AUTOSCROLL_KEY, String(autoScroll));
 }
 
-// --- default data format preference (default JSON tree) -------------------
+// default data format preference (default JSON tree)
 
 const DEFAULT_FORMAT_KEY = "capture.defaultFormat";
 let defaultFormat = localStorage.getItem(DEFAULT_FORMAT_KEY) || "json-tree";

@@ -1,5 +1,3 @@
-// EggIncognito/Logging/InMemoryLogStore.cs
-//
 // Thread-safe fixed-capacity ring buffer of recent log entries, exposed to the Inspector
 // Logs panel. Independent of any sink, so the file/console/remote providers stay swappable.
 

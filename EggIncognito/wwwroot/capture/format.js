@@ -17,7 +17,7 @@ export const FORMAT_LABELS = {
   bin: "Binary",
 };
 
-// --- JSON -> YAML -----------------------------------------------------------
+// JSON -> YAML
 
 export function toYaml(value, indent = 0) {
   const pad = "  ".repeat(indent);
@@ -63,7 +63,7 @@ function isContainer(v) {
   return v !== null && typeof v === "object";
 }
 
-// --- JSON -> XML ------------------------------------------------------------
+// JSON -> XML
 
 export function toXml(value, root = "root") {
   return `<${root}>${xmlBody(value)}</${root}>`;
@@ -106,7 +106,7 @@ export function prettyXml(xml) {
   return out.trim();
 }
 
-// --- JSON -> JS object literal ---------------------------------------------
+// JSON -> JS object literal
 
 export function toJsLiteral(value, indent = 0) {
   const pad = "  ".repeat(indent);
@@ -131,7 +131,7 @@ function jsKey(k) {
   return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : JSON.stringify(k);
 }
 
-// --- bytes -> hex / binary --------------------------------------------------
+// bytes -> hex / binary
 
 // Tolerant base64 -> Uint8Array (handles form-mangled '+'/'/' and missing padding).
 export function bytesFromBase64(b64) {

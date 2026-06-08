@@ -1,5 +1,3 @@
-// EggIncognito/Services/ApiException.cs
-//
 // Throw this for any error response that should short-circuit a request. The
 // ApiExceptionHandler turns it into an ApiError JSON body with the matching status.
 // Every throw site must supply a Resolution - the "possible fix" the user sees.

@@ -1,5 +1,3 @@
-// EggIncognito.Core/Services/RoutesYamlEditor.cs
-//
 // Load-once / save-once editor for routes.yaml. Consolidates every yaml mutation the
 // seeder performs (the old AddToRoutesYaml + SetRequestTypeInYaml did multiple full-file
 // rewrites with brittle regex passes). All edits operate on an in-memory line list and are
@@ -8,8 +6,8 @@
 // Hard rules (enforced here so callers cannot violate them):
 //   - Never overwrite a CONCRETE existing value (only empty / "# NEEDS CAPTURE" placeholder
 //     / literal "AuthenticatedMessage" slots may be filled).
-//   - Only ever emit line forms the three yaml consumers already accept (Generator,
-//     RouteCatalog, CodeGen). A `- path:` line is only ever written inside `routes:`.
+//   - Only ever emit line forms the two yaml consumers already accept (RouteGenerator and
+//     RouteCatalog). A `- path:` line is only ever written inside `routes:`.
 
 using System.Text;
 using System.Text.RegularExpressions;
@@ -206,7 +204,7 @@ public sealed class RoutesYamlEditor
         return true; // key absent => unresolved
     }
 
-    // --- line-model helpers ---
+    // line-model helpers
 
     private void Insert(int index, string line)
     {

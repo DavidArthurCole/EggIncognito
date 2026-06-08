@@ -29,7 +29,7 @@ async function postJson(url, body) {
   return r.json();
 }
 
-// --- init ---
+// init
 
 async function init() {
   state.endpoints = await getJson(`${API}/endpoints`);
@@ -46,7 +46,7 @@ async function init() {
   initLogs();
 }
 
-// --- logs panel ---
+// logs panel
 
 function initLogs() {
   for (const r of document.querySelectorAll('input[name="logLevel"]')) {
@@ -103,7 +103,7 @@ async function checkSign() {
   else { badge.textContent = "signing: EGG_INC_API_SALT not set"; badge.className = "badge unsigned"; }
 }
 
-// --- endpoint list ---
+// endpoint list
 
 function renderEndpoints() {
   const filter = $("endpointFilter").value.toLowerCase();
@@ -147,7 +147,7 @@ function reqTypeLabel(e) {
   return e.requestWrapped ? `${t}, signed (AuthenticatedMessage)` : t;
 }
 
-// --- schema + field tree ---
+// schema + field tree
 
 async function schema(typeName) {
   if (!typeName) return null; // never fetch schema/undefined
@@ -302,7 +302,7 @@ function toggleRaw() {
   $("fieldTree").classList.toggle("hidden", raw);
 }
 
-// --- env panel ---
+// env panel
 
 function renderEnvPanel() {
   const host = $("envFields");
@@ -332,7 +332,7 @@ function collectEnv() {
   return env;
 }
 
-// --- build + send ---
+// build + send
 
 async function build() {
   const e = state.selected;
@@ -402,7 +402,7 @@ async function send() {
   renderResponse(res);
 }
 
-// --- rendering ---
+// rendering
 
 function renderStages(stages) {
   const host = $("stages");

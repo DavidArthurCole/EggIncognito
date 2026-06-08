@@ -1,5 +1,3 @@
-// EggIncognito/Controllers/InspectorApiController.cs
-//
 // Backend for the Transport Inspector SPA. Hand-written (not source-generated). Its
 // routes live under /api/inspector so they never collide with the generated mock
 // endpoint controllers (which are routed by their Egg, Inc. API path).

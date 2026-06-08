@@ -1,5 +1,3 @@
-// EggIncognito/Logging/FileLoggerProvider.cs
-//
 // Writes every log event to one file per process start: {LogsPath}/eggincognito-{startup}.log.
 // Writes happen off the request thread via a bounded Channel drained by a background task,
 // so logging never blocks request handling. Flushed and closed on provider dispose

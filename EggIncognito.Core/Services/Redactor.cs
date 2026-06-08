@@ -1,5 +1,3 @@
-// EggIncognito.Core/Services/Redactor.cs
-//
 // Redacts personally-identifying / sensitive values from decoded endpoint and request JSON
 // before it is written to disk (and ultimately committed to a public repo). The EID is
 // scrubbed separately by the caller; this handles everything else.

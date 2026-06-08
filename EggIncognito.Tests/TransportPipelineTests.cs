@@ -1,4 +1,3 @@
-// EggIncognito.Tests/TransportPipelineTests.cs
 using Google.Protobuf;
 using Microsoft.Extensions.Configuration;
 using EggIncognito.Services;

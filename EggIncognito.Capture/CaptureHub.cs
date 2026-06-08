@@ -26,7 +26,7 @@ public sealed class CaptureHub
     private readonly List<Channel<CaptureEnvelope>> _subscribers = [];
     private long _nextId;
 
-    // --- stats counters (all under _gate) ---
+    // stats counters (all under _gate)
     private int _activeConnections;
     private readonly Dictionary<string, Device> _devices = new(StringComparer.Ordinal);
     // Session's most-recently-seen decrypted User-Agent. The flow path sees only loopback, so a UA
@@ -49,7 +49,7 @@ public sealed class CaptureHub
     // events still update so the cert pill and device info stay accurate while paused.
     public bool Paused { get; set; }
 
-    // --- flows ---------------------------------------------------------------
+    // flows
 
     // Assign an id, stamp a timestamp, buffer it, update stats, and broadcast. Returns the stored
     // flow (with Id/Timestamp filled), or null if paused. The caller passes a flow whose Id and
@@ -107,7 +107,7 @@ public sealed class CaptureHub
         return stored;
     }
 
-    // --- connection + decrypt events (from the proxy) ------------------------
+    // connection + decrypt events (from the proxy)
 
     // A client connected. activeCount is the proxy's current active connection count; ip is the
     // remote address if known. Emits a deviceConnected toast for a newly-seen device.
@@ -190,7 +190,7 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    // --- snapshots -----------------------------------------------------------
+    // snapshots
 
     public IReadOnlyList<DashboardFlow> Snapshot()
     {
@@ -270,7 +270,7 @@ public sealed class CaptureHub
         }
     }
 
-    // --- subscriptions + broadcast ------------------------------------------
+    // subscriptions + broadcast
 
     public (ChannelReader<CaptureEnvelope> Reader, IDisposable Subscription) Subscribe()
     {

@@ -1,4 +1,3 @@
-// EggIncognito.Core/Services/BehaviorService.cs
 using System.Text;
 using Google.Protobuf;
 

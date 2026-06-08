@@ -29,7 +29,7 @@ export function truncate(text, max) {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
-// --- endpoint-write outcome helpers (shared by the flow list + the detail known card) ---
+// endpoint-write outcome helpers (shared by the flow list + the detail known card)
 
 // Map an outcome string to { label, kind }. Returns null for empty/unknown.
 export function outcomeMeta(outcome) {

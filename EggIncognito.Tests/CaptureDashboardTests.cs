@@ -133,7 +133,7 @@ public class CaptureDashboardTests
         Assert.Equal(600, snap[^1].Id);
     }
 
-    // ---- FlowDecoder ----
+    // FlowDecoder
 
     private const string Yaml = """
 routes:
@@ -192,7 +192,7 @@ routes:
         Assert.Null(decoder.DecodeRequest("ei/get_periodicals", null).Json);
     }
 
-    // ---- stats + cert-state inference ----
+    // stats + cert-state inference
 
     [Fact]
     public void StatsSnapshot_FreshHub_CertWaiting_AllZero()

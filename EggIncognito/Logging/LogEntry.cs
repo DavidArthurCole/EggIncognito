@@ -1,5 +1,3 @@
-// EggIncognito/Logging/LogEntry.cs
-//
 // One captured log event. Seq is a process-monotonic cursor so the Inspector's Logs
 // panel can poll incrementally (?since=seq) without re-fetching the whole buffer.
 

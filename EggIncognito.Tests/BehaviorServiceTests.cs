@@ -1,4 +1,3 @@
-// EggIncognito.Tests/BehaviorServiceTests.cs
 using EggIncognito.Services;
 
 namespace EggIncognito.Tests;

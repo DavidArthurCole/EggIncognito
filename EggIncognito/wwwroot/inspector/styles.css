@@ -238,7 +238,7 @@ pre.json {
   overflow: auto;
 }
 
-/* --- logs panel --- */
+/* logs panel */
 .logs-panel { margin: 0 16px 16px; }
 .logs-head { display: flex; align-items: center; gap: 16px; }
 .logs-head h2 { margin: 0; }

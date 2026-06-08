@@ -9,9 +9,9 @@ public sealed record CaptureStartResult(bool Running, int Port, string CaPath, b
 
 public sealed record CaptureSessionStatus(bool Running, int Port, int ActiveClients, string? RootThumbprint);
 
-// Thread-safe, idempotent owner of the capture proxy lifecycle. Encapsulates the queue/consumer
-// pump that used to live inline in CaptureCommand.RunAsync. The Hub persists across start/stop so
-// the SPA stays connected; only the proxy + consumer are created on Start and torn down on Stop.
+// Thread-safe, idempotent owner of the capture proxy lifecycle. Owns the flow queue/consumer pump.
+// The Hub persists across start/stop so the SPA stays connected; only the proxy + consumer are
+// created on Start and torn down on Stop.
 public sealed class CaptureSession
 {
     private const string EidPlaceholder = "EI0000000000000000";

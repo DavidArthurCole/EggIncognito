@@ -1,13 +1,11 @@
-// EggIncognito.Core/Services/RouteCatalog.cs
-//
 // Runtime view of routes.yaml for the Inspector UI. The source generator parses
 // the same file at compile time to emit controllers; this is the runtime equivalent
 // so the UI knows each route's request/response type and the transport framing.
 //
-// Normalization rules are kept identical (by convention) with the Generator's
-// RouteParser and the CodeGen RouteLoader: new `request`/`response` keys win;
-// legacy `requestType`/`responseType` are aliases; the literal "AuthenticatedMessage"
-// in a legacy field means "wrapped, inner type not yet known" -> null inner + wrapped.
+// Normalization rules are kept identical (by convention) with the RouteGenerator's
+// RouteParser: new `request`/`response` keys win; legacy `requestType`/`responseType`
+// are aliases; the literal "AuthenticatedMessage" in a legacy field means "wrapped,
+// inner type not yet known" -> null inner + wrapped.
 
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;

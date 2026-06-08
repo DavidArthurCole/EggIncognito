@@ -1,5 +1,3 @@
-// EggIncognito.Core/Services/TransportPipeline.cs
-//
 // The outgoing-request transform pipeline for the Egg, Inc. API, plus the inverse
 // (response decode). Owns the AuthenticatedMessage hash so the salt secret stays
 // server-side and the browser never reimplements it.
@@ -66,8 +64,8 @@ public sealed class TransportPipeline : ITransportPipeline
     public TransportPipeline(IConfiguration config)
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"]) { }
 
-    // For non-DI callers (the Seeder CLI): take the salt straight from the EGG_INC_API_SALT env var,
-    // so the signing logic has a single home here instead of a duplicated copy in the Seeder.
+    // For non-DI callers (the `seed` CLI subcommand): take the salt straight from the
+    // EGG_INC_API_SALT env var.
     public TransportPipeline()
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT")) { }
 
@@ -211,7 +209,7 @@ public sealed class TransportPipeline : ITransportPipeline
         new(name, desc, bytes.Length, Convert.ToHexString(bytes).ToLowerInvariant(),
             Convert.ToBase64String(bytes), note, role);
 
-    // --- the canonical AuthenticatedMessage signing logic (single source of truth) ---
+    // the canonical AuthenticatedMessage signing logic (single source of truth)
 
     private static byte[] WrapInAuthMessage(byte[] innerBytes, string salt)
     {

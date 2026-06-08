@@ -1,5 +1,3 @@
-// EggIncognito/Controllers/LogsApiController.cs
-//
 // Serves the in-memory log ring buffer to the Inspector's Logs panel.
 //   GET /api/inspector/logs?level=basic|advanced&since={seq}
 // basic   = Information and above (time/level/message)

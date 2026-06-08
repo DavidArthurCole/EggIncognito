@@ -54,7 +54,7 @@ needs_capture:
     {
         var responseB64 = WrappedResponseB64();
 
-        // --- in-process path ---
+        // in-process path
         var inProcRoot = MakeRepo();
         var inProc = EndpointExtractor.ForRepo(inProcRoot, eid: null, eidPlaceholder: "EI0000000000000000", overwrite: false);
         var path = inProc.ProcessFlow(Url, "POST", 200, requestDataB64: null, responseBodyB64: responseB64);
@@ -64,7 +64,7 @@ needs_capture:
         Assert.True(File.Exists(EndpointPath(inProcRoot)));
         var inProcEndpoint = File.ReadAllText(EndpointPath(inProcRoot));
 
-        // --- HAR-file path: synthesize a HAR carrying the identical flow ---
+        // HAR-file path: synthesize a HAR carrying the identical flow
         var harRoot = MakeRepo();
         var harFile = Path.Combine(harRoot, "session.har");
         File.WriteAllText(harFile, BuildHar(Url, responseB64), new UTF8Encoding(false));
