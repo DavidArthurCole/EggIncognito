@@ -33,7 +33,9 @@ Or with Docker Compose:
 docker compose up
 ```
 
-Both listen on `http://localhost:5080`. Point your Egg, Inc. client at that address and you're done.
+All listen on `http://localhost:5080`. Point your Egg, Inc. client at that address.
+
+Run the tests with:
 
 ```sh
 dotnet test EggIncognito.slnx
@@ -63,24 +65,22 @@ Endpoint JSON is [Google.Protobuf JSON](https://protobuf.dev/programming-guides/
 
 ## Capture your own data
 
-Want endpoints from a real account? The app has a built-in capture proxy that records real Egg, Inc. traffic from your phone and turns it into endpoints automatically. It decrypts **only** auxbrain hosts and passes all other traffic through untouched, so the rest of your phone keeps working.
+The app includes a TLS-intercepting capture proxy that records real Egg, Inc. traffic from a phone and writes it out as endpoints. It decrypts only auxbrain hosts and tunnels everything else untouched, so the rest of the phone keeps working.
 
-Run the app and open the Capture tab at `http://localhost:5080/capture/`, then click **Start capture** (or launch with `--capture` to auto-start the proxy):
+Open the Capture tab at `http://localhost:5080/capture/` and hit Start capture, or auto-start the proxy at launch:
 
 ```sh
 dotnet run --project EggIncognito -- --capture
 ```
 
-Point your phone's Wi-Fi proxy at your computer, install the printed certificate, and play the game. Each captured flow becomes an endpoint on disk. Stop the proxy from the same Capture tab.
-
-➡️ **Full step-by-step device guide: [CAPTURE.md](CAPTURE.md)**
+Point the phone's Wi-Fi proxy at your computer, install and trust the printed certificate, and play. Each captured flow becomes an endpoint on disk. [CAPTURE.md](CAPTURE.md) has the full device walkthrough, including the iOS certificate-trust step that trips people up.
 
 ## Going deeper
 
-- **[CAPTURE.md](CAPTURE.md)** - capture real traffic from a device, re-run captures, troubleshooting.
-- **[TECHNICAL.md](TECHNICAL.md)** - wire format, architecture, adding endpoints, configuration, and maintenance scripts.
+- [CAPTURE.md](CAPTURE.md) - capturing real device traffic, re-running captures, troubleshooting.
+- [TECHNICAL.md](TECHNICAL.md) - wire format, architecture, adding endpoints, configuration, CLI subcommands.
 
-EggIncognito is built with .NET / ASP.NET Core; its controllers are source-generated from a single `routes.yaml`. See [TECHNICAL.md](TECHNICAL.md) for how it all fits together.
+EggIncognito is built on .NET / ASP.NET Core; its controllers are source-generated from a single `routes.yaml`. See [TECHNICAL.md](TECHNICAL.md) for how it fits together.
 
 ### HTTPS (optional)
 
