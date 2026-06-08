@@ -1,4 +1,4 @@
-// EggIncognito/Services/ProtoFraming.cs
+// EggIncognito.Core/Services/ProtoFraming.cs
 //
 // Shared low-level framing/codec helpers for the wire format, so the capture pipeline,
 // the dashboard decoder, and the Transport Inspector all decode base64 the same way.

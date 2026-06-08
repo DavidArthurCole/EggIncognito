@@ -61,6 +61,37 @@ public class TransportPipelineTests
     }
 
     [Fact]
+    public void Build_WrappedWithSalt_CodeMatchesSeederAlgorithm()
+    {
+        // Parity lock: the AuthenticatedMessage code TransportPipeline produces must equal the
+        // SHA256(mutated-message + hex(SHA256(salt))) algorithm the Seeder used before its copy was
+        // deleted. Guards the dedup (Seeder now calls TransportPipeline) from silent drift.
+        const string salt = "parity-salt";
+        var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
+
+        var result = Build(salt).Build(inner, wrap: true);
+        var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(
+            Convert.FromBase64String(result.Stages.Single(s => s.Name == "authenticated-message").Base64!));
+
+        Assert.Equal(ExpectedCode(inner, salt), msg.Code);
+    }
+
+    // Independent reimplementation of the documented signing algorithm (NOT a call into the code
+    // under test) so this test fails if the production algorithm changes.
+    private static string ExpectedCode(byte[] messageBytes, string phrase)
+    {
+        var phraseHash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(phrase));
+        var saltBytes = System.Text.Encoding.ASCII.GetBytes(Convert.ToHexString(phraseHash).ToLowerInvariant());
+        const uint magic = 0x3b9af419;
+        var mutated = (byte[])messageBytes.Clone();
+        mutated[magic % (uint)mutated.Length] = 0x1b;
+        var combined = new byte[mutated.Length + saltBytes.Length];
+        mutated.CopyTo(combined, 0);
+        saltBytes.CopyTo(combined, mutated.Length);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(combined)).ToLowerInvariant();
+    }
+
+    [Fact]
     public void Build_WrappedWithoutSalt_FlagsUnsigned()
     {
         var pipe = Build();

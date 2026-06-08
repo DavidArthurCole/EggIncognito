@@ -1,4 +1,4 @@
-// EggIncognito/Services/RoutesYamlEditor.cs
+// EggIncognito.Core/Services/RoutesYamlEditor.cs
 //
 // Load-once / save-once editor for routes.yaml. Consolidates every yaml mutation the
 // seeder performs (the old AddToRoutesYaml + SetRequestTypeInYaml did multiple full-file

@@ -1,4 +1,4 @@
-using EggIncognito.Generator;
+using EggIncognito.RouteGenerator;
 using EggIncognito.Services;
 
 namespace EggIncognito.Tests;

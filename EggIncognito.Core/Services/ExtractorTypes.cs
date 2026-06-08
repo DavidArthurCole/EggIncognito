@@ -1,4 +1,4 @@
-// EggIncognito/Services/ExtractorTypes.cs
+// EggIncognito.Core/Services/ExtractorTypes.cs
 //
 // Supporting types for EndpointExtractor: the per-flow decode results, the run-summary
 // accumulator, the directory/type-map bundle, and the auto-write classification config.

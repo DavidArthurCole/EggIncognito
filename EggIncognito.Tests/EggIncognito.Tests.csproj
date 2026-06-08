@@ -23,10 +23,7 @@
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
     <ProjectReference Include="..\EggIncognito.Capture\EggIncognito.Capture.csproj" />
     <ProjectReference Include="..\EggIncognito\EggIncognito.csproj" />
-    <ProjectReference Include="..\EggIncognito.Generator\EggIncognito.Generator.csproj" />
-    <ProjectReference Include="..\EggIncognito.Seeder\EggIncognito.Seeder.csproj">
-      <Aliases>Seeder</Aliases>
-    </ProjectReference>
+    <ProjectReference Include="..\EggIncognito.RouteGenerator\EggIncognito.RouteGenerator.csproj" />
   </ItemGroup>
 
 </Project>

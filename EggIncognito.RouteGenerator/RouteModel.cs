@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace EggIncognito.Generator;
+namespace EggIncognito.RouteGenerator;
 
 public sealed class RouteModel
 {

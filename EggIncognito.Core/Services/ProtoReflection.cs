@@ -1,4 +1,4 @@
-// EggIncognito/Services/ProtoReflection.cs
+// EggIncognito.Core/Services/ProtoReflection.cs
 //
 // Walks the compiled Ei.* message descriptors (Google.Protobuf reflection) to produce
 // the field tree the Inspector UI renders, and resolves message types / parsers by name.

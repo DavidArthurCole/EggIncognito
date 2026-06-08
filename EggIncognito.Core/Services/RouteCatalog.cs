@@ -1,4 +1,4 @@
-// EggIncognito/Services/RouteCatalog.cs
+// EggIncognito.Core/Services/RouteCatalog.cs
 //
 // Runtime view of routes.yaml for the Inspector UI. The source generator parses
 // the same file at compile time to emit controllers; this is the runtime equivalent

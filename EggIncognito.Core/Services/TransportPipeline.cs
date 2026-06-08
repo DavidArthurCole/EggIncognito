@@ -1,12 +1,12 @@
-// EggIncognito/Services/TransportPipeline.cs
+// EggIncognito.Core/Services/TransportPipeline.cs
 //
 // The outgoing-request transform pipeline for the Egg, Inc. API, plus the inverse
 // (response decode). Owns the AuthenticatedMessage hash so the salt secret stays
 // server-side and the browser never reimplements it.
 //
-// The hash / wrap / decompress logic is the canonical copy of what currently lives
-// in EggIncognito.Seeder/Program.cs (ComputeCode, WrapInAuthMessage, Decompress).
-// Keep them byte-for-byte identical.
+// This is the SINGLE home of the hash / wrap logic. The `seed` CLI subcommand and the Inspector
+// both call Build(); there is no duplicate copy anymore. Signing parity is locked by the test
+// Build_WrappedWithSalt_CodeMatchesSeederAlgorithm.
 
 using System.Security.Cryptography;
 using System.Text;
@@ -64,11 +64,14 @@ public sealed class TransportPipeline : ITransportPipeline
     private readonly string? _salt;
 
     public TransportPipeline(IConfiguration config)
-    {
-        // Same env var the Seeder uses.
-        _salt = Environment.GetEnvironmentVariable("EGG_INC_API_SALT")
-                ?? config["EGG_INC_API_SALT"];
-    }
+        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"]) { }
+
+    // For non-DI callers (the Seeder CLI): take the salt straight from the EGG_INC_API_SALT env var,
+    // so the signing logic has a single home here instead of a duplicated copy in the Seeder.
+    public TransportPipeline()
+        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT")) { }
+
+    private TransportPipeline(string? salt) => _salt = salt;
 
     public bool CanSign => !string.IsNullOrEmpty(_salt);
 
@@ -208,7 +211,7 @@ public sealed class TransportPipeline : ITransportPipeline
         new(name, desc, bytes.Length, Convert.ToHexString(bytes).ToLowerInvariant(),
             Convert.ToBase64String(bytes), note, role);
 
-    // --- canonical copies of the Seeder's wire logic; keep identical ---
+    // --- the canonical AuthenticatedMessage signing logic (single source of truth) ---
 
     private static byte[] WrapInAuthMessage(byte[] innerBytes, string salt)
     {

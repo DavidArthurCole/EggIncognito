@@ -1,7 +1,6 @@
 <Solution>
   <Project Path="EggIncognito.Core/EggIncognito.Core.csproj" />
   <Project Path="EggIncognito.Capture/EggIncognito.Capture.csproj" />
-  <Project Path="EggIncognito.Generator/EggIncognito.Generator.csproj" />
+  <Project Path="EggIncognito.RouteGenerator/EggIncognito.RouteGenerator.csproj" />
   <Project Path="EggIncognito.Tests/EggIncognito.Tests.csproj" />
-  <Project Path="EggIncognito.Seeder/EggIncognito.Seeder.csproj" />
 </Solution>

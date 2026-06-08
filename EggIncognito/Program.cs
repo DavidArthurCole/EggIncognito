@@ -7,7 +7,8 @@ using EggIncognito.Services;
 
 // CLI subcommand dispatch: these run and exit without booting the web host. Anything else
 // (no args, or `serve` + flags like --capture) falls through to the web app below.
-if (args.Length > 0 && args[0] is "emit-types" or "check-endpoints" or "export-collection")
+if (args.Length > 0 && args[0] is "emit-types" or "check-endpoints" or "export-collection"
+    or "seed" or "from-har" or "decode")
 {
     var rest = args[1..];
     return args[0] switch
@@ -15,6 +16,9 @@ if (args.Length > 0 && args[0] is "emit-types" or "check-endpoints" or "export-c
         "emit-types" => TypeEmitter.Run(RepoPaths.FindRoot()),
         "check-endpoints" => CheckEndpointsCommand.Run(rest),
         "export-collection" => ExportCollectionCommand.Run(rest),
+        "seed" => await SeedCommand.RunSeedAsync(rest),
+        "from-har" => SeedCommand.RunFromHar(rest),
+        "decode" => SeedCommand.RunDecode(rest),
         _ => 1,
     };
 }

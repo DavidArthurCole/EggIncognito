@@ -1,13 +1,12 @@
-// EggIncognito/Services/EndpointExtractor.cs
+// EggIncognito.Core/Services/EndpointExtractor.cs
 //
-// the endpoint-extraction pipeline, extracted from EggIncognito.Seeder/Program.cs so it can be
-// driven two ways with identical behavior:
-//   - from a HAR file (the Seeder's --from-har mode), via RunFromHar / ProcessHarEntry
-//   - in-process per captured flow (the capture proxy), via ProcessFlow
+// the endpoint-extraction pipeline. Lives in Core so it can be driven two ways with identical
+// behavior:
+//   - from a HAR file (the `from-har` CLI subcommand), via RunFromHar / ProcessHarEntry
+//   - in-process per captured flow (the capture proxy, via CaptureSession), via ProcessFlow
 //
 // One flow = (url, method, status, requestData, responseBody). Both paths funnel into
-// ProcessFlow so the file and live routes can never diverge. Console output mirrors the
-// original Seeder so the operator experience is unchanged.
+// ProcessFlow so the file and live routes can never diverge.
 
 using System.IO.Compression;
 using System.Reflection;
@@ -31,10 +30,11 @@ public sealed class EndpointExtractor
 
     public HarCounts Counts { get; } = new();
 
-    // When true, suppress the per-flow console chatter (capture/diff/loss/req lines). The Tooling
-    // capture path sets this: it derives the per-flow outcome from the Counts delta and shows it on
-    // the dashboard, so the console output is redundant there. The Seeder leaves it false to keep
-    // its operator-facing console log. End-of-run summaries (PrintSelfRepairReport) are not gated.
+    // When true, suppress the per-flow console chatter (capture/diff/loss/req lines). The in-app
+    // capture path (CaptureSession) sets this: it derives the per-flow outcome from the Counts delta
+    // and shows it on the dashboard, so the console output is redundant there. The `from-har`
+    // subcommand leaves it false to keep its operator-facing console log. End-of-run summaries
+    // (PrintSelfRepairReport) are not gated.
     public bool Quiet { get; set; }
 
     private void Out(string line) { if (!Quiet) Console.WriteLine(line); }
@@ -49,7 +49,7 @@ public sealed class EndpointExtractor
     }
 
     // Convenience constructor for a repo-rooted run: loads the type maps + yaml editor and
-    // ensures the default output dir exists. Mirrors the Seeder's RunFromHar setup.
+    // ensures the default output dir exists.
     public static EndpointExtractor ForRepo(string repoRoot, string? eid, string eidPlaceholder, bool overwrite)
     {
         var endpointsRoot = Path.Combine(repoRoot, "EggIncognito", "Endpoints");
@@ -379,7 +379,7 @@ public sealed class EndpointExtractor
             Console.WriteLine("  note: routes.yaml updated -> run scripts/Check-Endpoints.ps1 -Update to refresh endpoint_status");
     }
 
-    // ---- static pure helpers (moved verbatim from the Seeder) ----
+    // ---- static pure helpers ----
 
     // Pull the base64 `data` value from a HAR request entry (form param or raw text body).
     public static string? ReadRequestData(JsonElement reqEl)

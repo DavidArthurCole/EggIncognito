@@ -155,10 +155,10 @@ The `captures/` directory is gitignored, because it can contain player data and 
 
 ## Re-running a capture
 
-The **HAR file is the durable artifact.** Once you have it, you can reproduce the exact same endpoints without the phone, by replaying the HAR through the Seeder:
+The **HAR file is the durable artifact.** Once you have it, you can reproduce the exact same endpoints without the phone, by replaying the HAR through the `from-har` subcommand:
 
 ```
-dotnet run --project EggIncognito.Seeder -- --from-har captures/session_iphone_EI....har
+dotnet run --project EggIncognito -- from-har captures/session_iphone_EI....har
 ```
 
 Add `--overwrite` to apply changes instead of staging them.

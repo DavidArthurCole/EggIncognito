@@ -1,0 +1,29 @@
+/* Shared top-nav for the EggIncognito app shell (landing + Inspector + Capture).
+   Self-contained (no dependency on a page's CSS vars) so it looks identical on every tab. */
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0 0 1rem;
+  background: #25252b;
+  border-bottom: 1px solid #3a3a44;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 14px;
+}
+.app-nav a {
+  color: #9a9aa5;
+  text-decoration: none;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  transition: background 0.12s, color 0.12s;
+}
+.app-nav a:hover {
+  color: #e7e7ea;
+  background: #2e2e36;
+}
+.app-nav a.active {
+  color: #1b1b1f;
+  background: #f5c542;
+  font-weight: 600;
+}
