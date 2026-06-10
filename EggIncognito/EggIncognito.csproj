@@ -40,7 +40,7 @@
        avoid the network fetch). The compiled file is gitignored + served as a normal static asset.
        The fetch is RID-aware so Linux/macOS CI gets the right binary, not the Windows .exe. -->
   <PropertyGroup>
-    <TailwindDir>$(MSBuildProjectDirectory)\..\tools\tailwind</TailwindDir>
+    <TailwindDir>$(MSBuildProjectDirectory)/../tools/tailwind</TailwindDir>
     <TailwindVersion>v3.4.17</TailwindVersion>
     <TailwindIsWindows>$([MSBuild]::IsOSPlatform('Windows'))</TailwindIsWindows>
     <TailwindIsMac>$([MSBuild]::IsOSPlatform('OSX'))</TailwindIsMac>
@@ -53,7 +53,7 @@
     <TailwindArch Condition="'$(TailwindArch)' == ''">x64</TailwindArch>
     <TailwindExeSuffix Condition="'$(TailwindIsWindows)' == 'true'">.exe</TailwindExeSuffix>
     <TailwindAsset>tailwindcss-$(TailwindOs)-$(TailwindArch)$(TailwindExeSuffix)</TailwindAsset>
-    <TailwindExe>$(TailwindDir)\tailwindcss$(TailwindExeSuffix)</TailwindExe>
+    <TailwindExe>$(TailwindDir)/tailwindcss$(TailwindExeSuffix)</TailwindExe>
     <TailwindUrl>https://github.com/tailwindlabs/tailwindcss/releases/download/$(TailwindVersion)/$(TailwindAsset)</TailwindUrl>
   </PropertyGroup>
   <!-- Fetch only when the CLI is missing. NOT gated on the BuildTailwind run-condition: this is a
@@ -77,6 +77,8 @@
        compile fails the build. -->
   <Target Name="BuildTailwind" AfterTargets="Build" DependsOnTargets="FetchTailwindCli"
           Condition="'$(BuildTailwindCss)' != 'false'">
-    <Exec Command="&quot;$(TailwindExe)&quot; -c &quot;$(MSBuildProjectDirectory)\tailwind.config.js&quot; -i &quot;$(MSBuildProjectDirectory)\wwwroot\app.tailwind.css&quot; -o &quot;$(MSBuildProjectDirectory)\wwwroot\tailwind.css&quot; --minify" />
+    <!-- Forward slashes only: a hardcoded backslash is a literal char on Linux, so the CI runner could
+         not find wwwroot\app.tailwind.css. '/' works on Windows + Linux + macOS. -->
+    <Exec Command="&quot;$(TailwindExe)&quot; -c &quot;$(MSBuildProjectDirectory)/tailwind.config.js&quot; -i &quot;$(MSBuildProjectDirectory)/wwwroot/app.tailwind.css&quot; -o &quot;$(MSBuildProjectDirectory)/wwwroot/tailwind.css&quot; --minify" />
   </Target>
 </Project>
