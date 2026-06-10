@@ -13,7 +13,10 @@ public sealed class FileEndpointSource : IEndpointSource
     public FileEndpointSource(string endpointsPath)
     {
         if (!Directory.Exists(endpointsPath)) return;
-        foreach (var file in Directory.EnumerateFiles(endpointsPath, "*.json", SearchOption.AllDirectories))
+        // IgnoreInaccessible skips subdirectories/files the process cannot read (e.g. root-owned
+        // /tmp/systemd-private-* when the root is a shared temp dir) instead of throwing mid-enumeration.
+        var opts = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
+        foreach (var file in Directory.EnumerateFiles(endpointsPath, "*.json", opts))
         {
             var relative = Path.GetRelativePath(endpointsPath, file).Replace('\\', '/').Replace(".json", "");
             try { _endpoints[relative] = File.ReadAllBytes(file); }

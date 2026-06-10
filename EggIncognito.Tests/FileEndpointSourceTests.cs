@@ -49,5 +49,11 @@ public class FileEndpointSourceTests
     }
 
     [Fact]
-    public void Priority_IsZero() => Assert.Equal(0, new FileEndpointSource(Path.GetTempPath()).Priority);
+    public void Priority_IsZero()
+    {
+        // Use an isolated empty dir, not Path.GetTempPath(): on CI Linux /tmp holds root-owned
+        // systemd-private-* subdirs the runner cannot read, which the ctor's recursive scan would hit.
+        MakeDir(out var root);
+        Assert.Equal(0, new FileEndpointSource(root).Priority);
+    }
 }
