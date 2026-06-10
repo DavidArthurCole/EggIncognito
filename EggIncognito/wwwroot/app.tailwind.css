@@ -40,7 +40,7 @@
   .btn-secondary:hover:not(:disabled) { filter: brightness(1.07); }
   .btn-secondary:disabled { @apply cursor-not-allowed; opacity: 0.4; }
 
-  /* Blue action (Inspector Build): the info/secondary-accent, distinct from the orange primary. */
+  /* Blue action (Inspector Build): the info/secondary accent. */
   .btn-info {
     @apply bg-accent2 text-bg border-0 rounded-md px-[1.4rem] py-2 font-semibold text-sm cursor-pointer;
   }
@@ -520,7 +520,7 @@
   .flow-filter-select:focus, .flow-filter-input:focus { @apply outline-none border-accent2; }
   .flow-list { @apply overflow-auto flex-1 pr-2.5; scrollbar-gutter: stable; }
   .empty-state { @apply h-full flex flex-col items-center justify-center text-center text-muted text-[13px] px-6; }
-  .empty-hint { @apply mt-2 text-xs text-muted opacity-80; }
+  .empty-hint { @apply mt-2 text-xs text-muted opacity-80 max-w-prose mx-auto leading-relaxed; }
   .flow-row { @apply flex flex-col gap-[3px] px-2 py-1.5 rounded cursor-pointer; border: 1px solid transparent; }
   .flow-row:hover { @apply bg-panel2; }
   .flow-row.active { @apply bg-panel2 border-accent2; }
@@ -549,7 +549,7 @@
   .section-head h3 { @apply text-xs uppercase tracking-[0.04em] text-muted m-0; }
   .detail-tabs { @apply mt-3; }
   .tab-bar { @apply flex gap-1 border-b border-border mb-2.5; }
-  .tab-btn { @apply bg-none border-0 text-muted text-[13px] font-semibold px-3 py-1.5 cursor-pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab-btn { @apply bg-transparent border-0 text-muted text-[13px] font-semibold px-3 py-1.5 cursor-pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .tab-btn:hover { @apply text-fg; }
   .tab-btn.active { @apply text-accent; border-bottom-color: theme(colors.accent); }
   .tab-body { @apply block; }

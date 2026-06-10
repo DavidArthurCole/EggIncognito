@@ -1,9 +1,14 @@
 using EggIncognito.Data.Models;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> options) : DbContext(options)
+// Implements IDataProtectionKeyContext so the cookie/OAuth key ring is stored in Postgres; otherwise
+// the keys are ephemeral per-process and every restart invalidates existing auth cookies (logging users
+// out). DbSet name is the EF-conventional DataProtectionKeys table.
+public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> options)
+    : DbContext(options), IDataProtectionKeyContext
 {
     public DbSet<StoredEndpoint> StoredEndpoints => Set<StoredEndpoint>();
     public DbSet<StoredRoute> StoredRoutes => Set<StoredRoute>();
@@ -12,6 +17,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<SubjectTag> SubjectTags => Set<SubjectTag>();
     public DbSet<DocImage> DocImages => Set<DocImage>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

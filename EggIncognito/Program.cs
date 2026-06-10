@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using Microsoft.AspNetCore.DataProtection; // PersistKeysToDbContext extension (EntityFrameworkCore pkg)
 using EggIncognito.Logging;
 using EggIncognito.Services;
 using EggIncognito.Services.RateLimiting;
@@ -114,6 +115,11 @@ builder.Services.AddSingleton<IRouteCatalog>(sp =>
 if (dbEnabled)
 {
     builder.Services.AddDbContextPool<EggIncognito.Data.Services.EggIncognitoDbContext>(o => o.UseNpgsql(pgConn));
+    // Persist the DataProtection key ring to Postgres so cookie/OAuth tickets survive restarts. Without
+    // this the keys live only in the process (no durable keyring in the container) and every restart
+    // logs everyone out. Only meaningful when a DB is configured, which is also the only time auth runs.
+    builder.Services.AddDataProtection()
+        .PersistKeysToDbContext<EggIncognito.Data.Services.EggIncognitoDbContext>();
     // Scoped DB endpoint source + a marker so the singleton EndpointStore can resolve it from a scope.
     builder.Services.AddScoped<EggIncognito.Data.Services.DbEndpointSource>();
     builder.Services.AddScoped(sp =>

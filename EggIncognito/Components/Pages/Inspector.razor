@@ -107,7 +107,14 @@
           }
           else if (_selected.Request is null)
           {
-            <span class="muted">No known request type for this endpoint. Add a <code>request:</code> type in routes.yaml.</span>
+            @if (_hosted)
+            {
+              <span class="muted">No known request type for this endpoint. An admin needs to map a <code>request:</code> type for this route.</span>
+            }
+            else
+            {
+              <span class="muted">No known request type for this endpoint. Add a <code>request:</code> type in routes.yaml.</span>
+            }
           }
           else
           {
@@ -266,6 +273,7 @@
     // Gating.
     bool _liveDisabled;
     bool _canSaveDb;
+    bool _hosted;
 
     // The salt is read fresh from the browser only when needed (build, badge). It never lives in a
     // server field beyond a single build round-trip; this holds only the badge-state boolean.
@@ -284,7 +292,8 @@
         }
         // Live API egress is login-gated when hosted; grey the toggle for anonymous hosted users. The
         // server /send is the real gate. Read IAppMode/ICurrentUser directly (server-side render).
-        _liveDisabled = AppMode.Mode == EggIncognito.Services.AppMode.Hosted && !User.IsAuthenticated;
+        _hosted = AppMode.Mode == EggIncognito.Services.AppMode.Hosted;
+        _liveDisabled = _hosted && !User.IsAuthenticated;
         // Save to DB needs contributor+. In Local with no auth, ICurrentUser is anonymous (viewer), so
         // mirror app.js's fail-open: show the button when auth is off (Local) or the user is contributor+.
         _canSaveDb = AppMode.Mode != EggIncognito.Services.AppMode.Hosted
@@ -531,7 +540,10 @@
         {
             _buildStages = null;
             _response = new SendResponse(null, null, null, null,
-                "no request type for this endpoint", "Add a `request:` type in routes.yaml before building.");
+                "no request type for this endpoint",
+                _hosted
+                    ? "An admin needs to map a `request:` type for this route before it can be built."
+                    : "Add a `request:` type in routes.yaml before building.");
             return;
         }
 

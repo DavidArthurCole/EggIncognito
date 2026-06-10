@@ -13,6 +13,9 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    <!-- DataProtection key ring persisted to Postgres so auth cookies survive restarts (without this the
+         keys are ephemeral in-container and every restart logs everyone out). -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.8" />
     <!-- Npgsql 10.0.2 pulls EFCore.Relational 10.0.4 transitively; pin to 10.0.8 to match the EFCore
          package above and silence the MSB3277 version-unification warning. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.8" />
