@@ -11,11 +11,10 @@
   <NavLink href="capture" ActiveClass="active">Capture</NavLink>
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
-  @* Right-aligned cluster: the per-page tools (injected via SectionContent) sit immediately left of the
-     auth slot. One margin-left:auto wrapper pins the whole cluster right, so a single auto-gap can't
-     strand the tools in the middle (which happened when both tools + auth each had their own auto). *@
+  @* Right-aligned cluster holding the auth slot. Per-page tools (e.g. the Inspector's Postman + salt)
+     live in their own page now, not projected here - projecting interactive controls into this static
+     layout dropped their click handlers. One margin-left:auto pins the cluster right. *@
   <div class="nav-right">
-    <span class="app-nav-tools"><SectionOutlet SectionName="nav-tools" /></span>
     @if (Auth.Enabled)
     {
       <span class="auth-nav">

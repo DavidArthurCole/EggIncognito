@@ -319,11 +319,14 @@
   /* Inspector layout: on phones the three panes stack and the page scrolls; on >=lg they are the
      240px endpoint list + two equal columns filling the viewport, each pane scrolling on its own.
      Inline grid styles cannot do media queries, so this lives here. */
+  /* Inspector top toolbar (Postman + salt), right-aligned just under the nav. Compact so it barely
+     eats viewport height; the grid below subtracts it. */
+  .inspector-toolbar { @apply flex items-center justify-end gap-2 px-3 pt-2 pb-0; }
   .inspector-main, .capture-main { @apply grid-cols-1; }
   @media (min-width: 1024px) {
     .inspector-main {
       grid-template-columns: 240px 1fr 1fr;
-      height: calc(100vh - var(--nav-h, 48px));
+      height: calc(100vh - var(--nav-h, 48px) - 2.75rem);
     }
     .capture-main {
       grid-template-columns: 220px 2fr 3fr;
@@ -438,14 +441,27 @@
   .doc-usedby-item:hover { @apply border-accent2; }
   .doc-usedby-item .mono { @apply font-mono text-xs; }
   .doc-usedby-role { @apply text-[10px] text-muted uppercase tracking-[0.04em]; }
-  .md-editor { @apply border border-border rounded-md overflow-hidden mt-2; }
-  .md-toolbar { @apply flex gap-0.5 p-1 bg-panel2 border-b border-border flex-wrap; }
-  .md-tb-btn { @apply bg-bg text-fg border border-border rounded cursor-pointer text-xs px-2 py-0.5 min-w-[26px]; }
+  .md-editor { @apply border border-border rounded-md overflow-hidden mt-2 max-w-full; }
+  .md-toolbar { @apply flex items-center gap-1 p-1.5 bg-panel2 border-b border-border flex-wrap; }
+  /* All toolbar buttons share one height + centered content, so B / link / upload line up uniformly
+     (single-char ones get min-width; multi-char ones just grow wider but keep the same height). */
+  .md-tb-btn {
+    @apply inline-flex items-center justify-center h-7 box-border min-w-[28px] px-2
+           bg-bg text-fg border border-border rounded cursor-pointer text-xs leading-none;
+  }
   .md-tb-btn:hover { @apply border-accent2; }
-  .md-panes { @apply grid min-h-[200px]; grid-template-columns: 1fr 1fr; }
-  .md-source { @apply border-0 min-h-[200px] p-2 bg-bg text-fg font-mono text-xs; resize: vertical; border-right: 1px solid theme(colors.border); }
+  .md-toolbar .btn-primary { @apply h-7 box-border inline-flex items-center px-3 py-0 text-xs; }
+  /* Source + preview side by side on wide editors; stack on narrow ones (e.g. the Inspector Objects
+     pane). Both panes are a fixed height with their own scroll, so the editor never grows unbounded. */
+  .md-panes { @apply grid; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .md-panes { grid-template-columns: 1fr 1fr; } }
+  .md-source {
+    @apply border-0 h-[240px] max-h-[50vh] p-2 bg-bg text-fg font-mono text-xs overflow-auto;
+    resize: vertical; border-bottom: 1px solid theme(colors.border);
+  }
+  @media (min-width: 900px) { .md-source { border-bottom: 0; border-right: 1px solid theme(colors.border); } }
   .md-source:focus { @apply outline-none; }
-  .md-preview { @apply p-2 overflow-auto text-[13px] leading-relaxed; }
+  .md-preview { @apply p-2 overflow-auto text-[13px] leading-relaxed h-[240px] max-h-[50vh]; }
   .md-preview .md-h1 { @apply text-lg; }
   .md-preview .md-h2 { @apply text-base; }
   .md-preview .md-h3 { @apply text-sm; }

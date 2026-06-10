@@ -16,17 +16,16 @@
 
 <PageTitle>EggIncognito - Transport Inspector</PageTitle>
 
-@* Per-page tools (Postman download + salt badge) injected into the nav's tools slot via SectionContent
-   so they sit in the nav row, left of the auth slot, instead of a fixed overlay that overlapped the
-   login button. Request defaults are edited inline in the Environment section; the endpoint-status
-   refresh lives in the endpoint list header. *@
-<SectionContent SectionName="nav-tools">
+@* Per-page tools (Postman download + salt badge). Kept in the page's own interactive render tree (not
+   projected into the static layout via SectionContent - that boundary dropped the salt button's click
+   handler). A small right-aligned toolbar bar pinned to the top, clearing the nav's auth slot. *@
+<div class="inspector-toolbar">
   <a class="icon-btn" href="/api/tools/postman-collection" download
      title="Download Postman collection" aria-label="Download Postman collection"><Icon Name="download" /></a>
   <button type="button" class="badge @(_hasSalt ? "signed" : "unsigned")"
           title="@(_hasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
           @onclick="OpenSaltModal">@(_hasSalt ? "Salt Set" : "Salt Unset")</button>
-</SectionContent>
+</div>
 
 @* Responsive: on phones the three panes stack in one scrolling column (auto height); on >=lg they
    become the fixed 240px endpoint list + two equal builder/response columns filling the viewport. *@
