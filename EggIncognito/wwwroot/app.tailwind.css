@@ -317,6 +317,9 @@
 
   /* Inspector: field tree */
   .fields { @apply flex flex-col gap-1; }
+  /* Inline endpoint-status box (not an absolute popover, so the panel's overflow never clips it). */
+  .status-panel { @apply border border-border rounded-md bg-panel2 p-2 mb-2 text-xs; }
+  .status-panel .settings-title { @apply text-sm; }
   /* Environment section: a bordered box so it reads as a distinct group, not loose fields. */
   .env-box { @apply border border-border rounded-md bg-panel2 p-3 my-2; }
   .env-box > summary { @apply cursor-pointer font-semibold text-sm text-fg mb-2 select-none; }

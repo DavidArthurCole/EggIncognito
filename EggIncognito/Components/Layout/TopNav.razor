@@ -1,5 +1,7 @@
 @inject IAppMode AppMode
 @inject ICurrentUser User
+@inject AuthState Auth
+@inject NavigationManager Nav
 <nav class="app-nav">
   <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
   <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
@@ -7,5 +9,36 @@
   @if (AppMode.CanCapture) { <NavLink href="capture" ActiveClass="active">Capture</NavLink> }
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
-  <span class="auth-nav"></span>
+  @* Auth slot, server-rendered. Only shown when Discord auth is wired (a DB + Discord creds). Logout
+     is a real form POST to /logout so it works without a circuit. Login is the Discord challenge with
+     a returnUrl back to the current page. *@
+  @if (Auth.Enabled)
+  {
+    <span class="auth-nav">
+      @if (User.IsAuthenticated)
+      {
+        @if (!string.IsNullOrEmpty(User.Avatar))
+        {
+          <img class="auth-avatar" src="@($"https://cdn.discordapp.com/avatars/{User.DiscordId}/{User.Avatar}.png")" alt="" />
+        }
+        <span class="auth-name">@User.Username</span>
+        <form method="post" action="/logout" style="margin:0;">
+          <button type="submit" class="auth-btn">log out</button>
+        </form>
+      }
+      else
+      {
+        <a class="auth-btn" href="@($"/login?returnUrl={Uri.EscapeDataString(CurrentPath())}")">log in with Discord</a>
+      }
+    </span>
+  }
 </nav>
+
+@code {
+    // The path the Discord callback returns to. Relative so it never becomes an open redirect.
+    string CurrentPath()
+    {
+        var rel = Nav.ToBaseRelativePath(Nav.Uri);
+        return "/" + rel.TrimStart('/');
+    }
+}

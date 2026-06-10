@@ -13,21 +13,25 @@
             role="tab" @onclick="@(() => SetMode("objects"))">Objects</button>
   </div>
   @* Endpoint-status refresh, next to the list switch. Endpoints-only (the counts are about mapped
-     routes, not proto objects), so it is hidden in Objects mode. Opens a popover with the
-     ok/empty/missing counts and the empty/missing lists. *@
+     routes, not proto objects), so it is hidden in Objects mode. *@
   @if (Mode == "endpoints")
   {
     <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
             title="@(string.IsNullOrEmpty(StatusCounts) ? "Refresh endpoint status" : $"Endpoint status {StatusCounts}")"
             aria-label="Refresh endpoint status" @onclick="OnToggleStatus"><Icon Name="refresh" /></button>
-    <div class="settings-menu @(StatusOpen ? "open" : "")" style="right: 0; left: auto;">
-      <div class="settings-title">Endpoint status <span class="muted">@StatusCounts</span></div>
-      <div class="settings-hint">How many mapped routes have an ok / empty / missing fixture.</div>
-      <button type="button" class="btn-mini" @onclick="OnRefreshStatus">Refresh status</button>
-      <pre class="settings-out">@StatusOut</pre>
-    </div>
   }
 </div>
+@* Status detail renders inline (not an absolute popover) so the panel's overflow-hidden never clips
+   it. It expands below the header in the normal flow when toggled open. *@
+@if (Mode == "endpoints" && StatusOpen)
+{
+  <div class="status-panel">
+    <div class="settings-title">Endpoint status <span class="muted">@StatusCounts</span></div>
+    <div class="settings-hint">How many mapped routes have an ok / empty / missing fixture.</div>
+    <button type="button" class="btn-mini" @onclick="OnRefreshStatus">Refresh status</button>
+    <pre class="settings-out">@StatusOut</pre>
+  </div>
+}
 <input id="endpointFilter" placeholder="@(Mode == "objects" ? "filter objects..." : "filter...")"
        value="@_filter" @oninput="OnFilter" />
 

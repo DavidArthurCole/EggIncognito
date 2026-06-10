@@ -43,6 +43,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 COPY EggIncognito/Endpoints /app/Endpoints
+# RouteMap/routes.yaml is only an AdditionalFiles (compile-time, for the source generator), so it is
+# NOT in the publish output. The runtime RouteCatalog reads it from the content root, so it must be
+# present next to the app or ContentRoot.Resolve finds no RouteMap/ and the route catalog is empty
+# (no endpoints listed, status 0/0/0). Ship it explicitly.
+COPY EggIncognito/RouteMap /app/RouteMap
 
 VOLUME ["/app/Endpoints"]
 
