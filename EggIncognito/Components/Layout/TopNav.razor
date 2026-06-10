@@ -9,6 +9,10 @@
   @if (AppMode.CanCapture) { <NavLink href="capture" ActiveClass="active">Capture</NavLink> }
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
+  @* Per-page tools (e.g. the Inspector's Postman download + salt badge) render here, in flow, pinned
+     to the right via the nav-tools margin-left:auto, so they sit left of the auth slot instead of a
+     fixed overlay that overlapped the login button. A page injects them with <SectionContent>. *@
+  <span class="app-nav-tools"><SectionOutlet SectionName="nav-tools" /></span>
   @* Auth slot, server-rendered. Only shown when Discord auth is wired (a DB + Discord creds). Logout
      is a real form POST to /logout so it works without a circuit. Login is the Discord challenge with
      a returnUrl back to the current page. *@

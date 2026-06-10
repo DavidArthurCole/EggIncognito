@@ -16,17 +16,17 @@
 
 <PageTitle>EggIncognito - Transport Inspector</PageTitle>
 
-@* Nav-tools row: Postman download + the salt badge. Request defaults (BasicRequestInfo) are edited
-   inline in the request pane's Environment section; the endpoint-status refresh lives in the endpoint
-   list's header (next to the Endpoints | Objects switch). The Blazor shell's TopNav has no NavTools
-   slot, so the toolbar lives in-page. *@
-<div class="app-nav-tools toolbar" style="position: fixed; top: 6px; right: 12px; z-index: 50;">
+@* Per-page tools (Postman download + salt badge) injected into the nav's tools slot via SectionContent
+   so they sit in the nav row, left of the auth slot, instead of a fixed overlay that overlapped the
+   login button. Request defaults are edited inline in the Environment section; the endpoint-status
+   refresh lives in the endpoint list header. *@
+<SectionContent SectionName="nav-tools">
   <a class="icon-btn" href="/api/tools/postman-collection" download
      title="Download Postman collection" aria-label="Download Postman collection"><Icon Name="download" /></a>
   <button type="button" class="badge @(_hasSalt ? "signed" : "unsigned")"
           title="@(_hasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
           @onclick="OpenSaltModal">@(_hasSalt ? "Salt Set" : "Salt Unset")</button>
-</div>
+</SectionContent>
 
 <main class="grid gap-3 p-3 min-h-0" style="grid-template-columns: 240px 1fr 1fr; height: calc(100vh - 48px);">
   <aside class="panel">
