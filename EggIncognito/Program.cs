@@ -63,7 +63,7 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 // are http. Honor X-Forwarded-Proto/-Host/-For so the app reconstructs the original https request.
 // KnownProxies/KnownNetworks are cleared because the proxy is the sole ingress (the container is only
 // reachable over the proxy docker network) - the same trust model as the CF-Connecting-IP rate limiter.
-builder.Services.Configure<Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions>(o =>
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
         | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost
