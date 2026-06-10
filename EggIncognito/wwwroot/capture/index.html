@@ -4,29 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EggIncognito - Live Capture</title>
+  <link rel="icon" type="image/png" href="/brand/icon-trimmed.png" />
   <link rel="stylesheet" href="/nav.css" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="/tailwind.css" />
 </head>
-<body>
+<body class="m-0 bg-bg text-fg font-sans">
   <nav class="app-nav">
-    <a href="/">Home</a>
+    <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
     <a href="/inspector/">Inspector</a>
     <a href="/capture/" class="active">Capture</a>
-  </nav>
-  <header>
-    <h1>EggIncognito - Live Capture</h1>
-    <div class="toolbar">
-      <span id="captureControl" style="display:inline-flex;align-items:center;gap:0.5rem;margin-right:0.75rem;">
-        <button id="captureStartBtn" type="button" class="btn-mini">Start capture</button>
-        <button id="captureStopBtn" type="button" class="btn-mini">Stop capture</button>
-        <span id="captureStatus" style="font-size:0.85em;opacity:0.8;">checking...</span>
-      </span>
+    <a href="/import/" class="nav-gated-write">Import</a>
+    <a href="/admin/" class="nav-gated-admin">Admin</a>
+    <div class="app-nav-tools toolbar">
       <div id="notifWrap" class="settings-wrap">
         <button id="notifBtn" type="button" class="icon-btn" title="Notifications" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
           <span id="notifIcon" class="notif-icon"></span>
           <span id="notifBadge" class="notif-badge hidden">0</span>
         </button>
-        <div id="notifMenu" class="settings-menu notif-menu hidden">
+        <div id="notifMenu" class="settings-menu notif-menu">
           <div class="settings-title notif-head">
             <span>Notifications</span>
             <button id="notifClearAll" type="button" class="btn-mini">Clear all</button>
@@ -36,17 +31,27 @@
         </div>
       </div>
       <button id="pauseBtn" type="button" class="icon-btn" title="Pause capturing" aria-label="Pause capturing"></button>
-      <button id="clearBtn" type="button" class="icon-btn" title="Clear the list (keeps endpoints + HAR)" aria-label="Clear list"></button>
+      <div id="clearWrap" class="settings-wrap">
+        <button id="clearBtn" type="button" class="icon-btn" title="Clear list" aria-label="Clear list" aria-haspopup="true" aria-expanded="false"></button>
+        <div id="clearMenu" class="settings-menu confirm-menu">
+          <div class="settings-title">Clear list?</div>
+          <div class="settings-hint">Removes the captured requests shown here. Saved endpoints, captured HAR(s), and exported files are kept.</div>
+          <div class="confirm-actions">
+            <button id="clearCancel" type="button" class="btn-mini">Cancel</button>
+            <button id="clearConfirm" type="button" class="btn-mini btn-danger">Clear</button>
+          </div>
+        </div>
+      </div>
       <div id="exportWrap" class="settings-wrap">
         <button id="exportBtn" type="button" class="icon-btn" title="Export" aria-label="Export" aria-haspopup="true" aria-expanded="false"></button>
-        <div id="exportMenu" class="settings-menu hidden">
+        <div id="exportMenu" class="settings-menu">
           <div class="settings-title">Export</div>
           <a class="export-item" href="/api/capture/har" download>HAR (all requests)</a>
         </div>
       </div>
       <div id="settingsWrap" class="settings-wrap">
         <button id="settingsBtn" type="button" class="icon-btn" title="Settings" aria-label="Settings" aria-haspopup="true" aria-expanded="false"></button>
-        <div id="settingsMenu" class="settings-menu hidden">
+        <div id="settingsMenu" class="settings-menu">
           <div class="settings-title">Redaction</div>
           <div class="settings-hint">How sensitive values appear in the detail pane.</div>
           <div class="settings-seg" role="radiogroup" aria-label="Redaction mode">
@@ -59,6 +64,10 @@
 
           <div class="settings-title">List</div>
           <label class="settings-check"><input type="checkbox" id="autoScrollToggle" checked /> Auto-scroll to newest</label>
+
+          <div class="settings-title">Compare to known data</div>
+          <div class="settings-hint">Tag each capture by how it compares to the checked-in endpoint set (wrote / upd / same / diff / loss).</div>
+          <label class="settings-check"><input type="checkbox" id="compareToggle" /> Show comparison tags</label>
 
           <div class="settings-title">Default format</div>
           <div class="settings-hint">The view request/response data opens in.</div>
@@ -74,47 +83,62 @@
         </div>
       </div>
     </div>
-  </header>
+    <span class="auth-nav" id="authNav"></span>
+  </nav>
 
-  <main>
+  <main class="grid gap-3 p-3 min-h-0" style="grid-template-columns: 220px 2fr 3fr; height: calc(100vh - 48px);">
     <section id="statsPanel" class="panel stats-panel">
       <h2>Stats</h2>
       <div class="stats-grid">
         <div class="stat-group">
           <div class="stat-group-title">Session</div>
-          <div class="stat-line"><span id="statusPill" class="pill live">LIVE</span></div>
-          <div class="stat-line"><span id="certPill" class="cert-pill waiting">Waiting for device</span></div>
-          <div class="stat-line"><span class="stat-val" id="flowCount">0 requests</span></div>
+          <div class="stat-line"><span id="statusPill" class="pill paused">STOPPED</span></div>
+          <dl class="stat-rows">
+            <dt>Cert</dt><dd id="certState" class="cert-waiting">Waiting for device</dd>
+            <dt>Requests</dt><dd id="flowCount">0</dd>
+          </dl>
         </div>
         <div class="stat-group">
           <div class="stat-group-title">Devices</div>
-          <div class="stat-line"><span class="stat-val" id="statDeviceCount">0</span> connected, <span class="stat-val" id="statActiveConns">0</span> connections</div>
+          <dl class="stat-rows">
+            <dt>Online</dt><dd id="statDeviceCount">0</dd>
+            <dt>Known</dt><dd id="statKnownCount">0</dd>
+            <dt>Connections</dt><dd id="statActiveConns">0</dd>
+          </dl>
           <div class="device-cards" id="deviceCards"></div>
         </div>
         <div class="stat-group">
-          <div class="stat-group-title">Capture</div>
-          <div class="stat-line"><span class="stat-val" id="statCaptured">0</span> captured</div>
-          <div class="stat-line"><span class="stat-val" id="statPassthrough">0</span> passed-through</div>
-          <div class="stat-line"><span class="stat-val" id="statEndpoints">0</span> endpoints</div>
-        </div>
-        <div class="stat-group">
-          <div class="stat-group-title">Decrypt health</div>
-          <div class="stat-line">
-            <span class="stat-val ok" id="statDecryptOk">0</span> ok /
-            <span class="stat-val err" id="statDecryptErrors">0</span> errors
-          </div>
+          <div class="stat-group-title">Captured Data</div>
+          <dl class="stat-rows">
+            <dt>Auxbrain flows</dt><dd id="statCaptured">0</dd>
+            <dt>Unique endpoints</dt><dd id="statEndpoints">0</dd>
+            <dt>Bytes</dt><dd id="statBytes">0 B</dd>
+            <dt>Decrypt</dt><dd><span class="ok" id="statDecryptOk">0</span> ok / <span class="err" id="statDecryptErrors">0</span> err</dd>
+          </dl>
           <div class="stat-line muted stat-last-error hidden" id="statLastError"></div>
-        </div>
-        <div class="stat-group">
-          <div class="stat-group-title">Data</div>
-          <div class="stat-line"><span class="stat-val" id="statBytes">0 B</span> captured</div>
-          <div class="stat-line muted stat-biggest hidden" id="statBiggest"></div>
         </div>
       </div>
     </section>
 
     <section id="flowsPanel" class="panel">
-      <h2>Requests</h2>
+      <div class="flow-head">
+        <h2>Requests</h2>
+        <div class="flow-filters">
+        <span class="flow-filters-label">Filters</span>
+        <select id="filterGroup" class="flow-filter-select" title="API group">
+          <option value="">All groups</option>
+          <option value="ei">ei</option>
+          <option value="ei_afx">ei_afx</option>
+          <option value="ei_ctx">ei_ctx</option>
+          <option value="ei_data">ei_data</option>
+          <option value="ei_srv">ei_srv</option>
+        </select>
+        <input id="filterPath" class="flow-filter-input" type="search" placeholder="path..." />
+        <input id="filterType" class="flow-filter-input" type="search" list="seenTypes" placeholder="request/response type..." />
+        <datalist id="seenTypes"></datalist>
+        <button id="filterClear" type="button" class="btn-mini" title="Reset all filters">Clear filters</button>
+        </div>
+      </div>
       <div id="flowList" class="flow-list">
         <div id="emptyState" class="empty-state">
           No requests captured yet.
@@ -130,6 +154,12 @@
 
   <div id="toastContainer" class="toast-container"></div>
 
+  <a class="gh-bubble" href="https://github.com/DavidArthurCole/EggIncognito" target="_blank" rel="noopener"
+     title="View EggIncognito on GitHub" aria-label="View EggIncognito on GitHub">
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+  </a>
+  <script src="/nav.js"></script>
   <script type="module" src="app.js"></script>
+  <script src="/app-router.js"></script>
 </body>
 </html>

@@ -51,6 +51,21 @@ public class CaptureDashboardTests
     }
 
     [Fact]
+    public void MarkSaved_FlipsBufferedFlow_SoRefreshDoesNotRePrompt()
+    {
+        var hub = new CaptureHub();
+        var stored = hub.Publish(F("ei/bot_first_contact"), "t1");
+        Assert.NotNull(stored);
+        Assert.False(stored!.Saved);
+
+        hub.MarkSaved(stored.Id);
+
+        // The buffered copy (what a refresh replays) now reports Saved.
+        var replayed = Assert.Single(hub.Snapshot(), f => f.Id == stored.Id);
+        Assert.True(replayed.Saved);
+    }
+
+    [Fact]
     public void Publish_WhenPaused_ReturnsNull_AndDoesNotBuffer()
     {
         var hub = new CaptureHub();
@@ -141,14 +156,17 @@ routes:
   - path: ei/get_periodicals
     request: GetPeriodicalsRequest
     response: PeriodicalsResponse
+  - path: ei_data/log_contract_action
+    request: ContractAction
+    rawResponse: "SUCCESS"
 """;
 
     private static string MakeRepo()
     {
         var root = Path.Combine(Path.GetTempPath(), $"ei-dash-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(root, "EggIncognito", "RouteMap"));
+        Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
         File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
-        File.WriteAllText(Path.Combine(root, "EggIncognito", "RouteMap", "routes.yaml"), Yaml);
+        File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), Yaml);
         return root;
     }
 
@@ -170,6 +188,24 @@ routes:
         Assert.NotNull(r.Json);
         Assert.Equal("PeriodicalsResponse", r.Type); // from routes.yaml
         Assert.True(r.Known);
+    }
+
+    [Fact]
+    public void DecodeResponse_PlainTextAck_SurfacedAsText()
+    {
+        var repo = MakeRepo();
+        var decoder = new FlowDecoder(repo);
+
+        // The real log endpoints reply with the literal text "SUCCESS" (not protobuf). The capture
+        // pipeline base64-encodes the raw bytes, so the decoder must round-trip them to the literal
+        // text and flag the rawResponse endpoint as an acknowledgement - NOT show a hex dump.
+        var r = decoder.DecodeResponse(
+            "ei_data/log_contract_action",
+            Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes("SUCCESS")));
+
+        Assert.True(r.Ack);
+        Assert.Equal("SUCCESS", r.Text);
+        Assert.Null(r.Json);
     }
 
     [Fact]
@@ -339,34 +375,34 @@ routes:
         Assert.Equal(2, d.ActiveConnections);
     }
 
+    // A flow whose decoded request carries an rinfo with platform + version (the OS/version source).
+    private static DashboardFlow FlowWithRInfo(string platform, string version) =>
+        F("ei/x") with
+        {
+            RequestJson = $"{{\"rinfo\":{{\"platform\":\"{platform}\",\"version\":\"{version}\"}}}}",
+        };
+
     [Fact]
-    public void Device_SingleDevice_GetsLastUserAgent()
+    public void Device_SingleDevice_GetsOsAndGameVersion()
     {
         var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
-        var flow = F("ei/x") with
-        {
-            RequestHeadersRaw = new[] { new DashboardHeader("User-Agent", "EggInc/1.34 iOS", false) },
-        };
-        hub.Publish(flow, "t");
+        hub.Publish(FlowWithRInfo("IOS", "1.35.6"), "t");
 
         var d = Assert.Single(hub.StatsSnapshot().Devices);
-        Assert.Equal("EggInc/1.34 iOS", d.UserAgent);
+        Assert.Equal("iOS", d.Os);
+        Assert.Equal("1.35.6", d.GameVersion);
     }
 
     [Fact]
-    public void Device_MultipleDevices_NoUserAgentAttribution()
+    public void Device_MultipleDevices_NoOsAttribution()
     {
         var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
         hub.RecordConnection(2, "192.168.1.6", "t");
-        var flow = F("ei/x") with
-        {
-            RequestHeadersRaw = new[] { new DashboardHeader("User-Agent", "EggInc/1.34 iOS", false) },
-        };
-        hub.Publish(flow, "t");
+        hub.Publish(FlowWithRInfo("DROID", "1.35.6"), "t");
 
-        // With >1 device we cannot attribute the UA to one of them, so none is shown.
-        Assert.All(hub.StatsSnapshot().Devices, d => Assert.Null(d.UserAgent));
+        // With >1 device we cannot attribute the rinfo to one of them, so none is shown.
+        Assert.All(hub.StatsSnapshot().Devices, d => { Assert.Null(d.Os); Assert.Null(d.GameVersion); });
     }
 }

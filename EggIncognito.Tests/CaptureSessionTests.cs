@@ -10,15 +10,29 @@ public class CaptureSessionTests
     {
         var f = new FakeCaptureProxy();
         fake = f;
-        // repoRoot must be the real repo (EndpointExtractor.ForRepo reads routes.yaml). All WRITES
-        // are redirected to a temp dir (CapturePath/CaPath); with no flows processed, the extractor
-        // stays clean and Save() is a no-op, so the test never mutates the repo.
-        var repoRoot = EggIncognito.Cli.RepoPaths.FindRoot();
+        // contentRoot must be the real EggIncognito project dir (EndpointExtractor.ForRepo reads
+        // routes.yaml under it). All WRITES are redirected to a temp dir (CapturePath/CaPath); with
+        // no flows processed, the extractor stays clean and Save() is a no-op, so the test never
+        // mutates the repo.
+        var contentRoot = RealContentRoot();
         var tmp = Path.Combine(Path.GetTempPath(), "egi-cap-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tmp);
         var opts = new CaptureSessionOptions(Port: 18080, Eid: null, Label: null,
             Overwrite: false, Verbose: false, CapturePath: tmp, CaPath: Path.Combine(tmp, "ca.cer"));
-        return new CaptureSession(repoRoot, opts, _ => f);
+        return new CaptureSession(contentRoot, opts, _ => f);
+    }
+
+    // Walk up to the source-tree EggIncognito project dir (the one holding RouteMap/routes.yaml).
+    private static string RealContentRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var candidate = Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
+            if (File.Exists(candidate)) return Path.Combine(dir.FullName, "EggIncognito");
+            dir = dir.Parent;
+        }
+        throw new InvalidOperationException("Could not locate the EggIncognito project content root.");
     }
 
     [Fact]

@@ -1,20 +1,76 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>preview</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>e7aa6a77-af5b-41a6-90e6-4d9b1e792645</UserSecretsId>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AspNet.Security.OAuth.Discord" Version="10.0.0" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
     <ProjectReference Include="..\EggIncognito.Capture\EggIncognito.Capture.csproj" />
-    <ProjectReference Include="..\EggIncognito.RouteGenerator\EggIncognito.RouteGenerator.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\EggIncognito.Data\EggIncognito.Data.csproj" />
+    <ProjectReference Include="..\EggIncognito.Bot\EggIncognito.Bot.csproj" />
+    <ProjectReference Include="..\EggIncognito.RouteGenerator\EggIncognito.RouteGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <AdditionalFiles Include="RouteMap\routes.yaml" />
   </ItemGroup>
+
+  <!-- Regenerate the dashboard type defs (wwwroot/capture/types.d.ts) from the C# records on every
+       build. Replaces the old `emit-types` CLI subcommand. Runs the freshly-built assembly directly
+       (dotnet "$(TargetPath)") rather than `dotnet run`, so it never re-triggers a build (no
+       recursion). The emitter's __emit-types arg path returns before the web host boots. The emitter
+       no-ops its write when the output is unchanged, keeping incremental builds clean. Skip with
+       -p:EmitTypes=false (the build inside the Release publish pipeline sets this to avoid an extra
+       process; the file is already committed). -->
+  <Target Name="EmitDashboardTypes" AfterTargets="Build" Condition="'$(EmitTypes)' != 'false'">
+    <Exec Command="dotnet &quot;$(TargetPath)&quot; __emit-types &quot;$(MSBuildProjectDirectory)\wwwroot\capture\types.d.ts&quot;" ContinueOnError="true" />
+  </Target>
+
+  <!-- Compile Tailwind utilities into wwwroot/tailwind.css at build time using the standalone CLI
+       (no Node). On first build the CLI binary is fetched to tools/tailwind/. Skip with
+       -p:BuildTailwindCss=false (used by any build that already has a committed/compiled sheet, or to
+       avoid the network fetch). The compiled file is gitignored + served as a normal static asset.
+       The fetch is RID-aware so Linux/macOS CI gets the right binary, not the Windows .exe. -->
+  <PropertyGroup>
+    <TailwindDir>$(MSBuildProjectDirectory)\..\tools\tailwind</TailwindDir>
+    <TailwindVersion>v3.4.17</TailwindVersion>
+    <TailwindIsWindows>$([MSBuild]::IsOSPlatform('Windows'))</TailwindIsWindows>
+    <TailwindIsMac>$([MSBuild]::IsOSPlatform('OSX'))</TailwindIsMac>
+    <TailwindIsArm64 Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">true</TailwindIsArm64>
+    <!-- Asset name on the tailwindlabs release: tailwindcss-<os>-<arch>[.exe]. -->
+    <TailwindOs Condition="'$(TailwindIsWindows)' == 'true'">windows</TailwindOs>
+    <TailwindOs Condition="'$(TailwindIsMac)' == 'true'">macos</TailwindOs>
+    <TailwindOs Condition="'$(TailwindOs)' == ''">linux</TailwindOs>
+    <TailwindArch Condition="'$(TailwindIsArm64)' == 'true'">arm64</TailwindArch>
+    <TailwindArch Condition="'$(TailwindArch)' == ''">x64</TailwindArch>
+    <TailwindExeSuffix Condition="'$(TailwindIsWindows)' == 'true'">.exe</TailwindExeSuffix>
+    <TailwindAsset>tailwindcss-$(TailwindOs)-$(TailwindArch)$(TailwindExeSuffix)</TailwindAsset>
+    <TailwindExe>$(TailwindDir)\tailwindcss$(TailwindExeSuffix)</TailwindExe>
+    <TailwindUrl>https://github.com/tailwindlabs/tailwindcss/releases/download/$(TailwindVersion)/$(TailwindAsset)</TailwindUrl>
+  </PropertyGroup>
+  <Target Name="FetchTailwindCli"
+          Condition="'$(BuildTailwindCss)' != 'false' AND !Exists('$(TailwindExe)')">
+    <MakeDir Directories="$(TailwindDir)" />
+    <Message Importance="high" Text="Fetching standalone Tailwind CLI $(TailwindVersion) ($(TailwindAsset))..." />
+    <!-- Windows uses PowerShell's Invoke-WebRequest; Linux/macOS use curl. -->
+    <Exec Condition="'$(TailwindIsWindows)' == 'true'"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Invoke-WebRequest -Uri '$(TailwindUrl)' -OutFile '$(TailwindExe)'&quot;"
+          ContinueOnError="true" />
+    <Exec Condition="'$(TailwindIsWindows)' != 'true'"
+          Command="curl -sSL '$(TailwindUrl)' -o '$(TailwindExe)' &amp;&amp; chmod +x '$(TailwindExe)'"
+          ContinueOnError="true" />
+  </Target>
+  <Target Name="BuildTailwind" AfterTargets="Build" DependsOnTargets="FetchTailwindCli"
+          Condition="'$(BuildTailwindCss)' != 'false' AND Exists('$(TailwindExe)')">
+    <Exec Command="&quot;$(TailwindExe)&quot; -c &quot;$(MSBuildProjectDirectory)\tailwind.config.js&quot; -i &quot;$(MSBuildProjectDirectory)\wwwroot\app.tailwind.css&quot; -o &quot;$(MSBuildProjectDirectory)\wwwroot\tailwind.css&quot; --minify"
+          ContinueOnError="true" />
+  </Target>
 </Project>

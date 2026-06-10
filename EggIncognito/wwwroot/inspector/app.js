@@ -1,7 +1,15 @@
 // Transport Inspector SPA. Plain ES module, no build step.
 // Talks to /api/inspector/* on the same origin.
 
+import { makeResizable } from "/resize.js";
+import { rememberEid, recentEids, mostRecentEid, forgetEids } from "./eids.js";
+import { getSalt, setSalt, getRinfoDefaults, setRinfoDefaults, getCustomTarget, setCustomTarget } from "./settings.js";
+
 const API = "/api/inspector";
+
+// Clear any stale bridge from a previous in-app navigation (the client router re-execs these modules;
+// a leftover window.__inspector would make docs.js boot against old data before this init republishes).
+delete window.__inspector;
 
 const state = {
   endpoints: [],
@@ -9,8 +17,6 @@ const state = {
   schemaCache: new Map(),// typeName -> SchemaMessage
   envDefaults: {},
   lastBuild: null,       // { finalBase64, finalFormBody }
-  logsSince: 0,          // last log sequence number seen
-  logsLevel: "basic",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -33,74 +39,180 @@ async function postJson(url, body) {
 
 async function init() {
   state.endpoints = await getJson(`${API}/endpoints`);
-  state.envDefaults = await getJson(`${API}/env-defaults`);
+  state.envDefaults = getRinfoDefaults();
   renderEndpoints();
   renderEnvPanel();
-  await checkSign();
+  checkSign();
+
+  refreshEidDatalist();
+
+  // Live API egresses from the server; when hosted it requires login. Fetch the mode once and use it
+  // to (a) gate the Live API toggle for anonymous hosted users, and (b) reveal the "Save to DB" button
+  // only for contributor+ users. Fail open if mode is unreachable (local static dev).
+  let appMode = null;
+  try { appMode = await fetch("/api/app/mode").then(r => r.json()); } catch {}
+  if (appMode && appMode.mode === "Hosted" && !appMode.user) {
+    const liveBtn = document.querySelector('.target-opt[data-target="real"]');
+    if (liveBtn) {
+      liveBtn.disabled = true;
+      liveBtn.classList.add("target-opt-disabled");
+      liveBtn.title = "Log in to use Live API";
+    }
+  }
+  // Writing to the shared DB needs contributor or admin. Only reveal the save affordance to those
+  // users; everyone else never sees it (the server ACL is still the real gate). When mode is
+  // unreachable (static local dev with no DB), fail open so a local dev can still see the button.
+  const role = appMode?.user?.role;
+  const canSaveDb = !appMode || role === "contributor" || role === "admin";
+  if (canSaveDb) $("saveDbBtn").classList.remove("hidden");
 
   $("endpointFilter").addEventListener("input", renderEndpoints);
   $("buildBtn").addEventListener("click", build);
   $("sendBtn").addEventListener("click", send);
-  $("rawToggle").addEventListener("change", toggleRaw);
-
-  initLogs();
-}
-
-// logs panel
-
-function initLogs() {
-  for (const r of document.querySelectorAll('input[name="logLevel"]')) {
-    r.addEventListener("change", () => {
-      state.logsLevel = document.querySelector('input[name="logLevel"]:checked').value;
-      state.logsSince = 0;
-      $("logs").innerHTML = "";
-      pollLogs();
-    });
-  }
-  $("logsClear").addEventListener("click", () => { $("logs").innerHTML = ""; });
-  pollLogs();
-  setInterval(pollLogs, 1500);
-}
-
-async function pollLogs() {
-  let entries;
-  try {
-    entries = await getJson(`${API}/logs?level=${state.logsLevel}&since=${state.logsSince}`);
-  } catch { return; } // transient - try again next tick
-  if (!entries.length) return;
-
-  const host = $("logs");
-  const advanced = state.logsLevel === "advanced";
-  for (const e of entries) {
-    state.logsSince = Math.max(state.logsSince, e.seq);
-    const row = document.createElement("div");
-    row.className = `log log-${e.level.toLowerCase()}`;
-    let line = `<span class="log-time">${e.time}</span>` +
-      `<span class="log-level">${e.level}</span>`;
-    if (advanced && e.category) line += `<span class="log-cat">${escapeHtml(e.category)}</span>`;
-    line += `<span class="log-msg">${escapeHtml(e.message)}</span>`;
-    row.innerHTML = line;
-    if (advanced && e.exception) {
-      const ex = document.createElement("pre");
-      ex.className = "log-exc";
-      ex.textContent = e.exception;
-      row.appendChild(ex);
+  $("refreshEndpoints").addEventListener("click", reloadEndpoints);
+  document.querySelectorAll(".target-opt").forEach(b => b.addEventListener("click", () => {
+    if (b.disabled) return; // gated (e.g. Live API for anonymous hosted users)
+    // Switching to Live API sends real requests to auxbrain. Gate the FIRST switch per browser behind
+    // an explicit consent (developers not responsible for misuse). Mock never prompts.
+    if (b.dataset.target === "real" && localStorage.getItem(LIVE_CONSENT_KEY) !== "1") {
+      showLiveConsent(() => { localStorage.setItem(LIVE_CONSENT_KEY, "1"); selectTarget(b); });
+      return; // leave the toggle on Mock until accepted
     }
-    host.appendChild(row);
-  }
-  if ($("logsAutoScroll").checked) host.scrollTop = host.scrollHeight;
+    selectTarget(b);
+  }));
+  $("signStatus").addEventListener("click", openSaltModal);
+  $("saltCancel").addEventListener("click", closeSaltModal);
+  $("saltSave").addEventListener("click", saveSaltModal);
+  $("saltInput").addEventListener("keydown", (e) => { if (e.key === "Enter") saveSaltModal(); });
+  $("liveCancel")?.addEventListener("click", hideLiveConsent);
+  $("rawToggle").addEventListener("change", toggleRaw);
+  $("forgetEids").addEventListener("click", () => {
+    forgetEids();
+    refreshEidDatalist();
+    $("pathParamValue").value = "";
+  });
+
+  initSettings();
+  syncCustomConfig(); // reflect the persisted target's custom-config visibility on load
+
+  // Bridge for docs.js (the Documentation view). Kept as a tiny shared object rather than cross-module
+  // imports to avoid a cycle: docs.js reads the endpoint list + mode and can drive endpoint selection.
+  window.__inspector = {
+    appMode,
+    getEndpoints: () => state.endpoints,
+    selectEndpointByPath: (path) => {
+      const e = state.endpoints.find(x => x.path === path);
+      if (e) { setActiveList("endpoints"); selectEndpoint(e); }
+    },
+    setActiveList,
+  };
+  window.dispatchEvent(new CustomEvent("inspector:ready"));
+
+  // Left-pane Endpoints | Objects switch.
+  document.querySelectorAll(".list-switch-opt").forEach(b =>
+    b.addEventListener("click", () => setActiveList(b.dataset.list)));
 }
 
-async function checkSign() {
-  // Build an empty request just to learn canSign without committing to an endpoint.
-  const probe = state.endpoints.find((e) => e.request);
-  if (!probe) return;
-  const res = await postJson(`${API}/build`, {
-    path: probe.path, requestType: probe.request, wrap: false, fields: {}, env: null,
+// Toggle the left-pane list (and the matching middle-pane view) between Endpoints and Objects. docs.js
+// owns the Objects list + the #objectView contents; here we just flip visibility + the filter target.
+function setActiveList(which) {
+  const isObjects = which === "objects";
+  document.querySelectorAll(".list-switch-opt").forEach(b =>
+    b.classList.toggle("active", b.dataset.list === which));
+  $("endpoints").classList.toggle("hidden", isObjects);
+  $("objects").classList.toggle("hidden", !isObjects);
+  $("endpointView").classList.toggle("hidden", isObjects);
+  $("objectView").classList.toggle("hidden", !isObjects);
+  $("endpointFilter").placeholder = isObjects ? "filter objects..." : "filter...";
+  window.dispatchEvent(new CustomEvent("inspector:listchange", { detail: { which } }));
+}
+
+// Reload the endpoint list (the refresh icon in the Endpoints header). Spins the icon for the
+// duration so the user gets feedback even when the fetch is instant.
+async function reloadEndpoints() {
+  const btn = $("refreshEndpoints");
+  btn.classList.add("spinning");
+  try {
+    // Bypass the browser cache so the Reload button always re-queries the server.
+    const r = await fetch(`${API}/endpoints`, { cache: "no-store" });
+    state.endpoints = await r.json();
+    renderEndpoints();
+  } catch (e) {
+    // Non-fatal: keep the current list, surface nothing intrusive.
+    console.warn("endpoint reload failed", e);
+  } finally {
+    // Keep the spin visible briefly even on an instant reload.
+    setTimeout(() => btn.classList.remove("spinning"), 300);
+  }
+}
+
+// Show the custom-target config block (and load its value) only when the Custom target is active.
+function syncCustomConfig() {
+  const cfg = $("customConfig");
+  const isCustom = currentTarget() === "custom";
+  cfg.classList.toggle("hidden", !isCustom);
+  if (isCustom) $("customTargetInput").value = getCustomTarget();
+}
+
+function initSettings() {
+  // Load current values into the popover inputs. (Salt lives in its own modal opened from the status
+  // badge; the custom proxy URL lives in the in-pane #customConfig block - see syncCustomConfig.)
+  const d = getRinfoDefaults();
+  $("setClientVersion").value = d.clientVersion;
+  $("setVersion").value = d.version;
+  $("setBuild").value = d.build;
+  $("setPlatform").value = d.platform;
+  $("setCountry").value = d.country;
+  $("setLanguage").value = d.language;
+  $("setDebug").value = String(d.debug);
+
+  $("setSave").addEventListener("click", () => {
+    setRinfoDefaults({
+      clientVersion: parseInt($("setClientVersion").value, 10),
+      version: $("setVersion").value,
+      build: $("setBuild").value,
+      platform: $("setPlatform").value,
+      country: $("setCountry").value,
+      language: $("setLanguage").value,
+      debug: $("setDebug").value === "true",
+    });
+    // Reflect the new defaults + sign state immediately.
+    state.envDefaults = getRinfoDefaults();
+    renderEnvPanel();
+    checkSign();
+    $("settingsMenu").classList.remove("open");
   });
+
+  // Persist the custom proxy URL as it is edited (the in-pane block, not the Settings popover).
+  $("customTargetInput").addEventListener("input", () => setCustomTarget($("customTargetInput").value));
+}
+
+// The signing salt is client-owned (settings.js); "can sign" is simply "is a salt set", no server probe.
+// The badge is a button: short label + an explanatory tooltip; clicking opens the salt modal.
+function checkSign() {
   const badge = $("signStatus");
-  if (res.canSign) { badge.textContent = "signing: ready"; badge.className = "badge signed"; }
-  else { badge.textContent = "signing: EGG_INC_API_SALT not set"; badge.className = "badge unsigned"; }
+  if (getSalt()) {
+    badge.textContent = "Salt Set";
+    badge.className = "badge signed";
+    badge.title = "Signing salt is set (stored in this browser). Click to change it.";
+  } else {
+    badge.textContent = "Salt Unset";
+    badge.className = "badge unsigned";
+    badge.title = "No signing salt set. AuthenticatedMessage requests build unsigned. Click to set it.";
+  }
+}
+
+// Salt modal: opened from the status badge. The salt stays client-owned (settings.js localStorage).
+function openSaltModal() {
+  $("saltInput").value = getSalt();
+  $("saltModal").classList.remove("hidden");
+  $("saltInput").focus();
+}
+function closeSaltModal() { $("saltModal").classList.add("hidden"); }
+function saveSaltModal() {
+  setSalt($("saltInput").value);
+  checkSign();
+  closeSaltModal();
 }
 
 // endpoint list
@@ -117,15 +229,25 @@ function renderEndpoints() {
   for (const ns of Object.keys(groups).sort()) {
     const g = document.createElement("div");
     g.className = "ep-group";
-    g.innerHTML = `<div class="ep-ns">${ns}/</div>`;
+    // Header is a click toggle; the .collapsed class on the group drives both the caret rotation
+    // (CSS triangle, no emoji) and the body's visibility. No persistence: a fresh render (incl. on
+    // filter input) rebuilds every group expanded, so filtering auto-expands.
+    const header = document.createElement("div");
+    header.className = "ep-ns";
+    header.innerHTML = `<span class="ep-caret"></span>${ns.toLowerCase()}/`;
+    header.addEventListener("click", () => g.classList.toggle("collapsed"));
+    const body = document.createElement("div");
+    body.className = "ep-group-body";
     for (const e of groups[ns]) {
       const div = document.createElement("div");
       div.className = "ep" + (state.selected?.path === e.path ? " active" : "");
       div.innerHTML = e.path.slice(ns.length + 1) +
-        (e.wrap ? '<span class="wrap-flag" title="wrapped in AuthenticatedMessage">&#128274;</span>' : "");
+        (e.wrap ? '<span class="wrap-flag" title="wrapped + signed in an AuthenticatedMessage">signed</span>' : "");
       div.addEventListener("click", () => selectEndpoint(e));
-      g.appendChild(div);
+      body.appendChild(div);
     }
+    g.appendChild(header);
+    g.appendChild(body);
     host.appendChild(g);
   }
 }
@@ -137,6 +259,9 @@ async function selectEndpoint(e) {
   renderEndpoints();
   $("reqTypeLabel").textContent = `(${reqTypeLabel(e)})`;
   $("pathParamRow").classList.toggle("hidden", !e.pathParam);
+  if (e.pathParam) prefillEid($("pathParamValue")); // offer the last EID for path-param endpoints
+  // Let docs.js paint this endpoint's tag chips (it owns the tag data + chip rendering).
+  window.dispatchEvent(new CustomEvent("inspector:endpointselected", { detail: { path: e.path } }));
   await renderFieldTree();
 }
 
@@ -183,6 +308,29 @@ async function renderFieldTree() {
   const s = await schema(e.request);
   if (!s) { host.insertAdjacentHTML("beforeend", `<span class="muted">no schema for ${e.request}</span>`); return; }
   for (const f of s.fields) host.appendChild(await fieldRow(f, []));
+  applyEnvLock();
+}
+
+// The Environment panel overrides the message's rinfo (BasicRequestInfo) submessage at build time.
+// Mirror each set env value onto the matching rinfo.<key> input in the tree and disable it, so the
+// user sees exactly what gets sent and cannot desync the two. An empty env field releases the lock.
+// Env keys that aren't rinfo fields (e.g. eiUserId) simply have no matching input and are skipped.
+function applyEnvLock() {
+  for (const inp of document.querySelectorAll("#envFields [data-env-key]")) {
+    const el = document.querySelector(`#fieldTree [data-path="rinfo.${inp.dataset.envKey}"]`);
+    if (!el) continue;
+    const v = inp.value;
+    if (v === "" || v == null) {
+      el.disabled = false;
+      el.classList.remove("env-locked");
+      el.title = "";
+    } else {
+      el.value = String(v);
+      el.disabled = true;
+      el.classList.add("env-locked");
+      el.title = "Set by the Environment panel above";
+    }
+  }
 }
 
 // Build one editable row. `path` is the field-name chain for collecting values later.
@@ -217,6 +365,29 @@ async function fieldRow(f, path, nested = false) {
   return row;
 }
 
+// 32-bit ints + floats can be a native number input. 64-bit ints are STRINGS in protojson and can
+// exceed JS number precision, so they stay text with a numeric inputmode + a digit pattern. Anything
+// else (string, enum name, bytes-b64) stays free text.
+const NUM32 = ["int32", "uint32", "sint32", "fixed32", "sfixed32"];
+const NUM64 = ["int64", "uint64", "sint64", "fixed64", "sfixed64"];
+const FLOATS = ["double", "float"];
+
+// A text/number input constrained to the proto field's type. Used by both the scalar and the
+// repeated-item editors so the rules live in one place.
+function typedInput(f) {
+  const el = document.createElement("input");
+  el.placeholder = f.type;
+  if (NUM64.includes(f.type)) {
+    el.inputMode = "numeric";
+    el.pattern = String.raw`-?\d+`;
+  } else if (NUM32.includes(f.type) || FLOATS.includes(f.type)) {
+    el.type = "number";
+    if (FLOATS.includes(f.type)) el.step = "any";
+    if (f.type.startsWith("uint") || f.type.startsWith("fixed")) el.min = "0";
+  }
+  return el;
+}
+
 function scalarEditor(f, fieldPath) {
   let el;
   if (f.type === "enum") {
@@ -227,8 +398,7 @@ function scalarEditor(f, fieldPath) {
     el = document.createElement("select");
     for (const v of ["(unset)", "true", "false"]) el.appendChild(new Option(v, v === "(unset)" ? "" : v));
   } else {
-    el = document.createElement("input");
-    el.placeholder = f.type;
+    el = typedInput(f);
   }
   el.dataset.path = fieldPath.join(".");
   el.dataset.ptype = f.type;
@@ -245,8 +415,7 @@ function repeatedEditor(f, fieldPath) {
   const add = () => {
     const item = document.createElement("div");
     item.className = "repeated-item";
-    const inp = document.createElement("input");
-    inp.placeholder = f.type;
+    const inp = typedInput(f);
     inp.className = "rep-input";
     const rm = document.createElement("button");
     rm.className = "btn-mini"; rm.textContent = "x";
@@ -315,6 +484,13 @@ function renderEnvPanel() {
     inp.value = v;
     inp.dataset.envKey = k;
     inp.dataset.envType = typeof v;
+    // Live-lock the matching rinfo.<key> tree input as this env value changes.
+    inp.addEventListener("input", applyEnvLock);
+    // EID-bearing env fields get the remembered-EID dropdown + a prefill when empty.
+    if (k === "eiUserId" || k === "userId") {
+      inp.setAttribute("list", "recentEids");
+      prefillEid(inp);
+    }
     row.appendChild(inp);
     row.appendChild(document.createElement("span"));
     host.appendChild(row);
@@ -363,6 +539,7 @@ async function build() {
     wrap: e.requestWrapped,
     fields,
     env: collectEnv(),
+    salt: getSalt(),
   });
   if (res.error) { renderError($("stages"), res); return; }
   state.lastBuild = res;
@@ -370,10 +547,76 @@ async function build() {
   $("sendBtn").disabled = false;
 }
 
+// The send target is a segmented toggle (.target-opt buttons); the active one carries data-target.
+// Defaults to mock - the Inspector hits the local mock unless the user explicitly opts into Live API.
+function currentTarget() {
+  return document.querySelector(".target-opt.active")?.dataset.target ?? "mock";
+}
+
+// Live-API consent: required once per browser before the first switch to the real auxbrain target.
+const LIVE_CONSENT_KEY = "egi:liveApiConsent";
+
+function selectTarget(btn) {
+  document.querySelectorAll(".target-opt").forEach(x => x.classList.remove("active"));
+  btn.classList.add("active");
+  syncCustomConfig(); // reveal/hide the custom-target config block to match the new target
+}
+
+function showLiveConsent(onAccept) {
+  const overlay = $("liveConsent");
+  overlay.classList.remove("hidden");
+  const accept = $("liveAccept");
+  // Replace the handler each open so a prior onAccept closure is not retained.
+  const handler = () => { accept.removeEventListener("click", handler); hideLiveConsent(); onAccept(); };
+  accept.addEventListener("click", handler);
+}
+
+function hideLiveConsent() {
+  $("liveConsent").classList.add("hidden");
+}
+
 async function send() {
   const e = state.selected;
   if (!state.lastBuild || !e) return;
-  const target = $("target").value;
+  const target = currentTarget();
+
+  if (target === "custom") {
+    const proxy = getCustomTarget();
+    if (!proxy) {
+      renderError($("response"), "no custom proxy URL set",
+        "Open Settings and set your Custom proxy URL first.");
+      return;
+    }
+    // Build the same target path the real API would use, but send it to the user's proxy. The proxy
+    // is expected to accept the same form body and relay to auxbrain. Browser-direct: no server egress.
+    let proxyUrl = proxy.replace(/\/+$/, "") + "/" + e.path;
+    if (e.pathParam) {
+      const param = $("pathParamValue").value.trim();
+      if (!param) { renderError($("response"), "URL path parameter is required", "Enter the EID above Build."); return; }
+      proxyUrl += "/" + encodeURIComponent(param);
+    }
+    rememberEnteredEids();
+    $("response").innerHTML = `<span class="muted">sending to your proxy ${proxyUrl} ...</span>`;
+    let rawText;
+    try {
+      const resp = await fetch(proxyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: state.lastBuild.finalFormBody,
+      });
+      rawText = (await resp.text()).trim();
+    } catch (err) {
+      renderError($("response"), `direct request to your proxy failed: ${err.message}`,
+        "Your proxy must be reachable from this browser and allow this origin (CORS).");
+      return;
+    }
+    // Decode the bytes the browser now holds via the egress-free server decoder.
+    const dec = await postJson(`${API}/decode-response`, { rawBase64: rawText, responseType: e.response });
+    renderResponse({ status: 200, rawBase64: rawText, stages: dec.stages, json: dec.json, error: dec.error });
+    if (dec?.json) window.__lastDecoded = { path: e.path, eid: $("pathParamValue")?.value || null, responseJson: dec.json, responseType: e.response };
+    return;
+  }
+
   const base = target === "mock"
     ? location.origin
     : (e.path.startsWith("ei_ctx") || e.path.startsWith("ei_srv")
@@ -391,6 +634,9 @@ async function send() {
     url += `/${encodeURIComponent(param)}`;
   }
 
+  // Remember any EID-shaped values entered (path param + env fields) so they are offered next time.
+  rememberEnteredEids();
+
   const respHost = $("response");
   respHost.innerHTML = `<span class="muted">sending to ${url} ...</span>`;
 
@@ -400,6 +646,48 @@ async function send() {
     responseType: e.response,
   });
   renderResponse(res);
+
+  // Expose the last decoded response so the Tools dropdown's "Save to shared store" can offer it
+  // (contributor+ writes to the DB; viewers fall back to a browser-local save). Best-effort.
+  if (res?.json) {
+    window.__lastDecoded = {
+      path: e.path,
+      eid: $("pathParamValue")?.value || null,
+      responseJson: res.json,
+      responseType: e.response,
+    };
+  }
+}
+
+// Remembered-EID helpers.
+
+// Collect EID-shaped values from the path-param + env fields and remember them; refresh the list.
+function rememberEnteredEids() {
+  const candidates = [$("pathParamValue")?.value];
+  for (const inp of document.querySelectorAll("#envFields [data-env-key]")) candidates.push(inp.value);
+  let changed = false;
+  for (const v of candidates) changed = rememberEid(v) || changed;
+  if (changed) refreshEidDatalist();
+}
+
+// Populate the shared <datalist> from the remembered EIDs (most-recent-first).
+function refreshEidDatalist() {
+  const dl = $("recentEids");
+  if (!dl) return;
+  dl.replaceChildren();
+  for (const eid of recentEids()) {
+    const opt = document.createElement("option");
+    opt.value = eid;
+    dl.appendChild(opt);
+  }
+}
+
+// Prefill an empty EID field with the most-recently-used EID. Never clobbers an existing value.
+function prefillEid(input) {
+  if (input && !input.value) {
+    const last = mostRecentEid();
+    if (last) input.value = last;
+  }
 }
 
 // rendering
@@ -507,5 +795,10 @@ function prettyJson(s) {
 function escapeHtml(s) {
   return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 }
+
+// User-resizable columns (Endpoints | Request | Pipeline), persisted.
+// Endpoints (index 0) is fixed-width - there's no value in resizing a name list. Only the
+// Request | Pipeline pair gets a gutter.
+makeResizable(document.querySelector("main"), { key: "inspector.cols", min: 180, fixed: [0] });
 
 init().catch((e) => { document.body.insertAdjacentHTML("beforeend", `<pre class="error-box">init failed: ${e.message}</pre>`); });

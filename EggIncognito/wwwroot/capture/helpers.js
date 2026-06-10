@@ -34,11 +34,11 @@ export function truncate(text, max) {
 // Map an outcome string to { label, kind }. Returns null for empty/unknown.
 export function outcomeMeta(outcome) {
   switch (outcome) {
-    case "wrote": return { label: "wrote", kind: "good" };
-    case "upd": return { label: "upd", kind: "good" };
-    case "diff": return { label: "diff", kind: "warn" };
-    case "loss": return { label: "loss", kind: "bad" };
-    case "same": return { label: "same", kind: "same" };
+    case "wrote": return { label: "wrote", kind: "good", desc: "New endpoint written to disk (none existed before)." };
+    case "upd": return { label: "upd", kind: "good", desc: "Updated - an empty/placeholder endpoint was filled in." };
+    case "diff": return { label: "diff", kind: "warn", desc: "Differs from the saved endpoint - staged for review, not overwritten." };
+    case "loss": return { label: "loss", kind: "bad", desc: "Could not decode into an endpoint (no proto type / unparseable) - nothing saved." };
+    case "same": return { label: "same", kind: "same", desc: "Identical to the saved endpoint - no change." };
     default: return null;
   }
 }

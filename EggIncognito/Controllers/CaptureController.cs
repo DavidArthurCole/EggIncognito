@@ -10,9 +10,14 @@ namespace EggIncognito.Controllers;
 // the singleton CaptureSession (and its Hub). Routes under /api/capture.
 [ApiController]
 [Route("api/capture")]
-public sealed class CaptureController(CaptureSession session) : ControllerBase
+public sealed class CaptureController(CaptureSession session, IAppMode appMode) : ControllerBase
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    // Capture mutates shared disk state and needs a local proxy/CA, so it is local-only. Starting it
+    // (and persisting a captured flow as an endpoint) is blocked in hosted mode.
+    private IActionResult? GuardCapture() =>
+        appMode.CanCapture ? null : StatusCode(403, new { error = "capture is disabled in hosted mode" });
 
     [HttpGet("stream")]
     public async Task Stream(CancellationToken ct)
@@ -69,7 +74,8 @@ public sealed class CaptureController(CaptureSession session) : ControllerBase
     public IActionResult Status() => Ok(session.Status);
 
     [HttpPost("start")]
-    public async Task<IActionResult> Start(CancellationToken ct) => Ok(await session.StartAsync(ct));
+    public async Task<IActionResult> Start(CancellationToken ct) =>
+        GuardCapture() ?? Ok(await session.StartAsync(ct));
 
     [HttpPost("stop")]
     public async Task<IActionResult> Stop()
@@ -92,12 +98,13 @@ public sealed class CaptureController(CaptureSession session) : ControllerBase
     [HttpPost("save-endpoint")]
     public IActionResult SaveEndpoint([FromBody] SaveEndpointRequest body)
     {
+        if (GuardCapture() is { } blocked) return blocked;
         var flow = session.Hub.Find(body.Id);
         if (flow is null) return NotFound(new { error = $"flow {body.Id} not in buffer" });
         var path = session.SaveEndpoint(flow.Path, flow.Method, flow.Status, flow.RequestDataB64, flow.ResponseB64);
-        return path is null
-            ? StatusCode(409, new { error = "capture not running or flow could not be decoded" })
-            : Ok(new { saved = path });
+        if (path is null) return StatusCode(409, new { error = "capture not running or flow could not be decoded" });
+        session.Hub.MarkSaved(body.Id); // so a refresh does not re-prompt to save the same capture
+        return Ok(new { saved = path });
     }
 
     [HttpGet("har")]

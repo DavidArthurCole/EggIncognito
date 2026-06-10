@@ -3,30 +3,30 @@
 <head>
   <meta charset="utf-8">
   <title>EggIncognito</title>
+  <link rel="icon" type="image/png" href="/brand/icon-trimmed.png" />
   <link rel="stylesheet" href="/nav.css" />
-  <style>
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      margin: 0;
-      background: #1b1b1f;
-      color: #e7e7ea;
-    }
-    main { padding: 0 2rem 2rem; max-width: 720px; }
-    h1 { color: #f5c542; }
-    a.inline { color: #5aa9e6; }
-  </style>
+  <link rel="stylesheet" href="/tailwind.css" />
 </head>
-<body>
+<body class="m-0 bg-bg text-fg font-sans">
   <nav class="app-nav">
-    <a href="/" class="active">Home</a>
+    <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
     <a href="/inspector/">Inspector</a>
-    <a href="/capture/">Capture</a>
+    <a href="/capture/" class="nav-gated-capture">Capture</a>
+    <a href="/import/" class="nav-gated-write">Import</a>
+    <a href="/admin/" class="nav-gated-admin">Admin</a>
+    <span class="auth-nav" id="authNav"></span>
   </nav>
-  <main>
-    <h1>EggIncognito</h1>
+  <main class="px-8 pt-6 pb-8 max-w-[720px]">
+    <img class="block w-full max-w-[360px] h-auto mb-2" src="/brand/wordmark.png" alt="EggIncognito" />
     <p>Stateless mock server for the Egg, Inc. API. Use the
-       <a class="inline" href="/inspector/">Inspector</a> to build and send requests, or
-       <a class="inline" href="/capture/">Capture</a> to record live traffic into endpoints.</p>
+       <a class="text-accent2" href="/inspector/">Inspector</a> to build and send requests, or
+       <a class="text-accent2" href="/capture/">Capture</a> to record live traffic into endpoints.</p>
   </main>
+  <a class="gh-bubble" href="https://github.com/DavidArthurCole/EggIncognito" target="_blank" rel="noopener"
+     title="View EggIncognito on GitHub" aria-label="View EggIncognito on GitHub">
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+  </a>
+  <script src="/nav.js"></script>
+  <script src="/app-router.js"></script>
 </body>
 </html>

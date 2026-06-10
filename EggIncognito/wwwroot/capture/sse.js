@@ -46,4 +46,7 @@ export function openStream() {
     // EventSource auto-reconnects; nothing to do but stay alive.
     console.warn("capture stream error (will retry)");
   });
+  // Return the source so the caller can close it on teardown (client-router navigation / unload),
+  // otherwise the connection would leak across in-app tab switches.
+  return es;
 }

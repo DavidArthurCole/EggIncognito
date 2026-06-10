@@ -12,8 +12,8 @@ namespace EggIncognito.Capture;
 // it over the wire and as EndpointExtractor expects in content.text (NO content.encoding: the
 // extractor reads content.text as the literal base64-protobuf string; setting encoding="base64"
 // would tell it to base64-DECODE the text first, double-decoding the body). The request `data`
-// value is emitted as a form param so ReadRequestData picks it up. Re-running the produced HAR
-// through `Seeder --from-har` must be a no-op, which is the round-trip guarantee the capture
+// value is emitted as a form param so ReadRequestData picks it up. Re-importing the produced HAR
+// (Import tab -> RunFromHar) must be a no-op, which is the round-trip guarantee the capture
 // path relies on.
 public sealed class HarWriter
 {

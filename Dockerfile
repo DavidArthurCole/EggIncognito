@@ -13,7 +13,9 @@ COPY EggIncognito.Core/ EggIncognito.Core/
 COPY EggIncognito.Capture/ EggIncognito.Capture/
 COPY EggIncognito.RouteGenerator/ EggIncognito.RouteGenerator/
 COPY EggIncognito/ EggIncognito/
-RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish
+# EmitTypes=false skips the dashboard-typedef regeneration target (the committed types.d.ts is
+# authoritative); no need to spawn the just-built app during the image build.
+RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish -p:EmitTypes=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
@@ -24,6 +26,13 @@ VOLUME ["/app/Endpoints"]
 
 ENV ASPNETCORE_URLS=http://+:8080
 ENV EndpointsPath=/app/Endpoints
+# Containers have no browser to auto-open.
+ENV NoBrowser=true
+# The public deploy runs in Hosted mode (capture + endpoint writes disabled - a request must not
+# mutate shared data, and the capture proxy/CA cannot be shared). Set AppMode=Hosted at deploy time
+# (e.g. compose/k8s env) for the public image. The default image stays Local so a self-host run has
+# full features.
+# ENV AppMode=Hosted
 
 EXPOSE 8080
 EXPOSE 8443

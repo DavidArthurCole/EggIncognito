@@ -1,0 +1,34 @@
+using System.Linq;
+using Discord;
+using EggIncognito.Bot;
+
+namespace EggIncognito.Tests;
+
+public class CommandDefinitionsTests
+{
+    [Fact]
+    public void BuildAll_HasExpectedCommands()
+    {
+        var names = CommandDefinitions.BuildAll().Select(c => c.Name.Value).ToList();
+        Assert.Contains("health", names);
+        Assert.Contains("status", names);
+        Assert.Contains("verify", names);
+        Assert.Contains("endpoints", names);
+        Assert.Contains("proto", names);
+    }
+
+    [Fact]
+    public void Commands_AreUserInstallable_AndRunInDms()
+    {
+        foreach (var c in CommandDefinitions.BuildAll())
+        {
+            Assert.True(c.IntegrationTypes.IsSpecified);
+            Assert.Contains(ApplicationIntegrationType.UserInstall, c.IntegrationTypes.Value);
+            Assert.Contains(ApplicationIntegrationType.GuildInstall, c.IntegrationTypes.Value);
+            Assert.True(c.ContextTypes.IsSpecified);
+            Assert.Contains(InteractionContextType.BotDm, c.ContextTypes.Value);
+            Assert.Contains(InteractionContextType.PrivateChannel, c.ContextTypes.Value);
+            Assert.Contains(InteractionContextType.Guild, c.ContextTypes.Value);
+        }
+    }
+}

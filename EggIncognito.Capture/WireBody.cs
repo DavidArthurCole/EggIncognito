@@ -21,16 +21,40 @@ public static class WireBody
         string shape;
         if (respBytes.Length >= 2 && respBytes[0] == 0x1f && respBytes[1] == 0x8b)
         {
-            respBytes = EndpointExtractor.Decompress(respBytes);
+            respBytes = ProtoFraming.Decompress(respBytes);
             shape = "gunzipped+";
         }
         else shape = "";
 
-        // The framed payload is itself base64 TEXT of the AuthenticatedMessage (the API's normal
-        // framing). Use it as-is; only base64-encode if it is somehow raw bytes.
+        // The API's normal framing is base64 TEXT of an AuthenticatedMessage. But a plain-text body
+        // like "SUCCESS" (the log/data endpoints' ack) is ALSO all-base64-alphabet, so the cheap
+        // alphabet check alone false-positives and we would pass "SUCCESS" through as if it were
+        // base64 - downstream then base64-decodes it into garbage. So only treat it as base64 text
+        // when it actually decodes to a parseable AuthenticatedMessage; otherwise it is a raw body
+        // (e.g. a plain-text ack) and we base64-encode the real bytes so they round-trip intact.
         if (LooksLikeBase64Text(respBytes))
-            return (Encoding.ASCII.GetString(respBytes).Trim(), shape + "base64-text");
+        {
+            var text = Encoding.ASCII.GetString(respBytes).Trim();
+            if (DecodesToAuthMessage(text))
+                return (text, shape + "base64-text");
+        }
         return (Convert.ToBase64String(respBytes), shape + "raw");
+    }
+
+    // True if `text` base64-decodes to bytes that parse as an AuthenticatedMessage - i.e. it really
+    // is the API's base64 framing, not a plaintext body that merely uses base64-alphabet letters.
+    private static bool DecodesToAuthMessage(string text)
+    {
+        try
+        {
+            var bytes = ProtoFraming.FromBase64Loose(text);
+            _ = Ei.AuthenticatedMessage.Parser.ParseFrom(bytes);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     // True if the bytes are entirely the base64 alphabet (+ whitespace/padding) - i.e. the body is

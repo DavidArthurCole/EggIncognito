@@ -37,6 +37,7 @@ jobs:
               --self-contained true \
               -p:PublishSingleFile=true \
               -p:NoBrowser=true \
+              -p:EmitTypes=false \
               --output "$OUT"
             # Bundle the endpoint response set next to the executable (the app reads ./Endpoints,
             # overridable with EndpointsPath).

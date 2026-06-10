@@ -27,9 +27,9 @@ needs_capture:
     private static string MakeRepo()
     {
         var root = Path.Combine(Path.GetTempPath(), $"ei-flowproc-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(root, "EggIncognito", "RouteMap"));
+        Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
         File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
-        File.WriteAllText(Path.Combine(root, "EggIncognito", "RouteMap", "routes.yaml"), Yaml);
+        File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), Yaml);
         return root;
     }
 
@@ -90,7 +90,7 @@ needs_capture:
     public void DiffCounts_CountsAddedAndRemovedLines_Multiset()
     {
         var root = MakeRepo();
-        var dir = (string sub) => Path.Combine(root, "EggIncognito", "Endpoints", sub);
+        var dir = (string sub) => Path.Combine(root, "Endpoints", sub);
         var existing = Path.Combine(dir("default"), Slug + ".json");
         var staged = Path.Combine(dir("staged"), Slug + ".json");
         Directory.CreateDirectory(Path.GetDirectoryName(existing)!);

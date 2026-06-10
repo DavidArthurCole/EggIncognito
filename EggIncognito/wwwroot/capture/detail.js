@@ -7,13 +7,14 @@
 import { detail } from "./dom.js";
 import { EID_RE } from "./state.js";
 import { statusClass, outcomeMeta, hasDiffCounts, appendDiffCounts } from "./helpers.js";
-import { buildTreeViewer } from "./tree.js";
+import { buildTreeViewer, makeBlurred } from "./tree.js";
 import {
   pickJson, redactParamValue, renderRedactedPath,
   getShowHeaders, isBlurMode, showRawHeaders, getDefaultFormat,
+  collectSensitiveValues, getCompareToKnown,
 } from "./redaction.js";
 import { postJson } from "./api.js";
-import { icon } from "./icons.js";
+import { icon } from "/icons.js";
 import { JSON_FORMATS, BYTE_FORMATS, FORMAT_LABELS, jsonToText, bytesToText } from "./format.js";
 
 // Remembered format per section label (Request / Response), so switching flows keeps your choice.
@@ -79,10 +80,10 @@ function buildDataSection(label, jsonStr, rawB64, emptyNote = "(no decoded JSON)
     return wrap;
   }
 
-  // Toolbar: format select + filter + copy, all the same height.
-  const tools = document.createElement("div");
-  tools.className = "data-tools";
-
+  // Format selector + Copy button. These live INSIDE the box's control row (see render): for the
+  // tree view they are injected into the tree's own Expand/Collapse/search row; for text views they
+  // sit in a control row at the top of the body alongside the text filter. Keeping every control in
+  // one in-box row means switching formats never shifts a control's position.
   const select = document.createElement("select");
   select.className = "data-format";
   for (const f of formats) {
@@ -97,24 +98,15 @@ function buildDataSection(label, jsonStr, rawB64, emptyNote = "(no decoded JSON)
   if (!formats.includes(current)) current = formats[0];
   select.value = current;
 
-  const filter = document.createElement("input");
-  filter.type = "search";
-  filter.className = "data-filter";
-  filter.placeholder = "Filter...";
-
   const copy = document.createElement("button");
   copy.className = "btn-mini data-copy";
   copy.dataset.label = "Copy";
   copy.append(icon("copy", "icon-sm"), document.createTextNode(" Copy"));
 
-  tools.append(select, filter, copy);
-  head.appendChild(tools);
-
   const body = document.createElement("div");
   body.className = "data-body";
   wrap.appendChild(body);
 
-  // Current text for the active text format (null when the tree view is active).
   const currentText = () => {
     const fmt = select.value;
     if (fmt === "json-tree") return jsonStr; // copy gives pretty JSON for the tree
@@ -128,29 +120,48 @@ function buildDataSection(label, jsonStr, rawB64, emptyNote = "(no decoded JSON)
     formatChoice.set(label, fmt);
     body.replaceChildren();
     if (fmt === "json-tree") {
-      // The tree has its own search; the section filter is redundant there.
-      filter.classList.add("hidden");
-      body.appendChild(buildTreeViewer(parsed));
+      // The tree viewer renders its own control row (Expand all / Collapse all / search). Inject the
+      // format select + Copy at the front of that row so all controls share one in-box toolbar.
+      const viewer = buildTreeViewer(parsed);
+      const treeTools = viewer.querySelector(".jtree-tools");
+      if (treeTools) treeTools.prepend(select, copy);
+      body.appendChild(viewer);
     } else {
-      filter.classList.remove("hidden");
+      // Text views: same boxed layout as the tree - a bordered .data-box holding a control row
+      // (select + filter + copy) above the text, so the controls stay contained, not loose.
+      const boxEl = document.createElement("div");
+      boxEl.className = "data-box";
+
+      const tools = document.createElement("div");
+      tools.className = "data-tools";
+      const filter = document.createElement("input");
+      filter.type = "search";
+      filter.className = "data-filter";
+      filter.placeholder = "Filter...";
+      tools.append(select, filter, copy);
+      boxEl.appendChild(tools);
+
+      // In blur mode, blur every occurrence of a sensitive value in the serialized text (the same
+      // values the tree blurs). Byte views (hex/bin) have no field structure, so nothing to blur.
+      const isByte = BYTE_FORMATS.includes(select.value);
+      const sensitive = (isBlurMode() && parseOk && !isByte)
+        ? collectSensitiveValues(parsed) : null;
+
       const pre = document.createElement("pre");
       pre.className = "data-text";
-      applyTextFilter(pre, currentText(), filter.value);
-      body.appendChild(pre);
+      renderText(pre, currentText(), filter.value, sensitive);
+      boxEl.appendChild(pre);
+      body.appendChild(boxEl);
+
+      let deb = null;
+      filter.addEventListener("input", () => {
+        if (deb) clearTimeout(deb);
+        deb = setTimeout(() => renderText(pre, currentText(), filter.value, sensitive), 120);
+      });
     }
   };
 
   select.addEventListener("change", render);
-  let deb = null;
-  filter.addEventListener("input", () => {
-    if (deb) clearTimeout(deb);
-    deb = setTimeout(() => {
-      if (select.value === "json-tree") return;
-      const pre = body.querySelector(".data-text");
-      if (pre) applyTextFilter(pre, currentText(), filter.value);
-    }, 120);
-  });
-
   render();
   return wrap;
 }
@@ -162,12 +173,74 @@ function note(text) {
   return n;
 }
 
-// Filter a text view to lines containing `needle` (case-insensitive); empty needle shows all.
-function applyTextFilter(pre, text, needle) {
+// Response section for a fire-and-forget endpoint with no captured body.
+function buildAckSection() {
+  const wrap = document.createElement("div");
+  const head = document.createElement("div");
+  head.className = "section-head";
+  const title = document.createElement("h3");
+  title.textContent = "Response";
+  head.appendChild(title);
+  wrap.appendChild(head);
+  wrap.appendChild(note("Acknowledgement - this endpoint returns a short non-protobuf ack."));
+  return wrap;
+}
+
+// Response section for a plain-text body: show the literal text the API returned (e.g. "SUCCESS").
+function buildTextResponseSection(text, isAck) {
+  const wrap = document.createElement("div");
+  const head = document.createElement("div");
+  head.className = "section-head";
+  const title = document.createElement("h3");
+  title.textContent = "Response";
+  head.appendChild(title);
+  if (isAck) {
+    const tag = document.createElement("span");
+    tag.className = "ack-tag";
+    tag.textContent = "acknowledgement";
+    head.appendChild(tag);
+  }
+  wrap.appendChild(head);
+  const pre = document.createElement("pre");
+  pre.className = "data-text";
+  pre.textContent = text;
+  wrap.appendChild(pre);
+  return wrap;
+}
+
+// Render a text view: filter to lines containing `needle` (case-insensitive; empty shows all), and
+// when `sensitive` is provided (blur mode) wrap every occurrence of a sensitive value in a blur
+// span so XML/JSON/YAML/JS views honor blur the same way the tree does.
+function renderText(pre, text, needle, sensitive) {
   const q = needle.trim().toLowerCase();
-  if (!q) { pre.textContent = text; return; }
-  const kept = text.split("\n").filter((l) => l.toLowerCase().includes(q));
-  pre.textContent = kept.length ? kept.join("\n") : "(no lines match)";
+  let shown = text;
+  if (q) {
+    const kept = text.split("\n").filter((l) => l.toLowerCase().includes(q));
+    shown = kept.length ? kept.join("\n") : "(no lines match)";
+  }
+
+  if (!sensitive || sensitive.size === 0) { pre.textContent = shown; return; }
+
+  pre.replaceChildren();
+  // Longest values first so a longer match is not pre-empted by a shorter substring of it.
+  const needles = [...sensitive].filter(Boolean).sort((a, b) => b.length - a.length);
+  let i = 0;
+  while (i < shown.length) {
+    let matched = null;
+    for (const n of needles) {
+      if (shown.startsWith(n, i)) { matched = n; break; }
+    }
+    if (matched) {
+      pre.appendChild(makeBlurred(Object.assign(document.createElement("span"), { textContent: matched })));
+      i += matched.length;
+    } else {
+      // Accumulate a run of plain text up to the next match start.
+      let j = i + 1;
+      while (j < shown.length && !needles.some((n) => shown.startsWith(n, j))) j++;
+      pre.appendChild(document.createTextNode(shown.slice(i, j)));
+      i = j;
+    }
+  }
 }
 
 // Split a flow URL into { path, query, pathParams }. `path` is everything after the host; `query`
@@ -304,13 +377,14 @@ function buildKnownCard(flow) {
   addRow("Request type", flow.requestType || "none", !flow.requestType);
   addRow("Response type", flow.responseType || "none", !flow.responseType);
 
-  const meta = outcomeMeta(flow.outcome);
+  // The endpoint-comparison outcome (wrote/upd/same/diff/loss) only when the user opted in.
+  const meta = getCompareToKnown() ? outcomeMeta(flow.outcome) : null;
   if (meta) {
     const line = document.createElement("div");
     line.className = "known-card-line";
     const l = document.createElement("span");
     l.className = "known-card-label";
-    l.textContent = "Endpoint";
+    l.textContent = "Comparison";
     const v = document.createElement("span");
     v.className = "known-card-val outcome-text outcome-" + meta.kind;
     if (hasDiffCounts(flow.outcome, flow.diffAdded, flow.diffRemoved)) {
@@ -323,22 +397,32 @@ function buildKnownCard(flow) {
     }
     line.append(l, v);
     card.appendChild(line);
+
+    // Explain what the outcome means, since the bare word is opaque.
+    const explain = document.createElement("div");
+    explain.className = "known-card-explain muted";
+    explain.textContent = meta.desc;
+    card.appendChild(explain);
   }
 
   return card;
 }
 
-// Pick which header list to show (raw only in Off mode) and serialize it to a copyable string.
+// Pick which header list to show, mirroring the body model:
+//   Off    - raw values, shown plainly
+//   Blur   - raw values, sensitive ones blurred + revealable on click (so the real value IS there)
+//   Redact - the tokenized copy (sensitive values are the literal "redacted")
 function headersForDisplay(redacted, raw) {
-  return showRawHeaders() ? (raw ?? redacted ?? []) : (redacted ?? []);
+  if (isBlurMode() || showRawHeaders()) return raw ?? redacted ?? [];
+  return redacted ?? [];
 }
 
 function headersToText(headers) {
   return headers.map((h) => `${h.name}: ${h.value}`).join("\n");
 }
 
-// A headers section: a small table of name/value rows + a "Copy headers" button. Sensitive values
-// blur in blur mode (the server already redacted them in the redacted copy). Returns null when
+// A headers section: a small table of name/value rows + a "Copy headers" button. In blur mode the
+// real sensitive value is shown blurred + click-to-reveal (matching body blur). Returns null when
 // there are no headers for this side.
 function buildHeadersSection(label, redacted, raw) {
   const headers = headersForDisplay(redacted, raw);
@@ -394,83 +478,136 @@ export function renderDetail(flow) {
   }
   detail.className = "";
 
+  // Header: path + status. The method is always POST for this API, so it is not shown.
   const head = document.createElement("div");
   head.className = "detail-head";
-  const m = document.createElement("span");
-  m.textContent = flow.method + " ";
   const p = document.createElement("span");
   p.className = "dpath";
   p.textContent = flow.path;
   const s = document.createElement("span");
   s.className = "dstatus status-badge " + statusClass(flow.status);
   s.textContent = String(flow.status);
-  head.append(m, p, s);
+  head.append(p, s);
   detail.appendChild(head);
 
-  // For known flows the types live in the info card below, so we skip the header type lines to
-  // avoid duplicating the same info twice.
-  if (!flow.known) {
+  // Endpoint summary up top (right after the URL/status): the known-endpoint card for flows we
+  // understand, or the save-as-endpoint bar + type lines for ones we do not.
+  if (flow.known) {
+    detail.appendChild(buildKnownCard(flow));
+  } else {
     const typeInfo = document.createElement("div");
     typeInfo.className = "detail-types";
-
-    const reqLine = document.createElement("div");
-    reqLine.className = "detail-type-line";
-    const reqLabel = document.createElement("span");
-    reqLabel.className = "detail-type-label";
-    reqLabel.textContent = "Request type: ";
-    const reqVal = document.createElement("span");
-    reqVal.className = "detail-type-val" + (flow.requestType ? "" : " unknown");
-    reqVal.textContent = flow.requestType || "unknown";
-    reqLine.append(reqLabel, reqVal);
-
-    const respLine = document.createElement("div");
-    respLine.className = "detail-type-line";
-    const respLabel = document.createElement("span");
-    respLabel.className = "detail-type-label";
-    respLabel.textContent = "Response type: ";
-    const respVal = document.createElement("span");
-    respVal.className = "detail-type-val" + (flow.responseType ? "" : " unknown");
-    respVal.textContent = flow.responseType || "unknown";
-    respLine.append(respLabel, respVal);
-
-    typeInfo.append(reqLine, respLine);
+    typeInfo.append(
+      typeLine("Request type", flow.requestType),
+      typeLine("Response type", flow.responseType),
+    );
     detail.appendChild(typeInfo);
-  }
 
-  const paramsSection = buildParamsSection(flow);
-  if (paramsSection) detail.appendChild(paramsSection);
-
-  // A null requestDataB64 means the endpoint posts no request proto at all (body-less endpoint),
-  // which is expected - distinguish that from a decode failure on a body that WAS sent.
-  const reqEmptyNote = flow.requestDataB64 ? "(no decoded JSON)" : "(no request body)";
-  detail.appendChild(buildDataSection("Request", pickJson(flow.requestJson, flow.requestJsonRaw), flow.requestDataB64, reqEmptyNote));
-  detail.appendChild(buildDataSection("Response", pickJson(flow.responseJson, flow.responseJsonRaw), flow.responseB64));
-
-  // Headers, behind the default-off "Show headers" option. Guarded so a header-rendering glitch
-  // can never abort renderDetail before the save bar below is appended.
-  if (getShowHeaders()) {
-    try {
-      const reqH = buildHeadersSection("Request headers", flow.requestHeaders, flow.requestHeadersRaw);
-      if (reqH) detail.appendChild(reqH);
-      const respH = buildHeadersSection("Response headers", flow.responseHeaders, flow.responseHeadersRaw);
-      if (respH) detail.appendChild(respH);
-    } catch (e) {
-      console.warn("header section render failed", e);
+    const bar = document.createElement("div");
+    bar.className = "save-bar";
+    if (flow.saved) {
+      // Already saved this session - don't re-prompt; offer a re-save instead.
+      const note = document.createElement("span");
+      note.className = "save-result ok";
+      note.textContent = "Saved as endpoint";
+      const resave = document.createElement("button");
+      resave.className = "btn-mini";
+      resave.textContent = "Save again";
+      const result = document.createElement("span");
+      result.className = "save-result";
+      resave.addEventListener("click", () => saveEndpoint(flow.id, result));
+      bar.append(note, resave, result);
+    } else {
+      const saveBtn = document.createElement("button");
+      saveBtn.id = "saveBtn";
+      saveBtn.textContent = "Save as endpoint";
+      const result = document.createElement("span");
+      result.className = "save-result";
+      saveBtn.addEventListener("click", () => saveEndpoint(flow.id, result));
+      bar.append(saveBtn, result);
     }
+    detail.appendChild(bar);
   }
+
+  // Request and Response each get their own tab: the body (+ URL params for the request) and, when
+  // "Show headers" is on, that side's headers right below the body.
+  const reqPane = document.createElement("div");
+  const paramsSection = buildParamsSection(flow);
+  if (paramsSection) reqPane.appendChild(paramsSection);
+  const reqEmptyNote = flow.requestDataB64 ? "(no decoded JSON)" : "(no request body)";
+  reqPane.appendChild(buildDataSection("Request", pickJson(flow.requestJson, flow.requestJsonRaw), flow.requestDataB64, reqEmptyNote));
+  appendHeaders(reqPane, "Request headers", flow.requestHeaders, flow.requestHeadersRaw);
+
+  const respPane = document.createElement("div");
+  if (flow.responseText != null) {
+    respPane.appendChild(buildTextResponseSection(flow.responseText, flow.responseIsAck));
+  } else if (flow.responseIsAck) {
+    respPane.appendChild(buildAckSection());
+  } else {
+    respPane.appendChild(buildDataSection("Response", pickJson(flow.responseJson, flow.responseJsonRaw), flow.responseB64));
+  }
+  appendHeaders(respPane, "Response headers", flow.responseHeaders, flow.responseHeadersRaw);
+
+  detail.appendChild(buildTabs([
+    { label: "Request", pane: reqPane },
+    { label: "Response", pane: respPane },
+  ]));
+}
+
+// A two-tab switcher (Request / Response). Remembers the last-picked tab across flow selections.
+let lastDetailTab = 0;
+function buildTabs(tabs) {
+  const wrap = document.createElement("div");
+  wrap.className = "detail-tabs";
 
   const bar = document.createElement("div");
-  bar.className = "save-bar";
-  if (flow.known) {
-    bar.appendChild(buildKnownCard(flow));
-  } else {
-    const saveBtn = document.createElement("button");
-    saveBtn.id = "saveBtn";
-    saveBtn.textContent = "Save as endpoint";
-    const result = document.createElement("span");
-    result.className = "save-result";
-    saveBtn.addEventListener("click", () => saveEndpoint(flow.id, result));
-    bar.append(saveBtn, result);
+  bar.className = "tab-bar";
+  const body = document.createElement("div");
+  body.className = "tab-body";
+
+  const btns = [];
+  const select = (i) => {
+    lastDetailTab = i;
+    btns.forEach((b, j) => b.classList.toggle("active", j === i));
+    body.replaceChildren(tabs[i].pane);
+  };
+  tabs.forEach((t, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tab-btn";
+    b.textContent = t.label;
+    b.addEventListener("click", () => select(i));
+    btns.push(b);
+    bar.appendChild(b);
+  });
+
+  wrap.append(bar, body);
+  select(Math.min(lastDetailTab, tabs.length - 1));
+  return wrap;
+}
+
+// Append a side's headers below its body, only when "Show headers" is enabled. Guarded so a header
+// glitch never aborts the render.
+function appendHeaders(pane, label, redacted, raw) {
+  if (!getShowHeaders()) return;
+  try {
+    const sec = buildHeadersSection(label, redacted, raw);
+    if (sec) pane.appendChild(sec);
+  } catch (e) {
+    console.warn("header section render failed", e);
   }
-  detail.appendChild(bar);
+}
+
+// One "Request type: X" / "Response type: X" line for the unknown-flow summary.
+function typeLine(label, value) {
+  const line = document.createElement("div");
+  line.className = "detail-type-line";
+  const l = document.createElement("span");
+  l.className = "detail-type-label";
+  l.textContent = label + ": ";
+  const v = document.createElement("span");
+  v.className = "detail-type-val" + (value ? "" : " unknown");
+  v.textContent = value || "unknown";
+  line.append(l, v);
+  return line;
 }

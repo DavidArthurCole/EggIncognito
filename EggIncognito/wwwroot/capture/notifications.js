@@ -5,7 +5,7 @@
 import {
   notifBtn, notifIcon, notifBadge, notifList, notifEmpty, notifClearAll,
 } from "./dom.js";
-import { icon, setIcon } from "./icons.js";
+import { icon, setIcon } from "/icons.js";
 
 let nextId = 1;
 let unread = 0;

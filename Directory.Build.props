@@ -1,0 +1,13 @@
+<Project>
+  <!-- Stamp the git commit SHA into every assembly's InformationalVersion (<version>+<sha>) so
+       BuildInfo can get at it (Discord /verify, future UI footer) -->
+  <Target Name="SetSourceRevisionId" BeforeTargets="GetAssemblyVersion" Condition="'$(SourceRevisionId)' == ''">
+    <Exec Command="git rev-parse HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitSha" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitExit" />
+    </Exec>
+    <PropertyGroup Condition="'$(_GitExit)' == '0'">
+      <SourceRevisionId>$(_GitSha)</SourceRevisionId>
+    </PropertyGroup>
+  </Target>
+</Project>

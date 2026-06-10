@@ -1,0 +1,99 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using EggIncognito.Data.Models;
+using EggIncognito.Data.Services;
+using EggIncognito.Services;
+using Microsoft.EntityFrameworkCore;
+
+namespace EggIncognito.Controllers;
+
+// Write + read API for DB-stored endpoints and routes. Writes require an authenticated contributor+
+// (the shared-store ACL); this is a SEPARATE authority from IAppMode.CanWrite, which still gates the
+// local file ops on ImportController. Reads are public. When no DB is configured, DB-touching actions
+// return 503. The role gate runs BEFORE the DB resolve, so a viewer 403s regardless of DB state.
+[ApiController]
+[Route("api/db")]
+[EnableRateLimiting("write")]
+public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
+{
+    private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
+
+    private IActionResult? RequireContributor() =>
+        currentUser.IsAtLeast(UserRole.Contributor)
+            ? null
+            : StatusCode(403, new { error = "contributor role required to write to the shared store" });
+
+    public sealed record UpsertEndpoint(string Path, string? Eid, string ResponseJson, string ResponseType);
+    public sealed record AddRoute(string Path, string? RequestType, string? ResponseType,
+        bool RequestWrapped, bool ResponseWrapped, string? RawResponse, bool PathParam, bool PathParamOnly);
+
+    [HttpPost("endpoint")]
+    public async Task<IActionResult> UpsertEndpointAsync([FromBody] UpsertEndpoint body,
+        [FromServices] IRouteCatalog routes)
+    {
+        if (RequireContributor() is { } no) return no;
+        var db = Db;
+        if (db is null) return StatusCode(503, new { error = "no database configured" });
+        if (routes.Get(body.Path) is null) return BadRequest(new { error = $"unknown route {body.Path}" });
+
+        var existing = await db.StoredEndpoints
+            .FirstOrDefaultAsync(e => e.Path == body.Path && e.Eid == body.Eid);
+        if (existing is null)
+        {
+            db.StoredEndpoints.Add(new StoredEndpoint
+            {
+                Path = body.Path, Eid = body.Eid,
+                ResponseJson = body.ResponseJson, ResponseType = body.ResponseType,
+                OwnerUserId = currentUser.DiscordId,
+            });
+        }
+        else
+        {
+            existing.ResponseJson = body.ResponseJson;
+            existing.ResponseType = body.ResponseType;
+            // The updated_at column default only applies on insert; bump it explicitly on update.
+            existing.UpdatedAt = System.DateTimeOffset.UtcNow;
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { saved = body.Path, eid = body.Eid });
+    }
+
+    [HttpPost("route")]
+    public async Task<IActionResult> AddRouteAsync([FromBody] AddRoute body, [FromServices] IRouteCatalog routes)
+    {
+        if (RequireContributor() is { } no) return no;
+        var db = Db;
+        if (db is null) return StatusCode(503, new { error = "no database configured" });
+        if (routes.Get(body.Path) is not null) return Conflict(new { error = $"route {body.Path} already exists" });
+
+        db.StoredRoutes.Add(new StoredRoute
+        {
+            Path = body.Path, RequestType = body.RequestType, ResponseType = body.ResponseType,
+            RequestWrapped = body.RequestWrapped, ResponseWrapped = body.ResponseWrapped,
+            RawResponse = body.RawResponse, PathParam = body.PathParam, PathParamOnly = body.PathParamOnly,
+            Source = "db", OwnerUserId = currentUser.DiscordId,
+        });
+        await db.SaveChangesAsync();
+        return Ok(new { added = body.Path });
+    }
+
+    [HttpGet("endpoints")]
+    public async Task<IActionResult> ListEndpointsAsync()
+    {
+        var db = Db;
+        if (db is null) return Ok(System.Array.Empty<object>());
+        var rows = await db.StoredEndpoints.AsNoTracking()
+            .Select(e => new { e.Id, e.Path, e.Eid, e.ResponseType, e.UpdatedAt }).ToListAsync();
+        return Ok(rows);
+    }
+
+    [HttpGet("routes")]
+    public async Task<IActionResult> ListRoutesAsync()
+    {
+        var db = Db;
+        if (db is null) return Ok(System.Array.Empty<object>());
+        var rows = await db.StoredRoutes.AsNoTracking().Where(r => r.Source == "db")
+            .Select(r => new { r.Id, r.Path, r.RequestType, r.ResponseType }).ToListAsync();
+        return Ok(rows);
+    }
+}

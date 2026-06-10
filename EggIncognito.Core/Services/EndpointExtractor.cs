@@ -1,12 +1,11 @@
 // the endpoint-extraction pipeline. Lives in Core so it can be driven two ways with identical
 // behavior:
-//   - from a HAR file (the `from-har` CLI subcommand), via RunFromHar / ProcessHarEntry
+//   - from a HAR file (the Import tab -> /api/import/har), via RunFromHar / ProcessHarEntry
 //   - in-process per captured flow (the capture proxy, via CaptureSession), via ProcessFlow
 //
 // One flow = (url, method, status, requestData, responseBody). Both paths funnel into
 // ProcessFlow so the file and live routes can never diverge.
 
-using System.IO.Compression;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -30,8 +29,8 @@ public sealed class EndpointExtractor
 
     // When true, suppress the per-flow console chatter (capture/diff/loss/req lines). The in-app
     // capture path (CaptureSession) sets this: it derives the per-flow outcome from the Counts delta
-    // and shows it on the dashboard, so the console output is redundant there. The `from-har`
-    // subcommand leaves it false to keep its operator-facing console log. End-of-run summaries
+    // and shows it on the dashboard, so the console output is redundant there. The HAR import path
+    // leaves it false to keep its server-side console log. End-of-run summaries
     // (PrintSelfRepairReport) are not gated.
     public bool Quiet { get; set; }
 
@@ -48,17 +47,19 @@ public sealed class EndpointExtractor
 
     // Convenience constructor for a repo-rooted run: loads the type maps + yaml editor and
     // ensures the default output dir exists.
-    public static EndpointExtractor ForRepo(string repoRoot, string? eid, string eidPlaceholder, bool overwrite)
+    // contentRoot = the directory that directly holds RouteMap/routes.yaml + Endpoints/ (see
+    // ContentRoot.Resolve). Hosted or local, no "EggIncognito" subdir assumption.
+    public static EndpointExtractor ForRepo(string contentRoot, string? eid, string eidPlaceholder, bool overwrite)
     {
-        var endpointsRoot = Path.Combine(repoRoot, "EggIncognito", "Endpoints");
+        var endpointsRoot = Path.Combine(contentRoot, "Endpoints");
         var outDir = Path.Combine(endpointsRoot, "default");
         var stagedDir = Path.Combine(endpointsRoot, "staged");
         var requestsDir = Path.Combine(endpointsRoot, "requests");
         Directory.CreateDirectory(outDir);
 
         var dirs = new HarDirs(outDir, stagedDir, requestsDir,
-            LoadEndpointTypes(repoRoot), LoadRequestTypes(repoRoot), LoadRequestWrapped(repoRoot),
-            new RoutesYamlEditor(repoRoot));
+            LoadEndpointTypes(contentRoot), LoadRequestTypes(contentRoot), LoadRequestWrapped(contentRoot),
+            new RoutesYamlEditor(contentRoot));
         return new EndpointExtractor(dirs, eid, eidPlaceholder, overwrite);
     }
 
@@ -103,12 +104,12 @@ public sealed class EndpointExtractor
         var path = NormalizePath(url);
 
         DecodedEntry? decoded;
-        try { decoded = TryDecode(path, requestDataB64, responseBodyB64); }
+        try { decoded = TryDecode(path, requestDataB64, responseBodyB64, isExplicit: true); }
         catch (Exception ex) { Err($"  ERR   {path}: {ex.Message}"); Counts.Err++; return null; }
         if (decoded is null) return null;
-        if (SeederConfig.AlwaysSkip.Contains(decoded.Path)) return null;
+        if (ExtractorConfig.AlwaysSkip.Contains(decoded.Path)) return null;
 
-        WriteDecoded(decoded, forceOverwrite: true);
+        WriteDecoded(decoded, forceOverwrite: true, isExplicit: true);
         return decoded.Path;
     }
 
@@ -152,16 +153,16 @@ public sealed class EndpointExtractor
     public void Save() => _dirs.Yaml.Save();
 
     // Decode a single flow into a DecodedEntry (redacted), or null if it cannot be parsed.
-    private DecodedEntry? TryDecode(string path, string? requestDataB64, string responseBodyB64)
+    private DecodedEntry? TryDecode(string path, string? requestDataB64, string responseBodyB64, bool isExplicit = false)
     {
         byte[] respBytes;
         try { respBytes = ProtoFraming.FromBase64Loose(responseBodyB64); }
         catch (FormatException) { return null; }
 
         var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(respBytes);
-        var inner = outer.Compressed ? Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
+        var inner = outer.Compressed ? ProtoFraming.Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
 
-        var request = ExtractRequestJson(requestDataB64, path);
+        var request = ExtractRequestJson(requestDataB64, path, isExplicit);
 
         string Scrub(string s) => _eid is not null ? s.Replace(_eid, _eidPlaceholder) : s;
 
@@ -179,13 +180,13 @@ public sealed class EndpointExtractor
 
     // Write a decoded entry to disk (or stage a diff), tracking the per-outcome counts.
     // forceOverwrite: explicit user save - skip the fewer-objects loss guard and always overwrite.
-    private void WriteDecoded(DecodedEntry decoded, bool forceOverwrite = false)
+    private void WriteDecoded(DecodedEntry decoded, bool forceOverwrite = false, bool isExplicit = false)
     {
         var (path, json, request, autoResponseType, respBest, respSecond) = decoded;
         var slug = path;
-        if (SeederConfig.AlwaysSkip.Contains(slug)) return;
+        if (ExtractorConfig.AlwaysSkip.Contains(slug)) return;
 
-        SelfRepair(path, request, autoResponseType, respBest, respSecond);
+        SelfRepair(path, request, autoResponseType, respBest, respSecond, isExplicit);
 
         var outFile = Path.Combine(_dirs.OutDir, EndpointFile(slug));
         if (!forceOverwrite && File.Exists(outFile))
@@ -231,7 +232,7 @@ public sealed class EndpointExtractor
     // Apply learned types to routes.yaml under the locked rules: fill only empty/placeholder
     // slots, mark wrapping, prune resolved needs_capture entries, collect report lines.
     private void SelfRepair(string capturedPath, RequestDecode request, string? autoResponseType,
-        int respBest, int respSecond)
+        int respBest, int respSecond, bool isExplicit = false)
     {
         var yaml = _dirs.Yaml;
         // A path-param value (e.g. get_contract_evaluation/pumpkin-pie) resolves to its parent
@@ -263,8 +264,9 @@ public sealed class EndpointExtractor
         // type backfills an unresolved response slot if it passes the same gate.
         if (autoResponseType is not null)
         {
-            var verdict = SeederConfig.ClassifyAutoWrite(respBest, respSecond);
-            if (verdict == AutoWriteVerdict.Write)
+            var verdict = ExtractorConfig.ClassifyAutoWrite(respBest, respSecond);
+            // Explicit save confirms an otherwise-ambiguous (Flagged) response type too.
+            if (verdict == AutoWriteVerdict.Write || isExplicit)
             {
                 if (!yaml.HasPath(path))
                 {
@@ -294,7 +296,9 @@ public sealed class EndpointExtractor
     }
 
     // Decode the request `data` value into redacted JSON for the endpoint's stored request.
-    private RequestDecode ExtractRequestJson(string? dataValue, string path)
+    // `explicit` = a user-initiated save (vs unattended capture): an ambiguous (Flagged) auto-detect
+    // is then treated as confirmed and its type IS registered, since the user explicitly chose it.
+    private RequestDecode ExtractRequestJson(string? dataValue, string path, bool isExplicit = false)
     {
         try
         {
@@ -308,7 +312,7 @@ public sealed class EndpointExtractor
             // Known type: decode under the recorded framing (wrapped or raw).
             if (_dirs.RequestTypeMap.TryGetValue(path, out var typeName))
             {
-                var toParse = _dirs.RequestWrapped.Contains(path) ? Unwrap(reqBytes) : reqBytes;
+                var toParse = _dirs.RequestWrapped.Contains(path) ? ProtoFraming.Unwrap(reqBytes) : reqBytes;
                 var msg = ParseByTypeName(typeName, toParse);
                 if (msg is null)
                 {
@@ -316,27 +320,29 @@ public sealed class EndpointExtractor
                         Err($"  req   {path}: no parser for requestType '{typeName}'");
                     return new(null, null, false, null);
                 }
-                return new(PrettyPrint(JsonFormatter.Default.Format(msg)), null, _dirs.RequestWrapped.Contains(path), null);
+                return new(ProtoJson.PrettyPrint(JsonFormatter.Default.Format(msg)), null, _dirs.RequestWrapped.Contains(path), null);
             }
 
             // Unknown type: AUTO-DISCOVER both the inner type and the framing. Try raw and (if it
             // looks like an AuthenticatedMessage) unwrapped; keep whichever framing's best
             // candidate round-trips exactly. The framing is part of the answer, not an input.
             var raw = AutoDetect(reqBytes);
-            var unwrappedBytes = TryUnwrap(reqBytes);
+            var unwrappedBytes = ProtoFraming.TryUnwrap(reqBytes);
             var unw = unwrappedBytes is null ? default : AutoDetect(unwrappedBytes);
 
             bool useUnwrapped = unwrappedBytes is not null && unw.bestScore > raw.bestScore;
             var chosen = useUnwrapped ? unw : raw;
             if (chosen.typeName is null || chosen.json is null) return new(null, null, false, null);
 
-            var verdict = SeederConfig.ClassifyAutoWrite(chosen.bestScore, chosen.secondBestScore);
+            var verdict = ExtractorConfig.ClassifyAutoWrite(chosen.bestScore, chosen.secondBestScore);
             Out($"  reqauto {path}  request -> {chosen.typeName} ({(useUnwrapped ? "wrapped" : "raw")}, {verdict}, conf {chosen.confidence}%)");
 
-            if (verdict == AutoWriteVerdict.Write)
+            // Register the type when the auto-verdict is Write, OR when the user explicitly saved
+            // (their click confirms the otherwise-ambiguous best guess).
+            if (verdict == AutoWriteVerdict.Write || (isExplicit && chosen.typeName is not null))
                 return new(chosen.json, chosen.typeName, useUnwrapped, null);
 
-            // Flagged (ambiguous) or rejected: still dump the JSON, but do not auto-write.
+            // Flagged (ambiguous) or rejected during unattended capture: dump the JSON, do not write.
             var note = verdict == AutoWriteVerdict.Flag
                 ? $"{path} request: {chosen.typeName} vs runner-up tied on fields - verify with --decode"
                 : null;
@@ -374,7 +380,7 @@ public sealed class EndpointExtractor
             foreach (var f in Counts.Flagged) Console.WriteLine($"    {f}");
         }
         if (Counts.WroteYaml)
-            Console.WriteLine("  note: routes.yaml updated -> run scripts/Check-Endpoints.ps1 -Update to refresh endpoint_status");
+            Console.WriteLine("  note: routes.yaml updated -> POST /api/import/endpoint-status/update to refresh endpoint_status");
     }
 
     // Static pure helpers.
@@ -412,14 +418,11 @@ public sealed class EndpointExtractor
             return "wrote";
         }
         var existing = File.ReadAllText(path, Encoding.UTF8);
-        if (NormalizeFloats(existing.Trim()) == NormalizeFloats(json.Trim())) return "same";
+        if (ProtoJson.NormalizeFloats(existing.Trim()) == ProtoJson.NormalizeFloats(json.Trim())) return "same";
         if (!overwrite) return "diff";
         File.WriteAllText(path, json, Encoding.UTF8);
         return "upd";
     }
-
-    private static string NormalizeFloats(string json) =>
-        Regex.Replace(json, @"(?<=[:\[,\s])(-?\d+)\.0(?=[,\}\]\s\r\n])", "$1");
 
     public static string NormalizePath(string url)
     {
@@ -434,7 +437,7 @@ public sealed class EndpointExtractor
         {
             var msg = ParseByTypeName(typeName, inner);
             if (msg is null) return null;
-            return Redactor.Redact(PrettyPrint(JsonFormatter.Default.Format(msg)));
+            return Redactor.Redact(ProtoJson.PrettyPrint(JsonFormatter.Default.Format(msg)));
         }
         catch
         {
@@ -444,23 +447,29 @@ public sealed class EndpointExtractor
 
     public static IMessage? ParseByTypeName(string typeName, byte[] data)
     {
-        var type = SeederConfig.EiAssembly.GetType($"Ei.{typeName}");
+        var type = ExtractorConfig.EiAssembly.GetType($"Ei.{typeName}");
         var parser = type?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
                           ?.GetValue(null) as MessageParser;
         return parser?.ParseFrom(data);
     }
 
-    public static IReadOnlyDictionary<string, string> LoadEndpointTypes(string repoRoot) =>
-        LoadInnerTypes(repoRoot, newKey: "response", legacyKey: "responseType");
+    public static IReadOnlyDictionary<string, string> LoadEndpointTypes(string contentRoot) =>
+        LoadInnerTypes(contentRoot, newKey: "response", legacyKey: "responseType");
 
-    public static IReadOnlyDictionary<string, string> LoadRequestTypes(string repoRoot) =>
-        LoadInnerTypes(repoRoot, newKey: "request", legacyKey: "requestType");
+    public static IReadOnlyDictionary<string, string> LoadRequestTypes(string contentRoot) =>
+        LoadInnerTypes(contentRoot, newKey: "request", legacyKey: "requestType");
+
+    // Paths whose response is NOT a protobuf message: the real API returns a short non-proto ack
+    // (the mock serves a literal string). Maps path -> the mock's literal (e.g. "SUCCESS"). The
+    // dashboard uses this to label such responses as acknowledgements instead of "unknown" + hex.
+    public static IReadOnlyDictionary<string, string> LoadRawResponses(string contentRoot) =>
+        LoadInnerTypes(contentRoot, newKey: "rawResponse", legacyKey: "rawResponse");
 
     // Paths whose request is wrapped+signed in an AuthenticatedMessage on the wire:
     // explicit `requestWrapped: true`, or the legacy `requestType: AuthenticatedMessage`.
-    public static HashSet<string> LoadRequestWrapped(string repoRoot)
+    public static HashSet<string> LoadRequestWrapped(string contentRoot)
     {
-        var yaml = File.ReadAllText(Path.Combine(repoRoot, "EggIncognito", "RouteMap", "routes.yaml"));
+        var yaml = File.ReadAllText(Path.Combine(contentRoot, "RouteMap", "routes.yaml"));
         var result = new HashSet<string>(StringComparer.Ordinal);
         string? currentPath = null;
         bool wrapped = false;
@@ -489,9 +498,9 @@ public sealed class EndpointExtractor
     // and falling back to the legacy `requestType`/`responseType`. The literal
     // "AuthenticatedMessage" in a legacy field means "wrapped, inner type unknown" - it is
     // skipped (no concrete type to decode with), matching the parser normalization elsewhere.
-    private static IReadOnlyDictionary<string, string> LoadInnerTypes(string repoRoot, string newKey, string legacyKey)
+    private static IReadOnlyDictionary<string, string> LoadInnerTypes(string contentRoot, string newKey, string legacyKey)
     {
-        var yaml = File.ReadAllText(Path.Combine(repoRoot, "EggIncognito", "RouteMap", "routes.yaml"));
+        var yaml = File.ReadAllText(Path.Combine(contentRoot, "RouteMap", "routes.yaml"));
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         string? currentPath = null;
         string? newVal = null, legacyVal = null;
@@ -524,78 +533,6 @@ public sealed class EndpointExtractor
         return result;
     }
 
-    // Unwrap an AuthenticatedMessage payload (decompressing if needed). Throws if not wrapped.
-    public static byte[] Unwrap(byte[] bytes)
-    {
-        var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(bytes);
-        return outer.Compressed ? Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
-    }
-
-    // Best-effort unwrap: returns null if the bytes are not an AuthenticatedMessage with a payload.
-    public static byte[]? TryUnwrap(byte[] bytes)
-    {
-        try
-        {
-            var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(bytes);
-            if (outer.Message.Length == 0) return null;
-            return outer.Compressed ? Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
-        }
-        catch (InvalidProtocolBufferException) { return null; }
-    }
-
-    public static string PrettyPrint(string json)
-    {
-        var sb = new StringBuilder(json.Length * 2);
-        int depth = 0, i = 0;
-        bool inString = false, escape = false;
-        while (i < json.Length)
-        {
-            char c = json[i++];
-            if (escape) { sb.Append(c); escape = false; continue; }
-            if (inString) { AppendInString(sb, c, ref inString, ref escape); continue; }
-            AppendStructural(sb, json, c, ref i, ref depth, ref inString);
-        }
-        return sb.ToString();
-    }
-
-    private static void AppendInString(StringBuilder sb, char c, ref bool inString, ref bool escape)
-    {
-        sb.Append(c);
-        if (c == '\\') escape = true;
-        else if (c == '"') inString = false;
-    }
-
-    private static void AppendStructural(StringBuilder sb, string json, char c, ref int i, ref int depth, ref bool inString)
-    {
-        switch (c)
-        {
-            case ' ': case '\t': case '\r': case '\n': break;
-            case '"': inString = true; sb.Append(c); break;
-            case '{': case '[': AppendOpen(sb, json, c, ref i, ref depth); break;
-            case '}': case ']': sb.AppendLine(); sb.Append(' ', --depth * 2); sb.Append(c); break;
-            case ',': sb.Append(c); sb.AppendLine(); sb.Append(' ', depth * 2); break;
-            case ':': sb.Append(": "); break;
-            default: sb.Append(c); break;
-        }
-    }
-
-    private static void AppendOpen(StringBuilder sb, string json, char open, ref int i, ref int depth)
-    {
-        sb.Append(open);
-        int j = i;
-        while (j < json.Length && char.IsWhiteSpace(json[j])) j++;
-        if (j < json.Length && (json[j] == '}' || json[j] == ']'))
-        {
-            sb.Append(json[j]);
-            i = j + 1;
-        }
-        else
-        {
-            sb.AppendLine();
-            sb.Append(' ', ++depth * 2);
-        }
-    }
-
     private static int CountJsonObjects(string json)
     {
         int count = 0;
@@ -625,7 +562,7 @@ public sealed class EndpointExtractor
         void Report(string label, byte[] bytes)
         {
             Console.WriteLine($"=== {label} ({bytes.Length} bytes) ===");
-            var ranked = SeederConfig.EiAssembly.GetTypes()
+            var ranked = ExtractorConfig.EiAssembly.GetTypes()
                 .Where(t => t.Namespace == "Ei" && !t.IsAbstract && typeof(IMessage).IsAssignableFrom(t))
                 .Select(t => (name: t.Name, result: TryParseAs(t, bytes)))
                 .Where(x => x.result.score > 0)
@@ -654,7 +591,7 @@ public sealed class EndpointExtractor
             var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(data);
             if (outer.Message.Length > 0)
             {
-                var inner = outer.Compressed ? Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
+                var inner = outer.Compressed ? ProtoFraming.Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
                 Report($"unwrapped AuthenticatedMessage.message (compressed={outer.Compressed})", inner);
             }
         }
@@ -680,7 +617,7 @@ public sealed class EndpointExtractor
             {
                 // Candidate framings, preferring the recorded one first.
                 var candidates = new List<byte[]>();
-                var unwrapped = TryUnwrap(bytes);
+                var unwrapped = ProtoFraming.TryUnwrap(bytes);
                 if (wrapped && unwrapped is not null) { candidates.Add(unwrapped); candidates.Add(bytes); }
                 else { candidates.Add(bytes); if (unwrapped is not null) candidates.Add(unwrapped); }
 
@@ -702,12 +639,12 @@ public sealed class EndpointExtractor
                     if (score > bestScore) { bestScore = score; best = m; }
                 }
                 if (best is not null)
-                    return (PrettyPrint(JsonFormatter.Default.Format(best)), knownType);
+                    return (ProtoJson.PrettyPrint(JsonFormatter.Default.Format(best)), knownType);
             }
 
             // Unknown type: auto-discover the inner type + framing.
             var raw = AutoDetect(bytes);
-            var unw2 = TryUnwrap(bytes) is { } u ? AutoDetect(u) : default;
+            var unw2 = ProtoFraming.TryUnwrap(bytes) is { } u ? AutoDetect(u) : default;
             var chosen = unw2.bestScore > raw.bestScore ? unw2 : raw;
             return chosen.json is null ? (null, null) : (chosen.json, chosen.typeName);
         }
@@ -724,7 +661,7 @@ public sealed class EndpointExtractor
         int bestScore = 0;
         int secondBestScore = 0;
 
-        foreach (var type in SeederConfig.EiAssembly.GetTypes()
+        foreach (var type in ExtractorConfig.EiAssembly.GetTypes()
             .Where(t => t.Namespace == "Ei" && !t.IsAbstract && typeof(IMessage).IsAssignableFrom(t)))
         {
             var (score, json) = TryParseAs(type, data);
@@ -762,7 +699,7 @@ public sealed class EndpointExtractor
         else
             confidence = Math.Min(99, (int)((double)bestScore / (bestScore + secondBestScore) * 100));
 
-        return (bestType, bestJson is null ? null : PrettyPrint(bestJson), confidence, bestScore, secondBestScore);
+        return (bestType, bestJson is null ? null : ProtoJson.PrettyPrint(bestJson), confidence, bestScore, secondBestScore);
     }
 
     public static (int score, string? json) TryParseAs(Type type, byte[] data)
@@ -791,32 +728,4 @@ public sealed class EndpointExtractor
         }
     }
 
-    public static byte[] Decompress(byte[] compressed)
-    {
-        // GZip: 1f 8b header
-        if (compressed.Length >= 2 && compressed[0] == 0x1f && compressed[1] == 0x8b)
-        {
-            using var i = new MemoryStream(compressed);
-            using var gz = new GZipStream(i, CompressionMode.Decompress);
-            using var o = new MemoryStream(); gz.CopyTo(o); return o.ToArray();
-        }
-        // ZLib: try first (has 2-byte header)
-        try
-        {
-            using var i = new MemoryStream(compressed);
-            using var zl = new ZLibStream(i, CompressionMode.Decompress);
-            using var o = new MemoryStream(); zl.CopyTo(o); return o.ToArray();
-        }
-        catch (InvalidDataException) { }
-        // Raw Deflate: no header
-        try
-        {
-            using var i = new MemoryStream(compressed);
-            using var df = new DeflateStream(i, CompressionMode.Decompress);
-            using var o = new MemoryStream(); df.CopyTo(o); return o.ToArray();
-        }
-        catch (InvalidDataException) { }
-        // Return raw - Compressed flag may be set but bytes are uncompressed proto
-        return compressed;
-    }
 }

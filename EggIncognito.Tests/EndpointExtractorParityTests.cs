@@ -7,8 +7,8 @@ namespace EggIncognito.Tests;
 
 // Proves the in-process per-flow path (ProcessFlow) and the HAR-file path (RunFromHar) produce
 // byte-identical endpoints + identical yaml/self-repair effects for the same flow. This is the
-// guard that the capture proxy (which feeds ProcessFlow) cannot diverge from the Seeder's
-// established --from-har behavior.
+// guard that the capture proxy (which feeds ProcessFlow) cannot diverge from the HAR-import
+// (RunFromHar) behavior.
 public class EndpointExtractorParityTests
 {
     // A real type-mapped endpoint: ei/get_periodicals -> PeriodicalsResponse (known response).
@@ -30,10 +30,10 @@ needs_capture:
     private static string MakeRepo()
     {
         var root = Path.Combine(Path.GetTempPath(), $"ei-extract-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(root, "EggIncognito", "RouteMap"));
+        Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
         // A .slnx marker so any repo-root walk lands here.
         File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
-        File.WriteAllText(Path.Combine(root, "EggIncognito", "RouteMap", "routes.yaml"), Yaml);
+        File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), Yaml);
         return root;
     }
 
@@ -47,7 +47,7 @@ needs_capture:
     }
 
     private static string EndpointPath(string root) =>
-        Path.Combine(root, "EggIncognito", "Endpoints", "default", Slug + ".json");
+        Path.Combine(root, "Endpoints", "default", Slug + ".json");
 
     [Fact]
     public void ProcessFlow_MatchesHarPath_ByteForByte()
@@ -124,6 +124,41 @@ needs_capture:
         // ForceWriteEndpoint writes it anyway.
         Assert.Equal(Slug, ex.ForceWriteEndpoint(Url, "POST", 200, null, responseB64));
         Assert.True(File.Exists(EndpointPath(root)));
+    }
+
+    // Coherent self-registration: an explicit "Save as endpoint" backfills an unmapped request type
+    // in routes.yaml (the user's click confirms the detected type), so the endpoint becomes
+    // permanently known - not just saved for this session.
+    [Fact]
+    public void ForceWriteEndpoint_RegistersUnmappedRequestType()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"ei-reg-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
+        File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
+        // Route exists with a response but an empty (TODO) request slot - the bot_first_contact case.
+        File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), """
+routes:
+  - path: ei/get_periodicals
+    request:  # TODO review - request type not detected
+    response: PeriodicalsResponse
+""");
+        var ex = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", overwrite: false);
+
+        // A richly-populated GetPeriodicalsRequest (distinctive fields so auto-detect resolves it
+        // confidently) + the wrapped PeriodicalsResponse.
+        var reqMsg = new Ei.GetPeriodicalsRequest
+        {
+            UserId = "EI123", CurrentClientVersion = 72, Debug = false,
+            SoulEggs = 1_000_000_000.0, PiggyFull = true, PiggyFoundFull = true,
+            SecondsFullRealtime = 25_000_000, SecondsFullGametime = 400_000,
+        };
+        var reqB64 = Convert.ToBase64String(reqMsg.ToByteArray());
+        ex.ForceWriteEndpoint(Url, "POST", 200, reqB64, WrappedResponseB64());
+        ex.Save();
+
+        var yaml = File.ReadAllText(Path.Combine(root, "RouteMap", "routes.yaml"));
+        Assert.Contains("request: GetPeriodicalsRequest", yaml);
+        Assert.DoesNotContain("TODO", yaml);
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 // Supporting types for EndpointExtractor: the per-flow decode results, the run-summary
 // accumulator, the directory/type-map bundle, and the auto-write classification config.
-// All moved out of the Seeder so the extraction pipeline can live in the library and be
-// fed in-process (by the capture tool) as well as from a HAR file (by the Seeder).
+// The pipeline lives in the library so it can be fed both in-process (by the capture proxy)
+// and from a HAR file (by the Import tab's RunFromHar).
 
 using System.Reflection;
 using Google.Protobuf;
@@ -45,7 +45,7 @@ public sealed record DecodedEntry(
     string Path, string Json, RequestDecode Request,
     string? AutoResponseType, int RespBestScore, int RespSecondScore);
 
-public static class SeederConfig
+public static class ExtractorConfig
 {
     internal static readonly HashSet<string> AlwaysSkip = new(StringComparer.Ordinal)
     {

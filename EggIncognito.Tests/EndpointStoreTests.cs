@@ -16,7 +16,7 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     private EndpointStore CreateStore() =>
-        new(_tempDir, NullLogger<EndpointStore>.Instance);
+        new(new FileEndpointSource(_tempDir), null, NullLogger<EndpointStore>.Instance);
 
     private void WriteEndpoint(string relativePath, string json)
     {
@@ -82,7 +82,8 @@ public sealed class EndpointStoreTests : IDisposable
     public void DoesNotThrowWhenEndpointsDirMissing()
     {
         var store = new EndpointStore(
-            Path.Combine(_tempDir, "does_not_exist"),
+            new FileEndpointSource(Path.Combine(_tempDir, "does_not_exist")),
+            null,
             NullLogger<EndpointStore>.Instance);
         var result = store.Get<Ei.AuthenticatedMessage>("ei/any");
         Assert.NotNull(result);

@@ -1,5 +1,5 @@
 // Load-once / save-once editor for routes.yaml. Consolidates every yaml mutation the
-// seeder performs (the old AddToRoutesYaml + SetRequestTypeInYaml did multiple full-file
+// extractor performs (the old AddToRoutesYaml + SetRequestTypeInYaml did multiple full-file
 // rewrites with brittle regex passes). All edits operate on an in-memory line list and are
 // flushed by a single Save().
 //
@@ -22,9 +22,9 @@ public sealed class RoutesYamlEditor
 
     public bool Dirty => _dirty;
 
-    public RoutesYamlEditor(string repoRoot)
+    public RoutesYamlEditor(string contentRoot)
     {
-        _path = Path.Combine(repoRoot, "EggIncognito", "RouteMap", "routes.yaml");
+        _path = Path.Combine(contentRoot, "RouteMap", "routes.yaml");
         // Split on \n, keeping content; we re-join with \n on Save to preserve LF endings.
         _lines = File.ReadAllText(_path).Replace("\r\n", "\n").Split('\n').ToList();
     }
@@ -86,7 +86,7 @@ public sealed class RoutesYamlEditor
     /// <summary>Map a captured path to its canonical route. If the path is not itself a
     /// known route but its parent (one segment up) is a `pathParam: true` route, the
     /// trailing segment is a path-parameter VALUE (e.g. a contract id) - return the parent.
-    /// Prevents the seeder from minting bogus routes like get_contract_evaluation/pumpkin-pie.</summary>
+    /// Prevents the extractor from minting bogus routes like get_contract_evaluation/pumpkin-pie.</summary>
     public string CanonicalPath(string path)
     {
         if (HasPath(path)) return path;

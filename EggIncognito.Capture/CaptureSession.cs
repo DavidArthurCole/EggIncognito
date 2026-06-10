@@ -16,7 +16,7 @@ public sealed class CaptureSession
 {
     private const string EidPlaceholder = "EI0000000000000000";
 
-    private readonly string _repoRoot;
+    private readonly string _contentRoot;
     private readonly CaptureSessionOptions _opts;
     private readonly Func<bool, ICaptureProxy> _proxyFactory;
     private readonly object _gate = new();
@@ -32,9 +32,9 @@ public sealed class CaptureSession
     public CaptureHub Hub { get; } = new();
     public CaptureState State { get; private set; } = CaptureState.Stopped;
 
-    public CaptureSession(string repoRoot, CaptureSessionOptions opts, Func<bool, ICaptureProxy>? proxyFactory = null)
+    public CaptureSession(string contentRoot, CaptureSessionOptions opts, Func<bool, ICaptureProxy>? proxyFactory = null)
     {
-        _repoRoot = repoRoot;
+        _contentRoot = contentRoot;
         _opts = opts;
         _proxyFactory = proxyFactory ?? (verbose => new UnobtaniumCaptureProxy(verbose));
     }
@@ -53,11 +53,17 @@ public sealed class CaptureSession
 
         Directory.CreateDirectory(_opts.CapturePath);
         _harPath = UniquePath(Path.Combine(_opts.CapturePath, _opts.HarFileName()));
-        _extractor = EndpointExtractor.ForRepo(_repoRoot, _opts.Eid, EidPlaceholder, _opts.Overwrite);
+
+        // Seed devices remembered from prior runs, and persist the merged set whenever it changes.
+        var deviceStore = new DeviceStore(_opts.CapturePath);
+        Hub.SeedKnownDevices(deviceStore.Load());
+        Hub.DevicesChanged = () => deviceStore.Save(Hub.SnapshotRememberedDevices());
+
+        _extractor = EndpointExtractor.ForRepo(_contentRoot, _opts.Eid, EidPlaceholder, _opts.Overwrite);
         _extractor.Quiet = true;
         _har = new HarWriter();
-        var decoder = new FlowDecoder(_repoRoot);
-        var processor = new FlowProcessor(_extractor, decoder, _har, _repoRoot);
+        var decoder = new FlowDecoder(_contentRoot);
+        var processor = new FlowProcessor(_extractor, decoder, _har, _contentRoot);
 
         _queue = Channel.CreateUnbounded<CapturedFlow>(new UnboundedChannelOptions { SingleReader = true });
 
@@ -80,6 +86,7 @@ public sealed class CaptureSession
 
         await proxy.StartAsync(_opts.Port, _opts.CaPath, ct);
         lock (_gate) { State = CaptureState.Running; }
+        Hub.SetProxyState(running: true, port: _opts.Port); // push live running-state to dashboards
         return new CaptureStartResult(true, _opts.Port, _opts.CaPath, proxy.FreshCa, proxy.RootThumbprint);
     }
 
@@ -101,6 +108,7 @@ public sealed class CaptureSession
 
         if (_har is { Count: > 0 } && _harPath is not null) _har.Save(_harPath);
         _extractor?.Save();
+        new DeviceStore(_opts.CapturePath).Save(Hub.SnapshotRememberedDevices()); // final persist
 
         if (proxy is not null) await proxy.DisposeAsync();
 
@@ -109,13 +117,14 @@ public sealed class CaptureSession
             _proxy = null; _queue = null; _consumer = null; _har = null; _extractor = null; _activeClients = 0;
             State = CaptureState.Stopped;
         }
+        Hub.SetProxyState(running: false, port: _opts.Port); // push live stopped-state to dashboards
     }
 
     // Decode an arbitrary path+response for the /decode debug endpoint. Transient decoder, no
     // running session required.
     public (string? Json, string? Type, bool Known) Decode(string path, string responseB64)
     {
-        var decoder = new FlowDecoder(_repoRoot);
+        var decoder = new FlowDecoder(_contentRoot);
         var r = decoder.DecodeResponse(path, responseB64);
         return (r.Json, r.Type, r.Known);
     }

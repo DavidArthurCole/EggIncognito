@@ -27,9 +27,9 @@ needs_capture:
     private static string MakeRepo()
     {
         var root = Path.Combine(Path.GetTempPath(), $"ei-har-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(root, "EggIncognito", "RouteMap"));
+        Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
         File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
-        File.WriteAllText(Path.Combine(root, "EggIncognito", "RouteMap", "routes.yaml"), Yaml);
+        File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), Yaml);
         return root;
     }
 
@@ -41,7 +41,7 @@ needs_capture:
     }
 
     private static string EndpointPath(string root) =>
-        Path.Combine(root, "EggIncognito", "Endpoints", "default", Slug + ".json");
+        Path.Combine(root, "Endpoints", "default", Slug + ".json");
 
     [Fact]
     public void HarWriter_Output_FedBackThroughExtractor_MatchesDirectFlow()

@@ -2,9 +2,9 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Capture;
 
-// Parsed command-line options for the `capture` subcommand. Folds in the args.Contains / Get*Option
-// parsing that used to open RunAsync, plus the HAR-filename derivation, so the command method reads
-// the decisions off one record instead of poking at the raw string[].
+// Parsed options for capture mode (the --capture launch flag). Folds the args.Contains / Get*Option
+// parsing plus the HAR-filename derivation into one record, so the capture launch path reads its
+// decisions off the record instead of poking at the raw string[].
 public sealed record CaptureOptions(
     int Port,
     int DashboardPort,
@@ -27,7 +27,7 @@ public sealed record CaptureOptions(
         NoOpen: args.Contains("--no-open"),
         ForceOpen: args.Contains("--open"));
 
-    // captures/session[_label][_EID].har - keeps the EI\d{16,} convention so the Seeder's EID
+    // captures/session[_label][_EID].har - keeps the EI\d{16,} convention so the extractor's EID
     // scrub still applies when the HAR is re-run.
     public string HarFileName()
     {

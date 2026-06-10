@@ -5,7 +5,6 @@ export const flowList = document.getElementById("flowList");
 export const emptyState = document.getElementById("emptyState");
 export const detail = document.getElementById("detail");
 export const statusPill = document.getElementById("statusPill");
-export const certPill = document.getElementById("certPill");
 export const flowCount = document.getElementById("flowCount");
 export const pauseBtn = document.getElementById("pauseBtn");
 export const clearBtn = document.getElementById("clearBtn");

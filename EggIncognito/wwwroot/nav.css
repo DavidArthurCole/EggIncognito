@@ -1,16 +1,31 @@
 /* Shared top-nav for the EggIncognito app shell (landing + Inspector + Capture).
-   Self-contained (no dependency on a page's CSS vars) so it looks identical on every tab. */
+   Self-contained (no dependency on a page's CSS vars) so it looks identical on every tab.
+   This is the ONE header on every page: left = page links, right = the per-page controls slot
+   (.app-nav-tools), into which each SPA mounts its own toolbar. Fixed height so the SPA layouts
+   can size `main` with calc(100vh - var(--nav-h)). */
+:root { --nav-h: 48px; --gutter-w: 4px; }
 .app-nav {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  margin: 0 0 1rem;
+  height: var(--nav-h);
+  padding: 0 0.75rem;
+  margin: 0;
   background: #25252b;
   border-bottom: 1px solid #3a3a44;
   font-family: system-ui, -apple-system, Segoe UI, sans-serif;
   font-size: 14px;
+  box-sizing: border-box;
 }
+/* Brand lockup at the far left: the combined icon + wordmark, linking home. Sits before the tabs. */
+.app-nav-brand {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.75rem;
+  padding: 0;
+}
+.app-nav-brand img { height: 30px; width: auto; display: block; }
+.app-nav-brand:hover { opacity: 0.85; }
 .app-nav a {
   color: #9a9aa5;
   text-decoration: none;
@@ -24,6 +39,73 @@
 }
 .app-nav a.active {
   color: #1b1b1f;
-  background: #f5c542;
+  background: #ef7559;
   font-weight: 600;
 }
+/* The brand link is never a "tab", so it must not take the active fill (the router marks the
+   matching link active on the landing route, which would otherwise highlight the logo). */
+.app-nav a.app-nav-brand.active {
+  color: inherit;
+  background: none;
+  font-weight: normal;
+}
+/* Gated nav links start hidden and are revealed by nav.js once /api/app/mode resolves, so they
+   never flash for users who shouldn't see them. */
+.nav-gated-admin, .nav-gated-capture, .nav-gated-write { display: none; }
+.nav-gated-admin.nav-show, .nav-gated-capture.nav-show, .nav-gated-write.nav-show { display: inline-block; }
+
+/* Per-page controls cluster, pinned to the right of the nav. The SPA moves its toolbar here. */
+.app-nav-tools {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Shared spin animation for refresh-style icons (Inspector endpoint reload, etc.). A `.spinning`
+   class on the SVG (or its button) drives one rotation; remove it when the action completes. */
+@keyframes egi-spin { to { transform: rotate(360deg); } }
+.icon.spinning, .spinning .icon { animation: egi-spin 0.6s linear infinite; transform-origin: 50% 50%; }
+
+/* Tab transition: when the client router swaps in a new page's <main> it adds .router-fade so the new
+   content eases in instead of hard-cutting. Scoped to ROUTER navigations only - a normal page load is
+   NOT faded (fading every cold load is what read as "flashing"). Respects reduced-motion. */
+@keyframes egi-fade-in { from { opacity: 0; } to { opacity: 1; } }
+main.router-fade { animation: egi-fade-in 0.14s ease both; }
+@media (prefers-reduced-motion: reduce) { main.router-fade { animation: none; } }
+
+/* Auth affordance at the right of the nav (Discord login state; only rendered when auth is wired).
+   On pages with an .app-nav-tools cluster (margin-left:auto) it sits inside that cluster at the far
+   right; on the simple navs it gets pushed right by its own margin-left:auto. */
+.auth-nav { margin-left: auto; display: inline-flex; align-items: center; gap: 0.4rem; }
+.app-nav-tools .auth-nav { margin-left: 0.5rem; } /* already inside the right cluster */
+.auth-nav .auth-avatar { width: 22px; height: 22px; border-radius: 50%; display: block; }
+.auth-nav .auth-name { color: #c7c7cf; font-size: 13px; }
+.auth-nav .auth-btn {
+  color: #1b1b1f; background: #ef7559; border: none; border-radius: 6px;
+  padding: 0.25rem 0.6rem; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.auth-nav a.auth-btn:hover, .auth-nav button.auth-btn:hover { filter: brightness(1.07); }
+
+/* Column resize gutter between resizable panels (see resize.js). A thin grab strip with a centered
+   handle that brightens on hover/drag. --gutter-w is the track width the grid reserves for it. */
+.col-gutter {
+  cursor: col-resize;
+  align-self: stretch;
+  position: relative;
+  border-radius: 3px;
+  touch-action: none;
+}
+.col-gutter::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  background: #3a3a44;
+  border-radius: 2px;
+  transition: background 0.12s;
+}
+.col-gutter:hover::before, .col-gutter.dragging::before { background: #ef7559; height: 44px; }

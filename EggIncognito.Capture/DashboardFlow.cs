@@ -41,7 +41,16 @@ public sealed record DashboardFlow(
     IReadOnlyList<DashboardHeader>? RequestHeaders = null,
     IReadOnlyList<DashboardHeader>? ResponseHeaders = null,
     IReadOnlyList<DashboardHeader>? RequestHeadersRaw = null,
-    IReadOnlyList<DashboardHeader>? ResponseHeadersRaw = null);
+    IReadOnlyList<DashboardHeader>? ResponseHeadersRaw = null,
+    // True when the response is a short non-proto acknowledgement (a rawResponse endpoint): the UI
+    // labels it instead of offering a useless hex/binary view.
+    bool ResponseIsAck = false,
+    // The literal plain-text response body when the response is text rather than protobuf (e.g. the
+    // log endpoints' "SUCCESS"). null for protobuf responses.
+    string? ResponseText = null,
+    // True once the user has saved this flow as an endpoint (via the dashboard). Persists on the
+    // buffered flow so a dashboard refresh does not re-prompt to save the same capture.
+    bool Saved = false);
 
 // One header for the dashboard. `Sensitive` marks a value that was redacted (so the UI can blur the
 // raw copy in "blur" mode), matching the body redaction model.

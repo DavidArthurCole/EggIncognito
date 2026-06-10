@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Discord.Net" Version="3.17.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
+    <ProjectReference Include="..\EggIncognito.Capture\EggIncognito.Capture.csproj" />
+  </ItemGroup>
+</Project>

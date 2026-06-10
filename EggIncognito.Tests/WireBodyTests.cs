@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using Google.Protobuf;
 using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
@@ -16,10 +17,15 @@ public class WireBodyTests
         return o.ToArray();
     }
 
+    // A genuine API response: base64 text of an AuthenticatedMessage. This is what the alphabet
+    // check must accept as "already base64" (it decodes to a valid AM).
+    private static string AuthMessageB64() =>
+        Convert.ToBase64String(new Ei.AuthenticatedMessage { Message = ByteString.CopyFrom([1, 2, 3]) }.ToByteArray());
+
     [Fact]
     public void Normalize_Base64TextBody_UsedAsIs()
     {
-        var b64 = Convert.ToBase64String([1, 2, 3, 4]);
+        var b64 = AuthMessageB64();
         var (result, shape) = WireBody.Normalize(Encoding.ASCII.GetBytes(b64));
         Assert.Equal(b64, result);
         Assert.Equal("base64-text", shape);
@@ -35,9 +41,21 @@ public class WireBodyTests
     }
 
     [Fact]
+    public void Normalize_PlainTextAck_Base64EncodedNotPassedThrough()
+    {
+        // "SUCCESS" is all base64-alphabet letters but is NOT base64-of-a-proto. It must be treated
+        // as a raw body and base64-encoded so it round-trips to the literal text downstream - the
+        // old alphabet-only check wrongly passed it through, which then decoded to garbage.
+        var (result, shape) = WireBody.Normalize(Encoding.ASCII.GetBytes("SUCCESS"));
+        Assert.Equal(Convert.ToBase64String(Encoding.ASCII.GetBytes("SUCCESS")), result);
+        Assert.Equal("raw", shape);
+        Assert.Equal("SUCCESS", Encoding.ASCII.GetString(Convert.FromBase64String(result)));
+    }
+
+    [Fact]
     public void Normalize_GzippedBase64Text_GunzipsThenUsesText()
     {
-        var inner = Convert.ToBase64String([10, 20, 30]);
+        var inner = AuthMessageB64();
         var gz = Gzip(Encoding.ASCII.GetBytes(inner));
         var (result, shape) = WireBody.Normalize(gz);
         Assert.Equal(inner, result);

@@ -10,9 +10,10 @@ let selectedId = null;
 export function getSelectedId() { return selectedId; }
 export function setSelectedId(id) { selectedId = id; }
 
-let paused = false;
-export function isPaused() { return paused; }
-export function setPausedState(v) { paused = v; }
+// Whether the capture proxy is currently running (the pause/play button toggles it).
+let running = false;
+export function isRunning() { return running; }
+export function setRunningState(v) { running = v; }
 
 // Latest stats snapshot (from /api/capture/stats and "stats" stream events).
 let latestStats = null;

@@ -13,19 +13,27 @@ public sealed class FlowDecoder
     private readonly IReadOnlyDictionary<string, string> _responseTypes;
     private readonly IReadOnlyDictionary<string, string> _requestTypes;
     private readonly HashSet<string> _requestWrapped;
+    private readonly HashSet<string> _rawResponsePaths;
 
-    public FlowDecoder(string repoRoot)
+    public FlowDecoder(string contentRoot)
     {
-        _responseTypes = EndpointExtractor.LoadEndpointTypes(repoRoot);
-        _requestTypes = EndpointExtractor.LoadRequestTypes(repoRoot);
-        _requestWrapped = EndpointExtractor.LoadRequestWrapped(repoRoot);
+        _responseTypes = EndpointExtractor.LoadEndpointTypes(contentRoot);
+        _requestTypes = EndpointExtractor.LoadRequestTypes(contentRoot);
+        _requestWrapped = EndpointExtractor.LoadRequestWrapped(contentRoot);
+        _rawResponsePaths = new HashSet<string>(
+            EndpointExtractor.LoadRawResponses(contentRoot).Keys, StringComparer.Ordinal);
     }
 
     //   Json    - redacted JSON for safe display (PII tokenized, same as written to endpoints)
     //   JsonRaw - the unredacted JSON (shown only when the UI redaction setting is Off)
     //   Type    - the resolved proto type name (yaml-mapped or auto-detected), or null
     //   Known   - true when the type came from routes.yaml (an endpoint we already understand)
-    public sealed record DecodeResult(string? Json, string? JsonRaw, string? Type, bool Known);
+    //   Ack     - true when the endpoint returns a short non-proto acknowledgement (rawResponse in
+    //             routes.yaml), so the UI labels it an acknowledgement
+    //   Text    - the literal plain-text body when the response is text rather than protobuf (e.g.
+    //             the log endpoints' "SUCCESS"); null for protobuf responses
+    public sealed record DecodeResult(
+        string? Json, string? JsonRaw, string? Type, bool Known, bool Ack = false, string? Text = null);
 
     public string? KnownResponseType(string path) =>
         _responseTypes.TryGetValue(path, out var t) ? t : null;
@@ -39,15 +47,21 @@ public sealed class FlowDecoder
             ? new(null, null, type, known)
             : new(Redactor.Redact(rawJson), rawJson, type, known);
 
-    // Decode the response body (base64 of the on-the-wire AuthenticatedMessage) to JSON + type.
+    // Decode the response body to JSON + type. The body is base64 of the response bytes; for the
+    // protobuf endpoints those bytes are an AuthenticatedMessage, but the log/data endpoints reply
+    // with a short plain-text ack ("SUCCESS") - which we surface as text, not a hex dump.
     public DecodeResult DecodeResponse(string path, string responseB64)
     {
+        byte[] respBytes;
+        try { respBytes = ProtoFraming.FromBase64Loose(responseB64); }
+        catch { return new(null, null, null, false); }
+
+        // Try the protobuf framing first.
         try
         {
-            var respBytes = ProtoFraming.FromBase64Loose(responseB64);
             var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(respBytes);
             var inner = outer.Compressed
-                ? EndpointExtractor.Decompress(outer.Message.ToByteArray())
+                ? ProtoFraming.Decompress(outer.Message.ToByteArray())
                 : outer.Message.ToByteArray();
 
             var knownType = KnownResponseType(path);
@@ -55,16 +69,37 @@ public sealed class FlowDecoder
             {
                 var msg = EndpointExtractor.ParseByTypeName(knownType, inner);
                 if (msg is not null)
-                    return Result(EndpointExtractor.PrettyPrint(JsonFormatter.Default.Format(msg)), knownType, known: true);
+                    return Result(ProtoJson.PrettyPrint(JsonFormatter.Default.Format(msg)), knownType, known: true);
             }
 
             var det = EndpointExtractor.AutoDetect(inner);
-            return Result(det.json, det.typeName, known: false);
+            if (det.json is not null)
+                return Result(det.json, det.typeName, known: false);
         }
-        catch
+        catch { /* not an AuthenticatedMessage - fall through to the text/ack handling below */ }
+
+        // Not protobuf. If the body is printable text, show it verbatim (the real API reply, e.g.
+        // "SUCCESS" from the log endpoints). rawResponse endpoints are additionally flagged as acks.
+        var text = AsPrintableText(respBytes);
+        var isAck = _rawResponsePaths.Contains(path);
+        if (text is not null)
+            return new(null, null, isAck ? "acknowledgement" : "text", Known: isAck, Ack: isAck, Text: text);
+        if (isAck)
+            return new(null, null, "acknowledgement", Known: true, Ack: true);
+        return new(null, null, null, false);
+    }
+
+    // The string form of a short, fully-printable (ASCII/UTF-8, no control chars) body, else null.
+    // Caps length so a large binary blob that happens to be printable is not treated as "text".
+    private static string? AsPrintableText(byte[] bytes)
+    {
+        if (bytes.Length is 0 or > 256) return null;
+        foreach (var b in bytes)
         {
-            return new(null, null, null, false);
+            if (b is < 0x20 and not ((byte)'\t' or (byte)'\r' or (byte)'\n') || b == 0x7f) return null;
         }
+        try { return System.Text.Encoding.UTF8.GetString(bytes).Trim(); }
+        catch { return null; }
     }
 
     // Decode the request `data` base64 to JSON + type via the shared library decoder.

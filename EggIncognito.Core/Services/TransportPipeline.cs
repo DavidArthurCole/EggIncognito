@@ -2,7 +2,7 @@
 // (response decode). Owns the AuthenticatedMessage hash so the salt secret stays
 // server-side and the browser never reimplements it.
 //
-// This is the SINGLE home of the hash / wrap logic. The `seed` CLI subcommand and the Inspector
+// This is the SINGLE home of the hash / wrap logic. The Inspector and any non-DI caller
 // both call Build(); there is no duplicate copy anymore. Signing parity is locked by the test
 // Build_WrappedWithSalt_CodeMatchesSeederAlgorithm.
 
@@ -48,6 +48,10 @@ public interface ITransportPipeline
     /// <summary>Build an outgoing request from already-encoded inner proto bytes.</summary>
     BuildResult Build(byte[] innerProtoBytes, bool wrap);
 
+    /// <summary>Build an outgoing request, signing any AuthenticatedMessage wrapper with the
+    /// caller-supplied salt instead of the instance/env salt. A null/empty salt builds unsigned.</summary>
+    BuildResult Build(byte[] innerProtoBytes, bool wrap, string? salt);
+
     /// <summary>Decode a base64 response body as the given response message type.</summary>
     DecodeResult Decode(string responseBase64, MessageParser? responseParser);
 }
@@ -64,7 +68,7 @@ public sealed class TransportPipeline : ITransportPipeline
     public TransportPipeline(IConfiguration config)
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"]) { }
 
-    // For non-DI callers (the `seed` CLI subcommand): take the salt straight from the
+    // For non-DI callers: take the salt straight from the
     // EGG_INC_API_SALT env var.
     public TransportPipeline()
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT")) { }
@@ -73,8 +77,11 @@ public sealed class TransportPipeline : ITransportPipeline
 
     public bool CanSign => !string.IsNullOrEmpty(_salt);
 
-    public BuildResult Build(byte[] innerProtoBytes, bool wrap)
+    public BuildResult Build(byte[] innerProtoBytes, bool wrap) => Build(innerProtoBytes, wrap, _salt);
+
+    public BuildResult Build(byte[] innerProtoBytes, bool wrap, string? salt)
     {
+        var canSign = !string.IsNullOrEmpty(salt);
         var stages = new List<TransportStage>
         {
             Stage("proto-encode", "Request message serialized to protobuf wire bytes",
@@ -90,9 +97,9 @@ public sealed class TransportPipeline : ITransportPipeline
         {
             string? note = envelopeNote;
             byte[] wrapped;
-            if (CanSign)
+            if (canSign)
             {
-                wrapped = WrapInAuthMessage(innerProtoBytes, _salt!);
+                wrapped = WrapInAuthMessage(innerProtoBytes, salt!);
             }
             else
             {
@@ -101,7 +108,7 @@ public sealed class TransportPipeline : ITransportPipeline
                 {
                     Message = ByteString.CopyFrom(innerProtoBytes),
                 }.ToByteArray();
-                note = "UNSIGNED - EGG_INC_API_SALT not set; real-API sends requiring auth will fail. " + envelopeNote;
+                note = "UNSIGNED - no signing salt provided; real-API sends requiring auth will fail. " + envelopeNote;
             }
             stages.Add(Stage("authenticated-message",
                 "Wrapped in AuthenticatedMessage { message, code = SHA256 hash }",
@@ -183,7 +190,7 @@ public sealed class TransportPipeline : ITransportPipeline
             var messageBytes = outer.Message.ToByteArray();
             if (messageBytes.Length == 0) return null;
 
-            var inner = outer.Compressed ? EndpointExtractor.Decompress(messageBytes) : messageBytes;
+            var inner = outer.Compressed ? ProtoFraming.Decompress(messageBytes) : messageBytes;
             var msg = responseParser.ParseFrom(inner);
             var json = JsonFormatter.Default.Format(msg);
 
@@ -228,7 +235,10 @@ public sealed class TransportPipeline : ITransportPipeline
 
         const uint magic = 0x3b9af419;
         var mutated = (byte[])messageBytes.Clone();
-        mutated[magic % (uint)mutated.Length] = 0x1b;
+        // A zero-length message has no byte to mutate (and `magic % 0` divides by zero). An all-default
+        // proto serializes to 0 bytes, which the Inspector can send; sign it as-is without the flip.
+        if (mutated.Length > 0)
+            mutated[magic % (uint)mutated.Length] = 0x1b;
 
         var combined = new byte[mutated.Length + salt.Length];
         mutated.CopyTo(combined, 0);

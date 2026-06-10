@@ -2,8 +2,7 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// Arg parsing for the `capture` subcommand. Folded out of CaptureCommand.RunAsync into a record so
-// it could be tested without booting the proxy.
+// Arg parsing for capture mode (--capture). Lives in the CaptureOptions record so it is unit-testable.
 public class CaptureOptionsTests
 {
     [Fact]

@@ -69,10 +69,16 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         var certDir = Path.GetDirectoryName(Path.GetFullPath(caPath))!;
         Directory.CreateDirectory(certDir);
 
-        // The persistent CA lives here. If it exists, this run REUSES it (same cert the device
-        // already trusts). If it is missing, a brand-new CA will be minted and the device must
-        // re-install - we flag that loudly so it is never a silent surprise.
-        var pfxPath = Path.Combine(certDir, "root.pfx");
+        // The proxy library writes its CA working files under its CachePath using hardcoded names
+        // (root.pfx + root.crt) that cannot be renamed via config. Tuck them in a hidden `.ca` subdir
+        // so the captures/ dir shows only the ONE device-facing cert we export (caPath, e.g.
+        // eggincognito-ca.cer). The user installs that; root.pfx/.crt are internal plumbing.
+        var caCacheDir = Path.Combine(certDir, ".ca");
+        Directory.CreateDirectory(caCacheDir);
+
+        // If the persisted CA exists, this run REUSES it (same cert the device already trusts). If it
+        // is missing, a brand-new CA is minted and the device must re-install - we flag that loudly.
+        var pfxPath = Path.Combine(caCacheDir, "root.pfx");
         _freshCa = !File.Exists(pfxPath);
 
         WireEvents();
@@ -99,11 +105,15 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         });
         builder.Services.Configure<CertificateManagerConfiguration>(o =>
         {
-            // Persist the root CA to disk so it is reused across runs (install on the device once).
-            o.CachePath = certDir;
+            // Persist the root CA (in the hidden .ca subdir) so it is reused across runs - install on
+            // the device once. Do NOT cache per-host leaf certs to disk: the library mints a forged
+            // leaf per hostname it sees (every apple/google/etc host the device contacts), and caching
+            // them littered captures/ with hundreds of junk .pfx files. In-memory per-session minting
+            // is plenty for a capture tool.
+            o.CachePath = caCacheDir;
             o.RootCertificateName = "EggIncognito Capture Root";
             o.CacheRootCertificate = true;
-            o.CacheHostCertificates = true;
+            o.CacheHostCertificates = false;
         });
         builder.Services.AddProxyServices(); // MUST come after AddProxyEvents
 

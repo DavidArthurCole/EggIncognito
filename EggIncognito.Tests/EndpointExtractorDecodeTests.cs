@@ -25,7 +25,7 @@ public class EndpointExtractorDecodeTests
         var bytes = SampleRequest().ToByteArray();
         // These raw bytes are coincidentally also AM-unwrappable into garbage, so the decode tries
         // two candidates. The bad one must not discard the good (raw) decode - the guarded loop.
-        Assert.NotNull(EndpointExtractor.TryUnwrap(bytes));
+        Assert.NotNull(ProtoFraming.TryUnwrap(bytes));
 
         var (json, type) = EndpointExtractor.DecodeRequestBody("ContractsInfoRequest", wrapped: false, bytes);
 

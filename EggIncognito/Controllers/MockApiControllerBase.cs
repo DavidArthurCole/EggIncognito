@@ -39,7 +39,7 @@ public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorS
                 ContentType = contentType,
             });
         }
-        string? eid = ExtractEid(data);
+        string? eid = EidExtractor.FromData(data);
         var response = _endpoints.Get<TRes>(path, eid);
         var encoded = Convert.ToBase64String(response.ToByteArray());
         return Task.FromResult<IActionResult>(Content(encoded, "text/html"));
@@ -75,18 +75,4 @@ public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorS
         return Task.FromResult<IActionResult>(Content(body, "text/plain"));
     }
 
-    private static string? ExtractEid(string? data)
-    {
-        if (data is null) return null;
-        try
-        {
-            var bytes = Convert.FromBase64String(data);
-            var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(bytes);
-            return string.IsNullOrEmpty(msg.UserId) ? null : msg.UserId;
-        }
-        catch
-        {
-            return null;
-        }
-    }
 }

@@ -27,6 +27,9 @@ public interface IProtoReflection
     MessageDescriptor? FindMessage(string typeName);
     MessageParser? FindParser(string typeName);
     SchemaMessage? Schema(string typeName);
+    // Every concrete Ei.* message type's short name, sorted. Powers the Inspector "Objects" list and
+    // the Documentation feature (one doc/tag subject per message type).
+    IReadOnlyList<string> AllMessageTypeNames();
 }
 
 public sealed class ProtoReflection : IProtoReflection
@@ -39,6 +42,23 @@ public sealed class ProtoReflection : IProtoReflection
 
     private Type? ClrType(string typeName) =>
         EiAssembly.GetType("Ei." + Short(typeName));
+
+    // Cached: every TOP-LEVEL concrete IMessage type in the Ei assembly, by short name, sorted. Only
+    // top-level types are included (DeclaringType == null) so every listed name resolves through
+    // ClrType("Ei." + name) - nested message types (e.g. Contract.Goal, CLR Ei.Contract+Goal) are not
+    // separately resolvable by that path and are covered by documenting their parent.
+    private static readonly Lazy<IReadOnlyList<string>> AllNames = new(() =>
+        EiAssembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false, DeclaringType: null }
+                && t.Namespace == "Ei"
+                && typeof(IMessage).IsAssignableFrom(t)
+                && t.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static) is not null)
+            .Select(t => t.Name)
+            .Distinct()
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList());
+
+    public IReadOnlyList<string> AllMessageTypeNames() => AllNames.Value;
 
     public MessageDescriptor? FindMessage(string typeName)
     {

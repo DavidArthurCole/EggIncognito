@@ -1,0 +1,52 @@
+using EggIncognito.Controllers;
+using EggIncognito.Data.Models;
+using EggIncognito.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+
+namespace EggIncognito.Tests;
+
+public class StoredEndpointRoleTests
+{
+    private sealed class FakeUser(UserRole role) : ICurrentUser
+    {
+        public bool IsAuthenticated => true;
+        public string? DiscordId => "tester";
+        public string? Username => "tester";
+        public string? Avatar => null;
+        public UserRole Role => role;
+        public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(role, need);
+    }
+
+    // No DB registered, so a contributor passes the role gate then hits the 503 "no database" branch;
+    // a viewer is stopped at the 403 gate first. The status code tells us which gate fired.
+    private sealed class EmptyServices : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => null;
+    }
+
+    private static StoredEndpointController Controller(UserRole role)
+        => new(new FakeUser(role), new EmptyServices());
+
+    private sealed class FakeRoutes : IRouteCatalog
+    {
+        public IReadOnlyList<RouteInfo> All() => [];
+        public RouteInfo? Get(string path) => new(path, null, "PeriodicalsResponse", false, false, null, false, false);
+    }
+
+    [Fact]
+    public async Task Viewer_Upsert_Is403()
+    {
+        var r = await Controller(UserRole.Viewer).UpsertEndpointAsync(
+            new StoredEndpointController.UpsertEndpoint("ei/x", null, "{}", "PeriodicalsResponse"), new FakeRoutes());
+        Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
+    }
+
+    [Fact]
+    public async Task Contributor_PassesGate_Then503NoDb()
+    {
+        var r = await Controller(UserRole.Contributor).UpsertEndpointAsync(
+            new StoredEndpointController.UpsertEndpoint("ei/x", null, "{}", "PeriodicalsResponse"), new FakeRoutes());
+        Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode); // past the role gate, stopped by no-DB
+    }
+}

@@ -5,6 +5,7 @@
 using System.Text.Json;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
@@ -16,6 +17,8 @@ public sealed class InspectorApiController(
     IProtoReflection reflection,
     ITransportPipeline pipeline,
     IHttpClientFactory httpFactory,
+    IAppMode appMode,
+    ICurrentUser currentUser,
     ILogger<InspectorApiController> logger) : ControllerBase
 {
     [HttpGet("endpoints")]
@@ -34,7 +37,19 @@ public sealed class InspectorApiController(
                 e.PathParamOnly,
                 e.RawResponse,
             });
+        // Short browser cache: the catalog is yaml-driven (+ rare DB routes); the Reload button
+        // bypasses cache for an explicit refresh.
+        Response.Headers.CacheControl = "private, max-age=20";
         return Ok(list);
+    }
+
+    // All proto message type short names (sorted). Powers the Inspector "Objects" list + Documentation.
+    // Static for the app's lifetime (proto is a frozen snapshot), so let the browser cache it.
+    [HttpGet("messages")]
+    public IActionResult Messages()
+    {
+        Response.Headers.CacheControl = "private, max-age=300";
+        return Ok(reflection.AllMessageTypeNames());
     }
 
     [HttpGet("schema/{typeName}")]
@@ -44,20 +59,18 @@ public sealed class InspectorApiController(
         if (schema is null)
             throw new ApiException(
                 $"unknown message type '{typeName}'",
-                "Type not found in the compiled proto. Check spelling, or run scripts/Sync-Proto.ps1 if it is a new upstream type.",
+                "Type not found in the compiled proto. Check spelling; ei.proto is a frozen upstream snapshot, so a genuinely new type needs ei.proto edited and the solution rebuilt.",
                 StatusCodes.Status404NotFound);
         return Ok(schema);
     }
-
-    [HttpGet("env-defaults")]
-    public IActionResult EnvDefaults() => Ok(DefaultRInfo);
 
     public sealed record BuildRequest(
         string Path,
         string RequestType,
         bool Wrap,
         JsonElement? Fields,
-        JsonElement? Env);
+        JsonElement? Env,
+        string? Salt);
 
     [HttpPost("build")]
     public IActionResult Build([FromBody] BuildRequest body)
@@ -86,22 +99,31 @@ public sealed class InspectorApiController(
         }
 
         var inner = message.ToByteArray();
-        var result = pipeline.Build(inner, body.Wrap);
+        // The salt is client-owned: it rides in this request and is used transiently for this build
+        // only. The server never reads EGG_INC_API_SALT for the Inspector path and never persists it.
+        var result = pipeline.Build(inner, body.Wrap, body.Salt);
 
         return Ok(new
         {
             result.Stages,
             result.FinalBase64,
             result.FinalFormBody,
-            canSign = pipeline.CanSign,
+            canSign = !string.IsNullOrEmpty(body.Salt),
         });
     }
 
     public sealed record SendRequest(string Url, string FormBody, string? ResponseType);
 
     [HttpPost("send")]
+    [EnableRateLimiting("egress")]
     public async Task<IActionResult> Send([FromBody] SendRequest body)
     {
+        // The /send egress makes an outbound auxbrain call from THIS server. When hosted, only do that
+        // for an authenticated user (the seam the future per-user-proxy tier refines). Local runs are
+        // unrestricted. /build is never gated (it encodes + signs with the user's own salt, no egress).
+        if (appMode.Mode == AppMode.Hosted && !currentUser.IsAuthenticated)
+            return StatusCode(403, new { error = "log in to use Live API from the hosted site" });
+
         var uri = ResolveAllowedUrl(body.Url);
 
         var client = httpFactory.CreateClient("inspector");
@@ -123,8 +145,8 @@ public sealed class InspectorApiController(
                 StatusCodes.Status502BadGateway));
         }
 
-        logger.LogInformation("send {Host}{Path} -> HTTP {Status} (signing {Signing})",
-            uri.Host, uri.AbsolutePath, (int)resp.StatusCode, pipeline.CanSign ? "ready" : "off");
+        logger.LogInformation("send {Host}{Path} -> HTTP {Status}",
+            uri.Host, uri.AbsolutePath, (int)resp.StatusCode);
 
         var raw = (await resp.Content.ReadAsStringAsync()).Trim();
         var parser = body.ResponseType is not null
@@ -142,6 +164,18 @@ public sealed class InspectorApiController(
             resolution = decode.Error is null ? null
                 : "No known response type for this endpoint. Add a `response:` type in routes.yaml so the body can be decoded.",
         });
+    }
+
+    public sealed record DecodeResponseRequest(string RawBase64, string? ResponseType);
+
+    [HttpPost("decode-response")]
+    public IActionResult DecodeResponse([FromBody] DecodeResponseRequest body)
+    {
+        // Pure decode of a response the browser already has (custom-proxy mode). No network, no salt,
+        // no egress - just proto reflection. Ungated; renders the same decoded view Mock/Live get.
+        var parser = body.ResponseType is not null ? reflection.FindParser(body.ResponseType) : null;
+        var decode = pipeline.Decode(body.RawBase64, parser);
+        return Ok(new { decode.Stages, json = decode.Json, error = decode.Error });
     }
 
     // Merge the env panel's BasicRequestInfo overrides onto the message's `rinfo` field,
@@ -216,15 +250,4 @@ public sealed class InspectorApiController(
     internal static bool IsAllowedHost(string host) =>
         host is "localhost" or "127.0.0.1" || AuxbrainHosts.IsAuxbrain(host);
 
-    // BasicRequestInfo defaults - mirrors the Seeder's BuildRInfo constants.
-    private static readonly object DefaultRInfo = new
-    {
-        clientVersion = 72,
-        version = "1.35.7",
-        build = "111343",
-        platform = "DROID",
-        country = "US",
-        language = "en",
-        debug = false,
-    };
 }

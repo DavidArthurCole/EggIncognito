@@ -84,6 +84,29 @@ export function isSensitiveKey(keyName) {
   return redactionMode === "blur" && keyName != null && sensitiveKeys.has(keyName);
 }
 
+// Walk a parsed JSON value and collect the set of string values that should be blurred in text
+// views: any value sitting under a sensitive key, plus any string that looks like an EID anywhere.
+// Returned as a Set of exact strings so a text renderer can wrap their occurrences in a blur span.
+export function collectSensitiveValues(value) {
+  const out = new Set();
+  const visit = (v, keyName) => {
+    if (v === null || v === undefined) return;
+    if (Array.isArray(v)) {
+      for (const item of v) visit(item, keyName);
+      return;
+    }
+    if (typeof v === "object") {
+      for (const [k, val] of Object.entries(v)) visit(val, k);
+      return;
+    }
+    const s = String(v);
+    const sensitive = (keyName && sensitiveKeys.has(keyName)) || EID_RE.test(s);
+    if (sensitive) out.add(s);
+  };
+  visit(value, null);
+  return out;
+}
+
 // show-headers preference (default off)
 
 const SHOW_HEADERS_KEY = "capture.showHeaders";
@@ -116,6 +139,18 @@ export function getAutoScroll() { return autoScroll; }
 export function setAutoScroll(value) {
   autoScroll = !!value;
   localStorage.setItem(AUTOSCROLL_KEY, String(autoScroll));
+}
+
+// compare-to-known-data preference (default OFF). When off, the endpoint-write outcome tags
+// (wrote/upd/diff/same/loss) are hidden from the flow rows + detail, since they only matter when
+// you are reconciling captures against the checked-in endpoint set.
+const COMPARE_KEY = "capture.compareToKnown";
+let compareToKnown = localStorage.getItem(COMPARE_KEY) === "true"; // default false
+export function getCompareToKnown() { return compareToKnown; }
+export function setCompareToKnown(value) {
+  compareToKnown = !!value;
+  localStorage.setItem(COMPARE_KEY, String(compareToKnown));
+  renderSelected();
 }
 
 // default data format preference (default JSON tree)

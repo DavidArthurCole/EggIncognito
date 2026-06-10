@@ -1,17 +1,17 @@
-// Stats panel, cert pill, empty-state copy, toasts, and the live/paused status pill.
+// Stats panel, cert pill, empty-state copy, toasts, and the running/stopped status pill.
 //
 /** @typedef {import('./types.d.ts').CaptureStats} CaptureStats */
 
 import {
-  emptyState, certPill, flowCount, statusPill, pauseBtn, toastContainer,
+  emptyState, flowCount, statusPill, pauseBtn, toastContainer,
 } from "./dom.js";
-import { flows, getLatestStats, setLatestStats, setPausedState } from "./state.js";
+import { flows, getLatestStats, setLatestStats, setRunningState } from "./state.js";
 import { formatBytes } from "./helpers.js";
-import { setIcon } from "./icons.js";
+import { setIcon } from "/icons.js";
 
 export function updateCount() {
   const n = flows.size;
-  flowCount.textContent = `${n} ${n === 1 ? "request" : "requests"}`;
+  flowCount.textContent = String(n);
   emptyState.classList.toggle("hidden", n > 0);
   if (n === 0) updateEmptyState();
 }
@@ -24,26 +24,32 @@ export function updateEmptyState() {
     emptyState.textContent = "No requests captured yet.";
   } else {
     emptyState.innerHTML =
-      "No device connected." +
-      "<div class=\"empty-hint\">Install the proxy CA cert on the device and point its Wi-Fi proxy at this machine.</div>";
+      "No device connected yet." +
+      "<div class=\"empty-hint\">Point the device's Wi-Fi proxy at this machine and install the CA cert. " +
+      "The device only registers once an app sends a request through the proxy - the Settings app " +
+      "alone usually sends nothing, so open a browser or Egg, Inc. to generate traffic.</div>";
   }
 }
 
-function updateCertPill(state, activeConnections) {
+// Cert/trust state as a labeled value (not a jammed-in pill). The dd id is `certState`.
+function updateCertState(state, activeConnections) {
+  const el = document.getElementById("certState");
+  if (!el) return;
+  let cls = "cert-waiting", text = "Waiting for device";
+  let title = "No device traffic yet - point the device's Wi-Fi proxy here and generate traffic.";
   if (state === "Trusted") {
-    certPill.className = "cert-pill trusted";
-    certPill.textContent = "Cert trusted - capturing";
+    cls = "cert-trusted"; text = "Trusted - capturing";
+    title = "Cert trusted - auxbrain traffic is decrypting.";
   } else if (state === "Untrusted") {
-    certPill.className = "cert-pill untrusted";
-    certPill.textContent = "Device connected - cert NOT trusted (trust the CA on the device)";
+    cls = "cert-untrusted"; text = "Not trusted";
+    title = "Device connected but the CA is not trusted - install + trust the CA on the device.";
   } else if (activeConnections > 0) {
-    // Device is connected but no flow has decrypted yet - we genuinely do not know trust status.
-    certPill.className = "cert-pill waiting";
-    certPill.textContent = "Device connected - waiting for first request";
-  } else {
-    certPill.className = "cert-pill waiting";
-    certPill.textContent = "Waiting for device";
+    text = "Connected, awaiting traffic";
+    title = "Device connected - waiting for the first auxbrain request to decrypt.";
   }
+  el.className = cls;
+  el.textContent = text;
+  el.title = title;
 }
 
 function setText(id, value) {
@@ -64,10 +70,25 @@ function renderDeviceCards(devices) {
 /** @param {import('./types.d.ts').DeviceInfo} d */
 function buildDeviceCard(d) {
   const card = document.createElement("div");
-  card.className = "device-card";
+  card.className = "device-card" + (d.online ? "" : " device-offline");
 
+  // Head: online/offline dot + OS badge (when known) + IP + optional reverse-DNS hostname.
   const head = document.createElement("div");
   head.className = "device-head";
+  const dot = document.createElement("span");
+  dot.className = "device-dot " + (d.online ? "online" : "offline");
+  dot.title = d.online ? "Connected now" : "Seen in a previous session (offline)";
+  head.appendChild(dot);
+  if (d.os) {
+    const os = d.os.toLowerCase();
+    let osClass = "os-other";
+    if (os === "ios") osClass = "os-ios";
+    else if (os === "android") osClass = "os-android";
+    const badge = document.createElement("span");
+    badge.className = "device-os " + osClass;
+    badge.textContent = d.os;
+    head.appendChild(badge);
+  }
   const ip = document.createElement("span");
   ip.className = "device-ip";
   ip.textContent = d.ip;
@@ -81,18 +102,22 @@ function buildDeviceCard(d) {
   }
   card.appendChild(head);
 
-  const meta = document.createElement("div");
-  meta.className = "device-meta";
-  meta.textContent = `${d.activeConnections} conn · ${d.firstSeen}–${d.lastSeen}`;
-  card.appendChild(meta);
+  // Labeled stat rows - no unlabeled dash/dot-separated blobs.
+  const rows = document.createElement("dl");
+  rows.className = "device-rows";
+  const row = (label, value) => {
+    const dt = document.createElement("dt"); dt.textContent = label;
+    const dd = document.createElement("dd"); dd.textContent = value;
+    rows.append(dt, dd);
+  };
+  row("Status", d.online ? "Connected" : "Offline");
+  if (d.online) row("Connections", String(d.activeConnections));
+  row("Seen", `${d.totalConnections} time${d.totalConnections === 1 ? "" : "s"}`);
+  row("First seen", d.firstSeen);
+  row("Last seen", d.lastSeen);
+  if (d.gameVersion) row("Egg, Inc. version", d.gameVersion);
+  card.appendChild(rows);
 
-  if (d.userAgent) {
-    const ua = document.createElement("div");
-    ua.className = "device-ua";
-    ua.textContent = d.userAgent;
-    ua.title = d.userAgent;
-    card.appendChild(ua);
-  }
   return card;
 }
 
@@ -101,14 +126,19 @@ export function applyStats(stats) {
   if (!stats) return;
   setLatestStats(stats);
 
-  updateCertPill(stats.certState, stats.activeConnections);
+  // The stats stream carries the live proxy running-state, so the pill stays correct even if the
+  // page loaded mid-startup (the one-shot /status poll could have raced the proxy coming up).
+  setRunning({ running: stats.running, port: stats.port });
 
-  setText("statDeviceCount", stats.deviceCount ?? 0);
+  updateCertState(stats.certState, stats.activeConnections);
+
+  const devices = Array.isArray(stats.devices) ? stats.devices : [];
+  setText("statDeviceCount", devices.filter((d) => d.online).length);
+  setText("statKnownCount", devices.length);
   setText("statActiveConns", stats.activeConnections ?? 0);
-  renderDeviceCards(Array.isArray(stats.devices) ? stats.devices : []);
+  renderDeviceCards(devices);
 
   setText("statCaptured", stats.capturedAuxbrain ?? 0);
-  setText("statPassthrough", stats.passthrough ?? 0);
   setText("statEndpoints", stats.uniqueEndpoints ?? 0);
 
   setText("statDecryptOk", stats.decryptOk ?? 0);
@@ -128,17 +158,6 @@ export function applyStats(stats) {
   }
 
   setText("statBytes", formatBytes(stats.bytesCaptured));
-  const biggest = document.getElementById("statBiggest");
-  if (biggest) {
-    if (stats.biggestEndpoint) {
-      biggest.textContent =
-        "biggest: " + stats.biggestEndpoint + " (" + formatBytes(stats.biggestEndpointBytes) + ")";
-      biggest.classList.remove("hidden");
-    } else {
-      biggest.textContent = "";
-      biggest.classList.add("hidden");
-    }
-  }
 
   // Empty-state copy depends on connection state.
   if (flows.size === 0) updateEmptyState();
@@ -173,13 +192,22 @@ export function showToast(kind, message, timestamp) {
   toast.addEventListener("click", remove);
 }
 
-export function setPaused(value) {
-  setPausedState(value);
-  statusPill.textContent = value ? "PAUSED" : "LIVE";
-  statusPill.className = value ? "pill paused" : "pill live";
-  // Swap the SVG icon (play vs pause) - do NOT write a text label, which would clobber the icon.
-  setIcon(pauseBtn, value ? "play" : "pause");
-  pauseBtn.title = value ? "Resume capturing" : "Pause capturing";
-  pauseBtn.setAttribute("aria-label", value ? "Resume capturing" : "Pause capturing");
-  pauseBtn.classList.toggle("active", value);
+// Reflect the proxy's running state. Accepts the /api/capture/status object (or a bare bool).
+// Drives the status pill, the Session port/clients line, and the toolbar toggle button.
+export function setRunning(status) {
+  const running = typeof status === "boolean" ? status : !!status?.running;
+  setRunningState(running);
+
+  // Fold the listen port into the pill so the Session group is all pills, no stray text line.
+  const port = (running && typeof status === "object") ? status?.port : null;
+  let pillText = "STOPPED";
+  if (running) pillText = port ? `RUNNING : ${port}` : "RUNNING";
+  statusPill.textContent = pillText;
+  statusPill.className = running ? "pill live" : "pill paused";
+
+  // The toggle button is "stop" (pause icon) while running, "start" (play icon) while stopped.
+  setIcon(pauseBtn, running ? "pause" : "play");
+  pauseBtn.title = running ? "Stop capture" : "Start capture";
+  pauseBtn.setAttribute("aria-label", running ? "Stop capture" : "Start capture");
+  pauseBtn.classList.toggle("active", running);
 }

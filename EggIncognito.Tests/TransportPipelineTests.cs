@@ -63,8 +63,8 @@ public class TransportPipelineTests
     public void Build_WrappedWithSalt_CodeMatchesSeederAlgorithm()
     {
         // Parity lock: the AuthenticatedMessage code TransportPipeline produces must equal the
-        // SHA256(mutated-message + hex(SHA256(salt))) algorithm the Seeder used before its copy was
-        // deleted. Guards the dedup (Seeder now calls TransportPipeline) from silent drift.
+        // SHA256(mutated-message + hex(SHA256(salt))) algorithm, pinned so the single signing home
+        // (TransportPipeline) cannot silently drift from the wire format the real API expects.
         const string salt = "parity-salt";
         var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
 
@@ -73,6 +73,47 @@ public class TransportPipelineTests
             Convert.FromBase64String(result.Stages.Single(s => s.Name == "authenticated-message").Base64!));
 
         Assert.Equal(ExpectedCode(inner, salt), msg.Code);
+    }
+
+    [Fact]
+    public void Build_WithPerRequestSalt_MatchesInstanceSaltResult()
+    {
+        // The per-request-salt overload must produce byte-identical output to constructing the
+        // pipeline with that same salt - proving the new path routes through the one signing home.
+        const string salt = "per-request-salt";
+        var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
+
+        var viaInstance = Build(salt).Build(inner, wrap: true);
+        var viaPerRequest = Build(null).Build(inner, wrap: true, salt: salt);
+
+        Assert.Equal(viaInstance.FinalBase64, viaPerRequest.FinalBase64);
+    }
+
+    [Fact]
+    public void Build_WithPerRequestSalt_EmptyMeansUnsigned()
+    {
+        var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
+        // No salt anywhere -> the wrap stage is built unsigned (no Code), same as the env-less path.
+        var viaInstance = Build(null).Build(inner, wrap: true);
+        var viaPerRequest = Build(null).Build(inner, wrap: true, salt: null);
+        Assert.Equal(viaInstance.FinalBase64, viaPerRequest.FinalBase64);
+    }
+
+    [Fact]
+    public void Build_WrappedEmptyMessageWithSalt_DoesNotThrow()
+    {
+        // An all-default proto serializes to zero bytes. Signing must not divide by the message
+        // length (DivideByZeroException) - a 0-byte message has no byte to mutate, so it signs the
+        // empty message as-is. The Inspector can send such a request, so this must not 500.
+        var empty = new Ei.ContractsInfoRequest().ToByteArray();
+        Assert.Empty(empty);
+
+        var result = Build("any-salt").Build(empty, wrap: true);
+        var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(
+            Convert.FromBase64String(result.Stages.Single(s => s.Name == "authenticated-message").Base64!));
+
+        // Code is present (signed), computed over the empty message + salt without the mutation step.
+        Assert.False(string.IsNullOrEmpty(msg.Code));
     }
 
     // Independent reimplementation of the documented signing algorithm (NOT a call into the code
