@@ -32,7 +32,8 @@
     <pre class="settings-out">@StatusOut</pre>
   </div>
 }
-<input id="endpointFilter" placeholder="@(Mode == "objects" ? "filter objects..." : "filter...")"
+<input id="endpointFilter" type="search" placeholder="@(Mode == "objects" ? "filter objects..." : "filter...")"
+       autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
        value="@_filter" @oninput="OnFilter" />
 
 @if (Mode == "endpoints")

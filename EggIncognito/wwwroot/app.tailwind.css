@@ -333,6 +333,8 @@
       height: calc(100vh - var(--nav-h, 48px));
     }
     .inspector-main > .panel, .capture-main > .panel { min-height: 0; overflow: auto; }
+    /* The result pane manages its own scrolling via the sub-tab body; keep the panel itself clipped. */
+    .inspector-main > .panel.insp-result { overflow: hidden; }
   }
   .fields { @apply flex flex-col gap-1; }
   /* Inline endpoint-status box (not an absolute popover, so the panel's overflow never clips it). */
@@ -551,6 +553,14 @@
   .tab-btn:hover { @apply text-fg; }
   .tab-btn.active { @apply text-accent; border-bottom-color: theme(colors.accent); }
   .tab-body { @apply block; }
+
+  /* Inspector result pane: Pipeline/Response sub-tabs fill the panel; the panel itself does not scroll
+     (its overflow:auto is overridden) so the active tab body owns the only scrollbar. Without this the
+     whole column scrolled as one and the build-pipeline stages got crushed against the JSON tree. */
+  .insp-result { @apply overflow-hidden; }
+  .insp-tabs { @apply mt-0 flex flex-col min-h-0 flex-1; }
+  .insp-tabs > .tab-bar { @apply shrink-0; }
+  .insp-tab-body { @apply flex-1 min-h-0 overflow-auto pr-1; }
 
   /* Capture: known-endpoint card + save bar */
   .known-card { @apply flex-1 border rounded-md px-3.5 py-2.5 flex flex-col gap-1; border-color: theme(colors.ok); background: rgba(94,194,126,.08); }

@@ -34,6 +34,7 @@
             <div class="repeated-item">
               <input class="rep-input field-input" placeholder="@node.Field.Type"
                      value="@node.Items[idx]"
+                     autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                      @oninput="e => SetItem(node, idx, e.Value?.ToString())" />
               <button type="button" class="btn-mini" @onclick="() => Remove(node, idx)">x</button>
             </div>
@@ -66,6 +67,7 @@
         <input class="field-input @(node.Locked ? "env-locked" : "")" disabled="@node.Locked"
                placeholder="@node.Field.Type" value="@node.Value"
                title="@(node.Locked ? "Set by the Environment panel above" : "")"
+               autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                @oninput="e => Set(node, e.Value?.ToString())" />
       }
     </div>

@@ -56,11 +56,11 @@
               <div class="field-name">@r.Key</div>
               @if (r.Key is "eiUserId" or "userId")
               {
-                <input list="recentEids" value="@r.Value" @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
+                <input list="recentEids" value="@r.Value" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
               }
               else
               {
-                <input value="@r.Value" @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
+                <input value="@r.Value" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
               }
             </div>
           }
@@ -73,7 +73,7 @@
           <label>URL path parameter (e.g. EID)
             <button type="button" class="forget-eids" title="Clear remembered EIDs" @onclick="ForgetEids">forget</button>
           </label>
-          <input list="recentEids" placeholder="EI1234567890123456" @bind="_pathParam" @bind:event="oninput" />
+          <input list="recentEids" placeholder="EI1234567890123456" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" @bind="_pathParam" @bind:event="oninput" />
         </div>
       }
       <datalist id="recentEids">
@@ -95,6 +95,7 @@
       else if (_rawMode)
       {
         <textarea class="raw-json" spellcheck="false" style="width: 100%; min-height: 200px;"
+                  autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                   @bind="_rawJson" @bind:event="oninput"></textarea>
       }
       else
@@ -149,6 +150,7 @@
         <div class="custom-config">
           <label>Custom proxy URL</label>
           <input type="url" placeholder="https://your-proxy.example/" spellcheck="false"
+                 autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                  value="@_customTarget" @oninput="OnCustomTargetInput" />
           <span class="muted">Your browser posts the built request directly to this URL (this server is
             bypassed); the proxy must reach auxbrain and allow this origin (CORS).</span>
@@ -162,20 +164,30 @@
     }
   </section>
 
-  <section class="panel">
-    <h2>Pipeline</h2>
-    <Pipeline Stages="_buildStages" />
-    <div class="resp-head">
-      <h2>Response</h2>
-      @* Only offer Save-to-DB once there is an actually-decoded response to store (a non-null Json),
-         not while the panel still reads "No response yet". *@
-      @if (_canSaveDb && _response?.Json is not null)
-      {
-        <button type="button" class="btn-mini" title="Save this response as a stored endpoint" @onclick="SaveToDb">Save to DB</button>
-      }
+  @* Pipeline + Response live behind sub-tabs (mirrors the Capture detail pane's tab pattern) so each
+     section owns its own scroll region instead of the whole pane scrolling as one cramped column. *@
+  <section class="panel insp-result">
+    <div class="detail-tabs insp-tabs">
+      <div class="tab-bar">
+        <button type="button" class="tab-btn @(_resultTab == 0 ? "active" : "")" @onclick="@(() => _resultTab = 0)">Pipeline</button>
+        <button type="button" class="tab-btn @(_resultTab == 1 ? "active" : "")" @onclick="@(() => _resultTab = 1)">Response</button>
+        @if (_resultTab == 1 && _canSaveDb && _response?.Json is not null)
+        {
+          <button type="button" class="btn-mini ml-auto" title="Save this response as a stored endpoint" @onclick="SaveToDb">Save to DB</button>
+        }
+      </div>
+      <div class="tab-body insp-tab-body">
+        @if (_resultTab == 0)
+        {
+          <Pipeline Stages="_buildStages" />
+        }
+        else
+        {
+          <ResponsePanel Response="_response" />
+          <pre class="settings-out">@_saveOut</pre>
+        }
+      </div>
     </div>
-    <ResponsePanel Response="_response" />
-    <pre class="settings-out">@_saveOut</pre>
   </section>
 </main>
 
@@ -186,6 +198,7 @@
       <h3>Signing salt</h3>
       <p>Signs requests. Stored in this browser only; never sent to the server beyond the build request.</p>
       <input type="password" placeholder="EGG_INC_API_SALT value" autocomplete="off" spellcheck="false"
+             data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
              class="settings-input" @bind="_saltInput" @bind:event="oninput" />
       <div class="modal-actions">
         <button type="button" class="btn-secondary" @onclick="@(() => _saltModalOpen = false)">Cancel</button>
@@ -233,6 +246,7 @@
     List<TransportStage>? _buildStages;
     SendResponse? _response;
     string _saveOut = "";
+    int _resultTab; // 0 = Pipeline, 1 = Response (mirrors Capture's remembered detail tab)
 
     // Browser-memory (interop-backed) state.
     bool _hasSalt;
@@ -505,6 +519,7 @@
         var e = _selected;
         if (e is null) return;
         _response = null;
+        _resultTab = 0; // surface the freshly-built pipeline
 
         if (e.PathParamOnly)
         {
@@ -571,6 +586,7 @@
     {
         var e = _selected;
         if (_lastBuild is null || e is null) return;
+        _resultTab = 1; // jump to the Response tab so the decoded result is visible
 
         if (_target == "custom")
         {

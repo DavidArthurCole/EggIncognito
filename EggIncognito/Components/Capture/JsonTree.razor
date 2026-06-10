@@ -11,6 +11,7 @@
     <button class="btn-mini" type="button" @onclick="ExpandAll">Expand all</button>
     <button class="btn-mini" type="button" @onclick="CollapseAll">Collapse all</button>
     <input type="search" class="jtree-search" placeholder="Filter keys / values..."
+           autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
            value="@_search" @oninput="OnSearchInput" />
     <span class="jtree-search-count">@_count</span>
   </div>

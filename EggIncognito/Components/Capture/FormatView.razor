@@ -35,6 +35,7 @@
         <div class="data-tools">
           @FormatSelect()
           <input type="search" class="data-filter" placeholder="Filter..."
+                 autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                  value="@_filter" @oninput="OnFilterInput" />
           @CopyButton()
         </div>
@@ -63,13 +64,13 @@
     List<string> _formats = [];
     JsonNode? _parsed;
     TreeNode? _tree;
+    string? _treeFor; // the JsonStr the current _tree was built from; guards needless rebuilds
 
     protected override void OnParametersSet()
     {
         _emptyNoteOnly = null;
         _showRawBox = false;
         _parsed = null;
-        _tree = null;
         var parseOk = false;
         if (!string.IsNullOrEmpty(JsonStr))
         {
@@ -103,7 +104,22 @@
         if (!_formats.Contains(current)) current = _formats[0];
         _currentFormat = current;
         FormatChoice[Label] = current;
-        if (_currentFormat == "json-tree") _tree = TreeNode.Parse(JsonStr);
+        // Rebuild the tree only when the underlying JSON actually changes. A parent re-render that leaves
+        // JsonStr untouched (e.g. an unrelated state change on the Inspector page) must NOT discard the
+        // tree, or the JsonTree's in-place expand/dim/filter state is silently wiped on every keystroke.
+        if (_currentFormat == "json-tree")
+        {
+            if (_tree is null || _treeFor != JsonStr)
+            {
+                _tree = TreeNode.Parse(JsonStr);
+                _treeFor = JsonStr;
+            }
+        }
+        else
+        {
+            _tree = null;
+            _treeFor = null;
+        }
     }
 
     static bool IsEmptyContainer(JsonNode? v) =>
@@ -114,6 +130,7 @@
         _currentFormat = e.Value?.ToString() ?? _currentFormat;
         FormatChoice[Label] = _currentFormat;
         _tree = _currentFormat == "json-tree" ? TreeNode.Parse(JsonStr) : null;
+        _treeFor = _tree is null ? null : JsonStr;
     }
 
     void OnFilterInput(ChangeEventArgs e) => _filter = e.Value?.ToString() ?? "";
