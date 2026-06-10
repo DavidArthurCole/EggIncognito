@@ -11,6 +11,27 @@
 </head>
 <body class="m-0 bg-bg text-fg font-sans">
     <Routes />
+
+    @* Custom Blazor reconnect UI (.NET 10 contract). Providing this dialog suppresses the default
+       modal. Blazor toggles the components-reconnect-*-visible classes on the dialog per state and
+       drives the #components-reconnect-button / #components-resume-button / countdown. nav.css themes
+       it to the app palette + gates each message by the active state class so it never flashes white. *@
+    <dialog id="components-reconnect-modal" class="reconnect-modal">
+      <div class="reconnect-card">
+        <div class="components-rejoining-animation reconnect-spinner" aria-hidden="true"></div>
+        <p class="reconnect-msg reconnect-first">Lost the connection to the server. Trying to get you back...</p>
+        <p class="reconnect-msg reconnect-repeated">Still trying to reconnect. Next attempt in
+          <span id="components-seconds-to-next-attempt"></span>s...</p>
+        <p class="reconnect-msg reconnect-failed">Could not reconnect. Check your network, then try again.</p>
+        <p class="reconnect-msg reconnect-pause">Connection paused. Picking it back up...</p>
+        <p class="reconnect-msg reconnect-resume-failed">This session has expired. Reload to pick up where you left off.</p>
+        <div class="reconnect-actions">
+          <button type="button" id="components-reconnect-button" class="btn-primary">Try again</button>
+          <button type="button" id="components-resume-button" class="btn-primary">Reload</button>
+        </div>
+      </div>
+    </dialog>
+
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

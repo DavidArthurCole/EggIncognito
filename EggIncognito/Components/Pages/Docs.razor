@@ -34,7 +34,15 @@
     <section class="docs-detail panel">
       @if (_selected is null)
       {
-        <p class="text-muted">Select a subject from the tree.</p>
+        <div class="empty-state">
+          No subject selected.
+          <div class="empty-hint">Pick something from the tree on the left to read its docs. The hub
+            covers four kinds: <strong>Messages</strong> (the proto data shapes every request and
+            response is built from), <strong>Endpoints</strong> (the API routes, with their request and
+            response types), <strong>Config</strong> (the environment variables and settings that drive
+            this server), and <strong>Controls</strong> (notable UI options worth explaining). Each
+            subject shows its structure plus any community-written Markdown notes and tags.</div>
+        </div>
       }
       else
       {

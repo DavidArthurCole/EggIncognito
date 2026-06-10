@@ -10,7 +10,12 @@
 
 @if (string.IsNullOrEmpty(Name))
 {
-  <div class="muted">Select an object on the left to see its documentation.</div>
+  <div class="empty-state">
+    No object selected.
+    <div class="empty-hint">Pick a proto message type from the list on the left to see its
+      documentation, its tags, and the endpoints that use it as a request or response. Objects are the
+      Egg, Inc. API's data shapes - the building blocks every request and response is made of.</div>
+  </div>
 }
 else
 {

@@ -16,26 +16,13 @@
 
 <PageTitle>EggIncognito - Transport Inspector</PageTitle>
 
-@* Nav-tools row: Postman download, the endpoint-status refresh, and the salt badge. Request defaults
-   (BasicRequestInfo) are edited inline in the request pane's Environment section, not here. The Blazor
-   shell's TopNav has no NavTools slot, so the toolbar lives in-page. *@
+@* Nav-tools row: Postman download + the salt badge. Request defaults (BasicRequestInfo) are edited
+   inline in the request pane's Environment section; the endpoint-status refresh lives in the endpoint
+   list's header (next to the Endpoints | Objects switch). The Blazor shell's TopNav has no NavTools
+   slot, so the toolbar lives in-page. *@
 <div class="app-nav-tools toolbar" style="position: fixed; top: 6px; right: 12px; z-index: 50;">
   <a class="icon-btn" href="/api/tools/postman-collection" download
      title="Download Postman collection" aria-label="Download Postman collection"><Icon Name="download" /></a>
-  @* Endpoint status: a refresh-icon button that loads the ok/empty/missing counts. The counts ride in
-     the title; the spinner spins while loading. This was a toolbar action in the original, not a
-     settings block. *@
-  <div class="status-wrap" style="position: relative;">
-    <button type="button" class="icon-btn @(_statusLoading ? "spinning" : "")"
-            title="@(string.IsNullOrEmpty(_statusCounts) ? "Refresh endpoint status" : $"Endpoint status {_statusCounts}")"
-            aria-label="Refresh endpoint status" @onclick="ToggleStatus"><Icon Name="refresh" /></button>
-    <div class="settings-menu @(_statusOpen ? "open" : "")">
-      <div class="settings-title">Endpoint status <span class="muted">@_statusCounts</span></div>
-      <div class="settings-hint">How many mapped routes have an ok / empty / missing fixture.</div>
-      <button type="button" class="btn-mini" @onclick="RefreshStatus">Refresh status</button>
-      <pre class="settings-out">@_statusOut</pre>
-    </div>
-  </div>
   <button type="button" class="badge @(_hasSalt ? "signed" : "unsigned")"
           title="@(_hasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
           @onclick="OpenSaltModal">@(_hasSalt ? "Salt Set" : "Salt Unset")</button>
@@ -44,8 +31,11 @@
 <main class="grid gap-3 p-3 min-h-0" style="grid-template-columns: 240px 1fr 1fr; height: calc(100vh - 48px);">
   <aside class="panel">
     <EndpointList Mode="@_listMode" ModeChanged="SetListMode"
-                  Selected="_selected" SelectedObject="_selectedObject"
-                  OnSelectEndpoint="SelectEndpoint" OnSelectObject="SelectObject" />
+                  Selected="@_selected" SelectedObject="@_selectedObject"
+                  OnSelectEndpoint="SelectEndpoint" OnSelectObject="SelectObject"
+                  StatusLoading="@_statusLoading" StatusOpen="@_statusOpen"
+                  StatusCounts="@_statusCounts" StatusOut="@_statusOut"
+                  OnToggleStatus="ToggleStatus" OnRefreshStatus="RefreshStatus" />
   </aside>
 
   <section class="panel">
@@ -55,7 +45,7 @@
     <div class="@(_listMode == "endpoints" ? "" : "hidden")">
       <h2>Request <span class="muted">@(_selected is null ? "" : $"({ReqTypeLabel(_selected)})")</span></h2>
 
-      <details open>
+      <details class="env-box" open>
         <summary>Environment (BasicRequestInfo overrides)</summary>
         <div class="fields">
           @foreach (var row in _envRows)
@@ -148,7 +138,7 @@
                   @onclick="@(() => SelectTarget("custom"))">Custom</button>
         </div>
         <div class="sendbar-actions">
-          <button class="btn-secondary" disabled="@(_selected is null)" @onclick="Build">Build</button>
+          <button class="btn-info" disabled="@(_selected is null)" @onclick="Build">Build</button>
           <button class="btn-primary" disabled="@(_lastBuild is null)" @onclick="Send">Send</button>
         </div>
       </div>
@@ -167,7 +157,7 @@
 
     @if (_listMode == "objects")
     {
-      <ObjectView Name="_selectedObject" OnSelectEndpoint="SelectFromObject" />
+      <ObjectView Name="@_selectedObject" OnSelectEndpoint="SelectFromObject" />
     }
   </section>
 

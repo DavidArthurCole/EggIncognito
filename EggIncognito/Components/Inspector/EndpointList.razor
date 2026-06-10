@@ -5,13 +5,28 @@
 @inject IRouteCatalog Catalog
 @inject IProtoReflection Reflection
 
-<div class="panel-head">
+<div class="panel-head" style="position: relative;">
   <div class="list-switch" role="tablist" aria-label="Left list">
     <button type="button" class="list-switch-opt @(Mode == "endpoints" ? "active" : "")"
             role="tab" @onclick="@(() => SetMode("endpoints"))">Endpoints</button>
     <button type="button" class="list-switch-opt @(Mode == "objects" ? "active" : "")"
             role="tab" @onclick="@(() => SetMode("objects"))">Objects</button>
   </div>
+  @* Endpoint-status refresh, next to the list switch. Endpoints-only (the counts are about mapped
+     routes, not proto objects), so it is hidden in Objects mode. Opens a popover with the
+     ok/empty/missing counts and the empty/missing lists. *@
+  @if (Mode == "endpoints")
+  {
+    <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
+            title="@(string.IsNullOrEmpty(StatusCounts) ? "Refresh endpoint status" : $"Endpoint status {StatusCounts}")"
+            aria-label="Refresh endpoint status" @onclick="OnToggleStatus"><Icon Name="refresh" /></button>
+    <div class="settings-menu @(StatusOpen ? "open" : "")" style="right: 0; left: auto;">
+      <div class="settings-title">Endpoint status <span class="muted">@StatusCounts</span></div>
+      <div class="settings-hint">How many mapped routes have an ok / empty / missing fixture.</div>
+      <button type="button" class="btn-mini" @onclick="OnRefreshStatus">Refresh status</button>
+      <pre class="settings-out">@StatusOut</pre>
+    </div>
+  }
 </div>
 <input id="endpointFilter" placeholder="@(Mode == "objects" ? "filter objects..." : "filter...")"
        value="@_filter" @oninput="OnFilter" />
@@ -31,7 +46,7 @@
           @foreach (var e in grp)
           {
             <div class="ep @(Selected?.Path == e.Path ? "active" : "")" @onclick="() => OnSelectEndpoint.InvokeAsync(e)">
-              @(e.Path[(ns.Length + 1)..])
+              <span class="ep-name">@(e.Path[(ns.Length + 1)..])</span>
               @if (e.RequestWrapped)
               {
                 <span class="wrap-flag" title="wrapped + signed in an AuthenticatedMessage">signed</span>
@@ -62,6 +77,15 @@ else
     [Parameter] public string? SelectedObject { get; set; }
     [Parameter] public EventCallback<RouteInfo> OnSelectEndpoint { get; set; }
     [Parameter] public EventCallback<string> OnSelectObject { get; set; }
+
+    // Endpoint-status popover state, owned by the parent Inspector page (the status fetch + persistence
+    // live there); this component only renders the button + popover in its header.
+    [Parameter] public bool StatusLoading { get; set; }
+    [Parameter] public bool StatusOpen { get; set; }
+    [Parameter] public string StatusCounts { get; set; } = "";
+    [Parameter] public string StatusOut { get; set; } = "";
+    [Parameter] public EventCallback OnToggleStatus { get; set; }
+    [Parameter] public EventCallback OnRefreshStatus { get; set; }
 
     string _filter = "";
     readonly HashSet<string> _collapsed = [];

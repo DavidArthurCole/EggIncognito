@@ -37,7 +37,15 @@
   .btn-secondary {
     @apply bg-panel2 text-fg border border-border rounded-md px-4 py-[0.45rem] font-semibold cursor-pointer;
   }
-  .btn-secondary:hover { filter: brightness(1.07); }
+  .btn-secondary:hover:not(:disabled) { filter: brightness(1.07); }
+  .btn-secondary:disabled { @apply cursor-not-allowed; opacity: 0.4; }
+
+  /* Blue action (Inspector Build): the info/secondary-accent, distinct from the orange primary. */
+  .btn-info {
+    @apply bg-accent2 text-bg border-0 rounded-md px-[1.4rem] py-2 font-semibold text-sm cursor-pointer;
+  }
+  .btn-info:disabled { @apply cursor-not-allowed; opacity: 0.4; }
+  .btn-info:hover:not(:disabled) { filter: brightness(1.07); }
 
   /* Compact button (toolbars, menu actions). */
   .btn-mini {
@@ -252,7 +260,7 @@
   .modal { @apply bg-panel border border-border rounded-[10px] p-6 max-w-[460px]; }
   .modal h3 { @apply m-0 mb-3 text-fg; }
   .modal p { @apply text-muted leading-normal m-0 mb-5; }
-  .modal-actions { @apply flex justify-end gap-2.5; }
+  .modal-actions { @apply flex justify-end gap-2.5 mt-4; }
 
   /* Toasts (Capture) */
   .toast-container { @apply fixed right-0 flex flex-col gap-2.5 z-[1000] pointer-events-none; top: calc(theme(spacing.nav) + 10px); }
@@ -309,6 +317,10 @@
 
   /* Inspector: field tree */
   .fields { @apply flex flex-col gap-1; }
+  /* Environment section: a bordered box so it reads as a distinct group, not loose fields. */
+  .env-box { @apply border border-border rounded-md bg-panel2 p-3 my-2; }
+  .env-box > summary { @apply cursor-pointer font-semibold text-sm text-fg mb-2 select-none; }
+  .env-box[open] > summary { @apply mb-3; }
   .field-row { @apply grid items-center gap-2 py-0.5; grid-template-columns: minmax(160px, 240px) 1fr auto; }
   .field-row.nested { @apply border-l-2 border-border pl-2 ml-1; }
   .field-name { @apply font-mono text-xs min-w-0 overflow-hidden text-ellipsis whitespace-nowrap; }
@@ -367,10 +379,12 @@
   .ep-caret { @apply inline-block w-0 h-0; border: 4px solid transparent; border-left-color: currentColor; transition: transform .1s; }
   .ep-group:not(.collapsed) .ep-caret { transform: rotate(90deg); }
   .ep-group.collapsed .ep-group-body { display: none; }
-  .ep { @apply px-2 py-1 rounded cursor-pointer font-mono text-xs; }
+  .ep { @apply px-2 py-1 rounded cursor-pointer font-mono text-xs flex items-center gap-1.5; }
   .ep:hover { @apply bg-panel2; }
   .ep.active { @apply bg-accent2 text-bg; }
-  .ep .wrap-flag { @apply text-accent ml-1.5 text-[9px] uppercase tracking-[0.04em] border border-accent rounded-[3px] px-[3px] align-middle; }
+  /* Name truncates so a long route plus the signed badge never overflow the fixed-width list. */
+  .ep .ep-name { @apply min-w-0 truncate; }
+  .ep .wrap-flag { @apply flex-none text-accent text-[9px] uppercase tracking-[0.04em] border border-accent rounded-[3px] px-[3px]; }
 
   /* Inspector: objects / docs / tags / markdown */
   #objects .obj-row { @apply flex items-center gap-1.5; }
