@@ -69,7 +69,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>
         | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost
         | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor;
     o.KnownProxies.Clear();
-    o.KnownNetworks.Clear();
+    o.KnownIPNetworks.Clear();
 });
 builder.Services.AddAppRateLimiter(builder.Configuration);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
