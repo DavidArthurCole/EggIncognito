@@ -64,7 +64,9 @@ else
                   OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
                   OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
 
-  <main class="grid gap-3 p-3 min-h-0" style="grid-template-columns: 220px 2fr 3fr; height: calc(100vh - 48px);">
+  @* Responsive: panes stack in one scrolling column on phones; become the 220px stats + flow list +
+     detail columns filling the viewport on >=lg. *@
+  <main class="capture-main grid gap-3 p-3 min-h-0">
     <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
 
     <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow" />

@@ -6,9 +6,11 @@
 @inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>EggIncognito - Docs</PageTitle>
-<main id="docsMain" class="px-8 pt-6 pb-8">
+<main id="docsMain" class="px-4 sm:px-8 pt-6 pb-8">
   <h1 class="text-[1.3rem] mt-0 mb-4">Docs</h1>
-  <div class="docs-grid grid gap-6" style="grid-template-columns: 280px 1fr;">
+  @* Stacks to one column on phones (tree above detail); splits into the 280px tree + detail on >=768px.
+     The inline fixed two-column grid was unreadable on narrow screens. *@
+  <div class="docs-grid grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-[280px_1fr]">
 
     @* Left: the registry tree of 4 groups -> subjects. *@
     <nav class="docs-tree panel">

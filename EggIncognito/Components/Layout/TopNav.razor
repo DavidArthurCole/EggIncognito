@@ -11,33 +11,32 @@
   <NavLink href="capture" ActiveClass="active">Capture</NavLink>
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
-  @* Per-page tools (e.g. the Inspector's Postman download + salt badge) render here, in flow, pinned
-     to the right via the nav-tools margin-left:auto, so they sit left of the auth slot instead of a
-     fixed overlay that overlapped the login button. A page injects them with <SectionContent>. *@
-  <span class="app-nav-tools"><SectionOutlet SectionName="nav-tools" /></span>
-  @* Auth slot, server-rendered. Only shown when Discord auth is wired (a DB + Discord creds). Logout
-     is a real form POST to /logout so it works without a circuit. Login is the Discord challenge with
-     a returnUrl back to the current page. *@
-  @if (Auth.Enabled)
-  {
-    <span class="auth-nav">
-      @if (User.IsAuthenticated)
-      {
-        @if (!string.IsNullOrEmpty(User.Avatar))
+  @* Right-aligned cluster: the per-page tools (injected via SectionContent) sit immediately left of the
+     auth slot. One margin-left:auto wrapper pins the whole cluster right, so a single auto-gap can't
+     strand the tools in the middle (which happened when both tools + auth each had their own auto). *@
+  <div class="nav-right">
+    <span class="app-nav-tools"><SectionOutlet SectionName="nav-tools" /></span>
+    @if (Auth.Enabled)
+    {
+      <span class="auth-nav">
+        @if (User.IsAuthenticated)
         {
-          <img class="auth-avatar" src="@($"https://cdn.discordapp.com/avatars/{User.DiscordId}/{User.Avatar}.png")" alt="" />
+          @if (!string.IsNullOrEmpty(User.Avatar))
+          {
+            <img class="auth-avatar" src="@($"https://cdn.discordapp.com/avatars/{User.DiscordId}/{User.Avatar}.png")" alt="" />
+          }
+          <span class="auth-name">@User.Username</span>
+          <form method="post" action="/logout" style="margin:0;">
+            <button type="submit" class="auth-btn">log out</button>
+          </form>
         }
-        <span class="auth-name">@User.Username</span>
-        <form method="post" action="/logout" style="margin:0;">
-          <button type="submit" class="auth-btn">log out</button>
-        </form>
-      }
-      else
-      {
-        <a class="auth-btn" href="@($"/login?returnUrl={Uri.EscapeDataString(CurrentPath())}")">log in with Discord</a>
-      }
-    </span>
-  }
+        else
+        {
+          <a class="auth-btn" href="@($"/login?returnUrl={Uri.EscapeDataString(CurrentPath())}")">log in with Discord</a>
+        }
+      </span>
+    }
+  </div>
 </nav>
 
 @code {

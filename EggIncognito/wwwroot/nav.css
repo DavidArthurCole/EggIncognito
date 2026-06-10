@@ -16,6 +16,17 @@
   font-family: system-ui, -apple-system, Segoe UI, sans-serif;
   font-size: 14px;
   box-sizing: border-box;
+  /* On narrow screens the brand + tabs + tools + auth can exceed the width; scroll the bar horizontally
+     instead of wrapping (wrapping would break the fixed nav height). */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.app-nav > * { flex: none; }
+@media (max-width: 640px) {
+  .app-nav { gap: 0.15rem; padding: 0 0.5rem; }
+  .app-nav-brand { margin-right: 0.4rem; }
+  .app-nav-brand img { height: 26px; }
 }
 /* Brand lockup at the far left: the combined icon + wordmark, linking home. Sits before the tabs. */
 .app-nav-brand {
@@ -54,9 +65,17 @@
 .nav-gated-admin, .nav-gated-capture, .nav-gated-write { display: none; }
 .nav-gated-admin.nav-show, .nav-gated-capture.nav-show, .nav-gated-write.nav-show { display: inline-block; }
 
-/* Per-page controls cluster, pinned to the right of the nav. The SPA moves its toolbar here. */
-.app-nav-tools {
+/* Right cluster: per-page tools + the auth slot, pinned to the far right by a single margin-left:auto.
+   Keeping ONE auto here (not one per child) stops a stray gap from stranding the tools mid-bar. */
+.nav-right {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+/* Per-page controls (Inspector Postman + salt badge). No own auto margin now - the .nav-right cluster
+   positions it, just left of the auth slot. */
+.app-nav-tools {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -77,8 +96,8 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 /* Auth affordance at the right of the nav (Discord login state; only rendered when auth is wired).
    On pages with an .app-nav-tools cluster (margin-left:auto) it sits inside that cluster at the far
    right; on the simple navs it gets pushed right by its own margin-left:auto. */
-.auth-nav { margin-left: auto; display: inline-flex; align-items: center; gap: 0.4rem; }
-.app-nav-tools .auth-nav { margin-left: 0.5rem; } /* already inside the right cluster */
+/* Auth slot sits inside .nav-right, so no own auto margin; the cluster places it at the far right. */
+.auth-nav { display: inline-flex; align-items: center; gap: 0.4rem; }
 .auth-nav .auth-avatar { width: 22px; height: 22px; border-radius: 50%; display: block; }
 .auth-nav .auth-name { color: #c7c7cf; font-size: 13px; }
 .auth-nav .auth-btn {

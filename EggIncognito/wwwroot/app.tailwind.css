@@ -316,6 +316,21 @@
   .resp-head { @apply my-3; }
 
   /* Inspector: field tree */
+  /* Inspector layout: on phones the three panes stack and the page scrolls; on >=lg they are the
+     240px endpoint list + two equal columns filling the viewport, each pane scrolling on its own.
+     Inline grid styles cannot do media queries, so this lives here. */
+  .inspector-main, .capture-main { @apply grid-cols-1; }
+  @media (min-width: 1024px) {
+    .inspector-main {
+      grid-template-columns: 240px 1fr 1fr;
+      height: calc(100vh - var(--nav-h, 48px));
+    }
+    .capture-main {
+      grid-template-columns: 220px 2fr 3fr;
+      height: calc(100vh - var(--nav-h, 48px));
+    }
+    .inspector-main > .panel, .capture-main > .panel { min-height: 0; overflow: auto; }
+  }
   .fields { @apply flex flex-col gap-1; }
   /* Inline endpoint-status box (not an absolute popover, so the panel's overflow never clips it). */
   .status-panel { @apply border border-border rounded-md bg-panel2 p-2 mb-2 text-xs; }
@@ -595,6 +610,11 @@
   #adminMain h2 { @apply text-base mt-0 mb-3 text-fg font-semibold; }
   #adminMain .mono { @apply font-mono text-xs; }
   #adminMain table { @apply w-full border-collapse text-[13px]; }
+  /* On phones the wide tables (long Discord IDs / paths) would overflow the card; let them scroll
+     horizontally instead. display:block turns the table into its own scroll container. */
+  @media (max-width: 640px) {
+    #adminMain table { display: block; overflow-x: auto; white-space: nowrap; }
+  }
   /* Header row: muted, uppercase-ish, a stronger bottom rule. Body rows: subtle separators, last has none. */
   #adminMain thead th { @apply text-left px-2.5 py-1.5 text-muted text-xs font-semibold border-b border-border; }
   #adminMain tbody td { @apply text-left px-2.5 py-2 border-b border-border align-middle; }
@@ -612,10 +632,12 @@
     @apply bg-panel2 border border-border rounded-md p-2 whitespace-pre-wrap text-xs text-muted mt-2;
   }
 
-  /* Docs hub (/docs): two-pane registry tree + subject detail. */
-  .docs-grid { @apply min-h-0; }
-  .docs-tree { @apply overflow-auto gap-3; }
-  .docs-detail { @apply overflow-auto; }
+  /* Docs hub (/docs): registry tree + subject detail. Stacked on phones, side-by-side on >=md. On
+     mobile the tree is a capped scrollbox so the (long) proto list does not bury the detail below it;
+     on desktop the columns fill the viewport height and each scrolls independently. */
+  .docs-grid { @apply min-h-0 md:h-[calc(100vh-8rem)]; }
+  .docs-tree { @apply overflow-auto gap-3 max-h-[45vh] md:max-h-none md:min-h-0; }
+  .docs-detail { @apply overflow-auto min-h-0; }
   .docs-group { @apply mb-1; }
   .docs-group-title { @apply text-accent2 text-[11px] uppercase tracking-[0.05em] mt-2 mb-1; }
   .docs-subjects { @apply list-none m-0 p-0 flex flex-col gap-px; }

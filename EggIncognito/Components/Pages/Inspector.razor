@@ -28,7 +28,9 @@
           @onclick="OpenSaltModal">@(_hasSalt ? "Salt Set" : "Salt Unset")</button>
 </SectionContent>
 
-<main class="grid gap-3 p-3 min-h-0" style="grid-template-columns: 240px 1fr 1fr; height: calc(100vh - 48px);">
+@* Responsive: on phones the three panes stack in one scrolling column (auto height); on >=lg they
+   become the fixed 240px endpoint list + two equal builder/response columns filling the viewport. *@
+<main class="inspector-main grid gap-3 p-3 min-h-0">
   <aside class="panel">
     <EndpointList Mode="@_listMode" ModeChanged="SetListMode"
                   Selected="@_selected" SelectedObject="@_selectedObject"
