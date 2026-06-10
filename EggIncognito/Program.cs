@@ -56,6 +56,21 @@ builder.WebHost.ConfigureKestrel((context, opts) =>
 
 builder.Services.AddControllers();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+
+// Behind the reverse proxy (Cloudflare -> origin nginx) TLS is terminated at the edge, so the origin
+// sees plain HTTP. Without this, the OAuth challenge builds an http:// redirect_uri that does not match
+// the https one registered in the Discord portal ("Invalid OAuth2 redirect_uri"), and generated links
+// are http. Honor X-Forwarded-Proto/-Host/-For so the app reconstructs the original https request.
+// KnownProxies/KnownNetworks are cleared because the proxy is the sole ingress (the container is only
+// reachable over the proxy docker network) - the same trust model as the CF-Connecting-IP rate limiter.
+builder.Services.Configure<Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor;
+    o.KnownProxies.Clear();
+    o.KnownNetworks.Clear();
+});
 builder.Services.AddAppRateLimiter(builder.Configuration);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -174,6 +189,10 @@ else
 {
     app.Logger.LogInformation("No ConnectionStrings:Postgres - running file-only (no DB overlay).");
 }
+
+// Apply the proxy's forwarded headers FIRST so every downstream middleware (auth, routing, the OAuth
+// challenge, link generation) sees the original https scheme + host, not the proxy's plain-http hop.
+app.UseForwardedHeaders();
 
 // App-wide structured error handling. Turns ApiException into {error, resolution, status} and any
 // unhandled exception into a 500 that points at the logs.
