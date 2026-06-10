@@ -6,7 +6,9 @@
   <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
   <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
   <NavLink href="docs" ActiveClass="active">Docs</NavLink>
-  @if (AppMode.CanCapture) { <NavLink href="capture" ActiveClass="active">Capture</NavLink> }
+  @* Capture always shows: in hosted mode the page itself explains it is local-only + links the download,
+     so the tab stays discoverable rather than vanishing. Import stays gated (a pure write tool). *@
+  <NavLink href="capture" ActiveClass="active">Capture</NavLink>
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
   @* Per-page tools (e.g. the Inspector's Postman download + salt badge) render here, in flow, pinned

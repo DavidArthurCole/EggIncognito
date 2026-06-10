@@ -591,16 +591,26 @@
   .jtree-searching .jtree-dim > .jtree-row { @apply opacity-35; }
   .jtree-match > .jtree-row { background: rgba(239,117,89,.08); }
 
-  /* Admin: table rows are rendered by the Admin Blazor component, element-scoped under #adminMain. */
-  #adminMain h2 { @apply text-base mb-2 mt-6; color: #c7c7cf; }
+  /* Admin: sections are .panel cards; tables are element-scoped under #adminMain. */
+  #adminMain h2 { @apply text-base mt-0 mb-3 text-fg font-semibold; }
+  #adminMain .mono { @apply font-mono text-xs; }
   #adminMain table { @apply w-full border-collapse text-[13px]; }
-  #adminMain th, #adminMain td { @apply text-left px-2.5 py-1.5 border-b border-border; }
+  /* Header row: muted, uppercase-ish, a stronger bottom rule. Body rows: subtle separators, last has none. */
+  #adminMain thead th { @apply text-left px-2.5 py-1.5 text-muted text-xs font-semibold border-b border-border; }
+  #adminMain tbody td { @apply text-left px-2.5 py-2 border-b border-border align-middle; }
+  #adminMain tbody tr:last-child td { @apply border-b-0; }
+  #adminMain tbody tr:hover { @apply bg-panel2; }
   #adminMain select, #adminMain button {
-    @apply bg-panel text-fg border border-border rounded-md px-2 py-1 text-[13px];
+    @apply bg-panel2 text-fg border border-border rounded-md px-2 py-1 text-[13px] cursor-pointer;
   }
-  #adminMain button.danger { @apply cursor-pointer; background: #5a2330; border-color: #7a3040; }
+  #adminMain select:hover, #adminMain button:hover { @apply border-accent2; }
+  #adminMain button.danger { background: #5a2330; border-color: #7a3040; }
+  #adminMain button.danger:hover { background: #6e2a3b; border-color: #9a3c4f; }
+  /* Denied state reuses .panel chrome; this just tints the message. */
   #adminMain #denied { color: #d88; }
-  #adminMain #log { @apply bg-panel border border-border rounded-md p-2 whitespace-pre-wrap; min-height: 1.2rem; }
+  #adminMain #log {
+    @apply bg-panel2 border border-border rounded-md p-2 whitespace-pre-wrap text-xs text-muted mt-2;
+  }
 
   /* Docs hub (/docs): two-pane registry tree + subject detail. */
   .docs-grid { @apply min-h-0; }

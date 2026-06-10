@@ -1,6 +1,7 @@
 @* Decoded response view: an HTTP status badge, the decode stages (a slim Pipeline), an inline error
-   box with a "Possible fix" line, and the pretty-printed JSON. Mirrors app.js renderResponse. *@
-@using System.Text.Json
+   box with a "Possible fix" line, and the response body via the shared Capture FormatView (JSON tree +
+   format toggle + copy + filter, scrollable). *@
+@using EggIncognito.Components.Capture
 
 @if (Response is null)
 {
@@ -35,24 +36,19 @@ else
     }
   }
 
-  @if (!string.IsNullOrEmpty(Response.Json))
+  @if (!string.IsNullOrEmpty(Response.Json) || !string.IsNullOrEmpty(Response.RawBase64))
   {
-    <pre class="json">@Pretty(Response.Json)</pre>
+    @* Reuse the Capture detail display: a JSON tree + format toggle (YAML/XML/hex/bin), a copy button,
+       and a filter, all scrollable. JsonStr drives the decoded views; RawBase64 powers hex/bin even when
+       decode failed. A fresh CaptureViewState gives sane defaults (no PII blur in the Inspector). *@
+    <FormatView Label="Response" JsonStr="@Response.Json" RawB64="@Response.RawBase64"
+                View="_view" FormatChoice="_formatChoice" EmptyNote="(no decoded response body)" />
   }
 }
 
 @code {
     [Parameter] public SendResponse? Response { get; set; }
 
-    static string Pretty(string s)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(s);
-            return JsonSerializer.Serialize(doc.RootElement, PrettyOpts);
-        }
-        catch { return s; }
-    }
-
-    static readonly JsonSerializerOptions PrettyOpts = new() { WriteIndented = true };
+    readonly EggIncognito.Components.Capture.CaptureViewState _view = new();
+    readonly Dictionary<string, string> _formatChoice = new();
 }

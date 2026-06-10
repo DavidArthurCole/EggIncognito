@@ -11,62 +11,88 @@
   <h1 class="text-[1.3rem] mt-0 mb-4">Admin</h1>
   @if (!_isAdmin)
   {
-    <div id="denied">Admin access required. <a class="auth-btn" href="/login?returnUrl=/admin">log in</a></div>
+    <div class="panel" id="denied">Admin access required. <a class="auth-btn" href="/login?returnUrl=/admin">log in</a></div>
   }
   else
   {
-    <h2>Users</h2>
-    <table>
-      <thead><tr><th>User</th><th>Discord ID</th><th>Role</th><th>Last login</th></tr></thead>
-      <tbody>
-        @foreach (var u in _users)
-        {
-          <tr>
-            <td>@u.Username</td>
-            <td>@u.DiscordId</td>
-            <td>
-              <select value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
-                @foreach (var role in Roles)
-                {
-                  <option value="@role">@role</option>
-                }
-              </select>
-            </td>
-            <td>@u.LastLoginAt.ToLocalTime().ToString("g")</td>
-          </tr>
-        }
-      </tbody>
-    </table>
-    <h2>Contributed endpoints</h2>
-    <table>
-      <thead><tr><th>Path</th><th>EID</th><th>Type</th><th></th></tr></thead>
-      <tbody>
-        @foreach (var e in _endpoints)
-        {
-          <tr>
-            <td>@e.Path</td>
-            <td>@e.Eid</td>
-            <td>@e.ResponseType</td>
-            <td><button class="danger" @onclick="() => DeleteEndpoint(e.Id)">delete</button></td>
-          </tr>
-        }
-      </tbody>
-    </table>
-    <h2>Contributed routes</h2>
-    <table>
-      <thead><tr><th>Path</th><th>Response type</th><th></th></tr></thead>
-      <tbody>
-        @foreach (var r in _routes)
-        {
-          <tr>
-            <td>@r.Path</td>
-            <td>@r.ResponseType</td>
-            <td><button class="danger" @onclick="() => DeleteRoute(r.Id)">delete</button></td>
-          </tr>
-        }
-      </tbody>
-    </table>
-    <pre id="log">@_log</pre>
+    <section class="panel mb-4">
+      <h2>Users</h2>
+      <table>
+        <thead><tr><th>User</th><th>Discord ID</th><th>Role</th><th>Last login</th></tr></thead>
+        <tbody>
+          @foreach (var u in _users)
+          {
+            <tr>
+              <td>@u.Username</td>
+              <td class="mono muted">@u.DiscordId</td>
+              <td>
+                <select value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
+                  @foreach (var role in Roles)
+                  {
+                    <option value="@role">@role</option>
+                  }
+                </select>
+              </td>
+              <td class="muted">@u.LastLoginAt.ToLocalTime().ToString("g")</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel mb-4">
+      <h2>Contributed endpoints</h2>
+      @if (_endpoints.Count == 0)
+      {
+        <p class="muted text-sm m-0">No contributed endpoints.</p>
+      }
+      else
+      {
+        <table>
+          <thead><tr><th>Path</th><th>EID</th><th>Type</th><th></th></tr></thead>
+          <tbody>
+            @foreach (var e in _endpoints)
+            {
+              <tr>
+                <td class="mono">@e.Path</td>
+                <td class="mono muted">@e.Eid</td>
+                <td class="mono muted">@e.ResponseType</td>
+                <td><button class="danger" @onclick="() => DeleteEndpoint(e.Id)">delete</button></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    <section class="panel mb-4">
+      <h2>Contributed routes</h2>
+      @if (_routes.Count == 0)
+      {
+        <p class="muted text-sm m-0">No contributed routes.</p>
+      }
+      else
+      {
+        <table>
+          <thead><tr><th>Path</th><th>Response type</th><th></th></tr></thead>
+          <tbody>
+            @foreach (var r in _routes)
+            {
+              <tr>
+                <td class="mono">@r.Path</td>
+                <td class="mono muted">@r.ResponseType</td>
+                <td><button class="danger" @onclick="() => DeleteRoute(r.Id)">delete</button></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    @if (!string.IsNullOrEmpty(_log))
+    {
+      <pre id="log">@_log</pre>
+    }
   }
 </main>
 
