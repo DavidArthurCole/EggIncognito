@@ -11,6 +11,21 @@ COPY EggIncognito.RouteGenerator/EggIncognito.RouteGenerator.csproj EggIncognito
 COPY EggIncognito/EggIncognito.csproj EggIncognito/
 RUN dotnet restore EggIncognito/EggIncognito.csproj
 
+# Fetch the Tailwind CLI before the source COPYs so the (network-bound) download caches independently of
+# source edits - only ARG/base-image changes bust it, not a routine code change.
+ARG TAILWIND_VERSION=v3.4.17
+RUN set -eux; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64) tw=linux-x64 ;; \
+      aarch64|arm64) tw=linux-arm64 ;; \
+      *) echo "unsupported arch $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL \
+      "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-${tw}" \
+      -o /usr/local/bin/tailwindcss; \
+    chmod +x /usr/local/bin/tailwindcss
+
 COPY EggIncognito.Core/ EggIncognito.Core/
 COPY EggIncognito.Capture/ EggIncognito.Capture/
 COPY EggIncognito.Data/ EggIncognito.Data/
@@ -22,20 +37,21 @@ COPY EggIncognito/ EggIncognito/
 # That hook fetches the CLI with ContinueOnError, so a flaky network silently ships an image with no
 # wwwroot/tailwind.css - the page then loads completely unstyled (and the static GET 405s through the
 # OPTIONS/POST catch-all). Doing it explicitly, with no ContinueOnError, fails the build loud instead.
-ARG TAILWIND_VERSION=v3.4.17
 RUN set -eux; \
-    arch="$(uname -m)"; case "$arch" in x86_64) tw=linux-x64 ;; aarch64|arm64) tw=linux-arm64 ;; *) echo "unsupported arch $arch" >&2; exit 1 ;; esac; \
-    curl -fsSL "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-${tw}" -o /usr/local/bin/tailwindcss; \
-    chmod +x /usr/local/bin/tailwindcss; \
     cd EggIncognito; \
-    tailwindcss -c tailwind.config.js -i wwwroot/app.tailwind.css -o wwwroot/tailwind.css --minify 2>&1 | tee /tmp/tw.log; \
-    grep -q "No utility classes were detected" /tmp/tw.log && { echo "Tailwind scanned no classes - content globs wrong, refusing to ship unstyled" >&2; exit 1; } || true; \
+    tailwindcss -c tailwind.config.js \
+      -i wwwroot/app.tailwind.css \
+      -o wwwroot/tailwind.css --minify 2>&1 | tee /tmp/tw.log; \
+    grep -q "No utility classes were detected" /tmp/tw.log \
+      && { echo "Tailwind scanned no classes - content globs wrong, refusing to ship unstyled" >&2; exit 1; } \
+      || true; \
     test -s wwwroot/tailwind.css; \
     grep -q "btn-primary" wwwroot/tailwind.css
 
+# --no-restore: the restore layer above already populated the package graph, so publish must not redo it.
 # EmitTypes=false skips the dashboard-typedef regeneration target. BuildTailwindCss=false skips the
 # MSBuild Tailwind hook since the sheet was just compiled above; publish then bundles it as-is.
-RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
+RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish --no-restore \
         -p:EmitTypes=false -p:BuildTailwindCss=false; \
     test -s /app/publish/wwwroot/tailwind.css
 

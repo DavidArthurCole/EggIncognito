@@ -5,6 +5,7 @@ using EggIncognito.Services;
 using EggIncognito.Services.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("EggIncognito.Tests")]
 
@@ -156,6 +157,77 @@ if (!string.IsNullOrWhiteSpace(botToken))
         RepoUrl: "https://github.com/DavidArthurCole/EggIncognito"));
     builder.Services.AddSingleton<EggIncognito.Bot.IStatusProvider, EggIncognito.Services.StatusSnapshotFactory>();
     builder.Services.AddHostedService<EggIncognito.Bot.DiscordBotHostedService>();
+}
+
+// Inbound device-farm sync endpoint. Opt-in, only when SyncEvent:EventSecret is set, matching the
+// bot (Discord:BotToken) and DB (ConnectionStrings:Postgres) patterns. When absent, EventsController
+// 404s and nothing below is registered. The ingest service is also gated at runtime by IAppMode, so
+// hosted rejects it even if a secret leaks into a public deploy.
+var eventSecret = builder.Configuration["SyncEvent:EventSecret"];
+if (!string.IsNullOrWhiteSpace(eventSecret))
+{
+    var syncContentRoot = ContentRoot.Resolve(builder.Configuration["ContentRoot"]);
+    var syncOptions = new SyncEventOptions
+    {
+        EventSecret = eventSecret,
+        ApkFetchRoot = builder.Configuration["SyncEvent:ApkFetchRoot"] ?? "",
+    };
+    builder.Services.AddSingleton(syncOptions);
+    builder.Services.AddSingleton<EggIncognito.Bot.ISyncNotifier, DiscordSyncNotifier>();
+    builder.Services.AddSingleton(sp =>
+    {
+        // Expected proto identity, computed once from the frozen ei.proto. Compared against each
+        // event's protoSha to split regen-into-staged from flag-for-manual-refresh.
+        var expectedProtoSha = EggIncognito.Core.ProtoHash.Current(syncContentRoot);
+        var notifier = sp.GetRequiredService<EggIncognito.Bot.ISyncNotifier>();
+        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("sync.ingest");
+
+        // Fetch: resolve evt.ApkRef under ApkFetchRoot (local-path only for now, URL fetch is a later
+        // add). Missing root or missing artifact is logged and tolerated, not fatal.
+        Task Fetch(EggIncognito.Models.NewVersionEvent evt, CancellationToken ct)
+        {
+            if (string.IsNullOrEmpty(syncOptions.ApkFetchRoot) || string.IsNullOrEmpty(evt.ApkRef))
+            {
+                logger.LogInformation("sync: no ApkFetchRoot or apkRef for {Version}, skipping fetch", evt.Version);
+                return Task.CompletedTask;
+            }
+            var apk = Path.Combine(syncOptions.ApkFetchRoot, evt.ApkRef.TrimStart('/', '\\'));
+            if (!File.Exists(apk))
+                logger.LogWarning("sync: apk not found at {Apk} for {Version}", apk, evt.Version);
+            return Task.CompletedTask;
+        }
+
+        // Regen: ensure the staged/ output area exists via the same EndpointExtractor.ForRepo path the
+        // HAR + capture routes use, never touching default/. APK-driven endpoint extraction has no
+        // decoder yet, so this stages the area and logs; promotion stays a human step.
+        Task Regen(EggIncognito.Models.NewVersionEvent evt, CancellationToken ct)
+        {
+            EndpointExtractor.ForRepo(syncContentRoot, eid: null, "EI0000000000000000", overwrite: true);
+            logger.LogInformation("sync: staged area ready for {Version}; apk-driven regen not yet wired", evt.Version);
+            return Task.CompletedTask;
+        }
+
+        // Stash: a changed proto is flagged, never auto-applied. Write a small manifest under
+        // Endpoints/staged/proto-refresh/ recording the version and the sha delta for the human gate.
+        Task Stash(EggIncognito.Models.NewVersionEvent evt, CancellationToken ct)
+        {
+            var stashDir = Path.Combine(syncContentRoot, "Endpoints", "staged", "proto-refresh");
+            Directory.CreateDirectory(stashDir);
+            var manifest = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                version = evt.Version,
+                oldProtoSha = expectedProtoSha,
+                newProtoSha = evt.ProtoSha,
+                apkRef = evt.ApkRef,
+                detectedAt = evt.DetectedAt,
+            });
+            File.WriteAllText(Path.Combine(stashDir, $"{evt.Version}.json"), manifest);
+            logger.LogWarning("sync: proto changed for {Version}, stashed refresh manifest", evt.Version);
+            return Task.CompletedTask;
+        }
+
+        return new NewVersionIngestService(expectedProtoSha, notifier, Fetch, Regen, Stash);
+    });
 }
 
 builder.Services.AddSingleton(sp =>

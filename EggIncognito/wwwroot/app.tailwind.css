@@ -521,6 +521,21 @@
   .flow-list { @apply overflow-auto flex-1 pr-2.5; scrollbar-gutter: stable; }
   .empty-state { @apply h-full flex flex-col items-center justify-center text-center text-muted text-[13px] px-6; }
   .empty-hint { @apply mt-2 text-xs text-muted opacity-80 max-w-prose mx-auto leading-relaxed; }
+
+  /* Wire-forensics (Inspector Diagnose tab): paste input, first-break summary, salvaged strings, and the
+     walked field tree with mismatch/broken nodes flagged. */
+  .forensics { @apply flex flex-col gap-2; }
+  .forensics-input { @apply flex flex-col gap-1.5; }
+  .forensics-break { @apply text-xs; }
+  .forensics-salvage, .forensics-tree, .forensics-recovered { @apply font-mono text-[11px] flex flex-col gap-0.5; }
+  .forensics-rfield { @apply flex gap-2; }
+  .forensics-rfield.bad { @apply text-err opacity-70; }
+  .forensics-node { @apply whitespace-nowrap; }
+  .forensics-node.mismatch { @apply text-err; }
+  .forensics-name { @apply text-accent2 ml-1; }
+  .forensics-wire { @apply text-muted ml-1; }
+  .forensics-flag { @apply text-err text-[10px] uppercase ml-1.5 border border-err rounded px-1; }
+  .hex-error { @apply text-err font-bold; }
   .flow-row { @apply flex flex-col gap-[3px] px-2 py-1.5 rounded cursor-pointer; border: 1px solid transparent; }
   .flow-row:hover { @apply bg-panel2; }
   .flow-row.active { @apply bg-panel2 border-accent2; }

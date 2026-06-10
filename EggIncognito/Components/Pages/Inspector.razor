@@ -178,6 +178,7 @@
       <div class="tab-bar">
         <button type="button" class="tab-btn @(_resultTab == 0 ? "active" : "")" @onclick="@(() => _resultTab = 0)">Pipeline</button>
         <button type="button" class="tab-btn @(_resultTab == 1 ? "active" : "")" @onclick="@(() => _resultTab = 1)">Response</button>
+        <button type="button" class="tab-btn @(_resultTab == 2 ? "active" : "")" @onclick="@(() => _resultTab = 2)">Diagnose</button>
         @if (_resultTab == 1 && _canSaveDb && _response?.Json is not null)
         {
           <button type="button" class="btn-mini ml-auto" title="Save this response as a stored endpoint" @onclick="SaveToDb">Save to DB</button>
@@ -188,10 +189,14 @@
         {
           <Pipeline Stages="_buildStages" />
         }
-        else
+        else if (_resultTab == 1)
         {
           <ResponsePanel Response="_response" />
           <pre class="settings-out">@_saveOut</pre>
+        }
+        else
+        {
+          <Forensics Result="_diagnosis" RootType="@(_selected?.Response)" ClientFactory="Client" />
         }
       </div>
     </div>
@@ -253,7 +258,8 @@
     List<TransportStage>? _buildStages;
     SendResponse? _response;
     string _saveOut = "";
-    int _resultTab; // 0 = Pipeline, 1 = Response (mirrors Capture's remembered detail tab)
+    int _resultTab; // 0 = Pipeline, 1 = Response, 2 = Diagnose (mirrors Capture's remembered detail tab)
+    DiagnoseDto? _diagnosis;
 
     // Browser-memory (interop-backed) state.
     bool _hasSalt;
@@ -632,11 +638,28 @@
             var res = await Client().PostAsJsonAsync("/api/inspector/send",
                 new { url, formBody = _lastBuild.FinalFormBody, responseType = e.Response }, JsonOpts);
             _response = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
+            await MaybeDiagnose();
         }
         catch (Exception ex)
         {
             _response = new SendResponse(null, null, null, null, "send failed: " + ex.Message, null);
         }
+    }
+
+    // When a send decoded to an error but we still have the raw response bytes, run wire forensics and
+    // surface the Diagnose tab so the failure is actionable instead of just an error string.
+    async Task MaybeDiagnose()
+    {
+        _diagnosis = null;
+        if (_response?.Error is null || string.IsNullOrEmpty(_response.RawBase64)) return;
+        try
+        {
+            var res = await Client().PostAsJsonAsync("/api/tools/diagnose",
+                new { Base64 = _response.RawBase64, RootType = _selected?.Response }, JsonOpts);
+            _diagnosis = await res.Content.ReadFromJsonAsync<DiagnoseDto>(JsonOpts);
+            _resultTab = 2; // focus the Diagnose tab on a decode failure
+        }
+        catch { /* leave _diagnosis null; the Response tab still shows the error */ }
     }
 
     // Custom: the browser POSTs the built form body straight to the user's proxy (this server bypassed),
@@ -687,6 +710,7 @@
                 new { rawBase64 = raw, responseType = e.Response }, JsonOpts);
             var dec = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
             _response = new SendResponse(200, raw, dec?.Stages, dec?.Json, dec?.Error, null);
+            await MaybeDiagnose();
         }
         catch (Exception ex)
         {

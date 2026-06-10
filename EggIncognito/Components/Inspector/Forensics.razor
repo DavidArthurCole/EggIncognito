@@ -1,0 +1,130 @@
+@* Renders a wire-forensics diagnosis: status, the first corruption (offset + resolved path + hex window),
+   salvaged strings, and the walked field tree with the broken/mismatched nodes marked. Also a manual
+   paste-base64 input so any blob can be diagnosed, not just a failed send. *@
+@using System.Net.Http.Json
+@using EggIncognito.Components.Inspector
+
+<div class="forensics">
+  <div class="forensics-input">
+    <textarea class="raw-json" spellcheck="false" placeholder="Paste base64 to diagnose..."
+              autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+              @bind="_manualB64" @bind:event="oninput" style="min-height: 70px;"></textarea>
+    <button class="btn-info" disabled="@(string.IsNullOrWhiteSpace(_manualB64))" @onclick="RunManual">Diagnose</button>
+  </div>
+
+  @if (Result is null)
+  {
+    <div class="muted">No diagnosis yet. A failed decode auto-populates here, or paste bytes above.</div>
+  }
+  else if (Result.Error is not null)
+  {
+    <div class="error-box">@Result.Error</div>
+  }
+  else
+  {
+    <div class="resp-status @(Result.Ok ? "ok" : "bad")">@(Result.Ok ? "structurally valid" : "corruption found")</div>
+
+    @if (Result.FirstError is not null)
+    {
+      <div class="section-head"><h3>First break</h3></div>
+      <div class="forensics-break">
+        <div>byte <strong>@Result.FirstError.Offset</strong> of @Result.TotalLen: @Result.FirstError.Message</div>
+        <div class="muted">path @Result.FirstError.Path@(Result.FirstError.ResolvedPath is null ? "" : $" ({Result.FirstError.ResolvedPath})")</div>
+      </div>
+      @if (Result.HexAround is not null)
+      {
+        <div class="bytes-label">hex (error byte marked)</div>
+        <div class="bytes">@HexMarked(Result.HexAround)</div>
+      }
+    }
+
+    @if (Result.Salvaged is { Count: > 0 })
+    {
+      <div class="section-head"><h3>Salvaged strings</h3></div>
+      <div class="forensics-salvage">
+        @foreach (var s in Result.Salvaged)
+        {
+          <div><span class="muted">@s.Offset:</span> @s.Text</div>
+        }
+      </div>
+    }
+
+    @if (Result.Recovered?.Fields is { Count: > 0 })
+    {
+      <div class="section-head"><h3>Recovered fields (past the break)</h3></div>
+      <div class="forensics-recovered">
+        @foreach (var f in Result.Recovered.Fields)
+        {
+          <div class="forensics-rfield @(f.Bad ? "bad" : "")">
+            <span class="muted">@(f.ResolvedName ?? $"#{f.Field}")</span>
+            <span class="forensics-wire">@f.Wire</span>
+            <span>@f.Value</span>
+          </div>
+        }
+      </div>
+    }
+
+    <div class="section-head"><h3>Field tree (@Result.NodesWalked nodes)</h3></div>
+    <div class="forensics-tree">
+      @if (Result.Tree is not null)
+      {
+        @foreach (var n in Result.Tree)
+        {
+          @TreeNode(n, 0)
+        }
+      }
+    </div>
+  }
+</div>
+
+@code {
+    [Parameter] public DiagnoseDto? Result { get; set; }
+    [Parameter] public string? RootType { get; set; }
+    [Parameter] public Func<HttpClient> ClientFactory { get; set; } = default!;
+
+    string _manualB64 = "";
+
+    async Task RunManual()
+    {
+        try
+        {
+            var res = await ClientFactory().PostAsJsonAsync("/api/tools/diagnose",
+                new { Base64 = _manualB64, RootType });
+            Result = await res.Content.ReadFromJsonAsync<DiagnoseDto>();
+        }
+        catch (System.Exception ex) { Result = new DiagnoseDto(false, 0, 0, null, null, null, null, null, ex.Message); }
+    }
+
+    // Render the hex window with the error byte wrapped in a marker span.
+    RenderFragment HexMarked(HexWindowDto w) => builder =>
+    {
+        int seq = 0;
+        for (int i = 0; i < w.Hex.Length; i += 2)
+        {
+            int byteIdx = i / 2;
+            string pair = w.Hex.Substring(i, System.Math.Min(2, w.Hex.Length - i));
+            if (byteIdx == w.ErrorIndexInWindow)
+            {
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "hex-error");
+                builder.AddContent(seq++, pair);
+                builder.CloseElement();
+            }
+            else builder.AddContent(seq++, pair);
+            builder.AddContent(seq++, " ");
+        }
+    };
+
+    RenderFragment TreeNode(WireNodeDto n, int depth) =>@<div class="forensics-node @(n.SchemaMismatch ? "mismatch" : "")"
+        style="@($"margin-left: {depth * 14}px;")">
+        <span class="muted">@n.Path</span>
+        @if (n.ResolvedName is not null) { <span class="forensics-name">@n.ResolvedName</span> }
+        <span class="forensics-wire">@n.Wire</span>
+        <span class="muted">@@@n.Offset@(n.Len is null ? "" : $", len {n.Len}")</span>
+        @if (n.SchemaMismatch) { <span class="forensics-flag">wire/schema mismatch</span> }
+        @if (n.Children is { Count: > 0 })
+        {
+          @foreach (var c in n.Children) { @TreeNode(c, depth + 1) }
+        }
+      </div>;
+}

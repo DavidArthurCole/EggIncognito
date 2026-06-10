@@ -18,5 +18,8 @@
 
   <ItemGroup>
     <Protobuf Include="Proto\ei.proto" ProtoRoot="Proto" GrpcServices="None" />
+    <!-- Copy the frozen proto next to the published payload so ProtoHash.Current can read it in
+         hosted mode, where the dev-tree EggIncognito.Core/Proto path does not exist. -->
+    <Content Include="Proto\ei.proto" Link="Proto\ei.proto" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -26,3 +26,25 @@ public sealed record SendResponse(
     string? Json,
     string? Error,
     string? Resolution);
+
+// POST /api/tools/diagnose. Mirrors WireForensics.DiagnoseResult by field name so JSON binds 1:1; kept
+// separate because Core has no web dependency. Error is the in-band base64-decode failure field.
+public sealed record DiagnoseDto(
+    bool Ok,
+    int TotalLen,
+    int NodesWalked,
+    DiagnoseErrorDto? FirstError,
+    HexWindowDto? HexAround,
+    List<SalvagedDto>? Salvaged,
+    List<WireNodeDto>? Tree,
+    RecoveryDto? Recovered,
+    string? Error);
+
+public sealed record DiagnoseErrorDto(int Offset, string Path, string? ResolvedPath, string Message);
+public sealed record HexWindowDto(int From, int To, int ErrorIndexInWindow, string Hex);
+public sealed record SalvagedDto(int Offset, string Text);
+public sealed record WireNodeDto(
+    string Path, string? ResolvedName, int Field, string Wire, int Offset,
+    int? Len, bool SchemaMismatch, List<WireNodeDto>? Children);
+public sealed record RecoveryDto(int AlignedAt, int SkippedBytes, List<RecoveredFieldDto>? Fields);
+public sealed record RecoveredFieldDto(int Field, string? ResolvedName, string Wire, string Value, bool Bad);
