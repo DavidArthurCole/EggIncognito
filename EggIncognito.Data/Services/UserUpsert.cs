@@ -7,9 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace EggIncognito.Data.Services;
 
 // Upserts the User row on each Discord login. Wired as the AddDiscord OnCreatingTicket handler. The
-// pure helpers (Extract / Apply) are unit-tested; OnLoginAsync resolves the scoped DbContext from the
-// ticket's request services and does the DB pass. A DB failure here fails the login (so we never
-// issue a cookie for a user with no row - Phase 3's ACL lookup depends on the row existing).
+// pure helpers are unit-tested; OnLoginAsync resolves the scoped DbContext from the ticket's request
+// services and does the DB pass. A DB failure here fails the login, so we never issue a cookie for a
+// user with no row, which the ACL lookup depends on.
 public static class UserUpsert
 {
     public sealed record Info(string DiscordId, string Username, string? Avatar);
@@ -37,8 +37,8 @@ public static class UserUpsert
         row.LastLoginAt = now;
     }
 
-    // The role a user should have after this login: allowlisted ids are (re-)promoted to admin;
-    // otherwise a new user defaults to viewer and a returning user keeps their stored role.
+    // The role a user should have after this login: allowlisted ids are re-promoted to admin; otherwise
+    // a new user defaults to viewer and a returning user keeps their stored role.
     public static string ResolveRole(string? existingRole, string discordId, AdminAllowlist allow)
     {
         if (allow.Ids.Contains(discordId)) return UserRoles.ToName(UserRole.Admin);

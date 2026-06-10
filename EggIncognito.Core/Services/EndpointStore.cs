@@ -5,10 +5,10 @@ using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Services;
 
-// Coordinates endpoint lookup across sources. The file source (singleton) is always present; a DB
-// overlay source (scoped, so resolved per-lookup via the scope factory) is consulted FIRST when the
-// app is configured with a database, so a stored row overrides the file default for the same key.
-// With no scope factory the store is exactly the former file-only behavior.
+// Coordinates endpoint lookup across sources. The singleton file source is always present; a scoped
+// DB overlay source, resolved per-lookup via the scope factory, is consulted first when the app is
+// configured with a database, so a stored row overrides the file default for the same key. With no
+// scope factory the store is exactly the former file-only behavior.
 public sealed class EndpointStore : IEndpointStore
 {
     private readonly IEndpointSource _fileSource;
@@ -28,7 +28,7 @@ public sealed class EndpointStore : IEndpointStore
         return bytes is null ? new TRes() : JsonParser.Default.Parse<TRes>(Encoding.UTF8.GetString(bytes));
     }
 
-    // Runtime-typed lookup for the dynamic controller (it only knows the proto type at runtime).
+    // Runtime-typed lookup for the dynamic controller, which only knows the proto type at runtime.
     public IMessage Get(System.Type messageType, string path, string? eid = null)
     {
         var instance = (IMessage)Activator.CreateInstance(messageType)!;
@@ -51,7 +51,7 @@ public sealed class EndpointStore : IEndpointStore
             }
             catch (Exception ex)
             {
-                // A transient DB error must not fail the request: fall back to the file default.
+                // A transient DB error must not fail the request - fall back to the file default.
                 _logger.LogWarning(ex, "DB endpoint lookup failed for {Path} (eid {Eid}); using file default", path, eid);
             }
         }

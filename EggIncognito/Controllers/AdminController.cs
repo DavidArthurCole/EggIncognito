@@ -7,9 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Controllers;
 
-// Admin-only management API. Every action requires the admin role; the role check (and the self-
-// lockout guard) run BEFORE the DB resolve, so a non-admin 403s and a self-demote 400s regardless of
-// DB state. When no DB is configured, DB-touching actions return 503.
+// Admin-only management API. Every action requires the admin role. The role check and self-lockout
+// guard run before the DB resolve, so a non-admin 403s and a self-demote 400s regardless of DB state.
+// When no DB is configured, DB-touching actions return 503.
 [ApiController]
 [Route("api/admin")]
 [EnableRateLimiting("write")]
@@ -43,7 +43,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
         var user = await db.Users.FirstOrDefaultAsync(u => u.DiscordId == discordId);
         if (user is null) return NotFound(new { error = "user not found" });
-        user.Role = UserRoles.ToName(UserRoles.Parse(body.Role)); // normalize/validate
+        user.Role = UserRoles.ToName(UserRoles.Parse(body.Role)); // normalize + validate
         await db.SaveChangesAsync();
         return Ok(new { discordId, role = user.Role });
     }
@@ -75,8 +75,8 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
     public sealed record AddTag(string Slug, string Label, string? Color);
 
-    // Tag DEFINITIONS are catalog-level data, so creating/removing them is admin-only (contributors
-    // only assign existing tags to subjects, via DocsController). Slug is normalized + must be unique.
+    // Tag definitions are catalog-level data, so creating/removing them is admin-only; contributors
+    // only assign existing tags to subjects via DocsController. Slug is normalized + must be unique.
     [HttpPost("tag")]
     public async Task<IActionResult> AddTagAsync([FromBody] AddTag body)
     {

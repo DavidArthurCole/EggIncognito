@@ -4,8 +4,8 @@ using System.Text.Json.Nodes;
 namespace EggIncognito.Services;
 
 // Builds a Postman v2.1 collection from routes.yaml, with per-type field annotations from runtime
-// proto reflection. Pure - takes a routes.yaml path, returns the JSON string. Served by the
-// Inspector's Tools "Download Postman collection" link (/api/tools/postman-collection).
+// proto reflection. Pure: takes a routes.yaml path, returns the JSON string. Served by the Inspector's
+// Tools "Download Postman collection" link.
 public static class PostmanCollection
 {
     private static readonly string[] PreRequest =

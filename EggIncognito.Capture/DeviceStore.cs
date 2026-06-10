@@ -3,9 +3,9 @@ using System.Text.Json;
 namespace EggIncognito.Capture;
 
 // Persists remembered capture devices to <capturePath>/devices.json so the dashboard can show
-// previously-seen devices across runs. Best-effort, like the HAR/CA writes: a missing or corrupt
-// file reads as an empty list, and write failures are swallowed (never break a capture over it).
-// Caps the file at the most-recently-seen devices so it cannot grow unbounded.
+// previously-seen devices across runs. Best-effort, like the HAR/CA writes: a missing or corrupt file
+// reads as an empty list, and write failures are swallowed so they never break a capture. Caps the
+// file at the most-recently-seen devices so it cannot grow unbounded.
 public sealed class DeviceStore(string capturePath)
 {
     private const int MaxDevices = 50;

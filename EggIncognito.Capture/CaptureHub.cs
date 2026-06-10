@@ -2,20 +2,16 @@ using System.Threading.Channels;
 
 namespace EggIncognito.Capture;
 
-// In-memory broker between the capture proxy and the dashboard browser(s).
-//
-// The proxy raises flows + connection/error events on its own threads; SSE subscribers are
-// served on request threads. So all mutable state (flow buffer, stats counters, subscriber set)
-// is guarded by a lock, and each subscriber gets its own bounded Channel of CaptureEnvelope - a
-// slow or stalled browser drops its oldest queued messages (DropOldest) instead of blocking the
-// proxy.
-//
-// One SSE stream carries three message kinds via CaptureEnvelope: "flow" (a captured flow),
-// "stats" (a stats snapshot), and "notice" (a toast event). Designed to live behind a DI
-// singleton so the controller and the capture loop share one hub.
+// In-memory broker between the capture proxy and the dashboard browsers.
+// The proxy raises flows + connection/error events on its own threads; SSE subscribers are served on
+// request threads. So all mutable state is guarded by a lock, and each subscriber gets its own bounded
+// Channel of CaptureEnvelope - a slow or stalled browser drops its oldest queued messages instead of
+// blocking the proxy.
+// One SSE stream carries three message kinds via CaptureEnvelope: "flow", "stats", and "notice".
+// Designed to live behind a DI singleton so the controller and the capture loop share one hub.
 public sealed class CaptureHub
 {
-    private const int BufferCap = 500; // recent flows kept for snapshot / reconnect
+    private const int BufferCap = 500; // recent flows kept for snapshot/reconnect
     private const int SubscriberQueueCap = 256;
     private const string KindFlow = "flow";
     private const string KindStats = "stats";
@@ -26,17 +22,17 @@ public sealed class CaptureHub
     private readonly List<Channel<CaptureEnvelope>> _subscribers = [];
     private long _nextId;
 
-    // stats counters (all under _gate)
+    // stats counters, all under _gate
     private int _activeConnections;
     private readonly Dictionary<string, Device> _devices = new(StringComparer.Ordinal);
-    // Devices remembered from prior runs (seeded at session start). Shown as offline cards until a
+    // Devices remembered from prior runs, seeded at session start. Shown as offline cards until a
     // matching IP connects, at which point the live device adopts the remembered identity.
     private readonly Dictionary<string, RememberedDevice> _known = new(StringComparer.Ordinal);
-    // Raised (outside the lock) whenever the device set changes, so the owner can persist it.
+    // Raised outside the lock whenever the device set changes, so the owner can persist it.
     public Action? DevicesChanged;
-    // Session's most-recently-seen device OS + game version, from the decoded request's rinfo. The
-    // flow path sees loopback not the device IP, so these are only surfaced when exactly one device
-    // is connected (the overwhelmingly common single-phone case).
+    // Session's most-recently-seen device OS + game version, from the decoded request's rinfo. The flow
+    // path sees loopback not the device IP, so these are only surfaced when exactly one device is
+    // connected, the common single-phone case.
     private string? _lastOs;
     private string? _lastGameVersion;
     private int _capturedAuxbrain;
@@ -50,17 +46,15 @@ public sealed class CaptureHub
     private bool _sawAuxbrainConnect;
     private CertState _certState = CertState.Waiting;
 
-    // When paused, Publish records nothing and broadcasts no flow (dashboard view only - the
-    // proxy keeps tunneling and the endpoint/HAR pipeline is governed separately). Stats/connection
-    // events still update so the cert pill and device info stay accurate while paused.
+    // When paused, Publish records nothing and broadcasts no flow - dashboard view only; the proxy
+    // keeps tunneling and the endpoint/HAR pipeline is governed separately. Stats/connection events
+    // still update so the cert pill and device info stay accurate while paused.
     public bool Paused { get; set; }
 
-    // flows
-
-    // Assign an id, stamp a timestamp, buffer it, update stats, and broadcast. Returns the stored
-    // flow (with Id/Timestamp filled), or null if paused. The caller passes a flow whose Id and
-    // Timestamp are placeholders; the hub owns those. isAuxbrain marks a decrypted auxbrain flow
-    // (counts toward capture stats + flips the cert state to Trusted).
+    // Assign an id, stamp a timestamp, buffer it, update stats, and broadcast. Returns the stored flow
+    // with Id/Timestamp filled, or null if paused. The caller passes a flow whose Id and Timestamp are
+    // placeholders; the hub owns those. isAuxbrain marks a decrypted auxbrain flow, which counts toward
+    // capture stats and flips the cert state to Trusted.
     public DashboardFlow? Publish(DashboardFlow flow, string timestamp, bool isAuxbrain = true)
     {
         DashboardFlow? stored = null;
@@ -77,8 +71,8 @@ public sealed class CaptureHub
                 var (os, gameVersion) = ParseRInfo(flow.RequestJson);
                 if (os is not null) _lastOs = os;
                 if (gameVersion is not null) _lastGameVersion = gameVersion;
-                // When exactly one device is connected, the rinfo OS/version belongs to it - stamp it
-                // on that device so it persists per-device (and survives into the remembered store).
+                // When exactly one device is connected, the rinfo OS/version belongs to it - stamp it on
+                // that device so it persists per-device and survives into the remembered store.
                 if (_devices.Count == 1 && (os is not null || gameVersion is not null))
                 {
                     var only = _devices.Values.First();
@@ -90,7 +84,7 @@ public sealed class CaptureHub
                 if (!string.IsNullOrEmpty(flow.Path))
                     _bytesByEndpoint[flow.Path] = _bytesByEndpoint.GetValueOrDefault(flow.Path) + bytes;
 
-                // First successful auxbrain decrypt => the CA is trusted on the device.
+                // First successful auxbrain decrypt means the CA is trusted on the device.
                 if (_certState != CertState.Trusted)
                 {
                     _certState = CertState.Trusted;
@@ -122,10 +116,8 @@ public sealed class CaptureHub
         return stored;
     }
 
-    // connection + decrypt events (from the proxy)
-
-    // A client connected. activeCount is the proxy's current active connection count; ip is the
-    // remote address if known. Emits a deviceConnected toast for a newly-seen device.
+    // A client connected. activeCount is the proxy's current active connection count; ip is the remote
+    // address if known. Emits a deviceConnected toast for a newly-seen device.
     public void RecordConnection(int activeCount, string? ip, string timestamp)
     {
         CaptureEvent? notice = null;
@@ -133,15 +125,14 @@ public sealed class CaptureHub
         lock (_gate)
         {
             _activeConnections = activeCount;
-            // A device connecting (TCP) does NOT tell us whether the cert is trusted - the TLS
-            // handshake has not been attempted yet. Leave cert state as-is (Waiting) until a flow
-            // actually decrypts (-> Trusted) or a decrypt error fires (-> Untrusted).
+            // A TCP device connect does not tell us whether the cert is trusted - the TLS handshake has
+            // not been attempted yet. Leave cert state as Waiting until a flow actually decrypts, going
+            // Trusted, or a decrypt error fires, going Untrusted.
             if (!string.IsNullOrEmpty(ip))
             {
                 if (!_devices.TryGetValue(ip, out var dev))
                 {
-                    // Adopt the remembered identity (first-seen, hostname, OS, lifetime count) if we
-                    // have seen this IP in a prior run.
+                    // Adopt the remembered identity if we have seen this IP in a prior run.
                     _known.TryGetValue(ip, out var prior);
                     dev = new Device(ip, prior?.FirstSeen ?? timestamp)
                     {
@@ -171,8 +162,8 @@ public sealed class CaptureHub
         lock (_gate)
         {
             _activeConnections = activeCount;
-            // When all connections are gone, every live device is now offline (the forwarder cannot
-            // tell us which IP dropped, so a zero count means none remain).
+            // When all connections are gone, every live device is now offline. The forwarder cannot
+            // tell us which IP dropped, so a zero count means none remain.
             if (activeCount == 0)
                 foreach (var d in _devices.Values) d.Online = false;
         }
@@ -183,8 +174,8 @@ public sealed class CaptureHub
     }
 
     // Best-effort reverse-DNS for a device IP, off the hot path. Fills the device's Hostname if it
-    // resolves (and is not just the IP echoed back). Failures are silently ignored - RDNS on a LAN
-    // is unreliable and a missing hostname is fine.
+    // resolves and is not just the IP echoed back. Failures are silently ignored - RDNS on a LAN is
+    // unreliable and a missing hostname is fine.
     private async Task ResolveHostnameAsync(string ip)
     {
         string? host = null;
@@ -193,7 +184,7 @@ public sealed class CaptureHub
             var entry = await System.Net.Dns.GetHostEntryAsync(ip);
             if (!string.IsNullOrEmpty(entry.HostName) && entry.HostName != ip) host = entry.HostName;
         }
-        catch { /* no PTR record / lookup failed - leave hostname null */ }
+        catch { /* no PTR record or lookup failed - leave hostname null */ }
 
         if (host is null) return;
         lock (_gate) { if (_devices.TryGetValue(ip, out var dev)) dev.Hostname = host; }
@@ -201,9 +192,9 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    // An auxbrain CONNECT was seen (the device is trying to reach the API). This alone does NOT
-    // prove the cert is untrusted - the decrypt may still succeed. We only record that we saw it;
-    // a later decrypt error (with no successful flow) is what flips the state to Untrusted.
+    // An auxbrain CONNECT was seen; the device is trying to reach the API. This alone does not prove
+    // the cert is untrusted - the decrypt may still succeed. We only record that we saw it; a later
+    // decrypt error with no successful flow is what flips the state to Untrusted.
     public void RecordAuxbrainConnect()
     {
         lock (_gate) _sawAuxbrainConnect = true;
@@ -245,8 +236,8 @@ public sealed class CaptureHub
         foreach (var (k, v) in _bytesByEndpoint)
             if (v > biggestBytes) { biggest = k; biggestBytes = v; }
 
-        // Attribute the session OS/version only when a single device is connected (otherwise we
-        // cannot tell which device it came from - the flow path sees loopback, not the device IP).
+        // Attribute the session OS/version only when a single device is connected; otherwise we cannot
+        // tell which device it came from, since the flow path sees loopback not the device IP.
         var single = _devices.Count == 1;
         var live = _devices.Values
             .OrderBy(d => d.FirstSeen, StringComparer.Ordinal)
@@ -256,7 +247,7 @@ public sealed class CaptureHub
                 d.GameVersion ?? (single ? _lastGameVersion : null),
                 Online: d.Online,
                 TotalConnections: d.TotalConnections));
-        // Remembered devices from prior runs that are not live this session: shown as offline cards.
+        // Remembered devices from prior runs that are not live this session, shown as offline cards.
         var offline = _known.Values
             .Where(k => !_devices.ContainsKey(k.Ip))
             .Select(k => new DeviceInfo(
@@ -282,9 +273,9 @@ public sealed class CaptureHub
             Port: _proxyPort);
     }
 
-    // Read the device OS + game version from the decoded request's rinfo. Egg, Inc.'s own
-    // User-Agent does not carry the OS, so rinfo is the only reliable source. Returns (null, null)
-    // when rinfo is absent.
+    // Read the device OS + game version from the decoded request's rinfo. Egg, Inc.'s own User-Agent
+    // does not carry the OS, so rinfo is the only reliable source. Returns (null, null) when rinfo is
+    // absent.
     private static (string? Os, string? GameVersion) ParseRInfo(string? requestJson)
     {
         if (string.IsNullOrEmpty(requestJson)) return (null, null);
@@ -318,21 +309,21 @@ public sealed class CaptureHub
         _ => platform!,
     };
 
-    // Mutable per-device record kept in the hub (converted to the immutable DeviceInfo for snapshots).
+    // Mutable per-device record kept in the hub, converted to the immutable DeviceInfo for snapshots.
     private sealed class Device(string ip, string firstSeen)
     {
         public string Ip { get; } = ip;
         public string FirstSeen { get; } = firstSeen;
         public string LastSeen { get; set; } = firstSeen;
         public string? Hostname { get; set; }
-        public int Connections { get; set; }      // active connections this session
+        public int Connections { get; set; } // active connections this session
         public int TotalConnections { get; set; } // lifetime, seeded from the remembered value
         public bool Online { get; set; } = true;
         public string? Os { get; set; }
         public string? GameVersion { get; set; }
     }
 
-    // Seed devices remembered from prior runs (called once at session start, before any connection).
+    // Seed devices remembered from prior runs. Called once at session start, before any connection.
     public void SeedKnownDevices(IReadOnlyList<RememberedDevice> devices)
     {
         lock (_gate)
@@ -342,7 +333,7 @@ public sealed class CaptureHub
         }
     }
 
-    // The merged device set (live + remembered-offline) as a persistable list. Live devices win and
+    // The merged device set, live plus remembered-offline, as a persistable list. Live devices win and
     // carry their up-to-date fields; remembered-only devices are preserved as-is.
     public IReadOnlyList<RememberedDevice> SnapshotRememberedDevices()
     {
@@ -377,8 +368,8 @@ public sealed class CaptureHub
         }
     }
 
-    // Mark a buffered flow as saved-as-endpoint and re-broadcast it, so the dashboard (and any other
-    // open tab) shows it as saved and a refresh - which replays the buffer - does not re-prompt.
+    // Mark a buffered flow as saved-as-endpoint and re-broadcast it, so the dashboard and any other
+    // open tab shows it as saved and a refresh, which replays the buffer, does not re-prompt.
     public void MarkSaved(long id)
     {
         DashboardFlow? updated = null;
@@ -394,14 +385,12 @@ public sealed class CaptureHub
         if (updated is not null) Broadcast(new CaptureEnvelope(KindFlow, updated, null, null));
     }
 
-    // subscriptions + broadcast
-
-    // True if at least one dashboard (SSE client) is currently connected. Used by the launcher to
-    // avoid opening a duplicate browser tab when a page from a prior run is already attached.
+    // True if at least one dashboard SSE client is currently connected. Used by the launcher to avoid
+    // opening a duplicate browser tab when a page from a prior run is already attached.
     public bool HasSubscribers { get { lock (_gate) return _subscribers.Count > 0; } }
 
-    // Proxy lifecycle, set by CaptureSession on start/stop. Carried on the stats snapshot + pushed
-    // to clients so the dashboard's running pill updates live (no race with the one-shot poll).
+    // Proxy lifecycle, set by CaptureSession on start/stop. Carried on the stats snapshot and pushed to
+    // clients so the dashboard's running pill updates live, with no race against the one-shot poll.
     private bool _proxyRunning;
     private int _proxyPort;
     public void SetProxyState(bool running, int port)

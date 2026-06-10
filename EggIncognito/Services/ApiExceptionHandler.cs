@@ -1,7 +1,6 @@
-// App-wide exception handler (registered via AddExceptionHandler + UseExceptionHandler).
-// Maps ApiException to its structured ApiError body; maps anything unhandled to a generic
-// 500 whose resolution points at the logs. Applies to all controllers and minimal-API
-// endpoints.
+// App-wide exception handler, registered via AddExceptionHandler + UseExceptionHandler. Maps
+// ApiException to its structured ApiError body; maps anything unhandled to a generic 500 whose
+// resolution points at the logs. Applies to all controllers and minimal-API endpoints.
 
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -16,7 +15,7 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         ApiError error;
         if (exception is ApiException api)
         {
-            // Expected, handled failure - log at Warning, no stack noise.
+            // Expected, handled failure: log at Warning, no stack noise.
             logger.LogWarning("{Path} -> {Status} {Error}",
                 httpContext.Request.Path, api.Status, api.Error);
             error = api.ToApiError();

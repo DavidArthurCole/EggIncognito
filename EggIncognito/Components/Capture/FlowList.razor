@@ -1,0 +1,174 @@
+@* The middle flow list, ported from wwwroot/capture/flowlist.js: row construction (time, path, known
+   dot, outcome tag, status badge, type chips), the filters (group/path/type), select, and the
+   device-aware empty state. The list lives in the page's Flows ordered list; this component renders +
+   filters it and raises OnSelect. *@
+@using EggIncognito.Capture
+@using EggIncognito.Components.Capture
+
+<section id="flowsPanel" class="panel">
+  <div class="flow-head">
+    <h2>Requests</h2>
+    <div class="flow-filters">
+      <span class="flow-filters-label">Filters</span>
+      <select class="flow-filter-select" title="API group" value="@_group" @onchange="OnGroupChange">
+        <option value="">All groups</option>
+        <option value="ei">ei</option>
+        <option value="ei_afx">ei_afx</option>
+        <option value="ei_ctx">ei_ctx</option>
+        <option value="ei_data">ei_data</option>
+        <option value="ei_srv">ei_srv</option>
+      </select>
+      <input class="flow-filter-input" type="search" placeholder="path..." value="@_pathFilter" @oninput="OnPathInput" />
+      <input class="flow-filter-input" type="search" list="seenTypes" placeholder="request/response type..."
+             value="@_typeFilter" @oninput="OnTypeInput" />
+      <datalist id="seenTypes">
+        @foreach (var t in SeenTypes())
+        {
+          <option value="@t" />
+        }
+      </datalist>
+      <button type="button" class="btn-mini" title="Reset all filters" @onclick="ClearFilters">Clear filters</button>
+    </div>
+  </div>
+  <div id="flowList" class="flow-list">
+    @if (Flows.Count == 0)
+    {
+      <div class="empty-state">
+        @if (Connected)
+        {
+          @:No requests captured yet.
+        }
+        else
+        {
+          @:No device connected yet.
+          <div class="empty-hint">Point the device's Wi-Fi proxy at this machine and install the CA cert.
+            The device only registers once an app sends a request through the proxy - the Settings app
+            alone usually sends nothing, so open a browser or Egg, Inc. to generate traffic.</div>
+        }
+      </div>
+    }
+    else
+    {
+      @foreach (var flow in Flows)
+      {
+        @Row(flow)
+      }
+    }
+  </div>
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<DashboardFlow> Flows { get; set; } = [];
+    [Parameter] public long? SelectedId { get; set; }
+    [Parameter] public bool Connected { get; set; }
+    [Parameter] public CaptureViewState View { get; set; } = new();
+    [Parameter] public EventCallback<long> OnSelect { get; set; }
+
+    string _group = "";
+    string _pathFilter = "";
+    string _typeFilter = "";
+
+    void OnGroupChange(ChangeEventArgs e) => _group = e.Value?.ToString() ?? "";
+    void OnPathInput(ChangeEventArgs e) => _pathFilter = (e.Value?.ToString() ?? "").Trim();
+    void OnTypeInput(ChangeEventArgs e) => _typeFilter = (e.Value?.ToString() ?? "").Trim();
+    void ClearFilters() { _group = ""; _pathFilter = ""; _typeFilter = ""; }
+
+    // Request/response type names seen this session, for the #seenTypes datalist.
+    IEnumerable<string> SeenTypes()
+    {
+        var set = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var f in Flows)
+        {
+            if (!string.IsNullOrEmpty(f.RequestType)) set.Add(f.RequestType);
+            if (!string.IsNullOrEmpty(f.ResponseType)) set.Add(f.ResponseType);
+        }
+        return set;
+    }
+
+    // True if a flow passes all active filters. Ported from flowMatchesFilters.
+    bool Matches(DashboardFlow flow)
+    {
+        var path = (flow.Path ?? "").ToLowerInvariant();
+        if (!string.IsNullOrEmpty(_group) && (flow.Path ?? "").Split('/')[0] != _group) return false;
+        if (!string.IsNullOrEmpty(_pathFilter) && !path.Contains(_pathFilter.ToLowerInvariant())) return false;
+        if (!string.IsNullOrEmpty(_typeFilter))
+        {
+            var t = ((flow.RequestType ?? "") + " " + (flow.ResponseType ?? "")).ToLowerInvariant();
+            if (!t.Contains(_typeFilter.ToLowerInvariant())) return false;
+        }
+        return true;
+    }
+
+    RenderFragment Row(DashboardFlow flow) =>@<div class="flow-row @(SelectedId == flow.Id ? "active" : "") @(Matches(flow) ? "" : "filtered-out")"
+         @onclick="@(() => OnSelect.InvokeAsync(flow.Id))">
+      <div class="frow-top">
+        @{
+          var noReqBody = string.IsNullOrEmpty(flow.RequestDataB64);
+          var outcome = View.CompareToKnown ? CaptureHelpers.Outcome(flow.Outcome) : null;
+        }
+        <span class="ftime">@flow.Timestamp</span>
+        <span class="fpath" title="@flow.Path">@flow.Path</span>
+        @if (flow.Known || flow.Saved)
+        {
+          <span class="known-dot" title="@KnownDotTitle(flow)"></span>
+        }
+        @if (outcome is not null)
+        {
+          @OutcomeTag(flow, outcome)
+        }
+        <span class="status-badge @CaptureHelpers.StatusClass(flow.Status)">@flow.Status</span>
+      </div>
+      <div class="frow-types">
+        <span class="type-chip @(flow.RequestType is null ? "unknown" : "")"
+              title="@(flow.RequestType ?? (noReqBody ? "no request body" : "unknown request type"))">
+          @(flow.RequestType ?? (noReqBody ? "(none)" : "(unknown)"))
+        </span>
+        <span class="type-arrow">›</span>
+        <span class="type-chip @(flow.ResponseType is null ? "unknown" : "")"
+              title="@(flow.ResponseType ?? "unknown response type")">
+          @(flow.ResponseType ?? "(unknown)")
+        </span>
+      </div>
+    </div>;
+
+    static string KnownDotTitle(DashboardFlow flow)
+    {
+        if (flow.Known)
+            return "Known endpoint" + (flow.ResponseType is not null ? $" ({flow.ResponseType})" : "");
+        return "Saved as endpoint";
+    }
+
+    // The endpoint-outcome pill. For diff outcomes with line changes it shows compact +N/-N counts.
+    // Ported from buildOutcomeTag.
+    RenderFragment OutcomeTag(DashboardFlow flow, CaptureHelpers.OutcomeMeta meta) => builder =>
+    {
+        var seq = 0;
+        var hasCounts = CaptureHelpers.HasDiffCounts(flow.Outcome, flow.DiffAdded, flow.DiffRemoved);
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "outcome-tag outcome-" + meta.Kind + (hasCounts ? " outcome-diff-counts" : ""));
+        if (hasCounts)
+        {
+            builder.AddAttribute(seq++, "title", $"endpoint: diff (+{flow.DiffAdded} -{flow.DiffRemoved})");
+            if (flow.DiffAdded > 0)
+            {
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "diff-add");
+                builder.AddContent(seq++, "+" + flow.DiffAdded);
+                builder.CloseElement();
+            }
+            if (flow.DiffRemoved > 0)
+            {
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "diff-del");
+                builder.AddContent(seq++, "-" + flow.DiffRemoved);
+                builder.CloseElement();
+            }
+        }
+        else
+        {
+            builder.AddAttribute(seq++, "title", "endpoint: " + meta.Label);
+            builder.AddContent(seq++, meta.Label);
+        }
+        builder.CloseElement();
+    };
+}

@@ -1,0 +1,201 @@
+@* One request/response data section, ported from buildDataSection in detail.js. A format selector
+   (JSON tree/raw, YAML, XML, JS, Hex, Bin), an always-present copy button, and a filter box. The tree
+   format embeds JsonTree and injects the select+copy into its toolbar via the Tools fragment; text
+   formats render a filtered <pre> with sensitive-value blur. EmptyNote shows when there is no decoded
+   JSON. RawB64 powers the Hex/Bin views, available even when JSON failed. *@
+@using System.Text.Json.Nodes
+@using EggIncognito.Components.Capture
+@inject IJSRuntime JS
+
+<div>
+  <div class="section-head"><h3>@Label</h3></div>
+  @if (_emptyNoteOnly is not null)
+  {
+    <div class="no-json">@_emptyNoteOnly</div>
+    @if (_showRawBox)
+    {
+      <div class="raw-box">@RawB64</div>
+    }
+  }
+  else if (_currentFormat == "json-tree")
+  {
+    <div class="data-body">
+      <JsonTree Root="_tree" View="View">
+        <Tools>
+          @FormatSelect()
+          @CopyButton()
+        </Tools>
+      </JsonTree>
+    </div>
+  }
+  else
+  {
+    <div class="data-body">
+      <div class="data-box">
+        <div class="data-tools">
+          @FormatSelect()
+          <input type="search" class="data-filter" placeholder="Filter..."
+                 value="@_filter" @oninput="OnFilterInput" />
+          @CopyButton()
+        </div>
+        <pre class="data-text">@RenderTextBody()</pre>
+      </div>
+    </div>
+  }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string? JsonStr { get; set; }
+    [Parameter] public string? RawB64 { get; set; }
+    [Parameter] public string EmptyNote { get; set; } = "(no decoded JSON)";
+    [Parameter] public CaptureViewState View { get; set; } = new();
+    // Remembered format per section label, owned by the parent so switching flows keeps the choice.
+    [Parameter] public Dictionary<string, string> FormatChoice { get; set; } = new();
+
+    string? _emptyNoteOnly; // when set, render only the note (+ maybe raw box)
+    bool _showRawBox;
+    string _currentFormat = "json-tree";
+    string _filter = "";
+    string _copyLabel = "Copy";
+    bool _copied;
+
+    List<string> _formats = [];
+    JsonNode? _parsed;
+    TreeNode? _tree;
+
+    protected override void OnParametersSet()
+    {
+        _emptyNoteOnly = null;
+        _showRawBox = false;
+        _parsed = null;
+        _tree = null;
+        var parseOk = false;
+        if (!string.IsNullOrEmpty(JsonStr))
+        {
+            try { _parsed = JsonNode.Parse(JsonStr); parseOk = true; } catch { }
+        }
+
+        if (string.IsNullOrEmpty(JsonStr) && string.IsNullOrEmpty(RawB64))
+        {
+            _emptyNoteOnly = EmptyNote;
+            return;
+        }
+        if (!string.IsNullOrEmpty(JsonStr) && parseOk && IsEmptyContainer(_parsed))
+        {
+            _emptyNoteOnly = "(empty - all default values)";
+            return;
+        }
+
+        _formats = [];
+        if (!string.IsNullOrEmpty(JsonStr) && parseOk) _formats.AddRange(CaptureFormat.JsonFormats);
+        if (!string.IsNullOrEmpty(RawB64)) _formats.AddRange(CaptureFormat.ByteFormats);
+        if (_formats.Count == 0)
+        {
+            // Have a body but could not decode it: show the raw base64 + the note.
+            _emptyNoteOnly = EmptyNote;
+            _showRawBox = true;
+            return;
+        }
+
+        // Prefer the remembered choice; fall back to the default-format setting; then the first format.
+        var current = FormatChoice.TryGetValue(Label, out var c) ? c : View.DefaultFormat;
+        if (!_formats.Contains(current)) current = _formats[0];
+        _currentFormat = current;
+        FormatChoice[Label] = current;
+        if (_currentFormat == "json-tree") _tree = TreeNode.Parse(JsonStr);
+    }
+
+    static bool IsEmptyContainer(JsonNode? v) =>
+        v is JsonArray { Count: 0 } || v is JsonObject { Count: 0 };
+
+    void OnFormatChange(ChangeEventArgs e)
+    {
+        _currentFormat = e.Value?.ToString() ?? _currentFormat;
+        FormatChoice[Label] = _currentFormat;
+        _tree = _currentFormat == "json-tree" ? TreeNode.Parse(JsonStr) : null;
+    }
+
+    void OnFilterInput(ChangeEventArgs e) => _filter = e.Value?.ToString() ?? "";
+
+    RenderFragment FormatSelect() =>@<select class="data-format" value="@_currentFormat" @onchange="OnFormatChange">
+        @foreach (var f in _formats)
+        {
+          <option value="@f">@CaptureFormat.Label(f)</option>
+        }
+      </select>;
+
+    RenderFragment CopyButton() =>@<button class="btn-mini data-copy" type="button" @onclick="Copy">
+        <Icon Name="@(_copied ? "check" : "copy")" Class="icon-sm" /> @(_copied ? "Copied" : _copyLabel)
+      </button>;
+
+    string CurrentText()
+    {
+        var fmt = _currentFormat;
+        if (fmt == "json-tree") return JsonStr ?? ""; // copy gives pretty JSON for the tree
+        if (CaptureFormat.IsByteFormat(fmt)) return CaptureFormat.BytesToText(RawB64, fmt);
+        return CaptureFormat.JsonToText(JsonStr, fmt);
+    }
+
+    async Task Copy()
+    {
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", CurrentText()); } catch { }
+        _copied = true;
+        StateHasChanged();
+        await Task.Delay(1200);
+        _copied = false;
+        StateHasChanged();
+    }
+
+    // Render the text body: filter to lines containing the needle (case-insensitive; empty shows all),
+    // and in blur mode wrap sensitive-value occurrences in a blur span. Ported from renderText.
+    RenderFragment RenderTextBody() => builder =>
+    {
+        var text = CurrentText();
+        var q = _filter.Trim().ToLowerInvariant();
+        var shown = text;
+        if (q.Length > 0)
+        {
+            var kept = text.Split('\n').Where(l => l.ToLowerInvariant().Contains(q)).ToList();
+            shown = kept.Count > 0 ? string.Join("\n", kept) : "(no lines match)";
+        }
+
+        var isByte = CaptureFormat.IsByteFormat(_currentFormat);
+        HashSet<string>? sensitive = null;
+        if (View.IsBlurMode && _parsed is not null && !isByte)
+            sensitive = View.CollectSensitiveValues(_parsed);
+
+        if (sensitive is null || sensitive.Count == 0)
+        {
+            builder.AddContent(0, shown);
+            return;
+        }
+
+        // Longest values first so a longer match is not pre-empted by a shorter substring of it.
+        var needles = sensitive.Where(s => s.Length > 0).OrderByDescending(s => s.Length).ToList();
+        var seq = 0;
+        var i = 0;
+        while (i < shown.Length)
+        {
+            string? matched = null;
+            foreach (var n in needles)
+                if (i + n.Length <= shown.Length && shown.AsSpan(i, n.Length).SequenceEqual(n)) { matched = n; break; }
+            if (matched is not null)
+            {
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "blurred");
+                builder.AddAttribute(seq++, "title", "Click to reveal");
+                builder.AddContent(seq++, matched);
+                builder.CloseElement();
+                i += matched.Length;
+            }
+            else
+            {
+                var j = i + 1;
+                while (j < shown.Length && !needles.Any(n => j + n.Length <= shown.Length && shown.AsSpan(j, n.Length).SequenceEqual(n))) j++;
+                builder.AddContent(seq++, shown.Substring(i, j - i));
+                i = j;
+            }
+        }
+    };
+}

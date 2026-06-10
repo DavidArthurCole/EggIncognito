@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore;
 namespace EggIncognito.Data.Services;
 
 // DB-backed endpoint source: looks up stored_endpoints with the same eid-beats-global precedence and
-// path-param parent walk as the file source. Scoped (depends on the scoped DbContext). Priority 100
-// so the store consults it before the file default.
+// path-param parent walk as the file source. Scoped, since it depends on the scoped DbContext.
+// Priority 100 so the store consults it before the file default.
 public sealed class DbEndpointSource(EggIncognitoDbContext db) : IEndpointSource
 {
     public int Priority => 100;

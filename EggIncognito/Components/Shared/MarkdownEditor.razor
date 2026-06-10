@@ -1,0 +1,179 @@
+@* Contributor edit surface for a subject's Markdown doc. Ports makeMarkdownEditor from md.js: a source
+   textarea, a live preview, and a formatting toolbar. Saves through POST /api/docs/doc (never direct
+   DB) and uploads images through POST /api/docs/image. Contributor-gated UX; the server ACL is the real
+   gate.
+
+   SIMPLIFICATION vs md.js: the JS toolbar wrapped/prefixed the real textarea selection. Blazor cannot
+   read a textarea's selection without JS interop, so the buttons append their markdown token to the
+   value instead (e.g. "**bold**", "## ", "[text](https://)"). The live preview reflects the result. *@
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject ICurrentUser User
+
+@if (_canEdit)
+{
+  <div class="md-editor">
+    <div class="md-toolbar">
+      @foreach (var b in Buttons)
+      {
+        <button type="button" class="md-tb-btn" title="@b.Title" @onclick="() => Insert(b.Token)">@b.Label</button>
+      }
+      @* No JS interop, so InputFile is wrapped in a label that looks like a toolbar button (Blazor has
+         no programmatic file-picker open). Clicking the label opens the native picker. *@
+      <label class="md-tb-btn" title="Upload image (png/jpeg/gif/webp)">upload
+        <InputFile accept="image/png,image/jpeg,image/gif,image/webp" hidden="hidden" OnChange="OnImagePicked" />
+      </label>
+      <span class="md-editor-spacer"></span>
+      <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">Save</button>
+    </div>
+    <div class="md-panes">
+      <textarea class="md-source" spellcheck="false" value="@_value" @oninput="OnInput"></textarea>
+      <Markdown Body="@_value" CssClass="md-preview" />
+    </div>
+    @if (!string.IsNullOrEmpty(_status))
+    {
+      <div class="md-editor-status">@_status</div>
+    }
+  </div>
+}
+
+@code {
+    [Parameter] public string Kind { get; set; } = "";
+    [Parameter] public string Key { get; set; } = "";
+    [Parameter] public string? Initial { get; set; }
+    [Parameter] public EventCallback<string> OnSaved { get; set; }
+
+    // 5 MB cap on the upload read stream; the server still enforces its own 4 MB byte cap + type allowlist.
+    const long MaxImageBytes = 5 * 1024 * 1024;
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    // Token-insert toolbar (no real selection wrap; see file header). Upload + Save are handled separately.
+    static readonly (string Label, string Title, string Token)[] Buttons =
+    [
+        ("B", "Bold", "**bold**"),
+        ("I", "Italic", "*italic*"),
+        ("</>", "Code", "`code`"),
+        ("H", "Heading", "\n## "),
+        ("-", "List item", "\n- "),
+        (">", "Callout / gotcha", "\n> "),
+        ("link", "Link", "[text](https://)"),
+        ("img url", "Image by URL", "![alt](https://)"),
+    ];
+
+    bool _canEdit;
+    bool _busy;
+    string _value = "";
+    string? _status;
+    string? _seeded; // the Initial we last seeded from, to detect a fresh async load
+    bool _dirty; // the user has typed; stop re-seeding from Initial once they have
+
+    // Captured while HttpContext is live; reused for the circuit-time self-call (the SignalR circuit has
+    // no HttpContext, so the auth cookie must be forwarded from the originating request).
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized()
+    {
+        _canEdit = User.IsAtLeast(UserRole.Contributor);
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    // Seed from Initial when it changes (e.g. the parent's async doc load arrives after first render), but
+    // only while the user has not typed. Once dirty we leave _value alone so edits are never clobbered.
+    // The parent keys this component on the subject, so a new subject is a fresh instance (dirty reset).
+    protected override void OnParametersSet()
+    {
+        if (!_dirty && Initial != _seeded)
+        {
+            _value = Initial ?? "";
+            _seeded = Initial;
+        }
+    }
+
+    void OnInput(ChangeEventArgs e)
+    {
+        _value = e.Value?.ToString() ?? "";
+        _dirty = true;
+    }
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    // Token-append, not selection-wrap (see file header). Appends the markdown token to the source.
+    void Insert(string token) { _value += token; _dirty = true; }
+
+    async Task Save()
+    {
+        _busy = true;
+        _status = "Saving...";
+        try
+        {
+            var res = await Client().PostAsJsonAsync("/api/docs/doc",
+                new { subjectKind = Kind, subjectKey = Key, bodyMd = _value }, JsonOpts);
+            if (res.IsSuccessStatusCode)
+            {
+                _status = string.IsNullOrWhiteSpace(_value) ? "Cleared." : "Saved.";
+                if (OnSaved.HasDelegate) await OnSaved.InvokeAsync(_value);
+            }
+            else
+            {
+                _status = (int)res.StatusCode == 403 ? "Not authorized."
+                    : (int)res.StatusCode == 503 ? "No database configured."
+                    : $"HTTP {(int)res.StatusCode}";
+            }
+        }
+        catch (Exception ex) { _status = $"Save failed: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    async Task OnImagePicked(InputFileChangeEventArgs e)
+    {
+        if (e.FileCount == 0) return;
+        var file = e.File;
+        _dirty = true; // we are about to mutate _value
+        _busy = true;
+        _status = $"Uploading {file.Name}...";
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            using var stream = file.OpenReadStream(MaxImageBytes);
+            var part = new StreamContent(stream);
+            if (!string.IsNullOrEmpty(file.ContentType))
+                part.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+            content.Add(part, "file", file.Name);
+            var res = await Client().PostAsync("/api/docs/image", content);
+            if (res.IsSuccessStatusCode)
+            {
+                var data = await res.Content.ReadFromJsonAsync<ImageResult>(JsonOpts);
+                _value += $"\n![{file.Name}]({data?.Url})\n";
+                _status = "Image inserted.";
+            }
+            else
+            {
+                var msg = (int)res.StatusCode == 403 ? "not authorized"
+                    : (int)res.StatusCode == 503 ? "no database" : $"HTTP {(int)res.StatusCode}";
+                _value += $"\n*(image upload failed: {msg})*\n";
+                _status = $"Upload failed: {msg}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _value += $"\n*(image upload failed: {ex.Message})*\n";
+            _status = $"Upload failed: {ex.Message}";
+        }
+        finally { _busy = false; }
+    }
+
+    record ImageResult(long Id, string Url);
+}

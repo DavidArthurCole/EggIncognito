@@ -1,0 +1,766 @@
+@page "/inspector"
+@rendermode @(RenderMode.InteractiveServer)
+@implements IAsyncDisposable
+@using System.Net.Http.Json
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using Microsoft.JSInterop
+@using EggIncognito.Components.Inspector
+@inject IRouteCatalog Catalog
+@inject IProtoReflection Reflection
+@inject IAppMode AppMode
+@inject ICurrentUser User
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+
+<PageTitle>EggIncognito - Transport Inspector</PageTitle>
+
+@* Nav-tools row: Postman download, the endpoint-status refresh, and the salt badge. Request defaults
+   (BasicRequestInfo) are edited inline in the request pane's Environment section, not here. The Blazor
+   shell's TopNav has no NavTools slot, so the toolbar lives in-page. *@
+<div class="app-nav-tools toolbar" style="position: fixed; top: 6px; right: 12px; z-index: 50;">
+  <a class="icon-btn" href="/api/tools/postman-collection" download
+     title="Download Postman collection" aria-label="Download Postman collection"><Icon Name="download" /></a>
+  @* Endpoint status: a refresh-icon button that loads the ok/empty/missing counts. The counts ride in
+     the title; the spinner spins while loading. This was a toolbar action in the original, not a
+     settings block. *@
+  <div class="status-wrap" style="position: relative;">
+    <button type="button" class="icon-btn @(_statusLoading ? "spinning" : "")"
+            title="@(string.IsNullOrEmpty(_statusCounts) ? "Refresh endpoint status" : $"Endpoint status {_statusCounts}")"
+            aria-label="Refresh endpoint status" @onclick="ToggleStatus"><Icon Name="refresh" /></button>
+    <div class="settings-menu @(_statusOpen ? "open" : "")">
+      <div class="settings-title">Endpoint status <span class="muted">@_statusCounts</span></div>
+      <div class="settings-hint">How many mapped routes have an ok / empty / missing fixture.</div>
+      <button type="button" class="btn-mini" @onclick="RefreshStatus">Refresh status</button>
+      <pre class="settings-out">@_statusOut</pre>
+    </div>
+  </div>
+  <button type="button" class="badge @(_hasSalt ? "signed" : "unsigned")"
+          title="@(_hasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
+          @onclick="OpenSaltModal">@(_hasSalt ? "Salt Set" : "Salt Unset")</button>
+</div>
+
+<main class="grid gap-3 p-3 min-h-0" style="grid-template-columns: 240px 1fr 1fr; height: calc(100vh - 48px);">
+  <aside class="panel">
+    <EndpointList Mode="@_listMode" ModeChanged="SetListMode"
+                  Selected="_selected" SelectedObject="_selectedObject"
+                  OnSelectEndpoint="SelectEndpoint" OnSelectObject="SelectObject" />
+  </aside>
+
+  <section class="panel">
+    @* The builder chrome (request header, env panel, body, send bar) always renders in Endpoints mode;
+       the body details fill in once an endpoint is selected. This keeps the send bar visible like the
+       old cshtml #builder shell. *@
+    <div class="@(_listMode == "endpoints" ? "" : "hidden")">
+      <h2>Request <span class="muted">@(_selected is null ? "" : $"({ReqTypeLabel(_selected)})")</span></h2>
+
+      <details open>
+        <summary>Environment (BasicRequestInfo overrides)</summary>
+        <div class="fields">
+          @foreach (var row in _envRows)
+          {
+            var r = row;
+            <div class="field-row">
+              <div class="field-name">@r.Key</div>
+              @if (r.Key is "eiUserId" or "userId")
+              {
+                <input list="recentEids" value="@r.Value" @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
+              }
+              else
+              {
+                <input value="@r.Value" @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
+              }
+            </div>
+          }
+        </div>
+      </details>
+
+      @if (_selected?.PathParam == true)
+      {
+        <div class="path-param-row">
+          <label>URL path parameter (e.g. EID)
+            <button type="button" class="forget-eids" title="Clear remembered EIDs" @onclick="ForgetEids">forget</button>
+          </label>
+          <input list="recentEids" placeholder="EI1234567890123456" @bind="_pathParam" @bind:event="oninput" />
+        </div>
+      }
+      <datalist id="recentEids">
+        @foreach (var eid in _recentEids)
+        {
+          <option value="@eid" />
+        }
+      </datalist>
+
+      <div class="tree-head">
+        <span>Body</span>
+        <label class="raw-toggle"><input type="checkbox" checked="@_rawMode" @onchange="ToggleRaw" /> raw JSON</label>
+      </div>
+
+      @if (_selected is null)
+      {
+        <div class="fields"><span class="muted">Select an endpoint on the left.</span></div>
+      }
+      else if (_rawMode)
+      {
+        <textarea class="raw-json" spellcheck="false" style="width: 100%; min-height: 200px;"
+                  @bind="_rawJson" @bind:event="oninput"></textarea>
+      }
+      else
+      {
+        <div class="fields">
+          @if (_selected.PathParamOnly)
+          {
+            <span class="muted">No request body. Identity (EID) is supplied via the URL path parameter; nothing to fill in here.</span>
+          }
+          else if (_selected.Request is null)
+          {
+            <span class="muted">No known request type for this endpoint. Add a <code>request:</code> type in routes.yaml.</span>
+          }
+          else
+          {
+            @if (_selected.RequestWrapped)
+            {
+              <div class="wrap-note">These are the inner request fields. On Build they will be wrapped and signed in an AuthenticatedMessage.</div>
+            }
+            @if (_fieldNodes is null)
+            {
+              <span class="muted">no schema for @_selected.Request</span>
+            }
+            else
+            {
+              <FieldTree Nodes="_fieldNodes" OnChanged="OnTreeChanged" />
+            }
+          }
+        </div>
+      }
+
+      <div class="sendbar">
+        <div class="target-toggle" role="radiogroup" aria-label="Target">
+          <button type="button" class="target-opt @(_target == "mock" ? "active" : "")"
+                  @onclick="@(() => SelectTarget("mock"))">Mock</button>
+          <button type="button"
+                  class="target-opt @(_target == "real" ? "active" : "") @(_liveDisabled ? "target-opt-disabled" : "")"
+                  disabled="@_liveDisabled"
+                  title="@(_liveDisabled ? "Log in to use Live API" : "")"
+                  @onclick="@(() => RequestTarget("real"))">Live API <DocHelp Kind="endpoint" Key="__live_api" /></button>
+          <button type="button" class="target-opt @(_target == "custom" ? "active" : "")"
+                  @onclick="@(() => SelectTarget("custom"))">Custom</button>
+        </div>
+        <div class="sendbar-actions">
+          <button class="btn-secondary" disabled="@(_selected is null)" @onclick="Build">Build</button>
+          <button class="btn-primary" disabled="@(_lastBuild is null)" @onclick="Send">Send</button>
+        </div>
+      </div>
+
+      @if (_target == "custom")
+      {
+        <div class="custom-config">
+          <label>Custom proxy URL</label>
+          <input type="url" placeholder="https://your-proxy.example/" spellcheck="false"
+                 value="@_customTarget" @oninput="OnCustomTargetInput" />
+          <span class="muted">Your browser posts the built request directly to this URL (this server is
+            bypassed); the proxy must reach auxbrain and allow this origin (CORS).</span>
+        </div>
+      }
+    </div>
+
+    @if (_listMode == "objects")
+    {
+      <ObjectView Name="_selectedObject" OnSelectEndpoint="SelectFromObject" />
+    }
+  </section>
+
+  <section class="panel">
+    <h2>Pipeline</h2>
+    <Pipeline Stages="_buildStages" />
+    <div class="resp-head">
+      <h2>Response</h2>
+      @* Only offer Save-to-DB once there is an actually-decoded response to store (a non-null Json),
+         not while the panel still reads "No response yet". *@
+      @if (_canSaveDb && _response?.Json is not null)
+      {
+        <button type="button" class="btn-mini" title="Save this response as a stored endpoint" @onclick="SaveToDb">Save to DB</button>
+      }
+    </div>
+    <ResponsePanel Response="_response" />
+    <pre class="settings-out">@_saveOut</pre>
+  </section>
+</main>
+
+@if (_saltModalOpen)
+{
+  <div class="modal-overlay">
+    <div class="modal">
+      <h3>Signing salt</h3>
+      <p>Signs requests. Stored in this browser only; never sent to the server beyond the build request.</p>
+      <input type="password" placeholder="EGG_INC_API_SALT value" autocomplete="off" spellcheck="false"
+             class="settings-input" @bind="_saltInput" @bind:event="oninput" />
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" @onclick="@(() => _saltModalOpen = false)">Cancel</button>
+        <button type="button" class="btn-primary" @onclick="SaveSalt">Save salt</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (_liveConsentOpen)
+{
+  <div class="modal-overlay">
+    <div class="modal">
+      <h3>Live API mode</h3>
+      <p>This sends real requests to the Egg, Inc. API (auxbrain.com) using the values you provide.
+         You are solely responsible for how you use it. The developers of EggIncognito accept no
+         responsibility for any misuse or for any consequences of that use.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" @onclick="@(() => _liveConsentOpen = false)">Cancel</button>
+        <button type="button" class="btn-primary" @onclick="AcceptLiveConsent">I understand, enable Live API</button>
+      </div>
+    </div>
+  </div>
+}
+
+@code {
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    // Left-pane mode + selection.
+    string _listMode = "endpoints";
+    RouteInfo? _selected;
+    string? _selectedObject;
+
+    // Request builder state.
+    List<FieldNode>? _fieldNodes;
+    readonly Dictionary<string, SchemaMessage?> _schemaCache = new();
+    List<EnvRow> _envRows = [];
+    string _pathParam = "";
+    bool _rawMode;
+    string _rawJson = "{}";
+
+    // Send + pipeline state.
+    string _target = "mock";
+    BuildResponse? _lastBuild;
+    List<TransportStage>? _buildStages;
+    SendResponse? _response;
+    string _saveOut = "";
+
+    // Browser-memory (interop-backed) state.
+    bool _hasSalt;
+    string _saltInput = "";
+    bool _saltModalOpen;
+    bool _liveConsentOpen;
+    string _customTarget = "";
+    string[] _recentEids = [];
+    RinfoDefaults _rinfo = new();
+
+    // Endpoint-status popover (a toolbar refresh button, not part of settings).
+    bool _statusOpen;
+    bool _statusLoading;
+    string _statusOut = "";
+    string _statusCounts = "";
+
+    // Gating.
+    bool _liveDisabled;
+    bool _canSaveDb;
+
+    // The salt is read fresh from the browser only when needed (build, badge). It never lives in a
+    // server field beyond a single build round-trip; this holds only the badge-state boolean.
+
+    string _baseAddress = "";
+    string? _cookie;
+    IJSObjectReference? _store; // the inspectorStore.js ES module
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+        // Live API egress is login-gated when hosted; grey the toggle for anonymous hosted users. The
+        // server /send is the real gate. Read IAppMode/ICurrentUser directly (server-side render).
+        _liveDisabled = AppMode.Mode == EggIncognito.Services.AppMode.Hosted && !User.IsAuthenticated;
+        // Save to DB needs contributor+. In Local with no auth, ICurrentUser is anonymous (viewer), so
+        // mirror app.js's fail-open: show the button when auth is off (Local) or the user is contributor+.
+        _canSaveDb = AppMode.Mode != EggIncognito.Services.AppMode.Hosted
+            || User.IsAtLeast(UserRole.Contributor);
+        // Seed the env panel from the in-memory defaults so it renders on the first (pre-JS) pass; the
+        // browser-stored overrides are merged in after the interop module loads (OnAfterRenderAsync).
+        SeedEnvRows();
+    }
+
+    // Browser-memory reads need JS, so they run after the first interactive render. The ES module is
+    // imported once; all browser-local state (salt, EIDs, proxy URL, rinfo defaults) flows through it.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js"); }
+        catch { return; } // JS unavailable (e.g. test prerender); the page stays usable with defaults.
+        _rinfo = await InvokeOr("getRinfoDefaults", _rinfo);
+        _hasSalt = !string.IsNullOrEmpty(await InvokeOr("getSalt", ""));
+        _customTarget = await InvokeOr("getCustomTarget", "");
+        _recentEids = await InvokeOr("recentEids", Array.Empty<string>());
+        SeedEnvRows();
+        StateHasChanged();
+    }
+
+    async Task<T> InvokeOr<T>(string fn, T fallback, params object?[] args)
+    {
+        if (_store is null) return fallback;
+        try { return await _store.InvokeAsync<T>(fn, args); }
+        catch { return fallback; }
+    }
+
+    async Task InvokeVoid(string fn, params object?[] args)
+    {
+        if (_store is null) return;
+        try { await _store.InvokeVoidAsync(fn, args); } catch { }
+    }
+
+    // left-pane switch + selection
+
+    void SetListMode(string m) => _listMode = m;
+
+    async Task SelectEndpoint(RouteInfo e)
+    {
+        _selected = e;
+        _lastBuild = null;
+        _buildStages = null;
+        _response = null;
+        _rawMode = false;
+        _rawJson = "{}";
+        _pathParam = "";
+        if (e.PathParam) PrefillEid(v => _pathParam = v);
+        await BuildFieldTree();
+    }
+
+    void SelectObject(string name)
+    {
+        _selectedObject = name;
+    }
+
+    // From the Object view's "used by" list: jump to the endpoint builder.
+    async Task SelectFromObject(RouteInfo e)
+    {
+        _listMode = "endpoints";
+        await SelectEndpoint(e);
+    }
+
+    static string ReqTypeLabel(RouteInfo e)
+    {
+        if (e.PathParamOnly) return "no request body - identity via URL path param";
+        var t = e.Request ?? "no request type";
+        return e.RequestWrapped ? $"{t}, signed (AuthenticatedMessage)" : t;
+    }
+
+    // schema + field tree (direct service reads, no API round-trip)
+
+    SchemaMessage? Schema(string? typeName)
+    {
+        if (string.IsNullOrEmpty(typeName)) return null;
+        if (!_schemaCache.TryGetValue(typeName, out var s))
+        {
+            s = Reflection.Schema(typeName);
+            _schemaCache[typeName] = s;
+        }
+        return s;
+    }
+
+    Task BuildFieldTree()
+    {
+        _fieldNodes = null;
+        if (_selected is null || _selected.PathParamOnly || _selected.Request is null) return Task.CompletedTask;
+        var s = Schema(_selected.Request);
+        if (s is null) return Task.CompletedTask;
+        _fieldNodes = FieldTreeBuilder.Build(s, t => Schema(t));
+        ApplyEnvLock();
+        return Task.CompletedTask;
+    }
+
+    // env panel
+
+    void SeedEnvRows()
+    {
+        _envRows =
+        [
+            new EnvRow { Key = "clientVersion", ValueType = "number", Value = _rinfo.ClientVersion.ToString() },
+            new EnvRow { Key = "version", ValueType = "string", Value = _rinfo.Version },
+            new EnvRow { Key = "build", ValueType = "string", Value = _rinfo.Build },
+            new EnvRow { Key = "platform", ValueType = "string", Value = _rinfo.Platform },
+            new EnvRow { Key = "country", ValueType = "string", Value = _rinfo.Country },
+            new EnvRow { Key = "language", ValueType = "string", Value = _rinfo.Language },
+            new EnvRow { Key = "debug", ValueType = "boolean", Value = _rinfo.Debug ? "true" : "false" },
+        ];
+    }
+
+    async Task OnEnvInput(EnvRow row, string? value)
+    {
+        row.Value = value ?? "";
+        SyncRinfoFromRow(row);
+        ApplyEnvLock();
+        // Env edits ARE the request defaults; persist them browser-side so they survive a reload.
+        await InvokeVoid("setRinfoDefaults", _rinfo);
+    }
+
+    // Mirror a single edited env row back onto the persisted BasicRequestInfo defaults.
+    void SyncRinfoFromRow(EnvRow row)
+    {
+        switch (row.Key)
+        {
+            case "clientVersion": _rinfo.ClientVersion = int.TryParse(row.Value, out var cv) ? cv : _rinfo.ClientVersion; break;
+            case "version": _rinfo.Version = row.Value; break;
+            case "build": _rinfo.Build = row.Value; break;
+            case "platform": _rinfo.Platform = row.Value; break;
+            case "country": _rinfo.Country = row.Value; break;
+            case "language": _rinfo.Language = row.Value; break;
+            case "debug": _rinfo.Debug = row.Value == "true"; break;
+        }
+    }
+
+    void ApplyEnvLock()
+    {
+        if (_fieldNodes is null) return;
+        FieldTreeBuilder.ApplyEnvLock(_fieldNodes, EnvCollector.AsStrings(_envRows));
+    }
+
+    void OnTreeChanged() { /* re-render; raw JSON is re-derived on toggle */ }
+
+    void ToggleRaw(ChangeEventArgs e)
+    {
+        _rawMode = e.Value is bool b && b;
+        if (_rawMode && _fieldNodes is not null)
+            _rawJson = FieldTreeBuilder.Collect(_fieldNodes).ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    // endpoint-status popover + salt
+
+    // Open the status popover and load on first open if not yet fetched.
+    async Task ToggleStatus()
+    {
+        _statusOpen = !_statusOpen;
+        if (_statusOpen && string.IsNullOrEmpty(_statusCounts)) await RefreshStatus();
+    }
+
+    async Task RefreshStatus()
+    {
+        _statusLoading = true;
+        _statusOut = "Loading...";
+        try
+        {
+            var r = await Client().GetFromJsonAsync<StatusResult>("/api/tools/endpoint-status", JsonOpts);
+            if (r is not null)
+            {
+                _statusCounts = $"(ok {r.Ok.Count} / empty {r.Empty.Count} / missing {r.Missing.Count})";
+                var lines = new List<string>();
+                if (r.Empty.Count > 0) { lines.Add("empty:"); lines.AddRange(r.Empty.Select(p => "  " + p)); }
+                if (r.Missing.Count > 0) { lines.Add("missing:"); lines.AddRange(r.Missing.Select(p => "  " + p)); }
+                _statusOut = lines.Count > 0 ? string.Join("\n", lines) : "All mapped routes have a fixture.";
+            }
+        }
+        catch (Exception ex) { _statusOut = $"Request failed: {ex.Message}"; }
+        finally { _statusLoading = false; }
+    }
+
+    void OpenSaltModal()
+    {
+        _saltInput = "";
+        _saltModalOpen = true;
+    }
+
+    async Task SaveSalt()
+    {
+        await InvokeVoid("setSalt", _saltInput);
+        _hasSalt = !string.IsNullOrEmpty(_saltInput);
+        _saltInput = "";
+        _saltModalOpen = false;
+    }
+
+    // send target
+
+    void SelectTarget(string t)
+    {
+        _target = t;
+    }
+
+    // Live API sends real auxbrain requests; gate the first switch per browser behind consent.
+    async Task RequestTarget(string t)
+    {
+        if (_liveDisabled) return;
+        if (t == "real" && !await InvokeOr("getLiveConsent", false))
+        {
+            _liveConsentOpen = true;
+            return;
+        }
+        SelectTarget(t);
+    }
+
+    async Task AcceptLiveConsent()
+    {
+        await InvokeVoid("setLiveConsent");
+        _liveConsentOpen = false;
+        SelectTarget("real");
+    }
+
+    void OnCustomTargetInput(ChangeEventArgs e)
+    {
+        _customTarget = e.Value?.ToString() ?? "";
+        _ = InvokeVoid("setCustomTarget", _customTarget);
+    }
+
+    // build + send. /build owns the salt+sign; /send owns egress+allowlist; /decode-response is pure.
+
+    async Task Build()
+    {
+        var e = _selected;
+        if (e is null) return;
+        _response = null;
+
+        if (e.PathParamOnly)
+        {
+            _lastBuild = new BuildResponse(null, "", "", false, null, null, null);
+            _buildStages = null;
+            return;
+        }
+        if (e.Request is null)
+        {
+            _buildStages = null;
+            _response = new SendResponse(null, null, null, null,
+                "no request type for this endpoint", "Add a `request:` type in routes.yaml before building.");
+            return;
+        }
+
+        JsonNode? fields;
+        try
+        {
+            fields = _rawMode
+                ? JsonNode.Parse(string.IsNullOrWhiteSpace(_rawJson) ? "{}" : _rawJson)
+                : FieldTreeBuilder.Collect(_fieldNodes ?? []);
+        }
+        catch (Exception ex)
+        {
+            _response = new SendResponse(null, null, null, null, "invalid raw JSON: " + ex.Message, null);
+            return;
+        }
+
+        // Read the client-owned salt fresh from the browser for this one build call. It is sent only
+        // here, never stored server-side.
+        var salt = await InvokeOr<string?>("getSalt", null);
+
+        var body = new
+        {
+            path = e.Path,
+            requestType = e.Request,
+            wrap = e.RequestWrapped,
+            fields,
+            env = EnvCollector.Collect(_envRows),
+            salt,
+        };
+
+        try
+        {
+            var res = await Client().PostAsJsonAsync("/api/inspector/build", body, JsonOpts);
+            var data = await res.Content.ReadFromJsonAsync<BuildResponse>(JsonOpts);
+            if (data?.Error is not null)
+            {
+                _buildStages = null;
+                _response = new SendResponse(null, null, null, null, data.Error, data.Resolution);
+                _lastBuild = null;
+                return;
+            }
+            _lastBuild = data;
+            _buildStages = data?.Stages;
+        }
+        catch (Exception ex)
+        {
+            _response = new SendResponse(null, null, null, null, "build failed: " + ex.Message, null);
+        }
+    }
+
+    async Task Send()
+    {
+        var e = _selected;
+        if (_lastBuild is null || e is null) return;
+
+        if (_target == "custom")
+        {
+            await SendCustom(e);
+            return;
+        }
+
+        var basis = _target == "mock"
+            ? _baseAddress
+            : (e.Path.StartsWith("ei_ctx") || e.Path.StartsWith("ei_srv")
+                ? "https://ctx-dot-auxbrainhome.appspot.com"
+                : "https://www.auxbrain.com");
+
+        var url = $"{basis}/{e.Path}";
+        if (e.PathParam)
+        {
+            var param = _pathParam.Trim();
+            if (string.IsNullOrEmpty(param))
+            {
+                _response = new SendResponse(null, null, null, null,
+                    "URL path parameter is required for this endpoint",
+                    "Enter the EID (or other path value) in the field above the Build button.");
+                return;
+            }
+            url += "/" + Uri.EscapeDataString(param);
+        }
+
+        await RememberEnteredEids();
+        try
+        {
+            var res = await Client().PostAsJsonAsync("/api/inspector/send",
+                new { url, formBody = _lastBuild.FinalFormBody, responseType = e.Response }, JsonOpts);
+            _response = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            _response = new SendResponse(null, null, null, null, "send failed: " + ex.Message, null);
+        }
+    }
+
+    // Custom: the browser POSTs the built form body straight to the user's proxy (this server bypassed),
+    // then the egress-free /decode-response turns the bytes into JSON.
+    async Task SendCustom(RouteInfo e)
+    {
+        if (string.IsNullOrEmpty(_customTarget))
+        {
+            _response = new SendResponse(null, null, null, null,
+                "no custom proxy URL set", "Set your Custom proxy URL above first.");
+            return;
+        }
+        var proxyUrl = _customTarget.TrimEnd('/') + "/" + e.Path;
+        if (e.PathParam)
+        {
+            var param = _pathParam.Trim();
+            if (string.IsNullOrEmpty(param))
+            {
+                _response = new SendResponse(null, null, null, null,
+                    "URL path parameter is required", "Enter the EID above Build.");
+                return;
+            }
+            proxyUrl += "/" + Uri.EscapeDataString(param);
+        }
+        await RememberEnteredEids();
+
+        if (_store is null)
+        {
+            _response = new SendResponse(null, null, null, null,
+                "custom send needs the browser interop", "Reload the page and try again.");
+            return;
+        }
+        string raw;
+        try
+        {
+            raw = await _store.InvokeAsync<string>("postForm", proxyUrl, _lastBuild!.FinalFormBody);
+        }
+        catch (Exception ex)
+        {
+            _response = new SendResponse(null, null, null, null,
+                $"direct request to your proxy failed: {ex.Message}",
+                "Your proxy must be reachable from this browser and allow this origin (CORS).");
+            return;
+        }
+        try
+        {
+            var res = await Client().PostAsJsonAsync("/api/inspector/decode-response",
+                new { rawBase64 = raw, responseType = e.Response }, JsonOpts);
+            var dec = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
+            _response = new SendResponse(200, raw, dec?.Stages, dec?.Json, dec?.Error, null);
+        }
+        catch (Exception ex)
+        {
+            _response = new SendResponse(null, null, null, null, "decode failed: " + ex.Message, null);
+        }
+    }
+
+    // remembered EIDs
+
+    async Task RememberEnteredEids()
+    {
+        var candidates = new List<string?> { _pathParam };
+        candidates.AddRange(_envRows.Select(r => r.Value));
+        var present = candidates.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToArray();
+        if (present.Length == 0) return;
+        // The interop expects a single array argument (rememberEids(values)).
+        _recentEids = await InvokeOr("rememberEids", _recentEids, new object?[] { present });
+    }
+
+    async Task ForgetEids()
+    {
+        _recentEids = await InvokeOr("forgetEids", Array.Empty<string>());
+        _pathParam = "";
+    }
+
+    void PrefillEid(Action<string> set)
+    {
+        var last = _recentEids.FirstOrDefault();
+        if (!string.IsNullOrEmpty(last)) set(last);
+    }
+
+    // save to DB
+
+    async Task SaveToDb()
+    {
+        var e = _selected;
+        if (e is null || _response?.Json is null)
+        {
+            _saveOut = "Build + send a request first.";
+            return;
+        }
+        _saveOut = "Saving...";
+        try
+        {
+            using var doc = JsonDocument.Parse(_response.Json);
+            var res = await Client().PostAsJsonAsync("/api/db/endpoint", new
+            {
+                path = e.Path,
+                eid = string.IsNullOrWhiteSpace(_pathParam) ? null : _pathParam,
+                responseJson = doc.RootElement,
+                responseType = e.Response,
+            }, JsonOpts);
+            if (res.IsSuccessStatusCode)
+            {
+                _saveOut = $"Saved {e.Path}{(string.IsNullOrWhiteSpace(_pathParam) ? "" : $" ({_pathParam})")} to the shared DB.";
+                return;
+            }
+            _saveOut = res.StatusCode == System.Net.HttpStatusCode.Forbidden
+                ? "Not authorized to write to the shared DB."
+                : $"Save failed: HTTP {(int)res.StatusCode}";
+        }
+        catch (Exception ex) { _saveOut = $"Request failed: {ex.Message}"; }
+    }
+
+    // Self-call client forwarding the auth cookie so the controllers' gates see the request's auth.
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    // Mutable holder for the seven BasicRequestInfo defaults. Field types mirror the JS interop shape
+    // exactly (getRinfoDefaults returns clientVersion:int, debug:bool) so the JSON round-trips cleanly.
+    sealed class RinfoDefaults
+    {
+        public int ClientVersion { get; set; } = 72;
+        public string Version { get; set; } = "1.35.7";
+        public string Build { get; set; } = "111343";
+        public string Platform { get; set; } = "DROID";
+        public string Country { get; set; } = "US";
+        public string Language { get; set; } = "en";
+        public bool Debug { get; set; }
+    }
+
+    record StatusResult(List<string> Ok, List<string> Empty, List<string> Missing);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_store is not null)
+        {
+            try { await _store.DisposeAsync(); } catch { }
+        }
+    }
+}

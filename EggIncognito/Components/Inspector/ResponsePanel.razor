@@ -1,0 +1,58 @@
+@* Decoded response view: an HTTP status badge, the decode stages (a slim Pipeline), an inline error
+   box with a "Possible fix" line, and the pretty-printed JSON. Mirrors app.js renderResponse. *@
+@using System.Text.Json
+
+@if (Response is null)
+{
+  <div class="muted">No response yet.</div>
+}
+else if (Response.Error is not null && (Response.Stages is null || Response.Stages.Count == 0)
+         && Response.Status is null)
+{
+  @* Pure error, no decode stages. *@
+  <div class="error-box">@Response.Error</div>
+  @if (!string.IsNullOrEmpty(Response.Resolution))
+  {
+    <div class="error-fix"><span class="fix-label">Possible fix:</span> @Response.Resolution</div>
+  }
+}
+else
+{
+  var ok = Response.Status is >= 200 and < 300;
+  <div class="resp-status @(ok ? "ok" : "bad")">HTTP @(Response.Status?.ToString() ?? "?")</div>
+
+  @if (Response.Stages is { Count: > 0 })
+  {
+    <Pipeline Stages="Response.Stages" />
+  }
+
+  @if (Response.Error is not null)
+  {
+    <div class="error-box">@Response.Error</div>
+    @if (!string.IsNullOrEmpty(Response.Resolution))
+    {
+      <div class="error-fix"><span class="fix-label">Possible fix:</span> @Response.Resolution</div>
+    }
+  }
+
+  @if (!string.IsNullOrEmpty(Response.Json))
+  {
+    <pre class="json">@Pretty(Response.Json)</pre>
+  }
+}
+
+@code {
+    [Parameter] public SendResponse? Response { get; set; }
+
+    static string Pretty(string s)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(s);
+            return JsonSerializer.Serialize(doc.RootElement, PrettyOpts);
+        }
+        catch { return s; }
+    }
+
+    static readonly JsonSerializerOptions PrettyOpts = new() { WriteIndented = true };
+}

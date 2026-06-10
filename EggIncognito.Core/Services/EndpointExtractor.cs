@@ -1,10 +1,8 @@
-// the endpoint-extraction pipeline. Lives in Core so it can be driven two ways with identical
-// behavior:
-//   - from a HAR file (the Import tab -> /api/import/har), via RunFromHar / ProcessHarEntry
-//   - in-process per captured flow (the capture proxy, via CaptureSession), via ProcessFlow
-//
-// One flow = (url, method, status, requestData, responseBody). Both paths funnel into
-// ProcessFlow so the file and live routes can never diverge.
+// The endpoint-extraction pipeline. Lives in Core so it can be driven two ways with identical behavior:
+//   - from a HAR file, via RunFromHar / ProcessHarEntry
+//   - in-process per captured flow, via ProcessFlow
+// One flow = (url, method, status, requestData, responseBody). Both paths funnel into ProcessFlow so
+// the file and live routes can never diverge.
 
 using System.Reflection;
 using System.Text;
@@ -27,11 +25,10 @@ public sealed class EndpointExtractor
 
     public HarCounts Counts { get; } = new();
 
-    // When true, suppress the per-flow console chatter (capture/diff/loss/req lines). The in-app
-    // capture path (CaptureSession) sets this: it derives the per-flow outcome from the Counts delta
-    // and shows it on the dashboard, so the console output is redundant there. The HAR import path
-    // leaves it false to keep its server-side console log. End-of-run summaries
-    // (PrintSelfRepairReport) are not gated.
+    // When true, suppress the per-flow console chatter. The in-app capture path sets this: it derives
+    // the per-flow outcome from the Counts delta and shows it on the dashboard, so console output is
+    // redundant. The HAR import path leaves it false to keep its server-side log. End-of-run summaries
+    // are not gated.
     public bool Quiet { get; set; }
 
     private void Out(string line) { if (!Quiet) Console.WriteLine(line); }
@@ -45,10 +42,9 @@ public sealed class EndpointExtractor
         _overwrite = overwrite;
     }
 
-    // Convenience constructor for a repo-rooted run: loads the type maps + yaml editor and
-    // ensures the default output dir exists.
-    // contentRoot = the directory that directly holds RouteMap/routes.yaml + Endpoints/ (see
-    // ContentRoot.Resolve). Hosted or local, no "EggIncognito" subdir assumption.
+    // Convenience constructor for a repo-rooted run: loads the type maps + yaml editor and ensures the
+    // default output dir exists. contentRoot is the directory that directly holds RouteMap/routes.yaml
+    // + Endpoints/, hosted or local, with no "EggIncognito" subdir assumption.
     public static EndpointExtractor ForRepo(string contentRoot, string? eid, string eidPlaceholder, bool overwrite)
     {
         var endpointsRoot = Path.Combine(contentRoot, "Endpoints");
@@ -64,11 +60,9 @@ public sealed class EndpointExtractor
     }
 
     // Per-flow entry point. The single contract both the HAR and in-process paths use.
-    //
-    // requestDataB64 is the base64 `data` param value (or null for an empty body);
-    // responseBodyB64 is the base64-encoded response body (the AuthenticatedMessage on the wire).
-    // Returns the canonical path processed, or null if the flow was skipped (non-POST, non-200,
-    // undecodable, duplicate, or AlwaysSkip).
+    // requestDataB64 is the base64 `data` param value, or null for an empty body. responseBodyB64 is
+    // the base64-encoded response body, the AuthenticatedMessage on the wire. Returns the canonical
+    // path processed, or null if the flow was skipped.
     public string? ProcessFlow(string url, string method, int status, string? requestDataB64, string responseBodyB64)
     {
         if (method != "POST") return null;
@@ -95,9 +89,9 @@ public sealed class EndpointExtractor
         return decoded.Path;
     }
 
-    // Explicit user-initiated save (the dashboard "Save as endpoint" button). Unlike ProcessFlow this
-    // does NOT dedup (the live capture already added this flow to _seen, so ProcessFlow would skip
-    // it) and it FORCE-overwrites the existing endpoint (an explicit save means "make this the endpoint"). Returns the written path, or null if the flow could not be decoded.
+    // Explicit user-initiated save, the dashboard "Save as endpoint" button. Unlike ProcessFlow this
+    // does not dedup, since live capture already added this flow to _seen, and it force-overwrites the
+    // existing endpoint. Returns the written path, or null if the flow could not be decoded.
     public string? ForceWriteEndpoint(string url, string method, int status, string? requestDataB64, string responseBodyB64)
     {
         if (method != "POST" || status != 200) return null;
@@ -132,7 +126,7 @@ public sealed class EndpointExtractor
         var status = res.GetProperty("status").GetInt32();
         var url = req.GetProperty("url").GetString()!;
 
-        // Pre-filter cheaply (avoids reading bodies for flows we will skip anyway).
+        // Pre-filter cheaply to avoid reading bodies for flows we will skip anyway.
         if (method != "POST" || status != 200) return;
 
         var contentEl = res.GetProperty("content");
@@ -148,8 +142,8 @@ public sealed class EndpointExtractor
         ProcessFlow(url, method, status, requestData, responseBodyB64);
     }
 
-    // Flush the yaml editor once all flows are processed. The capture tool and the HAR runner
-    // both call this at the end of a session.
+    // Flush the yaml editor once all flows are processed. Both the capture tool and the HAR runner
+    // call this at the end of a session.
     public void Save() => _dirs.Yaml.Save();
 
     // Decode a single flow into a DecodedEntry (redacted), or null if it cannot be parsed.
@@ -166,7 +160,7 @@ public sealed class EndpointExtractor
 
         string Scrub(string s) => _eid is not null ? s.Replace(_eid, _eidPlaceholder) : s;
 
-        var json = FormatResponse(path, inner, _dirs.TypeMap); // already redacted by FormatResponse
+        var json = FormatResponse(path, inner, _dirs.TypeMap); // already redacted
         if (json is null)
         {
             var det = AutoDetect(inner);
@@ -178,7 +172,7 @@ public sealed class EndpointExtractor
         return new DecodedEntry(path, Scrub(json), request, null, 0, 0);
     }
 
-    // Write a decoded entry to disk (or stage a diff), tracking the per-outcome counts.
+    // Write a decoded entry to disk or stage a diff, tracking the per-outcome counts.
     // forceOverwrite: explicit user save - skip the fewer-objects loss guard and always overwrite.
     private void WriteDecoded(DecodedEntry decoded, bool forceOverwrite = false, bool isExplicit = false)
     {
@@ -235,8 +229,8 @@ public sealed class EndpointExtractor
         int respBest, int respSecond, bool isExplicit = false)
     {
         var yaml = _dirs.Yaml;
-        // A path-param value (e.g. get_contract_evaluation/pumpkin-pie) resolves to its parent
-        // endpoint, so we learn types for the real endpoint and never mint a bogus child.
+        // A path-param value resolves to its parent endpoint, so we learn types for the real endpoint
+        // and never mint a bogus child.
         var path = yaml.CanonicalPath(capturedPath);
 
         // Request side: a Write-eligible detected type backfills an unresolved request slot.
@@ -260,12 +254,12 @@ public sealed class EndpointExtractor
         }
         if (request.FlagNote is not null) Counts.Flagged.Add(request.FlagNote);
 
-        // Response side: a known type came via the type map (nothing to learn). An auto-detected
-        // type backfills an unresolved response slot if it passes the same gate.
+        // Response side: a known type came via the type map, nothing to learn. An auto-detected type
+        // backfills an unresolved response slot if it passes the same gate.
         if (autoResponseType is not null)
         {
             var verdict = ExtractorConfig.ClassifyAutoWrite(respBest, respSecond);
-            // Explicit save confirms an otherwise-ambiguous (Flagged) response type too.
+            // Explicit save confirms an otherwise-ambiguous response type too.
             if (verdict == AutoWriteVerdict.Write || isExplicit)
             {
                 if (!yaml.HasPath(path))
@@ -296,15 +290,15 @@ public sealed class EndpointExtractor
     }
 
     // Decode the request `data` value into redacted JSON for the endpoint's stored request.
-    // `explicit` = a user-initiated save (vs unattended capture): an ambiguous (Flagged) auto-detect
-    // is then treated as confirmed and its type IS registered, since the user explicitly chose it.
+    // isExplicit = a user-initiated save vs unattended capture: an ambiguous auto-detect is then
+    // treated as confirmed and its type is registered, since the user explicitly chose it.
     private RequestDecode ExtractRequestJson(string? dataValue, string path, bool isExplicit = false)
     {
         try
         {
             if (string.IsNullOrEmpty(dataValue))
-                // Body element present but empty (or no data param): the endpoint posts no request
-                // proto. That is itself a resolved answer - signal it so the caller can record it.
+                // Body empty or no data param: the endpoint posts no request proto. That is itself a
+                // resolved answer - signal it so the caller can record it.
                 return new(null, null, false, null) { EmptyBody = true };
 
             var reqBytes = ProtoFraming.FromBase64Loose(dataValue);
@@ -323,9 +317,9 @@ public sealed class EndpointExtractor
                 return new(ProtoJson.PrettyPrint(JsonFormatter.Default.Format(msg)), null, _dirs.RequestWrapped.Contains(path), null);
             }
 
-            // Unknown type: AUTO-DISCOVER both the inner type and the framing. Try raw and (if it
-            // looks like an AuthenticatedMessage) unwrapped; keep whichever framing's best
-            // candidate round-trips exactly. The framing is part of the answer, not an input.
+            // Unknown type: auto-discover both the inner type and the framing. Try raw and, if it looks
+            // like an AuthenticatedMessage, unwrapped; keep whichever framing's best candidate
+            // round-trips exactly. The framing is part of the answer, not an input.
             var raw = AutoDetect(reqBytes);
             var unwrappedBytes = ProtoFraming.TryUnwrap(reqBytes);
             var unw = unwrappedBytes is null ? default : AutoDetect(unwrappedBytes);
@@ -337,12 +331,12 @@ public sealed class EndpointExtractor
             var verdict = ExtractorConfig.ClassifyAutoWrite(chosen.bestScore, chosen.secondBestScore);
             Out($"  reqauto {path}  request -> {chosen.typeName} ({(useUnwrapped ? "wrapped" : "raw")}, {verdict}, conf {chosen.confidence}%)");
 
-            // Register the type when the auto-verdict is Write, OR when the user explicitly saved
-            // (their click confirms the otherwise-ambiguous best guess).
+            // Register the type when the auto-verdict is Write, or when the user explicitly saved (their
+            // click confirms the otherwise-ambiguous best guess).
             if (verdict == AutoWriteVerdict.Write || (isExplicit && chosen.typeName is not null))
                 return new(chosen.json, chosen.typeName, useUnwrapped, null);
 
-            // Flagged (ambiguous) or rejected during unattended capture: dump the JSON, do not write.
+            // Flagged or rejected during unattended capture: dump the JSON, do not write.
             var note = verdict == AutoWriteVerdict.Flag
                 ? $"{path} request: {chosen.typeName} vs runner-up tied on fields - verify with --decode"
                 : null;
@@ -383,9 +377,7 @@ public sealed class EndpointExtractor
             Console.WriteLine("  note: routes.yaml updated -> POST /api/import/endpoint-status/update to refresh endpoint_status");
     }
 
-    // Static pure helpers.
-
-    // Pull the base64 `data` value from a HAR request entry (form param or raw text body).
+    // Pull the base64 `data` value from a HAR request entry, form param or raw text body.
     public static string? ReadRequestData(JsonElement reqEl)
     {
         if (!reqEl.TryGetProperty("postData", out var postData)) return null;
@@ -394,7 +386,7 @@ public sealed class EndpointExtractor
             foreach (var p in parms.EnumerateArray())
             {
                 if (p.TryGetProperty("name", out var name) && name.GetString() == "data")
-                    // form URL encoding: + is decoded as space by mitmproxy - restore it
+                    // mitmproxy decodes form `+` as space - restore it.
                     return p.GetProperty("value").GetString()?.Replace(' ', '+');
             }
         }
@@ -459,14 +451,14 @@ public sealed class EndpointExtractor
     public static IReadOnlyDictionary<string, string> LoadRequestTypes(string contentRoot) =>
         LoadInnerTypes(contentRoot, newKey: "request", legacyKey: "requestType");
 
-    // Paths whose response is NOT a protobuf message: the real API returns a short non-proto ack
-    // (the mock serves a literal string). Maps path -> the mock's literal (e.g. "SUCCESS"). The
-    // dashboard uses this to label such responses as acknowledgements instead of "unknown" + hex.
+    // Paths whose response is not a protobuf message: the real API returns a short non-proto ack and
+    // the mock serves a literal string. Maps path to the mock's literal. The dashboard uses this to
+    // label such responses as acknowledgements instead of "unknown" + hex.
     public static IReadOnlyDictionary<string, string> LoadRawResponses(string contentRoot) =>
         LoadInnerTypes(contentRoot, newKey: "rawResponse", legacyKey: "rawResponse");
 
-    // Paths whose request is wrapped+signed in an AuthenticatedMessage on the wire:
-    // explicit `requestWrapped: true`, or the legacy `requestType: AuthenticatedMessage`.
+    // Paths whose request is wrapped+signed in an AuthenticatedMessage on the wire: explicit
+    // `requestWrapped: true`, or the legacy `requestType: AuthenticatedMessage`.
     public static HashSet<string> LoadRequestWrapped(string contentRoot)
     {
         var yaml = File.ReadAllText(Path.Combine(contentRoot, "RouteMap", "routes.yaml"));
@@ -494,10 +486,10 @@ public sealed class EndpointExtractor
         return result;
     }
 
-    // Reads the inner proto type per endpoint, preferring the new `request`/`response` keys
-    // and falling back to the legacy `requestType`/`responseType`. The literal
-    // "AuthenticatedMessage" in a legacy field means "wrapped, inner type unknown" - it is
-    // skipped (no concrete type to decode with), matching the parser normalization elsewhere.
+    // Reads the inner proto type per endpoint, preferring the new `request`/`response` keys and falling
+    // back to the legacy `requestType`/`responseType`. The literal "AuthenticatedMessage" in a legacy
+    // field means wrapped with inner type unknown, so it is skipped, matching the parser normalization
+    // elsewhere.
     private static IReadOnlyDictionary<string, string> LoadInnerTypes(string contentRoot, string newKey, string legacyKey)
     {
         var yaml = File.ReadAllText(Path.Combine(contentRoot, "RouteMap", "routes.yaml"));
@@ -523,7 +515,7 @@ public sealed class EndpointExtractor
             if (pathMatch.Success) { Flush(); currentPath = pathMatch.Groups[1].Value.Trim(); continue; }
             if (currentPath is null) continue;
 
-            // Value up to an optional inline `#` comment.
+            // Value up to an optional inline comment.
             var m = Regex.Match(line, @"^\s+" + Regex.Escape(newKey) + @":\s*([^#]*?)\s*(?:#.*)?$");
             if (m.Success) { newVal = m.Groups[1].Value.Trim(); continue; }
             m = Regex.Match(line, @"^\s+" + Regex.Escape(legacyKey) + @":\s*([^#]*?)\s*(?:#.*)?$");
@@ -585,7 +577,7 @@ public sealed class EndpointExtractor
 
         Report("raw bytes", data);
 
-        // If it parses as an AuthenticatedMessage with a non-empty payload, also rank the inner.
+        // If it parses as an AuthenticatedMessage with a non-empty payload, rank the inner too.
         try
         {
             var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(data);
@@ -598,17 +590,15 @@ public sealed class EndpointExtractor
         catch (InvalidProtocolBufferException) { /* not wrapped */ }
     }
 
-    // Shared request-body decode used by BOTH the live capture pipeline and the dashboard decoder,
-    // so the proto-framing heuristic can never drift between them. Returns the unredacted JSON +
-    // the resolved type name (null if it could not be decoded).
-    //
+    // Shared request-body decode used by both the live capture pipeline and the dashboard decoder, so
+    // the proto-framing heuristic can never drift between them. Returns the unredacted JSON + the
+    // resolved type name, null if it could not be decoded.
     //   knownType - the routes.yaml-mapped request type, or null to auto-detect.
     //   wrapped   - whether the known type is AuthenticatedMessage-wrapped on the wire.
-    //
-    // For a known type: parse under the recorded framing; if that yields a poor parse (the proto
-    // parser is lenient and stuffs trailing bytes into the last string field), also try the OTHER
-    // framing and keep whichever round-trips exactly / has the richest fields. For an unknown type:
-    // auto-detect across raw and AM-unwrapped framings.
+    // For a known type, parse under the recorded framing; if that yields a poor parse (the lenient
+    // proto parser stuffs trailing bytes into the last string field), also try the other framing and
+    // keep whichever round-trips exactly or has the richest fields. For an unknown type, auto-detect
+    // across raw and AM-unwrapped framings.
     public static (string? json, string? typeName) DecodeRequestBody(string? knownType, bool wrapped, byte[] bytes)
     {
         try

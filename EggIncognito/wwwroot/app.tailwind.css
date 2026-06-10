@@ -63,6 +63,11 @@
   }
   .icon-btn:hover { @apply border-accent2; }
   .icon-btn.active { @apply border-accent text-accent; }
+  /* Capture toggle: green play (start), red pause (stop). The icon inherits currentColor. */
+  .icon-btn.capture-start { @apply border-ok text-ok; }
+  .icon-btn.capture-start:hover { @apply border-ok; }
+  .icon-btn.capture-stop { @apply border-err text-err; }
+  .icon-btn.capture-stop:hover { @apply border-err; }
   .icon-btn .icon { @apply w-[18px] h-[18px]; }
   .icon-btn-sm { @apply w-[26px] h-6; }
   .icon-btn-sm .icon { @apply w-[15px] h-[15px]; }
@@ -167,6 +172,8 @@
   .data-box .data-tools { @apply p-1.5 border-b border-border flex-wrap; }
   .data-box pre.data-text { @apply border-0 rounded-none bg-transparent; }
   .params-box { @apply border border-border rounded bg-bg px-2 py-1.5; }
+  /* Plain content wrapper around a data view (Capture FormatView). Children carry their own chrome. */
+  .data-body { @apply block; }
 
   /* Data toolbar (request/response views) */
   .data-tools { @apply flex items-stretch gap-1.5; }
@@ -349,7 +356,7 @@
   .custom-config label { @apply text-xs text-muted; }
   .custom-config input { @apply w-full box-border bg-bg text-fg border border-border rounded px-1.5 py-1 font-mono text-xs; }
   .custom-config input:focus { @apply outline-none border-accent2; }
-  #rawJson { @apply w-full min-h-[200px] bg-panel2 border border-border rounded text-fg p-2 font-mono text-xs; }
+  #rawJson, .raw-json { @apply w-full min-h-[200px] bg-panel2 border border-border rounded text-fg p-2 font-mono text-xs; }
   .tree-head { @apply flex justify-between items-center my-3 mb-1.5; }
   .raw-toggle { @apply text-xs text-muted cursor-pointer; }
   .muted { @apply text-muted; }
@@ -495,6 +502,7 @@
   .tab-btn { @apply bg-none border-0 text-muted text-[13px] font-semibold px-3 py-1.5 cursor-pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .tab-btn:hover { @apply text-fg; }
   .tab-btn.active { @apply text-accent; border-bottom-color: theme(colors.accent); }
+  .tab-body { @apply block; }
 
   /* Capture: known-endpoint card + save bar */
   .known-card { @apply flex-1 border rounded-md px-3.5 py-2.5 flex flex-col gap-1; border-color: theme(colors.ok); background: rgba(94,194,126,.08); }
@@ -566,7 +574,7 @@
   .jtree-searching .jtree-dim > .jtree-row { @apply opacity-35; }
   .jtree-match > .jtree-row { background: rgba(239,117,89,.08); }
 
-  /* Admin: table rows are rendered by admin.js, so these stay element-scoped under #adminMain. */
+  /* Admin: table rows are rendered by the Admin Blazor component, element-scoped under #adminMain. */
   #adminMain h2 { @apply text-base mb-2 mt-6; color: #c7c7cf; }
   #adminMain table { @apply w-full border-collapse text-[13px]; }
   #adminMain th, #adminMain td { @apply text-left px-2.5 py-1.5 border-b border-border; }
@@ -576,4 +584,77 @@
   #adminMain button.danger { @apply cursor-pointer; background: #5a2330; border-color: #7a3040; }
   #adminMain #denied { color: #d88; }
   #adminMain #log { @apply bg-panel border border-border rounded-md p-2 whitespace-pre-wrap; min-height: 1.2rem; }
+
+  /* Docs hub (/docs): two-pane registry tree + subject detail. */
+  .docs-grid { @apply min-h-0; }
+  .docs-tree { @apply overflow-auto gap-3; }
+  .docs-detail { @apply overflow-auto; }
+  .docs-group { @apply mb-1; }
+  .docs-group-title { @apply text-accent2 text-[11px] uppercase tracking-[0.05em] mt-2 mb-1; }
+  .docs-subjects { @apply list-none m-0 p-0 flex flex-col gap-px; }
+  .docs-subject-link {
+    @apply block w-full text-left bg-transparent border-0 text-fg cursor-pointer rounded
+           px-2 py-1 font-mono text-xs no-underline;
+  }
+  .docs-subject-link:hover { @apply bg-panel2; }
+  .docs-subject-link.active { @apply bg-accent2 text-bg; }
+  .docs-detail-title { @apply m-0 font-mono text-[15px] text-fg normal-case tracking-normal; }
+  .docs-detail-kind { @apply inline-block mt-1.5 lowercase; }
+  .docs-detail-summary { @apply text-[13px] text-muted leading-relaxed my-2; }
+  .docs-detail-h { @apply text-xs uppercase tracking-[0.05em] text-muted; margin: 16px 0 6px; }
+  .docs-structure { @apply list-none m-0 p-0 flex flex-col gap-1; }
+  .docs-structure li { @apply flex items-center gap-1.5; }
+  .docs-field-name { @apply font-mono text-xs text-fg; }
+  .docs-field-type { @apply inline-block; }
+  .docs-tags { @apply flex flex-wrap gap-1.5; }
+  .docs-tag {
+    @apply text-[10px] leading-[1.4] px-1.5 py-px rounded-[10px] border border-border text-muted
+           bg-transparent whitespace-nowrap;
+  }
+
+  /* DocHelp (<DocHelp>): an inline info affordance + popover. The pop only renders when open (Blazor
+     conditional), so no closed-state rule is needed; it just needs positioning + panel chrome. */
+  .dochelp { @apply relative inline-flex align-middle; }
+  .dochelp-btn {
+    @apply w-[16px] h-[16px] inline-flex items-center justify-center rounded-full bg-panel2
+           border border-border text-muted cursor-pointer text-[10px] font-bold p-0 leading-none;
+  }
+  .dochelp-btn:hover { @apply border-accent2 text-fg; }
+  .dochelp-pop {
+    @apply absolute left-0 z-[1100] w-[300px] max-h-[320px] overflow-auto bg-panel2 border border-border
+           rounded-md p-3 text-[13px];
+    top: calc(100% + 6px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .4);
+  }
+  .dochelp-title { @apply font-mono font-semibold text-fg mb-1; }
+  .dochelp-summary { @apply text-muted text-xs leading-relaxed mb-2; }
+  .dochelp-link { @apply inline-block mt-2 text-accent2 text-xs no-underline; }
+  .dochelp-link:hover { @apply text-fg; }
+
+  /* Markdown render output (<Markdown> wraps MarkdownRenderer.Render in .md-body). The renderer emits
+     md-h1/2/3, md-code, md-rule, md-quote, md-list; .md-body is the canonical wrapper for the docs hub
+     doc + DocHelp pop. (.doc-body + .md-preview keep their own copies above for the legacy contexts.) */
+  .md-body { @apply text-[13px] leading-relaxed; }
+  .md-body .md-h1 { @apply text-lg; }
+  .md-body .md-h2 { @apply text-base; }
+  .md-body .md-h3 { @apply text-sm; }
+  .md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 {
+    @apply text-fg; margin: 12px 0 6px;
+  }
+  .md-body p { @apply my-2; }
+  .md-body a { @apply text-accent2; }
+  .md-body code { @apply font-mono text-xs bg-bg border border-border rounded-[3px] px-[3px]; }
+  .md-body pre.md-code { @apply bg-bg border border-border rounded-md p-2 overflow-auto; }
+  .md-body pre.md-code code { @apply border-0 p-0; background: none; }
+  .md-body blockquote.md-quote {
+    @apply my-2 px-2.5 py-1.5 text-fg;
+    border-left: 3px solid theme(colors.accent); background: rgba(239,117,89,.07);
+  }
+  .md-body ul.md-list, .md-body ol.md-list { @apply my-2 pl-5; }
+  .md-body img { @apply max-w-full border border-border rounded-md my-1.5; }
+  .md-body hr.md-rule { @apply border-0 border-t border-border my-3; }
+
+  /* Markdown editor extras (toolbar spacer + save status line). */
+  .md-editor-spacer { @apply ml-auto; }
+  .md-editor-status { @apply px-2 py-1 text-xs text-muted border-t border-border; }
 }

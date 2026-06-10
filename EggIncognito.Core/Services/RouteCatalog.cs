@@ -1,11 +1,10 @@
-// Runtime view of routes.yaml for the Inspector UI. The source generator parses
-// the same file at compile time to emit controllers; this is the runtime equivalent
-// so the UI knows each route's request/response type and the transport framing.
-//
-// Normalization rules are kept identical (by convention) with the RouteGenerator's
-// RouteParser: new `request`/`response` keys win; legacy `requestType`/`responseType`
-// are aliases; the literal "AuthenticatedMessage" in a legacy field means "wrapped,
-// inner type not yet known" -> null inner + wrapped.
+// Runtime view of routes.yaml for the Inspector UI. The source generator parses the same file at
+// compile time to emit controllers; this is the runtime equivalent so the UI knows each route's
+// request/response type and the transport framing.
+// Normalization rules are kept identical by convention with the RouteGenerator's RouteParser: new
+// `request`/`response` keys win; legacy `requestType`/`responseType` are aliases; the literal
+// "AuthenticatedMessage" in a legacy field means wrapped with inner type not yet known, so null inner
+// plus wrapped.
 
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
@@ -53,8 +52,8 @@ public sealed class RouteCatalog : IRouteCatalog
         var configured = config["RoutesYamlPath"];
         if (!string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;
 
-        // Search up from the app base dir for RouteMap/routes.yaml. Works whether
-        // running from bin/ (dev) or the published app dir.
+        // Search up from the app base dir for RouteMap/routes.yaml. Works from bin/ in dev or the
+        // published app dir.
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
@@ -75,8 +74,7 @@ public sealed class RouteCatalog : IRouteCatalog
         public bool PathParam, PathParamOnly;
     }
 
-    // Minimal line-based parser. Only reads the `routes:` section (stops at the next
-    // top-level key like `excluded:` / `endpoint_status:`).
+    // Minimal line-based parser. Only reads the `routes:` section, stopping at the next top-level key.
     internal static List<RouteInfo> Parse(string yaml)
     {
         var result = new List<RouteInfo>();
@@ -93,7 +91,7 @@ public sealed class RouteCatalog : IRouteCatalog
         {
             var line = rawLine.TrimEnd('\r');
 
-            // Top-level key (no leading whitespace, ends with ':').
+            // Top-level key: no leading whitespace, ends with ':'.
             var topKey = Regex.Match(line, @"^(\w[\w_]*):\s*$");
             if (topKey.Success)
             {
@@ -117,7 +115,7 @@ public sealed class RouteCatalog : IRouteCatalog
     {
         string? V(string key)
         {
-            // Value is everything up to an optional inline `#` comment, trimmed.
+            // Value is everything up to an optional inline comment, trimmed.
             var m = Regex.Match(line, @"^\s+" + Regex.Escape(key) + @":\s*([^#]*?)\s*(?:#.*)?$");
             return m.Success ? m.Groups[1].Value : null;
         }
@@ -151,7 +149,7 @@ public sealed class RouteCatalog : IRouteCatalog
             PathParamOnly: b.PathParamOnly);
     }
 
-    // Returns (innerType, wrappedDefault). "AuthenticatedMessage" -> (null, true).
+    // Returns (innerType, wrappedDefault). "AuthenticatedMessage" maps to (null, true).
     private static (string? type, bool wrapped) Normalize(string? newKey, string? legacy)
     {
         var v = newKey ?? legacy;

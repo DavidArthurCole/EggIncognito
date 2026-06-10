@@ -1,0 +1,93 @@
+@* Left pane: the Endpoints | Objects switch, a filter box, and the matching list. Endpoints are grouped
+   by namespace (collapsible); Objects is the proto message-type list (the Documentation surface).
+   Selecting an endpoint drives the builder; selecting an object drives the object/docs view. Reads come
+   straight from the injected IRouteCatalog / IProtoReflection (server-side, no API round-trip). *@
+@inject IRouteCatalog Catalog
+@inject IProtoReflection Reflection
+
+<div class="panel-head">
+  <div class="list-switch" role="tablist" aria-label="Left list">
+    <button type="button" class="list-switch-opt @(Mode == "endpoints" ? "active" : "")"
+            role="tab" @onclick="@(() => SetMode("endpoints"))">Endpoints</button>
+    <button type="button" class="list-switch-opt @(Mode == "objects" ? "active" : "")"
+            role="tab" @onclick="@(() => SetMode("objects"))">Objects</button>
+  </div>
+</div>
+<input id="endpointFilter" placeholder="@(Mode == "objects" ? "filter objects..." : "filter...")"
+       value="@_filter" @oninput="OnFilter" />
+
+@if (Mode == "endpoints")
+{
+  <div id="endpoints">
+    @foreach (var grp in Groups())
+    {
+      var ns = grp.Key;
+      var collapsed = _collapsed.Contains(ns);
+      <div class="ep-group @(collapsed ? "collapsed" : "")">
+        <div class="ep-ns" @onclick="() => ToggleGroup(ns)">
+          <span class="ep-caret"></span>@(ns.ToLowerInvariant())/
+        </div>
+        <div class="ep-group-body">
+          @foreach (var e in grp)
+          {
+            <div class="ep @(Selected?.Path == e.Path ? "active" : "")" @onclick="() => OnSelectEndpoint.InvokeAsync(e)">
+              @(e.Path[(ns.Length + 1)..])
+              @if (e.RequestWrapped)
+              {
+                <span class="wrap-flag" title="wrapped + signed in an AuthenticatedMessage">signed</span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+}
+else
+{
+  <div id="objects">
+    @foreach (var name in FilteredMessages())
+    {
+      <div class="ep obj-row @(SelectedObject == name ? "active" : "")" @onclick="() => OnSelectObject.InvokeAsync(name)">
+        <span class="obj-name">@name</span>
+      </div>
+    }
+  </div>
+}
+
+@code {
+    [Parameter] public string Mode { get; set; } = "endpoints";
+    [Parameter] public EventCallback<string> ModeChanged { get; set; }
+    [Parameter] public RouteInfo? Selected { get; set; }
+    [Parameter] public string? SelectedObject { get; set; }
+    [Parameter] public EventCallback<RouteInfo> OnSelectEndpoint { get; set; }
+    [Parameter] public EventCallback<string> OnSelectObject { get; set; }
+
+    string _filter = "";
+    readonly HashSet<string> _collapsed = [];
+
+    void OnFilter(ChangeEventArgs e) => _filter = e.Value?.ToString() ?? "";
+
+    Task SetMode(string m) => ModeChanged.InvokeAsync(m);
+
+    void ToggleGroup(string ns)
+    {
+        if (!_collapsed.Remove(ns)) _collapsed.Add(ns);
+    }
+
+    IEnumerable<IGrouping<string, RouteInfo>> Groups()
+    {
+        var f = _filter.ToLowerInvariant();
+        return Catalog.All()
+            .Where(e => string.IsNullOrEmpty(f) || e.Path.ToLowerInvariant().Contains(f))
+            .GroupBy(e => e.Path.Split('/')[0])
+            .OrderBy(g => g.Key, StringComparer.Ordinal);
+    }
+
+    IEnumerable<string> FilteredMessages()
+    {
+        var f = _filter.ToLowerInvariant();
+        return Reflection.AllMessageTypeNames()
+            .Where(n => string.IsNullOrEmpty(f) || n.ToLowerInvariant().Contains(f));
+    }
+}

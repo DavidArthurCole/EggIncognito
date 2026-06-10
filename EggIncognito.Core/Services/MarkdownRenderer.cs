@@ -1,0 +1,155 @@
+using System.Text.RegularExpressions;
+
+namespace EggIncognito.Services;
+
+// Dependency-free Markdown renderer, ported from wwwroot/inspector/md.js (render path).
+//
+// SECURITY: docs are contributor-authored and stored, then rendered for everyone. To avoid stored
+// XSS, Render escapes all HTML first, then applies a small fixed set of Markdown -> HTML transforms
+// over the escaped text. Authors cannot inject raw HTML/script; only the markdown syntax we
+// explicitly support produces tags. Links/images are emitted only for http(s)/relative URLs.
+public static class MarkdownRenderer
+{
+    static readonly Regex EscapeChars = new("[&<>\"']", RegexOptions.Compiled);
+    static readonly Regex SafeScheme = new(@"^(https?://|/|\./|#)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    static readonly Regex SplitLines = new(@"\r?\n", RegexOptions.Compiled);
+
+    static readonly Regex InlineCode = new(@"`([^`]+)`", RegexOptions.Compiled);
+    static readonly Regex InlineImg = new(@"!\[([^\]]*)\]\(([^)]+)\)", RegexOptions.Compiled);
+    static readonly Regex InlineLink = new(@"\[([^\]]+)\]\(([^)]+)\)", RegexOptions.Compiled);
+    static readonly Regex InlineBold = new(@"\*\*([^*]+)\*\*", RegexOptions.Compiled);
+    static readonly Regex InlineItalic = new(@"(^|[^*])\*([^*]+)\*", RegexOptions.Compiled);
+
+    static readonly Regex Fence = new(@"^```", RegexOptions.Compiled);
+    static readonly Regex Rule = new(@"^\s*---+\s*$", RegexOptions.Compiled);
+    static readonly Regex Heading = new(@"^(#{1,3})\s+(.*)$", RegexOptions.Compiled);
+    // Quote marker is matched as the escaped entity, since EscapeHtml runs before the line scan and
+    // turns a leading `>` into `&gt;`. The md.js original tested for a raw `>` here, which never
+    // survived its escape-first pass, so its blockquote branch was effectively dead. Matching `&gt;`
+    // makes blockquotes actually render.
+    static readonly Regex Quote = new(@"^\s*&gt;\s?", RegexOptions.Compiled);
+    static readonly Regex Ul = new(@"^\s*[-*]\s+", RegexOptions.Compiled);
+    static readonly Regex Ol = new(@"^\s*\d+\.\s+", RegexOptions.Compiled);
+    // Lookahead that stops a running paragraph at a special line. The blockquote alternative is the
+    // escaped `&gt;` for the same reason as Quote.
+    static readonly Regex ParaStop = new(@"^(#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*&gt;|```|\s*---+\s*$)", RegexOptions.Compiled);
+
+    static string EscapeHtml(string s) => EscapeChars.Replace(s, m => m.Value switch
+    {
+        "&" => "&amp;",
+        "<" => "&lt;",
+        ">" => "&gt;",
+        "\"" => "&quot;",
+        "'" => "&#39;",
+        _ => m.Value
+    });
+
+    // Only allow safe URL schemes in links/images (no javascript:, data:, etc.). Relative URLs are fine.
+    static string SafeUrl(string url)
+    {
+        var u = url.Trim();
+        return SafeScheme.IsMatch(u) ? u : "#";
+    }
+
+    // Inline spans, on already-escaped text: code first so its contents are not further parsed, then
+    // images, links, bold, italic.
+    static string Inline(string text)
+    {
+        text = InlineCode.Replace(text, m => $"<code>{m.Groups[1].Value}</code>");
+        text = InlineImg.Replace(text, m => $"<img src=\"{SafeUrl(m.Groups[2].Value)}\" alt=\"{m.Groups[1].Value}\" />");
+        text = InlineLink.Replace(text, m => $"<a href=\"{SafeUrl(m.Groups[2].Value)}\" target=\"_blank\" rel=\"noopener noreferrer\">{m.Groups[1].Value}</a>");
+        text = InlineBold.Replace(text, "<strong>$1</strong>");
+        text = InlineItalic.Replace(text, "$1<em>$2</em>");
+        return text;
+    }
+
+    // Render markdown source to a safe HTML string.
+    public static string Render(string? src)
+    {
+        var lines = SplitLines.Split(EscapeHtml(src ?? ""));
+        var outLines = new List<string>();
+        var i = 0;
+        string? listType = null; // "ul" | "ol" | null
+
+        void CloseList()
+        {
+            if (listType != null) { outLines.Add($"</{listType}>"); listType = null; }
+        }
+
+        while (i < lines.Length)
+        {
+            var line = lines[i];
+
+            // Fenced code block ```
+            if (Fence.IsMatch(line.Trim()))
+            {
+                CloseList();
+                var body = new List<string>();
+                i++;
+                while (i < lines.Length && !Fence.IsMatch(lines[i].Trim())) { body.Add(lines[i]); i++; }
+                i++; // skip closing fence
+                outLines.Add($"<pre class=\"md-code\"><code>{string.Join("\n", body)}</code></pre>");
+                continue;
+            }
+
+            // Horizontal rule
+            if (Rule.IsMatch(line)) { CloseList(); outLines.Add("<hr class=\"md-rule\" />"); i++; continue; }
+
+            // Headings
+            var h = Heading.Match(line);
+            if (h.Success)
+            {
+                CloseList();
+                var n = h.Groups[1].Value.Length;
+                outLines.Add($"<h{n} class=\"md-h{n}\">{Inline(h.Groups[2].Value)}</h{n}>");
+                i++;
+                continue;
+            }
+
+            // Blockquote: collect consecutive > lines.
+            if (Quote.IsMatch(line))
+            {
+                CloseList();
+                var body = new List<string>();
+                while (i < lines.Length && Quote.IsMatch(lines[i])) { body.Add(Quote.Replace(lines[i], "", 1)); i++; }
+                outLines.Add($"<blockquote class=\"md-quote\">{Inline(string.Join("<br/>", body))}</blockquote>");
+                continue;
+            }
+
+            // Unordered list
+            if (Ul.IsMatch(line))
+            {
+                if (listType != "ul") { CloseList(); outLines.Add("<ul class=\"md-list\">"); listType = "ul"; }
+                outLines.Add($"<li>{Inline(Ul.Replace(line, "", 1))}</li>");
+                i++;
+                continue;
+            }
+            // Ordered list
+            if (Ol.IsMatch(line))
+            {
+                if (listType != "ol") { CloseList(); outLines.Add("<ol class=\"md-list\">"); listType = "ol"; }
+                outLines.Add($"<li>{Inline(Ol.Replace(line, "", 1))}</li>");
+                i++;
+                continue;
+            }
+
+            // Blank line
+            if (line.Trim() == "") { CloseList(); i++; continue; }
+
+            // Paragraph (merge consecutive non-empty, non-special lines).
+            {
+                CloseList();
+                var body = new List<string> { line };
+                i++;
+                while (i < lines.Length && lines[i].Trim() != "" && !ParaStop.IsMatch(lines[i]))
+                {
+                    body.Add(lines[i]);
+                    i++;
+                }
+                outLines.Add($"<p>{Inline(string.Join("<br/>", body))}</p>");
+            }
+        }
+        CloseList();
+        return string.Join("\n", outLines);
+    }
+}

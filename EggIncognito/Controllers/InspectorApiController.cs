@@ -1,6 +1,6 @@
-// Backend for the Transport Inspector SPA. Hand-written (not source-generated). Its
-// routes live under /api/inspector so they never collide with the generated mock
-// endpoint controllers (which are routed by their Egg, Inc. API path).
+// Backend for the Transport Inspector SPA. Hand-written, not source-generated. Routes live under
+// /api/inspector so they never collide with the generated mock endpoint controllers, which are routed
+// by their Egg, Inc. API path.
 
 using System.Text.Json;
 using Google.Protobuf;
@@ -37,14 +37,14 @@ public sealed class InspectorApiController(
                 e.PathParamOnly,
                 e.RawResponse,
             });
-        // Short browser cache: the catalog is yaml-driven (+ rare DB routes); the Reload button
+        // Short browser cache: the catalog is yaml-driven plus rare DB routes. The Reload button
         // bypasses cache for an explicit refresh.
         Response.Headers.CacheControl = "private, max-age=20";
         return Ok(list);
     }
 
-    // All proto message type short names (sorted). Powers the Inspector "Objects" list + Documentation.
-    // Static for the app's lifetime (proto is a frozen snapshot), so let the browser cache it.
+    // All proto message type short names, sorted. Powers the Inspector "Objects" list + Documentation.
+    // Static for the app's lifetime since the proto is frozen, so let the browser cache it.
     [HttpGet("messages")]
     public IActionResult Messages()
     {
@@ -99,8 +99,8 @@ public sealed class InspectorApiController(
         }
 
         var inner = message.ToByteArray();
-        // The salt is client-owned: it rides in this request and is used transiently for this build
-        // only. The server never reads EGG_INC_API_SALT for the Inspector path and never persists it.
+        // The salt is client-owned: it rides in this request and is used only for this build. The
+        // server never reads EGG_INC_API_SALT for the Inspector path and never persists it.
         var result = pipeline.Build(inner, body.Wrap, body.Salt);
 
         return Ok(new
@@ -118,9 +118,10 @@ public sealed class InspectorApiController(
     [EnableRateLimiting("egress")]
     public async Task<IActionResult> Send([FromBody] SendRequest body)
     {
-        // The /send egress makes an outbound auxbrain call from THIS server. When hosted, only do that
-        // for an authenticated user (the seam the future per-user-proxy tier refines). Local runs are
-        // unrestricted. /build is never gated (it encodes + signs with the user's own salt, no egress).
+        // The /send egress makes an outbound auxbrain call from this server. When hosted, only do that
+        // for an authenticated user; a future per-user-proxy tier refines this seam. Local runs are
+        // unrestricted. /build is never gated since it encodes + signs with the user's own salt and
+        // does no egress.
         if (appMode.Mode == AppMode.Hosted && !currentUser.IsAuthenticated)
             return StatusCode(403, new { error = "log in to use Live API from the hosted site" });
 
@@ -138,7 +139,7 @@ public sealed class InspectorApiController(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "send {Host}{Path} -> FAILED", uri.Host, uri.AbsolutePath);
-            // In-band error: the SPA renders this inline rather than as an HTTP failure.
+            // In-band error so the SPA renders this inline rather than as an HTTP failure.
             return Ok(new ApiError(
                 $"send failed: {ex.Message}",
                 "Check the target host is reachable and the URL is correct.",
@@ -171,8 +172,8 @@ public sealed class InspectorApiController(
     [HttpPost("decode-response")]
     public IActionResult DecodeResponse([FromBody] DecodeResponseRequest body)
     {
-        // Pure decode of a response the browser already has (custom-proxy mode). No network, no salt,
-        // no egress - just proto reflection. Ungated; renders the same decoded view Mock/Live get.
+        // Pure decode of a response the browser already has in custom-proxy mode. No network, no salt,
+        // no egress, just proto reflection. Ungated; renders the same decoded view Mock/Live get.
         var parser = body.ResponseType is not null ? reflection.FindParser(body.ResponseType) : null;
         var decode = pipeline.Decode(body.RawBase64, parser);
         return Ok(new { decode.Stages, json = decode.Json, error = decode.Error });

@@ -3,7 +3,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A Discord-authenticated user. discord_id (the OAuth NameIdentifier) is the PK; role gates shared-DB writes.
+// A Discord-authenticated user. discord_id, the OAuth NameIdentifier, is the PK; role gates shared-DB
+// writes.
 [Table("users")]
 public class User
 {

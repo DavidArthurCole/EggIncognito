@@ -1,0 +1,11 @@
+@inject IAppMode AppMode
+@inject ICurrentUser User
+<nav class="app-nav">
+  <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
+  <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
+  <NavLink href="docs" ActiveClass="active">Docs</NavLink>
+  @if (AppMode.CanCapture) { <NavLink href="capture" ActiveClass="active">Capture</NavLink> }
+  @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
+  @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
+  <span class="auth-nav"></span>
+</nav>

@@ -5,14 +5,13 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Build;
 
-// Emits a TypeScript declaration file (wwwroot/capture/types.d.ts) describing the JSON shapes the
-// dashboard backend sends over SSE / the REST API. Generated FROM the actual C# records by
-// reflection, so the JS side has one source of truth and the editor flags a field-name typo or a
-// renamed property. Property names are lower-camelCased to match JsonSerializerDefaults.Web.
+// Emits wwwroot/capture/types.d.ts describing the JSON shapes the dashboard backend sends over SSE
+// and the REST API. Generated from the actual C# records by reflection, so the JS side has one source
+// of truth and the editor flags a field-name typo or a renamed property. Property names are
+// lower-camelCased to match JsonSerializerDefaults.Web.
 //
-// Invoked at build time by the EmitDashboardTypes MSBuild target (see EggIncognito.csproj), which
-// runs `dotnet run -- __emit-types <outPath>` and writes the result into wwwroot/capture/.
-// The JS modules reference these via JSDoc:  /** @typedef {import('./types.d.ts').DashboardFlow} ... */
+// Invoked at build time by the EmitDashboardTypes MSBuild target in EggIncognito.csproj, which runs
+// `dotnet run -- __emit-types <outPath>`. JS modules reference these via JSDoc @typedef imports.
 public static class TypeEmitter
 {
     // The record types the dashboard consumes. Add new wire types here.
@@ -42,14 +41,14 @@ public static class TypeEmitter
         sb.AppendLine("// Do NOT edit by hand; it is regenerated on every build. Field names are camelCased");
         sb.AppendLine("// to match the JsonSerializerDefaults.Web casing used on the wire.");
         sb.AppendLine();
-        // Stable order: roots first in declared order, then the rest alphabetically.
+        // Stable order: roots first in declared order, then the rest alphabetical.
         foreach (var name in Roots.Select(r => r.Name).Concat(emitted.Keys.Except(Roots.Select(r => r.Name)).OrderBy(x => x)))
             if (emitted.TryGetValue(name, out var body))
                 sb.AppendLine(body);
 
         Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
         var text = sb.ToString();
-        // Skip the write (and its mtime bump) when nothing changed, so the build target stays
+        // Skip the write and its mtime bump when nothing changed, so the build target stays
         // incremental and does not re-trigger downstream work every build.
         if (File.Exists(outPath) && File.ReadAllText(outPath) == text) return 0;
         File.WriteAllText(outPath, text, new UTF8Encoding(false));
@@ -61,10 +60,10 @@ public static class TypeEmitter
     {
         var sb = new StringBuilder();
         sb.AppendLine($"export interface {t.Name} {{");
-        // Records expose their data as public instance properties (one per positional/init member).
+        // Records expose their data as public instance properties, one per positional/init member.
         foreach (var p in t.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            if (p.GetIndexParameters().Length > 0) continue; // skip indexers (e.g. EqualityContract)
+            if (p.GetIndexParameters().Length > 0) continue; // skip indexers
             if (p.Name == "EqualityContract") continue;
             var (ts, optional) = TsType(p.PropertyType, queue);
             sb.AppendLine($"  {CamelCase(p.Name)}{(optional ? "?" : "")}: {ts};");
@@ -74,7 +73,7 @@ public static class TypeEmitter
     }
 
     // Map a CLR type to a TS type. Enqueues nested record types for emission. Returns (tsType,
-    // isOptional) - reference/nullable types are optional since the JSON may omit/null them.
+    // isOptional); reference/nullable types are optional since the JSON may omit or null them.
     private static (string ts, bool optional) TsType(Type t, Queue<Type> queue)
     {
         var underlying = Nullable.GetUnderlyingType(t);

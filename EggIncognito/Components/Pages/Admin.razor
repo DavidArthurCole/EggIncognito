@@ -1,0 +1,189 @@
+@page "/admin"
+@rendermode @(RenderMode.InteractiveServer)
+@inject ICurrentUser User
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@using System.Net.Http.Json
+@using System.Text.Json
+
+<PageTitle>EggIncognito - Admin</PageTitle>
+<main id="adminMain" class="px-8 pt-6 pb-8 max-w-[900px]">
+  <h1 class="text-[1.3rem] mt-0 mb-4">Admin</h1>
+  @if (!_isAdmin)
+  {
+    <div id="denied">Admin access required. <a class="auth-btn" href="/login?returnUrl=/admin">log in</a></div>
+  }
+  else
+  {
+    <h2>Users</h2>
+    <table>
+      <thead><tr><th>User</th><th>Discord ID</th><th>Role</th><th>Last login</th></tr></thead>
+      <tbody>
+        @foreach (var u in _users)
+        {
+          <tr>
+            <td>@u.Username</td>
+            <td>@u.DiscordId</td>
+            <td>
+              <select value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
+                @foreach (var role in Roles)
+                {
+                  <option value="@role">@role</option>
+                }
+              </select>
+            </td>
+            <td>@u.LastLoginAt.ToLocalTime().ToString("g")</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <h2>Contributed endpoints</h2>
+    <table>
+      <thead><tr><th>Path</th><th>EID</th><th>Type</th><th></th></tr></thead>
+      <tbody>
+        @foreach (var e in _endpoints)
+        {
+          <tr>
+            <td>@e.Path</td>
+            <td>@e.Eid</td>
+            <td>@e.ResponseType</td>
+            <td><button class="danger" @onclick="() => DeleteEndpoint(e.Id)">delete</button></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <h2>Contributed routes</h2>
+    <table>
+      <thead><tr><th>Path</th><th>Response type</th><th></th></tr></thead>
+      <tbody>
+        @foreach (var r in _routes)
+        {
+          <tr>
+            <td>@r.Path</td>
+            <td>@r.ResponseType</td>
+            <td><button class="danger" @onclick="() => DeleteRoute(r.Id)">delete</button></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <pre id="log">@_log</pre>
+  }
+</main>
+
+@code {
+    static readonly string[] Roles = Enum.GetValues<UserRole>().Select(UserRoles.ToName).ToArray();
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    bool _isAdmin;
+    string _log = "";
+    List<UserRow> _users = [];
+    List<EndpointRow> _endpoints = [];
+    List<RouteRow> _routes = [];
+
+    // Captured in OnInitializedAsync while HttpContext is live; reused for circuit-time calls (the
+    // SignalR circuit has no HttpContext, so the auth cookie must be forwarded from the request).
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isAdmin = User.IsAtLeast(UserRole.Admin);
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+        if (!_isAdmin) return;
+        await LoadUsers();
+        await LoadContributions();
+    }
+
+    // Self-call client forwarding the captured auth cookie so the admin ACL on the controller sees the role.
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task LoadUsers()
+    {
+        try
+        {
+            var res = await Client().GetAsync("/api/admin/users");
+            _users = res.IsSuccessStatusCode
+                ? await res.Content.ReadFromJsonAsync<List<UserRow>>(JsonOpts) ?? []
+                : [];
+        }
+        catch (Exception ex) { _users = []; _log = $"load users failed: {ex.Message}"; }
+    }
+
+    async Task LoadContributions()
+    {
+        try
+        {
+            _endpoints = await Client().GetFromJsonAsync<List<EndpointRow>>("/api/db/endpoints", JsonOpts) ?? [];
+        }
+        catch (Exception ex) { _endpoints = []; _log = $"load endpoints failed: {ex.Message}"; }
+        try
+        {
+            _routes = await Client().GetFromJsonAsync<List<RouteRow>>("/api/db/routes", JsonOpts) ?? [];
+        }
+        catch (Exception ex) { _routes = []; _log = $"load routes failed: {ex.Message}"; }
+    }
+
+    async Task SetRole(string discordId, string? role)
+    {
+        if (string.IsNullOrEmpty(role)) return;
+        try
+        {
+            var res = await Client().PostAsJsonAsync($"/api/admin/users/{discordId}/role", new { role });
+            if (res.IsSuccessStatusCode)
+            {
+                var d = await res.Content.ReadFromJsonAsync<SetRoleResult>(JsonOpts);
+                var i = _users.FindIndex(x => x.DiscordId == discordId);
+                if (i >= 0 && d is not null) _users[i] = _users[i] with { Role = d.Role };
+                _log = $"set {discordId} -> {d?.Role}";
+            }
+            else
+            {
+                var d = await ReadError(res);
+                _log = d ?? $"HTTP {(int)res.StatusCode}";
+            }
+        }
+        catch (Exception ex) { _log = ex.Message; }
+    }
+
+    Task DeleteEndpoint(long? id) => Delete("endpoint", id);
+    Task DeleteRoute(long? id) => Delete("route", id);
+
+    async Task Delete(string kind, long? id)
+    {
+        if (id is null) { _log = "this row has no id"; return; }
+        try
+        {
+            var res = await Client().DeleteAsync($"/api/admin/{kind}/{id}");
+            _log = res.IsSuccessStatusCode ? $"deleted {kind} {id}" : $"HTTP {(int)res.StatusCode}";
+        }
+        catch (Exception ex) { _log = ex.Message; }
+        await LoadContributions();
+    }
+
+    static async Task<string?> ReadError(HttpResponseMessage res)
+    {
+        try
+        {
+            var d = await res.Content.ReadFromJsonAsync<ErrorResult>(JsonOpts);
+            return d?.Error;
+        }
+        catch { return null; }
+    }
+
+    record UserRow(string DiscordId, string Username, string Role, DateTimeOffset LastLoginAt);
+    record EndpointRow(long? Id, string Path, string? Eid, string ResponseType);
+    record RouteRow(long? Id, string Path, string? ResponseType);
+    record SetRoleResult(string DiscordId, string Role);
+    record ErrorResult(string Error);
+}

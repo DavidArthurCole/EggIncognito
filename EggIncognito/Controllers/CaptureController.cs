@@ -6,8 +6,8 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
-// Backend for the capture dashboard SPA + the runtime start/stop control. Everything delegates to
-// the singleton CaptureSession (and its Hub). Routes under /api/capture.
+// Backend for the capture dashboard SPA + the runtime start/stop control. Delegates to the singleton
+// CaptureSession and its Hub. Routes under /api/capture.
 [ApiController]
 [Route("api/capture")]
 public sealed class CaptureController(CaptureSession session, IAppMode appMode) : ControllerBase
@@ -15,7 +15,7 @@ public sealed class CaptureController(CaptureSession session, IAppMode appMode) 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     // Capture mutates shared disk state and needs a local proxy/CA, so it is local-only. Starting it
-    // (and persisting a captured flow as an endpoint) is blocked in hosted mode.
+    // and persisting a captured flow as an endpoint are blocked in hosted mode.
     private IActionResult? GuardCapture() =>
         appMode.CanCapture ? null : StatusCode(403, new { error = "capture is disabled in hosted mode" });
 

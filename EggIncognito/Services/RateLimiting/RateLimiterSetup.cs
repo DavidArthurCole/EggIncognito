@@ -5,11 +5,11 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Services.RateLimiting;
 
-// Wires named rate-limit policies for ACTIVE actions only: egress (the Live-API send) and write
+// Wires named rate-limit policies for active actions only: egress (the Live-API send) and write
 // (import/db/docs/admin). There is no global backstop and no read policy, so page loads, static
-// assets, the SSE stream, and read APIs are never throttled. Each partition is keyed per caller (user
-// id or client IP); the effective permit is min(policy, tier), so anonymous callers stay stricter.
-// Rejections return 429 + Retry-After + a small JSON body.
+// assets, the SSE stream, and read APIs are never throttled. Each partition is keyed per caller by
+// user id or client IP; the effective permit is min(policy, tier), so anonymous callers stay
+// stricter. Rejections return 429 + Retry-After + a small JSON body.
 public static class RateLimiterSetup
 {
     public static IServiceCollection AddAppRateLimiter(this IServiceCollection services, IConfiguration config)

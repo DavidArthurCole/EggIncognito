@@ -6,7 +6,7 @@ namespace EggIncognito.Data.Services;
 
 // Mirrors the compiled yaml route catalog into stored_routes (source = "yaml") on boot: insert
 // missing, update drifted type/flag columns, never touch source = "db" rows. Idempotent. The pure
-// helpers (ToYamlRow / NeedsUpdate / Apply) are unit-tested; SeedAsync does the DB pass.
+// helpers are unit-tested; SeedAsync does the DB pass.
 public static class RouteSeeder
 {
     public static StoredRoute ToYamlRow(RouteInfo r) => new()

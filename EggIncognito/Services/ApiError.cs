@@ -1,7 +1,6 @@
-// The single error envelope every endpoint returns. `Resolution` is the "possible
-// fix" hint - the app's rule is that no error ships without one. This is API-envelope
-// JSON (System.Text.Json), NOT a proto payload, so the JsonParser/JsonFormatter.Default
-// rule does not apply here.
+// The single error envelope every endpoint returns. `Resolution` is the "possible fix" hint; no error
+// ships without one. This is API-envelope JSON via System.Text.Json, not a proto payload, so the
+// JsonParser/JsonFormatter.Default rule does not apply here.
 
 namespace EggIncognito.Services;
 

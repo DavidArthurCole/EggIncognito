@@ -1,6 +1,6 @@
-// Walks the compiled Ei.* message descriptors (Google.Protobuf reflection) to produce
-// the field tree the Inspector UI renders, and resolves message types / parsers by name.
-// Always in sync with the real proto - no text parsing.
+// Walks the compiled Ei.* message descriptors via Google.Protobuf reflection to produce the field tree
+// the Inspector UI renders, and resolves message types and parsers by name. Always in sync with the
+// real proto - no text parsing.
 
 using System.Reflection;
 using Google.Protobuf;
@@ -17,7 +17,7 @@ public sealed record SchemaField(
     string Type, // proto field type, e.g. "string", "uint32", "message", "enum"
     bool Repeated,
     bool Required,
-    string? MessageType, // set when Type == "message" (short Ei type name)
+    string? MessageType, // short Ei type name, set when Type == "message"
     IReadOnlyList<SchemaEnumValue>? EnumValues);
 
 public sealed record SchemaMessage(string Name, IReadOnlyList<SchemaField> Fields);
@@ -28,7 +28,7 @@ public interface IProtoReflection
     MessageParser? FindParser(string typeName);
     SchemaMessage? Schema(string typeName);
     // Every concrete Ei.* message type's short name, sorted. Powers the Inspector "Objects" list and
-    // the Documentation feature (one doc/tag subject per message type).
+    // the Documentation feature, one doc/tag subject per message type.
     IReadOnlyList<string> AllMessageTypeNames();
 }
 
@@ -43,10 +43,10 @@ public sealed class ProtoReflection : IProtoReflection
     private Type? ClrType(string typeName) =>
         EiAssembly.GetType("Ei." + Short(typeName));
 
-    // Cached: every TOP-LEVEL concrete IMessage type in the Ei assembly, by short name, sorted. Only
+    // Cached: every top-level concrete IMessage type in the Ei assembly, by short name, sorted. Only
     // top-level types are included (DeclaringType == null) so every listed name resolves through
-    // ClrType("Ei." + name) - nested message types (e.g. Contract.Goal, CLR Ei.Contract+Goal) are not
-    // separately resolvable by that path and are covered by documenting their parent.
+    // ClrType("Ei." + name). Nested message types are not resolvable by that path and are covered by
+    // documenting their parent.
     private static readonly Lazy<IReadOnlyList<string>> AllNames = new(() =>
         EiAssembly.GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false, DeclaringType: null }

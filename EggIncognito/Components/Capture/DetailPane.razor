@@ -1,0 +1,456 @@
+@* The detail pane, ported from wwwroot/capture/detail.js: header (path + status), the known-endpoint
+   card or the save-as-endpoint bar + type lines, then Request/Response tabs each carrying the body
+   (FormatView), URL params for the request, and optional headers. Save-as-endpoint POSTs through the
+   controller (CanCapture gate). *@
+@using System.Net.Http.Json
+@using System.Text.Json
+@using EggIncognito.Capture
+@using EggIncognito.Components.Capture
+
+@if (Flow is null)
+{
+  <div class="muted">Select a request to inspect it.</div>
+}
+else
+{
+  <div class="detail-head">
+    <span class="dpath">@Flow.Path</span>
+    <span class="dstatus status-badge @CaptureHelpers.StatusClass(Flow.Status)">@Flow.Status</span>
+  </div>
+
+  @if (Flow.Known)
+  {
+    @KnownCard()
+  }
+  else
+  {
+    <div class="detail-types">
+      @TypeLine("Request type", Flow.RequestType)
+      @TypeLine("Response type", Flow.ResponseType)
+    </div>
+    <div class="save-bar">
+      @if (Flow.Saved)
+      {
+        <span class="save-result ok">Saved as endpoint</span>
+        <button class="btn-mini" type="button" @onclick="Save">Save again</button>
+        <span class="save-result @_saveCls">@_saveMsg</span>
+      }
+      else
+      {
+        <button id="saveBtn" type="button" @onclick="Save">Save as endpoint</button>
+        <span class="save-result @_saveCls">@_saveMsg</span>
+      }
+    </div>
+  }
+
+  <div class="detail-tabs">
+    <div class="tab-bar">
+      <button type="button" class="tab-btn @(_tab == 0 ? "active" : "")" @onclick="@(() => _tab = 0)">Request</button>
+      <button type="button" class="tab-btn @(_tab == 1 ? "active" : "")" @onclick="@(() => _tab = 1)">Response</button>
+    </div>
+    <div class="tab-body">
+      @if (_tab == 0)
+      {
+        @RequestPane()
+      }
+      else
+      {
+        @ResponsePane()
+      }
+    </div>
+  </div>
+}
+
+@code {
+    [Parameter] public DashboardFlow? Flow { get; set; }
+    [Parameter] public CaptureViewState View { get; set; } = new();
+    // Self-call client factory forwarding the auth cookie, supplied by the page.
+    [Parameter] public Func<HttpClient> ClientFactory { get; set; } = default!;
+
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    // Remembered format per section label, kept across flow selections (mirrors detail.js formatChoice).
+    readonly Dictionary<string, string> _formatChoice = new();
+    int _tab; // remembered tab across flows, like lastDetailTab
+    string _saveMsg = "";
+    string _saveCls = "";
+
+    long _renderedFlowId = -1;
+    protected override void OnParametersSet()
+    {
+        // Clear the save result when the selected flow changes.
+        if (Flow is not null && Flow.Id != _renderedFlowId)
+        {
+            _renderedFlowId = Flow.Id;
+            _saveMsg = "";
+            _saveCls = "";
+        }
+    }
+
+    async Task Save()
+    {
+        if (Flow is null) return;
+        _saveCls = "muted";
+        _saveMsg = "Saving...";
+        StateHasChanged();
+        try
+        {
+            var res = await ClientFactory().PostAsJsonAsync("/api/capture/save-endpoint", new { id = Flow.Id }, JsonOpts);
+            var data = await res.Content.ReadFromJsonAsync<SaveResult>(JsonOpts);
+            if (res.IsSuccessStatusCode && data?.Saved is not null)
+            {
+                _saveCls = "ok";
+                _saveMsg = "Saved " + data.Saved;
+            }
+            else
+            {
+                _saveCls = "err";
+                _saveMsg = data?.Error ?? "Save failed";
+            }
+        }
+        catch (Exception ex)
+        {
+            _saveCls = "err";
+            _saveMsg = "Save failed: " + ex.Message;
+        }
+    }
+
+    RenderFragment TypeLine(string label, string? value) =>@<div class="detail-type-line">
+        <span class="detail-type-label">@(label + ": ")</span>
+        <span class="detail-type-val @(value is null ? "unknown" : "")">@(value ?? "unknown")</span>
+      </div>;
+
+    RenderFragment KnownCard() => builder =>
+    {
+        var f = Flow!;
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "known-card");
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "known-card-title");
+        builder.AddContent(seq++, "Known endpoint");
+        builder.CloseElement();
+
+        AddKnownRow(builder, ref seq, "Request type", f.RequestType ?? "none", f.RequestType is null);
+        AddKnownRow(builder, ref seq, "Response type", f.ResponseType ?? "none", f.ResponseType is null);
+
+        var meta = View.CompareToKnown ? CaptureHelpers.Outcome(f.Outcome) : null;
+        if (meta is not null)
+        {
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "known-card-line");
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "known-card-label");
+            builder.AddContent(seq++, "Comparison");
+            builder.CloseElement();
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "known-card-val outcome-text outcome-" + meta.Kind);
+            if (CaptureHelpers.HasDiffCounts(f.Outcome, f.DiffAdded, f.DiffRemoved))
+            {
+                builder.AddContent(seq++, meta.Label + " (");
+                AddDiffCounts(builder, ref seq, f.DiffAdded, f.DiffRemoved);
+                builder.AddContent(seq++, ")");
+            }
+            else
+            {
+                builder.AddContent(seq++, meta.Label);
+            }
+            builder.CloseElement();
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "known-card-explain muted");
+            builder.AddContent(seq++, meta.Desc);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    static void AddKnownRow(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, ref int seq, string label, string value, bool unknown)
+    {
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "known-card-line");
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "known-card-label");
+        builder.AddContent(seq++, label);
+        builder.CloseElement();
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "known-card-val" + (unknown ? " unknown" : ""));
+        builder.AddContent(seq++, value);
+        builder.CloseElement();
+        builder.CloseElement();
+    }
+
+    // Append git-style +N (green) / -N (red) spans for diff outcomes. Ported from appendDiffCounts.
+    static void AddDiffCounts(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, ref int seq, int added, int removed)
+    {
+        if (added > 0)
+        {
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "diff-add");
+            builder.AddContent(seq++, "+" + added);
+            builder.CloseElement();
+        }
+        if (removed > 0)
+        {
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "diff-del");
+            builder.AddContent(seq++, "-" + removed);
+            builder.CloseElement();
+        }
+    }
+
+    RenderFragment RequestPane() => builder =>
+    {
+        var f = Flow!;
+        var seq = 0;
+        var paramsSection = BuildParams(f);
+        if (paramsSection is not null) builder.AddContent(seq++, paramsSection);
+
+        var emptyNote = !string.IsNullOrEmpty(f.RequestDataB64) ? "(no decoded JSON)" : "(no request body)";
+        builder.OpenComponent<FormatView>(seq++);
+        builder.AddComponentParameter(seq++, nameof(FormatView.Label), "Request");
+        builder.AddComponentParameter(seq++, nameof(FormatView.JsonStr), View.PickJson(f.RequestJson, f.RequestJsonRaw));
+        builder.AddComponentParameter(seq++, nameof(FormatView.RawB64), f.RequestDataB64);
+        builder.AddComponentParameter(seq++, nameof(FormatView.EmptyNote), emptyNote);
+        builder.AddComponentParameter(seq++, nameof(FormatView.View), View);
+        builder.AddComponentParameter(seq++, nameof(FormatView.FormatChoice), _formatChoice);
+        builder.CloseComponent();
+
+        if (View.ShowHeaders)
+        {
+            var sec = BuildHeaders("Request headers", f.RequestHeaders, f.RequestHeadersRaw);
+            if (sec is not null) builder.AddContent(seq++, sec);
+        }
+    };
+
+    RenderFragment ResponsePane() => builder =>
+    {
+        var f = Flow!;
+        var seq = 0;
+        if (f.ResponseText is not null)
+        {
+            builder.AddContent(seq++, TextResponseSection(f.ResponseText, f.ResponseIsAck));
+        }
+        else if (f.ResponseIsAck)
+        {
+            builder.OpenElement(seq++, "div");
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "section-head");
+            builder.OpenElement(seq++, "h3");
+            builder.AddContent(seq++, "Response");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "no-json");
+            builder.AddContent(seq++, "Acknowledgement - this endpoint returns a short non-protobuf ack.");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenComponent<FormatView>(seq++);
+            builder.AddComponentParameter(seq++, nameof(FormatView.Label), "Response");
+            builder.AddComponentParameter(seq++, nameof(FormatView.JsonStr), View.PickJson(f.ResponseJson, f.ResponseJsonRaw));
+            builder.AddComponentParameter(seq++, nameof(FormatView.RawB64), f.ResponseB64);
+            builder.AddComponentParameter(seq++, nameof(FormatView.View), View);
+            builder.AddComponentParameter(seq++, nameof(FormatView.FormatChoice), _formatChoice);
+            builder.CloseComponent();
+        }
+
+        if (View.ShowHeaders)
+        {
+            var sec = BuildHeaders("Response headers", f.ResponseHeaders, f.ResponseHeadersRaw);
+            if (sec is not null) builder.AddContent(seq++, sec);
+        }
+    };
+
+    RenderFragment TextResponseSection(string text, bool isAck) =>@<div>
+        <div class="section-head">
+          <h3>Response</h3>
+          @if (isAck)
+          {
+            <span class="ack-tag">acknowledgement</span>
+          }
+        </div>
+        <pre class="data-text">@text</pre>
+      </div>;
+
+    // "URL" section: the request path plus any path/query params, EID-bearing values blurred/redacted.
+    // Returns null when there is nothing to show. Ported from buildParamsSection + parseFlowUrl.
+    RenderFragment? BuildParams(DashboardFlow flow)
+    {
+        var parsed = ParseFlowUrl(flow);
+        if (parsed is null) return null;
+        var (path, query, pathParams) = parsed.Value;
+        if (pathParams.Count == 0 && query.Count == 0) return null;
+
+        return builder =>
+        {
+            var seq = 0;
+            builder.OpenElement(seq++, "div");
+
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "section-head");
+            builder.OpenElement(seq++, "h3");
+            builder.AddContent(seq++, "URL");
+            builder.CloseElement();
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "params-box");
+
+            AddParamRow(builder, ref seq, "path", PathFragment(path));
+            foreach (var p in pathParams) AddParamRow(builder, ref seq, "path param", ParamValueFragment(p));
+            foreach (var (k, v) in query) AddParamRow(builder, ref seq, k, ParamValueFragment(v));
+
+            builder.CloseElement();
+            builder.CloseElement();
+        };
+    }
+
+    void AddParamRow(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, ref int seq, string label, RenderFragment value)
+    {
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "param-row");
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "param-label");
+        builder.AddContent(seq++, label);
+        builder.CloseElement();
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "param-val");
+        builder.AddContent(seq++, value);
+        builder.CloseElement();
+        builder.CloseElement();
+    }
+
+    RenderFragment PathFragment(string path) => builder =>
+    {
+        var seq = 0;
+        foreach (var (text, blur) in View.RenderRedactedPath(path))
+        {
+            if (blur)
+            {
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "blurred");
+                builder.AddAttribute(seq++, "title", "Click to reveal");
+                builder.AddContent(seq++, text);
+                builder.CloseElement();
+            }
+            else
+            {
+                builder.AddContent(seq++, text);
+            }
+        }
+    };
+
+    RenderFragment ParamValueFragment(string value) => builder =>
+    {
+        var (text, blur) = View.RedactParamValue(value);
+        if (blur)
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "blurred");
+            builder.AddAttribute(2, "title", "Click to reveal");
+            builder.AddContent(3, text);
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.AddContent(0, text);
+        }
+    };
+
+    // Split a flow URL into (path, query, pathParams). Ported from parseFlowUrl.
+    (string Path, List<(string, string)> Query, List<string> PathParams)? ParseFlowUrl(DashboardFlow flow)
+    {
+        var raw = flow.Url ?? "";
+        if (string.IsNullOrEmpty(raw)) return null;
+        var pathAndQuery = raw;
+        var schemeIdx = raw.IndexOf("://", StringComparison.Ordinal);
+        if (schemeIdx >= 0)
+        {
+            var rest = raw[(schemeIdx + 3)..];
+            var slash = rest.IndexOf('/');
+            pathAndQuery = slash >= 0 ? rest[slash..] : "/";
+        }
+
+        var path = pathAndQuery;
+        var query = new List<(string, string)>();
+        var qIdx = pathAndQuery.IndexOf('?');
+        if (qIdx >= 0)
+        {
+            path = pathAndQuery[..qIdx];
+            var qs = pathAndQuery[(qIdx + 1)..];
+            foreach (var pair in qs.Split('&'))
+            {
+                if (pair.Length == 0) continue;
+                var eq = pair.IndexOf('=');
+                var k = eq >= 0 ? pair[..eq] : pair;
+                var v = eq >= 0 ? pair[(eq + 1)..] : "";
+                try { query.Add((Uri.UnescapeDataString(k), Uri.UnescapeDataString(v))); }
+                catch { query.Add((k, v)); }
+            }
+        }
+
+        var pathParams = new List<string>();
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var known = (flow.Path ?? "").Split('/', StringSplitOptions.RemoveEmptyEntries);
+        IEnumerable<string> extra = [];
+        if (known.Length > 0 && segments.Length > known.Length)
+            extra = segments.Skip(known.Length);
+        else
+        {
+            var last = segments.Length > 0 ? segments[^1] : null;
+            if (last is not null && CaptureViewState.EidRe.IsMatch(last)) extra = [last];
+        }
+        pathParams.AddRange(extra);
+
+        return (path, query, pathParams);
+    }
+
+    // A side's headers: a name/value table + a copy button. In blur mode a sensitive value blurs
+    // (reveal on hover/click), matching body blur. Returns null when there are no headers. Ported from
+    // buildHeadersSection + headersForDisplay.
+    RenderFragment? BuildHeaders(string label, IReadOnlyList<DashboardHeader>? redacted, IReadOnlyList<DashboardHeader>? raw)
+    {
+        var headers = View.IsBlurMode || View.ShowRawHeaders ? raw ?? redacted ?? [] : redacted ?? [];
+        if (headers.Count == 0) return null;
+
+        return builder =>
+        {
+            var seq = 0;
+            builder.OpenElement(seq++, "div");
+
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "section-head");
+            builder.OpenElement(seq++, "h3");
+            builder.AddContent(seq++, label);
+            builder.CloseElement();
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "params-box");
+            foreach (var h in headers)
+            {
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "param-row");
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "param-label");
+                builder.AddContent(seq++, h.Name);
+                builder.CloseElement();
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "param-val" + (View.IsBlurMode && h.Sensitive ? " blurred" : ""));
+                if (View.IsBlurMode && h.Sensitive) builder.AddAttribute(seq++, "title", "Click to reveal");
+                builder.AddContent(seq++, h.Value);
+                builder.CloseElement();
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+            builder.CloseElement();
+        };
+    }
+
+    sealed record SaveResult(string? Saved, string? Error);
+}

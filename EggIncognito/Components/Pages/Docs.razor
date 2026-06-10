@@ -1,0 +1,188 @@
+@page "/docs"
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@inject IDocRegistry Registry
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>EggIncognito - Docs</PageTitle>
+<main id="docsMain" class="px-8 pt-6 pb-8">
+  <h1 class="text-[1.3rem] mt-0 mb-4">Docs</h1>
+  <div class="docs-grid grid gap-6" style="grid-template-columns: 280px 1fr;">
+
+    @* Left: the registry tree of 4 groups -> subjects. *@
+    <nav class="docs-tree panel">
+      @foreach (var group in Registry.Roots())
+      {
+        <div class="docs-group">
+          <div class="docs-group-title">@group.Title</div>
+          <ul class="docs-subjects">
+            @foreach (var s in group.Children)
+            {
+              <li>
+                <button type="button"
+                        class="docs-subject-link @(IsSelected(s) ? "active" : "")"
+                        @onclick="() => Select(s)">@s.Title</button>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </nav>
+
+    @* Right: the selected subject's metadata + doc + tags. *@
+    <section class="docs-detail panel">
+      @if (_selected is null)
+      {
+        <p class="text-muted">Select a subject from the tree.</p>
+      }
+      else
+      {
+        <h2 class="docs-detail-title">@_selected.Title</h2>
+        <div class="docs-detail-kind code-chip">@_selected.Kind</div>
+        @if (!string.IsNullOrEmpty(_selected.Summary))
+        {
+          <p class="docs-detail-summary">@_selected.Summary</p>
+        }
+
+        @if (_selected.Children.Count > 0)
+        {
+          <h3 class="docs-detail-h">Structure</h3>
+          <ul class="docs-structure">
+            @foreach (var c in _selected.Children)
+            {
+              <li>
+                @if (c.Kind == "message")
+                {
+                  @* Cross-link an endpoint's request/response message to its message subject. *@
+                  <button type="button" class="docs-subject-link" @onclick="() => SelectByKey(c.Key)">@c.Title</button>
+                }
+                else
+                {
+                  <span class="docs-field-name">@c.Title</span>
+                  @if (!string.IsNullOrEmpty(c.Summary))
+                  {
+                    <span class="docs-field-type code-chip">@c.Summary</span>
+                  }
+                }
+              </li>
+            }
+          </ul>
+        }
+
+        @if (_tags.Count > 0)
+        {
+          <h3 class="docs-detail-h">Tags</h3>
+          <div class="docs-tags">
+            @foreach (var t in _tags)
+            {
+              <span class="docs-tag" style="@TagStyle(t.Color)">@t.Label</span>
+            }
+          </div>
+        }
+
+        <h3 class="docs-detail-h">Documentation</h3>
+        @if (string.IsNullOrEmpty(_bodyMd))
+        {
+          <p class="text-muted">No documentation yet.</p>
+        }
+        else
+        {
+          <Markdown Body="@_bodyMd" />
+        }
+
+        @* Contributor-gated editor (the component self-gates via ICurrentUser). Keyed on the subject so it
+           re-seeds when the selection changes. *@
+        <MarkdownEditor @key="@($"{_selected.Kind}:{_selected.Key}")"
+                        Kind="@_selected.Kind" Key="@_selected.Key"
+                        Initial="@_bodyMd" OnSaved="OnDocSaved" />
+      }
+    </section>
+  </div>
+</main>
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    DocSubject? _selected;
+    string? _bodyMd;
+    List<TagRow> _tags = [];
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    bool IsSelected(DocSubject s) =>
+        _selected is not null && _selected.Kind == s.Kind && _selected.Key == s.Key;
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    Task Select(DocSubject s) => Load(s);
+
+    // Cross-link target: an endpoint's request/response child is a "message" subject. Resolve it through
+    // the registry and load it, so clicking jumps to the message's own doc.
+    Task SelectByKey(string messageKey)
+    {
+        var s = Registry.Find("message", messageKey);
+        return s is null ? Task.CompletedTask : Load(s);
+    }
+
+    async Task Load(DocSubject s)
+    {
+        _selected = s;
+        _bodyMd = null;
+        _tags = [];
+        await LoadDoc();
+        await LoadTags();
+    }
+
+    async Task LoadDoc()
+    {
+        if (_selected is null) return;
+        try
+        {
+            var doc = await Client().GetFromJsonAsync<DocResult>(
+                $"/api/docs/doc/{_selected.Kind}/{Uri.EscapeDataString(_selected.Key)}", JsonOpts);
+            _bodyMd = doc?.BodyMd;
+        }
+        catch { _bodyMd = null; }
+    }
+
+    async Task LoadTags()
+    {
+        if (_selected is null) return;
+        try
+        {
+            _tags = await Client().GetFromJsonAsync<List<TagRow>>(
+                $"/api/docs/subject-tags/{_selected.Kind}/{Uri.EscapeDataString(_selected.Key)}", JsonOpts) ?? [];
+        }
+        catch { _tags = []; }
+    }
+
+    Task OnDocSaved(string body)
+    {
+        _bodyMd = string.IsNullOrWhiteSpace(body) ? null : body;
+        return Task.CompletedTask;
+    }
+
+    static string TagStyle(string? color) =>
+        string.IsNullOrEmpty(color) ? "" : $"border-color: {color}; color: {color};";
+
+    record DocResult(string? BodyMd);
+    record TagRow(long Id, string Slug, string Label, string? Color);
+}

@@ -6,7 +6,7 @@ using EggIncognito.Services;
 namespace EggIncognito.Controllers;
 
 // Write tooling: import a HAR into the content root's Endpoints/, update the endpoint_status block.
-// Local-only - returns 403 in hosted mode (shared data must not be mutated by a request).
+// Local-only; returns 403 in hosted mode since a request must not mutate shared data.
 [ApiController]
 [Route("api/import")]
 [EnableRateLimiting("write")]

@@ -13,8 +13,8 @@ public class UnifiedStyleTests : IClassFixture<WebApplicationFactory<Program>>
         _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
 
     [Theory]
-    [InlineData("/inspector/")]
-    [InlineData("/capture/")]
+    [InlineData("/inspector")]
+    [InlineData("/capture")]
     public async Task Page_DoesNotLinkBespokeSheet_AndLinksTailwind(string path)
     {
         var c = _f.CreateClient();

@@ -1,8 +1,7 @@
 namespace EggIncognito.Capture;
 
-// Options for a single capture session. Derived from the old CaptureOptions minus the
-// dashboard/browser fields (the web app owns the UI now). CapturePath = dir for HAR output;
-// CaPath = the persisted root CA file.
+// Options for a single capture session. CapturePath is the dir for HAR output; CaPath is the
+// persisted root CA file.
 public sealed record CaptureSessionOptions(
     int Port,
     string? Eid,

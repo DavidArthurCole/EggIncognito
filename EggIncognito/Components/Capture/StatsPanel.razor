@@ -1,0 +1,137 @@
+@* Left stats panel + device list, ported from wwwroot/capture/stats.js. Pure render of the latest
+   CaptureStats; the page feeds a fresh snapshot on each "stats" envelope. The running pill + cert
+   state + per-device cards all derive from the snapshot. *@
+@using EggIncognito.Capture
+@using EggIncognito.Components.Capture
+
+<section id="statsPanel" class="panel stats-panel">
+  <h2>Stats</h2>
+  <div class="stats-grid">
+    <div class="stat-group">
+      <div class="stat-group-title">Session</div>
+      <div class="stat-line">
+        <span class="pill @(Running ? "live" : "paused")">@StatusText</span>
+      </div>
+      <dl class="stat-rows">
+        <dt>Cert</dt><dd class="@_certCls" title="@_certTitle">@_certText</dd>
+        <dt>Requests</dt><dd>@FlowCount</dd>
+      </dl>
+    </div>
+    <div class="stat-group">
+      <div class="stat-group-title">Devices</div>
+      <dl class="stat-rows">
+        <dt>Online</dt><dd>@_onlineCount</dd>
+        <dt>Known</dt><dd>@_knownCount</dd>
+        <dt>Connections</dt><dd>@(Stats?.ActiveConnections ?? 0)</dd>
+      </dl>
+      <div class="device-cards">
+        @if (Stats is not null)
+        {
+          @foreach (var d in Stats.Devices)
+          {
+            @DeviceCard(d)
+          }
+        }
+      </div>
+    </div>
+    <div class="stat-group">
+      <div class="stat-group-title">Captured Data</div>
+      <dl class="stat-rows">
+        <dt>Auxbrain flows</dt><dd>@(Stats?.CapturedAuxbrain ?? 0)</dd>
+        <dt>Unique endpoints</dt><dd>@(Stats?.UniqueEndpoints ?? 0)</dd>
+        <dt>Bytes</dt><dd>@CaptureHelpers.FormatBytes(Stats?.BytesCaptured ?? 0)</dd>
+        <dt>Decrypt</dt><dd><span class="ok">@(Stats?.DecryptOk ?? 0)</span> ok / <span class="err">@(Stats?.DecryptErrors ?? 0)</span> err</dd>
+      </dl>
+      @if (!string.IsNullOrEmpty(Stats?.LastError))
+      {
+        <div class="stat-line muted stat-last-error" title="@Stats.LastError">last: @Stats.LastError</div>
+      }
+    </div>
+  </div>
+</section>
+
+@code {
+    [Parameter] public CaptureStats? Stats { get; set; }
+    [Parameter] public int FlowCount { get; set; }
+    [Parameter] public bool Running { get; set; }
+    [Parameter] public int Port { get; set; }
+
+    string _certCls = "cert-waiting";
+    string _certText = "Waiting for device";
+    string _certTitle = "No device traffic yet - point the device's Wi-Fi proxy here and generate traffic.";
+    int _onlineCount;
+    int _knownCount;
+
+    string StatusText => Running ? (Port > 0 ? $"RUNNING : {Port}" : "RUNNING") : "STOPPED";
+
+    protected override void OnParametersSet()
+    {
+        var devices = Stats?.Devices ?? [];
+        _onlineCount = devices.Count(d => d.Online);
+        _knownCount = devices.Count;
+        UpdateCertState(Stats?.CertState, Stats?.ActiveConnections ?? 0);
+    }
+
+    // Cert/trust state as a labeled value. Ported from updateCertState.
+    void UpdateCertState(string? state, int activeConnections)
+    {
+        _certCls = "cert-waiting";
+        _certText = "Waiting for device";
+        _certTitle = "No device traffic yet - point the device's Wi-Fi proxy here and generate traffic.";
+        if (state == "Trusted")
+        {
+            _certCls = "cert-trusted";
+            _certText = "Trusted - capturing";
+            _certTitle = "Cert trusted - auxbrain traffic is decrypting.";
+        }
+        else if (state == "Untrusted")
+        {
+            _certCls = "cert-untrusted";
+            _certText = "Not trusted";
+            _certTitle = "Device connected but the CA is not trusted - install + trust the CA on the device.";
+        }
+        else if (activeConnections > 0)
+        {
+            _certText = "Connected, awaiting traffic";
+            _certTitle = "Device connected - waiting for the first auxbrain request to decrypt.";
+        }
+    }
+
+    // A data-rich card per device. Ported from buildDeviceCard.
+    RenderFragment DeviceCard(DeviceInfo d) =>@<div class="device-card @(d.Online ? "" : "device-offline")">
+      <div class="device-head">
+        <span class="device-dot @(d.Online ? "online" : "offline")"
+              title="@(d.Online ? "Connected now" : "Seen in a previous session (offline)")"></span>
+        @if (!string.IsNullOrEmpty(d.Os))
+        {
+          <span class="device-os @OsClass(d.Os)">@d.Os</span>
+        }
+        <span class="device-ip">@d.Ip</span>
+        @if (!string.IsNullOrEmpty(d.Hostname))
+        {
+          <span class="device-host" title="Reverse-DNS hostname">@d.Hostname</span>
+        }
+      </div>
+      <dl class="device-rows">
+        <dt>Status</dt><dd>@(d.Online ? "Connected" : "Offline")</dd>
+        @if (d.Online)
+        {
+          <dt>Connections</dt><dd>@d.ActiveConnections</dd>
+        }
+        <dt>Seen</dt><dd>@d.TotalConnections time@(d.TotalConnections == 1 ? "" : "s")</dd>
+        <dt>First seen</dt><dd>@d.FirstSeen</dd>
+        <dt>Last seen</dt><dd>@d.LastSeen</dd>
+        @if (!string.IsNullOrEmpty(d.GameVersion))
+        {
+          <dt>Egg, Inc. version</dt><dd>@d.GameVersion</dd>
+        }
+      </dl>
+    </div>;
+
+    static string OsClass(string os) => os.ToLowerInvariant() switch
+    {
+        "ios" => "os-ios",
+        "android" => "os-android",
+        _ => "os-other",
+    };
+}

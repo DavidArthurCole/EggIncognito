@@ -7,10 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Controllers;
 
-// Write + read API for DB-stored endpoints and routes. Writes require an authenticated contributor+
-// (the shared-store ACL); this is a SEPARATE authority from IAppMode.CanWrite, which still gates the
+// Write + read API for DB-stored endpoints and routes. Writes require an authenticated contributor+,
+// the shared-store ACL. This is a separate authority from IAppMode.CanWrite, which still gates the
 // local file ops on ImportController. Reads are public. When no DB is configured, DB-touching actions
-// return 503. The role gate runs BEFORE the DB resolve, so a viewer 403s regardless of DB state.
+// return 503. The role gate runs before the DB resolve, so a viewer 403s regardless of DB state.
 [ApiController]
 [Route("api/db")]
 [EnableRateLimiting("write")]
@@ -51,7 +51,7 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
         {
             existing.ResponseJson = body.ResponseJson;
             existing.ResponseType = body.ResponseType;
-            // The updated_at column default only applies on insert; bump it explicitly on update.
+            // The updated_at column default only applies on insert; bump it explicitly here.
             existing.UpdatedAt = System.DateTimeOffset.UtcNow;
         }
         await db.SaveChangesAsync();

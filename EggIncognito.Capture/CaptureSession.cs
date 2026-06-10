@@ -9,9 +9,9 @@ public sealed record CaptureStartResult(bool Running, int Port, string CaPath, b
 
 public sealed record CaptureSessionStatus(bool Running, int Port, int ActiveClients, string? RootThumbprint);
 
-// Thread-safe, idempotent owner of the capture proxy lifecycle. Owns the flow queue/consumer pump.
-// The Hub persists across start/stop so the SPA stays connected; only the proxy + consumer are
-// created on Start and torn down on Stop.
+// Thread-safe, idempotent owner of the capture proxy lifecycle. Owns the flow queue and consumer pump.
+// The Hub persists across start/stop so the SPA stays connected; only the proxy + consumer are created
+// on Start and torn down on Stop.
 public sealed class CaptureSession
 {
     private const string EidPlaceholder = "EI0000000000000000";
@@ -86,7 +86,7 @@ public sealed class CaptureSession
 
         await proxy.StartAsync(_opts.Port, _opts.CaPath, ct);
         lock (_gate) { State = CaptureState.Running; }
-        Hub.SetProxyState(running: true, port: _opts.Port); // push live running-state to dashboards
+        Hub.SetProxyState(running: true, port: _opts.Port); // push running state to dashboards
         return new CaptureStartResult(true, _opts.Port, _opts.CaPath, proxy.FreshCa, proxy.RootThumbprint);
     }
 
@@ -117,11 +117,11 @@ public sealed class CaptureSession
             _proxy = null; _queue = null; _consumer = null; _har = null; _extractor = null; _activeClients = 0;
             State = CaptureState.Stopped;
         }
-        Hub.SetProxyState(running: false, port: _opts.Port); // push live stopped-state to dashboards
+        Hub.SetProxyState(running: false, port: _opts.Port); // push stopped state to dashboards
     }
 
-    // Decode an arbitrary path+response for the /decode debug endpoint. Transient decoder, no
-    // running session required.
+    // Decode an arbitrary path+response for the /decode debug endpoint. Transient decoder, no running
+    // session required.
     public (string? Json, string? Type, bool Known) Decode(string path, string responseB64)
     {
         var decoder = new FlowDecoder(_contentRoot);
@@ -129,7 +129,7 @@ public sealed class CaptureSession
         return (r.Json, r.Type, r.Known);
     }
 
-    // Force-write a buffered flow as an endpoint. Requires a running session (extractor present).
+    // Force-write a buffered flow as an endpoint. Requires a running session with the extractor present.
     public string? SaveEndpoint(string path, string method, int status, string? requestDataB64, string responseB64)
     {
         var ex = _extractor;
@@ -140,7 +140,7 @@ public sealed class CaptureSession
         return written;
     }
 
-    // HAR-so-far for download. Empty HAR JSON when no session/flows.
+    // HAR-so-far for download. Empty HAR JSON when there is no session or no flows.
     public string CurrentHar() => _har?.ToHar() ?? new HarWriter().ToHar();
 
     private static string Now() => DateTime.Now.ToString("HH:mm:ss");

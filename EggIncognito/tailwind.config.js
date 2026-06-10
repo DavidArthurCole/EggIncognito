@@ -4,6 +4,7 @@
 // dropped from the output (the compile-time "did you use it" win).
 module.exports = {
   content: [
+    "./Components/**/*.razor",
     "./wwwroot/**/*.html",
     "./wwwroot/**/*.js",
   ],

@@ -6,10 +6,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EggIncognito.Controllers;
 
-// Login/logout + current-user JSON. The controller is always present; AuthState.Enabled tells it
-// whether Discord auth was wired this run. When auth is off, /login + /logout 404 and /api/auth/me
-// reports anonymous. CurrentUser is always registered (anonymous when no auth middleware ran), so the
-// controller constructs in both modes.
+// Login/logout + current-user JSON. Always present; AuthState.Enabled tells it whether Discord auth
+// was wired this run. When auth is off, /login + /logout 404 and /api/auth/me reports anonymous.
+// CurrentUser is always registered, anonymous when no auth middleware ran, so the controller
+// constructs in both modes.
 [ApiController]
 public sealed class AuthController(AuthState authState, ICurrentUser currentUser) : ControllerBase
 {

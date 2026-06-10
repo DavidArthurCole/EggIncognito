@@ -1,0 +1,61 @@
+@* Visualizes the transform-stage list from /build (or the decode stages from /send + /decode-response).
+   Each stage is a collapsible card: a head with the index, name, optional role badge, byte length, and
+   a body with the description/note plus hex/base64 blocks. Emits the .stage / .stage-head / .stage-body
+   class names the old app.js renderStages used so the compiled CSS applies. *@
+@using EggIncognito.Services
+
+@if (Stages is null || Stages.Count == 0)
+{
+  <div class="muted">@Empty</div>
+}
+else
+{
+  @for (var i = 0; i < Stages.Count; i++)
+  {
+    var idx = i;
+    var s = Stages[idx];
+    var open = !_collapsed.Contains(idx);
+    <div class="stage @(s.Skipped ? "skipped" : "") @(s.Role is not null ? $"role-{s.Role}" : "")">
+      <div class="stage-head" @onclick="() => Toggle(idx)">
+        <span class="num">@idx</span>
+        <span class="sname">@s.Name</span>
+        @if (s.Role is not null)
+        {
+          <span class="srole">@s.Role</span>
+        }
+        <span class="slen">@s.ByteLength bytes</span>
+      </div>
+      @if (open)
+      {
+        <div class="stage-body">
+          <div class="stage-desc">@s.Description</div>
+          @if (!string.IsNullOrEmpty(s.Note) && !(s.Role == "encoding" && s.Name == "form-urlencode"))
+          {
+            <div class="stage-note">@s.Note</div>
+          }
+          @if (!string.IsNullOrEmpty(s.Hex))
+          {
+            <div><div class="bytes-label">hex</div><div class="bytes">@s.Hex</div></div>
+          }
+          @if (!string.IsNullOrEmpty(s.Base64))
+          {
+            <div><div class="bytes-label">base64</div><div class="bytes">@s.Base64</div></div>
+          }
+          @if (s.Role == "encoding" && s.Name == "form-urlencode" && !string.IsNullOrEmpty(s.Note))
+          {
+            <div><div class="bytes-label">body</div><div class="bytes">@s.Note</div></div>
+          }
+        </div>
+      }
+    </div>
+  }
+}
+
+@code {
+    [Parameter] public IReadOnlyList<TransportStage>? Stages { get; set; }
+    [Parameter] public string Empty { get; set; } = "Build a request to see the transform pipeline.";
+
+    readonly HashSet<int> _collapsed = [];
+
+    void Toggle(int i) { if (!_collapsed.Remove(i)) _collapsed.Add(i); }
+}

@@ -3,12 +3,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Seeds the known broad API "bucket" tags on boot (idempotent: inserts any of the defaults whose slug
-// is not present, never deletes or relabels an existing one - admins own the catalog after seeding).
-// The default set is a starting point; admins can add more via the admin API.
+// Seeds the known broad API bucket tags on boot. Idempotent: inserts any default whose slug is not
+// present, never deletes or relabels an existing one - admins own the catalog after seeding. The
+// default set is a starting point; admins can add more via the admin API.
 public static class TagSeeder
 {
-    // (slug, label, hex color). Colors are just chip accents; null is fine.
+    // (slug, label, hex color). Colors are just chip accents.
     public static readonly (string Slug, string Label, string Color)[] Defaults =
     [
         ("coops", "Coops", "#ef7559"),

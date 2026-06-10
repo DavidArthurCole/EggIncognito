@@ -1,10 +1,7 @@
-// The outgoing-request transform pipeline for the Egg, Inc. API, plus the inverse
-// (response decode). Owns the AuthenticatedMessage hash so the salt secret stays
-// server-side and the browser never reimplements it.
-//
-// This is the SINGLE home of the hash / wrap logic. The Inspector and any non-DI caller
-// both call Build(); there is no duplicate copy anymore. Signing parity is locked by the test
-// Build_WrappedWithSalt_CodeMatchesSeederAlgorithm.
+// The outgoing-request transform pipeline for the Egg, Inc. API, plus the inverse response decode.
+// Owns the AuthenticatedMessage hash so the salt secret stays server-side and the browser never
+// reimplements it. The single home of the hash/wrap logic: the Inspector and any non-DI caller both
+// call Build(). Signing parity is locked by Build_WrappedWithSalt_CodeMatchesSeederAlgorithm.
 
 using System.Security.Cryptography;
 using System.Text;
@@ -16,7 +13,7 @@ namespace EggIncognito.Services;
 /// <summary>A single visible step in the request-build or response-decode pipeline.
 /// Role lets the UI style/label deterministically instead of parsing the description:
 /// "payload" = the raw proto bytes, "envelope" = the AuthenticatedMessage wrapper,
-/// "encoding" = a transport encoding step (base64 / form). Skipped marks a no-op stage.</summary>
+/// "encoding" = a transport encoding step. Skipped marks a no-op stage.</summary>
 public sealed record TransportStage(
     string Name,
     string Description,
@@ -41,15 +38,15 @@ public sealed record DecodeResult(
 
 public interface ITransportPipeline
 {
-    /// <summary>Whether a signing salt is available (EGG_INC_API_SALT). When false,
-    /// AuthenticatedMessage stages are built unsigned and flagged.</summary>
+    /// <summary>Whether a signing salt is available. When false, AuthenticatedMessage stages are built
+    /// unsigned and flagged.</summary>
     bool CanSign { get; }
 
     /// <summary>Build an outgoing request from already-encoded inner proto bytes.</summary>
     BuildResult Build(byte[] innerProtoBytes, bool wrap);
 
     /// <summary>Build an outgoing request, signing any AuthenticatedMessage wrapper with the
-    /// caller-supplied salt instead of the instance/env salt. A null/empty salt builds unsigned.</summary>
+    /// caller-supplied salt instead of the instance/env salt. A null or empty salt builds unsigned.</summary>
     BuildResult Build(byte[] innerProtoBytes, bool wrap, string? salt);
 
     /// <summary>Decode a base64 response body as the given response message type.</summary>
@@ -58,7 +55,7 @@ public interface ITransportPipeline
 
 public sealed class TransportPipeline : ITransportPipeline
 {
-    // Stage roles (see TransportStage.Role).
+    // Stage roles.
     private const string RolePayload = "payload";
     private const string RoleEnvelope = "envelope";
     private const string RoleEncoding = "encoding";
@@ -68,8 +65,7 @@ public sealed class TransportPipeline : ITransportPipeline
     public TransportPipeline(IConfiguration config)
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"]) { }
 
-    // For non-DI callers: take the salt straight from the
-    // EGG_INC_API_SALT env var.
+    // For non-DI callers: take the salt straight from the EGG_INC_API_SALT env var.
     public TransportPipeline()
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT")) { }
 
@@ -103,7 +99,7 @@ public sealed class TransportPipeline : ITransportPipeline
             }
             else
             {
-                // Build the wrapper with an empty code so the shape is still visible.
+                // Build the wrapper with an empty code so the shape stays visible.
                 wrapped = new Ei.AuthenticatedMessage
                 {
                     Message = ByteString.CopyFrom(innerProtoBytes),
@@ -117,7 +113,7 @@ public sealed class TransportPipeline : ITransportPipeline
         }
         else
         {
-            // Not skipped in the empty sense: the request IS the proto bytes, posted as-is.
+            // The request is the proto bytes, posted as-is.
             stages.Add(Stage("passthrough",
                 "Posted as-is - this endpoint does not wrap the request in an AuthenticatedMessage",
                 innerProtoBytes, role: RolePayload));
@@ -154,10 +150,9 @@ public sealed class TransportPipeline : ITransportPipeline
         if (responseParser is null)
             return new DecodeResult(stages, null, "no parser for this endpoint's response type");
 
-        // The real auxbrain API wraps responses in an AuthenticatedMessage (optionally
-        // compressed). The EggIncognito mock returns the raw response message directly.
-        // Try the wrapped path first; if the inner payload doesn't parse as the response
-        // type, fall back to parsing the response bytes directly.
+        // The real auxbrain API wraps responses in an AuthenticatedMessage, optionally compressed. The
+        // EggIncognito mock returns the raw response message directly. Try the wrapped path first; if
+        // the inner payload doesn't parse as the response type, fall back to the response bytes directly.
         var wrapped = TryDecodeWrapped(respBytes, responseParser);
         if (wrapped is not null)
         {
@@ -216,8 +211,7 @@ public sealed class TransportPipeline : ITransportPipeline
         new(name, desc, bytes.Length, Convert.ToHexString(bytes).ToLowerInvariant(),
             Convert.ToBase64String(bytes), note, role);
 
-    // the canonical AuthenticatedMessage signing logic (single source of truth)
-
+    // The canonical AuthenticatedMessage signing logic - single source of truth.
     private static byte[] WrapInAuthMessage(byte[] innerBytes, string salt)
     {
         var msg = new Ei.AuthenticatedMessage
@@ -235,7 +229,7 @@ public sealed class TransportPipeline : ITransportPipeline
 
         const uint magic = 0x3b9af419;
         var mutated = (byte[])messageBytes.Clone();
-        // A zero-length message has no byte to mutate (and `magic % 0` divides by zero). An all-default
+        // A zero-length message has no byte to mutate, and `magic % 0` divides by zero. An all-default
         // proto serializes to 0 bytes, which the Inspector can send; sign it as-is without the flip.
         if (mutated.Length > 0)
             mutated[magic % (uint)mutated.Length] = 0x1b;

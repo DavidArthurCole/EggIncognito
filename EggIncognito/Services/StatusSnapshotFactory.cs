@@ -6,7 +6,7 @@ namespace EggIncognito.Services;
 
 // Reads the live in-process services to build a StatusSnapshot for the bot's embeds. The only impure
 // status reader; kept tiny so the Bot library's embed builders stay pure + testable. Lives in the web
-// project because it depends on IAppMode (web-only).
+// project because it depends on the web-only IAppMode.
 public sealed class StatusSnapshotFactory(
     IAppMode mode,
     CaptureSession capture,

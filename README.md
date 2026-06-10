@@ -73,15 +73,22 @@ Open the Capture tab at `http://localhost:5080/capture/` and hit Start capture. 
 dotnet run --project EggIncognito -- --capture
 ```
 
-Point the phone's Wi-Fi proxy at your computer, install and trust the printed certificate, and play. Each captured flow becomes an endpoint on disk. [CAPTURE.md](CAPTURE.md) has the full device walkthrough, including the iOS certificate-trust step that trips people up.
+Point the phone's Wi-Fi proxy at your computer, install and trust the printed certificate, and play. Each captured flow becomes an endpoint on disk. The [capture engine README](EggIncognito.Capture/README.md) has the full device walkthrough, including the iOS certificate-trust step that trips people up.
 
 ## Going deeper
 
-- [CAPTURE.md](CAPTURE.md) - capturing real device traffic, re-running captures, troubleshooting.
-- [TECHNICAL.md](TECHNICAL.md) - wire format, architecture, adding endpoints, configuration, run modes, web tooling.
+Each project has its own README:
 
-EggIncognito is built on .NET / ASP.NET Core. Its controllers are source-generated from a single `routes.yaml`. See [TECHNICAL.md](TECHNICAL.md) for how it fits together.
+- [EggIncognito](EggIncognito/README.md) - the web app: wire format, the Blazor Server frontend, adding endpoints, config, run modes, web tooling, auth, rate limiting.
+- [EggIncognito.Core](EggIncognito.Core/README.md) - shared services + the `Ei.*` proto types.
+- [EggIncognito.Capture](EggIncognito.Capture/README.md) - the capture engine + the full device-capture walkthrough.
+- [EggIncognito.Data](EggIncognito.Data/README.md) - the optional Postgres layer.
+- [EggIncognito.Bot](EggIncognito.Bot/README.md) - the optional Discord bot.
+- [EggIncognito.RouteGenerator](EggIncognito.RouteGenerator/README.md) - the Roslyn source generator.
+- [EggIncognito.Tests](EggIncognito.Tests/README.md) - the test suite.
+
+EggIncognito is built on .NET / ASP.NET Core. Its mock controllers are source-generated from a single `routes.yaml`, and its UI is a Blazor Server app (Razor Components in `EggIncognito/Components/`, InteractiveServer render mode over a SignalR circuit). See the [web app README](EggIncognito/README.md) for how it fits together.
 
 ### HTTPS (optional)
 
-Place `server.crt` and `server.key` (PEM) in a `certs/` directory. Kestrel detects them at startup and enables HTTPS automatically. Locally this serves `https://localhost:5443`. For Docker, mount `./certs:/app/certs:ro`. The `certs/` directory is gitignored, so never commit private keys. See [TECHNICAL.md](TECHNICAL.md#configuration) for the related config keys.
+Place `server.crt` and `server.key` (PEM) in a `certs/` directory. Kestrel detects them at startup and enables HTTPS automatically. Locally this serves `https://localhost:5443`. For Docker, mount `./certs:/app/certs:ro`. The `certs/` directory is gitignored, so never commit private keys. See the [web app README](EggIncognito/README.md) for the related config keys.

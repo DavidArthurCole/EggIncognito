@@ -7,12 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Controllers;
 
-// Read + write API for documentation and tags attached to API "subjects" (a proto message type or an
-// endpoint path). Mirrors StoredEndpointController's posture exactly: reads are public and degrade to
-// empty when no DB is configured; writes require contributor+ (the shared-store ACL) and 503 when no
-// DB. The role gate runs BEFORE the DB resolve so a viewer 403s regardless of DB state. Creating tag
-// DEFINITIONS is an admin op and lives in AdminController; here a contributor only assigns existing
-// tags to subjects.
+// Read + write API for documentation and tags attached to API "subjects", a proto message type or an
+// endpoint path. Mirrors StoredEndpointController's posture: reads are public and degrade to empty
+// when no DB is configured; writes require contributor+ and 503 when no DB. The role gate runs before
+// the DB resolve so a viewer 403s regardless of DB state. Creating tag definitions is an admin op in
+// AdminController; here a contributor only assigns existing tags to subjects.
 [ApiController]
 [Route("api/docs")]
 [EnableRateLimiting("write")]
@@ -25,12 +24,12 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             ? null
             : StatusCode(403, new { error = "contributor role required to edit documentation" });
 
-    // Only "message" and "endpoint" are valid subject kinds.
-    private static bool ValidKind(string kind) => kind is "message" or "endpoint";
+    // Valid subject kinds. Widened for the docs hub: the registry also exposes route, config, control.
+    private static bool ValidKind(string kind) =>
+        kind is "message" or "endpoint" or "route" or "config" or "control";
 
-    // Mark a read response browser-cacheable for a short window so the SPA's per-load fetches (docs
-    // tags / tags-map / has, hit on every Inspector visit) don't re-query the DB each navigation. Short
-    // TTL keeps edits surfacing quickly; private = per-browser, never a shared/proxy cache.
+    // Mark a read response browser-cacheable briefly so the SPA's per-load fetches don't re-query the
+    // DB each navigation. Short TTL keeps edits surfacing quickly; private = per-browser, never shared.
     private void CacheFor(int seconds) =>
         Response.Headers.CacheControl = $"private, max-age={seconds}";
 
@@ -38,7 +37,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
     public sealed record SetSubjectTags(string SubjectKind, string SubjectKey, long[] TagIds);
 
     // GET /api/docs/doc/{kind}/{**key} - the doc for a subject, or { bodyMd: null } when none. key is a
-    // catch-all because endpoint paths contain slashes (e.g. ei/first_contact_secure).
+    // catch-all because endpoint paths contain slashes.
     [HttpGet("doc/{kind}/{**key}")]
     public async Task<IActionResult> GetDoc(string kind, string key)
     {
@@ -147,7 +146,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
     }
 
     // GET /api/docs/tags-map - every subject's tags in one batch, so the SPA can render chips across a
-    // whole list without N round-trips. Shape: { "message:Contract": [tag...], "endpoint:ei/x": [...] }.
+    // whole list without N round-trips. Shape: { "message:Contract": [tag...], ... }.
     [HttpGet("tags-map")]
     public async Task<IActionResult> GetTagsMap()
     {
@@ -168,19 +167,19 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(map);
     }
 
-    // Images: uploaded inline-doc images live in Postgres (bytea) so they work in the read-only Hosted deploy
-    // (no filesystem writes). Upload is contributor+; serving is public. Markdown references them by
-    // /api/docs/image/{id}, which safeUrl() in md.js allows (relative URL).
+    // Images: uploaded inline-doc images live in Postgres bytea so they work in the read-only Hosted
+    // deploy with no filesystem writes. Upload is contributor+; serving is public. Markdown references
+    // them by /api/docs/image/{id}, which safeUrl() in md.js allows as a relative URL.
 
     private const int MaxImageBytes = 4 * 1024 * 1024; // 4 MB cap
-    // Raster only. SVG is deliberately excluded: an SVG served inline can execute script if opened
-    // directly (not via an <img> tag), a stored-XSS vector not worth it for doc images.
+    // Raster only. SVG is deliberately excluded: an SVG opened directly can execute script, a
+    // stored-XSS vector not worth it for doc images.
     private static readonly HashSet<string> AllowedImageTypes =
         new(StringComparer.OrdinalIgnoreCase) { "image/png", "image/jpeg", "image/gif", "image/webp" };
 
     // POST /api/docs/image - multipart upload of one image file. Returns { url, id }.
     [HttpPost("image")]
-    [RequestSizeLimit(MaxImageBytes + 64 * 1024)] // body cap a touch above the byte cap (multipart overhead)
+    [RequestSizeLimit(MaxImageBytes + 64 * 1024)] // body cap a touch above the byte cap, for multipart overhead
     public async Task<IActionResult> UploadImageAsync(IFormFile? file)
     {
         if (RequireContributor() is { } no) return no;
@@ -214,8 +213,8 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         if (db is null) return NotFound();
         var img = await db.DocImages.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id);
         if (img is null) return NotFound();
-        // nosniff so the browser honors the declared raster type; long immutable cache (bytes never
-        // change for an id).
+        // nosniff so the browser honors the declared raster type; long immutable cache since bytes
+        // never change for an id.
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         Response.Headers.CacheControl = "public, max-age=31536000, immutable";
         return File(img.Bytes, img.ContentType);

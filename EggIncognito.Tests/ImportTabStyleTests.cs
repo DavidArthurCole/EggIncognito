@@ -16,7 +16,7 @@ public class ImportTabStyleTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task ImportPage_UsesTailwind_NotBespokeSheet()
     {
         var c = _f.CreateClient();
-        var html = await c.GetStringAsync("/import/");
+        var html = await c.GetStringAsync("/import");
         Assert.DoesNotContain("import/styles.css", html);
         Assert.Contains("/tailwind.css", html);
         Assert.Contains("class=\"panel\"", html); // migrated to the component class

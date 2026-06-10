@@ -1,16 +1,20 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Restore: copy each csproj the web project depends on (Core + Capture + RouteGenerator) so the
-# restore layer caches independently of source changes.
+# Restore: copy each csproj the web project depends on (Core + Capture + Data + Bot + RouteGenerator)
+# so the restore layer caches independently of source changes.
 COPY EggIncognito.Core/EggIncognito.Core.csproj EggIncognito.Core/
 COPY EggIncognito.Capture/EggIncognito.Capture.csproj EggIncognito.Capture/
+COPY EggIncognito.Data/EggIncognito.Data.csproj EggIncognito.Data/
+COPY EggIncognito.Bot/EggIncognito.Bot.csproj EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/EggIncognito.RouteGenerator.csproj EggIncognito.RouteGenerator/
 COPY EggIncognito/EggIncognito.csproj EggIncognito/
 RUN dotnet restore EggIncognito/EggIncognito.csproj
 
 COPY EggIncognito.Core/ EggIncognito.Core/
 COPY EggIncognito.Capture/ EggIncognito.Capture/
+COPY EggIncognito.Data/ EggIncognito.Data/
+COPY EggIncognito.Bot/ EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/ EggIncognito.RouteGenerator/
 COPY EggIncognito/ EggIncognito/
 # EmitTypes=false skips the dashboard-typedef regeneration target (the committed types.d.ts is

@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services;
 
-// Classifies active routes by endpoint-file state (ok / empty / missing) and can rewrite the
-// endpoint_status: block in routes.yaml. Pure (paths in, result out). Backs the Inspector's Tools
-// status panel (read) and the Import tab's status update (write).
+// Classifies active routes by endpoint-file state - ok, empty, or missing - and can rewrite the
+// endpoint_status: block in routes.yaml. Pure: paths in, result out. Backs the Inspector's Tools
+// status panel for read and the Import tab's status update for write.
 public static class EndpointStatus
 {
     public sealed record Result(
@@ -27,8 +27,8 @@ public static class EndpointStatus
         return new Result(ok, empty, missing);
     }
 
-    // Rewrite the endpoint_status: block of the yaml at yamlPath from a classification (strip the
-    // existing block, append a freshly built one). Returns the new yaml text (also written to disk).
+    // Rewrite the endpoint_status: block from a classification: strip the existing block, append a
+    // freshly built one. Returns the new yaml text, which is also written to disk.
     public static string WriteStatusBlock(string yamlPath, Result r)
     {
         var sb = new StringBuilder();

@@ -3,12 +3,12 @@ using EggIncognito.Services;
 namespace EggIncognito.Capture;
 
 // The core per-flow work of capture, separated from the CaptureSession queue consumer so it is
-// unit-testable and needs no Console.SetOut(null) suppression hack (the extractor is put in Quiet
-// mode instead). For each captured flow it:
-//   - appends a HAR entry (the durable hand-off artifact),
-//   - runs the endpoint extractor (decode + redact + self-repair routes.yaml + write/stage),
-//   - derives the per-flow outcome (wrote/upd/diff/same/loss) from the extractor's Counts delta,
-//   - decodes display JSON (raw + redacted, with proto type names) via FlowDecoder,
+// unit-testable and needs no console-suppression hack; the extractor is put in Quiet mode instead.
+// For each captured flow it:
+//   - appends a HAR entry, the durable hand-off artifact,
+//   - runs the endpoint extractor: decode, redact, self-repair routes.yaml, write/stage,
+//   - derives the per-flow outcome from the extractor's Counts delta,
+//   - decodes display JSON, raw + redacted with proto type names, via FlowDecoder,
 //   - computes git-style diff +/- counts for a "diff" outcome,
 // and returns the DashboardFlow to publish. Id/Timestamp are owned by the hub at publish time.
 public sealed class FlowProcessor
@@ -21,8 +21,7 @@ public sealed class FlowProcessor
     public FlowProcessor(EndpointExtractor extractor, FlowDecoder decoder, HarWriter har, string contentRoot)
     {
         _extractor = extractor;
-        // The extractor's per-flow console chatter belongs in the dashboard, not stdout. Quiet mode
-        // replaces the old Console.SetOut(TextWriter.Null) hack around ProcessFlow.
+        // The extractor's per-flow console chatter belongs in the dashboard, not stdout.
         _extractor.Quiet = true;
         _decoder = decoder;
         _har = har;
@@ -40,12 +39,12 @@ public sealed class FlowProcessor
         var displayPath = path ?? EndpointExtractor.NormalizePath(flow.Url);
         var req = _decoder.DecodeRequest(displayPath, flow.RequestDataB64);
         var resp = _decoder.DecodeResponse(displayPath, flow.ResponseBodyB64);
-        // "Known" = both sides resolve to yaml-mapped types (or the request has no body), i.e. this
-        // is an endpoint we already fully understand.
+        // "Known" = both sides resolve to yaml-mapped types, or the request has no body: an endpoint we
+        // already fully understand.
         var known = resp.Known && (req.Known || flow.RequestDataB64 is null);
 
-        // For a diff outcome, compute git-style +/- line counts (existing endpoint vs the staged new
-        // one) so the UI can show how big the change is.
+        // For a diff outcome, compute git-style +/- line counts, existing endpoint vs the staged new
+        // one, so the UI can show how big the change is.
         var (added, removed) = outcome == "diff" ? DiffCounts(_contentRoot, displayPath) : (0, 0);
 
         var (reqHeaders, reqHeadersRaw) = HeaderRedactor.Build(flow.RequestHeaders);
@@ -80,9 +79,9 @@ public sealed class FlowProcessor
         return "";
     }
 
-    // Git-style +/- line counts for a staged endpoint diff: lines present in the new (staged) file
-    // but not the existing one are "added"; lines in the existing but not the new are "removed".
-    // Multiset comparison, so duplicate lines count correctly.
+    // Git-style +/- line counts for a staged endpoint diff: lines present in the new staged file but
+    // not the existing one are "added"; lines in the existing but not the new are "removed". Multiset
+    // comparison, so duplicate lines count correctly.
     internal static (int added, int removed) DiffCounts(string contentRoot, string path)
     {
         try

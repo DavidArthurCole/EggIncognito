@@ -1,0 +1,315 @@
+@page "/capture"
+@rendermode @(RenderMode.InteractiveServer)
+@implements IAsyncDisposable
+@using System.Threading.Channels
+@using Microsoft.JSInterop
+@using EggIncognito.Capture
+@using EggIncognito.Components.Capture
+@inject CaptureSession Session
+@inject IAppMode AppMode
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+
+<PageTitle>EggIncognito - Live Capture</PageTitle>
+
+@if (!AppMode.CanCapture)
+{
+  <main class="p-3"><div class="panel"><h2>Capture</h2>
+    <p class="muted">Capture is disabled in hosted mode. It mutates shared disk state and needs a local
+      proxy/CA, so it only runs on your own machine.</p></div></main>
+}
+else
+{
+  <CaptureToolbar Running="_running" ToggleBusy="_toggleBusy" View="_view"
+                  Notices="_notices" Unread="_unread"
+                  OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
+                  OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
+
+  <main class="grid gap-3 p-3 min-h-0" style="grid-template-columns: 220px 2fr 3fr; height: calc(100vh - 48px);">
+    <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
+
+    <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow" />
+
+    <section id="detailPanel" class="panel">
+      <h2>Detail</h2>
+      <DetailPane Flow="_selectedFlow" View="_view" ClientFactory="Client" />
+    </section>
+  </main>
+
+  <div class="toast-container">
+    @foreach (var t in _toasts)
+    {
+      <div class="toast toast-@t.Severity show" @onclick="@(() => RemoveToast(t.Id))">
+        <div class="toast-msg">@t.Message</div>
+        @if (!string.IsNullOrEmpty(t.Timestamp))
+        {
+          <div class="toast-time">@t.Timestamp</div>
+        }
+      </div>
+    }
+  </div>
+}
+
+@code {
+    // The live flow buffer, mirroring the JS `flows` Map: an ordered list (oldest first) + an id index
+    // for in-place updates on re-broadcast.
+    readonly List<DashboardFlow> _flows = [];
+    readonly Dictionary<long, int> _flowIndex = new();
+    long? _selectedId;
+    DashboardFlow? _selectedFlow;
+
+    CaptureStats? _stats;
+    bool _running;
+    int _port;
+    bool _connected;
+    bool _toggleBusy;
+
+    readonly CaptureViewState _view = new();
+
+    // notification center + toasts
+    readonly List<CaptureToolbar.NoticeItem> _notices = [];
+    readonly List<ToastItem> _toasts = [];
+    int _unread;
+    int _nextNoticeId = 1;
+    int _nextToastId = 1;
+
+    // circuit subscription + background loop
+    IDisposable? _subscription;
+    CancellationTokenSource? _loopCts;
+    Task? _loopTask;
+
+    // self-call cookie forwarding
+    string _baseAddress = "";
+    string? _cookie;
+    IJSObjectReference? _store; // captureStore.js (browser view prefs)
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+
+        if (!AppMode.CanCapture) return;
+
+        // Seed the dashboard from the hub snapshots, exactly as the SSE controller writes them first.
+        foreach (var f in Session.Hub.Snapshot()) AddOrUpdateFlow(f);
+        ApplyStats(Session.Hub.StatsSnapshot());
+
+        // Seed sensitive keys for blur mode from the controller's list (Redactor + EID fields).
+        foreach (var k in CaptureController_SensitiveKeys()) _view.SensitiveKeys.Add(k);
+    }
+
+    // The sensitive-key set the /api/capture/sensitive-keys endpoint returns, read in-process to avoid a
+    // self HTTP call during prerender. Mirrors CaptureController.SensitiveKeys.
+    static IEnumerable<string> CaptureController_SensitiveKeys() =>
+        Redactor.SensitiveFieldNames.Concat(["eiUserId", "userId"]).Distinct();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !AppMode.CanCapture) return;
+
+        // Load browser-stored view prefs, then subscribe to the live hub and start the read loop. Both
+        // need the interactive circuit, so they run after the first render.
+        try
+        {
+            _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/captureStore.js");
+            _view.RedactionMode = await InvokeOr("getRedactionMode", _view.RedactionMode);
+            _view.ShowHeaders = await InvokeOr("getShowHeaders", _view.ShowHeaders);
+            _view.AutoScroll = await InvokeOr("getAutoScroll", _view.AutoScroll);
+            _view.CompareToKnown = await InvokeOr("getCompareToKnown", _view.CompareToKnown);
+            _view.DefaultFormat = await InvokeOr("getDefaultFormat", _view.DefaultFormat);
+        }
+        catch { /* JS unavailable (test prerender); defaults stand. */ }
+
+        StartSubscription();
+        StateHasChanged();
+    }
+
+    // Subscribe to the hub and consume its channel on a background loop. Hub events fire on the proxy's
+    // threads, NOT the circuit's sync context, so every UI mutation is marshaled via InvokeAsync; we
+    // never call StateHasChanged directly from this loop.
+    void StartSubscription()
+    {
+        var (reader, subscription) = Session.Hub.Subscribe();
+        _subscription = subscription;
+        // Re-seed after subscribing (the SSE controller's order), so any flow published between the
+        // prerender snapshot and this subscription is not missed. AddOrUpdateFlow dedupes by id.
+        foreach (var f in Session.Hub.Snapshot()) AddOrUpdateFlow(f);
+        ApplyStats(Session.Hub.StatsSnapshot());
+        _loopCts = new CancellationTokenSource();
+        var ct = _loopCts.Token;
+        _loopTask = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var env in reader.ReadAllAsync(ct))
+                {
+                    await InvokeAsync(() => ApplyEnvelope(env));
+                }
+            }
+            catch (OperationCanceledException) { /* disposed */ }
+            catch (ChannelClosedException) { /* hub unsubscribed */ }
+        }, ct);
+    }
+
+    // Runs on the circuit thread (via InvokeAsync). Mutates state then renders.
+    void ApplyEnvelope(CaptureEnvelope env)
+    {
+        switch (env.Kind)
+        {
+            case "flow" when env.Flow is not null:
+                AddOrUpdateFlow(env.Flow);
+                break;
+            case "stats" when env.Stats is not null:
+                ApplyStats(env.Stats);
+                break;
+            case "notice" when env.Event is not null:
+                PushNotice(env.Event);
+                break;
+        }
+        StateHasChanged();
+    }
+
+    void AddOrUpdateFlow(DashboardFlow flow)
+    {
+        if (_flowIndex.TryGetValue(flow.Id, out var idx))
+        {
+            _flows[idx] = flow; // in-place update on re-broadcast (e.g. Saved flip)
+            if (_selectedId == flow.Id) _selectedFlow = flow;
+            return;
+        }
+        _flowIndex[flow.Id] = _flows.Count;
+        _flows.Add(flow);
+    }
+
+    void ApplyStats(CaptureStats stats)
+    {
+        _stats = stats;
+        _running = stats.Running;
+        _port = stats.Port;
+        _connected = stats.ActiveConnections > 0 || stats.DeviceCount > 0;
+    }
+
+    void SelectFlow(long id)
+    {
+        _selectedId = id;
+        _selectedFlow = _flowIndex.TryGetValue(id, out var idx) ? _flows[idx] : null;
+    }
+
+    // The toolbar's start/stop toggle. Start/Stop go through the controller so the CanCapture gate stays
+    // centralized. The stats stream re-broadcasts the running state, so the pill stays correct.
+    async Task ToggleCapture()
+    {
+        _toggleBusy = true;
+        try
+        {
+            var url = _running ? "/api/capture/stop" : "/api/capture/start";
+            await Client().PostAsync(url, null);
+        }
+        catch { /* surfaced via the next stats broadcast; nothing to do here */ }
+        finally { _toggleBusy = false; }
+    }
+
+    async Task Clear()
+    {
+        try
+        {
+            var res = await Client().PostAsync("/api/capture/clear", null);
+            if (res.IsSuccessStatusCode)
+            {
+                _flows.Clear();
+                _flowIndex.Clear();
+                _selectedId = null;
+                _selectedFlow = null;
+            }
+        }
+        catch { }
+    }
+
+    async Task OnViewChanged()
+    {
+        // Persist the changed view prefs to the browser, mirroring redaction.js's localStorage writes.
+        await InvokeVoid("setRedactionMode", _view.RedactionMode);
+        await InvokeVoid("setShowHeaders", _view.ShowHeaders);
+        await InvokeVoid("setAutoScroll", _view.AutoScroll);
+        await InvokeVoid("setCompareToKnown", _view.CompareToKnown);
+        await InvokeVoid("setDefaultFormat", _view.DefaultFormat);
+        StateHasChanged();
+    }
+
+    // notices + toasts
+
+    void PushNotice(CaptureEvent ev)
+    {
+        var severity = NoticeSeverity(ev.Kind);
+        _notices.Insert(0, new CaptureToolbar.NoticeItem(_nextNoticeId++, severity, ev.Message, ev.Timestamp));
+        if (_notices.Count > 200) _notices.RemoveRange(200, _notices.Count - 200);
+        _unread++;
+        // Transient toast, auto-dismissed after 5s.
+        var toast = new ToastItem(_nextToastId++, severity, ev.Message, ev.Timestamp);
+        _toasts.Add(toast);
+        _ = AutoDismissToast(toast.Id);
+    }
+
+    static string NoticeSeverity(string kind) => kind switch
+    {
+        "decryptError" => "error",
+        "certTrusted" => "ok",
+        _ => "info",
+    };
+
+    async Task AutoDismissToast(int id)
+    {
+        await Task.Delay(5000);
+        await InvokeAsync(() => { RemoveToast(id); StateHasChanged(); });
+    }
+
+    void RemoveToast(int id) => _toasts.RemoveAll(t => t.Id == id);
+    void DismissNotice(int id) => _notices.RemoveAll(n => n.Id == id);
+    void ClearNotices() { _notices.Clear(); _unread = 0; }
+    void MarkNoticesRead() => _unread = 0;
+
+    async Task<T> InvokeOr<T>(string fn, T fallback)
+    {
+        if (_store is null) return fallback;
+        try { return await _store.InvokeAsync<T>(fn); } catch { return fallback; }
+    }
+
+    async Task InvokeVoid(string fn, params object?[] args)
+    {
+        if (_store is null) return;
+        try { await _store.InvokeVoidAsync(fn, args); } catch { }
+    }
+
+    // Self-call client forwarding the auth cookie so the controllers' gates see the request's auth.
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Cancel the read loop, drop the hub subscription (a leaked subscription leaks a circuit
+        // resource), and dispose the JS module.
+        _loopCts?.Cancel();
+        _subscription?.Dispose();
+        if (_loopTask is not null)
+        {
+            try { await _loopTask; } catch { }
+        }
+        _loopCts?.Dispose();
+        if (_store is not null)
+        {
+            try { await _store.DisposeAsync(); } catch { }
+        }
+    }
+
+    sealed record ToastItem(int Id, string Severity, string Message, string Timestamp);
+}

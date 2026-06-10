@@ -3,10 +3,10 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A binary image uploaded for use inside a Doc's Markdown (referenced by URL /api/docs/image/{id}).
-// Stored as bytea in Postgres so it works in the read-only Hosted deploy (no filesystem writes) and
-// degrades with the rest of the DB layer. Upload is contributor+; serving is public. Size is capped
-// at the API. No hard FK to a doc - an image is addressable on its own and may be reused.
+// A binary image uploaded for use inside a Doc's Markdown, referenced by URL /api/docs/image/{id}.
+// Stored as bytea in Postgres so it works in the read-only Hosted deploy with no filesystem writes and
+// degrades with the rest of the DB layer. Upload is contributor+; serving is public. Size is capped at
+// the API. No hard FK to a doc - an image is addressable on its own and may be reused.
 [Table("doc_images")]
 public class DocImage
 {

@@ -1,0 +1,119 @@
+@* Collapsible, searchable JSON tree viewer, ported from wwwroot/capture/tree.js. The whole value is
+   parsed once into TreeNode; expand/collapse toggles per-node state, search forces-expands ancestor
+   chains and dims non-matches. Sensitive leaf values blur (CSS .blurred) and reveal on click. The
+   format select + copy button injected by the parent are passed via the Tools render fragment so all
+   controls share one in-box toolbar, mirroring the JS that prepended them into .jtree-tools. *@
+@using EggIncognito.Components.Capture
+
+<div class="jtree-viewer">
+  <div class="jtree-tools">
+    @Tools
+    <button class="btn-mini" type="button" @onclick="ExpandAll">Expand all</button>
+    <button class="btn-mini" type="button" @onclick="CollapseAll">Collapse all</button>
+    <input type="search" class="jtree-search" placeholder="Filter keys / values..."
+           value="@_search" @oninput="OnSearchInput" />
+    <span class="jtree-search-count">@_count</span>
+  </div>
+  @if (Root is not null)
+  {
+    <TreeNodeView Node="Root" View="View" Search="@_needle" IsRoot="true" />
+  }
+</div>
+
+@code {
+    [Parameter] public TreeNode? Root { get; set; }
+    [Parameter] public CaptureViewState View { get; set; } = new();
+    [Parameter] public RenderFragment? Tools { get; set; }
+
+    string _search = "";
+    string _needle = "";
+    string _count = "";
+
+    void OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        ApplySearch(_search);
+    }
+
+    void ExpandAll()
+    {
+        _search = ""; _needle = ""; _count = "";
+        if (Root is null) return;
+        SetExpansion(Root, true);
+        ClearMarks(Root);
+    }
+
+    void CollapseAll()
+    {
+        _search = ""; _needle = ""; _count = "";
+        if (Root is null) return;
+        ClearMarks(Root);
+        SetExpansion(Root, false);
+        Root.Expanded = true; // keep root open
+    }
+
+    static void SetExpansion(TreeNode node, bool expand)
+    {
+        if (node.IsContainer) node.Expanded = expand;
+        foreach (var c in node.Children) SetExpansion(c, expand);
+    }
+
+    static void ClearMarks(TreeNode node)
+    {
+        node.Dim = false;
+        node.SelfMatch = false;
+        foreach (var c in node.Children) ClearMarks(c);
+    }
+
+    void ApplySearch(string query)
+    {
+        var needle = query.Trim().ToLowerInvariant();
+        _needle = needle;
+        if (Root is null) return;
+        if (needle.Length == 0)
+        {
+            // Restore default view: collapse to default depth.
+            ResetToDefault(Root);
+            _count = "";
+            return;
+        }
+
+        var matches = 0;
+        // Visit each child of root (root itself stays visible/open), matching the JS.
+        foreach (var c in Root.Children) Visit(c, needle, ref matches);
+        Root.Dim = false;
+        Root.SelfMatch = false;
+        if (Root.IsContainer) Root.Expanded = true;
+        _count = matches + (matches == 1 ? " match" : " matches");
+    }
+
+    // Depth-first; returns true if the node or any descendant matched. Sets Dim/SelfMatch + expands the
+    // ancestor chain of any match.
+    static bool Visit(TreeNode node, string needle, ref int matches)
+    {
+        var selfMatch = false;
+        if (node.KeyText is not null && node.KeyText.ToLowerInvariant().Contains(needle))
+            selfMatch = true;
+        if (!node.IsContainer && node.LeafText.ToLowerInvariant().Contains(needle))
+            selfMatch = true;
+
+        var childMatch = false;
+        foreach (var c in node.Children)
+            if (Visit(c, needle, ref matches)) childMatch = true;
+
+        var matched = selfMatch || childMatch;
+        node.SelfMatch = selfMatch;
+        if (selfMatch) matches++;
+        if (childMatch && node.IsContainer) node.Expanded = true;
+        node.Dim = !matched;
+        return matched;
+    }
+
+    static void ResetToDefault(TreeNode node)
+    {
+        if (node.IsContainer) node.Expanded = node.ShouldDefaultExpand();
+        node.Dim = false;
+        node.SelfMatch = false;
+        foreach (var c in node.Children) ResetToDefault(c);
+    }
+}

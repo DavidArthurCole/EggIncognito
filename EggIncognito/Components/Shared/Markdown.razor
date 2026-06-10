@@ -1,0 +1,9 @@
+@* Renders contributor-authored Markdown as HTML. MarkdownRenderer.Render is the sanitizer (escapes
+   first, then a fixed transform set, safe URLs only), so wrapping its output in MarkupString is safe -
+   no raw HTML/script from the author reaches the DOM. *@
+<div class="md-body @CssClass">@((MarkupString)MarkdownRenderer.Render(Body))</div>
+
+@code {
+    [Parameter] public string? Body { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+}

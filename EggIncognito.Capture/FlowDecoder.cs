@@ -4,10 +4,9 @@ using Google.Protobuf;
 namespace EggIncognito.Capture;
 
 // Decodes a captured flow's raw base64 into readable JSON for the dashboard, in both a redacted
-// (safe display) and a raw form. The actual proto-framing heuristic lives in the EggIncognito
-// library (EndpointExtractor.DecodeRequestBody) so the dashboard view can never drift from what the
-// endpoint pipeline writes. This class is a thin wrapper: load the type maps, call the shared
-// decoder, redact.
+// safe-display form and a raw form. The actual proto-framing heuristic lives in
+// EndpointExtractor.DecodeRequestBody so the dashboard view can never drift from what the endpoint
+// pipeline writes. This class is a thin wrapper: load the type maps, call the shared decoder, redact.
 public sealed class FlowDecoder
 {
     private readonly IReadOnlyDictionary<string, string> _responseTypes;
@@ -24,14 +23,14 @@ public sealed class FlowDecoder
             EndpointExtractor.LoadRawResponses(contentRoot).Keys, StringComparer.Ordinal);
     }
 
-    //   Json    - redacted JSON for safe display (PII tokenized, same as written to endpoints)
-    //   JsonRaw - the unredacted JSON (shown only when the UI redaction setting is Off)
-    //   Type    - the resolved proto type name (yaml-mapped or auto-detected), or null
-    //   Known   - true when the type came from routes.yaml (an endpoint we already understand)
-    //   Ack     - true when the endpoint returns a short non-proto acknowledgement (rawResponse in
-    //             routes.yaml), so the UI labels it an acknowledgement
-    //   Text    - the literal plain-text body when the response is text rather than protobuf (e.g.
-    //             the log endpoints' "SUCCESS"); null for protobuf responses
+    //   Json    - redacted JSON for safe display, PII tokenized, same as written to endpoints
+    //   JsonRaw - the unredacted JSON, shown only when the UI redaction setting is Off
+    //   Type    - the resolved proto type name, yaml-mapped or auto-detected, or null
+    //   Known   - true when the type came from routes.yaml, an endpoint we already understand
+    //   Ack     - true when the endpoint returns a short non-proto acknowledgement, a rawResponse in
+    //             routes.yaml, so the UI labels it an acknowledgement
+    //   Text    - the literal plain-text body when the response is text rather than protobuf; null for
+    //             protobuf responses
     public sealed record DecodeResult(
         string? Json, string? JsonRaw, string? Type, bool Known, bool Ack = false, string? Text = null);
 
@@ -41,15 +40,15 @@ public sealed class FlowDecoder
     public string? KnownRequestType(string path) =>
         _requestTypes.TryGetValue(path, out var t) ? t : null;
 
-    // Pair a raw (unredacted) JSON string with its redacted copy.
+    // Pair a raw unredacted JSON string with its redacted copy.
     private static DecodeResult Result(string? rawJson, string? type, bool known) =>
         rawJson is null
             ? new(null, null, type, known)
             : new(Redactor.Redact(rawJson), rawJson, type, known);
 
     // Decode the response body to JSON + type. The body is base64 of the response bytes; for the
-    // protobuf endpoints those bytes are an AuthenticatedMessage, but the log/data endpoints reply
-    // with a short plain-text ack ("SUCCESS") - which we surface as text, not a hex dump.
+    // protobuf endpoints those bytes are an AuthenticatedMessage, but the log/data endpoints reply with
+    // a short plain-text ack, which we surface as text not a hex dump.
     public DecodeResult DecodeResponse(string path, string responseB64)
     {
         byte[] respBytes;
@@ -78,8 +77,8 @@ public sealed class FlowDecoder
         }
         catch { /* not an AuthenticatedMessage - fall through to the text/ack handling below */ }
 
-        // Not protobuf. If the body is printable text, show it verbatim (the real API reply, e.g.
-        // "SUCCESS" from the log endpoints). rawResponse endpoints are additionally flagged as acks.
+        // Not protobuf. If the body is printable text, show it verbatim. rawResponse endpoints are
+        // additionally flagged as acks.
         var text = AsPrintableText(respBytes);
         var isAck = _rawResponsePaths.Contains(path);
         if (text is not null)
@@ -89,8 +88,8 @@ public sealed class FlowDecoder
         return new(null, null, null, false);
     }
 
-    // The string form of a short, fully-printable (ASCII/UTF-8, no control chars) body, else null.
-    // Caps length so a large binary blob that happens to be printable is not treated as "text".
+    // The string form of a short, fully-printable body (no control chars), else null. Caps length so a
+    // large binary blob that happens to be printable is not treated as text.
     private static string? AsPrintableText(byte[] bytes)
     {
         if (bytes.Length is 0 or > 256) return null;

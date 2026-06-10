@@ -3,8 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Surfaces source = "db" stored_routes as RouteInfo for the merged catalog (new paths only; yaml
-// routes are served by the generated controllers and never come from here). Scoped on the DbContext.
+// Surfaces source = "db" stored_routes as RouteInfo for the merged catalog, new paths only; yaml
+// routes are served by the generated controllers and never come from here. Scoped on the DbContext.
 public sealed class DbRouteProvider(EggIncognitoDbContext db) : IDbRouteProvider
 {
     public RouteInfo? GetDbRoute(string path)

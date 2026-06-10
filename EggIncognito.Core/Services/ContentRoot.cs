@@ -1,13 +1,13 @@
 namespace EggIncognito.Services;
 
-// The directory that holds RouteMap/routes.yaml + Endpoints/ (+ writable captures/). Resolved
-// app-relative so it works hosted (next to the published payload) and locally, with a config
-// override. Replaces the old .slnx repo-root walk - no dev-tree assumption.
+// The directory that holds RouteMap/routes.yaml + Endpoints/ + writable captures/. Resolved
+// app-relative so it works hosted next to the published payload and locally, with a config override.
+// No dev-tree assumption.
 public static class ContentRoot
 {
-    // configured = the ContentRoot config value (or null). Returns the first plausible directory:
-    // the configured path, else the app base dir if it contains RouteMap/, else a base-dir ancestor
-    // that does (dev run from bin/), else the base dir.
+    // configured = the ContentRoot config value, or null. Returns the first plausible directory: the
+    // configured path, else the app base dir if it contains RouteMap/, else a base-dir ancestor that
+    // does, else the base dir.
     public static string Resolve(string? configured)
     {
         if (!string.IsNullOrEmpty(configured)) return configured;

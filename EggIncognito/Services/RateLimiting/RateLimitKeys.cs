@@ -4,8 +4,8 @@ using Microsoft.AspNetCore.Http;
 namespace EggIncognito.Services.RateLimiting;
 
 // Pure helpers that derive the rate-limit partition key + tier from a request. Behind Cloudflare the
-// real client IP arrives in CF-Connecting-IP (only Cloudflare reaches the origin), so that wins;
-// X-Forwarded-For first hop and the socket IP are local/no-CF fallbacks.
+// real client IP arrives in CF-Connecting-IP, so that wins. The X-Forwarded-For first hop and the
+// socket IP are local/no-CF fallbacks.
 public static class RateLimitKeys
 {
     public static string ClientIp(HttpContext ctx)
