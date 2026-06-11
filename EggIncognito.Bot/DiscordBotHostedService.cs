@@ -86,14 +86,15 @@ public sealed class DiscordBotHostedService(
         if (!ulong.TryParse(options.GuildId, out var gid) || !ulong.TryParse(options.SharedRoleId, out var rid)) return;
         try
         {
-            var guild = _client!.GetGuild(gid);
+            IGuild? guild = _client!.GetGuild(gid);
             if (guild is null) { logger.LogWarning("bot: shared-role: guild {Guild} not available", gid); return; }
-            var self = guild.GetUser(_client.CurrentUser.Id);
+            // With GatewayIntents.None the member cache is empty, so the socket member cache misses.
+            // CacheMode.AllowDownload uses the cache when present, otherwise does a REST fetch of the
+            // bot's own member. No privileged GuildMembers intent is needed for this single lookup.
+            IGuildUser? self = await guild.GetUserAsync(_client.CurrentUser.Id, CacheMode.AllowDownload);
             if (self is null) { logger.LogWarning("bot: shared-role: self member not found in guild {Guild}", gid); return; }
-            if (!BotRoles.NeedsRole(self.Roles.Select(r => r.Id), rid)) return;
-            var role = guild.GetRole(rid);
-            if (role is null) { logger.LogWarning("bot: shared-role: role {Role} not found in guild {Guild}", rid, gid); return; }
-            await self.AddRoleAsync(role);
+            if (!BotRoles.NeedsRole(self.RoleIds, rid)) return;
+            await self.AddRoleAsync(rid);
             logger.LogInformation("bot: shared-role: assigned {Role} in guild {Guild}", rid, gid);
         }
         catch (Exception ex) { logger.LogWarning(ex, "bot: shared-role: assign failed"); }
