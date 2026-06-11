@@ -124,6 +124,7 @@ public sealed class DocRegistry : IDocRegistry
         new("Discord:AdminIds", "unset", "Comma-separated Discord ids auto-promoted to admin on login (bootstraps the first admin)", "auth"),
         new("Discord:BotToken", "unset", "When set, starts the optional Discord bot", "bot"),
         new("Discord:GuildId", "unset", "Optional; enables instant guild command registration for the bot", "bot"),
+        new("SHARED_ROLE_ID", "unset", "Optional; snowflake of a role the bot self-assigns on Ready. Shared with EggLedger in the same stack. Falls back to Discord:SharedRoleId", "bot"),
         new("CapturePort", "8080", "Port the capture proxy listens on", "capture"),
         new("CapturePath", "<content root>/captures", "Directory the capture HAR is written to", "capture"),
         new("CaPath", "<CapturePath>/eggincognito-ca.cer", "The persisted capture root CA file", "capture"),

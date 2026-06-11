@@ -155,7 +155,9 @@ if (!string.IsNullOrWhiteSpace(botToken))
         ApplicationId: builder.Configuration["Discord:ClientId"] ?? "",
         GuildId: builder.Configuration["Discord:GuildId"],
         RepoUrl: "https://github.com/DavidArthurCole/EggIncognito",
-        SharedRoleId: builder.Configuration["Discord:SharedRoleId"]));
+        // Shared with EggLedger in the same Portainer stack via the flat SHARED_ROLE_ID env var.
+        // Falls back to the Discord:SharedRoleId config key for standalone runs.
+        SharedRoleId: builder.Configuration["SHARED_ROLE_ID"] ?? builder.Configuration["Discord:SharedRoleId"]));
     builder.Services.AddSingleton<EggIncognito.Bot.IStatusProvider, EggIncognito.Services.StatusSnapshotFactory>();
     builder.Services.AddHostedService<EggIncognito.Bot.DiscordBotHostedService>();
 }
