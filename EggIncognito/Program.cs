@@ -154,7 +154,8 @@ if (!string.IsNullOrWhiteSpace(botToken))
         Token: botToken,
         ApplicationId: builder.Configuration["Discord:ClientId"] ?? "",
         GuildId: builder.Configuration["Discord:GuildId"],
-        RepoUrl: "https://github.com/DavidArthurCole/EggIncognito"));
+        RepoUrl: "https://github.com/DavidArthurCole/EggIncognito",
+        SharedRoleId: builder.Configuration["Discord:SharedRoleId"]));
     builder.Services.AddSingleton<EggIncognito.Bot.IStatusProvider, EggIncognito.Services.StatusSnapshotFactory>();
     builder.Services.AddHostedService<EggIncognito.Bot.DiscordBotHostedService>();
 }

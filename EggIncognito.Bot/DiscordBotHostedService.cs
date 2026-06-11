@@ -54,6 +54,8 @@ public sealed class DiscordBotHostedService(
             await _client!.SetGameAsync("EggIncognito");
             await _client.SetStatusAsync(UserStatus.Online);
 
+            await EnsureSharedRoleAsync();
+
             // Register commands once. Ready re-fires on every reconnect/resume; re-pushing the global
             // catalog each time would burn Discord's global-command write rate limit for no gain.
             if (_commandsRegistered) return;
@@ -72,6 +74,29 @@ public sealed class DiscordBotHostedService(
         {
             logger.LogError(ex, "bot: OnReady failed (presence/command registration)");
         }
+    }
+
+    // Grants options.SharedRoleId to the bot's own member in the configured guild. Best-effort:
+    // any failure (missing Manage Roles, role above the bot in the hierarchy, cache miss, REST error)
+    // logs a warning and returns. No-op when GuildId or SharedRoleId is unset or unparseable, or when
+    // the member already has the role. Idempotent - safe to call on every Ready.
+    private async Task EnsureSharedRoleAsync()
+    {
+        if (string.IsNullOrWhiteSpace(options.GuildId) || string.IsNullOrWhiteSpace(options.SharedRoleId)) return;
+        if (!ulong.TryParse(options.GuildId, out var gid) || !ulong.TryParse(options.SharedRoleId, out var rid)) return;
+        try
+        {
+            var guild = _client!.GetGuild(gid);
+            if (guild is null) { logger.LogWarning("bot: shared-role: guild {Guild} not available", gid); return; }
+            var self = guild.GetUser(_client.CurrentUser.Id);
+            if (self is null) { logger.LogWarning("bot: shared-role: self member not found in guild {Guild}", gid); return; }
+            if (!BotRoles.NeedsRole(self.Roles.Select(r => r.Id), rid)) return;
+            var role = guild.GetRole(rid);
+            if (role is null) { logger.LogWarning("bot: shared-role: role {Role} not found in guild {Guild}", rid, gid); return; }
+            await self.AddRoleAsync(role);
+            logger.LogInformation("bot: shared-role: assigned {Role} in guild {Guild}", rid, gid);
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "bot: shared-role: assign failed"); }
     }
 
     public async Task StopAsync(CancellationToken ct)
