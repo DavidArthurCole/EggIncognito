@@ -21,9 +21,13 @@ public sealed class DeployAgentClient(string url, string secret)
 
     public async Task<DeployResult> DeployAsync(CancellationToken ct = default)
     {
+        // A misconfigured stack env var (relative URI, wrong scheme) must surface in the embed,
+        // not as an unhandled exception in the router.
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+            return DeployResult.Failure($"Deploy agent URL is invalid: \"{url}\".");
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+            using var req = new HttpRequestMessage(HttpMethod.Post, uri);
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
             using var resp = await Http.SendAsync(req, ct);
             if (resp.StatusCode == HttpStatusCode.Conflict)

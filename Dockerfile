@@ -48,12 +48,16 @@ RUN set -eux; \
     test -s wwwroot/tailwind.css; \
     grep -q "btn-primary" wwwroot/tailwind.css
 
-# --no-restore: the restore layer above already populated the package graph, so publish must not redo it.
+# Publish WITH restore: the pre-source restore layer only warms the NuGet cache. Publishing
+# --no-restore against that csproj-only restore leaves the static-web-assets manifest stale, which
+# silently drops wwwroot/_framework (blazor.web.js) from the output - the Blazor circuit then never
+# starts in prod. The re-restore is cheap (packages cached in the layer above).
 # EmitTypes=false skips the dashboard-typedef regeneration target. BuildTailwindCss=false skips the
 # MSBuild Tailwind hook since the sheet was just compiled above; publish then bundles it as-is.
-RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish --no-restore \
+RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
         -p:EmitTypes=false -p:BuildTailwindCss=false; \
-    test -s /app/publish/wwwroot/tailwind.css
+    test -s /app/publish/wwwroot/tailwind.css; \
+    test -s /app/publish/wwwroot/_framework/blazor.web.js
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
