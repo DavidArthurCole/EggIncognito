@@ -38,7 +38,11 @@ public sealed class DiscordBotHostedService(
                 GatewayIntents = GatewayIntents.None,
                 LogLevel = LogSeverity.Info,
             });
-            var router = new InteractionRouter(status, proto, _startedAt, logger);
+            var deploy = !string.IsNullOrWhiteSpace(options.DeployAgentUrl)
+                      && !string.IsNullOrWhiteSpace(options.DeployAgentSecret)
+                ? new DeployAgentClient(options.DeployAgentUrl, options.DeployAgentSecret)
+                : null;
+            var router = new InteractionRouter(status, proto, _startedAt, logger, deploy);
 
             client.Log += msg => { logger.LogInformation("discord: {Message}", msg.ToString()); return Task.CompletedTask; };
             client.SlashCommandExecuted += router.HandleSlashAsync;

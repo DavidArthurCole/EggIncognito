@@ -63,4 +63,31 @@ public static class BotEmbeds
 
     public static Embed Error(string message) =>
         new EmbedBuilder().WithTitle("Something went wrong").WithDescription(message).WithColor(0xED4245).Build();
+
+    // /updateserver embeds use the synckit/ledger colors (blurple/green/red), not the app accent,
+    // so deploy results look identical across both bots. Hashes are image digests, not commits,
+    // so they render as plain code chips without links.
+    private static string Chip(string? hash) => $"`{(string.IsNullOrEmpty(hash) ? "unknown" : hash)}`";
+
+    public static Embed UpdateAlreadyCurrent(string? hash) =>
+        new EmbedBuilder()
+            .WithTitle("Already up to date.")
+            .WithColor(new Color(0x5865F2))
+            .AddField("Current", Chip(hash), inline: true)
+            .Build();
+
+    public static Embed UpdateSuccess(string? fromHash, string? toHash) =>
+        new EmbedBuilder()
+            .WithTitle("Updated")
+            .WithColor(new Color(0x57F287))
+            .AddField("From", Chip(fromHash), inline: true)
+            .AddField("To", Chip(toHash), inline: true)
+            .Build();
+
+    public static Embed UpdateFailure(string? tail) =>
+        new EmbedBuilder()
+            .WithTitle("Update failed.")
+            .WithDescription($"```\n{(string.IsNullOrEmpty(tail) ? "(no output)" : tail)}\n```")
+            .WithColor(new Color(0xED4245))
+            .Build();
 }

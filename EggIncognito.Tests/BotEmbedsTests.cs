@@ -50,4 +50,41 @@ public class BotEmbedsTests
         var e = BotEmbeds.Health(TimeSpan.FromMinutes(5));
         Assert.Contains("pong", (e.Title + e.Description).ToLowerInvariant());
     }
+
+    [Fact]
+    public void UpdateAlreadyCurrent_ShowsHash_Blurple()
+    {
+        var e = BotEmbeds.UpdateAlreadyCurrent("aaaaaaaaaaaa");
+        Assert.Equal("Already up to date.", e.Title);
+        Assert.Equal(0x5865F2u, e.Color!.Value.RawValue);
+        Assert.Contains("aaaaaaaaaaaa", e.Fields[0].Value);
+    }
+
+    [Fact]
+    public void UpdateSuccess_ShowsFromTo_Green()
+    {
+        var e = BotEmbeds.UpdateSuccess("aaaaaaaaaaaa", "cccccccccccc");
+        Assert.Equal("Updated", e.Title);
+        Assert.Equal(0x57F287u, e.Color!.Value.RawValue);
+        var blob = string.Join(" ", System.Linq.Enumerable.Select(e.Fields, f => f.Name + "=" + f.Value));
+        Assert.Contains("aaaaaaaaaaaa", blob);
+        Assert.Contains("cccccccccccc", blob);
+    }
+
+    [Fact]
+    public void UpdateSuccess_EmptyHash_RendersUnknown()
+    {
+        var e = BotEmbeds.UpdateSuccess(null, "cccccccccccc");
+        Assert.Contains("unknown", e.Fields[0].Value);
+    }
+
+    [Fact]
+    public void UpdateFailure_ShowsTailInCodeBlock_Red()
+    {
+        var e = BotEmbeds.UpdateFailure("docker pull: boom");
+        Assert.Equal("Update failed.", e.Title);
+        Assert.Equal(0xED4245u, e.Color!.Value.RawValue);
+        Assert.Contains("```", e.Description);
+        Assert.Contains("docker pull: boom", e.Description);
+    }
 }

@@ -1,7 +1,7 @@
 namespace EggIncognito.Bot;
 
 // Top-level slash commands the router knows how to dispatch.
-public enum BotCommand { Health, Status, Verify, Endpoints, Proto, Unknown }
+public enum BotCommand { Health, Status, Verify, Endpoints, Proto, UpdateServer, Unknown }
 
 // Parsed /proto invocation. Built via the factories; Error is non-null for malformed payloads.
 public sealed record ProtoArgs(bool IsList, int Page, string? TypeName, string? Error)
@@ -22,6 +22,7 @@ public static class CommandParsing
         "verify" => BotCommand.Verify,
         "endpoints" => BotCommand.Endpoints,
         "proto" => BotCommand.Proto,
+        "updateserver" => BotCommand.UpdateServer,
         _ => BotCommand.Unknown,
     };
 

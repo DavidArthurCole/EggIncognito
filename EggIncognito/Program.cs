@@ -170,7 +170,11 @@ if (!string.IsNullOrWhiteSpace(botToken))
         RepoUrl: "https://github.com/DavidArthurCole/EggIncognito",
         // Shared with EggLedger in the same Portainer stack via the flat SHARED_ROLE_ID env var.
         // Falls back to the Discord:SharedRoleId config key for standalone runs.
-        SharedRoleId: builder.Configuration["SHARED_ROLE_ID"] ?? builder.Configuration["Discord:SharedRoleId"]));
+        SharedRoleId: builder.Configuration["SHARED_ROLE_ID"] ?? builder.Configuration["Discord:SharedRoleId"],
+        // /updateserver target: the host-side synckit-agent. Flat env vars in the Portainer stack,
+        // Discord:* config keys for standalone runs. Either missing = command answers "not configured".
+        DeployAgentUrl: builder.Configuration["DEPLOY_AGENT_URL"] ?? builder.Configuration["Discord:DeployAgentUrl"],
+        DeployAgentSecret: builder.Configuration["DEPLOY_AGENT_SECRET"] ?? builder.Configuration["Discord:DeployAgentSecret"]));
     builder.Services.AddSingleton<EggIncognito.Bot.IStatusProvider, EggIncognito.Services.StatusSnapshotFactory>();
     builder.Services.AddHostedService<EggIncognito.Bot.DiscordBotHostedService>();
 }

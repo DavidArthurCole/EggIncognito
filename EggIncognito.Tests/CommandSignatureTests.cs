@@ -54,7 +54,7 @@ public class CommandSignatureTests
     public void FromProperties_CapturesTheCatalogShape()
     {
         var shapes = CommandDefinitions.BuildAll().Select(CommandSignature.FromProperties).ToList();
-        Assert.Equal(5, shapes.Count);
+        Assert.Equal(6, shapes.Count);
 
         var protoCmd = Assert.Single(shapes, s => s.Name == "proto");
         Assert.Equal(2, protoCmd.Options.Count);

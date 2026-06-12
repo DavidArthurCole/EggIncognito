@@ -14,7 +14,8 @@ public sealed class InteractionRouter(
     IStatusProvider status,
     IProtoReflection proto,
     DateTimeOffset startedAt,
-    ILogger logger)
+    ILogger logger,
+    DeployAgentClient? deploy = null)
 {
     private const string GenericError = "The command failed on the server. Details are in the server log.";
 
@@ -22,6 +23,13 @@ public sealed class InteractionRouter(
     {
         try
         {
+            // /updateserver owns its response lifecycle (ephemeral gate replies, public defer),
+            // so it branches before the blanket ephemeral defer.
+            if (CommandParsing.Resolve(cmd.CommandName) == BotCommand.UpdateServer)
+            {
+                await HandleUpdateServerAsync(cmd);
+                return;
+            }
             await cmd.DeferAsync(ephemeral: true);
             switch (CommandParsing.Resolve(cmd.CommandName))
             {
@@ -57,6 +65,39 @@ public sealed class InteractionRouter(
             }
             catch { /* gateway race - nothing more to do */ }
         }
+    }
+
+    // Mirrors the ledger bot's /updateserver flow: ephemeral refusal for non-admins or a missing
+    // agent config, public defer for a real run, public success/up-to-date embed, and on failure
+    // delete the public placeholder + ephemeral red embed with the log tail. Discord already gates
+    // the command behind the guild Administrator permission; the runtime re-check is defense in
+    // depth against rebound permissions.
+    private async Task HandleUpdateServerAsync(SocketSlashCommand cmd)
+    {
+        if (cmd.User is not SocketGuildUser invoker || !invoker.GuildPermissions.Administrator)
+        {
+            await cmd.RespondAsync("Not authorised.", ephemeral: true);
+            return;
+        }
+        if (deploy is null)
+        {
+            await cmd.RespondAsync("Deploy agent not configured.", ephemeral: true);
+            return;
+        }
+        await cmd.DeferAsync();
+        var res = await deploy.DeployAsync();
+        if (res.Ok && res.AlreadyUpToDate)
+        {
+            await cmd.FollowupAsync(embed: BotEmbeds.UpdateAlreadyCurrent(res.FromHash));
+            return;
+        }
+        if (res.Ok)
+        {
+            await cmd.FollowupAsync(embed: BotEmbeds.UpdateSuccess(res.FromHash, res.ToHash));
+            return;
+        }
+        await cmd.DeleteOriginalResponseAsync();
+        await cmd.FollowupAsync(embed: BotEmbeds.UpdateFailure(res.Tail), ephemeral: true);
     }
 
     private async Task HandleProtoAsync(SocketSlashCommand cmd)

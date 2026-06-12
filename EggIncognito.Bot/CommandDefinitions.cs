@@ -37,5 +37,13 @@ public static class CommandDefinitions
                     .WithRequired(true)
                     .WithAutocomplete(true)))
             .Build(),
+        // Deploy trigger. Deliberately NOT user-installable and guild-only: the gate is the guild
+        // Administrator permission, which only exists in a guild context.
+        new SlashCommandBuilder()
+            .WithName("updateserver").WithDescription("Pull latest and redeploy (admin only).")
+            .WithIntegrationTypes(ApplicationIntegrationType.GuildInstall)
+            .WithContextTypes(InteractionContextType.Guild)
+            .WithDefaultMemberPermissions(GuildPermission.Administrator)
+            .Build(),
     };
 }
