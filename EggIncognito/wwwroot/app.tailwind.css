@@ -163,77 +163,58 @@
   .card-link:hover { @apply border-accent; }
   .card-link p { @apply text-muted; }
 
-  /* ---- /support page ---- */
-  /* Hero: a tinted band with an accent kicker, lifting the page out of flat-gray-stack territory. */
-  .support-hero {
-    @apply relative rounded-xl border border-border px-7 py-8 mb-10 overflow-hidden;
-    background: linear-gradient(135deg, rgba(239,117,89,0.14), rgba(90,169,230,0.08) 70%), theme(colors.panel);
-  }
-  .support-kicker {
-    @apply inline-block text-[11px] font-semibold uppercase tracking-[0.12em] text-accent mb-2;
-  }
-  .support-title { @apply text-[1.7rem] font-bold leading-tight text-fg m-0 mb-2; }
-  .support-lede { @apply text-[15px] text-muted leading-relaxed max-w-[58ch] m-0; }
+  /* ---- /support page. Flat panels, outlined pills, mono chips - same vocabulary as the rest of
+     the app. No gradients, no filled color blobs, no brand dots. ---- */
+  .support-title { @apply text-[1.4rem] font-semibold leading-tight text-fg m-0 mb-2; }
+  .support-lede { @apply text-sm text-muted leading-relaxed max-w-[64ch] m-0 mb-8; }
 
-  .support-section { @apply mb-10; }
+  .support-section { @apply mb-8; }
   .support-h2 {
-    @apply text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-3
-           pb-2 border-b border-border;
+    @apply text-[13px] font-semibold uppercase tracking-[0.05em] text-muted mt-0 mb-3;
   }
 
-  /* Perk cards: 2-up grid, accent left-rail on the live one so the eye lands there first. */
-  .perk-grid { @apply grid gap-3 sm:grid-cols-2; }
+  /* Perk rows: flat panels, status shown by an outlined pill (the app's .pill idiom). The live
+     perk gets a left accent border so it reads first, no fills. */
+  .perk-list { @apply flex flex-col gap-2; }
   .perk {
-    @apply rounded-lg border border-border bg-panel p-4 transition-colors;
-    border-left: 3px solid theme(colors.border);
+    @apply flex items-baseline justify-between gap-3 flex-wrap border border-border bg-panel
+           rounded-lg px-4 py-3;
   }
-  .perk-on { border-left-color: theme(colors.accent); @apply bg-panel2; }
-  .perk-top { @apply flex items-center justify-between mb-2; }
-  .perk-ico { @apply text-lg leading-none; }
-  .perk-name { @apply text-[15px] font-semibold text-fg m-0 mb-1; }
-  .perk-desc { @apply text-sm text-muted leading-snug m-0; }
+  .perk-on { border-left: 2px solid theme(colors.accent); }
+  .perk-name { @apply text-sm font-semibold text-fg m-0; }
+  .perk-desc { @apply text-xs text-muted leading-snug m-0 mt-1 basis-full; }
 
-  /* Rail cards: brand-tinted top border + hover lift, so the three platforms read as distinct
-     choices rather than three identical boxes. */
+  /* Rail cards: plain panels matching the home feature grid, accent border on hover. The platform
+     name carries identity, no colored dots. */
   .rail-grid { @apply grid gap-3 sm:grid-cols-3; }
   .rail {
-    @apply flex flex-col rounded-lg border border-border bg-panel p-4 no-underline text-fg
-           transition-all;
-    border-top: 3px solid theme(colors.border);
+    @apply flex flex-col border border-border bg-panel rounded-lg p-4 no-underline text-fg
+           transition-colors;
   }
   .rail:visited { @apply text-fg no-underline; }
-  .rail:hover { @apply -translate-y-0.5; }
-  .rail-github:hover { border-top-color: #ea4aaa; }
-  .rail-patreon:hover { border-top-color: #ff424d; }
-  .rail-bmac:hover { border-top-color: #ffdd00; }
-  .rail-head { @apply flex items-center gap-2 mb-2; }
-  .rail-dot { @apply inline-block w-2.5 h-2.5 rounded-pill flex-none; }
-  .rail-dot-github { background: #ea4aaa; }
-  .rail-dot-patreon { background: #ff424d; }
-  .rail-dot-bmac { background: #ffdd00; }
-  .rail-name { @apply font-semibold text-fg; }
-  .rail-note { @apply text-sm text-muted leading-snug m-0 mb-3 flex-1; }
-  .rail-go { @apply text-sm font-semibold text-accent2; }
+  .rail:hover { @apply border-accent; }
+  .rail-name { @apply font-semibold text-sm text-fg mb-2; }
+  .rail-note { @apply text-xs text-muted leading-snug m-0 mb-3 flex-1; }
+  .rail-go { @apply text-xs font-semibold text-accent2; }
 
-  /* Connect card: a single emphasized row, green-tinted when the user is an active supporter. */
+  /* Connect row: one flat panel, supporter state shown via the .pill outline. */
   .connect-card {
-    @apply flex items-center justify-between gap-4 flex-wrap rounded-lg border border-border bg-panel p-5;
+    @apply flex items-center justify-between gap-4 flex-wrap border border-border bg-panel rounded-lg p-4;
   }
-  .connect-on { border-color: theme(colors.ok); background: rgba(94,194,126,0.07); }
   .connect-id { @apply flex items-center gap-3; }
   .connect-avatar {
-    @apply flex items-center justify-center w-10 h-10 rounded-pill bg-panel2 border border-border
-           text-fg font-semibold uppercase flex-none;
+    @apply flex items-center justify-center w-9 h-9 rounded-pill bg-panel2 border border-border
+           text-fg text-sm font-semibold uppercase flex-none;
   }
-  .connect-name { @apply font-semibold text-fg; }
+  .connect-name { @apply font-semibold text-sm text-fg; }
   .connect-prompt { @apply text-sm text-muted m-0; }
   .connect-hint { @apply text-xs text-muted mt-2 mb-0; }
 
-  /* FAQ: 2-up grid of question cards instead of a flat definition list. */
-  .faq-grid { @apply grid gap-3 sm:grid-cols-2; }
-  .faq-item { @apply rounded-lg border border-border bg-panel p-4; }
+  /* FAQ: flat panel rows, not a colored grid. */
+  .faq-list { @apply flex flex-col gap-2; }
+  .faq-item { @apply border border-border bg-panel rounded-lg px-4 py-3; }
   .faq-q { @apply font-semibold text-sm text-fg mb-1; }
-  .faq-a { @apply text-sm text-muted leading-snug m-0; }
+  .faq-a { @apply text-xs text-muted leading-snug m-0; }
 
   /* Code / data boxes */
   /* Inline mono code chip (Phase 2 + Inspector doc code). */

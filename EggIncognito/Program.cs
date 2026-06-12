@@ -160,7 +160,9 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
 // Supporter role check (login stamp + refresh-benefits). Always registered; without
 // Discord:GuildId + Discord:SupporterRoleId + Discord:BotToken it short-circuits to false.
-builder.Services.AddHttpClient("discord-api");
+// Short timeout: a slow/rate-limited Discord must not hang login or the refresh-benefits POST for
+// the default 100s. Fail-closed past this, the supporter check treats a timeout as "not a supporter".
+builder.Services.AddHttpClient("discord-api", c => c.Timeout = TimeSpan.FromSeconds(8));
 builder.Services.AddSingleton<SupporterStatus>();
 builder.Services.AddSingleton<ISupporterStatus>(sp => sp.GetRequiredService<SupporterStatus>());
 // Capture-CA Discord DM: the real REST notifier only when a bot token is configured, else a no-op so

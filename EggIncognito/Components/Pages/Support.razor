@@ -2,50 +2,35 @@
 @inject ICurrentUser User
 @inject AuthState Auth
 <PageTitle>Support - EggIncognito</PageTitle>
-<main class="support-page px-6 pt-8 pb-16 max-w-[920px] mx-auto">
+<main class="support-page px-8 pt-6 pb-16 max-w-[860px]">
 
-  <header class="support-hero">
-    <span class="support-kicker">Supporter program</span>
-    <h1 class="support-title">Keep the lights on, get the perks</h1>
-    <p class="support-lede">
-      Your support covers the servers behind EggIncognito, EggIncProtos, and EggLedger, plus the
-      code-signing certs that keep EggLedger's builds trusted. Any amount unlocks the full Supporter tier.
-    </p>
-  </header>
+  <h1 class="support-title">Support the project</h1>
+  <p class="support-lede">
+    Your support covers the servers behind EggIncognito, EggIncProtos, and EggLedger, plus the
+    code-signing certs that keep EggLedger's builds trusted. Any amount unlocks the full Supporter tier.
+  </p>
 
   <section class="support-section">
     <h2 class="support-h2">What you get</h2>
-    <div class="perk-grid">
+    <div class="perk-list">
       <div class="perk perk-on">
-        <div class="perk-top">
-          <span class="perk-ico">⚡</span>
-          <span class="perk-chip perk-chip-live">live now</span>
-        </div>
-        <h3 class="perk-name">Supporter role + higher rate limits</h3>
+        <span class="perk-name">Supporter role + higher rate limits</span>
+        <span class="pill live">live</span>
         <p class="perk-desc">The Discord role lands automatically and your API limits jump the moment it does.</p>
       </div>
       <div class="perk">
-        <div class="perk-top">
-          <span class="perk-ico">🛡️</span>
-          <span class="perk-chip perk-chip-soon">coming soon</span>
-        </div>
-        <h3 class="perk-name">Sealed API proxy</h3>
+        <span class="perk-name">Sealed API proxy</span>
+        <span class="pill">coming soon</span>
         <p class="perk-desc">An authenticated tunnel that hides your identity from the downstream API.</p>
       </div>
       <div class="perk">
-        <div class="perk-top">
-          <span class="perk-ico">📡</span>
-          <span class="perk-chip perk-chip-soon">coming soon</span>
-        </div>
-        <h3 class="perk-name">Hosted Capture proxy</h3>
+        <span class="perk-name">Hosted Capture proxy</span>
+        <span class="pill">coming soon</span>
         <p class="perk-desc">Run Capture straight from the web. This server holds the proxy, no local setup.</p>
       </div>
       <div class="perk">
-        <div class="perk-top">
-          <span class="perk-ico">☁️</span>
-          <span class="perk-chip perk-chip-dev">in development</span>
-        </div>
-        <h3 class="perk-name">EggLedger cloud storage</h3>
+        <span class="perk-name">EggLedger cloud storage</span>
+        <span class="pill">in development</span>
         <p class="perk-desc">A private encrypted volume for your ledger, backed up remotely and always in sync.</p>
       </div>
     </div>
@@ -54,18 +39,18 @@
   <section class="support-section">
     <h2 class="support-h2">Pick your platform</h2>
     <div class="rail-grid">
-      <a class="rail rail-github" href="https://github.com/sponsors/DavidArthurCole" target="_blank" rel="noopener">
-        <div class="rail-head"><span class="rail-dot rail-dot-github"></span><span class="rail-name">GitHub Sponsors</span></div>
+      <a class="rail" href="https://github.com/sponsors/DavidArthurCole" target="_blank" rel="noopener">
+        <span class="rail-name">GitHub Sponsors</span>
         <p class="rail-note">After you sponsor, run <span class="code-chip">/link-github</span> in Discord to claim your role.</p>
         <span class="rail-go">Sponsor →</span>
       </a>
-      <a class="rail rail-patreon" href="https://www.patreon.com/c/DavidArthurCole" target="_blank" rel="noopener">
-        <div class="rail-head"><span class="rail-dot rail-dot-patreon"></span><span class="rail-name">Patreon</span></div>
+      <a class="rail" href="https://www.patreon.com/c/DavidArthurCole" target="_blank" rel="noopener">
+        <span class="rail-name">Patreon</span>
         <p class="rail-note">Link Discord on Patreon and the role arrives on its own within minutes.</p>
         <span class="rail-go">Become a patron →</span>
       </a>
-      <a class="rail rail-bmac" href="https://buymeacoffee.com/davidarthurcole" target="_blank" rel="noopener">
-        <div class="rail-head"><span class="rail-dot rail-dot-bmac"></span><span class="rail-name">Buy Me a Coffee</span></div>
+      <a class="rail" href="https://buymeacoffee.com/davidarthurcole" target="_blank" rel="noopener">
+        <span class="rail-name">Buy Me a Coffee</span>
         <p class="rail-note">Link Discord on BMAC and the role arrives on its own within minutes.</p>
         <span class="rail-go">Buy a coffee →</span>
       </a>
@@ -78,9 +63,16 @@
       <h2 class="support-h2">Your account</h2>
       @if (User.IsAuthenticated)
       {
-        <div class="connect-card @(User.IsSupporter ? "connect-on" : "")">
+        <div class="connect-card">
           <div class="connect-id">
-            <span class="connect-avatar">@(User.Username?.Substring(0, 1).ToUpper())</span>
+            @if (!string.IsNullOrEmpty(User.Avatar))
+            {
+              <img class="connect-avatar" src="@($"https://cdn.discordapp.com/avatars/{User.DiscordId}/{User.Avatar}.png")" alt="" />
+            }
+            else
+            {
+              <span class="connect-avatar">@(User.Username?.Substring(0, 1).ToUpper())</span>
+            }
             <div>
               <div class="connect-name">@User.Username</div>
               @if (User.IsSupporter)
@@ -114,7 +106,7 @@
 
   <section class="support-section">
     <h2 class="support-h2">Questions</h2>
-    <div class="faq-grid">
+    <div class="faq-list">
       <div class="faq-item">
         <div class="faq-q">How fast does the role land?</div>
         <p class="faq-a">Patreon and BMAC: a few minutes after you link Discord on their site. GitHub: instant once you run <span class="code-chip">/link-github</span>.</p>

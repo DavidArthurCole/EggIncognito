@@ -31,8 +31,7 @@ public class UnifiedStyleTests : IClassFixture<WebApplicationFactory<Program>>
         foreach (var cls in new[] { ".panel", ".btn-primary", ".icon-btn", ".settings-menu",
             ".pill", ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".device-card",
             ".toast", ".modal-overlay", ".known-card", ".tab-btn", ".notif-item", ".perk-chip",
-            ".card-link", ".rail-dot", ".support-hero", ".perk-grid", ".rail", ".connect-card",
-            ".faq-grid" })
+            ".card-link", ".perk-list", ".rail", ".connect-card", ".faq-list" })
         {
             Assert.Contains(cls, css);
         }
