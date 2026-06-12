@@ -86,3 +86,8 @@ jobs:
           tags: |
             ${{ steps.img.outputs.name }}:${{ github.ref_name }}
             ${{ steps.img.outputs.name }}:latest
+          # The deploy-agent's docker-pull step reads the revision label to report commit
+          # hashes (with links) instead of image digests in /updateserver embeds.
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}

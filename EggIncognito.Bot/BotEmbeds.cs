@@ -65,23 +65,27 @@ public static class BotEmbeds
         new EmbedBuilder().WithTitle("Something went wrong").WithDescription(message).WithColor(0xED4245).Build();
 
     // /updateserver embeds use the synckit/ledger colors (blurple/green/red), not the app accent,
-    // so deploy results look identical across both bots. Hashes are image digests, not commits,
-    // so they render as plain code chips without links.
-    private static string Chip(string? hash) => $"`{(string.IsNullOrEmpty(hash) ? "unknown" : hash)}`";
+    // so deploy results look identical across both bots. The agent supplies commit URLs when the
+    // image carries a revision label; without one the hash renders as a plain code chip.
+    private static string Chip(string? hash, string? url)
+    {
+        var h = string.IsNullOrEmpty(hash) ? "unknown" : hash;
+        return string.IsNullOrEmpty(url) ? $"`{h}`" : $"[`{h}`]({url})";
+    }
 
-    public static Embed UpdateAlreadyCurrent(string? hash) =>
+    public static Embed UpdateAlreadyCurrent(string? hash, string? url = null) =>
         new EmbedBuilder()
             .WithTitle("Already up to date.")
             .WithColor(new Color(0x5865F2))
-            .AddField("Current", Chip(hash), inline: true)
+            .AddField("Current", Chip(hash, url), inline: true)
             .Build();
 
-    public static Embed UpdateSuccess(string? fromHash, string? toHash) =>
+    public static Embed UpdateSuccess(string? fromHash, string? toHash, string? fromUrl = null, string? toUrl = null) =>
         new EmbedBuilder()
             .WithTitle("Updated")
             .WithColor(new Color(0x57F287))
-            .AddField("From", Chip(fromHash), inline: true)
-            .AddField("To", Chip(toHash), inline: true)
+            .AddField("From", Chip(fromHash, fromUrl), inline: true)
+            .AddField("To", Chip(toHash, toUrl), inline: true)
             .Build();
 
     public static Embed UpdateFailure(string? tail) =>

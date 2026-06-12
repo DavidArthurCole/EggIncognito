@@ -7,7 +7,9 @@ namespace EggIncognito.Bot;
 // Result of a deploy-agent call, mirroring synckit's contract.DeployResponse wire JSON.
 // Failures (HTTP errors, timeouts, bad JSON) are mapped to Ok=false with a human Tail, so the
 // router only ever renders three shapes: up-to-date, deployed, failed.
-public sealed record DeployResult(bool Ok, bool AlreadyUpToDate, string? Tail, string? FromHash, string? ToHash)
+public sealed record DeployResult(
+    bool Ok, bool AlreadyUpToDate, string? Tail, string? FromHash, string? ToHash,
+    string? FromUrl = null, string? ToUrl = null)
 {
     public static DeployResult Failure(string tail) => new(false, false, tail, null, null);
 }
@@ -50,7 +52,8 @@ public sealed class DeployAgentClient(string url, string secret)
             if (root.ValueKind != JsonValueKind.Object)
                 return DeployResult.Failure("Could not decode deploy agent response.");
             return new DeployResult(Bool(root, "ok"), Bool(root, "alreadyUpToDate"),
-                Str(root, "tail"), Str(root, "fromHash"), Str(root, "toHash"));
+                Str(root, "tail"), Str(root, "fromHash"), Str(root, "toHash"),
+                Str(root, "fromUrl"), Str(root, "toUrl"));
         }
         catch (JsonException) { return DeployResult.Failure("Could not decode deploy agent response."); }
     }

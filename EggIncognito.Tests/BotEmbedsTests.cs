@@ -79,6 +79,21 @@ public class BotEmbedsTests
     }
 
     [Fact]
+    public void UpdateSuccess_WithUrls_LinksChips()
+    {
+        var e = BotEmbeds.UpdateSuccess("1111111", "9999999", "https://x/commit/1", "https://x/commit/9");
+        Assert.Equal("[`1111111`](https://x/commit/1)", e.Fields[0].Value);
+        Assert.Equal("[`9999999`](https://x/commit/9)", e.Fields[1].Value);
+    }
+
+    [Fact]
+    public void UpdateAlreadyCurrent_WithUrl_LinksChip()
+    {
+        var e = BotEmbeds.UpdateAlreadyCurrent("1111111", "https://x/commit/1");
+        Assert.Equal("[`1111111`](https://x/commit/1)", e.Fields[0].Value);
+    }
+
+    [Fact]
     public void UpdateFailure_ShowsTailInCodeBlock_Red()
     {
         var e = BotEmbeds.UpdateFailure("docker pull: boom");

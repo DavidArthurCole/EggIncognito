@@ -88,12 +88,12 @@ public sealed class InteractionRouter(
         var res = await deploy.DeployAsync();
         if (res.Ok && res.AlreadyUpToDate)
         {
-            await cmd.FollowupAsync(embed: BotEmbeds.UpdateAlreadyCurrent(res.FromHash));
+            await cmd.FollowupAsync(embed: BotEmbeds.UpdateAlreadyCurrent(res.FromHash, res.FromUrl));
             return;
         }
         if (res.Ok)
         {
-            await cmd.FollowupAsync(embed: BotEmbeds.UpdateSuccess(res.FromHash, res.ToHash));
+            await cmd.FollowupAsync(embed: BotEmbeds.UpdateSuccess(res.FromHash, res.ToHash, res.FromUrl, res.ToUrl));
             return;
         }
         await cmd.DeleteOriginalResponseAsync();

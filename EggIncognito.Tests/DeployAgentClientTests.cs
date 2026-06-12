@@ -7,12 +7,23 @@ public class DeployAgentClientTests
     [Fact]
     public void Parse_Success_MapsAllFields()
     {
-        var r = DeployAgentClient.Parse("""{"ok":true,"fromHash":"aaa","toHash":"bbb"}""");
+        var r = DeployAgentClient.Parse(
+            """{"ok":true,"fromHash":"aaa","toHash":"bbb","fromUrl":"https://x/commit/a","toUrl":"https://x/commit/b"}""");
         Assert.True(r.Ok);
         Assert.False(r.AlreadyUpToDate);
         Assert.Equal("aaa", r.FromHash);
         Assert.Equal("bbb", r.ToHash);
+        Assert.Equal("https://x/commit/a", r.FromUrl);
+        Assert.Equal("https://x/commit/b", r.ToUrl);
         Assert.Null(r.Tail);
+    }
+
+    [Fact]
+    public void Parse_NoUrls_LeavesThemNull()
+    {
+        var r = DeployAgentClient.Parse("""{"ok":true,"fromHash":"aaa","toHash":"bbb"}""");
+        Assert.Null(r.FromUrl);
+        Assert.Null(r.ToUrl);
     }
 
     [Fact]
