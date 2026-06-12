@@ -8,7 +8,10 @@ public sealed class FakeCaptureProxy : ICaptureProxy
 {
     public int StartCount { get; private set; }
     public int StopCount { get; private set; }
+    public int DisposeCount { get; private set; }
     public int? LastPort { get; private set; }
+    public bool ThrowOnStart { get; set; }
+    public bool ThrowOnStop { get; set; }
 
     public event Action<CapturedFlow>? FlowCaptured;
     public event Action<int, string?>? ClientConnected;
@@ -25,17 +28,23 @@ public sealed class FakeCaptureProxy : ICaptureProxy
     {
         StartCount++;
         LastPort = port;
+        if (ThrowOnStart) throw new InvalidOperationException("fake proxy start failure");
         return Task.CompletedTask;
     }
 
     public Task StopAsync()
     {
         StopCount++;
+        if (ThrowOnStop) throw new InvalidOperationException("fake proxy stop failure");
         return Task.CompletedTask;
     }
 
     public void EmitFlow(CapturedFlow flow) => FlowCaptured?.Invoke(flow);
     public void EmitConnect(int count, string? ip) => ClientConnected?.Invoke(count, ip);
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync()
+    {
+        DisposeCount++;
+        return ValueTask.CompletedTask;
+    }
 }

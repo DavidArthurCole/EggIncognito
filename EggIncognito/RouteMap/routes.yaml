@@ -124,9 +124,11 @@ routes:
   - path: ei/update_coop_permissions
     requestType: UpdateCoopPermissionsRequest
     responseType: UpdateCoopPermissionsResponse
-  - path: ei/update_coop_status_secure
+  - path: ei/update_coop_status
     requestType: ContractCoopStatusUpdateRequest
     responseType: ContractCoopStatusUpdateResponse
+    aliases:
+      - ei/update_coop_status_secure
   - path: ei/user_data_info
     requestType: UserDataInfoRequest
     responseType: UserDataInfoResponse
@@ -291,7 +293,7 @@ endpoint_status:
     - ei/did_config_change
     - ei/get_sales
     - ei/sync_path_of_virtue
-    - ei/update_coop_status_secure
+    - ei/update_coop_status
     - ei_afx/launch_mission
     - ei_afx/set_artifact
     - ei_data/log_purchase

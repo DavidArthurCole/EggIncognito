@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Bunit;
 using EggIncognito.Components.Inspector;
 using EggIncognito.Services;
@@ -90,6 +91,30 @@ public class InspectorPageTests
             Assert.Contains("\"name\":\"hi\"", json);
             Assert.Contains("\"flag\":true", json);
             Assert.Contains("\"ids\":[7]", json);
+        }
+
+        // Raw-mode edits survive the toggle back to the tree: Apply maps the protojson object back
+        // onto the field nodes (the inverse of Collect), clearing fields the raw edit removed.
+        [Fact]
+        public void Apply_MapsRawJsonBackOntoTree()
+        {
+            var nodes = FieldTreeBuilder.Build(Root(),
+                t => t == "Inner" ? Inner() : null);
+            var obj = (JsonObject)JsonNode.Parse("{\"name\":\"hi\",\"ids\":[3,4],\"inner\":{\"flag\":true}}")!;
+
+            FieldTreeBuilder.Apply(nodes, obj);
+
+            Assert.Equal("hi", nodes.First(n => n.Field.JsonName == "name").Value);
+            Assert.Equal(new[] { "3", "4" }, nodes.First(n => n.Field.JsonName == "ids").Items);
+            Assert.Equal("true", nodes.First(n => n.Field.JsonName == "inner").Children
+                .First(c => c.Field.JsonName == "flag").Value);
+
+            // A raw edit that deleted fields clears them in the tree (round-trip, not a merge).
+            FieldTreeBuilder.Apply(nodes, new JsonObject());
+            Assert.Equal("", nodes.First(n => n.Field.JsonName == "name").Value);
+            Assert.Empty(nodes.First(n => n.Field.JsonName == "ids").Items);
+            Assert.Equal("", nodes.First(n => n.Field.JsonName == "inner").Children
+                .First(c => c.Field.JsonName == "flag").Value);
         }
     }
 }

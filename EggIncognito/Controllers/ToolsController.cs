@@ -1,13 +1,16 @@
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
-// Read-only tooling, hosted-safe (no writes): Postman export, blob decode, endpoint status.
+// Read-only tooling, hosted-safe (no writes): Postman export, blob decode, endpoint status. The read
+// limiter covers decode/diagnose, which parse arbitrary client-supplied base64 protobuf.
 [ApiController]
 [Route("api/tools")]
+[EnableRateLimiting("read")]
 public sealed class ToolsController(IConfiguration config, IProtoReflection reflection) : ControllerBase
 {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);

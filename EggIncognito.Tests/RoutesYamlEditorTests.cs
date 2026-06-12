@@ -98,4 +98,73 @@ needs_capture:
         // The new block must sit inside routes:, before needs_capture:.
         Assert.True(yaml.IndexOf("ei/brand_new") < yaml.IndexOf("needs_capture:"));
     }
+
+    // Non-standard indentation: items at 4 spaces, fields at 6.
+    private const string DeepIndent = """
+routes:
+    - path: ei/deep
+      request:
+      response: KnownResponse
+
+    - path: ei/bare
+""";
+
+    [Fact]
+    public void SetWrappedFlag_InsertMatchesSiblingFieldIndent()
+    {
+        var root = MakeRepo(DeepIndent);
+        var ed = new Svc.RoutesYamlEditor(root);
+        Assert.True(ed.SetWrappedFlag("ei/deep", "responseWrapped"));
+        ed.Save();
+        Assert.Contains("\n      responseWrapped: true", Read(root));
+    }
+
+    [Fact]
+    public void SetFieldIfEmpty_InsertDerivesIndentFromPathLine()
+    {
+        var root = MakeRepo(DeepIndent);
+        var ed = new Svc.RoutesYamlEditor(root);
+        Assert.True(ed.SetFieldIfEmpty("ei/bare", "request", "FoundRequest"));
+        ed.Save();
+        Assert.Contains("\n      request: FoundRequest", Read(root));
+    }
+
+    [Fact]
+    public void MarkRequestNone_InsertDerivesIndentFromPathLine()
+    {
+        var root = MakeRepo(DeepIndent);
+        var ed = new Svc.RoutesYamlEditor(root);
+        Assert.True(ed.MarkRequestNone("ei/bare"));
+        ed.Save();
+        Assert.Contains("\n      request:  # none - empty body", Read(root));
+    }
+
+    [Fact]
+    public void Save_AbortsWhenFileChangedSinceLoad()
+    {
+        var root = MakeRepo(Sample);
+        var ed = new Svc.RoutesYamlEditor(root);
+        Assert.True(ed.SetFieldIfEmpty("ei/unknown", "request", "FoundRequest"));
+
+        // A concurrent writer edits the file after our load.
+        var p = Path.Combine(root, "RouteMap", "routes.yaml");
+        File.WriteAllText(p, Sample + "\n# concurrent edit\n");
+        File.SetLastWriteTimeUtc(p, DateTime.UtcNow.AddSeconds(5));
+
+        Assert.Throws<IOException>(() => ed.Save());
+        Assert.Contains("# concurrent edit", Read(root)); // their edit survives
+        Assert.DoesNotContain("FoundRequest", Read(root)); // our stale view not flushed
+    }
+
+    [Fact]
+    public void Save_RefreshesStamp_SoSecondSaveWorks()
+    {
+        var root = MakeRepo(Sample);
+        var ed = new Svc.RoutesYamlEditor(root);
+        Assert.True(ed.SetFieldIfEmpty("ei/unknown", "request", "FoundRequest"));
+        ed.Save();
+        Assert.True(ed.RemoveFromNeedsCapture("ei/unknown"));
+        ed.Save(); // must not throw: the first Save refreshed the stamp
+        Assert.DoesNotContain("- ei/unknown", Read(root));
+    }
 }

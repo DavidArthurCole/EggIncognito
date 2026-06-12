@@ -42,6 +42,7 @@ public sealed class RouteSchemaConsistencyTests
             Assert.Equal(g.Response, c.Response);
             Assert.Equal(g.RequestWrapped, c.RequestWrapped);
             Assert.Equal(g.ResponseWrapped, c.ResponseWrapped);
+            Assert.Equal(g.RawResponse, c.RawResponse);
             Assert.Equal(g.PathParam, c.PathParam);
             Assert.Equal(g.PathParamOnly, c.PathParamOnly);
         }
@@ -74,5 +75,80 @@ public sealed class RouteSchemaConsistencyTests
         Assert.Equal(cLegacy.Request, cModern.Request);
         Assert.Equal(cLegacy.Response, cModern.Response);
         Assert.Equal(cLegacy.RequestWrapped, cModern.RequestWrapped);
+    }
+
+    [Fact]
+    public void EntriesOutsideRoutesSection_AreIgnored_ByBothParsers()
+    {
+        const string yaml = """
+            routes:
+              - path: ei/real
+                requestType: ConfigRequest
+                responseType: ConfigResponse
+
+            excluded:
+              - path: ei/bogus
+                responseType: ConfigResponse
+
+            endpoint_status:
+              empty:
+                - ei/real
+            """;
+
+        var g = RouteParser.Parse(yaml);
+        var c = RouteCatalog.Parse(yaml);
+
+        Assert.Single(g);
+        Assert.Equal("ei/real", g[0].Path);
+        Assert.Equal("ConfigResponse", g[0].Response);
+        Assert.Single(c);
+        Assert.Equal("ei/real", c[0].Path);
+        Assert.Equal("ConfigResponse", c[0].Response);
+    }
+
+    [Fact]
+    public void EmptyPathEntry_EmitsNoRoute_AndDoesNotCorruptNeighbors()
+    {
+        const string yaml = """
+            routes:
+              - path: ei/real
+                requestType: ConfigRequest
+              - path:
+                responseType: ConfigResponse
+            """;
+
+        var g = RouteParser.Parse(yaml);
+        var c = RouteCatalog.Parse(yaml);
+
+        // The empty-path block is dropped and its keys do not bleed into ei/real.
+        Assert.Single(g);
+        Assert.Equal("ei/real", g[0].Path);
+        Assert.Null(g[0].Response);
+        Assert.Single(c);
+        Assert.Equal("ei/real", c[0].Path);
+        Assert.Null(c[0].Response);
+    }
+
+    [Fact]
+    public void NewKeysWinOverLegacy_AtBlockLevel_InBothParsers()
+    {
+        // New keys win even when the legacy key comes later in the block, and an
+        // explicitly empty new key (unknown inner type) still overrides legacy.
+        const string yaml = """
+            routes:
+              - path: ei/both
+                requestType: OldRequest
+                request: NewRequest
+                response:  # explicitly empty new key beats legacy below
+                responseType: OldResponse
+            """;
+
+        var g = RouteParser.Parse(yaml)[0];
+        Assert.Equal("NewRequest", g.Request);
+        Assert.Null(g.Response);
+
+        var c = RouteCatalog.Parse(yaml)[0];
+        Assert.Equal("NewRequest", c.Request);
+        Assert.Null(c.Response);
     }
 }

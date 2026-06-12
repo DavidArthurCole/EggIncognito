@@ -25,7 +25,7 @@ Five global + user-installable read-only commands:
 
 ## Structure
 
-- Pure, unit-tested logic (`BotEmbeds`, `ProtoQuery`, `CommandDefinitions`) sits behind thin Discord glue (`InteractionRouter`, `DiscordBotHostedService`).
+- Pure, unit-tested logic (`BotEmbeds`, `ProtoQuery`, `CommandDefinitions`, `CommandParsing`, `CommandSignature`) sits behind thin Discord glue (`InteractionRouter`, `DiscordBotHostedService`).
 - `IStatusProvider` (Bot) is implemented by `StatusSnapshotFactory` in the web project, so the Bot library stays decoupled from `IAppMode`.
 - `/verify` surfaces the git SHA stamped into the assembly `InformationalVersion` by the `SourceRevisionId` target in the repo-root `Directory.Build.props`, parsed by `BuildInfo` in Core.
 

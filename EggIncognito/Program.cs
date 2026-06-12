@@ -48,7 +48,15 @@ builder.WebHost.ConfigureKestrel((context, opts) =>
         ?? Path.Combine(AppContext.BaseDirectory, "certs");
     var certFile = Path.Combine(certsPath, "server.crt");
     var keyFile = Path.Combine(certsPath, "server.key");
-    if (!File.Exists(certFile) || !File.Exists(keyFile)) return;
+    if (!File.Exists(certFile) || !File.Exists(keyFile))
+    {
+        // No custom cert pair: Kestrel keeps its default endpoints. Say so instead of silently
+        // skipping, so a misplaced certs dir is diagnosable from the log.
+        opts.ApplicationServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Startup")
+            .LogWarning("No TLS cert pair at {CertsPath} (server.crt + server.key) - custom HTTP/HTTPS ports not bound, using default endpoints.", certsPath);
+        return;
+    }
 
     var httpPort = int.TryParse(context.Configuration["HttpPort"], out var hp) ? hp : 8080;
     var httpsPort = int.TryParse(context.Configuration["HttpsPort"], out var sp) ? sp : 8443;
@@ -108,6 +116,11 @@ builder.Services.AddSingleton<IEndpointStore>(sp =>
 });
 
 builder.Services.AddSingleton<RouteCatalog>(); // the concrete yaml catalog
+// Drop-in API surface: /api landing + openapi + catalog + namespace indexes, and the catch-all's
+// known-namespace fallback. Lazily built from routes.yaml + auxbrain-paths.json + endpoint status,
+// all static per process. Deliberately on the yaml catalog, not the merged one, so the cached
+// OpenAPI/catalog stays correct (DB routes are dynamic and still served by the catch-all).
+builder.Services.AddSingleton<AuxbrainSurface>();
 builder.Services.AddSingleton<IRouteCatalog>(sp =>
     new MergedRouteCatalog(
         sp.GetRequiredService<RouteCatalog>(),

@@ -30,9 +30,9 @@ public class CaptureHubKnownDevicesTests
 
         var d = Assert.Single(hub.StatsSnapshot().Devices);
         Assert.True(d.Online);
-        Assert.Equal(6, d.TotalConnections);          // 5 remembered + 1 new
-        Assert.Equal("09:00:00", d.FirstSeen);        // adopted the remembered first-seen
-        Assert.Equal("iOS", d.Os);                    // adopted the remembered OS
+        Assert.Equal(6, d.TotalConnections); // 5 remembered + 1 new
+        Assert.Equal("09:00:00", d.FirstSeen); // adopted the remembered first-seen
+        Assert.Equal("iOS", d.Os); // adopted the remembered OS
     }
 
     [Fact]

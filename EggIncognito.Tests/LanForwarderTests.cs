@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using EggIncognito.Capture;
 
@@ -74,4 +75,24 @@ public class LanForwarderTests
         var bytes = Encoding.ASCII.GetBytes("no blank line here\r\nstill none");
         Assert.Equal(-1, LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length));
     }
+
+    // Accept-loop resilience: a transient SocketException from one bad connection must not kill
+    // the loop for the rest of the session; only listener teardown stops it.
+    [Theory]
+    [InlineData(SocketError.ConnectionReset)]
+    [InlineData(SocketError.ConnectionAborted)]
+    [InlineData(SocketError.NetworkDown)]
+    public void IsFatalAcceptError_TransientErrors_KeepAccepting(SocketError code) =>
+        Assert.False(LanForwarder.IsFatalAcceptError(new SocketException((int)code), cancelRequested: false));
+
+    [Theory]
+    [InlineData(SocketError.Interrupted)]
+    [InlineData(SocketError.OperationAborted)]
+    public void IsFatalAcceptError_ListenerTeardown_Stops(SocketError code) =>
+        Assert.True(LanForwarder.IsFatalAcceptError(new SocketException((int)code), cancelRequested: false));
+
+    [Fact]
+    public void IsFatalAcceptError_CancellationRequested_AlwaysStops() =>
+        Assert.True(LanForwarder.IsFatalAcceptError(
+            new SocketException((int)SocketError.ConnectionReset), cancelRequested: true));
 }

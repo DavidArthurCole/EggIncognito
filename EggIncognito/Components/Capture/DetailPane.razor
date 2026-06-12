@@ -75,17 +75,30 @@ else
     string _saveMsg = "";
     string _saveCls = "";
 
+    // Blurred URL/header values revealed by click, keyed by a stable value identity (not render index)
+    // so the state survives re-renders. Reset when the selected flow changes.
+    readonly HashSet<string> _revealed = new(StringComparer.Ordinal);
+
     long _renderedFlowId = -1;
     protected override void OnParametersSet()
     {
-        // Clear the save result when the selected flow changes.
+        // Clear the save result + reveals when the selected flow changes.
         if (Flow is not null && Flow.Id != _renderedFlowId)
         {
             _renderedFlowId = Flow.Id;
             _saveMsg = "";
             _saveCls = "";
+            _revealed.Clear();
         }
     }
+
+    // Click toggles a blurred value's reveal (mirrors TreeNodeView.OnLeafClick).
+    void ToggleReveal(string key)
+    {
+        if (!_revealed.Remove(key)) _revealed.Add(key);
+    }
+
+    string RevealCls(string key) => _revealed.Contains(key) ? "revealed" : "";
 
     async Task Save()
     {
@@ -120,86 +133,39 @@ else
         <span class="detail-type-val @(value is null ? "unknown" : "")">@(value ?? "unknown")</span>
       </div>;
 
-    RenderFragment KnownCard() => builder =>
-    {
-        var f = Flow!;
-        var seq = 0;
-        builder.OpenElement(seq++, "div");
-        builder.AddAttribute(seq++, "class", "known-card");
-
-        builder.OpenElement(seq++, "div");
-        builder.AddAttribute(seq++, "class", "known-card-title");
-        builder.AddContent(seq++, "Known endpoint");
-        builder.CloseElement();
-
-        AddKnownRow(builder, ref seq, "Request type", f.RequestType ?? "none", f.RequestType is null);
-        AddKnownRow(builder, ref seq, "Response type", f.ResponseType ?? "none", f.ResponseType is null);
-
-        var meta = View.CompareToKnown ? CaptureHelpers.Outcome(f.Outcome) : null;
-        if (meta is not null)
+    RenderFragment KnownCard() =>@<div class="known-card">
+        <div class="known-card-title">Known endpoint</div>
+        @KnownRow("Request type", Flow!.RequestType ?? "none", Flow!.RequestType is null)
+        @KnownRow("Response type", Flow!.ResponseType ?? "none", Flow!.ResponseType is null)
+        @{ var meta = View.CompareToKnown ? CaptureHelpers.Outcome(Flow!.Outcome) : null; }
+        @if (meta is not null)
         {
-            builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "known-card-line");
-            builder.OpenElement(seq++, "span");
-            builder.AddAttribute(seq++, "class", "known-card-label");
-            builder.AddContent(seq++, "Comparison");
-            builder.CloseElement();
-            builder.OpenElement(seq++, "span");
-            builder.AddAttribute(seq++, "class", "known-card-val outcome-text outcome-" + meta.Kind);
-            if (CaptureHelpers.HasDiffCounts(f.Outcome, f.DiffAdded, f.DiffRemoved))
-            {
-                builder.AddContent(seq++, meta.Label + " (");
-                AddDiffCounts(builder, ref seq, f.DiffAdded, f.DiffRemoved);
-                builder.AddContent(seq++, ")");
-            }
-            else
-            {
-                builder.AddContent(seq++, meta.Label);
-            }
-            builder.CloseElement();
-            builder.CloseElement();
-
-            builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "known-card-explain muted");
-            builder.AddContent(seq++, meta.Desc);
-            builder.CloseElement();
+          <div class="known-card-line">
+            <span class="known-card-label">Comparison</span>
+            <span class="known-card-val outcome-text outcome-@meta.Kind">
+              @if (CaptureHelpers.HasDiffCounts(Flow!.Outcome, Flow!.DiffAdded, Flow!.DiffRemoved))
+              {
+                <text>@(meta.Label + " (")@DiffCounts(Flow!.DiffAdded, Flow!.DiffRemoved)@(")")</text>
+              }
+              else
+              {
+                @meta.Label
+              }
+            </span>
+          </div>
+          <div class="known-card-explain muted">@meta.Desc</div>
         }
-        builder.CloseElement();
-    };
+      </div>;
 
-    static void AddKnownRow(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, ref int seq, string label, string value, bool unknown)
-    {
-        builder.OpenElement(seq++, "div");
-        builder.AddAttribute(seq++, "class", "known-card-line");
-        builder.OpenElement(seq++, "span");
-        builder.AddAttribute(seq++, "class", "known-card-label");
-        builder.AddContent(seq++, label);
-        builder.CloseElement();
-        builder.OpenElement(seq++, "span");
-        builder.AddAttribute(seq++, "class", "known-card-val" + (unknown ? " unknown" : ""));
-        builder.AddContent(seq++, value);
-        builder.CloseElement();
-        builder.CloseElement();
-    }
+    RenderFragment KnownRow(string label, string value, bool unknown) =>@<div class="known-card-line">
+        <span class="known-card-label">@label</span>
+        <span class="known-card-val @(unknown ? "unknown" : "")">@value</span>
+      </div>;
 
-    // Append git-style +N (green) / -N (red) spans for diff outcomes. Ported from appendDiffCounts.
-    static void AddDiffCounts(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, ref int seq, int added, int removed)
-    {
-        if (added > 0)
-        {
-            builder.OpenElement(seq++, "span");
-            builder.AddAttribute(seq++, "class", "diff-add");
-            builder.AddContent(seq++, "+" + added);
-            builder.CloseElement();
-        }
-        if (removed > 0)
-        {
-            builder.OpenElement(seq++, "span");
-            builder.AddAttribute(seq++, "class", "diff-del");
-            builder.AddContent(seq++, "-" + removed);
-            builder.CloseElement();
-        }
-    }
+    // Git-style +N (green) / -N (red) spans for diff outcomes. Ported from appendDiffCounts.
+    RenderFragment DiffCounts(int added, int removed) =>@<text>@if (added > 0)
+        {<span class="diff-add">@("+" + added)</span>}@if (removed > 0)
+        {<span class="diff-del">@("-" + removed)</span>}</text>;
 
     RenderFragment RequestPane() => builder =>
     {
@@ -286,81 +252,49 @@ else
         var (path, query, pathParams) = parsed.Value;
         if (pathParams.Count == 0 && query.Count == 0) return null;
 
-        return builder =>
-        {
-            var seq = 0;
-            builder.OpenElement(seq++, "div");
-
-            builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "section-head");
-            builder.OpenElement(seq++, "h3");
-            builder.AddContent(seq++, "URL");
-            builder.CloseElement();
-            builder.CloseElement();
-
-            builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "params-box");
-
-            AddParamRow(builder, ref seq, "path", PathFragment(path));
-            foreach (var p in pathParams) AddParamRow(builder, ref seq, "path param", ParamValueFragment(p));
-            foreach (var (k, v) in query) AddParamRow(builder, ref seq, k, ParamValueFragment(v));
-
-            builder.CloseElement();
-            builder.CloseElement();
-        };
+        return @<div>
+            <div class="section-head"><h3>URL</h3></div>
+            <div class="params-box">
+              @ParamRow("path", PathFragment(path))
+              @foreach (var p in pathParams)
+              {
+                @ParamRow("path param", ParamValueFragment(p))
+              }
+              @foreach (var (k, v) in query)
+              {
+                @ParamRow(k, ParamValueFragment(v))
+              }
+            </div>
+          </div>;
     }
 
-    void AddParamRow(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, ref int seq, string label, RenderFragment value)
-    {
-        builder.OpenElement(seq++, "div");
-        builder.AddAttribute(seq++, "class", "param-row");
-        builder.OpenElement(seq++, "span");
-        builder.AddAttribute(seq++, "class", "param-label");
-        builder.AddContent(seq++, label);
-        builder.CloseElement();
-        builder.OpenElement(seq++, "span");
-        builder.AddAttribute(seq++, "class", "param-val");
-        builder.AddContent(seq++, value);
-        builder.CloseElement();
-        builder.CloseElement();
-    }
+    RenderFragment ParamRow(string label, RenderFragment value) =>@<div class="param-row">
+        <span class="param-label">@label</span>
+        <span class="param-val">@value</span>
+      </div>;
 
-    RenderFragment PathFragment(string path) => builder =>
-    {
-        var seq = 0;
-        foreach (var (text, blur) in View.RenderRedactedPath(path))
+    RenderFragment PathFragment(string path) =>@<text>@foreach (var (text, blur) in View.RenderRedactedPath(path))
         {
-            if (blur)
-            {
-                builder.OpenElement(seq++, "span");
-                builder.AddAttribute(seq++, "class", "blurred");
-                builder.AddAttribute(seq++, "title", "Click to reveal");
-                builder.AddContent(seq++, text);
-                builder.CloseElement();
-            }
-            else
-            {
-                builder.AddContent(seq++, text);
-            }
-        }
-    };
+          if (blur)
+          {
+            var key = "path:" + text;
+            <span class="blurred @RevealCls(key)" title="Click to reveal" @onclick="() => ToggleReveal(key)">@text</span>
+          }
+          else
+          {
+            @text
+          }
+        }</text>;
 
-    RenderFragment ParamValueFragment(string value) => builder =>
-    {
-        var (text, blur) = View.RedactParamValue(value);
-        if (blur)
+    RenderFragment ParamValueFragment(string value) =>@<text>@{ var (text, blur) = View.RedactParamValue(value); }@if (blur)
         {
-            builder.OpenElement(0, "span");
-            builder.AddAttribute(1, "class", "blurred");
-            builder.AddAttribute(2, "title", "Click to reveal");
-            builder.AddContent(3, text);
-            builder.CloseElement();
+          var key = "param:" + text;
+          <span class="blurred @RevealCls(key)" title="Click to reveal" @onclick="() => ToggleReveal(key)">@text</span>
         }
         else
         {
-            builder.AddContent(0, text);
-        }
-    };
+          @text
+        }</text>;
 
     // Split a flow URL into (path, query, pathParams). Ported from parseFlowUrl.
     (string Path, List<(string, string)> Query, List<string> PathParams)? ParseFlowUrl(DashboardFlow flow)
@@ -418,38 +352,28 @@ else
         var headers = View.IsBlurMode || View.ShowRawHeaders ? raw ?? redacted ?? [] : redacted ?? [];
         if (headers.Count == 0) return null;
 
-        return builder =>
-        {
-            var seq = 0;
-            builder.OpenElement(seq++, "div");
-
-            builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "section-head");
-            builder.OpenElement(seq++, "h3");
-            builder.AddContent(seq++, label);
-            builder.CloseElement();
-            builder.CloseElement();
-
-            builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "params-box");
-            foreach (var h in headers)
-            {
-                builder.OpenElement(seq++, "div");
-                builder.AddAttribute(seq++, "class", "param-row");
-                builder.OpenElement(seq++, "span");
-                builder.AddAttribute(seq++, "class", "param-label");
-                builder.AddContent(seq++, h.Name);
-                builder.CloseElement();
-                builder.OpenElement(seq++, "span");
-                builder.AddAttribute(seq++, "class", "param-val" + (View.IsBlurMode && h.Sensitive ? " blurred" : ""));
-                if (View.IsBlurMode && h.Sensitive) builder.AddAttribute(seq++, "title", "Click to reveal");
-                builder.AddContent(seq++, h.Value);
-                builder.CloseElement();
-                builder.CloseElement();
-            }
-            builder.CloseElement();
-            builder.CloseElement();
-        };
+        return @<div>
+            <div class="section-head"><h3>@label</h3></div>
+            <div class="params-box">
+              @foreach (var h in headers)
+              {
+                var blur = View.IsBlurMode && h.Sensitive;
+                var key = "hdr:" + label + ":" + h.Name + ":" + h.Value;
+                <div class="param-row">
+                  <span class="param-label">@h.Name</span>
+                  @if (blur)
+                  {
+                    <span class="param-val blurred @RevealCls(key)" title="Click to reveal"
+                          @onclick="() => ToggleReveal(key)">@h.Value</span>
+                  }
+                  else
+                  {
+                    <span class="param-val">@h.Value</span>
+                  }
+                </div>
+              }
+            </div>
+          </div>;
     }
 
     sealed record SaveResult(string? Saved, string? Error);

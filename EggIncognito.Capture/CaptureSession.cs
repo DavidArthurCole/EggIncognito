@@ -27,7 +27,9 @@ public sealed class CaptureSession
     private HarWriter? _har;
     private EndpointExtractor? _extractor;
     private string? _harPath;
-    private int _activeClients;
+    // Written from proxy event threads, read by Status without taking _gate; volatile keeps the
+    // cross-thread read coherent.
+    private volatile int _activeClients;
 
     public CaptureHub Hub { get; } = new();
     public CaptureState State { get; private set; } = CaptureState.Stopped;
@@ -51,43 +53,59 @@ public sealed class CaptureSession
             State = CaptureState.Starting;
         }
 
-        Directory.CreateDirectory(_opts.CapturePath);
-        _harPath = UniquePath(Path.Combine(_opts.CapturePath, _opts.HarFileName()));
-
-        // Seed devices remembered from prior runs, and persist the merged set whenever it changes.
-        var deviceStore = new DeviceStore(_opts.CapturePath);
-        Hub.SeedKnownDevices(deviceStore.Load());
-        Hub.DevicesChanged = () => deviceStore.Save(Hub.SnapshotRememberedDevices());
-
-        _extractor = EndpointExtractor.ForRepo(_contentRoot, _opts.Eid, EidPlaceholder, _opts.Overwrite);
-        _extractor.Quiet = true;
-        _har = new HarWriter();
-        var decoder = new FlowDecoder(_contentRoot);
-        var processor = new FlowProcessor(_extractor, decoder, _har, _contentRoot);
-
-        _queue = Channel.CreateUnbounded<CapturedFlow>(new UnboundedChannelOptions { SingleReader = true });
-
-        var proxy = _proxyFactory(_opts.Verbose);
-        proxy.FlowCaptured += flow => _queue!.Writer.TryWrite(flow);
-        proxy.ClientConnected += (count, ip) => { _activeClients = count; Hub.RecordConnection(count, ip, Now()); };
-        proxy.ClientDisconnected += (count, ip) => { _activeClients = count; Hub.RecordDisconnection(count, Now()); };
-        proxy.AuxbrainConnect += () => Hub.RecordAuxbrainConnect();
-        proxy.DecryptError += msg => Hub.RecordDecryptError(msg, Now());
-        _proxy = proxy;
-
-        _consumer = Task.Run(async () =>
+        try
         {
-            await foreach (var flow in _queue.Reader.ReadAllAsync())
-            {
-                try { Hub.Publish(processor.Process(flow), Now()); }
-                catch { /* a single bad flow must not kill the pump */ }
-            }
-        });
+            Directory.CreateDirectory(_opts.CapturePath);
+            _harPath = UniquePath(Path.Combine(_opts.CapturePath, _opts.HarFileName()));
 
-        await proxy.StartAsync(_opts.Port, _opts.CaPath, ct);
-        lock (_gate) { State = CaptureState.Running; }
-        Hub.SetProxyState(running: true, port: _opts.Port); // push running state to dashboards
-        return new CaptureStartResult(true, _opts.Port, _opts.CaPath, proxy.FreshCa, proxy.RootThumbprint);
+            // Seed devices remembered from prior runs, and persist the merged set whenever it changes.
+            var deviceStore = new DeviceStore(_opts.CapturePath);
+            Hub.SeedKnownDevices(deviceStore.Load());
+            Hub.DevicesChanged = () => deviceStore.Save(Hub.SnapshotRememberedDevices());
+
+            _extractor = EndpointExtractor.ForRepo(_contentRoot, _opts.Eid, EidPlaceholder, _opts.Overwrite);
+            _extractor.Quiet = true;
+            _har = new HarWriter();
+            var decoder = new FlowDecoder(_contentRoot);
+            var processor = new FlowProcessor(_extractor, decoder, _har, _contentRoot);
+
+            var queue = Channel.CreateUnbounded<CapturedFlow>(new UnboundedChannelOptions { SingleReader = true });
+            _queue = queue;
+
+            var proxy = _proxyFactory(_opts.Verbose);
+            proxy.FlowCaptured += flow => queue.Writer.TryWrite(flow);
+            proxy.ClientConnected += (count, ip) => { _activeClients = count; Hub.RecordConnection(count, ip, Now()); };
+            proxy.ClientDisconnected += (count, ip) => { _activeClients = count; Hub.RecordDisconnection(count, Now()); };
+            proxy.AuxbrainConnect += () => Hub.RecordAuxbrainConnect();
+            proxy.DecryptError += msg => Hub.RecordDecryptError(msg, Now());
+            _proxy = proxy;
+
+            _consumer = Task.Run(async () =>
+            {
+                await foreach (var flow in queue.Reader.ReadAllAsync())
+                {
+                    try { Hub.Publish(processor.Process(flow), Now()); }
+                    catch { /* a single bad flow must not kill the pump */ }
+                }
+            });
+
+            await proxy.StartAsync(_opts.Port, _opts.CaPath, ct);
+            lock (_gate) { State = CaptureState.Running; }
+            Hub.SetProxyState(running: true, port: _opts.Port); // push running state to dashboards
+            return new CaptureStartResult(true, _opts.Port, _opts.CaPath, proxy.FreshCa, proxy.RootThumbprint);
+        }
+        catch
+        {
+            // Tear down whatever got built before the failure so the session is restartable
+            // instead of wedged at Starting with leaked queue/consumer/proxy/subscription.
+            Hub.DevicesChanged = null;
+            _queue?.Writer.TryComplete();
+            if (_consumer is not null) { try { await _consumer; } catch { } }
+            if (_proxy is not null) { try { await _proxy.DisposeAsync(); } catch { } }
+            _proxy = null; _queue = null; _consumer = null; _har = null; _extractor = null;
+            lock (_gate) { State = CaptureState.Stopped; }
+            throw;
+        }
     }
 
     public async Task StopAsync()
@@ -102,22 +120,31 @@ public sealed class CaptureSession
             proxy = _proxy; queue = _queue; consumer = _consumer;
         }
 
-        if (proxy is not null) await proxy.StopAsync();
-        queue?.Writer.TryComplete();
-        if (consumer is not null) await consumer;
-
-        if (_har is { Count: > 0 } && _harPath is not null) _har.Save(_harPath);
-        _extractor?.Save();
-        new DeviceStore(_opts.CapturePath).Save(Hub.SnapshotRememberedDevices()); // final persist
-
-        if (proxy is not null) await proxy.DisposeAsync();
-
-        lock (_gate)
+        try
         {
-            _proxy = null; _queue = null; _consumer = null; _har = null; _extractor = null; _activeClients = 0;
-            State = CaptureState.Stopped;
+            if (proxy is not null) await proxy.StopAsync();
+            queue?.Writer.TryComplete();
+            if (consumer is not null) await consumer;
+
+            if (_har is { Count: > 0 } && _harPath is not null) _har.Save(_harPath);
+            _extractor?.Save();
+            new DeviceStore(_opts.CapturePath).Save(Hub.SnapshotRememberedDevices()); // final persist
         }
-        Hub.SetProxyState(running: false, port: _opts.Port); // push stopped state to dashboards
+        finally
+        {
+            // A stop/save failure must not wedge State at Stopping; always land back on Stopped
+            // with the queue completed and the proxy disposed (best-effort, never masks the error).
+            // Drop the per-run DeviceStore subscription too; StartAsync wires a fresh one.
+            Hub.DevicesChanged = null;
+            queue?.Writer.TryComplete();
+            if (proxy is not null) { try { await proxy.DisposeAsync(); } catch { } }
+            lock (_gate)
+            {
+                _proxy = null; _queue = null; _consumer = null; _har = null; _extractor = null; _activeClients = 0;
+                State = CaptureState.Stopped;
+            }
+            Hub.SetProxyState(running: false, port: _opts.Port); // push stopped state to dashboards
+        }
     }
 
     // Decode an arbitrary path+response for the /decode debug endpoint. Transient decoder, no running

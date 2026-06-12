@@ -45,6 +45,26 @@ public static class UserUpsert
         return existingRole ?? UserRoles.ToName(UserRole.Viewer);
     }
 
+    // Pure upsert decision: applies role + profile to the existing row, or builds a new one. The
+    // caller persists the result (Add when IsNew) and stamps the role claim.
+    public static (User Row, bool IsNew) Upsert(User? existing, Info info, AdminAllowlist allow, DateTimeOffset now)
+    {
+        var role = ResolveRole(existing?.Role, info.DiscordId, allow);
+        if (existing is null)
+        {
+            var row = new User { Role = role };
+            Apply(row, info, isNew: true, now);
+            return (row, true);
+        }
+        existing.Role = role;
+        Apply(existing, info, isNew: false, now);
+        return (existing, false);
+    }
+
+    // Bake the role into the issued cookie so per-request authorization needs no DB hit.
+    public static void StampRoleClaim(ClaimsIdentity? identity, string role)
+        => identity?.AddClaim(new Claim(UserRoles.ClaimType, role));
+
     public static async Task OnLoginAsync(OAuthCreatingTicketContext ctx)
     {
         var info = Extract(ctx.Principal!);
@@ -55,23 +75,10 @@ public static class UserUpsert
         var allow = sp.GetRequiredService<AdminAllowlist>();
 
         var existing = await db.Users.FirstOrDefaultAsync(u => u.DiscordId == info.DiscordId);
-        var now = DateTimeOffset.UtcNow;
-        var role = ResolveRole(existing?.Role, info.DiscordId, allow);
-        if (existing is null)
-        {
-            var row = new User { Role = role };
-            Apply(row, info, isNew: true, now);
-            db.Users.Add(row);
-        }
-        else
-        {
-            existing.Role = role;
-            Apply(existing, info, isNew: false, now);
-        }
+        var (row, isNew) = Upsert(existing, info, allow, DateTimeOffset.UtcNow);
+        if (isNew) db.Users.Add(row);
         await db.SaveChangesAsync();
 
-        // Bake the role into the issued cookie so per-request authorization needs no DB hit.
-        (ctx.Identity as System.Security.Claims.ClaimsIdentity)?
-            .AddClaim(new System.Security.Claims.Claim(UserRoles.ClaimType, role));
+        StampRoleClaim(ctx.Identity as ClaimsIdentity, row.Role);
     }
 }

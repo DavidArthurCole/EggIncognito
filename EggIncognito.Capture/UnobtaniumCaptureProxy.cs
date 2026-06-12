@@ -17,6 +17,9 @@ namespace EggIncognito.Capture;
 // raise FlowCaptured. The proxy runs as its own generic host, started/stopped alongside the dashboard.
 public sealed class UnobtaniumCaptureProxy : ICaptureProxy
 {
+    // Subject CN of every root we mint; also how stale roots from prior mints are found and pruned.
+    private const string RootCaName = "EggIncognito Capture Root";
+
     private IHost? _host;
     private LanForwarder? _forwarder;
     private readonly ProxyServerEvents _events = new();
@@ -25,9 +28,12 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
     private bool _freshCa;
 
     // Request `data` base64 + request headers stashed in OnRequest, paired with the response by
-    // RequestId in OnResponse.
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _pendingReqData = new();
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IReadOnlyList<HttpHeader>> _pendingReqHeaders = new();
+    // RequestId in OnResponse. A request whose response never arrives would otherwise leak its stash
+    // for the whole session, so entries carry a timestamp and stale ones are swept on each request.
+    private sealed record PendingRequest(DateTime StashedAtUtc, string? Data, IReadOnlyList<HttpHeader> Headers);
+    internal static readonly TimeSpan PendingTtl = TimeSpan.FromMinutes(2);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, PendingRequest> _pendingRequests = new();
+    private DateTime _lastSweepUtc = DateTime.UtcNow;
 
     // Cert-trust inference. The engine exposes no TLS-decrypt-failure callback, so we infer it: an
     // auxbrain CONNECT means the device is trying to reach the API; if no flow ever decrypts within the
@@ -58,6 +64,17 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
     public bool Verbose { get; set; }
     public event Action<string>? Trace;
     private void Log(string msg) { if (Verbose) Trace?.Invoke(msg); }
+
+    // OnRequest/OnResponse handler failures. Surfaced via DecryptError (dashboard) and this counter
+    // instead of vanishing into the verbose-only trace.
+    private int _flowErrors;
+    public int FlowErrorCount => Volatile.Read(ref _flowErrors);
+    internal void ReportFlowError(string stage, Exception ex)
+    {
+        Interlocked.Increment(ref _flowErrors);
+        Log($"{stage}-ERR {ex.Message}");
+        DecryptError?.Invoke($"Capture {stage} handler failed: {ex.Message}");
+    }
 
     public UnobtaniumCaptureProxy(bool verbose = false) => Verbose = verbose;
 
@@ -106,7 +123,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
             // hostname it sees, and caching them littered captures/ with hundreds of junk .pfx files.
             // In-memory per-session minting is plenty for a capture tool.
             o.CachePath = caCacheDir;
-            o.RootCertificateName = "EggIncognito Capture Root";
+            o.RootCertificateName = RootCaName;
             o.CacheRootCertificate = true;
             o.CacheHostCertificates = false;
         });
@@ -138,12 +155,17 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         WireResponse();
     }
 
+    // Pure per-CONNECT decrypt decision: decrypt only auxbrain. The CONNECT target is an authority
+    // that may carry a ":port" ("www.auxbrain.com:443"); AuxbrainHosts.IsAuxbrain normalizes that,
+    // so auxbrain traffic is decrypted whether or not the port is present.
+    internal static bool ShouldDecrypt(string connectAuthority) => AuxbrainHosts.IsAuxbrain(connectAuthority);
+
     // Per-CONNECT decrypt decision: decrypt only auxbrain; tunnel everything else untouched.
     private void WireConnectDecision()
     {
         _events.ShouldDecryptNewConnection = (host, client, cts) =>
         {
-            var decrypt = AuxbrainHosts.IsAuxbrain(host);
+            var decrypt = ShouldDecrypt(host);
             Log($"CONNECT {host}  decrypt={decrypt}");
             // client?.Address here is the loopback forwarder, not the device - real device
             // connect/disconnect with the true IP is reported by the LAN forwarder instead.
@@ -161,14 +183,17 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         {
             try
             {
+                SweepStalePending();
+
                 // Capture request headers for every flow; body-less endpoints have headers too.
-                _pendingReqHeaders[e.RequestId] = CollectHeaders(e.Request.Headers, e.Request.Content?.Headers);
+                var headers = CollectHeaders(e.Request.Headers, e.Request.Content?.Headers);
+                _pendingRequests[e.RequestId] = new PendingRequest(DateTime.UtcNow, null, headers);
 
                 if (e.Request.Content is not null)
                 {
                     var bytes = await e.Request.Content.ReadAsByteArrayAsync(token);
                     var data = WireBody.ExtractDataParam(System.Text.Encoding.UTF8.GetString(bytes));
-                    if (data is not null) _pendingReqData[e.RequestId] = data;
+                    if (data is not null) _pendingRequests[e.RequestId] = new PendingRequest(DateTime.UtcNow, data, headers);
 
                     // Rebuild the request with the buffered body so forwarding still works.
                     var fresh = new HttpRequestMessage(e.Request.Method, e.Request.RequestUri);
@@ -182,7 +207,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
                     return RequestEventResponse.ModifyRequest(fresh);
                 }
             }
-            catch (Exception ex) { Log($"REQ-ERR {ex.Message}"); }
+            catch (Exception ex) { ReportFlowError("request", ex); }
             return RequestEventResponse.ContinueResponse();
         };
     }
@@ -203,8 +228,9 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
                 var respBytes = await e.Response.Content.ReadAsByteArrayAsync(token);
                 var (responseB64, shape) = WireBody.Normalize(respBytes);
                 var status = (int)e.Response.StatusCode;
-                _pendingReqData.TryRemove(e.RequestId, out var reqData);
-                _pendingReqHeaders.TryRemove(e.RequestId, out var reqHeaders);
+                _pendingRequests.TryRemove(e.RequestId, out var pending);
+                var reqData = pending?.Data;
+                var reqHeaders = pending?.Headers;
                 var respHeaders = CollectHeaders(e.Response.Headers, e.Response.Content?.Headers);
                 Log($"RESP {host}  status={status}  shape={shape}  len={responseB64.Length}");
                 // A flow decrypted, so the CA is trusted. Disarm the untrusted-CA inference.
@@ -213,7 +239,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
                     uri!.ToString(), e.Request.Method.Method, status, reqData, responseB64,
                     reqHeaders, respHeaders));
             }
-            catch (Exception ex) { Log($"RESP-ERR {ex.Message}"); }
+            catch (Exception ex) { ReportFlowError("response", ex); }
             return ResponseEventResponse.ContinueResponse();
         };
     }
@@ -235,6 +261,25 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         if (contentHeaders is not null) Add(contentHeaders);
         return list;
     }
+
+    // Drop pending-request stashes whose response never arrived. Runs at most once per TTL window,
+    // piggybacked on OnRequest, so an aborted request cannot leak its stash for the session.
+    private void SweepStalePending() => SweepStalePending(DateTime.UtcNow);
+
+    // nowUtc injectable for tests; entries are otherwise created only inside the wired proxy events.
+    internal void SweepStalePending(DateTime nowUtc)
+    {
+        if (nowUtc - _lastSweepUtc < PendingTtl) return;
+        _lastSweepUtc = nowUtc;
+        foreach (var kv in _pendingRequests)
+            if (nowUtc - kv.Value.StashedAtUtc > PendingTtl)
+                _pendingRequests.TryRemove(kv.Key, out _);
+    }
+
+    // Test seams for the pending stash, which has no other reachable surface without a live proxy.
+    internal void StashPendingForTest(string requestId, DateTime stashedAtUtc) =>
+        _pendingRequests[requestId] = new PendingRequest(stashedAtUtc, null, []);
+    internal int PendingRequestCount => _pendingRequests.Count;
 
     // Arm or refresh the untrusted-CA inference on an auxbrain CONNECT. If no flow decrypts before the
     // grace window elapses, the device almost certainly does not trust our CA. Once a flow has
@@ -276,26 +321,49 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
     }
 
     // Install the root CA into the current user's Trusted Root store so our own decrypted connections
-    // validate locally. Idempotent; tracked so we can leave it in place across runs.
+    // validate locally. Prunes roots left behind by earlier mints first: each one carries a private
+    // key on disk and could forge any site, so only the current CA may stay trusted. The install is
+    // tracked and undone in StopAsync.
     private void TrustRootCa(X509Certificate2 cert)
     {
         try
         {
             using var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
             store.Open(OpenFlags.ReadWrite);
-            if (!store.Certificates.Contains(cert))
+            foreach (var stale in store.Certificates.Find(X509FindType.FindBySubjectName, RootCaName, validOnly: false))
             {
-                store.Add(cert);
-                _trustAdded = true;
+                if (!stale.Thumbprint.Equals(cert.Thumbprint, StringComparison.OrdinalIgnoreCase))
+                {
+                    try { store.Remove(stale); } catch (Exception ex) { Log($"TRUST-PRUNE-ERR {ex.Message}"); }
+                }
+                stale.Dispose();
             }
+            if (!store.Certificates.Contains(cert)) store.Add(cert);
+            _trustAdded = true;
+        }
+        catch (Exception ex) { Log($"TRUST-ERR {ex.Message}"); }
+    }
+
+    // Remove our root CA from the user's Trusted Root store. A privately-keyed root left trusted
+    // after the session ends could forge any site; TrustRootCa re-installs the persisted CA on the
+    // next start, so removal costs nothing.
+    private void UntrustRootCa()
+    {
+        if (!_trustAdded || _rootCa is null) return;
+        _trustAdded = false;
+        try
+        {
+            using var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
+            store.Open(OpenFlags.ReadWrite);
+            store.Remove(_rootCa);
         }
         catch (Exception ex) { Log($"TRUST-ERR {ex.Message}"); }
     }
 
     public async Task StopAsync()
     {
-        // Leave the trusted CA in place across runs, installed once like the persisted .pfx.
-        _ = _trustAdded;
+        // Remove the CA from the trust store while we are down; start re-installs the persisted CA.
+        UntrustRootCa();
 
         lock (_trustGate) { _trustTimer?.Dispose(); _trustTimer = null; }
 

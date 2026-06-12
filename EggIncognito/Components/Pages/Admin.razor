@@ -53,11 +53,25 @@
           <tbody>
             @foreach (var e in _endpoints)
             {
+              var key = $"endpoint:{e.Id}";
               <tr>
                 <td class="mono">@e.Path</td>
                 <td class="mono muted">@e.Eid</td>
                 <td class="mono muted">@e.ResponseType</td>
-                <td><button class="danger" @onclick="() => DeleteEndpoint(e.Id)">delete</button></td>
+                <td>
+                  <div class="settings-wrap">
+                    <button class="danger" aria-haspopup="true" aria-expanded="@(_confirm == key)"
+                            @onclick="() => ToggleConfirm(key)">delete</button>
+                    <div class="settings-menu confirm-menu @(_confirm == key ? "open" : "")">
+                      <div class="settings-title">Delete this endpoint?</div>
+                      <div class="settings-hint">Removes the contributed endpoint from the shared DB.</div>
+                      <div class="confirm-actions">
+                        <button type="button" class="btn-mini" @onclick="@(() => _confirm = null)">Cancel</button>
+                        <button type="button" class="btn-mini btn-danger" @onclick='() => ConfirmDelete("endpoint", e.Id)'>Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                </td>
               </tr>
             }
           </tbody>
@@ -78,10 +92,24 @@
           <tbody>
             @foreach (var r in _routes)
             {
+              var key = $"route:{r.Id}";
               <tr>
                 <td class="mono">@r.Path</td>
                 <td class="mono muted">@r.ResponseType</td>
-                <td><button class="danger" @onclick="() => DeleteRoute(r.Id)">delete</button></td>
+                <td>
+                  <div class="settings-wrap">
+                    <button class="danger" aria-haspopup="true" aria-expanded="@(_confirm == key)"
+                            @onclick="() => ToggleConfirm(key)">delete</button>
+                    <div class="settings-menu confirm-menu @(_confirm == key ? "open" : "")">
+                      <div class="settings-title">Delete this route?</div>
+                      <div class="settings-hint">Removes the contributed route from the shared DB.</div>
+                      <div class="confirm-actions">
+                        <button type="button" class="btn-mini" @onclick="@(() => _confirm = null)">Cancel</button>
+                        <button type="button" class="btn-mini btn-danger" @onclick='() => ConfirmDelete("route", r.Id)'>Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                </td>
               </tr>
             }
           </tbody>
@@ -182,8 +210,17 @@
         catch (Exception ex) { _log = ex.Message; }
     }
 
-    Task DeleteEndpoint(long? id) => Delete("endpoint", id);
-    Task DeleteRoute(long? id) => Delete("route", id);
+    // Delete needs an explicit confirm step (mirrors the Capture toolbar's clear-confirm popover): the
+    // row button opens the popover, only its Delete actually fires the DELETE.
+    string? _confirm;
+
+    void ToggleConfirm(string key) => _confirm = _confirm == key ? null : key;
+
+    async Task ConfirmDelete(string kind, long? id)
+    {
+        _confirm = null;
+        await Delete(kind, id);
+    }
 
     async Task Delete(string kind, long? id)
     {

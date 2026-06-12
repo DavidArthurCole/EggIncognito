@@ -15,9 +15,12 @@ namespace EggIncognito.Capture;
 // no-op, the round-trip guarantee the capture path relies on.
 public sealed class HarWriter
 {
+    // Add runs on the proxy flow thread while ToHar/Save run on the consumer thread,
+    // so every _entries touch goes through _gate.
+    private readonly object _gate = new();
     private readonly List<object> _entries = [];
 
-    public int Count => _entries.Count;
+    public int Count { get { lock (_gate) return _entries.Count; } }
 
     public void Add(CapturedFlow flow)
     {
@@ -25,7 +28,7 @@ public sealed class HarWriter
             ? Array.Empty<object>()
             : [new { name = "data", value = flow.RequestDataB64 }];
 
-        _entries.Add(new
+        var entry = new
         {
             request = new
             {
@@ -47,7 +50,9 @@ public sealed class HarWriter
                     text = flow.ResponseBodyB64,
                 },
             },
-        });
+        };
+
+        lock (_gate) _entries.Add(entry);
     }
 
     // HAR headers[] shape: [{ name, value }]. Raw values - the HAR is the durable capture artifact,
@@ -58,13 +63,17 @@ public sealed class HarWriter
 
     public string ToHar()
     {
+        // Snapshot under the gate so serialization never enumerates a list mid-Add.
+        object[] entries;
+        lock (_gate) entries = [.. _entries];
+
         var har = new
         {
             log = new
             {
                 version = "1.2",
                 creator = new { name = "EggIncognito.Capture", version = "1.0" },
-                entries = _entries,
+                entries,
             },
         };
         return JsonSerializer.Serialize(har, new JsonSerializerOptions { WriteIndented = true });

@@ -158,7 +158,7 @@ public sealed class EndpointExtractor
 
         var request = ExtractRequestJson(requestDataB64, path, isExplicit);
 
-        string Scrub(string s) => _eid is not null ? s.Replace(_eid, _eidPlaceholder) : s;
+        string Scrub(string s) => ScrubEid(s, _eid, _eidPlaceholder);
 
         var json = FormatResponse(path, inner, _dirs.TypeMap); // already redacted
         if (json is null)
@@ -186,10 +186,10 @@ public sealed class EndpointExtractor
         if (!forceOverwrite && File.Exists(outFile))
         {
             var existing = File.ReadAllText(outFile, Encoding.UTF8);
-            if (CountJsonObjects(json) < CountJsonObjects(existing))
+            if (CountJsonFields(json) < CountJsonFields(existing))
             {
                 Counts.Loss++;
-                Out($"  loss  {slug}.json  (skipped - fewer objects than existing)");
+                Out($"  loss  {slug}.json  (skipped - fewer fields than existing)");
                 return;
             }
         }
@@ -215,8 +215,7 @@ public sealed class EndpointExtractor
             Directory.CreateDirectory(Path.GetDirectoryName(reqFile)!);
             if (!File.Exists(reqFile))
             {
-                var scrubbed = Redactor.Redact(request.Json);
-                if (_eid is not null) scrubbed = scrubbed.Replace(_eid, _eidPlaceholder);
+                var scrubbed = ScrubEid(Redactor.Redact(request.Json), _eid, _eidPlaceholder);
                 File.WriteAllText(reqFile, scrubbed, Encoding.UTF8);
                 Out($"  req   {slug}.request.json  (wrote)");
             }
@@ -392,12 +391,25 @@ public sealed class EndpointExtractor
         }
         if (postData.TryGetProperty("text", out var text))
         {
-            var raw = text.GetString() ?? "";
-            var idx = raw.IndexOf("data=", StringComparison.Ordinal);
-            if (idx >= 0) return Uri.UnescapeDataString(raw[(idx + 5)..].Replace("+", "%2B"));
+            // Form-encoded body: select the `data` key exactly, never a `data=` embedded in another
+            // value, and never the trailing `&x=...` params.
+            foreach (var pair in (text.GetString() ?? "").Split('&'))
+            {
+                var eq = pair.IndexOf('=');
+                if (eq < 0 || pair[..eq] != "data") continue;
+                return Uri.UnescapeDataString(pair[(eq + 1)..].Replace("+", "%2B"));
+            }
         }
         return null;
     }
+
+    // Replace every literal rendering of the EID, case-insensitive, including inside larger strings,
+    // so re-cased or embedded copies cannot leak. Used for both the endpoint and the redacted request
+    // dump. Static so tests can exercise it directly.
+    public static string ScrubEid(string text, string? eid, string placeholder) =>
+        string.IsNullOrEmpty(eid)
+            ? text
+            : Regex.Replace(text, Regex.Escape(eid), _ => placeholder, RegexOptions.IgnoreCase);
 
     private static string EndpointFile(string slug) => slug + ".json";
 
@@ -461,7 +473,7 @@ public sealed class EndpointExtractor
     // `requestWrapped: true`, or the legacy `requestType: AuthenticatedMessage`.
     public static HashSet<string> LoadRequestWrapped(string contentRoot)
     {
-        var yaml = File.ReadAllText(Path.Combine(contentRoot, "RouteMap", "routes.yaml"));
+        var yaml = File.ReadAllText(ContentRoot.RoutesYamlPath(contentRoot));
         var result = new HashSet<string>(StringComparer.Ordinal);
         string? currentPath = null;
         bool wrapped = false;
@@ -492,7 +504,7 @@ public sealed class EndpointExtractor
     // elsewhere.
     private static IReadOnlyDictionary<string, string> LoadInnerTypes(string contentRoot, string newKey, string legacyKey)
     {
-        var yaml = File.ReadAllText(Path.Combine(contentRoot, "RouteMap", "routes.yaml"));
+        var yaml = File.ReadAllText(ContentRoot.RoutesYamlPath(contentRoot));
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         string? currentPath = null;
         string? newVal = null, legacyVal = null;
@@ -525,7 +537,9 @@ public sealed class EndpointExtractor
         return result;
     }
 
-    private static int CountJsonObjects(string json)
+    // Richness signal for the loss guard: populated-field count, the number of ':' outside strings.
+    // Object count alone misses a same-shape dump whose fields all collapsed to defaults.
+    internal static int CountJsonFields(string json)
     {
         int count = 0;
         bool inString = false, escape = false;
@@ -539,7 +553,7 @@ public sealed class EndpointExtractor
                 continue;
             }
             if (c == '"') inString = true;
-            else if (c == '{') count++;
+            else if (c == ':') count++;
         }
         return count;
     }

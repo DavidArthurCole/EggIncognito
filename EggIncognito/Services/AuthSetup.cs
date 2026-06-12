@@ -16,7 +16,7 @@ public static class AuthSetup
         if (!dbEnabled || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
             return false;
 
-        builder.Services.AddHttpContextAccessor();
+        // IHttpContextAccessor is registered unconditionally in Program.cs; not repeated here.
         builder.Services.AddAuthentication(o =>
             {
                 o.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;

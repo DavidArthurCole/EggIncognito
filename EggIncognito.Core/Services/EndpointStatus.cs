@@ -20,8 +20,9 @@ public static class EndpointStatus
             if (r.RawResponse is not null) continue; // raw endpoints serve literals; no file needed
             var file = Path.Combine(defaultsDir, r.Path.Replace('/', Path.DirectorySeparatorChar) + ".json");
             if (!File.Exists(file)) { missing.Add(r.Path); continue; }
-            var content = File.ReadAllText(file).Trim();
-            if (content is "{}" or "{ }" or "") empty.Add(r.Path);
+            // Whitespace-insensitive: a zero-property object is empty however it is spaced.
+            var compact = Regex.Replace(File.ReadAllText(file), @"\s", "");
+            if (compact is "{}" or "") empty.Add(r.Path);
             else ok.Add(r.Path);
         }
         return new Result(ok, empty, missing);
@@ -45,7 +46,9 @@ public static class EndpointStatus
             foreach (var p in r.Missing) sb.Append($"    - {p}\n");
         }
         var yaml = File.ReadAllText(yamlPath);
-        yaml = Regex.Replace(yaml, @"(?s)\nendpoint_status:.*?(?=\n[a-z]|\z)", "");
+        // Stop at the next top-level key in the parsers' form (`\w[\w_]*:`), so keys starting with
+        // uppercase, underscore, or a digit survive the rewrite.
+        yaml = Regex.Replace(yaml, @"(?s)\nendpoint_status:.*?(?=\n\w[\w_]*:|\z)", "");
         yaml = yaml.TrimEnd() + "\n" + sb.ToString().TrimStart('\n') + "\n";
         File.WriteAllText(yamlPath, yaml);
         return yaml;

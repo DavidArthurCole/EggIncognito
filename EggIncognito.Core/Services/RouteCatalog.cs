@@ -2,9 +2,9 @@
 // compile time to emit controllers; this is the runtime equivalent so the UI knows each route's
 // request/response type and the transport framing.
 // Normalization rules are kept identical by convention with the RouteGenerator's RouteParser: new
-// `request`/`response` keys win; legacy `requestType`/`responseType` are aliases; the literal
-// "AuthenticatedMessage" in a legacy field means wrapped with inner type not yet known, so null inner
-// plus wrapped.
+// `request`/`response` keys win at the block level (a present new key, even empty, beats legacy);
+// legacy `requestType`/`responseType` are aliases; the literal "AuthenticatedMessage" in a legacy
+// field means wrapped with inner type not yet known, so null inner plus wrapped.
 
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
@@ -19,7 +19,13 @@ public sealed record RouteInfo(
     bool ResponseWrapped,
     string? RawResponse,
     bool PathParam,
-    bool PathParamOnly);
+    bool PathParamOnly)
+{
+    /// <summary>Alternate request paths that resolve to this route (old names kept after a
+    /// rename to the canonical auxbrain path). Runtime-only: the generator ignores aliases,
+    /// so no controller is emitted for them; resolution happens via the catch-all.</summary>
+    public IReadOnlyList<string> Aliases { get; init; } = [];
+}
 
 public interface IRouteCatalog
 {
@@ -47,31 +53,16 @@ public sealed class RouteCatalog : IRouteCatalog
     public RouteInfo? Get(string path) =>
         _byPath.TryGetValue(path, out var e) ? e : null;
 
-    private static string ResolveYamlPath(IConfiguration config)
-    {
-        var configured = config["RoutesYamlPath"];
-        if (!string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;
-
-        // Search up from the app base dir for RouteMap/routes.yaml. Works from bin/ in dev or the
-        // published app dir.
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "RouteMap", "routes.yaml");
-            if (File.Exists(candidate)) return candidate;
-            var nested = Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
-            if (File.Exists(nested)) return nested;
-            dir = dir.Parent;
-        }
-        return Path.Combine(AppContext.BaseDirectory, "RouteMap", "routes.yaml");
-    }
+    private static string ResolveYamlPath(IConfiguration config) =>
+        ContentRoot.ResolveRouteMapFile(config["RoutesYamlPath"], "routes.yaml");
 
     // Raw, pre-normalization values collected per route block.
     private sealed class Block
     {
         public string? Path, Request, Response, RawResponse, LegacyReq, LegacyRes;
         public bool? RequestWrapped, ResponseWrapped;
-        public bool PathParam, PathParamOnly;
+        public bool PathParam, PathParamOnly, HasRequest, HasResponse, InAliases;
+        public List<string> Aliases = [];
     }
 
     // Minimal line-based parser. Only reads the `routes:` section, stopping at the next top-level key.
@@ -101,8 +92,15 @@ public sealed class RouteCatalog : IRouteCatalog
             }
             if (!inRoutes) continue;
 
-            var pathMatch = Regex.Match(line, @"^\s+-\s+path:\s+(.+?)\s*$");
-            if (pathMatch.Success) { Flush(); b = new Block { Path = pathMatch.Groups[1].Value.Trim().TrimEnd('/') }; continue; }
+            var pathMatch = Regex.Match(line, @"^\s+-\s+path:\s*(.*?)\s*$");
+            if (pathMatch.Success)
+            {
+                Flush();
+                var path = pathMatch.Groups[1].Value.Trim().TrimEnd('/');
+                // Empty path starts a dead block: its keys are absorbed but never emitted.
+                b = new Block { Path = path.Length == 0 ? null : path };
+                continue;
+            }
             if (b is null) continue;
 
             ApplyLine(b, line);
@@ -120,24 +118,40 @@ public sealed class RouteCatalog : IRouteCatalog
             return m.Success ? m.Groups[1].Value : null;
         }
 
+        // Block-sequence items under an `aliases:` key. Any non-item line ends the list
+        // and is processed normally.
+        if (b.InAliases)
+        {
+            var item = Regex.Match(line, @"^\s+-\s*([^#]*?)\s*(?:#.*)?$");
+            if (item.Success)
+            {
+                if (item.Groups[1].Value.Length > 0) b.Aliases.Add(item.Groups[1].Value);
+                return;
+            }
+            b.InAliases = false;
+        }
+
         string? v;
         if ((v = V("requestType")) is not null) b.LegacyReq = v;
         else if ((v = V("responseType")) is not null) b.LegacyRes = v;
-        else if ((v = V("request")) is not null) b.Request = NullIfEmpty(v);
-        else if ((v = V("response")) is not null) b.Response = NullIfEmpty(v);
+        else if ((v = V("request")) is not null) { b.Request = NullIfEmpty(v); b.HasRequest = true; }
+        else if ((v = V("response")) is not null) { b.Response = NullIfEmpty(v); b.HasResponse = true; }
         else if ((v = V("requestWrapped")) is not null) b.RequestWrapped = v == "true";
         else if ((v = V("responseWrapped")) is not null) b.ResponseWrapped = v == "true";
         else if ((v = V("rawResponse")) is not null) b.RawResponse = v.Trim('"');
         else if ((v = V("pathParamOnly")) is not null) b.PathParamOnly = v == "true";
         else if ((v = V("pathParam")) is not null) b.PathParam = v == "true";
+        else if (V("aliases") is not null) b.InAliases = true;
     }
 
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
 
     private static RouteInfo Emit(Block b)
     {
-        var (reqType, reqWrapDefault) = Normalize(b.Request, b.LegacyReq);
-        var (resType, resWrapDefault) = Normalize(b.Response, b.LegacyRes);
+        // New keys win at the block level: a present `request`/`response` (even empty)
+        // overrides any legacy `requestType`/`responseType` in the same block.
+        var (reqType, reqWrapDefault) = Normalize(b.HasRequest ? b.Request : b.LegacyReq);
+        var (resType, resWrapDefault) = Normalize(b.HasResponse ? b.Response : b.LegacyRes);
         return new RouteInfo(
             Path: b.Path!,
             Request: b.PathParamOnly ? null : reqType,
@@ -146,13 +160,13 @@ public sealed class RouteCatalog : IRouteCatalog
             ResponseWrapped: b.ResponseWrapped ?? resWrapDefault,
             RawResponse: b.RawResponse,
             PathParam: b.PathParam,
-            PathParamOnly: b.PathParamOnly);
+            PathParamOnly: b.PathParamOnly)
+        { Aliases = b.Aliases };
     }
 
     // Returns (innerType, wrappedDefault). "AuthenticatedMessage" maps to (null, true).
-    private static (string? type, bool wrapped) Normalize(string? newKey, string? legacy)
+    private static (string? type, bool wrapped) Normalize(string? v)
     {
-        var v = newKey ?? legacy;
         if (v is null) return (null, false);
         if (v == "AuthenticatedMessage") return (null, true);
         return (v, false);

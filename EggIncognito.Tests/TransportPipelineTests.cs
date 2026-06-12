@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Google.Protobuf;
 using Microsoft.Extensions.Configuration;
 using EggIncognito.Services;
@@ -180,6 +181,77 @@ public class TransportPipelineTests
         Assert.Contains(result.Stages, s => s.Name == "authenticated-message");
         Assert.Contains("99", result.Json);
     }
+
+    [Fact]
+    public void Decode_WrappedCompressedResponse_InflatesThenParses()
+    {
+        var pipe = Build();
+        var response = new Ei.ContractsInfoResponse { ServerTime = 42.0 };
+        byte[] gz;
+        using (var ms = new MemoryStream())
+        {
+            using (var z = new GZipStream(ms, CompressionMode.Compress))
+                z.Write(response.ToByteArray());
+            gz = ms.ToArray();
+        }
+        var wrapped = new Ei.AuthenticatedMessage
+        {
+            Message = ByteString.CopyFrom(gz),
+            Compressed = true,
+        };
+        var b64 = Convert.ToBase64String(wrapped.ToByteArray());
+
+        var result = pipe.Decode(b64, Ei.ContractsInfoResponse.Parser);
+
+        Assert.Null(result.Error);
+        Assert.Contains(result.Stages, s => s.Name == "authenticated-message");
+        Assert.Contains(result.Stages, s => s.Name == "inflate");
+        Assert.Contains("42", result.Json);
+    }
+
+    [Fact]
+    public void Decode_UnwrappedResponseResemblingEnvelope_PrefersDirectParse()
+    {
+        // An unwrapped response whose field 1 is length-delimited also "parses" as an
+        // AuthenticatedMessage (field 1 = message). serverTime is field 4 wire i64 while the
+        // envelope's compressed (field 4) is varint, so the envelope-shape gate must route these
+        // bytes to the direct path instead of mislabeling them wrapped and dropping serverTime.
+        var pipe = Build();
+        var response = new Ei.ContractsInfoResponse
+        {
+            ServerTime = 1.5,
+            // The contract entry's bytes (0x0A 0x00) are themselves valid wire shape, so they
+            // tolerantly re-parse as the response type and the old wrapped-first path won.
+            Contracts = { new Ei.Contract { Identifier = "" } },
+        };
+        var b64 = Convert.ToBase64String(response.ToByteArray());
+
+        var result = pipe.Decode(b64, Ei.ContractsInfoResponse.Parser);
+
+        Assert.Null(result.Error);
+        Assert.DoesNotContain(result.Stages, s => s.Name == "authenticated-message");
+        Assert.Contains(result.Stages, s => s.Name == "proto-decode");
+        Assert.Contains("serverTime", result.Json);
+    }
+
+    [Fact]
+    public void Decode_WrappedPath_SwallowsOnlyProtoAndDataExceptions()
+    {
+        // The wrapped-path probe swallows InvalidProtocolBufferException/InvalidDataException
+        // (the expected "not actually wrapped" signals) and falls back to the direct parse.
+        // Anything else must propagate instead of being masked as a direct-parse error.
+        var pipe = Build();
+        var wrapped = new Ei.AuthenticatedMessage
+        {
+            Message = ByteString.CopyFrom(new Ei.ContractsInfoResponse { ServerTime = 1.0 }.ToByteArray()),
+        };
+        var b64 = Convert.ToBase64String(wrapped.ToByteArray());
+        var throwingParser = new MessageParser<Ei.ContractsInfoResponse>(
+            () => throw new InvalidOperationException("boom"));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => pipe.Decode(b64, throwingParser));
+        Assert.Equal("boom", ex.Message);
+    }
 }
 
 public class RouteCatalogTests
@@ -299,5 +371,30 @@ public class ProtoReflectionTests
     public void FindParser_UnknownType_ReturnsNull()
     {
         Assert.Null(new ProtoReflection().FindParser("NotARealType"));
+    }
+
+    [Fact]
+    public void Find_RepeatedLookups_ReturnSameCachedInstances()
+    {
+        var reflection = new ProtoReflection();
+        var parser = reflection.FindParser("ContractsInfoRequest");
+        var descriptor = reflection.FindMessage("ContractsInfoRequest");
+        Assert.NotNull(parser);
+        Assert.NotNull(descriptor);
+
+        // Same instance on repeated calls, also via the "Ei."-prefixed alias and a fresh instance:
+        // the cache is keyed by short name and shared.
+        Assert.Same(parser, reflection.FindParser("ContractsInfoRequest"));
+        Assert.Same(parser, reflection.FindParser("Ei.ContractsInfoRequest"));
+        Assert.Same(descriptor, new ProtoReflection().FindMessage("ContractsInfoRequest"));
+    }
+
+    [Fact]
+    public void FindParser_UnknownType_StaysNullOnRepeatedProbes()
+    {
+        var reflection = new ProtoReflection();
+        Assert.Null(reflection.FindParser("StillNotARealType"));
+        Assert.Null(reflection.FindParser("StillNotARealType"));
+        Assert.Null(reflection.FindMessage("StillNotARealType"));
     }
 }

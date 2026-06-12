@@ -14,7 +14,10 @@ public sealed class ImportController(IConfiguration config, IAppMode appMode) : 
 {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
 
+    // 100 MB cap: real capture-session HARs run tens of MB (base64 proto bodies inflate fast), so
+    // this is generous headroom while still bounding a hostile upload.
     [HttpPost("har")]
+    [RequestSizeLimit(100 * 1024 * 1024)]
     public async Task<IActionResult> Har(IFormFile file, [FromQuery] bool overwrite = false)
     {
         if (!appMode.CanWrite) return StatusCode(403, new { error = "imports are disabled in hosted mode" });

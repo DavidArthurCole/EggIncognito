@@ -50,4 +50,50 @@ public class UserUpsertTests
         Assert.Equal(later, row.LastLoginAt);
         Assert.Equal(created, row.CreatedAt); // unchanged
     }
+
+    private static readonly AdminAllowlist NoAdmins = AdminAllowlist.FromConfig(null);
+
+    [Fact]
+    public void Upsert_NewUser_BuildsViewerRowToInsert()
+    {
+        var (row, isNew) = UserUpsert.Upsert(null, new UserUpsert.Info("123", "alice", "abc"), NoAdmins, DateTimeOffset.UnixEpoch);
+        Assert.True(isNew);
+        Assert.Equal("123", row.DiscordId);
+        Assert.Equal("viewer", row.Role);
+        Assert.Equal(DateTimeOffset.UnixEpoch, row.LastLoginAt);
+    }
+
+    [Fact]
+    public void Upsert_ExistingUser_UpdatesInPlace_KeepsStoredRole()
+    {
+        var existing = new User { DiscordId = "123", Username = "old", Role = "contributor" };
+        var (row, isNew) = UserUpsert.Upsert(existing, new UserUpsert.Info("123", "alice", null), NoAdmins, DateTimeOffset.UnixEpoch);
+        Assert.False(isNew);
+        Assert.Same(existing, row);
+        Assert.Equal("alice", row.Username);
+        Assert.Equal("contributor", row.Role);
+    }
+
+    [Fact]
+    public void Upsert_AllowlistedUser_RepromotedToAdmin()
+    {
+        var existing = new User { DiscordId = "123", Username = "alice", Role = "viewer" };
+        var allow = AdminAllowlist.FromConfig("123");
+        var (row, _) = UserUpsert.Upsert(existing, new UserUpsert.Info("123", "alice", null), allow, DateTimeOffset.UnixEpoch);
+        Assert.Equal("admin", row.Role);
+    }
+
+    [Fact]
+    public void StampRoleClaim_AddsRoleClaim()
+    {
+        var identity = new ClaimsIdentity();
+        UserUpsert.StampRoleClaim(identity, "admin");
+        Assert.Equal("admin", identity.FindFirst(UserRoles.ClaimType)?.Value);
+    }
+
+    [Fact]
+    public void StampRoleClaim_NullIdentity_NoThrow()
+    {
+        UserUpsert.StampRoleClaim(null, "viewer");
+    }
 }

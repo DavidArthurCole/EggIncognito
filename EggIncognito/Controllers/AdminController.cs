@@ -36,14 +36,19 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     public async Task<IActionResult> SetUserRole(string discordId, [FromBody] SetRole body)
     {
         if (RequireAdmin() is { } no) return no;
+        // Validate the raw role first: UserRoles.Parse coerces unknown names to viewer, which would
+        // silently demote on a typo and let a malformed role slip past the self-lockout guard.
+        var role = (body.Role ?? "").Trim().ToLowerInvariant();
+        if (role is not ("viewer" or "contributor" or "admin"))
+            return BadRequest(new { error = $"unknown role '{body.Role}'" });
         // Self-lockout guard runs before the DB resolve so it is testable without a live DB.
-        if (discordId == currentUser.DiscordId && UserRoles.Parse(body.Role) != UserRole.Admin)
+        if (discordId == currentUser.DiscordId && role != "admin")
             return BadRequest(new { error = "cannot remove your own admin role" });
 
         var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
         var user = await db.Users.FirstOrDefaultAsync(u => u.DiscordId == discordId);
         if (user is null) return NotFound(new { error = "user not found" });
-        user.Role = UserRoles.ToName(UserRoles.Parse(body.Role)); // normalize + validate
+        user.Role = role; // already normalized + validated above
         await db.SaveChangesAsync();
         return Ok(new { discordId, role = user.Role });
     }

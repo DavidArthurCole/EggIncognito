@@ -23,16 +23,29 @@ public static class TypeEmitter
     ];
 
     // outPath: the full path of the types.d.ts file to write (the MSBuild target supplies it).
-    public static int Run(string outPath)
+    public static int Run(string outPath) => Run(outPath, Roots);
+
+    // Internal overload so tests can inject roots. Returns nonzero (failing the build target) on a
+    // simple-name collision: the TS interface name is t.Name, so two CLR types sharing a simple name
+    // would silently overwrite each other in the emitted file.
+    internal static int Run(string outPath, Type[] roots)
     {
         var emitted = new Dictionary<string, string>(StringComparer.Ordinal);
-        var queue = new Queue<Type>(Roots);
+        var byName = new Dictionary<string, Type>(StringComparer.Ordinal);
+        var queue = new Queue<Type>(roots);
         var seen = new HashSet<Type>();
 
         while (queue.Count > 0)
         {
             var t = queue.Dequeue();
             if (!seen.Add(t)) continue;
+            if (byName.TryGetValue(t.Name, out var clash))
+            {
+                Console.Error.WriteLine(
+                    $"error: TS interface name collision: '{clash.FullName}' and '{t.FullName}' both emit '{t.Name}'. Rename one record.");
+                return 1;
+            }
+            byName[t.Name] = t;
             emitted[t.Name] = EmitType(t, queue);
         }
 
@@ -42,7 +55,7 @@ public static class TypeEmitter
         sb.AppendLine("// to match the JsonSerializerDefaults.Web casing used on the wire.");
         sb.AppendLine();
         // Stable order: roots first in declared order, then the rest alphabetical.
-        foreach (var name in Roots.Select(r => r.Name).Concat(emitted.Keys.Except(Roots.Select(r => r.Name)).OrderBy(x => x)))
+        foreach (var name in roots.Select(r => r.Name).Concat(emitted.Keys.Except(roots.Select(r => r.Name)).OrderBy(x => x)))
             if (emitted.TryGetValue(name, out var body))
                 sb.AppendLine(body);
 

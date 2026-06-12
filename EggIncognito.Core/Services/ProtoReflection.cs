@@ -2,6 +2,7 @@
 // the Inspector UI renders, and resolves message types and parsers by name. Always in sync with the
 // real proto - no text parsing.
 
+using System.Collections.Concurrent;
 using System.Reflection;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
@@ -40,8 +41,27 @@ public sealed class ProtoReflection : IProtoReflection
     private static string Short(string typeName) =>
         typeName.StartsWith("Ei.", StringComparison.Ordinal) ? typeName[3..] : typeName;
 
-    private Type? ClrType(string typeName) =>
-        EiAssembly.GetType("Ei." + Short(typeName));
+    // Descriptor + parser cache, keyed by short type name. Positive entries only: hits are bounded
+    // by the Ei assembly's type count, while unknown names arrive from user input (Inspector type
+    // fields, forensics root types) and caching misses would grow the dictionary without bound.
+    private static readonly ConcurrentDictionary<string, (MessageDescriptor Descriptor, MessageParser Parser)> Cache =
+        new(StringComparer.Ordinal);
+
+    private static (MessageDescriptor Descriptor, MessageParser Parser)? Resolve(string typeName)
+    {
+        var key = Short(typeName);
+        if (Cache.TryGetValue(key, out var hit)) return hit;
+
+        var clr = EiAssembly.GetType("Ei." + key);
+        var descriptor = clr?.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static)
+            ?.GetValue(null) as MessageDescriptor;
+        var parser = clr?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
+            ?.GetValue(null) as MessageParser;
+        if (descriptor is null || parser is null) return null;
+
+        Cache.TryAdd(key, (descriptor, parser));
+        return (descriptor, parser);
+    }
 
     // Cached: every top-level concrete IMessage type in the Ei assembly, by short name, sorted. Only
     // top-level types are included (DeclaringType == null) so every listed name resolves through
@@ -60,19 +80,9 @@ public sealed class ProtoReflection : IProtoReflection
 
     public IReadOnlyList<string> AllMessageTypeNames() => AllNames.Value;
 
-    public MessageDescriptor? FindMessage(string typeName)
-    {
-        var clr = ClrType(typeName);
-        var prop = clr?.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static);
-        return prop?.GetValue(null) as MessageDescriptor;
-    }
+    public MessageDescriptor? FindMessage(string typeName) => Resolve(typeName)?.Descriptor;
 
-    public MessageParser? FindParser(string typeName)
-    {
-        var clr = ClrType(typeName);
-        var prop = clr?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static);
-        return prop?.GetValue(null) as MessageParser;
-    }
+    public MessageParser? FindParser(string typeName) => Resolve(typeName)?.Parser;
 
     public SchemaMessage? Schema(string typeName)
     {

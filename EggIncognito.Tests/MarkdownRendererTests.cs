@@ -157,4 +157,28 @@ public class MarkdownRendererTests
     {
         Assert.Equal("", MarkdownRenderer.Render(src));
     }
+
+    [Fact]
+    public void Link_QuoteInUrl_CannotBreakOutOfHrefAttribute()
+    {
+        // A stray quote in the URL must never close the href attribute and smuggle in a handler.
+        var html = MarkdownRenderer.Render("[x](https://example.com/\" onmouseover=\"alert(1))");
+        Assert.DoesNotContain("onmouseover=\"", html); // no raw quote reaches the attribute
+        Assert.Contains("&quot;", html); // it arrives entity-escaped instead
+    }
+
+    [Fact]
+    public void Image_QuoteInUrl_CannotBreakOutOfSrcAttribute()
+    {
+        var html = MarkdownRenderer.Render("![x](https://example.com/\" onerror=\"alert(1))");
+        Assert.DoesNotContain("onerror=\"", html);
+        Assert.Contains("&quot;", html);
+    }
+
+    [Fact]
+    public void Image_QuoteInAltText_CannotBreakOutOfAltAttribute()
+    {
+        var html = MarkdownRenderer.Render("![a\"b](https://example.com/c.png)");
+        Assert.Contains("alt=\"a&quot;b\"", html);
+    }
 }

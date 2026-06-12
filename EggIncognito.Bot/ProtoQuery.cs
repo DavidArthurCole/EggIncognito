@@ -27,6 +27,18 @@ public static class ProtoQuery
             .Take(25).ToList();
     }
 
+    // Discord caps embed descriptions at 4096 chars; the router wraps type dumps in a code fence.
+    // 4000 leaves headroom for the fence + newlines so EmbedBuilder.Build() never throws.
+    public const int MaxDescription = 4000;
+
+    // Clamps text to max chars, replacing the tail with a truncation marker when over budget.
+    public static string Truncate(string text, int max = MaxDescription)
+    {
+        const string marker = "\n... (truncated)";
+        if (text.Length <= max) return text;
+        return text[..Math.Max(0, max - marker.Length)] + marker;
+    }
+
     // One line per field: "#N name: type[<MessageType>][ repeated][ = enum{A,B}]".
     public static string TypeLines(SchemaMessage msg)
     {

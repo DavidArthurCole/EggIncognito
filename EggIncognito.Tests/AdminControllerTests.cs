@@ -42,4 +42,24 @@ public class AdminControllerTests
         var r = await Controller(UserRole.Admin, "me").SetUserRole("me", new AdminController.SetRole("viewer"));
         Assert.Equal(400, ((IStatusCodeActionResult)r).StatusCode);
     }
+
+    // Unknown roles must 400, never coerce to viewer: a typo'd role would otherwise silently demote
+    // (200) and a malformed role aimed at yourself would slip past the self-lockout guard.
+    [Theory]
+    [InlineData("superuser")]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task Admin_SetUnknownRole_Is400(string? role)
+    {
+        var r = await Controller(UserRole.Admin).SetUserRole("other", new AdminController.SetRole(role!));
+        var bad = Assert.IsType<BadRequestObjectResult>(r);
+        Assert.Contains("unknown role", bad.Value!.ToString());
+    }
+
+    [Fact]
+    public async Task Admin_SelfWithMalformedRole_Is400_NotDemoted()
+    {
+        var r = await Controller(UserRole.Admin, "me").SetUserRole("me", new AdminController.SetRole("admln"));
+        Assert.Equal(400, ((IStatusCodeActionResult)r).StatusCode);
+    }
 }

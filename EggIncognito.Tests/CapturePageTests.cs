@@ -1,4 +1,5 @@
 using Bunit;
+using EggIncognito.Capture;
 using EggIncognito.Components.Capture;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -76,6 +77,59 @@ public class CapturePageTests
             Assert.Contains("<mark>", cut.Markup);
             Assert.Contains("jtree-dim", cut.Markup);
             Assert.Contains("1 match", cut.Markup);
+        }
+
+        [Fact]
+        public void FormatView_BlurredValue_TogglesRevealOnClick()
+        {
+            // Blur mode + a sensitive key: the value renders blurred, and clicking the span toggles
+            // the .revealed class (state keyed by value, so it survives the text-body rebuild).
+            var view = new CaptureViewState { RedactionMode = "blur", DefaultFormat = "json" };
+            var cut = Render<FormatView>(p => p
+                .Add(c => c.Label, "Request")
+                .Add(c => c.JsonStr, "{\"eiUserId\":\"EI1234567890\"}")
+                .Add(c => c.View, view));
+
+            var span = cut.Find(".blurred");
+            Assert.DoesNotContain("revealed", span.GetAttribute("class"));
+            span.Click();
+            Assert.Contains("revealed", cut.Find(".blurred").GetAttribute("class"));
+            cut.Find(".blurred").Click();
+            Assert.DoesNotContain("revealed", cut.Find(".blurred").GetAttribute("class"));
+        }
+
+        [Fact]
+        public void FlowList_AutoScroll_ScrollsToNewestOnNewFlow()
+        {
+            var module = JSInterop.SetupModule("./interop/scroll.js");
+            module.SetupVoid("scrollToBottom", _ => true);
+
+            var flows = new List<DashboardFlow>
+            {
+                new(1, "12:00:00", "ei/first_contact", "POST", 200, null, null, "", null),
+            };
+            var cut = Render<FlowList>(p => p
+                .Add(c => c.Flows, flows)
+                .Add(c => c.View, new CaptureViewState { AutoScroll = true }));
+
+            cut.WaitForAssertion(() => module.VerifyInvoke("scrollToBottom"));
+        }
+
+        [Fact]
+        public void FlowList_AutoScrollOff_DoesNotScroll()
+        {
+            var module = JSInterop.SetupModule("./interop/scroll.js");
+            module.SetupVoid("scrollToBottom", _ => true);
+
+            var flows = new List<DashboardFlow>
+            {
+                new(1, "12:00:00", "ei/first_contact", "POST", 200, null, null, "", null),
+            };
+            Render<FlowList>(p => p
+                .Add(c => c.Flows, flows)
+                .Add(c => c.View, new CaptureViewState { AutoScroll = false }));
+
+            module.VerifyNotInvoke("scrollToBottom");
         }
 
         [Fact]

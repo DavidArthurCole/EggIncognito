@@ -151,8 +151,9 @@ public sealed class TransportPipeline : ITransportPipeline
             return new DecodeResult(stages, null, "no parser for this endpoint's response type");
 
         // The real auxbrain API wraps responses in an AuthenticatedMessage, optionally compressed. The
-        // EggIncognito mock returns the raw response message directly. Try the wrapped path first; if
-        // the inner payload doesn't parse as the response type, fall back to the response bytes directly.
+        // EggIncognito mock returns the raw response message directly. Try the wrapped path first (gated
+        // on the bytes matching the envelope wire shape, see LooksLikeAuthEnvelope); if the inner payload
+        // doesn't parse as the response type, fall back to the response bytes directly.
         var wrapped = TryDecodeWrapped(respBytes, responseParser);
         if (wrapped is not null)
         {
@@ -179,6 +180,11 @@ public sealed class TransportPipeline : ITransportPipeline
     private (IReadOnlyList<TransportStage> Stages, string Json)? TryDecodeWrapped(
         byte[] respBytes, MessageParser responseParser)
     {
+        // Protobuf parsing is permissive: an unwrapped response whose field 1 is length-delimited can
+        // also "parse" as an AuthenticatedMessage, mislabeling a mock response as wrapped and silently
+        // dropping its other fields. The envelope schema is frozen, so require every top-level field to
+        // match it before committing to the wrapped path.
+        if (!LooksLikeAuthEnvelope(respBytes)) return null;
         try
         {
             var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(respBytes);
@@ -201,10 +207,41 @@ public sealed class TransportPipeline : ITransportPipeline
                 inner.Length, null, null, "see JSON below", Role: RolePayload));
             return (stages, json);
         }
-        catch
+        catch (Exception ex) when (ex is InvalidProtocolBufferException or InvalidDataException)
         {
+            // The expected "not actually wrapped" signals: malformed envelope/inner proto or a corrupt
+            // compressed payload. The caller falls back to the direct parse. Anything else propagates
+            // instead of masquerading as a direct-parse failure.
             return null;
         }
+    }
+
+    // True when every top-level field of the bytes matches the AuthenticatedMessage wire shape
+    // (message=1/code=2/user_id=6 length-delimited; version=3/compressed=4/original_size=5 varint).
+    // Any field outside that frozen envelope schema means the bytes are an unwrapped response, even
+    // though a lenient ParseFrom would tolerate it as an unknown field.
+    private static bool LooksLikeAuthEnvelope(byte[] bytes)
+    {
+        try
+        {
+            using var input = new CodedInputStream(bytes);
+            uint tag;
+            while ((tag = input.ReadTag()) != 0)
+            {
+                int field = WireFormat.GetTagFieldNumber(tag);
+                var wire = WireFormat.GetTagWireType(tag);
+                bool known = (field, wire) switch
+                {
+                    (1 or 2 or 6, WireFormat.WireType.LengthDelimited) => true,
+                    (3 or 4 or 5, WireFormat.WireType.Varint) => true,
+                    _ => false,
+                };
+                if (!known) return false;
+                input.SkipLastField();
+            }
+            return true;
+        }
+        catch (InvalidProtocolBufferException) { return false; }
     }
 
     private static TransportStage Stage(string name, string desc, byte[] bytes, string? note = null, string? role = null) =>

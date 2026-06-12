@@ -30,6 +30,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         b.Entity<StoredRoute>(r =>
         {
             r.HasIndex(x => x.Path).IsUnique();
+            // DbRouteProvider.AllDbRoutes filters on source alone; without this it full-scans.
+            r.HasIndex(x => x.Source);
             r.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
         b.Entity<User>(u =>
@@ -49,8 +51,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         });
         b.Entity<SubjectTag>(s =>
         {
+            // The composite unique index also serves (subject_kind, subject_key) prefix lookups.
             s.HasIndex(x => new { x.SubjectKind, x.SubjectKey, x.TagId }).IsUnique();
-            s.HasIndex(x => new { x.SubjectKind, x.SubjectKey });
         });
         b.Entity<DocImage>(im =>
         {

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EggIncognito.Services;
 using Google.Protobuf;
 using EggIncognito.Capture;
@@ -82,5 +83,37 @@ needs_capture:
         // The data param must be present so EndpointExtractor.ReadRequestData can recover it.
         Assert.Contains("\"data\"", har);
         Assert.Contains("AAEC", har);
+    }
+
+    // Regression: Add runs on the proxy flow thread while ToHar runs on the consumer thread.
+    // An unguarded List would throw or serialize a torn snapshot under this interleaving.
+    [Fact]
+    public async Task HarWriter_ConcurrentAddAndToHar_NeverThrows_AndSnapshotsParse()
+    {
+        var flow = new CapturedFlow(Url, "POST", 200, RequestDataB64: "AAEC", ResponseBodyB64: ResponseB64());
+        var writer = new HarWriter();
+        const int total = 2000;
+        using var start = new ManualResetEventSlim(false);
+
+        var adder = Task.Run(() =>
+        {
+            start.Wait();
+            for (var i = 0; i < total; i++) writer.Add(flow);
+        });
+        var serializer = Task.Run(() =>
+        {
+            start.Wait();
+            while (writer.Count < total)
+            {
+                // Every snapshot must be valid JSON, never a torn enumeration.
+                using var doc = JsonDocument.Parse(writer.ToHar());
+            }
+        });
+        start.Set();
+        await Task.WhenAll(adder, serializer);
+
+        using var final = JsonDocument.Parse(writer.ToHar());
+        var entries = final.RootElement.GetProperty("log").GetProperty("entries");
+        Assert.Equal(total, entries.GetArrayLength());
     }
 }

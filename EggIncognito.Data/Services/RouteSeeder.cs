@@ -42,23 +42,32 @@ public static class RouteSeeder
         row.PathParamOnly = r.PathParamOnly;
     }
 
-    public static async Task SeedAsync(EggIncognitoDbContext db, IRouteCatalog yamlCatalog, CancellationToken ct = default)
+    // Pure seed pass over preloaded rows: drifted yaml rows are mutated in place, missing routes are
+    // returned as new rows to insert, and rows whose source is not "yaml" are never touched.
+    public static List<StoredRoute> Plan(IEnumerable<StoredRoute> existingRows, IEnumerable<RouteInfo> catalog)
     {
-        var existing = await db.StoredRoutes
-            .Where(r => r.Source == "yaml")
-            .ToDictionaryAsync(r => r.Path, ct);
-
-        foreach (var info in yamlCatalog.All())
+        var yaml = existingRows.Where(r => r.Source == "yaml").ToDictionary(r => r.Path);
+        var toAdd = new List<StoredRoute>();
+        foreach (var info in catalog)
         {
-            if (existing.TryGetValue(info.Path, out var row))
+            if (yaml.TryGetValue(info.Path, out var row))
             {
                 if (NeedsUpdate(row, info)) Apply(row, info);
             }
             else
             {
-                db.StoredRoutes.Add(ToYamlRow(info));
+                toAdd.Add(ToYamlRow(info));
             }
         }
+        return toAdd;
+    }
+
+    public static async Task SeedAsync(EggIncognitoDbContext db, IRouteCatalog yamlCatalog, CancellationToken ct = default)
+    {
+        var existing = await db.StoredRoutes
+            .Where(r => r.Source == "yaml")
+            .ToListAsync(ct);
+        db.StoredRoutes.AddRange(Plan(existing, yamlCatalog.All()));
         await db.SaveChangesAsync(ct);
     }
 }

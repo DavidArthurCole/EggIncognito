@@ -14,6 +14,8 @@ public static class WireForensics
     public sealed record HexWindow(int From, int To, int ErrorIndexInWindow, string Hex);
     public sealed record SalvagedString(int Offset, string Text);
 
+    // DataStart/DataEnd = the exact LEN payload byte range [DataStart, DataEnd); null for non-LEN
+    // fields and for LEN fields whose declared length overruns the region.
     public sealed record WireNode(
         string Path,
         string? ResolvedName,
@@ -21,6 +23,8 @@ public static class WireForensics
         string Wire,
         int Offset,
         int? Len,
+        int? DataStart,
+        int? DataEnd,
         bool SchemaMismatch,
         IReadOnlyList<WireNode> Children);
 
@@ -81,6 +85,12 @@ public static class WireForensics
         throw new WireException("truncated varint (hit end of buffer)", start);
     }
 
+    // Guard for LEN payload lengths: true when the declared length fits in [pos, end). Checked as ulong
+    // BEFORE narrowing to int so an oversized varint cannot wrap negative and defeat the bounds check
+    // (out-of-bounds slices / backward re-parse loops).
+    static bool LenFits(ulong declaredLen, int pos, int end) =>
+        pos <= end && declaredLen <= (ulong)(end - pos);
+
     // Heuristic: does a LEN payload [start,end) parse cleanly as a nested message (descend) or is it a
     // leaf string/bytes/packed (don't descend)? Clean = every field reads to exactly end.
     static bool LooksLikeMessage(ReadOnlySpan<byte> buf, int start, int end)
@@ -103,6 +113,7 @@ public static class WireForensics
                     case 5: pos += 4; break;
                     case 2:
                         var (len, lnext) = ReadVarint(buf, pos);
+                        if (!LenFits(len, lnext, end)) return false;
                         pos = lnext + (int)len;
                         break;
                     default: return false; // groups / illegal => bail
@@ -132,6 +143,7 @@ public static class WireForensics
             if (field == 0) { ctx.Record(fieldPath, null, fieldOffset, "field number 0 (illegal)"); break; }
 
             int? len = null;
+            int? dataStart = null, dataEnd = null;
             List<WireNode> children = [];
             try
             {
@@ -147,14 +159,16 @@ public static class WireForensics
                         if (pos > end) throw new WireException("i32 overruns region", fieldOffset);
                         break;
                     case 2:
-                        var (l, dataStart) = ReadVarint(buf, pos);
-                        int dataEnd = dataStart + (int)l;
-                        len = (int)l;
-                        if (dataEnd > end)
-                            throw new WireException($"len-field declares {len} bytes but only {end - dataStart} remain (overrun)", fieldOffset);
-                        if (depth < MaxDepth && ctx.NodeCount < MaxNodes && LooksLikeMessage(buf, dataStart, dataEnd))
-                            children = WalkMessage(buf, dataStart, dataEnd, fieldPath, depth + 1, ctx);
-                        pos = dataEnd;
+                        var (l, bodyStart) = ReadVarint(buf, pos);
+                        if (l <= int.MaxValue) len = (int)l;
+                        if (!LenFits(l, bodyStart, end))
+                            throw new WireException($"len-field declares {l} bytes but only {System.Math.Max(0, end - bodyStart)} remain (overrun)", fieldOffset);
+                        int bodyEnd = bodyStart + (int)l;
+                        dataStart = bodyStart;
+                        dataEnd = bodyEnd;
+                        if (depth < MaxDepth && ctx.NodeCount < MaxNodes && LooksLikeMessage(buf, bodyStart, bodyEnd))
+                            children = WalkMessage(buf, bodyStart, bodyEnd, fieldPath, depth + 1, ctx);
+                        pos = bodyEnd;
                         break;
                     default:
                         throw new WireException($"illegal wire type {wire}", fieldOffset);
@@ -163,12 +177,12 @@ public static class WireForensics
             catch (WireException e)
             {
                 ctx.Record(fieldPath, null, e.Offset, e.Message);
-                nodes.Add(new WireNode(fieldPath, null, field, WireNames[wire], fieldOffset, len, false, children));
+                nodes.Add(new WireNode(fieldPath, null, field, WireNames[wire], fieldOffset, len, dataStart, dataEnd, false, children));
                 break;
             }
 
             ctx.NodeCount++;
-            nodes.Add(new WireNode(fieldPath, null, field, WireNames[wire], fieldOffset, len, false, children));
+            nodes.Add(new WireNode(fieldPath, null, field, WireNames[wire], fieldOffset, len, dataStart, dataEnd, false, children));
             if (ctx.NodeCount >= MaxNodes) break;
         }
         return nodes;
@@ -261,18 +275,15 @@ public static class WireForensics
 
     // Find the start offset of the deepest walked region (message body) that contains errorOffset, so
     // recovery re-parses that record rather than the whole buffer. Falls back to the outermost start.
+    // Uses the node's exact payload range [DataStart, DataEnd); an error at DataEnd is the next sibling
+    // field's tag and belongs to the PARENT region, not this body.
     static int EnclosingRegionStart(IReadOnlyList<WireNode> tree, int errorOffset, int fallbackStart)
     {
         foreach (var n in tree)
         {
-            // A LEN node's children live in (Offset, Offset+len]; if the error is inside, descend.
-            if (n.Len is int len && n.Children.Count > 0)
-            {
-                int childStart = n.Children[0].Offset;
-                int regionEnd = childStart + len; // approximate body end
-                if (errorOffset >= childStart && errorOffset <= regionEnd)
-                    return EnclosingRegionStart(n.Children, errorOffset, childStart);
-            }
+            if (n.DataStart is int ds && n.DataEnd is int de && n.Children.Count > 0
+                && errorOffset >= ds && errorOffset < de)
+                return EnclosingRegionStart(n.Children, errorOffset, ds);
         }
         return fallbackStart;
     }
@@ -304,8 +315,8 @@ public static class WireForensics
             case 2:
                 ulong lenRaw;
                 try { (lenRaw, pos) = ReadVarint(buf, pos); } catch { return null; }
+                if (!LenFits(lenRaw, pos, end)) return null;
                 int len = (int)lenRaw;
-                if (len < 0 || pos + len > end) return null;
                 var slice = buf.Slice(pos, len);
                 bool printable = len > 0 && IsPrintable(slice);
                 var node = printable

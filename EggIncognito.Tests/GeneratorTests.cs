@@ -135,6 +135,49 @@ public class GeneratorTests
         Assert.Equal("AuthenticatedMessage", endpoints[0].MockResponseType);
     }
 
+    [Fact]
+    public void ParseOutput_HasValueEquality_ForIdenticalYaml()
+    {
+        // The incremental generator caches on the parsed model; identical yaml must
+        // produce routes that compare equal or controllers regenerate on every change.
+        const string yaml = """
+            routes:
+              - path: ei/first_contact_secure
+                request: EggIncFirstContactRequest
+                requestWrapped: true
+                response: EggIncFirstContactResponse
+                responseWrapped: true
+              - path: ei/process_shells_actions
+                requestType: ShellsActionBatch
+                rawResponse: "OK"
+              - path: ei_srv/subscription_status
+                response: UserSubscriptionInfo
+                pathParam: true
+                pathParamOnly: true
+            """;
+
+        var a = RouteParser.Parse(yaml);
+        var b = RouteParser.Parse(yaml);
+
+        Assert.Equal(a, b); // element-wise via RouteModel value equality
+        Assert.True(RouteListComparer.Instance.Equals(a, b));
+        Assert.Equal(RouteListComparer.Instance.GetHashCode(a), RouteListComparer.Instance.GetHashCode(b));
+    }
+
+    [Fact]
+    public void ParseOutput_Differs_WhenARouteChanges()
+    {
+        const string yaml = """
+            routes:
+              - path: ei/get_events
+                response: EggIncCurrentEvents
+            """;
+        var a = RouteParser.Parse(yaml);
+        var b = RouteParser.Parse(yaml.Replace("EggIncCurrentEvents", "SomethingElse"));
+
+        Assert.False(RouteListComparer.Instance.Equals(a, b));
+    }
+
     [Theory]
     [InlineData("ei/first_contact_secure", "EiFirstContactSecureController")]
     [InlineData("ei_afx/launch_mission", "EiAfxLaunchMissionController")]

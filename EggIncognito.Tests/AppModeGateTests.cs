@@ -26,6 +26,19 @@ public class AppModeGateTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
+    // The capture reads are gated too: a consistent 403 instead of 200-but-empty in hosted mode.
+    [Theory]
+    [InlineData("/api/capture/stream")]
+    [InlineData("/api/capture/flows")]
+    [InlineData("/api/capture/stats")]
+    [InlineData("/api/capture/decode?path=ei/first_contact&responseB64=AA==")]
+    public async Task Hosted_CaptureReads_Are403(string path)
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync(path);
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
+    }
+
     [Fact]
     public async Task Hosted_ToolsDecode_Works()
     {

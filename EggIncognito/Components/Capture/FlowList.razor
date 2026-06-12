@@ -4,6 +4,8 @@
    filters it and raises OnSelect. *@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
+@implements IAsyncDisposable
+@inject IJSRuntime JS
 
 <section id="flowsPanel" class="panel">
   <div class="flow-head">
@@ -30,7 +32,7 @@
       <button type="button" class="btn-mini" title="Reset all filters" @onclick="ClearFilters">Clear filters</button>
     </div>
   </div>
-  <div id="flowList" class="flow-list">
+  <div id="flowList" class="flow-list" @ref="_listRef">
     @if (Flows.Count == 0)
     {
       <div class="empty-state">
@@ -67,6 +69,35 @@
     string _group = "";
     string _pathFilter = "";
     string _typeFilter = "";
+
+    // Auto-scroll to newest: when the AutoScroll view setting is on and a flow arrived, scroll the
+    // list container to its bottom after render (newest flows append at the end).
+    ElementReference _listRef;
+    IJSObjectReference? _scroll; // the scroll.js ES module
+    int _lastFlowCount;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try { _scroll = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/scroll.js"); }
+            catch { /* JS unavailable (e.g. test prerender); auto-scroll is best-effort. */ }
+        }
+        var count = Flows.Count;
+        if (count > _lastFlowCount && View.AutoScroll && _scroll is not null)
+        {
+            try { await _scroll.InvokeVoidAsync("scrollToBottom", _listRef); } catch { }
+        }
+        _lastFlowCount = count;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_scroll is not null)
+        {
+            try { await _scroll.DisposeAsync(); } catch { }
+        }
+    }
 
     void OnGroupChange(ChangeEventArgs e) => _group = e.Value?.ToString() ?? "";
     void OnPathInput(ChangeEventArgs e) => _pathFilter = (e.Value?.ToString() ?? "").Trim();

@@ -148,4 +148,75 @@ public class WireForensicsTests
         Assert.True(r.Ok);
         Assert.Null(r.Recovered); // no corruption => nothing to recover
     }
+
+    [Fact]
+    public void OversizedLenVarint_WalkReportsOverrun()
+    {
+        // field 1 LEN declaring 2^31 bytes (0x80 0x80 0x80 0x80 0x08). Casting to int wraps negative;
+        // before the ulong bounds check this skipped the overrun guard and read out of bounds.
+        var bytes = Bytes(0x0A, 0x80, 0x80, 0x80, 0x80, 0x08);
+        var r = WireForensics.Diagnose(bytes, null, null);
+        Assert.False(r.Ok);
+        Assert.NotNull(r.FirstError);
+        Assert.Equal(0, r.FirstError!.Offset);
+        Assert.Contains("overrun", r.FirstError.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void OversizedLenVarint_NestedProbe_DoesNotLoop()
+    {
+        // Outer field 1 LEN len=6 whose payload looks like a nested field 1 LEN declaring 0xFFFFFFFA
+        // (0xFA 0xFF 0xFF 0xFF 0x0F). (int)0xFFFFFFFA == -6, which made the message-probe step pos
+        // back onto the same tag and spin forever. Must terminate and treat the payload as a leaf.
+        var bytes = Bytes(0x0A, 0x06, 0x0A, 0xFA, 0xFF, 0xFF, 0xFF, 0x0F);
+        var r = WireForensics.Diagnose(bytes, null, null);
+        Assert.True(r.Ok);
+        var top = Assert.Single(r.Tree);
+        Assert.Empty(top.Children); // payload rejected as nested message, kept as leaf bytes
+    }
+
+    [Fact]
+    public void WireNode_LenField_ExposesPayloadRange()
+    {
+        // field 1 varint=5, field 2 LEN len=4 at offset 2: payload occupies [4, 8).
+        var bytes = Bytes(0x08, 0x05, 0x12, 0x04, 0x08, 0x01, 0x10, 0x02);
+        var r = WireForensics.Diagnose(bytes, null, null);
+        Assert.True(r.Ok);
+        var lenNode = r.Tree.Single(n => n.Wire == "len");
+        Assert.Equal(4, lenNode.DataStart);
+        Assert.Equal(8, lenNode.DataEnd);
+        Assert.Equal(2, lenNode.Children.Count);
+    }
+
+    [Fact]
+    public void EnclosingRegion_ErrorAtNestedBodyEnd_RecoversFromParent()
+    {
+        // field 1 varint=5, field 2 LEN nested { f1=1, f2=2 } with body [4, 8), then an illegal
+        // wire-7 tag exactly at offset 8 = the nested body's END. That error is the parent's next
+        // field, not part of the nested record; before WireNode carried the exact payload range the
+        // inclusive childStart+len bound descended into the clean nested message, so recovery
+        // realigned at offset 4 and lost the parent's leading field 1 = 5.
+        var bytes = Bytes(0x08, 0x05, 0x12, 0x04, 0x08, 0x01, 0x10, 0x02, 0x0F);
+        var r = WireForensics.Diagnose(bytes, null, null);
+        Assert.False(r.Ok);
+        Assert.Equal(8, r.FirstError!.Offset);
+        Assert.NotNull(r.Recovered);
+        Assert.Equal(0, r.Recovered!.AlignedAt);
+        Assert.Contains(r.Recovered.Fields, f => f.Field == 1 && f.Value == "5");
+    }
+
+    [Fact]
+    public void OversizedLenVarint_RecoveryResyncs()
+    {
+        // Corrupt lead field (LEN len=99, overruns) triggers recovery over bytes containing a tag whose
+        // LEN declares int.MaxValue (0xFF 0xFF 0xFF 0xFF 0x07). pos + len overflowed int and sliced out
+        // of bounds before the ulong bounds check. Recovery must resync past it to the intact field 3.
+        var bytes = Bytes(0x0A, 0x63)
+            .Concat(Bytes(0x12, 0xFF, 0xFF, 0xFF, 0xFF, 0x07))
+            .Concat(Bytes(0x18, 0x07)).ToArray();
+        var r = WireForensics.Diagnose(bytes, null, null);
+        Assert.False(r.Ok);
+        Assert.NotNull(r.Recovered);
+        Assert.Contains(r.Recovered!.Fields, f => f.Field == 3 && f.Value == "7");
+    }
 }

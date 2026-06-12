@@ -126,7 +126,9 @@
 
     string? _open;
 
-    // Only one popover open at a time. Opening the notif popover marks notices read on close.
+    // Only one popover open at a time. Opening the notif popover marks notices read right away (the
+    // unread badge clears as soon as the list is visible); closing marks again to catch any notice
+    // that arrived while it was open.
     void Toggle(string which)
     {
         if (_open == which)
@@ -136,6 +138,7 @@
         }
         CloseCurrent();
         _open = which;
+        if (which == "notif") OnNoticesRead.InvokeAsync();
     }
 
     void CloseCurrent()

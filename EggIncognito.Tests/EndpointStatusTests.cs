@@ -58,4 +58,32 @@ public class EndpointStatusTests
         Assert.Contains("ei/missing_endpoint", yaml);
         Assert.Contains("ei/empty_endpoint", yaml);
     }
+
+    [Theory]
+    [InlineData("{\n}")]
+    [InlineData("{  }")]
+    [InlineData("{\r\n}")]
+    [InlineData("  ")]
+    public void Classify_WhitespaceVariantsOfEmptyObject_AreEmpty(string content)
+    {
+        var (yamlPath, defaults) = MakeRepo();
+        File.WriteAllText(Path.Combine(defaults, "ei", "empty_endpoint.json"), content);
+        var r = EndpointStatus.Classify(yamlPath, defaults);
+        Assert.Contains("ei/empty_endpoint", r.Empty);
+        Assert.DoesNotContain("ei/empty_endpoint", r.Ok);
+    }
+
+    [Fact]
+    public void WriteStatusBlock_PreservesFollowingNonLowercaseTopLevelKey()
+    {
+        var (yamlPath, defaults) = MakeRepo();
+        // An existing block followed by top-level keys the old lowercase-only lookahead would eat.
+        File.AppendAllText(yamlPath,
+            "\nendpoint_status:\n  missing:\n    - ei/stale_entry\n\n_meta: keep_underscore\nZone: keep_upper\n");
+        var yaml = EndpointStatus.WriteStatusBlock(yamlPath, EndpointStatus.Classify(yamlPath, defaults));
+        Assert.Contains("_meta: keep_underscore", yaml);
+        Assert.Contains("Zone: keep_upper", yaml);
+        Assert.DoesNotContain("ei/stale_entry", yaml); // old block fully replaced
+        Assert.Contains("ei/missing_endpoint", yaml);
+    }
 }

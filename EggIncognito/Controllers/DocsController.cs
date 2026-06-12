@@ -177,6 +177,23 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
     private static readonly HashSet<string> AllowedImageTypes =
         new(StringComparer.OrdinalIgnoreCase) { "image/png", "image/jpeg", "image/gif", "image/webp" };
 
+    // The ContentType header is client-supplied, so verify the leading bytes actually are the declared
+    // raster format before storing. Stops e.g. an HTML/SVG payload uploaded as "image/png".
+    internal static bool MagicMatches(byte[] b, string contentType) => contentType.ToLowerInvariant() switch
+    {
+        "image/png" => b.Length >= 8
+            && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47
+            && b[4] == 0x0D && b[5] == 0x0A && b[6] == 0x1A && b[7] == 0x0A,
+        "image/jpeg" => b.Length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF,
+        "image/gif" => b.Length >= 6
+            && b[0] == (byte)'G' && b[1] == (byte)'I' && b[2] == (byte)'F'
+            && b[3] == (byte)'8' && (b[4] == (byte)'7' || b[4] == (byte)'9') && b[5] == (byte)'a',
+        "image/webp" => b.Length >= 12
+            && b[0] == (byte)'R' && b[1] == (byte)'I' && b[2] == (byte)'F' && b[3] == (byte)'F'
+            && b[8] == (byte)'W' && b[9] == (byte)'E' && b[10] == (byte)'B' && b[11] == (byte)'P',
+        _ => false,
+    };
+
     // POST /api/docs/image - multipart upload of one image file. Returns { url, id }.
     [HttpPost("image")]
     [RequestSizeLimit(MaxImageBytes + 64 * 1024)] // body cap a touch above the byte cap, for multipart overhead
@@ -194,6 +211,8 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         using var ms = new MemoryStream();
         await file.CopyToAsync(ms);
         var bytes = ms.ToArray();
+        if (!MagicMatches(bytes, ct))
+            return BadRequest(new { error = $"file bytes do not match the declared type '{ct}'" });
 
         var img = new DocImage
         {

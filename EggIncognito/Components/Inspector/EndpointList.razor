@@ -95,6 +95,12 @@ else
     string _filter = "";
     readonly HashSet<string> _collapsed = [];
 
+    // The catalog + message list are immutable per app run; cache them (and the unfiltered grouping)
+    // so each render does not re-enumerate the services or re-lowercase every item.
+    List<RouteInfo>? _routes;
+    List<IGrouping<string, RouteInfo>>? _grouped;
+    List<string>? _messages;
+
     void OnFilter(ChangeEventArgs e) => _filter = e.Value?.ToString() ?? "";
 
     Task SetMode(string m) => ModeChanged.InvokeAsync(m);
@@ -106,17 +112,20 @@ else
 
     IEnumerable<IGrouping<string, RouteInfo>> Groups()
     {
-        var f = _filter.ToLowerInvariant();
-        return Catalog.All()
-            .Where(e => string.IsNullOrEmpty(f) || e.Path.ToLowerInvariant().Contains(f))
-            .GroupBy(e => e.Path.Split('/')[0])
-            .OrderBy(g => g.Key, StringComparer.Ordinal);
+        _routes ??= Catalog.All().ToList();
+        if (string.IsNullOrEmpty(_filter))
+            return _grouped ??= GroupRoutes(_routes).ToList();
+        return GroupRoutes(_routes.Where(e => e.Path.Contains(_filter, StringComparison.OrdinalIgnoreCase)));
     }
+
+    static IEnumerable<IGrouping<string, RouteInfo>> GroupRoutes(IEnumerable<RouteInfo> routes) =>
+        routes.GroupBy(e => e.Path.Split('/')[0])
+            .OrderBy(g => g.Key, StringComparer.Ordinal);
 
     IEnumerable<string> FilteredMessages()
     {
-        var f = _filter.ToLowerInvariant();
-        return Reflection.AllMessageTypeNames()
-            .Where(n => string.IsNullOrEmpty(f) || n.ToLowerInvariant().Contains(f));
+        _messages ??= Reflection.AllMessageTypeNames().ToList();
+        if (string.IsNullOrEmpty(_filter)) return _messages;
+        return _messages.Where(n => n.Contains(_filter, StringComparison.OrdinalIgnoreCase));
     }
 }

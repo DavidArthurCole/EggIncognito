@@ -14,14 +14,23 @@ public sealed class CaptureController(CaptureSession session, IAppMode appMode) 
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    // Capture mutates shared disk state and needs a local proxy/CA, so it is local-only. Starting it
-    // and persisting a captured flow as an endpoint are blocked in hosted mode.
+    // Capture mutates shared disk state and needs a local proxy/CA, so it is local-only. The reads
+    // (stream/flows/stats/decode) are gated too, for a consistent 403 instead of 200-but-empty;
+    // hosted hides the capture nav anyway.
     private IActionResult? GuardCapture() =>
         appMode.CanCapture ? null : StatusCode(403, new { error = "capture is disabled in hosted mode" });
 
     [HttpGet("stream")]
     public async Task Stream(CancellationToken ct)
     {
+        if (!appMode.CanCapture)
+        {
+            // Raw-response action (no IActionResult), so write the guard's 403 by hand.
+            Response.StatusCode = StatusCodes.Status403Forbidden;
+            await Response.WriteAsJsonAsync(new { error = "capture is disabled in hosted mode" }, ct);
+            return;
+        }
+
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers["X-Accel-Buffering"] = "no";
@@ -59,7 +68,7 @@ public sealed class CaptureController(CaptureSession session, IAppMode appMode) 
     }
 
     [HttpGet("flows")]
-    public IActionResult Flows() => Ok(session.Hub.Snapshot());
+    public IActionResult Flows() => GuardCapture() ?? Ok(session.Hub.Snapshot());
 
     [HttpGet("sensitive-keys")]
     public IActionResult SensitiveKeys() => Ok(new
@@ -68,7 +77,7 @@ public sealed class CaptureController(CaptureSession session, IAppMode appMode) 
     });
 
     [HttpGet("stats")]
-    public IActionResult Stats() => Ok(session.Hub.StatsSnapshot());
+    public IActionResult Stats() => GuardCapture() ?? Ok(session.Hub.StatsSnapshot());
 
     [HttpGet("status")]
     public IActionResult Status() => Ok(session.Status);
@@ -117,6 +126,7 @@ public sealed class CaptureController(CaptureSession session, IAppMode appMode) 
     [HttpGet("decode")]
     public IActionResult Decode([FromQuery] string path, [FromQuery] string responseB64)
     {
+        if (GuardCapture() is { } blocked) return blocked;
         var r = session.Decode(path, responseB64);
         return Ok(new { responseJson = r.Json, responseType = r.Type, known = r.Known });
     }

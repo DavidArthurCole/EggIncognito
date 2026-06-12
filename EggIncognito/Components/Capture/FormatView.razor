@@ -66,8 +66,18 @@
     TreeNode? _tree;
     string? _treeFor; // the JsonStr the current _tree was built from; guards needless rebuilds
 
+    // Blurred values revealed by click, keyed by the value text (node identity, not index) so the
+    // state survives the per-render rebuild of the text body. Cleared when the underlying JSON changes.
+    readonly HashSet<string> _revealed = new(StringComparer.Ordinal);
+    string? _revealedFor;
+
     protected override void OnParametersSet()
     {
+        if (!string.Equals(JsonStr, _revealedFor, StringComparison.Ordinal))
+        {
+            _revealed.Clear();
+            _revealedFor = JsonStr;
+        }
         _emptyNoteOnly = null;
         _showRawBox = false;
         _parsed = null;
@@ -135,6 +145,12 @@
 
     void OnFilterInput(ChangeEventArgs e) => _filter = e.Value?.ToString() ?? "";
 
+    // Click toggles a blurred value's reveal (mirrors TreeNodeView.OnLeafClick).
+    void ToggleReveal(string key)
+    {
+        if (!_revealed.Remove(key)) _revealed.Add(key);
+    }
+
     RenderFragment FormatSelect() =>@<select class="data-format" value="@_currentFormat" @onchange="OnFormatChange">
         @foreach (var f in _formats)
         {
@@ -199,9 +215,11 @@
                 if (i + n.Length <= shown.Length && shown.AsSpan(i, n.Length).SequenceEqual(n)) { matched = n; break; }
             if (matched is not null)
             {
+                var key = matched;
                 builder.OpenElement(seq++, "span");
-                builder.AddAttribute(seq++, "class", "blurred");
+                builder.AddAttribute(seq++, "class", "blurred" + (_revealed.Contains(key) ? " revealed" : ""));
                 builder.AddAttribute(seq++, "title", "Click to reveal");
+                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => ToggleReveal(key)));
                 builder.AddContent(seq++, matched);
                 builder.CloseElement();
                 i += matched.Length;

@@ -44,10 +44,19 @@ public class DynamicMockControllerTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact]
-    public async Task UnknownPath_404s()
+    public async Task UnknownPath_InKnownNamespace_ReturnsNotMockedMarker()
     {
         var c = _factory.CreateClient();
         var resp = await c.PostAsync("/ei/does_not_exist_anywhere", new FormUrlEncodedContent([]));
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        Assert.Equal("not-mocked", resp.Headers.GetValues("x-eggincognito").Single());
+    }
+
+    [Fact]
+    public async Task UnknownPath_OutsideKnownNamespaces_404s()
+    {
+        var c = _factory.CreateClient();
+        var resp = await c.PostAsync("/zz_not_auxbrain/nope", new FormUrlEncodedContent([]));
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 }

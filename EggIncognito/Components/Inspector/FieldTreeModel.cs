@@ -107,6 +107,37 @@ public static class FieldTreeBuilder
         return obj;
     }
 
+    // Map a protojson object back onto the field tree (the inverse of Collect), so raw-mode edits
+    // survive the switch back to the tree. Fields absent from the object are cleared (a raw deletion
+    // is a deletion); unknown keys in the object are ignored.
+    public static void Apply(IReadOnlyList<FieldNode> nodes, JsonObject obj)
+    {
+        foreach (var n in nodes)
+        {
+            obj.TryGetPropertyValue(n.Field.JsonName, out var v);
+            if (n.IsMessage)
+            {
+                Apply(n.Children, v as JsonObject ?? new JsonObject());
+            }
+            else if (n.Field.Repeated)
+            {
+                n.Items = v is JsonArray arr ? arr.Select(ValueText).ToList() : [];
+            }
+            else
+            {
+                n.Value = ValueText(v);
+            }
+        }
+    }
+
+    // The editable string form of a JSON leaf: strings unquoted, everything else its JSON text.
+    private static string ValueText(JsonNode? v) => v switch
+    {
+        null => "",
+        JsonValue jv when jv.TryGetValue(out string? s) => s ?? "",
+        _ => v.ToJsonString(),
+    };
+
     // Apply the env panel's BasicRequestInfo overrides onto the matching rinfo.<key> tree input, locking
     // each set one. An empty env value releases the lock. Env keys with no matching input are skipped.
     // Mirrors app.js applyEnvLock.

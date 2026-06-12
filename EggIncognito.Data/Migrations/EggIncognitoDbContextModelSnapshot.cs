@@ -222,6 +222,8 @@ namespace EggIncognito.Data.Migrations
                     b.HasIndex("Path")
                         .IsUnique();
 
+                    b.HasIndex("Source");
+
                     b.ToTable("stored_routes");
                 });
 
@@ -249,8 +251,6 @@ namespace EggIncognito.Data.Migrations
                         .HasColumnName("tag_id");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("SubjectKind", "SubjectKey");
 
                     b.HasIndex("SubjectKind", "SubjectKey", "TagId")
                         .IsUnique();

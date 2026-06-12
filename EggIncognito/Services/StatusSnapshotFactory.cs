@@ -14,7 +14,10 @@ public sealed class StatusSnapshotFactory(
     IConfiguration config,
     BotOptions options) : IStatusProvider
 {
-    private readonly DateTimeOffset _start = DateTimeOffset.UtcNow;
+    // Process start, not construction time: the factory is resolved lazily (first bot status call),
+    // so a field initializer here would undercount uptime by however long that took.
+    private static readonly DateTimeOffset ProcessStart =
+        new(System.Diagnostics.Process.GetCurrentProcess().StartTime);
     private readonly bool _dbEnabled = !string.IsNullOrWhiteSpace(config.GetConnectionString("Postgres"));
 
     public StatusSnapshot Build()
@@ -32,7 +35,7 @@ public sealed class StatusSnapshotFactory(
             BytesCaptured: stats.BytesCaptured,
             DbEnabled: _dbEnabled,
             SigningReady: pipeline.CanSign,
-            Uptime: DateTimeOffset.UtcNow - _start,
+            Uptime: DateTimeOffset.UtcNow - ProcessStart,
             Build: BuildInfo.FromAssembly(options.RepoUrl),
             EndpointsOk: ok, EndpointsEmpty: empty, EndpointsMissing: missing);
     }

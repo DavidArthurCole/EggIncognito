@@ -15,22 +15,29 @@ public sealed class RoutesYamlEditor
 {
     private readonly string _path;
     private readonly List<string> _lines;
+    private DateTime _loadedStampUtc;
     private bool _dirty;
 
     public bool Dirty => _dirty;
 
     public RoutesYamlEditor(string contentRoot)
     {
-        _path = Path.Combine(contentRoot, "RouteMap", "routes.yaml");
+        _path = ContentRoot.RoutesYamlPath(contentRoot);
         // Split on \n; we re-join with \n on Save to preserve LF endings.
         _lines = File.ReadAllText(_path).Replace("\r\n", "\n").Split('\n').ToList();
+        _loadedStampUtc = File.GetLastWriteTimeUtc(_path);
     }
 
     public void Save()
     {
         if (!_dirty) return;
+        // Another writer touched the file after our load; saving would silently overwrite their
+        // edits with this stale view. Abort - the caller reloads and re-applies.
+        if (File.GetLastWriteTimeUtc(_path) != _loadedStampUtc)
+            throw new IOException($"routes.yaml changed on disk since load; aborting save to avoid clobbering concurrent edits: {_path}");
         File.WriteAllText(_path, string.Join('\n', _lines), new UTF8Encoding(false));
         _dirty = false;
+        _loadedStampUtc = File.GetLastWriteTimeUtc(_path);
     }
 
     public bool HasPath(string path) => FindRouteStart(path) >= 0;
@@ -58,7 +65,7 @@ public sealed class RoutesYamlEditor
         }
 
         // Key absent entirely: insert in canonical order after the path line.
-        Insert(start + 1, $"    {key}: {value}");
+        Insert(start + 1, $"{FieldIndent(start, end)}{key}: {value}");
         _dirty = true;
         return true;
     }
@@ -75,7 +82,7 @@ public sealed class RoutesYamlEditor
             var m = Regex.Match(_lines[k], @"^\s*" + Regex.Escape(key) + @":\s*([^#]*?)\s*(?:#.*)?$");
             if (m.Success) return false; // already set - leave it
         }
-        Insert(start + 1, $"    {key}: true");
+        Insert(start + 1, $"{FieldIndent(start, end)}{key}: true");
         _dirty = true;
         return true;
     }
@@ -165,7 +172,7 @@ public sealed class RoutesYamlEditor
             _dirty = true;
             return true;
         }
-        Insert(start + 1, $"    request:  {NoneMarker}");
+        Insert(start + 1, $"{FieldIndent(start, end)}request:  {NoneMarker}");
         _dirty = true;
         return true;
     }
@@ -203,6 +210,19 @@ public sealed class RoutesYamlEditor
     private void Insert(int index, string line)
     {
         _lines.Insert(index, line);
+    }
+
+    // Indent for a route block's fields: copied from the first existing field line, else the
+    // `- path:` line's indent plus two spaces. Never hardcoded, so off-standard files keep their
+    // own indentation.
+    private string FieldIndent(int start, int end)
+    {
+        for (int k = start + 1; k < end; k++)
+        {
+            var m = Regex.Match(_lines[k], @"^(\s+)\S");
+            if (m.Success) return m.Groups[1].Value;
+        }
+        return Regex.Match(_lines[start], @"^\s*").Value + "  ";
     }
 
     private static string LegacyAlias(string key) => key switch

@@ -123,7 +123,10 @@ public sealed class InspectorApiController(
         // unrestricted. /build is never gated since it encodes + signs with the user's own salt and
         // does no egress.
         if (appMode.Mode == AppMode.Hosted && !currentUser.IsAuthenticated)
-            return StatusCode(403, new { error = "log in to use Live API from the hosted site" });
+            throw new ApiException(
+                "log in to use Live API from the hosted site",
+                "Sign in with Discord, then retry. Local runs are never gated.",
+                StatusCodes.Status403Forbidden);
 
         var uri = ResolveAllowedUrl(body.Url);
 

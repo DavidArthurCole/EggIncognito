@@ -97,6 +97,10 @@
         <textarea class="raw-json" spellcheck="false" style="width: 100%; min-height: 200px;"
                   autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                   @bind="_rawJson" @bind:event="oninput"></textarea>
+        @if (_rawError is not null)
+        {
+          <div class="muted">@_rawError</div>
+        }
       }
       else
       {
@@ -147,8 +151,8 @@
                   @onclick="@(() => SelectTarget("custom"))">Custom</button>
         </div>
         <div class="sendbar-actions">
-          <button class="btn-info" disabled="@(_selected is null)" @onclick="Build">Build</button>
-          <button class="btn-primary" disabled="@(_lastBuild is null)" @onclick="Send">Send</button>
+          <button class="btn-info" disabled="@(_selected is null || _busy)" @onclick="Build">Build</button>
+          <button class="btn-primary" disabled="@(_lastBuild is null || _busy)" @onclick="Send">Send</button>
         </div>
       </div>
 
@@ -205,13 +209,13 @@
 
 @if (_saltModalOpen)
 {
-  <div class="modal-overlay">
-    <div class="modal">
-      <h3>Signing salt</h3>
+  <div class="modal-overlay" @onkeydown="OnModalKeyDown">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saltModalTitle">
+      <h3 id="saltModalTitle">Signing salt</h3>
       <p>Signs requests. Stored in this browser only; never sent to the server beyond the build request.</p>
       <input type="password" placeholder="EGG_INC_API_SALT value" autocomplete="off" spellcheck="false"
              data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-             class="settings-input" @bind="_saltInput" @bind:event="oninput" />
+             class="settings-input" @ref="_saltInputRef" @bind="_saltInput" @bind:event="oninput" />
       <div class="modal-actions">
         <button type="button" class="btn-secondary" @onclick="@(() => _saltModalOpen = false)">Cancel</button>
         <button type="button" class="btn-primary" @onclick="SaveSalt">Save salt</button>
@@ -222,14 +226,14 @@
 
 @if (_liveConsentOpen)
 {
-  <div class="modal-overlay">
-    <div class="modal">
-      <h3>Live API mode</h3>
+  <div class="modal-overlay" @onkeydown="OnModalKeyDown">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="liveConsentTitle">
+      <h3 id="liveConsentTitle">Live API mode</h3>
       <p>This sends real requests to the Egg, Inc. API (auxbrain.com) using the values you provide.
          You are solely responsible for how you use it. The developers of EggIncognito accept no
          responsibility for any misuse or for any consequences of that use.</p>
       <div class="modal-actions">
-        <button type="button" class="btn-secondary" @onclick="@(() => _liveConsentOpen = false)">Cancel</button>
+        <button type="button" class="btn-secondary" @ref="_consentCancelRef" @onclick="@(() => _liveConsentOpen = false)">Cancel</button>
         <button type="button" class="btn-primary" @onclick="AcceptLiveConsent">I understand, enable Live API</button>
       </div>
     </div>
@@ -251,9 +255,11 @@
     string _pathParam = "";
     bool _rawMode;
     string _rawJson = "{}";
+    string? _rawError;
 
     // Send + pipeline state.
     string _target = "mock";
+    bool _busy; // in-flight Build/Send guard; both buttons disable while a call is running
     BuildResponse? _lastBuild;
     List<TransportStage>? _buildStages;
     SendResponse? _response;
@@ -266,6 +272,11 @@
     string _saltInput = "";
     bool _saltModalOpen;
     bool _liveConsentOpen;
+    // Modal focus: move keyboard focus into a freshly opened modal so Escape works immediately.
+    ElementReference _saltInputRef;
+    ElementReference _consentCancelRef;
+    bool _focusSaltModal;
+    bool _focusConsentModal;
     string _customTarget = "";
     string[] _recentEids = [];
     RinfoDefaults _rinfo = new();
@@ -313,6 +324,18 @@
     // imported once; all browser-local state (salt, EIDs, proxy URL, rinfo defaults) flows through it.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Focus a freshly opened modal (set by OpenSaltModal/RequestTarget) so Escape-to-close works
+        // without a mouse click first.
+        if (_focusSaltModal)
+        {
+            _focusSaltModal = false;
+            try { await _saltInputRef.FocusAsync(); } catch { }
+        }
+        if (_focusConsentModal)
+        {
+            _focusConsentModal = false;
+            try { await _consentCancelRef.FocusAsync(); } catch { }
+        }
         if (!firstRender) return;
         try { _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js"); }
         catch { return; } // JS unavailable (e.g. test prerender); the page stays usable with defaults.
@@ -349,6 +372,7 @@
         _response = null;
         _rawMode = false;
         _rawJson = "{}";
+        _rawError = null;
         _pathParam = "";
         if (e.PathParam) PrefillEid(v => _pathParam = v);
         await BuildFieldTree();
@@ -447,9 +471,35 @@
 
     void ToggleRaw(ChangeEventArgs e)
     {
-        _rawMode = e.Value is bool b && b;
-        if (_rawMode && _fieldNodes is not null)
-            _rawJson = FieldTreeBuilder.Collect(_fieldNodes).ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        var on = e.Value is bool b && b;
+        if (on)
+        {
+            _rawError = null;
+            _rawMode = true;
+            if (_fieldNodes is not null)
+                _rawJson = FieldTreeBuilder.Collect(_fieldNodes).ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            return;
+        }
+        // Switching raw off: parse the raw edits back into the field tree so they are not silently
+        // discarded. If the raw JSON does not parse, stay in raw mode and surface the error.
+        if (_fieldNodes is not null)
+        {
+            try
+            {
+                var obj = JsonNode.Parse(string.IsNullOrWhiteSpace(_rawJson) ? "{}" : _rawJson) as JsonObject
+                    ?? throw new FormatException("raw body must be a JSON object");
+                FieldTreeBuilder.Apply(_fieldNodes, obj);
+                ApplyEnvLock();
+            }
+            catch (Exception ex)
+            {
+                _rawError = "Raw JSON does not parse, so it was not applied to the tree. Fix it or switch back: " + ex.Message;
+                _rawMode = true;
+                return;
+            }
+        }
+        _rawError = null;
+        _rawMode = false;
     }
 
     // endpoint-status popover + salt
@@ -485,6 +535,15 @@
     {
         _saltInput = "";
         _saltModalOpen = true;
+        _focusSaltModal = true;
+    }
+
+    // Escape closes whichever modal is open (the handler sits on each modal's overlay).
+    void OnModalKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape") return;
+        _saltModalOpen = false;
+        _liveConsentOpen = false;
     }
 
     async Task SaveSalt()
@@ -509,6 +568,7 @@
         if (t == "real" && !await InvokeOr("getLiveConsent", false))
         {
             _liveConsentOpen = true;
+            _focusConsentModal = true;
             return;
         }
         SelectTarget(t);
@@ -528,8 +588,26 @@
     }
 
     // build + send. /build owns the salt+sign; /send owns egress+allowlist; /decode-response is pure.
+    // Both entry points share the _busy in-flight guard so a double-click cannot fire concurrent
+    // /build or /send calls (Send can be live-API egress).
 
     async Task Build()
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await BuildCore(); }
+        finally { _busy = false; }
+    }
+
+    async Task Send()
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await SendCore(); }
+        finally { _busy = false; }
+    }
+
+    async Task BuildCore()
     {
         var e = _selected;
         if (e is null) return;
@@ -600,7 +678,7 @@
         }
     }
 
-    async Task Send()
+    async Task SendCore()
     {
         var e = _selected;
         if (_lastBuild is null || e is null) return;

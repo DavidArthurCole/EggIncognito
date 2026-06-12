@@ -59,11 +59,25 @@ public sealed class LanForwarder : IAsyncDisposable
             TcpClient client;
             try { client = await _listener.AcceptTcpClientAsync(ct); }
             catch (OperationCanceledException) { break; }
-            catch (SocketException) { break; }
+            catch (ObjectDisposedException) { break; } // listener stopped
+            catch (SocketException ex)
+            {
+                // A transient per-connection failure (e.g. a reset SYN) must not kill the accept
+                // loop for the rest of the session; only listener teardown stops it.
+                if (IsFatalAcceptError(ex, ct.IsCancellationRequested)) break;
+                Log($"FWD accept error: {ex.SocketErrorCode} - retrying");
+                continue;
+            }
             Log($"FWD accept from {client.Client.RemoteEndPoint}");
             _ = HandleAsync(client, ct); // fire and forget per connection
         }
     }
+
+    // Stop-accepting decision for a SocketException out of Accept: stop only when the listener is
+    // being torn down (cancellation requested, or the socket was aborted/interrupted by Stop).
+    // Everything else is a transient per-connection failure and the loop keeps accepting. Pure.
+    internal static bool IsFatalAcceptError(SocketException ex, bool cancelRequested) =>
+        cancelRequested || ex.SocketErrorCode is SocketError.Interrupted or SocketError.OperationAborted;
 
     private async Task HandleAsync(TcpClient client, CancellationToken ct)
     {

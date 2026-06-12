@@ -16,15 +16,14 @@ public sealed class DbEndpointSource(EggIncognitoDbContext db) : IEndpointSource
         var cleanPath = path.TrimEnd('/');
         while (true)
         {
-            if (eid is not null)
-            {
-                var byEid = db.StoredEndpoints.AsNoTracking()
-                    .FirstOrDefault(e => e.Path == cleanPath && e.Eid == eid);
-                if (byEid is not null) return Encoding.UTF8.GetBytes(byEid.ResponseJson);
-            }
-            var global = db.StoredEndpoints.AsNoTracking()
-                .FirstOrDefault(e => e.Path == cleanPath && e.Eid == null);
-            if (global is not null) return Encoding.UTF8.GetBytes(global.ResponseJson);
+            // One round-trip per segment: fetch the eid and global candidates together, eid match
+            // ranked first (eid beats global), projecting just the response json.
+            var json = db.StoredEndpoints.AsNoTracking()
+                .Where(e => e.Path == cleanPath && (e.Eid == eid || e.Eid == null))
+                .OrderBy(e => e.Eid == null ? 1 : 0)
+                .Select(e => e.ResponseJson)
+                .FirstOrDefault();
+            if (json is not null) return Encoding.UTF8.GetBytes(json);
 
             var lastSlash = cleanPath.LastIndexOf('/');
             var firstSlash = cleanPath.IndexOf('/');

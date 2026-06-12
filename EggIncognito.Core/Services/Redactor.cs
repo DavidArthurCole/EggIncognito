@@ -20,16 +20,21 @@ public static class Redactor
         "transactionId", "originalTransactionId", "linkedTransactionId",
         // device identifiers
         "deviceId", "deviceName", "pushUserId",
-        // account / platform auth identifiers + the AuthenticatedMessage signature
-        "gameServicesId", "gameServicesIdScoped", "code",
+        // account / platform auth identifiers + signatures and purchase receipts
+        "gameServicesId", "gameServicesIdScoped", "code", "signature", "receipt",
+        // advertising / push identifiers
+        "advertisingId", "deviceAdId", "pushId",
         // coop identity
         "coopIdentifier",
         // player-visible names / handles
-        "userName", "requestingUserName", "alias",
+        "userName", "requestingUserName", "username", "alias",
     ];
 
+    // Value pattern is escape-aware: a JSON string is any run of non-quote/non-backslash chars or
+    // backslash escapes, so values containing \" are consumed whole instead of stopping early and
+    // leaking the tail.
     private static readonly Regex FieldRegex = new(
-        "\"(" + string.Join('|', SensitiveFields) + ")\":\\s*\"([^\"]+)\"",
+        "\"(" + string.Join('|', SensitiveFields) + ")\":\\s*\"((?:[^\"\\\\]|\\\\.)+)\"",
         RegexOptions.Compiled);
 
     /// <summary>The camelCase JSON field names treated as sensitive. Exposed so the dashboard can blur
