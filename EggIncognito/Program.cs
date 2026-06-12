@@ -174,7 +174,9 @@ if (!string.IsNullOrWhiteSpace(botToken))
         // /updateserver target: the host-side synckit-agent. Flat env vars in the Portainer stack,
         // Discord:* config keys for standalone runs. Either missing = command answers "not configured".
         DeployAgentUrl: builder.Configuration["DEPLOY_AGENT_URL"] ?? builder.Configuration["Discord:DeployAgentUrl"],
-        DeployAgentSecret: builder.Configuration["DEPLOY_AGENT_SECRET"] ?? builder.Configuration["Discord:DeployAgentSecret"]));
+        DeployAgentSecret: builder.Configuration["DEPLOY_AGENT_SECRET"] ?? builder.Configuration["Discord:DeployAgentSecret"],
+        // Dev only. Guild-mirrored commands duplicate the global catalog in the Discord UI.
+        RegisterGuildCommands: string.Equals(builder.Configuration["Discord:RegisterGuildCommands"], "true", StringComparison.OrdinalIgnoreCase)));
     builder.Services.AddSingleton<EggIncognito.Bot.IStatusProvider, EggIncognito.Services.StatusSnapshotFactory>();
     builder.Services.AddHostedService<EggIncognito.Bot.DiscordBotHostedService>();
 }

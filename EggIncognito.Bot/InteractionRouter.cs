@@ -76,7 +76,7 @@ public sealed class InteractionRouter(
     {
         if (cmd.User is not SocketGuildUser invoker || !invoker.GuildPermissions.Administrator)
         {
-            await cmd.RespondAsync("Not authorised.", ephemeral: true);
+            await cmd.RespondAsync("Not authorized.", ephemeral: true);
             return;
         }
         if (deploy is null)

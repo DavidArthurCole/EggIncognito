@@ -35,7 +35,10 @@ public sealed class DiscordBotHostedService(
         {
             var client = new DiscordSocketClient(new DiscordSocketConfig
             {
-                GatewayIntents = GatewayIntents.None,
+                // Guilds (unprivileged) is required to cache guilds; without it guild interactions
+                // can't resolve the invoker as a SocketGuildUser, so /updateserver's permission
+                // check would fail closed for everyone.
+                GatewayIntents = GatewayIntents.Guilds,
                 LogLevel = LogSeverity.Info,
             });
             var deploy = !string.IsNullOrWhiteSpace(options.DeployAgentUrl)
@@ -111,12 +114,7 @@ public sealed class DiscordBotHostedService(
             else
                 await client.BulkOverwriteGlobalApplicationCommandsAsync(commands);
 
-            if (!string.IsNullOrWhiteSpace(options.GuildId) && ulong.TryParse(options.GuildId, out var gid))
-            {
-                IGuild? guild = client.GetGuild(gid);
-                if (guild is not null && !await GuildCommandsMatchAsync(guild, desired))
-                    await guild.BulkOverwriteApplicationCommandsAsync(commands);
-            }
+            await EnsureGuildCommandsAsync(client, desired, commands);
             _commandsRegistered = true;
             logger.LogInformation("bot: ready - presence set + {Count} commands ensured", commands.Length);
         }
@@ -138,6 +136,33 @@ public sealed class DiscordBotHostedService(
         {
             logger.LogWarning(ex, "bot: could not fetch global commands - overwriting");
             return false;
+        }
+    }
+
+    // With RegisterGuildCommands the catalog is mirrored to the guild for instant testing.
+    // Otherwise guild-scoped commands are purged: a guild copy next to the global catalog shows
+    // every command twice in the Discord UI.
+    private async Task EnsureGuildCommandsAsync(DiscordSocketClient client, string desired, ApplicationCommandProperties[] commands)
+    {
+        if (string.IsNullOrWhiteSpace(options.GuildId) || !ulong.TryParse(options.GuildId, out var gid)) return;
+        IGuild? guild = client.GetGuild(gid);
+        if (guild is null) return;
+        if (options.RegisterGuildCommands)
+        {
+            if (!await GuildCommandsMatchAsync(guild, desired))
+                await guild.BulkOverwriteApplicationCommandsAsync(commands);
+            return;
+        }
+        try
+        {
+            var existing = await guild.GetApplicationCommandsAsync();
+            if (existing.Count == 0) return;
+            await guild.BulkOverwriteApplicationCommandsAsync(Array.Empty<ApplicationCommandProperties>());
+            logger.LogInformation("bot: purged {Count} guild-scoped command duplicates", existing.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "bot: guild command purge failed");
         }
     }
 
@@ -167,7 +192,7 @@ public sealed class DiscordBotHostedService(
         {
             IGuild? guild = client.GetGuild(gid);
             if (guild is null) { logger.LogWarning("bot: shared-role: guild {Guild} not available", gid); return; }
-            // With GatewayIntents.None the member cache is empty, so the socket member cache misses.
+            // Without the privileged GuildMembers intent the member cache is empty.
             // CacheMode.AllowDownload uses the cache when present, otherwise does a REST fetch of the
             // bot's own member. No privileged GuildMembers intent is needed for this single lookup.
             IGuildUser? self = await guild.GetUserAsync(client.CurrentUser.Id, CacheMode.AllowDownload);
