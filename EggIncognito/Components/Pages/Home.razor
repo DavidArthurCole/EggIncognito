@@ -1,9 +1,75 @@
 @page "/"
+@using System.Reflection
+@inject IRouteCatalog Routes
+@inject FileEndpointSource Endpoints
+@inject IAppMode AppMode
 <PageTitle>EggIncognito</PageTitle>
-<main class="px-8 pt-6 pb-8 max-w-[720px]">
+<main class="px-8 pt-6 pb-12 max-w-[960px]">
   <h1 class="sr-only">EggIncognito</h1>
-  <img class="block w-full max-w-[360px] h-auto mb-2" src="/brand/wordmark.png" alt="EggIncognito" />
-  <p>Stateless mock server for the Egg, Inc. API. Use the
-     <a class="text-accent2" href="/inspector/">Inspector</a> to build and send requests, or
-     <a class="text-accent2" href="/capture/">Capture</a> to record live traffic into endpoints.</p>
+  <img class="block w-full max-w-[360px] h-auto mb-3" src="/brand/wordmark.png" alt="EggIncognito" />
+  <p class="text-[15px] mb-4">Stateless mock server + toolkit for the Egg, Inc. API.</p>
+  <div class="flex gap-3 mb-10">
+    <a class="btn-primary" href="/inspector/">Inspector</a>
+    <a class="btn-primary" href="/capture/">Capture</a>
+    <a class="btn-primary" href="/docs/">Docs</a>
+  </div>
+
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10">
+    <a class="panel p-4 block hover:border-accent" href="/inspector/">
+      <strong>Inspector</strong>
+      <p class="text-sm mt-1">Build, sign, send, and decode API requests. Every transform visualized.</p>
+    </a>
+    <a class="panel p-4 block hover:border-accent @(AppMode.CanCapture ? "" : "opacity-50")" href="/capture/">
+      <strong>Capture</strong>
+      <p class="text-sm mt-1">Record live game traffic into reusable endpoints via the local proxy.</p>
+      @if (!AppMode.CanCapture) { <span class="perk-chip perk-chip-soon">local only</span> }
+    </a>
+    <a class="panel p-4 block hover:border-accent @(AppMode.CanWrite ? "" : "opacity-50")" href="/import/">
+      <strong>Import</strong>
+      <p class="text-sm mt-1">Turn HAR files into endpoints.</p>
+      @if (!AppMode.CanWrite) { <span class="perk-chip perk-chip-soon">local only</span> }
+    </a>
+    <a class="panel p-4 block hover:border-accent" href="/docs/">
+      <strong>Docs</strong>
+      <p class="text-sm mt-1">Message + endpoint documentation, tags, and proto reference.</p>
+    </a>
+    <div class="panel p-4">
+      <strong>Mock API</strong>
+      <p class="text-sm mt-1">@Routes.All().Count routes, @Endpoints.Count canned endpoints, ready to POST against.</p>
+    </div>
+  </div>
+
+  <h2 class="text-lg font-semibold mb-3">Getting started</h2>
+  <div class="grid gap-3 sm:grid-cols-3 mb-10 text-sm">
+    <div class="panel p-3">
+      <strong class="block mb-1">Docker</strong>
+      <span class="code-chip">docker run -p 5080:8080 ghcr.io/davidarthurcole/eggincognito:latest</span>
+    </div>
+    <div class="panel p-3">
+      <strong class="block mb-1">Binary</strong>
+      Single-file builds per OS on
+      <a class="text-accent2" href="https://github.com/DavidArthurCole/EggIncognito/releases" target="_blank" rel="noopener">GitHub Releases</a>.
+    </div>
+    <div class="panel p-3">
+      <strong class="block mb-1">Source</strong>
+      <span class="code-chip">dotnet run --project EggIncognito</span>
+    </div>
+  </div>
+
+  <div class="panel p-4 mb-10 flex items-center justify-between gap-4">
+    <p class="text-sm">Like the project? Supporting covers server costs and unlocks supporter perks.</p>
+    <a class="btn-primary shrink-0" href="/support">Support</a>
+  </div>
+
+  <footer class="text-xs flex gap-4 opacity-70">
+    <a class="text-accent2" href="https://github.com/DavidArthurCole/EggIncognito" target="_blank" rel="noopener">GitHub</a>
+    <span>@AppMode.Mode mode</span>
+    <span>@Version</span>
+  </footer>
 </main>
+
+@code {
+    static string Version =>
+        Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "dev";
+}

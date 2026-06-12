@@ -75,6 +75,7 @@ public class AdminPageTests
         public string? Username => IsAuthenticated ? "fake" : null;
         public string? Avatar => null;
         public UserRole Role => role;
+        public bool IsSupporter => false;
         public bool IsAtLeast(UserRole need) => role >= need;
     }
 }

@@ -33,10 +33,13 @@ public static class RateLimitKeys
             ? $"user:{user.DiscordId}"
             : $"ip:{ClientIp(ctx, hosted)}";
 
-    // The tier name (matches RateLimitOptions.Tiers keys). Contributor + Admin share the top tier.
-    public static string TierFor(ICurrentUser user)
+    // Tier names that apply to this caller (keys into RateLimitOptions.Tiers). The effective permit
+    // is the best of these, so a supporter contributor keeps whichever limit is higher even if
+    // config lowers the Supporter tier below Contributor.
+    public static IReadOnlyList<string> TiersFor(ICurrentUser user)
     {
-        if (!user.IsAuthenticated) return "Anon";
-        return user.IsAtLeast(UserRole.Contributor) ? "Contributor" : "Viewer";
+        if (!user.IsAuthenticated) return ["Anon"];
+        var baseTier = user.IsAtLeast(UserRole.Contributor) ? "Contributor" : "Viewer";
+        return user.IsSupporter ? [baseTier, "Supporter"] : [baseTier];
     }
 }

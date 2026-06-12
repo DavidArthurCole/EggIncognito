@@ -4,9 +4,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// Boots the real web host in-process and proves the sync endpoint's auth + gate ladder:
-// 404 without a configured secret, 401 on a missing/bad bearer, 403 in hosted mode, 202 on a good
-// request in local mode. Mirrors AppModeGateTests' WebApplicationFactory pattern.
+// Boots the real web host in-process and proves the sync endpoint's auth ladder:
+// 404 without a configured secret, 401 on a missing/bad bearer, 202 on a good authed request in any
+// AppMode (no longer hosted-gated). Mirrors AppModeGateTests' WebApplicationFactory pattern.
 public class EventsControllerTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private const string Secret = "test-secret-123";
@@ -53,13 +53,14 @@ public class EventsControllerTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact]
-    public async Task Hosted_RightBearer_Is403()
+    public async Task Hosted_RightBearer_Is202()
     {
+        // Hosted is no longer gated: a correctly-authed event is accepted regardless of AppMode.
         var c = Client("Hosted", withSecret: true);
         var req = new HttpRequestMessage(HttpMethod.Post, "/events/new-version") { Content = Json() };
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Secret);
         var r = await c.SendAsync(req);
-        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, r.StatusCode);
     }
 
     [Fact]

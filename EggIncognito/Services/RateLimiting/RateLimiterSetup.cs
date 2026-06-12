@@ -68,9 +68,12 @@ public static class RateLimiterSetup
         return 60;
     }
 
-    // The effective permit for a caller = the smaller of the policy and tier limits.
-    internal static int EffectivePermit(RateLimitOptions opts, string tierName, string policyOptionKey) =>
-        Math.Min(opts.Policies[policyOptionKey].PermitLimit, opts.Tiers[tierName].PermitLimit);
+    // The effective permit for a caller = min(policy limit, best applicable tier limit).
+    internal static int EffectivePermit(RateLimitOptions opts, IReadOnlyList<string> tierNames, string policyOptionKey)
+    {
+        var best = tierNames.Max(t => opts.Tiers[t].PermitLimit);
+        return Math.Min(opts.Policies[policyOptionKey].PermitLimit, best);
+    }
 
     // Build a sliding-window partition for a caller, using the smaller of the policy + tier limits.
     private static RateLimitPartition<string> Partition(HttpContext ctx, string policyOptionKey, RateLimitOptions opts)
@@ -79,7 +82,7 @@ public static class RateLimiterSetup
         var hosted = ctx.RequestServices.GetRequiredService<IAppMode>().Mode == AppMode.Hosted;
         var key = RateLimitKeys.PartitionKey(ctx, user, hosted);
         var policy = opts.Policies[policyOptionKey];
-        var permit = EffectivePermit(opts, RateLimitKeys.TierFor(user), policyOptionKey);
+        var permit = EffectivePermit(opts, RateLimitKeys.TiersFor(user), policyOptionKey);
 
         return RateLimitPartition.GetSlidingWindowLimiter($"{policyOptionKey}:{key}", _ =>
             new SlidingWindowRateLimiterOptions

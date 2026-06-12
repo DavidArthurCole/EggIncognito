@@ -15,6 +15,7 @@ public class StoredEndpointRoleTests
         public string? Username => "tester";
         public string? Avatar => null;
         public UserRole Role => role;
+        public bool IsSupporter => false;
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(role, need);
     }
 

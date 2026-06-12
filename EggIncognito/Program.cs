@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection; // PersistKeysToDbContext extension (EntityFrameworkCore pkg)
 using EggIncognito.Logging;
 using EggIncognito.Services;
@@ -105,12 +106,17 @@ builder.Services.AddSingleton<ITransportPipeline, TransportPipeline>();
 var pgConn = builder.Configuration.GetConnectionString("Postgres");
 var dbEnabled = !string.IsNullOrWhiteSpace(pgConn);
 
-builder.Services.AddSingleton<IEndpointStore>(sp =>
+// The file source is registered concretely so the home page can report its endpoint count.
+builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
-    var logger = sp.GetRequiredService<ILogger<EndpointStore>>();
     var path = config["EndpointsPath"] ?? Path.Combine(AppContext.BaseDirectory, "Endpoints");
-    var fileSource = new FileEndpointSource(path);
+    return new FileEndpointSource(path);
+});
+builder.Services.AddSingleton<IEndpointStore>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<EndpointStore>>();
+    var fileSource = sp.GetRequiredService<FileEndpointSource>();
     var scopeFactory = dbEnabled ? sp.GetRequiredService<IServiceScopeFactory>() : null;
     return new EndpointStore(fileSource, scopeFactory, logger);
 });
@@ -152,6 +158,10 @@ var authEnabled = builder.AddDiscordAuthIfConfigured(dbEnabled);
 builder.Services.AddSingleton(new AuthState(authEnabled));
 builder.Services.AddHttpContextAccessor();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
+// Supporter role check (login stamp + refresh-benefits). Always registered; without
+// Discord:GuildId + Discord:SupporterRoleId + Discord:BotToken it short-circuits to false.
+builder.Services.AddHttpClient("discord-api");
+builder.Services.AddSingleton<SupporterStatus>();
 // The Discord:AdminIds allowlist bootstraps the first admin. Always registered, harmless when empty,
 // so UserUpsert can resolve it during login.
 builder.Services.AddSingleton(
@@ -328,9 +338,30 @@ app.MapGet("/api/app/mode", (IAppMode m, AuthState auth, ICurrentUser user) =>
         canWrite = m.CanWrite,
         authEnabled = auth.Enabled,
         user = user.IsAuthenticated
-            ? new { user.DiscordId, user.Username, user.Avatar, role = EggIncognito.Data.Models.UserRoles.ToName(user.Role) }
+            ? new { user.DiscordId, user.Username, user.Avatar,
+                    role = EggIncognito.Data.Models.UserRoles.ToName(user.Role),
+                    supporter = user.IsSupporter }
             : null,
     }));
+
+// Re-checks the Supporter role and reissues the cookie with a fresh egi:supporter claim. Form-POST
+// friendly: the /support page button posts here and the redirect lands back with the new cookie.
+if (authEnabled)
+{
+    app.MapPost("/api/account/refresh-benefits",
+        async (HttpContext http, ICurrentUser user, SupporterStatus checker) =>
+    {
+        if (!user.IsAuthenticated || string.IsNullOrEmpty(user.DiscordId))
+            return Results.Unauthorized();
+        var isSupporter = await checker.CheckAsync(user.DiscordId, http.RequestAborted);
+        var identity = (System.Security.Claims.ClaimsIdentity)http.User.Identity!;
+        SupporterClaims.Stamp(identity, isSupporter);
+        await http.SignInAsync(
+            Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme,
+            new System.Security.Claims.ClaimsPrincipal(identity));
+        return Results.Redirect("/support");
+    }).RequireRateLimiting("read");
+}
 
 // Flush and close the per-startup log file cleanly on shutdown.
 app.Lifetime.ApplicationStopping.Register(fileLogProvider.Dispose);

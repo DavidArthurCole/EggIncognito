@@ -15,6 +15,7 @@ public class AdminControllerTests
         public string? Username => "u";
         public string? Avatar => null;
         public UserRole Role => role;
+        public bool IsSupporter => false;
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(role, need);
     }
     private sealed class EmptyServices : IServiceProvider { public object? GetService(Type t) => null; }

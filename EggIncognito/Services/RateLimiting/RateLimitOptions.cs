@@ -20,6 +20,7 @@ public sealed record RateLimitOptions(
             ["Anon"] = new(PermitLimit: 30, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Viewer"] = new(PermitLimit: 120, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Contributor"] = new(PermitLimit: 600, WindowSeconds: 60, SegmentsPerWindow: 6),
+            ["Supporter"] = new(PermitLimit: 1200, WindowSeconds: 60, SegmentsPerWindow: 6),
         },
         Policies: new Dictionary<string, RateLimit>
         {

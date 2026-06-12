@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using AspNet.Security.OAuth.Discord;
 using EggIncognito.Data.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -30,7 +31,17 @@ public static class AuthSetup
                 o.CallbackPath = "/discord-auth";
                 o.SaveTokens = false;
                 o.Scope.Add("identify");
-                o.Events.OnCreatingTicket = UserUpsert.OnLoginAsync;
+                o.Events.OnCreatingTicket = async ctx =>
+                {
+                    await UserUpsert.OnLoginAsync(ctx);
+                    // Supporter entitlement rides the cookie next to egi:role. Fail-closed: any
+                    // check failure stamps "false" and login still succeeds.
+                    var checker = ctx.HttpContext.RequestServices.GetRequiredService<SupporterStatus>();
+                    var discordId = ctx.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                    var isSupporter = !string.IsNullOrEmpty(discordId)
+                        && await checker.CheckAsync(discordId, ctx.HttpContext.RequestAborted);
+                    SupporterClaims.Stamp(ctx.Identity, isSupporter);
+                };
                 o.Events.OnRemoteFailure = ctx =>
                 {
                     // Do not 500 on a denied/failed callback; bounce home with a benign flag.

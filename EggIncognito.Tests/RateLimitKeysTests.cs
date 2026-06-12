@@ -70,9 +70,23 @@ public class RateLimitKeysTests
     [InlineData(true, UserRole.Viewer, "Viewer")]
     [InlineData(true, UserRole.Contributor, "Contributor")]
     [InlineData(true, UserRole.Admin, "Contributor")]
-    public void TierFor_MapsRole(bool auth, UserRole role, string expected)
+    public void TiersFor_MapsRole(bool auth, UserRole role, string expected)
     {
-        Assert.Equal(expected, RateLimitKeys.TierFor(new FakeUser(auth, auth ? "x" : null, role)));
+        Assert.Equal(new[] { expected }, RateLimitKeys.TiersFor(new FakeUser(auth, auth ? "x" : null, role)));
+    }
+
+    [Fact]
+    public void TiersFor_SupporterViewer_IncludesSupporter()
+    {
+        var user = new FakeUser(authenticated: true, id: "x", role: UserRole.Viewer, supporter: true);
+        Assert.Equal(new[] { "Viewer", "Supporter" }, RateLimitKeys.TiersFor(user));
+    }
+
+    [Fact]
+    public void TiersFor_NonSupporterContributor_BaseOnly()
+    {
+        var user = new FakeUser(authenticated: true, id: "x", role: UserRole.Contributor);
+        Assert.Equal(new[] { "Contributor" }, RateLimitKeys.TiersFor(user));
     }
 
     // Defaults: Egress 10, Write 60; tiers Anon 30 / Viewer 120 / Contributor 600.
@@ -85,7 +99,16 @@ public class RateLimitKeysTests
     [InlineData("Contributor", "Write", 60)]
     public void EffectivePermit_IsMinOfPolicyAndTier(string tier, string policy, int expected)
     {
-        Assert.Equal(expected, RateLimiterSetup.EffectivePermit(RateLimitOptions.Defaults(), tier, policy));
+        Assert.Equal(expected, RateLimiterSetup.EffectivePermit(RateLimitOptions.Defaults(), new[] { tier }, policy));
+    }
+
+    [Fact]
+    public void EffectivePermit_TakesBestTier()
+    {
+        var opts = RateLimitOptions.Defaults();
+        var permitSupporter = RateLimiterSetup.EffectivePermit(opts, new[] { "Viewer", "Supporter" }, "Read");
+        var permitViewer = RateLimiterSetup.EffectivePermit(opts, new[] { "Viewer" }, "Read");
+        Assert.True(permitSupporter >= permitViewer);
     }
 
     // Sliding-window QueueLimit=0 leases never carry RetryAfter metadata, so the 429 fallback comes
@@ -116,13 +139,14 @@ public class RateLimitKeysTests
         Assert.Equal(60, RateLimiterSetup.FallbackRetryAfterSeconds(ctx, opts));
     }
 
-    private sealed class FakeUser(bool authenticated, string? id, UserRole role) : ICurrentUser
+    private sealed class FakeUser(bool authenticated, string? id, UserRole role, bool supporter = false) : ICurrentUser
     {
         public bool IsAuthenticated => authenticated;
         public string? DiscordId => id;
         public string? Username => null;
         public string? Avatar => null;
         public UserRole Role => role;
+        public bool IsSupporter => supporter;
         public bool IsAtLeast(UserRole need) => role >= need;
     }
 }

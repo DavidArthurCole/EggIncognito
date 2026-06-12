@@ -9,6 +9,7 @@ public sealed class FileEndpointSource : IEndpointSource
 {
     private readonly Dictionary<string, byte[]> _endpoints = new(StringComparer.OrdinalIgnoreCase);
     public int Priority => 0;
+    public int Count => _endpoints.Count;
 
     public FileEndpointSource(string endpointsPath)
     {

@@ -11,5 +11,6 @@ public interface ICurrentUser
     string? Username { get; }
     string? Avatar { get; }
     UserRole Role { get; }
+    bool IsSupporter { get; }
     bool IsAtLeast(UserRole need);
 }

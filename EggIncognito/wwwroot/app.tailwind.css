@@ -146,6 +146,14 @@
            px-[7px] py-px;
   }
 
+  /* Perk status chips (/support perks + home capability tags). */
+  .perk-chip {
+    @apply inline-block text-[11px] uppercase tracking-wide rounded px-1.5 py-0.5 mr-2 align-middle;
+  }
+  .perk-chip-live { @apply bg-green-900/60 text-green-300; }
+  .perk-chip-soon { @apply bg-amber-900/60 text-amber-300; }
+  .perk-chip-dev { @apply bg-sky-900/60 text-sky-300; }
+
   /* Code / data boxes */
   /* Inline mono code chip (Phase 2 + Inspector doc code). */
   .code-chip {
