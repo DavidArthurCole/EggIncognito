@@ -1,7 +1,6 @@
 @page "/"
 @inject IRouteCatalog Routes
 @inject FileEndpointSource Endpoints
-@inject IAppMode AppMode
 <PageTitle>EggIncognito</PageTitle>
 <main class="px-8 pt-6 pb-12 max-w-[960px]">
   <h1 class="sr-only">EggIncognito</h1>
@@ -18,15 +17,13 @@
       <strong>Inspector</strong>
       <p class="text-sm mt-1">Build, sign, send, and decode API requests. Every transform visualized.</p>
     </a>
-    <a class="panel card-link p-4 @(AppMode.CanCapture ? "" : "opacity-50")" href="/capture/">
+    <a class="panel card-link p-4" href="/capture/">
       <strong>Capture</strong>
-      <p class="text-sm mt-1">Record live game traffic into reusable endpoints via the local proxy.</p>
-      @if (!AppMode.CanCapture) { <span class="perk-chip perk-chip-soon mt-1">local only</span> }
+      <p class="text-sm mt-1">Record live game traffic into reusable endpoints.</p>
     </a>
-    <a class="panel card-link p-4 @(AppMode.CanWrite ? "" : "opacity-50")" href="/import/">
+    <a class="panel card-link p-4" href="/import/">
       <strong>Import</strong>
       <p class="text-sm mt-1">Turn HAR files into endpoints.</p>
-      @if (!AppMode.CanWrite) { <span class="perk-chip perk-chip-soon mt-1">local only</span> }
     </a>
     <a class="panel card-link p-4" href="/docs/">
       <strong>Docs</strong>
@@ -46,7 +43,7 @@
     </div>
     <div class="panel p-3">
       <strong class="block mb-1">Binary</strong>
-      Single-file builds per OS on <a class="text-accent2" href="https://github.com/DavidArthurCole/EggIncognito/releases" target="_blank" rel="noopener">GitHub Releases</a>.
+      Per-OS single-file builds on <a class="text-accent2" href="https://github.com/DavidArthurCole/EggIncognito/releases" target="_blank" rel="noopener">GitHub Releases</a>
     </div>
     <div class="panel p-3">
       <strong class="block mb-1">Source</strong>

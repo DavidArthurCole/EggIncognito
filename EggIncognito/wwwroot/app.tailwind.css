@@ -173,16 +173,16 @@
     @apply text-[13px] font-semibold uppercase tracking-[0.05em] text-muted mt-0 mb-3;
   }
 
-  /* Perk rows: flat panels, status shown by an outlined pill (the app's .pill idiom). The live
-     perk gets a left accent border so it reads first, no fills. */
-  .perk-list { @apply flex flex-col gap-2; }
+  /* Perk cards: 2-up grid of flat panels, status via an outlined pill. The live perk gets a left
+     accent border so it reads first, no fills. */
+  .perk-list { @apply grid gap-2 sm:grid-cols-2; }
   .perk {
-    @apply flex items-baseline justify-between gap-3 flex-wrap border border-border bg-panel
-           rounded-lg px-4 py-3;
+    @apply border border-border bg-panel rounded-lg px-4 py-3;
   }
   .perk-on { border-left: 2px solid theme(colors.accent); }
+  .perk-top { @apply flex items-baseline justify-between gap-3; }
   .perk-name { @apply text-sm font-semibold text-fg m-0; }
-  .perk-desc { @apply text-xs text-muted leading-snug m-0 mt-1 basis-full; }
+  .perk-desc { @apply text-xs text-muted leading-snug m-0 mt-1; }
 
   /* Rail cards: plain panels matching the home feature grid, accent border on hover. The platform
      name carries identity, no colored dots. */
@@ -210,8 +210,8 @@
   .connect-prompt { @apply text-sm text-muted m-0; }
   .connect-hint { @apply text-xs text-muted mt-2 mb-0; }
 
-  /* FAQ: flat panel rows, not a colored grid. */
-  .faq-list { @apply flex flex-col gap-2; }
+  /* FAQ: 2-up grid of flat panels. */
+  .faq-list { @apply grid gap-2 sm:grid-cols-2; }
   .faq-item { @apply border border-border bg-panel rounded-lg px-4 py-3; }
   .faq-q { @apply font-semibold text-sm text-fg mb-1; }
   .faq-a { @apply text-xs text-muted leading-snug m-0; }
