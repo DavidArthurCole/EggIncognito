@@ -62,6 +62,13 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
     public event Action<string>? DecryptError; // a TLS/decrypt error message
 
     public bool Verbose { get; set; }
+
+    // Hosted sessions are fronted by ProxyFrontDoor, which tunnels straight to the loopback proxy at
+    // base+1: no LAN-facing forwarder may bind (it would be an unauthenticated bypass), and per-user
+    // CAs must not enter the server's own OS trust store.
+    public bool LanForwarderEnabled { get; init; } = true;
+    public bool TrustCaInOsStore { get; init; } = true;
+
     public event Action<string>? Trace;
     private void Log(string msg) { if (Verbose) Trace?.Invoke(msg); }
 
@@ -133,19 +140,22 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         await _host.StartAsync(ct);
 
         // Bridge the LAN-facing port to the loopback-bound proxy so devices can connect.
-        _forwarder = new LanForwarder(publicPort: port, proxyPort: internalPort)
+        if (LanForwarderEnabled)
         {
-            Trace = Log,
-            DeviceConnected = (ip, n) => ClientConnected?.Invoke(n, ip),
-            DeviceDisconnected = (ip, n) => ClientDisconnected?.Invoke(n, ip),
-        };
-        _forwarder.Start();
+            _forwarder = new LanForwarder(publicPort: port, proxyPort: internalPort)
+            {
+                Trace = Log,
+                DeviceConnected = (ip, n) => ClientConnected?.Invoke(n, ip),
+                DeviceDisconnected = (ip, n) => ClientDisconnected?.Invoke(n, ip),
+            };
+            _forwarder.Start();
+        }
 
         // Export + trust the root CA; the library does not install it into the OS store itself.
         var cm = _host.Services.GetRequiredService<ICertificateManager>();
         _rootCa = await cm.GetRootCertificateAsync(includePrivateKey: false, ct);
         await File.WriteAllBytesAsync(caPath, _rootCa.Export(X509ContentType.Cert), ct);
-        TrustRootCa(_rootCa);
+        if (TrustCaInOsStore) TrustRootCa(_rootCa);
     }
 
     private void WireEvents()

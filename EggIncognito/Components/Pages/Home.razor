@@ -15,27 +15,27 @@
   </div>
 
   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10">
-    <a class="panel p-4 block hover:border-accent" href="/inspector/">
+    <a class="panel card-link p-4" href="/inspector/">
       <strong>Inspector</strong>
       <p class="text-sm mt-1">Build, sign, send, and decode API requests. Every transform visualized.</p>
     </a>
-    <a class="panel p-4 block hover:border-accent @(AppMode.CanCapture ? "" : "opacity-50")" href="/capture/">
+    <a class="panel card-link p-4 @(AppMode.CanCapture ? "" : "opacity-50")" href="/capture/">
       <strong>Capture</strong>
       <p class="text-sm mt-1">Record live game traffic into reusable endpoints via the local proxy.</p>
-      @if (!AppMode.CanCapture) { <span class="perk-chip perk-chip-soon">local only</span> }
+      @if (!AppMode.CanCapture) { <span class="perk-chip perk-chip-soon mt-1">local only</span> }
     </a>
-    <a class="panel p-4 block hover:border-accent @(AppMode.CanWrite ? "" : "opacity-50")" href="/import/">
+    <a class="panel card-link p-4 @(AppMode.CanWrite ? "" : "opacity-50")" href="/import/">
       <strong>Import</strong>
       <p class="text-sm mt-1">Turn HAR files into endpoints.</p>
-      @if (!AppMode.CanWrite) { <span class="perk-chip perk-chip-soon">local only</span> }
+      @if (!AppMode.CanWrite) { <span class="perk-chip perk-chip-soon mt-1">local only</span> }
     </a>
-    <a class="panel p-4 block hover:border-accent" href="/docs/">
+    <a class="panel card-link p-4" href="/docs/">
       <strong>Docs</strong>
       <p class="text-sm mt-1">Message + endpoint documentation, tags, and proto reference.</p>
     </a>
     <div class="panel p-4">
       <strong>Mock API</strong>
-      <p class="text-sm mt-1">@Routes.All().Count routes, @Endpoints.Count canned endpoints, ready to POST against.</p>
+      <p class="text-sm mt-1 text-muted">@Routes.All().Count routes, @Endpoints.Count canned endpoints, ready to POST against.</p>
     </div>
   </div>
 

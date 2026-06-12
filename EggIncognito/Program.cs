@@ -162,6 +162,13 @@ builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
 // Discord:GuildId + Discord:SupporterRoleId + Discord:BotToken it short-circuits to false.
 builder.Services.AddHttpClient("discord-api");
 builder.Services.AddSingleton<SupporterStatus>();
+builder.Services.AddSingleton<ISupporterStatus>(sp => sp.GetRequiredService<SupporterStatus>());
+// Capture-CA Discord DM: the real REST notifier only when a bot token is configured, else a no-op so
+// the web app carries no hard bot dependency. Same gate style as the bot/SupporterStatus wiring.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Discord:BotToken"]))
+    builder.Services.AddSingleton<ICaptureCaNotifier, DiscordCaptureCaNotifier>();
+else
+    builder.Services.AddSingleton<ICaptureCaNotifier, NoopCaptureCaNotifier>();
 // The Discord:AdminIds allowlist bootstraps the first admin. Always registered, harmless when empty,
 // so UserUpsert can resolve it during login.
 builder.Services.AddSingleton(
@@ -262,24 +269,83 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
     });
 }
 
+// Per-user capture sessions. Local resolves the single anonymous LocalKey session through the
+// manager, so DI consumers of CaptureSession (capture-mode autostart, the local controller path)
+// behave exactly as the old singleton did.
+var hostedCaptureOpts = EggIncognito.Capture.HostedCaptureOptions.Bind(builder.Configuration);
+builder.Services.AddSingleton(hostedCaptureOpts);
 builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     // Content root = the directory that directly holds RouteMap/ + Endpoints/: the project dir in dev,
     // the exe dir when published. CaptureSession + EndpointExtractor both resolve their files under it.
     var contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
-    var capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
-    var caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
-    var opts = new EggIncognito.Capture.CaptureSessionOptions(
-        Port: int.TryParse(config["CapturePort"], out var cp) ? cp : 8080,
-        Eid: config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID"),
-        Label: config["CaptureLabel"],
-        Overwrite: config.GetValue("CaptureOverwrite", false),
-        Verbose: config.GetValue("CaptureVerbose", false),
-        CapturePath: capturePath,
-        CaPath: caPath);
-    return new EggIncognito.Capture.CaptureSession(contentRoot, opts);
+    return new EggIncognito.Capture.CaptureSessionManager(hostedCaptureOpts, (key, basePort) =>
+    {
+        if (key == EggIncognito.Capture.CaptureSessionManager.LocalKey)
+        {
+            var capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
+            var caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
+            var opts = new EggIncognito.Capture.CaptureSessionOptions(
+                Port: int.TryParse(config["CapturePort"], out var cp) ? cp : 8080,
+                Eid: config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID"),
+                Label: config["CaptureLabel"],
+                Overwrite: config.GetValue("CaptureOverwrite", false),
+                Verbose: config.GetValue("CaptureVerbose", false),
+                CapturePath: capturePath,
+                CaPath: caPath);
+            return new EggIncognito.Capture.CaptureSession(contentRoot, opts);
+        }
+        // Hosted per-user session: pooled loopback base port, private temp dirs, no endpoint-file
+        // writes, no LAN forwarder and no OS trust-store install; the front door is the only way in.
+        var dir = Path.Combine(Path.GetTempPath(), "eggincognito-hosted-capture", key);
+        var hostedOpts = new EggIncognito.Capture.CaptureSessionOptions(
+            Port: basePort, Eid: null, Label: null, Overwrite: false,
+            Verbose: config.GetValue("CaptureVerbose", false),
+            CapturePath: dir, CaPath: Path.Combine(dir, "ca.cer"),
+            WriteEndpoints: false);
+        return new EggIncognito.Capture.CaptureSession(contentRoot, hostedOpts,
+            verbose => new EggIncognito.Capture.UnobtaniumCaptureProxy(verbose)
+            {
+                LanForwarderEnabled = false,
+                TrustCaInOsStore = false,
+            });
+    });
 });
+builder.Services.AddSingleton(sp =>
+    sp.GetRequiredService<EggIncognito.Capture.CaptureSessionManager>()
+        .GetOrCreate(EggIncognito.Capture.CaptureSessionManager.LocalKey));
+
+// Hosted capture: front door + sweeper, only on a Hosted deploy that opted in. The front door's
+// token lookup opens a DI scope per call to reach the scoped credential store.
+var hostedCaptureOn = string.Equals(builder.Configuration["AppMode"], "Hosted", StringComparison.OrdinalIgnoreCase)
+    && builder.Configuration.GetValue("HostedCaptureEnabled", false);
+if (dbEnabled)
+{
+    builder.Services.AddScoped<EggIncognito.Data.Services.CaptureCredentialStore>();
+}
+if (hostedCaptureOn)
+{
+    builder.Services.AddSingleton(sp =>
+    {
+        var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("capture.frontdoor");
+        return new EggIncognito.Capture.ProxyFrontDoor(
+            hostedCaptureOpts,
+            sp.GetRequiredService<EggIncognito.Capture.CaptureSessionManager>(),
+            async discordId =>
+            {
+                using var scope = scopeFactory.CreateScope();
+                var store = scope.ServiceProvider
+                    .GetService<EggIncognito.Data.Services.CaptureCredentialStore>();
+                return store is null ? null : await store.GetTokenHashAsync(discordId);
+            },
+            msg => logger.LogInformation("{Message}", msg));
+    });
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<EggIncognito.Capture.ProxyFrontDoor>());
+    builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddHostedService<CaptureSweeper>();
+}
 
 var app = builder.Build();
 
@@ -336,6 +402,7 @@ app.MapGet("/api/app/mode", (IAppMode m, AuthState auth, ICurrentUser user) =>
         mode = m.Mode.ToString(),
         canCapture = m.CanCapture,
         canWrite = m.CanWrite,
+        hostedCapture = m.HostedCaptureEnabled,
         authEnabled = auth.Enabled,
         user = user.IsAuthenticated
             ? new { user.DiscordId, user.Username, user.Avatar,

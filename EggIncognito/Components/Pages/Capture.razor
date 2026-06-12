@@ -5,15 +5,87 @@
 @using Microsoft.JSInterop
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
-@inject CaptureSession Session
+@inject CaptureSessionManager Manager
 @inject IAppMode AppMode
+@inject ICurrentUser User
+@inject HostedCaptureOptions HostedOptions
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
 
 <PageTitle>EggIncognito - Live Capture</PageTitle>
 
-@if (!AppMode.CanCapture)
+@if (_session is not null)
+{
+  @if (_hosted)
+  {
+    <div class="px-3 pt-3">
+      <HostedSetupCard Host="@HostedOptions.PublicHost" Port="HostedOptions.FrontDoorPort"
+                       Username="@(_userId ?? "")" ClientFactory="Client" />
+    </div>
+  }
+
+  <CaptureToolbar Running="_running" ToggleBusy="_toggleBusy" View="_view"
+                  Notices="_notices" Unread="_unread"
+                  OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
+                  OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
+
+  @* Responsive: panes stack in one scrolling column on phones; become the 220px stats + flow list +
+     detail columns filling the viewport on >=lg. *@
+  <main class="capture-main grid gap-3 p-3 min-h-0">
+    <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
+
+    <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow" />
+
+    <section id="detailPanel" class="panel">
+      <h2>Detail</h2>
+      <DetailPane Flow="_selectedFlow" View="_view" ClientFactory="Client" />
+    </section>
+  </main>
+
+  <div class="toast-container">
+    @foreach (var t in _toasts)
+    {
+      <div class="toast toast-@t.Severity show" @onclick="@(() => RemoveToast(t.Id))">
+        <div class="toast-msg">@t.Message</div>
+        @if (!string.IsNullOrEmpty(t.Timestamp))
+        {
+          <div class="toast-time">@t.Timestamp</div>
+        }
+      </div>
+    }
+  </div>
+}
+else if (AppMode.HostedCaptureEnabled)
+{
+  <main class="px-8 pt-6 pb-8 max-w-[760px]">
+    <h1 class="text-[1.3rem] mt-0 mb-2">Capture</h1>
+    @if (!_isAuthenticated)
+    {
+      <div class="panel" id="hostedLogin">
+        <p class="text-muted text-sm mt-0 mb-3">Hosted capture runs a private proxy session tied to
+          your Discord account. Log in to get started.</p>
+        <a class="btn-primary inline-block no-underline" href="/login?returnUrl=/capture">Log in with Discord</a>
+      </div>
+    }
+    else if (!_isSupporter)
+    {
+      <div class="panel" id="hostedPitch">
+        <p class="text-muted text-sm mt-0 mb-3">Hosted capture is a supporter perk: capture real
+          Egg, Inc. traffic from your device with no local setup - this server runs the proxy for you.</p>
+        <a class="btn-primary inline-block no-underline" href="/support">Become a supporter</a>
+      </div>
+    }
+    else
+    {
+      <div class="panel" id="hostedCapacity">
+        <p class="text-muted text-sm my-0">All capture slots are in use right now. Try again in a few
+          minutes.</p>
+      </div>
+    }
+  </main>
+}
+else
 {
   <main class="px-8 pt-6 pb-8 max-w-[760px]">
     <h1 class="text-[1.3rem] mt-0 mb-2">Capture</h1>
@@ -57,39 +129,6 @@
     </div>
   </main>
 }
-else
-{
-  <CaptureToolbar Running="_running" ToggleBusy="_toggleBusy" View="_view"
-                  Notices="_notices" Unread="_unread"
-                  OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
-                  OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
-
-  @* Responsive: panes stack in one scrolling column on phones; become the 220px stats + flow list +
-     detail columns filling the viewport on >=lg. *@
-  <main class="capture-main grid gap-3 p-3 min-h-0">
-    <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
-
-    <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow" />
-
-    <section id="detailPanel" class="panel">
-      <h2>Detail</h2>
-      <DetailPane Flow="_selectedFlow" View="_view" ClientFactory="Client" />
-    </section>
-  </main>
-
-  <div class="toast-container">
-    @foreach (var t in _toasts)
-    {
-      <div class="toast toast-@t.Severity show" @onclick="@(() => RemoveToast(t.Id))">
-        <div class="toast-msg">@t.Message</div>
-        @if (!string.IsNullOrEmpty(t.Timestamp))
-        {
-          <div class="toast-time">@t.Timestamp</div>
-        }
-      </div>
-    }
-  </div>
-}
 
 @code {
     // The live flow buffer, mirroring the JS `flows` Map: an ordered list (oldest first) + an id index
@@ -124,6 +163,14 @@ else
     string? _cookie;
     IJSObjectReference? _store; // captureStore.js (browser view prefs)
 
+    // The caller's session: the anonymous local session in Local mode, the per-user session for a
+    // hosted supporter, null when this caller may not capture (pitch/login/capacity panels render).
+    CaptureSession? _session;
+    bool _hosted;
+    bool _isAuthenticated;
+    bool _isSupporter;
+    string? _userId;
+
     protected override void OnInitialized()
     {
         var req = HttpContextAccessor.HttpContext?.Request;
@@ -133,14 +180,36 @@ else
             _cookie = req.Headers.Cookie;
         }
 
-        if (!AppMode.CanCapture) return;
+        // Snapshot auth during the initial request; the interactive circuit has no HttpContext.
+        _isAuthenticated = User.IsAuthenticated;
+        _isSupporter = User.IsSupporter;
+        _userId = User.DiscordId;
+
+        ResolveSession();
+        if (_session is null) return;
 
         // Seed the dashboard from the hub snapshots, exactly as the SSE controller writes them first.
-        foreach (var f in Session.Hub.Snapshot()) AddOrUpdateFlow(f);
-        ApplyStats(Session.Hub.StatsSnapshot());
+        foreach (var f in _session.Hub.Snapshot()) AddOrUpdateFlow(f);
+        ApplyStats(_session.Hub.StatsSnapshot());
 
         // Seed sensitive keys for blur mode from the controller's list (Redactor + EID fields).
         foreach (var k in CaptureController_SensitiveKeys()) _view.SensitiveKeys.Add(k);
+    }
+
+    // Local: the anonymous local session, as the old singleton. Hosted+enabled supporter: this user's
+    // own session (created idle here; starting it still passes the controller's live role re-check).
+    void ResolveSession()
+    {
+        if (AppMode.CanCapture)
+        {
+            _session = Manager.GetOrCreate(CaptureSessionManager.LocalKey);
+            return;
+        }
+        if (!AppMode.HostedCaptureEnabled || !_isAuthenticated || !_isSupporter || string.IsNullOrEmpty(_userId))
+            return;
+        _hosted = true;
+        try { _session = Manager.GetOrCreate(_userId); }
+        catch (CaptureCapacityException) { /* capacity panel renders */ }
     }
 
     // The sensitive-key set the /api/capture/sensitive-keys endpoint returns, read in-process to avoid a
@@ -150,7 +219,7 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || !AppMode.CanCapture) return;
+        if (!firstRender || _session is null) return;
 
         // Load browser-stored view prefs, then subscribe to the live hub and start the read loop. Both
         // need the interactive circuit, so they run after the first render.
@@ -174,12 +243,13 @@ else
     // never call StateHasChanged directly from this loop.
     void StartSubscription()
     {
-        var (reader, subscription) = Session.Hub.Subscribe();
+        if (_session is null) return;
+        var (reader, subscription) = _session.Hub.Subscribe();
         _subscription = subscription;
         // Re-seed after subscribing (the SSE controller's order), so any flow published between the
         // prerender snapshot and this subscription is not missed. AddOrUpdateFlow dedupes by id.
-        foreach (var f in Session.Hub.Snapshot()) AddOrUpdateFlow(f);
-        ApplyStats(Session.Hub.StatsSnapshot());
+        foreach (var f in _session.Hub.Snapshot()) AddOrUpdateFlow(f);
+        ApplyStats(_session.Hub.StatsSnapshot());
         _loopCts = new CancellationTokenSource();
         var ct = _loopCts.Token;
         _loopTask = Task.Run(async () =>

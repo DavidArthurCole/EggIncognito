@@ -399,6 +399,11 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
+    // Push a one-off notice to every dashboard (toast + notification center). Used for out-of-band
+    // events the proxy itself does not raise, e.g. a failed CA Discord DM at session start.
+    public void PostNotice(CaptureEvent notice) =>
+        Broadcast(new CaptureEnvelope(KindNotice, null, null, notice));
+
     public (ChannelReader<CaptureEnvelope> Reader, IDisposable Subscription) Subscribe()
     {
         var ch = Channel.CreateBounded<CaptureEnvelope>(new BoundedChannelOptions(SubscriberQueueCap)

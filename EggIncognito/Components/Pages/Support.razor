@@ -4,7 +4,7 @@
 <PageTitle>Support - EggIncognito</PageTitle>
 <main class="px-8 pt-6 pb-12 max-w-[860px]">
   <h1 class="text-2xl font-semibold mb-2">Support the project</h1>
-  <p class="mb-8 text-[15px]">
+  <p class="mb-8 text-[15px] text-muted">
     Supporting covers the server running costs for EggIncognito, EggIncProtos, and EggLedger,
     plus the code-signing certificates for EggLedger executables. Any amount counts.
   </p>
@@ -12,42 +12,50 @@
   <h2 class="text-lg font-semibold mb-3">What you get</h2>
   <ul class="space-y-3 mb-10">
     <li class="panel p-4">
-      <span class="perk-chip perk-chip-live">live</span>
-      <strong>Supporter Discord role + raised API rate limits</strong>
-      <p class="text-sm mt-1">Higher request limits across the API, effective as soon as your role lands.</p>
+      <div class="flex items-center gap-2 flex-wrap">
+        <strong>Supporter Discord role + raised API rate limits</strong>
+        <span class="perk-chip perk-chip-live">live</span>
+      </div>
+      <p class="text-sm mt-1 text-muted">Higher request limits across the API, effective as soon as your role lands.</p>
     </li>
     <li class="panel p-4">
-      <span class="perk-chip perk-chip-soon">coming soon</span>
-      <strong>Dedicated API proxy access</strong>
-      <p class="text-sm mt-1">Sealed-tunnel authenticated proxy that hides your identity from the downstream.</p>
+      <div class="flex items-center gap-2 flex-wrap">
+        <strong>Dedicated API proxy access</strong>
+        <span class="perk-chip perk-chip-soon">coming soon</span>
+      </div>
+      <p class="text-sm mt-1 text-muted">Sealed-tunnel authenticated proxy that hides your identity from the downstream.</p>
     </li>
     <li class="panel p-4">
-      <span class="perk-chip perk-chip-soon">coming soon</span>
-      <strong>Dedicated proxy host for Capture</strong>
-      <p class="text-sm mt-1">Run Capture in EggIncognito over the web, no local proxy needed.</p>
+      <div class="flex items-center gap-2 flex-wrap">
+        <strong>Dedicated proxy host for Capture</strong>
+        <span class="perk-chip perk-chip-soon">coming soon</span>
+      </div>
+      <p class="text-sm mt-1 text-muted">Run Capture in EggIncognito over the web, no local proxy needed.</p>
     </li>
     <li class="panel p-4">
-      <span class="perk-chip perk-chip-dev">in development</span>
-      <strong>Cloud storage for EggLedger</strong>
-      <p class="text-sm mt-1">Dedicated encrypted storage volume, always backed up remotely.</p>
+      <div class="flex items-center gap-2 flex-wrap">
+        <strong>Cloud storage for EggLedger</strong>
+        <span class="perk-chip perk-chip-dev">in development</span>
+      </div>
+      <p class="text-sm mt-1 text-muted">Dedicated encrypted storage volume, always backed up remotely.</p>
     </li>
   </ul>
 
   <h2 class="text-lg font-semibold mb-3">Choose how to support</h2>
   <div class="grid gap-4 sm:grid-cols-3 mb-10">
-    <a class="panel p-4 block hover:border-accent" href="https://github.com/sponsors/DavidArthurCole"
+    <a class="panel card-link p-4" href="https://github.com/sponsors/DavidArthurCole"
        target="_blank" rel="noopener">
-      <strong>GitHub Sponsors</strong>
+      <span class="flex items-center gap-2"><span class="rail-dot rail-github"></span><strong>GitHub Sponsors</strong></span>
       <p class="text-sm mt-1">After paying, run <span class="code-chip">/link-github</span> in the Discord server to claim your role.</p>
     </a>
-    <a class="panel p-4 block hover:border-accent" href="https://www.patreon.com/c/DavidArthurCole"
+    <a class="panel card-link p-4" href="https://www.patreon.com/c/DavidArthurCole"
        target="_blank" rel="noopener">
-      <strong>Patreon</strong>
+      <span class="flex items-center gap-2"><span class="rail-dot rail-patreon"></span><strong>Patreon</strong></span>
       <p class="text-sm mt-1">Role lands automatically once Discord is linked on Patreon.</p>
     </a>
-    <a class="panel p-4 block hover:border-accent" href="https://buymeacoffee.com/davidarthurcole"
+    <a class="panel card-link p-4" href="https://buymeacoffee.com/davidarthurcole"
        target="_blank" rel="noopener">
-      <strong>Buy Me a Coffee</strong>
+      <span class="flex items-center gap-2"><span class="rail-dot rail-bmac"></span><strong>Buy Me a Coffee</strong></span>
       <p class="text-sm mt-1">Role lands automatically once Discord is linked on BMAC.</p>
     </a>
   </div>
@@ -58,22 +66,31 @@
     <div class="panel p-4 mb-10">
       @if (User.IsAuthenticated)
       {
-        <p class="mb-2">Signed in as <strong>@User.Username</strong>.
-          Status: @(User.IsSupporter ? "Supporter" : "Not yet a supporter").</p>
+        <p class="mb-3 flex items-center gap-2 flex-wrap">
+          <span>Signed in as <strong>@User.Username</strong></span>
+          @if (User.IsSupporter)
+          {
+            <span class="pill live">Supporter</span>
+          }
+          else
+          {
+            <span class="pill">Not a supporter yet</span>
+          }
+        </p>
         <form method="post" action="/api/account/refresh-benefits" style="margin:0;">
           <button type="submit" class="btn-primary">Refresh benefits</button>
         </form>
       }
       else
       {
-        <p class="mb-2">Connecting Discord links your browser session to your benefits.</p>
-        <a class="btn-primary inline-block" href="/login?returnUrl=%2Fsupport">Log in with Discord</a>
+        <p class="mb-3 text-muted">Connecting Discord links your browser session to your benefits.</p>
+        <a class="btn-primary inline-block no-underline" href="/login?returnUrl=%2Fsupport">Log in with Discord</a>
       }
     </div>
   }
 
   <h2 class="text-lg font-semibold mb-3">FAQ</h2>
-  <dl class="space-y-3 text-sm">
+  <dl class="faq space-y-3 text-sm">
     <div><dt class="font-semibold">How fast does the role land?</dt>
       <dd>Patreon and BMAC: within minutes of linking Discord on their platform. GitHub: instantly after <span class="code-chip">/link-github</span>.</dd></div>
     <div><dt class="font-semibold">What happens if my support lapses?</dt>

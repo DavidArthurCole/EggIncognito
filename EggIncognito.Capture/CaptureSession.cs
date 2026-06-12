@@ -7,7 +7,8 @@ public enum CaptureState { Stopped, Starting, Running, Stopping }
 
 public sealed record CaptureStartResult(bool Running, int Port, string CaPath, bool FreshCa, string? RootThumbprint);
 
-public sealed record CaptureSessionStatus(bool Running, int Port, int ActiveClients, string? RootThumbprint);
+public sealed record CaptureSessionStatus(
+    bool Running, int Port, int ActiveClients, string? RootThumbprint, bool CaDmFailed = false);
 
 // Thread-safe, idempotent owner of the capture proxy lifecycle. Owns the flow queue and consumer pump.
 // The Hub persists across start/stop so the SPA stays connected; only the proxy + consumer are created
@@ -34,6 +35,20 @@ public sealed class CaptureSession
     public CaptureHub Hub { get; } = new();
     public CaptureState State { get; private set; } = CaptureState.Stopped;
 
+    // Base port + CA file for this session, surfaced for the manager's port pool and the hosted
+    // front door / CA persistence. The proxy's loopback listener sits at Port + 1.
+    public int Port => _opts.Port;
+    public string CaPath => _opts.CaPath;
+
+    // Lifecycle timestamps for the hosted sweeper. Set on a successful start; LastFlowUtc bumps on
+    // each captured flow so idle sessions can be reaped. Internal setters are test seams.
+    public DateTimeOffset StartedUtc { get; internal set; }
+    public DateTimeOffset LastFlowUtc { get; internal set; }
+
+    // Set when a fresh CA was minted this session but the Discord DM could not be delivered, so the
+    // /capture setup card can point the user at the download fallback. Surfaced on Status.
+    public bool CaDmFailed { get; set; }
+
     public CaptureSession(string contentRoot, CaptureSessionOptions opts, Func<bool, ICaptureProxy>? proxyFactory = null)
     {
         _contentRoot = contentRoot;
@@ -42,7 +57,7 @@ public sealed class CaptureSession
     }
 
     public CaptureSessionStatus Status =>
-        new(State == CaptureState.Running, _opts.Port, _activeClients, _proxy?.RootThumbprint);
+        new(State == CaptureState.Running, _opts.Port, _activeClients, _proxy?.RootThumbprint, CaDmFailed);
 
     public async Task<CaptureStartResult> StartAsync(CancellationToken ct)
     {
@@ -63,8 +78,13 @@ public sealed class CaptureSession
             Hub.SeedKnownDevices(deviceStore.Load());
             Hub.DevicesChanged = () => deviceStore.Save(Hub.SnapshotRememberedDevices());
 
-            _extractor = EndpointExtractor.ForRepo(_contentRoot, _opts.Eid, EidPlaceholder, _opts.Overwrite);
-            _extractor.Quiet = true;
+            // Hosted sessions never write endpoint fixtures to the shared repo; saves go to the DB
+            // store via the controller instead.
+            if (_opts.WriteEndpoints)
+            {
+                _extractor = EndpointExtractor.ForRepo(_contentRoot, _opts.Eid, EidPlaceholder, _opts.Overwrite);
+                _extractor.Quiet = true;
+            }
             _har = new HarWriter();
             var decoder = new FlowDecoder(_contentRoot);
             var processor = new FlowProcessor(_extractor, decoder, _har, _contentRoot);
@@ -84,6 +104,7 @@ public sealed class CaptureSession
             {
                 await foreach (var flow in queue.Reader.ReadAllAsync())
                 {
+                    LastFlowUtc = DateTimeOffset.UtcNow;
                     try { Hub.Publish(processor.Process(flow), Now()); }
                     catch { /* a single bad flow must not kill the pump */ }
                 }
@@ -91,6 +112,8 @@ public sealed class CaptureSession
 
             await proxy.StartAsync(_opts.Port, _opts.CaPath, ct);
             lock (_gate) { State = CaptureState.Running; }
+            StartedUtc = DateTimeOffset.UtcNow;
+            LastFlowUtc = StartedUtc; // idle window measures from start until the first flow
             Hub.SetProxyState(running: true, port: _opts.Port); // push running state to dashboards
             return new CaptureStartResult(true, _opts.Port, _opts.CaPath, proxy.FreshCa, proxy.RootThumbprint);
         }

@@ -17,6 +17,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<SubjectTag> SubjectTags => Set<SubjectTag>();
     public DbSet<DocImage> DocImages => Set<DocImage>();
+    public DbSet<CaptureProxyToken> CaptureProxyTokens => Set<CaptureProxyToken>();
+    public DbSet<CaptureUserCa> CaptureUserCas => Set<CaptureUserCa>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -57,6 +59,14 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         b.Entity<DocImage>(im =>
         {
             im.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        b.Entity<CaptureProxyToken>(t =>
+        {
+            t.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        b.Entity<CaptureUserCa>(c =>
+        {
+            c.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
     }
 }

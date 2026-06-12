@@ -13,16 +13,17 @@ namespace EggIncognito.Capture;
 // and returns the DashboardFlow to publish. Id/Timestamp are owned by the hub at publish time.
 public sealed class FlowProcessor
 {
-    private readonly EndpointExtractor _extractor;
+    private readonly EndpointExtractor? _extractor;
     private readonly FlowDecoder _decoder;
     private readonly HarWriter _har;
     private readonly string _contentRoot;
 
-    public FlowProcessor(EndpointExtractor extractor, FlowDecoder decoder, HarWriter har, string contentRoot)
+    // extractor null = hosted session: decode + HAR only, no endpoint files are written.
+    public FlowProcessor(EndpointExtractor? extractor, FlowDecoder decoder, HarWriter har, string contentRoot)
     {
         _extractor = extractor;
         // The extractor's per-flow console chatter belongs in the dashboard, not stdout.
-        _extractor.Quiet = true;
+        if (_extractor is not null) _extractor.Quiet = true;
         _decoder = decoder;
         _har = har;
         _contentRoot = contentRoot;
@@ -32,9 +33,14 @@ public sealed class FlowProcessor
     {
         _har.Add(flow);
 
-        var before = Snapshot(_extractor.Counts);
-        var path = _extractor.ProcessFlow(flow.Url, flow.Method, flow.Status, flow.RequestDataB64, flow.ResponseBodyB64);
-        var outcome = OutcomeDelta(before, Snapshot(_extractor.Counts));
+        string? path = null;
+        var outcome = "";
+        if (_extractor is not null)
+        {
+            var before = Snapshot(_extractor.Counts);
+            path = _extractor.ProcessFlow(flow.Url, flow.Method, flow.Status, flow.RequestDataB64, flow.ResponseBodyB64);
+            outcome = OutcomeDelta(before, Snapshot(_extractor.Counts));
+        }
 
         var displayPath = path ?? EndpointExtractor.NormalizePath(flow.Url);
         var req = _decoder.DecodeRequest(displayPath, flow.RequestDataB64);

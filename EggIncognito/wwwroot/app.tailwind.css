@@ -28,7 +28,8 @@
   /* Buttons */
   /* Primary action = orange (accent). Canonical across all tabs (Phase 2 + 3). */
   .btn-primary {
-    @apply bg-accent text-bg border-0 rounded-md px-[1.4rem] py-2 font-semibold text-sm cursor-pointer;
+    @apply inline-block bg-accent text-bg border-0 rounded-md px-[1.4rem] py-2 font-semibold text-sm
+           cursor-pointer no-underline;
   }
   .btn-primary:disabled { @apply cursor-not-allowed; opacity: 0.4; }
   .btn-primary:hover:not(:disabled) { filter: brightness(1.07); }
@@ -146,13 +147,31 @@
            px-[7px] py-px;
   }
 
-  /* Perk status chips (/support perks + home capability tags). */
+  /* Perk status chips (/support perks + home capability tags). self-start + w-fit stop the chip
+     stretching to the panel width: .panel is a flex column, so unsized children fill the cross axis. */
   .perk-chip {
-    @apply inline-block text-[11px] uppercase tracking-wide rounded px-1.5 py-0.5 mr-2 align-middle;
+    @apply inline-block self-start w-fit text-[10px] font-semibold leading-none uppercase
+           tracking-[0.05em] rounded-pill px-2 py-1 align-middle;
   }
   .perk-chip-live { @apply bg-green-900/60 text-green-300; }
   .perk-chip-soon { @apply bg-amber-900/60 text-amber-300; }
   .perk-chip-dev { @apply bg-sky-900/60 text-sky-300; }
+
+  /* A whole .panel used as an anchor (/support rails, home feature grid). Preflight is off, so
+     without this the browser default link styling (underline + visited purple) paints the card's
+     entire text content. */
+  .card-link, .card-link:visited { @apply no-underline text-fg; }
+  .card-link:hover { @apply border-accent; }
+  .card-link p { @apply text-muted; }
+
+  /* Payment-rail brand dot (/support cards). */
+  .rail-dot { @apply inline-block w-2.5 h-2.5 rounded-pill flex-none; }
+  .rail-github { background: #ea4aaa; }
+  .rail-patreon { background: #ff424d; }
+  .rail-bmac { background: #ffdd00; }
+
+  /* /support FAQ: kill the browser default <dd> indent, mute the answers. */
+  .faq dd { @apply ml-0 mt-0.5 text-muted; }
 
   /* Code / data boxes */
   /* Inline mono code chip (Phase 2 + Inspector doc code). */

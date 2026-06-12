@@ -1,0 +1,110 @@
+@using System.Text.Json
+
+@* Hosted-capture connection card: the public proxy endpoint, the caller's credentials, and the CA
+   install steps. The token plaintext is shown exactly once per mint; only its hash is stored. *@
+<section id="hostedSetupCard" class="panel">
+  <h2 class="text-base mt-0 mb-2 text-fg">Hosted proxy setup</h2>
+  <p class="text-muted text-sm mt-0 mb-3">Point your device's Wi-Fi proxy at this endpoint. When the
+    device asks for proxy credentials, the username is your Discord ID and the password is your
+    capture token.</p>
+
+  <div class="mb-3">
+    <div class="mb-1"><span class="text-muted text-xs">Proxy host</span> <span class="code-chip">@Host</span></div>
+    <div class="mb-1"><span class="text-muted text-xs">Proxy port</span> <span class="code-chip">@Port</span></div>
+    <div class="mb-1"><span class="text-muted text-xs">Username</span> <span class="code-chip">@Username</span></div>
+    <div>
+      <span class="text-muted text-xs">Token</span>
+      @if (_token is null)
+      {
+        <span class="text-muted text-xs">hidden once issued - rotate to get a new one</span>
+      }
+      else
+      {
+        <span class="code-chip" id="mintedToken">@_token</span>
+        <span class="text-muted text-xs">shown once; save it now</span>
+      }
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <button class="btn-primary" id="mintTokenBtn" @onclick="MintToken" disabled="@_busy">
+      @(_token is null ? "Mint / rotate token" : "Rotate token")
+    </button>
+    <a class="btn-primary inline-block no-underline" href="/api/capture/ca.cer">Download CA cert</a>
+  </div>
+  @if (_caDmFailed)
+  {
+    <p class="text-muted text-xs mb-3" id="caDmFailedNotice">Could not DM your CA; download it below.</p>
+  }
+  @if (_error is not null)
+  {
+    <p class="text-muted text-xs mb-3">@_error</p>
+  }
+
+  <ol class="text-muted text-sm leading-relaxed pl-5 my-0">
+    <li>Set the device's Wi-Fi proxy to the host + port above and enter the credentials when prompted.</li>
+    <li>Install the CA cert: iOS via Settings &gt; General &gt; VPN &amp; Device Management, then enable
+      full trust under Certificate Trust Settings; Android via Settings &gt; Security &gt; Install a
+      certificate &gt; CA certificate.</li>
+    <li>Start the capture session, then open Egg, Inc. - flows appear live below.</li>
+    <li>Other apps will not work through this proxy; disable it on the device when you are done.</li>
+  </ol>
+</section>
+
+@code {
+    [Parameter] public string Host { get; set; } = "";
+    [Parameter] public int Port { get; set; }
+    [Parameter] public string Username { get; set; } = "";
+    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
+
+    string? _token;
+    string? _error;
+    bool _busy;
+    bool _caDmFailed;
+
+    // After the interactive circuit is live (ClientFactory can forward the auth cookie), poll status once
+    // to surface a failed CA DM. The live dashboard also toasts it; this is the persistent fallback line.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || ClientFactory is null) return;
+        try
+        {
+            var res = await ClientFactory().GetAsync("/api/capture/status");
+            if (!res.IsSuccessStatusCode) return;
+            using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+            if (doc.RootElement.TryGetProperty("caDmFailed", out var f)
+                && f.ValueKind == JsonValueKind.True)
+            {
+                _caDmFailed = true;
+                StateHasChanged();
+            }
+        }
+        catch { /* status unavailable (no session / prerender); the download button stays the fallback */ }
+    }
+
+    async Task MintToken()
+    {
+        if (ClientFactory is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var res = await ClientFactory().PostAsync("/api/capture/proxy-token", null);
+            if (!res.IsSuccessStatusCode)
+            {
+                _error = $"Token mint failed ({(int)res.StatusCode}).";
+                return;
+            }
+            using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+            _token = doc.RootElement.GetProperty("token").GetString();
+        }
+        catch
+        {
+            _error = "Token mint failed.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
