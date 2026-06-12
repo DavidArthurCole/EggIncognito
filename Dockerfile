@@ -60,6 +60,11 @@ RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
     test -s /app/publish/wwwroot/_framework/blazor.web.js
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+# Npgsql + HttpClient auth negotiation lazily dlopen libgssapi_krb5; the aspnet base image omits it,
+# so the load throws during the OAuth token exchange and login fails. Ship the runtime lib.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/publish .
 COPY EggIncognito/Endpoints /app/Endpoints

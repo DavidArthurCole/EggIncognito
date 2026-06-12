@@ -1,5 +1,4 @@
 @page "/"
-@using System.Reflection
 @inject IRouteCatalog Routes
 @inject FileEndpointSource Endpoints
 @inject IAppMode AppMode
@@ -47,8 +46,7 @@
     </div>
     <div class="panel p-3">
       <strong class="block mb-1">Binary</strong>
-      Single-file builds per OS on
-      <a class="text-accent2" href="https://github.com/DavidArthurCole/EggIncognito/releases" target="_blank" rel="noopener">GitHub Releases</a>.
+      Single-file builds per OS on <a class="text-accent2" href="https://github.com/DavidArthurCole/EggIncognito/releases" target="_blank" rel="noopener">GitHub Releases</a>.
     </div>
     <div class="panel p-3">
       <strong class="block mb-1">Source</strong>
@@ -60,16 +58,4 @@
     <p class="text-sm">Like the project? Supporting covers server costs and unlocks supporter perks.</p>
     <a class="btn-primary shrink-0" href="/support">Support</a>
   </div>
-
-  <footer class="text-xs flex gap-4 opacity-70">
-    <a class="text-accent2" href="https://github.com/DavidArthurCole/EggIncognito" target="_blank" rel="noopener">GitHub</a>
-    <span>@AppMode.Mode mode</span>
-    <span>@Version</span>
-  </footer>
 </main>
-
-@code {
-    static string Version =>
-        Assembly.GetExecutingAssembly()
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "dev";
-}

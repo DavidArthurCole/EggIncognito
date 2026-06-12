@@ -2,102 +2,136 @@
 @inject ICurrentUser User
 @inject AuthState Auth
 <PageTitle>Support - EggIncognito</PageTitle>
-<main class="px-8 pt-6 pb-12 max-w-[860px]">
-  <h1 class="text-2xl font-semibold mb-2">Support the project</h1>
-  <p class="mb-8 text-[15px] text-muted">
-    Supporting covers the server running costs for EggIncognito, EggIncProtos, and EggLedger,
-    plus the code-signing certificates for EggLedger executables. Any amount counts.
-  </p>
+<main class="support-page px-6 pt-8 pb-16 max-w-[920px] mx-auto">
 
-  <h2 class="text-lg font-semibold mb-3">What you get</h2>
-  <ul class="space-y-3 mb-10">
-    <li class="panel p-4">
-      <div class="flex items-center gap-2 flex-wrap">
-        <strong>Supporter Discord role + raised API rate limits</strong>
-        <span class="perk-chip perk-chip-live">live</span>
-      </div>
-      <p class="text-sm mt-1 text-muted">Higher request limits across the API, effective as soon as your role lands.</p>
-    </li>
-    <li class="panel p-4">
-      <div class="flex items-center gap-2 flex-wrap">
-        <strong>Dedicated API proxy access</strong>
-        <span class="perk-chip perk-chip-soon">coming soon</span>
-      </div>
-      <p class="text-sm mt-1 text-muted">Sealed-tunnel authenticated proxy that hides your identity from the downstream.</p>
-    </li>
-    <li class="panel p-4">
-      <div class="flex items-center gap-2 flex-wrap">
-        <strong>Dedicated proxy host for Capture</strong>
-        <span class="perk-chip perk-chip-soon">coming soon</span>
-      </div>
-      <p class="text-sm mt-1 text-muted">Run Capture in EggIncognito over the web, no local proxy needed.</p>
-    </li>
-    <li class="panel p-4">
-      <div class="flex items-center gap-2 flex-wrap">
-        <strong>Cloud storage for EggLedger</strong>
-        <span class="perk-chip perk-chip-dev">in development</span>
-      </div>
-      <p class="text-sm mt-1 text-muted">Dedicated encrypted storage volume, always backed up remotely.</p>
-    </li>
-  </ul>
+  <header class="support-hero">
+    <span class="support-kicker">Supporter program</span>
+    <h1 class="support-title">Keep the lights on, get the perks</h1>
+    <p class="support-lede">
+      Your support covers the servers behind EggIncognito, EggIncProtos, and EggLedger, plus the
+      code-signing certs that keep EggLedger's builds trusted. Any amount unlocks the full Supporter tier.
+    </p>
+  </header>
 
-  <h2 class="text-lg font-semibold mb-3">Choose how to support</h2>
-  <div class="grid gap-4 sm:grid-cols-3 mb-10">
-    <a class="panel card-link p-4" href="https://github.com/sponsors/DavidArthurCole"
-       target="_blank" rel="noopener">
-      <span class="flex items-center gap-2"><span class="rail-dot rail-github"></span><strong>GitHub Sponsors</strong></span>
-      <p class="text-sm mt-1">After paying, run <span class="code-chip">/link-github</span> in the Discord server to claim your role.</p>
-    </a>
-    <a class="panel card-link p-4" href="https://www.patreon.com/c/DavidArthurCole"
-       target="_blank" rel="noopener">
-      <span class="flex items-center gap-2"><span class="rail-dot rail-patreon"></span><strong>Patreon</strong></span>
-      <p class="text-sm mt-1">Role lands automatically once Discord is linked on Patreon.</p>
-    </a>
-    <a class="panel card-link p-4" href="https://buymeacoffee.com/davidarthurcole"
-       target="_blank" rel="noopener">
-      <span class="flex items-center gap-2"><span class="rail-dot rail-bmac"></span><strong>Buy Me a Coffee</strong></span>
-      <p class="text-sm mt-1">Role lands automatically once Discord is linked on BMAC.</p>
-    </a>
-  </div>
+  <section class="support-section">
+    <h2 class="support-h2">What you get</h2>
+    <div class="perk-grid">
+      <div class="perk perk-on">
+        <div class="perk-top">
+          <span class="perk-ico">⚡</span>
+          <span class="perk-chip perk-chip-live">live now</span>
+        </div>
+        <h3 class="perk-name">Supporter role + higher rate limits</h3>
+        <p class="perk-desc">The Discord role lands automatically and your API limits jump the moment it does.</p>
+      </div>
+      <div class="perk">
+        <div class="perk-top">
+          <span class="perk-ico">🛡️</span>
+          <span class="perk-chip perk-chip-soon">coming soon</span>
+        </div>
+        <h3 class="perk-name">Sealed API proxy</h3>
+        <p class="perk-desc">An authenticated tunnel that hides your identity from the downstream API.</p>
+      </div>
+      <div class="perk">
+        <div class="perk-top">
+          <span class="perk-ico">📡</span>
+          <span class="perk-chip perk-chip-soon">coming soon</span>
+        </div>
+        <h3 class="perk-name">Hosted Capture proxy</h3>
+        <p class="perk-desc">Run Capture straight from the web. This server holds the proxy, no local setup.</p>
+      </div>
+      <div class="perk">
+        <div class="perk-top">
+          <span class="perk-ico">☁️</span>
+          <span class="perk-chip perk-chip-dev">in development</span>
+        </div>
+        <h3 class="perk-name">EggLedger cloud storage</h3>
+        <p class="perk-desc">A private encrypted volume for your ledger, backed up remotely and always in sync.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="support-section">
+    <h2 class="support-h2">Pick your platform</h2>
+    <div class="rail-grid">
+      <a class="rail rail-github" href="https://github.com/sponsors/DavidArthurCole" target="_blank" rel="noopener">
+        <div class="rail-head"><span class="rail-dot rail-dot-github"></span><span class="rail-name">GitHub Sponsors</span></div>
+        <p class="rail-note">After you sponsor, run <span class="code-chip">/link-github</span> in Discord to claim your role.</p>
+        <span class="rail-go">Sponsor →</span>
+      </a>
+      <a class="rail rail-patreon" href="https://www.patreon.com/c/DavidArthurCole" target="_blank" rel="noopener">
+        <div class="rail-head"><span class="rail-dot rail-dot-patreon"></span><span class="rail-name">Patreon</span></div>
+        <p class="rail-note">Link Discord on Patreon and the role arrives on its own within minutes.</p>
+        <span class="rail-go">Become a patron →</span>
+      </a>
+      <a class="rail rail-bmac" href="https://buymeacoffee.com/davidarthurcole" target="_blank" rel="noopener">
+        <div class="rail-head"><span class="rail-dot rail-dot-bmac"></span><span class="rail-name">Buy Me a Coffee</span></div>
+        <p class="rail-note">Link Discord on BMAC and the role arrives on its own within minutes.</p>
+        <span class="rail-go">Buy a coffee →</span>
+      </a>
+    </div>
+  </section>
 
   @if (Auth.Enabled)
   {
-    <h2 class="text-lg font-semibold mb-3">Connect your account</h2>
-    <div class="panel p-4 mb-10">
+    <section class="support-section">
+      <h2 class="support-h2">Your account</h2>
       @if (User.IsAuthenticated)
       {
-        <p class="mb-3 flex items-center gap-2 flex-wrap">
-          <span>Signed in as <strong>@User.Username</strong></span>
-          @if (User.IsSupporter)
-          {
-            <span class="pill live">Supporter</span>
-          }
-          else
-          {
-            <span class="pill">Not a supporter yet</span>
-          }
-        </p>
-        <form method="post" action="/api/account/refresh-benefits" style="margin:0;">
-          <button type="submit" class="btn-primary">Refresh benefits</button>
-        </form>
+        <div class="connect-card @(User.IsSupporter ? "connect-on" : "")">
+          <div class="connect-id">
+            <span class="connect-avatar">@(User.Username?.Substring(0, 1).ToUpper())</span>
+            <div>
+              <div class="connect-name">@User.Username</div>
+              @if (User.IsSupporter)
+              {
+                <span class="pill live">Supporter active</span>
+              }
+              else
+              {
+                <span class="pill">No role yet</span>
+              }
+            </div>
+          </div>
+          <form method="post" action="/api/account/refresh-benefits" style="margin:0;">
+            <button type="submit" class="btn-primary">Refresh benefits</button>
+          </form>
+        </div>
+        @if (!User.IsSupporter)
+        {
+          <p class="connect-hint">Already supporting? Give the role a minute to land, then hit Refresh.</p>
+        }
       }
       else
       {
-        <p class="mb-3 text-muted">Connecting Discord links your browser session to your benefits.</p>
-        <a class="btn-primary inline-block no-underline" href="/login?returnUrl=%2Fsupport">Log in with Discord</a>
+        <div class="connect-card">
+          <p class="connect-prompt">Connect Discord to tie this browser session to your supporter benefits.</p>
+          <a class="btn-primary inline-block no-underline" href="/login?returnUrl=%2Fsupport">Log in with Discord</a>
+        </div>
       }
-    </div>
+    </section>
   }
 
-  <h2 class="text-lg font-semibold mb-3">FAQ</h2>
-  <dl class="faq space-y-3 text-sm">
-    <div><dt class="font-semibold">How fast does the role land?</dt>
-      <dd>Patreon and BMAC: within minutes of linking Discord on their platform. GitHub: instantly after <span class="code-chip">/link-github</span>.</dd></div>
-    <div><dt class="font-semibold">What happens if my support lapses?</dt>
-      <dd>The role is removed and benefits stop. Re-subscribe any time.</dd></div>
-    <div><dt class="font-semibold">One-time donations?</dt>
-      <dd>Welcome on any platform; the role stays for 31 days.</dd></div>
-    <div><dt class="font-semibold">I paid but have no role.</dt>
-      <dd>Hit Refresh benefits above. Still nothing? Ping in the Discord server.</dd></div>
-  </dl>
+  <section class="support-section">
+    <h2 class="support-h2">Questions</h2>
+    <div class="faq-grid">
+      <div class="faq-item">
+        <div class="faq-q">How fast does the role land?</div>
+        <p class="faq-a">Patreon and BMAC: a few minutes after you link Discord on their site. GitHub: instant once you run <span class="code-chip">/link-github</span>.</p>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">What if my support lapses?</div>
+        <p class="faq-a">The role drops and the perks pause. Pick it back up any time and they return.</p>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Do one-time donations count?</div>
+        <p class="faq-a">Yes. A one-off keeps the role for 31 days.</p>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">I paid but have no role.</div>
+        <p class="faq-a">Hit Refresh benefits above. Still stuck? Ping in the Discord server.</p>
+      </div>
+    </div>
+  </section>
+
 </main>
