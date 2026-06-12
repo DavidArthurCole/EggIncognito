@@ -63,6 +63,11 @@
   /* Right-aligned toolbar cluster in the nav. Pairs with .app-nav-tools (nav.css). */
   .toolbar { @apply ml-auto inline-flex items-center gap-1.5; }
 
+  /* Capture page toolbar: flows at the top of the capture content, right-aligned, NOT fixed over
+     the nav (a fixed top:6px overlapped the nav's auth cluster). Popovers anchor to their own
+     .settings-wrap (position:absolute) so they still drop correctly from here. */
+  .capture-toolbar { @apply flex items-center justify-end gap-1.5 px-3 pt-3; }
+
   /* Icon-only square button. .active = accent ring (Inspector list reload, Capture pause/filter).
      box-border + a fixed line-height keep <a> and <button> variants the same computed height. */
   .icon-btn {

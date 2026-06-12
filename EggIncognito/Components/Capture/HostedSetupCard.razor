@@ -13,7 +13,7 @@
     <div class="mb-1"><span class="text-muted text-xs">Proxy port</span> <span class="code-chip">@Port</span></div>
     <div class="mb-1"><span class="text-muted text-xs">Username</span> <span class="code-chip">@Username</span></div>
     <div>
-      <span class="text-muted text-xs">Token</span>
+      <span class="text-muted text-xs">Token</span>@(" ")
       @if (_token is null)
       {
         <span class="text-muted text-xs">hidden once issued - rotate to get a new one</span>
@@ -43,11 +43,14 @@
 
   <ol class="text-muted text-sm leading-relaxed pl-5 my-0">
     <li>Set the device's Wi-Fi proxy to the host + port above and enter the credentials when prompted.</li>
-    <li>Install the CA cert: iOS via Settings &gt; General &gt; VPN &amp; Device Management, then enable
-      full trust under Certificate Trust Settings; Android via Settings &gt; Security &gt; Install a
-      certificate &gt; CA certificate.</li>
+    <li><strong>iOS:</strong> install the CA via Settings &gt; General &gt; VPN &amp; Device Management,
+      then enable full trust under Settings &gt; General &gt; About &gt; Certificate Trust Settings.</li>
+    <li><strong>Android:</strong> since Android 7, apps ignore user-installed CAs, so Egg, Inc. will not
+      decrypt on a stock device. Capturing it needs a rooted phone with the CA placed in the system
+      trust store (e.g. a Magisk cert module). iOS is the supported path otherwise.</li>
     <li>Start the capture session, then open Egg, Inc. - flows appear live below.</li>
-    <li>Other apps will not work through this proxy; disable it on the device when you are done.</li>
+    <li>Only Egg, Inc. traffic is decrypted; everything else passes through untouched, so your other
+      apps keep working normally with the proxy on.</li>
   </ol>
 </section>
 
