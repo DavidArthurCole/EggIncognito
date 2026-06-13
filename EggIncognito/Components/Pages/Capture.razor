@@ -25,10 +25,14 @@
     </div>
   }
 
-  <CaptureToolbar Running="_running" ToggleBusy="_toggleBusy" View="_view"
-                  Notices="_notices" Unread="_unread"
-                  OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
-                  OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
+  @* Capture controls project into the top nav (left of the auth cluster). SectionContent from this
+     interactive page keeps the toolbar's handlers wired. *@
+  <SectionContent SectionName="@NavSections.Toolbar">
+    <CaptureToolbar Running="_running" ToggleBusy="_toggleBusy" View="_view"
+                    Notices="_notices" Unread="_unread"
+                    OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
+                    OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
+  </SectionContent>
 
   @* Responsive: panes stack in one scrolling column on phones; become the 220px stats + flow list +
      detail columns filling the viewport on >=lg. *@

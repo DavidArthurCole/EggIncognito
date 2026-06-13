@@ -95,6 +95,23 @@ builder.Services.AddHttpClient("inspector", c =>
 {
     AutomaticDecompression = System.Net.DecompressionMethods.GZip,
 });
+// The "Sealed API proxy" supporter perk: a second inspector egress routed through a configured
+// upstream proxy so the downstream API cannot tie the request to this server. Same headers as the
+// plain inspector client; only the egress path differs. Unconfigured upstream = direct connection.
+var sealedProxyOptions = EggIncognito.Services.SealedProxyOptions.FromConfig(builder.Configuration);
+builder.Services.AddSingleton(sealedProxyOptions);
+builder.Services.AddSingleton<EggIncognito.Services.ISealedProxy, EggIncognito.Services.SealedProxy>();
+builder.Services.AddHttpClient(EggIncognito.Services.SealedProxy.EgressClientName, c =>
+{
+    c.DefaultRequestHeaders.Add("User-Agent",
+        "Dalvik/2.1.0 (Linux; U; Android 9; SM-G960U1 Build/PPR1.180610.011)");
+    c.DefaultRequestHeaders.Add("Accept-Encoding", "gzip");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AutomaticDecompression = System.Net.DecompressionMethods.GZip,
+    Proxy = EggIncognito.Services.SealedProxy.BuildProxy(sealedProxyOptions),
+    UseProxy = EggIncognito.Services.SealedProxy.BuildProxy(sealedProxyOptions) is not null,
+});
 builder.Services.AddSingleton<IAppMode, AppModeService>();
 builder.Services.AddSingleton<IBehaviorService, BehaviorService>();
 builder.Services.AddSingleton<IProtoReflection, ProtoReflection>();
@@ -135,10 +152,12 @@ builder.Services.AddSingleton<IRouteCatalog>(sp =>
 if (dbEnabled)
 {
     builder.Services.AddDbContextPool<EggIncognito.Data.Services.EggIncognitoDbContext>(o => o.UseNpgsql(pgConn));
-    // Persist the DataProtection key ring to Postgres so cookie/OAuth tickets survive restarts. Without
-    // this the keys live only in the process (no durable keyring in the container) and every restart
-    // logs everyone out. Only meaningful when a DB is configured, which is also the only time auth runs.
+    // Persist the DataProtection key ring to Postgres so cookie/OAuth tickets survive restarts. The
+    // fixed application name is required too: without it the key ring's purpose is derived from the
+    // content-root path, which changes between image builds/containers, so a redeploy could no longer
+    // decrypt existing cookies and logged everyone out even with the keys persisted.
     builder.Services.AddDataProtection()
+        .SetApplicationName("EggIncognito")
         .PersistKeysToDbContext<EggIncognito.Data.Services.EggIncognitoDbContext>();
     // Scoped DB endpoint source + a marker so the singleton EndpointStore can resolve it from a scope.
     builder.Services.AddScoped<EggIncognito.Data.Services.DbEndpointSource>();

@@ -1,6 +1,7 @@
 @page "/support"
 @inject ICurrentUser User
 @inject AuthState Auth
+@inject ISealedProxy SealedProxy
 <PageTitle>Support - EggIncognito</PageTitle>
 <main class="support-page px-8 pt-6 pb-16 max-w-[860px]">
 
@@ -27,12 +28,13 @@
         </div>
         <p class="perk-desc">Run Capture straight from the web. This server holds the proxy, no local setup.</p>
       </div>
-      <div class="perk">
+      <div class="perk @(SealedProxy.IsConfigured ? "perk-on" : "")">
         <div class="perk-top">
           <span class="perk-name">Sealed API proxy</span>
-          <span class="pill">coming soon</span>
+          <span class="pill @(SealedProxy.IsConfigured ? "live" : "")">@(SealedProxy.IsConfigured ? "live" : "coming soon")</span>
         </div>
-        <p class="perk-desc">An authenticated tunnel that hides your identity from the downstream API.</p>
+        <p class="perk-desc">An authenticated tunnel that hides your identity from the downstream API.
+          Toggle it on in the Inspector when sending to the Live API.</p>
       </div>
       <div class="perk">
         <div class="perk-top">

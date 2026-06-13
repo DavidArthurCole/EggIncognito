@@ -10,22 +10,22 @@
 @inject IProtoReflection Reflection
 @inject IAppMode AppMode
 @inject ICurrentUser User
+@inject ISealedProxy SealedProxy
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
 
 <PageTitle>EggIncognito - Transport Inspector</PageTitle>
 
-@* Per-page tools (Postman download + salt badge). Kept in the page's own interactive render tree (not
-   projected into the static layout via SectionContent - that boundary dropped the salt button's click
-   handler). A small right-aligned toolbar bar pinned to the top, clearing the nav's auth slot. *@
-<div class="inspector-toolbar">
+@* Postman download + salt badge, projected into the top nav. SectionContent from this interactive
+   page keeps its render mode, so the salt button's click handler survives. *@
+<SectionContent SectionName="@NavSections.Toolbar">
   <a class="icon-btn" href="/api/tools/postman-collection" download
      title="Download Postman collection" aria-label="Download Postman collection"><Icon Name="download" /></a>
   <button type="button" class="badge @(_hasSalt ? "signed" : "unsigned")"
           title="@(_hasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
           @onclick="OpenSaltModal">@(_hasSalt ? "Salt Set" : "Salt Unset")</button>
-</div>
+</SectionContent>
 
 @* Responsive: on phones the three panes stack in one scrolling column (auto height); on >=lg they
    become the fixed 240px endpoint list + two equal builder/response columns filling the viewport. *@
@@ -167,6 +167,18 @@
             bypassed); the proxy must reach auxbrain and allow this origin (CORS).</span>
         </div>
       }
+
+      @if (_target == "real" && _sealedAvailable)
+      {
+        <div class="sealed-config">
+          <label class="settings-check">
+            <input type="checkbox" checked="@_sealed" @onchange="OnSealedToggle" />
+            Sealed API proxy
+          </label>
+          <span class="muted">Routes this send through an authenticated tunnel that hides your identity
+            from the Live API. Supporter perk.</span>
+        </div>
+      }
     </div>
 
     @if (_listMode == "objects")
@@ -292,6 +304,11 @@
     bool _canSaveDb;
     bool _hosted;
 
+    // Sealed API proxy supporter perk: the toggle shows only when the perk is configured and this user
+    // is a supporter. The server re-checks on /send, so this is purely the affordance.
+    bool _sealedAvailable;
+    bool _sealed;
+
     // The salt is read fresh from the browser only when needed (build, badge). It never lives in a
     // server field beyond a single build round-trip; this holds only the badge-state boolean.
 
@@ -315,6 +332,9 @@
         // mirror app.js's fail-open: show the button when auth is off (Local) or the user is contributor+.
         _canSaveDb = AppMode.Mode != EggIncognito.Services.AppMode.Hosted
             || User.IsAtLeast(UserRole.Contributor);
+        // Show the sealed-proxy toggle only when configured + this user is a supporter. The /send gate
+        // re-verifies live, so a stale claim here can never actually use the sealed egress.
+        _sealedAvailable = SealedProxy.IsConfigured && User.IsSupporter;
         // Seed the env panel from the in-memory defaults so it renders on the first (pre-JS) pass; the
         // browser-stored overrides are merged in after the interop module loads (OnAfterRenderAsync).
         SeedEnvRows();
@@ -587,6 +607,8 @@
         _ = InvokeVoid("setCustomTarget", _customTarget);
     }
 
+    void OnSealedToggle(ChangeEventArgs e) => _sealed = e.Value is bool b && b;
+
     // build + send. /build owns the salt+sign; /send owns egress+allowlist; /decode-response is pure.
     // Both entry points share the _busy in-flight guard so a double-click cannot fire concurrent
     // /build or /send calls (Send can be live-API egress).
@@ -714,7 +736,8 @@
         try
         {
             var res = await Client().PostAsJsonAsync("/api/inspector/send",
-                new { url, formBody = _lastBuild.FinalFormBody, responseType = e.Response }, JsonOpts);
+                new { url, formBody = _lastBuild.FinalFormBody, responseType = e.Response,
+                      @sealed = _target == "real" && _sealed }, JsonOpts);
             _response = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
             await MaybeDiagnose();
         }

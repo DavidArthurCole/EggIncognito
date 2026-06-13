@@ -63,10 +63,10 @@
   /* Right-aligned toolbar cluster in the nav. Pairs with .app-nav-tools (nav.css). */
   .toolbar { @apply ml-auto inline-flex items-center gap-1.5; }
 
-  /* Capture page toolbar: flows at the top of the capture content, right-aligned, NOT fixed over
-     the nav (a fixed top:6px overlapped the nav's auth cluster). Popovers anchor to their own
-     .settings-wrap (position:absolute) so they still drop correctly from here. */
-  .capture-toolbar { @apply flex items-center justify-end gap-1.5 px-3 pt-3; }
+  /* Capture toolbar: projected into the top nav via SectionContent. No page padding here; the
+     .app-nav-tools cluster positions it. Popovers anchor to their own .settings-wrap so they drop
+     below the nav. */
+  .capture-toolbar { @apply flex items-center gap-1.5; }
 
   /* Icon-only square button. .active = accent ring (Inspector list reload, Capture pause/filter).
      box-border + a fixed line-height keep <a> and <button> variants the same computed height. */
@@ -394,9 +394,6 @@
   /* Inspector layout: on phones the three panes stack and the page scrolls; on >=lg they are the
      240px endpoint list + two equal columns filling the viewport, each pane scrolling on its own.
      Inline grid styles cannot do media queries, so this lives here. */
-  /* Inspector top toolbar (Postman + salt), right-aligned just under the nav. Compact so it barely
-     eats viewport height; the grid below subtracts it. */
-  .inspector-toolbar { @apply flex items-center justify-end gap-2 px-3 pt-2 pb-0; }
   .inspector-main, .capture-main { @apply grid-cols-1; }
   @media (min-width: 1024px) {
     .inspector-main {
@@ -466,6 +463,8 @@
   .custom-config label { @apply text-xs text-muted; }
   .custom-config input { @apply w-full box-border bg-bg text-fg border border-border rounded px-1.5 py-1 font-mono text-xs; }
   .custom-config input:focus { @apply outline-none border-accent2; }
+  .sealed-config { @apply mt-3 p-2.5 border border-border rounded-md bg-panel2 flex flex-col gap-1.5; }
+  .sealed-config .settings-check { @apply text-sm text-fg; }
   #rawJson, .raw-json { @apply w-full min-h-[200px] bg-panel2 border border-border rounded text-fg p-2 font-mono text-xs; }
   .tree-head { @apply flex justify-between items-center my-3 mb-1.5; }
   .raw-toggle { @apply text-xs text-muted cursor-pointer; }

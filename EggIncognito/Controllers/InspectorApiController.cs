@@ -12,6 +12,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/inspector")]
+#pragma warning disable S107 // Inspector backend genuinely depends on each of these injected services.
 public sealed class InspectorApiController(
     IRouteCatalog catalog,
     IProtoReflection reflection,
@@ -19,7 +20,9 @@ public sealed class InspectorApiController(
     IHttpClientFactory httpFactory,
     IAppMode appMode,
     ICurrentUser currentUser,
+    ISealedProxy sealedProxy,
     ILogger<InspectorApiController> logger) : ControllerBase
+#pragma warning restore S107
 {
     [HttpGet("endpoints")]
     public IActionResult Endpoints()
@@ -112,25 +115,34 @@ public sealed class InspectorApiController(
         });
     }
 
-    public sealed record SendRequest(string Url, string FormBody, string? ResponseType);
+    public sealed record SendRequest(string Url, string FormBody, string? ResponseType, bool Sealed = false);
 
     [HttpPost("send")]
     [EnableRateLimiting("egress")]
     public async Task<IActionResult> Send([FromBody] SendRequest body)
     {
         // The /send egress makes an outbound auxbrain call from this server. When hosted, only do that
-        // for an authenticated user; a future per-user-proxy tier refines this seam. Local runs are
-        // unrestricted. /build is never gated since it encodes + signs with the user's own salt and
-        // does no egress.
+        // for an authenticated user. /build is never gated since it encodes + signs with the user's own
+        // salt and does no egress.
         if (appMode.Mode == AppMode.Hosted && !currentUser.IsAuthenticated)
             throw new ApiException(
                 "log in to use Live API from the hosted site",
                 "Sign in with Discord, then retry. Local runs are never gated.",
                 StatusCodes.Status403Forbidden);
 
+        // Sealed API proxy (supporter perk): route egress through the configured upstream so the
+        // downstream API cannot tie the request to this server. Fail-closed: a non-supporter or
+        // unconfigured upstream that asked for sealed mode is rejected rather than silently sent direct.
+        var useSealed = body.Sealed;
+        if (useSealed && !await sealedProxy.CanUseAsync(currentUser, HttpContext.RequestAborted))
+            throw new ApiException(
+                "the sealed API proxy is a supporter perk",
+                "Become a supporter and enable it, or send without sealed mode.",
+                StatusCodes.Status403Forbidden);
+
         var uri = ResolveAllowedUrl(body.Url);
 
-        var client = httpFactory.CreateClient("inspector");
+        var client = useSealed ? sealedProxy.CreateEgressClient() : httpFactory.CreateClient("inspector");
         var content = new StringContent(body.FormBody,
             System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");
 

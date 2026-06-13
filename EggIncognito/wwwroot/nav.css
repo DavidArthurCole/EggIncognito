@@ -16,11 +16,10 @@
   font-family: system-ui, -apple-system, Segoe UI, sans-serif;
   font-size: 14px;
   box-sizing: border-box;
-  /* On narrow screens the brand + tabs + tools + auth can exceed the width; scroll the bar horizontally
-     instead of wrapping (wrapping would break the fixed nav height). */
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
+  /* Visible overflow so the projected per-page toolbar's popovers (Capture notifications/settings)
+     drop below the nav instead of being clipped. Narrow screens shrink the tab gaps rather than
+     scroll; the fixed height that page main relies on (calc(100vh - --nav-h)) is preserved. */
+  overflow: visible;
 }
 .app-nav > * { flex: none; }
 @media (max-width: 640px) {
