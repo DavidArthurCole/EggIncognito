@@ -116,6 +116,13 @@ public sealed class EndpointExtractor
             ProcessHarEntry(entry);
     }
 
+    // mitmproxy .mitm driver. Reads each serialized flow and feeds it through the same ProcessFlow.
+    public void RunFromMitm(string mitmPath)
+    {
+        foreach (var f in MitmFlowReader.Read(File.ReadAllBytes(mitmPath)))
+            ProcessFlow(f.Url, f.Method, f.Status, f.RequestDataB64, f.ResponseBodyB64);
+    }
+
     // Pull (url, method, status, requestData, responseBody) out of one HAR entry and process it.
     public void ProcessHarEntry(JsonElement entry)
     {

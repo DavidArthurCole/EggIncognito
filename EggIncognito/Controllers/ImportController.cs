@@ -5,8 +5,9 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
-// Write tooling: import a HAR into the content root's Endpoints/, update the endpoint_status block.
-// Local-only; returns 403 in hosted mode since a request must not mutate shared data.
+// Write tooling: import a HAR or mitmproxy .mitm capture into the content root's Endpoints/, update
+// the endpoint_status block. Local-only; returns 403 in hosted mode since a request must not mutate
+// shared data.
 [ApiController]
 [Route("api/import")]
 [EnableRateLimiting("write")]
@@ -18,7 +19,15 @@ public sealed class ImportController(IConfiguration config, IAppMode appMode) : 
     // this is generous headroom while still bounding a hostile upload.
     [HttpPost("har")]
     [RequestSizeLimit(100 * 1024 * 1024)]
-    public async Task<IActionResult> Har(IFormFile file, [FromQuery] bool overwrite = false)
+    public Task<IActionResult> Har(IFormFile file, [FromQuery] bool overwrite = false)
+        => Ingest(file, overwrite, (e, p) => e.RunFromHar(p));
+
+    [HttpPost("mitm")]
+    [RequestSizeLimit(100 * 1024 * 1024)]
+    public Task<IActionResult> Mitm(IFormFile file, [FromQuery] bool overwrite = false)
+        => Ingest(file, overwrite, (e, p) => e.RunFromMitm(p));
+
+    private async Task<IActionResult> Ingest(IFormFile file, bool overwrite, Action<EndpointExtractor, string> run)
     {
         if (!appMode.CanWrite) return StatusCode(403, new { error = "imports are disabled in hosted mode" });
         if (file is null || file.Length == 0) return BadRequest(new { error = "no file uploaded" });
@@ -29,7 +38,7 @@ public sealed class ImportController(IConfiguration config, IAppMode appMode) : 
             await using (var fs = System.IO.File.Create(tmp)) await file.CopyToAsync(fs);
             var eid = config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID");
             var extractor = EndpointExtractor.ForRepo(Root, eid, "EI0000000000000000", overwrite);
-            extractor.RunFromHar(tmp);
+            run(extractor, tmp);
             extractor.Save();
             var c = extractor.Counts;
             return Ok(new { wrote = c.Wrote, upd = c.Upd, diff = c.Diff, same = c.Same, loss = c.Loss, err = c.Err });

@@ -10,9 +10,10 @@
   <div class="w-full max-w-[640px]">
     <header class="mb-6">
       <h1 class="text-[1.4rem] m-0 mb-2 font-sans font-bold">Import a capture</h1>
-      <p class="lead text-muted m-0 leading-[1.55] text-[0.95rem]">Load a HAR file (from the Capture tab or a browser devtools export) to decode its
-         auxbrain responses into endpoint fixtures under <code class="code-chip">Endpoints/</code>. Diffs against existing
-         fixtures are staged for review unless you overwrite.</p>
+      <p class="lead text-muted m-0 leading-[1.55] text-[0.95rem]">Load a HAR or mitmproxy <code class="code-chip">.mitm</code> file (from the Capture
+         tab, mitmproxy, or a browser devtools export) to decode its auxbrain responses into endpoint
+         fixtures under <code class="code-chip">Endpoints/</code>. Diffs against existing fixtures are
+         staged for review unless you overwrite.</p>
     </header>
 
     <div class="panel">
@@ -23,14 +24,14 @@
              @ondragleave="() => _dragging = false"
              @ondragover:preventDefault="true"
              @ondrop="() => _dragging = false">
-        <InputFile id="harFile" accept=".har,application/json" hidden="hidden" OnChange="OnFileSelected" />
+        <InputFile id="harFile" accept=".har,.mitm,application/json" hidden="hidden" OnChange="OnFileSelected" />
         <div class="text-accent" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
                stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
             <path d="M12 16V4" /><path d="M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
           </svg>
         </div>
-        <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop a HAR file here</strong> or click to browse</div>
+        <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop a HAR or .mitm file here</strong> or click to browse</div>
         <div id="fileName" class="font-mono text-xs @(_file is null ? "text-muted muted" : "")">@(_file?.Name ?? "No file selected.")</div>
       </label>
 
@@ -85,7 +86,7 @@
 
     async Task DoImport()
     {
-        if (_file is null) { _result = "Choose a .har file first."; return; }
+        if (_file is null) { _result = "Choose a .har or .mitm file first."; return; }
         _busy = true;
         _result = "Importing...";
         try
@@ -94,7 +95,8 @@
             using var stream = _file.OpenReadStream(MaxUploadBytes);
             var part = new StreamContent(stream);
             content.Add(part, "file", _file.Name);
-            var res = await Client().PostAsync($"/api/import/har?overwrite={_overwrite}", content);
+            var endpoint = _file.Name.EndsWith(".mitm", StringComparison.OrdinalIgnoreCase) ? "mitm" : "har";
+            var res = await Client().PostAsync($"/api/import/{endpoint}?overwrite={_overwrite}", content);
             var data = await ReadResult(res);
             _result = res.IsSuccessStatusCode
                 ? $"new={data?.Wrote}  upd={data?.Upd}  diff={data?.Diff}  same={data?.Same}  loss={data?.Loss}  err={data?.Err}"

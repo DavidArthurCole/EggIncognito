@@ -25,7 +25,7 @@ public class ImportPageTests
             var r = await c.GetAsync("/import");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
             var html = await r.Content.ReadAsStringAsync();
-            Assert.Contains("Drop a HAR file here", html);
+            Assert.Contains("Drop a HAR or .mitm file here", html);
             Assert.Contains("class=\"panel\"", html);
             Assert.Contains("dropzone", html);
             Assert.Contains("importBtn", html);
