@@ -17,6 +17,7 @@ public sealed class ProxyFrontDoor(
     Action<string>? log = null) : IHostedService, IAsyncDisposable
 {
     private const int MaxFirstRequestBytes = 16 * 1024;
+    private const int MaxAuthAttempts = 3;
     private static readonly TimeSpan FirstRequestTimeout = TimeSpan.FromSeconds(10);
 
     private TcpListener? _listener;
@@ -78,22 +79,9 @@ public sealed class ProxyFrontDoor(
         var stream = c.GetStream();
         try
         {
-            var (first, raw, rawLen) = await ReadFirstRequestAsync(stream, ct);
-            if (first is null) return; // overflow/timeout/garbage: just close
-
-            // Auth: username = Discord id OR username, password = proxy token, verified against the
-            // stored hash. The token is trimmed so a stray copy-paste space does not silently 407.
-            var creds = first.ProxyAuthBasic is null ? null : ProxyRequestParser.DecodeBasic(first.ProxyAuthBasic);
-            var storedHash = creds is null ? null : await tokenHashLookup(creds.Value.User.Trim());
-            if (creds is null || storedHash is null ||
-                !string.Equals(Sha256Hex(creds.Value.Pass.Trim()), storedHash, StringComparison.OrdinalIgnoreCase))
-            {
-                await WriteAsciiAsync(stream,
-                    "HTTP/1.1 407 Proxy Authentication Required\r\n" +
-                    "Proxy-Authenticate: Basic realm=\"EggIncognito Capture\"\r\nConnection: close\r\n\r\n", ct);
-                return;
-            }
-            var user = creds.Value.User;
+            var auth = await AuthenticateAsync(stream, ct);
+            if (auth is null) return; // failed/garbage: 407s already sent, socket closed
+            var (first, raw, rawLen, user) = auth.Value;
 
             // Open-relay guard: only auxbrain (plus the configured extras) may be tunneled. Rejected
             // hosts are logged as the discovery mechanism for what the game actually needs.
@@ -132,6 +120,41 @@ public sealed class ProxyFrontDoor(
         catch (OperationCanceledException) { /* shutdown */ }
         catch (IOException) { /* peer reset */ }
         catch (SocketException) { /* peer reset */ }
+    }
+
+    // Read CONNECT requests until one carries valid credentials, returning the authenticated request
+    // plus its raw bytes and the resolved user. Returns null when auth ultimately fails (the 407s are
+    // already written and the socket is left to close).
+    //
+    // iOS (and other clients) never send Proxy-Authorization on the first CONNECT: they wait for a 407
+    // challenge and resend WITH credentials on the SAME connection. A 407 carrying "Connection: close"
+    // kills that retry, so the client just opens a fresh bare CONNECT and loops forever. Keep the socket
+    // open and re-read the next request in-place so the credentialed retry lands here. Cap the attempts
+    // so an unauthenticated peer cannot hold the connection open indefinitely. The token is trimmed so a
+    // stray copy-paste space does not silently 407.
+    private async Task<(ProxyFirstRequest First, byte[] Raw, int RawLen, string User)?> AuthenticateAsync(
+        NetworkStream stream, CancellationToken ct)
+    {
+        var attempt = 0;
+        while (true)
+        {
+            var (first, raw, rawLen) = await ReadFirstRequestAsync(stream, ct);
+            if (first is null) return null; // overflow/timeout/garbage: just close
+
+            var creds = first.ProxyAuthBasic is null ? null : ProxyRequestParser.DecodeBasic(first.ProxyAuthBasic);
+            var storedHash = creds is null ? null : await tokenHashLookup(creds.Value.User.Trim());
+            if (creds is not null && storedHash is not null &&
+                string.Equals(Sha256Hex(creds.Value.Pass.Trim()), storedHash, StringComparison.OrdinalIgnoreCase))
+                return (first, raw, rawLen, creds.Value.User);
+
+            // Last attempt closes; earlier ones keep the connection alive for the credentialed retry.
+            var keepAlive = ++attempt < MaxAuthAttempts;
+            await WriteAsciiAsync(stream,
+                "HTTP/1.1 407 Proxy Authentication Required\r\n" +
+                "Proxy-Authenticate: Basic realm=\"EggIncognito Capture\"\r\n" +
+                (keepAlive ? "Content-Length: 0\r\n\r\n" : "Connection: close\r\n\r\n"), ct);
+            if (!keepAlive) return null;
+        }
     }
 
     // Accumulate the first request until the headers are complete, the 16KB cap is hit, or the 10s
