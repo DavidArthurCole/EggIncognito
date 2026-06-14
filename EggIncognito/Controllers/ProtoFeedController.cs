@@ -44,4 +44,60 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         }, ct);
         return Ok(new { sub.Id, sub.Platforms, sub.Trigger });
     }
+
+    private string? DiscordId =>
+        (services.GetService(typeof(EggIncognito.Services.ICurrentUser))
+            as EggIncognito.Services.ICurrentUser)?.DiscordId;
+
+    [HttpGet("mine")]
+    public async Task<IActionResult> Mine(CancellationToken ct)
+    {
+        var owner = DiscordId;
+        if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
+        if (Store is null) return StatusCode(503, new { error = "no database configured" });
+
+        var subs = await Store.ByOwnerAsync(owner, ct);
+        return Ok(subs.Select(s => new
+        {
+            s.Id,
+            s.Label,
+            s.Platforms,
+            s.Trigger,
+            s.Active,
+            s.CreatedAt,
+            s.LastDeliveryAt,
+            s.FailCount,
+            UrlMasked = MaskWebhook(s.TargetUrl),
+        }));
+    }
+
+    [HttpDelete("{id:int}")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+    {
+        var owner = DiscordId;
+        if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
+        if (Store is null) return StatusCode(503, new { error = "no database configured" });
+
+        var ok = await Store.DeleteAsync(id, owner, ct);
+        if (!ok) return NotFound(new { error = "subscription not found" });
+        return Ok(new { deleted = true });
+    }
+
+    // Identifies a webhook without leaking its token. Discord URL = /webhooks/{id}/{token}; id is public,
+    // token is the secret, so show only its last 4 chars.
+    public static string MaskWebhook(string url)
+    {
+        var parts = url.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var i = Array.IndexOf(parts, "webhooks");
+        if (i >= 0 && i + 2 < parts.Length)
+        {
+            var webhookId = parts[i + 1];
+            var token = parts[i + 2];
+            var last4 = token.Length <= 4 ? token : token[^4..];
+            return $"webhooks/{webhookId}/...{last4}";
+        }
+        var tail = url.Length <= 6 ? url : url[^6..];
+        return $"...{tail}";
+    }
 }

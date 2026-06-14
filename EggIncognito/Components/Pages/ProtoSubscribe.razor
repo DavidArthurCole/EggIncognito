@@ -3,6 +3,7 @@
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
+@inject ICurrentUser User
 
 <PageTitle>EggIncognito - Subscribe to proto updates</PageTitle>
 <main class="px-4 sm:px-8 pt-6 pb-8 max-w-2xl">
@@ -78,6 +79,65 @@
       }
     </section>
   }
+
+  <section class="panel mt-4">
+    <h2 class="text-base mt-0 mb-2">Your subscriptions</h2>
+    @if (!_isAuthed)
+    {
+      <p class="text-muted m-0">Log in to manage your subscriptions.</p>
+    }
+    else if (_subs is null)
+    {
+      <p class="text-muted m-0">Loading...</p>
+    }
+    else if (_subs.Count == 0)
+    {
+      <p class="text-muted m-0">No subscriptions yet.</p>
+    }
+    else
+    {
+      @if (_deleted)
+      {
+        <p class="text-muted mb-2">Subscription deleted.</p>
+      }
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-muted text-left">
+            <th class="font-normal pb-1">Webhook</th>
+            <th class="font-normal pb-1">Platforms</th>
+            <th class="font-normal pb-1">Trigger</th>
+            <th class="font-normal pb-1">State</th>
+            <th class="font-normal pb-1">Last delivery</th>
+            <th class="font-normal pb-1">Fails</th>
+            <th class="font-normal pb-1"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach (var s in _subs)
+          {
+            <tr class="border-t border-[var(--border)]">
+              <td class="py-1 pr-2">
+                <span class="font-mono text-xs">@s.UrlMasked</span>
+                @if (!string.IsNullOrWhiteSpace(s.Label))
+                {
+                  <span class="text-muted text-xs ml-1">(@s.Label)</span>
+                }
+              </td>
+              <td class="py-1 pr-2">@string.Join(", ", s.Platforms)</td>
+              <td class="py-1 pr-2">@TriggerLabel(s.Trigger)</td>
+              <td class="py-1 pr-2">@(s.Active ? "active" : "paused")</td>
+              <td class="py-1 pr-2 text-muted">@(s.LastDeliveryAt?.ToString("yyyy-MM-dd HH:mm") ?? "never")</td>
+              <td class="py-1 pr-2">@s.FailCount</td>
+              <td class="py-1">
+                <button type="button" class="btn-mini" disabled="@_deleting"
+                        @onclick="() => DeleteSub(s.Id)">Delete</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </section>
 </main>
 
 @code {
@@ -94,6 +154,11 @@
     string _baseAddress = "";
     string? _cookie;
 
+    bool _isAuthed;
+    List<Sub>? _subs;
+    bool _deleting;
+    bool _deleted;
+
     protected override void OnInitialized()
     {
         var req = HttpContextAccessor.HttpContext?.Request;
@@ -102,6 +167,45 @@
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
+        // Snapshot auth during the request; the interactive circuit has no HttpContext.
+        _isAuthed = User.IsAuthenticated;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (_isAuthed) await LoadSubs();
+    }
+
+    async Task LoadSubs()
+    {
+        try
+        {
+            var res = await Client().GetAsync("/api/protos/feed/mine");
+            _subs = res.IsSuccessStatusCode
+                ? await res.Content.ReadFromJsonAsync<List<Sub>>(JsonOpts) ?? []
+                : [];
+        }
+        catch
+        {
+            _subs = [];
+        }
+    }
+
+    async Task DeleteSub(int id)
+    {
+        _deleting = true;
+        _deleted = false;
+        try
+        {
+            var res = await Client().DeleteAsync($"/api/protos/feed/{id}");
+            if (res.IsSuccessStatusCode)
+            {
+                _subs?.RemoveAll(s => s.Id == id);
+                _deleted = true;
+            }
+        }
+        catch { }
+        _deleting = false;
     }
 
     HttpClient Client()
@@ -137,6 +241,7 @@
             {
                 var label = platforms.Count == 0 ? "none" : string.Join(", ", platforms);
                 _done = new Confirmation(label, TriggerLabel(_trigger));
+                if (_isAuthed) await LoadSubs();
             }
             else
             {
@@ -155,4 +260,6 @@
 
     record Confirmation(string Platforms, string Trigger);
     record ErrorBody(string? Error);
+    record Sub(int Id, string? Label, string[] Platforms, string Trigger, bool Active,
+        DateTimeOffset CreatedAt, DateTimeOffset? LastDeliveryAt, int FailCount, string UrlMasked);
 }

@@ -60,49 +60,76 @@
   }
   else
   {
-    <table class="reg-table backfill-known">
-      <thead>
-        <tr>
-          <th>Platform</th>
-          <th>App Version</th>
-          <th>Source</th>
-          <th>Release</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @foreach (var k in _known)
-        {
+    <div class="known-wrap">
+      <table class="reg-table known-table">
+        <thead>
           <tr>
-            <td><span class="code-chip">@k.Platform</span></td>
-            <td class="mono">@k.AppVersion</td>
-            <td class="text-muted">@k.Source</td>
-            <td class="text-muted">@(k.ReleaseDate?.ToString("yyyy-MM-dd") ?? "")</td>
-            <td>
-              <button type="button" class="btn-mini" disabled="@_busy"
-                      @onclick="@(() => Extract(k.AppVersion))">Extract proto</button>
-            </td>
+            <th>Platform</th>
+            <th>App Version</th>
+            <th>Source</th>
+            <th>Release</th>
+            <th></th>
           </tr>
-        }
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          @foreach (var k in _known)
+          {
+            var ej = ExtractFor(k.Platform, k.AppVersion);
+            <tr>
+              <td><span class="code-chip">@k.Platform</span></td>
+              <td class="mono">@k.AppVersion</td>
+              <td class="text-muted">@k.Source</td>
+              <td class="text-muted">@(k.ReleaseDate?.ToString("yyyy-MM-dd") ?? "")</td>
+              <td>
+                @if (IsIos(k.Platform))
+                {
+                  <button type="button" class="btn-mini" disabled
+                          title="iOS proto extraction not available yet">Extract proto</button>
+                }
+                else if (ej is { Status: "running" or "queued" })
+                {
+                  <span class="pill running known-pill">Extracting...</span>
+                }
+                else if (ej is { Status: "done" })
+                {
+                  <span class="pill done known-pill" title="@ej.Note">Done</span>
+                }
+                else if (ej is { Status: "failed" })
+                {
+                  <span class="pill failed known-pill" title="@ej.Note">Failed</span>
+                  <button type="button" class="btn-mini" disabled="@_busy"
+                          @onclick="@(() => Extract(k.Platform, k.AppVersion))">Retry</button>
+                }
+                else
+                {
+                  <button type="button" class="btn-mini" disabled="@_busy"
+                          @onclick="@(() => Extract(k.Platform, k.AppVersion))">Extract proto</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </section>
 
 @code {
     static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
 
-    // GitHub -> elgranjero; Android -> fandom list; Apple -> itunes list. The job source key matches
-    // what the importer writes (source.Name: elgranjero / fandom / itunes).
+    // GitHub -> elgranjero; Android -> fandom list; Apple -> itunes / archive lists. The job source key
+    // matches what the importer writes (source.Name: elgranjero / fandom / itunes / archive).
     static readonly SourceRow[] Sources =
     [
         new("GitHub", "elgranjero / EggIncProtos, full history with proto text", "github", "elgranjero"),
         new("Android", "Fandom wiki version history (with changelogs)", "android", "fandom"),
         new("Apple", "iTunes lookup, current iOS version metadata", "apple", "itunes"),
+        new("Apple (Archive history)", "Internet Archive, older iOS versions", "archive", "archive"),
     ];
 
     List<JobRow> _jobs = [];
     List<KnownRow> _known = [];
+    List<ExtractRow> _extractJobs = [];
     bool _busy;
     string? _message;
 
@@ -157,16 +184,27 @@
             var res = await Client().GetFromJsonAsync<StatusResponse>("/api/protos/backfill/status", JsonOpts);
             _jobs = res?.Jobs ?? [];
             _known = res?.Known ?? [];
+            _extractJobs = res?.ExtractJobs ?? [];
         }
-        catch { _jobs = []; _known = []; }
+        catch { _jobs = []; _known = []; _extractJobs = []; }
     }
 
     JobRow? JobFor(string source) => _jobs.FirstOrDefault(j => j.Source == source);
 
-    async Task Extract(string appVersion)
+    ExtractRow? ExtractFor(string platform, string appVersion) =>
+        _extractJobs.FirstOrDefault(e => e.Platform == platform && e.AppVersion == appVersion);
+
+    static bool IsIos(string platform) => string.Equals(platform, "ios", StringComparison.OrdinalIgnoreCase);
+
+    async Task Extract(string platform, string appVersion)
     {
         _busy = true;
         _message = null;
+        // Optimistic: flip the row to running locally so the UI reacts before the poll catches up.
+        _extractJobs = _extractJobs
+            .Where(e => !(e.Platform == platform && e.AppVersion == appVersion))
+            .Append(new ExtractRow(platform, appVersion, "running", null, null))
+            .ToList();
         try
         {
             var res = await Client().PostAsJsonAsync("/api/protos/backfill/apk-extract",
@@ -208,9 +246,11 @@
     public void Dispose() => _timer?.Dispose();
 
     sealed record SourceRow(string Label, string Hint, string Trigger, string JobSource);
-    sealed record StatusResponse(List<JobRow> Jobs, List<KnownRow> Known);
+    sealed record StatusResponse(List<JobRow> Jobs, List<KnownRow> Known, List<ExtractRow> ExtractJobs);
     sealed record JobRow(string Source, string Status, DateTimeOffset StartedAt,
         DateTimeOffset? FinishedAt, int Imported, int? Total, string? Note);
     sealed record KnownRow(string Platform, string AppVersion, DateTimeOffset? ReleaseDate,
         string? Changelog, string Source);
+    sealed record ExtractRow(string Platform, string AppVersion, string Status,
+        DateTimeOffset? FinishedAt, string? Note);
 }

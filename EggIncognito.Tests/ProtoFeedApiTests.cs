@@ -71,4 +71,74 @@ public class ProtoFeedApiTests
         var r = await c.Create(new ProtoFeedController.CreateReq("", null, null, null), CancellationToken.None);
         Assert.IsType<BadRequestObjectResult>(r);
     }
+
+    private sealed class StubUser(string? discordId) : EggIncognito.Services.ICurrentUser
+    {
+        public bool IsAuthenticated => discordId is not null;
+        public string? DiscordId => discordId;
+        public string? Username => null;
+        public string? Avatar => null;
+        public EggIncognito.Data.Models.UserRole Role => EggIncognito.Data.Models.UserRole.Viewer;
+        public bool IsSupporter => false;
+        public bool IsAtLeast(EggIncognito.Data.Models.UserRole need) => false;
+    }
+
+    [Fact]
+    public async Task Mine_Anon_Returns401()
+    {
+        var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
+        var r = await c.Mine(CancellationToken.None);
+        Assert.Equal(401, Status(r));
+    }
+
+    [Fact]
+    public async Task Mine_NoStore_Returns503()
+    {
+        var services = new MapServices(new()
+        {
+            [typeof(EggIncognito.Services.ICurrentUser)] = new StubUser("42"),
+        });
+        var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
+        var r = await c.Mine(CancellationToken.None);
+        Assert.Equal(503, Status(r));
+    }
+
+    [Fact]
+    public async Task Delete_Anon_Returns401()
+    {
+        var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
+        var r = await c.Delete(1, CancellationToken.None);
+        Assert.Equal(401, Status(r));
+    }
+
+    [Fact]
+    public async Task Delete_NoStore_Returns503()
+    {
+        var services = new MapServices(new()
+        {
+            [typeof(EggIncognito.Services.ICurrentUser)] = new StubUser("42"),
+        });
+        var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
+        var r = await c.Delete(1, CancellationToken.None);
+        Assert.Equal(503, Status(r));
+    }
+
+    [Theory]
+    [InlineData("https://discord.com/api/webhooks/123456789/abcdEFGHtoken1234", "webhooks/123456789/...1234")]
+    [InlineData("https://discord.com/api/webhooks/999/tok", "webhooks/999/...tok")]
+    public void MaskWebhook_DiscordUrl_ShowsIdHidesToken(string url, string expected)
+    {
+        var masked = ProtoFeedController.MaskWebhook(url);
+        Assert.Equal(expected, masked);
+        // The full token must never survive masking.
+        Assert.DoesNotContain("abcdEFGHtoken1234", masked);
+    }
+
+    [Fact]
+    public void MaskWebhook_NonDiscord_GenericTail()
+    {
+        var masked = ProtoFeedController.MaskWebhook("https://example.com/hook/SECRETvalue");
+        Assert.Equal("...Tvalue", masked);
+        Assert.DoesNotContain("SECRETvalue", masked);
+    }
 }

@@ -77,6 +77,26 @@ public class VersionListImporterTests
         }
 
         public Task<List<KnownVersion>> KnownAsync(CancellationToken ct = default) => Task.FromResult(Known);
+
+        public List<ExtractJob> Extracts { get; } = [];
+
+        public Task StartExtractAsync(string platform, string appVersion, CancellationToken ct = default)
+        {
+            var row = Extracts.FirstOrDefault(e => e.Platform == platform && e.AppVersion == appVersion);
+            if (row is null) Extracts.Add(new ExtractJob { Platform = platform, AppVersion = appVersion, Status = "running" });
+            else { row.Status = "running"; row.FinishedAt = null; row.Note = null; }
+            return Task.CompletedTask;
+        }
+
+        public Task FinishExtractAsync(string platform, string appVersion, string status, string? note,
+            CancellationToken ct = default)
+        {
+            var row = Extracts.FirstOrDefault(e => e.Platform == platform && e.AppVersion == appVersion);
+            if (row is not null) { row.Status = status; row.FinishedAt = DateTimeOffset.UtcNow; row.Note = note; }
+            return Task.CompletedTask;
+        }
+
+        public Task<List<ExtractJob>> ListExtractJobsAsync(CancellationToken ct = default) => Task.FromResult(Extracts);
     }
 
     // The importer opens its own DI scope; give it a provider that resolves the fake job store.

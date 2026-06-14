@@ -163,6 +163,61 @@ public class VersionListSourceTests
         Assert.Empty(ItunesSource.ParseJson(""));
     }
 
+    // Internet Archive (advancedsearch JSON)
+
+    private const string ArchiveJson = """
+    {
+      "response": {
+        "numFound": 3,
+        "docs": [
+          { "identifier": "egg-inc-1.0.2", "title": "Egg, Inc. (1.0.2, iOS 7.0)", "date": "2016-08-01T00:00:00Z" },
+          { "identifier": "egginc-1.3.5-ios", "title": "Egg Inc 1.3.5", "date": "2017-02-14T00:00:00Z" },
+          { "identifier": "egg-inc-misc", "title": "Egg Inc miscellaneous assets" }
+        ]
+      }
+    }
+    """;
+
+    [Fact]
+    public void Archive_Parses_Versions_From_Title()
+    {
+        var list = InternetArchiveSource.ParseJson(ArchiveJson);
+        Assert.Equal(2, list.Count);
+        Assert.Equal("1.0.2", list[0].AppVersion);
+        Assert.Equal(new DateTimeOffset(2016, 8, 1, 0, 0, 0, TimeSpan.Zero), list[0].ReleaseDate);
+        Assert.Equal("1.3.5", list[1].AppVersion);
+    }
+
+    [Fact]
+    public void Archive_Falls_Back_To_Identifier()
+    {
+        var list = InternetArchiveSource.ParseJson("""
+        { "response": { "docs": [ { "identifier": "egg-inc-2.5.1", "title": "Egg Inc no version word" } ] } }
+        """);
+        Assert.Single(list);
+        Assert.Equal("2.5.1", list[0].AppVersion);
+    }
+
+    [Fact]
+    public void Archive_Dedups_RepeatedVersion()
+    {
+        var list = InternetArchiveSource.ParseJson("""
+        { "response": { "docs": [
+          { "identifier": "a", "title": "Egg Inc 1.0.0" },
+          { "identifier": "b", "title": "Egg Inc 1.0.0 reupload" } ] } }
+        """);
+        Assert.Single(list);
+    }
+
+    [Fact]
+    public void Archive_Garbage_Is_Empty_NoThrow()
+    {
+        Assert.Empty(InternetArchiveSource.ParseJson("not json"));
+        Assert.Empty(InternetArchiveSource.ParseJson(""));
+        Assert.Empty(InternetArchiveSource.ParseJson("""{ "response": { "docs": [] } }"""));
+        Assert.Empty(InternetArchiveSource.ParseJson("""{ "no": "response" }"""));
+    }
+
     // Unset AppStore:BundleId falls back to the known Egg Inc bundle id and still fetches.
 
     private sealed class CapturingHandler(string body) : HttpMessageHandler

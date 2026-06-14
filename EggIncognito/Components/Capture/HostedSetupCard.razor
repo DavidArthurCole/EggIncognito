@@ -1,4 +1,5 @@
 @using System.Text.Json
+@using System.Net.Http.Json
 
 @* Hosted-capture connection card: the public proxy endpoint, the caller's credentials, and the CA
    install steps. The token plaintext is shown exactly once per mint; only its hash is stored. *@
@@ -33,19 +34,6 @@
       <button type="button" class="icon-btn icon-btn-sm" title="Cycle token" aria-label="Cycle token"
               @onclick="MintToken" disabled="@_busy"><Icon Name="refresh" Class="icon-sm" /></button>
     </div>
-  </div>
-
-  <div class="mb-3">
-    <div class="text-muted text-xs mb-1">Auto-proxy profile (iOS, optional)</div>
-    <div class="flex items-center gap-2">
-      <input type="text" @bind="_ssid" @bind:event="oninput" placeholder="Your Wi-Fi network name (SSID)"
-             class="bg-bg border border-border rounded px-2 py-1 text-xs" />
-      <a class="btn-mini @(string.IsNullOrWhiteSpace(_ssid) || _busy ? "pointer-events-none opacity-50" : "")"
-         href="@ProxyProfileUrl()" download
-         aria-disabled="@(string.IsNullOrWhiteSpace(_ssid) || _busy)">Download proxy profile</a>
-    </div>
-    <p class="text-muted text-xs mt-1 mb-0">iOS applies the proxy automatically when you join this
-      network. Omits your Wi-Fi password.</p>
   </div>
 
   @if (_caDmFailed)
@@ -97,6 +85,23 @@
   </details>
 </section>
 
+<section class="panel mt-3" id="proxyProfileCard">
+  <h2 class="text-base mt-0 mb-1 text-fg">Auto-proxy profile (iOS, optional)</h2>
+  <p class="text-muted text-xs mt-0 mb-2">Enter your Wi-Fi network and we DM you an iOS profile that
+    applies the proxy automatically when you join it. Open the DM on your phone to install. Your Wi-Fi
+    password is never included.</p>
+  <div class="flex items-center gap-2">
+    <input type="text" @bind="_ssid" @bind:event="oninput" placeholder="Your Wi-Fi network name (SSID)"
+           class="settings-input w-auto" />
+    <button type="button" class="btn-mini" disabled="@(string.IsNullOrWhiteSpace(_ssid) || _busy)"
+            @onclick="DmProxyProfile">DM proxy profile</button>
+  </div>
+  @if (_proxyMsg is not null)
+  {
+    <p class="text-muted text-xs mt-2 mb-0">@_proxyMsg</p>
+  }
+</section>
+
 @code {
     [Parameter] public string Host { get; set; } = "";
     [Parameter] public int Port { get; set; }
@@ -114,11 +119,25 @@
     string? _token;
     string? _error;
     string _ssid = "";
+    string? _proxyMsg;
     bool _busy;
     bool _caDmFailed;
 
-    string ProxyProfileUrl() =>
-        $"/api/capture/proxy-profile?ssid={Uri.EscapeDataString(_ssid)}";
+    async Task DmProxyProfile()
+    {
+        if (ClientFactory is null || string.IsNullOrWhiteSpace(_ssid)) return;
+        _busy = true;
+        _proxyMsg = null;
+        try
+        {
+            var res = await ClientFactory().PostAsJsonAsync("/api/capture/proxy-profile", new { ssid = _ssid });
+            _proxyMsg = res.IsSuccessStatusCode
+                ? "Sent. Open the DM on your iPhone to install."
+                : "Could not DM the profile. Check your DMs are open.";
+        }
+        catch { _proxyMsg = "Could not DM the profile."; }
+        _busy = false;
+    }
 
     // After the interactive circuit is live (ClientFactory can forward the auth cookie), poll status once
     // to surface a failed CA DM. The live dashboard also toasts it; this is the persistent fallback line.

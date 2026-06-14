@@ -25,6 +25,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<FeedDelivery> FeedDeliveries => Set<FeedDelivery>();
     public DbSet<BackfillJob> BackfillJobs => Set<BackfillJob>();
     public DbSet<KnownVersion> KnownVersions => Set<KnownVersion>();
+    public DbSet<ExtractJob> ExtractJobs => Set<ExtractJob>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -107,6 +108,11 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Platform, x.AppVersion, x.Source }).IsUnique();
             e.Property(x => x.FirstSeen).HasDefaultValueSql("now()");
+        });
+        b.Entity<ExtractJob>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Platform, x.AppVersion }).IsUnique();
         });
     }
 }

@@ -27,7 +27,7 @@ namespace EggIncognito.Controllers;
 [EnableRateLimiting("write")]
 public sealed class BackfillController(IServiceProvider services, ICurrentUser user) : ControllerBase
 {
-    private static readonly string[] ListSources = ["fandom", "uptodown", "apkpure", "itunes", "ipa4fun"];
+    private static readonly string[] ListSources = ["fandom", "uptodown", "apkpure", "itunes", "ipa4fun", "archive"];
     private const string NoDb = "backfill not available (no DB)";
 
     private IActionResult? RequireAdmin() =>
@@ -93,9 +93,25 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
             return StatusCode(400, new { error = "appVersion required" });
         var version = req.AppVersion;
 
+        // Job tracking is DB-gated; null on no-DB hosts, in which case the lifecycle calls are skipped.
+        var scopeFactory = services.GetService(typeof(IServiceScopeFactory)) as IServiceScopeFactory;
+
         if (services.GetService(typeof(ApkExtractService)) is ApkExtractService extract && extract.Options.IsConfigured)
         {
-            _ = Task.Run(() => extract.ExtractAsync(version, CancellationToken.None));
+            await StartExtractJob(scopeFactory, version, ct);
+            // The store is scoped; open a fresh scope inside the background task (the request scope is gone).
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await extract.ExtractAsync(version, CancellationToken.None);
+                    await FinishExtractJob(scopeFactory, version, "done", null);
+                }
+                catch (Exception ex)
+                {
+                    await FinishExtractJob(scopeFactory, version, "failed", ex.Message);
+                }
+            });
             return Accepted(new { status = $"apk-extract started for {version}" });
         }
 
@@ -106,6 +122,7 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
         if (httpFactory is null || string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(secret))
             return StatusCode(501, new { error = "extraction not configured on this host" });
 
+        await StartExtractJob(scopeFactory, version, ct);
         try
         {
             var http = httpFactory.CreateClient();
@@ -114,12 +131,35 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
             msg.Content = JsonContent.Create(new { appVersion = version });
             var res = await http.SendAsync(msg, ct);
             var body = await res.Content.ReadAsStringAsync(ct);
+            await FinishExtractJob(scopeFactory, version,
+                res.IsSuccessStatusCode ? "done" : "failed", Truncate(body));
             return StatusCode((int)res.StatusCode, new { runner = body });
         }
         catch (Exception ex)
         {
+            await FinishExtractJob(scopeFactory, version, "failed", ex.Message);
             return StatusCode(502, new { error = $"runner agent unreachable: {ex.Message}" });
         }
+    }
+
+    private static string? Truncate(string? s) =>
+        string.IsNullOrEmpty(s) ? null : (s.Length <= 500 ? s : s[..500]);
+
+    private static async Task StartExtractJob(IServiceScopeFactory? scopeFactory, string version, CancellationToken ct)
+    {
+        if (scopeFactory is null) return;
+        using var scope = scopeFactory.CreateScope();
+        if (scope.ServiceProvider.GetService<IBackfillJobStore>() is { } jobs)
+            await jobs.StartExtractAsync("android", version, ct);
+    }
+
+    private static async Task FinishExtractJob(
+        IServiceScopeFactory? scopeFactory, string version, string status, string? note)
+    {
+        if (scopeFactory is null) return;
+        using var scope = scopeFactory.CreateScope();
+        if (scope.ServiceProvider.GetService<IBackfillJobStore>() is { } jobs)
+            await jobs.FinishExtractAsync("android", version, status, note, CancellationToken.None);
     }
 
     // Deletes keyless/stub registry rows (empty build or appVersion). The admin UI fires this once on
@@ -173,10 +213,16 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
     {
         if (RequireAdmin() is { } no) return no;
         if (services.GetService(typeof(IBackfillJobStore)) is not IBackfillJobStore jobs)
-            return Ok(new { jobs = Array.Empty<object>(), known = Array.Empty<object>() });
+            return Ok(new
+            {
+                jobs = Array.Empty<object>(),
+                known = Array.Empty<object>(),
+                extractJobs = Array.Empty<object>(),
+            });
 
         var jobRows = await jobs.LatestPerSourceAsync(ct);
         var known = await jobs.KnownAsync(ct);
+        var extractJobs = await jobs.ListExtractJobsAsync(ct);
         return Ok(new
         {
             jobs = jobRows.Select(j => new
@@ -196,6 +242,14 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
                 releaseDate = k.ReleaseDate,
                 changelog = k.Changelog,
                 source = k.Source,
+            }),
+            extractJobs = extractJobs.Select(e => new
+            {
+                platform = e.Platform,
+                appVersion = e.AppVersion,
+                status = e.Status,
+                finishedAt = e.FinishedAt,
+                note = e.Note,
             }),
         });
     }

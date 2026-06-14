@@ -69,6 +69,18 @@ public class FeedDispatcherTests
             if (s is not null) { s.LastDeliveryAt = at; s.FailCount = 0; }
             return Task.CompletedTask;
         }
+
+        public Task<List<FeedSubscription>> ByOwnerAsync(string ownerUserId, CancellationToken ct = default) =>
+            Task.FromResult(Subs.Where(s => s.OwnerUserId == ownerUserId)
+                .OrderByDescending(s => s.CreatedAt).ToList());
+
+        public Task<bool> DeleteAsync(int id, string ownerUserId, CancellationToken ct = default)
+        {
+            var s = Subs.FirstOrDefault(x => x.Id == id && x.OwnerUserId == ownerUserId);
+            if (s is null) return Task.FromResult(false);
+            Subs.Remove(s);
+            return Task.FromResult(true);
+        }
     }
 
     private static FeedDispatcher Dispatcher(FakeStore store, HttpMessageHandler handler) =>

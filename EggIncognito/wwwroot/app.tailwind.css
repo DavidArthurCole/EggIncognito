@@ -937,7 +937,7 @@
   .admin-panel-head { @apply flex items-center justify-between gap-3 mb-3; }
   .admin-panel-sub { @apply mt-5; }
   .admin-panel-title { @apply text-base m-0 font-semibold text-fg; }
-  .backfill-sources { @apply flex flex-col gap-2; }
+  .backfill-sources { @apply flex flex-col gap-2 max-w-3xl; }
   .backfill-row {
     @apply flex items-center gap-3 border border-border rounded-md px-3 py-2 bg-panel2 flex-wrap;
   }
@@ -951,7 +951,14 @@
   .pill.running { @apply text-accent2 border-accent2; }
   .pill.done { @apply text-ok border-ok; }
   .pill.failed { @apply text-err border-err; }
-  .backfill-known { @apply mt-2 border border-border rounded-md; }
+
+  /* Known-versions table: compact, content-width, not full-bleed. */
+  .known-wrap { @apply mt-2 border border-border rounded-md overflow-x-auto max-w-3xl; }
+  .known-table { @apply w-auto; }
+  .known-table thead th { @apply px-2 py-1.5 whitespace-nowrap; }
+  .known-table tbody td { @apply px-2 py-1 whitespace-nowrap; }
+  .known-table tbody td:last-child { @apply flex items-center gap-2; }
+  .known-pill { @apply text-[0.7rem]; }
 
   /* Sources attribution grid */
   .src-grid { @apply grid gap-3 sm:grid-cols-2; }

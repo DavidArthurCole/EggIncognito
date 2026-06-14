@@ -417,6 +417,7 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.ApkPureSource>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.ItunesSource>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.Ipa4funSource>();
+    builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.InternetArchiveSource>();
     builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
         "fandom", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.FandomSource>());
     builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
@@ -427,6 +428,8 @@ if (dbEnabled)
         "itunes", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.ItunesSource>());
     builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
         "ipa4fun", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.Ipa4funSource>());
+    builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
+        "archive", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.InternetArchiveSource>());
     builder.Services.AddScoped<EggIncognito.Services.Backfill.VersionListImporter>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.ApkExtractService>();
 }

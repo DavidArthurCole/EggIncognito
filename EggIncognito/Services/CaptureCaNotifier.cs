@@ -9,6 +9,9 @@ namespace EggIncognito.Services;
 // is unset.
 public interface ICaptureCaNotifier
 {
+    // DMs the per-SSID auto-proxy .mobileconfig. Returns whether the DM was delivered. Never throws.
+    Task<bool> SendProxyProfileAsync(string discordId, byte[] profile, string ssid, CancellationToken ct);
+
     // Returns whether the DM (channel open + message with the CA profile + token/proxy text) was
     // delivered. Never throws; any failure reports false so the caller falls back to the /capture card.
     Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct);
@@ -23,6 +26,8 @@ public sealed record CaptureSetupDm(
 public sealed class NoopCaptureCaNotifier : ICaptureCaNotifier
 {
     public Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct) => Task.FromResult(false);
+    public Task<bool> SendProxyProfileAsync(string discordId, byte[] profile, string ssid, CancellationToken ct) =>
+        Task.FromResult(false);
 }
 
 // Sends the setup over Discord REST with the bot token, mirroring SupporterStatus's HttpClient pattern
@@ -34,6 +39,7 @@ public sealed class DiscordCaptureCaNotifier(
     : ICaptureCaNotifier
 {
     private const string ProfileFile = "eggincognito-capture.mobileconfig";
+    private const string ProxyProfileFile = "eggincognito-proxy.mobileconfig";
 
     public async Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct)
     {
@@ -48,11 +54,33 @@ public sealed class DiscordCaptureCaNotifier(
             if (channelId is null) return false;
 
             var profile = MobileConfig.BuildCaProfile(dm.CerBytes, dm.DiscordId);
-            return await PostAsync(http, token, channelId, profile, BuildMessage(dm), ct);
+            return await PostAsync(http, token, channelId, profile, ProfileFile, BuildMessage(dm), ct);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Capture setup DM to {DiscordId} failed; fail-closed", dm.DiscordId);
+            return false;
+        }
+    }
+
+    public async Task<bool> SendProxyProfileAsync(string discordId, byte[] profile, string ssid, CancellationToken ct)
+    {
+        var token = config["Discord:BotToken"];
+        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(discordId) || profile.Length == 0)
+            return false;
+        try
+        {
+            var http = httpFactory.CreateClient("discord-api");
+            var channelId = await OpenDmAsync(http, token, discordId, ct);
+            if (channelId is null) return false;
+            var msg =
+                $"**EggIncognito auto-proxy profile**\n\nOpen the attached profile on your iPhone to apply "
+                + $"the capture proxy automatically when you join `{ssid}`. Your Wi-Fi password is not included.";
+            return await PostAsync(http, token, channelId, profile, ProxyProfileFile, msg, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Proxy profile DM to {DiscordId} failed; fail-closed", discordId);
             return false;
         }
     }
@@ -101,12 +129,13 @@ public sealed class DiscordCaptureCaNotifier(
 
     // POST /channels/{id}/messages as multipart: the .mobileconfig as files[0] + a payload_json part.
     private static async Task<bool> PostAsync(
-        HttpClient http, string token, string channelId, byte[] profile, string content, CancellationToken ct)
+        HttpClient http, string token, string channelId, byte[] profile, string fileName, string content,
+        CancellationToken ct)
     {
         using var form = new MultipartFormDataContent();
         var file = new ByteArrayContent(profile);
         file.Headers.ContentType = new MediaTypeHeaderValue("application/x-apple-aspen-config");
-        form.Add(file, "files[0]", ProfileFile);
+        form.Add(file, "files[0]", fileName);
         form.Add(new StringContent(
             JsonSerializer.Serialize(new { content }), Encoding.UTF8, "application/json"), "payload_json");
 

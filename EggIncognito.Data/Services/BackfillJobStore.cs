@@ -16,6 +16,11 @@ public interface IBackfillJobStore
         string platform, string appVersion, DateTimeOffset? releaseDate, string? changelog, string source,
         CancellationToken ct = default);
     Task<List<KnownVersion>> KnownAsync(CancellationToken ct = default);
+
+    Task StartExtractAsync(string platform, string appVersion, CancellationToken ct = default);
+    Task FinishExtractAsync(string platform, string appVersion, string status, string? note,
+        CancellationToken ct = default);
+    Task<List<ExtractJob>> ListExtractJobsAsync(CancellationToken ct = default);
 }
 
 public sealed class BackfillJobStore(EggIncognitoDbContext db) : IBackfillJobStore
@@ -90,5 +95,39 @@ public sealed class BackfillJobStore(EggIncognitoDbContext db) : IBackfillJobSto
     public Task<List<KnownVersion>> KnownAsync(CancellationToken ct = default) =>
         db.KnownVersions.AsNoTracking()
             .OrderByDescending(k => k.FirstSeen)
+            .ToListAsync(ct);
+
+    // One job per (platform, appVersion); a re-extract resets the existing row rather than stacking.
+    public async Task StartExtractAsync(string platform, string appVersion, CancellationToken ct = default)
+    {
+        var row = await db.ExtractJobs.FirstOrDefaultAsync(
+            e => e.Platform == platform && e.AppVersion == appVersion, ct);
+        if (row is null)
+        {
+            row = new ExtractJob { Platform = platform, AppVersion = appVersion };
+            db.ExtractJobs.Add(row);
+        }
+        row.Status = "running";
+        row.StartedAt = DateTimeOffset.UtcNow;
+        row.FinishedAt = null;
+        row.Note = null;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task FinishExtractAsync(
+        string platform, string appVersion, string status, string? note, CancellationToken ct = default)
+    {
+        var row = await db.ExtractJobs.FirstOrDefaultAsync(
+            e => e.Platform == platform && e.AppVersion == appVersion, ct);
+        if (row is null) return;
+        row.Status = status;
+        row.FinishedAt = DateTimeOffset.UtcNow;
+        row.Note = note;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public Task<List<ExtractJob>> ListExtractJobsAsync(CancellationToken ct = default) =>
+        db.ExtractJobs.AsNoTracking()
+            .OrderByDescending(e => e.StartedAt)
             .ToListAsync(ct);
 }

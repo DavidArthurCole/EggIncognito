@@ -23,6 +23,9 @@ public class CaptureCaNotifierTests
             Calls++;
             return Task.FromResult(false);
         }
+
+        public Task<bool> SendProxyProfileAsync(string discordId, byte[] profile, string ssid, CancellationToken ct) =>
+            Task.FromResult(false);
     }
 
     // Resolves only the types DeliverFreshSetupAsync asks for: the notifier, and the credential store
@@ -205,7 +208,7 @@ public class CaptureCaNotifierTests
             new FakeUser(authed: false, supporter: false), new FakeSupporters(false),
             HostedCaptureOptions.Defaults(), new StubServices(new FailingNotifier()));
 
-        var r = await controller.DownloadProxyProfile("MyNet", CancellationToken.None);
+        var r = await controller.DmProxyProfile(new CaptureController.ProxyProfileReq("MyNet"), CancellationToken.None);
         Assert.Equal(401, ((IStatusCodeActionResult)r).StatusCode);
     }
 
@@ -217,7 +220,7 @@ public class CaptureCaNotifierTests
             new FakeUser(authed: true, supporter: false), new FakeSupporters(false),
             HostedCaptureOptions.Defaults(), new StubServices(new FailingNotifier()));
 
-        var r = await controller.DownloadProxyProfile("MyNet", CancellationToken.None);
+        var r = await controller.DmProxyProfile(new CaptureController.ProxyProfileReq("MyNet"), CancellationToken.None);
         Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
     }
 
