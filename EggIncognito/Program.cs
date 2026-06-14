@@ -442,12 +442,12 @@ if (hostedCaptureOn)
         return new EggIncognito.Capture.ProxyFrontDoor(
             hostedCaptureOpts,
             sp.GetRequiredService<EggIncognito.Capture.CaptureSessionManager>(),
-            async discordId =>
+            async idOrUsername =>
             {
                 using var scope = scopeFactory.CreateScope();
                 var store = scope.ServiceProvider
                     .GetService<EggIncognito.Data.Services.CaptureCredentialStore>();
-                return store is null ? null : await store.GetTokenHashAsync(discordId);
+                return store is null ? null : await store.GetTokenHashByIdOrUsernameAsync(idOrUsername);
             },
             msg => logger.LogInformation("{Message}", msg));
     });

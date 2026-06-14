@@ -99,7 +99,7 @@ public sealed class DiscordCaptureCaNotifier(
         Then set your device Wi-Fi proxy to:
         Host: `{dm.Host}`
         Port: `{dm.Port}`
-        Username: `{dm.Username}` (your Discord ID)
+        Username: `{dm.Username}` (your Discord ID; your Discord username also works)
         Password:
         ```
         {dm.Token}

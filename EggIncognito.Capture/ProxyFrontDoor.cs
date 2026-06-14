@@ -81,11 +81,12 @@ public sealed class ProxyFrontDoor(
             var (first, raw, rawLen) = await ReadFirstRequestAsync(stream, ct);
             if (first is null) return; // overflow/timeout/garbage: just close
 
-            // Auth: username = Discord id, password = proxy token, verified against the stored hash.
+            // Auth: username = Discord id OR username, password = proxy token, verified against the
+            // stored hash. The token is trimmed so a stray copy-paste space does not silently 407.
             var creds = first.ProxyAuthBasic is null ? null : ProxyRequestParser.DecodeBasic(first.ProxyAuthBasic);
-            var storedHash = creds is null ? null : await tokenHashLookup(creds.Value.User);
+            var storedHash = creds is null ? null : await tokenHashLookup(creds.Value.User.Trim());
             if (creds is null || storedHash is null ||
-                !string.Equals(Sha256Hex(creds.Value.Pass), storedHash, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(Sha256Hex(creds.Value.Pass.Trim()), storedHash, StringComparison.OrdinalIgnoreCase))
             {
                 await WriteAsciiAsync(stream,
                     "HTTP/1.1 407 Proxy Authentication Required\r\n" +
