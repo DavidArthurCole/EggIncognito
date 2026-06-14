@@ -155,7 +155,8 @@ public class HostedCapturePageTests
     {
         private static CaptureController Controller(
             CaptureSessionManager manager, ICurrentUser user, ISupporterStatus supporters) =>
-            new(manager, new FakeAppMode(canCapture: false, hostedEnabled: true), user, supporters, new EmptyServices());
+            new(manager, new FakeAppMode(canCapture: false, hostedEnabled: true), user, supporters,
+                HostedCaptureOptions.Defaults(), new EmptyServices());
 
         [Fact]
         public async Task Start_Anonymous_Is401()
@@ -205,7 +206,7 @@ public class HostedCapturePageTests
             var session = manager.GetOrCreate("tester");
             var controller = new CaptureController(
                 manager, new FakeAppMode(canCapture: false, hostedEnabled: true), user,
-                new FakeSupporters(true), new EmptyServices());
+                new FakeSupporters(true), HostedCaptureOptions.Defaults(), new EmptyServices());
             return (controller, session);
         }
 

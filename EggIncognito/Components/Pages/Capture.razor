@@ -21,7 +21,7 @@
   {
     <div class="px-3 pt-3">
       <HostedSetupCard Host="@HostedOptions.PublicHost" Port="HostedOptions.FrontDoorPort"
-                       Username="@(_userId ?? "")" ClientFactory="Client" />
+                       Username="@(_userId ?? "")" ClientFactory="Client" Connected="_connected" />
     </div>
   }
 

@@ -23,6 +23,7 @@ public sealed class CaptureController(
     IAppMode appMode,
     ICurrentUser currentUser,
     ISupporterStatus supporters,
+    HostedCaptureOptions hostedOptions,
     IServiceProvider services) : ControllerBase
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -163,29 +164,39 @@ public sealed class CaptureController(
         if (result.FreshCa && store is not null)
             await PersistFreshCaAsync(session, store, currentUser.DiscordId, result.RootThumbprint, ct);
         if (result.FreshCa)
-            await DeliverFreshCaAsync(session, currentUser.DiscordId, ct);
+            await DeliverFreshSetupAsync(session, currentUser.DiscordId, store, ct);
         return Ok(result);
     }
 
-    // First session ever for this user: DM them the public CA so they can install it without hunting for
-    // the download button. Best-effort only; a closed-DM or bot failure sets a session notice and never
-    // fails the start. Reads the .cer the proxy already exported to session.CaPath at start.
-    private async Task DeliverFreshCaAsync(CaptureSession session, string discordId, CancellationToken ct)
+    // First session ever for this user: mint a proxy token and DM the install profile + connection
+    // details so they never hunt for the download button or copy a long token by hand. Best-effort: a
+    // closed-DM or bot failure sets a session notice and never fails the start. The token plaintext only
+    // exists here, so it can only be DM'd at the same time it is freshly minted.
+    private async Task DeliverFreshSetupAsync(
+        CaptureSession session, string discordId, CaptureCredentialStore? store, CancellationToken ct)
     {
         var notifier = services.GetService(typeof(ICaptureCaNotifier)) as ICaptureCaNotifier;
-        if (notifier is null) return;
+        if (notifier is null || store is null) { FlagDmFailed(session); return; }
 
         byte[] cer;
         try { cer = await System.IO.File.ReadAllBytesAsync(session.CaPath, ct); }
         catch { cer = []; }
+        if (cer.Length == 0) { FlagDmFailed(session); return; }
 
-        var delivered = cer.Length > 0 && await notifier.SendCaAsync(discordId, cer, ct);
-        if (delivered) return;
+        var token = CaptureCredentialStore.MintToken();
+        await store.SetTokenAsync(discordId, CaptureCredentialStore.Hash(token), ct);
 
-        // Failed/unconfigured: flag it for the setup card and toast it on the live dashboard.
+        var dm = new CaptureSetupDm(
+            discordId, cer, hostedOptions.PublicHost, hostedOptions.FrontDoorPort, discordId, token);
+        if (await notifier.SendSetupAsync(dm, ct)) return;
+        FlagDmFailed(session);
+    }
+
+    private static void FlagDmFailed(CaptureSession session)
+    {
         session.CaDmFailed = true;
         session.Hub.PostNotice(new CaptureEvent(
-            "caDmFailed", "Could not DM your CA; download it below.", DateTime.Now.ToString("HH:mm:ss")));
+            "caDmFailed", "Could not DM your setup; use the card below.", DateTime.Now.ToString("HH:mm:ss")));
     }
 
     // Unobtanium reuses the root CA at {caDir}/.ca/root.pfx; restoring the stored pfx there before

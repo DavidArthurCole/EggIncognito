@@ -41,17 +41,33 @@
     <p class="text-muted text-xs mb-3">@_error</p>
   }
 
-  <ol class="text-muted text-sm leading-relaxed pl-5 my-0">
-    <li>Set the device's Wi-Fi proxy to the host + port above and enter the credentials when prompted.</li>
-    <li><strong>iOS:</strong> install the CA via Settings &gt; General &gt; VPN &amp; Device Management,
-      then enable full trust under Settings &gt; General &gt; About &gt; Certificate Trust Settings.</li>
-    <li><strong>Android:</strong> since Android 7, apps ignore user-installed CAs, so Egg, Inc. will not
-      decrypt on a stock device. Capturing it needs a rooted phone with the CA placed in the system
-      trust store (e.g. a Magisk cert module). iOS is the supported path otherwise.</li>
-    <li>Start the capture session, then open Egg, Inc. - flows appear live below.</li>
-    <li>Only Egg, Inc. traffic is decrypted; everything else passes through untouched, so your other
-      apps keep working normally with the proxy on.</li>
-  </ol>
+  <details class="setup-steps" open="@(!Connected)">
+    <summary class="setup-summary">Setup instructions</summary>
+
+    <ol class="text-muted text-sm leading-relaxed pl-5 mt-2 mb-3">
+      <li>Set the device's Wi-Fi proxy to the host + port above, with the username + token as credentials.</li>
+      <li>Install the CA cert (DM'd on session start, or download above) and trust it, see your platform below.</li>
+      <li>Start the capture session, then open Egg, Inc. - flows appear live below.</li>
+    </ol>
+
+    <div class="setup-platforms">
+      <div class="setup-platform">
+        <div class="setup-platform-name">iOS <span class="pill live">supported</span></div>
+        <p class="text-muted text-xs leading-relaxed m-0">Open the CA profile (from the DM or Safari),
+          install it, then enable full trust under Settings &gt; General &gt; About &gt; Certificate
+          Trust Settings.</p>
+      </div>
+      <div class="setup-platform">
+        <div class="setup-platform-name">Android <span class="pill">root only</span></div>
+        <p class="text-muted text-xs leading-relaxed m-0">Since Android 7, apps ignore user-installed CAs,
+          so Egg, Inc. will not decrypt on a stock device. Needs a rooted phone with the CA in the system
+          trust store (e.g. a Magisk cert module).</p>
+      </div>
+    </div>
+
+    <p class="text-muted text-xs mt-3 mb-0">Only Egg, Inc. traffic is decrypted; everything else passes
+      through untouched, so your other apps keep working normally with the proxy on.</p>
+  </details>
 </section>
 
 @code {
@@ -59,6 +75,8 @@
     [Parameter] public int Port { get; set; }
     [Parameter] public string Username { get; set; } = "";
     [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
+    // Drives the instructions collapsing once a device is talking to the proxy.
+    [Parameter] public bool Connected { get; set; }
 
     string? _token;
     string? _error;

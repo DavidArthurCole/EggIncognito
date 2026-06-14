@@ -68,6 +68,17 @@
      below the nav. */
   .capture-toolbar { @apply flex items-center gap-1.5; }
 
+  /* Hosted-capture setup instructions: collapsible (auto-closed once a device connects), with iOS
+     vs Android as two side-by-side branches rather than a misleading numbered sequence. */
+  .setup-steps { @apply mt-3 border-t border-border pt-3; }
+  .setup-summary { @apply cursor-pointer select-none text-sm font-semibold text-fg list-none; }
+  .setup-summary::-webkit-details-marker { display: none; }
+  .setup-summary::before { content: "\25B8\00a0"; @apply text-muted; }
+  .setup-steps[open] .setup-summary::before { content: "\25BE\00a0"; }
+  .setup-platforms { @apply grid gap-2 sm:grid-cols-2; }
+  .setup-platform { @apply border border-border bg-panel2 rounded-lg p-3; }
+  .setup-platform-name { @apply flex items-center gap-2 text-sm font-semibold text-fg mb-1; }
+
   /* Icon-only square button. .active = accent ring (Inspector list reload, Capture pause/filter).
      box-border + a fixed line-height keep <a> and <button> variants the same computed height. */
   .icon-btn {

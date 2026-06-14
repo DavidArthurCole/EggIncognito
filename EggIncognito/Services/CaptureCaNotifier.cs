@@ -1,57 +1,83 @@
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 
 namespace EggIncognito.Services;
 
-// Best-effort delivery of a freshly-minted capture CA to the user over a Discord DM. The web app never
-// hard-depends on the bot: NoopCaptureCaNotifier is registered when Discord:BotToken is unset.
+// Best-effort delivery of a freshly-minted capture CA + proxy details to the user over a Discord DM.
+// The web app never hard-depends on the bot: NoopCaptureCaNotifier is registered when Discord:BotToken
+// is unset.
 public interface ICaptureCaNotifier
 {
-    // Returns whether the DM (channel open + message with the .cer attachment) was delivered. Never
-    // throws; any failure reports false so the caller can fall back to the /capture download button.
-    Task<bool> SendCaAsync(string discordId, byte[] cerBytes, CancellationToken ct);
+    // Returns whether the DM (channel open + message with the CA profile + token/proxy text) was
+    // delivered. Never throws; any failure reports false so the caller falls back to the /capture card.
+    Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct);
 }
+
+// Everything the DM needs: the public CA bytes (DER) plus the connection details to print as copyable
+// text. Token is shown once here and on the card at mint time; never stored in plaintext.
+public sealed record CaptureSetupDm(
+    string DiscordId, byte[] CerBytes, string Host, int Port, string Username, string Token);
 
 // No bot configured: nothing to send. The caller falls back to the download button.
 public sealed class NoopCaptureCaNotifier : ICaptureCaNotifier
 {
-    public Task<bool> SendCaAsync(string discordId, byte[] cerBytes, CancellationToken ct) =>
-        Task.FromResult(false);
+    public Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct) => Task.FromResult(false);
 }
 
-// Sends the CA over Discord REST with the bot token, mirroring SupporterStatus's HttpClient pattern (no
-// socket-client dependency). Opens a DM channel, then posts a multipart message carrying the .cer plus a
-// short install hint. Fail-closed: any non-success or exception reports false.
+// Sends the setup over Discord REST with the bot token, mirroring SupporterStatus's HttpClient pattern
+// (no socket-client dependency). Opens a DM channel, then posts a multipart message carrying a
+// .mobileconfig (one-tap CA install on iOS) plus a text block with the proxy host/port/username/token.
+// Fail-closed: any non-success or exception reports false.
 public sealed class DiscordCaptureCaNotifier(
     IHttpClientFactory httpFactory, IConfiguration config, ILogger<DiscordCaptureCaNotifier> logger)
     : ICaptureCaNotifier
 {
-    private const string FileName = "eggincognito-capture-ca.cer";
-    private const string Content =
-        "Here is your EggIncognito capture CA. Install it on your device, then start a session at "
-        + "/capture (https://eggincognito.davidarthurcole.me/capture).";
+    private const string ProfileFile = "eggincognito-capture.mobileconfig";
+    private const string CaUrl = "https://eggincognito.davidarthurcole.me/capture";
 
-    public async Task<bool> SendCaAsync(string discordId, byte[] cerBytes, CancellationToken ct)
+    public async Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct)
     {
         var token = config["Discord:BotToken"];
-        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(discordId) || cerBytes.Length == 0)
+        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(dm.DiscordId) || dm.CerBytes.Length == 0)
             return false;
 
         try
         {
             var http = httpFactory.CreateClient("discord-api");
-
-            var channelId = await OpenDmAsync(http, token, discordId, ct);
+            var channelId = await OpenDmAsync(http, token, dm.DiscordId, ct);
             if (channelId is null) return false;
 
-            return await PostFileAsync(http, token, channelId, cerBytes, ct);
+            var profile = MobileConfig.BuildCaProfile(dm.CerBytes);
+            return await PostAsync(http, token, channelId, profile, BuildMessage(dm), ct);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "CA DM to {DiscordId} failed; fail-closed", discordId);
+            logger.LogWarning(ex, "Capture setup DM to {DiscordId} failed; fail-closed", dm.DiscordId);
             return false;
         }
     }
+
+    // The copyable connection block. iOS: open the attached profile, install, trust. The proxy host/
+    // port/credentials are typed into Wi-Fi settings (a global-proxy profile is supervised-only, so it
+    // cannot be auto-applied on a normal phone).
+    private static string BuildMessage(CaptureSetupDm dm) =>
+        $"""
+        **EggIncognito hosted capture setup**
+
+        Open the attached profile on iOS to install the CA in one tap (then enable full trust under
+        Settings > General > About > Certificate Trust Settings). Android needs a rooted device with
+        the CA in the system trust store.
+
+        Then set your device Wi-Fi proxy to:
+        ```
+        Host:     {dm.Host}
+        Port:     {dm.Port}
+        Username: {dm.Username}
+        Password: {dm.Token}
+        ```
+        The token is shown once. Start a session at {CaUrl}, then open Egg, Inc.
+        """;
 
     // POST /users/@me/channels {"recipient_id": id} -> the DM channel id, or null on any failure.
     private static async Task<string?> OpenDmAsync(HttpClient http, string token, string discordId, CancellationToken ct)
@@ -60,7 +86,7 @@ public sealed class DiscordCaptureCaNotifier(
         {
             Content = new StringContent(
                 JsonSerializer.Serialize(new { recipient_id = discordId }),
-                System.Text.Encoding.UTF8, "application/json"),
+                Encoding.UTF8, "application/json"),
         };
         req.Headers.TryAddWithoutValidation("Authorization", $"Bot {token}");
         using var res = await http.SendAsync(req, ct);
@@ -72,17 +98,16 @@ public sealed class DiscordCaptureCaNotifier(
             : null;
     }
 
-    // POST /channels/{id}/messages as multipart/form-data: the .cer as files[0] plus a payload_json part.
-    private static async Task<bool> PostFileAsync(
-        HttpClient http, string token, string channelId, byte[] cerBytes, CancellationToken ct)
+    // POST /channels/{id}/messages as multipart: the .mobileconfig as files[0] + a payload_json part.
+    private static async Task<bool> PostAsync(
+        HttpClient http, string token, string channelId, byte[] profile, string content, CancellationToken ct)
     {
         using var form = new MultipartFormDataContent();
-        var file = new ByteArrayContent(cerBytes);
-        file.Headers.ContentType = new MediaTypeHeaderValue("application/x-x509-ca-cert");
-        form.Add(file, "files[0]", FileName);
+        var file = new ByteArrayContent(profile);
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/x-apple-aspen-config");
+        form.Add(file, "files[0]", ProfileFile);
         form.Add(new StringContent(
-            JsonSerializer.Serialize(new { content = Content }),
-            System.Text.Encoding.UTF8, "application/json"), "payload_json");
+            JsonSerializer.Serialize(new { content }), Encoding.UTF8, "application/json"), "payload_json");
 
         using var req = new HttpRequestMessage(HttpMethod.Post,
             $"https://discord.com/api/v10/channels/{channelId}/messages")

@@ -18,16 +18,19 @@ public class CaptureCaNotifierTests
     private sealed class FailingNotifier : ICaptureCaNotifier
     {
         public int Calls { get; private set; }
-        public Task<bool> SendCaAsync(string discordId, byte[] cerBytes, CancellationToken ct)
+        public Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct)
         {
             Calls++;
             return Task.FromResult(false);
         }
     }
 
-    private sealed class StubServices(object? service) : IServiceProvider
+    // Resolves only the types DeliverFreshSetupAsync asks for: the notifier, and the credential store
+    // (null here, the DB-free test exercises the no-store fail path).
+    private sealed class StubServices(ICaptureCaNotifier notifier) : IServiceProvider
     {
-        public object? GetService(Type serviceType) => service;
+        public object? GetService(Type serviceType) =>
+            serviceType == typeof(ICaptureCaNotifier) ? notifier : null;
     }
 
     private sealed class FakeAppMode(bool canCapture, bool hostedEnabled) : IAppMode
@@ -108,18 +111,20 @@ public class CaptureCaNotifierTests
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 
     [Fact]
-    public async Task Start_FreshCa_NotifierFails_Still200_AndFlagsCaDmFailed()
+    public async Task Start_FreshCa_NoStore_Still200_AndFlagsCaDmFailed()
     {
+        // No DB configured (the DB-free test path): the setup DM cannot mint a token, so delivery
+        // fails fast and the session is flagged, but Start must still return 200.
         var manager = FreshCaManager();
         var notifier = new FailingNotifier();
         var controller = new CaptureController(
             manager, new FakeAppMode(canCapture: false, hostedEnabled: true),
-            new FakeUser(true, supporter: true), new FakeSupporters(true), new StubServices(notifier));
+            new FakeUser(true, supporter: true), new FakeSupporters(true),
+            HostedCaptureOptions.Defaults(), new StubServices(notifier));
 
         var r = await controller.Start(CancellationToken.None);
 
         Assert.Equal(200, ((IStatusCodeActionResult)r).StatusCode);
-        Assert.Equal(1, notifier.Calls);
         var session = manager.Get("tester");
         Assert.NotNull(session);
         Assert.True(session!.CaDmFailed);
@@ -136,7 +141,7 @@ public class CaptureCaNotifierTests
             Config(new() { ["Discord:BotToken"] = "token" }),
             NullLogger<DiscordCaptureCaNotifier>.Instance);
 
-        var ok = await notifier.SendCaAsync("123", [0x30, 0x82], CancellationToken.None);
+        var ok = await notifier.SendSetupAsync(Dm(), CancellationToken.None);
         Assert.False(ok);
     }
 
@@ -149,8 +154,25 @@ public class CaptureCaNotifierTests
             Config(new()),
             NullLogger<DiscordCaptureCaNotifier>.Instance);
 
-        var ok = await notifier.SendCaAsync("123", [0x30, 0x82], CancellationToken.None);
+        var ok = await notifier.SendSetupAsync(Dm(), CancellationToken.None);
         Assert.False(ok);
+    }
+
+    private static CaptureSetupDm Dm() =>
+        new("123", [0x30, 0x82, 0x01], "capture.example.com", 8443, "123", "tok-abc");
+
+    [Fact]
+    public void MobileConfig_EmbedsCert_AndIsStablePerCert()
+    {
+        byte[] cer = [0x30, 0x82, 0x01, 0x02, 0x03];
+        var a = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer));
+        var b = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer));
+        Assert.Equal(a, b); // deterministic per cert
+        Assert.Contains("com.apple.security.root", a);
+        Assert.Contains(Convert.ToBase64String(cer), a);
+        // A different cert yields a different profile UUID.
+        var c = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x99]));
+        Assert.NotEqual(a, c);
     }
 
     // Mirrors the Program.cs gate without booting the full host (which would try to log the bot in).
