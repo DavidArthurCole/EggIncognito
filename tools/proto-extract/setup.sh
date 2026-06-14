@@ -61,6 +61,6 @@ chmod +x \
   "$EXT/protoc/protoc" "$EXT/protoc/protoc64" 2>/dev/null || true
 
 python3 -m venv .venv
-./.venv/bin/pip install -q protobuf requests
+./.venv/bin/pip install -q protobuf requests capstone
 
 echo "proto-extract toolchain ready. Requires java (default-jre-headless) on PATH for dex2jar."

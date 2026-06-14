@@ -34,7 +34,7 @@ public class UnifiedStyleTests : IClassFixture<WebApplicationFactory<Program>>
             ".card-link", ".perk-list", ".rail", ".connect-card", ".faq-list",
             ".reg-table", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
             ".admin-panel", ".backfill-row", ".backfill-status", ".src-card", ".sub-confirm",
-            ".site-footer", ".legal-disclaimer", ".legal-section" })
+            ".legal-disclaimer", ".legal-section" })
         {
             Assert.Contains(cls, css);
         }

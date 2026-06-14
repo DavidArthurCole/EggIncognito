@@ -30,7 +30,8 @@ public class AndroidRunnerTests
     {
         var captured = new List<NewVersionEvent>();
         sent = captured;
-        return new AndroidRunner(adb, new FakeExtractor(), state, new NullClientVersionReader(),
+        var cvState = new ClientVersionState(Path.Combine(Path.GetTempPath(), $"cv-{Guid.NewGuid():N}"), null);
+        return new AndroidRunner(adb, new FakeExtractor(), state, new NullClientVersionReader(), cvState,
             "com.auxbrain.egginc", Path.GetTempPath(), evt => captured.Add(evt));
     }
 

@@ -11,7 +11,8 @@ namespace EggIncognito.Runner.Runners;
 // ignores state. Timing and posting are the caller's concern, so this stays testable without a device.
 public sealed class AndroidRunner(
     IAdbClient adb, IProtoExtractor proto, VersionState state, IClientVersionReader clientVersion,
-    string package, string apkStashDir, Action<NewVersionEvent> onNewVersion) : IDeviceRunner
+    ClientVersionState cvState, string package, string apkStashDir,
+    Action<NewVersionEvent> onNewVersion) : IDeviceRunner
 {
     public string Platform => "android";
 
@@ -31,13 +32,16 @@ public sealed class AndroidRunner(
         var protoBytes = proto.Extract(apkPath);
         var protoSha = Convert.ToHexString(SHA256.HashData(protoBytes)).ToLowerInvariant();
 
+        var cv = clientVersion.Read(apkPath, cvState.Last());
+        if (cv is not null && int.TryParse(cv, out var cvNum)) cvState.Save(cvNum);
+
         onNewVersion(new NewVersionEvent
         {
             Package = package,
             Version = appVersion,
             AppVersion = appVersion,
             Build = build,
-            ClientVersion = clientVersion.Read(apkPath),
+            ClientVersion = cv,
             ApkRef = apkPath,
             ProtoSha = protoSha,
             Platform = Platform,

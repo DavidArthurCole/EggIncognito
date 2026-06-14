@@ -11,7 +11,10 @@ public class ApkPureExtractHandlerTests
 {
     private static ApkPureExtractHandler Make(string secret, HttpMessageHandler? handler = null) =>
         new(secret, new ApkPureDownloader(new HttpClient(handler ?? new HttpClientHandler())),
-            new PbtkProtoExtractor("repo", "python"), _ => Task.CompletedTask);
+            new PbtkProtoExtractor("repo", "python"), new NullClientVersionReader(),
+            new EggIncognito.Runner.State.ClientVersionState(
+                Path.Combine(Path.GetTempPath(), $"cv-{Guid.NewGuid():N}"), null),
+            _ => Task.CompletedTask);
 
     [Fact]
     public async Task BadBearer_Is401()

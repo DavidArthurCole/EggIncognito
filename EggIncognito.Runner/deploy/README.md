@@ -40,6 +40,12 @@ sudo systemctl enable --now eggincognito-runner@android
 |---|---|
 | `SYNC_EVENT_URL` | sync server new-version ingest endpoint |
 | `SYNC_EVENT_SECRET` | bearer token for the event POST |
-| `RUNNER_TRIGGER_SECRET` | bearer the `/resync` listener requires; EGI sends it as `RUNNER_AGENT_SECRET` |
+| `RUNNER_TRIGGER_SECRET` | bearer the `/resync` + `/extract` listener requires; EGI sends it as `RUNNER_AGENT_SECRET` |
+| `ADB_TARGET` | device serial (USB) or host:port (network adb) for the poll |
+| `PREV_CLIENT_VERSION` | bootstrap anchor for clientVersion extraction (the last known value, e.g. 71). Self-advances into `apks/clientversion-<platform>.txt` after each extract; only needed for the first run |
 
-The unit sets `RUNNER_TRIGGER_URLS=http://127.0.0.1:5055`. The serve listener turns on whenever `RUNNER_TRIGGER_SECRET` is set.
+The unit binds `RUNNER_TRIGGER_URLS=http://0.0.0.0:5055` so a container on the host can reach it. The serve listener turns on whenever `RUNNER_TRIGGER_SECRET` is set.
+
+## clientVersion extraction
+
+The runner extracts the proto/API `clientVersion` (e.g. 72) by disassembling `libegginc.so` (`proto-extract/pbtk/extractors/client_version.py`, capstone) and picking the compiled-in constant anchored to `PREV_CLIENT_VERSION` (it increments by 0-1 per build). Seed `PREV_CLIENT_VERSION` once; the runner advances it automatically. Null when no anchor is set.

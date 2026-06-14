@@ -10,7 +10,9 @@ public sealed record ExtractResult(int Status, string? Build, string? ProtoSha, 
 // On-demand proto extract from APKPure for a single appVersion: download XAPK, pull arm split, extract +
 // clean the proto, emit a NewVersionEvent. Bearer + single-flight gate mirrors ResyncHandler.
 public sealed class ApkPureExtractHandler(
-    string secret, ApkPureDownloader downloader, PbtkProtoExtractor extractor, Func<NewVersionEvent, Task> postEvent)
+    string secret, ApkPureDownloader downloader, PbtkProtoExtractor extractor,
+    IClientVersionReader clientVersion, State.ClientVersionState cvState,
+    Func<NewVersionEvent, Task> postEvent)
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
 
@@ -34,15 +36,18 @@ public sealed class ApkPureExtractHandler(
 
             var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".apk");
             byte[] protoBytes;
+            string? cv;
             try
             {
                 await File.WriteAllBytesAsync(tmp, armSplit);
                 protoBytes = extractor.Extract(tmp);
+                cv = clientVersion.Read(tmp, cvState.Last());
             }
             finally
             {
                 try { File.Delete(tmp); } catch { /* best-effort temp cleanup */ }
             }
+            if (cv is not null && int.TryParse(cv, out var cvNum)) cvState.Save(cvNum);
 
             var build = ApkVersionCode.Read(armSplit);
             var protoSha = Convert.ToHexString(SHA256.HashData(protoBytes)).ToLowerInvariant();
@@ -52,7 +57,7 @@ public sealed class ApkPureExtractHandler(
                 Version = appVersion,
                 AppVersion = appVersion,
                 Build = build ?? "",
-                ClientVersion = null,
+                ClientVersion = cv,
                 ApkRef = $"apkpure:{appVersion}",
                 ProtoSha = protoSha,
                 Platform = "android",

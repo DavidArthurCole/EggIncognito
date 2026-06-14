@@ -41,13 +41,15 @@ public static class Program
 
         var http = new HttpClient();
         var poster = new EventPoster(http, eventUrl, eventSecret);
-        var clientVersion = new NullClientVersionReader();
+        var clientVersion = new LibegincClientVersionReader(extractorRepo, extractorPython);
+        int? prevCv = int.TryParse(Env("PREV_CLIENT_VERSION"), out var pcv) ? pcv : null;
+        var cvState = new ClientVersionState(Path.Combine(apkStash, $"clientversion-{platform}.txt"), prevCv);
 
         IDeviceRunner runner = platform switch
         {
             "android" => new AndroidRunner(
                 new AdbClient(target), new PbtkProtoExtractor(extractorRepo, extractorPython),
-                new VersionState(stateFile), clientVersion, package, apkStash,
+                new VersionState(stateFile), clientVersion, cvState, package, apkStash,
                 evt => poster.PostAsync(evt).GetAwaiter().GetResult()),
             "ios" => new IosRunner(),
             _ => throw new InvalidOperationException($"unknown PLATFORM {platform}"),
@@ -71,7 +73,8 @@ public static class Program
             handler = new ResyncHandler(triggerSecret, f => runner.RunOnce(f));
             var extractHandler = new ApkPureExtractHandler(
                 triggerSecret, new ApkPureDownloader(http),
-                new PbtkProtoExtractor(extractorRepo, extractorPython), evt => poster.PostAsync(evt));
+                new PbtkProtoExtractor(extractorRepo, extractorPython), clientVersion, cvState,
+                evt => poster.PostAsync(evt));
             trigger = TriggerListener.Build(triggerUrls, handler, extractHandler);
             _ = trigger.RunAsync();
             Console.WriteLine($"resync trigger listening on {triggerUrls}");
