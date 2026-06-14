@@ -4,37 +4,35 @@
    install steps. The token plaintext is shown exactly once per mint; only its hash is stored. *@
 <section id="hostedSetupCard" class="panel">
   <h2 class="text-base mt-0 mb-2 text-fg">Hosted proxy setup</h2>
-  <p class="text-muted text-sm mt-0 mb-3">Point your device's Wi-Fi proxy at this endpoint. When the
-    device asks for proxy credentials, the username is your Discord ID and the password is your
-    capture token.</p>
+  <p class="text-muted text-sm mt-0 mb-3">When you start a capture (the
+    <Icon Name="play" Class="icon-sm" /> button in the toolbar), the bot DMs you a one-tap CA install
+    profile plus your proxy details. Point your device's Wi-Fi proxy at the endpoint below; the
+    username is your Discord ID and the password is your capture token.</p>
 
   <div class="mb-3">
     <div class="mb-1"><span class="text-muted text-xs">Proxy host</span> <span class="code-chip">@Host</span></div>
     <div class="mb-1"><span class="text-muted text-xs">Proxy port</span> <span class="code-chip">@Port</span></div>
     <div class="mb-1"><span class="text-muted text-xs">Username</span> <span class="code-chip">@Username</span></div>
-    <div>
-      <span class="text-muted text-xs">Token</span>@(" ")
+    <div class="flex items-center gap-2">
+      <span class="text-muted text-xs">Token</span>
       @if (_token is null)
       {
-        <span class="text-muted text-xs">hidden once issued - rotate to get a new one</span>
+        <span class="text-muted text-xs">sent in the DM each time you start a capture</span>
       }
       else
       {
         <span class="code-chip" id="mintedToken">@_token</span>
         <span class="text-muted text-xs">shown once; save it now</span>
       }
+      <button type="button" class="icon-btn icon-btn-sm" title="Cycle token" aria-label="Cycle token"
+              @onclick="MintToken" disabled="@_busy"><Icon Name="refresh" Class="icon-sm" /></button>
     </div>
   </div>
 
-  <div class="mb-3">
-    <button class="btn-primary" id="mintTokenBtn" @onclick="MintToken" disabled="@_busy">
-      @(_token is null ? "Mint / rotate token" : "Rotate token")
-    </button>
-    <a class="btn-primary inline-block no-underline" href="/api/capture/ca.cer">Download CA cert</a>
-  </div>
   @if (_caDmFailed)
   {
-    <p class="text-muted text-xs mb-3" id="caDmFailedNotice">Could not DM your CA; download it below.</p>
+    <p class="text-muted text-xs mb-3" id="caDmFailedNotice">Could not DM your setup. Cycle your token
+      to retry, or follow the manual steps below.</p>
   }
   @if (_error is not null)
   {
@@ -46,19 +44,19 @@
 
     <ol class="text-muted text-sm leading-relaxed pl-5 mt-2 mb-3">
       <li>Set the device's Wi-Fi proxy to the host + port above, with the username + token as credentials.</li>
-      <li>Install the CA cert (DM'd on session start, or download above) and trust it, see your platform below.</li>
+      <li>Open the DM'd install profile and trust the CA, see your platform below.</li>
       <li>Start the capture session, then open Egg, Inc. - flows appear live below.</li>
     </ol>
 
     <div class="setup-platforms">
       <div class="setup-platform">
-        <div class="setup-platform-name">iOS <span class="pill live">supported</span></div>
+        <div class="setup-platform-name">iOS</div>
         <p class="text-muted text-xs leading-relaxed m-0">Open the CA profile (from the DM or Safari),
           install it, then enable full trust under Settings &gt; General &gt; About &gt; Certificate
           Trust Settings.</p>
       </div>
       <div class="setup-platform">
-        <div class="setup-platform-name">Android <span class="pill">root only</span></div>
+        <div class="setup-platform-name">Android</div>
         <p class="text-muted text-xs leading-relaxed m-0">Since Android 7, apps ignore user-installed CAs,
           so Egg, Inc. will not decrypt on a stock device. Needs a rooted phone with the CA in the system
           trust store (e.g. a Magisk cert module).</p>
