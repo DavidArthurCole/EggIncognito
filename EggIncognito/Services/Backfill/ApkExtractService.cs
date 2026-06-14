@@ -11,7 +11,7 @@ namespace EggIncognito.Services.Backfill;
 
 // Thrown when the apk-extract path is asked for on a host without the toolchain configured. The
 // controller maps it to 501 "extraction not configured on this host". The list + elgranjero + itunes
-// paths work everywhere; APK-extract is opt-in infra (frame, alongside the farm).
+// paths work everywhere; APK-extract is opt-in infra (a toolchain host, alongside the farm).
 public sealed class ExtractNotConfiguredException(string message) : Exception(message);
 
 // Config the extract path binds. Bound from the ProtoExtract section; Enabled false (or a missing

@@ -25,7 +25,7 @@ if [ ! -f "$EXT/dex2jar/d2j-dex2jar.sh" ]; then
       echo "WARN: dex2jar zip layout unexpected; copy pbtk/utils/external/dex2jar/ from the EggIncProtoExtractor repo instead." >&2
     fi
   else
-    echo "WARN: dex2jar fetch failed. Copy pbtk/utils/external/dex2jar/ from the EggIncProtoExtractor repo (or the frame)." >&2
+    echo "WARN: dex2jar fetch failed. Copy pbtk/utils/external/dex2jar/ from the EggIncProtoExtractor repo." >&2
   fi
   rm -rf "$tmp"
 fi
@@ -42,15 +42,15 @@ if [ ! -f "$EXT/protoc/protoc" ] && [ ! -f "$EXT/protoc/protoc64" ]; then
     cp "$tmp/protoc/bin/protoc" "$EXT/protoc/protoc"
     cp "$tmp/protoc/bin/protoc" "$EXT/protoc/protoc64"
   else
-    echo "WARN: protoc fetch failed. Copy pbtk/utils/external/protoc/ from the EggIncProtoExtractor repo (or the frame)." >&2
+    echo "WARN: protoc fetch failed. Copy pbtk/utils/external/protoc/ from the EggIncProtoExtractor repo." >&2
   fi
   rm -rf "$tmp"
 fi
 
-# jad: no stable release URL; operator supplies it (EggIncProtoExtractor repo or frame).
+# jad: no stable release URL; operator supplies it (EggIncProtoExtractor repo).
 if [ ! -f "$EXT/jad/jad" ]; then
   echo "ERROR: jad decompiler missing at $EXT/jad/jad and cannot be fetched (no stable release URL)." >&2
-  echo "       Copy pbtk/utils/external/jad/ from the EggIncProtoExtractor repo or the frame, then re-run." >&2
+  echo "       Copy pbtk/utils/external/jad/ from the EggIncProtoExtractor repo, then re-run." >&2
   exit 1
 fi
 

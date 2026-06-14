@@ -37,7 +37,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Test-host DB isolation: the test assembly's module initializer sets EGGINCOGNITO_TEST_DBFREE so
 // WebApplicationFactory<Program> boots DB-free by default, matching CI. Without this the dev box's
-// user-secrets ConnectionStrings:Postgres (Host=frame) would make every integration test hit the live
+// user-secrets ConnectionStrings:Postgres (a real DB host) would make every integration test hit the live
 // DB and leak rows. A test that genuinely needs a DB opts in by setting ConnectionStrings:Postgres
 // explicitly via WithWebHostBuilder, which wins over this clear.
 if (Environment.GetEnvironmentVariable("EGGINCOGNITO_TEST_DBFREE") == "1"

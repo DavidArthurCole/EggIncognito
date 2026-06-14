@@ -5,26 +5,32 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=eggfarm
-Group=eggfarm
+# Run as a user that owns the adb key + USB device access (the device poll needs adb; extract-forward
+# does not). Set User/Group at install time; a dedicated system user needs its own adbkey + plugdev.
+User=REPLACE_ME
+Group=REPLACE_ME
 WorkingDirectory=/opt/eggincognito-runner
 ExecStart=/opt/eggincognito-runner/EggIncognito.Runner
 Environment=PATH=/usr/local/bin:/usr/bin:/bin:/opt/platform-tools
 Environment=PLATFORM=%i
 Environment=PACKAGE=com.auxbrain.egginc
-Environment=ADB_TARGET=127.0.0.1:5555
+# ADB_TARGET (the USB device serial from `adb devices`, or host:port for network adb) goes in
+# secret.env at deploy time, not here.
 Environment=STATE_FILE=/opt/eggincognito-runner/state-%i.json
 Environment=APK_STASH_DIR=/opt/eggincognito-runner/apks
 Environment=POLL_INTERVAL=300
 Environment=EXTRACTOR_REPO=/opt/eggincognito-runner/proto-extract
 Environment=EXTRACTOR_PYTHON=/opt/eggincognito-runner/proto-extract/.venv/bin/python3
-Environment=RUNNER_TRIGGER_URLS=http://127.0.0.1:5055
+# Bind all interfaces so a container on the same host can reach the runner. Loopback would only be
+# reachable from the host itself, not across the container boundary.
+Environment=RUNNER_TRIGGER_URLS=http://0.0.0.0:5055
 EnvironmentFile=/etc/eggincognito-runner/secret.env
 Restart=on-failure
 RestartSec=15
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=true
+# ProtectHome off so the runner can read ~/.android/adbkey for USB adb auth.
+ProtectHome=false
 ReadWritePaths=/opt/eggincognito-runner
 PrivateTmp=false
 

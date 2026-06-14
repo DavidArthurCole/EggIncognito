@@ -25,13 +25,13 @@ CRLF gotcha: a `#!/bin/sh\r` shebang makes the kernel report "required file not 
 
 ## External binaries (38MB, gitignored)
 
-`pbtk/utils/external/` is gitignored (mirrors `tools/tailwind/`). On the frame they exist at `~/ei-extract-full/pbtk/utils/external/`; setup.sh reuses them.
+`pbtk/utils/external/` is gitignored (mirrors `tools/tailwind/`). setup.sh fetches dex2jar+protoc if missing and reuses any already present.
 
 | Binary | Size | Source |
 |---|---|---|
 | dex2jar | 20MB | GitHub release (pxb1988/dex2jar v2.1) |
 | protoc | 17MB | GitHub release (protocolbuffers/protobuf v25.1, linux-x86_64) |
-| jad | 1.9MB | Operator supplies; no stable URL. Copy from EggIncProtoExtractor repo or frame. |
+| jad | 1.9MB | Operator supplies; no stable URL. Copy from the EggIncProtoExtractor repo. |
 
 On fetch failure setup.sh prints the copy-from-EggIncProtoExtractor instruction.
 

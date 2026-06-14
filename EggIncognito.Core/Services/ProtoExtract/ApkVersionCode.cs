@@ -8,7 +8,7 @@ namespace EggIncognito.Services.ProtoExtract;
 // chunk, then XML node chunks. The START_ELEMENT for `manifest` carries attribute records (ns, name,
 // rawValue, typedValue size/type, typedValue data); versionCode is the attribute whose name string is
 // "versionCode" with an INT typed value. Returns null (never a fabricated build) when not found or the
-// bytes don't parse. The real end-to-end parse is verified live on frame against the A15's dumpsys
+// bytes don't parse. The real end-to-end parse is verified live against the device dumpsys
 // versionCode; the unit tests here cover the null/garbage path plus a real AndroidManifest.xml lifted from the arm split.
 public static class ApkVersionCode
 {

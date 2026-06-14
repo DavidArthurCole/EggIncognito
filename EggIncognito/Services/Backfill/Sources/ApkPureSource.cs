@@ -101,7 +101,7 @@ public sealed partial class ApkPureSource(IHttpClientFactory httpFactory, ILogge
         EggIncognito.Services.ProtoExtract.ApkPureDownloader.ExtractArmSplit(downloaded);
 
     // Downloads the APK bytes for a given appVersion from APKPure's download endpoint. Real, thin, and
-    // integration-only (the extract path uses it on the frame; not unit-tested). Returns null on failure.
+    // integration-only (the extract path uses it host-side; not unit-tested). Returns null on failure.
     public async Task<byte[]?> DownloadApkAsync(string appVersion, CancellationToken ct = default)
     {
         try
