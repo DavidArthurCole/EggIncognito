@@ -5,19 +5,20 @@ using Microsoft.Extensions.Hosting;
 
 namespace EggIncognito.Capture;
 
-// Public authenticated entry for hosted capture. One TCP port for every user: parse the first proxy
-// request, check Proxy-Authorization Basic (username = Discord id, password = proxy token) against
-// the injected hash lookup, enforce the auxbrain allowlist, then raw-tunnel to the caller's own
-// running CaptureSession. Local mode never starts this. tokenHashLookup bridges to the scoped
-// CaptureCredentialStore through IServiceScopeFactory, the EndpointStore -> DbEndpointSource pattern.
+// Public entry for hosted capture. One TCP port for every user, but identity is the DESTINATION
+// address the device connected to: each supporter is issued a unique IPv6 from a routed /64. The /64
+// is routed (not DNAT'd) and the proxy runs host-network, so the accepted socket's LocalEndPoint is
+// the original per-user destination. addrToUser maps that address to the owning user; a null result
+// closes the connection. Then enforce the auxbrain allowlist and raw-tunnel to the caller's own
+// running CaptureSession. Local mode never starts this. addrToUser bridges to the scoped address
+// registry through IServiceScopeFactory, the EndpointStore -> DbEndpointSource pattern.
 public sealed class ProxyFrontDoor(
     HostedCaptureOptions opts,
     CaptureSessionManager sessions,
-    Func<string, Task<string?>> tokenHashLookup,
+    Func<IPAddress, Task<string?>> addrToUser,
     Action<string>? log = null) : IHostedService, IAsyncDisposable
 {
     private const int MaxFirstRequestBytes = 16 * 1024;
-    private const int MaxAuthAttempts = 3;
     private static readonly TimeSpan FirstRequestTimeout = TimeSpan.FromSeconds(10);
 
     private TcpListener? _listener;
@@ -79,9 +80,27 @@ public sealed class ProxyFrontDoor(
         var stream = c.GetStream();
         try
         {
-            var auth = await AuthenticateAsync(stream, ct);
-            if (auth is null) return; // failed/garbage: 407s already sent, socket closed
-            var (first, raw, rawLen, user) = auth.Value;
+            // Identity = the destination address the device connected to. The /64 is routed (not
+            // DNAT'd) and the proxy runs host-network, so LocalEndPoint is the original per-user addr.
+            // Reject the wildcard defensively: a misconfigured route could leave it unresolved.
+            // A dual-stack socket can surface an IPv4-mapped IPv6 form (::ffff:a.b.c.d) whose ToString
+            // differs from a native IPv6, breaking the lookup. Issued addresses are always native IPv6
+            // in the /64, so an IPv4-mapped dest is never a valid user: close it.
+            var destAddr = (c.Client.LocalEndPoint as IPEndPoint)?.Address;
+            if (destAddr is null || destAddr.Equals(IPAddress.IPv6Any) || destAddr.Equals(IPAddress.Any) || destAddr.IsIPv4MappedToIPv6)
+            {
+                GracefulClose(c);
+                return;
+            }
+            var user = await addrToUser(destAddr);
+            if (user is null) // unknown/unissued address: close cleanly so the peer reads EOF, not RST
+            {
+                GracefulClose(c);
+                return;
+            }
+
+            var (first, raw, rawLen) = await ReadFirstRequestAsync(stream, ct);
+            if (first is null) return;
 
             // Open-relay guard: only auxbrain (plus the configured extras) may be tunneled. Rejected
             // hosts are logged as the discovery mechanism for what the game actually needs.
@@ -120,41 +139,6 @@ public sealed class ProxyFrontDoor(
         catch (OperationCanceledException) { /* shutdown */ }
         catch (IOException) { /* peer reset */ }
         catch (SocketException) { /* peer reset */ }
-    }
-
-    // Read CONNECT requests until one carries valid credentials, returning the authenticated request
-    // plus its raw bytes and the resolved user. Returns null when auth ultimately fails (the 407s are
-    // already written and the socket is left to close).
-    //
-    // iOS (and other clients) never send Proxy-Authorization on the first CONNECT: they wait for a 407
-    // challenge and resend WITH credentials on the SAME connection. A 407 carrying "Connection: close"
-    // kills that retry, so the client just opens a fresh bare CONNECT and loops forever. Keep the socket
-    // open and re-read the next request in-place so the credentialed retry lands here. Cap the attempts
-    // so an unauthenticated peer cannot hold the connection open indefinitely. The token is trimmed so a
-    // stray copy-paste space does not silently 407.
-    private async Task<(ProxyFirstRequest First, byte[] Raw, int RawLen, string User)?> AuthenticateAsync(
-        NetworkStream stream, CancellationToken ct)
-    {
-        var attempt = 0;
-        while (true)
-        {
-            var (first, raw, rawLen) = await ReadFirstRequestAsync(stream, ct);
-            if (first is null) return null; // overflow/timeout/garbage: just close
-
-            var creds = first.ProxyAuthBasic is null ? null : ProxyRequestParser.DecodeBasic(first.ProxyAuthBasic);
-            var storedHash = creds is null ? null : await tokenHashLookup(creds.Value.User.Trim());
-            if (creds is not null && storedHash is not null &&
-                string.Equals(Sha256Hex(creds.Value.Pass.Trim()), storedHash, StringComparison.OrdinalIgnoreCase))
-                return (first, raw, rawLen, creds.Value.User);
-
-            // Last attempt closes; earlier ones keep the connection alive for the credentialed retry.
-            var keepAlive = ++attempt < MaxAuthAttempts;
-            await WriteAsciiAsync(stream,
-                "HTTP/1.1 407 Proxy Authentication Required\r\n" +
-                "Proxy-Authenticate: Basic realm=\"EggIncognito Capture\"\r\n" +
-                (keepAlive ? "Content-Length: 0\r\n\r\n" : "Connection: close\r\n\r\n"), ct);
-            if (!keepAlive) return null;
-        }
     }
 
     // Accumulate the first request until the headers are complete, the 16KB cap is hit, or the 10s
@@ -205,9 +189,13 @@ public sealed class ProxyFrontDoor(
     private static Task WriteAsciiAsync(Stream stream, string text, CancellationToken ct) =>
         stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(text), ct).AsTask();
 
-    // Must produce the same hex as CaptureCredentialStore.Hash in EggIncognito.Data (no project ref
-    // either way); parity is locked by a test.
-    internal static string Sha256Hex(string token) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(token)));
+    // Send a FIN instead of letting the socket dispose abortively. Disposing a socket that still has
+    // unread inbound bytes triggers an RST on Windows, which the peer sees as a connection-aborted
+    // error rather than a clean EOF. Shutting the send side down first guarantees a graceful close.
+    private static void GracefulClose(TcpClient c)
+    {
+        try { c.Client.Shutdown(SocketShutdown.Send); }
+        catch (SocketException) { /* already gone */ }
+        catch (ObjectDisposedException) { /* already gone */ }
+    }
 }

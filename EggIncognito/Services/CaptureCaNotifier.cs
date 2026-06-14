@@ -9,37 +9,32 @@ namespace EggIncognito.Services;
 // is unset.
 public interface ICaptureCaNotifier
 {
-    // DMs the per-SSID auto-proxy .mobileconfig. Returns whether the DM was delivered. Never throws.
-    Task<bool> SendProxyProfileAsync(string discordId, byte[] profile, string ssid, CancellationToken ct);
-
     // Returns whether the DM (channel open + message with the CA profile + token/proxy text) was
     // delivered. Never throws; any failure reports false so the caller falls back to the /capture card.
     Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct);
 }
 
-// Everything the DM needs: the public CA bytes (DER) plus the connection details to print as copyable
-// text. Token is shown once here and on the card at mint time; never stored in plaintext.
+// Everything the DM needs: the public CA bytes (DER) plus the per-user proxy address to print as
+// copyable text. The front door identifies the user by destination address, so the proxy needs no
+// username or password.
 public sealed record CaptureSetupDm(
-    string DiscordId, byte[] CerBytes, string Host, int Port, string Username, string Token);
+    string DiscordId, byte[] CerBytes, string ProxyHost, int Port);
 
 // No bot configured: nothing to send. The caller falls back to the download button.
 public sealed class NoopCaptureCaNotifier : ICaptureCaNotifier
 {
     public Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct) => Task.FromResult(false);
-    public Task<bool> SendProxyProfileAsync(string discordId, byte[] profile, string ssid, CancellationToken ct) =>
-        Task.FromResult(false);
 }
 
 // Sends the setup over Discord REST with the bot token, mirroring SupporterStatus's HttpClient pattern
 // (no socket-client dependency). Opens a DM channel, then posts a multipart message carrying a
-// .mobileconfig (one-tap CA install on iOS) plus a text block with the proxy host/port/username/token.
+// .mobileconfig (one-tap CA install on iOS) plus a text block with the per-user proxy host/port.
 // Fail-closed: any non-success or exception reports false.
 public sealed class DiscordCaptureCaNotifier(
     IHttpClientFactory httpFactory, IConfiguration config, ILogger<DiscordCaptureCaNotifier> logger)
     : ICaptureCaNotifier
 {
     private const string ProfileFile = "eggincognito-capture.mobileconfig";
-    private const string ProxyProfileFile = "eggincognito-proxy.mobileconfig";
 
     public async Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct)
     {
@@ -63,32 +58,9 @@ public sealed class DiscordCaptureCaNotifier(
         }
     }
 
-    public async Task<bool> SendProxyProfileAsync(string discordId, byte[] profile, string ssid, CancellationToken ct)
-    {
-        var token = config["Discord:BotToken"];
-        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(discordId) || profile.Length == 0)
-            return false;
-        try
-        {
-            var http = httpFactory.CreateClient("discord-api");
-            var channelId = await OpenDmAsync(http, token, discordId, ct);
-            if (channelId is null) return false;
-            var msg =
-                $"**EggIncognito auto-proxy profile**\n\nOpen the attached profile on your iPhone to apply "
-                + $"the capture proxy automatically when you join `{ssid}`. Your Wi-Fi password is not included.";
-            return await PostAsync(http, token, channelId, profile, ProxyProfileFile, msg, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Proxy profile DM to {DiscordId} failed; fail-closed", discordId);
-            return false;
-        }
-    }
-
-    // The copyable connection block. iOS: open the attached profile, install, trust. The proxy host/
-    // port/credentials are typed into Wi-Fi settings (a global-proxy profile is supervised-only, so it
-    // cannot be auto-applied on a normal phone).
-    private static string BuildMessage(CaptureSetupDm dm) =>
+    // The copyable connection block. iOS: open the attached profile, install, trust. The front door
+    // identifies the user by the per-user proxy address, so no username or password is needed.
+    internal static string BuildMessage(CaptureSetupDm dm) =>
         $"""
         **EggIncognito hosted capture setup**
 
@@ -97,14 +69,8 @@ public sealed class DiscordCaptureCaNotifier(
         the CA in the system trust store.
 
         Then set your device Wi-Fi proxy to:
-        Host: `{dm.Host}`
-        Port: `{dm.Port}`
-        Username: `{dm.Username}` (your Discord ID; your Discord username also works)
-        Password:
-        ```
-        {dm.Token}
-        ```
-        Tap any value above to copy it. Your session is live: install the profile, set the proxy,
+        Proxy: `{dm.ProxyHost}:{dm.Port}`  (no username or password, authentication off)
+        Tap the value above to copy it. Your session is live: install the profile, set the proxy,
         then open Egg, Inc.
         """;
 

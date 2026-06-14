@@ -1,8 +1,8 @@
 @using System.Text.Json
 @using System.Net.Http.Json
 
-@* Hosted-capture connection card: the public proxy endpoint, the caller's credentials, and the CA
-   install steps. The token plaintext is shown exactly once per mint; only its hash is stored. *@
+@* Hosted-capture connection card: the caller's per-user IPv6 proxy host, the port, and the CA install
+   steps. The front door identifies the user by destination address, so the proxy uses no auth. *@
 <section id="hostedSetupCard" class="panel">
   <div class="flex items-start justify-between gap-3 mb-2">
     <h2 class="text-base mt-0 mb-0 text-fg">Hosted proxy setup</h2>
@@ -13,27 +13,13 @@
     </button>
   </div>
   <p class="text-muted text-sm mt-0 mb-3">Click <strong>Start capture</strong> and the bot DMs you a
-    one-tap CA install profile plus your proxy details. Point your device's Wi-Fi proxy at the endpoint
-    below; the username is your Discord ID or username, and the password is your capture token.</p>
+    one-tap CA install profile. Set your device's Wi-Fi HTTP proxy to the host and port below, leave
+    authentication off, then install and trust the DM'd CA.</p>
 
   <div class="mb-3">
-    <div class="mb-1"><span class="text-muted text-xs">Proxy host</span> <span class="code-chip">@Host</span></div>
+    <div class="mb-1"><span class="text-muted text-xs">Proxy host</span> <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span></div>
     <div class="mb-1"><span class="text-muted text-xs">Proxy port</span> <span class="code-chip">@Port</span></div>
-    <div class="mb-1"><span class="text-muted text-xs">Username</span> <span class="code-chip">@Username</span></div>
-    <div class="flex items-center gap-2">
-      <span class="text-muted text-xs">Token</span>
-      @if (_token is null)
-      {
-        <span class="text-muted text-xs">sent in the DM each time you start a capture</span>
-      }
-      else
-      {
-        <span class="code-chip" id="mintedToken">@_token</span>
-        <span class="text-muted text-xs">also sent in your DM</span>
-      }
-      <button type="button" class="icon-btn icon-btn-sm" title="Cycle token" aria-label="Cycle token"
-              @onclick="MintToken" disabled="@_busy"><Icon Name="refresh" Class="icon-sm" /></button>
-    </div>
+    <div class="mb-1"><span class="text-muted text-xs">Authentication</span> <span class="code-chip">off</span></div>
   </div>
 
   @if (_caDmFailed)
@@ -43,24 +29,20 @@
       (Settings &gt; Privacy &amp; Safety). Everything you need is on this card.
       @if (!string.IsNullOrWhiteSpace(InviteUrl))
       {
-        <span>Join the server: <a href="@InviteUrl" target="_blank" rel="noopener" class="text-accent2 underline">@InviteUrl</a>, enable DMs, then cycle your token to retry.</span>
+        <span>Join the server: <a href="@InviteUrl" target="_blank" rel="noopener" class="text-accent2 underline">@InviteUrl</a>, enable DMs, then restart the capture to retry.</span>
       }
       else
       {
-        <span>Enable DMs, then cycle your token to retry.</span>
+        <span>Enable DMs, then restart the capture to retry.</span>
       }
     </p>
-  }
-  @if (_error is not null)
-  {
-    <p class="text-muted text-xs mb-3">@_error</p>
   }
 
   <details class="setup-steps" open="@(!Connected)">
     <summary class="setup-summary">Setup instructions</summary>
 
     <ol class="text-muted text-sm leading-relaxed pl-5 mt-2 mb-3">
-      <li>Set the device's Wi-Fi proxy to the host + port above, with the username + token as credentials.</li>
+      <li>Set the device's Wi-Fi HTTP proxy to the host + port above, and leave authentication off.</li>
       <li>Open the DM'd install profile and trust the CA, see your platform below.</li>
       <li>Start the capture session, then open Egg, Inc. - flows appear live below.</li>
     </ol>
@@ -85,27 +67,8 @@
   </details>
 </section>
 
-<section class="panel mt-3" id="proxyProfileCard">
-  <h2 class="text-base mt-0 mb-1 text-fg">Auto-proxy profile (iOS, optional)</h2>
-  <p class="text-muted text-xs mt-0 mb-2">Enter your Wi-Fi network and we DM you an iOS profile that
-    applies the proxy automatically when you join it. Open the DM on your phone to install. Your Wi-Fi
-    password is never included.</p>
-  <div class="flex items-center gap-2">
-    <input type="text" @bind="_ssid" @bind:event="oninput" placeholder="Your Wi-Fi network name (SSID)"
-           class="settings-input w-auto" />
-    <button type="button" class="btn-mini" disabled="@(string.IsNullOrWhiteSpace(_ssid) || _busy)"
-            @onclick="DmProxyProfile">DM proxy profile</button>
-  </div>
-  @if (_proxyMsg is not null)
-  {
-    <p class="text-muted text-xs mt-2 mb-0">@_proxyMsg</p>
-  }
-</section>
-
 @code {
-    [Parameter] public string Host { get; set; } = "";
     [Parameter] public int Port { get; set; }
-    [Parameter] public string Username { get; set; } = "";
     [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
     // Drives the instructions collapsing once a device is talking to the proxy.
     [Parameter] public bool Connected { get; set; }
@@ -116,34 +79,25 @@
     // Discord invite shown in the DM-failed notice so the user can join + enable DMs. Null hides the link.
     [Parameter] public string? InviteUrl { get; set; }
 
-    string? _token;
-    string? _error;
-    string _ssid = "";
-    string? _proxyMsg;
-    bool _busy;
+    string? _proxyHost;
     bool _caDmFailed;
 
-    async Task DmProxyProfile()
-    {
-        if (ClientFactory is null || string.IsNullOrWhiteSpace(_ssid)) return;
-        _busy = true;
-        _proxyMsg = null;
-        try
-        {
-            var res = await ClientFactory().PostAsJsonAsync("/api/capture/proxy-profile", new { ssid = _ssid });
-            _proxyMsg = res.IsSuccessStatusCode
-                ? "Sent. Open the DM on your iPhone to install."
-                : "Could not DM the profile. Check your DMs are open.";
-        }
-        catch { _proxyMsg = "Could not DM the profile."; }
-        _busy = false;
-    }
-
-    // After the interactive circuit is live (ClientFactory can forward the auth cookie), poll status once
-    // to surface a failed CA DM. The live dashboard also toasts it; this is the persistent fallback line.
+    // After the interactive circuit is live (ClientFactory can forward the auth cookie), fetch the
+    // user's proxy address and poll status once to surface a failed CA DM.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender || ClientFactory is null) return;
+        try
+        {
+            var res = await ClientFactory().GetAsync("/api/capture/proxy-address");
+            if (res.IsSuccessStatusCode)
+            {
+                using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+                _proxyHost = doc.RootElement.GetProperty("host").GetString();
+                StateHasChanged();
+            }
+        }
+        catch { /* address unavailable (no session / prerender); the placeholder stays */ }
         try
         {
             var res = await ClientFactory().GetAsync("/api/capture/status");
@@ -157,31 +111,5 @@
             }
         }
         catch { /* status unavailable (no session / prerender); the download button stays the fallback */ }
-    }
-
-    async Task MintToken()
-    {
-        if (ClientFactory is null) return;
-        _busy = true;
-        _error = null;
-        try
-        {
-            var res = await ClientFactory().PostAsync("/api/capture/proxy-token", null);
-            if (!res.IsSuccessStatusCode)
-            {
-                _error = $"Token mint failed ({(int)res.StatusCode}).";
-                return;
-            }
-            using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
-            _token = doc.RootElement.GetProperty("token").GetString();
-        }
-        catch
-        {
-            _error = "Token mint failed.";
-        }
-        finally
-        {
-            _busy = false;
-        }
     }
 }

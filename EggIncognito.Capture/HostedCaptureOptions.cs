@@ -12,7 +12,9 @@ public sealed record HostedCaptureOptions(
     int MaxIdleMinutes,
     int MaxSessionHours,
     IReadOnlyList<string> ExtraAllowedHosts,
-    string PublicHost)
+    string PublicHost,
+    string Ipv6Prefix,
+    string AddressSecret)
 {
     public static HostedCaptureOptions Defaults() => new(
         FrontDoorPort: 8443,
@@ -21,7 +23,9 @@ public sealed record HostedCaptureOptions(
         MaxIdleMinutes: 30,
         MaxSessionHours: 4,
         ExtraAllowedHosts: [],
-        PublicHost: "capture.davidarthurcole.me");
+        PublicHost: "capture.davidarthurcole.me",
+        Ipv6Prefix: "2a01:4f8:c012:e15b::/64",
+        AddressSecret: "");
 
     public static HostedCaptureOptions Bind(IConfiguration config)
     {
@@ -38,7 +42,9 @@ public sealed record HostedCaptureOptions(
                 .Where(v => !string.IsNullOrWhiteSpace(v))
                 .Select(v => v!)
                 .ToArray(),
-            PublicHost: s["PublicHost"] ?? d.PublicHost);
+            PublicHost: s["PublicHost"] ?? d.PublicHost,
+            Ipv6Prefix: s["Ipv6Prefix"] ?? d.Ipv6Prefix,
+            AddressSecret: s["AddressSecret"] ?? d.AddressSecret);
     }
 
     private static int Int(string? raw, int fallback) => int.TryParse(raw, out var v) ? v : fallback;

@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using EggIncognito.Capture;
-using EggIncognito.Data.Services;
 
 namespace EggIncognito.Tests;
 
@@ -87,33 +86,31 @@ public class ProxyFrontDoorTests
         }
     }
 
-    // In-proc front door against a fake inner listener: challenge, allowlist, no-session, replay.
+    // In-proc front door against a fake inner listener: allowlist, no-session, replay.
     public class Integration
     {
         private const string UserId = "111222333";
-        private const string Token = "test-proxy-token";
-        private static readonly string TokenHash = CaptureCredentialStore.Hash(Token);
 
-        private static Task<string?> Lookup(string user) =>
-            Task.FromResult(user == UserId ? TokenHash : null);
-
-        private static async Task<(ProxyFrontDoor Door, CaptureSessionManager Manager)> NewDoorAsync(int poolBase = 24100)
+        // Default: any destination address maps to UserId so allowlist/session/tunnel tests reach
+        // their logic. Specific tests override addrToUser to exercise unknown-address rejection.
+        private static async Task<(ProxyFrontDoor Door, CaptureSessionManager Manager)> NewDoorAsync(
+            int poolBase = 24100, Func<IPAddress, Task<string?>>? addrToUser = null)
         {
             var opts = HostedCaptureOptions.Defaults() with { FrontDoorPort = 0, PortPoolBase = poolBase };
             var manager = new CaptureSessionManager(opts,
                 (_, basePort) => CaptureSessionManagerTests.NewSession(basePort));
-            var door = new ProxyFrontDoor(opts, manager, Lookup);
+            addrToUser ??= _ => Task.FromResult<string?>(UserId);
+            var door = new ProxyFrontDoor(opts, manager, addrToUser);
             await door.StartAsync(CancellationToken.None);
             return (door, manager);
         }
 
-        private static string AuthHeader(string user, string pass) =>
-            "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{pass}"));
-
         private static async Task<string> SendAndReadAsync(int port, string request, int maxBytes = 4096)
         {
-            using var client = new TcpClient();
-            await client.ConnectAsync(IPAddress.Loopback, port);
+            // Connect over IPv6 loopback: the production front door is IPv6-only (issued addresses are
+            // native IPv6 in the routed /64) and an IPv4-mapped dest is closed as never-a-valid-user.
+            using var client = new TcpClient(AddressFamily.InterNetworkV6);
+            await client.ConnectAsync(IPAddress.IPv6Loopback, port);
             var stream = client.GetStream();
             await stream.WriteAsync(Encoding.ASCII.GetBytes(request));
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -132,16 +129,19 @@ public class ProxyFrontDoorTests
             return Encoding.ASCII.GetString(buf, 0, total);
         }
 
+        // A destination address that maps to no user (unissued / misrouted) is closed with zero bytes:
+        // no challenge, no response, just a clean close.
         [Fact]
-        public async Task MissingAuth_Gets407Challenge()
+        public async Task UnknownDestAddr_ConnectionClosed()
         {
-            var (door, _) = await NewDoorAsync();
-            await using (door)
-            {
-                var resp = await SendAndReadAsync(door.Port, "CONNECT www.auxbrain.com:443 HTTP/1.1\r\n\r\n");
-                Assert.StartsWith("HTTP/1.1 407", resp);
-                Assert.Contains("Proxy-Authenticate: Basic realm=\"EggIncognito Capture\"", resp);
-            }
+            await using var door = (await NewDoorAsync(addrToUser: _ => Task.FromResult<string?>(null))).Door;
+            using var client = new TcpClient();
+            await client.ConnectAsync(IPAddress.IPv6Loopback, door.Port);
+            var s = client.GetStream();
+            await s.WriteAsync("CONNECT www.auxbrain.com:443 HTTP/1.1\r\n\r\n"u8.ToArray());
+            var buf = new byte[16];
+            var n = await s.ReadAsync(buf);
+            Assert.Equal(0, n);
         }
 
         // The VPS relay path is dual-stack: an iOS device resolving the AAAA record reaches the front
@@ -159,20 +159,9 @@ public class ProxyFrontDoorTests
                 await stream.WriteAsync(Encoding.ASCII.GetBytes("CONNECT www.auxbrain.com:443 HTTP/1.1\r\n\r\n"));
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 var buf = new byte[1024];
+                // No session seeded for the default user: identified, allowlisted, then 503.
                 var n = await stream.ReadAsync(buf, cts.Token);
-                Assert.StartsWith("HTTP/1.1 407", Encoding.ASCII.GetString(buf, 0, n));
-            }
-        }
-
-        [Fact]
-        public async Task WrongToken_Gets407()
-        {
-            var (door, _) = await NewDoorAsync();
-            await using (door)
-            {
-                var resp = await SendAndReadAsync(door.Port,
-                    $"CONNECT www.auxbrain.com:443 HTTP/1.1\r\nProxy-Authorization: {AuthHeader(UserId, "wrong")}\r\n\r\n");
-                Assert.StartsWith("HTTP/1.1 407", resp);
+                Assert.StartsWith("HTTP/1.1 503", Encoding.ASCII.GetString(buf, 0, n));
             }
         }
 
@@ -183,7 +172,7 @@ public class ProxyFrontDoorTests
             await using (door)
             {
                 var resp = await SendAndReadAsync(door.Port,
-                    $"CONNECT evil.example.com:443 HTTP/1.1\r\nProxy-Authorization: {AuthHeader(UserId, Token)}\r\n\r\n");
+                    "CONNECT evil.example.com:443 HTTP/1.1\r\n\r\n");
                 Assert.StartsWith("HTTP/1.1 403", resp);
             }
         }
@@ -195,7 +184,7 @@ public class ProxyFrontDoorTests
             await using (door)
             {
                 var resp = await SendAndReadAsync(door.Port,
-                    $"CONNECT www.auxbrain.com:443 HTTP/1.1\r\nProxy-Authorization: {AuthHeader(UserId, Token)}\r\n\r\n");
+                    "CONNECT www.auxbrain.com:443 HTTP/1.1\r\n\r\n");
                 Assert.StartsWith("HTTP/1.1 503", resp);
                 Assert.Contains("start a capture session", resp);
             }
@@ -217,7 +206,7 @@ public class ProxyFrontDoorTests
                 Assert.Equal(innerPort - 1, session.Port);
                 await session.StartAsync(CancellationToken.None); // FakeCaptureProxy: Running, binds nothing
 
-                var request = $"CONNECT www.auxbrain.com:443 HTTP/1.1\r\nProxy-Authorization: {AuthHeader(UserId, Token)}\r\n\r\n";
+                var request = "CONNECT www.auxbrain.com:443 HTTP/1.1\r\n\r\n";
 
                 var innerSide = Task.Run(async () =>
                 {
@@ -236,8 +225,8 @@ public class ProxyFrontDoorTests
                     return (seen, Encoding.ASCII.GetString(payload));
                 });
 
-                using var client = new TcpClient();
-                await client.ConnectAsync(IPAddress.Loopback, door.Port);
+                using var client = new TcpClient(AddressFamily.InterNetworkV6);
+                await client.ConnectAsync(IPAddress.IPv6Loopback, door.Port);
                 var cs = client.GetStream();
                 await cs.WriteAsync(Encoding.ASCII.GetBytes(request));
 

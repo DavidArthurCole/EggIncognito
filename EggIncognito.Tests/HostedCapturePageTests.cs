@@ -71,6 +71,7 @@ public class HostedCapturePageTests
                 {
                     b.UseSetting("HostedCaptureEnabled", "true");
                     b.UseSetting("Capture:FrontDoorPort", "0"); // ephemeral; no fixed bind in tests
+                    b.UseSetting("Capture:AddressSecret", "test-secret"); // required when hosted capture is on
                 }
             });
 
@@ -148,7 +149,27 @@ public class HostedCapturePageTests
             var cut = Render<CapturePage>();
             Assert.NotNull(cut.Find("#hostedSetupCard"));
             Assert.NotNull(cut.Find("#statsPanel"));
-            Assert.Contains("tester", cut.Markup); // username = Discord id on the setup card
+        }
+
+        [Fact]
+        public void Supporter_SetupCard_ShowsProxyAddress_NoAuthCredentials()
+        {
+            Wire(authed: true, supporter: true);
+            var cut = Render<CapturePage>();
+            var markup = cut.Markup;
+            // The per-user IPv6 host placeholder + port + auth-off rows render.
+            Assert.NotNull(cut.Find("#proxyHost"));
+            Assert.Contains("Proxy host", markup);
+            Assert.Contains("Proxy port", markup);
+            Assert.Contains("Authentication", markup);
+            // No token / username credentials, no rotate button, no auto-proxy SSID card.
+            Assert.Empty(cut.FindAll("#proxyProfileCard"));
+            Assert.Empty(cut.FindAll("#mintedToken"));
+            Assert.DoesNotContain("Username", markup);
+            Assert.DoesNotContain("Token", markup);
+            Assert.DoesNotContain("Cycle token", markup);
+            Assert.DoesNotContain("SSID", markup);
+            Assert.DoesNotContain("DM proxy profile", markup);
         }
     }
 
@@ -192,10 +213,10 @@ public class HostedCapturePageTests
         }
 
         [Fact]
-        public async Task ProxyToken_NonSupporter_Is403()
+        public async Task ProxyAddress_NonSupporter_Is403()
         {
             var r = await Controller(NewManager(), new FakeUser(true, supporter: false), new FakeSupporters(false))
-                .MintProxyToken(CancellationToken.None);
+                .ProxyAddress(CancellationToken.None);
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
         }
     }

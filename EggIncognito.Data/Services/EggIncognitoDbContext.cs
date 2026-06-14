@@ -17,8 +17,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<SubjectTag> SubjectTags => Set<SubjectTag>();
     public DbSet<DocImage> DocImages => Set<DocImage>();
-    public DbSet<CaptureProxyToken> CaptureProxyTokens => Set<CaptureProxyToken>();
     public DbSet<CaptureUserCa> CaptureUserCas => Set<CaptureUserCa>();
+    public DbSet<CaptureProxyAddr> CaptureProxyAddrs => Set<CaptureProxyAddr>();
     public DbSet<ProtoVersion> ProtoVersions => Set<ProtoVersion>();
     public DbSet<ProtoProto> ProtoProtos => Set<ProtoProto>();
     public DbSet<FeedSubscription> FeedSubscriptions => Set<FeedSubscription>();
@@ -67,13 +67,14 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         {
             im.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
-        b.Entity<CaptureProxyToken>(t =>
-        {
-            t.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
-        });
         b.Entity<CaptureUserCa>(c =>
         {
             c.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        b.Entity<CaptureProxyAddr>(a =>
+        {
+            a.HasIndex(x => x.Addr).IsUnique();
+            a.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
         b.Entity<ProtoVersion>(e =>
         {

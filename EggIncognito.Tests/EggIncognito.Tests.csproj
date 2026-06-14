@@ -27,6 +27,7 @@
     <ProjectReference Include="..\EggIncognito\EggIncognito.csproj" />
     <ProjectReference Include="..\EggIncognito.Bot\EggIncognito.Bot.csproj" />
     <ProjectReference Include="..\EggIncognito.RouteGenerator\EggIncognito.RouteGenerator.csproj" />
+    <ProjectReference Include="..\EggIncognito.RelayAgent\EggIncognito.RelayAgent.csproj" />
   </ItemGroup>
 
 </Project>

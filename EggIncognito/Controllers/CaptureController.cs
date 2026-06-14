@@ -170,26 +170,25 @@ public sealed class CaptureController(
         return Ok(result);
     }
 
-    // Mint a fresh proxy token and DM the install profile + connection details so the user never hunts
-    // for a download or copies a long token by hand. Runs on every session start; the token plaintext
-    // only exists at mint time, so minting + DMing happen together. Best-effort: a closed-DM or bot
-    // failure sets a session notice and never fails the start.
+    // DM the install profile + the user's per-user proxy address so the user never hunts for a download
+    // or copies a long token by hand. The front door identifies the user by destination address, so no
+    // token is minted; the proxy needs no credentials. Runs on every session start. Best-effort: a
+    // closed-DM or bot failure sets a session notice and never fails the start.
     private async Task DeliverSetupAsync(
         CaptureSession session, string discordId, CaptureCredentialStore? store, CancellationToken ct)
     {
         var notifier = services.GetService(typeof(ICaptureCaNotifier)) as ICaptureCaNotifier;
-        if (notifier is null || store is null) { FlagDmFailed(session); return; }
+        var addrStore = services.GetService(typeof(CaptureAddressStore)) as CaptureAddressStore;
+        if (notifier is null || addrStore is null) { FlagDmFailed(session); return; }
 
         byte[] cer;
         try { cer = await System.IO.File.ReadAllBytesAsync(session.CaPath, ct); }
         catch { cer = []; }
         if (cer.Length == 0) { FlagDmFailed(session); return; }
 
-        var token = CaptureCredentialStore.MintToken();
-        await store.SetTokenAsync(discordId, CaptureCredentialStore.Hash(token), ct);
-
-        var dm = new CaptureSetupDm(
-            discordId, cer, hostedOptions.PublicHost, hostedOptions.FrontDoorPort, discordId, token);
+        var addr = await addrStore.AddrForUserAsync(
+            hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, discordId, ct);
+        var dm = new CaptureSetupDm(discordId, cer, $"[{addr}]", hostedOptions.FrontDoorPort);
         if (await notifier.SendSetupAsync(dm, ct)) return;
         FlagDmFailed(session);
     }
@@ -337,47 +336,18 @@ public sealed class CaptureController(
         return Ok(new { responseJson = r.Json, responseType = r.Type, known = r.Known });
     }
 
-    // Mint or rotate the caller's proxy token. The plaintext is returned exactly once; only the
-    // SHA-256 hash is stored.
-    [HttpPost("proxy-token")]
-    [EnableRateLimiting("write")]
-    public async Task<IActionResult> MintProxyToken(CancellationToken ct)
+    // The caller's per-user IPv6 proxy address. The front door identifies the user by destination
+    // address, so the proxy needs no username or password. Derived deterministically and persisted on
+    // first use.
+    [HttpGet("proxy-address")]
+    public async Task<IActionResult> ProxyAddress(CancellationToken ct)
     {
         if (RequireHostedSupporter() is { } no) return no;
-        var store = Credentials;
+        var store = services.GetService(typeof(CaptureAddressStore)) as CaptureAddressStore;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
-        var token = CaptureCredentialStore.MintToken();
-        await store.SetTokenAsync(currentUser.DiscordId!, CaptureCredentialStore.Hash(token), ct);
-        return Ok(new { username = currentUser.DiscordId, token });
-    }
-
-    // A per-SSID .mobileconfig that applies the Manual proxy automatically when the device joins the
-    // named Wi-Fi network. Mints a fresh token (same rotation as the card/DM) and bakes it into the
-    // profile so it stays valid. The Wi-Fi password is never carried.
-    public sealed record ProxyProfileReq(string Ssid);
-
-    // DMs the per-SSID auto-proxy .mobileconfig to the caller (open-on-phone is the install path; a
-    // desktop download is useless for an iOS profile). Mints a fresh token baked into the profile.
-    [HttpPost("proxy-profile")]
-    [EnableRateLimiting("write")]
-    public async Task<IActionResult> DmProxyProfile([FromBody] ProxyProfileReq req, CancellationToken ct)
-    {
-        if (RequireHostedSupporter() is { } no) return no;
-        var ssid = req?.Ssid?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(ssid)) return StatusCode(400, new { error = "ssid required" });
-        if (ssid.Length > 64) return StatusCode(400, new { error = "ssid too long" });
-        var store = Credentials;
-        if (store is null) return StatusCode(503, new { error = "no database configured" });
-        if (services.GetService(typeof(ICaptureCaNotifier)) is not ICaptureCaNotifier notifier)
-            return StatusCode(503, new { error = "bot not configured" });
-        var token = CaptureCredentialStore.MintToken();
-        await store.SetTokenAsync(currentUser.DiscordId!, CaptureCredentialStore.Hash(token), ct);
-        var bytes = MobileConfig.BuildProxyProfile(
-            ssid, hostedOptions.PublicHost, hostedOptions.FrontDoorPort, currentUser.DiscordId!, token);
-        var sent = await notifier.SendProxyProfileAsync(currentUser.DiscordId!, bytes, ssid, ct);
-        return sent
-            ? Ok(new { dmd = true })
-            : StatusCode(502, new { error = "could not DM the profile; check your DMs are open" });
+        var addr = await store.AddrForUserAsync(
+            hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, currentUser.DiscordId!, ct);
+        return Ok(new { host = $"[{addr}]", port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
 
     // The caller's capture CA as a device-installable .cer. Prefers the live session's exported

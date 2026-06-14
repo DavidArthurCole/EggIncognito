@@ -23,9 +23,6 @@ public class CaptureCaNotifierTests
             Calls++;
             return Task.FromResult(false);
         }
-
-        public Task<bool> SendProxyProfileAsync(string discordId, byte[] profile, string ssid, CancellationToken ct) =>
-            Task.FromResult(false);
     }
 
     // Resolves only the types DeliverFreshSetupAsync asks for: the notifier, and the credential store
@@ -162,7 +159,23 @@ public class CaptureCaNotifierTests
     }
 
     private static CaptureSetupDm Dm() =>
-        new("123", [0x30, 0x82, 0x01], "capture.example.com", 8443, "123", "tok-abc");
+        new("123", [0x30, 0x82, 0x01], "[2a01:4f8:c012:e15b::5]", 8443);
+
+    [Fact]
+    public void BuildMessage_ShowsProxyAddress_NoCredentials()
+    {
+        var msg = DiscordCaptureCaNotifier.BuildMessage(
+            new CaptureSetupDm("123", [0x30, 0x82, 0x01], "[2a01:4f8:c012:e15b::5]", 8443));
+
+        Assert.Contains("[2a01:4f8:c012:e15b::5]", msg);
+        Assert.Contains("8443", msg);
+        Assert.Contains("authentication off", msg);
+        Assert.Contains("no username", msg);
+        // No credential lines remain.
+        Assert.DoesNotContain("Token", msg, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Username:", msg);
+        Assert.DoesNotContain("Discord ID", msg);
+    }
 
     [Fact]
     public void MobileConfig_EmbedsCert_AndIsStablePerUser()
@@ -199,73 +212,6 @@ public class CaptureCaNotifierTests
     // The top-level profile PayloadUUID is the last PayloadUUID in the plist (after the cert payload's).
     private static string ProfileUuid(string plist) =>
         plist.Split("<key>PayloadUUID</key>")[^1].Split("<string>")[1].Split("</string>")[0];
-
-    [Fact]
-    public async Task ProxyProfile_Anonymous_Returns401()
-    {
-        var controller = new CaptureController(
-            FreshCaManager(), new FakeAppMode(canCapture: false, hostedEnabled: true),
-            new FakeUser(authed: false, supporter: false), new FakeSupporters(false),
-            HostedCaptureOptions.Defaults(), new StubServices(new FailingNotifier()));
-
-        var r = await controller.DmProxyProfile(new CaptureController.ProxyProfileReq("MyNet"), CancellationToken.None);
-        Assert.Equal(401, ((IStatusCodeActionResult)r).StatusCode);
-    }
-
-    [Fact]
-    public async Task ProxyProfile_NonSupporter_Returns403()
-    {
-        var controller = new CaptureController(
-            FreshCaManager(), new FakeAppMode(canCapture: false, hostedEnabled: true),
-            new FakeUser(authed: true, supporter: false), new FakeSupporters(false),
-            HostedCaptureOptions.Defaults(), new StubServices(new FailingNotifier()));
-
-        var r = await controller.DmProxyProfile(new CaptureController.ProxyProfileReq("MyNet"), CancellationToken.None);
-        Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
-    }
-
-    [Fact]
-    public void ProxyProfile_EmbedsWifiProxyPayload()
-    {
-        var xml = System.Text.Encoding.UTF8.GetString(
-            MobileConfig.BuildProxyProfile("MyNet", "capture.example.com", 8443, "user123", "tok-abc"));
-
-        Assert.Contains("<key>SSID_STR</key>", xml);
-        Assert.Contains("<string>MyNet</string>", xml);
-        Assert.Contains("com.apple.wifi.managed", xml);
-        Assert.Contains("<key>ProxyType</key>", xml);
-        Assert.Contains("<string>Manual</string>", xml);
-        Assert.Contains("capture.example.com", xml);
-        Assert.Contains("<integer>8443</integer>", xml);
-        Assert.Contains("user123", xml);
-        Assert.Contains("tok-abc", xml);
-    }
-
-    [Fact]
-    public void ProxyProfile_EscapesHostileSsid_StillValidXml()
-    {
-        const string hostile = "My & \"Net\"";
-        var xml = System.Text.Encoding.UTF8.GetString(
-            MobileConfig.BuildProxyProfile(hostile, "capture.example.com", 8443, "user123", "tok-abc"));
-
-        var doc = System.Xml.Linq.XDocument.Parse(xml); // throws if escaping is wrong
-        // Round-trip: the SSID_STR <string> following its <key> equals the original.
-        var ssid = doc.Descendants("key")
-            .First(k => (string)k == "SSID_STR")
-            .ElementsAfterSelf("string").First().Value;
-        Assert.Equal(hostile, ssid);
-    }
-
-    [Fact]
-    public void ProxyProfile_OmitsWifiPassword()
-    {
-        var xml = System.Text.Encoding.UTF8.GetString(
-            MobileConfig.BuildProxyProfile("MyNet", "capture.example.com", 8443, "user123", "tok-abc"));
-        // No Wi-Fi PSK key. ProxyPassword is present and intentional; the network Password is not.
-        Assert.DoesNotContain("<key>Password</key>", xml);
-        Assert.Contains("<key>EncryptionType</key>", xml);
-        Assert.Contains("<string>Any</string>", xml);
-    }
 
     // Mirrors the Program.cs gate without booting the full host (which would try to log the bot in).
     private static ICaptureCaNotifier ResolveNotifier(string? botToken)

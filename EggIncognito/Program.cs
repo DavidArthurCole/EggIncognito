@@ -388,6 +388,7 @@ var hostedCaptureOn = string.Equals(builder.Configuration["AppMode"], "Hosted", 
 if (dbEnabled)
 {
     builder.Services.AddScoped<EggIncognito.Data.Services.CaptureCredentialStore>();
+    builder.Services.AddScoped<EggIncognito.Data.Services.CaptureAddressStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.ProtoRegistryStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.FeedSubscriptionStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.IFeedSubscriptionStore>(
@@ -435,20 +436,22 @@ if (dbEnabled)
 }
 if (hostedCaptureOn)
 {
+    if (string.IsNullOrWhiteSpace(hostedCaptureOpts.AddressSecret))
+        throw new InvalidOperationException("Capture:AddressSecret must be set when hosted capture is enabled (it is the HMAC key for per-user proxy addresses).");
     builder.Services.AddSingleton(sp =>
     {
-        var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("capture.frontdoor");
+        var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+        Func<System.Net.IPAddress, Task<string?>> addrToUser = async addr =>
+        {
+            using var scope = scopeFactory.CreateScope();
+            var store = scope.ServiceProvider.GetService<EggIncognito.Data.Services.CaptureAddressStore>();
+            return store is null ? null : await store.UserForAddrAsync(addr);
+        };
         return new EggIncognito.Capture.ProxyFrontDoor(
             hostedCaptureOpts,
             sp.GetRequiredService<EggIncognito.Capture.CaptureSessionManager>(),
-            async idOrUsername =>
-            {
-                using var scope = scopeFactory.CreateScope();
-                var store = scope.ServiceProvider
-                    .GetService<EggIncognito.Data.Services.CaptureCredentialStore>();
-                return store is null ? null : await store.GetTokenHashByIdOrUsernameAsync(idOrUsername);
-            },
+            addrToUser,
             msg => logger.LogInformation("{Message}", msg));
     });
     builder.Services.AddHostedService(sp => sp.GetRequiredService<EggIncognito.Capture.ProxyFrontDoor>());
