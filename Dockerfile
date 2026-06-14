@@ -54,9 +54,11 @@ RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # Npgsql/HttpClient dlopen libgssapi_krb5 during OAuth token exchange; aspnet base omits it. Ship it.
-# proto-extract toolchain NOT baked (~250MB, frame-only path); runs host-side via the runner agent.
+# iproute2: hosted capture binds a per-user IPv6 /65 via an AnyIP local route added at startup (the
+# host routes the prefix to this container; the container kernel must accept those destinations so the
+# front-door socket sees the real per-user dest). proto-extract toolchain NOT baked (~250MB).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 iproute2 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/publish .
@@ -64,6 +66,8 @@ COPY EggIncognito/Endpoints /app/Endpoints
 # routes.yaml is AdditionalFiles (compile-time only), not in publish output. Runtime RouteCatalog
 # reads it from the content root; without it the catalog is empty (0/0/0). Ship it explicitly.
 COPY EggIncognito/RouteMap /app/RouteMap
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 VOLUME ["/app/Endpoints"]
 
@@ -77,4 +81,4 @@ ENV NoBrowser=true
 
 EXPOSE 8080
 EXPOSE 8443
-ENTRYPOINT ["dotnet", "EggIncognito.dll"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
