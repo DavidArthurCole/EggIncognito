@@ -832,4 +832,15 @@
   /* Markdown editor extras (toolbar spacer + save status line). */
   .md-editor-spacer { @apply ml-auto; }
   .md-editor-status { @apply px-2 py-1 text-xs text-muted border-t border-border; }
+
+  /* Proto registry (/protos): platform/download chips, version timeline, message inventory. */
+  .btn-chip { @apply inline-flex items-center px-3 h-7 box-border text-xs bg-panel2 border border-border rounded-md text-fg no-underline; }
+  .btn-chip:hover { filter: brightness(1.1); }
+  .btn-chip.active { @apply border-accent2 text-fg; }
+  .proto-list { @apply flex flex-col gap-1.5; }
+  .proto-row { @apply flex items-center gap-3 flex-wrap; }
+  .proto-version { @apply font-mono text-accent2 no-underline; }
+  .proto-version:hover { @apply underline; }
+  .proto-detected { @apply text-xs; }
+  .proto-msg-list { @apply flex flex-wrap gap-1.5; }
 }

@@ -1,0 +1,108 @@
+@page "/protos"
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>EggIncognito - Proto Registry</PageTitle>
+<main class="px-4 sm:px-8 pt-6 pb-8">
+  <h1 class="text-[1.3rem] mt-0 mb-2">Proto Registry</h1>
+  <p class="text-muted mb-4">Versioned Egg, Inc. proto definitions, one row per detected build.</p>
+
+  <p class="mb-4"><a class="btn-primary inline-block no-underline" href="/protos/subscribe">Subscribe to updates</a></p>
+
+  <div class="flex gap-2 mb-4">
+    @foreach (var p in Platforms)
+    {
+      <button type="button" class="btn-chip @(_platform == p.Key ? "active" : "")"
+              @onclick="() => SetPlatform(p.Key)">@p.Value</button>
+    }
+  </div>
+
+  <section class="panel">
+    @if (_loading)
+    {
+      <p class="text-muted">Loading...</p>
+    }
+    else if (_rows.Count == 0)
+    {
+      <div class="empty-state">
+        No proto versions yet.
+        <div class="empty-hint">The device farm populates this registry as it detects new game builds.</div>
+      </div>
+    }
+    else
+    {
+      <ul class="proto-list">
+        @foreach (var r in _rows)
+        {
+          <li class="proto-row">
+            <span class="code-chip">@r.Platform</span>
+            <a class="proto-version" href="@($"/protos/{r.Platform}/{Uri.EscapeDataString(r.Version)}")">@r.Version</a>
+            <span class="code-chip" title="@r.ProtoSha">@Short(r.ProtoSha)</span>
+            <span class="text-muted proto-detected">@r.DetectedAt.ToString("u")</span>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</main>
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+    static readonly KeyValuePair<string?, string>[] Platforms =
+    [
+        new(null, "All"),
+        new("android", "Android"),
+        new("ios", "iOS"),
+    ];
+
+    List<VersionRow> _rows = [];
+    string? _platform;
+    bool _loading = true;
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override Task OnInitializedAsync() => Load();
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    Task SetPlatform(string? p)
+    {
+        _platform = p;
+        return Load();
+    }
+
+    async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var url = _platform is null ? "/api/protos/versions" : $"/api/protos/versions?platform={_platform}";
+            _rows = await Client().GetFromJsonAsync<List<VersionRow>>(url, JsonOpts) ?? [];
+        }
+        catch { _rows = []; }
+        _loading = false;
+    }
+
+    static string Short(string sha) => string.IsNullOrEmpty(sha) ? "" : (sha.Length <= 12 ? sha : sha[..12]);
+
+    record VersionRow(string Platform, string Version, string Package, string ProtoSha, DateTimeOffset DetectedAt);
+}

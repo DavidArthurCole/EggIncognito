@@ -242,6 +242,33 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
         var notifier = sp.GetRequiredService<EggIncognito.Bot.ISyncNotifier>();
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("sync.ingest");
 
+        // Registry: upsert a proto_versions row for every build the farm reports, storing the .proto
+        // text + parsed message index when present. Runs independently of the regen/refresh split, so
+        // the registry captures even builds whose proto changed and still await a manual ei.proto refresh.
+        // No DB configured => no-op. A later phase appends a feed dispatch off the returned tuple here.
+        async Task Registry(EggIncognito.Models.NewVersionEvent evt, CancellationToken ct)
+        {
+            using var scope = sp.CreateScope();
+            var store = scope.ServiceProvider.GetService<EggIncognito.Data.Services.ProtoRegistryStore>();
+            if (store is null) return; // no DB configured
+            string? protoText = string.IsNullOrEmpty(evt.ProtoTextB64) ? null
+                : System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(evt.ProtoTextB64));
+            var (row, created, protoChanged) = await store.UpsertAsync(
+                evt.Platform, evt.Version, evt.Package, evt.ProtoSha, evt.ApkRef,
+                DateTimeOffset.TryParse(evt.DetectedAt, out var dt) ? dt : DateTimeOffset.UtcNow,
+                detectedBy: null, protoText, ct);
+
+            // Fan the event out to matching active subscriptions. Created/ProtoChanged are the trigger
+            // signal; the dispatcher is best-effort and DB-gated, so no DB or no subs is a no-op.
+            var dispatcher = scope.ServiceProvider.GetService<EggIncognito.Services.Feed.FeedDispatcher>();
+            if (dispatcher is not null)
+            {
+                var pageUrl = $"https://protos.eggincognito.davidarthurcole.me/protos/{evt.Platform}/{evt.Version}";
+                await dispatcher.DispatchAsync(row.Id, evt.Platform, evt.Version, evt.ProtoSha,
+                    created, protoChanged, pageUrl, ct);
+            }
+        }
+
         // Fetch: resolve evt.ApkRef under ApkFetchRoot (local-path only for now, URL fetch is a later
         // add). Missing root or missing artifact is logged and tolerated, not fatal.
         Task Fetch(EggIncognito.Models.NewVersionEvent evt, CancellationToken ct)
@@ -286,7 +313,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             return Task.CompletedTask;
         }
 
-        return new NewVersionIngestService(expectedProtoSha, notifier, Fetch, Regen, Stash);
+        return new NewVersionIngestService(expectedProtoSha, notifier, Registry, Fetch, Regen, Stash);
     });
 }
 
@@ -344,6 +371,11 @@ var hostedCaptureOn = string.Equals(builder.Configuration["AppMode"], "Hosted", 
 if (dbEnabled)
 {
     builder.Services.AddScoped<EggIncognito.Data.Services.CaptureCredentialStore>();
+    builder.Services.AddScoped<EggIncognito.Data.Services.ProtoRegistryStore>();
+    builder.Services.AddScoped<EggIncognito.Data.Services.FeedSubscriptionStore>();
+    builder.Services.AddScoped<EggIncognito.Data.Services.IFeedSubscriptionStore>(
+        sp => sp.GetRequiredService<EggIncognito.Data.Services.FeedSubscriptionStore>());
+    builder.Services.AddScoped<EggIncognito.Services.Feed.FeedDispatcher>();
 }
 if (hostedCaptureOn)
 {
@@ -394,6 +426,20 @@ app.UseForwardedHeaders();
 // App-wide structured error handling. Turns ApiException into {error, resolution, status} and any
 // unhandled exception into a 500 that points at the logs.
 app.UseExceptionHandler();
+
+// protos.* host roots to the registry landing page: rewrite only the bare "/" path so the proto
+// surface is the default there. Every other path (assets, /protos*, /api/protos*, the rest of the
+// app) stays reachable from this host too; the main host is untouched. Runs before routing so the
+// endpoint match sees the rewritten path.
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Host.Host.StartsWith("protos.", StringComparison.OrdinalIgnoreCase)
+        && ctx.Request.Path == "/")
+    {
+        ctx.Request.Path = "/protos";
+    }
+    await next();
+});
 
 // Static files must short-circuit before routing. SimulationController has a catch-all
 // [HttpOptions("/{**slug}")] that otherwise makes every static GET report 405.

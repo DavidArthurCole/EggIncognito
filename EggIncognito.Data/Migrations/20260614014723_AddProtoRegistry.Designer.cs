@@ -3,6 +3,7 @@ using System;
 using EggIncognito.Data.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EggIncognito.Data.Migrations
 {
     [DbContext(typeof(EggIncognitoDbContext))]
-    partial class EggIncognitoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260614014723_AddProtoRegistry")]
+    partial class AddProtoRegistry
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -155,112 +158,6 @@ namespace EggIncognito.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("doc_images");
-                });
-
-            modelBuilder.Entity("EggIncognito.Data.Models.FeedDelivery", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("AttemptedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("attempted_at");
-
-                    b.Property<int>("Attempts")
-                        .HasColumnType("integer")
-                        .HasColumnName("attempts");
-
-                    b.Property<int>("ProtoVersionId")
-                        .HasColumnType("integer")
-                        .HasColumnName("proto_version_id");
-
-                    b.Property<int?>("ResponseCode")
-                        .HasColumnType("integer")
-                        .HasColumnName("response_code");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("status");
-
-                    b.Property<int>("SubscriptionId")
-                        .HasColumnType("integer")
-                        .HasColumnName("subscription_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SubscriptionId", "ProtoVersionId")
-                        .IsUnique();
-
-                    b.ToTable("feed_deliveries");
-                });
-
-            modelBuilder.Entity("EggIncognito.Data.Models.FeedSubscription", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Active")
-                        .HasColumnType("boolean")
-                        .HasColumnName("active");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<int>("FailCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("fail_count");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("kind");
-
-                    b.Property<string>("Label")
-                        .HasColumnType("text")
-                        .HasColumnName("label");
-
-                    b.Property<DateTimeOffset?>("LastDeliveryAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_delivery_at");
-
-                    b.Property<string>("OwnerUserId")
-                        .HasColumnType("text")
-                        .HasColumnName("owner_user_id");
-
-                    b.PrimitiveCollection<string[]>("Platforms")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("platforms");
-
-                    b.Property<string>("Secret")
-                        .HasColumnType("text")
-                        .HasColumnName("secret");
-
-                    b.Property<string>("TargetUrl")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("target_url");
-
-                    b.Property<string>("Trigger")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("trigger");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("feed_subscriptions");
                 });
 
             modelBuilder.Entity("EggIncognito.Data.Models.ProtoProto", b =>

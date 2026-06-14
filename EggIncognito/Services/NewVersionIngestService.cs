@@ -24,6 +24,7 @@ public sealed class NewVersionIngestService
 {
     private readonly string _expectedProtoSha;
     private readonly ISyncNotifier _notifier;
+    private readonly Func<NewVersionEvent, CancellationToken, Task> _registry;
     private readonly Func<NewVersionEvent, CancellationToken, Task> _fetch;
     private readonly Func<NewVersionEvent, CancellationToken, Task> _regen;
     private readonly Func<NewVersionEvent, CancellationToken, Task> _stash;
@@ -31,27 +32,32 @@ public sealed class NewVersionIngestService
     public NewVersionIngestService(
         string expectedProtoSha,
         ISyncNotifier notifier,
+        Func<NewVersionEvent, CancellationToken, Task> registry,
         Func<NewVersionEvent, CancellationToken, Task> fetch,
         Func<NewVersionEvent, CancellationToken, Task> regen,
         Func<NewVersionEvent, CancellationToken, Task> stash)
     {
         _expectedProtoSha = expectedProtoSha;
         _notifier = notifier;
+        _registry = registry;
         _fetch = fetch;
         _regen = regen;
         _stash = stash;
     }
 
-    // ForTest builds an instance with no-op fetch/regen/stash seams, for branch-level unit tests that
-    // exercise the classify-and-notify logic without disk artifacts or a live bot.
+    // ForTest builds an instance with no-op registry/fetch/regen/stash seams, for branch-level unit
+    // tests that exercise the classify-and-notify logic without disk artifacts or a live bot.
     public static NewVersionIngestService ForTest(string expectedProtoSha, ISyncNotifier notifier)
     {
         static Task NoOp(NewVersionEvent _, CancellationToken __) => Task.CompletedTask;
-        return new NewVersionIngestService(expectedProtoSha, notifier, NoOp, NoOp, NoOp);
+        return new NewVersionIngestService(expectedProtoSha, notifier, NoOp, NoOp, NoOp, NoOp);
     }
 
     public async Task<IngestOutcome> HandleAsync(NewVersionEvent evt, CancellationToken ct = default)
     {
+        // Registry capture runs on every build the farm sees, independent of the regen/refresh split.
+        await _registry(evt, ct);
+
         if (!string.Equals(evt.ProtoSha, _expectedProtoSha, StringComparison.OrdinalIgnoreCase))
         {
             await _stash(evt, ct);

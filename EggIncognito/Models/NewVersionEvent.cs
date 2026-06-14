@@ -21,4 +21,10 @@ public sealed class NewVersionEvent
 
     [JsonPropertyName("detectedAt")]
     public string DetectedAt { get; set; } = "";
+
+    [JsonPropertyName("platform")]
+    public string Platform { get; set; } = "android";
+
+    [JsonPropertyName("protoTextB64")]
+    public string? ProtoTextB64 { get; set; }
 }

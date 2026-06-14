@@ -163,16 +163,18 @@ public sealed class CaptureController(
         var result = await session.StartAsync(ct);
         if (result.FreshCa && store is not null)
             await PersistFreshCaAsync(session, store, currentUser.DiscordId, result.RootThumbprint, ct);
-        if (result.FreshCa)
-            await DeliverFreshSetupAsync(session, currentUser.DiscordId, store, ct);
+        // DM the setup (CA profile + freshly-minted token) on every start, not just the first session:
+        // the token rotates per session and the user needs the install profile each time they set up a
+        // device. Best-effort; never fails the start.
+        await DeliverSetupAsync(session, currentUser.DiscordId, store, ct);
         return Ok(result);
     }
 
-    // First session ever for this user: mint a proxy token and DM the install profile + connection
-    // details so they never hunt for the download button or copy a long token by hand. Best-effort: a
-    // closed-DM or bot failure sets a session notice and never fails the start. The token plaintext only
-    // exists here, so it can only be DM'd at the same time it is freshly minted.
-    private async Task DeliverFreshSetupAsync(
+    // Mint a fresh proxy token and DM the install profile + connection details so the user never hunts
+    // for a download or copies a long token by hand. Runs on every session start; the token plaintext
+    // only exists at mint time, so minting + DMing happen together. Best-effort: a closed-DM or bot
+    // failure sets a session notice and never fails the start.
+    private async Task DeliverSetupAsync(
         CaptureSession session, string discordId, CaptureCredentialStore? store, CancellationToken ct)
     {
         var notifier = services.GetService(typeof(ICaptureCaNotifier)) as ICaptureCaNotifier;

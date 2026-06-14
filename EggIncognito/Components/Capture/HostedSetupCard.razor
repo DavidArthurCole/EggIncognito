@@ -3,11 +3,17 @@
 @* Hosted-capture connection card: the public proxy endpoint, the caller's credentials, and the CA
    install steps. The token plaintext is shown exactly once per mint; only its hash is stored. *@
 <section id="hostedSetupCard" class="panel">
-  <h2 class="text-base mt-0 mb-2 text-fg">Hosted proxy setup</h2>
-  <p class="text-muted text-sm mt-0 mb-3">When you start a capture (the
-    <Icon Name="play" Class="icon-sm" /> button in the toolbar), the bot DMs you a one-tap CA install
-    profile plus your proxy details. Point your device's Wi-Fi proxy at the endpoint below; the
-    username is your Discord ID and the password is your capture token.</p>
+  <div class="flex items-start justify-between gap-3 mb-2">
+    <h2 class="text-base mt-0 mb-0 text-fg">Hosted proxy setup</h2>
+    <button type="button" class="btn-primary inline-flex items-center gap-2 shrink-0"
+            @onclick="OnStart" disabled="@StartBusy">
+      <Icon Name="@(Running ? "pause" : "play")" Class="icon-sm" />
+      @(Running ? "Stop capture" : "Start capture")
+    </button>
+  </div>
+  <p class="text-muted text-sm mt-0 mb-3">Click <strong>Start capture</strong> and the bot DMs you a
+    one-tap CA install profile plus your proxy details. Point your device's Wi-Fi proxy at the endpoint
+    below; the username is your Discord ID and the password is your capture token.</p>
 
   <div class="mb-3">
     <div class="mb-1"><span class="text-muted text-xs">Proxy host</span> <span class="code-chip">@Host</span></div>
@@ -75,6 +81,10 @@
     [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
     // Drives the instructions collapsing once a device is talking to the proxy.
     [Parameter] public bool Connected { get; set; }
+    // Mirrors the toolbar capture toggle so the prominent in-card button starts/stops the session.
+    [Parameter] public bool Running { get; set; }
+    [Parameter] public bool StartBusy { get; set; }
+    [Parameter] public EventCallback OnStart { get; set; }
 
     string? _token;
     string? _error;

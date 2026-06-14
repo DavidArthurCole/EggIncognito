@@ -1,0 +1,129 @@
+@page "/protos/{Platform}/{Version}"
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>EggIncognito - @Platform @Version</PageTitle>
+<main class="px-4 sm:px-8 pt-6 pb-8">
+  <a href="/protos" class="text-muted">&larr; All versions</a>
+  @if (_loading)
+  {
+    <p class="text-muted">Loading...</p>
+  }
+  else if (_detail is null)
+  {
+    <div class="empty-state">Version not found.</div>
+  }
+  else
+  {
+    <h1 class="text-[1.3rem] mt-2 mb-2">
+      <span class="code-chip">@_detail.Platform</span> @_detail.Version
+    </h1>
+    <div class="flex gap-2 mb-4 flex-wrap items-center">
+      <span class="code-chip" title="@_detail.ProtoSha">@_detail.ProtoSha</span>
+      <span class="text-muted">@_detail.DetectedAt.ToString("u")</span>
+    </div>
+
+    <section class="panel mb-4">
+      <h2 class="text-base mt-0 mb-2">Messages and enums</h2>
+      @if (_messages.Count == 0)
+      {
+        <p class="text-muted">No proto text stored for this version yet.</p>
+      }
+      else
+      {
+        <ul class="proto-msg-list">
+          @foreach (var m in _messages)
+          {
+            <li class="code-chip">@m</li>
+          }
+        </ul>
+      }
+    </section>
+
+    @if (_detail.HasProto)
+    {
+      <section class="panel">
+        <div class="flex gap-2 mb-2">
+          <button type="button" class="btn-primary" @onclick="ToggleProto">@(_showProto ? "Hide" : "View") .proto</button>
+          <a class="btn-chip" href="@ProtoUrl" download="@($"{Platform}-{Version}.proto")">Download</a>
+        </div>
+        @if (_showProto)
+        {
+          <pre class="result-pre">@_protoText</pre>
+        }
+      </section>
+    }
+  }
+</main>
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    [Parameter] public string Platform { get; set; } = "";
+    [Parameter] public string Version { get; set; } = "";
+
+    Detail? _detail;
+    List<string> _messages = [];
+    string? _protoText;
+    bool _showProto;
+    bool _loading = true;
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    string ProtoUrl => $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(Version)}/proto";
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _showProto = false;
+        _protoText = null;
+        _messages = [];
+        try
+        {
+            _detail = await Client().GetFromJsonAsync<Detail>(
+                $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(Version)}", JsonOpts);
+            if (_detail is not null && !string.IsNullOrEmpty(_detail.Messages))
+            {
+                _messages = System.Text.Json.JsonSerializer
+                    .Deserialize<List<string>>(_detail.Messages, JsonOpts) ?? [];
+            }
+        }
+        catch { _detail = null; }
+        _loading = false;
+    }
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task ToggleProto()
+    {
+        if (_showProto) { _showProto = false; return; }
+        if (_protoText is null)
+        {
+            try { _protoText = await Client().GetStringAsync(ProtoUrl); }
+            catch { _protoText = "(failed to load)"; }
+        }
+        _showProto = true;
+    }
+
+    record Detail(string Platform, string Version, string Package, string ProtoSha,
+        DateTimeOffset DetectedAt, string Messages, bool HasProto);
+}

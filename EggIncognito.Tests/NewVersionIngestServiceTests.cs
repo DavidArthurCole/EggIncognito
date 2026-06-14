@@ -41,4 +41,20 @@ public class NewVersionIngestServiceTests
         Assert.Equal(IngestOutcome.ProtoRefreshNeeded, result);
         Assert.Contains(notifier.Sent, s => s.Contains("refresh") || s.Contains("proto"));
     }
+
+    [Fact]
+    public async Task Handle_AlwaysCallsRegistry_BothPaths()
+    {
+        var calls = 0;
+        static Task NoOp(NewVersionEvent _, CancellationToken __) => Task.CompletedTask;
+        var svc = new NewVersionIngestService("expected-sha",
+            new FakeNotifier(),
+            registry: (_, __) => { calls++; return Task.CompletedTask; },
+            fetch: NoOp,
+            regen: NoOp,
+            stash: NoOp);
+        await svc.HandleAsync(new NewVersionEvent { Version = "v", ProtoSha = "expected-sha" });
+        await svc.HandleAsync(new NewVersionEvent { Version = "v2", ProtoSha = "different" });
+        Assert.Equal(2, calls);
+    }
 }

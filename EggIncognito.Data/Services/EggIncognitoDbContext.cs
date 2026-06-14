@@ -19,6 +19,10 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<DocImage> DocImages => Set<DocImage>();
     public DbSet<CaptureProxyToken> CaptureProxyTokens => Set<CaptureProxyToken>();
     public DbSet<CaptureUserCa> CaptureUserCas => Set<CaptureUserCa>();
+    public DbSet<ProtoVersion> ProtoVersions => Set<ProtoVersion>();
+    public DbSet<ProtoProto> ProtoProtos => Set<ProtoProto>();
+    public DbSet<FeedSubscription> FeedSubscriptions => Set<FeedSubscription>();
+    public DbSet<FeedDelivery> FeedDeliveries => Set<FeedDelivery>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -67,6 +71,28 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         b.Entity<CaptureUserCa>(c =>
         {
             c.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        b.Entity<ProtoVersion>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Platform, x.Version }).IsUnique();
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        });
+        b.Entity<ProtoProto>(e =>
+        {
+            e.HasKey(x => x.ProtoVersionId);
+            e.Property(x => x.MessageIndex).HasColumnType("jsonb");
+        });
+        b.Entity<FeedSubscription>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.Property(x => x.Platforms).HasColumnType("text[]");
+        });
+        b.Entity<FeedDelivery>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SubscriptionId, x.ProtoVersionId }).IsUnique();
         });
     }
 }

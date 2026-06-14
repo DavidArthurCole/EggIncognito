@@ -21,7 +21,8 @@
   {
     <div class="px-3 pt-3">
       <HostedSetupCard Host="@HostedOptions.PublicHost" Port="HostedOptions.FrontDoorPort"
-                       Username="@(_userId ?? "")" ClientFactory="Client" Connected="_connected" />
+                       Username="@(_userId ?? "")" ClientFactory="Client" Connected="_connected"
+                       Running="_running" StartBusy="_toggleBusy" OnStart="ToggleCapture" />
     </div>
   }
 
