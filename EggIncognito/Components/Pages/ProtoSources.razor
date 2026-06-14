@@ -1,0 +1,94 @@
+@page "/protos/sources"
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>EggIncognito - Proto sources</PageTitle>
+<main class="px-4 sm:px-8 pt-6 pb-8">
+  <h1 class="text-[1.3rem] mt-0 mb-2">Proto sources</h1>
+  <p class="text-muted mb-4">
+    Where the registry's proto definitions and version metadata come from. Counts are live row totals
+    per source.
+  </p>
+
+  <p class="mb-4"><a class="proto-version" href="/protos">Back to the registry</a></p>
+
+  <section class="panel mb-4">
+    <h2 class="text-base mt-0 mb-1">Device farm</h2>
+    <p class="text-muted mb-1">
+      First-party live source. Real Egg, Inc. builds extracted on device; the authoritative proto text.
+    </p>
+    <span class="code-chip">@Count("farm") versions</span>
+  </section>
+
+  <section class="panel mb-4">
+    <h2 class="text-base mt-0 mb-1">elgranjero / EggIncProtos</h2>
+    <p class="text-muted mb-1">
+      Community-maintained historical proto timeline: one commit per build with its
+      <code class="code-chip">ei.proto</code>. The substantive historical backfill.
+      Licensed GPL-2.0; credited per its terms.
+    </p>
+    <p class="mb-1">
+      <a class="proto-version" href="https://github.com/elgranjero/EggIncProtos" target="_blank"
+         rel="noopener noreferrer">github.com/elgranjero/EggIncProtos</a>
+    </p>
+    <span class="code-chip">@Count("elgranjero") versions</span>
+  </section>
+
+  <section class="panel mb-4">
+    <h2 class="text-base mt-0 mb-1">Google Play</h2>
+    <p class="text-muted mb-1">
+      Current Android version metadata only (no proto text). Confirms the latest published build.
+    </p>
+    <span class="code-chip">@Count("playstore") versions</span>
+  </section>
+
+  <section class="panel">
+    <h2 class="text-base mt-0 mb-1">App Store</h2>
+    <p class="text-muted mb-1">
+      Current iOS version metadata only (no proto text), via the iTunes lookup API.
+    </p>
+    <span class="code-chip">@Count("appstore") versions</span>
+  </section>
+</main>
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    Dictionary<string, int> _counts = new();
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override Task OnInitializedAsync() => Load();
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task Load()
+    {
+        try
+        {
+            _counts = await Client().GetFromJsonAsync<Dictionary<string, int>>("/api/protos/sources", JsonOpts) ?? new();
+        }
+        catch { _counts = new(); }
+    }
+
+    int Count(string source) => _counts.TryGetValue(source, out var n) ? n : 0;
+}

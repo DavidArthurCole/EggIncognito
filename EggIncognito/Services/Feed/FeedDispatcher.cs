@@ -12,8 +12,8 @@ public sealed class FeedDispatcher(
     private const int DeadAfterFailures = 5;
 
     public async Task DispatchAsync(
-        int protoVersionId, string platform, string version, string protoSha,
-        bool created, bool protoChanged, string pageUrl, CancellationToken ct = default)
+        int protoVersionId, string platform, string appVersion, string build, string? clientVersion,
+        string protoSha, bool created, bool protoChanged, string pageUrl, CancellationToken ct = default)
     {
         var subs = await store.ActiveAsync(ct);
         var http = httpFactory.CreateClient("discord-api");
@@ -25,7 +25,8 @@ public sealed class FeedDispatcher(
             int? code = null; var ok = false;
             try
             {
-                var body = DiscordFeedPayload.Build(platform, version, protoSha, protoChanged, pageUrl);
+                var body = DiscordFeedPayload.Build(
+                    platform, appVersion, build, clientVersion, protoSha, protoChanged, pageUrl);
                 var res = await http.PostAsync(sub.TargetUrl,
                     new StringContent(body, System.Text.Encoding.UTF8, "application/json"), ct);
                 code = (int)res.StatusCode;

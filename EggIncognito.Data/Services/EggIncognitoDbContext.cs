@@ -75,7 +75,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         b.Entity<ProtoVersion>(e =>
         {
             e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.Platform, x.Version }).IsUnique();
+            e.HasIndex(x => new { x.Platform, x.Build }).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
         });
         b.Entity<ProtoProto>(e =>

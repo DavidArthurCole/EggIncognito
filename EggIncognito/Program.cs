@@ -35,6 +35,17 @@ if (captureMode)
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Test-host DB isolation: the test assembly's module initializer sets EGGINCOGNITO_TEST_DBFREE so
+// WebApplicationFactory<Program> boots DB-free by default, matching CI. Without this the dev box's
+// user-secrets ConnectionStrings:Postgres (Host=frame) would make every integration test hit the live
+// DB and leak rows. A test that genuinely needs a DB opts in by setting ConnectionStrings:Postgres
+// explicitly via WithWebHostBuilder, which wins over this clear.
+if (Environment.GetEnvironmentVariable("EGGINCOGNITO_TEST_DBFREE") == "1"
+    && string.IsNullOrEmpty(builder.Configuration["TestDbOptIn"]))
+{
+    builder.Configuration["ConnectionStrings:Postgres"] = "";
+}
+
 // Logging: console plus one file per process start. The ILoggerProvider model keeps these
 // swappable; a remote sink can be added alongside without touching call sites.
 var logsDir = builder.Configuration["LogsPath"]
@@ -253,19 +264,23 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             if (store is null) return; // no DB configured
             string? protoText = string.IsNullOrEmpty(evt.ProtoTextB64) ? null
                 : System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(evt.ProtoTextB64));
+            // appVersion falls back to the legacy single version when old emitters omit it; build
+            // falls back to version too so a legacy event still keys some row (build is the row key).
+            var appVersion = string.IsNullOrEmpty(evt.AppVersion) ? evt.Version : evt.AppVersion;
+            var build = string.IsNullOrEmpty(evt.Build) ? evt.Version : evt.Build;
             var (row, created, protoChanged) = await store.UpsertAsync(
-                evt.Platform, evt.Version, evt.Package, evt.ProtoSha, evt.ApkRef,
+                evt.Platform, appVersion, build, evt.ClientVersion, evt.Package, evt.ProtoSha, evt.ApkRef,
                 DateTimeOffset.TryParse(evt.DetectedAt, out var dt) ? dt : DateTimeOffset.UtcNow,
-                detectedBy: null, protoText, ct);
+                detectedBy: null, protoText, source: "farm", ct);
 
             // Fan the event out to matching active subscriptions. Created/ProtoChanged are the trigger
             // signal; the dispatcher is best-effort and DB-gated, so no DB or no subs is a no-op.
             var dispatcher = scope.ServiceProvider.GetService<EggIncognito.Services.Feed.FeedDispatcher>();
             if (dispatcher is not null)
             {
-                var pageUrl = $"https://protos.eggincognito.davidarthurcole.me/protos/{evt.Platform}/{evt.Version}";
-                await dispatcher.DispatchAsync(row.Id, evt.Platform, evt.Version, evt.ProtoSha,
-                    created, protoChanged, pageUrl, ct);
+                var pageUrl = $"https://protos.eggincognito.davidarthurcole.me/protos/{evt.Platform}/{build}";
+                await dispatcher.DispatchAsync(row.Id, evt.Platform, appVersion, build, evt.ClientVersion,
+                    evt.ProtoSha, created, protoChanged, pageUrl, ct);
             }
         }
 
@@ -376,6 +391,16 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Data.Services.IFeedSubscriptionStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.FeedSubscriptionStore>());
     builder.Services.AddScoped<EggIncognito.Services.Feed.FeedDispatcher>();
+    // Proto backfill importers (admin-triggered, on-demand). The store seam is scoped, so each importer
+    // opens its own DI scope inside RunAsync. The "github" named client carries the optional GITHUB_TOKEN
+    // and is reused by the plain store fetches too. Only when a DB is configured (no store otherwise).
+    builder.Services.AddScoped<EggIncognito.Data.Services.IProtoBackfillStore>(
+        sp => sp.GetRequiredService<EggIncognito.Data.Services.ProtoRegistryStore>());
+    builder.Services.AddHttpClient("github");
+    builder.Services.AddScoped<EggIncognito.Services.Backfill.IGitHubClient, EggIncognito.Services.Backfill.GitHubClient>();
+    builder.Services.AddScoped<EggIncognito.Services.Backfill.ElgranjeroImporter>();
+    builder.Services.AddScoped<EggIncognito.Services.Backfill.PlayStoreImporter>();
+    builder.Services.AddScoped<EggIncognito.Services.Backfill.AppStoreImporter>();
 }
 if (hostedCaptureOn)
 {

@@ -1,10 +1,10 @@
-@page "/protos/{Platform}/{Version}"
+@page "/protos/{Platform}/{Build}"
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 
-<PageTitle>EggIncognito - @Platform @Version</PageTitle>
+<PageTitle>EggIncognito - @Platform build @Build</PageTitle>
 <main class="px-4 sm:px-8 pt-6 pb-8">
   <a href="/protos" class="text-muted">&larr; All versions</a>
   @if (_loading)
@@ -18,9 +18,11 @@
   else
   {
     <h1 class="text-[1.3rem] mt-2 mb-2">
-      <span class="code-chip">@_detail.Platform</span> @_detail.Version
+      <span class="code-chip">@_detail.Platform</span> @_detail.AppVersion
     </h1>
     <div class="flex gap-2 mb-4 flex-wrap items-center">
+      <span class="text-muted">build @_detail.Build</span>
+      <span class="text-muted">client @(string.IsNullOrEmpty(_detail.ClientVersion) ? "unknown" : _detail.ClientVersion)</span>
       <span class="code-chip" title="@_detail.ProtoSha">@_detail.ProtoSha</span>
       <span class="text-muted">@_detail.DetectedAt.ToString("u")</span>
     </div>
@@ -47,7 +49,7 @@
       <section class="panel">
         <div class="flex gap-2 mb-2">
           <button type="button" class="btn-primary" @onclick="ToggleProto">@(_showProto ? "Hide" : "View") .proto</button>
-          <a class="btn-chip" href="@ProtoUrl" download="@($"{Platform}-{Version}.proto")">Download</a>
+          <a class="btn-chip" href="@ProtoUrl" download="@($"{Platform}-{Build}.proto")">Download</a>
         </div>
         @if (_showProto)
         {
@@ -62,7 +64,7 @@
     static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
 
     [Parameter] public string Platform { get; set; } = "";
-    [Parameter] public string Version { get; set; } = "";
+    [Parameter] public string Build { get; set; } = "";
 
     Detail? _detail;
     List<string> _messages = [];
@@ -73,7 +75,7 @@
     string _baseAddress = "";
     string? _cookie;
 
-    string ProtoUrl => $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(Version)}/proto";
+    string ProtoUrl => $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(Build)}/proto";
 
     protected override void OnInitialized()
     {
@@ -94,7 +96,7 @@
         try
         {
             _detail = await Client().GetFromJsonAsync<Detail>(
-                $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(Version)}", JsonOpts);
+                $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(Build)}", JsonOpts);
             if (_detail is not null && !string.IsNullOrEmpty(_detail.Messages))
             {
                 _messages = System.Text.Json.JsonSerializer
@@ -124,6 +126,6 @@
         _showProto = true;
     }
 
-    record Detail(string Platform, string Version, string Package, string ProtoSha,
-        DateTimeOffset DetectedAt, string Messages, bool HasProto);
+    record Detail(string Platform, string AppVersion, string Build, string? ClientVersion, string Package,
+        string ProtoSha, DateTimeOffset DetectedAt, string Messages, bool HasProto);
 }

@@ -86,7 +86,7 @@ public class FeedDispatcherTests
         var store = new FakeStore(Sub(1, "proto_changed", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         await Dispatcher(store, handler).DispatchAsync(
-            7, "android", "1.0", "sha", created: true, protoChanged: true, "https://x/y");
+            7, "android", "1.0", "111343", "72", "sha", created: true, protoChanged: true, "https://x/y");
 
         Assert.Equal(1, handler.Posts);
         Assert.Single(store.Deliveries);
@@ -99,7 +99,7 @@ public class FeedDispatcherTests
         var store = new FakeStore(Sub(1, "proto_changed", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         await Dispatcher(store, handler).DispatchAsync(
-            7, "android", "1.0", "sha", created: true, protoChanged: false, "https://x/y");
+            7, "android", "1.0", "111343", "72", "sha", created: true, protoChanged: false, "https://x/y");
 
         Assert.Equal(0, handler.Posts);
         Assert.Empty(store.Deliveries);
@@ -111,7 +111,7 @@ public class FeedDispatcherTests
         var store = new FakeStore(Sub(1, "new_version", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Gone));
         await Dispatcher(store, handler).DispatchAsync(
-            7, "android", "1.0", "sha", created: true, protoChanged: false, "https://x/y");
+            7, "android", "1.0", "111343", "72", "sha", created: true, protoChanged: false, "https://x/y");
 
         Assert.False(store.Subs[0].Active);
         Assert.Equal("failed", store.Deliveries[0].Status);
@@ -123,8 +123,8 @@ public class FeedDispatcherTests
         var store = new FakeStore(Sub(1, "new_version", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         var d = Dispatcher(store, handler);
-        await d.DispatchAsync(7, "android", "1.0", "sha", true, false, "https://x/y");
-        await d.DispatchAsync(7, "android", "1.0", "sha", true, false, "https://x/y");
+        await d.DispatchAsync(7, "android", "1.0", "111343", "72", "sha", true, false, "https://x/y");
+        await d.DispatchAsync(7, "android", "1.0", "111343", "72", "sha", true, false, "https://x/y");
 
         Assert.Equal(1, handler.Posts);
         Assert.Single(store.Deliveries);

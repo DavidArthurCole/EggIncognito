@@ -9,7 +9,10 @@
   <h1 class="text-[1.3rem] mt-0 mb-2">Proto Registry</h1>
   <p class="text-muted mb-4">Versioned Egg, Inc. proto definitions, one row per detected build.</p>
 
-  <p class="mb-4"><a class="btn-primary inline-block no-underline" href="/protos/subscribe">Subscribe to updates</a></p>
+  <p class="mb-4">
+    <a class="btn-primary inline-block no-underline" href="/protos/subscribe">Subscribe to updates</a>
+    <a class="proto-version ml-3" href="/protos/sources">Sources</a>
+  </p>
 
   <div class="flex gap-2 mb-4">
     @foreach (var p in Platforms)
@@ -38,7 +41,8 @@
         {
           <li class="proto-row">
             <span class="code-chip">@r.Platform</span>
-            <a class="proto-version" href="@($"/protos/{r.Platform}/{Uri.EscapeDataString(r.Version)}")">@r.Version</a>
+            <a class="proto-version" href="@($"/protos/{r.Platform}/{Uri.EscapeDataString(r.Build)}")">@r.AppVersion</a>
+            <span class="text-muted">@BuildLabel(r.Build, r.ClientVersion)</span>
             <span class="code-chip" title="@r.ProtoSha">@Short(r.ProtoSha)</span>
             <span class="text-muted proto-detected">@r.DetectedAt.ToString("u")</span>
           </li>
@@ -104,5 +108,9 @@
 
     static string Short(string sha) => string.IsNullOrEmpty(sha) ? "" : (sha.Length <= 12 ? sha : sha[..12]);
 
-    record VersionRow(string Platform, string Version, string Package, string ProtoSha, DateTimeOffset DetectedAt);
+    static string BuildLabel(string build, string? clientVersion) =>
+        string.IsNullOrEmpty(clientVersion) ? $"build {build}" : $"build {build} · client {clientVersion}";
+
+    record VersionRow(string Platform, string AppVersion, string Build, string? ClientVersion,
+        string Package, string ProtoSha, DateTimeOffset DetectedAt);
 }
