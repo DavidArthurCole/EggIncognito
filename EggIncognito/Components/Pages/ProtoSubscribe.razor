@@ -6,10 +6,8 @@
 
 <PageTitle>EggIncognito - Subscribe to proto updates</PageTitle>
 <main class="px-4 sm:px-8 pt-6 pb-8 max-w-2xl">
-  <div class="reg-page-head">
-    <h1 class="text-[1.3rem] mt-0 mb-1">Subscribe to proto updates</h1>
-    <a class="proto-version" href="/protos">Back to the registry</a>
-  </div>
+  <a href="/protos" class="text-muted text-sm">&larr; All versions</a>
+  <h1 class="text-[1.3rem] mt-2 mb-1">Subscribe to proto updates</h1>
   <p class="text-muted mb-4">
     Get a Discord notification when the registry sees a new game build. Paste a channel webhook URL,
     pick what you want, and we send a test message on save.
@@ -46,16 +44,16 @@
 
       <hr class="settings-divider" />
 
-      <fieldset class="sub-section">
-        <legend class="text-muted text-sm mb-1">Platforms</legend>
+      <fieldset class="sub-section border-0 p-0 m-0">
+        <legend class="text-muted text-sm mb-1 p-0">Platforms</legend>
         <label class="settings-check mb-1"><input type="checkbox" @bind="_android" /> Android</label>
         <label class="settings-check"><input type="checkbox" @bind="_ios" /> iOS</label>
       </fieldset>
 
       <hr class="settings-divider" />
 
-      <fieldset class="sub-section">
-        <legend class="text-muted text-sm mb-1">Notify on</legend>
+      <fieldset class="sub-section border-0 p-0 m-0">
+        <legend class="text-muted text-sm mb-1 p-0">Notify on</legend>
         <label class="settings-check mb-1">
           <input type="radio" name="trigger" checked="@(_trigger == "proto_changed")"
                  @onchange="@(() => _trigger = "proto_changed")" />

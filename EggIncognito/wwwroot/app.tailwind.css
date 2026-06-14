@@ -875,6 +875,29 @@
   .proto-detected { @apply text-xs; }
   .proto-msg-list { @apply flex flex-wrap gap-1.5; }
 
+  /* Version-detail header: stacked label/value rows in a responsive grid. SHA spans full width so
+     the full hash stays readable and breakable. */
+  .proto-meta { @apply grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-x-6 gap-y-2 my-3; }
+  .proto-meta > div { @apply flex flex-col gap-0.5; }
+  .proto-meta dt { @apply text-muted text-xs uppercase tracking-wide; }
+  .proto-meta dd { @apply m-0 text-sm text-fg; }
+  .proto-meta .mono { @apply font-mono; }
+  .proto-meta-sha { @apply col-span-full; }
+  .proto-sha-copy { @apply cursor-pointer font-mono text-[0.8rem] bg-bg text-fg [word-break:break-all] text-left max-w-full; }
+  .proto-sha-copy:hover { @apply border-accent2; }
+
+  /* Version-detail comparison summary + diff. */
+  .proto-cmp-line { @apply text-sm text-fg mb-2; }
+  .proto-cmp-add { @apply text-accent2; }
+  .proto-cmp-rem { @apply text-muted; }
+  .proto-cmp-chips { @apply flex flex-wrap gap-1.5 mb-2; }
+  .proto-chip-add { @apply text-accent2 border-accent2; }
+  .proto-chip-rem { @apply text-muted line-through; }
+  .proto-diff { @apply max-h-[480px] overflow-auto; }
+  .proto-diff .diff-add { @apply text-accent2; }
+  .proto-diff .diff-rem { @apply text-muted; }
+  .proto-diff .diff-hunk { @apply text-fg font-semibold; }
+
   /* Proto registry redesign: toolbar segment + filter, the real registry table, the admin backfill
      panel, the sources grid, and the subscribe confirmation. Flat: bordered rows, muted header, no
      zebra, no gradients, no colored dots. */

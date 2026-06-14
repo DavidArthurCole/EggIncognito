@@ -1,8 +1,9 @@
-@* Admin-only backfill control + status panel, rendered below the registry table on /protos. Three
-   source rows (GitHub / Android / Apple) with trigger buttons + the latest job status, plus the
-   known_versions discovery list with per-row "Extract proto" buttons. Polls
-   GET /api/protos/backfill/status every ~3s while any job is running. Server ACL is the real gate;
-   the parent only renders this for admins. *@
+@* Admin-only backfill status report, rendered below the registry table on /protos. Three source rows
+   (GitHub / Android / Apple) showing the latest job status, plus the known_versions discovery list
+   with per-row "Extract proto" actions. Page-level controls (triggers, force re-sync) live in the
+   nav Backfill popover; this panel is status-only and auto-polls
+   GET /api/protos/backfill/status every ~3s. Server ACL is the real gate; the parent only renders
+   this for admins. *@
 @rendermode @(RenderMode.InteractiveServer)
 @implements IDisposable
 @using System.Net.Http.Json
@@ -12,8 +13,7 @@
 <section class="admin-panel" id="backfillPanel">
   <div class="admin-panel-head">
     <h2 class="admin-panel-title">Backfill</h2>
-    <button type="button" class="btn-mini" @onclick="Refresh" disabled="@_loading">Refresh</button>
-    <button type="button" class="btn-mini" disabled="@_busy" @onclick="Resync">Force re-sync</button>
+    <span class="text-muted text-xs">Controls live in the nav Backfill menu. Status auto-refreshes.</span>
   </div>
 
   <div class="backfill-sources">
@@ -39,8 +39,6 @@
             }
           }
         </div>
-        <button type="button" class="btn-mini" disabled="@_busy"
-                @onclick="@(() => Trigger(s.Trigger))">Trigger</button>
       </div>
     }
   </div>
@@ -54,7 +52,7 @@
     <h3 class="admin-panel-title">Known versions</h3>
     <span class="text-muted text-xs">@_known.Count discovered</span>
   </div>
-  <p class="text-muted text-xs">Extract runs the proto toolchain (frame-only; 501 elsewhere).</p>
+  <p class="text-muted text-xs">Extract runs the proto toolchain. Available only where the extract host is configured; 501 otherwise.</p>
 
   @if (_known.Count == 0)
   {
@@ -105,7 +103,6 @@
 
     List<JobRow> _jobs = [];
     List<KnownRow> _known = [];
-    bool _loading;
     bool _busy;
     string? _message;
 
@@ -135,17 +132,15 @@
     {
         if (firstRender)
         {
-            // Poll every 3s; the callback short-circuits when no job is running, so it is cheap.
+            // Poll every 3s so jobs triggered from the nav popover show up here.
             _timer = new System.Threading.Timer(async _ => await Tick(), null,
                 TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
         }
     }
 
-    async Task Tick()
-    {
-        if (!_jobs.Any(j => j.Status == "running")) return;
-        await InvokeAsync(async () => { await Load(); StateHasChanged(); });
-    }
+    // Triggers now fire from the nav popover, so always reload: a job started elsewhere must show up
+    // here without a manual refresh.
+    async Task Tick() => await InvokeAsync(async () => { await Load(); StateHasChanged(); });
 
     HttpClient Client()
     {
@@ -157,7 +152,6 @@
 
     async Task Load()
     {
-        _loading = true;
         try
         {
             var res = await Client().GetFromJsonAsync<StatusResponse>("/api/protos/backfill/status", JsonOpts);
@@ -165,38 +159,9 @@
             _known = res?.Known ?? [];
         }
         catch { _jobs = []; _known = []; }
-        _loading = false;
     }
-
-    Task Refresh() => Load();
 
     JobRow? JobFor(string source) => _jobs.FirstOrDefault(j => j.Source == source);
-
-    async Task Trigger(string which)
-    {
-        _busy = true;
-        _message = null;
-        var url = which switch
-        {
-            "github" => "/api/protos/backfill/elgranjero",
-            "android" => "/api/protos/backfill/list/fandom",
-            "apple" => "/api/protos/backfill/list/itunes",
-            _ => null,
-        };
-        try
-        {
-            if (url is not null)
-            {
-                var res = await Client().PostAsync(url, null);
-                _message = res.IsSuccessStatusCode
-                    ? "Import started. Status updates below."
-                    : $"Trigger failed ({(int)res.StatusCode}).";
-            }
-        }
-        catch (Exception ex) { _message = $"Trigger failed: {ex.Message}"; }
-        _busy = false;
-        await Load();
-    }
 
     async Task Extract(string appVersion)
     {
@@ -208,8 +173,8 @@
                 new { appVersion }, JsonOpts);
             if ((int)res.StatusCode == 501)
             {
-                _message = "Proto extraction not configured here. Needs a host with ProtoExtract set "
-                    + "(the frame toolchain + java); most hosts return 501.";
+                _message = "Proto extraction is not configured on this host. It needs a host with the "
+                    + "extract toolchain (java + python); most hosts return 501.";
             }
             else
             {
@@ -219,25 +184,6 @@
             }
         }
         catch (Exception ex) { _message = $"Extract failed: {ex.Message}"; }
-        _busy = false;
-        await Load();
-    }
-
-    async Task Resync()
-    {
-        _busy = true;
-        _message = null;
-        try
-        {
-            var res = await Client().PostAsJsonAsync("/api/protos/backfill/runner-resync", new { }, JsonOpts);
-            _message = (int)res.StatusCode switch
-            {
-                501 => "Runner agent not configured on this host.",
-                >= 200 and < 300 => "Re-sync requested.",
-                _ => $"Re-sync failed ({(int)res.StatusCode}).",
-            };
-        }
-        catch (Exception ex) { _message = $"Re-sync failed: {ex.Message}"; }
         _busy = false;
         await Load();
     }

@@ -14,7 +14,7 @@
 
 @* Controls project into the top nav (the Inspector/Capture pattern); the page body holds the table. *@
 <SectionContent SectionName="@NavSections.Toolbar">
-  <ProtosToolbar Platform="_platform" Filter="_filter" IsAdmin="_isAdmin"
+  <ProtosToolbar Platform="@_platform" Filter="@_filter" IsAdmin="_isAdmin"
                  OnPlatformChanged="SetPlatform" OnFilterChanged="SetFilter" OnTrigger="OnTrigger" />
 </SectionContent>
 
@@ -47,12 +47,12 @@
       <table class="reg-table">
         <thead>
           <tr>
-            <th class="reg-th-sort" @onclick="@(() => Sort("platform"))">Platform@Caret("platform")</th>
-            <th class="reg-th-sort" @onclick="@(() => Sort("appVersion"))">App Version@Caret("appVersion")</th>
-            <th class="reg-th-sort" @onclick="@(() => Sort("build"))">Build@Caret("build")</th>
-            <th class="reg-th-sort" @onclick="@(() => Sort("client"))">Client@Caret("client")</th>
-            <th class="reg-th-sort" @onclick="@(() => Sort("sha"))">Proto SHA@Caret("sha")</th>
-            <th class="reg-th-sort" @onclick="@(() => Sort("detected"))">Detected@Caret("detected")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("platform"))"><span>Platform</span>@Caret("platform")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("appVersion"))"><span>App Version</span>@Caret("appVersion")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("build"))"><span>Build</span>@Caret("build")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("client"))"><span>Client</span>@Caret("client")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("sha"))"><span>Proto SHA</span>@Caret("sha")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("detected"))"><span>Detected</span>@Caret("detected")</th>
           </tr>
         </thead>
         <tbody>
@@ -196,6 +196,7 @@
             "github" => "/api/protos/backfill/elgranjero",
             "android" => "/api/protos/backfill/list/fandom",
             "apple" => "/api/protos/backfill/list/itunes",
+            "resync" => "/api/protos/backfill/runner-resync",
             _ => null,
         };
         if (url is null) return;

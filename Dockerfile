@@ -62,8 +62,20 @@ RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # Npgsql + HttpClient auth negotiation lazily dlopen libgssapi_krb5; the aspnet base image omits it,
 # so the load throws during the OAuth token exchange and login fails. Ship the runtime lib.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+#
+# The optional proto-extract path (ProtoExtract:* configured) shells the pbtk toolchain: python3 for
+# jar_extract.py, java for dex2jar, plus the vendored jad/protoc/dex2jar binaries (mounted read-only at
+# deploy time). jad is a 32-bit i386 ELF, so the i386 multiarch C runtime is needed too. The python
+# deps (protobuf, requests) are installed system-wide so the mounted toolchain uses the container's own
+# /usr/bin/python3 rather than a host-built venv whose interpreter path would not resolve in here.
+RUN dpkg --add-architecture i386 \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libgssapi-krb5-2 \
+        default-jre-headless \
+        python3 python3-pip \
+        libc6:i386 libstdc++6:i386 zlib1g:i386 \
+    && pip3 install --no-cache-dir --break-system-packages protobuf requests \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/publish .
