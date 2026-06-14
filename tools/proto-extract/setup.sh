@@ -4,11 +4,10 @@ cd "$(dirname "$0")"
 
 EXT="pbtk/utils/external"
 
-# Windows checkouts carry CRLF. A "#!/bin/sh\r" shebang makes the kernel report "required file not
-# found" when dex2jar's wrapper scripts run. Strip CR from every shell script in the tree first.
+# CRLF gotcha: a "#!/bin/sh\r" shebang makes the kernel report "required file not found". Strip CR.
 find . -name "*.sh" -exec sed -i 's/\r$//' {} \;
 
-# dex2jar: official GitHub release zip. Provides the d2j-*.sh wrappers + lib/*.jar (DEX -> JAR).
+# dex2jar: GitHub release zip (DEX -> JAR).
 DEX2JAR_VER="2.1"
 DEX2JAR_URL="https://github.com/pxb1988/dex2jar/releases/download/v${DEX2JAR_VER}/dex2jar-${DEX2JAR_VER}.zip"
 if [ ! -f "$EXT/dex2jar/d2j-dex2jar.sh" ]; then
@@ -17,7 +16,7 @@ if [ ! -f "$EXT/dex2jar/d2j-dex2jar.sh" ]; then
   tmp="$(mktemp -d)"
   if curl -fsSL "$DEX2JAR_URL" -o "$tmp/dex2jar.zip"; then
     unzip -q "$tmp/dex2jar.zip" -d "$tmp"
-    # The zip nests everything under dex-tools-<ver>/. Flatten into external/dex2jar.
+    # The zip nests under dex-tools-<ver>/; flatten into external/dex2jar.
     src="$(find "$tmp" -maxdepth 1 -type d -name 'dex-tools*' | head -n1)"
     if [ -n "$src" ]; then
       rm -rf "$EXT/dex2jar"
@@ -31,7 +30,7 @@ if [ ! -f "$EXT/dex2jar/d2j-dex2jar.sh" ]; then
   rm -rf "$tmp"
 fi
 
-# protoc: official GitHub release. Linux x86_64 build. Used by the descriptor pipeline.
+# protoc: GitHub release, linux x86_64.
 PROTOC_VER="25.1"
 PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/protoc-${PROTOC_VER}-linux-x86_64.zip"
 if [ ! -f "$EXT/protoc/protoc" ] && [ ! -f "$EXT/protoc/protoc64" ]; then
@@ -48,16 +47,14 @@ if [ ! -f "$EXT/protoc/protoc" ] && [ ! -f "$EXT/protoc/protoc64" ]; then
   rm -rf "$tmp"
 fi
 
-# jad: obscure, no stable release URL. The operator must supply it. It ships in the EggIncProtoExtractor
-# repo and already exists on the frame at ~/ei-extract-full/pbtk/utils/external/jad/.
+# jad: no stable release URL; operator supplies it (EggIncProtoExtractor repo or frame).
 if [ ! -f "$EXT/jad/jad" ]; then
   echo "ERROR: jad decompiler missing at $EXT/jad/jad and cannot be fetched (no stable release URL)." >&2
   echo "       Copy pbtk/utils/external/jad/ from the EggIncProtoExtractor repo or the frame, then re-run." >&2
   exit 1
 fi
 
-# Make the wrapper scripts + native binaries executable. Tolerant: a missing file here is not fatal,
-# the checks above already gate on the required ones.
+# chmod wrappers + binaries. Tolerant: checks above already gate the required ones.
 chmod +x \
   "$EXT/dex2jar/d2j-dex2jar.sh" "$EXT/dex2jar/d2j_invoke.sh" \
   "$EXT/jad/jad" \

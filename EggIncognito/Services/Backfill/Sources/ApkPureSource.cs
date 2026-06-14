@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.IO.Compression;
 using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.Backfill.Sources;
@@ -96,38 +95,10 @@ public sealed partial class ApkPureSource(IHttpClientFactory httpFactory, ILogge
         return bytes is null ? null : ExtractArmSplit(bytes);
     }
 
-    // Pulls the arm64_v8a split apk bytes out of an APKPure XAPK (zip-of-apks). Pure + testable: no
-    // network. Returns null if the blob is not a zip-of-apks, or is a single base APK with no arm split.
-    // Matches both spellings: APKPure names it config.arm64_v8a.apk, an adb device-pull names it
-    // split_config.arm64_v8a.apk. The base com.auxbrain.egginc.apk is excluded.
-    public static byte[]? ExtractArmSplit(byte[] downloaded)
-    {
-        if (downloaded is null || downloaded.Length == 0) return null;
-        try
-        {
-            using var zip = new ZipArchive(new MemoryStream(downloaded, writable: false), ZipArchiveMode.Read);
-            foreach (var entry in zip.Entries)
-            {
-                var name = entry.Name; // file name only, no zip path prefix
-                if (name.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
-                    && name.Contains("arm64_v8a", StringComparison.OrdinalIgnoreCase)
-                    && !name.Equals($"{Package}.apk", StringComparison.OrdinalIgnoreCase))
-                {
-                    using var s = entry.Open();
-                    using var ms = new MemoryStream();
-                    s.CopyTo(ms);
-                    return ms.ToArray();
-                }
-            }
-            return null;
-        }
-        catch (InvalidDataException)
-        {
-            // Not a zip (a single APK is itself a zip, but a non-archive blob throws here); treat as no
-            // arm split. A bare base.apk would parse as a zip but carry no arm64_v8a entry, also null.
-            return null;
-        }
-    }
+    // Delegates to the Core extractor (single source of truth). Kept as a wrapper so existing callers +
+    // tests stay stable.
+    public static byte[]? ExtractArmSplit(byte[] downloaded) =>
+        EggIncognito.Services.ProtoExtract.ApkPureDownloader.ExtractArmSplit(downloaded);
 
     // Downloads the APK bytes for a given appVersion from APKPure's download endpoint. Real, thin, and
     // integration-only (the extract path uses it on the frame; not unit-tested). Returns null on failure.

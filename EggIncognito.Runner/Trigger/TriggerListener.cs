@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using EggIncognito.Runner.Extract;
 using EggIncognito.Runner.Runners;
 
 namespace EggIncognito.Runner.Trigger;
@@ -44,7 +45,7 @@ public sealed class ResyncHandler(string secret, Func<bool, RunOutcome> run)
 // <secret>, optional body {"force":true}. Delegates the decision to ResyncHandler.
 public static class TriggerListener
 {
-    public static WebApplication Build(string urls, ResyncHandler handler)
+    public static WebApplication Build(string urls, ResyncHandler handler, ApkPureExtractHandler? extract = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls(urls);
@@ -60,6 +61,19 @@ public static class TriggerListener
                 ? new { outcome = r.Outcome!.Detail, build = r.Outcome.Build, protoSha = r.Outcome.ProtoSha }
                 : (object)new { error = r.Error });
         });
+        if (extract is not null)
+        {
+            app.MapPost("/extract", async (HttpContext ctx) =>
+            {
+                var body = await ReadExtractBody(ctx);
+                string? auth = ctx.Request.Headers.Authorization;
+                var r = await extract.HandleAsync(auth, body?.AppVersion);
+                ctx.Response.StatusCode = r.Status;
+                await ctx.Response.WriteAsJsonAsync(r.Status == 200
+                    ? new { build = r.Build, protoSha = r.ProtoSha, detail = r.Detail }
+                    : (object)new { error = r.Error });
+            });
+        }
         return app;
     }
 
@@ -77,5 +91,18 @@ public static class TriggerListener
         return true;
     }
 
+    private static async Task<ExtractBody?> ReadExtractBody(HttpContext ctx)
+    {
+        try
+        {
+            if (ctx.Request.ContentLength is > 0)
+                return await ctx.Request.ReadFromJsonAsync<ExtractBody>();
+        }
+        catch { /* malformed body -> null appVersion -> 400 */ }
+        return null;
+    }
+
     private sealed record ForceBody(bool Force);
+
+    private sealed record ExtractBody(string? AppVersion);
 }

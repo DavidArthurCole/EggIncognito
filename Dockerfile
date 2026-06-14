@@ -1,8 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Restore: copy each csproj the web project depends on (Core + Capture + Data + Bot + RouteGenerator)
-# so the restore layer caches independently of source changes.
+# Copy csprojs first so the restore layer caches independently of source.
 COPY EggIncognito.Core/EggIncognito.Core.csproj EggIncognito.Core/
 COPY EggIncognito.Capture/EggIncognito.Capture.csproj EggIncognito.Capture/
 COPY EggIncognito.Data/EggIncognito.Data.csproj EggIncognito.Data/
@@ -11,8 +10,7 @@ COPY EggIncognito.RouteGenerator/EggIncognito.RouteGenerator.csproj EggIncognito
 COPY EggIncognito/EggIncognito.csproj EggIncognito/
 RUN dotnet restore EggIncognito/EggIncognito.csproj
 
-# Fetch the Tailwind CLI before the source COPYs so the (network-bound) download caches independently of
-# source edits - only ARG/base-image changes bust it, not a routine code change.
+# Fetch Tailwind CLI before source COPYs so the download caches independently of source edits.
 ARG TAILWIND_VERSION=v3.4.17
 RUN set -eux; \
     arch="$(uname -m)"; \
@@ -33,10 +31,8 @@ COPY EggIncognito.Bot/ EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/ EggIncognito.RouteGenerator/
 COPY EggIncognito/ EggIncognito/
 
-# Compile the Tailwind sheet deterministically here rather than via the MSBuild AfterTargets hook.
-# That hook fetches the CLI with ContinueOnError, so a flaky network silently ships an image with no
-# wwwroot/tailwind.css - the page then loads completely unstyled (and the static GET 405s through the
-# OPTIONS/POST catch-all). Doing it explicitly, with no ContinueOnError, fails the build loud instead.
+# Compile Tailwind here, not via the MSBuild hook: the hook's ContinueOnError can silently ship an
+# unstyled image on a flaky network. Explicit + no ContinueOnError fails the build loud instead.
 RUN set -eux; \
     cd EggIncognito; \
     tailwindcss -c tailwind.config.js \
@@ -48,42 +44,25 @@ RUN set -eux; \
     test -s wwwroot/tailwind.css; \
     grep -q "btn-primary" wwwroot/tailwind.css
 
-# Publish WITH restore: the pre-source restore layer only warms the NuGet cache. Publishing
-# --no-restore against that csproj-only restore leaves the static-web-assets manifest stale, which
-# silently drops wwwroot/_framework (blazor.web.js) from the output - the Blazor circuit then never
-# starts in prod. The re-restore is cheap (packages cached in the layer above).
-# EmitTypes=false skips the dashboard-typedef regeneration target. BuildTailwindCss=false skips the
-# MSBuild Tailwind hook since the sheet was just compiled above; publish then bundles it as-is.
+# Publish WITH restore: --no-restore against the csproj-only restore leaves the static-web-assets
+# manifest stale and drops wwwroot/_framework (blazor.web.js). Re-restore is cheap (cached above).
+# EmitTypes=false skips typedef regen. BuildTailwindCss=false skips the hook (sheet compiled above).
 RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
         -p:EmitTypes=false -p:BuildTailwindCss=false; \
     test -s /app/publish/wwwroot/tailwind.css; \
     test -s /app/publish/wwwroot/_framework/blazor.web.js
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
-# Npgsql + HttpClient auth negotiation lazily dlopen libgssapi_krb5; the aspnet base image omits it,
-# so the load throws during the OAuth token exchange and login fails. Ship the runtime lib.
-#
-# The optional proto-extract path (ProtoExtract:* configured) shells the pbtk toolchain: python3 for
-# jar_extract.py, java for dex2jar, plus the vendored jad/protoc/dex2jar binaries (mounted read-only at
-# deploy time). jad is a 32-bit i386 ELF, so the i386 multiarch C runtime is needed too. The python
-# deps (protobuf, requests) are installed system-wide so the mounted toolchain uses the container's own
-# /usr/bin/python3 rather than a host-built venv whose interpreter path would not resolve in here.
-RUN dpkg --add-architecture i386 \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        libgssapi-krb5-2 \
-        default-jre-headless \
-        python3 python3-pip \
-        libc6:i386 libstdc++6:i386 zlib1g:i386 \
-    && pip3 install --no-cache-dir --break-system-packages protobuf requests \
+# Npgsql/HttpClient dlopen libgssapi_krb5 during OAuth token exchange; aspnet base omits it. Ship it.
+# proto-extract toolchain NOT baked (~250MB, frame-only path); runs host-side via the runner agent.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/publish .
 COPY EggIncognito/Endpoints /app/Endpoints
-# RouteMap/routes.yaml is only an AdditionalFiles (compile-time, for the source generator), so it is
-# NOT in the publish output. The runtime RouteCatalog reads it from the content root, so it must be
-# present next to the app or ContentRoot.Resolve finds no RouteMap/ and the route catalog is empty
-# (no endpoints listed, status 0/0/0). Ship it explicitly.
+# routes.yaml is AdditionalFiles (compile-time only), not in publish output. Runtime RouteCatalog
+# reads it from the content root; without it the catalog is empty (0/0/0). Ship it explicitly.
 COPY EggIncognito/RouteMap /app/RouteMap
 
 VOLUME ["/app/Endpoints"]
@@ -92,10 +71,8 @@ ENV ASPNETCORE_URLS=http://+:8080
 ENV EndpointsPath=/app/Endpoints
 # Containers have no browser to auto-open.
 ENV NoBrowser=true
-# The public deploy runs in Hosted mode (capture + endpoint writes disabled - a request must not
-# mutate shared data, and the capture proxy/CA cannot be shared). Set AppMode=Hosted at deploy time
-# (e.g. compose/k8s env) for the public image. The default image stays Local so a self-host run has
-# full features.
+# Public deploy runs Hosted (capture + writes disabled). Set AppMode=Hosted at deploy time for the
+# public image. Default stays Local so self-host has full features.
 # ENV AppMode=Hosted
 
 EXPOSE 8080

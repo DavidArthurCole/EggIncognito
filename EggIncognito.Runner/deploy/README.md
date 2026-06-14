@@ -1,6 +1,6 @@
 # EggIncognito.Runner deploy
 
-Host-side device runner. Polls a device over adb, extracts the cleaned proto, posts a `NewVersionEvent` to the sync server, and serves an authed `POST /resync` for the EGI admin re-sync button.
+Host-side device runner. Polls a device over adb, extracts the cleaned proto, posts a `NewVersionEvent` to the sync server, serves an authed `POST /resync` for the EGI admin re-sync button.
 
 ## Build
 
@@ -8,14 +8,14 @@ Host-side device runner. Polls a device over adb, extracts the cleaned proto, po
 dotnet publish EggIncognito.Runner -c Release -o /opt/eggincognito-runner
 ```
 
-Copy the vendored toolchain beside the binary as `proto-extract/`, then run its setup once:
+Copy the vendored toolchain beside the binary as `proto-extract/`, run its setup once:
 
 ```bash
 cp -r tools/proto-extract /opt/eggincognito-runner/proto-extract
 cd /opt/eggincognito-runner/proto-extract && bash setup.sh
 ```
 
-`setup.sh` strips CRLF, chmods the binaries, builds the venv, installs deps. Needs java on PATH (dex2jar). The runner shells `proto-extract/.venv/bin/python3` for the decompile half, then runs the in-process C# `ProtoCleanup`.
+Needs java on PATH (dex2jar). The runner shells `proto-extract/.venv/bin/python3`, then runs in-process C# `ProtoCleanup`.
 
 ## systemd instances
 

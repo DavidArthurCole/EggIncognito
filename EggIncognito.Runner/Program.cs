@@ -5,6 +5,7 @@ using EggIncognito.Runner.Posting;
 using EggIncognito.Runner.Runners;
 using EggIncognito.Runner.State;
 using EggIncognito.Runner.Trigger;
+using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Runner;
 
@@ -60,7 +61,10 @@ public static class Program
         if (serve && triggerSecret.Length > 0)
         {
             handler = new ResyncHandler(triggerSecret, f => runner.RunOnce(f));
-            trigger = TriggerListener.Build(triggerUrls, handler);
+            var extractHandler = new ApkPureExtractHandler(
+                triggerSecret, new ApkPureDownloader(http),
+                new PbtkProtoExtractor(extractorRepo, extractorPython), evt => poster.PostAsync(evt));
+            trigger = TriggerListener.Build(triggerUrls, handler, extractHandler);
             _ = trigger.RunAsync();
             Console.WriteLine($"resync trigger listening on {triggerUrls}");
         }

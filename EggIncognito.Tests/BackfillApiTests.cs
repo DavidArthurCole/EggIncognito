@@ -58,17 +58,18 @@ public class BackfillApiTests
     [Fact]
     public async Task ApkExtract_NonAdmin_Is403() =>
         Assert.Equal(403, ((IStatusCodeActionResult)await Controller(UserRole.Contributor)
-            .ApkExtract(new BackfillController.ApkExtractRequest("1.0.0"))).StatusCode);
+            .ApkExtract(new BackfillController.ApkExtractRequest("1.0.0"), CancellationToken.None)).StatusCode);
 
+    // No local extract + no runner agent configured -> 501 not-configured.
     [Fact]
-    public async Task ApkExtract_Admin_NoDb_Is503() =>
-        Assert.Equal(503, ((IStatusCodeActionResult)await Controller(UserRole.Admin)
-            .ApkExtract(new BackfillController.ApkExtractRequest("1.0.0"))).StatusCode);
+    public async Task ApkExtract_Admin_NotConfigured_Is501() =>
+        Assert.Equal(501, ((IStatusCodeActionResult)await Controller(UserRole.Admin)
+            .ApkExtract(new BackfillController.ApkExtractRequest("1.0.0"), CancellationToken.None)).StatusCode);
 
     [Fact]
     public async Task ApkExtract_Admin_BlankVersion_Is400() =>
         Assert.Equal(400, ((IStatusCodeActionResult)await Controller(UserRole.Admin)
-            .ApkExtract(new BackfillController.ApkExtractRequest(""))).StatusCode);
+            .ApkExtract(new BackfillController.ApkExtractRequest(""), CancellationToken.None)).StatusCode);
 
     [Fact]
     public async Task Status_NonAdmin_Is403() =>

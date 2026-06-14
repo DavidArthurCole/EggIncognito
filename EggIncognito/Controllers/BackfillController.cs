@@ -83,20 +83,43 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
 
     public sealed record ApkExtractRequest(string AppVersion);
 
-    // The heavy per-APK extract; 501 when ProtoExtract is not configured on this host.
+    // The heavy per-APK extract. Local extract if configured; else forward to the runner agent
+    // (RUNNER_AGENT_URL/SECRET, like runner-resync); else 501.
     [HttpPost("apk-extract")]
-    public async Task<IActionResult> ApkExtract([FromBody] ApkExtractRequest req)
+    public async Task<IActionResult> ApkExtract([FromBody] ApkExtractRequest req, CancellationToken ct)
     {
         if (RequireAdmin() is { } no) return no;
         if (string.IsNullOrWhiteSpace(req?.AppVersion))
             return StatusCode(400, new { error = "appVersion required" });
-        if (services.GetService(typeof(ApkExtractService)) is not ApkExtractService extract)
-            return StatusCode(503, new { error = NoDb });
-        if (!extract.Options.IsConfigured)
-            return StatusCode(501, new { error = "extraction not configured on this host" });
         var version = req.AppVersion;
-        _ = Task.Run(() => extract.ExtractAsync(version, CancellationToken.None));
-        return Accepted(new { status = $"apk-extract started for {version}" });
+
+        if (services.GetService(typeof(ApkExtractService)) is ApkExtractService extract && extract.Options.IsConfigured)
+        {
+            _ = Task.Run(() => extract.ExtractAsync(version, CancellationToken.None));
+            return Accepted(new { status = $"apk-extract started for {version}" });
+        }
+
+        var config = services.GetService(typeof(IConfiguration)) as IConfiguration;
+        var httpFactory = services.GetService(typeof(IHttpClientFactory)) as IHttpClientFactory;
+        var url = config?["RUNNER_AGENT_URL"];
+        var secret = config?["RUNNER_AGENT_SECRET"];
+        if (httpFactory is null || string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(secret))
+            return StatusCode(501, new { error = "extraction not configured on this host" });
+
+        try
+        {
+            var http = httpFactory.CreateClient();
+            using var msg = new HttpRequestMessage(HttpMethod.Post, url.TrimEnd('/') + "/extract");
+            msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
+            msg.Content = JsonContent.Create(new { appVersion = version });
+            var res = await http.SendAsync(msg, ct);
+            var body = await res.Content.ReadAsStringAsync(ct);
+            return StatusCode((int)res.StatusCode, new { runner = body });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(502, new { error = $"runner agent unreachable: {ex.Message}" });
+        }
     }
 
     // Deletes keyless/stub registry rows (empty build or appVersion). The admin UI fires this once on
