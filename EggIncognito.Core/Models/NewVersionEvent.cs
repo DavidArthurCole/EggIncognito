@@ -1,10 +1,11 @@
 using System.Text.Json.Serialization;
 
-namespace EggIncognito.Models;
+namespace EggIncognito.Core.Models;
 
-// Mirrors synckit/contract.NewVersionEvent and the device farm's emitter. Field names are frozen to
-// the wire contract. This is plain transport, so System.Text.Json is allowed here, unlike endpoint
-// JSON which uses JsonParser.Default.
+// Shared frozen contract. Mirrors synckit/contract.NewVersionEvent and the device farm's emitter;
+// the superset source of truth shared by the runner (producer) and EventsController (consumer).
+// Field names are frozen to the wire contract. This is plain transport, so System.Text.Json is
+// allowed here, unlike endpoint JSON which uses JsonParser.Default.
 public sealed class NewVersionEvent
 {
     [JsonPropertyName("package")]

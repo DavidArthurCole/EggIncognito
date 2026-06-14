@@ -1,4 +1,6 @@
 using EggIncognito.Services.Backfill.Sources;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
@@ -159,5 +161,53 @@ public class VersionListSourceTests
     {
         Assert.Empty(ItunesSource.ParseJson("not json"));
         Assert.Empty(ItunesSource.ParseJson(""));
+    }
+
+    // Unset AppStore:BundleId falls back to the known Egg Inc bundle id and still fetches.
+
+    private sealed class CapturingHandler(string body) : HttpMessageHandler
+    {
+        public string? RequestedUri { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            RequestedUri = request.RequestUri?.ToString();
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(body),
+            });
+        }
+    }
+
+    private sealed class StubFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+    }
+
+    [Fact]
+    public async Task Itunes_Unset_BundleId_Uses_Default_And_Fetches()
+    {
+        var handler = new CapturingHandler(ItunesJson);
+        var config = new ConfigurationBuilder().Build(); // AppStore:BundleId unset
+        var src = new ItunesSource(new StubFactory(handler), config, NullLogger<ItunesSource>.Instance);
+
+        var list = await src.FetchAsync(CancellationToken.None);
+
+        Assert.Single(list);
+        Assert.Equal("1.35.7", list[0].AppVersion);
+        Assert.Contains("com.auxbrain.egginc", handler.RequestedUri);
+    }
+
+    [Fact]
+    public async Task Itunes_Config_BundleId_Overrides_Default()
+    {
+        var handler = new CapturingHandler(ItunesJson);
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["AppStore:BundleId"] = "com.example.app" })
+            .Build();
+        var src = new ItunesSource(new StubFactory(handler), config, NullLogger<ItunesSource>.Instance);
+
+        await src.FetchAsync(CancellationToken.None);
+
+        Assert.Contains("com.example.app", handler.RequestedUri);
     }
 }

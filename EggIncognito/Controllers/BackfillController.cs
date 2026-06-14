@@ -5,7 +5,10 @@ using EggIncognito.Services.Backfill;
 using EggIncognito.Services.Backfill.Sources;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 
 namespace EggIncognito.Controllers;
 
@@ -94,6 +97,51 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
         var version = req.AppVersion;
         _ = Task.Run(() => extract.ExtractAsync(version, CancellationToken.None));
         return Accepted(new { status = $"apk-extract started for {version}" });
+    }
+
+    // Deletes keyless/stub registry rows (empty build or appVersion). The admin UI fires this once on
+    // load so a malformed row never lingers. No DB => 0 pruned.
+    [HttpPost("prune")]
+    public async Task<IActionResult> Prune(CancellationToken ct)
+    {
+        if (RequireAdmin() is { } no) return no;
+        if (services.GetService(typeof(ProtoRegistryStore)) is not ProtoRegistryStore store)
+            return Ok(new { pruned = 0 });
+        var pruned = await store.PruneEmptyAsync(ct);
+        return Ok(new { pruned });
+    }
+
+    public sealed record ResyncRequest(string? Platform);
+
+    // Forwards a force re-sync to the host-side runner agent (the device farm). Admin-gated. The agent URL
+    // and secret are host config (RUNNER_AGENT_URL/RUNNER_AGENT_SECRET), mirroring the deploy-agent. Unset
+    // (or no config/http in the no-DB unit-test path) returns 501 not-configured, like apk-extract, since
+    // most hosts have no runner.
+    [HttpPost("runner-resync")]
+    public async Task<IActionResult> RunnerResync([FromBody] ResyncRequest? req, CancellationToken ct)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var config = services.GetService(typeof(IConfiguration)) as IConfiguration;
+        var httpFactory = services.GetService(typeof(IHttpClientFactory)) as IHttpClientFactory;
+        var url = config?["RUNNER_AGENT_URL"];
+        var secret = config?["RUNNER_AGENT_SECRET"];
+        if (httpFactory is null || string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(secret))
+            return StatusCode(501, new { error = "runner agent not configured on this host" });
+
+        try
+        {
+            var http = httpFactory.CreateClient();
+            using var msg = new HttpRequestMessage(HttpMethod.Post, url.TrimEnd('/') + "/resync");
+            msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
+            msg.Content = JsonContent.Create(new { force = true });
+            var res = await http.SendAsync(msg, ct);
+            var body = await res.Content.ReadAsStringAsync(ct);
+            return StatusCode((int)res.StatusCode, new { runner = body });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(502, new { error = $"runner agent unreachable: {ex.Message}" });
+        }
     }
 
     // Latest job per source + the known-versions discovery list. The admin UI polls this for live status.

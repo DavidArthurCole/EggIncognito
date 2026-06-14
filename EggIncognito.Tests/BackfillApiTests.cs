@@ -83,4 +83,14 @@ public class BackfillApiTests
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(200, ok.StatusCode);
     }
+
+    [Fact]
+    public async Task RunnerResync_NonAdmin_Is403() =>
+        Assert.Equal(403, ((IStatusCodeActionResult)
+            await Controller(UserRole.Viewer).RunnerResync(null, default)).StatusCode);
+
+    [Fact]
+    public async Task RunnerResync_Admin_Unconfigured_Is501() =>
+        Assert.Equal(501, ((IStatusCodeActionResult)
+            await Controller(UserRole.Admin).RunnerResync(null, default)).StatusCode);
 }

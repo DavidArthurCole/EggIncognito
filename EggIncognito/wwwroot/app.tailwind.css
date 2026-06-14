@@ -895,13 +895,15 @@
   .reg-table thead th {
     @apply text-left px-3 py-2 text-muted text-xs font-semibold border-b border-border bg-panel2;
   }
+  .reg-th-sort { @apply cursor-pointer select-none whitespace-nowrap; }
+  .reg-th-sort:hover { @apply text-fg; }
   .reg-table tbody td { @apply text-left px-3 py-2 border-b border-border align-middle; }
   .reg-table tbody tr:last-child td { @apply border-b-0; }
   .reg-row { @apply cursor-pointer; }
   .reg-row:hover { @apply bg-panel2; }
   .reg-table .mono { @apply font-mono text-xs; }
   .reg-version { @apply font-mono text-accent2; }
-  .reg-sha { @apply cursor-pointer bg-bg; }
+  .reg-sha { @apply cursor-pointer bg-bg text-fg text-[0.8rem]; }
   .reg-sha:hover { @apply border-accent2; }
   .reg-empty { @apply flex flex-col items-center justify-center text-center text-muted text-[13px] px-6 py-12 gap-1; }
   .reg-empty-hint { @apply text-xs opacity-80 max-w-prose leading-relaxed; }

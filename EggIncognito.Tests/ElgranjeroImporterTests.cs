@@ -31,6 +31,8 @@ public class ElgranjeroImporterTests
             Upserts.Add(new Upsert(platform, appVersion, build, clientVersion, protoText, writeProto, source));
             return Task.CompletedTask;
         }
+
+        public Task<int> PruneEmptyAsync(CancellationToken ct = default) => Task.FromResult(0);
     }
 
     // Canned commit list + per-commit proto, no HTTP.

@@ -144,6 +144,26 @@ public class ProxyFrontDoorTests
             }
         }
 
+        // The VPS relay path is dual-stack: an iOS device resolving the AAAA record reaches the front
+        // door over IPv6. A v4-only bind silently refuses it, which surfaces as "no network connection"
+        // on the device and a dashboard stuck at zero connections.
+        [Fact]
+        public async Task AcceptsIpv6Client()
+        {
+            var (door, _) = await NewDoorAsync();
+            await using (door)
+            {
+                using var client = new TcpClient(AddressFamily.InterNetworkV6);
+                await client.ConnectAsync(IPAddress.IPv6Loopback, door.Port);
+                var stream = client.GetStream();
+                await stream.WriteAsync(Encoding.ASCII.GetBytes("CONNECT www.auxbrain.com:443 HTTP/1.1\r\n\r\n"));
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var buf = new byte[1024];
+                var n = await stream.ReadAsync(buf, cts.Token);
+                Assert.StartsWith("HTTP/1.1 407", Encoding.ASCII.GetString(buf, 0, n));
+            }
+        }
+
         [Fact]
         public async Task WrongToken_Gets407()
         {

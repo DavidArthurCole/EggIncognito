@@ -47,16 +47,16 @@
       <table class="reg-table">
         <thead>
           <tr>
-            <th>Platform</th>
-            <th>App Version</th>
-            <th>Build</th>
-            <th>Client</th>
-            <th>Proto SHA</th>
-            <th>Detected</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("platform"))">Platform@Caret("platform")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("appVersion"))">App Version@Caret("appVersion")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("build"))">Build@Caret("build")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("client"))">Client@Caret("client")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("sha"))">Proto SHA@Caret("sha")</th>
+            <th class="reg-th-sort" @onclick="@(() => Sort("detected"))">Detected@Caret("detected")</th>
           </tr>
         </thead>
         <tbody>
-          @foreach (var r in Filtered)
+          @foreach (var r in Sorted)
           {
             var href = $"/protos/{r.Platform}/{Uri.EscapeDataString(r.Build)}";
             <tr class="reg-row" @onclick="@(() => Navigate(href))">
@@ -92,6 +92,8 @@
     string _filter = "";
     bool _loading = true;
     bool _isAdmin;
+    string _sortCol = "detected";
+    bool _sortDesc = true;
 
     string _baseAddress = "";
     string? _cookie;
@@ -102,6 +104,60 @@
             ? _rows
             : _rows.Where(r => r.AppVersion.Contains(_filter, StringComparison.OrdinalIgnoreCase)
                             || r.Build.Contains(_filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    List<VersionRow> Sorted
+    {
+        get
+        {
+            var rows = Filtered;
+            Comparison<VersionRow> cmp = _sortCol switch
+            {
+                "platform" => (a, b) => string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase),
+                "appVersion" => (a, b) => CompareSemver(a.AppVersion, b.AppVersion),
+                "build" => (a, b) => CompareNumeric(a.Build, b.Build),
+                "client" => (a, b) => CompareNumeric(a.ClientVersion, b.ClientVersion),
+                "sha" => (a, b) => string.Compare(a.ProtoSha, b.ProtoSha, StringComparison.OrdinalIgnoreCase),
+                _ => (a, b) => a.DetectedAt.CompareTo(b.DetectedAt),
+            };
+            var sorted = rows.ToList();
+            sorted.Sort(cmp);
+            if (_sortDesc) sorted.Reverse();
+            return sorted;
+        }
+    }
+
+    void Sort(string col)
+    {
+        if (_sortCol == col) _sortDesc = !_sortDesc;
+        else { _sortCol = col; _sortDesc = false; }
+    }
+
+    MarkupString Caret(string col) =>
+        new(_sortCol == col ? (_sortDesc ? " ▾" : " ▴") : "");
+
+    // Numeric strings (versionCode/client) compared as longs; non-numeric falls back to ordinal.
+    static int CompareNumeric(string? a, string? b)
+    {
+        var ax = long.TryParse(a, out var al);
+        var bx = long.TryParse(b, out var bl);
+        if (ax && bx) return al.CompareTo(bl);
+        return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Dotted version compared segment-by-segment numerically so 1.9 < 1.10.
+    static int CompareSemver(string? a, string? b)
+    {
+        var ap = (a ?? "").Split('.');
+        var bp = (b ?? "").Split('.');
+        var n = Math.Max(ap.Length, bp.Length);
+        for (var i = 0; i < n; i++)
+        {
+            var av = i < ap.Length && long.TryParse(ap[i], out var x) ? x : 0;
+            var bv = i < bp.Length && long.TryParse(bp[i], out var y) ? y : 0;
+            if (av != bv) return av.CompareTo(bv);
+        }
+        return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+    }
 
     protected override void OnInitialized()
     {
@@ -138,7 +194,7 @@
         var url = which switch
         {
             "github" => "/api/protos/backfill/elgranjero",
-            "android" => "/api/protos/backfill/list/apkpure",
+            "android" => "/api/protos/backfill/list/fandom",
             "apple" => "/api/protos/backfill/list/itunes",
             _ => null,
         };

@@ -257,7 +257,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
         // text + parsed message index when present. Runs independently of the regen/refresh split, so
         // the registry captures even builds whose proto changed and still await a manual ei.proto refresh.
         // No DB configured => no-op. A later phase appends a feed dispatch off the returned tuple here.
-        async Task Registry(EggIncognito.Models.NewVersionEvent evt, CancellationToken ct)
+        async Task Registry(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
         {
             using var scope = sp.CreateScope();
             var store = scope.ServiceProvider.GetService<EggIncognito.Data.Services.ProtoRegistryStore>();
@@ -268,6 +268,8 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             // falls back to version too so a legacy event still keys some row (build is the row key).
             var appVersion = string.IsNullOrEmpty(evt.AppVersion) ? evt.Version : evt.AppVersion;
             var build = string.IsNullOrEmpty(evt.Build) ? evt.Version : evt.Build;
+            // A keyless event (no build/appVersion at all) must not write a stub registry row.
+            if (string.IsNullOrEmpty(build) || string.IsNullOrEmpty(appVersion)) return;
             var (row, created, protoChanged) = await store.UpsertAsync(
                 evt.Platform, appVersion, build, evt.ClientVersion, evt.Package, evt.ProtoSha, evt.ApkRef,
                 DateTimeOffset.TryParse(evt.DetectedAt, out var dt) ? dt : DateTimeOffset.UtcNow,
@@ -286,7 +288,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
 
         // Fetch: resolve evt.ApkRef under ApkFetchRoot (local-path only for now, URL fetch is a later
         // add). Missing root or missing artifact is logged and tolerated, not fatal.
-        Task Fetch(EggIncognito.Models.NewVersionEvent evt, CancellationToken ct)
+        Task Fetch(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
         {
             if (string.IsNullOrEmpty(syncOptions.ApkFetchRoot) || string.IsNullOrEmpty(evt.ApkRef))
             {
@@ -302,7 +304,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
         // Regen: ensure the staged/ output area exists via the same EndpointExtractor.ForRepo path the
         // HAR + capture routes use, never touching default/. APK-driven endpoint extraction has no
         // decoder yet, so this stages the area and logs; promotion stays a human step.
-        Task Regen(EggIncognito.Models.NewVersionEvent evt, CancellationToken ct)
+        Task Regen(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
         {
             EndpointExtractor.ForRepo(syncContentRoot, eid: null, "EI0000000000000000", overwrite: true);
             logger.LogInformation("sync: staged area ready for {Version}; apk-driven regen not yet wired", evt.Version);
@@ -311,7 +313,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
 
         // Stash: a changed proto is flagged, never auto-applied. Write a small manifest under
         // Endpoints/staged/proto-refresh/ recording the version and the sha delta for the human gate.
-        Task Stash(EggIncognito.Models.NewVersionEvent evt, CancellationToken ct)
+        Task Stash(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
         {
             var stashDir = Path.Combine(syncContentRoot, "Endpoints", "staged", "proto-refresh");
             Directory.CreateDirectory(stashDir);

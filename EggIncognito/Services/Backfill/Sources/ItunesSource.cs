@@ -4,8 +4,8 @@ using System.Text.Json;
 namespace EggIncognito.Services.Backfill.Sources;
 
 // iTunes lookup (ios, current version only). Real iOS history arrives later via the jailbroken farm.
-// Needs AppStore:BundleId config; unset = skip cleanly (empty list), never guess a bundle id. Parse is
-// pure + resilient.
+// AppStore:BundleId config overrides; unset = fall back to the known Egg Inc bundle id so the trigger
+// works out of the box. Parse is pure + resilient.
 public sealed class ItunesSource(
     IHttpClientFactory httpFactory, IConfiguration config, ILogger<ItunesSource> logger)
     : IVersionListSource
@@ -13,14 +13,13 @@ public sealed class ItunesSource(
     public string Name => "itunes";
     public string Platform => "ios";
 
+    // Known Egg Inc bundle id; the iTunes lookup works against it with no config.
+    private const string DefaultBundleId = "com.auxbrain.egginc";
+
     public async Task<IReadOnlyList<ListedVersion>> FetchAsync(CancellationToken ct)
     {
         var bundleId = config["AppStore:BundleId"];
-        if (string.IsNullOrWhiteSpace(bundleId))
-        {
-            logger.LogInformation("backfill: AppStore:BundleId unset, itunes list skipped");
-            return [];
-        }
+        if (string.IsNullOrWhiteSpace(bundleId)) bundleId = DefaultBundleId;
         try
         {
             var c = httpFactory.CreateClient("scrape");

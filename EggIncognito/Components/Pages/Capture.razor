@@ -11,6 +11,7 @@
 @inject HostedCaptureOptions HostedOptions
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IConfiguration Config
 @inject IJSRuntime JS
 
 <PageTitle>EggIncognito - Live Capture</PageTitle>
@@ -22,7 +23,8 @@
     <div class="px-3 pt-3">
       <HostedSetupCard Host="@HostedOptions.PublicHost" Port="HostedOptions.FrontDoorPort"
                        Username="@(_userId ?? "")" ClientFactory="Client" Connected="_connected"
-                       Running="_running" StartBusy="_toggleBusy" OnStart="ToggleCapture" />
+                       Running="_running" StartBusy="_toggleBusy" OnStart="ToggleCapture"
+                       InviteUrl="@Config["Discord:InviteUrl"]" />
     </div>
   }
 

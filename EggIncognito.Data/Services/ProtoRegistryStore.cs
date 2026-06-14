@@ -15,6 +15,9 @@ public interface IProtoBackfillStore
         string platform, string appVersion, string build, string? clientVersion, string package,
         string? protoText, string? protoSha, string? messageIndex, bool writeProto,
         string apkRef, DateTimeOffset detectedAt, string source, CancellationToken ct = default);
+
+    // Deletes keyless/stub rows (empty Build or empty AppVersion). Returns the count removed.
+    Task<int> PruneEmptyAsync(CancellationToken ct = default);
 }
 
 // Upserts proto versions + their .proto text. Keyed by (platform, build): build is the monotonic
@@ -27,6 +30,10 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         string protoSha, string apkRef, DateTimeOffset detectedAt, string? detectedBy, string? protoText,
         string source = "farm", CancellationToken ct = default)
     {
+        // Build keys the row; a keyless event must never persist a stub row.
+        if (string.IsNullOrEmpty(build) || string.IsNullOrEmpty(appVersion))
+            return (new ProtoVersion { Platform = platform, Build = build, AppVersion = appVersion }, false, false);
+
         var prevLatest = await db.ProtoVersions.AsNoTracking()
             .Where(p => p.Platform == platform)
             .OrderByDescending(p => p.CreatedAt).FirstOrDefaultAsync(ct);
@@ -71,6 +78,9 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         string? protoText, string? protoSha, string? messageIndex, bool writeProto,
         string apkRef, DateTimeOffset detectedAt, string source, CancellationToken ct = default)
     {
+        // Build keys the row; skip keyless upserts rather than write a stub.
+        if (string.IsNullOrEmpty(build)) return;
+
         var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
         if (row is null)
         {
@@ -103,7 +113,14 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
     public Task<List<ProtoVersion>> ListAsync(string? platform, CancellationToken ct = default) =>
         db.ProtoVersions.AsNoTracking()
             .Where(p => platform == null || p.Platform == platform)
+            // Defensive: never render keyless/stub rows even if an un-pruned one exists.
+            .Where(p => p.Build != null && p.Build != "" && p.AppVersion != null && p.AppVersion != "")
             .OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
+
+    public Task<int> PruneEmptyAsync(CancellationToken ct = default) =>
+        db.ProtoVersions
+            .Where(p => p.Build == null || p.Build == "" || p.AppVersion == null || p.AppVersion == "")
+            .ExecuteDeleteAsync(ct);
 
     public Task<ProtoVersion?> GetAsync(string platform, string build, CancellationToken ct = default) =>
         db.ProtoVersions.AsNoTracking()

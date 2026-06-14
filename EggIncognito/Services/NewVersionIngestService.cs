@@ -1,5 +1,5 @@
 using EggIncognito.Bot;
-using EggIncognito.Models;
+using EggIncognito.Core.Models;
 
 namespace EggIncognito.Services;
 

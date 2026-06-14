@@ -13,6 +13,7 @@
   <div class="admin-panel-head">
     <h2 class="admin-panel-title">Backfill</h2>
     <button type="button" class="btn-mini" @onclick="Refresh" disabled="@_loading">Refresh</button>
+    <button type="button" class="btn-mini" disabled="@_busy" @onclick="Resync">Force re-sync</button>
   </div>
 
   <div class="backfill-sources">
@@ -51,16 +52,13 @@
 
   <div class="admin-panel-head admin-panel-sub">
     <h3 class="admin-panel-title">Known versions</h3>
-    <span class="text-muted text-xs">@_known.Count seen, not yet proto-captured</span>
+    <span class="text-muted text-xs">@_known.Count discovered</span>
   </div>
-  <p class="text-muted text-xs">
-    Extract pulls the APKPure XAPK, unzips the arm64 split, and runs the proto toolchain. Works only on
-    a host with ProtoExtract configured (the frame toolchain + java); elsewhere it returns 501.
-  </p>
+  <p class="text-muted text-xs">Extract runs the proto toolchain (frame-only; 501 elsewhere).</p>
 
   @if (_known.Count == 0)
   {
-    <div class="backfill-empty">No discovered versions yet. Run the Android or Apple list import.</div>
+    <div class="backfill-empty">No discovered versions. Run a list import above.</div>
   }
   else
   {
@@ -96,12 +94,12 @@
 @code {
     static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
 
-    // GitHub -> elgranjero; Android -> apkpure list; Apple -> itunes list. The job source key matches
-    // what the importer writes (elgranjero / apkpure / itunes).
+    // GitHub -> elgranjero; Android -> fandom list; Apple -> itunes list. The job source key matches
+    // what the importer writes (source.Name: elgranjero / fandom / itunes).
     static readonly SourceRow[] Sources =
     [
         new("GitHub", "elgranjero / EggIncProtos, full history with proto text", "github", "elgranjero"),
-        new("Android", "APKPure version list (feeds the per-APK extract path)", "android", "apkpure"),
+        new("Android", "Fandom wiki version history (with changelogs)", "android", "fandom"),
         new("Apple", "iTunes lookup, current iOS version metadata", "apple", "itunes"),
     ];
 
@@ -126,7 +124,12 @@
         }
     }
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        // Prune keyless/stub rows once on admin load, then load fresh status.
+        try { await Client().PostAsync("/api/protos/backfill/prune", null); } catch { }
+        await Load();
+    }
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -176,7 +179,7 @@
         var url = which switch
         {
             "github" => "/api/protos/backfill/elgranjero",
-            "android" => "/api/protos/backfill/list/apkpure",
+            "android" => "/api/protos/backfill/list/fandom",
             "apple" => "/api/protos/backfill/list/itunes",
             _ => null,
         };
@@ -216,6 +219,25 @@
             }
         }
         catch (Exception ex) { _message = $"Extract failed: {ex.Message}"; }
+        _busy = false;
+        await Load();
+    }
+
+    async Task Resync()
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var res = await Client().PostAsJsonAsync("/api/protos/backfill/runner-resync", new { }, JsonOpts);
+            _message = (int)res.StatusCode switch
+            {
+                501 => "Runner agent not configured on this host.",
+                >= 200 and < 300 => "Re-sync requested.",
+                _ => $"Re-sync failed ({(int)res.StatusCode}).",
+            };
+        }
+        catch (Exception ex) { _message = $"Re-sync failed: {ex.Message}"; }
         _busy = false;
         await Load();
     }

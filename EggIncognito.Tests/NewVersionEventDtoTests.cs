@@ -1,5 +1,5 @@
 using System.Text.Json;
-using EggIncognito.Models;
+using EggIncognito.Core.Models;
 
 namespace EggIncognito.Tests;
 

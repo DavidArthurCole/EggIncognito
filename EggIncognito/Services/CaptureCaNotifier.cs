@@ -34,7 +34,6 @@ public sealed class DiscordCaptureCaNotifier(
     : ICaptureCaNotifier
 {
     private const string ProfileFile = "eggincognito-capture.mobileconfig";
-    private const string CaUrl = "https://eggincognito.davidarthurcole.me/capture";
 
     public async Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct)
     {
@@ -76,7 +75,7 @@ public sealed class DiscordCaptureCaNotifier(
         Username: {dm.Username}
         Password: {dm.Token}
         ```
-        The token is shown once. Start a session at {CaUrl}, then open Egg, Inc.
+        Your session is live. Install the profile, set the proxy, then open Egg, Inc.
         """;
 
     // POST /users/@me/channels {"recipient_id": id} -> the DM channel id, or null on any failure.

@@ -28,7 +28,7 @@
       else
       {
         <span class="code-chip" id="mintedToken">@_token</span>
-        <span class="text-muted text-xs">shown once; save it now</span>
+        <span class="text-muted text-xs">also sent in your DM</span>
       }
       <button type="button" class="icon-btn icon-btn-sm" title="Cycle token" aria-label="Cycle token"
               @onclick="MintToken" disabled="@_busy"><Icon Name="refresh" Class="icon-sm" /></button>
@@ -37,8 +37,18 @@
 
   @if (_caDmFailed)
   {
-    <p class="text-muted text-xs mb-3" id="caDmFailedNotice">Could not DM your setup. Cycle your token
-      to retry, or follow the manual steps below.</p>
+    <p class="text-muted text-xs mb-3" id="caDmFailedNotice">Could not DM you the setup. This usually means
+      you are not in the Discord server, or your DMs from server members are off
+      (Settings &gt; Privacy &amp; Safety). Everything you need is on this card.
+      @if (!string.IsNullOrWhiteSpace(InviteUrl))
+      {
+        <span>Join the server: <a href="@InviteUrl" target="_blank" rel="noopener" class="text-accent2 underline">@InviteUrl</a>, enable DMs, then cycle your token to retry.</span>
+      }
+      else
+      {
+        <span>Enable DMs, then cycle your token to retry.</span>
+      }
+    </p>
   }
   @if (_error is not null)
   {
@@ -85,6 +95,8 @@
     [Parameter] public bool Running { get; set; }
     [Parameter] public bool StartBusy { get; set; }
     [Parameter] public EventCallback OnStart { get; set; }
+    // Discord invite shown in the DM-failed notice so the user can join + enable DMs. Null hides the link.
+    [Parameter] public string? InviteUrl { get; set; }
 
     string? _token;
     string? _error;

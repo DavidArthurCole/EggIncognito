@@ -98,7 +98,7 @@ public class ProtosPageTests
             Assert.Contains("Android", cut.Markup);
             Assert.Contains("Apple", cut.Markup);
             // No DB -> known list empty state.
-            Assert.Contains("No discovered versions yet", cut.Markup);
+            Assert.Contains("No discovered versions", cut.Markup);
         }
     }
 

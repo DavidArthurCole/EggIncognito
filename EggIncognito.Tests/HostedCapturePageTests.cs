@@ -6,6 +6,7 @@ using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CapturePage = EggIncognito.Components.Pages.Capture;
 
@@ -117,6 +118,7 @@ public class HostedCapturePageTests
             Services.AddSingleton(HostedCaptureOptions.Defaults());
             Services.AddSingleton(NewManager());
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
+            Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             Services.AddHttpClient();
         }
 

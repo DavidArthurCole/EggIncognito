@@ -28,7 +28,11 @@ public sealed class ProxyFrontDoor(
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        var listener = new TcpListener(IPAddress.Any, opts.FrontDoorPort);
+        // Bind IPv6-any dual-stack so both IPv4 and IPv6 clients are accepted. IPAddress.Any is
+        // IPv4-only: the VPS relay path is dual-stack and a device resolving the AAAA record reaches
+        // the front door over IPv6, which a v4-only bind silently refuses ("no network connection").
+        var listener = new TcpListener(IPAddress.IPv6Any, opts.FrontDoorPort);
+        listener.Server.DualMode = true;
         listener.Start();
         _listener = listener;
         Port = ((IPEndPoint)listener.LocalEndpoint).Port;
