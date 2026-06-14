@@ -31,7 +31,10 @@ NoNewPrivileges=true
 ProtectSystem=strict
 # ProtectHome off so the runner can read ~/.android/adbkey for USB adb auth.
 ProtectHome=false
-ReadWritePaths=/opt/eggincognito-runner
+# /tmp is writable for the extractor's temp dirs. PrivateTmp stays off (false) so the runner shares the
+# host adb server socket in /tmp; a private tmp would hide the device from adb. With ProtectSystem=strict
+# the rest of the fs is read-only, so /tmp must be listed explicitly.
+ReadWritePaths=/opt/eggincognito-runner /tmp
 PrivateTmp=false
 
 [Install]

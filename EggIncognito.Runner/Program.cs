@@ -31,6 +31,14 @@ public static class Program
 
         Directory.CreateDirectory(apkStash);
 
+        // Graceful shutdown: SIGTERM (systemctl stop/restart) and Ctrl+C cancel the poll loop so the
+        // process exits promptly instead of waiting for systemd's 90s kill timeout.
+        using var shutdown = new CancellationTokenSource();
+        using var sigterm = System.Runtime.InteropServices.PosixSignalRegistration.Create(
+            System.Runtime.InteropServices.PosixSignal.SIGTERM, ctx => { ctx.Cancel = true; shutdown.Cancel(); });
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; shutdown.Cancel(); };
+        var ct = shutdown.Token;
+
         var http = new HttpClient();
         var poster = new EventPoster(http, eventUrl, eventSecret);
         var clientVersion = new NullClientVersionReader();
@@ -70,7 +78,7 @@ public static class Program
         }
 
         Console.WriteLine($"runner watching {package} on {target} ({platform}) every {interval}s");
-        while (true)
+        while (!ct.IsCancellationRequested)
         {
             try
             {
@@ -81,7 +89,10 @@ public static class Program
             {
                 Console.Error.WriteLine($"tick error: {ex.Message}");
             }
-            await Task.Delay(interval * 1000);
+            try { await Task.Delay(interval * 1000, ct); }
+            catch (OperationCanceledException) { break; }
         }
+        Console.WriteLine("runner shutting down");
+        return 0;
     }
 }
