@@ -162,17 +162,106 @@ public class CaptureCaNotifierTests
         new("123", [0x30, 0x82, 0x01], "capture.example.com", 8443, "123", "tok-abc");
 
     [Fact]
-    public void MobileConfig_EmbedsCert_AndIsStablePerCert()
+    public void MobileConfig_EmbedsCert_AndIsStablePerUser()
     {
         byte[] cer = [0x30, 0x82, 0x01, 0x02, 0x03];
-        var a = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer));
-        var b = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer));
-        Assert.Equal(a, b); // deterministic per cert
+        var a = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-1"));
+        var b = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-1"));
+        Assert.Equal(a, b);
         Assert.Contains("com.apple.security.root", a);
         Assert.Contains(Convert.ToBase64String(cer), a);
-        // A different cert yields a different profile UUID.
-        var c = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x99]));
-        Assert.NotEqual(a, c);
+    }
+
+    // The profile identity is anchored to the user, not the cert, so a regenerated cert reinstalls into
+    // the SAME profile (iOS replaces) instead of stacking a new one. The new cert bytes still embed.
+    [Fact]
+    public void MobileConfig_SameUser_DifferentCert_KeepsProfileIdentity()
+    {
+        var newCert = Convert.ToBase64String([(byte)0x30, 0x99]);
+        var a = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x82, 0x01], "user-1"));
+        var b = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x99], "user-1"));
+        Assert.Equal(ProfileUuid(a), ProfileUuid(b)); // same user -> same profile UUID (replace, not stack)
+        Assert.Contains(newCert, b); // the new cert bytes are embedded
+    }
+
+    [Fact]
+    public void MobileConfig_DifferentUsers_GetDistinctProfiles()
+    {
+        byte[] cer = [0x30, 0x82, 0x01];
+        var a = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-1"));
+        var b = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-2"));
+        Assert.NotEqual(ProfileUuid(a), ProfileUuid(b));
+    }
+
+    // The top-level profile PayloadUUID is the last PayloadUUID in the plist (after the cert payload's).
+    private static string ProfileUuid(string plist) =>
+        plist.Split("<key>PayloadUUID</key>")[^1].Split("<string>")[1].Split("</string>")[0];
+
+    [Fact]
+    public async Task ProxyProfile_Anonymous_Returns401()
+    {
+        var controller = new CaptureController(
+            FreshCaManager(), new FakeAppMode(canCapture: false, hostedEnabled: true),
+            new FakeUser(authed: false, supporter: false), new FakeSupporters(false),
+            HostedCaptureOptions.Defaults(), new StubServices(new FailingNotifier()));
+
+        var r = await controller.DownloadProxyProfile("MyNet", CancellationToken.None);
+        Assert.Equal(401, ((IStatusCodeActionResult)r).StatusCode);
+    }
+
+    [Fact]
+    public async Task ProxyProfile_NonSupporter_Returns403()
+    {
+        var controller = new CaptureController(
+            FreshCaManager(), new FakeAppMode(canCapture: false, hostedEnabled: true),
+            new FakeUser(authed: true, supporter: false), new FakeSupporters(false),
+            HostedCaptureOptions.Defaults(), new StubServices(new FailingNotifier()));
+
+        var r = await controller.DownloadProxyProfile("MyNet", CancellationToken.None);
+        Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
+    }
+
+    [Fact]
+    public void ProxyProfile_EmbedsWifiProxyPayload()
+    {
+        var xml = System.Text.Encoding.UTF8.GetString(
+            MobileConfig.BuildProxyProfile("MyNet", "capture.example.com", 8443, "user123", "tok-abc"));
+
+        Assert.Contains("<key>SSID_STR</key>", xml);
+        Assert.Contains("<string>MyNet</string>", xml);
+        Assert.Contains("com.apple.wifi.managed", xml);
+        Assert.Contains("<key>ProxyType</key>", xml);
+        Assert.Contains("<string>Manual</string>", xml);
+        Assert.Contains("capture.example.com", xml);
+        Assert.Contains("<integer>8443</integer>", xml);
+        Assert.Contains("user123", xml);
+        Assert.Contains("tok-abc", xml);
+    }
+
+    [Fact]
+    public void ProxyProfile_EscapesHostileSsid_StillValidXml()
+    {
+        const string hostile = "My & \"Net\"";
+        var xml = System.Text.Encoding.UTF8.GetString(
+            MobileConfig.BuildProxyProfile(hostile, "capture.example.com", 8443, "user123", "tok-abc"));
+
+        var doc = System.Xml.Linq.XDocument.Parse(xml); // throws if escaping is wrong
+        // Round-trip: the SSID_STR <string> following its <key> equals the original.
+        var ssid = doc.Descendants("key")
+            .First(k => (string)k == "SSID_STR")
+            .ElementsAfterSelf("string").First().Value;
+        Assert.Equal(hostile, ssid);
+    }
+
+    [Fact]
+    public void ProxyProfile_OmitsWifiPassword()
+    {
+        var xml = System.Text.Encoding.UTF8.GetString(
+            MobileConfig.BuildProxyProfile("MyNet", "capture.example.com", 8443, "user123", "tok-abc"));
+        // No Wi-Fi PSK key. ProxyPassword is present and intentional; the network Password is not.
+        Assert.DoesNotContain("<key>Password</key>", xml);
+        Assert.Contains("<key>EncryptionType</key>", xml);
+        Assert.Contains("<string>Any</string>", xml);
     }
 
     // Mirrors the Program.cs gate without booting the full host (which would try to log the bot in).

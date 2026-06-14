@@ -351,6 +351,26 @@ public sealed class CaptureController(
         return Ok(new { username = currentUser.DiscordId, token });
     }
 
+    // A per-SSID .mobileconfig that applies the Manual proxy automatically when the device joins the
+    // named Wi-Fi network. Mints a fresh token (same rotation as the card/DM) and bakes it into the
+    // profile so it stays valid. The Wi-Fi password is never carried.
+    [HttpGet("proxy-profile")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> DownloadProxyProfile([FromQuery] string ssid, CancellationToken ct)
+    {
+        if (RequireHostedSupporter() is { } no) return no;
+        if (string.IsNullOrWhiteSpace(ssid)) return StatusCode(400, new { error = "ssid required" });
+        ssid = ssid.Trim();
+        if (ssid.Length > 64) return StatusCode(400, new { error = "ssid too long" });
+        var store = Credentials;
+        if (store is null) return StatusCode(503, new { error = "no database configured" });
+        var token = CaptureCredentialStore.MintToken();
+        await store.SetTokenAsync(currentUser.DiscordId!, CaptureCredentialStore.Hash(token), ct);
+        var bytes = MobileConfig.BuildProxyProfile(
+            ssid, hostedOptions.PublicHost, hostedOptions.FrontDoorPort, currentUser.DiscordId!, token);
+        return File(bytes, "application/x-apple-aspen-config", "eggincognito-proxy.mobileconfig");
+    }
+
     // The caller's capture CA as a device-installable .cer. Prefers the live session's exported
     // cert; falls back to the public half of the stored pfx.
     [HttpGet("ca.cer")]

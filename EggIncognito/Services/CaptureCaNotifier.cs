@@ -47,7 +47,7 @@ public sealed class DiscordCaptureCaNotifier(
             var channelId = await OpenDmAsync(http, token, dm.DiscordId, ct);
             if (channelId is null) return false;
 
-            var profile = MobileConfig.BuildCaProfile(dm.CerBytes);
+            var profile = MobileConfig.BuildCaProfile(dm.CerBytes, dm.DiscordId);
             return await PostAsync(http, token, channelId, profile, BuildMessage(dm), ct);
         }
         catch (Exception ex)
@@ -69,13 +69,15 @@ public sealed class DiscordCaptureCaNotifier(
         the CA in the system trust store.
 
         Then set your device Wi-Fi proxy to:
+        Host: `{dm.Host}`
+        Port: `{dm.Port}`
+        Username: `{dm.Username}` (your Discord ID)
+        Password:
         ```
-        Host:     {dm.Host}
-        Port:     {dm.Port}
-        Username: {dm.Username}
-        Password: {dm.Token}
+        {dm.Token}
         ```
-        Your session is live. Install the profile, set the proxy, then open Egg, Inc.
+        Tap any value above to copy it. Your session is live: install the profile, set the proxy,
+        then open Egg, Inc.
         """;
 
     // POST /users/@me/channels {"recipient_id": id} -> the DM channel id, or null on any failure.

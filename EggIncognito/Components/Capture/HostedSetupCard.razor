@@ -35,6 +35,19 @@
     </div>
   </div>
 
+  <div class="mb-3">
+    <div class="text-muted text-xs mb-1">Auto-proxy profile (iOS, optional)</div>
+    <div class="flex items-center gap-2">
+      <input type="text" @bind="_ssid" @bind:event="oninput" placeholder="Your Wi-Fi network name (SSID)"
+             class="bg-bg border border-border rounded px-2 py-1 text-xs" />
+      <a class="btn-mini @(string.IsNullOrWhiteSpace(_ssid) || _busy ? "pointer-events-none opacity-50" : "")"
+         href="@ProxyProfileUrl()" download
+         aria-disabled="@(string.IsNullOrWhiteSpace(_ssid) || _busy)">Download proxy profile</a>
+    </div>
+    <p class="text-muted text-xs mt-1 mb-0">iOS applies the proxy automatically when you join this
+      network. Omits your Wi-Fi password.</p>
+  </div>
+
   @if (_caDmFailed)
   {
     <p class="text-muted text-xs mb-3" id="caDmFailedNotice">Could not DM you the setup. This usually means
@@ -100,8 +113,12 @@
 
     string? _token;
     string? _error;
+    string _ssid = "";
     bool _busy;
     bool _caDmFailed;
+
+    string ProxyProfileUrl() =>
+        $"/api/capture/proxy-profile?ssid={Uri.EscapeDataString(_ssid)}";
 
     // After the interactive circuit is live (ClientFactory can forward the auth cookie), poll status once
     // to surface a failed CA DM. The live dashboard also toasts it; this is the persistent fallback line.
