@@ -232,6 +232,9 @@
   .faq-q { @apply font-semibold text-sm text-fg mb-1; }
   .faq-a { @apply text-xs text-muted leading-snug m-0; }
 
+  /* Legal links under the supporter content. */
+  .support-legal-note { @apply text-xs text-muted leading-relaxed m-0 mt-2; }
+
   /* Code / data boxes */
   /* Inline mono code chip (Phase 2 + Inspector doc code). */
   .code-chip {
@@ -367,6 +370,34 @@
   .toast-certTrusted .toast-msg { @apply text-ok; }
   .toast-decryptError .toast-msg { @apply text-err; }
   .toast-info { @apply border-l-info; }
+
+  /* Site footer: flat, muted, border-top. Site-wide via MainLayout. The right padding clears the
+     fixed .gh-bubble (bottom-4 right-4, 44px wide) so the links never sit under it. */
+  .site-footer {
+    @apply border-t border-border mt-12 px-8 py-6 text-xs text-muted flex flex-col gap-2;
+    padding-right: 4.5rem;
+  }
+  .site-footer-disclaimer { @apply m-0 max-w-[80ch] leading-relaxed; }
+  .site-footer-links { @apply flex flex-wrap gap-x-4 gap-y-1; }
+  .site-footer-links a { @apply text-muted no-underline; }
+  .site-footer-links a:hover { @apply text-fg underline; }
+  .site-footer-copy { @apply m-0 text-muted; }
+
+  /* Legal pages (/terms, /privacy): readable long-form prose in the flat aesthetic. The disclaimer
+     box is the one bordered call-out; everything else is plain muted prose with clear headings. */
+  .legal-title { @apply text-[1.4rem] font-semibold leading-tight text-fg m-0 mb-1; }
+  .legal-updated { @apply text-xs text-muted m-0 mb-6; }
+  .legal-disclaimer {
+    @apply text-sm text-fg leading-relaxed border border-border rounded-lg bg-panel px-4 py-3 mb-8 max-w-[80ch];
+    border-left: 2px solid theme(colors.accent);
+  }
+  .legal-section { @apply mb-7; }
+  .legal-h2 { @apply text-base font-semibold text-fg mt-0 mb-2; }
+  .legal-p { @apply text-sm text-muted leading-relaxed max-w-[80ch] m-0 mb-3; }
+  .legal-p:last-child { @apply mb-0; }
+  .legal-list { @apply text-sm text-muted leading-relaxed max-w-[80ch] list-disc pl-5 my-3 flex flex-col gap-1.5; }
+  .legal-link { @apply text-accent2 no-underline; }
+  .legal-link:hover { @apply underline; }
 
   /* Floating GitHub link, fixed in the lower-right on every shell page. */
   .gh-bubble {
@@ -843,4 +874,69 @@
   .proto-version:hover { @apply underline; }
   .proto-detected { @apply text-xs; }
   .proto-msg-list { @apply flex flex-wrap gap-1.5; }
+
+  /* Proto registry redesign: toolbar segment + filter, the real registry table, the admin backfill
+     panel, the sources grid, and the subscribe confirmation. Flat: bordered rows, muted header, no
+     zebra, no gradients, no colored dots. */
+  .protos-toolbar { @apply gap-2; }
+  .protos-seg { @apply w-auto; }
+  .protos-seg .seg-btn { @apply px-2.5 flex-none; }
+  .protos-filter {
+    @apply w-[160px] bg-panel2 text-fg border border-border rounded-md px-2 py-1 text-xs font-mono;
+  }
+  .protos-filter:focus { @apply outline-none border-accent2; }
+  .protos-filter::placeholder { @apply text-muted; }
+  .protos-toolbar .protos-trigger { @apply w-full justify-start mb-1; }
+  .protos-toolbar .protos-trigger:last-child { @apply mb-0; }
+
+  /* Registry table */
+  .reg-wrap { @apply border border-border rounded-md overflow-x-auto; }
+  .reg-table { @apply w-full border-collapse text-[13px]; }
+  .reg-table thead th {
+    @apply text-left px-3 py-2 text-muted text-xs font-semibold border-b border-border bg-panel2;
+  }
+  .reg-table tbody td { @apply text-left px-3 py-2 border-b border-border align-middle; }
+  .reg-table tbody tr:last-child td { @apply border-b-0; }
+  .reg-row { @apply cursor-pointer; }
+  .reg-row:hover { @apply bg-panel2; }
+  .reg-table .mono { @apply font-mono text-xs; }
+  .reg-version { @apply font-mono text-accent2; }
+  .reg-sha { @apply cursor-pointer bg-bg; }
+  .reg-sha:hover { @apply border-accent2; }
+  .reg-empty { @apply flex flex-col items-center justify-center text-center text-muted text-[13px] px-6 py-12 gap-1; }
+  .reg-empty-hint { @apply text-xs opacity-80 max-w-prose leading-relaxed; }
+  .reg-page-head { @apply flex items-baseline justify-between gap-3 flex-wrap; }
+
+  /* Admin backfill panel (below the table, admin only) */
+  .admin-panel { @apply mt-6 border border-border rounded-md bg-panel p-4; }
+  .admin-panel-head { @apply flex items-center justify-between gap-3 mb-3; }
+  .admin-panel-sub { @apply mt-5; }
+  .admin-panel-title { @apply text-base m-0 font-semibold text-fg; }
+  .backfill-sources { @apply flex flex-col gap-2; }
+  .backfill-row {
+    @apply flex items-center gap-3 border border-border rounded-md px-3 py-2 bg-panel2 flex-wrap;
+  }
+  .backfill-row-main { @apply flex-1 min-w-[160px]; }
+  .backfill-name { @apply text-sm font-semibold text-fg; }
+  .backfill-sub { @apply text-xs text-muted; }
+  .backfill-status { @apply flex items-center gap-2 flex-wrap; }
+  .backfill-note { @apply text-xs text-muted font-mono [word-break:break-word]; }
+  .backfill-message { @apply text-xs text-muted mt-3; }
+  .backfill-empty { @apply text-muted text-[13px] px-3 py-4; }
+  .pill.running { @apply text-accent2 border-accent2; }
+  .pill.done { @apply text-ok border-ok; }
+  .pill.failed { @apply text-err border-err; }
+  .backfill-known { @apply mt-2 border border-border rounded-md; }
+
+  /* Sources attribution grid */
+  .src-grid { @apply grid gap-3 sm:grid-cols-2; }
+  .src-card { @apply gap-1; }
+  .src-head { @apply flex items-center justify-between gap-3 mb-1; }
+  .src-role { @apply text-muted text-[13px] leading-snug m-0; }
+
+  /* Subscribe confirmation */
+  .sub-section { @apply mb-0; }
+  .sub-confirm { @apply flex flex-col gap-2; }
+  .sub-confirm-row { @apply flex items-center gap-3; }
+  .sub-confirm-label { @apply text-muted text-sm min-w-[80px]; }
 }

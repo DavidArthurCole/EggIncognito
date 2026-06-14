@@ -23,6 +23,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<ProtoProto> ProtoProtos => Set<ProtoProto>();
     public DbSet<FeedSubscription> FeedSubscriptions => Set<FeedSubscription>();
     public DbSet<FeedDelivery> FeedDeliveries => Set<FeedDelivery>();
+    public DbSet<BackfillJob> BackfillJobs => Set<BackfillJob>();
+    public DbSet<KnownVersion> KnownVersions => Set<KnownVersion>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -93,6 +95,18 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.SubscriptionId, x.ProtoVersionId }).IsUnique();
+        });
+        b.Entity<BackfillJob>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // LatestPerSource orders by StartedAt within a source; index keeps that off a full scan.
+            e.HasIndex(x => new { x.Source, x.StartedAt });
+        });
+        b.Entity<KnownVersion>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Platform, x.AppVersion, x.Source }).IsUnique();
+            e.Property(x => x.FirstSeen).HasDefaultValueSql("now()");
         });
     }
 }

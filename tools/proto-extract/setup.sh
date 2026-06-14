@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+
+EXT="pbtk/utils/external"
+
+# Windows checkouts carry CRLF. A "#!/bin/sh\r" shebang makes the kernel report "required file not
+# found" when dex2jar's wrapper scripts run. Strip CR from every shell script in the tree first.
+find . -name "*.sh" -exec sed -i 's/\r$//' {} \;
+
+# dex2jar: official GitHub release zip. Provides the d2j-*.sh wrappers + lib/*.jar (DEX -> JAR).
+DEX2JAR_VER="2.1"
+DEX2JAR_URL="https://github.com/pxb1988/dex2jar/releases/download/v${DEX2JAR_VER}/dex2jar-${DEX2JAR_VER}.zip"
+if [ ! -f "$EXT/dex2jar/d2j-dex2jar.sh" ]; then
+  echo "dex2jar missing; fetching ${DEX2JAR_VER}..."
+  mkdir -p "$EXT"
+  tmp="$(mktemp -d)"
+  if curl -fsSL "$DEX2JAR_URL" -o "$tmp/dex2jar.zip"; then
+    unzip -q "$tmp/dex2jar.zip" -d "$tmp"
+    # The zip nests everything under dex-tools-<ver>/. Flatten into external/dex2jar.
+    src="$(find "$tmp" -maxdepth 1 -type d -name 'dex-tools*' | head -n1)"
+    if [ -n "$src" ]; then
+      rm -rf "$EXT/dex2jar"
+      mv "$src" "$EXT/dex2jar"
+    else
+      echo "WARN: dex2jar zip layout unexpected; copy pbtk/utils/external/dex2jar/ from the EggIncProtoExtractor repo instead." >&2
+    fi
+  else
+    echo "WARN: dex2jar fetch failed. Copy pbtk/utils/external/dex2jar/ from the EggIncProtoExtractor repo (or the frame)." >&2
+  fi
+  rm -rf "$tmp"
+fi
+
+# protoc: official GitHub release. Linux x86_64 build. Used by the descriptor pipeline.
+PROTOC_VER="25.1"
+PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/protoc-${PROTOC_VER}-linux-x86_64.zip"
+if [ ! -f "$EXT/protoc/protoc" ] && [ ! -f "$EXT/protoc/protoc64" ]; then
+  echo "protoc missing; fetching ${PROTOC_VER}..."
+  mkdir -p "$EXT/protoc"
+  tmp="$(mktemp -d)"
+  if curl -fsSL "$PROTOC_URL" -o "$tmp/protoc.zip"; then
+    unzip -q "$tmp/protoc.zip" -d "$tmp/protoc"
+    cp "$tmp/protoc/bin/protoc" "$EXT/protoc/protoc"
+    cp "$tmp/protoc/bin/protoc" "$EXT/protoc/protoc64"
+  else
+    echo "WARN: protoc fetch failed. Copy pbtk/utils/external/protoc/ from the EggIncProtoExtractor repo (or the frame)." >&2
+  fi
+  rm -rf "$tmp"
+fi
+
+# jad: obscure, no stable release URL. The operator must supply it. It ships in the EggIncProtoExtractor
+# repo and already exists on the frame at ~/ei-extract-full/pbtk/utils/external/jad/.
+if [ ! -f "$EXT/jad/jad" ]; then
+  echo "ERROR: jad decompiler missing at $EXT/jad/jad and cannot be fetched (no stable release URL)." >&2
+  echo "       Copy pbtk/utils/external/jad/ from the EggIncProtoExtractor repo or the frame, then re-run." >&2
+  exit 1
+fi
+
+# Make the wrapper scripts + native binaries executable. Tolerant: a missing file here is not fatal,
+# the checks above already gate on the required ones.
+chmod +x \
+  "$EXT/dex2jar/d2j-dex2jar.sh" "$EXT/dex2jar/d2j_invoke.sh" \
+  "$EXT/jad/jad" \
+  "$EXT/protoc/protoc" "$EXT/protoc/protoc64" 2>/dev/null || true
+
+python3 -m venv .venv
+./.venv/bin/pip install -q protobuf requests
+
+echo "proto-extract toolchain ready. Requires java (default-jre-headless) on PATH for dex2jar."

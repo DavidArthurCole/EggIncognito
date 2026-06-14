@@ -1,0 +1,248 @@
+@* Admin-only backfill control + status panel, rendered below the registry table on /protos. Three
+   source rows (GitHub / Android / Apple) with trigger buttons + the latest job status, plus the
+   known_versions discovery list with per-row "Extract proto" buttons. Polls
+   GET /api/protos/backfill/status every ~3s while any job is running. Server ACL is the real gate;
+   the parent only renders this for admins. *@
+@rendermode @(RenderMode.InteractiveServer)
+@implements IDisposable
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+<section class="admin-panel" id="backfillPanel">
+  <div class="admin-panel-head">
+    <h2 class="admin-panel-title">Backfill</h2>
+    <button type="button" class="btn-mini" @onclick="Refresh" disabled="@_loading">Refresh</button>
+  </div>
+
+  <div class="backfill-sources">
+    @foreach (var s in Sources)
+    {
+      var job = JobFor(s.JobSource);
+      <div class="backfill-row">
+        <div class="backfill-row-main">
+          <div class="backfill-name">@s.Label</div>
+          <div class="backfill-sub">@s.Hint</div>
+        </div>
+        <div class="backfill-status">
+          @if (job is null)
+          {
+            <span class="pill">never run</span>
+          }
+          else
+          {
+            <span class="pill @StatusPill(job.Status)">@StatusText(job)</span>
+            @if (!string.IsNullOrEmpty(job.Note))
+            {
+              <span class="backfill-note" title="@job.Note">@Truncate(job.Note)</span>
+            }
+          }
+        </div>
+        <button type="button" class="btn-mini" disabled="@_busy"
+                @onclick="@(() => Trigger(s.Trigger))">Trigger</button>
+      </div>
+    }
+  </div>
+
+  @if (!string.IsNullOrEmpty(_message))
+  {
+    <p class="backfill-message">@_message</p>
+  }
+
+  <div class="admin-panel-head admin-panel-sub">
+    <h3 class="admin-panel-title">Known versions</h3>
+    <span class="text-muted text-xs">@_known.Count seen, not yet proto-captured</span>
+  </div>
+  <p class="text-muted text-xs">
+    Extract pulls the APKPure XAPK, unzips the arm64 split, and runs the proto toolchain. Works only on
+    a host with ProtoExtract configured (the frame toolchain + java); elsewhere it returns 501.
+  </p>
+
+  @if (_known.Count == 0)
+  {
+    <div class="backfill-empty">No discovered versions yet. Run the Android or Apple list import.</div>
+  }
+  else
+  {
+    <table class="reg-table backfill-known">
+      <thead>
+        <tr>
+          <th>Platform</th>
+          <th>App Version</th>
+          <th>Source</th>
+          <th>Release</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var k in _known)
+        {
+          <tr>
+            <td><span class="code-chip">@k.Platform</span></td>
+            <td class="mono">@k.AppVersion</td>
+            <td class="text-muted">@k.Source</td>
+            <td class="text-muted">@(k.ReleaseDate?.ToString("yyyy-MM-dd") ?? "")</td>
+            <td>
+              <button type="button" class="btn-mini" disabled="@_busy"
+                      @onclick="@(() => Extract(k.AppVersion))">Extract proto</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</section>
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    // GitHub -> elgranjero; Android -> apkpure list; Apple -> itunes list. The job source key matches
+    // what the importer writes (elgranjero / apkpure / itunes).
+    static readonly SourceRow[] Sources =
+    [
+        new("GitHub", "elgranjero / EggIncProtos, full history with proto text", "github", "elgranjero"),
+        new("Android", "APKPure version list (feeds the per-APK extract path)", "android", "apkpure"),
+        new("Apple", "iTunes lookup, current iOS version metadata", "apple", "itunes"),
+    ];
+
+    List<JobRow> _jobs = [];
+    List<KnownRow> _known = [];
+    bool _loading;
+    bool _busy;
+    string? _message;
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    System.Threading.Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Poll every 3s; the callback short-circuits when no job is running, so it is cheap.
+            _timer = new System.Threading.Timer(async _ => await Tick(), null,
+                TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+        }
+    }
+
+    async Task Tick()
+    {
+        if (!_jobs.Any(j => j.Status == "running")) return;
+        await InvokeAsync(async () => { await Load(); StateHasChanged(); });
+    }
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var res = await Client().GetFromJsonAsync<StatusResponse>("/api/protos/backfill/status", JsonOpts);
+            _jobs = res?.Jobs ?? [];
+            _known = res?.Known ?? [];
+        }
+        catch { _jobs = []; _known = []; }
+        _loading = false;
+    }
+
+    Task Refresh() => Load();
+
+    JobRow? JobFor(string source) => _jobs.FirstOrDefault(j => j.Source == source);
+
+    async Task Trigger(string which)
+    {
+        _busy = true;
+        _message = null;
+        var url = which switch
+        {
+            "github" => "/api/protos/backfill/elgranjero",
+            "android" => "/api/protos/backfill/list/apkpure",
+            "apple" => "/api/protos/backfill/list/itunes",
+            _ => null,
+        };
+        try
+        {
+            if (url is not null)
+            {
+                var res = await Client().PostAsync(url, null);
+                _message = res.IsSuccessStatusCode
+                    ? "Import started. Status updates below."
+                    : $"Trigger failed ({(int)res.StatusCode}).";
+            }
+        }
+        catch (Exception ex) { _message = $"Trigger failed: {ex.Message}"; }
+        _busy = false;
+        await Load();
+    }
+
+    async Task Extract(string appVersion)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var res = await Client().PostAsJsonAsync("/api/protos/backfill/apk-extract",
+                new { appVersion }, JsonOpts);
+            if ((int)res.StatusCode == 501)
+            {
+                _message = "Proto extraction not configured here. Needs a host with ProtoExtract set "
+                    + "(the frame toolchain + java); most hosts return 501.";
+            }
+            else
+            {
+                _message = res.IsSuccessStatusCode
+                    ? $"Extract started for {appVersion}."
+                    : $"Extract failed ({(int)res.StatusCode}).";
+            }
+        }
+        catch (Exception ex) { _message = $"Extract failed: {ex.Message}"; }
+        _busy = false;
+        await Load();
+    }
+
+    static string StatusPill(string status) => status switch
+    {
+        "running" => "running",
+        "failed" => "failed",
+        _ => "done",
+    };
+
+    static string StatusText(JobRow j) => j.Status switch
+    {
+        "running" => $"running ({j.Imported})",
+        "done" => $"done ({j.Imported})",
+        "failed" => "failed",
+        _ => j.Status,
+    };
+
+    static string Truncate(string s) => s.Length <= 60 ? s : s[..60] + "...";
+
+    public void Dispose() => _timer?.Dispose();
+
+    sealed record SourceRow(string Label, string Hint, string Trigger, string JobSource);
+    sealed record StatusResponse(List<JobRow> Jobs, List<KnownRow> Known);
+    sealed record JobRow(string Source, string Status, DateTimeOffset StartedAt,
+        DateTimeOffset? FinishedAt, int Imported, int? Total, string? Note);
+    sealed record KnownRow(string Platform, string AppVersion, DateTimeOffset? ReleaseDate,
+        string? Changelog, string Source);
+}

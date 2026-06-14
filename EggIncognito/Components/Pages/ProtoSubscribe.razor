@@ -5,49 +5,81 @@
 @inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>EggIncognito - Subscribe to proto updates</PageTitle>
-<main class="px-4 sm:px-8 pt-6 pb-8">
-  <h1 class="text-[1.3rem] mt-0 mb-2">Subscribe to proto updates</h1>
+<main class="px-4 sm:px-8 pt-6 pb-8 max-w-2xl">
+  <div class="reg-page-head">
+    <h1 class="text-[1.3rem] mt-0 mb-1">Subscribe to proto updates</h1>
+    <a class="proto-version" href="/protos">Back to the registry</a>
+  </div>
   <p class="text-muted mb-4">
-    Get a Discord notification when the registry sees a new game build.
-    Paste a channel webhook URL, pick what you want, and we send a test message on save.
+    Get a Discord notification when the registry sees a new game build. Paste a channel webhook URL,
+    pick what you want, and we send a test message on save.
   </p>
 
-  <section class="panel max-w-xl">
-    <label class="block mb-3">
-      <span class="block text-muted text-sm mb-1">Discord webhook URL</span>
-      <input class="field-input w-full" placeholder="https://discord.com/api/webhooks/..."
-             @bind="_url" @bind:event="oninput" />
-    </label>
+  @if (_done is not null)
+  {
+    <section class="panel">
+      <h2 class="text-base mt-0 mb-2">Subscribed</h2>
+      <p class="text-muted mb-3">A test message was sent to your channel. You will be notified on:</p>
+      <div class="sub-confirm">
+        <div class="sub-confirm-row">
+          <span class="sub-confirm-label">Platforms</span>
+          <span class="code-chip">@_done.Platforms</span>
+        </div>
+        <div class="sub-confirm-row">
+          <span class="sub-confirm-label">Trigger</span>
+          <span class="code-chip">@_done.Trigger</span>
+        </div>
+      </div>
+      <button type="button" class="btn-primary mt-4" @onclick="Reset">Add another</button>
+    </section>
+  }
+  else
+  {
+    <section class="panel">
+      <div class="sub-section">
+        <label class="block">
+          <span class="block text-muted text-sm mb-1">Discord webhook URL</span>
+          <input class="field-input w-full" placeholder="https://discord.com/api/webhooks/..."
+                 @bind="_url" @bind:event="oninput" />
+        </label>
+      </div>
 
-    <fieldset class="mb-3">
-      <legend class="text-muted text-sm mb-1">Platforms</legend>
-      <label class="mr-4"><input type="checkbox" @bind="_android" /> Android</label>
-      <label><input type="checkbox" @bind="_ios" /> iOS</label>
-    </fieldset>
+      <hr class="settings-divider" />
 
-    <fieldset class="mb-4">
-      <legend class="text-muted text-sm mb-1">Notify on</legend>
-      <label class="block">
-        <input type="radio" name="trigger" checked="@(_trigger == "proto_changed")"
-               @onchange="@(() => _trigger = "proto_changed")" />
-        Proto changed (the high-value signal)
-      </label>
-      <label class="block">
-        <input type="radio" name="trigger" checked="@(_trigger == "new_version")"
-               @onchange="@(() => _trigger = "new_version")" />
-        Any new version
-      </label>
-    </fieldset>
+      <fieldset class="sub-section">
+        <legend class="text-muted text-sm mb-1">Platforms</legend>
+        <label class="settings-check mb-1"><input type="checkbox" @bind="_android" /> Android</label>
+        <label class="settings-check"><input type="checkbox" @bind="_ios" /> iOS</label>
+      </fieldset>
 
-    <button type="button" class="btn-primary" disabled="@_busy" @onclick="Submit">
-      @(_busy ? "Sending test..." : "Subscribe")
-    </button>
+      <hr class="settings-divider" />
 
-    @if (_message is not null)
-    {
-      <p class="mt-3 @(_ok ? "text-emerald-400" : "text-rose-400")">@_message</p>
-    }
-  </section>
+      <fieldset class="sub-section">
+        <legend class="text-muted text-sm mb-1">Notify on</legend>
+        <label class="settings-check mb-1">
+          <input type="radio" name="trigger" checked="@(_trigger == "proto_changed")"
+                 @onchange="@(() => _trigger = "proto_changed")" />
+          Proto changed (the high-value signal)
+        </label>
+        <label class="settings-check">
+          <input type="radio" name="trigger" checked="@(_trigger == "new_version")"
+                 @onchange="@(() => _trigger = "new_version")" />
+          Any new version
+        </label>
+      </fieldset>
+
+      <hr class="settings-divider" />
+
+      <button type="button" class="btn-primary" disabled="@_busy" @onclick="Submit">
+        @(_busy ? "Sending test..." : "Subscribe")
+      </button>
+
+      @if (_error is not null)
+      {
+        <p class="mt-3 text-err">@_error</p>
+      }
+    </section>
+  }
 </main>
 
 @code {
@@ -58,8 +90,8 @@
     bool _ios = true;
     string _trigger = "proto_changed";
     bool _busy;
-    bool _ok;
-    string? _message;
+    string? _error;
+    Confirmation? _done;
 
     string _baseAddress = "";
     string? _cookie;
@@ -82,10 +114,20 @@
         return c;
     }
 
+    void Reset()
+    {
+        _done = null;
+        _error = null;
+        _url = "";
+        _android = true;
+        _ios = true;
+        _trigger = "proto_changed";
+    }
+
     async Task Submit()
     {
         _busy = true;
-        _message = null;
+        _error = null;
         try
         {
             var platforms = new List<string>();
@@ -93,25 +135,26 @@
             if (_ios) platforms.Add("ios");
             var body = new { webhookUrl = _url, platforms = platforms.ToArray(), trigger = _trigger, label = (string?)null };
             var res = await Client().PostAsJsonAsync("/api/protos/feed", body, JsonOpts);
-            _ok = res.IsSuccessStatusCode;
-            if (_ok)
+            if (res.IsSuccessStatusCode)
             {
-                _message = "Subscribed. A test message was sent to your channel.";
-                _url = "";
+                var label = platforms.Count == 0 ? "none" : string.Join(", ", platforms);
+                _done = new Confirmation(label, TriggerLabel(_trigger));
             }
             else
             {
                 var err = await res.Content.ReadFromJsonAsync<ErrorBody>(JsonOpts);
-                _message = err?.Error ?? $"Subscription failed ({(int)res.StatusCode}).";
+                _error = err?.Error ?? $"Subscription failed ({(int)res.StatusCode}).";
             }
         }
         catch (Exception ex)
         {
-            _ok = false;
-            _message = $"Subscription failed: {ex.Message}";
+            _error = $"Subscription failed: {ex.Message}";
         }
         _busy = false;
     }
 
+    static string TriggerLabel(string t) => t == "new_version" ? "any new version" : "proto changed";
+
+    record Confirmation(string Platforms, string Trigger);
     record ErrorBody(string? Error);
 }

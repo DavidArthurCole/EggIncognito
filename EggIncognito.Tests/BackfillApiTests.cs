@@ -1,6 +1,7 @@
 using EggIncognito.Controllers;
 using EggIncognito.Data.Models;
 using EggIncognito.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 
 namespace EggIncognito.Tests;
@@ -41,4 +42,45 @@ public class BackfillApiTests
     [Fact]
     public void AppStore_Admin_NoDb_Is503() =>
         Assert.Equal(503, ((IStatusCodeActionResult)Controller(UserRole.Admin).AppStore()).StatusCode);
+
+    [Fact]
+    public void List_NonAdmin_Is403() =>
+        Assert.Equal(403, ((IStatusCodeActionResult)Controller(UserRole.Viewer).List("fandom")).StatusCode);
+
+    [Fact]
+    public void List_Admin_UnknownSource_Is400() =>
+        Assert.Equal(400, ((IStatusCodeActionResult)Controller(UserRole.Admin).List("bogus")).StatusCode);
+
+    [Fact]
+    public void List_Admin_KnownSource_NoDb_Is503() =>
+        Assert.Equal(503, ((IStatusCodeActionResult)Controller(UserRole.Admin).List("fandom")).StatusCode);
+
+    [Fact]
+    public async Task ApkExtract_NonAdmin_Is403() =>
+        Assert.Equal(403, ((IStatusCodeActionResult)await Controller(UserRole.Contributor)
+            .ApkExtract(new BackfillController.ApkExtractRequest("1.0.0"))).StatusCode);
+
+    [Fact]
+    public async Task ApkExtract_Admin_NoDb_Is503() =>
+        Assert.Equal(503, ((IStatusCodeActionResult)await Controller(UserRole.Admin)
+            .ApkExtract(new BackfillController.ApkExtractRequest("1.0.0"))).StatusCode);
+
+    [Fact]
+    public async Task ApkExtract_Admin_BlankVersion_Is400() =>
+        Assert.Equal(400, ((IStatusCodeActionResult)await Controller(UserRole.Admin)
+            .ApkExtract(new BackfillController.ApkExtractRequest(""))).StatusCode);
+
+    [Fact]
+    public async Task Status_NonAdmin_Is403() =>
+        Assert.Equal(403, ((IStatusCodeActionResult)await Controller(UserRole.Viewer)
+            .Status(CancellationToken.None)).StatusCode);
+
+    // Admin with no DB: status degrades to an empty 200 (no job store), never 503.
+    [Fact]
+    public async Task Status_Admin_NoDb_Is200_Empty()
+    {
+        var result = await Controller(UserRole.Admin).Status(CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(200, ok.StatusCode);
+    }
 }

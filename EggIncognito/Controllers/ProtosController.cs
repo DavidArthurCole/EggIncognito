@@ -1,4 +1,5 @@
 using EggIncognito.Data.Services;
+using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -68,6 +69,29 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
             : Ok(new { r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.ProtoSha, r.DetectedAt });
     }
 
-    // TODO(phase 3): GET diff?from=&to= computes message/field add+remove between two versions'
-    // .proto texts server-side. Deferred; not stubbed so callers don't depend on a fake shape.
+    // Namespace-insensitive diff between two stored versions' .proto texts (port of protodiff.py).
+    // 404 if either version or its proto text is missing; text/plain `@@ message @@` +/- sections.
+    [HttpGet("diff")]
+    public async Task<IActionResult> Diff(
+        [FromQuery] string from, [FromQuery] string to, [FromQuery] string platform = "android",
+        CancellationToken ct = default)
+    {
+        if (Store is null) return NotFound();
+        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+            return BadRequest(new { error = "from and to required" });
+
+        var fromText = await LoadProtoText(platform, from, ct);
+        var toText = await LoadProtoText(platform, to, ct);
+        if (fromText is null || toText is null) return NotFound();
+
+        return Content(ProtoDiff.Diff(fromText, toText), "text/plain");
+    }
+
+    private async Task<string?> LoadProtoText(string platform, string build, CancellationToken ct)
+    {
+        var row = await Store!.GetAsync(platform, build, ct);
+        if (row is null) return null;
+        var pp = await Store.GetProtoAsync(row.Id, ct);
+        return pp?.ProtoText;
+    }
 }

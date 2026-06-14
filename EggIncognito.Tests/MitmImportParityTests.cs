@@ -111,7 +111,7 @@ needs_capture:
         return TnetDict(("type", TnetStr("http")), ("request", req), ("response", res));
     }
 
-    // --- binary-safe tnetstring encoder (bytes for content, str for the rest) ---
+    // binary-safe tnetstring encoder (bytes for content, str for the rest)
 
     private static byte[] TnetStr(string s) => TnetBytes(Encoding.UTF8.GetBytes(s));
 

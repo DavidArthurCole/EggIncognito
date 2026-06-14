@@ -1,0 +1,66 @@
+@* Proto-registry toolbar, projected into the top nav via SectionContent (the Inspector/Capture
+   pattern). Platform segmented control + filter input + Subscribe/Sources links, plus an admin-only
+   Backfill popover (the .settings-menu pattern from CaptureToolbar) holding the import triggers. The
+   admin button is hidden entirely for non-admins; the server ACL is the real gate. *@
+@using EggIncognito.Components.Shared
+
+<div class="protos-toolbar toolbar">
+  <div class="settings-seg protos-seg" role="radiogroup" aria-label="Platform">
+    @foreach (var p in Platforms)
+    {
+      <button type="button" class="seg-btn @(Platform == p.Key ? "active" : "")"
+              @onclick="@(() => OnPlatformChanged.InvokeAsync(p.Key))">@p.Value</button>
+    }
+  </div>
+
+  <input class="protos-filter" type="text" placeholder="Filter version..." value="@Filter"
+         @oninput="@(e => OnFilterChanged.InvokeAsync(e.Value?.ToString() ?? ""))" />
+
+  <a class="icon-btn" href="/protos/subscribe" title="Subscribe to updates" aria-label="Subscribe to updates">
+    <Icon Name="bell" />
+  </a>
+  <a class="icon-btn" href="/protos/sources" title="Sources" aria-label="Sources">
+    <Icon Name="info" />
+  </a>
+
+  @if (IsAdmin)
+  {
+    <div class="settings-wrap">
+      <button type="button" class="icon-btn @(_open ? "active" : "")" title="Backfill" aria-label="Backfill"
+              aria-haspopup="true" aria-expanded="@_open" @onclick="@(() => _open = !_open)">
+        <Icon Name="database" />
+      </button>
+      <div class="settings-menu @(_open ? "open" : "")">
+        <div class="settings-title">Backfill</div>
+        <div class="settings-hint">Trigger an import. Status shows in the admin panel below the table.</div>
+        <button type="button" class="btn-mini protos-trigger" @onclick="@(() => Trigger("github"))">GitHub (elgranjero)</button>
+        <button type="button" class="btn-mini protos-trigger" @onclick="@(() => Trigger("android"))">Android (APKPure)</button>
+        <button type="button" class="btn-mini protos-trigger" @onclick="@(() => Trigger("apple"))">Apple (iTunes)</button>
+      </div>
+    </div>
+  }
+</div>
+
+@code {
+    static readonly KeyValuePair<string?, string>[] Platforms =
+    [
+        new(null, "All"),
+        new("android", "Android"),
+        new("ios", "iOS"),
+    ];
+
+    [Parameter] public string? Platform { get; set; }
+    [Parameter] public string Filter { get; set; } = "";
+    [Parameter] public bool IsAdmin { get; set; }
+    [Parameter] public EventCallback<string?> OnPlatformChanged { get; set; }
+    [Parameter] public EventCallback<string> OnFilterChanged { get; set; }
+    [Parameter] public EventCallback<string> OnTrigger { get; set; }
+
+    bool _open;
+
+    async Task Trigger(string which)
+    {
+        _open = false;
+        await OnTrigger.InvokeAsync(which);
+    }
+}
