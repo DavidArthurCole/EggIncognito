@@ -121,58 +121,74 @@ public sealed class ProxyFrontDoor(
                 return;
             }
 
-            // Tunnel to the session's inner proxy. Unobtanium 0.9.x binds its HTTP proxy listener to
-            // 127.0.0.1:(base+1); base is the LAN forwarder (not started for hosted sessions) and
-            // base+2 is the internal TLS-forward port, so base+1 is the port that accepts proxy requests.
-            //
-            // Do NOT replay the device's raw CONNECT headers. iOS sends headers the inner proxy's
-            // Kestrel-based listener rejects: a Host header, `Proxy-Connection: keep-alive`, AND a
-            // `Connection: keep-alive` (and on retries a second `Connection: close`). Duplicate or
-            // disallowed Connection headers make Kestrel return 400 Bad Request, so capture silently
-            // failed for every device. Send a clean minimal CONNECT instead (what a normal proxy client
-            // sends), wait for the inner 200, relay it, then forward only the actual tunnel bytes.
-            using var inner = new TcpClient { NoDelay = true };
-            await inner.ConnectAsync(IPAddress.Loopback, session.Port + 1, ct);
-            var innerStream = inner.GetStream();
-
-            var cleanConnect = System.Text.Encoding.ASCII.GetBytes(
-                $"CONNECT {first.TargetHost}:{first.TargetPort} HTTP/1.1\r\n\r\n");
-            await innerStream.WriteAsync(cleanConnect, ct);
-
-            // Relay the inner proxy's CONNECT response (e.g. 200) to the device, stopping at the header
-            // terminator so any tunnel bytes that follow are left for the pump.
-            var respBuf = new byte[8 * 1024];
-            var respLen = 0;
-            while (respLen < respBuf.Length)
-            {
-                var n = await innerStream.ReadAsync(respBuf.AsMemory(respLen), ct);
-                if (n == 0) break;
-                respLen += n;
-                if (FindHeaderEnd(respBuf.AsSpan(0, respLen)) >= 0) break;
-            }
-            if (respLen == 0) return;
-            await stream.WriteAsync(respBuf.AsMemory(0, respLen), ct);
-
-            long up = cleanConnect.Length, down = respLen;
-
-            // The device may have pipelined its TLS ClientHello right after the CONNECT headers; those
-            // bytes are already in `raw` past the parsed request. Forward them before pumping.
-            var connectHeaderLen = first.RawBytes.Length;
-            var leftover = rawLen - connectHeaderLen;
-            if (leftover > 0)
-            {
-                await innerStream.WriteAsync(raw.AsMemory(connectHeaderLen, leftover), ct);
-                up += leftover;
-            }
-
-            var pumpUp = PumpAsync(stream, innerStream, n => Interlocked.Add(ref up, n), ct);
-            var pumpDown = PumpAsync(innerStream, stream, n => Interlocked.Add(ref down, n), ct);
-            await Task.WhenAny(pumpUp, pumpDown);
-            log?.Invoke($"capture-frontdoor: {user} {first.TargetHost} {Interlocked.Read(ref up)}/{Interlocked.Read(ref down)}");
+            await TunnelAsync(stream, session, first, raw, rawLen, user, ct);
         }
         catch (OperationCanceledException) { /* shutdown */ }
         catch (IOException) { /* peer reset */ }
         catch (SocketException) { /* peer reset */ }
+    }
+
+    // Connect to the session's inner Unobtanium proxy and bridge the device through it.
+    //
+    // Do NOT replay the device's raw CONNECT headers to the inner proxy. iOS sends headers the inner
+    // proxy's Kestrel-based listener rejects: a Host header, `Proxy-Connection: keep-alive`, and a
+    // `Connection: keep-alive` (plus, on a retried request that gets buffered together, a second
+    // `Connection: close`). Duplicate or disallowed Connection headers make Kestrel answer 400 Bad
+    // Request, so capture silently failed for every device. Send a clean minimal CONNECT (what a normal
+    // proxy client sends), relay the inner proxy's response, then pass through only the tunnel bytes.
+    private async Task TunnelAsync(
+        NetworkStream stream, CaptureSession session, ProxyFirstRequest first,
+        byte[] raw, int rawLen, string user, CancellationToken ct)
+    {
+        using var inner = new TcpClient { NoDelay = true };
+        await inner.ConnectAsync(IPAddress.Loopback, session.Port + 1, ct);
+        var innerStream = inner.GetStream();
+
+        // The inner proxy's Kestrel listener requires a Host header that includes the port
+        // (`host:port`); iOS sends `Host: host` without it, which Kestrel 400s. Synthesize the form the
+        // inner proxy accepts.
+        var cleanConnect = System.Text.Encoding.ASCII.GetBytes(
+            $"CONNECT {first.TargetHost}:{first.TargetPort} HTTP/1.1\r\nHost: {first.TargetHost}:{first.TargetPort}\r\n\r\n");
+        await innerStream.WriteAsync(cleanConnect, ct);
+
+        // Relay the inner proxy's CONNECT response (e.g. 200) to the device, stopping at the header
+        // terminator so any tunnel bytes that follow are left for the pump.
+        var respBuf = new byte[8 * 1024];
+        var respLen = 0;
+        while (respLen < respBuf.Length)
+        {
+            var n = await innerStream.ReadAsync(respBuf.AsMemory(respLen), ct);
+            if (n == 0) break;
+            respLen += n;
+            if (FindHeaderEnd(respBuf.AsSpan(0, respLen)) >= 0) break;
+        }
+        if (respLen == 0) return;
+        await stream.WriteAsync(respBuf.AsMemory(0, respLen), ct);
+
+        long up = cleanConnect.Length, down = respLen;
+
+        // The device may have pipelined its TLS ClientHello right after the CONNECT headers; those bytes
+        // are already in `raw` past the parsed request. Forward them before pumping.
+        var connectHeaderLen = first.RawBytes.Length;
+        var leftover = rawLen - connectHeaderLen;
+        if (leftover > 0)
+        {
+            await innerStream.WriteAsync(raw.AsMemory(connectHeaderLen, leftover), ct);
+            up += leftover;
+        }
+
+        var pumpUp = PumpAsync(stream, innerStream, n => Interlocked.Add(ref up, n), ct);
+        var pumpDown = PumpAsync(innerStream, stream, n => Interlocked.Add(ref down, n), ct);
+        await Task.WhenAny(pumpUp, pumpDown);
+        log?.Invoke($"capture-frontdoor: {user} {first.TargetHost} {Interlocked.Read(ref up)}/{Interlocked.Read(ref down)}");
+    }
+
+    // Index of the \r\n\r\n header terminator, or -1.
+    private static int FindHeaderEnd(ReadOnlySpan<byte> b)
+    {
+        for (var i = 0; i + 3 < b.Length; i++)
+            if (b[i] == '\r' && b[i + 1] == '\n' && b[i + 2] == '\r' && b[i + 3] == '\n') return i;
+        return -1;
     }
 
     // Accumulate the first request until the headers are complete, the 16KB cap is hit, or the 10s
