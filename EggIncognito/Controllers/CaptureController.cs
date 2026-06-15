@@ -350,6 +350,18 @@ public sealed class CaptureController(
         return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
 
+    // Mint a fresh random address, killing the old (possibly leaked) one. The old address immediately
+    // resolves to nobody, so the front door rejects it; the device must be reconfigured with the new one.
+    [HttpPost("proxy-address/rotate")]
+    public async Task<IActionResult> RotateProxyAddress(CancellationToken ct)
+    {
+        if (RequireHostedSupporter() is { } no) return no;
+        var store = services.GetService(typeof(CaptureAddressStore)) as CaptureAddressStore;
+        if (store is null) return StatusCode(503, new { error = "no database configured" });
+        var addr = await store.RotateAsync(hostedOptions.Ipv6Prefix, currentUser.DiscordId!, ct);
+        return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
+    }
+
     // The caller's capture CA as a device-installable .cer. Prefers the live session's exported
     // cert; falls back to the public half of the stored pfx.
     [HttpGet("ca.cer")]

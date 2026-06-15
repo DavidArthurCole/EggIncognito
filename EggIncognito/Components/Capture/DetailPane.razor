@@ -214,6 +214,12 @@ else
             builder.CloseElement();
             builder.CloseElement();
         }
+        else if (ImageMime(f) is { } mime && !string.IsNullOrEmpty(f.ResponseB64))
+        {
+            // Image responses (PNG/JPEG/GIF/WebP): render the actual image, not a hex dump. Hex of an
+            // image is useless and the byte-by-byte view is slow for large blobs.
+            builder.AddContent(seq++, ImageResponseSection(mime, f.ResponseB64!));
+        }
         else
         {
             builder.OpenComponent<FormatView>(seq++);
@@ -242,6 +248,65 @@ else
         </div>
         <pre class="data-text">@text</pre>
       </div>;
+
+    // Detect an image response by the leading magic bytes of the base64 body (independent of any
+    // content-type header). Returns the MIME type, or null if not a recognized raster image.
+    static string? ImageMime(DashboardFlow f)
+    {
+        var b64 = f.ResponseB64;
+        if (string.IsNullOrEmpty(b64)) return null;
+        Span<byte> head = stackalloc byte[12];
+        // Decode just the first few bytes: 16 base64 chars -> 12 bytes, enough for every signature.
+        var prefix = b64.Length >= 16 ? b64[..16] : b64;
+        int n;
+        try { if (!Convert.TryFromBase64String(prefix.PadRight((prefix.Length + 3) / 4 * 4, '='), head, out n)) return null; }
+        catch { return null; }
+        var b = head[..n];
+        if (b.Length >= 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) return "image/png";
+        if (b.Length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) return "image/jpeg";
+        if (b.Length >= 6 && b[0] == 0x47 && b[1] == 0x49 && b[2] == 0x46) return "image/gif";
+        if (b.Length >= 12 && b[0] == 0x52 && b[1] == 0x49 && b[2] == 0x46 && b[3] == 0x46
+            && b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50) return "image/webp";
+        return null;
+    }
+
+    RenderFragment ImageResponseSection(string mime, string b64) => builder =>
+    {
+        var seq = 0;
+        var bytes = (b64.Length * 3) / 4; // approximate decoded size
+        builder.OpenElement(seq++, "div");
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "section-head");
+        builder.OpenElement(seq++, "h3");
+        builder.AddContent(seq++, "Response");
+        builder.CloseElement();
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "ack-tag");
+        builder.AddContent(seq++, mime);
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "image-preview");
+        builder.OpenElement(seq++, "img");
+        builder.AddAttribute(seq++, "src", $"data:{mime};base64,{b64}");
+        builder.AddAttribute(seq++, "alt", "response image");
+        builder.AddAttribute(seq++, "loading", "lazy");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "muted image-meta");
+        builder.AddContent(seq++, $"{mime} · ~{FormatBytes(bytes)}");
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+
+    static string FormatBytes(long n) =>
+        n >= 1024 * 1024 ? $"{n / (1024.0 * 1024):0.#} MB" :
+        n >= 1024 ? $"{n / 1024.0:0.#} KB" : $"{n} B";
 
     // "URL" section: the request path plus any path/query params, EID-bearing values blurred/redacted.
     // Returns null when there is nothing to show. Ported from buildParamsSection + parseFlowUrl.

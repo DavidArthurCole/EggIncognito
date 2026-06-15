@@ -16,9 +16,18 @@
     Wi-Fi proxy to Manual with the values below, install the CA, open Egg, Inc.</p>
 
   <div class="mb-3">
-    <div class="mb-1"><span class="text-muted text-xs">Server</span> <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span></div>
+    <div class="mb-1 flex items-center gap-2">
+      <span class="text-muted text-xs">Server</span>
+      <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span>
+      <button type="button" class="icon-btn icon-btn-sm" title="Rotate address" aria-label="Rotate address"
+              @onclick="RotateAddress" disabled="@_rotating"><Icon Name="refresh" Class="icon-sm" /></button>
+    </div>
     <div class="mb-1"><span class="text-muted text-xs">Port</span> <span class="code-chip">@Port</span></div>
     <div class="mb-1"><span class="text-muted text-xs">Authentication</span> <span class="code-chip">off</span></div>
+    @if (_rotated)
+    {
+      <p class="text-muted text-xs mt-1 mb-0" id="rotatedNotice">New address issued. The old one no longer works. Update your device's proxy Server to the value above.</p>
+    }
   </div>
 
   @if (_caDmFailed)
@@ -80,6 +89,29 @@
 
     string? _proxyHost;
     bool _caDmFailed;
+    bool _rotating;
+    bool _rotated;
+
+    // Mint a fresh random address, killing the old (leaked) one. The server replaces the stored address
+    // so the old one stops resolving; the user re-points their device at the new value shown.
+    async Task RotateAddress()
+    {
+        if (ClientFactory is null || _rotating) return;
+        _rotating = true;
+        _rotated = false;
+        try
+        {
+            var res = await ClientFactory().PostAsync("/api/capture/proxy-address/rotate", null);
+            if (res.IsSuccessStatusCode)
+            {
+                using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+                _proxyHost = doc.RootElement.GetProperty("host").GetString();
+                _rotated = true;
+            }
+        }
+        catch { /* leave the current address shown */ }
+        finally { _rotating = false; }
+    }
 
     // After the interactive circuit is live (ClientFactory can forward the auth cookie), fetch the
     // user's proxy address and poll status once to surface a failed CA DM.

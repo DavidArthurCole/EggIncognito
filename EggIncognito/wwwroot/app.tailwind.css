@@ -257,6 +257,12 @@
     @apply font-mono text-xs bg-bg border border-border rounded p-2 whitespace-pre overflow-auto
            max-h-[360px] m-0;
   }
+  /* Image response preview: render the actual image instead of a hex dump. */
+  .image-preview {
+    @apply border border-border rounded bg-bg p-2 overflow-auto max-h-[480px] flex justify-center;
+  }
+  .image-preview img { @apply max-w-full h-auto object-contain; image-rendering: pixelated; }
+  .image-meta { @apply text-xs mt-1; }
   /* Raw envelope bytes. */
   .bytes, .raw-box {
     @apply font-mono text-[11px] bg-bg border border-border rounded p-1.5 [word-break:break-all]
