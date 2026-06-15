@@ -62,16 +62,14 @@ public sealed class DiscordCaptureCaNotifier(
     // identifies the user by the per-user proxy address, so no username or password is needed.
     internal static string BuildMessage(CaptureSetupDm dm) =>
         $"""
-        **EggIncognito hosted capture setup**
+        **Hosted capture is live.**
 
-        Open the attached profile on iOS to install the CA in one tap (then enable full trust under
-        Settings > General > About > Certificate Trust Settings). Android needs a rooted device with
-        the CA in the system trust store.
-
-        Then set your device Wi-Fi proxy to:
-        Proxy: `{dm.ProxyHost}:{dm.Port}`  (no username or password, authentication off)
-        Tap the value above to copy it. Your session is live: install the profile, set the proxy,
-        then open Egg, Inc.
+        **1. Install the CA** (attached). iOS: open it, then Settings > General > About > Certificate Trust Settings, turn it on. Android: needs root.
+        **2. Set Wi-Fi proxy to Manual:**
+        Server `{dm.ProxyHost}`
+        Port `{dm.Port}`
+        Auth off
+        **3. Open Egg, Inc.**
         """;
 
     // POST /users/@me/channels {"recipient_id": id} -> the DM channel id, or null on any failure.

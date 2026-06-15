@@ -12,13 +12,12 @@
       @(Running ? "Stop capture" : "Start capture")
     </button>
   </div>
-  <p class="text-muted text-sm mt-0 mb-3">Click <strong>Start capture</strong> and the bot DMs you a
-    one-tap CA install profile. Set your device's Wi-Fi HTTP proxy to the host and port below, leave
-    authentication off, then install and trust the DM'd CA.</p>
+  <p class="text-muted text-sm mt-0 mb-3"><strong>Start capture</strong> DMs you the CA. Set your
+    Wi-Fi proxy to Manual with the values below, install the CA, open Egg, Inc.</p>
 
   <div class="mb-3">
-    <div class="mb-1"><span class="text-muted text-xs">Proxy host</span> <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span></div>
-    <div class="mb-1"><span class="text-muted text-xs">Proxy port</span> <span class="code-chip">@Port</span></div>
+    <div class="mb-1"><span class="text-muted text-xs">Server</span> <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span></div>
+    <div class="mb-1"><span class="text-muted text-xs">Port</span> <span class="code-chip">@Port</span></div>
     <div class="mb-1"><span class="text-muted text-xs">Authentication</span> <span class="code-chip">off</span></div>
   </div>
 
@@ -42,9 +41,9 @@
     <summary class="setup-summary">Setup instructions</summary>
 
     <ol class="text-muted text-sm leading-relaxed pl-5 mt-2 mb-3">
-      <li>Set the device's Wi-Fi HTTP proxy to the host + port above, and leave authentication off.</li>
-      <li>Open the DM'd install profile and trust the CA, see your platform below.</li>
-      <li>Start the capture session, then open Egg, Inc. - flows appear live below.</li>
+      <li>Wi-Fi proxy to Manual: Server + Port above, auth off.</li>
+      <li>Install + trust the DM'd CA, see your platform below.</li>
+      <li>Open Egg, Inc. Flows appear live below.</li>
     </ol>
 
     <div class="setup-platforms">

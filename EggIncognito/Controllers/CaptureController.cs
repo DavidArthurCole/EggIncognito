@@ -188,7 +188,7 @@ public sealed class CaptureController(
 
         var addr = await addrStore.AddrForUserAsync(
             hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, discordId, ct);
-        var dm = new CaptureSetupDm(discordId, cer, $"[{addr}]", hostedOptions.FrontDoorPort);
+        var dm = new CaptureSetupDm(discordId, cer, addr.ToString(), hostedOptions.FrontDoorPort);
         if (await notifier.SendSetupAsync(dm, ct)) return;
         FlagDmFailed(session);
     }
@@ -347,7 +347,7 @@ public sealed class CaptureController(
         if (store is null) return StatusCode(503, new { error = "no database configured" });
         var addr = await store.AddrForUserAsync(
             hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, currentUser.DiscordId!, ct);
-        return Ok(new { host = $"[{addr}]", port = hostedOptions.FrontDoorPort, address = addr.ToString() });
+        return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
 
     // The caller's capture CA as a device-installable .cer. Prefers the live session's exported
