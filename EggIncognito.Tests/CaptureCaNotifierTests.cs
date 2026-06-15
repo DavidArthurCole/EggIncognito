@@ -165,16 +165,15 @@ public class CaptureCaNotifierTests
     public void BuildMessage_ShowsProxyAddress_NoCredentials()
     {
         var msg = DiscordCaptureCaNotifier.BuildMessage(
-            new CaptureSetupDm("123", [0x30, 0x82, 0x01], "[2a01:4f8:c012:e15b::5]", 8443));
+            new CaptureSetupDm("123", [0x30, 0x82, 0x01], "2a01:4f8:c012:e15b::5", 8443));
 
-        Assert.Contains("[2a01:4f8:c012:e15b::5]", msg);
+        Assert.Contains("2a01:4f8:c012:e15b::5", msg); // bare address, no brackets
         Assert.Contains("8443", msg);
-        Assert.Contains("authentication off", msg);
-        Assert.Contains("no username", msg);
+        Assert.Contains("Auth off", msg);
         // No credential lines remain.
         Assert.DoesNotContain("Token", msg, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Username:", msg);
-        Assert.DoesNotContain("Discord ID", msg);
+        Assert.DoesNotContain("Username", msg);
+        Assert.DoesNotContain("password", msg, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
