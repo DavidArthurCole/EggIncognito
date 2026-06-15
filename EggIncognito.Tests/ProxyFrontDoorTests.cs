@@ -240,7 +240,10 @@ public class ProxyFrontDoorTests
                 Assert.Equal("world", Encoding.ASCII.GetString(answer));
 
                 var (seenByInner, tunneled) = await innerSide.WaitAsync(TimeSpan.FromSeconds(5));
-                Assert.Equal(request, seenByInner); // byte-for-byte replay of the first request
+                // The front door sends the inner proxy a clean, synthesized CONNECT (with a Host header
+                // carrying the port), not the device's raw headers - iOS's Host-less / extra-Connection
+                // headers make the inner Kestrel listener 400. The device's tunnel payload still flows.
+                Assert.Equal("CONNECT www.auxbrain.com:443 HTTP/1.1\r\nHost: www.auxbrain.com:443\r\n\r\n", seenByInner);
                 Assert.Equal("hello", tunneled);
 
                 await session.StopAsync();

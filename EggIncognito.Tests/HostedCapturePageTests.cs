@@ -159,8 +159,8 @@ public class HostedCapturePageTests
             var markup = cut.Markup;
             // The per-user IPv6 host placeholder + port + auth-off rows render.
             Assert.NotNull(cut.Find("#proxyHost"));
-            Assert.Contains("Proxy host", markup);
-            Assert.Contains("Proxy port", markup);
+            Assert.Contains("Server", markup);
+            Assert.Contains("Port", markup);
             Assert.Contains("Authentication", markup);
             // No token / username credentials, no rotate button, no auto-proxy SSID card.
             Assert.Empty(cut.FindAll("#proxyProfileCard"));
