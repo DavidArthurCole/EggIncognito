@@ -296,7 +296,9 @@ else
             await Client().PostAsync(url, null);
         }
         catch { /* surfaced via the next stats broadcast; nothing to do here */ }
-        finally { _toggleBusy = false; }
+        // Re-enable the button now rather than waiting on the next stats broadcast (which can lag or, on
+        // an error, never arrive).
+        finally { _toggleBusy = false; StateHasChanged(); }
     }
 
     async Task Clear()
@@ -337,7 +339,7 @@ else
         // Transient toast, auto-dismissed after 5s.
         var toast = new ToastItem(_nextToastId++, severity, ev.Message, ev.Timestamp);
         _toasts.Add(toast);
-        _ = AutoDismissToast(toast.Id);
+        _ = AutoDismissToast(toast.Id, _loopCts?.Token ?? CancellationToken.None);
     }
 
     static string NoticeSeverity(string kind) => kind switch
@@ -347,9 +349,10 @@ else
         _ => "info",
     };
 
-    async Task AutoDismissToast(int id)
+    async Task AutoDismissToast(int id, CancellationToken ct)
     {
-        await Task.Delay(5000);
+        try { await Task.Delay(5000, ct); }
+        catch (OperationCanceledException) { return; } // circuit torn down
         await InvokeAsync(() => { RemoveToast(id); StateHasChanged(); });
     }
 

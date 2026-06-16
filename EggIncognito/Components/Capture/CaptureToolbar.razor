@@ -129,21 +129,21 @@
     // Only one popover open at a time. Opening the notif popover marks notices read right away (the
     // unread badge clears as soon as the list is visible); closing marks again to catch any notice
     // that arrived while it was open.
-    void Toggle(string which)
+    async Task Toggle(string which)
     {
         if (_open == which)
         {
-            CloseCurrent();
+            await CloseCurrent();
             return;
         }
-        CloseCurrent();
+        await CloseCurrent();
         _open = which;
-        if (which == "notif") OnNoticesRead.InvokeAsync();
+        if (which == "notif") await OnNoticesRead.InvokeAsync();
     }
 
-    void CloseCurrent()
+    async Task CloseCurrent()
     {
-        if (_open == "notif") OnNoticesRead.InvokeAsync();
+        if (_open == "notif") await OnNoticesRead.InvokeAsync();
         _open = null;
     }
 

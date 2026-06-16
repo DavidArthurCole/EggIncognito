@@ -67,10 +67,11 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         await file.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
 
-        // APK = a zip (PK\x03\x04); everything else we treat as a raw native binary (Mach-O / .so).
+        // APK + IPA are both zips (PK\x03\x04); the archive extractor locates the native binary entry
+        // inside (Android .so / iOS Payload/*.app exec) and carves it. A non-zip is a raw binary.
         bool isZip = bytes.Length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04;
         var r = isZip
-            ? Services.ProtoExtract.ApkProtoExtractor.Extract(bytes)
+            ? Services.ProtoExtract.ArchiveProtoExtractor.Extract(bytes)
             : Services.ProtoExtract.DescriptorProtoCarver.Extract(bytes);
         return ExtractResultJson(r);
     }

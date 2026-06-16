@@ -177,9 +177,13 @@ public sealed class ProxyFrontDoor(
             up += leftover;
         }
 
-        var pumpUp = PumpAsync(stream, innerStream, n => Interlocked.Add(ref up, n), ct);
-        var pumpDown = PumpAsync(innerStream, stream, n => Interlocked.Add(ref down, n), ct);
-        await Task.WhenAny(pumpUp, pumpDown);
+        // Pump both directions to completion. On a half-close, the finished pump shuts down the peer's
+        // send side so the other direction sees EOF and ends cleanly; tearing down on the first
+        // half-close (WhenAny) would abort a still-live direction and truncate the flow. Mirrors
+        // LanForwarder, which had the same fix.
+        var pumpUp = PumpAsync(stream, innerStream, inner.Client, n => Interlocked.Add(ref up, n), ct);
+        var pumpDown = PumpAsync(innerStream, stream, stream.Socket, n => Interlocked.Add(ref down, n), ct);
+        await Task.WhenAll(pumpUp, pumpDown);
         log?.Invoke($"capture-frontdoor: {user} {first.TargetHost} {Interlocked.Read(ref up)}/{Interlocked.Read(ref down)}");
     }
 
@@ -218,7 +222,9 @@ public sealed class ProxyFrontDoor(
         return (null, buffer, total);
     }
 
-    private static async Task PumpAsync(Stream from, Stream to, Action<long> count, CancellationToken ct)
+    // Copies from -> to until EOF, then half-closes the destination's send side so the opposite-direction
+    // pump reading from `to`'s peer sees EOF and finishes. dstSocket is the socket behind `to`.
+    private static async Task PumpAsync(Stream from, Stream to, System.Net.Sockets.Socket dstSocket, Action<long> count, CancellationToken ct)
     {
         var buf = new byte[8 * 1024];
         try
@@ -234,6 +240,10 @@ public sealed class ProxyFrontDoor(
         catch (OperationCanceledException) { /* torn down */ }
         catch (IOException) { /* peer closed */ }
         catch (ObjectDisposedException) { /* torn down */ }
+        finally
+        {
+            try { dstSocket.Shutdown(System.Net.Sockets.SocketShutdown.Send); } catch { /* already closed */ }
+        }
     }
 
     private static Task WriteAsciiAsync(Stream stream, string text, CancellationToken ct) =>

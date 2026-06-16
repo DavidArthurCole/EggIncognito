@@ -8,7 +8,7 @@
       <h3 class="text-sm m-0">Edit <span class="font-mono">@Target.Platform/@Target.Build</span></h3>
       <button type="button" class="btn-mini" @onclick="@(() => OnClose.InvokeAsync())">Close</button>
     </div>
-    <div class="grid grid-cols-3 gap-2 mb-2">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
       <label class="text-xs text-muted">App version
         <input class="protos-filter w-full" @bind="_appVersion" /></label>
       <label class="text-xs text-muted">Client version

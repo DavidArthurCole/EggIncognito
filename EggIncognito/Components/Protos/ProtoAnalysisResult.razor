@@ -24,16 +24,37 @@
 
     <div class="flex gap-2 flex-wrap mb-3">
       <button type="button" class="btn-mini" @onclick="Download">Download .proto</button>
+      <button type="button" class="btn-mini" disabled="@_comparing" @onclick="CompareToLatest">
+        @(_comparing ? "Comparing..." : "Compare to latest")</button>
       @if (CanWrite)
       {
         <button type="button" class="btn-mini" @onclick="@(() => _showSave = !_showSave)">Save to registry</button>
       }
     </div>
 
+    @if (_compareMsg is not null)
+    {
+      <div class="panel mb-3 text-xs">
+        <div class="text-muted mb-1">@_compareMsg</div>
+        @if (_added.Count > 0)
+        {
+          <div class="mb-1"><span class="text-accent">+ added (@_added.Count):</span> <span class="font-mono">@string.Join(", ", _added)</span></div>
+        }
+        @if (_removed.Count > 0)
+        {
+          <div><span class="text-muted">- removed (@_removed.Count):</span> <span class="font-mono">@string.Join(", ", _removed)</span></div>
+        }
+        @if (_added.Count == 0 && _removed.Count == 0)
+        {
+          <div class="text-accent">No message-level differences vs latest.</div>
+        }
+      </div>
+    }
+
     @if (_showSave && CanWrite)
     {
       <div class="panel mb-3">
-        <div class="grid grid-cols-2 gap-2 mb-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
           <label class="text-xs text-muted">Platform
             <select class="protos-filter w-full" @bind="_savePlatform">
               <option value="ios">ios</option>
@@ -71,6 +92,11 @@
 
     bool _showSave, _saving;
     string _savePlatform = "ios", _saveAppVersion = "", _saveBuild = "", _saveClientVersion = "", _saveMsg = "";
+
+    bool _comparing;
+    string? _compareMsg;
+    readonly List<string> _added = [];
+    readonly List<string> _removed = [];
 
     protected override void OnInitialized()
     {
@@ -143,6 +169,35 @@
         catch (Exception ex) { _saveMsg = ex.Message; }
         finally { _saving = false; }
     }
+
+    // Message-set diff of the uploaded proto vs the latest stored version for the inferred platform.
+    // Client-side set difference over message names; no new endpoint, reuses the public read API.
+    async Task CompareToLatest()
+    {
+        _comparing = true;
+        _compareMsg = null;
+        _added.Clear();
+        _removed.Clear();
+        try
+        {
+            var platform = (Result?.FileName ?? "").EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? "android" : "ios";
+            var latest = await Client().GetFromJsonAsync<LatestDto>($"/api/protos/latest?platform={platform}", JsonOpts);
+            if (latest is null) { _compareMsg = $"No stored {platform} version to compare against."; return; }
+            var stored = await Client().GetFromJsonAsync<VersionDto>(
+                $"/api/protos/versions/{platform}/{Uri.EscapeDataString(latest.Build)}", JsonOpts);
+            var storedNames = stored?.Messages is { } mi
+                ? (JsonSerializer.Deserialize<List<string>>(mi) ?? []) : [];
+            var uploaded = Result?.Messages ?? [];
+            _added.AddRange(uploaded.Where(m => !storedNames.Contains(m)).OrderBy(m => m));
+            _removed.AddRange(storedNames.Where(m => !uploaded.Contains(m)).OrderBy(m => m));
+            _compareMsg = $"vs latest {platform} {latest.AppVersion} (build {latest.Build})";
+        }
+        catch (Exception ex) { _compareMsg = $"compare failed: {ex.Message}"; }
+        finally { _comparing = false; }
+    }
+
+    sealed record LatestDto(string Platform, string AppVersion, string Build);
+    sealed record VersionDto(string? Messages);
 
     static string Short(string? sha) => string.IsNullOrEmpty(sha) ? "" : (sha.Length <= 12 ? sha : sha[..12]);
 

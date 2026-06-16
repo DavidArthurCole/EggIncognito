@@ -16,9 +16,10 @@ using Microsoft.Extensions.Logging;
 if (args.Length >= 2 && args[0] == "__emit-types")
     return EggIncognito.Build.TypeEmitter.Run(args[1]);
 
-// Offline command (not a user feature): carve the .proto from a decrypted iOS Mach-O and exit.
-// `dotnet run -- __extract-ios-proto <binaryPath> <outPath>`.
-if (args.Length >= 3 && args[0] == "__extract-ios-proto")
+// Offline command (not a user feature): carve the .proto from a decrypted iOS Mach-O, Android APK, or a
+// bare native .so (auto-detected) and exit. `dotnet run -- __extract-proto <binaryPath> <outPath>`.
+// The legacy `__extract-ios-proto` alias is kept so existing scripts keep working.
+if (args.Length >= 3 && args[0] is "__extract-proto" or "__extract-ios-proto")
     return EggIncognito.Build.IosProtoExtractor.Run(args[1], args[2]);
 
 // `--capture` starts the proxy once the host is up and opens the Capture tab instead of the

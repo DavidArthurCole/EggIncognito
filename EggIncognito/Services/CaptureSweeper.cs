@@ -43,9 +43,11 @@ public sealed class CaptureSweeper(
             }
 
             if (!idle && !capped) continue;
+            // Remove from the manager BEFORE stopping, so a concurrent GetOrCreate (e.g. the user clicking
+            // Start mid-sweep) gets a fresh session instead of this one being torn down.
+            manager.Remove(key);
             try { await session.StopAsync(); }
             catch (Exception ex) { logger.LogWarning(ex, "capture sweep: stop failed for {Key}", key); }
-            manager.Remove(key);
             logger.LogInformation("capture sweep: stopped {Key} ({Reason})", key, capped ? "session cap" : "idle");
         }
     }
