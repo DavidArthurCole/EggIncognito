@@ -1,0 +1,64 @@
+@* Inline metadata editor for one registry row (contributor+). PATCHes appVersion / clientVersion /
+   source; blank fields are left unchanged server-side. Server ACL is the gate. *@
+
+@if (Target is not null)
+{
+  <div class="panel mb-3">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm m-0">Edit <span class="font-mono">@Target.Platform/@Target.Build</span></h3>
+      <button type="button" class="btn-mini" @onclick="@(() => OnClose.InvokeAsync())">Close</button>
+    </div>
+    <div class="grid grid-cols-3 gap-2 mb-2">
+      <label class="text-xs text-muted">App version
+        <input class="protos-filter w-full" @bind="_appVersion" /></label>
+      <label class="text-xs text-muted">Client version
+        <input class="protos-filter w-full" @bind="_clientVersion" /></label>
+      <label class="text-xs text-muted">Source
+        <input class="protos-filter w-full" @bind="_source" /></label>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">@(_busy ? "Saving..." : "Save")</button>
+      <span class="text-xs @(_msg == "saved" ? "text-accent" : "text-muted")">@_msg</span>
+    </div>
+  </div>
+}
+
+@code {
+    [Parameter] public Row? Target { get; set; }
+    [Parameter] public Func<string, object, Task<bool>> Patch { get; set; } = (_, _) => Task.FromResult(false);
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    bool _busy;
+    string _msg = "";
+    string _appVersion = "", _clientVersion = "", _source = "";
+
+    public sealed record Row(string Platform, string Build, string AppVersion, string? ClientVersion, string Source);
+
+    protected override void OnParametersSet()
+    {
+        if (Target is not null)
+        {
+            _appVersion = Target.AppVersion;
+            _clientVersion = Target.ClientVersion ?? "";
+            _source = Target.Source;
+            _msg = "";
+        }
+    }
+
+    async Task Save()
+    {
+        if (Target is null) return;
+        _busy = true; _msg = "";
+        var body = new
+        {
+            appVersion = _appVersion,
+            clientVersion = string.IsNullOrWhiteSpace(_clientVersion) ? null : _clientVersion,
+            source = _source,
+        };
+        var ok = await Patch($"/api/protos/versions/{Target.Platform}/{Uri.EscapeDataString(Target.Build)}", body);
+        _msg = ok ? "saved" : "failed (contributor+?)";
+        _busy = false;
+        if (ok) await OnChanged.InvokeAsync();
+    }
+}

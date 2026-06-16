@@ -23,4 +23,10 @@ public sealed class ProtoVersion
     [Column("detected_at")] public DateTimeOffset DetectedAt { get; set; }
     [Column("detected_by")] public string? DetectedBy { get; set; }
     [Column("created_at")] public DateTimeOffset CreatedAt { get; set; }
+    // Soft-delete: hidden from the default list, not physically removed (auto-importers would resurrect a
+    // hard-deleted build). A deleted row stays deleted through re-ingest until an admin restores it.
+    [Column("deleted_at")] public DateTimeOffset? DeletedAt { get; set; }
+    // Merge: when set, this row is an alias of the canonical ProtoVersion it points to (same schema,
+    // e.g. an iOS + Android build sharing a proto). Aliases are soft-deleted (hidden) but reversible.
+    [Column("canonical_id")] public int? CanonicalId { get; set; }
 }

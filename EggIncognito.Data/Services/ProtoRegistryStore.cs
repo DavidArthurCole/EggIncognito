@@ -115,7 +115,90 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
             .Where(p => platform == null || p.Platform == platform)
             // Defensive: never render keyless/stub rows even if an un-pruned one exists.
             .Where(p => p.Build != null && p.Build != "" && p.AppVersion != null && p.AppVersion != "")
+            // Soft-deleted + merged-alias rows are hidden from the default list.
+            .Where(p => p.DeletedAt == null)
             .OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
+
+    // Soft-delete a single build: hidden from the list, kept so a re-ingest does not resurrect it.
+    // Returns false when the row does not exist.
+    public async Task<bool> SoftDeleteAsync(string platform, string build, CancellationToken ct = default)
+    {
+        var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
+        if (row is null) return false;
+        row.DeletedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    // Restore a soft-deleted / merged row: clears DeletedAt + CanonicalId so it lists again.
+    public async Task<bool> RestoreAsync(string platform, string build, CancellationToken ct = default)
+    {
+        var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
+        if (row is null) return false;
+        row.DeletedAt = null;
+        row.CanonicalId = null;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    // Edit human-correctable metadata on a stored build. Null args leave the field unchanged. Returns
+    // false when the row does not exist.
+    public async Task<bool> UpdateMetadataAsync(
+        string platform, string build, string? appVersion, string? clientVersion, string? source,
+        CancellationToken ct = default)
+    {
+        var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
+        if (row is null) return false;
+        if (appVersion is not null) row.AppVersion = appVersion;
+        if (clientVersion is not null) row.ClientVersion = clientVersion;
+        if (source is not null) row.Source = source;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    // Merge: each alias becomes a hidden pointer to the canonical row (same schema, possibly across
+    // platforms). Rejects merging a row into itself or pointing the canonical at an alias. Returns the
+    // number of aliases linked.
+    public async Task<int> MergeAsync(
+        (string Platform, string Build) canonical, IReadOnlyList<(string Platform, string Build)> aliases,
+        CancellationToken ct = default)
+    {
+        var canon = await db.ProtoVersions
+            .FirstOrDefaultAsync(p => p.Platform == canonical.Platform && p.Build == canonical.Build, ct);
+        if (canon is null) return 0;
+        // The canonical must itself be a real row, not an alias of something else.
+        if (canon.CanonicalId is not null) { canon.CanonicalId = null; canon.DeletedAt = null; }
+
+        var now = DateTimeOffset.UtcNow;
+        var linked = 0;
+        var demotedIds = new List<int>();
+        foreach (var (platform, build) in aliases)
+        {
+            if (platform == canonical.Platform && build == canonical.Build) continue; // skip self
+            var alias = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
+            if (alias is null || alias.Id == canon.Id) continue;
+            demotedIds.Add(alias.Id);
+            alias.CanonicalId = canon.Id;
+            alias.DeletedAt = now;
+            linked++;
+        }
+
+        // Re-point any rows that were aliases of a row we just demoted (or of the canonical when it was
+        // itself an alias) so no CanonicalId chains past one hop. Keeps "follow CanonicalId once = root".
+        var stale = await db.ProtoVersions
+            .Where(p => p.CanonicalId != null
+                && (demotedIds.Contains(p.CanonicalId.Value) || p.CanonicalId == canon.Id))
+            .ToListAsync(ct);
+        foreach (var s in stale)
+        {
+            if (s.Id == canon.Id) continue;
+            s.CanonicalId = canon.Id;
+            s.DeletedAt ??= now;
+        }
+
+        await db.SaveChangesAsync(ct);
+        return linked;
+    }
 
     public Task<int> PruneEmptyAsync(CancellationToken ct = default) =>
         db.ProtoVersions

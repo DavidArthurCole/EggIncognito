@@ -16,6 +16,11 @@ using Microsoft.Extensions.Logging;
 if (args.Length >= 2 && args[0] == "__emit-types")
     return EggIncognito.Build.TypeEmitter.Run(args[1]);
 
+// Offline command (not a user feature): carve the .proto from a decrypted iOS Mach-O and exit.
+// `dotnet run -- __extract-ios-proto <binaryPath> <outPath>`.
+if (args.Length >= 3 && args[0] == "__extract-ios-proto")
+    return EggIncognito.Build.IosProtoExtractor.Run(args[1], args[2]);
+
 // `--capture` starts the proxy once the host is up and opens the Capture tab instead of the
 // Inspector. `--eid` / `--label` configure the session via the config keys CaptureSession reads.
 var captureMode = args.Contains("--capture");
@@ -433,6 +438,13 @@ if (dbEnabled)
         "archive", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.InternetArchiveSource>());
     builder.Services.AddScoped<EggIncognito.Services.Backfill.VersionListImporter>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.ApkExtractService>();
+
+    // Proactive store poller: a background timer that discovers new App Store / Play versions and queues
+    // extraction. DB-gated (registered only here) + self-disables via VersionPoller:Enabled=false.
+    var pollerOptions = EggIncognito.Services.Backfill.VersionPollerOptions.Bind(builder.Configuration);
+    builder.Services.AddSingleton(pollerOptions);
+    if (pollerOptions.Enabled)
+        builder.Services.AddHostedService<EggIncognito.Services.Backfill.VersionPollerService>();
 }
 if (hostedCaptureOn)
 {

@@ -1,6 +1,7 @@
 @page "/protos"
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Net.Http.Json
+@using System.Text.Json
 @using EggIncognito.Components.Layout
 @using EggIncognito.Components.Protos
 @using EggIncognito.Data.Models
@@ -9,10 +10,11 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>EggIncognito - Proto Registry</PageTitle>
 
-@* Controls project into the top nav (the Inspector/Capture pattern); the page body holds the table. *@
+@* Controls project into the top nav (the Inspector/Capture pattern); the page body holds the console. *@
 <SectionContent SectionName="@NavSections.Toolbar">
   <ProtosToolbar Platform="@_platform" Filter="@_filter" IsAdmin="_isAdmin"
                  OnPlatformChanged="SetPlatform" OnFilterChanged="SetFilter" OnTrigger="OnTrigger" />
@@ -20,9 +22,28 @@
 
 <main class="px-4 sm:px-8 pt-6 pb-8">
   <h1 class="text-[1.3rem] mt-0 mb-1">Proto Registry</h1>
-  <p class="text-muted mb-4">Versioned Egg, Inc. proto definitions, one row per detected build.</p>
+  <p class="text-muted mb-4">Versioned Egg, Inc. proto definitions. Drop an .ipa/.apk to analyze, or browse detected builds.</p>
 
+  @* Hero: ephemeral upload-and-analyze (everyone). *@
+  <section class="mb-6">
+    <ProtoDropZone OnResult="OnExtracted" />
+    @if (_result is not null)
+    {
+      <ProtoAnalysisResult Result="_result" CanWrite="_canWrite" OnSaved="Load" />
+    }
+  </section>
+
+  @* Registry table + management. *@
   <section class="reg-wrap">
+    @if (_isAdmin && _selected.Count > 0)
+    {
+      <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnMutated" OnClear="ClearSelection" />
+    }
+    @if (_canWrite && _editing is not null)
+    {
+      <ProtoEditDialog Target="_editing" Patch="PatchJson" OnChanged="OnMutated" OnClose="@(() => _editing = null)" />
+    }
+
     @if (_loading)
     {
       <div class="backfill-empty">Loading...</div>
@@ -33,8 +54,8 @@
         @if (_rows.Count == 0)
         {
           <div>No proto versions yet.</div>
-          <div class="reg-empty-hint">The device farm and the backfill importers populate this registry as
-            new game builds are detected.</div>
+          <div class="reg-empty-hint">Drop a binary above to analyze one, or let the device farm + backfill
+            importers populate this registry as new builds are detected.</div>
         }
         else
         {
@@ -47,22 +68,36 @@
       <table class="reg-table">
         <thead>
           <tr>
+            @if (_isAdmin)
+            {
+              <th class="w-8"><input type="checkbox" checked="@AllSelected" @onchange="ToggleAll" /></th>
+            }
             <th class="reg-th-sort" @onclick="@(() => Sort("platform"))"><span>Platform</span>@Caret("platform")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("appVersion"))"><span>App Version</span>@Caret("appVersion")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("build"))"><span>Build</span>@Caret("build")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("client"))"><span>Client</span>@Caret("client")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("sha"))"><span>Proto SHA</span>@Caret("sha")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("detected"))"><span>Detected</span>@Caret("detected")</th>
+            @if (_canWrite)
+            {
+              <th class="w-16">Actions</th>
+            }
           </tr>
         </thead>
         <tbody>
           @foreach (var r in Sorted)
           {
             var href = $"/protos/{r.Platform}/{Uri.EscapeDataString(r.Build)}";
-            <tr class="reg-row" @onclick="@(() => Navigate(href))">
-              <td><span class="code-chip">@r.Platform</span></td>
-              <td class="reg-version">@r.AppVersion</td>
-              <td class="mono">@r.Build</td>
+            <tr class="reg-row">
+              @if (_isAdmin)
+              {
+                <td @onclick:stopPropagation="true">
+                  <input type="checkbox" checked="@IsSelected(r)" @onchange="@(() => ToggleRow(r))" />
+                </td>
+              }
+              <td @onclick="@(() => Navigate(href))"><span class="code-chip">@r.Platform</span></td>
+              <td class="reg-version" @onclick="@(() => Navigate(href))">@r.AppVersion</td>
+              <td class="mono" @onclick="@(() => Navigate(href))">@r.Build</td>
               <td class="mono text-muted">@(string.IsNullOrEmpty(r.ClientVersion) ? "-" : r.ClientVersion)</td>
               <td>
                 <button type="button" class="code-chip reg-sha" title="@r.ProtoSha"
@@ -71,6 +106,12 @@
                 </button>
               </td>
               <td class="text-muted text-xs">@r.DetectedAt.ToString("u")</td>
+              @if (_canWrite)
+              {
+                <td @onclick:stopPropagation="true">
+                  <button type="button" class="btn-mini" @onclick="@(() => EditRow(r))">Edit</button>
+                </td>
+              }
             </tr>
           }
         </tbody>
@@ -85,15 +126,20 @@
 </main>
 
 @code {
-    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     List<VersionRow> _rows = [];
     string? _platform;
     string _filter = "";
     bool _loading = true;
     bool _isAdmin;
+    bool _canWrite;
     string _sortCol = "detected";
     bool _sortDesc = true;
+
+    ProtoDropZone.ExtractResult? _result;
+    readonly List<ProtoSelectionBar.VersionKey> _selected = [];
+    ProtoEditDialog.Row? _editing;
 
     string _baseAddress = "";
     string? _cookie;
@@ -132,10 +178,8 @@
         else { _sortCol = col; _sortDesc = false; }
     }
 
-    MarkupString Caret(string col) =>
-        new(_sortCol == col ? (_sortDesc ? " ▾" : " ▴") : "");
+    MarkupString Caret(string col) => new(_sortCol == col ? (_sortDesc ? " ▾" : " ▴") : "");
 
-    // Numeric strings (versionCode/client) compared as longs; non-numeric falls back to ordinal.
     static int CompareNumeric(string? a, string? b)
     {
         var ax = long.TryParse(a, out var al);
@@ -144,7 +188,6 @@
         return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
     }
 
-    // Dotted version compared segment-by-segment numerically so 1.9 < 1.10.
     static int CompareSemver(string? a, string? b)
     {
         var ap = (a ?? "").Split('.');
@@ -167,8 +210,9 @@
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
-        // Snapshot the admin gate during the request; the interactive circuit has no HttpContext.
+        // Snapshot the gates during the request; the interactive circuit has no HttpContext.
         _isAdmin = User.IsAtLeast(UserRole.Admin);
+        _canWrite = User.IsAtLeast(UserRole.Contributor);
     }
 
     protected override Task OnInitializedAsync() => Load();
@@ -181,13 +225,11 @@
         return c;
     }
 
-    Task SetPlatform(string? p)
-    {
-        _platform = p;
-        return Load();
-    }
+    Task SetPlatform(string? p) { _platform = p; ClearSelection(); return Load(); }
 
     void SetFilter(string f) => _filter = f;
+
+    void OnExtracted(ProtoDropZone.ExtractResult r) => _result = r;
 
     async Task OnTrigger(string which)
     {
@@ -216,7 +258,51 @@
         _loading = false;
     }
 
-    void Navigate(string href) => JS.InvokeVoidAsync("location.assign", href);
+    // Generic authed self-calls for the management components.
+    async Task<bool> PostJson(string url, object body)
+    {
+        try { return (await Client().PostAsJsonAsync(url, body, JsonOpts)).IsSuccessStatusCode; }
+        catch { return false; }
+    }
+
+    async Task<bool> PatchJson(string url, object body)
+    {
+        try { return (await Client().PatchAsJsonAsync(url, body, JsonOpts)).IsSuccessStatusCode; }
+        catch { return false; }
+    }
+
+    async Task OnMutated()
+    {
+        ClearSelection();
+        _editing = null;
+        await Load();
+    }
+
+    // --- selection ---
+    bool IsSelected(VersionRow r) => _selected.Any(k => k.Platform == r.Platform && k.Build == r.Build);
+
+    void ToggleRow(VersionRow r)
+    {
+        var existing = _selected.FirstOrDefault(k => k.Platform == r.Platform && k.Build == r.Build);
+        if (existing is not null) _selected.Remove(existing);
+        else _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
+    }
+
+    bool AllSelected => Sorted.Count > 0 && Sorted.All(IsSelected);
+
+    void ToggleAll(ChangeEventArgs e)
+    {
+        _selected.Clear();
+        if (e.Value is true)
+            foreach (var r in Sorted) _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
+    }
+
+    void ClearSelection() => _selected.Clear();
+
+    void EditRow(VersionRow r) =>
+        _editing = new ProtoEditDialog.Row(r.Platform, r.Build, r.AppVersion, r.ClientVersion, r.Source);
+
+    void Navigate(string href) => _ = JS.InvokeVoidAsync("location.assign", href);
 
     async Task Copy(string sha)
     {
@@ -231,6 +317,12 @@
 
     static string Short(string sha) => string.IsNullOrEmpty(sha) ? "" : (sha.Length <= 12 ? sha : sha[..12]);
 
+    public async ValueTask DisposeAsync()
+    {
+        if (_copy is not null)
+            try { await _copy.DisposeAsync(); } catch { }
+    }
+
     record VersionRow(string Platform, string AppVersion, string Build, string? ClientVersion,
-        string Package, string ProtoSha, DateTimeOffset DetectedAt);
+        string Source, string Package, string ProtoSha, DateTimeOffset DetectedAt);
 }

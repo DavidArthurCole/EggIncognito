@@ -1,0 +1,113 @@
+@* Drag/drop or pick an .ipa/.apk and extract its proto on the spot (ephemeral, nothing persisted).
+   Mirrors the Import dropzone: native InputFile + multipart self-call streaming the file to the public
+   /api/tools/extract-proto read tool, so large (50-90MB) binaries do not cross the SignalR circuit.
+   Emits the result up to the page. *@
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@using System.Net.Http.Json
+@using System.Text.Json
+
+<div class="panel">
+  <label id="protoDropZone" class="dropzone @(_dragging ? "dragging" : "")"
+         @ondragenter="() => _dragging = true"
+         @ondragleave="() => _dragging = false"
+         @ondragover:preventDefault="true"
+         @ondrop="() => _dragging = false">
+    <InputFile id="protoFile" accept=".ipa,.apk" hidden="hidden" OnChange="OnFileSelected" />
+    <div class="text-accent" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+           stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
+        <path d="M12 16V4" /><path d="M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+      </svg>
+    </div>
+    <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop an .ipa or .apk here</strong> or click to browse</div>
+    <div class="font-mono text-xs @(_file is null ? "text-muted muted" : "")">@(_file?.Name ?? "No file selected.")</div>
+  </label>
+
+  <div class="flex items-center justify-between gap-3 mt-4 flex-wrap">
+    <span class="text-muted text-xs">Analysis is read-only. Nothing is saved unless you choose to.</span>
+    <button class="btn-primary" disabled="@(_file is null || _busy)" @onclick="Analyze">@(_busy ? "Analyzing..." : "Analyze")</button>
+  </div>
+
+  @if (!string.IsNullOrEmpty(_error))
+  {
+    <pre class="result-pre">@_error</pre>
+  }
+</div>
+
+@code {
+    // IPAs/APKs run 25-90 MB; cap well above that. The browser streams the part, so memory stays bounded.
+    const long MaxUploadBytes = 200_000_000;
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    [Parameter] public EventCallback<ExtractResult> OnResult { get; set; }
+
+    bool _dragging;
+    bool _busy;
+    string _error = "";
+    IBrowserFile? _file;
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _file = e.FileCount > 0 ? e.File : null;
+        _error = "";
+    }
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task Analyze()
+    {
+        if (_file is null) return;
+        _busy = true;
+        _error = "";
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            using var stream = _file.OpenReadStream(MaxUploadBytes);
+            content.Add(new StreamContent(stream), "file", _file.Name);
+            var res = await Client().PostAsync("/api/tools/extract-proto", content);
+            var data = await res.Content.ReadFromJsonAsync<ExtractResult>(JsonOpts);
+            if (data is null) { _error = $"HTTP {(int)res.StatusCode}"; return; }
+            data = data with { FileName = _file.Name };
+            if (!data.Ok) _error = data.Diagnostics ?? "extraction failed";
+            await OnResult.InvokeAsync(data);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Request failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public sealed record ExtractResult
+    {
+        public bool Ok { get; init; }
+        public string? Proto { get; init; }
+        public string? Diagnostics { get; init; }
+        public string? ProtoSha { get; init; }
+        public IReadOnlyList<string> Messages { get; init; } = [];
+        public string? FileName { get; init; }
+    }
+}
