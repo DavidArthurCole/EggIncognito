@@ -79,6 +79,56 @@ public static class ApkVersionCode
         }
     }
 
+    // Reads android:versionName (a string) from the manifest. Same AXML walk as the versionCode reader,
+    // but the value is the attribute's rawValue string-pool index. Returns null when absent.
+    public static string? ReadVersionName(byte[] data)
+    {
+        try
+        {
+            if (data.Length < 8 || ReadU16(data, 0) != ResXmlType) return null;
+            var pos = 8;
+            string[]? strings = null;
+            while (pos + 8 <= data.Length)
+            {
+                var type = ReadU16(data, pos);
+                var headerSize = ReadU16(data, pos + 2);
+                var size = (int)ReadU32(data, pos + 4);
+                if (size < 8 || pos + size > data.Length) break;
+                if (type == ResStringPoolType) strings = ReadStringPool(data, pos);
+                else if (type == ResXmlStartElementType && strings is not null)
+                {
+                    var name = ReadStartElementStringAttr(data, pos, headerSize, strings, "versionName");
+                    if (name is not null) return name;
+                }
+                pos += size;
+            }
+            return null;
+        }
+        catch { return null; }
+    }
+
+    // Returns the rawValue string of the named attribute in a START_ELEMENT chunk, or null.
+    private static string? ReadStartElementStringAttr(byte[] data, int chunkPos, int headerSize, string[] strings, string attr)
+    {
+        var ext = chunkPos + headerSize;
+        if (ext + 20 > data.Length) return null;
+        var attrStart = ReadU16(data, ext + 8);
+        var attrCount = ReadU16(data, ext + 12);
+        var baseAttr = ext + attrStart;
+        const int attrRecordSize = 20;
+        for (var a = 0; a < attrCount; a++)
+        {
+            var rec = baseAttr + a * attrRecordSize;
+            if (rec + attrRecordSize > data.Length) break;
+            var nameIdx = (int)ReadU32(data, rec + 4);
+            var rawValueIdx = (int)ReadU32(data, rec + 8);
+            var name = nameIdx >= 0 && nameIdx < strings.Length ? strings[nameIdx] : null;
+            if (name == attr && rawValueIdx >= 0 && rawValueIdx < strings.Length)
+                return strings[rawValueIdx];
+        }
+        return null;
+    }
+
     // Reads versionCode out of one START_ELEMENT chunk if its attributes carry it. Chunk layout after
     // the generic chunk header: lineNumber(4), comment(4), then the start-element ext: ns(4), name(4),
     // attributeStart(2), attributeSize(2), attributeCount(2), idIndex(2), classIndex(2), styleIndex(2),

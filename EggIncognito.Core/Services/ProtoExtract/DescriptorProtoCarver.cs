@@ -14,8 +14,11 @@ namespace EggIncognito.Services.ProtoExtract;
 public static class DescriptorProtoCarver
 {
     public sealed record CarvedDescriptor(string Name, int FileOffset, byte[] Bytes);
+    // AppVersion/Build come from the archive's own metadata (APK manifest, iOS Info.plist) when the input
+    // was an archive; null for a bare binary. They pre-fill the registry-save form so the version keys are
+    // the app's real values, not a guess from the filename.
     public sealed record ExtractResult(bool Ok, string? Proto, string Diagnostics, string? ProtoSha,
-        IReadOnlyList<string> Messages);
+        IReadOnlyList<string> Messages, string? AppVersion = null, string? Build = null);
 
     // The descriptor files the app compiles in. ei.proto is the schema; common.proto holds the
     // aux-package enums; abb is a small ad-config proto.

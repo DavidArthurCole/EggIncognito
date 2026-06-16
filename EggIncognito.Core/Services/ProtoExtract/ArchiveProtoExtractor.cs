@@ -21,14 +21,71 @@ public static class ArchiveProtoExtractor
         if (archiveZipBytes is null || archiveZipBytes.Length == 0)
             return new DescriptorProtoCarver.ExtractResult(false, null, "empty archive", null, []);
 
+        var (appVersion, build) = ReadVersion(archiveZipBytes);
+
         foreach (var entryBytes in CandidateBinaries(archiveZipBytes))
         {
             var r = DescriptorProtoCarver.Extract(entryBytes);
-            if (r.Ok) return r;
+            if (r.Ok) return r with { AppVersion = appVersion, Build = build };
         }
 
         // Last resort: scan the whole archive bytes (covers a stored/uncompressed binary entry).
-        return DescriptorProtoCarver.Extract(archiveZipBytes);
+        var raw = DescriptorProtoCarver.Extract(archiveZipBytes);
+        return raw.Ok ? raw with { AppVersion = appVersion, Build = build } : raw;
+    }
+
+    // Reads (appVersion, build) from the archive's own metadata. iOS Info.plist:
+    // CFBundleShortVersionString + CFBundleVersion. APK: versionName + versionCode from the manifest.
+    // Either may be null when absent. iOS build defaults to the app version when CFBundleVersion is missing.
+    private static (string? AppVersion, string? Build) ReadVersion(byte[] zipBytes)
+    {
+        try
+        {
+            using var ms = new MemoryStream(zipBytes, writable: false);
+            using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
+
+            var plist = zip.Entries.FirstOrDefault(e =>
+                e.FullName.StartsWith("Payload/", StringComparison.OrdinalIgnoreCase)
+                && e.FullName.EndsWith(".app/Info.plist", StringComparison.OrdinalIgnoreCase));
+            if (plist is not null)
+            {
+                using var es = plist.Open();
+                using var buf = new MemoryStream();
+                es.CopyTo(buf);
+                var text = System.Text.Encoding.UTF8.GetString(buf.ToArray());
+                var shortVer = PlistString(text, "CFBundleShortVersionString");
+                var bundleVer = PlistString(text, "CFBundleVersion");
+                return (shortVer, bundleVer ?? shortVer);
+            }
+
+            var manifest = zip.GetEntry("AndroidManifest.xml");
+            if (manifest is not null)
+            {
+                using var es = manifest.Open();
+                using var buf = new MemoryStream();
+                es.CopyTo(buf);
+                var axml = buf.ToArray();
+                return (ApkVersionCode.ReadVersionName(axml), ApkVersionCode.ParseAxml(axml));
+            }
+        }
+        catch { /* metadata is best-effort; extraction does not depend on it */ }
+        return (null, null);
+    }
+
+    // Pulls a string value from an XML plist: <key>NAME</key><string>VALUE</string>. Binary plists are
+    // not parsed (decrypted IPAs from the App Store ship XML plists); returns null when not found.
+    private static string? PlistString(string plistXml, string key)
+    {
+        var keyTag = $"<key>{key}</key>";
+        var ki = plistXml.IndexOf(keyTag, StringComparison.Ordinal);
+        if (ki < 0) return null;
+        var open = plistXml.IndexOf("<string>", ki + keyTag.Length, StringComparison.Ordinal);
+        if (open < 0) return null;
+        var start = open + "<string>".Length;
+        var close = plistXml.IndexOf("</string>", start, StringComparison.Ordinal);
+        if (close < 0) return null;
+        var val = plistXml[start..close].Trim();
+        return val.Length == 0 ? null : System.Net.WebUtility.HtmlDecode(val);
     }
 
     // Yields the decompressed bytes of each candidate binary entry, best-guess order, APK then IPA.

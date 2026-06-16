@@ -67,7 +67,7 @@ public class ProtosPageTests
             Wire(UserRole.Admin);
             var cut = Render<Protos>();
             Assert.NotNull(cut.Find("#backfillPanel"));
-            Assert.Contains("Known versions", cut.Markup);
+            Assert.Contains("Missing versions", cut.Markup);
         }
 
         [Fact]

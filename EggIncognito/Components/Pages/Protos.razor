@@ -20,11 +20,11 @@
                  OnPlatformChanged="SetPlatform" OnFilterChanged="SetFilter" OnTrigger="OnTrigger" />
 </SectionContent>
 
-<main class="px-4 sm:px-8 pt-6 pb-8 max-w-5xl mx-auto w-full">
+<main class="px-4 sm:px-8 pt-6 pb-8 max-w-7xl mx-auto w-full">
   <h1 class="text-[1.3rem] mt-0 mb-1">Proto Registry</h1>
   <p class="text-muted mb-4">Versioned Egg, Inc. proto definitions. Drop an .ipa/.apk to analyze, or browse detected builds.</p>
 
-  @* Hero: ephemeral upload-and-analyze (everyone). *@
+  @* Hero: ephemeral upload-and-analyze (everyone), full width above the registry. *@
   <section class="mb-6">
     <ProtoDropZone OnResult="OnExtracted" />
     @if (_result is not null)
@@ -33,6 +33,9 @@
     }
   </section>
 
+  @* Registry beside the admin backfill panel on wide screens; stacked on smaller ones. The registry
+     (the data-rich table) gets the larger share; backfill/discovery sits in the narrower column. *@
+  <div class="@(_isAdmin ? "grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start" : "")">
   @* Registry table + management. *@
   <section class="reg-wrap">
     @if (_isAdmin && _selected.Count > 0)
@@ -123,6 +126,7 @@
   {
     <BackfillPanel />
   }
+  </div>
 </main>
 
 @code {

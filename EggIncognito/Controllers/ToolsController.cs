@@ -77,7 +77,8 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
     }
 
     private IActionResult ExtractResultJson(Services.ProtoExtract.DescriptorProtoCarver.ExtractResult r) =>
-        Ok(new { ok = r.Ok, proto = r.Proto, diagnostics = r.Diagnostics, protoSha = r.ProtoSha, messages = r.Messages });
+        Ok(new { ok = r.Ok, proto = r.Proto, diagnostics = r.Diagnostics, protoSha = r.ProtoSha,
+            messages = r.Messages, appVersion = r.AppVersion, build = r.Build });
 
     public sealed record DiagnoseRequest(string Base64, string? RootType);
 

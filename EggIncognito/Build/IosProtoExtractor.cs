@@ -26,7 +26,9 @@ public static class IosProtoExtractor
         // inside and carves it. A non-zip is a raw binary (bare Mach-O / .so).
         bool isZip = bytes.Length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04;
         var result = isZip ? ArchiveProtoExtractor.Extract(bytes) : DescriptorProtoCarver.Extract(bytes);
-        Console.Error.WriteLine($"__extract-proto: {result.Diagnostics}");
+        Console.Error.WriteLine($"__extract-proto: {result.Diagnostics}"
+            + (result.AppVersion is { } v ? $" appVersion={v}" : "")
+            + (result.Build is { } b ? $" build={b}" : ""));
         if (!result.Ok || result.Proto is null)
             return 2;
 

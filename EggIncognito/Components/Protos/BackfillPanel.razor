@@ -49,14 +49,18 @@
   }
 
   <div class="admin-panel-head admin-panel-sub">
-    <h3 class="admin-panel-title">Known versions</h3>
-    <span class="text-muted text-xs">@_known.Count discovered</span>
+    <h3 class="admin-panel-title">Missing versions</h3>
+    <span class="text-muted text-xs">@MissingKnown.Count of @_known.Count have no stored proto</span>
   </div>
-  <p class="text-muted text-xs">Extract runs the proto toolchain. Available only where the extract host is configured; 501 otherwise.</p>
+  <p class="text-muted text-xs">Discovered versions not yet in the registry. Android extract pulls the APK
+    from APKPure by version and runs the toolchain (needs the extract host; 501 otherwise). iOS has no
+    free binary source - drop the .ipa above to analyze, or use the device farm.</p>
 
-  @if (_known.Count == 0)
+  @if (MissingKnown.Count == 0)
   {
-    <div class="backfill-empty">No discovered versions. Run a list import above.</div>
+    <div class="backfill-empty">
+      @(_known.Count == 0 ? "No discovered versions. Run a list import above." : "Every discovered version already has a stored proto.")
+    </div>
   }
   else
   {
@@ -72,7 +76,7 @@
           </tr>
         </thead>
         <tbody>
-          @foreach (var k in _known)
+          @foreach (var k in MissingKnown)
           {
             var ej = ExtractFor(k.Platform, k.AppVersion);
             <tr>
@@ -83,8 +87,7 @@
               <td>
                 @if (IsIos(k.Platform))
                 {
-                  <button type="button" class="btn-mini" disabled
-                          title="iOS proto extraction not available yet">Extract proto</button>
+                  <span class="text-muted text-xs" title="No free App Store binary source. Drop the .ipa in the analyzer above, or use the device farm.">drop .ipa to extract</span>
                 }
                 else if (ej is { Status: "running" or "queued" })
                 {
@@ -130,8 +133,15 @@
     List<JobRow> _jobs = [];
     List<KnownRow> _known = [];
     List<ExtractRow> _extractJobs = [];
+    // (platform, appVersion) pairs already in the registry, so the discovery list can hide them.
+    HashSet<(string Platform, string AppVersion)> _stored = [];
     bool _busy;
     string? _message;
+
+    // Discovered versions with no stored proto yet - the actionable gap. Hides the noise of versions the
+    // registry already has (most of the fandom history is already covered).
+    List<KnownRow> MissingKnown =>
+        _known.Where(k => !_stored.Contains((k.Platform, k.AppVersion))).ToList();
 
     string _baseAddress = "";
     string? _cookie;
@@ -185,8 +195,14 @@
             _jobs = res?.Jobs ?? [];
             _known = res?.Known ?? [];
             _extractJobs = res?.ExtractJobs ?? [];
+
+            // Cross-reference the registry so the discovery list can hide versions already stored.
+            var versions = await Client().GetFromJsonAsync<List<RegRow>>("/api/protos/versions", JsonOpts);
+            _stored = versions is null
+                ? []
+                : versions.Select(v => (v.Platform, v.AppVersion)).ToHashSet();
         }
-        catch { _jobs = []; _known = []; _extractJobs = []; }
+        catch { _jobs = []; _known = []; _extractJobs = []; _stored = []; }
     }
 
     JobRow? JobFor(string source) => _jobs.FirstOrDefault(j => j.Source == source);
@@ -253,4 +269,5 @@
         string? Changelog, string Source);
     sealed record ExtractRow(string Platform, string AppVersion, string Status,
         DateTimeOffset? FinishedAt, string? Note);
+    sealed record RegRow(string Platform, string AppVersion);
 }

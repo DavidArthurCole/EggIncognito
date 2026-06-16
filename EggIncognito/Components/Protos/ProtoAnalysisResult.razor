@@ -98,6 +98,8 @@
     readonly List<string> _added = [];
     readonly List<string> _removed = [];
 
+    ProtoDropZone.ExtractResult? _seededFor;
+
     protected override void OnInitialized()
     {
         var req = HttpContextAccessor.HttpContext?.Request;
@@ -106,6 +108,19 @@
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
+    }
+
+    // Pre-fill the save form from the archive's own metadata (real app version + build) and the inferred
+    // platform, so the contributor does not retype values the binary already carries. Re-seed when a new
+    // result arrives.
+    protected override void OnParametersSet()
+    {
+        if (Result is null || ReferenceEquals(Result, _seededFor)) return;
+        _seededFor = Result;
+        _savePlatform = (Result.FileName ?? "").EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? "android" : "ios";
+        _saveAppVersion = Result.AppVersion ?? "";
+        _saveBuild = Result.Build ?? "";
+        _saveMsg = "";
     }
 
     HttpClient Client()
