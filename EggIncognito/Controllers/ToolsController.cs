@@ -63,9 +63,11 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
     public async Task<IActionResult> ExtractProto(IFormFile file, CancellationToken ct)
     {
         if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms, ct);
-        var bytes = ms.ToArray();
+        // Pre-size to the known length: an unsized MemoryStream doubles its buffer as the ~80MB upload
+        // grows, recopying the whole thing on every resize. Carving needs a contiguous array, so read
+        // straight into one sized to file.Length instead of stream-then-ToArray (which double-buffers).
+        var bytes = new byte[file.Length];
+        using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
 
         // APK + IPA are both zips (PK\x03\x04); the archive extractor locates the native binary entry
         // inside (Android .so / iOS Payload/*.app exec) and carves it. A non-zip is a raw binary.
