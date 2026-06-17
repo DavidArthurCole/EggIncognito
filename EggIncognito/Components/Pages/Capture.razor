@@ -121,22 +121,19 @@ else
 
     readonly CaptureViewState _view = new();
 
-    // notification center + toasts
     readonly List<CaptureToolbar.NoticeItem> _notices = [];
     readonly List<ToastItem> _toasts = [];
     int _unread;
     int _nextNoticeId = 1;
     int _nextToastId = 1;
 
-    // circuit subscription + background loop
     IDisposable? _subscription;
     CancellationTokenSource? _loopCts;
     Task? _loopTask;
 
-    // self-call cookie forwarding
     string _baseAddress = "";
     string? _cookie;
-    IJSObjectReference? _store; // captureStore.js (browser view prefs)
+    IJSObjectReference? _store;
 
     // The caller's session: the anonymous local session in Local mode, the per-user session for a
     // hosted supporter, null when this caller may not capture (pitch/login/capacity panels render).
@@ -327,8 +324,6 @@ else
         await InvokeVoid("setDefaultFormat", _view.DefaultFormat);
         StateHasChanged();
     }
-
-    // notices + toasts
 
     void PushNotice(CaptureEvent ev)
     {

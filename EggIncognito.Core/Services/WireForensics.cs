@@ -244,10 +244,8 @@ public static class WireForensics
             }
         }
 
-        // v2: tolerant field-by-field recovery of the broken record. Re-parse the region around the break
-        // skipping corrupt fields (the way the real parser cannot) so the intact fields past the corruption
-        // are still readable. Recover the enclosing record's body, then resolve numbers to names if a schema
-        // path led there.
+        // v2: re-parse the region around the break, skipping corrupt fields, so intact fields past the
+        // corruption are still readable. Resolve numbers to names if a schema path led there.
         Recovery? recovered = null;
         if (first is not null)
         {
@@ -273,10 +271,8 @@ public static class WireForensics
             Recovered: recovered);
     }
 
-    // Find the start offset of the deepest walked region (message body) that contains errorOffset, so
-    // recovery re-parses that record rather than the whole buffer. Falls back to the outermost start.
-    // Uses the node's exact payload range [DataStart, DataEnd); an error at DataEnd is the next sibling
-    // field's tag and belongs to the PARENT region, not this body.
+    // Find the deepest walked region containing errorOffset; fall back to outermost.
+    // DataEnd is the next sibling field's tag: an error there belongs to the PARENT region, not this body.
     static int EnclosingRegionStart(IReadOnlyList<WireNode> tree, int errorOffset, int fallbackStart)
     {
         foreach (var n in tree)
@@ -288,8 +284,6 @@ public static class WireForensics
         return fallbackStart;
     }
 
-    // One field read attempt at pos. Returns (node, next) or null if the bytes there are not a plausible
-    // field. Ported from traceFailingField.js tryField. No span capture (static, span passed in).
     static (RecoveredField Node, int Next)? TryField(ReadOnlySpan<byte> buf, int pos, int end)
     {
         ulong tag;
@@ -335,8 +329,7 @@ public static class WireForensics
         return true;
     }
 
-    // Read fields linearly from `from`, resyncing by one byte when a field does not parse, until `end`.
-    // Returns (fields, cleanPrefixCount, skippedBytes). Ported from traceFailingField.js linear().
+    // Ported from traceFailingField.js linear().
     static (List<RecoveredField> Fields, int CleanPrefix, int Skipped) RecoverLinear(ReadOnlySpan<byte> buf, int from, int end)
     {
         var fields = new List<RecoveredField>();
@@ -377,8 +370,7 @@ public static class WireForensics
         return best is { } bb ? (bb.f, bb.off, bb.skip) : ([], start, 0);
     }
 
-    // Map recovered field numbers to names using the message type that the broken path led to. The path's
-    // last segment is the broken field; its PARENT message type owns the sibling fields we recovered.
+    // The path's last segment is the broken field; its PARENT message type owns the sibling fields we recovered.
     static IReadOnlyList<RecoveredField> ResolveRecovered(IReadOnlyList<RecoveredField> fields, string brokenPath, MessageDescriptor? rootDesc)
     {
         if (rootDesc is null) return fields;
@@ -399,7 +391,7 @@ public static class WireForensics
         }).ToList();
     }
 
-    // Expected wire type for a schema field type. 0=varint,1=i64,2=len,5=i32. -1 = unknown.
+    // Wire type codes: 0=varint,1=i64,2=len,5=i32; -1=unknown.
     static int ExpectedWire(FieldDescriptor f)
     {
         if (f.IsRepeated && f.IsPacked) return 2; // packed repeated scalars travel as LEN

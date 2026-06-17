@@ -128,11 +128,8 @@ public sealed class ApkExtractService(
         }
     }
 
-    // Runs the EggIncProtoExtractor toolchain over the ARM split and returns the cleaned ei.proto text.
-    // jar_extract.py decompiles the native lib into an out dir as ei.proto + common.proto; the cleanup
-    // step (merge common into ei after `package ei;`, drop the import, strip aux. prefixes) is now the
-    // C# ProtoCleanup rather than the python protocleanup.py: one fewer subprocess and the parity is
-    // unit-testable. Produces the bytes whose sha256 is the canonical protoSha. Integration-only.
+    // jar_extract.py produces ei.proto + common.proto; ProtoCleanup merges + strips aux. prefixes (replaces python protocleanup.py).
+    // Integration-only.
     private static async Task<string> RunPbtkAsync(ProtoExtractOptions opts, string apkPath, CancellationToken ct)
     {
         var outDir = Path.Combine(Path.GetTempPath(), $"egi-pbtk-{Guid.NewGuid():N}");

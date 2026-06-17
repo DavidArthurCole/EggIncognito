@@ -11,10 +11,8 @@ public sealed record OptionShape(
 // Discord-free shape of one slash command.
 public sealed record CommandShape(string Name, string Description, IReadOnlyList<OptionShape> Options);
 
-// Structural signature of a command set, order-insensitive by command name. Used on Ready to skip
-// the bulk overwrite when Discord already holds the exact catalog we would push, saving the
-// rate-limited global-command write. Coarse on purpose: covers name/description/option tree only;
-// context/integration-type changes are not captured, so bump a description to force a re-push.
+// Structural signature of the command set (name/desc/option tree, order-insensitive). Coarse on purpose:
+// context/integration-type not captured, so bump a description to force a re-push.
 public static class CommandSignature
 {
     public static string Compute(IEnumerable<CommandShape> commands)

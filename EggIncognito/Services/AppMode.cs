@@ -4,10 +4,7 @@ namespace EggIncognito.Services;
 
 public enum AppMode { Local, Hosted }
 
-// Whether this instance is a local self-run with full features, or a shared public host that is
-// read-only: capture + endpoint writes are disabled since a request must not mutate shared data and
-// the proxy cannot be shared. Driven by the `AppMode` config key, default Local, with optional
-// `CaptureEnabled` / `WritesEnabled` overrides.
+// Local = full features; Hosted = read-only (capture + writes disabled).
 public interface IAppMode
 {
     AppMode Mode { get; }

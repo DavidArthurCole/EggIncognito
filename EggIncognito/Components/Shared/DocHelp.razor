@@ -36,7 +36,7 @@
 
     DocSubject? _subject;
     bool _open;
-    bool _loaded; // fetched the DB doc once, lazily on first open
+    bool _loaded;
     string? _bodyMd;
 
     string _baseAddress = "";
@@ -52,7 +52,6 @@
         }
     }
 
-    // Resolve the subject whenever Kind/Key change. Null subject => render nothing.
     protected override void OnParametersSet() => _subject = Registry.Find(Kind, Key);
 
     HttpClient Client()

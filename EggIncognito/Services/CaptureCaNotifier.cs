@@ -58,8 +58,7 @@ public sealed class DiscordCaptureCaNotifier(
         }
     }
 
-    // The copyable connection block. iOS: open the attached profile, install, trust. The front door
-    // identifies the user by the per-user proxy address, so no username or password is needed.
+    // iOS: open attached profile, install, trust. Front door identifies by address; no credentials needed.
     internal static string BuildMessage(CaptureSetupDm dm) =>
         $"""
         **Hosted capture is live.**

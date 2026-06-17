@@ -46,8 +46,7 @@ public sealed class InspectorApiController(
         return Ok(list);
     }
 
-    // All proto message type short names, sorted. Powers the Inspector "Objects" list + Documentation.
-    // Static for the app's lifetime since the proto is frozen, so let the browser cache it.
+    // Proto is frozen per process; let the browser cache it.
     [HttpGet("messages")]
     public IActionResult Messages()
     {
@@ -226,7 +225,7 @@ public sealed class InspectorApiController(
             writer.WriteStartObject();
             foreach (var kv in outObj)
             {
-                if (kv.Key == rinfoKey) continue; // rewritten below from merged env
+                if (kv.Key == rinfoKey) continue;
                 writer.WritePropertyName(kv.Key);
                 kv.Value.WriteTo(writer);
             }

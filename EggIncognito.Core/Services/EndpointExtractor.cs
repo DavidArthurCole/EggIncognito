@@ -59,7 +59,6 @@ public sealed class EndpointExtractor
         return new EndpointExtractor(dirs, eid, eidPlaceholder, overwrite);
     }
 
-    // Per-flow entry point. The single contract both the HAR and in-process paths use.
     // requestDataB64 is the base64 `data` param value, or null for an empty body. responseBodyB64 is
     // the base64-encoded response body, the AuthenticatedMessage on the wire. Returns the canonical
     // path processed, or null if the flow was skipped.
@@ -107,7 +106,7 @@ public sealed class EndpointExtractor
         return decoded.Path;
     }
 
-    // HAR-file driver. Iterates log.entries[] and feeds each through ProcessFlow.
+    // HAR driver.
     public void RunFromHar(string harPath)
     {
         using var doc = JsonDocument.Parse(File.ReadAllBytes(harPath));
@@ -116,14 +115,13 @@ public sealed class EndpointExtractor
             ProcessHarEntry(entry);
     }
 
-    // mitmproxy .mitm driver. Reads each serialized flow and feeds it through the same ProcessFlow.
+    // .mitm driver.
     public void RunFromMitm(string mitmPath)
     {
         foreach (var f in MitmFlowReader.Read(File.ReadAllBytes(mitmPath)))
             ProcessFlow(f.Url, f.Method, f.Status, f.RequestDataB64, f.ResponseBodyB64);
     }
 
-    // Pull (url, method, status, requestData, responseBody) out of one HAR entry and process it.
     public void ProcessHarEntry(JsonElement entry)
     {
         var req = entry.GetProperty("request");
@@ -383,7 +381,6 @@ public sealed class EndpointExtractor
             Console.WriteLine("  note: routes.yaml updated -> POST /api/import/endpoint-status/update to refresh endpoint_status");
     }
 
-    // Pull the base64 `data` value from a HAR request entry, form param or raw text body.
     public static string? ReadRequestData(JsonElement reqEl)
     {
         if (!reqEl.TryGetProperty("postData", out var postData)) return null;
@@ -410,9 +407,7 @@ public sealed class EndpointExtractor
         return null;
     }
 
-    // Replace every literal rendering of the EID, case-insensitive, including inside larger strings,
-    // so re-cased or embedded copies cannot leak. Used for both the endpoint and the redacted request
-    // dump. Static so tests can exercise it directly.
+    // Static so tests can exercise it directly.
     public static string ScrubEid(string text, string? eid, string placeholder) =>
         string.IsNullOrEmpty(eid)
             ? text
@@ -565,7 +560,7 @@ public sealed class EndpointExtractor
         return count;
     }
 
-    // --decode diagnostic: identify the proto type of an arbitrary captured blob.
+    // --decode diagnostic.
     public static void RunDecode(string base64)
     {
         byte[] data;
@@ -611,22 +606,15 @@ public sealed class EndpointExtractor
         catch (InvalidProtocolBufferException) { /* not wrapped */ }
     }
 
-    // Shared request-body decode used by both the live capture pipeline and the dashboard decoder, so
-    // the proto-framing heuristic can never drift between them. Returns the unredacted JSON + the
-    // resolved type name, null if it could not be decoded.
-    //   knownType - the routes.yaml-mapped request type, or null to auto-detect.
+    // Shared request-body decode: live capture + dashboard decoder, so framing heuristic can never drift.
+    //   knownType - routes.yaml-mapped request type, or null to auto-detect.
     //   wrapped   - whether the known type is AuthenticatedMessage-wrapped on the wire.
-    // For a known type, parse under the recorded framing; if that yields a poor parse (the lenient
-    // proto parser stuffs trailing bytes into the last string field), also try the other framing and
-    // keep whichever round-trips exactly or has the richest fields. For an unknown type, auto-detect
-    // across raw and AM-unwrapped framings.
     public static (string? json, string? typeName) DecodeRequestBody(string? knownType, bool wrapped, byte[] bytes)
     {
         try
         {
             if (knownType is not null)
             {
-                // Candidate framings, preferring the recorded one first.
                 var candidates = new List<byte[]>();
                 var unwrapped = ProtoFraming.TryUnwrap(bytes);
                 if (wrapped && unwrapped is not null) { candidates.Add(unwrapped); candidates.Add(bytes); }
@@ -653,7 +641,6 @@ public sealed class EndpointExtractor
                     return (ProtoJson.PrettyPrint(JsonFormatter.Default.Format(best)), knownType);
             }
 
-            // Unknown type: auto-discover the inner type + framing.
             var raw = AutoDetect(bytes);
             var unw2 = ProtoFraming.TryUnwrap(bytes) is { } u ? AutoDetect(u) : default;
             var chosen = unw2.bestScore > raw.bestScore ? unw2 : raw;
@@ -691,10 +678,8 @@ public sealed class EndpointExtractor
 
         if (bestScore < 2) return (null, null, 0, bestScore, secondBestScore);
 
-        // Confidence. When the winner is an EXACT round-trip (score >= 1000), the 1000 bonus
-        // is shared by every exact candidate, so a raw score ratio understates certainty.
-        // Compare by field count instead: an exact match with more fields than the runner-up
-        // is the more specific (correct) type. Only-one-candidate => 100.
+        // Confidence. Exact round-trips (score >= 1000) share the bonus, so compare by field count
+        // instead of raw score ratio. Multiple exact matches: rank by field-count margin.
         const int Exact = 1000;
         int confidence;
         if (secondBestScore == 0)
@@ -703,7 +688,6 @@ public sealed class EndpointExtractor
             confidence = 99; // sole exact round-trip beats all lenient parses
         else if (bestScore >= Exact && secondBestScore >= Exact)
         {
-            // Multiple exact round-trips: rank by field-count margin (strip the shared bonus).
             int bf = bestScore - Exact, sf = secondBestScore - Exact;
             confidence = bf + sf == 0 ? 50 : Math.Min(99, (int)((double)bf / (bf + sf) * 100));
         }

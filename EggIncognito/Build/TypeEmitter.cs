@@ -73,7 +73,6 @@ public static class TypeEmitter
     {
         var sb = new StringBuilder();
         sb.AppendLine($"export interface {t.Name} {{");
-        // Records expose their data as public instance properties, one per positional/init member.
         foreach (var p in t.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             if (p.GetIndexParameters().Length > 0) continue; // skip indexers
@@ -85,8 +84,8 @@ public static class TypeEmitter
         return sb.ToString();
     }
 
-    // Map a CLR type to a TS type. Enqueues nested record types for emission. Returns (tsType,
-    // isOptional); reference/nullable types are optional since the JSON may omit or null them.
+    // Map a CLR type to a TS type. Enqueues nested record types for emission.
+    // reference/nullable types are optional (JSON may omit or null them).
     private static (string ts, bool optional) TsType(Type t, Queue<Type> queue)
     {
         var underlying = Nullable.GetUnderlyingType(t);

@@ -2,15 +2,8 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-// The core per-flow work of capture, separated from the CaptureSession queue consumer so it is
-// unit-testable and needs no console-suppression hack; the extractor is put in Quiet mode instead.
-// For each captured flow it:
-//   - appends a HAR entry, the durable hand-off artifact,
-//   - runs the endpoint extractor: decode, redact, self-repair routes.yaml, write/stage,
-//   - derives the per-flow outcome from the extractor's Counts delta,
-//   - decodes display JSON, raw + redacted with proto type names, via FlowDecoder,
-//   - computes git-style diff +/- counts for a "diff" outcome,
-// and returns the DashboardFlow to publish. Id/Timestamp are owned by the hub at publish time.
+// Per-flow capture work, separated from the queue consumer for unit-testability (extractor runs Quiet).
+// HAR append, endpoint extract, display JSON decode, diff counts. Returns DashboardFlow; hub owns Id/Timestamp.
 public sealed class FlowProcessor
 {
     private readonly EndpointExtractor? _extractor;
@@ -45,8 +38,7 @@ public sealed class FlowProcessor
         var displayPath = path ?? EndpointExtractor.NormalizePath(flow.Url);
         var req = _decoder.DecodeRequest(displayPath, flow.RequestDataB64);
         var resp = _decoder.DecodeResponse(displayPath, flow.ResponseBodyB64);
-        // "Known" = both sides resolve to yaml-mapped types, or the request has no body: an endpoint we
-        // already fully understand.
+        // Known = both sides yaml-mapped, or request has no body.
         var known = resp.Known && (req.Known || flow.RequestDataB64 is null);
 
         // For a diff outcome, compute git-style +/- line counts, existing endpoint vs the staged new
@@ -55,6 +47,9 @@ public sealed class FlowProcessor
 
         var (reqHeaders, reqHeadersRaw) = HeaderRedactor.Build(flow.RequestHeaders);
         var (respHeaders, respHeadersRaw) = HeaderRedactor.Build(flow.ResponseHeaders);
+
+        // Use unredacted JSON for rinfo: version fields are not PII, and redaction may tokenize ei_user_id inside rinfo.
+        var observed = RinfoHarvester.TryHarvest(req.JsonRaw);
 
         return new DashboardFlow(
             Id: 0, Timestamp: "", Path: displayPath, Method: flow.Method, Status: flow.Status,
@@ -65,7 +60,7 @@ public sealed class FlowProcessor
             RequestJsonRaw: req.JsonRaw, ResponseJsonRaw: resp.JsonRaw, Url: flow.Url,
             RequestHeaders: reqHeaders, ResponseHeaders: respHeaders,
             RequestHeadersRaw: reqHeadersRaw, ResponseHeadersRaw: respHeadersRaw,
-            ResponseIsAck: resp.Ack, ResponseText: resp.Text);
+            ResponseIsAck: resp.Ack, ResponseText: resp.Text, Observed: observed);
     }
 
     // Snapshot of the extractor's write tallies, used to derive a single flow's outcome.

@@ -55,7 +55,6 @@ public interface ITransportPipeline
 
 public sealed class TransportPipeline : ITransportPipeline
 {
-    // Stage roles.
     private const string RolePayload = "payload";
     private const string RoleEnvelope = "envelope";
     private const string RoleEncoding = "encoding";
@@ -65,7 +64,7 @@ public sealed class TransportPipeline : ITransportPipeline
     public TransportPipeline(IConfiguration config)
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"]) { }
 
-    // For non-DI callers: take the salt straight from the EGG_INC_API_SALT env var.
+    // For non-DI callers:
     public TransportPipeline()
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT")) { }
 
@@ -248,7 +247,6 @@ public sealed class TransportPipeline : ITransportPipeline
         new(name, desc, bytes.Length, Convert.ToHexString(bytes).ToLowerInvariant(),
             Convert.ToBase64String(bytes), note, role);
 
-    // The canonical AuthenticatedMessage signing logic - single source of truth.
     private static byte[] WrapInAuthMessage(byte[] innerBytes, string salt)
     {
         var msg = new Ei.AuthenticatedMessage

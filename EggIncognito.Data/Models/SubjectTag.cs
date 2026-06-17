@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// Join row linking a subject, message type or endpoint path, to a Tag. Same subject model as Doc so
-// endpoints and messages tag uniformly. No hard FK to tags.id, matching the codebase's no-FK
-// convention; the app enforces validity. Unique per (subject, tag) so a tag is applied at most once.
+// Links a subject (message type or endpoint path) to a Tag. No hard FK to tags; validity enforced in app. Unique per (subject, tag).
 [Table("subject_tags")]
 public class SubjectTag
 {

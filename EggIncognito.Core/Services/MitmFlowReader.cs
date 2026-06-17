@@ -54,8 +54,7 @@ public static class MitmFlowReader
         return $"{scheme}://{authority}{path}";
     }
 
-    // Pull the base64 `data` value from a form-encoded request body, matching the HAR path's selection
-    // (exact `data` key, '+' preserved as base64 padding). Null when there is no body or no data param.
+    // '+' restored before unescaping to match base64 padding (HAR path parity).
     private static string? ReadDataParam(byte[]? content)
     {
         if (content is null || content.Length == 0) return null;

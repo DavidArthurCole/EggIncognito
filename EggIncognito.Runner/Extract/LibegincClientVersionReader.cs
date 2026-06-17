@@ -3,9 +3,8 @@ using System.Text.Json;
 
 namespace EggIncognito.Runner.Extract;
 
-// Shells the vendored client_version.py over the arm split. It disassembles libegginc.so and picks the
-// compiled-in clientVersion using previousClientVersion as the anchor. Null when prev is unknown (no
-// anchor) or the tool cannot determine a value. extractorRepo + python match PbtkProtoExtractor.
+// Shells client_version.py: disassembles libegginc.so, picks clientVersion anchored on previousClientVersion.
+// Returns null when prev is unknown or the tool fails. extractorRepo + python match PbtkProtoExtractor.
 public sealed class LibegincClientVersionReader(string extractorRepo, string python) : IClientVersionReader
 {
     public string? Read(string apkPath, int? previousClientVersion)

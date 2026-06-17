@@ -124,6 +124,102 @@ namespace EggIncognito.Data.Migrations
                     b.ToTable("capture_user_cas");
                 });
 
+            modelBuilder.Entity("EggIncognito.Data.Models.Device", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("label");
+
+                    b.Property<string>("Package")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("package");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("platform");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("target");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("devices");
+                });
+
+            modelBuilder.Entity("EggIncognito.Data.Models.DeviceProbe", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("device_id");
+
+                    b.Property<string>("InstalledAppVersion")
+                        .HasColumnType("text")
+                        .HasColumnName("installed_app_version");
+
+                    b.Property<string>("InstalledBuild")
+                        .HasColumnType("text")
+                        .HasColumnName("installed_build");
+
+                    b.Property<string>("LatestAvailable")
+                        .HasColumnType("text")
+                        .HasColumnName("latest_available");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<DateTimeOffset>("ProbedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("probed_at");
+
+                    b.Property<bool>("Reachable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reachable");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("result");
+
+                    b.Property<string>("TriggeredBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("triggered_by");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId", "ProbedAt");
+
+                    b.ToTable("device_probes");
+                });
+
             modelBuilder.Entity("EggIncognito.Data.Models.Doc", b =>
                 {
                     b.Property<long>("Id")

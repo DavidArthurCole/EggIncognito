@@ -6,19 +6,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Issues + reverse-maps per-user IPv6 proxy addresses. Each user has ONE stored address with a random
-// host part inside the configured prefix. It is the capture credential (connecting to it proves you
-// were issued it), so it is treated as a leakable bearer token: stable across sessions for convenience,
-// but ROTATABLE on demand. Rotating overwrites the stored address, so the old one resolves to nobody
-// (the front door then rejects it). The `secret` parameter is retained for signature compatibility but
-// the address is random, not derived, so a leaked address tells an attacker nothing about future ones.
+// Issues + reverse-maps per-user random IPv6 proxy addresses. Stable across sessions; rotatable on demand
+// (old address immediately resolves to nobody). `secret` param unused, kept for API compat.
 public sealed class CaptureAddressStore(EggIncognitoDbContext db)
 {
     readonly EggIncognitoDbContext _db = db;
 
-    // Build a fresh random address: prefix bits fixed (per the CIDR length), host bits cryptographically
-    // random. Honors any prefix length 0..128 (e.g. a /65 sub-prefix sharing the /64 with the host's own
-    // addresses). Reserved host parts (all-zero, ::1) are bumped to ::2.
+    // Random address in prefix: prefix bits fixed, host bits random. Reserved host parts (::0, ::1) bumped to ::2.
     public static IPAddress RandomInPrefix(string prefixCidr)
     {
         var parts = prefixCidr.Split('/');
@@ -45,8 +39,7 @@ public sealed class CaptureAddressStore(EggIncognitoDbContext db)
         return new IPAddress(bytes);
     }
 
-    // The user's current address, minting + persisting a random one on first use. `secret` is unused
-    // (kept for call-site compatibility); the address is random, not derived.
+    // Current address for user; mints + persists on first use. `secret` unused (API compat).
     public async Task<IPAddress> AddrForUserAsync(string prefixCidr, string secret, string discordId, CancellationToken ct = default)
     {
         var row = await _db.CaptureProxyAddrs.AsNoTracking().FirstOrDefaultAsync(a => a.DiscordId == discordId, ct);

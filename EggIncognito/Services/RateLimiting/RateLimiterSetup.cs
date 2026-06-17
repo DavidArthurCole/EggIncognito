@@ -35,8 +35,7 @@ public static class RateLimiterSetup
 
             o.OnRejected = async (ctx, ct) =>
             {
-                // Sliding-window limiters with QueueLimit=0 never populate RetryAfter metadata, so
-                // fall back to the matched policy's window instead of a hardcoded constant.
+                // QueueLimit=0 sliding windows never populate RetryAfter metadata; fall back to the policy's window.
                 var retry = ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var ra)
                     ? (int)ra.TotalSeconds
                     : FallbackRetryAfterSeconds(ctx.HttpContext, opts);
@@ -68,7 +67,6 @@ public static class RateLimiterSetup
         return 60;
     }
 
-    // The effective permit for a caller = min(policy limit, best applicable tier limit).
     internal static int EffectivePermit(RateLimitOptions opts, IReadOnlyList<string> tierNames, string policyOptionKey)
     {
         var best = tierNames.Max(t => opts.Tiers[t].PermitLimit);

@@ -212,9 +212,7 @@ public sealed class RoutesYamlEditor
         _lines.Insert(index, line);
     }
 
-    // Indent for a route block's fields: copied from the first existing field line, else the
-    // `- path:` line's indent plus two spaces. Never hardcoded, so off-standard files keep their
-    // own indentation.
+    // Never hardcoded, so off-standard files keep their own indentation.
     private string FieldIndent(int start, int end)
     {
         for (int k = start + 1; k < end; k++)

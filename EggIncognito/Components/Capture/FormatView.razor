@@ -54,7 +54,7 @@
     // Remembered format per section label, owned by the parent so switching flows keeps the choice.
     [Parameter] public Dictionary<string, string> FormatChoice { get; set; } = new();
 
-    string? _emptyNoteOnly; // when set, render only the note (+ maybe raw box)
+    string? _emptyNoteOnly;
     bool _showRawBox;
     string _currentFormat = "json-tree";
     string _filter = "";

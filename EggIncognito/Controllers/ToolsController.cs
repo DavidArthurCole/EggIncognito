@@ -16,6 +16,19 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
     private string YamlPath => Path.Combine(Root, "RouteMap", "routes.yaml");
     private string DefaultsDir => Path.Combine(Root, "Endpoints", "default");
+    private string CapturePath => config["CapturePath"] ?? Path.Combine(Root, "captures");
+
+    // Latest live app version harvested from captured BasicRequestInfo for a platform. This is the
+    // authoritative iOS clientVersion + auxbrain build (the static IPA binary cannot give them); the
+    // Proto Registry Analyze form uses it to backfill clientVersion + build. Empty 200 when none seen
+    // (e.g. no capture has run on this host, or only the other platform was observed).
+    [HttpGet("live-version")]
+    public IActionResult LiveVersion([FromQuery] string platform = "ios")
+    {
+        var v = new Capture.LiveVersionStore(CapturePath).Latest(platform);
+        if (v is null) return Ok(new { found = false });
+        return Ok(new { found = true, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen });
+    }
 
     [HttpGet("postman-collection")]
     public IActionResult PostmanCollection()

@@ -48,7 +48,7 @@
     const long MaxImageBytes = 5 * 1024 * 1024;
     static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
 
-    // Token-insert toolbar (no real selection wrap; see file header). Upload + Save are handled separately.
+    // token-insert toolbar (no real selection wrap; see file header)
     static readonly (string Label, string Title, string Token)[] Buttons =
     [
         ("B", "Bold", "**bold**"),
@@ -110,7 +110,6 @@
         return c;
     }
 
-    // Token-append, not selection-wrap (see file header). Appends the markdown token to the source.
     void Insert(string token) { _value += token; _dirty = true; }
 
     async Task Save()
@@ -141,7 +140,7 @@
     {
         if (e.FileCount == 0) return;
         var file = e.File;
-        _dirty = true; // we are about to mutate _value
+        _dirty = true;
         _busy = true;
         _status = $"Uploading {file.Name}...";
         try

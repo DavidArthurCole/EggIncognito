@@ -23,7 +23,7 @@ public sealed class EventsController(IConfiguration config, IServiceProvider ser
     public async Task<IActionResult> NewVersion()
     {
         var secret = config["SyncEvent:EventSecret"];
-        // No secret configured: the endpoint is conceptually unmounted, like the opt-in bot/DB paths.
+        // No secret configured: treat as unmounted (opt-in endpoint).
         if (string.IsNullOrEmpty(secret)) return NotFound();
 
         if (!BearerMatches(secret)) return Unauthorized();

@@ -78,8 +78,10 @@ public sealed class CaptureSession
             Hub.SeedKnownDevices(deviceStore.Load());
             Hub.DevicesChanged = () => deviceStore.Save(Hub.SnapshotRememberedDevices());
 
-            // Hosted sessions never write endpoint fixtures to the shared repo; saves go to the DB
-            // store via the controller instead.
+            // Live clientVersion+build from captured rinfo, persisted per platform (authoritative for iOS).
+            var liveVersions = new LiveVersionStore(_opts.CapturePath);
+
+            // Hosted: no endpoint file writes; saves go to the DB store.
             if (_opts.WriteEndpoints)
             {
                 _extractor = EndpointExtractor.ForRepo(_contentRoot, _opts.Eid, EidPlaceholder, _opts.Overwrite);
@@ -105,7 +107,12 @@ public sealed class CaptureSession
                 await foreach (var flow in queue.Reader.ReadAllAsync())
                 {
                     LastFlowUtc = DateTimeOffset.UtcNow;
-                    try { Hub.Publish(processor.Process(flow), Now()); }
+                    try
+                    {
+                        var dash = processor.Process(flow);
+                        if (dash.Observed is { } obs) liveVersions.Observe(obs, DateTimeOffset.UtcNow.ToString("O"));
+                        Hub.Publish(dash, Now());
+                    }
                     catch { /* a single bad flow must not kill the pump */ }
                 }
             });
@@ -119,8 +126,7 @@ public sealed class CaptureSession
         }
         catch
         {
-            // Tear down whatever got built before the failure so the session is restartable
-            // instead of wedged at Starting with leaked queue/consumer/proxy/subscription.
+            // Tear down whatever started so the session is restartable, not wedged at Starting.
             Hub.DevicesChanged = null;
             _queue?.Writer.TryComplete();
             if (_consumer is not null) { try { await _consumer; } catch { } }
@@ -155,9 +161,7 @@ public sealed class CaptureSession
         }
         finally
         {
-            // A stop/save failure must not wedge State at Stopping; always land back on Stopped
-            // with the queue completed and the proxy disposed (best-effort, never masks the error).
-            // Drop the per-run DeviceStore subscription too; StartAsync wires a fresh one.
+            // Stop failure must not wedge State; always reach Stopped. Drop DeviceStore sub; StartAsync rewires it.
             Hub.DevicesChanged = null;
             queue?.Writer.TryComplete();
             if (proxy is not null) { try { await proxy.DisposeAsync(); } catch { } }

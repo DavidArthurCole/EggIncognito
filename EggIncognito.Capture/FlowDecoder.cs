@@ -23,14 +23,11 @@ public sealed class FlowDecoder
             EndpointExtractor.LoadRawResponses(contentRoot).Keys, StringComparer.Ordinal);
     }
 
-    //   Json    - redacted JSON for safe display, PII tokenized, same as written to endpoints
-    //   JsonRaw - the unredacted JSON, shown only when the UI redaction setting is Off
-    //   Type    - the resolved proto type name, yaml-mapped or auto-detected, or null
-    //   Known   - true when the type came from routes.yaml, an endpoint we already understand
-    //   Ack     - true when the endpoint returns a short non-proto acknowledgement, a rawResponse in
-    //             routes.yaml, so the UI labels it an acknowledgement
-    //   Text    - the literal plain-text body when the response is text rather than protobuf; null for
-    //             protobuf responses
+    //   Json/JsonRaw - redacted/unredacted display JSON
+    //   Type         - resolved proto type name (yaml-mapped or auto-detected), or null
+    //   Known        - type came from routes.yaml
+    //   Ack          - rawResponse endpoint (plain-text ack, not proto)
+    //   Text         - plain-text body; null for proto responses
     public sealed record DecodeResult(
         string? Json, string? JsonRaw, string? Type, bool Known, bool Ack = false, string? Text = null);
 

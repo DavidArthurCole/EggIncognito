@@ -45,8 +45,7 @@ public sealed class NewVersionIngestService
         _stash = stash;
     }
 
-    // ForTest builds an instance with no-op registry/fetch/regen/stash seams, for branch-level unit
-    // tests that exercise the classify-and-notify logic without disk artifacts or a live bot.
+    // No-op seams for unit tests; skips disk + Discord.
     public static NewVersionIngestService ForTest(string expectedProtoSha, ISyncNotifier notifier)
     {
         static Task NoOp(NewVersionEvent _, CancellationToken __) => Task.CompletedTask;

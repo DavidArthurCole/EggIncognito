@@ -6,7 +6,7 @@
 
 namespace EggIncognito.Services;
 
-// A node in the docs tree. Children is always a list (use [] for none, never null).
+// Children is never null; use [] for leaf nodes.
 public sealed record DocSubject(
     string Kind,
     string Key,
@@ -40,8 +40,7 @@ public sealed class DocRegistry : IDocRegistry
             new DocSubject("group", "controls", "Controls", "UI controls", controls),
         ];
 
-        // Flat index for Find. Group nodes and message field children are intentionally indexed too
-        // so they are addressable; later inserts for the same key win (no collisions expected).
+        // Flat index for Find; group nodes + field children are indexed too for direct addressing.
         _byKey = new Dictionary<string, DocSubject>(StringComparer.Ordinal);
         foreach (var root in _roots)
         {
@@ -80,8 +79,7 @@ public sealed class DocRegistry : IDocRegistry
         return new DocSubject("field", f.Name, f.Name, summary, []);
     }
 
-    // One subject per route. Summary names the request -> response types; children link to the
-    // message subjects for any request/response type the proto reflection knows.
+    // One subject per route; children link to request/response message subjects.
     private static IReadOnlyList<DocSubject> BuildEndpoints(IRouteCatalog routes, IProtoReflection proto)
     {
         var list = new List<DocSubject>();
@@ -110,7 +108,7 @@ public sealed class DocRegistry : IDocRegistry
 
     private sealed record ConfigOption(string Key, string? Default, string Summary, string AppliesTo);
 
-    // Curated from the README Configuration table. Not exhaustive; the load-bearing options.
+    // Curated option list. Not exhaustive.
     private static readonly ConfigOption[] ConfigOptions =
     [
         new("AppMode", "Local", "Local = full features; Hosted = capture + writes disabled (the public deploy)", "host"),

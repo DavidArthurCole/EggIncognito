@@ -1,0 +1,91 @@
+using EggIncognito.Capture;
+using EggIncognito.Services;
+
+namespace EggIncognito.Tests;
+
+public class LiveVersionStoreTests
+{
+    private static string TempDir()
+    {
+        var d = Path.Combine(Path.GetTempPath(), "egi-lv-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(d);
+        return d;
+    }
+
+    [Fact]
+    public void Load_MissingFile_ReturnsEmpty() => Assert.Empty(new LiveVersionStore(TempDir()).Load());
+
+    [Fact]
+    public void Observe_ThenLatest_RoundTrips()
+    {
+        var dir = TempDir();
+        var store = new LiveVersionStore(dir);
+        store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.6", "111341", 72), "2026-06-16T10:00:00Z");
+
+        var v = new LiveVersionStore(dir).Latest("ios");
+        Assert.NotNull(v);
+        Assert.Equal("ios", v!.Platform);
+        Assert.Equal("1.35.6", v.Version);
+        Assert.Equal("111341", v.Build);
+        Assert.Equal(72, v.ClientVersion);
+    }
+
+    [Fact]
+    public void Observe_LaterThinObservation_KeepsPriorFields()
+    {
+        var dir = TempDir();
+        var store = new LiveVersionStore(dir);
+        store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.6", "111341", 72), "t1");
+        // a later request whose rinfo only carries clientVersion + platform must NOT wipe version/build.
+        store.Observe(new RinfoHarvester.ObservedVersion("IOS", null, null, 72), "t2");
+
+        var v = store.Latest("ios");
+        Assert.Equal("1.35.6", v!.Version);
+        Assert.Equal("111341", v.Build);
+        Assert.Equal(72, v.ClientVersion);
+        Assert.Equal("t2", v.LastSeen);
+    }
+
+    [Fact]
+    public void Observe_NewerClientVersion_Wins()
+    {
+        var dir = TempDir();
+        var store = new LiveVersionStore(dir);
+        store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.6", "111341", 72), "t1");
+        store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.7", "111343", 73), "t2");
+
+        var v = store.Latest("ios");
+        Assert.Equal(73, v!.ClientVersion);
+        Assert.Equal("1.35.7", v.Version);
+        Assert.Equal("111343", v.Build);
+    }
+
+    [Fact]
+    public void Observe_SeparatePlatforms_KeptIndependently()
+    {
+        var dir = TempDir();
+        var store = new LiveVersionStore(dir);
+        store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.6", "111341", 72), "t1");
+        store.Observe(new RinfoHarvester.ObservedVersion("ANDROID", "1.35.5", "111334", 71), "t1");
+
+        Assert.Equal(72, store.Latest("ios")!.ClientVersion);
+        Assert.Equal(71, store.Latest("android")!.ClientVersion);
+    }
+
+    [Fact]
+    public void Observe_NoPlatform_Ignored()
+    {
+        var dir = TempDir();
+        var store = new LiveVersionStore(dir);
+        store.Observe(new RinfoHarvester.ObservedVersion("", null, null, 72), "t1");
+        Assert.Empty(store.Load());
+    }
+
+    [Fact]
+    public void Load_CorruptFile_ReturnsEmpty()
+    {
+        var dir = TempDir();
+        File.WriteAllText(Path.Combine(dir, "live-versions.json"), "{ not json");
+        Assert.Empty(new LiveVersionStore(dir).Load());
+    }
+}

@@ -255,12 +255,10 @@
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    // Left-pane mode + selection.
     string _listMode = "endpoints";
     RouteInfo? _selected;
     string? _selectedObject;
 
-    // Request builder state.
     List<FieldNode>? _fieldNodes;
     readonly Dictionary<string, SchemaMessage?> _schemaCache = new();
     List<EnvRow> _envRows = [];
@@ -269,7 +267,6 @@
     string _rawJson = "{}";
     string? _rawError;
 
-    // Send + pipeline state.
     string _target = "mock";
     bool _busy; // in-flight Build/Send guard; both buttons disable while a call is running
     BuildResponse? _lastBuild;
@@ -279,7 +276,6 @@
     int _resultTab; // 0 = Pipeline, 1 = Response, 2 = Diagnose (mirrors Capture's remembered detail tab)
     DiagnoseDto? _diagnosis;
 
-    // Browser-memory (interop-backed) state.
     bool _hasSalt;
     string _saltInput = "";
     bool _saltModalOpen;
@@ -293,13 +289,11 @@
     string[] _recentEids = [];
     RinfoDefaults _rinfo = new();
 
-    // Endpoint-status popover (a toolbar refresh button, not part of settings).
     bool _statusOpen;
     bool _statusLoading;
     string _statusOut = "";
     string _statusCounts = "";
 
-    // Gating.
     bool _liveDisabled;
     bool _canSaveDb;
     bool _hosted;
@@ -314,7 +308,7 @@
 
     string _baseAddress = "";
     string? _cookie;
-    IJSObjectReference? _store; // the inspectorStore.js ES module
+    IJSObjectReference? _store;
 
     protected override void OnInitialized()
     {
@@ -380,8 +374,6 @@
         try { await _store.InvokeVoidAsync(fn, args); } catch { }
     }
 
-    // left-pane switch + selection
-
     void SetListMode(string m) => _listMode = m;
 
     async Task SelectEndpoint(RouteInfo e)
@@ -418,7 +410,6 @@
     }
 
     // schema + field tree (direct service reads, no API round-trip)
-
     SchemaMessage? Schema(string? typeName)
     {
         if (string.IsNullOrEmpty(typeName)) return null;
@@ -440,8 +431,6 @@
         ApplyEnvLock();
         return Task.CompletedTask;
     }
-
-    // env panel
 
     void SeedEnvRows()
     {
@@ -523,8 +512,6 @@
     }
 
     // endpoint-status popover + salt
-
-    // Open the status popover and load on first open if not yet fetched.
     async Task ToggleStatus()
     {
         _statusOpen = !_statusOpen;
@@ -573,8 +560,6 @@
         _saltInput = "";
         _saltModalOpen = false;
     }
-
-    // send target
 
     void SelectTarget(string t)
     {
@@ -819,8 +804,6 @@
         }
     }
 
-    // remembered EIDs
-
     async Task RememberEnteredEids()
     {
         var candidates = new List<string?> { _pathParam };
@@ -842,8 +825,6 @@
         var last = _recentEids.FirstOrDefault();
         if (!string.IsNullOrEmpty(last)) set(last);
     }
-
-    // save to DB
 
     async Task SaveToDb()
     {

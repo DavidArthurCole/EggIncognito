@@ -6,11 +6,8 @@ using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Bot;
 
-// Owns the Discord gateway connection for the bot's lifetime. Opt-in: only registered when
-// Discord:BotToken is set. Connects in the background with bounded retries, sets a static
-// "Playing EggIncognito" presence, registers the global (+ optional guild) commands on Ready when
-// they changed, and routes interactions. Never throws out of StartAsync - a bot failure logs +
-// leaves the web app running.
+// Discord gateway connection for the bot's lifetime. Opt-in via Discord:BotToken.
+// Connects in background with bounded retries. Never throws out of StartAsync.
 public sealed class DiscordBotHostedService(
     BotOptions options,
     IStatusProvider status,
@@ -53,9 +50,7 @@ public sealed class DiscordBotHostedService(
             client.Ready += OnReadyAsync;
             _client = client;
 
-            // Connect in the background with bounded retries: a transient boot failure (DNS blip,
-            // Discord outage) must not leave the bot permanently dead or block web-app startup.
-            // Once started, Discord.Net owns reconnection; the client is never disposed on failure.
+            // Boot with retries; Discord.Net owns reconnection after first connect. Never blocks StartAsync.
             _ = ConnectWithRetryAsync(client, _stopping.Token);
         }
         catch (Exception ex)
@@ -100,9 +95,7 @@ public sealed class DiscordBotHostedService(
 
             await EnsureSharedRoleAsync(client);
 
-            // Register commands once per process. Ready re-fires on every reconnect/resume;
-            // re-pushing the global catalog each time would burn Discord's global-command write
-            // rate limit for no gain.
+            // Register once; Ready re-fires on reconnect and re-pushing burns the global-command rate limit.
             if (_commandsRegistered) return;
 
             var commands = CommandDefinitions.BuildAll();
@@ -180,10 +173,7 @@ public sealed class DiscordBotHostedService(
         }
     }
 
-    // Grants options.SharedRoleId to the bot's own member in the configured guild. Best-effort:
-    // any failure (missing Manage Roles, role above the bot in the hierarchy, cache miss, REST error)
-    // logs a warning and returns. No-op when GuildId or SharedRoleId is unset or unparseable, or when
-    // the member already has the role. Idempotent - safe to call on every Ready.
+    // Best-effort: grant SharedRoleId to the bot's own member. Any failure logs + returns. Idempotent.
     private async Task EnsureSharedRoleAsync(DiscordSocketClient client)
     {
         if (string.IsNullOrWhiteSpace(options.GuildId) || string.IsNullOrWhiteSpace(options.SharedRoleId)) return;
@@ -192,9 +182,7 @@ public sealed class DiscordBotHostedService(
         {
             IGuild? guild = client.GetGuild(gid);
             if (guild is null) { logger.LogWarning("bot: shared-role: guild {Guild} not available", gid); return; }
-            // Without the privileged GuildMembers intent the member cache is empty.
-            // CacheMode.AllowDownload uses the cache when present, otherwise does a REST fetch of the
-            // bot's own member. No privileged GuildMembers intent is needed for this single lookup.
+            // CacheMode.AllowDownload falls back to REST; GuildMembers intent not needed for a single self-lookup.
             IGuildUser? self = await guild.GetUserAsync(client.CurrentUser.Id, CacheMode.AllowDownload);
             if (self is null) { logger.LogWarning("bot: shared-role: self member not found in guild {Guild}", gid); return; }
             if (!BotRoles.NeedsRole(self.RoleIds, rid)) return;

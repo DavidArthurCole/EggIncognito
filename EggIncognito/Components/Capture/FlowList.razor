@@ -73,7 +73,7 @@
     // Auto-scroll to newest: when the AutoScroll view setting is on and a flow arrived, scroll the
     // list container to its bottom after render (newest flows append at the end).
     ElementReference _listRef;
-    IJSObjectReference? _scroll; // the scroll.js ES module
+    IJSObjectReference? _scroll;
     int _lastFlowCount;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -104,7 +104,6 @@
     void OnTypeInput(ChangeEventArgs e) => _typeFilter = (e.Value?.ToString() ?? "").Trim();
     void ClearFilters() { _group = ""; _pathFilter = ""; _typeFilter = ""; }
 
-    // Request/response type names seen this session, for the #seenTypes datalist.
     IEnumerable<string> SeenTypes()
     {
         var set = new SortedSet<string>(StringComparer.Ordinal);
@@ -116,7 +115,6 @@
         return set;
     }
 
-    // True if a flow passes all active filters. Ported from flowMatchesFilters.
     bool Matches(DashboardFlow flow)
     {
         var path = (flow.Path ?? "").ToLowerInvariant();

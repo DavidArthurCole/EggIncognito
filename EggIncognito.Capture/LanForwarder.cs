@@ -38,9 +38,7 @@ public sealed class LanForwarder : IAsyncDisposable
 
     public LanForwarder(int publicPort, int proxyPort)
     {
-        // Bind IPv6-any in dual-stack mode so the listener accepts both IPv6 and IPv4 clients.
-        // IPAddress.Any is IPv4-only; a phone reaching the PC over IPv6 would never be seen. IPv6Any +
-        // DualMode covers both.
+        // IPv6Any + DualMode so the listener accepts both IPv6 and IPv4 clients; IPAddress.Any is IPv4-only.
         _listener = new TcpListener(IPAddress.IPv6Any, publicPort);
         _listener.Server.DualMode = true;
         _proxyPort = proxyPort;
@@ -81,7 +79,7 @@ public sealed class LanForwarder : IAsyncDisposable
 
     private async Task HandleAsync(TcpClient client, CancellationToken ct)
     {
-        // Real device IP, observed here at the LAN edge; the proxy only ever sees loopback.
+        // Real device IP from the LAN edge; the proxy only ever sees loopback.
         var deviceIp = DeviceIp(client);
         OnDeviceConnectionOpened(deviceIp);
         try

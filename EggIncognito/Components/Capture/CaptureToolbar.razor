@@ -44,7 +44,6 @@
     </div>
   </div>
 
-  @* Green play when stopped (start), red pause when running (stop). *@
   <button type="button" class="icon-btn @(Running ? "capture-stop" : "capture-start")" disabled="@ToggleBusy"
           title="@(Running ? "Stop capture" : "Start capture")"
           aria-label="@(Running ? "Stop capture" : "Start capture")" @onclick="OnToggleCapture">

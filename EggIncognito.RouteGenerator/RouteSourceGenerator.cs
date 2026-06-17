@@ -22,9 +22,7 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // Project the parse output (value-equatable models) through the pipeline so the
-        // incremental cache compares routes, not file text. Output is regenerated only
-        // when the parsed routes actually change.
+        // Compare parsed routes (not raw text) so the cache only invalidates on real changes.
         var routes = context.AdditionalTextsProvider
             .Where(static f => f.Path.EndsWith("routes.yaml", System.StringComparison.OrdinalIgnoreCase))
             .Select(static (f, ct) => f.GetText(ct)?.ToString())
@@ -56,8 +54,7 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator
 
     private static string GenerateController(string className, RouteModel route)
     {
-        // Yaml-sourced strings go through FormatLiteral so quotes/backslashes/newlines
-        // emit valid C# string literals.
+        // FormatLiteral escapes yaml-sourced strings for C# literals.
         var pathLiteral = SymbolDisplay.FormatLiteral(route.Path, quote: true);
 
         var handler = route.RawResponse is not null

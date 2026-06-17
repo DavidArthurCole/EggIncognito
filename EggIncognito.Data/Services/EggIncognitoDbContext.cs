@@ -4,9 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Implements IDataProtectionKeyContext so the cookie/OAuth key ring is stored in Postgres; otherwise
-// the keys are ephemeral per-process and every restart invalidates existing auth cookies (logging users
-// out). DbSet name is the EF-conventional DataProtectionKeys table.
+// Stores the key ring in Postgres so auth cookies survive restarts (ephemeral keys log out every user on restart).
 public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> options)
     : DbContext(options), IDataProtectionKeyContext
 {
@@ -26,6 +24,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<BackfillJob> BackfillJobs => Set<BackfillJob>();
     public DbSet<KnownVersion> KnownVersions => Set<KnownVersion>();
     public DbSet<ExtractJob> ExtractJobs => Set<ExtractJob>();
+    public DbSet<Device> Devices => Set<Device>();
+    public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -114,6 +114,17 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Platform, x.AppVersion }).IsUnique();
+        });
+        b.Entity<Device>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        });
+        b.Entity<DeviceProbe>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // LatestPerDevice orders by ProbedAt within a device; index keeps that off a full scan.
+            e.HasIndex(x => new { x.DeviceId, x.ProbedAt });
         });
     }
 }

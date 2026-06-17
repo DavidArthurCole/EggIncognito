@@ -7,8 +7,8 @@ namespace EggIncognito.Runner.Trigger;
 
 public sealed record ResyncResult(int Status, RunOutcome? Outcome, string? Error);
 
-// The pure decision core of the resync route: bearer check, single-flight lock, outcome shaping. Kept
-// separate from Kestrel so it is unit-testable without a port. run is the runner callback (force -> outcome).
+// Bearer check, single-flight lock, and outcome shaping for the resync route.
+// Separate from Kestrel so it is unit-testable without a port.
 public sealed class ResyncHandler(string secret, Func<bool, RunOutcome> run)
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -41,8 +41,7 @@ public sealed class ResyncHandler(string secret, Func<bool, RunOutcome> run)
     }
 }
 
-// Hosts the resync route on a host-local Kestrel listener. POST /resync with Authorization: Bearer
-// <secret>, optional body {"force":true}. Delegates the decision to ResyncHandler.
+// Host-local Kestrel listener: POST /resync (Authorization: Bearer, optional {"force":true}).
 public static class TriggerListener
 {
     public static WebApplication Build(string urls, ResyncHandler handler, ApkPureExtractHandler? extract = null)

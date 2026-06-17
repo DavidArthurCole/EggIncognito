@@ -2,12 +2,9 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// One detected game build's registry metadata, keyed by (platform, build). The .proto text itself
-// lives in ProtoProto. Unique on (platform, build): re-ingesting the same build updates this row.
-// A build carries three version numbers (all needed for downstream API calls): app_version is the
-// user-facing label (not unique), build is the monotonic versionCode (the row key), client_version
-// is the proto/API client version (best-effort, nullable until extracted from the binary). source
-// records where the build came from ("farm" default; later backfill uses elgranjero/playstore/etc).
+// One game build in the registry, keyed by (platform, build). Proto text lives in ProtoProto.
+// Three version numbers: app_version (user label), build (monotonic versionCode, row key),
+// client_version (proto API version, nullable). source = origin ("farm", "playstore", etc).
 [Table("proto_versions")]
 public sealed class ProtoVersion
 {

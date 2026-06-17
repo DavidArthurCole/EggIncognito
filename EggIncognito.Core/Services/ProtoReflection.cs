@@ -41,9 +41,7 @@ public sealed class ProtoReflection : IProtoReflection
     private static string Short(string typeName) =>
         typeName.StartsWith("Ei.", StringComparison.Ordinal) ? typeName[3..] : typeName;
 
-    // Descriptor + parser cache, keyed by short type name. Positive entries only: hits are bounded
-    // by the Ei assembly's type count, while unknown names arrive from user input (Inspector type
-    // fields, forensics root types) and caching misses would grow the dictionary without bound.
+    // Positive entries only: misses from unknown user-input names are not cached.
     private static readonly ConcurrentDictionary<string, (MessageDescriptor Descriptor, MessageParser Parser)> Cache =
         new(StringComparer.Ordinal);
 

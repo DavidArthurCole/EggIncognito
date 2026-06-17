@@ -57,8 +57,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # iproute2: hosted capture binds a per-user IPv6 /65 via an AnyIP local route added at startup (the
 # host routes the prefix to this container; the container kernel must accept those destinations so the
 # front-door socket sees the real per-user dest). proto-extract toolchain NOT baked (~250MB).
+# adb + ideviceinstaller: device-status probes shell out to these to read the installed EI version.
+# They reach the plugged-in devices via the host's adb server (ADB_SERVER_SOCKET) + usbmuxd socket
+# (mounted at runtime), not raw USB. Without them every probe reports the device unreachable.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgssapi-krb5-2 iproute2 \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 iproute2 adb ideviceinstaller \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/publish .
@@ -78,6 +81,12 @@ ENV NoBrowser=true
 # Public deploy runs Hosted (capture + writes disabled). Set AppMode=Hosted at deploy time for the
 # public image. Default stays Local so self-host has full features.
 # ENV AppMode=Hosted
+
+# Device probes: the container's adb talks to the HOST's adb server rather than spawning its own (a
+# container-local server sees no USB). Host server listens 127.0.0.1:5037, reachable only when the
+# container shares the host network namespace (network_mode: host). usbmuxd is reached via the mounted
+# socket. Both are wired at deploy time (compose/Portainer), see docker-compose.yml.
+ENV ADB_SERVER_SOCKET=tcp:127.0.0.1:5037
 
 EXPOSE 8080
 EXPOSE 8443

@@ -3,15 +3,13 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Runner.Adb;
 
-// IAdbClient is the seam that lets the loop run without a real device in tests.
+// IAdbClient is the test seam for the poll loop; real impl shells adb.
 public interface IAdbClient
 {
-    // DumpsysPackage returns the raw `dumpsys package <pkg>` text.
     string DumpsysPackage(string package);
 
-    // PullArmApk resolves the arm split via `pm path`, pulls it to destPath over
-    // ADB, and returns destPath. The arm split is the one that carries the proto
-    // descriptors, matching EggIncProtoExtractor's fullextract pattern.
+    // PullArmApk resolves the arm split via `pm path` and pulls it to destPath.
+    // The arm split carries the proto descriptors pbtk needs.
     string PullArmApk(string package, string destPath);
 }
 
@@ -27,25 +25,22 @@ public sealed class AdbClient : IAdbClient
     private static readonly Regex VersionCodeRe =
         new(@"versionCode=(\d+)", RegexOptions.Compiled);
 
-    // ParseVersionName pulls the versionName token out of dumpsys output. This is the
-    // user-facing appVersion (e.g. 1.35.7), not unique across builds.
+    // ParseVersionName extracts versionName (e.g. 1.35.7) from dumpsys output.
     public static string ParseVersionName(string dumpsys)
     {
         var m = VersionRe.Match(dumpsys);
         return m.Success ? m.Groups[1].Value : "";
     }
 
-    // ParseVersionCode pulls the versionCode out of dumpsys output. This is the monotonic
-    // build number (e.g. 111343), unique per build, sitting alongside versionName.
+    // ParseVersionCode extracts versionCode (monotonic build number, e.g. 111343) from dumpsys output.
     public static string ParseVersionCode(string dumpsys)
     {
         var m = VersionCodeRe.Match(dumpsys);
         return m.Success ? m.Groups[1].Value : "";
     }
 
-    // ParseApkPaths returns the on-device APK paths from `pm path` output. Each
-    // line is `package:/data/app/.../base.apk`; the path is everything after the
-    // first colon. Hashed split dirs mean these cannot be guessed, only resolved.
+    // ParseApkPaths returns on-device APK paths from `pm path` output.
+    // Hashed split dirs mean these cannot be guessed, only resolved.
     public static IReadOnlyList<string> ParseApkPaths(string pmPathOutput)
     {
         var paths = new List<string>();
@@ -60,8 +55,7 @@ public sealed class AdbClient : IAdbClient
         return paths;
     }
 
-    // SelectArmApk picks the split whose filename contains "arm". That split holds
-    // the native + descriptor payload pbtk needs. Returns empty if none match.
+    // SelectArmApk picks the arm split, which carries the native + descriptor payload pbtk needs.
     public static string SelectArmApk(IReadOnlyList<string> apkPaths)
     {
         foreach (var p in apkPaths)
@@ -96,8 +90,7 @@ public sealed class AdbClient : IAdbClient
         return destPath;
     }
 
-    // RunText runs adb with the given args (no shell, so no redirection or quoting
-    // surprises) and returns stdout.
+    // RunText runs adb with the given args via ArgumentList (no shell, no redirection/quoting surprises).
     private static string RunText(params string[] args)
     {
         var psi = new ProcessStartInfo("adb")

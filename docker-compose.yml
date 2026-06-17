@@ -7,5 +7,9 @@ services:
     volumes:
       - ./EggIncognito/Endpoints:/app/Endpoints
       - ./certs:/app/certs:ro
+      # iOS device probes: ideviceinstaller talks to the plugged-in iPhone through the host's usbmuxd
+      # socket. Mount it read-write (the lockdown handshake writes). Android needs no mount: with host
+      # networking the container reaches the host adb server at 127.0.0.1:5037 (ADB_SERVER_SOCKET).
+      - /var/run/usbmuxd:/var/run/usbmuxd
     environment:
       - EndpointsPath=/app/Endpoints

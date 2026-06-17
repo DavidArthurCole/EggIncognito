@@ -93,7 +93,6 @@ public sealed class RouteListComparer : IEqualityComparer<List<RouteModel>>
 
 public static class RouteParser
 {
-    // Raw, pre-normalization line values collected per route block.
     private sealed class Block
     {
         public string? Path;
@@ -181,11 +180,7 @@ public static class RouteParser
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
 
     // Normalization shared (by convention) with RouteCatalog.
-    // New `request`/`response` keys win at the block level: when present (even empty),
-    // any legacy `requestType`/`responseType` in the same block is ignored. Legacy keys
-    // are read as aliases; the literal "AuthenticatedMessage" in a legacy field means
-    // "signed/wrapped envelope, inner type not yet known" -> null inner type + the
-    // matching wrapped flag.
+    // New keys beat legacy; "AuthenticatedMessage" in legacy -> null inner + wrapped flag.
     private static RouteModel Emit(Block b)
     {
         var (reqType, reqWrapDefault) = Normalize(b.HasRequest ? b.Request : b.LegacyReq);
@@ -203,7 +198,6 @@ public static class RouteParser
         };
     }
 
-    // Returns (innerType, wrappedDefault). "AuthenticatedMessage" -> (null, true).
     private static (string? type, bool wrapped) Normalize(string? v)
     {
         if (v == null) return (null, false);

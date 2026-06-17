@@ -66,7 +66,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
 
         if (existing is null)
         {
-            if (empty) return Ok(new { saved = false }); // nothing to store
+            if (empty) return Ok(new { saved = false });
             db.Docs.Add(new Doc
             {
                 SubjectKind = body.SubjectKind, SubjectKey = body.SubjectKey,
@@ -75,7 +75,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         }
         else if (empty)
         {
-            db.Docs.Remove(existing); // clearing the body removes the doc
+            db.Docs.Remove(existing);
         }
         else
         {
@@ -125,7 +125,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         if (db is null) return StatusCode(503, new { error = "no database configured" });
 
         var wanted = (body.TagIds ?? []).Distinct().ToHashSet();
-        // Drop ids that don't reference a real tag, so a bad client can't create dangling joins.
+        // Filter to real tag ids to prevent dangling joins.
         if (wanted.Count > 0)
         {
             var real = await db.Tags.Where(t => wanted.Contains(t.Id)).Select(t => t.Id).ToListAsync();

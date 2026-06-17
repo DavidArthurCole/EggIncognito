@@ -12,7 +12,6 @@
      The inline fixed two-column grid was unreadable on narrow screens. *@
   <div class="docs-grid grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-[280px_1fr]">
 
-    @* Left: the registry tree of 4 groups -> subjects. *@
     <nav class="docs-tree panel">
       @foreach (var group in Registry.Roots())
       {
@@ -32,7 +31,6 @@
       }
     </nav>
 
-    @* Right: the selected subject's metadata + doc + tags. *@
     <section class="docs-detail panel">
       @if (_selected is null)
       {

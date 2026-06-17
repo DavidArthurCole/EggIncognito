@@ -37,9 +37,8 @@
     [Parameter] public string Search { get; set; } = "";
     [Parameter] public bool IsRoot { get; set; }
 
-    // Long leaf strings render clamped; click reveals the rest. Local toggle, like the JS jv-open.
+    // long leaf strings render clamped; click reveals the rest. mirrors JS jv-open.
     bool _clampOpen;
-    // Blurred leaves reveal on click (blur mode + sensitive key).
     bool _revealed;
 
     void ToggleRow()
@@ -97,8 +96,6 @@
         else if (IsClamped) _clampOpen = !_clampOpen;
     }
 
-    // Wrap case-insensitive matches of the active search needle in <mark>. Returns plain text when no
-    // search or no match. Mirrors highlightText in tree.js.
     RenderFragment Highlight(string text) => builder =>
     {
         var needle = Search;

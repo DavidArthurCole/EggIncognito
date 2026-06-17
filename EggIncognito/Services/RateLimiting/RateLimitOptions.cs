@@ -40,7 +40,6 @@ public sealed record RateLimitOptions(
         return new RateLimitOptions(enabled, tiers, policies);
     }
 
-    // Merge config over defaults: any key the config omits keeps its default value.
     private static IReadOnlyDictionary<string, RateLimit> MergeGroup(
         IConfigurationSection group, IReadOnlyDictionary<string, RateLimit> defaults)
     {

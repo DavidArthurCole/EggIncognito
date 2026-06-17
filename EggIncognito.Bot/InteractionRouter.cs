@@ -5,11 +5,8 @@ using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Bot;
 
-// Routes slash-command + autocomplete interactions to handlers. Every slash command is deferred
-// up front (status.Build() + proto reflection can outrun Discord's 3s interaction window) and
-// answered with ephemeral followups. Each command is wrapped in try/catch so one failing
-// interaction never tears down the gateway connection - the user gets a fixed generic error embed
-// and the exception details stay in the server log. Pure dispatch/parsing lives in CommandParsing.
+// Slash-command + autocomplete router. Defers all interactions up front (status.Build() can exceed Discord's 3s window).
+// Per-command try/catch so one failure never tears down the gateway; failing commands get a generic error embed.
 public sealed class InteractionRouter(
     IStatusProvider status,
     IProtoReflection proto,
@@ -67,11 +64,8 @@ public sealed class InteractionRouter(
         }
     }
 
-    // Mirrors the ledger bot's /updateserver flow: ephemeral refusal for non-admins or a missing
-    // agent config, public defer for a real run, public success/up-to-date embed, and on failure
-    // delete the public placeholder + ephemeral red embed with the log tail. Discord already gates
-    // the command behind the guild Administrator permission; the runtime re-check is defense in
-    // depth against rebound permissions.
+    // Ephemeral refusal for non-admin/no-agent; public defer + success/failure embeds for a real run.
+    // Runtime permission re-check is defense-in-depth against rebound permissions.
     private async Task HandleUpdateServerAsync(SocketSlashCommand cmd)
     {
         if (cmd.User is not SocketGuildUser invoker || !invoker.GuildPermissions.Administrator)

@@ -21,8 +21,7 @@ public sealed record DeviceInfo(
     string LastSeen,
     string? Os,
     string? GameVersion,
-    // Online = currently connected this session; offline = a remembered device from a prior run that
-    // has not reconnected. TotalConnections is the lifetime count, seeded from the remembered value.
+    // Online = connected this session; TotalConnections = lifetime, seeded from remembered value.
     bool Online = true,
     int TotalConnections = 0);
 

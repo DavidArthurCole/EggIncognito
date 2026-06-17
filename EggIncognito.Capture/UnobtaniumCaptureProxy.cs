@@ -48,8 +48,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
     // True when this run minted a brand-new root CA, so the device must reinstall the cert. False when
     // the existing persistent CA was reused.
     public bool FreshCa => _freshCa;
-    // The persistent CA's thumbprint, available after StartAsync, so the operator can confirm it is the
-    // same cert across runs.
+    // Available after StartAsync; operator can confirm the same cert is reused across runs.
     public string? RootThumbprint => _rootCa?.Thumbprint;
 
     public event Action<CapturedFlow>? FlowCaptured;
@@ -222,8 +221,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         };
     }
 
-    // Decrypted response: read the response body, plus the buffered request body best-effort, and emit
-    // a CapturedFlow. Reading happens after the proxy has the response in hand.
+    // Pair buffered request with response and emit CapturedFlow.
     private void WireResponse()
     {
         _events.OnResponse += async (sender, e, token) =>
@@ -354,9 +352,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         catch (Exception ex) { Log($"TRUST-ERR {ex.Message}"); }
     }
 
-    // Remove our root CA from the user's Trusted Root store. A privately-keyed root left trusted
-    // after the session ends could forge any site; TrustRootCa re-installs the persisted CA on the
-    // next start, so removal costs nothing.
+    // Remove CA from trust store; TrustRootCa re-installs it on next start.
     private void UntrustRootCa()
     {
         if (!_trustAdded || _rootCa is null) return;
@@ -377,9 +373,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
 
         lock (_trustGate) { _trustTimer?.Dispose(); _trustTimer = null; }
 
-        // Fast shutdown: the proxy host can sit draining idle keep-alive tunnels for seconds. Cap each
-        // step with a short timeout and move on - we do not care about gracefully finishing in-flight
-        // passthrough tunnels on Ctrl-C.
+        // Cap each step; stalled keep-alive drains block shutdown for seconds.
         if (_forwarder is not null)
         {
             var f = _forwarder; _forwarder = null;

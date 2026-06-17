@@ -28,6 +28,7 @@ export interface DashboardFlow {
   responseIsAck: boolean;
   responseText?: string;
   saved: boolean;
+  observed?: ObservedVersion;
 }
 
 export interface DashboardHeader {
@@ -64,5 +65,12 @@ export interface DeviceInfo {
   gameVersion?: string;
   online: boolean;
   totalConnections: number;
+}
+
+export interface ObservedVersion {
+  platform?: string;
+  version?: string;
+  build?: string;
+  clientVersion?: number;
 }
 

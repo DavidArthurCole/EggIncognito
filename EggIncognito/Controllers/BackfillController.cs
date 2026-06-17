@@ -73,7 +73,6 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
             return StatusCode(400, new { error = "unknown source" });
         if (services.GetService(typeof(VersionListImporter)) is not VersionListImporter importer)
             return StatusCode(503, new { error = NoDb });
-        // Adapters are keyed by name; resolve from the keyed registrations.
         if (services.GetKeyedService<IVersionListSource>(source) is not IVersionListSource adapter)
             return StatusCode(503, new { error = "source adapter not available" });
         var by = user.DiscordId;

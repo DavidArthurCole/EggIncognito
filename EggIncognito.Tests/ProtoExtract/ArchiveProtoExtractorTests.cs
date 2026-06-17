@@ -66,7 +66,9 @@ public class ArchiveProtoExtractorTests
         var r = ArchiveProtoExtractor.Extract(ms.ToArray());
         Assert.True(r.Ok, r.Diagnostics);
         Assert.Equal("1.35.6", r.AppVersion);
-        Assert.Equal("1.35.6.3", r.Build);
+        // iOS build is intentionally null: CFBundleVersion ("1.35.6.3") is the bundle build, not the
+        // auxbrain build the client reports. The real build is backfilled from live capture / registry.
+        Assert.Null(r.Build);
     }
 
     [Fact]

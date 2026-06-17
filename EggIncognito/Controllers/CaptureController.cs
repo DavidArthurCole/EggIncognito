@@ -278,7 +278,6 @@ public sealed class CaptureController(
 
         if (appMode.CanCapture)
         {
-            // Local: write the endpoint fixture to disk via the extractor, as before.
             var path = session.SaveEndpoint(flow.Path, flow.Method, flow.Status, flow.RequestDataB64, flow.ResponseB64);
             if (path is null) return StatusCode(409, new { error = "capture not running or flow could not be decoded" });
             session.Hub.MarkSaved(body.Id); // so a refresh does not re-prompt to save the same capture

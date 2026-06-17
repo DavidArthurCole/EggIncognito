@@ -96,10 +96,8 @@ public static class DescriptorProtoCarver
         return IndexOf(b, pat);
     }
 
-    // Recovers a FileDescriptorProto's length by walking its top-level fields. Every FileDescriptorProto
-    // top-level field is length-delimited (wire type 2) with field number 1..12. We stop at the first
-    // byte that is not a valid such tag, which is the descriptor's end. Returns the byte length, or 0 on
-    // a malformed start. Any read past the buffer ends the walk.
+    // Walk top-level fields to recover length: every top-level field is length-delimited (wire type 2),
+    // field number 1..12. Returns byte length, or 0 on a malformed start.
     internal static int WireWalkLength(byte[] b, int start)
     {
         int pos = start, lastGood = start;

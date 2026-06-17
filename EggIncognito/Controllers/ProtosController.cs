@@ -65,8 +65,7 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
         if (Store is null) return NotFound();
         var rows = await Store.ListAsync(platform, ct);
         // "Latest" = highest build (the monotonic versionCode), NOT the most-recently-inserted row.
-        // Backfill ingests historical versions in arbitrary order, so CreatedAt (ListAsync's sort) does
-        // not track app recency: ordering by it picked the oldest game build as "latest".
+        // Backfill ingests historical versions in arbitrary order, so CreatedAt is not a recency proxy.
         var r = rows
             .OrderByDescending(p => long.TryParse(p.Build, out var b) ? b : long.MinValue)
             .ThenByDescending(p => p.CreatedAt)

@@ -34,9 +34,8 @@ public static class ArchiveProtoExtractor
         return raw.Ok ? raw with { AppVersion = appVersion, Build = build } : raw;
     }
 
-    // Reads (appVersion, build) from the archive's own metadata. iOS Info.plist:
-    // CFBundleShortVersionString + CFBundleVersion. APK: versionName + versionCode from the manifest.
-    // Either may be null when absent. iOS build defaults to the app version when CFBundleVersion is missing.
+    // Reads (appVersion, build) from the archive's own metadata. APK: versionName + versionCode
+    // (versionCode IS the auxbrain build, e.g. 111341). iOS: CFBundleShortVersionString; build null.
     private static (string? AppVersion, string? Build) ReadVersion(byte[] zipBytes)
     {
         try
@@ -54,8 +53,8 @@ public static class ArchiveProtoExtractor
                 es.CopyTo(buf);
                 var text = System.Text.Encoding.UTF8.GetString(buf.ToArray());
                 var shortVer = PlistString(text, "CFBundleShortVersionString");
-                var bundleVer = PlistString(text, "CFBundleVersion");
-                return (shortVer, bundleVer ?? shortVer);
+                // build is null for iOS: CFBundleVersion is the bundle build, not the auxbrain build; backfilled from live capture / registry.
+                return (shortVer, null);
             }
 
             var manifest = zip.GetEntry("AndroidManifest.xml");

@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// One issued IPv6 proxy address per supporter. The address is derived deterministically from the
-// Discord id (HMAC over a server secret) and is the capture credential: connecting to it proves the
-// connector was issued it. Stored so the front door can reverse-map a destination address to a user.
+// Per-user random IPv6 proxy address. Stable across sessions; rotatable to kill a leaked one. Front door reverse-maps it to a user.
 [Table("capture_proxy_addrs")]
 public class CaptureProxyAddr
 {

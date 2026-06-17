@@ -51,10 +51,7 @@ public sealed class CaptureHub
     // still update so the cert pill and device info stay accurate while paused.
     public bool Paused { get; set; }
 
-    // Assign an id, stamp a timestamp, buffer it, update stats, and broadcast. Returns the stored flow
-    // with Id/Timestamp filled, or null if paused. The caller passes a flow whose Id and Timestamp are
-    // placeholders; the hub owns those. isAuxbrain marks a decrypted auxbrain flow, which counts toward
-    // capture stats and flips the cert state to Trusted.
+    // Stamp Id/Timestamp, buffer, update stats, broadcast. Returns stored flow or null if paused.
     public DashboardFlow? Publish(DashboardFlow flow, string timestamp, bool isAuxbrain = true)
     {
         DashboardFlow? stored = null;
@@ -116,8 +113,7 @@ public sealed class CaptureHub
         return stored;
     }
 
-    // A client connected. activeCount is the proxy's current active connection count; ip is the remote
-    // address if known. Emits a deviceConnected toast for a newly-seen device.
+    // Record a new connection; fires DeviceConnected toast for a newly-seen device.
     public void RecordConnection(int activeCount, string? ip, string timestamp)
     {
         CaptureEvent? notice = null;
@@ -273,9 +269,7 @@ public sealed class CaptureHub
             Port: _proxyPort);
     }
 
-    // Read the device OS + game version from the decoded request's rinfo. Egg, Inc.'s own User-Agent
-    // does not carry the OS, so rinfo is the only reliable source. Returns (null, null) when rinfo is
-    // absent.
+    // OS + version from rinfo; User-Agent does not carry the OS. Returns (null, null) when absent.
     private static (string? Os, string? GameVersion) ParseRInfo(string? requestJson)
     {
         if (string.IsNullOrEmpty(requestJson)) return (null, null);
@@ -389,8 +383,7 @@ public sealed class CaptureHub
     // opening a duplicate browser tab when a page from a prior run is already attached.
     public bool HasSubscribers { get { lock (_gate) return _subscribers.Count > 0; } }
 
-    // Proxy lifecycle, set by CaptureSession on start/stop. Carried on the stats snapshot and pushed to
-    // clients so the dashboard's running pill updates live, with no race against the one-shot poll.
+    // Set by CaptureSession on start/stop; pushed on stats so the running pill stays live.
     private bool _proxyRunning;
     private int _proxyPort;
     public void SetProxyState(bool running, int port)

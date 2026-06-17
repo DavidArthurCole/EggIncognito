@@ -111,16 +111,64 @@
     }
 
     // Pre-fill the save form from the archive's own metadata (real app version + build) and the inferred
-    // platform, so the contributor does not retype values the binary already carries. Re-seed when a new
-    // result arrives.
-    protected override void OnParametersSet()
+    // platform, so the contributor does not retype values the binary already carries. Then backfill build
+    // + clientVersion the binary cannot give (iOS especially) from the live capture store, falling back to
+    // a registry row with the same app version. Re-seed when a new result arrives.
+    protected override async Task OnParametersSetAsync()
     {
         if (Result is null || ReferenceEquals(Result, _seededFor)) return;
         _seededFor = Result;
         _savePlatform = (Result.FileName ?? "").EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? "android" : "ios";
         _saveAppVersion = Result.AppVersion ?? "";
         _saveBuild = Result.Build ?? "";
+        _saveClientVersion = "";
         _saveMsg = "";
+        await BackfillBuildAndClientVersion();
+    }
+
+    // build + clientVersion are not in the iOS binary. Source them, in priority order:
+    //   1. live capture: BasicRequestInfo harvested off the wire for this platform (authoritative),
+    //   2. registry: a stored row with the same app version (clientVersion is platform-shared; build only
+    //      from a same-platform row).
+    // Only fills blanks; never overwrites a value the archive already provided (Android build).
+    async Task BackfillBuildAndClientVersion()
+    {
+        try
+        {
+            var live = await Client().GetFromJsonAsync<LiveVersionDto>(
+                $"/api/tools/live-version?platform={_savePlatform}", JsonOpts);
+            if (live is { Found: true })
+            {
+                if (string.IsNullOrWhiteSpace(_saveBuild) && !string.IsNullOrWhiteSpace(live.Build)) _saveBuild = live.Build!;
+                if (string.IsNullOrWhiteSpace(_saveClientVersion) && live.ClientVersion is int cv) _saveClientVersion = cv.ToString();
+            }
+        }
+        catch { /* live store is best-effort; fall through to registry */ }
+
+        if ((string.IsNullOrWhiteSpace(_saveBuild) || string.IsNullOrWhiteSpace(_saveClientVersion))
+            && !string.IsNullOrWhiteSpace(_saveAppVersion))
+        {
+            try
+            {
+                // /api/protos/versions filters by platform only, so fetch all and match app version here.
+                var all = await Client().GetFromJsonAsync<List<RegRowDto>>("/api/protos/versions", JsonOpts) ?? [];
+                var sameApp = all.Where(r => string.Equals(r.AppVersion, _saveAppVersion, StringComparison.OrdinalIgnoreCase)).ToList();
+                // clientVersion: any row with this app version (platform-shared).
+                if (string.IsNullOrWhiteSpace(_saveClientVersion))
+                {
+                    var cv = sameApp.Select(r => r.ClientVersion).FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
+                    if (!string.IsNullOrWhiteSpace(cv)) _saveClientVersion = cv!;
+                }
+                // build: only from a same-platform row (build is per-platform).
+                if (string.IsNullOrWhiteSpace(_saveBuild))
+                {
+                    var b = sameApp.Where(r => string.Equals(r.Platform, _savePlatform, StringComparison.OrdinalIgnoreCase))
+                                   .Select(r => r.Build).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+                    if (!string.IsNullOrWhiteSpace(b)) _saveBuild = b!;
+                }
+            }
+            catch { /* registry optional / no DB; leave blank for manual entry */ }
+        }
     }
 
     HttpClient Client()
@@ -213,6 +261,8 @@
 
     sealed record LatestDto(string Platform, string AppVersion, string Build);
     sealed record VersionDto(string? Messages);
+    sealed record LiveVersionDto(bool Found, string? Platform, string? Version, string? Build, int? ClientVersion);
+    sealed record RegRowDto(string Platform, string AppVersion, string Build, string? ClientVersion);
 
     static string Short(string? sha) => string.IsNullOrEmpty(sha) ? "" : (sha.Length <= 12 ? sha : sha[..12]);
 

@@ -26,9 +26,7 @@ public static class AuthSetup
             })
             .AddCookie(o =>
             {
-                // Persistent cookie with a sliding 30-day window so a login survives browser restarts
-                // and server redeploys (the key ring is persisted to Postgres). Without an explicit
-                // lifetime the ticket is a session cookie and is dropped when the browser closes.
+                // Persistent cookie: 30-day sliding window so a login survives restarts/redeploys.
                 o.ExpireTimeSpan = TimeSpan.FromDays(30);
                 o.SlidingExpiration = true;
                 o.Cookie.Name = "egi.auth";
@@ -45,12 +43,9 @@ public static class AuthSetup
                 o.Scope.Add("identify");
                 o.Events.OnCreatingTicket = async ctx =>
                 {
-                    // Persist the issued cookie so it outlives the browser session (paired with the
-                    // 30-day sliding cookie lifetime + Postgres-backed key ring).
                     if (ctx.Properties is not null) ctx.Properties.IsPersistent = true;
                     await UserUpsert.OnLoginAsync(ctx);
-                    // Supporter entitlement rides the cookie next to egi:role. Fail-closed: any
-                    // check failure stamps "false" and login still succeeds.
+                    // Fail-closed: stamp false on any check failure; login still succeeds.
                     var checker = ctx.HttpContext.RequestServices.GetRequiredService<SupporterStatus>();
                     var discordId = ctx.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
                     var isSupporter = !string.IsNullOrEmpty(discordId)

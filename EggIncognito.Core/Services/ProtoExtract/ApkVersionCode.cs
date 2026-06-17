@@ -3,13 +3,10 @@ using System.Text;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Reads android:versionCode from an APK without aapt. Opens the zip, finds AndroidManifest.xml (binary
-// AXML), and walks the chunked binary-XML format: header, string-pool chunk, optional resource-map
-// chunk, then XML node chunks. The START_ELEMENT for `manifest` carries attribute records (ns, name,
-// rawValue, typedValue size/type, typedValue data); versionCode is the attribute whose name string is
-// "versionCode" with an INT typed value. Returns null (never a fabricated build) when not found or the
-// bytes don't parse. The real end-to-end parse is verified live against the device dumpsys
-// versionCode; the unit tests here cover the null/garbage path plus a real AndroidManifest.xml lifted from the arm split.
+// Reads android:versionCode from an APK without aapt. Finds AndroidManifest.xml (binary AXML) and
+// walks the chunked format: header, string-pool, optional resource-map, then XML node chunks.
+// The START_ELEMENT for `manifest` carries attribute records; versionCode is the one whose name is
+// "versionCode" with an INT typed value. Returns null when not found or bytes don't parse.
 public static class ApkVersionCode
 {
     // AXML chunk type tags.
@@ -129,11 +126,8 @@ public static class ApkVersionCode
         return null;
     }
 
-    // Reads versionCode out of one START_ELEMENT chunk if its attributes carry it. Chunk layout after
-    // the generic chunk header: lineNumber(4), comment(4), then the start-element ext: ns(4), name(4),
-    // attributeStart(2), attributeSize(2), attributeCount(2), idIndex(2), classIndex(2), styleIndex(2),
-    // followed by attributeCount records of 5 uint32 each: ns, name, rawValue, typedValue, data. The
-    // typedValue field packs size(2)+res0(1)+dataType(1).
+    // START_ELEMENT ext after the generic header: attribute records are 5 uint32 each (ns, name,
+    // rawValue, typedValue, data); typedValue packs size(2)+res0(1)+dataType(1).
     private static string? ReadStartElementVersionCode(byte[] data, int chunkPos, int headerSize, string[] strings)
     {
         var ext = chunkPos + headerSize;

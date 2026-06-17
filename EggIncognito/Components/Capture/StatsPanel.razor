@@ -72,7 +72,6 @@
         UpdateCertState(Stats?.CertState, Stats?.ActiveConnections ?? 0);
     }
 
-    // Cert/trust state as a labeled value. Ported from updateCertState.
     void UpdateCertState(string? state, int activeConnections)
     {
         _certCls = "cert-waiting";
@@ -97,7 +96,6 @@
         }
     }
 
-    // A data-rich card per device. Ported from buildDeviceCard.
     RenderFragment DeviceCard(DeviceInfo d) =>@<div class="device-card @(d.Online ? "" : "device-offline")">
       <div class="device-head">
         <span class="device-dot @(d.Online ? "online" : "offline")"

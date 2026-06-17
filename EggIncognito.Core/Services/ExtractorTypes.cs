@@ -1,6 +1,4 @@
-// Supporting types for EndpointExtractor: the per-flow decode results, the run-summary accumulator,
-// the directory/type-map bundle, and the auto-write classification config. The pipeline lives in the
-// library so it can be fed both in-process by the capture proxy and from a HAR file by RunFromHar.
+// Supporting types for EndpointExtractor: per-flow decode results, run-summary, directory bundle, auto-write config.
 
 using System.Reflection;
 using Google.Protobuf;

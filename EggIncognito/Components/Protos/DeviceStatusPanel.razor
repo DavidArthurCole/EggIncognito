@@ -1,0 +1,99 @@
+@using EggIncognito.Services
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject ICurrentUser User
+@implements IDisposable
+
+<div class="panel">
+    <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold">Devices</h3>
+        <span class="text-muted text-xs">@(_devices.Count == 0 ? "none configured" : $"{_devices.Count} connected")</span>
+    </div>
+    @if (_devices.Count == 0)
+    {
+        <p class="text-muted text-xs">No devices declared on this host.</p>
+    }
+    else
+    {
+        <div class="grid gap-2">
+            @foreach (var d in _devices)
+            {
+                <div class="flex items-center gap-3 text-xs">
+                    <span class="@(d.Reachable ? "text-green-500" : "text-red-500")">&#x25CF;</span>
+                    <span class="font-medium w-32 truncate">@d.Label</span>
+                    <span class="code-chip">@(d.InstalledAppVersion ?? "?")</span>
+                    @if (d.Result == "new_version")
+                    {
+                        <span class="code-chip" title="installed version is newer than the latest extracted build">new available</span>
+                    }
+                    <span class="text-muted">@Ago(d.ProbedAt)</span>
+                    @if (_isAdmin)
+                    {
+                        <button class="btn-primary" disabled="@_busy" @onclick="() => Refresh(d.Id)">Refresh</button>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    sealed record DeviceStatus(string Id, string Platform, string Label, bool Reachable,
+        string? InstalledAppVersion, string? InstalledBuild, string? LatestAvailable,
+        string Result, string? Note, DateTimeOffset ProbedAt);
+
+    List<DeviceStatus> _devices = [];
+    bool _isAdmin;
+    bool _busy;
+    Timer? _timer;
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isAdmin = User.IsAtLeast(UserRole.Admin);
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+        await LoadAsync();
+        _timer = new Timer(async _ => await InvokeAsync(LoadAsync), null, 15_000, 15_000);
+    }
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            var rows = await Client().GetFromJsonAsync<List<DeviceStatus>>("/api/devices/status");
+            _devices = rows ?? [];
+            StateHasChanged();
+        }
+        catch { /* transient; keep last good */ }
+    }
+
+    async Task Refresh(string id)
+    {
+        _busy = true; StateHasChanged();
+        try { await Client().PostAsync($"/api/devices/{id}/refresh", null); await LoadAsync(); }
+        catch { }
+        finally { _busy = false; StateHasChanged(); }
+    }
+
+    static string Ago(DateTimeOffset t)
+    {
+        var s = (DateTimeOffset.UtcNow - t).TotalSeconds;
+        return s < 60 ? "just now" : s < 3600 ? $"{(int)(s / 60)}m ago" : $"{(int)(s / 3600)}h ago";
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

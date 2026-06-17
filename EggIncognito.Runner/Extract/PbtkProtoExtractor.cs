@@ -4,10 +4,8 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Runner.Extract;
 
-// Shells the vendored proto-extract toolchain for the decompile half (jar_extract.py over the arm
-// split into an out dir), then merges with the in-process C# ProtoCleanup. One fewer subprocess than
-// the old python protocleanup.py, and the cleanup parity is unit-tested in Core. extractorRepo is the
-// tools/proto-extract checkout; python is its venv interpreter.
+// Runs jar_extract.py (pbtk) over the arm split, then cleans via in-process ProtoCleanup.
+// extractorRepo = tools/proto-extract checkout; python = its venv interpreter.
 public sealed class PbtkProtoExtractor(string extractorRepo, string python) : IProtoExtractor
 {
     public byte[] Extract(string apkPath)

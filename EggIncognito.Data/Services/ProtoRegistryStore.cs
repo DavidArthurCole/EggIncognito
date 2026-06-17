@@ -69,10 +69,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         return (row, created, protoChanged);
     }
 
-    // Precedence-aware upsert for the backfill importers. Metadata always fills (clientVersion, package,
-    // apkRef, detectedAt when absent); proto text is written only when the caller has decided it may
-    // (writeProto), so the device-extracted farm proto is never clobbered. The caller precomputes the
-    // precedence decision + protoSha + messageIndex, keeping this project free of the app-side rule + index.
+    // Precedence-aware upsert: metadata always updates; protoText written only when writeProto=true (farm proto not clobbered).
     public async Task BackfillUpsertAsync(
         string platform, string appVersion, string build, string? clientVersion, string package,
         string? protoText, string? protoSha, string? messageIndex, bool writeProto,

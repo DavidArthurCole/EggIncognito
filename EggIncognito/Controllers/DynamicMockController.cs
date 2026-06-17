@@ -45,10 +45,7 @@ public sealed class DynamicMockController(
         return Ok(new { notMocked = true, path = slug });
     }
 
-    // Serve a cataloged route the way its generated controller would: the raw literal if it has
-    // one, else the endpoint store's message for the route's own path. A null inner response type
-    // falls back to an empty AuthenticatedMessage envelope, matching the generator's
-    // MockResponseType. Null when the type cannot be resolved; the caller falls through.
+    // Serve route response; null when type cannot be resolved (caller falls through).
     private IActionResult? Serve(RouteInfo route, string? data)
     {
         if (route.RawResponse is not null) return Content(route.RawResponse, "text/plain");

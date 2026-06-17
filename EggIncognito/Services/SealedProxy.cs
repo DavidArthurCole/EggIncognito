@@ -10,11 +10,9 @@ namespace EggIncognito.Services;
 // an anonymous caller, a non-supporter, or a failed live re-check never gets the sealed egress.
 public interface ISealedProxy
 {
-    // True when an upstream is configured, i.e. the perk can run on this deployment at all.
     bool IsConfigured { get; }
 
-    // Whether this caller may use the sealed egress right now. Re-checks the supporter role live so a
-    // lapsed supporter loses the perk without waiting for a fresh login cookie.
+    // Re-checks live; a lapsed supporter loses the perk without a fresh login.
     Task<bool> CanUseAsync(ICurrentUser user, CancellationToken ct = default);
 
     // The egress client routed through the sealed upstream. Caller must have passed CanUseAsync.

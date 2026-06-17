@@ -1,8 +1,6 @@
 namespace EggIncognito.Bot;
 
-// ISyncNotifier lets the ingest service push a review alert through the bot without taking a
-// discord.net dependency. Implemented in the web project, the same decoupling pattern as
-// IStatusProvider.
+// Lets the ingest service push a review alert through the bot without a Discord.Net dependency (same pattern as IStatusProvider).
 public interface ISyncNotifier
 {
     // NotifyAsync posts a short review alert. Outcome is a one-line human summary, e.g.

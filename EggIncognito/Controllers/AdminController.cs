@@ -36,8 +36,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     public async Task<IActionResult> SetUserRole(string discordId, [FromBody] SetRole body)
     {
         if (RequireAdmin() is { } no) return no;
-        // Validate the raw role first: UserRoles.Parse coerces unknown names to viewer, which would
-        // silently demote on a typo and let a malformed role slip past the self-lockout guard.
+        // Reject unknown names explicitly; UserRoles.Parse coerces them to viewer, hiding typos.
         var role = (body.Role ?? "").Trim().ToLowerInvariant();
         if (role is not ("viewer" or "contributor" or "admin"))
             return BadRequest(new { error = $"unknown role '{body.Role}'" });

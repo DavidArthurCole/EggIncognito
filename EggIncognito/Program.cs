@@ -41,19 +41,15 @@ if (captureMode)
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Test-host DB isolation: the test assembly's module initializer sets EGGINCOGNITO_TEST_DBFREE so
-// WebApplicationFactory<Program> boots DB-free by default, matching CI. Without this the dev box's
-// user-secrets ConnectionStrings:Postgres (a real DB host) would make every integration test hit the live
-// DB and leak rows. A test that genuinely needs a DB opts in by setting ConnectionStrings:Postgres
-// explicitly via WithWebHostBuilder, which wins over this clear.
+// EGGINCOGNITO_TEST_DBFREE=1 clears Postgres so integration tests default DB-free.
+// Tests that need a DB opt in via WithWebHostBuilder (ConnectionStrings:Postgres wins over this clear).
 if (Environment.GetEnvironmentVariable("EGGINCOGNITO_TEST_DBFREE") == "1"
     && string.IsNullOrEmpty(builder.Configuration["TestDbOptIn"]))
 {
     builder.Configuration["ConnectionStrings:Postgres"] = "";
 }
 
-// Logging: console plus one file per process start. The ILoggerProvider model keeps these
-// swappable; a remote sink can be added alongside without touching call sites.
+// Console + one file per process start.
 var logsDir = builder.Configuration["LogsPath"]
     ?? Path.Combine(AppContext.BaseDirectory, "logs");
 var startupStamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
@@ -156,10 +152,8 @@ builder.Services.AddSingleton<IEndpointStore>(sp =>
 });
 
 builder.Services.AddSingleton<RouteCatalog>(); // the concrete yaml catalog
-// Drop-in API surface: /api landing + openapi + catalog + namespace indexes, and the catch-all's
-// known-namespace fallback. Lazily built from routes.yaml + auxbrain-paths.json + endpoint status,
-// all static per process. Deliberately on the yaml catalog, not the merged one, so the cached
-// OpenAPI/catalog stays correct (DB routes are dynamic and still served by the catch-all).
+// Built from the yaml catalog only: DB routes are dynamic/catch-all and must not pollute the
+// static OpenAPI/catalog surface.
 builder.Services.AddSingleton<AuxbrainSurface>();
 builder.Services.AddSingleton<IRouteCatalog>(sp =>
     new MergedRouteCatalog(
@@ -169,10 +163,8 @@ builder.Services.AddSingleton<IRouteCatalog>(sp =>
 if (dbEnabled)
 {
     builder.Services.AddDbContextPool<EggIncognito.Data.Services.EggIncognitoDbContext>(o => o.UseNpgsql(pgConn));
-    // Persist the DataProtection key ring to Postgres so cookie/OAuth tickets survive restarts. The
-    // fixed application name is required too: without it the key ring's purpose is derived from the
-    // content-root path, which changes between image builds/containers, so a redeploy could no longer
-    // decrypt existing cookies and logged everyone out even with the keys persisted.
+    // Persist the DataProtection key ring to Postgres so cookie/OAuth tickets survive restarts.
+    // Fixed application name required: without it, the purpose derives from the content-root path.
     builder.Services.AddDataProtection()
         .SetApplicationName("EggIncognito")
         .PersistKeysToDbContext<EggIncognito.Data.Services.EggIncognitoDbContext>();
@@ -292,8 +284,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             }
         }
 
-        // Fetch: resolve evt.ApkRef under ApkFetchRoot (local-path only for now, URL fetch is a later
-        // add). Missing root or missing artifact is logged and tolerated, not fatal.
+        // Fetch apkRef under ApkFetchRoot. URL fetch is a future add; missing artifact is tolerated.
         Task Fetch(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
         {
             if (string.IsNullOrEmpty(syncOptions.ApkFetchRoot) || string.IsNullOrEmpty(evt.ApkRef))
@@ -396,6 +387,9 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Data.Services.CaptureCredentialStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.CaptureAddressStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.ProtoRegistryStore>();
+    builder.Services.AddScoped<EggIncognito.Data.Services.DeviceStatusStore>();
+    builder.Services.AddScoped<EggIncognito.Data.Services.IDeviceStatusStore>(
+        sp => sp.GetRequiredService<EggIncognito.Data.Services.DeviceStatusStore>());
     builder.Services.AddScoped<EggIncognito.Data.Services.FeedSubscriptionStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.IFeedSubscriptionStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.FeedSubscriptionStore>());
@@ -447,6 +441,19 @@ if (dbEnabled)
     if (pollerOptions.Enabled)
         builder.Services.AddHostedService<EggIncognito.Services.Backfill.VersionPollerService>();
 }
+
+// Device polling: config-declared devices (adb serial / iOS UDID) probed on a schedule for the installed
+// Egg Inc version. Empty config => the hosted service no-ops. Registered outside the DB block so the
+// status panel + no-DB path work; the service itself DB-gates per-tick (no store => skip). ProcessRunner
+// + TimeProvider are process-wide. TimeProvider may already be added by hosted capture below, so TryAdd.
+var deviceConfig = EggIncognito.Services.Devices.DeviceConfig.Bind(builder.Configuration);
+builder.Services.AddSingleton(deviceConfig);
+builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IProcessRunner, EggIncognito.Core.Services.Devices.ProcessRunner>();
+builder.Services.AddSingleton<EggIncognito.Services.Devices.IDeviceUpgrader, EggIncognito.Services.Devices.NoopDeviceUpgrader>();
+builder.Services.TryAddSingleton(TimeProvider.System);
+if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
+    builder.Services.AddHostedService<EggIncognito.Services.Devices.DeviceProbeService>();
+
 if (hostedCaptureOn)
 {
     if (string.IsNullOrWhiteSpace(hostedCaptureOpts.AddressSecret))
@@ -468,7 +475,7 @@ if (hostedCaptureOn)
             msg => logger.LogInformation("{Message}", msg));
     });
     builder.Services.AddHostedService(sp => sp.GetRequiredService<EggIncognito.Capture.ProxyFrontDoor>());
-    builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.TryAddSingleton(TimeProvider.System);
     builder.Services.AddHostedService<CaptureSweeper>();
 }
 
@@ -484,6 +491,17 @@ if (dbEnabled)
     await EggIncognito.Data.Services.RouteSeeder.SeedAsync(
         db, scope.ServiceProvider.GetRequiredService<RouteCatalog>());
     await EggIncognito.Data.Services.TagSeeder.SeedAsync(db);
+    // Mirror config devices into the DB so the roster + probe history survive restarts. Config is
+    // authoritative; a device dropped from config is disabled (not deleted), keeping probe-history FKs valid.
+    {
+        var deviceStore = scope.ServiceProvider.GetService<EggIncognito.Data.Services.IDeviceStatusStore>();
+        if (deviceStore is not null)
+        {
+            var flat = deviceConfig.Devices
+                .Select(d => (d.Id, d.Platform, d.Label, d.Target, d.Package)).ToList();
+            await EggIncognito.Data.Services.DeviceSeeder.SeedAsync(deviceStore, db, flat);
+        }
+    }
     app.Logger.LogInformation("Postgres DB layer active: migrated + seeded yaml routes + tags.");
 }
 else
@@ -610,9 +628,7 @@ if (servesOverKestrel &&
                 ?? "http://localhost:5032";
 
             // Don't spawn a duplicate tab. A dashboard left open from a prior run reconnects over SSE
-            // within ~1s of this process binding. Wait briefly, and if a client already attached, skip
-            // opening - the existing page is now driven by this server. Capture only; the Inspector
-            // has no live connection to detect.
+            // within ~1s of this process binding. Wait briefly; skip opening if a client already attached.
             if (captureMode)
             {
                 await Task.Delay(TimeSpan.FromSeconds(1.5));
@@ -624,7 +640,6 @@ if (servesOverKestrel &&
                 }
             }
 
-            // Inspector + Capture are both Blazor routes (@page, no trailing slash).
             var url = addr.TrimEnd('/') + (captureMode ? "/capture" : "/inspector");
             try
             {
