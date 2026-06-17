@@ -24,14 +24,36 @@ public class DeviceParsingTests
         Assert.Null(build);
     }
 
-    // Real `ideviceinstaller list` CSV captured from a container on frame (Debian-packaged build,
-    // no -o xml): one line per app, `<bundleId>, "<shortVersion>", "<displayName>"`.
-    const string ListCsv =
-        "com.WA5H2B7E4G.com.rileytestut.AltStore, \"48\", \"AltStore\"\n" +
-        "com.auxbrain.egginc, \"1.35.8\", \"Egg, Inc.\"\n";
+    // The runtime image's `ideviceinstaller -u <udid> -l -o xml` emits a plist array (captured from the
+    // running eggincognito container on frame). CFBundleShortVersionString is the app version we want.
+    const string Plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <array>
+          <dict>
+            <key>CFBundleIdentifier</key><string>com.WA5H2B7E4G.com.rileytestut.AltStore</string>
+            <key>CFBundleShortVersionString</key><string>1.6</string>
+          </dict>
+          <dict>
+            <key>CFBundleIdentifier</key><string>com.auxbrain.egginc</string>
+            <key>CFBundleShortVersionString</key><string>1.35.8</string>
+            <key>CFBundleVersion</key><string>1.35.8.0</string>
+          </dict>
+        </array>
+        </plist>
+        """;
+
+    // Some ideviceinstaller builds emit CSV instead; IosAppVersion falls back to it.
+    const string ListCsv = "com.auxbrain.egginc, \"1.35.8\", \"Egg, Inc.\"\n";
 
     [Fact]
-    public void IosAppVersion_FindsShortVersion()
+    public void IosAppVersion_Plist_FindsShortVersion()
+    {
+        Assert.Equal("1.35.8", DeviceParsing.IosAppVersion(Plist, "com.auxbrain.egginc"));
+    }
+
+    [Fact]
+    public void IosAppVersion_Csv_FindsShortVersion()
     {
         Assert.Equal("1.35.8", DeviceParsing.IosAppVersion(ListCsv, "com.auxbrain.egginc"));
     }
@@ -39,12 +61,12 @@ public class DeviceParsingTests
     [Fact]
     public void IosAppVersion_BundleNotInstalled_ReturnsNull()
     {
-        Assert.Null(DeviceParsing.IosAppVersion(ListCsv, "com.does.not.exist"));
+        Assert.Null(DeviceParsing.IosAppVersion(Plist, "com.does.not.exist"));
     }
 
     [Fact]
     public void IosAppVersion_Garbage_ReturnsNull()
     {
-        Assert.Null(DeviceParsing.IosAppVersion("not a list", "com.auxbrain.egginc"));
+        Assert.Null(DeviceParsing.IosAppVersion("not xml or csv", "com.auxbrain.egginc"));
     }
 }

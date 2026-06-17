@@ -22,8 +22,11 @@
     <meta name="twitter:description" content="Browse every proto message and endpoint, build and send signed requests, and watch the full transport pipeline." />
     <meta name="twitter:image" content="https://eggincognito.davidarthurcole.me/brand/logo.png" />
 
-    <link rel="stylesheet" href="/nav.css" />
-    <link rel="stylesheet" href="/tailwind.css" />
+    @* Cache-bust on the build token. tailwind.css/nav.css keep a fixed filename and are rebuilt every
+       image build, so without a changing query string the browser serves a stale sheet against new
+       markup (the "page looks wrong until Ctrl+F5" bug). The token changes per build, forcing a refetch. *@
+    <link rel="stylesheet" href="@($"/nav.css?v={_assetVersion}")" />
+    <link rel="stylesheet" href="@($"/tailwind.css?v={_assetVersion}")" />
     <HeadOutlet />
 </head>
 <body class="m-0 bg-bg text-fg font-sans">
@@ -52,3 +55,9 @@
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>
+
+@code {
+    // Per-build cache-bust token: the short commit sha (changes every image build). Computed once.
+    static readonly string _assetVersion =
+        EggIncognito.Services.BuildInfo.FromAssembly("https://github.com/davidarthurcole/EggIncognito").ShortSha;
+}

@@ -5,7 +5,7 @@
 @implements IDisposable
 
 <div class="panel">
-    <div class="flex items-center justify-between mb-2">
+    <div class="flex items-center justify-between mb-3">
         <h3 class="text-sm font-semibold">Devices</h3>
         <span class="text-muted text-xs">@(_devices.Count == 0 ? "none configured" : $"{_devices.Count} connected")</span>
     </div>
@@ -15,21 +15,29 @@
     }
     else
     {
-        <div class="grid gap-2">
+        <div class="flex flex-col gap-2.5">
             @foreach (var d in _devices)
             {
-                <div class="flex items-center gap-3 text-xs">
-                    <span class="@(d.Reachable ? "text-green-500" : "text-red-500")">&#x25CF;</span>
-                    <span class="font-medium w-32 truncate">@d.Label</span>
-                    <span class="code-chip">@(d.InstalledAppVersion ?? "?")</span>
-                    @if (d.Result == "new_version")
-                    {
-                        <span class="code-chip" title="installed version is newer than the latest extracted build">new available</span>
-                    }
-                    <span class="text-muted">@Ago(d.ProbedAt)</span>
+                <div class="flex items-center gap-2.5">
+                    <span class="@(d.Reachable ? "text-green-500" : "text-red-500")" title="@(d.Reachable ? "reachable" : "unreachable")">
+                        <Icon Name="@PlatformIcon(d.Platform)" />
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-medium truncate">@d.Label</span>
+                            <span class="code-chip">@(d.InstalledAppVersion ?? "?")</span>
+                            @if (d.Result == "new_version")
+                            {
+                                <span class="dev-badge-new" title="installed version is newer than the latest extracted build">new available</span>
+                            }
+                        </div>
+                        <div class="text-muted text-xs mt-0.5">@StatusLine(d)</div>
+                    </div>
                     @if (_isAdmin)
                     {
-                        <button class="btn-primary" disabled="@_busy" @onclick="() => Refresh(d.Id)">Refresh</button>
+                        <button class="btn-ghost-sm" disabled="@_busy" title="check this device now" @onclick="() => Refresh(d.Id)">
+                            <Icon Name="refresh" Class="icon-sm" />
+                        </button>
                     }
                 </div>
             }
@@ -87,6 +95,27 @@
         try { await Client().PostAsync($"/api/devices/{id}/refresh", null); await LoadAsync(); }
         catch { }
         finally { _busy = false; StateHasChanged(); }
+    }
+
+    static string PlatformIcon(string platform) => platform switch
+    {
+        "ios" => "apple",
+        "android" => "android",
+        _ => "device",
+    };
+
+    // One muted line under the label: the probe outcome plus how long ago it ran.
+    static string StatusLine(DeviceStatus d)
+    {
+        var when = Ago(d.ProbedAt);
+        var state = d.Result switch
+        {
+            "unreachable" => "unreachable",
+            "error" => string.IsNullOrEmpty(d.Note) ? "probe error" : d.Note!,
+            "new_version" => "update available",
+            _ => "up to date",
+        };
+        return $"{state} · {when}";
     }
 
     static string Ago(DateTimeOffset t)

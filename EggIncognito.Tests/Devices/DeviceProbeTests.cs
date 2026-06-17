@@ -37,16 +37,23 @@ public class DeviceProbeTests
         Assert.NotNull(r.Note);
     }
 
+    // The runtime image's ideviceinstaller emits a plist for `-l -o xml`.
+    const string Plist = """
+        <?xml version="1.0"?><plist version="1.0"><array>
+        <dict><key>CFBundleIdentifier</key><string>com.auxbrain.egginc</string>
+        <key>CFBundleShortVersionString</key><string>1.35.8</string></dict>
+        </array></plist>
+        """;
+
     [Fact]
     public async Task Ios_Reachable_ReturnsAppVersionNullBuild()
     {
-        const string csv = "com.auxbrain.egginc, \"1.35.8\", \"Egg, Inc.\"\n";
         var runner = new FakeRunner((exe, args) =>
         {
             Assert.Equal("ideviceinstaller", exe);
             Assert.Contains("3489c6b0", args);
-            Assert.Contains("list", args);
-            return new ProcessResult(0, csv, "");
+            Assert.Contains("-l", args);
+            return new ProcessResult(0, Plist, "");
         });
         var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
         var r = await probe.ProbeAsync(default);
@@ -56,10 +63,21 @@ public class DeviceProbeTests
     }
 
     [Fact]
+    public async Task Ios_CsvFallback_AlsoParses()
+    {
+        // Some ideviceinstaller builds emit CSV instead of a plist; the parser handles both.
+        const string csv = "com.auxbrain.egginc, \"1.35.8\", \"Egg, Inc.\"\n";
+        var runner = new FakeRunner((_, _) => new ProcessResult(0, csv, ""));
+        var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
+        var r = await probe.ProbeAsync(default);
+        Assert.Equal("1.35.8", r.InstalledAppVersion);
+    }
+
+    [Fact]
     public async Task Ios_AppNotInstalled_ReachableButNoVersion()
     {
-        const string csv = "com.WA5H2B7E4G.com.rileytestut.AltStore, \"48\", \"AltStore\"\n";
-        var runner = new FakeRunner((_, _) => new ProcessResult(0, csv, ""));
+        const string empty = """<?xml version="1.0"?><plist version="1.0"><array></array></plist>""";
+        var runner = new FakeRunner((_, _) => new ProcessResult(0, empty, ""));
         var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
         var r = await probe.ProbeAsync(default);
         Assert.True(r.Reachable);     // device answered

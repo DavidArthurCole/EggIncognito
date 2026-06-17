@@ -241,6 +241,18 @@
     @apply bg-bg border border-border rounded px-[0.3rem] py-[0.05rem] font-mono;
     font-size: 0.85em;
   }
+  /* Device status: "new available" pill + icon-only refresh button. */
+  .dev-badge-new {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .btn-ghost-sm {
+    @apply inline-flex items-center justify-center rounded p-1.5 text-muted shrink-0;
+  }
+  .btn-ghost-sm:hover:not(:disabled) { @apply text-fg; background: var(--bg); }
+  .btn-ghost-sm:disabled { @apply cursor-not-allowed opacity-40; }
   /* Pre-wrapped mono result box that hides when empty (Phase 2 Import result). */
   .result-pre {
     @apply bg-bg border border-border rounded-md px-4 py-3 font-mono text-xs text-fg whitespace-pre-wrap;
