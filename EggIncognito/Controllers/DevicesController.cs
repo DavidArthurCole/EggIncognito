@@ -237,7 +237,7 @@ public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider
                 device.Platform, appVersion, build, clientVersion: null, package: device.Package,
                 protoSha: sha, apkRef: $"device:{device.Id}", detectedAt: DateTimeOffset.UtcNow,
                 detectedBy: $"device-save:{who}", protoText: carve.Proto, source: "device",
-                ct: HttpContext.RequestAborted);
+                resurrect: true, ct: HttpContext.RequestAborted);
             logger.LogInformation("device save: {Id} -> registry {Plat} build {Build} ({State}, sha {Sha})",
                 id, device.Platform, build, created ? "created" : "updated", sha[..12]);
         }

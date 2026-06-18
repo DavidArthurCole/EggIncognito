@@ -271,7 +271,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             var (row, created, protoChanged) = await store.UpsertAsync(
                 evt.Platform, appVersion, build, evt.ClientVersion, evt.Package, evt.ProtoSha, evt.ApkRef,
                 DateTimeOffset.TryParse(evt.DetectedAt, out var dt) ? dt : DateTimeOffset.UtcNow,
-                detectedBy: null, protoText, source: "farm", ct);
+                detectedBy: null, protoText, source: "farm", ct: ct);
 
             // Fan the event out to matching active subscriptions. Created/ProtoChanged are the trigger
             // signal; the dispatcher is best-effort and DB-gated, so no DB or no subs is a no-op.

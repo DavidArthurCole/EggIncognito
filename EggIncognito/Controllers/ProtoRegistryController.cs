@@ -39,7 +39,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
             System.Text.Encoding.UTF8.GetBytes(req.Proto))).ToLowerInvariant();
         var (row, created, _) = await store.UpsertAsync(
             req.Platform, req.AppVersion, req.Build, req.ClientVersion, req.Package ?? "",
-            sha, apkRef: "", DateTimeOffset.UtcNow, user.Username, req.Proto, req.Source ?? "upload", ct);
+            sha, apkRef: "", DateTimeOffset.UtcNow, user.Username, req.Proto, req.Source ?? "upload", ct: ct);
         return Ok(new { ok = true, created, row.Platform, row.Build, protoSha = sha });
     }
 

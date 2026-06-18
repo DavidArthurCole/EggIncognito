@@ -28,7 +28,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
     public async Task<(ProtoVersion Row, bool Created, bool ProtoChanged)> UpsertAsync(
         string platform, string appVersion, string build, string? clientVersion, string package,
         string protoSha, string apkRef, DateTimeOffset detectedAt, string? detectedBy, string? protoText,
-        string source = "farm", CancellationToken ct = default)
+        string source = "farm", bool resurrect = false, CancellationToken ct = default)
     {
         // Build keys the row; a keyless event must never persist a stub row.
         if (string.IsNullOrEmpty(build) || string.IsNullOrEmpty(appVersion))
@@ -54,6 +54,9 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         row.ApkRef = apkRef;
         row.DetectedAt = detectedAt;
         row.DetectedBy = detectedBy;
+        // An authoritative re-ingest (device pull) un-hides a previously soft-deleted / merged build: a
+        // real extracted proto must surface in the list + the probe, not stay suppressed by a stale delete.
+        if (resurrect) { row.DeletedAt = null; row.CanonicalId = null; }
         await db.SaveChangesAsync(ct); // assigns Id
 
         if (!string.IsNullOrEmpty(protoText))

@@ -121,15 +121,18 @@
         catch { /* transient; keep last good */ }
     }
 
+    [Parameter] public EventCallback OnSaved { get; set; }
+
     Task Refresh(string id) => Act(id, $"/api/devices/{id}/refresh", "checking...", "checked");
 
-    Task Save(string id) => Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "saved to registry");
+    Task Save(string id) => Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "saved to registry", OnSaved);
 
     Task Update(string id) => Act(id, $"/api/devices/{id}/update", "updating...", "update triggered");
 
     // Run a device action, surfacing the real outcome on that row. On a non-2xx the server's {error} body
-    // is shown verbatim so a failure is visible instead of silent. Reloads status on success.
-    async Task Act(string id, string url, string busyMsg, string okMsg)
+    // is shown verbatim so a failure is visible instead of silent. Reloads status on success, then fires
+    // onSuccess (e.g. the parent reloads the registry table so a freshly-saved build appears at once).
+    async Task Act(string id, string url, string busyMsg, string okMsg, EventCallback onSuccess = default)
     {
         var s = _actions[id] = new ActionState { Busy = true, Message = busyMsg };
         StateHasChanged();
@@ -140,6 +143,7 @@
             {
                 s.Message = okMsg; s.IsError = false;
                 await LoadAsync();
+                if (onSuccess.HasDelegate) await onSuccess.InvokeAsync();
             }
             else
             {
