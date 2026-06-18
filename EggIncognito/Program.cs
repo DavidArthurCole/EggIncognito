@@ -458,6 +458,34 @@ builder.Services.TryAddSingleton(TimeProvider.System);
 if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService<EggIncognito.Services.Devices.DeviceProbeService>();
 
+// Persistent per-device capture: one long-lived listener per device, the device's proxy pointed at it, its
+// rinfo (authoritative iOS build) harvested onto disk. Gated by DeviceCapture:Enabled (default off); a
+// device-farm-host capability independent of the public Hosted/Local gate. Registered always so the Save
+// path + status panel can read the rinfo store even when disabled (it returns no listeners).
+var deviceCaptureConfig = EggIncognito.Services.Devices.DeviceCaptureConfig.Bind(builder.Configuration);
+builder.Services.AddSingleton(deviceCaptureConfig);
+builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceProxyConfigurator,
+    EggIncognito.Core.Services.Devices.AdbProxyConfigurator>();
+builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceProxyConfigurator>(sp =>
+    new EggIncognito.Core.Services.Devices.IosProxyConfigurator(
+        sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),
+        new EggIncognito.Core.Services.Devices.IosProxyConfigurator.SshConfig(
+            deviceCaptureConfig.IosSshHost, deviceCaptureConfig.IosSshPort, deviceCaptureConfig.IosSshKeyPath,
+            deviceCaptureConfig.IosSetCommand, deviceCaptureConfig.IosClearCommand)));
+builder.Services.AddSingleton(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var contentRoot = EggIncognito.Services.ContentRoot.Resolve(config["ContentRoot"]);
+    var capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
+    var caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
+    return new EggIncognito.Services.Devices.DeviceCaptureManager(
+        deviceCaptureConfig, deviceConfig, capturePath, caPath, proxyFactory: null, contentRoot,
+        sp.GetRequiredService<ILogger<EggIncognito.Services.Devices.DeviceCaptureManager>>());
+});
+builder.Services.AddSingleton<EggIncognito.Services.Devices.DeviceProxyPusher>();
+if (deviceCaptureConfig.Enabled && deviceConfig.Devices.Count > 0)
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<EggIncognito.Services.Devices.DeviceCaptureManager>());
+
 // Zero-touch auto-update: the real upgrader replaces the noop. It checks store-ahead-of-installed and
 // drives the platform updater. Master + per-platform switches default OFF (mutating action; frame opts in,
 // ios stays off until the frida trigger is proven). The upgrader is a singleton that opens its own scope

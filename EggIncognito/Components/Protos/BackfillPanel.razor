@@ -42,38 +42,6 @@
       </div>
     }
   </div>
-
-  <div class="admin-panel-head admin-panel-sub">
-    <h3 class="admin-panel-title">Missing versions</h3>
-    <span class="text-muted text-xs">@MissingKnown.Count of @_known.Count have no stored proto</span>
-  </div>
-  <p class="text-muted text-xs">Known to exist but no proto stored. Proto can only come from a real binary:
-    drop the .ipa/.apk above, or pull from the device farm.</p>
-
-  @if (MissingKnown.Count == 0)
-  {
-    <div class="backfill-empty">
-      @(_known.Count == 0 ? "No discovered versions. Run a list import above." : "Every discovered version already has a stored proto.")
-    </div>
-  }
-  else
-  {
-    @* Inline chips grouped by platform: dense, one wrapping row per platform instead of a tall table. *@
-    <div class="flex flex-col gap-2">
-      @foreach (var grp in MissingKnown.GroupBy(k => k.Platform).OrderBy(g => g.Key))
-      {
-        <div class="flex items-baseline gap-2">
-          <span class="code-chip shrink-0">@grp.Key</span>
-          <div class="flex flex-wrap gap-1">
-            @foreach (var k in grp.OrderByDescending(k => k.AppVersion, Comparer<string>.Create(CompareSemver)))
-            {
-              <span class="code-chip mono" title="@($"{k.Source}{(k.ReleaseDate is { } d ? $" - {d:yyyy-MM-dd}" : "")}")">@k.AppVersion</span>
-            }
-          </div>
-        </div>
-      }
-    </div>
-  }
 </section>
 
 @code {
@@ -90,14 +58,6 @@
     ];
 
     List<JobRow> _jobs = [];
-    List<KnownRow> _known = [];
-    // (platform, appVersion) pairs already in the registry, so the discovery list can hide them.
-    HashSet<(string Platform, string AppVersion)> _stored = [];
-
-    // Discovered versions with no stored proto yet - the actionable gap. Hides the noise of versions the
-    // registry already has (most of the fandom history is already covered).
-    List<KnownRow> MissingKnown =>
-        _known.Where(k => !_stored.Contains((k.Platform, k.AppVersion))).ToList();
 
     string _baseAddress = "";
     string? _cookie;
@@ -149,33 +109,11 @@
         {
             var res = await Client().GetFromJsonAsync<StatusResponse>("/api/protos/backfill/status", JsonOpts);
             _jobs = res?.Jobs ?? [];
-            _known = res?.Known ?? [];
-
-            // Cross-reference the registry so the discovery list can hide versions already stored.
-            var versions = await Client().GetFromJsonAsync<List<RegRow>>("/api/protos/versions", JsonOpts);
-            _stored = versions is null
-                ? []
-                : versions.Select(v => (v.Platform, v.AppVersion)).ToHashSet();
         }
-        catch { _jobs = []; _known = []; _stored = []; }
+        catch { _jobs = []; }
     }
 
     JobRow? JobFor(string source) => _jobs.FirstOrDefault(j => j.Source == source);
-
-    // Dotted-version compare so chips sort newest-first (1.36 above 1.35.8 above 1.35.10-style strings).
-    static int CompareSemver(string? a, string? b)
-    {
-        var ap = (a ?? "").Split('.');
-        var bp = (b ?? "").Split('.');
-        var n = Math.Max(ap.Length, bp.Length);
-        for (var i = 0; i < n; i++)
-        {
-            var av = i < ap.Length && long.TryParse(ap[i], out var x) ? x : 0;
-            var bv = i < bp.Length && long.TryParse(bp[i], out var y) ? y : 0;
-            if (av != bv) return av.CompareTo(bv);
-        }
-        return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
-    }
 
     static string StatusPill(string status) => status switch
     {
@@ -197,10 +135,7 @@
     public void Dispose() => _timer?.Dispose();
 
     sealed record SourceRow(string Label, string Hint, string Trigger, string JobSource);
-    sealed record StatusResponse(List<JobRow> Jobs, List<KnownRow> Known);
+    sealed record StatusResponse(List<JobRow> Jobs);
     sealed record JobRow(string Source, string Status, DateTimeOffset StartedAt,
         DateTimeOffset? FinishedAt, int Imported, int? Total, string? Note);
-    sealed record KnownRow(string Platform, string AppVersion, DateTimeOffset? ReleaseDate,
-        string? Changelog, string Source);
-    sealed record RegRow(string Platform, string AppVersion);
 }

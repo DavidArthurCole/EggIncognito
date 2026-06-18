@@ -10,6 +10,7 @@ public sealed class DeviceProbeService(
     DeviceConfig config,
     IProcessRunner runner,
     TimeProvider time,
+    DeviceProxyPusher proxyPusher,
     ILogger<DeviceProbeService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -42,5 +43,11 @@ public sealed class DeviceProbeService(
             try { await DeviceProbeRunner.ProbeOneAsync(d, "poll", runner, store, db, upgrader, logger, time, ct); }
             catch (Exception ex) { logger.LogWarning(ex, "device probe: {Id} threw", d.Id); }
         }
+
+        // Self-healing proxy push: re-point each declared device at its capture listener every tick, so a
+        // device reboot or server restart re-applies the setting without manual steps. No-op when capture is
+        // disabled or the host IP cannot be resolved.
+        try { await proxyPusher.PushAllAsync(config.Devices, ct); }
+        catch (Exception ex) { logger.LogWarning(ex, "device capture: proxy push tick failed"); }
     }
 }

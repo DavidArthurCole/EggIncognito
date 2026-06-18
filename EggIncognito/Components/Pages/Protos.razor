@@ -33,9 +33,10 @@
     }
   </section>
 
-  @* Registry beside the admin backfill panel on wide screens; stacked on smaller ones. The registry
-     (the data-rich table) gets the larger share; backfill/discovery sits in the narrower column. *@
-  <div class="@(_isAdmin ? "grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start" : "")">
+  @* Registry beside the side column on wide screens; stacked on smaller ones. The registry (the data-rich
+     table) gets the larger share. The side column always shows the device farm (everyone can see it); the
+     backfill/discovery panel is added there for admins only. *@
+  <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start">
   @* Registry table + management. *@
   <section class="reg-wrap">
     @if (_isAdmin && _selected.Count > 0)
@@ -122,13 +123,16 @@
     }
   </section>
 
-  @if (_isAdmin)
-  {
-    <div class="flex flex-col gap-6">
-      <DeviceStatusPanel OnSaved="Load" />
+  @* Side column: device farm visible to everyone (read-only for non-admins; the panel gates its own
+     action buttons), backfill panel admin-only. *@
+  <div class="flex flex-col gap-6">
+    <DeviceStatusPanel OnSaved="Load" />
+    <MissingVersionsPanel />
+    @if (_isAdmin)
+    {
       <BackfillPanel />
-    </div>
-  }
+    }
+  </div>
   </div>
 </main>
 

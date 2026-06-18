@@ -97,8 +97,18 @@ public class ProtosPageTests
             Assert.Contains("GitHub", cut.Markup);
             Assert.Contains("Android", cut.Markup);
             Assert.Contains("Apple", cut.Markup);
-            // No DB -> known list empty state.
+        }
+
+        [Fact]
+        public void MissingVersionsPanel_RendersContributeNote_AndEmptyState()
+        {
+            Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
+            Services.AddHttpClient();
+            JSInterop.Mode = JSRuntimeMode.Loose;
+            var cut = Render<MissingVersionsPanel>();
+            // No DB -> known list empty state + the public contribute ask is shown.
             Assert.Contains("No discovered versions", cut.Markup);
+            Assert.Contains("send them my way", cut.Markup);
         }
     }
 

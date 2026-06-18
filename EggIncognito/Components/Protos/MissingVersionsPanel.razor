@@ -1,0 +1,169 @@
+@* Discovered app versions that exist but have no stored proto, shown to EVERYONE on /protos. The chips are
+   full-width under a platform icon+name header. A dismissable note asks the public to contribute binaries
+   for these gaps (open-source the datafill). Reads are public (ProtosController), so no role needed to view;
+   the note is the only role-aware bit (admins get the "drop a binary" hint, everyone gets the ask). *@
+@rendermode @(RenderMode.InteractiveServer)
+@implements IDisposable
+@using System.Net.Http.Json
+@using EggIncognito.Components.Shared
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+
+<section class="panel">
+  <div class="flex items-center justify-between mb-2">
+    <h3 class="text-sm font-semibold">Missing versions</h3>
+    <span class="text-muted text-xs">@MissingKnown.Count of @_known.Count have no stored proto</span>
+  </div>
+
+  @if (!_noteDismissed)
+  {
+    <div class="rounded-md border border-border bg-panel2 p-2 mb-3 text-xs text-muted relative">
+      <button type="button" class="absolute top-1.5 right-1.5 text-muted hover:text-fg"
+              title="Dismiss" @onclick="DismissNote">
+        <Icon Name="x" Class="icon-sm" />
+      </button>
+      <p class="m-0 pr-5">
+        These versions are known to exist but have no proto on file. Proto can only come from a real binary.
+        If you have any of these .ipa / .apk files in a backup anywhere, please send them my way so the
+        registry can be filled in. Every contributed binary makes this dataset more complete for everyone.
+      </p>
+    </div>
+  }
+
+  @if (MissingKnown.Count == 0)
+  {
+    <div class="backfill-empty">
+      @(_known.Count == 0 ? "No discovered versions yet." : "Every discovered version already has a stored proto.")
+    </div>
+  }
+  else
+  {
+    <div class="flex flex-col gap-3">
+      @foreach (var grp in MissingKnown.GroupBy(k => k.Platform).OrderBy(g => g.Key))
+      {
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center gap-1.5 text-sm font-medium">
+            <Icon Name="@PlatformIcon(grp.Key)" Class="icon-sm" />
+            <span>@PlatformName(grp.Key)</span>
+            <span class="text-muted text-xs font-normal">@grp.Count()</span>
+          </div>
+          <div class="flex flex-wrap gap-1">
+            @foreach (var k in grp.OrderByDescending(k => k.AppVersion, Comparer<string>.Create(CompareSemver)))
+            {
+              <span class="code-chip mono" title="@($"{k.Source}{(k.ReleaseDate is { } d ? $" - {d:yyyy-MM-dd}" : "")}")">@k.AppVersion</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+</section>
+
+@code {
+    const string NoteDismissKey = "egi:missingVersionsNoteDismissed";
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    List<KnownRow> _known = [];
+    HashSet<(string Platform, string AppVersion)> _stored = [];
+    bool _noteDismissed;
+    string _baseAddress = "";
+    string? _cookie;
+    System.Threading.Timer? _timer;
+
+    List<KnownRow> MissingKnown =>
+        _known.Where(k => !_stored.Contains((k.Platform, k.AppVersion))).ToList();
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _timer = new System.Threading.Timer(async _ => await Tick(), null,
+                TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var v = await JS.InvokeAsync<string?>("localStorage.getItem", NoteDismissKey);
+            if (v == "1") { _noteDismissed = true; StateHasChanged(); }
+        }
+        catch { /* prerender: keep shown */ }
+    }
+
+    async Task DismissNote()
+    {
+        _noteDismissed = true;
+        try { await JS.InvokeVoidAsync("localStorage.setItem", NoteDismissKey, "1"); } catch { }
+    }
+
+    async Task Tick() => await InvokeAsync(async () => { await Load(); StateHasChanged(); });
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task Load()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<StatusResponse>("/api/protos/backfill/status", JsonOpts);
+            _known = res?.Known ?? [];
+            var versions = await Client().GetFromJsonAsync<List<RegRow>>("/api/protos/versions", JsonOpts);
+            _stored = versions is null ? [] : versions.Select(v => (v.Platform, v.AppVersion)).ToHashSet();
+        }
+        catch { _known = []; _stored = []; }
+    }
+
+    static string PlatformIcon(string platform) => platform.ToLowerInvariant() switch
+    {
+        "ios" => "apple",
+        "android" => "android",
+        _ => "device",
+    };
+
+    static string PlatformName(string platform) => platform.ToLowerInvariant() switch
+    {
+        "ios" => "iOS",
+        "android" => "Android",
+        _ => platform,
+    };
+
+    static int CompareSemver(string? a, string? b)
+    {
+        var ap = (a ?? "").Split('.');
+        var bp = (b ?? "").Split('.');
+        var n = Math.Max(ap.Length, bp.Length);
+        for (var i = 0; i < n; i++)
+        {
+            var av = i < ap.Length && long.TryParse(ap[i], out var x) ? x : 0;
+            var bv = i < bp.Length && long.TryParse(bp[i], out var y) ? y : 0;
+            if (av != bv) return av.CompareTo(bv);
+        }
+        return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public void Dispose() => _timer?.Dispose();
+
+    sealed record StatusResponse(List<KnownRow> Known);
+    sealed record KnownRow(string Platform, string AppVersion, DateTimeOffset? ReleaseDate,
+        string? Changelog, string Source);
+    sealed record RegRow(string Platform, string AppVersion);
+}

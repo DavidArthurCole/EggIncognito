@@ -4,6 +4,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
+@inject IJSRuntime JS
 @implements IDisposable
 
 <div class="panel">
@@ -70,6 +71,28 @@
     }
 </div>
 
+@* Dismissable explainer: what the device farm is for. Shown until the user closes it (persisted in
+   localStorage). Everyone sees it, not just admins. *@
+@if (!_infoDismissed)
+{
+    <div class="panel mt-3 text-xs text-muted relative">
+        <button type="button" class="absolute top-2 right-2 text-muted hover:text-fg"
+                title="Dismiss" @onclick="DismissInfo">
+            <Icon Name="x" Class="icon-sm" />
+        </button>
+        <div class="flex items-center gap-1.5 text-sm font-medium text-fg mb-1.5">
+            <Icon Name="info" Class="icon-sm" />
+            <span>Why two devices?</span>
+        </div>
+        <p class="m-0">
+            Two physical phones (one Android, one iOS) stay plugged into this host running Egg, Inc. They
+            exist only to keep the proto registry current: when a new app version ships, the device updates
+            and its fresh proto definition is pulled in automatically. No accounts, no gameplay, just a
+            live source of the latest schema.
+        </p>
+    </div>
+}
+
 @code {
     sealed record DeviceStatus(string Id, string Platform, string Label, bool Reachable,
         string? InstalledAppVersion, string? InstalledBuild,
@@ -80,9 +103,12 @@
     // its own success/error instead of swallowing it.
     sealed class ActionState { public bool Busy; public string? Message; public bool IsError; }
 
+    const string InfoDismissKey = "egi:devicesInfoDismissed";
+
     List<DeviceStatus> _devices = [];
     readonly Dictionary<string, ActionState> _actions = new();
     bool _isAdmin;
+    bool _infoDismissed;
     Timer? _timer;
     string _baseAddress = "";
     string? _cookie;
@@ -100,6 +126,24 @@
         }
         await LoadAsync();
         _timer = new Timer(async _ => await InvokeAsync(LoadAsync), null, 15_000, 15_000);
+    }
+
+    // localStorage is only reachable after the first render on a Server circuit (no JS during prerender).
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var v = await JS.InvokeAsync<string?>("localStorage.getItem", InfoDismissKey);
+            if (v == "1") { _infoDismissed = true; StateHasChanged(); }
+        }
+        catch { /* prerender / JS unavailable: keep the note shown */ }
+    }
+
+    async Task DismissInfo()
+    {
+        _infoDismissed = true;
+        try { await JS.InvokeVoidAsync("localStorage.setItem", InfoDismissKey, "1"); } catch { }
     }
 
     HttpClient Client()

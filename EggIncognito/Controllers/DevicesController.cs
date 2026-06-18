@@ -309,8 +309,44 @@ public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider
             logger.LogWarning("device save: {Id} carve failed: {Diag}", device.Id, iosCarve.Diagnostics);
             return (null, StatusCode(500, new { error = $"proto carve failed: {iosCarve.Diagnostics}" }));
         }
-        // iOS has no versionCode; key the registry row on the binary content sha (mirrors IosRunner).
-        var iosBuild = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bin))[..16].ToLowerInvariant();
+        // iOS has no static auxbrain build (the 1113xx is NOT in the binary; confirmed by full disasm). The
+        // real build comes off the wire via per-device capture. Force a fresh harvest (launch the app, wait),
+        // and key the row on that build when available. Fall back to the binary content sha so Save never
+        // blocks on capture (a sha-keyed row is later replaced once a real build is harvested).
+        var iosBuild = await ResolveIosBuildAsync(device, HttpContext.RequestAborted)
+            ?? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bin))[..16].ToLowerInvariant();
         return (new CarveResult(iosCarve.Proto, iosBuild), null);
+    }
+
+    // Resolve the real iOS auxbrain build off the wire via per-device capture. Returns the harvested build
+    // (a numeric 1113xx) or null if capture is off / no real build seen, so Save falls back to the sha key.
+    private async Task<string?> ResolveIosBuildAsync(Device device, CancellationToken ct)
+    {
+        var pusher = services.GetService(typeof(DeviceProxyPusher)) as DeviceProxyPusher;
+        var devCfg = services.GetService(typeof(DeviceConfig)) as DeviceConfig;
+        if (pusher is null || devCfg is null) return null;
+        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == device.Id);
+        if (entry is null) return null;
+
+        // Launch the app + wait for a fresh rinfo (~30s window); accept the harvested build only if it looks
+        // like a real auxbrain build (all-digit, 4+ chars), never a bundle version like "1.35.8".
+        var rinfo = await pusher.ForceHarvestAsync(entry, TimeSpan.FromSeconds(30), ct);
+        var build = rinfo?.Build;
+        return IsAuxbrainBuild(build) ? build : null;
+    }
+
+    private static bool IsAuxbrainBuild(string? b) =>
+        !string.IsNullOrEmpty(b) && b.Length >= 4 && b.All(char.IsDigit);
+
+    // Latest live rinfo harvested off the wire for a device (build/clientVersion/version + recency). Public
+    // read so the status panel can show the captured build to anyone. Empty 200 when none seen / capture off.
+    [HttpGet("{id}/live")]
+    public IActionResult Live(string id)
+    {
+        if (services.GetService(typeof(DeviceCaptureManager)) is not DeviceCaptureManager mgr)
+            return Ok(new { found = false });
+        var v = mgr.Rinfo.Latest(id);
+        if (v is null) return Ok(new { found = false });
+        return Ok(new { found = true, v.DeviceId, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen });
     }
 }

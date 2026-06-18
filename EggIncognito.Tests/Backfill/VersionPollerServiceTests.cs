@@ -81,7 +81,8 @@ public class VersionPollerServiceTests
     {
         var services = new ServiceCollection();
         services.AddScoped<IBackfillJobStore>(_ => jobs);
-        services.AddKeyedScoped<IVersionListSource>("apkpure", (_, _) => new FakeSource("apkpure", "android", android));
+        // Android list source is Fandom (apkpure 403s its versions page; it stays the APK-download source).
+        services.AddKeyedScoped<IVersionListSource>("fandom", (_, _) => new FakeSource("fandom", "android", android));
         services.AddKeyedScoped<IVersionListSource>("itunes", (_, _) => new FakeSource("itunes", "ios", ios));
         return services.BuildServiceProvider();
     }

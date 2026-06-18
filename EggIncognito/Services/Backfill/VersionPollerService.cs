@@ -18,9 +18,11 @@ public sealed class VersionPollerService(
     TimeProvider time,
     ILogger<VersionPollerService> logger) : BackgroundService
 {
-    // The poll source per platform. APKPure mirrors Play version numbers; iTunes is the App Store.
+    // The poll source per platform. Android = Fandom's Version_History (MediaWiki JSON API): structured,
+    // changelog-bearing, and not bot-blocked. APKPure's versions page Cloudflare-403s the scrape client, so
+    // it is the APK-DOWNLOAD source only, never the list source. iOS = iTunes App Store lookup.
     private static readonly (string Platform, string Source)[] PlatformSources =
-        [("android", "apkpure"), ("ios", "itunes")];
+        [("android", "fandom"), ("ios", "itunes")];
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
