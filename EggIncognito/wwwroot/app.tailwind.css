@@ -241,12 +241,11 @@
     @apply bg-bg border border-border rounded px-[0.3rem] py-[0.05rem] font-mono;
     font-size: 0.85em;
   }
-  /* Device status: "new available" pill + icon-only refresh button. */
+  /* Device status: orange "NEW" pill (installed version can populate a registry row) + icon button. */
   .dev-badge-new {
-    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap;
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--accent);
-    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    @apply inline-flex items-center rounded px-1.5 py-0.5 text-[0.65rem] font-bold tracking-wide uppercase whitespace-nowrap;
+    background: var(--accent);
+    color: #fff;
   }
   .btn-ghost-sm {
     @apply inline-flex items-center justify-center rounded p-1.5 text-muted shrink-0;

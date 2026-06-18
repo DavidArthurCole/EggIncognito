@@ -54,16 +54,24 @@ public static class DeviceProbeRunner
     {
         var result = await ProbeFor(d, runner).ProbeAsync(ct);
 
-        // newest extracted build/appVersion for this platform (drives classification)
-        var latestExtracted = await db.ProtoVersions.AsNoTracking()
+        // Highest extracted build/appVersion for this platform (drives classification). Pick the true
+        // maximum, NOT the most-recently-created row: backfills insert old versions later, so ordering by
+        // CreatedAt would name a lower build "latest" and false-flag an installed device as new_version.
+        var extracted = await db.ProtoVersions.AsNoTracking()
             .Where(p => p.Platform == d.Platform && p.DeletedAt == null)
-            .OrderByDescending(p => p.CreatedAt).FirstOrDefaultAsync(ct);
+            .Select(p => new { p.Build, p.AppVersion })
+            .ToListAsync(ct);
+        var latestBuild = d.Platform == "android"
+            ? extracted.Select(e => e.Build).Where(b => long.TryParse(b, out _)).OrderByDescending(long.Parse).FirstOrDefault()
+            : null;
+        var latestAppVersion = extracted.Select(e => e.AppVersion)
+            .OrderByDescending(v => v, Comparer<string>.Create(SemverCompare)).FirstOrDefault();
         // newest store-known appVersion for this platform (display only)
         var latestAvailable = await db.KnownVersions.AsNoTracking()
             .Where(k => k.Platform == d.Platform)
             .OrderByDescending(k => k.FirstSeen).Select(k => k.AppVersion).FirstOrDefaultAsync(ct);
 
-        var resultCode = Classify(d, result, latestExtracted?.Build, latestExtracted?.AppVersion);
+        var resultCode = Classify(d, result, latestBuild, latestAppVersion);
 
         var row = new DeviceProbe
         {
