@@ -416,6 +416,11 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.FandomSource>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.UptodownSource>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.ApkPureSource>();
+    builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.IApkDownloader>(
+        sp => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.ApkPureSource>());
+    // Device auto-updaters (DB-gated: AndroidDeviceUpdater needs IApkDownloader above).
+    builder.Services.AddScoped<EggIncognito.Services.Devices.AndroidDeviceUpdater>();
+    builder.Services.AddScoped<EggIncognito.Services.Devices.IosDeviceUpdater>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.ItunesSource>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.Ipa4funSource>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.InternetArchiveSource>();
@@ -449,10 +454,20 @@ if (dbEnabled)
 var deviceConfig = EggIncognito.Services.Devices.DeviceConfig.Bind(builder.Configuration);
 builder.Services.AddSingleton(deviceConfig);
 builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IProcessRunner, EggIncognito.Core.Services.Devices.ProcessRunner>();
-builder.Services.AddSingleton<EggIncognito.Services.Devices.IDeviceUpgrader, EggIncognito.Services.Devices.NoopDeviceUpgrader>();
 builder.Services.TryAddSingleton(TimeProvider.System);
 if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService<EggIncognito.Services.Devices.DeviceProbeService>();
+
+// Zero-touch auto-update: the real upgrader replaces the noop. It checks store-ahead-of-installed and
+// drives the platform updater. Master + per-platform switches default OFF (mutating action; frame opts in,
+// ios stays off until the frida trigger is proven). The upgrader is a singleton that opens its own scope
+// per probe; the updaters are scoped (AndroidDeviceUpdater needs the scoped ApkPureSource).
+var deviceUpdateConfig = EggIncognito.Services.Devices.DeviceUpdateConfig.Bind(builder.Configuration);
+builder.Services.AddSingleton(deviceUpdateConfig);
+builder.Services.AddSingleton<EggIncognito.Services.Devices.IDeviceUpgrader, EggIncognito.Services.Devices.RealDeviceUpgrader>();
+// The updaters are registered in the dbEnabled block (AndroidDeviceUpdater needs the DB-gated
+// IApkDownloader). RealDeviceUpgrader resolves them via GetService inside its own scope and early-returns
+// without a DbContext, so a no-DB host never tries to construct them.
 
 if (hostedCaptureOn)
 {

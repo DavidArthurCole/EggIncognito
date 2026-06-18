@@ -93,7 +93,10 @@ public static class DeviceProbeRunner
         else
             logger.LogInformation("device probe: {Id} unreachable ({Note})", d.Id, result.Note);
 
-        if (resultCode == "new_version")
+        // The upgrader decides whether to auto-update (store-ahead-of-installed), independent of resultCode
+        // (which is registry-relative). Called on every reachable probe; no-op unless auto-update is on and
+        // the store is genuinely ahead.
+        if (result.Reachable)
             await upgrader.MaybeUpgradeAsync(d, result, ct);
 
         return row;

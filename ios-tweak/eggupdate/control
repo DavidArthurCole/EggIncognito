@@ -1,0 +1,9 @@
+Package: me.eggincognito.eggupdate
+Name: EggUpdate
+Version: 0.1.0
+Architecture: iphoneos-arm
+Description: Headless Egg Inc App Store auto-update tweak for EggIncognito (file-watch trigger, two-phase StoreServices flow).
+Maintainer: David Cole
+Author: David Cole
+Section: Tweaks
+Depends: ellekit

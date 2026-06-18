@@ -1,0 +1,93 @@
+using EggIncognito.Core.Services.Devices;
+using EggIncognito.Services.Devices;
+using Xunit;
+
+namespace EggIncognito.Tests.Devices;
+
+// The iOS extract leg ssh-locates the egginc .app binary, scp's it back, and hands it to MachoProtoExtractor.
+// On a jailbroken phone only the first __TEXT page is FairPlay-encrypted, so the on-disk binary carves with
+// no runtime decrypt (verified on egginc 1.36.0.2). These cover the puller's pull/locate/failure wiring via
+// a fake runner; the carve itself is covered by MachoProtoExtractorTests + the env-gated real-binary test.
+public class IosBinaryPullerTests
+{
+    sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner
+    {
+        public readonly List<(string exe, string[] args)> Calls = [];
+        public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct)
+        {
+            Calls.Add((exe, args));
+            return Task.FromResult(fn(exe, args));
+        }
+    }
+
+    const string BundleId = "com.auxbrain.egginc";
+    const string BinPath = "/private/var/containers/Bundle/Application/ABC/egginc.app/egginc";
+
+    [Fact]
+    public async Task Pull_LocateFails_ReturnsNull()
+    {
+        var runner = new FakeRunner((exe, _) => exe == "ssh"
+            ? new ProcessResult(255, "", "ssh: connect to host port 2222: Connection refused")
+            : new ProcessResult(0, "", ""));
+        var puller = new IosBinaryPuller(runner, "1.2.3.4", "2222", "/key");
+        Assert.Null(await puller.PullBinaryAsync(BundleId, default));
+    }
+
+    [Fact]
+    public async Task Pull_LocateEmpty_ReturnsNull()
+    {
+        // ssh succeeded but found no matching bundle (empty stdout).
+        var runner = new FakeRunner((exe, _) => new ProcessResult(0, "", ""));
+        var puller = new IosBinaryPuller(runner, "1.2.3.4", "2222", "/key");
+        Assert.Null(await puller.PullBinaryAsync(BundleId, default));
+    }
+
+    [Fact]
+    public async Task Pull_ScpFails_ReturnsNull()
+    {
+        var runner = new FakeRunner((exe, _) => exe == "ssh"
+            ? new ProcessResult(0, BinPath + "\n", "")
+            : new ProcessResult(1, "", "scp: no such file"));
+        var puller = new IosBinaryPuller(runner, "1.2.3.4", "2222", "/key");
+        Assert.Null(await puller.PullBinaryAsync(BundleId, default));
+    }
+
+    [Fact]
+    public async Task Pull_Success_ReturnsBytes_AndUsesLocatedPath()
+    {
+        var payload = new byte[] { 0xCA, 0xFE, 0xBA, 0xBE };
+        var runner = new FakeRunner((exe, args) =>
+        {
+            if (exe == "ssh") return new ProcessResult(0, BinPath + "\n", "");
+            // scp: write the payload to the local dest (last arg) so the puller reads it back.
+            File.WriteAllBytes(args[^1], payload);
+            return new ProcessResult(0, "", "");
+        });
+        var puller = new IosBinaryPuller(runner, "phone.local", "2222", "/key");
+
+        var bytes = await puller.PullBinaryAsync(BundleId, default);
+
+        Assert.NotNull(bytes);
+        Assert.Equal(payload, bytes);
+        // the scp call must reference the located remote path with the configured host.
+        var scp = runner.Calls.Single(c => c.exe == "scp");
+        Assert.Contains(scp.args, a => a == $"root@phone.local:{BinPath}");
+        Assert.Contains(scp.args, a => a == "2222");
+        Assert.Contains(scp.args, a => a == "/key");
+    }
+
+    [Fact]
+    public async Task Pull_PicksFirstLocatedLine_WhenMultiple()
+    {
+        var runner = new FakeRunner((exe, args) =>
+        {
+            if (exe == "ssh") return new ProcessResult(0, $"{BinPath}\n/other/path\n", "");
+            File.WriteAllBytes(args[^1], [1]);
+            return new ProcessResult(0, "", "");
+        });
+        var puller = new IosBinaryPuller(runner, "h", "2222", "/key");
+        await puller.PullBinaryAsync(BundleId, default);
+        var scp = runner.Calls.Single(c => c.exe == "scp");
+        Assert.Contains(scp.args, a => a == $"root@h:{BinPath}");
+    }
+}

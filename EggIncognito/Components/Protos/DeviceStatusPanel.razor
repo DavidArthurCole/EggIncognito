@@ -1,3 +1,5 @@
+@using System.Net.Http.Json
+@using System.Text.Json
 @using EggIncognito.Services
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
@@ -18,6 +20,7 @@
         <div class="flex flex-col divide-y divide-border">
             @foreach (var d in _devices)
             {
+                var act = State(d.Id);
                 <div class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
                     <span class="@(d.Reachable ? "text-green-500" : "text-red-500") shrink-0" title="@(d.Reachable ? "reachable" : "unreachable")">
                         <Icon Name="@PlatformIcon(d.Platform)" />
@@ -31,22 +34,34 @@
                                 <span class="dev-badge-new" title="Installed version can populate new registry version">NEW</span>
                             }
                         </div>
-                        <div class="text-muted text-xs mt-0.5 flex items-center gap-2">
-                            <span>build @(d.InstalledBuild ?? "?")</span>
-                            <span>client @(d.InstalledClientVersion ?? "?")</span>
-                            <span class="opacity-60">@Ago(d.ProbedAt)</span>
+                        <div class="text-xs mt-0.5 flex items-center gap-2">
+                            @if (act.Message is not null)
+                            {
+                                <span class="@(act.IsError ? "text-red-400" : "text-green-400")">@act.Message</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">build @(d.InstalledBuild ?? "?")</span>
+                                <span class="text-muted opacity-60">@Ago(d.ProbedAt)</span>
+                            }
                         </div>
                     </div>
                     @if (_isAdmin)
                     {
-                        @if (d.Result == "new_version" && d.Platform == "android")
+                        @if (d.StoreAhead)
                         {
-                            <button class="btn-ghost-sm" disabled="@_busy" title="Pull installed version into the registry" @onclick="() => Save(d.Id)">
-                                <Icon Name="download" Class="icon-sm" />
+                            <button class="btn-ghost-sm" disabled="@act.Busy" title="@($"Update to store version {d.StoreLatest}")" @onclick="() => Update(d.Id)">
+                                <Icon Name="@(act.Busy ? "clock" : "arrow-up")" Class="icon-sm" />
                             </button>
                         }
-                        <button class="btn-ghost-sm" disabled="@_busy" title="Check this device now" @onclick="() => Refresh(d.Id)">
-                            <Icon Name="refresh" Class="icon-sm" />
+                        @if (d.Result == "new_version")
+                        {
+                            <button class="btn-ghost-sm" disabled="@act.Busy" title="Pull installed version into the registry" @onclick="() => Save(d.Id)">
+                                <Icon Name="@(act.Busy ? "clock" : "download")" Class="icon-sm" />
+                            </button>
+                        }
+                        <button class="btn-ghost-sm" disabled="@act.Busy" title="Check this device now" @onclick="() => Refresh(d.Id)">
+                            <Icon Name="@(act.Busy ? "clock" : "refresh")" Class="icon-sm" />
                         </button>
                     }
                 </div>
@@ -57,15 +72,22 @@
 
 @code {
     sealed record DeviceStatus(string Id, string Platform, string Label, bool Reachable,
-        string? InstalledAppVersion, string? InstalledBuild, string? InstalledClientVersion,
-        string? LatestAvailable, string Result, string? Note, DateTimeOffset ProbedAt);
+        string? InstalledAppVersion, string? InstalledBuild,
+        string? LatestAvailable, string? StoreLatest, bool StoreAhead,
+        string Result, string? Note, DateTimeOffset ProbedAt);
+
+    // Per-device action state, so a slow Save on one device does not freeze the others and each row shows
+    // its own success/error instead of swallowing it.
+    sealed class ActionState { public bool Busy; public string? Message; public bool IsError; }
 
     List<DeviceStatus> _devices = [];
+    readonly Dictionary<string, ActionState> _actions = new();
     bool _isAdmin;
-    bool _busy;
     Timer? _timer;
     string _baseAddress = "";
     string? _cookie;
+
+    ActionState State(string id) => _actions.TryGetValue(id, out var s) ? s : new ActionState();
 
     protected override async Task OnInitializedAsync()
     {
@@ -99,21 +121,64 @@
         catch { /* transient; keep last good */ }
     }
 
-    async Task Refresh(string id)
+    Task Refresh(string id) => Act(id, $"/api/devices/{id}/refresh", "checking...", "checked");
+
+    Task Save(string id) => Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "saved to registry");
+
+    Task Update(string id) => Act(id, $"/api/devices/{id}/update", "updating...", "update triggered");
+
+    // Run a device action, surfacing the real outcome on that row. On a non-2xx the server's {error} body
+    // is shown verbatim so a failure is visible instead of silent. Reloads status on success.
+    async Task Act(string id, string url, string busyMsg, string okMsg)
     {
-        _busy = true; StateHasChanged();
-        try { await Client().PostAsync($"/api/devices/{id}/refresh", null); await LoadAsync(); }
-        catch { }
-        finally { _busy = false; StateHasChanged(); }
+        var s = _actions[id] = new ActionState { Busy = true, Message = busyMsg };
+        StateHasChanged();
+        try
+        {
+            var resp = await Client().PostAsync(url, null);
+            if (resp.IsSuccessStatusCode)
+            {
+                s.Message = okMsg; s.IsError = false;
+                await LoadAsync();
+            }
+            else
+            {
+                s.Message = await ReadError(resp); s.IsError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            s.Message = ex.Message; s.IsError = true;
+        }
+        finally
+        {
+            s.Busy = false;
+            StateHasChanged();
+            _ = ClearLater(id);
+        }
     }
 
-    // Pull the installed version into the registry (adb pull + extract), then reload to reflect it.
-    async Task Save(string id)
+    static async Task<string> ReadError(HttpResponseMessage resp)
     {
-        _busy = true; StateHasChanged();
-        try { await Client().PostAsync($"/api/devices/{id}/save", null); await LoadAsync(); }
-        catch { }
-        finally { _busy = false; StateHasChanged(); }
+        try
+        {
+            var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("error", out var e))
+                return e.GetString() ?? $"failed ({(int)resp.StatusCode})";
+        }
+        catch { /* not json */ }
+        return $"failed ({(int)resp.StatusCode})";
+    }
+
+    // Clear the row message after a few seconds so it returns to the normal build/ago line.
+    async Task ClearLater(string id)
+    {
+        await Task.Delay(6000);
+        if (_actions.TryGetValue(id, out var s) && !s.Busy)
+        {
+            _actions.Remove(id);
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     static string PlatformIcon(string platform) => platform switch

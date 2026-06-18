@@ -26,6 +26,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<ExtractJob> ExtractJobs => Set<ExtractJob>();
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
+    public DbSet<DeviceUpdate> DeviceUpdates => Set<DeviceUpdate>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -125,6 +126,11 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasKey(x => x.Id);
             // LatestPerDevice orders by ProbedAt within a device; index keeps that off a full scan.
             e.HasIndex(x => new { x.DeviceId, x.ProbedAt });
+        });
+        b.Entity<DeviceUpdate>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.DeviceId, x.AttemptedAt });
         });
     }
 }

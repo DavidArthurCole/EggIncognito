@@ -3,12 +3,18 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.Backfill.Sources;
 
+// The APK-download seam, so the auto-updater can be unit-tested against a fake without a real HTTP fetch.
+public interface IApkDownloader
+{
+    Task<byte[]?> DownloadApkAsync(string appVersion, CancellationToken ct = default);
+}
+
 // APKPure versions page (android). Two roles: the list source (appVersion + release date) and the
 // APK-download source feeding the on-demand extract path. Base URL is a ctor-overridable default so the
 // .net mirror reuses the same parser. Parse is pure + resilient. DownloadApkAsync is a thin real GET,
 // integration-only (not unit-tested).
 public sealed partial class ApkPureSource(IHttpClientFactory httpFactory, ILogger<ApkPureSource> logger)
-    : IVersionListSource
+    : IVersionListSource, IApkDownloader
 {
     private const string Package = "com.auxbrain.egginc";
     private const string DefaultBase = "https://apkpure.com";

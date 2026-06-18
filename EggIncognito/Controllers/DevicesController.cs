@@ -31,39 +31,38 @@ public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider
         if (store is null) return Ok(Array.Empty<object>());
         var latest = await store.LatestPerDeviceAsync();
         var devices = (await store.EnabledDevicesAsync()).ToDictionary(d => d.Id);
+        var updates = (await store.LatestUpdatePerDeviceAsync()).ToDictionary(u => u.DeviceId);
 
-        // The client_version for an installed build is not in dumpsys (it lives in the binary), but if that
-        // build is already in the registry we can show its known client_version. Look up by (platform, build).
+        // store-latest per distinct platform, so the Update button can show only when the store is ahead of
+        // what is installed. One lookup per platform (android/ios), reused across that platform's devices.
         var db = Db;
-        var clientByKey = new Dictionary<(string, string), string?>();
+        var storeLatest = new Dictionary<string, string?>();
         if (db is not null)
-        {
-            var builds = latest.Where(p => p.InstalledBuild is not null)
-                .Select(p => (devices.TryGetValue(p.DeviceId, out var d) ? d.Platform : "", p.InstalledBuild!))
-                .ToHashSet();
-            foreach (var (plat, build) in builds)
-            {
-                var row = await db.ProtoVersions.AsNoTracking()
-                    .FirstOrDefaultAsync(v => v.Platform == plat && v.Build == build && v.DeletedAt == null);
-                clientByKey[(plat, build)] = row?.ClientVersion;
-            }
-        }
+            foreach (var plat in devices.Values.Select(d => d.Platform).Distinct())
+                storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, HttpContext.RequestAborted);
 
         var rows = latest.Where(p => devices.ContainsKey(p.DeviceId)).Select(p =>
         {
             var d = devices[p.DeviceId];
-            clientByKey.TryGetValue((d.Platform, p.InstalledBuild ?? ""), out var client);
+            updates.TryGetValue(d.Id, out var up);
+            var sl = storeLatest.GetValueOrDefault(d.Platform);
             return new
             {
                 id = d.Id, platform = d.Platform, label = d.Label,
                 reachable = p.Reachable,
                 installedAppVersion = p.InstalledAppVersion,
                 installedBuild = p.InstalledBuild,
-                installedClientVersion = client,
                 latestAvailable = p.LatestAvailable,
+                storeLatest = sl,
+                storeAhead = StoreAheadCheck.IsAhead(sl, p.InstalledAppVersion),
                 result = p.Result,
                 note = p.Note,
                 probedAt = p.ProbedAt,
+                lastUpdate = up is null ? null : new
+                {
+                    status = up.Status, from = up.FromVersion, to = up.ToVersion,
+                    note = up.Note, by = up.TriggeredBy, at = up.AttemptedAt,
+                },
             };
         });
         return Ok(rows);
@@ -112,61 +111,206 @@ public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider
         });
     }
 
-    // Pull the installed app off the device, carve its proto, and upsert a registry row. Android only:
-    // it shells `adb pull` for the arm split, then reuses ApkExtractService (pbtk + versionCode + save).
-    // iOS has no in-app extraction path yet (needs a decrypted-binary pull), so it returns 501. Admin +
-    // DB gated; 501 when the extraction toolchain is not configured on this host.
+    // Admin-triggered update: drive the device to the latest store version on demand (the manual gate the
+    // owner wants before flipping auto on). Mirrors the auto-path (RealDeviceUpgrader) but is button-fired
+    // and records TriggeredBy=admin. Probes for installed, checks the store is ahead, runs the platform
+    // updater, records the outcome. Admin + DB gated. No-op 409 when not actually behind the store.
+    [HttpPost("{id}/update")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Update(string id)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Store;
+        var db = Db;
+        if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
+
+        var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
+        var who = currentUser.DiscordId ?? "?";
+
+        var device = await store.GetAsync(id);
+        if (device is null) return NotFound(new { error = "unknown device" });
+
+        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+        var probe = await DeviceProbeRunner.ProbeFor(device, runner).ProbeAsync(HttpContext.RequestAborted);
+        if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion))
+            return StatusCode(502, new { error = $"device unreachable or no version read: {probe.Note}" });
+
+        var storeLatest = await StoreAheadCheck.StoreLatestAsync(db, device.Platform, HttpContext.RequestAborted);
+        if (!StoreAheadCheck.IsAhead(storeLatest, probe.InstalledAppVersion))
+            return StatusCode(409, new { error = $"already current: installed {probe.InstalledAppVersion}, store {storeLatest ?? "unknown"}" });
+
+        var updater = device.Platform switch
+        {
+            "android" => services.GetService(typeof(AndroidDeviceUpdater)) as IDeviceUpdater,
+            "ios" => services.GetService(typeof(IosDeviceUpdater)) as IDeviceUpdater,
+            _ => null,
+        };
+        if (updater is null) return StatusCode(501, new { error = $"no {device.Platform} updater available" });
+
+        logger.LogInformation("device update: {Id} manual {From} -> {To} (by {Who})",
+            id, probe.InstalledAppVersion, storeLatest, who);
+        var outcome = await updater.UpdateAsync(device, storeLatest!, HttpContext.RequestAborted);
+
+        var status = outcome switch
+        {
+            { Verified: true } => "verified",
+            { Started: true } => "failed",
+            _ => "skipped",
+        };
+        await store.RecordUpdateAsync(new DeviceUpdate
+        {
+            DeviceId = device.Id,
+            AttemptedAt = DateTimeOffset.UtcNow,
+            FromVersion = outcome.FromVersion,
+            ToVersion = outcome.ToVersion,
+            Status = status,
+            Note = outcome.Note,
+            TriggeredBy = $"admin:{who}",
+        }, HttpContext.RequestAborted);
+
+        // Re-probe so the card reflects the post-update state immediately.
+        var upgrader = (IDeviceUpgrader)services.GetRequiredService(typeof(IDeviceUpgrader));
+        var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
+        await DeviceProbeRunner.ProbeOneAsync(
+            device, $"admin-update:{who}", runner, store, db, upgrader, logger, time, HttpContext.RequestAborted);
+
+        var http = outcome switch
+        {
+            { Verified: true } => 200,
+            { Started: true } => 202, // attempted, not yet verified (download may be in flight)
+            _ => 500,
+        };
+        return StatusCode(http, new
+        {
+            started = outcome.Started, verified = outcome.Verified,
+            from = outcome.FromVersion, to = outcome.ToVersion, status, note = outcome.Note,
+        });
+    }
+
+    // Pull the installed app off the device, carve its proto in-process (pure C#, no python toolchain),
+    // and upsert a registry row. Android: `adb pull` the arm split, run ArchiveProtoExtractor. iOS: ssh-pull
+    // the egginc Mach-O (only the first __TEXT page is FairPlay-encrypted; the FileDescriptorProto blobs
+    // live past it in __DATA, so the on-disk binary carves with no runtime decrypt), run MachoProtoExtractor.
+    // iOS has no versionCode, so build = the binary's content sha (mirrors IosRunner). Admin + DB gated.
+    // Every step logs so a failure is diagnosable from the server log instead of vanishing into a silent 500.
     [HttpPost("{id}/save")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Save(string id)
     {
         if (RequireAdmin() is { } no) return no;
         var store = Store;
-        if (store is null || Db is null) return StatusCode(503, new { error = "no database configured" });
+        var registry = services.GetService(typeof(ProtoRegistryStore)) as ProtoRegistryStore;
+        if (store is null || Db is null || registry is null) return StatusCode(503, new { error = "no database configured" });
+
+        var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
+        var who = currentUser.DiscordId ?? "?";
 
         var device = await store.GetAsync(id);
         if (device is null) return NotFound(new { error = "unknown device" });
-        if (device.Platform != "android")
-            return StatusCode(501, new { error = "device proto extraction is android-only for now" });
+        if (device.Platform is not (PlatformAndroid or PlatformIos))
+            return StatusCode(501, new { error = $"no extractor for platform {device.Platform}" });
 
-        // Read the installed version first so the registry row is labelled correctly.
+        logger.LogInformation("device save: {Id} start (by {Who})", id, who);
+
         var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
         var probe = await DeviceProbeRunner.ProbeFor(device, runner).ProbeAsync(HttpContext.RequestAborted);
-        if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion))
-            return StatusCode(502, new { error = "device unreachable or no version read" });
+        // Android needs both appVersion + build; iOS has no build (sha stands in) so only appVersion required.
+        var needBuild = device.Platform == PlatformAndroid;
+        if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion) || (needBuild && string.IsNullOrEmpty(probe.InstalledBuild)))
+        {
+            logger.LogWarning("device save: {Id} aborted: unreachable or no version ({Note})", id, probe.Note);
+            return StatusCode(502, new { error = $"device unreachable or no version read: {probe.Note}" });
+        }
 
-        var extract = (EggIncognito.Services.Backfill.ApkExtractService)
-            services.GetRequiredService(typeof(EggIncognito.Services.Backfill.ApkExtractService));
-        if (!extract.Options.IsConfigured)
-            return StatusCode(501, new { error = "proto extraction not configured on this host" });
+        // Pull + carve, per platform. carve.Proto carries proto TEXT either way.
+        var (carve, err) = await PullAndCarveAsync(device, probe, runner, logger);
+        if (err is not null) return err;
 
-        var puller = new EggIncognito.Services.Devices.DeviceApkPuller(runner);
-        var apk = await puller.PullArmSplitAsync(device.Target, device.Package, HttpContext.RequestAborted);
-        if (apk is null)
-            return StatusCode(502, new { error = "could not pull the arm split apk from the device" });
+        var appVersion = probe.InstalledAppVersion!;
+        var build = carve!.Build;
+        var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(carve.Proto))).ToLowerInvariant();
 
         try
         {
-            await extract.ExtractFromArmSplitAsync(
-                apk, probe.InstalledAppVersion!, $"device:{device.Id}", HttpContext.RequestAborted);
+            var (_, created, _) = await registry.UpsertAsync(
+                device.Platform, appVersion, build, clientVersion: null, package: device.Package,
+                protoSha: sha, apkRef: $"device:{device.Id}", detectedAt: DateTimeOffset.UtcNow,
+                detectedBy: $"device-save:{who}", protoText: carve.Proto, source: "device",
+                ct: HttpContext.RequestAborted);
+            logger.LogInformation("device save: {Id} -> registry {Plat} build {Build} ({State}, sha {Sha})",
+                id, device.Platform, build, created ? "created" : "updated", sha[..12]);
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { error = $"extraction failed: {ex.Message}" });
+            logger.LogError(ex, "device save: {Id} registry upsert failed for build {Build}", id, build);
+            return StatusCode(500, new { error = $"registry write failed: {ex.Message}" });
         }
 
-        // Re-probe so the card reflects the now-extracted build (result should flip to no_change).
+        // Re-probe so the card flips to no_change now that the build is extracted.
         var db = Db!;
         var upgrader = (IDeviceUpgrader)services.GetRequiredService(typeof(IDeviceUpgrader));
         var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
-        var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
-        var row = await DeviceProbeRunner.ProbeOneAsync(
-            device, $"admin-save:{currentUser.DiscordId}", runner, store, db, upgrader, logger, time, HttpContext.RequestAborted);
+        var reprobe = await DeviceProbeRunner.ProbeOneAsync(
+            device, $"admin-save:{who}", runner, store, db, upgrader, logger, time, HttpContext.RequestAborted);
 
-        return Ok(new
+        return Ok(new { saved = true, appVersion, build, result = reprobe.Result });
+    }
+
+    private const string PlatformAndroid = "android";
+    private const string PlatformIos = "ios";
+
+    private sealed record CarveResult(string Proto, string Build);
+
+    // Per-platform pull + carve, factored out of Save to keep its complexity down. Returns the carved proto
+    // text + the registry build key on success, or (null, errorResult) with the failure already logged.
+    private async Task<(CarveResult? carve, IActionResult? err)> PullAndCarveAsync(
+        Device device, DeviceProbeResult probe, IProcessRunner runner, ILogger logger)
+    {
+        if (device.Platform == PlatformAndroid)
         {
-            saved = true, appVersion = probe.InstalledAppVersion, build = probe.InstalledBuild,
-            result = row.Result,
-        });
+            var apk = await new DeviceApkPuller(runner).PullArmSplitAsync(device.Target, device.Package, HttpContext.RequestAborted);
+            if (apk is null)
+            {
+                logger.LogWarning("device save: {Id} aborted: arm split pull failed", device.Id);
+                return (null, StatusCode(502, new { error = "could not pull the arm split apk from the device" }));
+            }
+            logger.LogInformation("device save: {Id} pulled arm split ({Bytes} bytes), carving proto", device.Id, apk.Length);
+            var carved = EggIncognito.Services.ProtoExtract.ArchiveProtoExtractor.Extract(apk);
+            if (!carved.Ok || string.IsNullOrEmpty(carved.Proto))
+            {
+                logger.LogWarning("device save: {Id} carve failed: {Diag}", device.Id, carved.Diagnostics);
+                return (null, StatusCode(500, new { error = $"proto carve failed: {carved.Diagnostics}" }));
+            }
+            return (new CarveResult(carved.Proto, probe.InstalledBuild!), null); // versionCode authoritative
+        }
+
+        // ios: ssh-pull the Mach-O (first __TEXT page FairPlay-encrypted, proto blobs past it), carve.
+        var s = (services.GetRequiredService(typeof(IConfiguration)) as IConfiguration)!
+            .GetSection("DeviceUpdate").GetSection("Ios");
+        var host = string.IsNullOrEmpty(s["SshHost"]) ? device.Target : s["SshHost"]!;
+        var port = s["SshPort"] ?? "2222";
+        var key = s["SshKeyPath"];
+        if (string.IsNullOrEmpty(key))
+        {
+            logger.LogWarning("device save: {Id} aborted: ios ssh key not configured (DeviceUpdate:Ios:SshKeyPath)", device.Id);
+            return (null, StatusCode(503, new { error = "ios extraction needs DeviceUpdate:Ios:SshKeyPath configured" }));
+        }
+        var bin = await new IosBinaryPuller(runner, host, port, key).PullBinaryAsync(device.Package, HttpContext.RequestAborted);
+        if (bin is null)
+        {
+            logger.LogWarning("device save: {Id} aborted: ios binary pull failed", device.Id);
+            return (null, StatusCode(502, new { error = "could not pull the egginc binary from the device over ssh" }));
+        }
+        logger.LogInformation("device save: {Id} pulled ios binary ({Bytes} bytes), carving proto", device.Id, bin.Length);
+        var iosCarve = EggIncognito.Services.ProtoExtract.MachoProtoExtractor.Extract(bin);
+        if (!iosCarve.Ok || string.IsNullOrEmpty(iosCarve.Proto))
+        {
+            logger.LogWarning("device save: {Id} carve failed: {Diag}", device.Id, iosCarve.Diagnostics);
+            return (null, StatusCode(500, new { error = $"proto carve failed: {iosCarve.Diagnostics}" }));
+        }
+        // iOS has no versionCode; key the registry row on the binary content sha (mirrors IosRunner).
+        var iosBuild = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bin))[..16].ToLowerInvariant();
+        return (new CarveResult(iosCarve.Proto, iosBuild), null);
     }
 }
