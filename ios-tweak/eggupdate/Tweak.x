@@ -29,6 +29,7 @@
 #import <fcntl.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
+#import <dlfcn.h>
 
 // SpringBoard runs as user `mobile`, which cannot write /var/root. Both paths live under /var/mobile
 // (mobile-owned) so the tweak can create + write them and frame can `touch` the trigger over ssh.
@@ -558,6 +559,18 @@ static void probeSSPurchase(void) {
         dumpClassFull(classes[i]);
 }
 
+// Lock the screen (power-save for a never-auto-lock farm phone). SBSLockDevice() is a SpringBoardServices C
+// function; on iOS 16 the framework is in the dyld shared cache (no standalone file), but the symbol resolves
+// at runtime in this App Store process. dlsym so a missing/renamed symbol is a logged no-op, never a crash.
+// Called right after the purchase is enqueued; storedownloadd installs in the background regardless of lock.
+static void lockScreenViaSpringBoardServices(void) {
+    void *h = dlopen("/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices", RTLD_LAZY);
+    if (!h) { egglog(@"  [lock] dlopen SpringBoardServices failed (%s)", dlerror()); return; }
+    void (*lockFn)(void) = (void(*)(void))dlsym(h, "SBSLockDevice");
+    if (lockFn) { egglog(@"  [lock] SBSLockDevice()"); lockFn(); }
+    else        { egglog(@"  [lock] SBSLockDevice symbol not found (%s)", dlerror()); }
+}
+
 // THE INSTALL PATH (confirmed API from the SSPurchase dump): build an SSPurchase for the catalog adam-id as
 // a standard redownload (STDRDL = free re-acquire of an owned app = the update), wrap in an SSPurchaseRequest,
 // and start it. storedownloadd downloads + installs the latest store version (1.36). This is what the App
@@ -600,6 +613,13 @@ static void firePurchaseUpdate(void) {
                        egglog(@"  [PURCHASE] start TIMEOUT (download may still proceed async in storedownloadd)"); }
             @catch (NSException *ex) { egglog(@"  [PURCHASE] start threw %@", ex.reason); }
             egglog(@"  [PURCHASE] done");
+
+            // Power-save: lock the screen now that the purchase is enqueued. storedownloadd installs in the
+            // background regardless of lock state, so locking here does not interrupt the update. This is the
+            // only place we can lock - the phone has no shell lock tool, but SBSLockDevice() is callable in this
+            // App Store process (SpringBoardServices lives in the shared cache). dlopen+dlsym so a missing
+            // symbol is a no-op, never a crash. The server-side checker separately killalls the App Store app.
+            lockScreenViaSpringBoardServices();
         }
     });
 }

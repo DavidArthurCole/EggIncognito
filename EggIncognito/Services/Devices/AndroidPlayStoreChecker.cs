@@ -39,6 +39,8 @@ public sealed class AndroidPlayStoreChecker(
         var drive = await DrivePlayUpdateAsync(device, progress, ct);
         if (!drive.Ok)
         {
+            // The drive woke the screen + opened Play; put it back to sleep before returning (power-save).
+            await SleepDeviceAsync(device, CancellationToken.None);
             // Could not find/tap an Update button. Most likely already current (no Update button on the page)
             // or the page did not render. Distinguish below via the version poll; surface the reason as a note.
             if (drive.NoUpdateButton)
@@ -55,34 +57,56 @@ public sealed class AndroidPlayStoreChecker(
         // Poll the installed version: Play's download/install is async, so wait for it to climb. The progress
         // line reports elapsed time + what we are waiting on, not the unchanged version (already on the row).
         progress?.Invoke($"Update tapped; waiting for Play to install (up to {opts.PollAttempts * opts.PollSeconds}s)…");
-        for (var attempt = 0; attempt < opts.PollAttempts; attempt++)
+        try
         {
-            if (ct.IsCancellationRequested) break;
-            try { await Task.Delay(TimeSpan.FromSeconds(opts.PollSeconds), ct); }
-            catch (OperationCanceledException) { break; }
-
-            var now = await ReadInstalledAsync(device, ct);
-            var n = attempt + 1;
-            var elapsed = n * opts.PollSeconds;
-            logger.LogInformation("device check-update: {Id} android poll {N}/{Max} installed={Ver}",
-                device.Id, n, opts.PollAttempts, now ?? "?");
-            if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0)
+            for (var attempt = 0; attempt < opts.PollAttempts; attempt++)
             {
-                progress?.Invoke($"Play installed {now} (was {before})");
-                logger.LogInformation("device check-update: {Id} android climb {Before} -> {After}", device.Id, before, now);
-                return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
-            }
-            progress?.Invoke($"waiting for Play install… {elapsed}s elapsed (no change yet)");
-        }
+                if (ct.IsCancellationRequested) break;
+                try { await Task.Delay(TimeSpan.FromSeconds(opts.PollSeconds), ct); }
+                catch (OperationCanceledException) { break; }
 
-        // No climb within the window. Either already current, or the update is still downloading. We cannot
-        // distinguish "no update" from "still in flight" without a Play status read (none reliable over adb),
-        // so report up_to_date with a note; a later check re-confirms.
-        var last = await ReadInstalledAsync(device, ct);
-        logger.LogInformation("device check-update: {Id} android up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
-            device.Id, last ?? "?", opts.PollAttempts, opts.PollSeconds);
-        return new StoreCheckResult(true, before, last, false, false, "up_to_date",
-            $"no update applied in {opts.PollAttempts * opts.PollSeconds}s (already current, or download still in flight)");
+                var now = await ReadInstalledAsync(device, ct);
+                var n = attempt + 1;
+                var elapsed = n * opts.PollSeconds;
+                logger.LogInformation("device check-update: {Id} android poll {N}/{Max} installed={Ver}",
+                    device.Id, n, opts.PollAttempts, now ?? "?");
+                if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0)
+                {
+                    progress?.Invoke($"Play installed {now} (was {before})");
+                    logger.LogInformation("device check-update: {Id} android climb {Before} -> {After}", device.Id, before, now);
+                    return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
+                }
+                progress?.Invoke($"waiting for Play install… {elapsed}s elapsed (no change yet)");
+            }
+
+            // No climb within the window. Either already current, or the update is still downloading. We cannot
+            // distinguish "no update" from "still in flight" without a Play status read (none reliable over adb),
+            // so report up_to_date with a note; a later check re-confirms.
+            var last = await ReadInstalledAsync(device, ct);
+            logger.LogInformation("device check-update: {Id} android up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
+                device.Id, last ?? "?", opts.PollAttempts, opts.PollSeconds);
+            return new StoreCheckResult(true, before, last, false, false, "up_to_date",
+                $"no update applied in {opts.PollAttempts * opts.PollSeconds}s (already current, or download still in flight)");
+        }
+        finally
+        {
+            // Power-save: we woke the screen + opened Play to drive the update. Leave the device as we found
+            // it - close Play (back to home) and put the screen to sleep - so a never-auto-lock farm phone is
+            // not left burning its display. Best-effort; failures here never affect the result.
+            await SleepDeviceAsync(device, CancellationToken.None);
+        }
+    }
+
+    // Close the foreground app (Play) back to the launcher and turn the screen off. KEYCODE_HOME backgrounds
+    // Play; KEYCODE_SLEEP turns the display off (idempotent - no-op if already off). Best-effort, never throws.
+    private async Task SleepDeviceAsync(DeviceStoreTarget device, CancellationToken ct)
+    {
+        try
+        {
+            await Shell(device, "input keyevent KEYCODE_HOME", ct);
+            await Shell(device, "input keyevent KEYCODE_SLEEP", ct);
+        }
+        catch (Exception ex) { logger.LogDebug(ex, "device {Id} screen-sleep best-effort failed", device.Id); }
     }
 
     private readonly record struct DriveOutcome(bool Ok, bool NoUpdateButton, string? Note);

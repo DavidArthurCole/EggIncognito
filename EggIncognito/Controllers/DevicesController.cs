@@ -39,15 +39,39 @@ public sealed class DevicesController(
         // what is installed. One lookup per platform (android/ios), reused across that platform's devices.
         var db = Db;
         var storeLatest = new Dictionary<string, string?>();
+        // Live REGISTRY latest per platform (non-deleted), used to RE-CLASSIFY at read time. The stored probe
+        // Result is a snapshot from probe time; if a registry entry is later deleted, the installed version is
+        // no longer represented and the row must flip back to new_version (re-surfacing the Save button) WITHOUT
+        // waiting for the next probe tick. So we recompute new_version/no_change against the current registry.
+        var regLatestApp = new Dictionary<string, string?>();
+        var regLatestBuild = new Dictionary<string, string?>();
         if (db is not null)
             foreach (var plat in devices.Values.Select(d => d.Platform).Distinct())
+            {
                 storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, HttpContext.RequestAborted);
+                var extracted = await db.ProtoVersions.AsNoTracking()
+                    .Where(v => v.Platform == plat && v.DeletedAt == null)
+                    .Select(v => new { v.Build, v.AppVersion })
+                    .ToListAsync(HttpContext.RequestAborted);
+                regLatestApp[plat] = extracted.Select(e => e.AppVersion)
+                    .OrderByDescending(v => v, Comparer<string>.Create(DeviceProbeRunner.SemverCompare)).FirstOrDefault();
+                regLatestBuild[plat] = plat == "android"
+                    ? extracted.Select(e => e.Build).Where(b => long.TryParse(b, out _)).OrderByDescending(long.Parse).FirstOrDefault()
+                    : null;
+            }
 
         var rows = latest.Where(p => devices.ContainsKey(p.DeviceId)).Select(p =>
         {
             var d = devices[p.DeviceId];
             updates.TryGetValue(d.Id, out var up);
             var sl = storeLatest.GetValueOrDefault(d.Platform);
+            // Reclassify against the live registry so a deleted entry re-surfaces the Save button immediately.
+            // Falls back to the stored Result for unreachable/error rows (where reclassification is moot).
+            var liveResult = (p.Reachable && !string.IsNullOrEmpty(p.InstalledAppVersion))
+                ? DeviceProbeRunner.Classify(
+                    new DeviceProbeResult(true, p.InstalledAppVersion, p.InstalledBuild, null),
+                    d.Platform, regLatestBuild.GetValueOrDefault(d.Platform), regLatestApp.GetValueOrDefault(d.Platform))
+                : p.Result;
             return new
             {
                 id = d.Id, platform = d.Platform, label = d.Label,
@@ -57,7 +81,7 @@ public sealed class DevicesController(
                 latestAvailable = p.LatestAvailable,
                 storeLatest = sl,
                 storeAhead = StoreAheadCheck.IsAhead(sl, p.InstalledAppVersion),
-                result = p.Result,
+                result = liveResult,
                 note = p.Note,
                 probedAt = p.ProbedAt,
                 lastUpdate = up is null ? null : new
@@ -371,34 +395,16 @@ public sealed class DevicesController(
             logger.LogWarning("device save: {Id} carve failed: {Diag}", device.Id, iosCarve.Diagnostics);
             return (null, StatusCode(500, new { error = $"proto carve failed: {iosCarve.Diagnostics}" }));
         }
-        // iOS has no static auxbrain build (the 1113xx is NOT in the binary; confirmed by full disasm). The
-        // real build comes off the wire via per-device capture. Force a fresh harvest (launch the app, wait),
-        // and key the row on that build when available. Fall back to the binary content sha so Save never
-        // blocks on capture (a sha-keyed row is later replaced once a real build is harvested).
-        var iosBuild = await ResolveIosBuildAsync(device, HttpContext.RequestAborted)
-            ?? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bin))[..16].ToLowerInvariant();
+        // iOS registry build = CFBundleVersion (e.g. 1.36.0.2), the SAME value the probe reads + the Devices
+        // panel shows. This is the canonical iOS build (owner decision): the registry row must match what the
+        // device row displays, not an opaque hash. Fall back to the binary content sha ONLY if the probe could
+        // not read CFBundleVersion (e.g. CSV-form ideviceinstaller), so Save still never hard-blocks.
+        // (The auxbrain wire build 1113xx, harvested via capture, is a SEPARATE concept and not the row key.)
+        var iosBuild = !string.IsNullOrEmpty(probe.InstalledBuild)
+            ? probe.InstalledBuild!
+            : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bin))[..16].ToLowerInvariant();
         return (new CarveResult(iosCarve.Proto, iosBuild), null);
     }
-
-    // Resolve the real iOS auxbrain build off the wire via per-device capture. Returns the harvested build
-    // (a numeric 1113xx) or null if capture is off / no real build seen, so Save falls back to the sha key.
-    private async Task<string?> ResolveIosBuildAsync(Device device, CancellationToken ct)
-    {
-        var pusher = services.GetService(typeof(DeviceProxyPusher)) as DeviceProxyPusher;
-        var devCfg = services.GetService(typeof(DeviceConfig)) as DeviceConfig;
-        if (pusher is null || devCfg is null) return null;
-        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == device.Id);
-        if (entry is null) return null;
-
-        // Launch the app + wait for a fresh rinfo (~30s window); accept the harvested build only if it looks
-        // like a real auxbrain build (all-digit, 4+ chars), never a bundle version like "1.35.8".
-        var rinfo = await pusher.ForceHarvestAsync(entry, TimeSpan.FromSeconds(30), ct);
-        var build = rinfo?.Build;
-        return IsAuxbrainBuild(build) ? build : null;
-    }
-
-    private static bool IsAuxbrainBuild(string? b) =>
-        !string.IsNullOrEmpty(b) && b.Length >= 4 && b.All(char.IsDigit);
 
     // Latest live rinfo harvested off the wire for a device (build/clientVersion/version + recency). Public
     // read so the status panel can show the captured build to anyone. Empty 200 when none seen / capture off.

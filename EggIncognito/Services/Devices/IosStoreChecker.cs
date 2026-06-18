@@ -77,31 +77,56 @@ public sealed class IosStoreChecker(
         // server is doing + elapsed time, not the unchanged installed version (which the UI already shows on
         // the row). A climb is announced the instant it is seen.
         progress?.Invoke($"trigger fired; waiting for App Store to install (up to {pollAttempts * pollSeconds}s)…");
-        for (var attempt = 0; attempt < pollAttempts; attempt++)
+        try
         {
-            if (ct.IsCancellationRequested) break;
-            try { await Task.Delay(TimeSpan.FromSeconds(pollSeconds), ct); }
-            catch (OperationCanceledException) { break; }
-
-            var now = await ReadInstalledAsync(device, ct);
-            var n = attempt + 1;
-            var elapsed = n * pollSeconds;
-            logger.LogInformation("device check-update: {Id} ios poll {N}/{Max} installed={Ver}",
-                device.Id, n, pollAttempts, now ?? "?");
-            if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0)
+            for (var attempt = 0; attempt < pollAttempts; attempt++)
             {
-                progress?.Invoke($"App Store installed {now} (was {before})");
-                logger.LogInformation("device check-update: {Id} ios climb {Before} -> {After}", device.Id, before, now);
-                return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
-            }
-            progress?.Invoke($"waiting for App Store install… {elapsed}s elapsed (no change yet)");
-        }
+                if (ct.IsCancellationRequested) break;
+                try { await Task.Delay(TimeSpan.FromSeconds(pollSeconds), ct); }
+                catch (OperationCanceledException) { break; }
 
-        var last = await ReadInstalledAsync(device, ct);
-        logger.LogInformation("device check-update: {Id} ios up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
-            device.Id, last ?? "?", pollAttempts, pollSeconds);
-        return new StoreCheckResult(true, before, last, false, false, "up_to_date",
-            $"no update applied in {pollAttempts * pollSeconds}s (already current, or App Store install still in flight)");
+                var now = await ReadInstalledAsync(device, ct);
+                var n = attempt + 1;
+                var elapsed = n * pollSeconds;
+                logger.LogInformation("device check-update: {Id} ios poll {N}/{Max} installed={Ver}",
+                    device.Id, n, pollAttempts, now ?? "?");
+                if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0)
+                {
+                    progress?.Invoke($"App Store installed {now} (was {before})");
+                    logger.LogInformation("device check-update: {Id} ios climb {Before} -> {After}", device.Id, before, now);
+                    return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
+                }
+                progress?.Invoke($"waiting for App Store install… {elapsed}s elapsed (no change yet)");
+            }
+
+            var last = await ReadInstalledAsync(device, ct);
+            logger.LogInformation("device check-update: {Id} ios up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
+                device.Id, last ?? "?", pollAttempts, pollSeconds);
+            return new StoreCheckResult(true, before, last, false, false, "up_to_date",
+                $"no update applied in {pollAttempts * pollSeconds}s (already current, or App Store install still in flight)");
+        }
+        finally
+        {
+            // Power-save: we launched the App Store to drive the update. Close it + sleep the display so a
+            // never-auto-lock farm phone is not left burning its screen. Best-effort; never affects the result.
+            await SleepDeviceAsync(host!, port, key!, CancellationToken.None);
+        }
+    }
+
+    // Close the App Store over ssh. killall AppStore drops the driven foreground app (the power win: no more
+    // lit App Store UI churning). The SCREEN LOCK itself is done inside the eggupdate tweak via SBSLockDevice()
+    // right after it fires the purchase (the only place with in-process SpringBoardServices access; the phone
+    // has no shell lock tool). Locking does not interrupt storedownloadd's background install. Best-effort here;
+    // never throws.
+    private async Task SleepDeviceAsync(string host, string port, string key, CancellationToken ct)
+    {
+        try
+        {
+            await runner.RunAsync("ssh",
+                ["-p", port, "-i", key, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+                 $"root@{host}", "killall -9 AppStore 2>/dev/null || true"], ct);
+        }
+        catch (Exception ex) { logger.LogDebug(ex, "ios app-close best-effort failed"); }
     }
 
     private async Task<string?> ReadInstalledAsync(DeviceStoreTarget device, CancellationToken ct)

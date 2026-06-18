@@ -17,11 +17,15 @@ public static class DeviceProbeRunner
     };
 
     public static string Classify(Device d, DeviceProbeResult r, string? extractedLatestBuild, string? extractedLatestAppVersion)
+        => Classify(r, d.Platform, extractedLatestBuild, extractedLatestAppVersion);
+
+    // Platform-string overload so callers without a Device (the /status reclassification) can use it too.
+    public static string Classify(DeviceProbeResult r, string platform, string? extractedLatestBuild, string? extractedLatestAppVersion)
     {
         if (!r.Reachable) return "unreachable";
         if (string.IsNullOrEmpty(r.InstalledAppVersion)) return "error"; // answered but no version read
 
-        if (d.Platform == "ios")
+        if (platform == "ios")
         {
             if (extractedLatestAppVersion is null) return "new_version";
             return SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion) > 0 ? "new_version" : "no_change";

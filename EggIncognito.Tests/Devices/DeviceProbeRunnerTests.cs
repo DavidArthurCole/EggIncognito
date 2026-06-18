@@ -18,6 +18,17 @@ public class DeviceProbeRunnerTests
     }
 
     [Fact]
+    public void Classify_PlatformStringOverload_MatchesDeviceOverload()
+    {
+        // The /status reclassification uses the platform-string overload; it must agree with the Device one.
+        var r = new DeviceProbeResult(true, "1.36", "1.36.0.2", null);
+        // ios installed 1.36 but registry latest only 1.35.8 (entry deleted) -> new_version (Save button back).
+        Assert.Equal("new_version", DeviceProbeRunner.Classify(r, "ios", null, "1.35.8"));
+        Assert.Equal(DeviceProbeRunner.Classify(Ios, r, null, "1.35.8"),
+                     DeviceProbeRunner.Classify(r, "ios", null, "1.35.8"));
+    }
+
+    [Fact]
     public void Classify_Android_InstalledBuildAhead_NewVersion()
     {
         var r = new DeviceProbeResult(true, "1.35.7", "111344", null);
