@@ -16,7 +16,9 @@ namespace EggIncognito.Controllers;
 [ApiController]
 [Route("api/devices")]
 [EnableRateLimiting("read")]
-public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
+public sealed class DevicesController(
+    ICurrentUser currentUser, IServiceProvider services,
+    IServiceScopeFactory scopeFactory, IDeviceJobTracker jobs) : ControllerBase
 {
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
@@ -113,8 +115,11 @@ public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider
 
     // Tell the plugged-in device to ASK ITS OWN STORE for an Egg Inc update and install it if there is one.
     // Android: adb drives the on-device Play Store. iOS: ssh fires the eggupdate tweak (on-device App Store).
-    // The device's store is the source of truth; the server only nudges + polls the installed version. Returns
-    // a verdict the UI shows directly (up_to_date / updated / updating / unreachable / error). Admin + DB gated.
+    // The device's store is the source of truth; the server only nudges + polls the installed version.
+    //
+    // FIRE-AND-FORGET: the store poll runs ~6 minutes, far past the reverse-proxy timeout, so we validate +
+    // launch a background task and return 202 immediately. The UI polls GET check-status for live progress and
+    // the final verdict. One overlap guard per device (the tracker's TryStart). Admin + DB gated.
     [HttpPost("{id}/check-update")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> CheckUpdate(string id)
@@ -125,7 +130,6 @@ public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider
         if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
 
         var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
-        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
         var who = currentUser.DiscordId ?? "?";
 
         var device = await store.GetAsync(id);
@@ -136,32 +140,83 @@ public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider
         if (checker is null)
             return StatusCode(501, new { error = $"no store checker for platform {device.Platform}" });
 
+        // Overlap guard: refuse a second concurrent check for the same device.
+        if (!jobs.TryStart(id, "checking store..."))
+            return StatusCode(409, new { error = "check already running" });
+
         logger.LogInformation("device check-update: {Id} start (by {Who})", id, who);
-        var result = await checker.CheckAndUpdateAsync(
-            new DeviceStoreTarget(device.Id, device.Platform, device.Target, device.Package),
-            HttpContext.RequestAborted);
+        var target = new DeviceStoreTarget(device.Id, device.Platform, device.Target, device.Package);
 
-        // Record an update row when something actually moved, so history reflects the check.
-        if (result.Installed)
-            await store.RecordUpdateAsync(new DeviceUpdate
+        // Run the long poll detached. A FRESH DI scope: the request scope is disposed once the 202 response
+        // completes, and HttpContext.RequestAborted fires on response completion (would cancel us instantly).
+        // So: own scope, CancellationToken.None, resolve everything from the scope.
+        _ = Task.Run(() => RunCheckUpdateAsync(id, target, checker, who));
+
+        return Accepted(new { id = device.Id, action = "running" });
+    }
+
+    // Background body of check-update. Owns its DI scope and lifetime; never touches request-scoped state. Every
+    // exit funnels through the tracker (Finish/Fail) so the UI's check-status poll always reaches a terminal row.
+    private async Task RunCheckUpdateAsync(string id, DeviceStoreTarget target, IDeviceStoreChecker checker, string who)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var sp = scope.ServiceProvider;
+        var logger = sp.GetRequiredService<ILogger<DevicesController>>();
+        try
+        {
+            var store = sp.GetService<IDeviceStatusStore>();
+            var db = sp.GetService<EggIncognitoDbContext>();
+            var runner = sp.GetRequiredService<IProcessRunner>();
+            if (store is null || db is null)
             {
-                DeviceId = device.Id, AttemptedAt = DateTimeOffset.UtcNow,
-                FromVersion = result.InstalledBefore, ToVersion = result.InstalledAfter,
-                Status = "verified", Note = result.Note, TriggeredBy = $"check:{who}",
-            }, HttpContext.RequestAborted);
+                jobs.Fail(id, "no database configured");
+                return;
+            }
 
-        // Re-probe so the card reflects the post-check state.
-        var upgrader = (IDeviceUpgrader)services.GetRequiredService(typeof(IDeviceUpgrader));
-        var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
-        await DeviceProbeRunner.ProbeOneAsync(
-            device, $"check-update:{who}", runner, store, db, upgrader, logger, time, HttpContext.RequestAborted);
+            var result = await checker.CheckAndUpdateAsync(target, CancellationToken.None, msg => jobs.Progress(id, msg));
 
+            // Record an update row when something actually moved, so history reflects the check.
+            if (result.Installed)
+                await store.RecordUpdateAsync(new DeviceUpdate
+                {
+                    DeviceId = id, AttemptedAt = DateTimeOffset.UtcNow,
+                    FromVersion = result.InstalledBefore, ToVersion = result.InstalledAfter,
+                    Status = "verified", Note = result.Note, TriggeredBy = $"check:{who}",
+                }, CancellationToken.None);
+
+            // Re-probe so the card reflects the post-check state.
+            var device = await store.GetAsync(id);
+            if (device is not null)
+            {
+                var upgrader = sp.GetRequiredService<IDeviceUpgrader>();
+                var time = sp.GetRequiredService<TimeProvider>();
+                await DeviceProbeRunner.ProbeOneAsync(
+                    device, $"check-update:{who}", runner, store, db, upgrader, logger, time, CancellationToken.None);
+            }
+
+            jobs.Finish(id, result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "device check-update: {Id} background run failed", id);
+            jobs.Fail(id, ex.Message);
+        }
+    }
+
+    // Live status of an in-flight (or just-finished) check-update. The UI polls this every ~3s while running.
+    // Returns { state:"idle" } when no live/recent job (none started, or the terminal verdict's TTL elapsed).
+    [HttpGet("{id}/check-status")]
+    public IActionResult CheckStatus(string id)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var s = jobs.Get(id);
+        if (s is null) return Ok(new { state = "idle" });
         return Ok(new
         {
-            id = device.Id, reachable = result.Reachable,
-            installedBefore = result.InstalledBefore, installedAfter = result.InstalledAfter,
-            updateFound = result.UpdateFound, installed = result.Installed,
-            action = result.Action, note = result.Note,
+            state = s.State.ToString().ToLowerInvariant(),
+            message = s.Message, action = s.Action,
+            installedBefore = s.InstalledBefore, installedAfter = s.InstalledAfter,
+            startedAt = s.StartedAt, updatedAt = s.UpdatedAt,
         });
     }
 

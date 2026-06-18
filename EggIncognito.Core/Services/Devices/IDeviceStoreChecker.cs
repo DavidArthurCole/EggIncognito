@@ -11,7 +11,11 @@ public interface IDeviceStoreChecker
 {
     string Platform { get; } // "android" / "ios", matched against Device.Platform
 
-    Task<StoreCheckResult> CheckAndUpdateAsync(DeviceStoreTarget device, CancellationToken ct);
+    // progress: optional per-poll-round callback so a long check (~6 min) is observable while it runs. The
+    // checker invokes it once per poll round (and logs the same line); the controller forwards it to the job
+    // tracker so the UI can poll a live message. Null = no reporting (e.g. tests that ignore progress).
+    Task<StoreCheckResult> CheckAndUpdateAsync(
+        DeviceStoreTarget device, CancellationToken ct, Action<string>? progress = null);
 }
 
 // What the checker needs about a device, decoupled from the Data-layer Device entity.

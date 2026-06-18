@@ -21,19 +21,26 @@ public sealed class AndroidPlayStoreChecker(
 
     public string Platform => "android";
 
-    public async Task<StoreCheckResult> CheckAndUpdateAsync(DeviceStoreTarget device, CancellationToken ct)
+    public async Task<StoreCheckResult> CheckAndUpdateAsync(
+        DeviceStoreTarget device, CancellationToken ct, Action<string>? progress = null)
     {
         var before = await ReadInstalledAsync(device, ct);
         if (before is null)
+        {
+            logger.LogInformation("device check-update: {Id} android unreachable (no version read)", device.Id);
             return new StoreCheckResult(false, null, null, false, false, "unreachable", "device unreachable or no version read");
+        }
 
         // Nudge Play to check + update this package. The phone's store does the work.
         var driveArgs = BuildDriveArgs(device);
         logger.LogInformation("device check-update: {Id} android driving Play for {Pkg}", device.Id, device.Package);
         var drive = await runner.RunAsync("adb", driveArgs, ct);
         if (drive.ExitCode != 0)
-            return new StoreCheckResult(true, before, before, false, false, "error",
-                $"Play drive failed: {DeviceParsing.TrimNote(drive.Stderr + drive.Stdout)}");
+        {
+            var note = $"Play drive failed: {DeviceParsing.TrimNote(drive.Stderr + drive.Stdout)}";
+            logger.LogWarning("device check-update: {Id} android error: {Note}", device.Id, note);
+            return new StoreCheckResult(true, before, before, false, false, "error", note);
+        }
 
         // Poll the installed version: Play's download/install is async, so wait for it to climb.
         for (var attempt = 0; attempt < opts.PollAttempts; attempt++)
@@ -43,9 +50,13 @@ public sealed class AndroidPlayStoreChecker(
             catch (OperationCanceledException) { break; }
 
             var now = await ReadInstalledAsync(device, ct);
+            var n = attempt + 1;
+            progress?.Invoke($"poll {n}/{opts.PollAttempts}: installed {now ?? "?"}");
+            logger.LogInformation("device check-update: {Id} android poll {N}/{Max} installed={Ver}",
+                device.Id, n, opts.PollAttempts, now ?? "?");
             if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0)
             {
-                logger.LogInformation("device check-update: {Id} android {Before} -> {After}", device.Id, before, now);
+                logger.LogInformation("device check-update: {Id} android climb {Before} -> {After}", device.Id, before, now);
                 return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
             }
         }
@@ -54,6 +65,8 @@ public sealed class AndroidPlayStoreChecker(
         // distinguish "no update" from "still in flight" without a Play status read (none reliable over adb),
         // so report up_to_date with a note; a later check re-confirms.
         var last = await ReadInstalledAsync(device, ct);
+        logger.LogInformation("device check-update: {Id} android up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
+            device.Id, last ?? "?", opts.PollAttempts, opts.PollSeconds);
         return new StoreCheckResult(true, before, last, false, false, "up_to_date",
             $"no newer version installed within {opts.PollAttempts}x{opts.PollSeconds}s (already current, or download in flight)");
     }

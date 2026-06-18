@@ -499,6 +499,10 @@ builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceStoreChe
         sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),
         new EggIncognito.Services.Devices.AndroidPlayStoreChecker.Options(androidDrive, androidPollSeconds, androidPollAttempts),
         sp.GetRequiredService<ILogger<EggIncognito.Services.Devices.AndroidPlayStoreChecker>>()));
+// Tracks one in-flight check-update per device (in-memory). check-update runs the ~6-min store poll in the
+// background and returns 202 at once; the UI polls GET check-status against this tracker. Singleton.
+builder.Services.AddSingleton<EggIncognito.Services.Devices.IDeviceJobTracker,
+    EggIncognito.Services.Devices.DeviceJobTracker>();
 builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceStoreChecker>(sp =>
     new EggIncognito.Services.Devices.IosStoreChecker(
         sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),

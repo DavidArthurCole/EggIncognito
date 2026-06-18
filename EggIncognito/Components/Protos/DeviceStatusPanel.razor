@@ -109,6 +109,7 @@
     readonly Dictionary<string, ActionState> _actions = new();
     bool _isAdmin;
     bool _infoDismissed;
+    bool _disposed;
     Timer? _timer;
     string _baseAddress = "";
     string? _cookie;
@@ -171,8 +172,9 @@
 
     Task Update(string id) => Act(id, $"/api/devices/{id}/update", "updating...", "update triggered");
 
-    // Tell the device to check its OWN store for an update; show the verdict. Unlike Act's static okMsg, this
-    // reads the structured response so the row says exactly what happened: up to date / updated / updating.
+    // Tell the device to check its OWN store for an update. The server runs the ~6-min store poll in the
+    // background and returns 202 at once; we then poll GET check-status every ~3s, rendering its live message
+    // on the row, until a terminal state. 409 = a check is already running for this device.
     async Task CheckUpdate(string id)
     {
         var s = _actions[id] = new ActionState { Busy = true, Message = "checking store..." };
@@ -180,28 +182,71 @@
         try
         {
             var resp = await Client().PostAsync($"/api/devices/{id}/check-update", null);
-            if (resp.IsSuccessStatusCode)
+            if (resp.StatusCode == System.Net.HttpStatusCode.Accepted
+                || resp.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
-                var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-                var action = body.TryGetProperty("action", out var a) ? a.GetString() : null;
-                var after = body.TryGetProperty("installedAfter", out var af) ? af.GetString() : null;
-                (s.Message, s.IsError) = action switch
-                {
-                    "up_to_date" => ("up to date", false),
-                    "updated" => ($"updated to {after}", false),
-                    "updating" => ("update in progress...", false),
-                    "unreachable" => ("device unreachable", true),
-                    _ => (body.TryGetProperty("note", out var n) ? n.GetString() ?? "checked" : "checked", false),
-                };
-                await LoadAsync();
+                if (resp.StatusCode == System.Net.HttpStatusCode.Conflict)
+                    s.Message = "check already running";
+                await PollCheckStatus(id);
             }
             else
             {
                 s.Message = await ReadError(resp); s.IsError = true;
+                s.Busy = false; StateHasChanged(); _ = ClearLater(id);
             }
         }
-        catch (Exception ex) { s.Message = ex.Message; s.IsError = true; }
-        finally { s.Busy = false; StateHasChanged(); _ = ClearLater(id); }
+        catch (Exception ex)
+        {
+            s.Message = ex.Message; s.IsError = true;
+            s.Busy = false; StateHasChanged(); _ = ClearLater(id);
+        }
+    }
+
+    // Poll check-status until the job leaves "running", rendering its live message. Guarded against component
+    // disposal so a closed circuit stops the loop. On a terminal verdict: final message, reload card, clear.
+    async Task PollCheckStatus(string id)
+    {
+        var s = _actions.TryGetValue(id, out var existing) ? existing : (_actions[id] = new ActionState { Busy = true });
+        while (!_disposed)
+        {
+            await Task.Delay(3000);
+            if (_disposed) return;
+            JsonElement body;
+            try
+            {
+                var resp = await Client().GetAsync($"/api/devices/{id}/check-status");
+                if (!resp.IsSuccessStatusCode) { s.Message = await ReadError(resp); s.IsError = true; break; }
+                body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            }
+            catch (Exception ex) { s.Message = ex.Message; s.IsError = true; break; }
+
+            var state = body.TryGetProperty("state", out var st) ? st.GetString() : null;
+            var message = body.TryGetProperty("message", out var m) ? m.GetString() : null;
+            var action = body.TryGetProperty("action", out var a) ? a.GetString() : null;
+            var after = body.TryGetProperty("installedAfter", out var af) ? af.GetString() : null;
+
+            if (state == "running")
+            {
+                if (!string.IsNullOrEmpty(message)) { s.Message = message; await InvokeAsync(StateHasChanged); }
+                continue;
+            }
+
+            // Terminal: done / error / idle (TTL-expired). Map to a final row message.
+            (s.Message, s.IsError) = (state, action) switch
+            {
+                ("error", _) => (message ?? "check failed", true),
+                (_, "up_to_date") => ("up to date", false),
+                (_, "updated") => ($"updated to {after}", false),
+                (_, "unreachable") => ("device unreachable", true),
+                ("idle", _) => ("checked", false),
+                _ => (message ?? "checked", false),
+            };
+            await LoadAsync();
+            break;
+        }
+        s.Busy = false;
+        await InvokeAsync(StateHasChanged);
+        _ = ClearLater(id);
     }
 
     // Run a device action, surfacing the real outcome on that row. On a non-2xx the server's {error} body
@@ -273,5 +318,9 @@
         return s < 60 ? "just now" : s < 3600 ? $"{(int)(s / 60)}m ago" : $"{(int)(s / 3600)}h ago";
     }
 
-    public void Dispose() => _timer?.Dispose();
+    public void Dispose()
+    {
+        _disposed = true;
+        _timer?.Dispose();
+    }
 }
