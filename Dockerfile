@@ -60,8 +60,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # adb + ideviceinstaller: device-status probes shell out to these to read the installed EI version.
 # They reach the plugged-in devices via the host's adb server (ADB_SERVER_SOCKET) + usbmuxd socket
 # (mounted at runtime), not raw USB. Without them every probe reports the device unreachable.
+# openssh-client: iOS proto extraction (IosBinaryPuller) + the auto-update trigger (IosDeviceUpdater)
+# shell out to ssh/scp to reach the jailbroken phone over LAN. Without it the pull fails "ssh: not found".
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgssapi-krb5-2 iproute2 adb ideviceinstaller \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 iproute2 adb ideviceinstaller openssh-client \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/publish .
