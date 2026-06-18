@@ -59,6 +59,22 @@ public class DeviceParsingTests
     }
 
     [Fact]
+    public void IosVersion_Plist_FindsShortVersionAndBuild()
+    {
+        var (app, build) = DeviceParsing.IosVersion(Plist, "com.auxbrain.egginc");
+        Assert.Equal("1.35.8", app);
+        Assert.Equal("1.35.8.0", build); // CFBundleVersion = the iOS build number
+    }
+
+    [Fact]
+    public void IosVersion_Csv_HasNoBuild()
+    {
+        var (app, build) = DeviceParsing.IosVersion(ListCsv, "com.auxbrain.egginc");
+        Assert.Equal("1.35.8", app);
+        Assert.Null(build); // CSV form carries no CFBundleVersion
+    }
+
+    [Fact]
     public void IosAppVersion_BundleNotInstalled_ReturnsNull()
     {
         Assert.Null(DeviceParsing.IosAppVersion(Plist, "com.does.not.exist"));

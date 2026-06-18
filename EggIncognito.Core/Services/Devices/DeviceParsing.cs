@@ -19,28 +19,35 @@ public static partial class DeviceParsing
     }
 
     // The runtime image's `ideviceinstaller -u <udid> -l -o xml` prints a plist <array> of <dict> app
-    // entries; find the one whose CFBundleIdentifier matches and return its CFBundleShortVersionString.
+    // entries; find the one whose CFBundleIdentifier matches and return its CFBundleShortVersionString
+    // (display version, e.g. 1.36). CSV fallback exposes no build, so build is null there.
     // ideviceinstaller's CLI varies by package build (the aspnet base uses -l/-o xml; some Debian builds
     // use a `list` subcommand with CSV output), so fall back to CSV parse if the output is not a plist.
-    public static string? IosAppVersion(string output, string bundleId)
+    public static string? IosAppVersion(string output, string bundleId) => IosVersion(output, bundleId).AppVersion;
+
+    // AppVersion = CFBundleShortVersionString (1.36); Build = CFBundleVersion (1.36.0.2). iOS DOES carry a
+    // build number (CFBundleVersion); it is shown alongside the version, mirroring Android's versionName/Code.
+    public static (string? AppVersion, string? Build) IosVersion(string output, string bundleId)
     {
         var fromPlist = IosFromPlist(output, bundleId);
-        return fromPlist ?? IosFromCsv(output, bundleId);
+        if (fromPlist.AppVersion is not null) return fromPlist;
+        var csv = IosFromCsv(output, bundleId);
+        return (csv, null);
     }
 
     // plist form: <dict> with alternating <key>/<value> children, one dict per app.
-    private static string? IosFromPlist(string xml, string bundleId)
+    private static (string? AppVersion, string? Build) IosFromPlist(string xml, string bundleId)
     {
         XDocument doc;
         try { doc = XDocument.Parse(xml); }
-        catch { return null; }
+        catch { return (null, null); }
 
         foreach (var dict in doc.Descendants("dict"))
         {
             if (PlistString(dict, "CFBundleIdentifier") == bundleId)
-                return PlistString(dict, "CFBundleShortVersionString");
+                return (PlistString(dict, "CFBundleShortVersionString"), PlistString(dict, "CFBundleVersion"));
         }
-        return null;
+        return (null, null);
     }
 
     private static string? PlistString(XElement dict, string key)

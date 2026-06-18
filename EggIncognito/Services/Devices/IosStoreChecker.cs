@@ -49,10 +49,18 @@ public sealed class IosStoreChecker(
         // where the app is already alive.
         progress?.Invoke($"installed {before}; launching App Store to prime session…");
         logger.LogInformation("device check-update: {Id} ios launching App Store + firing trigger", device.Id);
+        // Kill any stale App Store process FIRST. A headless uiopen leaves the app SIGKILLed-but-unreaped
+        // (state `?s`); a later uiopen sees it "already running" and does NOT spawn a fresh process, so the
+        // armed eggupdate dylib never loads + the trigger no-ops. killall forces a clean relaunch that loads
+        // the dylib. (Proven failure mode 2026-06-18: prod fire no-op'd against a 06:28 zombie.)
+        await runner.RunAsync("ssh",
+            ["-p", port, "-i", key, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+             $"root@{host}", "killall -9 AppStore 2>/dev/null || true"], ct);
+        try { await Task.Delay(TimeSpan.FromSeconds(2), ct); } catch (OperationCanceledException) { }
         await runner.RunAsync("ssh",
             ["-p", port, "-i", key, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
              $"root@{host}", "uiopen itms-apps://itunes.apple.com/app/id993492744 || true"], ct);
-        // brief settle so the App Store session authenticates before we trigger the purchase
+        // settle so the App Store session authenticates + the dylib loads before we trigger the purchase
         try { await Task.Delay(TimeSpan.FromSeconds(3), ct); } catch (OperationCanceledException) { }
 
         var fire = await runner.RunAsync("ssh",

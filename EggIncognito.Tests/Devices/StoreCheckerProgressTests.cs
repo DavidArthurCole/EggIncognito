@@ -22,11 +22,25 @@ public class StoreCheckerProgressTests
         new(runner, new AndroidPlayStoreChecker.Options("am start {package}", 0, attempts),
             NullLogger<AndroidPlayStoreChecker>.Instance);
 
+    // A minimal uiautomator dump containing an Update button (matches the A15 shape: TextView label whose
+    // bounds we tap). Returned for `cat` of the dumped UI file so the drive can find + tap Update.
+    const string UiWithUpdate =
+        "<hierarchy><node text=\"Update\" bounds=\"[718,551][851,608]\"/>" +
+        "<node text=\"Uninstall\" bounds=\"[200,551][333,608]\"/></hierarchy>";
+    const string UiNoUpdate =
+        "<hierarchy><node text=\"Open\" bounds=\"[718,551][851,608]\"/>" +
+        "<node text=\"Uninstall\" bounds=\"[200,551][333,608]\"/></hierarchy>";
+
     [Fact]
-    public async Task ProgressNarratesWait_UpToDate()
+    public async Task UpToDate_WhenNoUpdateButton()
     {
-        // version never climbs: all PollAttempts rounds run, each emits a "waiting" line.
-        var runner = new FakeRunner(_ => new ProcessResult(0, "versionName=1.0\n", ""));
+        // Play page shows Open/Uninstall but no Update -> already current -> up_to_date, no wait loop.
+        var runner = new FakeRunner(args =>
+        {
+            if (args.Contains("dumpsys")) return new ProcessResult(0, "versionName=1.0\n", "");
+            if (args.Any(a => a.Contains("cat"))) return new ProcessResult(0, UiNoUpdate, "");
+            return new ProcessResult(0, "", ""); // wake/dismiss/open/dump/tap
+        });
         var checker = Checker(runner, attempts: 4);
 
         var rounds = new List<string>();
@@ -34,10 +48,9 @@ public class StoreCheckerProgressTests
 
         Assert.Equal("up_to_date", result.Action);
         Assert.False(result.Installed);
-        // narration fired and reported the wait, but never a climb.
         Assert.NotEmpty(rounds);
-        Assert.Contains(rounds, m => m.Contains("waiting", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(rounds, m => m.Contains("installed 1.", StringComparison.OrdinalIgnoreCase) && m.Contains("was"));
+        // no Update button -> never enters the install wait loop.
+        Assert.DoesNotContain(rounds, m => m.Contains("waiting", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -53,7 +66,8 @@ public class StoreCheckerProgressTests
                 var v = dumpsys++ >= 2 ? "1.1" : "1.0"; // before=1.0, poll1=1.0, poll2+=1.1
                 return new ProcessResult(0, $"versionName={v}\n", "");
             }
-            return new ProcessResult(0, "", ""); // the drive command
+            if (args.Any(a => a.Contains("cat"))) return new ProcessResult(0, UiWithUpdate, ""); // UI dump w/ Update
+            return new ProcessResult(0, "", ""); // wake/dismiss/open/uiautomator dump/input tap
         });
         var checker = Checker(runner, attempts: 10);
 
@@ -75,6 +89,21 @@ public class StoreCheckerProgressTests
         var checker = Checker(runner, attempts: 2);
         var result = await checker.CheckAndUpdateAsync(Target, default, null);
         Assert.Equal("up_to_date", result.Action);
+    }
+
+    [Fact]
+    public void FindUpdateButtonCenter_ParsesBoundsCenter()
+    {
+        // [718,551][851,608] -> center ((718+851)/2, (551+608)/2) = (784, 579)
+        var c = AndroidPlayStoreChecker.FindUpdateButtonCenter(UiWithUpdate);
+        Assert.NotNull(c);
+        Assert.Equal((784, 579), c!.Value);
+    }
+
+    [Fact]
+    public void FindUpdateButtonCenter_NoUpdate_ReturnsNull()
+    {
+        Assert.Null(AndroidPlayStoreChecker.FindUpdateButtonCenter(UiNoUpdate));
     }
 
     [Fact]
