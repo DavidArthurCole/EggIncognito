@@ -115,24 +115,57 @@
         <tbody>
           @foreach (var s in _subs)
           {
-            <tr class="border-t border-[var(--border)]">
-              <td class="py-1 pr-2">
-                <span class="font-mono text-xs">@s.UrlMasked</span>
-                @if (!string.IsNullOrWhiteSpace(s.Label))
-                {
-                  <span class="text-muted text-xs ml-1">(@s.Label)</span>
-                }
-              </td>
-              <td class="py-1 pr-2">@string.Join(", ", s.Platforms)</td>
-              <td class="py-1 pr-2">@TriggerLabel(s.Trigger)</td>
-              <td class="py-1 pr-2">@(s.Active ? "active" : "paused")</td>
-              <td class="py-1 pr-2 text-muted">@(s.LastDeliveryAt?.ToString("yyyy-MM-dd HH:mm") ?? "never")</td>
-              <td class="py-1 pr-2">@s.FailCount</td>
-              <td class="py-1">
-                <button type="button" class="btn-mini" disabled="@_deleting"
-                        @onclick="() => DeleteSub(s.Id)">Delete</button>
-              </td>
-            </tr>
+            @if (_editId == s.Id)
+            {
+              <tr class="border-t border-[var(--border)] bg-panel2">
+                <td class="py-2 pr-2">
+                  <span class="font-mono text-xs">@s.UrlMasked</span>
+                  <span class="text-muted text-xs ml-1">(URL not editable)</span>
+                </td>
+                <td class="py-2 pr-2">
+                  <label class="settings-check"><input type="checkbox" @bind="_editAndroid" /> Android</label>
+                  <label class="settings-check"><input type="checkbox" @bind="_editIos" /> iOS</label>
+                </td>
+                <td class="py-2 pr-2">
+                  <select class="field-input" @bind="_editTrigger">
+                    <option value="proto_changed">proto changed</option>
+                    <option value="new_version">any new version</option>
+                  </select>
+                </td>
+                <td class="py-2 pr-2">
+                  <label class="settings-check"><input type="checkbox" @bind="_editActive" /> active</label>
+                </td>
+                <td class="py-2 pr-2 text-muted">@(s.LastDeliveryAt?.ToString("yyyy-MM-dd HH:mm") ?? "never")</td>
+                <td class="py-2 pr-2">@s.FailCount</td>
+                <td class="py-2 whitespace-nowrap">
+                  <button type="button" class="btn-mini" disabled="@_saving" @onclick="() => SaveEdit(s.Id)">Save</button>
+                  <button type="button" class="btn-mini ml-1" disabled="@_saving" @onclick="CancelEdit">Cancel</button>
+                </td>
+              </tr>
+            }
+            else
+            {
+              <tr class="border-t border-[var(--border)]">
+                <td class="py-1 pr-2">
+                  <span class="font-mono text-xs">@s.UrlMasked</span>
+                  @if (!string.IsNullOrWhiteSpace(s.Label))
+                  {
+                    <span class="text-muted text-xs ml-1">(@s.Label)</span>
+                  }
+                </td>
+                <td class="py-1 pr-2">@string.Join(", ", s.Platforms)</td>
+                <td class="py-1 pr-2">@TriggerLabel(s.Trigger)</td>
+                <td class="py-1 pr-2">@(s.Active ? "active" : "paused")</td>
+                <td class="py-1 pr-2 text-muted">@(s.LastDeliveryAt?.ToString("yyyy-MM-dd HH:mm") ?? "never")</td>
+                <td class="py-1 pr-2">@s.FailCount</td>
+                <td class="py-1 whitespace-nowrap">
+                  <button type="button" class="btn-mini" disabled="@(_deleting || _saving)"
+                          @onclick="() => StartEdit(s)">Edit</button>
+                  <button type="button" class="btn-mini ml-1" disabled="@(_deleting || _saving)"
+                          @onclick="() => DeleteSub(s.Id)">Delete</button>
+                </td>
+              </tr>
+            }
           }
         </tbody>
       </table>
@@ -158,6 +191,14 @@
     List<Sub>? _subs;
     bool _deleting;
     bool _deleted;
+
+    // Inline edit state for the subscription being edited (null = none).
+    int? _editId;
+    bool _editAndroid;
+    bool _editIos;
+    string _editTrigger = "proto_changed";
+    bool _editActive = true;
+    bool _saving;
 
     protected override void OnInitialized()
     {
@@ -189,6 +230,38 @@
         {
             _subs = [];
         }
+    }
+
+    void StartEdit(Sub s)
+    {
+        _editId = s.Id;
+        _editAndroid = s.Platforms.Contains("android");
+        _editIos = s.Platforms.Contains("ios");
+        _editTrigger = s.Trigger == "new_version" ? "new_version" : "proto_changed";
+        _editActive = s.Active;
+        _deleted = false;
+    }
+
+    void CancelEdit() => _editId = null;
+
+    async Task SaveEdit(int id)
+    {
+        _saving = true;
+        try
+        {
+            var platforms = new List<string>();
+            if (_editAndroid) platforms.Add("android");
+            if (_editIos) platforms.Add("ios");
+            var body = new { platforms = platforms.ToArray(), trigger = _editTrigger, active = _editActive };
+            var res = await Client().PatchAsJsonAsync($"/api/protos/feed/{id}", body, JsonOpts);
+            if (res.IsSuccessStatusCode)
+            {
+                _editId = null;
+                await LoadSubs();
+            }
+        }
+        catch { }
+        _saving = false;
     }
 
     async Task DeleteSub(int id)

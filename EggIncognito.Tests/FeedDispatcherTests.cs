@@ -81,6 +81,17 @@ public class FeedDispatcherTests
             Subs.Remove(s);
             return Task.FromResult(true);
         }
+
+        public Task<bool> UpdateAsync(int id, string ownerUserId, string[] platforms, string trigger,
+            bool active, CancellationToken ct = default)
+        {
+            var s = Subs.FirstOrDefault(x => x.Id == id && x.OwnerUserId == ownerUserId);
+            if (s is null) return Task.FromResult(false);
+            s.Platforms = platforms;
+            s.Trigger = trigger;
+            s.Active = active;
+            return Task.FromResult(true);
+        }
     }
 
     private static FeedDispatcher Dispatcher(FakeStore store, HttpMessageHandler handler) =>

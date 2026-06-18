@@ -15,6 +15,8 @@ public interface IFeedSubscriptionStore
     Task MarkDeliveredAsync(int subId, DateTimeOffset at, CancellationToken ct = default);
     Task<List<FeedSubscription>> ByOwnerAsync(string ownerUserId, CancellationToken ct = default);
     Task<bool> DeleteAsync(int id, string ownerUserId, CancellationToken ct = default);
+    Task<bool> UpdateAsync(int id, string ownerUserId, string[] platforms, string trigger, bool active,
+        CancellationToken ct = default);
 }
 
 public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubscriptionStore
@@ -74,4 +76,19 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
         await db.FeedSubscriptions
             .Where(s => s.Id == id && s.OwnerUserId == ownerUserId)
             .ExecuteDeleteAsync(ct) > 0;
+
+    // Owner-gated edit of the mutable fields (platforms, trigger, active). The webhook URL is NOT editable
+    // here: changing it would need a re-validation round-trip, so a different URL = a new subscription.
+    // Returns false when no such row belongs to the caller.
+    public async Task<bool> UpdateAsync(
+        int id, string ownerUserId, string[] platforms, string trigger, bool active, CancellationToken ct = default)
+    {
+        var row = await db.FeedSubscriptions.FirstOrDefaultAsync(s => s.Id == id && s.OwnerUserId == ownerUserId, ct);
+        if (row is null) return false;
+        row.Platforms = platforms is { Length: > 0 } ? platforms : ["android", "ios"];
+        row.Trigger = trigger == "new_version" ? "new_version" : "proto_changed";
+        row.Active = active;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
 }

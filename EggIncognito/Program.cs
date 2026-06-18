@@ -486,6 +486,25 @@ builder.Services.AddSingleton<EggIncognito.Services.Devices.DeviceProxyPusher>()
 if (deviceCaptureConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService(sp => sp.GetRequiredService<EggIncognito.Services.Devices.DeviceCaptureManager>());
 
+// Per-device "check your own store for an update" (the manual Check button). Android drives the on-device
+// Play Store via adb (drive command config-templated, default opens the store page); iOS fires the eggupdate
+// tweak over ssh. Both re-read the installed version to report a verdict. The Android drive command + poll
+// window come from DeviceCheck:Android:*; iOS reuses DeviceUpdate:Ios:* ssh config.
+var androidDrive = builder.Configuration["DeviceCheck:Android:DriveCommand"]
+    ?? "am start -a android.intent.action.VIEW -d market://details?id={package}";
+var androidPollSeconds = builder.Configuration.GetValue("DeviceCheck:Android:PollSeconds", 15);
+var androidPollAttempts = builder.Configuration.GetValue("DeviceCheck:Android:PollAttempts", 24);
+builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceStoreChecker>(sp =>
+    new EggIncognito.Services.Devices.AndroidPlayStoreChecker(
+        sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),
+        new EggIncognito.Services.Devices.AndroidPlayStoreChecker.Options(androidDrive, androidPollSeconds, androidPollAttempts),
+        sp.GetRequiredService<ILogger<EggIncognito.Services.Devices.AndroidPlayStoreChecker>>()));
+builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceStoreChecker>(sp =>
+    new EggIncognito.Services.Devices.IosStoreChecker(
+        sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),
+        sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<ILogger<EggIncognito.Services.Devices.IosStoreChecker>>()));
+
 // Zero-touch auto-update: the real upgrader replaces the noop. It checks store-ahead-of-installed and
 // drives the platform updater. Master + per-platform switches default OFF (mutating action; frame opts in,
 // ios stays off until the frida trigger is proven). The upgrader is a singleton that opens its own scope

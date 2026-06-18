@@ -85,6 +85,15 @@ public class BackfillApiTests
         Assert.Equal(200, ok.StatusCode);
     }
 
+    // Known-versions discovery list is PUBLIC: anon/viewer gets 200 (empty without a DB), never 403.
+    [Fact]
+    public async Task Known_Anon_Is200_Empty()
+    {
+        var result = await Controller(UserRole.Viewer).Known(CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(200, ok.StatusCode);
+    }
+
     [Fact]
     public async Task RunnerResync_NonAdmin_Is403() =>
         Assert.Equal(403, ((IStatusCodeActionResult)

@@ -252,4 +252,24 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
             }),
         });
     }
+
+    // PUBLIC discovery list: app versions known to exist (with release date + source), no job internals.
+    // The /protos "Missing versions" panel shows this to everyone, including anon, so the open-data ask
+    // (contribute binaries for the gaps) reaches all visitors. Reads only the known-versions list; the
+    // admin-only Status endpoint keeps the job/extract detail. Empty [] without a DB.
+    [HttpGet("known")]
+    public async Task<IActionResult> Known(CancellationToken ct)
+    {
+        if (services.GetService(typeof(IBackfillJobStore)) is not IBackfillJobStore jobs)
+            return Ok(Array.Empty<object>());
+        var known = await jobs.KnownAsync(ct);
+        return Ok(known.Select(k => new
+        {
+            platform = k.Platform,
+            appVersion = k.AppVersion,
+            releaseDate = k.ReleaseDate,
+            changelog = k.Changelog,
+            source = k.Source,
+        }));
+    }
 }

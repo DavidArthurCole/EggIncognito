@@ -84,6 +84,27 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         return Ok(new { deleted = true });
     }
 
+    public sealed record UpdateReq(string[]? Platforms, string? Trigger, bool? Active);
+
+    // Owner-gated edit of a subscription's platforms / trigger / active state (not the webhook URL). Mirrors
+    // Delete's owner scoping. 404 when the subscription is not the caller's.
+    [HttpPatch("{id:int}")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateReq req, CancellationToken ct)
+    {
+        var owner = DiscordId;
+        if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
+        if (Store is null) return StatusCode(503, new { error = "no database configured" });
+
+        var ok = await Store.UpdateAsync(
+            id, owner,
+            req.Platforms ?? ["android", "ios"],
+            req.Trigger ?? "proto_changed",
+            req.Active ?? true, ct);
+        if (!ok) return NotFound(new { error = "subscription not found" });
+        return Ok(new { updated = true });
+    }
+
     // Identifies a webhook without leaking its token. Discord URL = /webhooks/{id}/{token}; id is public,
     // token is the secret, so show only its last 4 chars.
     public static string MaskWebhook(string url)

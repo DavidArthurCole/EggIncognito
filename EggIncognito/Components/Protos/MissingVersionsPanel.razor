@@ -12,7 +12,7 @@
 
 <section class="panel">
   <div class="flex items-center justify-between mb-2">
-    <h3 class="text-sm font-semibold">Missing versions</h3>
+    <h3 class="text-sm font-semibold m-0">Missing versions</h3>
     <span class="text-muted text-xs">@MissingKnown.Count of @_known.Count have no stored proto</span>
   </div>
 
@@ -43,8 +43,8 @@
       @foreach (var grp in MissingKnown.GroupBy(k => k.Platform).OrderBy(g => g.Key))
       {
         <div class="flex flex-col gap-1.5">
-          <div class="flex items-center gap-1.5 text-sm font-medium">
-            <Icon Name="@PlatformIcon(grp.Key)" Class="icon-sm" />
+          <div class="flex items-center gap-1.5 text-base font-bold">
+            <Icon Name="@PlatformIcon(grp.Key)" />
             <span>@PlatformName(grp.Key)</span>
             <span class="text-muted text-xs font-normal">@grp.Count()</span>
           </div>
@@ -124,8 +124,8 @@
     {
         try
         {
-            var res = await Client().GetFromJsonAsync<StatusResponse>("/api/protos/backfill/status", JsonOpts);
-            _known = res?.Known ?? [];
+            // Public endpoints both: known-versions discovery list + the registry (to hide already-stored).
+            _known = await Client().GetFromJsonAsync<List<KnownRow>>("/api/protos/backfill/known", JsonOpts) ?? [];
             var versions = await Client().GetFromJsonAsync<List<RegRow>>("/api/protos/versions", JsonOpts);
             _stored = versions is null ? [] : versions.Select(v => (v.Platform, v.AppVersion)).ToHashSet();
         }
@@ -162,7 +162,6 @@
 
     public void Dispose() => _timer?.Dispose();
 
-    sealed record StatusResponse(List<KnownRow> Known);
     sealed record KnownRow(string Platform, string AppVersion, DateTimeOffset? ReleaseDate,
         string? Changelog, string Source);
     sealed record RegRow(string Platform, string AppVersion);

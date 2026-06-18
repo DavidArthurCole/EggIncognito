@@ -111,6 +111,60 @@ public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider
         });
     }
 
+    // Tell the plugged-in device to ASK ITS OWN STORE for an Egg Inc update and install it if there is one.
+    // Android: adb drives the on-device Play Store. iOS: ssh fires the eggupdate tweak (on-device App Store).
+    // The device's store is the source of truth; the server only nudges + polls the installed version. Returns
+    // a verdict the UI shows directly (up_to_date / updated / updating / unreachable / error). Admin + DB gated.
+    [HttpPost("{id}/check-update")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> CheckUpdate(string id)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Store;
+        var db = Db;
+        if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
+
+        var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
+        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+        var who = currentUser.DiscordId ?? "?";
+
+        var device = await store.GetAsync(id);
+        if (device is null) return NotFound(new { error = "unknown device" });
+
+        var checker = services.GetServices(typeof(IDeviceStoreChecker)).Cast<IDeviceStoreChecker>()
+            .FirstOrDefault(c => string.Equals(c.Platform, device.Platform, StringComparison.OrdinalIgnoreCase));
+        if (checker is null)
+            return StatusCode(501, new { error = $"no store checker for platform {device.Platform}" });
+
+        logger.LogInformation("device check-update: {Id} start (by {Who})", id, who);
+        var result = await checker.CheckAndUpdateAsync(
+            new DeviceStoreTarget(device.Id, device.Platform, device.Target, device.Package),
+            HttpContext.RequestAborted);
+
+        // Record an update row when something actually moved, so history reflects the check.
+        if (result.Installed)
+            await store.RecordUpdateAsync(new DeviceUpdate
+            {
+                DeviceId = device.Id, AttemptedAt = DateTimeOffset.UtcNow,
+                FromVersion = result.InstalledBefore, ToVersion = result.InstalledAfter,
+                Status = "verified", Note = result.Note, TriggeredBy = $"check:{who}",
+            }, HttpContext.RequestAborted);
+
+        // Re-probe so the card reflects the post-check state.
+        var upgrader = (IDeviceUpgrader)services.GetRequiredService(typeof(IDeviceUpgrader));
+        var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
+        await DeviceProbeRunner.ProbeOneAsync(
+            device, $"check-update:{who}", runner, store, db, upgrader, logger, time, HttpContext.RequestAborted);
+
+        return Ok(new
+        {
+            id = device.Id, reachable = result.Reachable,
+            installedBefore = result.InstalledBefore, installedAfter = result.InstalledAfter,
+            updateFound = result.UpdateFound, installed = result.Installed,
+            action = result.Action, note = result.Note,
+        });
+    }
+
     // Admin-triggered update: drive the device to the latest store version on demand (the manual gate the
     // owner wants before flipping auto on). Mirrors the auto-path (RealDeviceUpgrader) but is button-fired
     // and records TriggeredBy=admin. Probes for installed, checks the store is ahead, runs the platform
@@ -233,13 +287,24 @@ public sealed class DevicesController(ICurrentUser currentUser, IServiceProvider
 
         try
         {
-            var (_, created, _) = await registry.UpsertAsync(
+            var (row, created, protoChanged) = await registry.UpsertAsync(
                 device.Platform, appVersion, build, clientVersion: null, package: device.Package,
                 protoSha: sha, apkRef: $"device:{device.Id}", detectedAt: DateTimeOffset.UtcNow,
                 detectedBy: $"device-save:{who}", protoText: carve.Proto, source: "device",
                 resurrect: true, ct: HttpContext.RequestAborted);
             logger.LogInformation("device save: {Id} -> registry {Plat} build {Build} ({State}, sha {Sha})",
                 id, device.Platform, build, created ? "created" : "updated", sha[..12]);
+
+            // Fan the new/changed build out to feed subscriptions, same as the live-API sync path. Without
+            // this a device-Save build never notified subscribers. Best-effort + DB-gated; no subs = no-op.
+            var dispatcher = services.GetService(typeof(EggIncognito.Services.Feed.FeedDispatcher))
+                as EggIncognito.Services.Feed.FeedDispatcher;
+            if (dispatcher is not null)
+            {
+                var pageUrl = $"https://protos.eggincognito.davidarthurcole.me/protos/{device.Platform}/{build}";
+                await dispatcher.DispatchAsync(row.Id, device.Platform, appVersion, build, clientVersion: null,
+                    sha, created, protoChanged, pageUrl, HttpContext.RequestAborted);
+            }
         }
         catch (Exception ex)
         {

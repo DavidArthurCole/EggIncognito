@@ -123,6 +123,26 @@ public class ProtoFeedApiTests
         Assert.Equal(503, Status(r));
     }
 
+    [Fact]
+    public async Task Update_Anon_Returns401()
+    {
+        var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
+        var r = await c.Update(1, new ProtoFeedController.UpdateReq(["android"], "new_version", true), CancellationToken.None);
+        Assert.Equal(401, Status(r));
+    }
+
+    [Fact]
+    public async Task Update_NoStore_Returns503()
+    {
+        var services = new MapServices(new()
+        {
+            [typeof(EggIncognito.Services.ICurrentUser)] = new StubUser("42"),
+        });
+        var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
+        var r = await c.Update(1, new ProtoFeedController.UpdateReq(null, null, null), CancellationToken.None);
+        Assert.Equal(503, Status(r));
+    }
+
     [Theory]
     [InlineData("https://discord.com/api/webhooks/123456789/abcdEFGHtoken1234", "webhooks/123456789/...1234")]
     [InlineData("https://discord.com/api/webhooks/999/tok", "webhooks/999/...tok")]

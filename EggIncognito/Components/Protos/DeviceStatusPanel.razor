@@ -8,8 +8,8 @@
 @implements IDisposable
 
 <div class="panel">
-    <div class="flex items-center justify-between mb-3">
-        <h3 class="text-sm font-semibold">Devices</h3>
+    <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold m-0">Devices</h3>
         <span class="text-muted text-xs">@(_devices.Count == 0 ? "none configured" : $"{_devices.Count} connected")</span>
     </div>
     @if (_devices.Count == 0)
@@ -61,7 +61,7 @@
                                 <Icon Name="@(act.Busy ? "clock" : "download")" Class="icon-sm" />
                             </button>
                         }
-                        <button class="btn-ghost-sm" disabled="@act.Busy" title="Check this device now" @onclick="() => Refresh(d.Id)">
+                        <button class="btn-ghost-sm" disabled="@act.Busy" title="Check this device's store for an update now" @onclick="() => CheckUpdate(d.Id)">
                             <Icon Name="@(act.Busy ? "clock" : "refresh")" Class="icon-sm" />
                         </button>
                     }
@@ -69,29 +69,29 @@
             }
         </div>
     }
-</div>
 
-@* Dismissable explainer: what the device farm is for. Shown until the user closes it (persisted in
-   localStorage). Everyone sees it, not just admins. *@
-@if (!_infoDismissed)
-{
-    <div class="panel mt-3 text-xs text-muted relative">
-        <button type="button" class="absolute top-2 right-2 text-muted hover:text-fg"
-                title="Dismiss" @onclick="DismissInfo">
-            <Icon Name="x" Class="icon-sm" />
-        </button>
-        <div class="flex items-center gap-1.5 text-sm font-medium text-fg mb-1.5">
-            <Icon Name="info" Class="icon-sm" />
-            <span>Why two devices?</span>
+    @* Dismissable explainer INSIDE the panel (matches the missing-versions note), shown until closed
+       (persisted in localStorage). Everyone sees it. *@
+    @if (!_infoDismissed)
+    {
+        <div class="rounded-md border border-border bg-panel2 p-2 mt-3 text-xs text-muted relative">
+            <button type="button" class="absolute top-1.5 right-1.5 text-muted hover:text-fg"
+                    title="Dismiss" @onclick="DismissInfo">
+                <Icon Name="x" Class="icon-sm" />
+            </button>
+            <div class="flex items-center gap-1.5 text-sm font-medium text-fg mb-1">
+                <Icon Name="info" Class="icon-sm" />
+                <span>Why two devices?</span>
+            </div>
+            <p class="m-0 pr-5">
+                Two physical phones (one Android, one iOS) stay plugged into this host running Egg, Inc. They
+                exist only to keep the proto registry current: when a new app version ships, the device updates
+                and its fresh proto definition is pulled in automatically. No accounts, no gameplay, just a
+                live source of the latest schema.
+            </p>
         </div>
-        <p class="m-0">
-            Two physical phones (one Android, one iOS) stay plugged into this host running Egg, Inc. They
-            exist only to keep the proto registry current: when a new app version ships, the device updates
-            and its fresh proto definition is pulled in automatically. No accounts, no gameplay, just a
-            live source of the latest schema.
-        </p>
-    </div>
-}
+    }
+</div>
 
 @code {
     sealed record DeviceStatus(string Id, string Platform, string Label, bool Reachable,
@@ -167,11 +167,42 @@
 
     [Parameter] public EventCallback OnSaved { get; set; }
 
-    Task Refresh(string id) => Act(id, $"/api/devices/{id}/refresh", "checking...", "checked");
-
     Task Save(string id) => Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "saved to registry", OnSaved);
 
     Task Update(string id) => Act(id, $"/api/devices/{id}/update", "updating...", "update triggered");
+
+    // Tell the device to check its OWN store for an update; show the verdict. Unlike Act's static okMsg, this
+    // reads the structured response so the row says exactly what happened: up to date / updated / updating.
+    async Task CheckUpdate(string id)
+    {
+        var s = _actions[id] = new ActionState { Busy = true, Message = "checking store..." };
+        StateHasChanged();
+        try
+        {
+            var resp = await Client().PostAsync($"/api/devices/{id}/check-update", null);
+            if (resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+                var action = body.TryGetProperty("action", out var a) ? a.GetString() : null;
+                var after = body.TryGetProperty("installedAfter", out var af) ? af.GetString() : null;
+                (s.Message, s.IsError) = action switch
+                {
+                    "up_to_date" => ("up to date", false),
+                    "updated" => ($"updated to {after}", false),
+                    "updating" => ("update in progress...", false),
+                    "unreachable" => ("device unreachable", true),
+                    _ => (body.TryGetProperty("note", out var n) ? n.GetString() ?? "checked" : "checked", false),
+                };
+                await LoadAsync();
+            }
+            else
+            {
+                s.Message = await ReadError(resp); s.IsError = true;
+            }
+        }
+        catch (Exception ex) { s.Message = ex.Message; s.IsError = true; }
+        finally { s.Busy = false; StateHasChanged(); _ = ClearLater(id); }
+    }
 
     // Run a device action, surfacing the real outcome on that row. On a non-2xx the server's {error} body
     // is shown verbatim so a failure is visible instead of silent. Reloads status on success, then fires
