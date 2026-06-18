@@ -17,6 +17,7 @@ public sealed class IosStoreChecker(
     public async Task<StoreCheckResult> CheckAndUpdateAsync(
         DeviceStoreTarget device, CancellationToken ct, Action<string>? progress = null)
     {
+        progress?.Invoke("reading installed version over usbmux…");
         var before = await ReadInstalledAsync(device, ct);
         if (before is null)
         {
@@ -39,9 +40,21 @@ public sealed class IosStoreChecker(
                 "ios ssh not configured (DeviceUpdate:Ios:SshHost/SshKeyPath)");
         }
 
-        // Fire the eggupdate tweak: touch the watched file over ssh. The tweak drives StoreServices to install
-        // any pending App Store update for egginc. No injection, no tap.
-        logger.LogInformation("device check-update: {Id} ios firing eggupdate trigger", device.Id);
+        // Fire the eggupdate tweak. The proven path (2026-06-18): the tweak builds an SSPurchase standard-
+        // redownload for egginc (adam-id 993492744) and starts an SSPurchaseRequest; storedownloadd then
+        // downloads + installs the latest store version headlessly. No injection, no tap, no entitlement.
+        // The SSPurchase needs the App Store app's authenticated account session live, so launch it first
+        // (uiopen) to prime the session, then touch the kqueue-watched trigger file. The tweak's %ctor also
+        // runs the flow on launch if /var/mobile/eggupdate.armed exists; touching the trigger covers the case
+        // where the app is already alive.
+        progress?.Invoke($"installed {before}; launching App Store to prime session…");
+        logger.LogInformation("device check-update: {Id} ios launching App Store + firing trigger", device.Id);
+        await runner.RunAsync("ssh",
+            ["-p", port, "-i", key, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+             $"root@{host}", "uiopen itms-apps://itunes.apple.com/app/id993492744 || true"], ct);
+        // brief settle so the App Store session authenticates before we trigger the purchase
+        try { await Task.Delay(TimeSpan.FromSeconds(3), ct); } catch (OperationCanceledException) { }
+
         var fire = await runner.RunAsync("ssh",
             ["-p", port, "-i", key, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
              $"root@{host}", $"touch {triggerPath}"], ct);
@@ -52,7 +65,10 @@ public sealed class IosStoreChecker(
             return new StoreCheckResult(true, before, before, false, false, "error", note);
         }
 
-        // Poll for ANY version climb (the App Store chose the target).
+        // Poll for ANY version climb (the App Store chose the target). The progress line reports WHAT the
+        // server is doing + elapsed time, not the unchanged installed version (which the UI already shows on
+        // the row). A climb is announced the instant it is seen.
+        progress?.Invoke($"trigger fired; waiting for App Store to install (up to {pollAttempts * pollSeconds}s)…");
         for (var attempt = 0; attempt < pollAttempts; attempt++)
         {
             if (ct.IsCancellationRequested) break;
@@ -61,21 +77,23 @@ public sealed class IosStoreChecker(
 
             var now = await ReadInstalledAsync(device, ct);
             var n = attempt + 1;
-            progress?.Invoke($"poll {n}/{pollAttempts}: installed {now ?? "?"}");
+            var elapsed = n * pollSeconds;
             logger.LogInformation("device check-update: {Id} ios poll {N}/{Max} installed={Ver}",
                 device.Id, n, pollAttempts, now ?? "?");
             if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0)
             {
+                progress?.Invoke($"App Store installed {now} (was {before})");
                 logger.LogInformation("device check-update: {Id} ios climb {Before} -> {After}", device.Id, before, now);
                 return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
             }
+            progress?.Invoke($"waiting for App Store install… {elapsed}s elapsed (no change yet)");
         }
 
         var last = await ReadInstalledAsync(device, ct);
         logger.LogInformation("device check-update: {Id} ios up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
             device.Id, last ?? "?", pollAttempts, pollSeconds);
         return new StoreCheckResult(true, before, last, false, false, "up_to_date",
-            $"no newer version within {pollAttempts}x{pollSeconds}s (already current, or App Store install in flight)");
+            $"no update applied in {pollAttempts * pollSeconds}s (already current, or App Store install still in flight)");
     }
 
     private async Task<string?> ReadInstalledAsync(DeviceStoreTarget device, CancellationToken ct)

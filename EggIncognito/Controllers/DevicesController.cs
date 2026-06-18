@@ -97,12 +97,11 @@ public sealed class DevicesController(
         if (device is null) return NotFound(new { error = "unknown device" });
 
         var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
-        var upgrader = (IDeviceUpgrader)services.GetRequiredService(typeof(IDeviceUpgrader));
         var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
         var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
 
         var row = await DeviceProbeRunner.ProbeOneAsync(
-            device, $"admin:{currentUser.DiscordId}", runner, store, db, upgrader, logger, time, HttpContext.RequestAborted);
+            device, $"admin:{currentUser.DiscordId}", runner, store, db, logger, time, HttpContext.RequestAborted);
 
         return Ok(new
         {
@@ -173,6 +172,27 @@ public sealed class DevicesController(
                 return;
             }
 
+            // Pre-check: only drive the device store when the store is actually ahead of what is installed.
+            // The checkers detect ANY version climb (they can't know the store target), so without this they
+            // fire the trigger + poll the full ~6 min window even when the device is already current. The
+            // store-latest (known_versions, populated by VersionPollerService) lets us skip that no-op wait.
+            jobs.Progress(id, "reading installed version…");
+            IDeviceProbe preProbe = string.Equals(target.Platform, "ios", StringComparison.OrdinalIgnoreCase)
+                ? new IosDeviceProbe(runner, target.Target, target.Package)
+                : new AdbDeviceProbe(runner, target.Target, target.Package);
+            var probe = await preProbe.ProbeAsync(CancellationToken.None);
+            var storeLatest = await StoreAheadCheck.StoreLatestAsync(db, target.Platform, CancellationToken.None);
+            if (probe.Reachable && !StoreAheadCheck.IsAhead(storeLatest, probe.InstalledAppVersion))
+            {
+                var note = storeLatest is null
+                    ? $"installed {probe.InstalledAppVersion}; store-latest unknown (no version poll yet)"
+                    : $"already current: installed {probe.InstalledAppVersion}, store-latest {storeLatest}";
+                logger.LogInformation("device check-update: {Id} skip store-drive ({Note})", id, note);
+                jobs.Finish(id, new StoreCheckResult(
+                    probe.Reachable, probe.InstalledAppVersion, probe.InstalledAppVersion, false, false, "up_to_date", note));
+                return;
+            }
+
             var result = await checker.CheckAndUpdateAsync(target, CancellationToken.None, msg => jobs.Progress(id, msg));
 
             // Record an update row when something actually moved, so history reflects the check.
@@ -188,10 +208,9 @@ public sealed class DevicesController(
             var device = await store.GetAsync(id);
             if (device is not null)
             {
-                var upgrader = sp.GetRequiredService<IDeviceUpgrader>();
                 var time = sp.GetRequiredService<TimeProvider>();
                 await DeviceProbeRunner.ProbeOneAsync(
-                    device, $"check-update:{who}", runner, store, db, upgrader, logger, time, CancellationToken.None);
+                    device, $"check-update:{who}", runner, store, db, logger, time, CancellationToken.None);
             }
 
             jobs.Finish(id, result);
@@ -217,82 +236,6 @@ public sealed class DevicesController(
             message = s.Message, action = s.Action,
             installedBefore = s.InstalledBefore, installedAfter = s.InstalledAfter,
             startedAt = s.StartedAt, updatedAt = s.UpdatedAt,
-        });
-    }
-
-    // Admin-triggered update: drive the device to the latest store version on demand (the manual gate the
-    // owner wants before flipping auto on). Mirrors the auto-path (RealDeviceUpgrader) but is button-fired
-    // and records TriggeredBy=admin. Probes for installed, checks the store is ahead, runs the platform
-    // updater, records the outcome. Admin + DB gated. No-op 409 when not actually behind the store.
-    [HttpPost("{id}/update")]
-    [EnableRateLimiting("write")]
-    public async Task<IActionResult> Update(string id)
-    {
-        if (RequireAdmin() is { } no) return no;
-        var store = Store;
-        var db = Db;
-        if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
-
-        var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
-        var who = currentUser.DiscordId ?? "?";
-
-        var device = await store.GetAsync(id);
-        if (device is null) return NotFound(new { error = "unknown device" });
-
-        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
-        var probe = await DeviceProbeRunner.ProbeFor(device, runner).ProbeAsync(HttpContext.RequestAborted);
-        if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion))
-            return StatusCode(502, new { error = $"device unreachable or no version read: {probe.Note}" });
-
-        var storeLatest = await StoreAheadCheck.StoreLatestAsync(db, device.Platform, HttpContext.RequestAborted);
-        if (!StoreAheadCheck.IsAhead(storeLatest, probe.InstalledAppVersion))
-            return StatusCode(409, new { error = $"already current: installed {probe.InstalledAppVersion}, store {storeLatest ?? "unknown"}" });
-
-        var updater = device.Platform switch
-        {
-            "android" => services.GetService(typeof(AndroidDeviceUpdater)) as IDeviceUpdater,
-            "ios" => services.GetService(typeof(IosDeviceUpdater)) as IDeviceUpdater,
-            _ => null,
-        };
-        if (updater is null) return StatusCode(501, new { error = $"no {device.Platform} updater available" });
-
-        logger.LogInformation("device update: {Id} manual {From} -> {To} (by {Who})",
-            id, probe.InstalledAppVersion, storeLatest, who);
-        var outcome = await updater.UpdateAsync(device, storeLatest!, HttpContext.RequestAborted);
-
-        var status = outcome switch
-        {
-            { Verified: true } => "verified",
-            { Started: true } => "failed",
-            _ => "skipped",
-        };
-        await store.RecordUpdateAsync(new DeviceUpdate
-        {
-            DeviceId = device.Id,
-            AttemptedAt = DateTimeOffset.UtcNow,
-            FromVersion = outcome.FromVersion,
-            ToVersion = outcome.ToVersion,
-            Status = status,
-            Note = outcome.Note,
-            TriggeredBy = $"admin:{who}",
-        }, HttpContext.RequestAborted);
-
-        // Re-probe so the card reflects the post-update state immediately.
-        var upgrader = (IDeviceUpgrader)services.GetRequiredService(typeof(IDeviceUpgrader));
-        var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
-        await DeviceProbeRunner.ProbeOneAsync(
-            device, $"admin-update:{who}", runner, store, db, upgrader, logger, time, HttpContext.RequestAborted);
-
-        var http = outcome switch
-        {
-            { Verified: true } => 200,
-            { Started: true } => 202, // attempted, not yet verified (download may be in flight)
-            _ => 500,
-        };
-        return StatusCode(http, new
-        {
-            started = outcome.Started, verified = outcome.Verified,
-            from = outcome.FromVersion, to = outcome.ToVersion, status, note = outcome.Note,
         });
     }
 
@@ -369,10 +312,9 @@ public sealed class DevicesController(
 
         // Re-probe so the card flips to no_change now that the build is extracted.
         var db = Db!;
-        var upgrader = (IDeviceUpgrader)services.GetRequiredService(typeof(IDeviceUpgrader));
         var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
         var reprobe = await DeviceProbeRunner.ProbeOneAsync(
-            device, $"admin-save:{who}", runner, store, db, upgrader, logger, time, HttpContext.RequestAborted);
+            device, $"admin-save:{who}", runner, store, db, logger, time, HttpContext.RequestAborted);
 
         return Ok(new { saved = true, appVersion, build, result = reprobe.Result });
     }

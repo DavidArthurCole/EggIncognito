@@ -5,7 +5,9 @@ using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 
-// The progress callback fires once per poll round, and the final StoreCheckResult matches the climb outcome.
+// The progress callback narrates the check (read version, nudge store, wait per round, climb/timeout) and the
+// final StoreCheckResult matches the outcome. We assert behavior (climb announced, waiting reported, no throw),
+// not exact callback counts, since the narration includes setup lines plus one per poll round.
 // Drives AndroidPlayStoreChecker (no config dependency) with a fake adb runner. PollSeconds=0 keeps it fast.
 public class StoreCheckerProgressTests
 {
@@ -21,22 +23,25 @@ public class StoreCheckerProgressTests
             NullLogger<AndroidPlayStoreChecker>.Instance);
 
     [Fact]
-    public async Task ProgressFiresPerRound_UpToDate()
+    public async Task ProgressNarratesWait_UpToDate()
     {
-        // version never climbs: all PollAttempts rounds run, callback fires once each.
+        // version never climbs: all PollAttempts rounds run, each emits a "waiting" line.
         var runner = new FakeRunner(_ => new ProcessResult(0, "versionName=1.0\n", ""));
         var checker = Checker(runner, attempts: 4);
 
         var rounds = new List<string>();
         var result = await checker.CheckAndUpdateAsync(Target, default, msg => rounds.Add(msg));
 
-        Assert.Equal(4, rounds.Count);
         Assert.Equal("up_to_date", result.Action);
         Assert.False(result.Installed);
+        // narration fired and reported the wait, but never a climb.
+        Assert.NotEmpty(rounds);
+        Assert.Contains(rounds, m => m.Contains("waiting", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(rounds, m => m.Contains("installed 1.", StringComparison.OrdinalIgnoreCase) && m.Contains("was"));
     }
 
     [Fact]
-    public async Task ProgressFiresUntilClimb_ThenUpdated()
+    public async Task ProgressAnnouncesClimb_ThenUpdated()
     {
         // dumpsys: drive (no dumpsys) then probes. Climb on the 2nd poll round.
         // Call sequence of dumpsys reads: before, poll1, poll2(climb).
@@ -55,11 +60,12 @@ public class StoreCheckerProgressTests
         var rounds = new List<string>();
         var result = await checker.CheckAndUpdateAsync(Target, default, msg => rounds.Add(msg));
 
-        Assert.Equal(2, rounds.Count); // climbed on round 2, loop returns
         Assert.Equal("updated", result.Action);
         Assert.True(result.Installed);
         Assert.Equal("1.0", result.InstalledBefore);
         Assert.Equal("1.1", result.InstalledAfter);
+        // the climb is announced with both versions, before the loop returns.
+        Assert.Contains(rounds, m => m.Contains("1.1") && m.Contains("1.0"));
     }
 
     [Fact]
@@ -72,15 +78,16 @@ public class StoreCheckerProgressTests
     }
 
     [Fact]
-    public async Task Unreachable_NoProgress()
+    public async Task Unreachable_NeverReportsWait()
     {
-        // empty dumpsys -> no version read -> unreachable before any poll.
+        // empty dumpsys -> no version read -> unreachable before the store is driven.
         var runner = new FakeRunner(_ => new ProcessResult(0, "", ""));
         var checker = Checker(runner, attempts: 4);
         var rounds = new List<string>();
         var result = await checker.CheckAndUpdateAsync(Target, default, msg => rounds.Add(msg));
-        Assert.Empty(rounds);
         Assert.Equal("unreachable", result.Action);
         Assert.False(result.Reachable);
+        // it may announce "reading version…" but must never reach the wait loop.
+        Assert.DoesNotContain(rounds, m => m.Contains("waiting", StringComparison.OrdinalIgnoreCase));
     }
 }

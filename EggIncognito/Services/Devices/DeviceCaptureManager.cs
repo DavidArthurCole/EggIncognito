@@ -59,8 +59,19 @@ public sealed class DeviceCaptureManager(
         foreach (var id in _captures.Keys.ToList()) await TeardownAsync(id);
     }
 
+    // Each device proxy consumes THREE consecutive ports: the LAN-facing port the device points at, plus
+    // port+1 (internal loopback proxy) and port+2 (internal TLS-forward) that UnobtaniumCaptureProxy binds.
+    // So devices must be spaced >= 3 apart or device N's LAN port collides with device N-1's internal loopback
+    // (the bug: BasePort+index spacing of 1 left the iOS LAN port == the Android internal port, so the iOS
+    // forwarder never bound and iOS traffic was silently dropped). Stride of 3 gives each device its own block.
+    public const int PortsPerDevice = 3;
+
+    // The LAN-facing port for the device at declaration index `i`. Each device owns a 3-port block so the
+    // blocks never overlap (see PortsPerDevice). Pure + public so the spacing is unit-tested.
+    public static int PortForIndex(int basePort, int index) => basePort + index * PortsPerDevice;
+
     // Reconcile the live listener set to the declared devices: start one per declared device that has none,
-    // assigning a dedicated port (BasePort + declaration index). Safe to call repeatedly.
+    // assigning a dedicated 3-port block (BasePort + index*3). Safe to call repeatedly.
     public async Task EnsureAsync(CancellationToken ct)
     {
         if (!config.Enabled) return;
@@ -68,7 +79,7 @@ public sealed class DeviceCaptureManager(
         {
             var d = devices.Devices[i];
             if (_captures.ContainsKey(d.Id)) continue;
-            await StartOneAsync(d, config.BasePort + i, ct);
+            await StartOneAsync(d, PortForIndex(config.BasePort, i), ct);
         }
     }
 

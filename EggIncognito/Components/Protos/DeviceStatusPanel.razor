@@ -49,15 +49,9 @@
                     </div>
                     @if (_isAdmin)
                     {
-                        @if (d.StoreAhead)
-                        {
-                            <button class="btn-ghost-sm" disabled="@act.Busy" title="@($"Update to store version {d.StoreLatest}")" @onclick="() => Update(d.Id)">
-                                <Icon Name="@(act.Busy ? "clock" : "arrow-up")" Class="icon-sm" />
-                            </button>
-                        }
                         @if (d.Result == "new_version")
                         {
-                            <button class="btn-ghost-sm" disabled="@act.Busy" title="Pull installed version into the registry" @onclick="() => Save(d.Id)">
+                            <button class="btn-ghost-sm" disabled="@act.Busy" title="Install this version into the proto registry" @onclick="() => Save(d.Id)">
                                 <Icon Name="@(act.Busy ? "clock" : "download")" Class="icon-sm" />
                             </button>
                         }
@@ -168,9 +162,7 @@
 
     [Parameter] public EventCallback OnSaved { get; set; }
 
-    Task Save(string id) => Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "saved to registry", OnSaved);
-
-    Task Update(string id) => Act(id, $"/api/devices/{id}/update", "updating...", "update triggered");
+    Task Save(string id) => Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "installed to registry", OnSaved);
 
     // Tell the device to check its OWN store for an update. The server runs the ~6-min store poll in the
     // background and returns 202 at once; we then poll GET check-status every ~3s, rendering its live message

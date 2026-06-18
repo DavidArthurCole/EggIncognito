@@ -47,10 +47,13 @@ public static class DeviceProbeRunner
         return 0;
     }
 
-    // One full probe: run it, look up extracted + available latest, classify, record, fire upgrader on new.
+    // One full probe: run it, look up extracted + available latest, classify vs the registry, record. This is
+    // a PURE status read + registry classification (the NEW badge); it never drives a device update. The
+    // store-sync (telling a device to update itself) lives in DeviceProbeService's heartbeat + the check-update
+    // endpoint, both of which call IDeviceStoreChecker.
     public static async Task<DeviceProbe> ProbeOneAsync(
         Device d, string triggeredBy, IProcessRunner runner, IDeviceStatusStore store,
-        EggIncognitoDbContext db, IDeviceUpgrader upgrader, ILogger logger, TimeProvider time, CancellationToken ct)
+        EggIncognitoDbContext db, ILogger logger, TimeProvider time, CancellationToken ct)
     {
         var result = await ProbeFor(d, runner).ProbeAsync(ct);
 
@@ -92,12 +95,6 @@ public static class DeviceProbeRunner
                 d.Id, result.InstalledAppVersion ?? "?", result.InstalledBuild ?? "-", resultCode);
         else
             logger.LogInformation("device probe: {Id} unreachable ({Note})", d.Id, result.Note);
-
-        // The upgrader decides whether to auto-update (store-ahead-of-installed), independent of resultCode
-        // (which is registry-relative). Called on every reachable probe; no-op unless auto-update is on and
-        // the store is genuinely ahead.
-        if (result.Reachable)
-            await upgrader.MaybeUpgradeAsync(d, result, ct);
 
         return row;
     }

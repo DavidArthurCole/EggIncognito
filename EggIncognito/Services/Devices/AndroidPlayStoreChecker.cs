@@ -24,6 +24,7 @@ public sealed class AndroidPlayStoreChecker(
     public async Task<StoreCheckResult> CheckAndUpdateAsync(
         DeviceStoreTarget device, CancellationToken ct, Action<string>? progress = null)
     {
+        progress?.Invoke("reading installed version over adb…");
         var before = await ReadInstalledAsync(device, ct);
         if (before is null)
         {
@@ -33,6 +34,7 @@ public sealed class AndroidPlayStoreChecker(
 
         // Nudge Play to check + update this package. The phone's store does the work.
         var driveArgs = BuildDriveArgs(device);
+        progress?.Invoke($"installed {before}; nudging Play Store to update…");
         logger.LogInformation("device check-update: {Id} android driving Play for {Pkg}", device.Id, device.Package);
         var drive = await runner.RunAsync("adb", driveArgs, ct);
         if (drive.ExitCode != 0)
@@ -42,7 +44,9 @@ public sealed class AndroidPlayStoreChecker(
             return new StoreCheckResult(true, before, before, false, false, "error", note);
         }
 
-        // Poll the installed version: Play's download/install is async, so wait for it to climb.
+        // Poll the installed version: Play's download/install is async, so wait for it to climb. The progress
+        // line reports elapsed time + what we are waiting on, not the unchanged version (already on the row).
+        progress?.Invoke($"Play nudged; waiting for it to install (up to {opts.PollAttempts * opts.PollSeconds}s)…");
         for (var attempt = 0; attempt < opts.PollAttempts; attempt++)
         {
             if (ct.IsCancellationRequested) break;
@@ -51,14 +55,16 @@ public sealed class AndroidPlayStoreChecker(
 
             var now = await ReadInstalledAsync(device, ct);
             var n = attempt + 1;
-            progress?.Invoke($"poll {n}/{opts.PollAttempts}: installed {now ?? "?"}");
+            var elapsed = n * opts.PollSeconds;
             logger.LogInformation("device check-update: {Id} android poll {N}/{Max} installed={Ver}",
                 device.Id, n, opts.PollAttempts, now ?? "?");
             if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0)
             {
+                progress?.Invoke($"Play installed {now} (was {before})");
                 logger.LogInformation("device check-update: {Id} android climb {Before} -> {After}", device.Id, before, now);
                 return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
             }
+            progress?.Invoke($"waiting for Play install… {elapsed}s elapsed (no change yet)");
         }
 
         // No climb within the window. Either already current, or the update is still downloading. We cannot
@@ -68,7 +74,7 @@ public sealed class AndroidPlayStoreChecker(
         logger.LogInformation("device check-update: {Id} android up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
             device.Id, last ?? "?", opts.PollAttempts, opts.PollSeconds);
         return new StoreCheckResult(true, before, last, false, false, "up_to_date",
-            $"no newer version installed within {opts.PollAttempts}x{opts.PollSeconds}s (already current, or download in flight)");
+            $"no update applied in {opts.PollAttempts * opts.PollSeconds}s (already current, or download still in flight)");
     }
 
     // adb -s <serial> shell <DriveTemplate with {package}>. The template is a single shell command line; we

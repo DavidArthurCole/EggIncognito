@@ -194,6 +194,27 @@ public class DeviceCaptureTests
         Assert.Empty(runner.Calls);
     }
 
+    // ---- Capture port allocation: each device owns a non-overlapping 3-port block ----
+
+    [Fact]
+    public void CapturePorts_DevicesGet_NonOverlapping_Blocks()
+    {
+        // Each device proxy consumes port, port+1 (internal loopback), port+2 (internal TLS). With a stride
+        // of 1 (the old bug), device 1's LAN port (9101) collided with device 0's internal loopback (9101),
+        // so the second device's forwarder never bound. Stride must be >= PortsPerDevice.
+        const int basePort = 9100;
+        var d0 = DeviceCaptureManager.PortForIndex(basePort, 0); // 9100
+        var d1 = DeviceCaptureManager.PortForIndex(basePort, 1); // 9103, not 9101
+        Assert.Equal(9100, d0);
+        Assert.Equal(9103, d1);
+
+        // No port in device 0's block (9100,9101,9102) overlaps device 1's block (9103,9104,9105).
+        var block0 = Enumerable.Range(d0, DeviceCaptureManager.PortsPerDevice);
+        var block1 = Enumerable.Range(d1, DeviceCaptureManager.PortsPerDevice);
+        Assert.Empty(block0.Intersect(block1));
+        Assert.True(DeviceCaptureManager.PortsPerDevice >= 3, "each proxy binds 3 ports");
+    }
+
     [Fact]
     public void Platform_Identifiers_AreStable()
     {
