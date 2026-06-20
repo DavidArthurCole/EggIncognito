@@ -26,6 +26,8 @@ public sealed record DeviceCaptureConfig
     public string? AndroidCaInstallScript { get; init; }
     public string? IosCaInstallCommand { get; init; }
     public string? IosTrustStorePath { get; init; }
+    // iOS app process name for `killall` on force-restart (the executable name, not the bundle id).
+    public string? IosAppProcessName { get; init; }
 
     public static DeviceCaptureConfig Bind(IConfiguration config)
     {
@@ -47,6 +49,7 @@ public sealed record DeviceCaptureConfig
             AndroidCaInstallScript = Nz(android["CaInstallScript"]),
             IosCaInstallCommand = Nz(ios["CaInstallCommand"]),
             IosTrustStorePath = Nz(ios["TrustStorePath"]),
+            IosAppProcessName = Nz(ios["AppProcessName"]),
         };
     }
 

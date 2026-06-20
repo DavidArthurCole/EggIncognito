@@ -434,6 +434,27 @@ public sealed class DevicesController(
         return rinfo?.ClientVersion?.ToString();
     }
 
+    // Force-restart the egginc app on the device (kill + relaunch) so it makes a fresh launch request to
+    // auxbrain, which the capture proxy decrypts to harvest rinfo (clientVersion/build). Needed because an
+    // idle/backgrounded app does not re-hit auxbrain on its own. Admin-gated; capture must be running.
+    [HttpPost("{id}/restart-app")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> RestartApp(string id)
+    {
+        if (RequireAdmin() is { } no) return no;
+        if (services.GetService(typeof(EggIncognito.Services.Devices.DeviceProxyPusher))
+                is not EggIncognito.Services.Devices.DeviceProxyPusher pusher
+            || services.GetService(typeof(EggIncognito.Services.Devices.DeviceConfig))
+                is not EggIncognito.Services.Devices.DeviceConfig devCfg)
+            return StatusCode(503, new { error = "device capture not configured" });
+
+        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
+        if (entry is null) return NotFound(new { error = "unknown device" });
+
+        var (ok, note) = await pusher.RestartAppAsync(entry, HttpContext.RequestAborted);
+        return ok ? Ok(new { restarted = true, note }) : StatusCode(502, new { error = note ?? "restart failed" });
+    }
+
     // Latest live rinfo harvested off the wire for a device (build/clientVersion/version + recency). Public
     // read so the status panel can show the captured build to anyone. Empty 200 when none seen / capture off.
     [HttpGet("{id}/live")]

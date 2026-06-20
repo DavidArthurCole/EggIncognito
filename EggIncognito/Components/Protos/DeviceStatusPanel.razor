@@ -76,6 +76,9 @@
                         <button class="btn-ghost-sm" disabled="@act.Busy" title="Check this device's store for an update now" @onclick="() => CheckUpdate(d.Id)">
                             <Icon Name="@(act.Busy ? "clock" : "refresh")" Class="icon-sm" />
                         </button>
+                        <button class="btn-ghost-sm" disabled="@act.Busy" title="Force-restart Egg Inc to trigger an auxbrain call + capture clientVersion" @onclick="() => RestartApp(d.Id)">
+                            <Icon Name="@(act.Busy ? "clock" : "play")" Class="icon-sm" />
+                        </button>
                     }
                 </div>
             }
@@ -228,6 +231,33 @@
     [Parameter] public EventCallback OnSaved { get; set; }
 
     Task Save(string id) => Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "installed to registry", OnSaved);
+
+    // Force-restart Egg Inc so it phones auxbrain, then refresh the capture counters a few times so the chip
+    // reflects the freshly-harvested rinfo without waiting for the 15s poll.
+    async Task RestartApp(string id)
+    {
+        var s = _actions[id] = new ActionState { Busy = true, Message = "restarting app..." };
+        StateHasChanged();
+        try
+        {
+            var resp = await Client().PostAsync($"/api/devices/{id}/restart-app", null);
+            if (resp.IsSuccessStatusCode)
+            {
+                s.Message = "launched, waiting for API call...";
+                // The launch request hits auxbrain within a few seconds; poll the capture block so the
+                // chip flips (not-reaching -> ok / shows the new CONNECTs) without the 15s tick.
+                for (var i = 0; i < 8 && !_disposed; i++)
+                {
+                    await Task.Delay(2000);
+                    await LoadCaptureAsync();
+                    if (_clientVersion.GetValueOrDefault(id) is not null) { s.Message = "clientVersion captured"; break; }
+                }
+            }
+            else { s.Message = await ReadError(resp); s.IsError = true; }
+        }
+        catch (Exception ex) { s.Message = ex.Message; s.IsError = true; }
+        finally { s.Busy = false; StateHasChanged(); _ = ClearLater(id); }
+    }
 
     // Tell the device to check its OWN store for an update. The server runs the ~6-min store poll in the
     // background and returns 202 at once; we then poll GET check-status every ~3s, rendering its live message

@@ -69,13 +69,15 @@ public sealed class DeviceProxyPusher(
         return (ok, note);
     }
 
-    // Force a fresh rinfo: note the last-seen timestamp, launch the egginc app so it phones home, then poll
-    // the device's rinfo until it changes (newer LastSeen) or the timeout elapses. Returns the freshest
-    // rinfo seen (may be the prior one on timeout). iOS launch = uiopen the app URL; Android = monkey launch.
+    // Force a fresh rinfo: note the last-seen timestamp, FORCE-RESTART the egginc app (kill then launch) so
+    // it makes a fresh launch API call to auxbrain, then poll the device's rinfo until it changes (newer
+    // LastSeen) or the timeout elapses. A force-stop is required: a backgrounded/idle app does NOT re-hit
+    // auxbrain on a plain foreground, so without the kill the harvest sees nothing (the bug behind "not
+    // reaching auxbrain" - the game was simply not phoning home). Returns the freshest rinfo seen.
     public async Task<DeviceRinfo?> ForceHarvestAsync(DeviceEntry d, TimeSpan timeout, CancellationToken ct)
     {
         var before = manager.Rinfo.Latest(d.Id);
-        await LaunchAppAsync(d, ct);
+        await RestartAppAsync(d, ct);
 
         var deadline = DateTimeOffset.UtcNow + timeout;
         while (DateTimeOffset.UtcNow < deadline)
@@ -87,25 +89,48 @@ public sealed class DeviceProxyPusher(
         return manager.Rinfo.Latest(d.Id);
     }
 
-    // Launch the egginc app to make it phone auxbrain. Best-effort: a failed launch just means the harvest
-    // relies on the app's own next poll. iOS over ssh (uiopen), Android over adb (monkey).
-    private async Task LaunchAppAsync(DeviceEntry d, CancellationToken ct)
+    // Force-stop the egginc app then relaunch it, so it makes a fresh launch request to auxbrain (an idle
+    // foreground does not re-authenticate). Public so a "force restart" button can trigger a capture on
+    // demand. Best-effort + logged. Android: `am force-stop` + monkey launch. iOS: kill the app process by
+    // name over ssh then uiopen the URL scheme.
+    public async Task<(bool Ok, string? Note)> RestartAppAsync(DeviceEntry d, CancellationToken ct)
     {
         try
         {
             if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase))
             {
-                await runner.RunAsync("adb",
+                var stop = await runner.RunAsync("adb", ["-s", d.Target, "shell", "am", "force-stop", d.Package], ct);
+                if (stop.ExitCode != 0)
+                    logger.LogWarning("device capture: {Id} force-stop failed: {Note}",
+                        d.Id, EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(stop.Stderr + stop.Stdout));
+                var launch = await runner.RunAsync("adb",
                     ["-s", d.Target, "shell", "monkey", "-p", d.Package, "-c", "android.intent.category.LAUNCHER", "1"], ct);
+                var ok = launch.ExitCode == 0;
+                logger.LogInformation("device capture: {Id} app restarted (launch ok={Ok})", d.Id, ok);
+                return ok ? (true, "restarted") : (false, "launch failed");
             }
-            else if (string.Equals(d.Platform, "ios", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(d.Platform, "ios", StringComparison.OrdinalIgnoreCase))
             {
-                if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath)) return;
-                await runner.RunAsync("ssh",
+                if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
+                    return (false, "ios ssh not configured");
+                // Kill the running app process (by its executable name) then relaunch via the URL scheme. The
+                // process name is app-specific (config; default "Egg, Inc." for the egginc binary).
+                var proc = string.IsNullOrEmpty(config.IosAppProcessName) ? "Egg, Inc." : config.IosAppProcessName;
+                var remote = $"killall -9 \"{proc}\" 2>/dev/null; sleep 1; uiopen {d.Package}://";
+                var r = await runner.RunAsync("ssh",
                     ["-p", config.IosSshPort, "-i", config.IosSshKeyPath, "-o", "StrictHostKeyChecking=no",
-                     "-o", "BatchMode=yes", $"root@{config.IosSshHost}", $"uiopen {d.Package}://"], ct);
+                     "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
+                var ok = r.ExitCode == 0;
+                logger.LogInformation("device capture: {Id} app restarted over ssh (ok={Ok})", d.Id, ok);
+                return ok ? (true, "restarted")
+                          : (false, EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(r.Stderr + r.Stdout));
             }
+            return (false, $"no restart for platform {d.Platform}");
         }
-        catch (Exception ex) { logger.LogDebug(ex, "device capture: {Id} app launch failed (non-fatal)", d.Id); }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "device capture: {Id} app restart failed (non-fatal)", d.Id);
+            return (false, ex.Message);
+        }
     }
 }
