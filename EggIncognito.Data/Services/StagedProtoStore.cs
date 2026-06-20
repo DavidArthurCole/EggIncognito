@@ -17,23 +17,82 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     private async Task<bool> ShaInRegistryAsync(string sha, CancellationToken ct) =>
         await db.ProtoVersions.AnyAsync(p => p.ProtoSha == sha && p.DeletedAt == null, ct);
 
-    private async Task<bool> ShaBlockedInStagingAsync(string sha, CancellationToken ct) =>
-        await db.StagedProtos.AnyAsync(s => s.ProtoSha == sha && (s.Status == "pending" || s.Status == "rejected"), ct);
+    private async Task<bool> ShaPendingAsync(string sha, CancellationToken ct) =>
+        await db.StagedProtos.AnyAsync(s => s.ProtoSha == sha && s.Status == "pending", ct);
+
+    // How many of the three version fields a candidate would carry. Used to decide whether incoming data is
+    // RICHER than a previously-rejected row (reject = "not enough data yet", not "never again").
+    private static int FieldScore(string? appVersion, string? build, string? clientVersion) =>
+        (string.IsNullOrWhiteSpace(appVersion) ? 0 : 1)
+        + (string.IsNullOrWhiteSpace(build) ? 0 : 1)
+        + (string.IsNullOrWhiteSpace(clientVersion) ? 0 : 1);
+
+    // Stage a proto, or REVIVE a previously-rejected row of the same sha when the incoming data is richer
+    // (more version fields filled). Dedup: a sha already pending or already in the registry is left alone.
+    // A rejected sha re-surfaces to review only when it brings more data than it was rejected with; equal-or-
+    // poorer data stays rejected (no churn). Returns the outcome; caller maps to its own result type.
+    private enum StageOutcome { Staged, Revived, AlreadyPending, AlreadyInRegistry, StaleRejected }
+
+    private async Task<StageOutcome> StageOrReviveAsync(
+        string platform, string? appVersion, string? build, string? clientVersion, string? package,
+        string protoSha, string protoText, string? messageIndex, string source, string? submittedBy,
+        string? originRepo, string? originCommit, DateTimeOffset? originDate, string? confidence,
+        CancellationToken ct)
+    {
+        if (await ShaInRegistryAsync(protoSha, ct)) return StageOutcome.AlreadyInRegistry;
+        if (await ShaPendingAsync(protoSha, ct)) return StageOutcome.AlreadyPending;
+
+        var now = DateTimeOffset.UtcNow;
+        var incomingScore = FieldScore(appVersion, build, clientVersion);
+
+        // A previously-rejected row for this sha (most recent). Revive it iff the new data is strictly richer.
+        var rejected = await db.StagedProtos
+            .Where(s => s.ProtoSha == protoSha && s.Status == "rejected")
+            .OrderByDescending(s => s.ReviewedAt).FirstOrDefaultAsync(ct);
+        if (rejected is not null)
+        {
+            if (incomingScore <= FieldScore(rejected.AppVersion, rejected.Build, rejected.ClientVersion))
+                return StageOutcome.StaleRejected; // not richer -> leave it rejected
+            // Richer -> revive: fill gaps (don't clobber existing values), back to pending.
+            rejected.AppVersion = string.IsNullOrWhiteSpace(rejected.AppVersion) ? appVersion : rejected.AppVersion;
+            rejected.Build = string.IsNullOrWhiteSpace(rejected.Build) ? build : rejected.Build;
+            rejected.ClientVersion = string.IsNullOrWhiteSpace(rejected.ClientVersion) ? clientVersion : rejected.ClientVersion;
+            rejected.Platform = string.IsNullOrWhiteSpace(rejected.Platform) ? platform : rejected.Platform;
+            rejected.Confidence ??= confidence;
+            rejected.OriginRepo ??= originRepo;
+            rejected.OriginCommit ??= originCommit;
+            rejected.OriginDate ??= originDate;
+            rejected.Status = "pending";
+            rejected.ReviewedBy = null; rejected.ReviewedAt = null; rejected.ReviewNote = null;
+            rejected.SubmittedAt = now;
+            await db.SaveChangesAsync(ct);
+            return StageOutcome.Revived;
+        }
+
+        db.StagedProtos.Add(new StagedProto
+        {
+            Platform = platform, AppVersion = appVersion, Build = build, ClientVersion = clientVersion,
+            Package = package, ProtoSha = protoSha, ProtoText = protoText, MessageIndex = messageIndex,
+            Source = source, Status = "pending", SubmittedBy = submittedBy, SubmittedAt = now,
+            OriginRepo = originRepo, OriginCommit = originCommit, OriginDate = originDate, Confidence = confidence,
+        });
+        await db.SaveChangesAsync(ct);
+        return StageOutcome.Staged;
+    }
 
     public async Task<OfferResult> OfferAsync(
         string platform, string? appVersion, string? build, string? clientVersion, string? package,
         string protoSha, string protoText, string? messageIndex, string? submittedBy, CancellationToken ct)
     {
-        if (await ShaInRegistryAsync(protoSha, ct)) return OfferResult.AlreadyInRegistry;
-        if (await ShaBlockedInStagingAsync(protoSha, ct)) return OfferResult.AlreadyPending;
-        db.StagedProtos.Add(new StagedProto
+        var outcome = await StageOrReviveAsync(platform, appVersion, build, clientVersion, package, protoSha,
+            protoText, messageIndex, "offer", submittedBy, null, null, null, null, ct);
+        return outcome switch
         {
-            Platform = platform, AppVersion = appVersion, Build = build, ClientVersion = clientVersion,
-            Package = package, ProtoSha = protoSha, ProtoText = protoText, MessageIndex = messageIndex,
-            Source = "offer", Status = "pending", SubmittedBy = submittedBy, SubmittedAt = DateTimeOffset.UtcNow,
-        });
-        await db.SaveChangesAsync(ct);
-        return OfferResult.Staged;
+            StageOutcome.AlreadyInRegistry => OfferResult.AlreadyInRegistry,
+            // pending OR a stale (not-richer) rejected sha both read as "already submitted" to the offerer.
+            StageOutcome.AlreadyPending or StageOutcome.StaleRejected => OfferResult.AlreadyPending,
+            _ => OfferResult.Staged, // Staged or Revived
+        };
     }
 
     public async Task<(int staged, int skipped)> ImportCrawlAsync(
@@ -42,18 +101,11 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         int staged = 0, skipped = 0;
         foreach (var r in records)
         {
-            if (await ShaInRegistryAsync(r.ProtoSha, ct) || await ShaBlockedInStagingAsync(r.ProtoSha, ct))
-            { skipped++; continue; }
-            db.StagedProtos.Add(new StagedProto
-            {
-                Platform = r.Platform, AppVersion = r.AppVersion, Build = r.Build, ClientVersion = r.ClientVersion,
-                ProtoSha = r.ProtoSha, ProtoText = r.ProtoText, Source = "crawl", Status = "pending",
-                SubmittedAt = DateTimeOffset.UtcNow, OriginRepo = r.OriginRepo, OriginCommit = r.OriginCommit,
-                OriginDate = r.OriginDate, Confidence = r.Confidence,
-            });
-            staged++;
+            var outcome = await StageOrReviveAsync(r.Platform, r.AppVersion, r.Build, r.ClientVersion, null,
+                r.ProtoSha, r.ProtoText, null, "crawl", null, r.OriginRepo, r.OriginCommit, r.OriginDate, r.Confidence, ct);
+            if (outcome is StageOutcome.Staged or StageOutcome.Revived) staged++;
+            else skipped++;
         }
-        if (staged > 0) await db.SaveChangesAsync(ct);
         return (staged, skipped);
     }
 

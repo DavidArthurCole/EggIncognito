@@ -40,15 +40,28 @@ public class StagedProtoStoreTests
     }
 
     [Fact(Skip = "requires Postgres; no EF test provider per tests-DB-free repo rule")]
-    public async Task Reject_HidesAndBlocksReoffer()
+    public async Task Reject_SameData_StaysRejected_RicherData_Revives()
     {
         await using var db = new EggIncognitoDbContext(Opts);
         var store = new StagedProtoStore(db, new ProtoRegistryStore(db));
-        await store.OfferAsync("android", "1.5", "5", null, "p", "sha3", "proto", null, "u", default);
+        // stage with only appVersion (score 1), then reject = "not enough data yet"
+        await store.OfferAsync("android", "1.5", null, null, "p", "sha3", "proto", null, "u", default);
         var id = (await store.PendingAsync(default))[0].Id;
-        Assert.True(await store.RejectAsync(id, "dup", "admin", default));
-        Assert.Equal(StagedProtoStore.OfferResult.AlreadyPending, // rejected sha blocks re-offer
-            await store.OfferAsync("android", "1.5", "5", null, "p", "sha3", "proto", null, "u", default));
+        Assert.True(await store.RejectAsync(id, "missing data", "admin", default));
+        Assert.Empty(await store.PendingAsync(default));
+
+        // same-or-poorer data re-offer -> stays rejected (reads as AlreadyPending to the offerer), queue empty
+        Assert.Equal(StagedProtoStore.OfferResult.AlreadyPending,
+            await store.OfferAsync("android", "1.5", null, null, "p", "sha3", "proto", null, "u", default));
+        Assert.Empty(await store.PendingAsync(default));
+
+        // RICHER data re-offer (now has build + clientVersion) -> revives back to pending, fields filled
+        Assert.Equal(StagedProtoStore.OfferResult.Staged, // Revived maps to Staged for the offerer
+            await store.OfferAsync("android", "1.5", "5", "72", "p", "sha3", "proto", null, "u", default));
+        var pend = await store.PendingAsync(default);
+        Assert.Single(pend);
+        Assert.Equal("5", pend[0].Build);          // filled on revive
+        Assert.Equal("72", pend[0].ClientVersion);
     }
 
     [Fact(Skip = "requires Postgres; no EF test provider per tests-DB-free repo rule")]

@@ -304,25 +304,38 @@
         static string Or(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s;
     }
 
-    async Task CopyText(string text, int n)
+    // Copy the report to the clipboard, then REJECT those rows so they leave the review queue. Reject now means
+    // "not enough data yet" (revivable): if the same proto re-surfaces from a richer crawl/offer, it comes back
+    // to review automatically. Copy must succeed before we reject, so a clipboard failure never silently drops
+    // rows from the queue.
+    async Task CopyAndClear(IReadOnlyList<StagedRow> rows)
     {
+        if (rows.Count == 0) return;
+        _busy = true; _msg = "";
         try
         {
             _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
-            await _copy.InvokeAsync<bool>("writeText", text);
-            _msg = $"copied {n} row(s) of missing info to clipboard";
+            await _copy.InvokeAsync<bool>("writeText", MissingReport(rows));
         }
-        catch (Exception ex) { _msg = $"copy failed: {ex.Message}"; }
-        StateHasChanged();
+        catch (Exception ex) { _msg = $"copy failed (rows kept): {ex.Message}"; _busy = false; StateHasChanged(); return; }
+
+        try
+        {
+            var resp = await Client().PostAsJsonAsync("/api/protos/staged/bulk-reject",
+                new { ids = rows.Select(r => r.Id).ToList(), note = "set aside: missing version data (copied for audit)" }, JsonOpts);
+            var n = resp.IsSuccessStatusCode ? (await resp.Content.ReadFromJsonAsync<BulkRejectResp>(JsonOpts))?.Rejected ?? 0 : 0;
+            _msg = $"copied {rows.Count} to clipboard + set aside {n} (will return if they re-surface with more data)";
+        }
+        catch (Exception ex) { _msg = $"copied, but clear failed: {ex.Message}"; }
+        finally { _busy = false; }
+        ClearSelection();
+        await Load();
+        await OnChanged.InvokeAsync();
     }
 
-    Task CopyAllMissing()
-    {
-        var incomplete = _rows.Where(r => r.IsIncomplete).ToList();
-        return CopyText(MissingReport(incomplete), incomplete.Count);
-    }
+    Task CopyAllMissing() => CopyAndClear(_rows.Where(r => r.IsIncomplete).ToList());
 
-    Task CopyOne(StagedRow r) => CopyText(MissingReport([r]), 1);
+    Task CopyOne(StagedRow r) => CopyAndClear([r]);
 
     public async ValueTask DisposeAsync()
     {
