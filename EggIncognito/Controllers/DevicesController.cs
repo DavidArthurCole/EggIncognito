@@ -441,8 +441,20 @@ public sealed class DevicesController(
     {
         if (services.GetService(typeof(DeviceCaptureManager)) is not DeviceCaptureManager mgr)
             return Ok(new { found = false });
+        var d = mgr.DiagFor(id);
+        // capture-boundary counters, so an empty rinfo is diagnosable: which stage did the device reach?
+        var capture = new
+        {
+            listening = mgr.PortFor(id) != 0,
+            port = mgr.PortFor(id),
+            clientConnects = d.ClientConnects,
+            auxbrainConnects = d.AuxbrainConnects,
+            flows = d.Flows,
+            rinfoHarvests = d.RinfoHarvests,
+            lastDecryptError = d.LastDecryptError,
+        };
         var v = mgr.Rinfo.Latest(id);
-        if (v is null) return Ok(new { found = false });
-        return Ok(new { found = true, v.DeviceId, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen });
+        if (v is null) return Ok(new { found = false, capture });
+        return Ok(new { found = true, v.DeviceId, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen, capture });
     }
 }

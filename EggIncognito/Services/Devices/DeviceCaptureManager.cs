@@ -28,6 +28,7 @@ public sealed class DeviceCaptureManager(
 {
     private readonly Func<bool, ICaptureProxy> _proxyFactory = proxyFactory ?? (verbose => new UnobtaniumCaptureProxy(verbose));
     private readonly ConcurrentDictionary<string, DeviceCapture> _captures = new();
+    private readonly ConcurrentDictionary<string, DeviceCaptureDiag> _diag = new();
     private readonly DeviceRinfoStore _rinfo = new(capturePath);
     private CancellationTokenSource? _cts;
 
@@ -36,6 +37,14 @@ public sealed class DeviceCaptureManager(
 
     public int PortFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Port : 0;
     public DeviceRinfoStore Rinfo => _rinfo;
+
+    // Live per-device capture diagnostics. When rinfo never harvests, these tell WHICH boundary fails:
+    // clientConnects=0 -> device not routing through the proxy (proxy not applied / app bypassing it);
+    // connects>0 but auxbrainConnects=0 -> reaching the proxy but not auxbrain (DNS/host filter);
+    // auxbrainConnects>0 but flows=0 -> CA not trusted (TLS handshake fails; lastDecryptError set);
+    // flows>0 but rinfoHarvests=0 -> requests decode but carry no rinfo (type/field mismatch).
+    public DeviceCaptureDiag DiagFor(string deviceId) =>
+        _diag.TryGetValue(deviceId, out var d) ? d.Snapshot() : DeviceCaptureDiag.Empty;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -91,8 +100,31 @@ public sealed class DeviceCaptureManager(
             var decoder = new FlowDecoder(contentRoot);
             var pump = Task.Run(() => PumpAsync(d.Id, queue, decoder), ct);
 
+            var diag = _diag.GetOrAdd(d.Id, _ => new DeviceCaptureDiag());
+
             var proxy = _proxyFactory(false);
-            proxy.FlowCaptured += flow => queue.Writer.TryWrite(flow);
+            proxy.FlowCaptured += flow =>
+            {
+                diag.Bump(ref diag.Flows);
+                queue.Writer.TryWrite(flow);
+            };
+            // Boundary signals: which stage the device's traffic reaches. Logged + counted so a single
+            // game launch after deploy reveals where capture breaks (see DiagFor).
+            proxy.ClientConnected += (count, ip) =>
+            {
+                diag.Bump(ref diag.ClientConnects);
+                logger.LogInformation("device capture: {Id} client connected (active={Count}, ip={Ip})", d.Id, count, ip ?? "?");
+            };
+            proxy.AuxbrainConnect += () =>
+            {
+                diag.Bump(ref diag.AuxbrainConnects);
+                logger.LogInformation("device capture: {Id} auxbrain CONNECT decrypted", d.Id);
+            };
+            proxy.DecryptError += msg =>
+            {
+                diag.LastDecryptError = msg;
+                logger.LogWarning("device capture: {Id} decrypt error: {Msg}", d.Id, msg);
+            };
             await proxy.StartAsync(port, caPath, ct);
 
             _captures[d.Id] = new DeviceCapture(proxy, port, queue, pump);
@@ -114,7 +146,11 @@ public sealed class DeviceCaptureManager(
             {
                 var req = decoder.DecodeRequest(EndpointExtractor.NormalizePath(flow.Url), flow.RequestDataB64);
                 var obs = RinfoHarvester.TryHarvest(req.JsonRaw);
-                if (obs is not null) _rinfo.Observe(deviceId, obs, DateTimeOffset.UtcNow.ToString("O"));
+                if (obs is not null)
+                {
+                    _rinfo.Observe(deviceId, obs, DateTimeOffset.UtcNow.ToString("O"));
+                    if (_diag.TryGetValue(deviceId, out var dg)) dg.Bump(ref dg.RinfoHarvests);
+                }
             }
             catch { /* one bad flow must not break rolling capture */ }
         }
@@ -129,4 +165,29 @@ public sealed class DeviceCaptureManager(
         try { await c.Proxy.DisposeAsync(); } catch { }
         logger.LogInformation("device capture: {Id} torn down", id);
     }
+}
+
+// Live per-device capture counters, incremented from proxy event threads + the harvest pump (hence
+// Interlocked). A snapshot is exposed read-only so the device status surface can show which capture
+// boundary the device's traffic last reached.
+public sealed class DeviceCaptureDiag
+{
+    public long ClientConnects;
+    public long AuxbrainConnects;
+    public long Flows;
+    public long RinfoHarvests;
+    public string? LastDecryptError;
+
+    public static readonly DeviceCaptureDiag Empty = new();
+
+    public void Bump(ref long counter) => System.Threading.Interlocked.Increment(ref counter);
+
+    public DeviceCaptureDiag Snapshot() => new()
+    {
+        ClientConnects = System.Threading.Interlocked.Read(ref ClientConnects),
+        AuxbrainConnects = System.Threading.Interlocked.Read(ref AuxbrainConnects),
+        Flows = System.Threading.Interlocked.Read(ref Flows),
+        RinfoHarvests = System.Threading.Interlocked.Read(ref RinfoHarvests),
+        LastDecryptError = LastDecryptError,
+    };
 }
