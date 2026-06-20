@@ -125,20 +125,26 @@ public sealed class DeviceProxyPusher(
                 // egg process by PID, then try every known jailbroken cold-launch by BUNDLE ID until one
                 // brings the app up. `uiopen`/`open` take a bundle id on most jailbreaks; sbreloadlaunch via
                 // `launchctl`/`uicache -l` are fallbacks. Reports which launcher worked.
-                // /bin/sh, no awk (this jailbreak lacks it - parse PIDs with the shell). Kill any egg process,
-                // then COLD-LAUNCH BY BUNDLE ID: `uiopen --bundle <id>` is the bundle form (the `<id>://`
-                // scheme form does NOT work - EI registers no such scheme). Fallbacks: `open -b`, then SBSL
-                // via `sbreload`-style launch. Reports which worked + whether the app is running after.
+                // /bin/sh. This jailbreak has ONLY `uiopen`, which on this build launches by URL SCHEME, not
+                // bundle id (--bundle + the guessed scheme both no-op'd). So: DISCOVER the app's real registered
+                // scheme from its on-disk Info.plist (CFBundleURLSchemes), then `uiopen <scheme>://`. Kill any
+                // running instance first (pure-sh PID parse; no awk on this device). Reports the discovered
+                // scheme + whether the app is running after. Override wholesale via Ios:RestartCommand.
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
                     ? "/bin/sh -c '" +
-                      "echo diag launchers:; for c in uiopen open sblaunch; do command -v $c >/dev/null 2>&1 && echo \"  have $c\"; done; " +
-                      "echo diag ps:; ps ax 2>/dev/null | grep -i egg | grep -v grep || echo \"  (no egg process)\"; " +
-                      "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>&1 | sed \"s/^/diag kill-pid: /\"; done; " +
-                      "sleep 1; L=NONE; " +
-                      $"if command -v uiopen >/dev/null 2>&1; then uiopen --bundle {bundle} 2>&1 | sed \"s/^/diag uiopen-bundle: /\"; L=uiopen-bundle; fi; " +
+                      "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; sleep 1; " +
+                      // Locate the app bundle dir by bundle id, then pull the first CFBundleURLScheme from Info.plist.
+                      $"APP=$(find /var/containers/Bundle/Application -maxdepth 3 -name Info.plist 2>/dev/null | while read f; do grep -lq {bundle} \"$f\" 2>/dev/null && dirname \"$f\"; done | head -1); " +
+                      "echo \"diag app-dir: ${APP:-NOT FOUND}\"; " +
+                      "SCH=\"\"; " +
+                      "if [ -n \"$APP\" ]; then " +
+                      "  SCH=$(plutil -p \"$APP/Info.plist\" 2>/dev/null | grep -A3 CFBundleURLSchemes | grep -oE \"\\\"[a-zA-Z0-9._-]+\\\"\" | grep -v CFBundle | head -1 | tr -d \\\"); " +
+                      "fi; " +
+                      "echo \"diag scheme: ${SCH:-none-found}\"; " +
+                      "if [ -n \"$SCH\" ]; then uiopen \"$SCH://\" 2>&1 | sed \"s/^/diag uiopen: /\"; " +
+                      $"else uiopen {bundle}:// 2>&1 | sed \"s/^/diag uiopen-fallback: /\"; fi; " +
                       "sleep 3; echo diag ps-after:; " +
-                      "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running (via $L)\"; " +
-                      $"else echo \"diag RESULT: NOT running - try uiopen scheme\"; uiopen {bundle}:// 2>&1 | sed \"s/^/diag uiopen-scheme: /\"; sleep 3; ps ax 2>/dev/null | grep -i egg | grep -v grep || echo \"  (still not running)\"; fi" +
+                      "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running\"; else echo \"diag RESULT: NOT running\"; fi" +
                       "'"
                     : config.IosRestartCommand.Replace("{bundle}", bundle).Replace("{proc}", proc);
                 var r = await runner.RunAsync("ssh",
