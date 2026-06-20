@@ -1,7 +1,8 @@
-@* Contributor+ review queue for staged proto submissions (public offers + admin crawl imports). Each row is
-   editable (platform/appVersion/build/clientVersion prefilled) so a reviewer can re-key before approving;
-   Approve promotes to the live registry, Reject hides it + blocks re-offer of that sha. Self-fetches the
-   public-shaped /api/protos/staged endpoint with the request's auth cookie; hidden when the queue is empty. *@
+@* Contributor+ review queue for staged proto submissions (public offers + admin crawl imports). A real
+   table: select rows (checkbox + select-all), bulk approve/reject, and an optional filter. Each row's
+   version fields are inline-editable so a reviewer can fix a crawled null before approving. Approve promotes
+   to the live registry; Reject hides + blocks re-offer of that sha. Self-fetches the auth-cookie'd
+   /api/protos/staged endpoint; hidden when the queue is empty (admins always see the import button). *@
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Forms
@@ -20,27 +21,79 @@
           <InputFile OnChange="ImportCrawl" accept=".zip" class="hidden" />
         </label>
       }
+      @if (_rows.Count > 0)
+      {
+        <input class="protos-filter ml-auto" style="width:14rem" placeholder="filter repo / sha / version…"
+               @bind="_filter" @bind:event="oninput" />
+      }
     </div>
-    @foreach (var r in _rows)
+
+    @if (_rows.Count == 0)
     {
-      <div class="flex items-center gap-2 flex-wrap mb-2 border-b border-border pb-2">
-        <span class="code-chip">@r.Source</span>
-        <input class="protos-filter" style="width:5rem" @bind="r.Platform" />
-        <input class="protos-filter" style="width:6rem" placeholder="app ver" @bind="r.AppVersion" />
-        <input class="protos-filter" style="width:7rem" placeholder="build" @bind="r.Build" />
-        <input class="protos-filter" style="width:5rem" placeholder="client" @bind="r.ClientVersion" />
-        <span class="text-xs text-muted font-mono">@(r.ProtoSha.Length > 12 ? r.ProtoSha[..12] : r.ProtoSha)</span>
-        @if (r.OriginRepo is not null)
-        {
-          <span class="text-xs text-muted">@r.OriginRepo@(r.Confidence is { } c ? $" ({c})" : "")</span>
-        }
-        <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Approve(r))">Approve</button>
-        <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Reject(r))">Reject</button>
-      </div>
+      <div class="text-xs text-muted">No pending submissions.</div>
     }
+    else
+    {
+      @* Bulk-action bar, shown when >=1 selected. *@
+      @if (_selected.Count > 0)
+      {
+        <div class="flex items-center gap-2 flex-wrap mb-2 p-2 rounded-md bg-panel2 border border-border">
+          <span class="text-xs font-semibold">@_selected.Count selected</span>
+          <button type="button" class="btn-mini" disabled="@_busy" @onclick="BulkApprove">Approve selected</button>
+          <button type="button" class="btn-mini" disabled="@_busy" @onclick="BulkReject">Reject selected</button>
+          <button type="button" class="btn-mini" @onclick="ClearSelection">Clear</button>
+        </div>
+      }
+
+      <table class="reg-table">
+        <thead>
+          <tr>
+            <th class="w-8"><input type="checkbox" checked="@AllShownSelected" @onchange="ToggleAllShown" /></th>
+            <th>Source</th>
+            <th>Platform</th>
+            <th>App Version</th>
+            <th>Build</th>
+            <th>Client</th>
+            <th>Proto SHA</th>
+            <th>Origin</th>
+            <th class="w-28">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach (var r in Shown)
+          {
+            <tr class="reg-row">
+              <td @onclick:stopPropagation="true">
+                <input type="checkbox" checked="@_selected.Contains(r.Id)" @onchange="@(() => ToggleRow(r.Id))" />
+              </td>
+              <td><span class="code-chip">@r.Source</span></td>
+              <td><input class="protos-filter w-full" style="min-width:5rem" @bind="r.Platform" /></td>
+              <td><input class="protos-filter w-full" style="min-width:6rem" placeholder="-" @bind="r.AppVersion" /></td>
+              <td><input class="protos-filter w-full" style="min-width:7rem" placeholder="-" @bind="r.Build" /></td>
+              <td><input class="protos-filter w-full" style="min-width:4rem" placeholder="-" @bind="r.ClientVersion" /></td>
+              <td class="text-xs text-muted font-mono" title="@r.ProtoSha">@Short(r.ProtoSha)</td>
+              <td class="text-xs text-muted">
+                @if (r.OriginRepo is not null)
+                {
+                  <span>@r.OriginRepo</span>
+                  @if (r.Confidence is { } c) { <span class="@ConfClass(c)"> (@c)</span> }
+                }
+              </td>
+              <td @onclick:stopPropagation="true">
+                <div class="flex gap-1">
+                  <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Approve(r))">Approve</button>
+                  <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Reject(r))">Reject</button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
     @if (_msg.Length > 0)
     {
-      <span class="text-xs text-muted">@_msg</span>
+      <span class="text-xs @(_msg.StartsWith("err") || _msg.Contains("failed") ? "text-red-400" : "text-muted")">@_msg</span>
     }
   </section>
 }
@@ -49,6 +102,8 @@
     static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
 
     List<StagedRow> _rows = [];
+    readonly HashSet<int> _selected = [];
+    string _filter = "";
     bool _busy;
     string _msg = "";
     string _baseAddress = "";
@@ -56,6 +111,19 @@
 
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public bool IsAdmin { get; set; }
+
+    // Rows passing the text filter (repo / sha / appVersion / build substring, case-insensitive).
+    List<StagedRow> Shown =>
+        string.IsNullOrWhiteSpace(_filter)
+            ? _rows
+            : _rows.Where(r =>
+                (r.OriginRepo?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
+                || r.ProtoSha.Contains(_filter, StringComparison.OrdinalIgnoreCase)
+                || (r.AppVersion?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (r.Build?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (r.Confidence?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+
+    bool AllShownSelected => Shown.Count > 0 && Shown.All(r => _selected.Contains(r.Id));
 
     protected override void OnInitialized()
     {
@@ -81,17 +149,38 @@
     {
         try { _rows = await Client().GetFromJsonAsync<List<StagedRow>>("/api/protos/staged", JsonOpts) ?? []; }
         catch { _rows = []; }
+        // Drop any selection that no longer maps to a pending row.
+        _selected.IntersectWith(_rows.Select(r => r.Id));
         StateHasChanged();
     }
 
+    void ToggleRow(int id) { if (!_selected.Add(id)) _selected.Remove(id); }
+    void ClearSelection() => _selected.Clear();
+
+    void ToggleAllShown(ChangeEventArgs e)
+    {
+        if (e.Value is true) foreach (var r in Shown) _selected.Add(r.Id);
+        else foreach (var r in Shown) _selected.Remove(r.Id);
+    }
+
+    static string Short(string sha) => string.IsNullOrEmpty(sha) ? "" : (sha.Length <= 12 ? sha : sha[..12]);
+
+    static string ConfClass(string c) => c switch
+    {
+        "version-file" => "text-accent",
+        "subject" => "text-muted",
+        _ => "text-red-400", // tree-scan / heuristic: flag it
+    };
+
+    static object ApproveBody(StagedRow r) =>
+        new { platform = r.Platform, appVersion = r.AppVersion, build = r.Build, clientVersion = r.ClientVersion };
+
     async Task Approve(StagedRow r)
     {
-        _busy = true;
-        _msg = "";
+        _busy = true; _msg = "";
         try
         {
-            var body = new { platform = r.Platform, appVersion = r.AppVersion, build = r.Build, clientVersion = r.ClientVersion };
-            var resp = await Client().PostAsJsonAsync($"/api/protos/staged/{r.Id}/approve", body, JsonOpts);
+            var resp = await Client().PostAsJsonAsync($"/api/protos/staged/{r.Id}/approve", ApproveBody(r), JsonOpts);
             _msg = resp.IsSuccessStatusCode ? "approved" : $"approve failed ({(int)resp.StatusCode})";
         }
         catch (Exception ex) { _msg = $"approve error: {ex.Message}"; }
@@ -102,8 +191,7 @@
 
     async Task Reject(StagedRow r)
     {
-        _busy = true;
-        _msg = "";
+        _busy = true; _msg = "";
         try
         {
             var resp = await Client().PostAsJsonAsync($"/api/protos/staged/{r.Id}/reject", new { note = (string?)null }, JsonOpts);
@@ -115,10 +203,56 @@
         await OnChanged.InvokeAsync();
     }
 
+    async Task BulkApprove()
+    {
+        if (_selected.Count == 0) return;
+        _busy = true; _msg = "approving…";
+        try
+        {
+            var items = _rows.Where(r => _selected.Contains(r.Id)).Select(r => new
+            {
+                id = r.Id, platform = r.Platform, appVersion = r.AppVersion, build = r.Build, clientVersion = r.ClientVersion,
+            }).ToList();
+            var resp = await Client().PostAsJsonAsync("/api/protos/staged/bulk-approve", new { items }, JsonOpts);
+            if (resp.IsSuccessStatusCode)
+            {
+                var r = await resp.Content.ReadFromJsonAsync<BulkApproveResp>(JsonOpts);
+                _msg = r is null ? "approved" : $"approved {r.Approved}, skipped {r.Skipped} (missing build / collision), failed {r.Failed}";
+            }
+            else _msg = $"bulk approve failed ({(int)resp.StatusCode})";
+        }
+        catch (Exception ex) { _msg = $"bulk approve error: {ex.Message}"; }
+        finally { _busy = false; }
+        ClearSelection();
+        await Load();
+        await OnChanged.InvokeAsync();
+    }
+
+    async Task BulkReject()
+    {
+        if (_selected.Count == 0) return;
+        _busy = true; _msg = "rejecting…";
+        try
+        {
+            var resp = await Client().PostAsJsonAsync("/api/protos/staged/bulk-reject",
+                new { ids = _selected.ToList(), note = (string?)null }, JsonOpts);
+            if (resp.IsSuccessStatusCode)
+            {
+                var r = await resp.Content.ReadFromJsonAsync<BulkRejectResp>(JsonOpts);
+                _msg = r is null ? "rejected" : $"rejected {r.Rejected}";
+            }
+            else _msg = $"bulk reject failed ({(int)resp.StatusCode})";
+        }
+        catch (Exception ex) { _msg = $"bulk reject error: {ex.Message}"; }
+        finally { _busy = false; }
+        ClearSelection();
+        await Load();
+        await OnChanged.InvokeAsync();
+    }
+
     async Task ImportCrawl(InputFileChangeEventArgs e)
     {
-        _busy = true;
-        _msg = "importing...";
+        _busy = true; _msg = "importing…";
         try
         {
             using var content = new MultipartFormDataContent();
@@ -132,6 +266,9 @@
         await Load();
         await OnChanged.InvokeAsync();
     }
+
+    sealed record BulkApproveResp(int Approved, int Skipped, int Failed);
+    sealed record BulkRejectResp(int Rejected);
 
     public sealed class StagedRow
     {

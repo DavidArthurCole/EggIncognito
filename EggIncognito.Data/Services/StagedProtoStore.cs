@@ -105,4 +105,40 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         await db.SaveChangesAsync(ct);
         return true;
     }
+
+    // One item of a bulk approve: the staged id + the (possibly edited) metadata to promote with.
+    public readonly record struct ApproveItem(int Id, string? Platform, string? AppVersion, string? Build, string? ClientVersion);
+    public readonly record struct BulkApproveResult(int Approved, int Skipped, int Failed);
+
+    // Bulk-approve: approve each item with its edits. Rows that cannot be approved (missing build, collision,
+    // already gone) are counted as skipped/failed, never abort the batch. Returns per-outcome counts.
+    public async Task<BulkApproveResult> BulkApproveAsync(
+        IReadOnlyList<ApproveItem> items, string reviewedBy, CancellationToken ct)
+    {
+        int ok = 0, skipped = 0, failed = 0;
+        foreach (var it in items)
+        {
+            var r = await ApproveAsync(it.Id, it.Platform, it.AppVersion, it.Build, it.ClientVersion, reviewedBy, ct);
+            switch (r)
+            {
+                case ApproveResult.Ok: ok++; break;
+                case ApproveResult.MissingBuild or ApproveResult.BuildCollision: skipped++; break;
+                default: failed++; break; // NotFound
+            }
+        }
+        return new BulkApproveResult(ok, skipped, failed);
+    }
+
+    // Bulk-reject: reject each pending id (hidden + sha blocked from re-offer). Returns the count rejected.
+    public async Task<int> BulkRejectAsync(IReadOnlyList<int> ids, string? note, string reviewedBy, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var rows = await db.StagedProtos.Where(s => ids.Contains(s.Id) && s.Status == "pending").ToListAsync(ct);
+        foreach (var row in rows)
+        {
+            row.Status = "rejected"; row.ReviewNote = note; row.ReviewedBy = reviewedBy; row.ReviewedAt = now;
+        }
+        if (rows.Count > 0) await db.SaveChangesAsync(ct);
+        return rows.Count;
+    }
 }

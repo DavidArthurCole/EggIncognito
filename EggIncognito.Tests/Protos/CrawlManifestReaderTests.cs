@@ -66,6 +66,54 @@ public class CrawlManifestReaderTests
     }
 
     [Fact]
+    public void Read_VersionFile_HighestTrust_CarriesPlatformAndFullTriple()
+    {
+        // version-file confidence beats subject for the same sha + supplies the full triple + platform (IOS).
+        var manifest = JsonSerializer.Serialize(new[]
+        {
+            new { Repo = "subj", Commit = "c1", Date = "2022-01-01T00:00:00Z", ProtoPath = "ei.proto",
+                  ProtoSha256 = "shaV", ClientVersion = (int?)null, AppVersion = "1.23", Build = (string?)null,
+                  SnapshotFile = "snapshots/subj/a.proto", Reason = "x", VersionConfidence = "subject",
+                  CommitSubject = "s", Platform = (string?)null },
+            new { Repo = "vfile", Commit = "c2", Date = "2022-02-01T00:00:00Z", ProtoPath = "ei.proto",
+                  ProtoSha256 = "shaV", ClientVersion = (int?)40, AppVersion = "1.23.1", Build = "1.23.1.0",
+                  SnapshotFile = "snapshots/vfile/b.proto", Reason = "x", VersionConfidence = "version-file",
+                  CommitSubject = "s", Platform = "IOS" },
+        });
+        var zip = BuildZip(new[]
+        {
+            ("manifest.json", manifest),
+            ("snapshots/vfile/b.proto", "syntax = \"proto2\"; // V"),
+        });
+
+        var rec = Assert.Single(CrawlManifestReader.Read(zip));
+        Assert.Equal("version-file", rec.Confidence);   // beat subject
+        Assert.Equal("vfile", rec.OriginRepo);
+        Assert.Equal("1.23.1", rec.AppVersion);          // full triple from the version file
+        Assert.Equal("1.23.1.0", rec.Build);
+        Assert.Equal("40", rec.ClientVersion);
+        Assert.Equal("ios", rec.Platform);               // IOS -> ios
+        Assert.Contains("// V", rec.ProtoText);
+    }
+
+    [Fact]
+    public void Read_AndroidPlatform_Normalized()
+    {
+        var manifest = JsonSerializer.Serialize(new[]
+        {
+            new { Repo = "r", Commit = "c", Date = "2025-01-01T00:00:00Z", ProtoPath = "ei.proto",
+                  ProtoSha256 = "shaD", ClientVersion = (int?)71, AppVersion = "1.17.0", Build = (string?)null,
+                  SnapshotFile = "snapshots/r/d.proto", Reason = "x", VersionConfidence = "version-file",
+                  CommitSubject = "s", Platform = "ANDROID" },
+        });
+        var zip = BuildZip(new[] { ("manifest.json", manifest), ("snapshots/r/d.proto", "syntax = \"proto2\";") });
+        var rec = Assert.Single(CrawlManifestReader.Read(zip));
+        Assert.Equal("android", rec.Platform);
+        Assert.Equal("1.17.0", rec.AppVersion);
+        Assert.Equal("71", rec.ClientVersion);
+    }
+
+    [Fact]
     public void Read_TreeScanVersion_NotAttached_ButConfidenceCarried()
     {
         // A single tree-scan record: proto content ingested, but its (heuristic) version is NOT trusted.

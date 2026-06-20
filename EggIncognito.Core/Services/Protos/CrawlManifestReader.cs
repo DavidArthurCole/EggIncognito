@@ -5,11 +5,13 @@ namespace EggIncognito.Core.Services.Protos;
 
 // Parses the GitHub-crawl backfill dataset (a zip of manifest.json + snapshots/*.proto) into distinct proto
 // states for staging. Per the dataset SUMMARY contract: ingest proto content always, deduped by ProtoSha256;
-// attach version (appVersion/build/clientVersion) ONLY when VersionConfidence="subject" (time-accurate, from
-// the commit subject). "tree-scan" is a heuristic (max constant in the repo tree, can linger / mismatch) so
-// its version is NOT attached - the row stages version-less for manual review, but its Confidence is carried
-// so the reviewer sees the heuristic hint. For each distinct sha, the BEST record wins (subject beats
-// tree-scan beats empty; earliest date breaks ties). Platform-agnostic crawl -> default platform "android".
+// attach version (appVersion/build/clientVersion) only for TRUSTED confidence = "version-file" (read from a
+// vendored version-const file at the commit: APP_VERSION/APP_BUILD/CLIENT_VERSION/PLATFORM, time-accurate) or
+// "subject" (parsed from the commit subject). "tree-scan" is a heuristic (max constant lingering in the tree,
+// can mismatch) so its version is NOT attached - the row stages version-less for manual review, its Confidence
+// carried so the reviewer sees the hint. For each distinct sha, the BEST record wins (version-file > subject >
+// tree-scan > empty; earliest date breaks ties). Platform comes from the manifest (IOS/ANDROID) when known,
+// else defaults to "android".
 public static class CrawlManifestReader
 {
     public sealed record CrawlRecord(
@@ -18,14 +20,28 @@ public static class CrawlManifestReader
 
     private sealed record ManifestRow(
         string? Repo, string? Commit, DateTimeOffset? Date, string? ProtoSha256,
-        int? ClientVersion, string? AppVersion, string? Build, string? SnapshotFile, string? VersionConfidence);
+        int? ClientVersion, string? AppVersion, string? Build, string? SnapshotFile, string? VersionConfidence,
+        string? Platform);
 
-    // subject (2) > tree-scan (1) > empty/other (0). Higher = preferred when deduping a sha.
+    // version-file (3) > subject (2) > tree-scan (1) > empty/other (0). Higher = preferred when deduping a sha.
     private static int ConfidenceRank(string? c) => c switch
     {
+        "version-file" => 3,
         "subject" => 2,
         "tree-scan" => 1,
         _ => 0,
+    };
+
+    // version-file + subject are time-accurate -> attach their version. tree-scan/empty stage version-less.
+    private static bool IsTrusted(string? c) => c is "version-file" or "subject";
+
+    // Manifest Platform is "IOS"/"ANDROID" (or null); the registry keys on lowercase "ios"/"android". Unknown
+    // platform defaults to "android" (the registry's canonical), which the reviewer can re-key at approve.
+    private static string NormalizePlatform(string? p) => p?.ToUpperInvariant() switch
+    {
+        "IOS" => "ios",
+        "ANDROID" => "android",
+        _ => "android",
     };
 
     public static IReadOnlyList<CrawlRecord> Read(byte[] zipBytes)
@@ -60,10 +76,11 @@ public static class CrawlManifestReader
             string text;
             using (var sr = new StreamReader(snap.Open())) text = sr.ReadToEnd();
 
-            // Attach version only for subject-confidence; tree-scan/empty stage version-less (review-only).
-            var trusted = r.VersionConfidence == "subject";
+            // Attach version only for trusted confidence (version-file/subject); tree-scan/empty stage
+            // version-less (review-only). Platform comes from the manifest when known, else defaults android.
+            var trusted = IsTrusted(r.VersionConfidence);
             result.Add(new CrawlRecord(
-                "android",
+                NormalizePlatform(r.Platform),
                 trusted ? r.AppVersion : null,
                 trusted ? r.Build : null,
                 trusted ? r.ClientVersion?.ToString() : null,

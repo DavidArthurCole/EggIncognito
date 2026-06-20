@@ -50,4 +50,33 @@ public class StagedProtoStoreTests
         Assert.Equal(StagedProtoStore.OfferResult.AlreadyPending, // rejected sha blocks re-offer
             await store.OfferAsync("android", "1.5", "5", null, "p", "sha3", "proto", null, "u", default));
     }
+
+    [Fact(Skip = "requires Postgres; no EF test provider per tests-DB-free repo rule")]
+    public async Task BulkReject_RejectsAllPendingIds()
+    {
+        await using var db = new EggIncognitoDbContext(Opts);
+        var store = new StagedProtoStore(db, new ProtoRegistryStore(db));
+        await store.OfferAsync("android", null, null, null, "p", "b1", "proto", null, "u", default);
+        await store.OfferAsync("android", null, null, null, "p", "b2", "proto", null, "u", default);
+        var ids = (await store.PendingAsync(default)).Select(r => r.Id).ToList();
+        var n = await store.BulkRejectAsync(ids, "batch", "admin", default);
+        Assert.Equal(2, n);
+        Assert.Empty(await store.PendingAsync(default));
+    }
+
+    [Fact(Skip = "requires Postgres; no EF test provider per tests-DB-free repo rule")]
+    public async Task BulkApprove_PromotesValid_SkipsMissingBuild()
+    {
+        await using var db = new EggIncognitoDbContext(Opts);
+        var store = new StagedProtoStore(db, new ProtoRegistryStore(db));
+        await store.OfferAsync("android", "1.40", "111", "72", "p", "ok1", "proto", null, "u", default); // approvable
+        await store.OfferAsync("android", null, null, null, "p", "nobuild", "proto", null, "u", default); // missing build
+        var pend = await store.PendingAsync(default);
+        var items = pend.Select(r => new StagedProtoStore.ApproveItem(
+            r.Id, r.Platform, r.AppVersion, r.Build, r.ClientVersion)).ToList();
+        var res = await store.BulkApproveAsync(items, "admin", default);
+        Assert.Equal(1, res.Approved); // the one with build
+        Assert.Equal(1, res.Skipped);  // the missing-build one
+        Assert.Equal(0, res.Failed);
+    }
 }

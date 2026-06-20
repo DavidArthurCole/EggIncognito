@@ -210,6 +210,37 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return await s.RejectAsync(id, req.Note, who, ct) ? Ok(new { ok = true }) : NotFound();
     }
 
+    public sealed record BulkApproveItem(int Id, string? Platform, string? AppVersion, string? Build, string? ClientVersion);
+    public sealed record BulkApproveRequest(IReadOnlyList<BulkApproveItem> Items);
+
+    // Contributor+: approve many staged rows with their (edited) metadata. Rows that can't promote (missing
+    // build, collision) are skipped, not fatal. Returns per-outcome counts.
+    [HttpPost("/api/protos/staged/bulk-approve")]
+    public async Task<IActionResult> StagedBulkApprove([FromBody] BulkApproveRequest req, CancellationToken ct)
+    {
+        if (Require(UserRole.Contributor) is { } no) return no;
+        if (StagedStore is not { } s) return StatusCode(503, new { error = NoDb });
+        var who = user.DiscordId ?? "?";
+        var items = (req.Items ?? [])
+            .Select(i => new StagedProtoStore.ApproveItem(i.Id, i.Platform, i.AppVersion, i.Build, i.ClientVersion))
+            .ToList();
+        var r = await s.BulkApproveAsync(items, who, ct);
+        return Ok(new { ok = true, approved = r.Approved, skipped = r.Skipped, failed = r.Failed });
+    }
+
+    public sealed record BulkRejectRequest(IReadOnlyList<int> Ids, string? Note);
+
+    // Contributor+: reject many staged rows at once. Returns the count rejected.
+    [HttpPost("/api/protos/staged/bulk-reject")]
+    public async Task<IActionResult> StagedBulkReject([FromBody] BulkRejectRequest req, CancellationToken ct)
+    {
+        if (Require(UserRole.Contributor) is { } no) return no;
+        if (StagedStore is not { } s) return StatusCode(503, new { error = NoDb });
+        var who = user.DiscordId ?? "?";
+        var rejected = await s.BulkRejectAsync(req.Ids ?? [], req.Note, who, ct);
+        return Ok(new { ok = true, rejected });
+    }
+
     // Admin: bulk-import the GitHub-crawl backfill dataset (zip of manifest.json + snapshots/) into staging.
     [HttpPost("/api/protos/staged/import-crawl")]
     public async Task<IActionResult> ImportCrawl(IFormFile file, CancellationToken ct)
