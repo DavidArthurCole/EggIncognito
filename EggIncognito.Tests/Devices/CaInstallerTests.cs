@@ -74,25 +74,27 @@ public class CaInstallerTests
     }
 
     [Fact]
-    public async Task Adb_PushesPem_ThenRunsRootScript_WithHashSubstituted()
+    public async Task Adb_PushesPemAndScript_ThenRunsItAsRoot()
     {
         var (path, cert) = MakeCa();
         try
         {
-            var runner = new FakeRunner((_, _) => new ProcessResult(0, "installed", ""));
+            // verify line present => reported VISIBLE; also confirms note carries the diag.
+            var runner = new FakeRunner((_, _) => new ProcessResult(0, "diag verify-zygotens: present\ndiag done", ""));
             var inst = new AdbCaInstaller(runner);
             var (ok, note) = await inst.InstallAsync(new DeviceCaTarget("d", "android", "SERIAL"), path, default);
 
             Assert.True(ok);
-            var push = runner.Calls.Single(c => c.args.Contains("push"));
-            Assert.Contains("SERIAL", push.args);
-            var shell = runner.Calls.Single(c => c.args.Contains("su"));
-            var script = shell.args[^1];
+            // Two pushes: the PEM and the install script.
+            var pushes = runner.Calls.Where(c => c.args.Contains("push")).ToList();
+            Assert.Equal(2, pushes.Count);
+            Assert.All(pushes, p => Assert.Contains("SERIAL", p.args));
+            // The script runs by PATH (no inline word-split), as root.
+            var run = runner.Calls.Single(c => c.args.Contains("su"));
+            Assert.Contains("/data/local/tmp/eggincognito-ca-install.sh", run.args);
             var hash = CaCertPrep.AndroidSubjectHashOld(cert);
-            Assert.Contains($"{hash}.0", script);            // hash substituted into the script
-            Assert.DoesNotContain("{hash}", script);          // placeholder gone
-            Assert.DoesNotContain("{pem_path}", script);
             Assert.Contains(hash, note!);
+            Assert.Contains("VISIBLE", note!);
         }
         finally { File.Delete(path); }
     }

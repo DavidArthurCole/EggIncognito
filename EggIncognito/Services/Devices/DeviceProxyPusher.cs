@@ -121,13 +121,23 @@ public sealed class DeviceProxyPusher(
                 // worked. Override the whole command via DeviceCapture:Ios:RestartCommand if a method is wrong.
                 var bundle = d.Package; // com.auxbrain.egginc
                 var proc = string.IsNullOrEmpty(config.IosAppProcessName) ? "Egg, Inc." : config.IosAppProcessName;
+                // sh (not the login zsh) for predictable POSIX. Probe which launchers exist, kill any running
+                // egg process by PID, then try every known jailbroken cold-launch by BUNDLE ID until one
+                // brings the app up. `uiopen`/`open` take a bundle id on most jailbreaks; sbreloadlaunch via
+                // `launchctl`/`uicache -l` are fallbacks. Reports which launcher worked.
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
-                    ? "echo diag ps:; ps -A -o pid,comm 2>/dev/null | grep -i egg || echo '  (no egg process)'; " +
-                      $"killall -9 \"{proc}\" 2>&1 | sed 's/^/diag killall-name: /'; " +
-                      $"for p in $(ps -A -o pid,comm 2>/dev/null | grep -i egg | awk '{{print $1}}'); do kill -9 $p 2>&1 | sed 's/^/diag kill-pid: /'; done; " +
+                    ? "/bin/sh -c '" +
+                      "echo diag launchers:; for c in uiopen open sblaunch uicache activator; do command -v $c >/dev/null 2>&1 && echo \"  have $c\"; done; " +
+                      "echo diag ps:; ps -A -o pid,comm 2>/dev/null | grep -i egg || echo \"  (no egg process)\"; " +
+                      "for p in $(ps -A 2>/dev/null | grep -i egg | grep -v grep | awk \"{print \\$1}\"); do kill -9 $p 2>&1 | sed \"s/^/diag kill-pid: /\"; done; " +
                       "sleep 1; " +
-                      $"(open {bundle} 2>&1 || uiopen {bundle}:// 2>&1) | sed 's/^/diag launch: /'; " +
-                      "sleep 2; echo diag ps-after:; ps -A -o pid,comm 2>/dev/null | grep -i egg || echo '  (not running after launch!)'"
+                      $"L=\"\"; " +
+                      $"if command -v uiopen >/dev/null 2>&1; then uiopen {bundle}:// 2>&1 | sed \"s/^/diag uiopen: /\"; L=uiopen; fi; " +
+                      $"if command -v open >/dev/null 2>&1; then open {bundle} 2>&1 | sed \"s/^/diag open: /\"; L=open; fi; " +
+                      $"command -v uicache >/dev/null 2>&1 && uicache -l 2>/dev/null | grep -q {bundle} && echo \"diag uicache: bundle known\"; " +
+                      "echo \"diag launcher-used: ${L:-NONE}\"; " +
+                      "sleep 3; echo diag ps-after:; ps -A -o pid,comm 2>/dev/null | grep -i egg || echo \"  (not running after launch!)\"" +
+                      "'"
                     : config.IosRestartCommand.Replace("{bundle}", bundle).Replace("{proc}", proc);
                 var r = await runner.RunAsync("ssh",
                     ["-p", config.IosSshPort, "-i", config.IosSshKeyPath, "-o", "StrictHostKeyChecking=no",

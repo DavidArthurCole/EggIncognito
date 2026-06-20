@@ -3,53 +3,57 @@ using System.Security.Cryptography.X509Certificates;
 namespace EggIncognito.Core.Services.Devices;
 
 // Installs the capture CA into a ROOTED Android device's SYSTEM trust store over adb, so apps that only
-// trust system CAs (and ignore the user store) accept the proxy. On Android 14 (the farm A15) the system
-// cacerts dirs are read-only (a /system copy + the conscrypt APEX copy), so the rooted technique is: build
-// a tmpfs holding the existing system certs PLUS ours, then bind-mount that tmpfs over both cacerts dirs.
-// The cert filename is `<subject_hash_old>.0` (OpenSSL legacy hash), computed in-process by CaCertPrep.
+// trust system CAs (Egg Inc ignores the user store) accept the proxy and auxbrain flows decrypt.
 //
-// The mount script is config-templated (DeviceCapture:Android:CaInstallScript) with {hash}/{pem_path}
-// placeholders so it is tunable per-ROM without a rebuild; a working Android-14 default is built in. The
-// PEM is pushed to /data/local/tmp first. adb reaches the device via the host's adb server (same as probes).
-// Idempotent (overwrites the same hash file). Never throws: a non-zero adb exit returns (false, note).
+// Android 14 (the farm A15) makes this hard:
+//   - the system cacerts dirs are read-only (a /system copy + the conscrypt APEX copy);
+//   - apps fork from zygote, which has its OWN mount namespace, so a bind-mount done in the adb/su shell is
+//     invisible to the game; the mount must be visible to zygote's namespace.
+//   - entering PID 1's mount ns (`nsenter -t 1 -m`) is SELinux-DENIED for the su domain on this ROM
+//     ("/proc/1/ns/mnt: Permission denied"), so the PID-1 trick is out.
+// Working approach: build a tmpfs dir of the existing system certs PLUS ours, bind-mount it over both cacerts
+// paths, and enter ZYGOTE's mount namespace (not PID 1) to do it - zygote is the parent of every app, and its
+// ns is reachable by the su domain where PID 1 is not. App processes already running don't see it, so the
+// caller force-restarts Egg Inc afterwards (a fresh fork inherits zygote's mount).
+//
+// The whole script is PUSHED AS A FILE and executed, never passed as `sh -c "..."` (adb word-splits a single
+// arg, so only the first ;-segment ran - that bug wrote the cert to "/<hash>.0" with $D empty). Every step
+// echoes a `diag` line, surfaced in the install note. Config override: DeviceCapture:Android:CaInstallScript.
 public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptTemplate = null) : IDeviceCaInstaller
 {
     public string Platform => "android";
 
-    // Pushed PEM location on the device; referenced by {pem_path} in the script.
     private const string RemotePem = "/data/local/tmp/eggincognito-ca.pem";
+    private const string RemoteScript = "/data/local/tmp/eggincognito-ca-install.sh";
 
-    // Default rooted Android-14 system-CA install, NAMESPACE-CORRECT. On Android 14 the system cacerts dirs
-    // are read-only, AND a plain `mount` in the adb/su shell lands in that shell's mount namespace - apps fork
-    // from zygote, which shares INIT's (PID 1) namespace, so a shell-local mount is invisible to the game.
-    // Fix: build a tmpfs dir holding the existing system certs PLUS ours, then bind-mount it over both cacerts
-    // paths INSIDE init's namespace via `nsenter -t 1 -m`, so zygote + every app launched after (the force-
-    // restart that follows) inherits the mount and the game's TrustManager sees our CA. Falls back to a plain
-    // bind when nsenter is unavailable (better than nothing). The conscrypt APEX path is what Android 14 reads.
-    // Namespace-correct Android-14 system-CA install that REPORTS what actually happened (every step echoes
-    // a `diag:` line, surfaced in the install note) instead of swallowing errors behind `|| true`. The mount
-    // must land in INIT's (PID 1) mount namespace so zygote + every app forked after inherits it - a mount in
-    // the adb/su shell's own namespace is invisible to the game. We try `nsenter -t 1 -m` (preferred), report
-    // whether nsenter exists + whether the bind took, then VERIFY by reading our hash file back through the
-    // init namespace. The caller force-restarts the app afterwards so it forks with the mount visible.
+    // Pushed + executed as a file (so $vars and multi-line logic survive). Mounts into zygote's mount ns,
+    // since PID 1's is SELinux-denied. Reports every step. {hash}/{pem_path} substituted before push.
     private const string DefaultScript =
-        "D=/data/local/tmp/eggcacerts; rm -rf $D; mkdir -p $D; " +
-        "cp /system/etc/security/cacerts/* $D/ 2>/dev/null; " +
-        "cp /apex/com.android.conscrypt/cacerts/* $D/ 2>/dev/null; " +
-        "cp {pem_path} $D/{hash}.0 && chmod 644 $D/{hash}.0 && chown 0:0 $D/{hash}.0; " +
-        "chcon u:object_r:system_security_cacerts_file:s0 $D/{hash}.0 2>&1 | sed 's/^/diag chcon: /'; " +
-        "if command -v nsenter >/dev/null 2>&1; then echo 'diag nsenter: present'; NS='nsenter -t 1 -m --'; " +
-        "  else echo 'diag nsenter: MISSING (toybox lacks it - falling back to shell-ns mount, game will NOT see it)'; NS=''; fi; " +
-        "for T in /system/etc/security/cacerts /apex/com.android.conscrypt/cacerts; do " +
-        "  [ -d $T ] || continue; " +
-        "  $NS mount --bind $D $T 2>&1 | sed \"s|^|diag mount $T: |\"; " +
-        "  echo \"diag mount $T rc=$?\"; " +
-        "done; " +
-        // Verify from init's namespace: can a freshly-entered ns read our cert at the conscrypt path?
-        "if [ -n \"$NS\" ]; then " +
-        "  $NS sh -c '[ -f /apex/com.android.conscrypt/cacerts/{hash}.0 ] && echo present || echo absent' 2>&1 | sed 's/^/diag verify-initns: /'; " +
-        "fi; " +
-        "echo \"diag done {hash}.0\"";
+        "#!/system/bin/sh\n" +
+        "D=/data/local/tmp/eggcacerts\n" +
+        "rm -rf \"$D\"; mkdir -p \"$D\"\n" +
+        "cp /system/etc/security/cacerts/* \"$D/\" 2>/dev/null\n" +
+        "cp /apex/com.android.conscrypt/cacerts/* \"$D/\" 2>/dev/null\n" +
+        "cp {pem_path} \"$D/{hash}.0\" && chmod 644 \"$D/{hash}.0\" && chown 0:0 \"$D/{hash}.0\"\n" +
+        "chcon u:object_r:system_security_cacerts_file:s0 \"$D\"/* 2>&1 | sed 's/^/diag chcon: /'\n" +
+        "[ -f \"$D/{hash}.0\" ] && echo 'diag staged: ok' || echo 'diag staged: FAILED (cert not in $D)'\n" +
+        // Find zygote (prefer 64-bit). Its mount namespace is what apps inherit and is reachable where PID 1 is not.
+        "ZP=$(pidof zygote64 2>/dev/null || pidof zygote 2>/dev/null); echo \"diag zygote-pid: ${ZP:-none}\"\n" +
+        "command -v nsenter >/dev/null 2>&1 && echo 'diag nsenter: present' || echo 'diag nsenter: MISSING'\n" +
+        "for T in /system/etc/security/cacerts /apex/com.android.conscrypt/cacerts; do\n" +
+        "  [ -d \"$T\" ] || continue\n" +
+        "  if [ -n \"$ZP\" ] && command -v nsenter >/dev/null 2>&1; then\n" +
+        "    nsenter -t \"$ZP\" -m -- mount --bind \"$D\" \"$T\" 2>&1 | sed \"s|^|diag zygote-mount $T: |\"\n" +
+        "    echo \"diag zygote-mount $T rc=$?\"\n" +
+        "  fi\n" +
+        // Also bind in the current ns (covers tooling that reads from this context + some ROMs propagate).
+        "  mount --bind \"$D\" \"$T\" 2>&1 | sed \"s|^|diag shell-mount $T: |\"\n" +
+        "done\n" +
+        // Verify from zygote's namespace: will a freshly-forked app see our cert?
+        "if [ -n \"$ZP\" ] && command -v nsenter >/dev/null 2>&1; then\n" +
+        "  nsenter -t \"$ZP\" -m -- sh -c '[ -f /apex/com.android.conscrypt/cacerts/{hash}.0 ] && echo present || echo absent' 2>&1 | sed 's/^/diag verify-zygotens: /'\n" +
+        "fi\n" +
+        "echo 'diag done {hash}.0'\n";
 
     public async Task<(bool Ok, string? Note)> InstallAsync(DeviceCaTarget device, string caPath, CancellationToken ct)
     {
@@ -62,31 +66,40 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         var hash = CaCertPrep.AndroidSubjectHashOld(cert);
         var pem = CaCertPrep.ToPem(cert);
 
-        // Push the PEM by writing it on the device through a here-doc-free `echo` would mangle newlines, so
-        // push the local file directly. Write the local PEM to a temp file adb can push.
-        var tmp = Path.Combine(Path.GetTempPath(), $"eggincognito-ca-{device.Id}.pem");
-        try { await File.WriteAllTextAsync(tmp, pem, ct); }
-        catch (Exception ex) { return (false, $"could not stage pem: {ex.Message}"); }
-
-        var push = await Adb(device.Target, ["push", tmp, RemotePem], ct);
-        try { File.Delete(tmp); } catch { /* best-effort */ }
-        if (push.ExitCode != 0) return (false, "push pem failed: " + DeviceParsing.TrimNote(push.Stderr + push.Stdout));
-
+        // Stage PEM + script as local temp files and push both (a pushed script preserves $vars + newlines,
+        // which `adb shell su 0 sh -c "<script>"` does NOT - adb word-splits the one arg).
+        var tmpPem = Path.Combine(Path.GetTempPath(), $"eggincognito-ca-{device.Id}.pem");
+        var tmpScript = Path.Combine(Path.GetTempPath(), $"eggincognito-ca-{device.Id}.sh");
         var script = (installScriptTemplate ?? DefaultScript)
             .Replace("{hash}", hash)
-            .Replace("{pem_path}", RemotePem);
+            .Replace("{pem_path}", RemotePem)
+            .Replace("\r\n", "\n"); // LF only - CRLF breaks the on-device shebang/parse
+        try
+        {
+            await File.WriteAllTextAsync(tmpPem, pem, ct);
+            await File.WriteAllTextAsync(tmpScript, script, ct);
+        }
+        catch (Exception ex) { return (false, $"could not stage files: {ex.Message}"); }
 
-        // Run as root in one shell. `su 0 sh -c '<script>'` is the rooted invocation; some ROMs want
-        // `su -c`, so the template can be overridden. The script is passed as a single argument. The script
-        // echoes `diag ...` lines describing what actually happened (nsenter present? mount rc? cert visible
-        // from init's namespace?); those are surfaced in the note + logged so a failed mount is diagnosable
-        // instead of always reporting success.
-        var r = await Adb(device.Target, ["shell", "su", "0", "sh", "-c", script], ct);
+        try
+        {
+            var pushPem = await Adb(device.Target, ["push", tmpPem, RemotePem], ct);
+            if (pushPem.ExitCode != 0) return (false, "push pem failed: " + DeviceParsing.TrimNote(pushPem.Stderr + pushPem.Stdout));
+            var pushScript = await Adb(device.Target, ["push", tmpScript, RemoteScript], ct);
+            if (pushScript.ExitCode != 0) return (false, "push script failed: " + DeviceParsing.TrimNote(pushScript.Stderr + pushScript.Stdout));
+        }
+        finally
+        {
+            try { File.Delete(tmpPem); } catch { }
+            try { File.Delete(tmpScript); } catch { }
+        }
+
+        // Execute the pushed script as root. Passing the PATH as the single arg to `sh` avoids word-splitting.
+        var r = await Adb(device.Target, ["shell", "su", "0", "sh", RemoteScript], ct);
         var diag = DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
-        if (r.ExitCode != 0) return (false, $"install script rc={r.ExitCode}: {diag}");
-        // The verify line tells the truth: "verify-initns: present" => the game's namespace will see the CA.
-        var trusted = r.Stdout.Contains("verify-initns: present");
-        return (true, $"{hash}.0 ({(trusted ? "VISIBLE in init-ns" : "NOT verified - see diag")}): {diag}");
+        if (r.ExitCode != 0) return (false, $"install rc={r.ExitCode}: {diag}");
+        var trusted = r.Stdout.Contains("verify-zygotens: present");
+        return (true, $"{hash}.0 ({(trusted ? "VISIBLE to zygote" : "NOT verified - see diag")}): {diag}");
     }
 
     private Task<ProcessResult> Adb(string serial, IEnumerable<string> rest, CancellationToken ct) =>
