@@ -23,6 +23,8 @@ public sealed class DeviceProxyPusher(
     // Resolve the address devices dial back to. Config override wins; else auto-detect the primary LAN IPv4.
     public string? HostIp => HostAddress.Resolve(config.HostIp);
 
+    private bool _warnedBridge;
+
     // Push every declared device's proxy to its capture port. Best-effort per device.
     public async Task PushAllAsync(IReadOnlyList<DeviceEntry> devices, CancellationToken ct)
     {
@@ -33,7 +35,26 @@ public sealed class DeviceProxyPusher(
             logger.LogWarning("device capture: cannot push proxy, host IP unresolved (set DeviceCapture:HostIp)");
             return;
         }
+        // Containerized hosts auto-detect the docker BRIDGE IP (172.17-31.x), which a LAN device cannot reach -
+        // the device's traffic then never arrives and capture sees 0 flows. If HostIp was auto-detected (not
+        // pinned) and looks like a bridge address, warn once: pin DeviceCapture:HostIp to the host's LAN IP.
+        if (!_warnedBridge && string.IsNullOrWhiteSpace(config.HostIp) && LooksLikeDockerBridge(host))
+        {
+            _warnedBridge = true;
+            logger.LogWarning(
+                "device capture: auto-detected host IP {Host} looks like a docker bridge address - LAN devices " +
+                "cannot reach it, so no traffic will be captured. Pin DeviceCapture:HostIp to the host's LAN IP.",
+                host);
+        }
         foreach (var d in devices) await PushOneAsync(d, host, ct);
+    }
+
+    // 172.17.0.0/16 (default docker bridge) + the wider 172.16/12 docker-compose range. Not authoritative
+    // (172.16/12 is a legit LAN range), just a heuristic to flag the common containerized misconfig.
+    internal static bool LooksLikeDockerBridge(string ip)
+    {
+        var p = ip.Split('.');
+        return p.Length == 4 && p[0] == "172" && int.TryParse(p[1], out var b) && b >= 16 && b <= 31;
     }
 
     public async Task<(bool Ok, string? Note)> PushOneAsync(DeviceEntry d, string host, CancellationToken ct)

@@ -24,12 +24,18 @@ public sealed class DeviceCaptureManager(
     string caPath,
     Func<bool, ICaptureProxy>? proxyFactory,
     string contentRoot,
-    ILogger<DeviceCaptureManager> logger) : IHostedService
+    ILogger<DeviceCaptureManager> logger,
+    IEnumerable<EggIncognito.Core.Services.Devices.IDeviceCaInstaller>? caInstallers = null) : IHostedService
 {
     private readonly Func<bool, ICaptureProxy> _proxyFactory = proxyFactory ?? (verbose => new UnobtaniumCaptureProxy(verbose));
     private readonly ConcurrentDictionary<string, DeviceCapture> _captures = new();
     private readonly ConcurrentDictionary<string, DeviceCaptureDiag> _diag = new();
     private readonly DeviceRinfoStore _rinfo = new(capturePath);
+    // CA installer per platform. Rooted/jailbroken devices: the capture CA is installed + trusted on the
+    // device automatically (no tap) so the proxy's MITM decrypts. Empty when none registered (tests).
+    private readonly IReadOnlyDictionary<string, EggIncognito.Core.Services.Devices.IDeviceCaInstaller> _caInstallers =
+        (caInstallers ?? []).GroupBy(c => c.Platform, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _cts;
 
     // Per-device listener: its proxy, dedicated port, and the harvest pump.
@@ -128,11 +134,39 @@ public sealed class DeviceCaptureManager(
             await proxy.StartAsync(port, caPath, ct);
 
             _captures[d.Id] = new DeviceCapture(proxy, port, queue, pump);
-            logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca})", d.Id, port, caPath);
+            logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca}, freshCa={Fresh})",
+                d.Id, port, caPath, proxy.FreshCa);
+
+            // Auto-install + trust the capture CA on the (rooted/jailbroken) device, so the proxy's MITM TLS
+            // is accepted and flows decrypt. Best-effort: a failure leaves the device untrusted (the chip will
+            // show "CA untrusted"), never blocks the listener. Idempotent, so running it every start is safe.
+            await InstallCaAsync(d, ct);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "device capture: {Id} failed to start on :{Port}", d.Id, port);
+        }
+    }
+
+    // Install + trust the capture CA on one device via its platform installer. Best-effort + logged; a miss
+    // never breaks capture (the device just stays untrusted until the next attempt). Public so the device
+    // status panel / a manual button can re-trigger after a cert change without restarting the host.
+    public async Task<(bool Ok, string? Note)> InstallCaAsync(DeviceEntry d, CancellationToken ct)
+    {
+        if (!_caInstallers.TryGetValue(d.Platform, out var installer))
+            return (false, $"no CA installer for {d.Platform}");
+        try
+        {
+            var target = new EggIncognito.Core.Services.Devices.DeviceCaTarget(d.Id, d.Platform, d.Target);
+            var (ok, note) = await installer.InstallAsync(target, caPath, ct);
+            if (ok) logger.LogInformation("device capture: {Id} CA installed ({Note})", d.Id, note);
+            else logger.LogWarning("device capture: {Id} CA install failed: {Note}", d.Id, note);
+            return (ok, note);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "device capture: {Id} CA install threw", d.Id);
+            return (false, ex.Message);
         }
     }
 

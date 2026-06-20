@@ -20,10 +20,18 @@ public sealed record DeviceCaptureConfig
     public string? IosSetCommand { get; init; }
     public string? IosClearCommand { get; init; }
 
+    // CA auto-install on rooted/jailbroken devices. Android: an su mount script with {hash}/{pem_path}
+    // placeholders (built-in Android-14 default if unset). iOS: a sqlite3-insert command with
+    // {store}/{sha1}/{subj}/{data} placeholders + an optional TrustStore.sqlite3 path override.
+    public string? AndroidCaInstallScript { get; init; }
+    public string? IosCaInstallCommand { get; init; }
+    public string? IosTrustStorePath { get; init; }
+
     public static DeviceCaptureConfig Bind(IConfiguration config)
     {
         var dc = config.GetSection("DeviceCapture");
         var ios = dc.GetSection("Ios");
+        var android = dc.GetSection("Android");
         var upd = config.GetSection("DeviceUpdate").GetSection("Ios"); // fall back to the updater's ssh creds
 
         return new DeviceCaptureConfig
@@ -36,6 +44,9 @@ public sealed record DeviceCaptureConfig
             IosSshKeyPath = Nz(ios["SshKeyPath"]) ?? Nz(upd["SshKeyPath"]),
             IosSetCommand = Nz(ios["SetCommand"]),
             IosClearCommand = Nz(ios["ClearCommand"]),
+            AndroidCaInstallScript = Nz(android["CaInstallScript"]),
+            IosCaInstallCommand = Nz(ios["CaInstallCommand"]),
+            IosTrustStorePath = Nz(ios["TrustStorePath"]),
         };
     }
 

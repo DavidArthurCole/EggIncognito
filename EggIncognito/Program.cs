@@ -472,6 +472,19 @@ builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceProxyCon
         new EggIncognito.Core.Services.Devices.IosProxyConfigurator.SshConfig(
             deviceCaptureConfig.IosSshHost, deviceCaptureConfig.IosSshPort, deviceCaptureConfig.IosSshKeyPath,
             deviceCaptureConfig.IosSetCommand, deviceCaptureConfig.IosClearCommand)));
+// CA auto-install on the rooted/jailbroken farm devices: the capture CA is pushed + trusted on-device so
+// the per-device proxy's MITM TLS decrypts. Android over adb (rooted system-store mount); iOS over ssh
+// (TrustStore.sqlite3 insert). Same control channels as the proxy configurators + probes.
+builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceCaInstaller>(sp =>
+    new EggIncognito.Core.Services.Devices.AdbCaInstaller(
+        sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),
+        deviceCaptureConfig.AndroidCaInstallScript));
+builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceCaInstaller>(sp =>
+    new EggIncognito.Core.Services.Devices.IosCaInstaller(
+        sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),
+        new EggIncognito.Core.Services.Devices.IosCaInstaller.SshConfig(
+            deviceCaptureConfig.IosSshHost, deviceCaptureConfig.IosSshPort, deviceCaptureConfig.IosSshKeyPath,
+            deviceCaptureConfig.IosCaInstallCommand, deviceCaptureConfig.IosTrustStorePath)));
 builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
@@ -480,7 +493,8 @@ builder.Services.AddSingleton(sp =>
     var caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
     return new EggIncognito.Services.Devices.DeviceCaptureManager(
         deviceCaptureConfig, deviceConfig, capturePath, caPath, proxyFactory: null, contentRoot,
-        sp.GetRequiredService<ILogger<EggIncognito.Services.Devices.DeviceCaptureManager>>());
+        sp.GetRequiredService<ILogger<EggIncognito.Services.Devices.DeviceCaptureManager>>(),
+        sp.GetServices<EggIncognito.Core.Services.Devices.IDeviceCaInstaller>());
 });
 builder.Services.AddSingleton<EggIncognito.Services.Devices.DeviceProxyPusher>();
 if (deviceCaptureConfig.Enabled && deviceConfig.Devices.Count > 0)

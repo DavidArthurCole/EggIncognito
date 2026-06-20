@@ -76,9 +76,9 @@ public class CrawlManifestReaderTests
                   SnapshotFile = "snapshots/subj/a.proto", Reason = "x", VersionConfidence = "subject",
                   CommitSubject = "s", Platform = (string?)null },
             new { Repo = "vfile", Commit = "c2", Date = "2022-02-01T00:00:00Z", ProtoPath = "ei.proto",
-                  ProtoSha256 = "shaV", ClientVersion = (int?)40, AppVersion = "1.23.1", Build = "1.23.1.0",
+                  ProtoSha256 = "shaV", ClientVersion = (int?)40, AppVersion = "1.23.1", Build = (string?)"1.23.1.0",
                   SnapshotFile = "snapshots/vfile/b.proto", Reason = "x", VersionConfidence = "version-file",
-                  CommitSubject = "s", Platform = "IOS" },
+                  CommitSubject = "s", Platform = (string?)"IOS" },
         });
         var zip = BuildZip(new[]
         {

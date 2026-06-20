@@ -46,6 +46,18 @@
                                 <span class="text-muted opacity-60">@Ago(d.ProbedAt)</span>
                             }
                         </div>
+                        @{ var cap = Capture(d.Id); }
+                        @if (cap is not null)
+                        {
+                            var v = CaptureVerdict(cap);
+                            <div class="text-xs mt-0.5 flex items-center gap-1.5" title="@v.Detail">
+                                <span class="@v.Color">capture: @v.Label</span>
+                                @if (_clientVersion.GetValueOrDefault(d.Id) is int cv)
+                                {
+                                    <span class="code-chip">cv @cv</span>
+                                }
+                            </div>
+                        }
                     </div>
                     @if (_isAdmin)
                     {
@@ -99,8 +111,35 @@
 
     const string InfoDismissKey = "egi:devicesInfoDismissed";
 
+    // Live capture-boundary counters per device (from /api/devices/{id}/live). Tells which stage the device's
+    // traffic reached, so an empty clientVersion is diagnosable without reading raw JSON.
+    sealed record CaptureBlock(bool Listening, int Port, long ClientConnects, long AuxbrainConnects,
+        long Flows, long RinfoHarvests, string? LastDecryptError);
+    sealed record LiveResponse(bool Found, int? ClientVersion, CaptureBlock? Capture);
+    sealed record CaptureV(string Label, string Color, string Detail);
+
     List<DeviceStatus> _devices = [];
+    readonly Dictionary<string, CaptureBlock> _capture = new();
+    readonly Dictionary<string, int?> _clientVersion = new();
     readonly Dictionary<string, ActionState> _actions = new();
+
+    CaptureBlock? Capture(string id) => _capture.GetValueOrDefault(id);
+
+    // Plain-words verdict from the counters: the first broken boundary, walking the capture pipeline in order.
+    static CaptureV CaptureVerdict(CaptureBlock c)
+    {
+        if (!c.Listening)
+            return new("listener down", "text-red-400", "no per-device capture listener bound (DeviceCapture disabled or failed to start)");
+        if (c.RinfoHarvests > 0)
+            return new("ok", "text-green-400", $"{c.RinfoHarvests} rinfo harvested, {c.Flows} flows");
+        if (c.Flows > 0)
+            return new("no rinfo in flows", "text-yellow-400", $"{c.Flows} flows decoded but none carried rinfo (request types lack BasicRequestInfo, or field mismatch)");
+        if (c.AuxbrainConnects > 0)
+            return new("CA untrusted", "text-red-400", c.LastDecryptError ?? $"{c.AuxbrainConnects} auxbrain CONNECTs but 0 decrypted flows: the capture CA is not trusted on the device");
+        if (c.ClientConnects > 0)
+            return new("not reaching auxbrain", "text-yellow-400", $"{c.ClientConnects} client connects but 0 auxbrain CONNECTs: traffic reaches the proxy but not auxbrain (DNS / host filter)");
+        return new("not routing", "text-red-400", $"listening on :{c.Port} but 0 client connects: the device is not routing through the proxy (proxy not applied, or the app bypasses the system proxy)");
+    }
     bool _isAdmin;
     bool _infoDismissed;
     bool _disposed;
@@ -156,8 +195,28 @@
             var rows = await Client().GetFromJsonAsync<List<DeviceStatus>>("/api/devices/status");
             _devices = rows ?? [];
             StateHasChanged();
+            await LoadCaptureAsync();
         }
         catch { /* transient; keep last good */ }
+    }
+
+    // Per-device capture-boundary counters. Separate best-effort fetch so a slow/absent capture endpoint
+    // never blocks the status rows. Only meaningful on the device-farm host (capture enabled); elsewhere
+    // it returns found=false with no capture block and the chip stays hidden.
+    async Task LoadCaptureAsync()
+    {
+        foreach (var d in _devices.ToList())
+        {
+            try
+            {
+                var live = await Client().GetFromJsonAsync<LiveResponse>($"/api/devices/{d.Id}/live");
+                if (live?.Capture is { } cap) _capture[d.Id] = cap;
+                else _capture.Remove(d.Id);
+                _clientVersion[d.Id] = live?.ClientVersion;
+            }
+            catch { /* transient / capture off: keep last known, chip hides if never set */ }
+        }
+        await InvokeAsync(StateHasChanged);
     }
 
     [Parameter] public EventCallback OnSaved { get; set; }

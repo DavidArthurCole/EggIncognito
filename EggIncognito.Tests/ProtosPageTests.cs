@@ -108,7 +108,7 @@ public class ProtosPageTests
             var cut = Render<MissingVersionsPanel>();
             // No DB -> known list empty state + the public contribute ask is shown.
             Assert.Contains("No discovered versions", cut.Markup);
-            Assert.Contains("send them my way", cut.Markup);
+            Assert.Contains("send the file my way", cut.Markup);
         }
     }
 
