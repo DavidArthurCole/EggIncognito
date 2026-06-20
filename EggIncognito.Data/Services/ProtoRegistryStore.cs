@@ -198,9 +198,11 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         return MetadataUpdate.Ok;
     }
 
-    // Merge: each alias becomes a hidden pointer to the canonical row (same schema, possibly across
-    // platforms). Rejects merging a row into itself or pointing the canonical at an alias. Returns the
-    // number of aliases linked.
+    // Merge groups rows that are the SAME release across platforms (e.g. iOS + Android of one app version)
+    // under a shared canonical. Aliases stay VISIBLE (no soft-delete): they keep their own platform/build/proto
+    // and gain a CanonicalId pointing at the canonical, so the UI renders the release as one grouped row that
+    // lists every platform build. (Earlier behavior hid aliases via DeletedAt, which made a merged iOS row
+    // vanish + a device re-flag NEW; that was wrong for a cross-platform release.) Returns the number linked.
     public async Task<int> MergeAsync(
         (string Platform, string Build) canonical, IReadOnlyList<(string Platform, string Build)> aliases,
         CancellationToken ct = default)
@@ -208,10 +210,9 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         var canon = await db.ProtoVersions
             .FirstOrDefaultAsync(p => p.Platform == canonical.Platform && p.Build == canonical.Build, ct);
         if (canon is null) return 0;
-        // The canonical must itself be a real row, not an alias of something else.
+        // The canonical must itself be a real root, not an alias of something else.
         if (canon.CanonicalId is not null) { canon.CanonicalId = null; canon.DeletedAt = null; }
 
-        var now = DateTimeOffset.UtcNow;
         var linked = 0;
         var demotedIds = new List<int>();
         foreach (var (platform, build) in aliases)
@@ -221,12 +222,13 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
             if (alias is null || alias.Id == canon.Id) continue;
             demotedIds.Add(alias.Id);
             alias.CanonicalId = canon.Id;
-            alias.DeletedAt = now;
+            alias.DeletedAt = null; // keep visible: grouped, not hidden
             linked++;
         }
 
-        // Re-point any rows that were aliases of a row we just demoted (or of the canonical when it was
-        // itself an alias) so no CanonicalId chains past one hop. Keeps "follow CanonicalId once = root".
+        // Re-point any rows that were aliases of a row we just demoted (or of the canonical when it was itself
+        // an alias) so no CanonicalId chains past one hop. Keeps "follow CanonicalId once = root". These stay
+        // visible too (clear any DeletedAt left from the old hide-on-merge behavior).
         var stale = await db.ProtoVersions
             .Where(p => p.CanonicalId != null
                 && (demotedIds.Contains(p.CanonicalId.Value) || p.CanonicalId == canon.Id))
@@ -235,7 +237,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         {
             if (s.Id == canon.Id) continue;
             s.CanonicalId = canon.Id;
-            s.DeletedAt ??= now;
+            s.DeletedAt = null;
         }
 
         await db.SaveChangesAsync(ct);

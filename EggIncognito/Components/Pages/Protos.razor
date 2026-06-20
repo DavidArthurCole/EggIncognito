@@ -112,31 +112,65 @@
           </tr>
         </thead>
         <tbody>
-          @foreach (var r in Sorted)
+          @foreach (var rel in SortedReleases)
           {
-            var href = $"/protos/{r.Platform}/{Uri.EscapeDataString(r.Build)}";
+            var primary = rel.Primary;
             <tr class="reg-row">
               @if (_isAdmin)
               {
                 <td @onclick:stopPropagation="true">
-                  <input type="checkbox" checked="@IsSelected(r)" @onchange="@(() => ToggleRow(r))" />
+                  @* select toggles every member of the release together *@
+                  <input type="checkbox" checked="@IsSelected(primary)" @onchange="@(() => ToggleRelease(rel))" />
                 </td>
               }
-              <td @onclick="@(() => Navigate(href))"><span class="code-chip">@r.Platform</span></td>
-              <td class="reg-version" @onclick="@(() => Navigate(href))">@r.AppVersion</td>
-              <td class="mono" @onclick="@(() => Navigate(href))">@r.Build</td>
-              <td class="mono text-muted">@(string.IsNullOrEmpty(r.ClientVersion) ? "-" : r.ClientVersion)</td>
               <td>
-                <button type="button" class="code-chip reg-sha" title="@r.ProtoSha"
-                        @onclick:stopPropagation="true" @onclick="@(() => Copy(r.ProtoSha))">
-                  @Short(r.ProtoSha)
+                @* one chip per platform in the release; each links to its own detail page *@
+                <div class="flex flex-wrap gap-1">
+                  @foreach (var m in rel.Members)
+                  {
+                    <span class="code-chip cursor-pointer"
+                          @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">@m.Platform</span>
+                  }
+                </div>
+              </td>
+              <td class="reg-version">@primary.AppVersion</td>
+              <td class="mono">
+                @if (rel.IsGrouped)
+                {
+                  <div class="flex flex-col gap-0.5">
+                    @foreach (var m in rel.Members)
+                    {
+                      <span class="cursor-pointer" @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
+                        <span class="text-muted text-xs">@m.Platform</span> @m.Build
+                      </span>
+                    }
+                  </div>
+                }
+                else
+                {
+                  <span class="cursor-pointer" @onclick="@(() => Navigate($"/protos/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}"))">@primary.Build</span>
+                }
+              </td>
+              <td class="mono text-muted">@(string.IsNullOrEmpty(primary.ClientVersion) ? "-" : primary.ClientVersion)</td>
+              <td>
+                <button type="button" class="code-chip reg-sha" title="@primary.ProtoSha"
+                        @onclick:stopPropagation="true" @onclick="@(() => Copy(primary.ProtoSha))">
+                  @Short(primary.ProtoSha)
                 </button>
               </td>
-              <td class="text-muted text-xs">@r.DetectedAt.ToString("u")</td>
+              <td class="text-muted text-xs">@primary.DetectedAt.ToString("u")</td>
               @if (_canWrite)
               {
                 <td @onclick:stopPropagation="true">
-                  <button type="button" class="btn-mini" @onclick="@(() => EditRow(r))">Edit</button>
+                  @* edit acts per-member; for a grouped release, one Edit button per platform member *@
+                  <div class="flex flex-col gap-0.5">
+                    @foreach (var m in rel.Members)
+                    {
+                      <button type="button" class="btn-mini" @onclick="@(() => EditRow(m))">
+                        Edit@(rel.IsGrouped ? $" {m.Platform}" : "")
+                      </button>
+                    }
+                  </div>
                 </td>
               }
             </tr>
@@ -206,6 +240,25 @@
             sorted.Sort(cmp);
             if (_sortDesc) sorted.Reverse();
             return sorted;
+        }
+    }
+
+    // Releases in the sorted order of their primary (first-appearing member). Grouping a merged release into
+    // one row means the table iterates releases, not raw rows. A release's primary = the highest-ranked member
+    // under the current sort (it appears first in Sorted), so first-seen order preserves the column sort.
+    List<Release> SortedReleases
+    {
+        get
+        {
+            var byKey = new Dictionary<int, List<VersionRow>>();
+            var order = new List<int>();
+            foreach (var r in Sorted)
+            {
+                var key = ReleaseKey(r);
+                if (!byKey.TryGetValue(key, out var list)) { list = []; byKey[key] = list; order.Add(key); }
+                list.Add(r);
+            }
+            return order.Select(k => new Release(k, byKey[k].OrderBy(m => m.Platform).ToList())).ToList();
         }
     }
 
@@ -360,6 +413,19 @@
             foreach (var r in Sorted) _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
     }
 
+    // A release's checkbox toggles every member at once (so a delete/merge of a grouped release acts on all
+    // its platform rows). Mixed state counts as "select all members".
+    void ToggleRelease(Release rel)
+    {
+        var allSelected = rel.Members.All(IsSelected);
+        foreach (var m in rel.Members)
+        {
+            var existing = _selected.FirstOrDefault(k => k.Platform == m.Platform && k.Build == m.Build);
+            if (allSelected) { if (existing is not null) _selected.Remove(existing); }
+            else if (existing is null) _selected.Add(new ProtoSelectionBar.VersionKey(m.Platform, m.Build));
+        }
+    }
+
     void ClearSelection() => _selected.Clear();
 
     void EditRow(VersionRow r) =>
@@ -386,6 +452,22 @@
             try { await _copy.DisposeAsync(); } catch { }
     }
 
-    record VersionRow(string Platform, string AppVersion, string Build, string? ClientVersion,
-        string Source, string Package, string ProtoSha, DateTimeOffset DetectedAt);
+    record VersionRow(int Id, int? CanonicalId, string Platform, string AppVersion, string Build,
+        string? ClientVersion, string Source, string Package, string ProtoSha, DateTimeOffset DetectedAt);
+
+    // A release = a canonical row + any aliases merged into it (same app version + proto across platforms).
+    // ReleaseKey groups them: an alias keys on its CanonicalId, a standalone row on its own Id. Members are
+    // ordered platform-stably so the grouped row renders deterministically.
+    sealed record Release(int Key, IReadOnlyList<VersionRow> Members)
+    {
+        public VersionRow Primary => Members[0];
+        public bool IsGrouped => Members.Count > 1;
+    }
+
+    static int ReleaseKey(VersionRow r) => r.CanonicalId ?? r.Id;
+
+    List<Release> GroupedReleases(IEnumerable<VersionRow> rows) =>
+        rows.GroupBy(ReleaseKey)
+            .Select(g => new Release(g.Key, g.OrderBy(m => m.Platform).ToList()))
+            .ToList();
 }

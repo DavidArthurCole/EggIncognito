@@ -49,8 +49,12 @@ public sealed class DevicesController(
             foreach (var plat in devices.Values.Select(d => d.Platform).Distinct())
             {
                 storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, HttpContext.RequestAborted);
+                // "Represented" = a live row OR a merged alias. A merge hides the iOS row (DeletedAt set,
+                // CanonicalId set) under a cross-platform canonical, but the proto IS still captured for that
+                // platform, so the device must NOT re-flag it as new_version. Only TRUE soft-deletes
+                // (DeletedAt set, CanonicalId null) drop a version out of "represented".
                 var extracted = await db.ProtoVersions.AsNoTracking()
-                    .Where(v => v.Platform == plat && v.DeletedAt == null)
+                    .Where(v => v.Platform == plat && (v.DeletedAt == null || v.CanonicalId != null))
                     .Select(v => new { v.Build, v.AppVersion })
                     .ToListAsync(HttpContext.RequestAborted);
                 regLatestApp[plat] = extracted.Select(e => e.AppVersion)

@@ -21,9 +21,11 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
     {
         if (Store is null) return Ok(Array.Empty<object>());
         var rows = await Store.ListAsync(platform, ct);
+        // Id + CanonicalId let the UI group a cross-platform release (canonical + its aliases) into one row.
         return Ok(rows.Select(r => new
         {
-            r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.Package, r.ProtoSha, r.DetectedAt,
+            r.Id, r.CanonicalId, r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.Package,
+            r.ProtoSha, r.DetectedAt,
         }));
     }
 
