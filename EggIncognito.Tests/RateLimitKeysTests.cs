@@ -102,6 +102,16 @@ public class RateLimitKeysTests
         Assert.Equal(expected, RateLimiterSetup.EffectivePermit(RateLimitOptions.Defaults(), new[] { tier }, policy));
     }
 
+    [Theory]
+    [InlineData(false, UserRole.Viewer, false)]
+    [InlineData(true, UserRole.Viewer, false)]
+    [InlineData(true, UserRole.Contributor, false)]
+    [InlineData(true, UserRole.Admin, true)]
+    public void IsExempt_OnlyAdmins(bool auth, UserRole role, bool expected)
+    {
+        Assert.Equal(expected, RateLimiterSetup.IsExempt(new FakeUser(auth, auth ? "x" : null, role)));
+    }
+
     [Fact]
     public void EffectivePermit_TakesBestTier()
     {

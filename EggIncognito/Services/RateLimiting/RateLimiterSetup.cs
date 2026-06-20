@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using EggIncognito.Services;
+using EggIncognito.Data.Models;
 
 namespace EggIncognito.Services.RateLimiting;
 
@@ -67,6 +68,9 @@ public static class RateLimiterSetup
         return 60;
     }
 
+    // Callers exempt from rate limiting: admins (device-farm + admin tooling bursts). Pure + testable.
+    internal static bool IsExempt(ICurrentUser user) => user.IsAtLeast(UserRole.Admin);
+
     internal static int EffectivePermit(RateLimitOptions opts, IReadOnlyList<string> tierNames, string policyOptionKey)
     {
         var best = tierNames.Max(t => opts.Tiers[t].PermitLimit);
@@ -77,6 +81,9 @@ public static class RateLimiterSetup
     private static RateLimitPartition<string> Partition(HttpContext ctx, string policyOptionKey, RateLimitOptions opts)
     {
         var user = ctx.RequestServices.GetRequiredService<ICurrentUser>();
+        // Admins bypass rate limiting entirely - they run the device farm + admin tooling, which legitimately
+        // bursts (poll loops, force-restart + capture). A per-tier cap would throttle their own operations.
+        if (IsExempt(user)) return RateLimitPartition.GetNoLimiter($"admin:{user.DiscordId}");
         var hosted = ctx.RequestServices.GetRequiredService<IAppMode>().Mode == AppMode.Hosted;
         var key = RateLimitKeys.PartitionKey(ctx, user, hosted);
         var policy = opts.Policies[policyOptionKey];

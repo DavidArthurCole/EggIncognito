@@ -19,23 +19,24 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
     // Pushed PEM location on the device; referenced by {pem_path} in the script.
     private const string RemotePem = "/data/local/tmp/eggincognito-ca.pem";
 
-    // Default rooted Android-14 system-CA install. Runs in one `su -c` so the mount persists in the global
-    // namespace. Steps: ensure the user-cert hash file exists in a writable tmp copy of the existing system
-    // store, add ours, then bind-mount the tmp copy over BOTH the legacy /system path and the conscrypt APEX
-    // path (Android 14 reads the APEX copy). Restart is left to the proxy-push / app-launch that follows.
+    // Default rooted Android-14 system-CA install, NAMESPACE-CORRECT. On Android 14 the system cacerts dirs
+    // are read-only, AND a plain `mount` in the adb/su shell lands in that shell's mount namespace - apps fork
+    // from zygote, which shares INIT's (PID 1) namespace, so a shell-local mount is invisible to the game.
+    // Fix: build a tmpfs dir holding the existing system certs PLUS ours, then bind-mount it over both cacerts
+    // paths INSIDE init's namespace via `nsenter -t 1 -m`, so zygote + every app launched after (the force-
+    // restart that follows) inherits the mount and the game's TrustManager sees our CA. Falls back to a plain
+    // bind when nsenter is unavailable (better than nothing). The conscrypt APEX path is what Android 14 reads.
     private const string DefaultScript =
         "set -e; " +
         "D=/data/local/tmp/eggcacerts; rm -rf $D; mkdir -p $D; " +
         "cp /system/etc/security/cacerts/* $D/ 2>/dev/null || true; " +
         "cp /apex/com.android.conscrypt/cacerts/* $D/ 2>/dev/null || true; " +
         "cp {pem_path} $D/{hash}.0; chmod 644 $D/{hash}.0; chown root:root $D/{hash}.0; " +
-        "mount -t tmpfs tmpfs /system/etc/security/cacerts 2>/dev/null || true; " +
-        "cp $D/* /system/etc/security/cacerts/ 2>/dev/null || true; " +
-        "chmod 644 /system/etc/security/cacerts/* 2>/dev/null || true; " +
+        "chcon u:object_r:system_security_cacerts_file:s0 $D/* 2>/dev/null || true; " +
+        "M='mount --bind'; N=''; command -v nsenter >/dev/null 2>&1 && N='nsenter -t 1 -m --'; " +
+        "$N $M $D /system/etc/security/cacerts 2>/dev/null || mount --bind $D /system/etc/security/cacerts || true; " +
         "if [ -d /apex/com.android.conscrypt/cacerts ]; then " +
-        "  mount -t tmpfs tmpfs /apex/com.android.conscrypt/cacerts 2>/dev/null || true; " +
-        "  cp $D/* /apex/com.android.conscrypt/cacerts/ 2>/dev/null || true; " +
-        "  chmod 644 /apex/com.android.conscrypt/cacerts/* 2>/dev/null || true; " +
+        "  $N $M $D /apex/com.android.conscrypt/cacerts 2>/dev/null || mount --bind $D /apex/com.android.conscrypt/cacerts || true; " +
         "fi; " +
         "echo installed {hash}.0";
 
