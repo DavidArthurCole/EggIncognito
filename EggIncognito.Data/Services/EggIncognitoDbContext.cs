@@ -27,6 +27,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
     public DbSet<DeviceUpdate> DeviceUpdates => Set<DeviceUpdate>();
+    public DbSet<StagedProto> StagedProtos => Set<StagedProto>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -131,6 +132,11 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.DeviceId, x.AttemptedAt });
+        });
+        b.Entity<StagedProto>(e =>
+        {
+            e.HasIndex(x => x.ProtoSha);
+            e.HasIndex(x => x.Status);
         });
     }
 }

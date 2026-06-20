@@ -1,0 +1,108 @@
+using EggIncognito.Data.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace EggIncognito.Data.Services;
+
+// Review queue between proto sources and the live registry. Offers (public) + crawl imports (admin) land
+// here as pending rows; ApproveAsync promotes to proto_versions via ProtoRegistryStore. Dedup keeps a sha
+// from re-staging once it is pending, rejected, or already in the registry.
+public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStore registry)
+{
+    public enum OfferResult { Staged, AlreadyPending, AlreadyInRegistry }
+    public enum ApproveResult { Ok, NotFound, BuildCollision, MissingBuild }
+
+    private async Task<bool> ShaInRegistryAsync(string sha, CancellationToken ct) =>
+        await db.ProtoVersions.AnyAsync(p => p.ProtoSha == sha && p.DeletedAt == null, ct);
+
+    private async Task<bool> ShaBlockedInStagingAsync(string sha, CancellationToken ct) =>
+        await db.StagedProtos.AnyAsync(s => s.ProtoSha == sha && (s.Status == "pending" || s.Status == "rejected"), ct);
+
+    public async Task<OfferResult> OfferAsync(
+        string platform, string? appVersion, string? build, string? clientVersion, string? package,
+        string protoSha, string protoText, string? messageIndex, string? submittedBy, CancellationToken ct)
+    {
+        if (await ShaInRegistryAsync(protoSha, ct)) return OfferResult.AlreadyInRegistry;
+        if (await ShaBlockedInStagingAsync(protoSha, ct)) return OfferResult.AlreadyPending;
+        db.StagedProtos.Add(new StagedProto
+        {
+            Platform = platform, AppVersion = appVersion, Build = build, ClientVersion = clientVersion,
+            Package = package, ProtoSha = protoSha, ProtoText = protoText, MessageIndex = messageIndex,
+            Source = "offer", Status = "pending", SubmittedBy = submittedBy, SubmittedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync(ct);
+        return OfferResult.Staged;
+    }
+
+    public async Task<(int staged, int skipped)> ImportCrawlAsync(
+        IReadOnlyList<EggIncognito.Core.Services.Protos.CrawlManifestReader.CrawlRecord> records, CancellationToken ct)
+    {
+        int staged = 0, skipped = 0;
+        foreach (var r in records)
+        {
+            if (await ShaInRegistryAsync(r.ProtoSha, ct) || await ShaBlockedInStagingAsync(r.ProtoSha, ct))
+            { skipped++; continue; }
+            db.StagedProtos.Add(new StagedProto
+            {
+                Platform = r.Platform, AppVersion = r.AppVersion, Build = r.Build, ClientVersion = r.ClientVersion,
+                ProtoSha = r.ProtoSha, ProtoText = r.ProtoText, Source = "crawl", Status = "pending",
+                SubmittedAt = DateTimeOffset.UtcNow, OriginRepo = r.OriginRepo, OriginCommit = r.OriginCommit,
+                OriginDate = r.OriginDate, Confidence = r.Confidence,
+            });
+            staged++;
+        }
+        if (staged > 0) await db.SaveChangesAsync(ct);
+        return (staged, skipped);
+    }
+
+    public Task<List<StagedProto>> PendingAsync(CancellationToken ct) =>
+        db.StagedProtos.AsNoTracking().Where(s => s.Status == "pending")
+            .OrderByDescending(s => s.SubmittedAt).ToListAsync(ct);
+
+    public Task<int> PendingCountAsync(CancellationToken ct) =>
+        db.StagedProtos.CountAsync(s => s.Status == "pending", ct);
+
+    public async Task<(bool inRegistry, bool pending)> CheckAsync(
+        string platform, string? appVersion, string protoSha, CancellationToken ct)
+    {
+        var inReg = await ShaInRegistryAsync(protoSha, ct);
+        var pending = await db.StagedProtos.AnyAsync(s => s.ProtoSha == protoSha && s.Status == "pending", ct);
+        return (inReg, pending);
+    }
+
+    public async Task<ApproveResult> ApproveAsync(
+        int id, string? platform, string? appVersion, string? build, string? clientVersion,
+        string reviewedBy, CancellationToken ct)
+    {
+        var row = await db.StagedProtos.FirstOrDefaultAsync(s => s.Id == id && s.Status == "pending", ct);
+        if (row is null) return ApproveResult.NotFound;
+
+        var plat = string.IsNullOrWhiteSpace(platform) ? row.Platform : platform!;
+        var appV = string.IsNullOrWhiteSpace(appVersion) ? row.AppVersion : appVersion;
+        var bld = string.IsNullOrWhiteSpace(build) ? row.Build : build;
+        var cv = string.IsNullOrWhiteSpace(clientVersion) ? row.ClientVersion : clientVersion;
+        if (string.IsNullOrWhiteSpace(bld) || string.IsNullOrWhiteSpace(appV)) return ApproveResult.MissingBuild;
+
+        // Collision: another registry row already holds this build for the platform.
+        var clash = await db.ProtoVersions.AnyAsync(p => p.Platform == plat && p.Build == bld, ct);
+        if (clash) return ApproveResult.BuildCollision;
+
+        await registry.UpsertAsync(plat, appV!, bld!, cv, package: row.Package ?? "",
+            protoSha: row.ProtoSha, apkRef: $"staged:{row.Id}", detectedAt: DateTimeOffset.UtcNow,
+            detectedBy: $"staged-approve:{reviewedBy}", protoText: row.ProtoText, source: row.Source,
+            resurrect: true, ct: ct);
+
+        row.Status = "approved"; row.ReviewedBy = reviewedBy; row.ReviewedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return ApproveResult.Ok;
+    }
+
+    public async Task<bool> RejectAsync(int id, string? note, string reviewedBy, CancellationToken ct)
+    {
+        var row = await db.StagedProtos.FirstOrDefaultAsync(s => s.Id == id && s.Status == "pending", ct);
+        if (row is null) return false;
+        row.Status = "rejected"; row.ReviewNote = note; row.ReviewedBy = reviewedBy;
+        row.ReviewedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+}

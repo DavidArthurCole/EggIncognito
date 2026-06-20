@@ -278,7 +278,9 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             var dispatcher = scope.ServiceProvider.GetService<EggIncognito.Services.Feed.FeedDispatcher>();
             if (dispatcher is not null)
             {
-                var pageUrl = $"https://protos.eggincognito.davidarthurcole.me/protos/{evt.Platform}/{build}";
+                var cfg = scope.ServiceProvider.GetService<IConfiguration>();
+                var pageUrl = EggIncognito.Services.Feed.FeedDispatcher.BuildPageUrl(
+                    cfg?["Feed:PageBaseUrl"], evt.Platform, build);
                 await dispatcher.DispatchAsync(row.Id, evt.Platform, appVersion, build, evt.ClientVersion,
                     evt.ProtoSha, created, protoChanged, pageUrl, ct);
             }
@@ -387,6 +389,7 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Data.Services.CaptureCredentialStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.CaptureAddressStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.ProtoRegistryStore>();
+    builder.Services.AddScoped<EggIncognito.Data.Services.StagedProtoStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.DeviceStatusStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.IDeviceStatusStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.DeviceStatusStore>());

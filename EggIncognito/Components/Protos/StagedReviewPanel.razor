@@ -1,0 +1,148 @@
+@* Contributor+ review queue for staged proto submissions (public offers + admin crawl imports). Each row is
+   editable (platform/appVersion/build/clientVersion prefilled) so a reviewer can re-key before approving;
+   Approve promotes to the live registry, Reject hides it + blocks re-offer of that sha. Self-fetches the
+   public-shaped /api/protos/staged endpoint with the request's auth cookie; hidden when the queue is empty. *@
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+@if (_rows.Count > 0 || IsAdmin)
+{
+  <section class="panel mb-3">
+    <div class="flex items-center gap-2 flex-wrap mb-2">
+      <div class="text-sm font-semibold">Staged submissions (@_rows.Count)</div>
+      @if (IsAdmin)
+      {
+        <label class="btn-mini cursor-pointer">
+          Import crawl dataset
+          <InputFile OnChange="ImportCrawl" accept=".zip" class="hidden" />
+        </label>
+      }
+    </div>
+    @foreach (var r in _rows)
+    {
+      <div class="flex items-center gap-2 flex-wrap mb-2 border-b border-border pb-2">
+        <span class="code-chip">@r.Source</span>
+        <input class="protos-filter" style="width:5rem" @bind="r.Platform" />
+        <input class="protos-filter" style="width:6rem" placeholder="app ver" @bind="r.AppVersion" />
+        <input class="protos-filter" style="width:7rem" placeholder="build" @bind="r.Build" />
+        <input class="protos-filter" style="width:5rem" placeholder="client" @bind="r.ClientVersion" />
+        <span class="text-xs text-muted font-mono">@(r.ProtoSha.Length > 12 ? r.ProtoSha[..12] : r.ProtoSha)</span>
+        @if (r.OriginRepo is not null)
+        {
+          <span class="text-xs text-muted">@r.OriginRepo@(r.Confidence is { } c ? $" ({c})" : "")</span>
+        }
+        <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Approve(r))">Approve</button>
+        <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Reject(r))">Reject</button>
+      </div>
+    }
+    @if (_msg.Length > 0)
+    {
+      <span class="text-xs text-muted">@_msg</span>
+    }
+  </section>
+}
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    List<StagedRow> _rows = [];
+    bool _busy;
+    string _msg = "";
+    string _baseAddress = "";
+    string? _cookie;
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public bool IsAdmin { get; set; }
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    public async Task Load()
+    {
+        try { _rows = await Client().GetFromJsonAsync<List<StagedRow>>("/api/protos/staged", JsonOpts) ?? []; }
+        catch { _rows = []; }
+        StateHasChanged();
+    }
+
+    async Task Approve(StagedRow r)
+    {
+        _busy = true;
+        _msg = "";
+        try
+        {
+            var body = new { platform = r.Platform, appVersion = r.AppVersion, build = r.Build, clientVersion = r.ClientVersion };
+            var resp = await Client().PostAsJsonAsync($"/api/protos/staged/{r.Id}/approve", body, JsonOpts);
+            _msg = resp.IsSuccessStatusCode ? "approved" : $"approve failed ({(int)resp.StatusCode})";
+        }
+        catch (Exception ex) { _msg = $"approve error: {ex.Message}"; }
+        finally { _busy = false; }
+        await Load();
+        await OnChanged.InvokeAsync();
+    }
+
+    async Task Reject(StagedRow r)
+    {
+        _busy = true;
+        _msg = "";
+        try
+        {
+            var resp = await Client().PostAsJsonAsync($"/api/protos/staged/{r.Id}/reject", new { note = (string?)null }, JsonOpts);
+            _msg = resp.IsSuccessStatusCode ? "rejected" : $"reject failed ({(int)resp.StatusCode})";
+        }
+        catch (Exception ex) { _msg = $"reject error: {ex.Message}"; }
+        finally { _busy = false; }
+        await Load();
+        await OnChanged.InvokeAsync();
+    }
+
+    async Task ImportCrawl(InputFileChangeEventArgs e)
+    {
+        _busy = true;
+        _msg = "importing...";
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            using var stream = e.File.OpenReadStream(64 * 1024 * 1024); // 64MB
+            content.Add(new StreamContent(stream), "file", e.File.Name);
+            var resp = await Client().PostAsync("/api/protos/staged/import-crawl", content);
+            _msg = resp.IsSuccessStatusCode ? "imported" : $"import failed ({(int)resp.StatusCode})";
+        }
+        catch (Exception ex) { _msg = $"import error: {ex.Message}"; }
+        finally { _busy = false; }
+        await Load();
+        await OnChanged.InvokeAsync();
+    }
+
+    public sealed class StagedRow
+    {
+        public int Id { get; set; }
+        public string Source { get; set; } = "";
+        public string Platform { get; set; } = "android";
+        public string? AppVersion { get; set; }
+        public string? Build { get; set; }
+        public string? ClientVersion { get; set; }
+        public string ProtoSha { get; set; } = "";
+        public string? OriginRepo { get; set; }
+        public string? Confidence { get; set; }
+    }
+}

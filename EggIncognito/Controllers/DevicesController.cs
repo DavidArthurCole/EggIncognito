@@ -307,10 +307,16 @@ public sealed class DevicesController(
         var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(carve.Proto))).ToLowerInvariant();
 
+        // clientVersion is NOT in the binary; it is only reported by the app on the wire (rinfo). Launch the
+        // app + capture a fresh rinfo (~5s window) to harvest it, so the registry row carries the real
+        // clientVersion instead of an empty field. Best-effort: a miss (capture off, app slow) leaves it null.
+        var clientVersion = await HarvestClientVersionAsync(device, HttpContext.RequestAborted);
+        logger.LogInformation("device save: {Id} harvested clientVersion={Cv}", id, clientVersion?.ToString() ?? "(none)");
+
         try
         {
             var (row, created, protoChanged) = await registry.UpsertAsync(
-                device.Platform, appVersion, build, clientVersion: null, package: device.Package,
+                device.Platform, appVersion, build, clientVersion: clientVersion, package: device.Package,
                 protoSha: sha, apkRef: $"device:{device.Id}", detectedAt: DateTimeOffset.UtcNow,
                 detectedBy: $"device-save:{who}", protoText: carve.Proto, source: "device",
                 resurrect: true, ct: HttpContext.RequestAborted);
@@ -323,7 +329,9 @@ public sealed class DevicesController(
                 as EggIncognito.Services.Feed.FeedDispatcher;
             if (dispatcher is not null)
             {
-                var pageUrl = $"https://protos.eggincognito.davidarthurcole.me/protos/{device.Platform}/{build}";
+                var cfg = services.GetService(typeof(IConfiguration)) as IConfiguration;
+                var pageUrl = EggIncognito.Services.Feed.FeedDispatcher.BuildPageUrl(
+                    cfg?["Feed:PageBaseUrl"], device.Platform, build);
                 await dispatcher.DispatchAsync(row.Id, device.Platform, appVersion, build, clientVersion: null,
                     sha, created, protoChanged, pageUrl, HttpContext.RequestAborted);
             }
@@ -404,6 +412,22 @@ public sealed class DevicesController(
             ? probe.InstalledBuild!
             : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bin))[..16].ToLowerInvariant();
         return (new CarveResult(iosCarve.Proto, iosBuild), null);
+    }
+
+    // Harvest the on-the-wire clientVersion for the registry row. clientVersion is NOT in the binary (it is the
+    // proto/API version the running client reports), so the only source is a live rinfo. Launch the app + wait
+    // for a fresh rinfo (~5s window via ForceHarvestAsync), return its clientVersion as a string. Best-effort:
+    // capture off / no device entry / no fresh rinfo => null (the row's clientVersion stays empty, as before).
+    private async Task<string?> HarvestClientVersionAsync(Device device, CancellationToken ct)
+    {
+        var pusher = services.GetService(typeof(DeviceProxyPusher)) as DeviceProxyPusher;
+        var devCfg = services.GetService(typeof(DeviceConfig)) as DeviceConfig;
+        if (pusher is null || devCfg is null) return null;
+        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == device.Id);
+        if (entry is null) return null;
+
+        var rinfo = await pusher.ForceHarvestAsync(entry, TimeSpan.FromSeconds(5), ct);
+        return rinfo?.ClientVersion?.ToString();
     }
 
     // Latest live rinfo harvested off the wire for a device (build/clientVersion/version + recency). Public

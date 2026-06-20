@@ -119,6 +119,34 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
             .Where(p => p.DeletedAt == null)
             .OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
 
+    // One suggested merge: a set of rows that share the combine criteria (app version + proto SHA) but are
+    // separate registry entries (e.g. the iOS + Android build of the same release). Build is the per-platform
+    // key; merging links the others as aliases of a chosen canonical.
+    public sealed record MergeSuggestion(string AppVersion, string ProtoSha, IReadOnlyList<MergeMember> Members);
+    public sealed record MergeMember(string Platform, string Build);
+
+    // Find groups of active rows that SHOULD merge: same (AppVersion, ProtoSha), spanning >=2 distinct
+    // platforms (cross-platform builds of one release). Excludes deleted/already-aliased rows + empty shas.
+    public async Task<List<MergeSuggestion>> SuggestMergesAsync(CancellationToken ct = default)
+    {
+        var rows = await db.ProtoVersions.AsNoTracking()
+            .Where(p => p.DeletedAt == null && p.CanonicalId == null)
+            .Where(p => p.Build != null && p.Build != "" && p.AppVersion != null && p.AppVersion != "")
+            .Where(p => p.ProtoSha != null && p.ProtoSha != "")
+            .Select(p => new { p.Platform, p.Build, p.AppVersion, p.ProtoSha })
+            .ToListAsync(ct);
+
+        return rows
+            .GroupBy(r => new { r.AppVersion, r.ProtoSha })
+            // a real suggestion spans >=2 DISTINCT platforms (an iOS+Android pair of the same release).
+            .Where(g => g.Select(r => r.Platform).Distinct().Count() >= 2)
+            .Select(g => new MergeSuggestion(g.Key.AppVersion, g.Key.ProtoSha,
+                g.Select(r => new MergeMember(r.Platform, r.Build))
+                 .OrderBy(m => m.Platform).ToList()))
+            .OrderBy(s => s.AppVersion)
+            .ToList();
+    }
+
     // Soft-delete a single build: hidden from the list, kept so a re-ingest does not resurrect it.
     // Returns false when the row does not exist.
     public async Task<bool> SoftDeleteAsync(string platform, string build, CancellationToken ct = default)
@@ -141,19 +169,33 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         return true;
     }
 
-    // Edit human-correctable metadata on a stored build. Null args leave the field unchanged. Returns
-    // false when the row does not exist.
-    public async Task<bool> UpdateMetadataAsync(
+    // Edit human-correctable metadata on a stored build. Null args leave the field unchanged. newBuild re-keys
+    // the row (build is the platform-scoped key); a no-op when equal to the current build. Returns a result
+    // enum so the caller can distinguish not-found from a build-collision (target build already exists for the
+    // platform).
+    public enum MetadataUpdate { Ok, NotFound, BuildCollision }
+
+    public async Task<MetadataUpdate> UpdateMetadataAsync(
         string platform, string build, string? appVersion, string? clientVersion, string? source,
-        CancellationToken ct = default)
+        string? newBuild = null, CancellationToken ct = default)
     {
         var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
-        if (row is null) return false;
+        if (row is null) return MetadataUpdate.NotFound;
+
+        // Re-key the build if a new (different, non-empty) one is given. Reject if another row already holds it
+        // for this platform (build is unique per platform), else we would create a duplicate key.
+        if (!string.IsNullOrWhiteSpace(newBuild) && newBuild != build)
+        {
+            var clash = await db.ProtoVersions.AnyAsync(
+                p => p.Platform == platform && p.Build == newBuild && p.Id != row.Id, ct);
+            if (clash) return MetadataUpdate.BuildCollision;
+            row.Build = newBuild!;
+        }
         if (appVersion is not null) row.AppVersion = appVersion;
         if (clientVersion is not null) row.ClientVersion = clientVersion;
         if (source is not null) row.Source = source;
         await db.SaveChangesAsync(ct);
-        return true;
+        return MetadataUpdate.Ok;
     }
 
     // Merge: each alias becomes a hidden pointer to the canonical row (same schema, possibly across

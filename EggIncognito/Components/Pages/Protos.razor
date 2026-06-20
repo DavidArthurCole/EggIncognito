@@ -39,6 +39,29 @@
   <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start">
   @* Registry table + management. *@
   <section class="reg-wrap">
+    @if (_isAdmin || _isContributor)
+    {
+      <StagedReviewPanel @ref="_stagedPanel" IsAdmin="_isAdmin" OnChanged="OnMutated" />
+    }
+    @if (_isAdmin && _suggestions.Count > 0)
+    {
+      <div class="panel mb-3">
+        <div class="text-sm font-semibold mb-2">Suggested merges</div>
+        <div class="text-xs text-muted mb-2">
+          These entries share an app version + proto SHA across platforms (the same release on iOS + Android).
+          Merging links them under one canonical entry.
+        </div>
+        @foreach (var s in _suggestions)
+        {
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <span class="code-chip">@s.AppVersion</span>
+            <span class="text-xs text-muted font-mono">@(s.ProtoSha.Length > 12 ? s.ProtoSha[..12] : s.ProtoSha)</span>
+            <span class="text-xs">@string.Join(" + ", s.Members.Select(m => $"{m.Platform}/{m.Build}"))</span>
+            <button type="button" class="btn-mini" @onclick="@(() => AcceptSuggestion(s))">Merge</button>
+          </div>
+        }
+      </div>
+    }
     @if (_isAdmin && _selected.Count > 0)
     {
       <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnMutated" OnClear="ClearSelection" />
@@ -144,6 +167,7 @@
     string _filter = "";
     bool _loading = true;
     bool _isAdmin;
+    bool _isContributor;
     bool _canWrite;
     string _sortCol = "detected";
     bool _sortDesc = true;
@@ -151,6 +175,8 @@
     ProtoDropZone.ExtractResult? _result;
     readonly List<ProtoSelectionBar.VersionKey> _selected = [];
     ProtoEditDialog.Row? _editing;
+    List<MergeSuggestion> _suggestions = [];
+    StagedReviewPanel? _stagedPanel;
 
     string _baseAddress = "";
     string? _cookie;
@@ -223,6 +249,7 @@
         }
         // Snapshot the gates during the request; the interactive circuit has no HttpContext.
         _isAdmin = User.IsAtLeast(UserRole.Admin);
+        _isContributor = User.IsAtLeast(UserRole.Contributor);
         _canWrite = User.IsAtLeast(UserRole.Contributor);
     }
 
@@ -266,8 +293,33 @@
             _rows = await Client().GetFromJsonAsync<List<VersionRow>>(url, JsonOpts) ?? [];
         }
         catch { _rows = []; }
+        await LoadSuggestions();
         _loading = false;
     }
+
+    // Cross-platform merge suggestions: rows sharing app version + proto SHA across platforms. Admin-only UI
+    // (the merge action is admin-gated server-side too). Best-effort; a failure just hides the banner.
+    async Task LoadSuggestions()
+    {
+        if (!_isAdmin) { _suggestions = []; return; }
+        try { _suggestions = await Client().GetFromJsonAsync<List<MergeSuggestion>>(
+            "/api/protos/versions/merge-suggestions", JsonOpts) ?? []; }
+        catch { _suggestions = []; }
+    }
+
+    // One-click: merge a suggested group, keeping the FIRST member (alphabetical by platform = android) as the
+    // canonical, the rest as aliases. Admin-gated server-side.
+    async Task AcceptSuggestion(MergeSuggestion s)
+    {
+        if (s.Members.Count < 2) return;
+        var canonical = new { s.Members[0].Platform, s.Members[0].Build };
+        var aliases = s.Members.Skip(1).Select(m => new { m.Platform, m.Build }).ToList();
+        var ok = await PostJson("/api/protos/versions/merge", new { canonical, aliases });
+        if (ok) await OnMutated();
+    }
+
+    public sealed record MergeSuggestion(string AppVersion, string ProtoSha, List<MergeMember> Members);
+    public sealed record MergeMember(string Platform, string Build);
 
     // Generic authed self-calls for the management components.
     async Task<bool> PostJson(string url, object body)
@@ -287,6 +339,7 @@
         ClearSelection();
         _editing = null;
         await Load();
+        if (_stagedPanel is not null) await _stagedPanel.Load();
     }
 
     bool IsSelected(VersionRow r) => _selected.Any(k => k.Platform == r.Platform && k.Build == r.Build);
