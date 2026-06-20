@@ -131,6 +131,10 @@ public sealed class DeviceCaptureManager(
                 diag.LastDecryptError = msg;
                 logger.LogWarning("device capture: {Id} decrypt error: {Msg}", d.Id, msg);
             };
+            // Record every CONNECT target so "not reaching auxbrain" is diagnosable: if www.auxbrain.com
+            // never appears here while the phone connects, the game is bypassing the proxy for auxbrain
+            // (e.g. QUIC/UDP 443); if it appears with decrypt=false, the host filter is wrong.
+            proxy.ConnectSeen += (host, willDecrypt) => diag.NoteConnect(host, willDecrypt);
             await proxy.StartAsync(port, caPath, ct);
 
             _captures[d.Id] = new DeviceCapture(proxy, port, queue, pump);
@@ -211,17 +215,42 @@ public sealed class DeviceCaptureDiag
     public long Flows;
     public long RinfoHarvests;
     public string? LastDecryptError;
+    // Last few distinct CONNECT targets seen, most-recent-first, each "host (decrypt=true|false)". Lets the
+    // status surface show WHAT the phone is CONNECTing to when auxbrain is "not reached".
+    public IReadOnlyList<string> RecentConnects { get; private set; } = [];
+
+    private const int MaxRecent = 12;
+    private readonly object _connectLock = new();
+    private readonly LinkedList<string> _recent = new();
 
     public static readonly DeviceCaptureDiag Empty = new();
 
     public void Bump(ref long counter) => System.Threading.Interlocked.Increment(ref counter);
 
-    public DeviceCaptureDiag Snapshot() => new()
+    // Record a CONNECT target, de-duplicated and capped most-recent-first. Cheap: one lock, bounded list.
+    public void NoteConnect(string host, bool willDecrypt)
     {
-        ClientConnects = System.Threading.Interlocked.Read(ref ClientConnects),
-        AuxbrainConnects = System.Threading.Interlocked.Read(ref AuxbrainConnects),
-        Flows = System.Threading.Interlocked.Read(ref Flows),
-        RinfoHarvests = System.Threading.Interlocked.Read(ref RinfoHarvests),
-        LastDecryptError = LastDecryptError,
-    };
+        var entry = $"{host} (decrypt={willDecrypt.ToString().ToLowerInvariant()})";
+        lock (_connectLock)
+        {
+            _recent.Remove(entry); // move-to-front on repeat
+            _recent.AddFirst(entry);
+            while (_recent.Count > MaxRecent) _recent.RemoveLast();
+            RecentConnects = _recent.ToList();
+        }
+    }
+
+    public DeviceCaptureDiag Snapshot()
+    {
+        var snap = new DeviceCaptureDiag
+        {
+            ClientConnects = System.Threading.Interlocked.Read(ref ClientConnects),
+            AuxbrainConnects = System.Threading.Interlocked.Read(ref AuxbrainConnects),
+            Flows = System.Threading.Interlocked.Read(ref Flows),
+            RinfoHarvests = System.Threading.Interlocked.Read(ref RinfoHarvests),
+            LastDecryptError = LastDecryptError,
+        };
+        lock (_connectLock) snap.RecentConnects = _recent.ToList();
+        return snap;
+    }
 }

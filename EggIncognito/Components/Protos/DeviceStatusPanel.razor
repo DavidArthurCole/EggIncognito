@@ -57,6 +57,12 @@
                                     <span class="code-chip">cv @cv</span>
                                 }
                             </div>
+                            @if (v.Label != "ok" && cap.RecentConnects is { Count: > 0 } seen)
+                            {
+                                <div class="text-xs mt-0.5 text-muted opacity-70" title="recent CONNECT targets the device dialed through the proxy">
+                                    seen: @string.Join(", ", seen.Take(4))
+                                </div>
+                            }
                         }
                     </div>
                     @if (_isAdmin)
@@ -114,7 +120,7 @@
     // Live capture-boundary counters per device (from /api/devices/{id}/live). Tells which stage the device's
     // traffic reached, so an empty clientVersion is diagnosable without reading raw JSON.
     sealed record CaptureBlock(bool Listening, int Port, long ClientConnects, long AuxbrainConnects,
-        long Flows, long RinfoHarvests, string? LastDecryptError);
+        long Flows, long RinfoHarvests, string? LastDecryptError, List<string>? RecentConnects);
     sealed record LiveResponse(bool Found, int? ClientVersion, CaptureBlock? Capture);
     sealed record CaptureV(string Label, string Color, string Detail);
 

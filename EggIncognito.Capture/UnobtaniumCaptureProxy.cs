@@ -59,6 +59,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
     public event Action<int, string?>? ClientDisconnected; // (activeCount, realDeviceIp)
     public event Action? AuxbrainConnect; // an auxbrain CONNECT was decrypted
     public event Action<string>? DecryptError; // a TLS/decrypt error message
+    public event Action<string, bool>? ConnectSeen; // (host, willDecrypt) for every CONNECT - diagnostics
 
     public bool Verbose { get; set; }
 
@@ -176,6 +177,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         {
             var decrypt = ShouldDecrypt(host);
             Log($"CONNECT {host}  decrypt={decrypt}");
+            ConnectSeen?.Invoke(host, decrypt);
             // client?.Address here is the loopback forwarder, not the device - real device
             // connect/disconnect with the true IP is reported by the LAN forwarder instead.
             if (decrypt) { AuxbrainConnect?.Invoke(); ArmTrustInference(host); }

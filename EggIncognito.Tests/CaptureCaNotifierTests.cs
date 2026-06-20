@@ -67,6 +67,7 @@ public class CaptureCaNotifierTests
         public event Action<int, string?>? ClientDisconnected;
         public event Action? AuxbrainConnect;
         public event Action<string>? DecryptError;
+        public event Action<string, bool>? ConnectSeen;
 #pragma warning restore CS0067
 
         public bool FreshCa => true;

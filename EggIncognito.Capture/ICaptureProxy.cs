@@ -25,6 +25,7 @@ public interface ICaptureProxy : IAsyncDisposable
     event Action<int, string?>? ClientDisconnected; // activeCount, realDeviceIp
     event Action? AuxbrainConnect; // an auxbrain CONNECT was decrypted
     event Action<string>? DecryptError; // a TLS/decrypt error message
+    event Action<string, bool>? ConnectSeen; // every CONNECT target seen (host, willDecrypt) - diagnostics
 
     // True if the root CA was freshly created this run; operator must install it once.
     bool FreshCa { get; }

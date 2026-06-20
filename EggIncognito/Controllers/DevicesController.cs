@@ -452,6 +452,7 @@ public sealed class DevicesController(
             flows = d.Flows,
             rinfoHarvests = d.RinfoHarvests,
             lastDecryptError = d.LastDecryptError,
+            recentConnects = d.RecentConnects,
         };
         var v = mgr.Rinfo.Latest(id);
         if (v is null) return Ok(new { found = false, capture });
