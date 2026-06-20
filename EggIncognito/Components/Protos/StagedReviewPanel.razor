@@ -8,6 +8,8 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 @if (_rows.Count > 0 || IsAdmin)
 {
@@ -20,6 +22,13 @@
           Import crawl dataset
           <InputFile OnChange="ImportCrawl" accept=".zip" class="hidden" />
         </label>
+      }
+      @if (_rows.Any(r => r.IsIncomplete))
+      {
+        <button type="button" class="btn-mini" @onclick="CopyAllMissing"
+                title="Copy a structured report of every row with a missing field, for closer audit">
+          Copy Missing Info (@_rows.Count(r => r.IsIncomplete))
+        </button>
       }
       @if (_rows.Count > 0)
       {
@@ -83,6 +92,11 @@
                 <div class="flex gap-1">
                   <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Approve(r))">Approve</button>
                   <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Reject(r))">Reject</button>
+                  @if (r.IsIncomplete)
+                  {
+                    <button type="button" class="btn-mini" @onclick="@(() => CopyOne(r))"
+                            title="Copy this row's audit info">Copy</button>
+                  }
                 </div>
               </td>
             </tr>
@@ -217,7 +231,7 @@
             if (resp.IsSuccessStatusCode)
             {
                 var r = await resp.Content.ReadFromJsonAsync<BulkApproveResp>(JsonOpts);
-                _msg = r is null ? "approved" : $"approved {r.Approved}, skipped {r.Skipped} (missing build / collision), failed {r.Failed}";
+                _msg = r is null ? "approved" : $"approved {r.Approved}, skipped {r.Skipped} (no version yet), failed {r.Failed}";
             }
             else _msg = $"bulk approve failed ({(int)resp.StatusCode})";
         }
@@ -267,6 +281,54 @@
         await OnChanged.InvokeAsync();
     }
 
+    IJSObjectReference? _copy;
+
+    // Build a structured, paste-back audit report for rows with missing version fields. One block per row:
+    // identity (id/sha/source), what is known, what is MISSING, and the crawl provenance (repo/commit/date/
+    // confidence) so the missing fields can be chased in that exact commit.
+    static string MissingReport(IEnumerable<StagedRow> rows)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("# Staged proto rows with missing version info");
+        sb.AppendLine();
+        foreach (var r in rows)
+        {
+            sb.AppendLine($"- id={r.Id} sha={r.ProtoSha} source={r.Source} platform={r.Platform}");
+            sb.AppendLine($"  have: appVersion={Or(r.AppVersion)} build={Or(r.Build)} clientVersion={Or(r.ClientVersion)}");
+            sb.AppendLine($"  MISSING: {string.Join(", ", r.Missing)}");
+            if (r.OriginRepo is not null)
+                sb.AppendLine($"  origin: repo={r.OriginRepo} commit={Or(r.OriginCommit)} date={(r.OriginDate?.ToString("u") ?? "-")} confidence={Or(r.Confidence)}");
+            sb.AppendLine();
+        }
+        return sb.ToString();
+        static string Or(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s;
+    }
+
+    async Task CopyText(string text, int n)
+    {
+        try
+        {
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
+            await _copy.InvokeAsync<bool>("writeText", text);
+            _msg = $"copied {n} row(s) of missing info to clipboard";
+        }
+        catch (Exception ex) { _msg = $"copy failed: {ex.Message}"; }
+        StateHasChanged();
+    }
+
+    Task CopyAllMissing()
+    {
+        var incomplete = _rows.Where(r => r.IsIncomplete).ToList();
+        return CopyText(MissingReport(incomplete), incomplete.Count);
+    }
+
+    Task CopyOne(StagedRow r) => CopyText(MissingReport([r]), 1);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_copy is not null) try { await _copy.DisposeAsync(); } catch { }
+    }
+
     sealed record BulkApproveResp(int Approved, int Skipped, int Failed);
     sealed record BulkRejectResp(int Rejected);
 
@@ -280,6 +342,21 @@
         public string? ClientVersion { get; set; }
         public string ProtoSha { get; set; } = "";
         public string? OriginRepo { get; set; }
+        public string? OriginCommit { get; set; }
+        public DateTimeOffset? OriginDate { get; set; }
         public string? Confidence { get; set; }
+
+        public bool IsIncomplete =>
+            string.IsNullOrWhiteSpace(AppVersion) || string.IsNullOrWhiteSpace(Build) || string.IsNullOrWhiteSpace(ClientVersion);
+
+        public IEnumerable<string> Missing
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(AppVersion)) yield return "appVersion";
+                if (string.IsNullOrWhiteSpace(Build)) yield return "build";
+                if (string.IsNullOrWhiteSpace(ClientVersion)) yield return "clientVersion";
+            }
+        }
     }
 }

@@ -196,7 +196,9 @@
     bool _isAdmin;
     bool _isContributor;
     bool _canWrite;
-    string _sortCol = "detected";
+    // Default sort = app version desc. Detected-date is useless as the default because bulk imports (backfill,
+    // crawl approvals) all land with today's date; app version groups releases sensibly newest-first.
+    string _sortCol = "appVersion";
     bool _sortDesc = true;
 
     ProtoDropZone.ExtractResult? _result;

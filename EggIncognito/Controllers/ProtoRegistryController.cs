@@ -175,7 +175,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
             id = r.Id, source = r.Source, platform = r.Platform, appVersion = r.AppVersion, build = r.Build,
             clientVersion = r.ClientVersion, protoSha = r.ProtoSha, submittedBy = r.SubmittedBy,
             submittedAt = r.SubmittedAt, originRepo = r.OriginRepo, originCommit = r.OriginCommit,
-            confidence = r.Confidence,
+            originDate = r.OriginDate, confidence = r.Confidence,
         }));
     }
 
@@ -191,8 +191,8 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         var r = await s.ApproveAsync(id, req.Platform, req.AppVersion, req.Build, req.ClientVersion, who, ct);
         return r switch
         {
-            StagedProtoStore.ApproveResult.Ok => Ok(new { ok = true }),
-            StagedProtoStore.ApproveResult.BuildCollision => Conflict(new { error = "build already exists" }),
+            StagedProtoStore.ApproveResult.Ok => Ok(new { ok = true, merged = false }),
+            StagedProtoStore.ApproveResult.Merged => Ok(new { ok = true, merged = true }),
             StagedProtoStore.ApproveResult.MissingBuild => BadRequest(new { error = "appVersion + build required to approve" }),
             _ => NotFound(),
         };

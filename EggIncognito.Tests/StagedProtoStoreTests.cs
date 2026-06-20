@@ -52,6 +52,26 @@ public class StagedProtoStoreTests
     }
 
     [Fact(Skip = "requires Postgres; no EF test provider per tests-DB-free repo rule")]
+    public async Task Approve_ExistingBuild_MergesInsteadOfBlocking()
+    {
+        await using var db = new EggIncognitoDbContext(Opts);
+        var registry = new ProtoRegistryStore(db);
+        var store = new StagedProtoStore(db, registry);
+        // existing registry row with NO clientVersion
+        await registry.UpsertAsync("android", "1.40", "111", clientVersion: null, package: "p",
+            protoSha: "x", apkRef: "", DateTimeOffset.UtcNow, "u", "proto", "farm", ct: default);
+        // a staged row for the SAME build that carries the clientVersion
+        await store.OfferAsync("android", "1.40", "111", "72", "p", "sha9", "proto2", null, "u", default);
+        var id = (await store.PendingAsync(default))[0].Id;
+        // approve -> Merged (not blocked), clientVersion filled into the existing row, queue cleared
+        Assert.Equal(StagedProtoStore.ApproveResult.Merged,
+            await store.ApproveAsync(id, null, null, null, null, "admin", default));
+        Assert.Empty(await store.PendingAsync(default));
+        var row = await db.ProtoVersions.FirstAsync(p => p.Platform == "android" && p.Build == "111");
+        Assert.Equal("72", row.ClientVersion); // filled from the staged row
+    }
+
+    [Fact(Skip = "requires Postgres; no EF test provider per tests-DB-free repo rule")]
     public async Task BulkReject_RejectsAllPendingIds()
     {
         await using var db = new EggIncognitoDbContext(Opts);

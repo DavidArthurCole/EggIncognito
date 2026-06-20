@@ -9,7 +9,10 @@ namespace EggIncognito.Data.Services;
 public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStore registry)
 {
     public enum OfferResult { Staged, AlreadyPending, AlreadyInRegistry }
-    public enum ApproveResult { Ok, NotFound, BuildCollision, MissingBuild }
+    // Ok = created/overwrote a registry row. Merged = the build already existed, so the staged data was filled
+    // into the gaps of that row (no clobber) and the staged row cleared from the queue. MissingBuild/NotFound
+    // are the only non-success outcomes.
+    public enum ApproveResult { Ok, Merged, NotFound, MissingBuild }
 
     private async Task<bool> ShaInRegistryAsync(string sha, CancellationToken ct) =>
         await db.ProtoVersions.AnyAsync(p => p.ProtoSha == sha && p.DeletedAt == null, ct);
@@ -82,18 +85,34 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         var cv = string.IsNullOrWhiteSpace(clientVersion) ? row.ClientVersion : clientVersion;
         if (string.IsNullOrWhiteSpace(bld) || string.IsNullOrWhiteSpace(appV)) return ApproveResult.MissingBuild;
 
-        // Collision: another registry row already holds this build for the platform.
-        var clash = await db.ProtoVersions.AnyAsync(p => p.Platform == plat && p.Build == bld, ct);
-        if (clash) return ApproveResult.BuildCollision;
+        // Does the registry already hold this build for the platform?
+        var existing = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == plat && p.Build == bld, ct);
+        var result = existing is null ? ApproveResult.Ok : ApproveResult.Merged;
 
-        await registry.UpsertAsync(plat, appV!, bld!, cv, package: row.Package ?? "",
-            protoSha: row.ProtoSha, apkRef: $"staged:{row.Id}", detectedAt: DateTimeOffset.UtcNow,
-            detectedBy: $"staged-approve:{reviewedBy}", protoText: row.ProtoText, source: row.Source,
-            resurrect: true, ct: ct);
+        if (existing is null)
+        {
+            // New build -> full upsert.
+            await registry.UpsertAsync(plat, appV!, bld!, cv, package: row.Package ?? "",
+                protoSha: row.ProtoSha, apkRef: $"staged:{row.Id}", detectedAt: DateTimeOffset.UtcNow,
+                detectedBy: $"staged-approve:{reviewedBy}", protoText: row.ProtoText, source: row.Source,
+                resurrect: true, ct: ct);
+        }
+        else
+        {
+            // Build already exists -> MERGE, do not clash. BackfillUpsertAsync fills only the existing row's
+            // empty fields (appVersion when blank, clientVersion when null, apkRef/detectedAt when unset) and
+            // writes the proto only if the existing row has none. So a staged contribution enriches an
+            // incomplete row instead of being rejected back into the queue, and never clobbers good data.
+            var hasProto = await db.ProtoProtos.AnyAsync(x => x.ProtoVersionId == existing.Id, ct);
+            await registry.BackfillUpsertAsync(plat, appV!, bld!, cv, package: row.Package ?? "",
+                protoText: row.ProtoText, protoSha: row.ProtoSha, messageIndex: row.MessageIndex,
+                writeProto: !hasProto, apkRef: $"staged:{row.Id}", detectedAt: DateTimeOffset.UtcNow,
+                source: row.Source, ct: ct);
+        }
 
         row.Status = "approved"; row.ReviewedBy = reviewedBy; row.ReviewedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
-        return ApproveResult.Ok;
+        return result;
     }
 
     public async Task<bool> RejectAsync(int id, string? note, string reviewedBy, CancellationToken ct)
@@ -121,9 +140,9 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
             var r = await ApproveAsync(it.Id, it.Platform, it.AppVersion, it.Build, it.ClientVersion, reviewedBy, ct);
             switch (r)
             {
-                case ApproveResult.Ok: ok++; break;
-                case ApproveResult.MissingBuild or ApproveResult.BuildCollision: skipped++; break;
-                default: failed++; break; // NotFound
+                case ApproveResult.Ok or ApproveResult.Merged: ok++; break; // both promote + clear the queue
+                case ApproveResult.MissingBuild: skipped++; break;          // no build -> needs a manual fill
+                default: failed++; break;                                   // NotFound
             }
         }
         return new BulkApproveResult(ok, skipped, failed);
