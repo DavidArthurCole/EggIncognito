@@ -29,7 +29,7 @@
     <ProtoDropZone OnResult="OnExtracted" />
     @if (_result is not null)
     {
-      <ProtoAnalysisResult Result="_result" CanWrite="_canWrite" OnSaved="Load" />
+      <ProtoAnalysisResult Result="_result" CanWrite="_canWrite" OnSaved="OnMutated" />
     }
   </section>
 
@@ -176,7 +176,7 @@
   @* Side column: device farm visible to everyone (read-only for non-admins; the panel gates its own
      action buttons), backfill panel admin-only. *@
   <div class="flex flex-col gap-6">
-    <DeviceStatusPanel OnSaved="Load" />
+    <DeviceStatusPanel OnSaved="OnMutated" />
     <MissingVersionsPanel />
     @if (_isAdmin)
     {
@@ -301,7 +301,29 @@
         _canWrite = User.IsAtLeast(UserRole.Contributor);
     }
 
-    protected override Task OnInitializedAsync() => Load();
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        // Hyper-reactive: poll every few seconds so changes from ANY source (other reviewers, the heartbeat,
+        // a device save, a staged approve in another tab) surface here promptly - the registry table, the
+        // merge suggestions, and the staged queue all reload together. Local mutations still refresh instantly
+        // via OnMutated; this is the background safety net. Runs on the circuit thread via InvokeAsync.
+        _refresh = new Timer(async _ => await InvokeAsync(RefreshAll), null,
+            TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(6));
+    }
+
+    Timer? _refresh;
+
+    // Reload everything the page shows, without touching the user's current selection/edit state mid-action.
+    async Task RefreshAll()
+    {
+        if (_loading || _busyMutating) return; // don't fight an in-flight load or a mutation
+        await Load();
+        if (_stagedPanel is not null) await _stagedPanel.Load();
+        StateHasChanged();
+    }
+
+    bool _busyMutating;
 
     HttpClient Client()
     {
@@ -384,10 +406,15 @@
 
     async Task OnMutated()
     {
-        ClearSelection();
-        _editing = null;
-        await Load();
-        if (_stagedPanel is not null) await _stagedPanel.Load();
+        _busyMutating = true;
+        try
+        {
+            ClearSelection();
+            _editing = null;
+            await Load();
+            if (_stagedPanel is not null) await _stagedPanel.Load();
+        }
+        finally { _busyMutating = false; }
     }
 
     bool IsSelected(VersionRow r) => _selected.Any(k => k.Platform == r.Platform && k.Build == r.Build);
@@ -447,6 +474,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        if (_refresh is not null) await _refresh.DisposeAsync();
         if (_copy is not null)
             try { await _copy.DisposeAsync(); } catch { }
     }
