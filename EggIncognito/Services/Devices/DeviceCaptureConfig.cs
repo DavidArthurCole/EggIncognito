@@ -28,6 +28,9 @@ public sealed record DeviceCaptureConfig
     public string? IosTrustStorePath { get; init; }
     // iOS app process name for `killall` on force-restart (the executable name, not the bundle id).
     public string? IosAppProcessName { get; init; }
+    // Full override for the iOS force-restart ssh command ({bundle}/{proc} placeholders); default kills +
+    // relaunches with diagnostics. Set if open/uiopen don't cold-launch the app on this jailbreak.
+    public string? IosRestartCommand { get; init; }
 
     public static DeviceCaptureConfig Bind(IConfiguration config)
     {
@@ -50,6 +53,7 @@ public sealed record DeviceCaptureConfig
             IosCaInstallCommand = Nz(ios["CaInstallCommand"]),
             IosTrustStorePath = Nz(ios["TrustStorePath"]),
             IosAppProcessName = Nz(ios["AppProcessName"]),
+            IosRestartCommand = Nz(ios["RestartCommand"]),
         };
     }
 

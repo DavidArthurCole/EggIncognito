@@ -113,17 +113,30 @@ public sealed class DeviceProxyPusher(
             {
                 if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
                     return (false, "ios ssh not configured");
-                // Kill the running app process (by its executable name) then relaunch via the URL scheme. The
-                // process name is app-specific (config; default "Egg, Inc." for the egginc binary).
+                // Jailbroken cold-launch with diagnostics. A backgrounded iOS app stays suspended; uiopen just
+                // resumes it (no fresh auxbrain call), so we must KILL it first. The executable name is app-
+                // specific, so we (1) report what egg-ish processes are running, (2) kill by the configured
+                // name AND by anything matching the bundle, (3) try several launch methods (open <bundle> from
+                // Procursus, then uiopen <bundle>:// scheme). Every step echoes `diag:` so the note shows what
+                // worked. Override the whole command via DeviceCapture:Ios:RestartCommand if a method is wrong.
+                var bundle = d.Package; // com.auxbrain.egginc
                 var proc = string.IsNullOrEmpty(config.IosAppProcessName) ? "Egg, Inc." : config.IosAppProcessName;
-                var remote = $"killall -9 \"{proc}\" 2>/dev/null; sleep 1; uiopen {d.Package}://";
+                var remote = string.IsNullOrEmpty(config.IosRestartCommand)
+                    ? "echo diag ps:; ps -A -o pid,comm 2>/dev/null | grep -i egg || echo '  (no egg process)'; " +
+                      $"killall -9 \"{proc}\" 2>&1 | sed 's/^/diag killall-name: /'; " +
+                      $"for p in $(ps -A -o pid,comm 2>/dev/null | grep -i egg | awk '{{print $1}}'); do kill -9 $p 2>&1 | sed 's/^/diag kill-pid: /'; done; " +
+                      "sleep 1; " +
+                      $"(open {bundle} 2>&1 || uiopen {bundle}:// 2>&1) | sed 's/^/diag launch: /'; " +
+                      "sleep 2; echo diag ps-after:; ps -A -o pid,comm 2>/dev/null | grep -i egg || echo '  (not running after launch!)'"
+                    : config.IosRestartCommand.Replace("{bundle}", bundle).Replace("{proc}", proc);
                 var r = await runner.RunAsync("ssh",
                     ["-p", config.IosSshPort, "-i", config.IosSshKeyPath, "-o", "StrictHostKeyChecking=no",
                      "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
-                var ok = r.ExitCode == 0;
-                logger.LogInformation("device capture: {Id} app restarted over ssh (ok={Ok})", d.Id, ok);
-                return ok ? (true, "restarted")
-                          : (false, EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(r.Stderr + r.Stdout));
+                var diag = EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
+                var launched = r.Stdout.Contains("ps-after:") && !r.Stdout.Contains("not running after launch");
+                logger.LogInformation("device capture: {Id} ios restart (running-after={Ok}): {Diag}", d.Id, launched, diag);
+                return r.ExitCode == 0 ? (true, $"{(launched ? "running" : "NOT running - see diag")}: {diag}")
+                                       : (false, diag);
             }
             return (false, $"no restart for platform {d.Platform}");
         }
