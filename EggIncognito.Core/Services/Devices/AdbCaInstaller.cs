@@ -94,9 +94,12 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
             try { File.Delete(tmpScript); } catch { }
         }
 
-        // Execute the pushed script as root. Passing the PATH as the single arg to `sh` avoids word-splitting.
-        var r = await Adb(device.Target, ["shell", "su", "0", "sh", RemoteScript], ct);
+        // Execute the pushed script as root. `su 0 sh <file>` produced NO output on this ROM (the arg after
+        // `sh` is dropped by this su), so wrap the exec in `su 0 sh -c "sh <path> 2>&1"`: `-c` takes one short
+        // arg (no spaces in the path => no word-split), runs the file, and merges stderr so diag is captured.
+        var r = await Adb(device.Target, ["shell", "su", "0", "sh", "-c", $"sh {RemoteScript} 2>&1"], ct);
         var diag = DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
+        if (string.IsNullOrWhiteSpace(diag)) diag = "(no script output - check the script pushed + su works)";
         if (r.ExitCode != 0) return (false, $"install rc={r.ExitCode}: {diag}");
         var trusted = r.Stdout.Contains("verify-zygotens: present");
         return (true, $"{hash}.0 ({(trusted ? "VISIBLE to zygote" : "NOT verified - see diag")}): {diag}");

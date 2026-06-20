@@ -89,9 +89,9 @@ public class CaInstallerTests
             var pushes = runner.Calls.Where(c => c.args.Contains("push")).ToList();
             Assert.Equal(2, pushes.Count);
             Assert.All(pushes, p => Assert.Contains("SERIAL", p.args));
-            // The script runs by PATH (no inline word-split), as root.
+            // The script runs by PATH via `su 0 sh -c "sh <path> 2>&1"` (no inline word-split), as root.
             var run = runner.Calls.Single(c => c.args.Contains("su"));
-            Assert.Contains("/data/local/tmp/eggincognito-ca-install.sh", run.args);
+            Assert.Contains(run.args, a => a.Contains("/data/local/tmp/eggincognito-ca-install.sh"));
             var hash = CaCertPrep.AndroidSubjectHashOld(cert);
             Assert.Contains(hash, note!);
             Assert.Contains("VISIBLE", note!);

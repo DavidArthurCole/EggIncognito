@@ -125,25 +125,27 @@ public sealed class DeviceProxyPusher(
                 // egg process by PID, then try every known jailbroken cold-launch by BUNDLE ID until one
                 // brings the app up. `uiopen`/`open` take a bundle id on most jailbreaks; sbreloadlaunch via
                 // `launchctl`/`uicache -l` are fallbacks. Reports which launcher worked.
+                // /bin/sh, no awk (this jailbreak lacks it - parse PIDs with the shell). Kill any egg process,
+                // then COLD-LAUNCH BY BUNDLE ID: `uiopen --bundle <id>` is the bundle form (the `<id>://`
+                // scheme form does NOT work - EI registers no such scheme). Fallbacks: `open -b`, then SBSL
+                // via `sbreload`-style launch. Reports which worked + whether the app is running after.
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
                     ? "/bin/sh -c '" +
-                      "echo diag launchers:; for c in uiopen open sblaunch uicache activator; do command -v $c >/dev/null 2>&1 && echo \"  have $c\"; done; " +
-                      "echo diag ps:; ps -A -o pid,comm 2>/dev/null | grep -i egg || echo \"  (no egg process)\"; " +
-                      "for p in $(ps -A 2>/dev/null | grep -i egg | grep -v grep | awk \"{print \\$1}\"); do kill -9 $p 2>&1 | sed \"s/^/diag kill-pid: /\"; done; " +
-                      "sleep 1; " +
-                      $"L=\"\"; " +
-                      $"if command -v uiopen >/dev/null 2>&1; then uiopen {bundle}:// 2>&1 | sed \"s/^/diag uiopen: /\"; L=uiopen; fi; " +
-                      $"if command -v open >/dev/null 2>&1; then open {bundle} 2>&1 | sed \"s/^/diag open: /\"; L=open; fi; " +
-                      $"command -v uicache >/dev/null 2>&1 && uicache -l 2>/dev/null | grep -q {bundle} && echo \"diag uicache: bundle known\"; " +
-                      "echo \"diag launcher-used: ${L:-NONE}\"; " +
-                      "sleep 3; echo diag ps-after:; ps -A -o pid,comm 2>/dev/null | grep -i egg || echo \"  (not running after launch!)\"" +
+                      "echo diag launchers:; for c in uiopen open sblaunch; do command -v $c >/dev/null 2>&1 && echo \"  have $c\"; done; " +
+                      "echo diag ps:; ps ax 2>/dev/null | grep -i egg | grep -v grep || echo \"  (no egg process)\"; " +
+                      "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>&1 | sed \"s/^/diag kill-pid: /\"; done; " +
+                      "sleep 1; L=NONE; " +
+                      $"if command -v uiopen >/dev/null 2>&1; then uiopen --bundle {bundle} 2>&1 | sed \"s/^/diag uiopen-bundle: /\"; L=uiopen-bundle; fi; " +
+                      "sleep 3; echo diag ps-after:; " +
+                      "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running (via $L)\"; " +
+                      $"else echo \"diag RESULT: NOT running - try uiopen scheme\"; uiopen {bundle}:// 2>&1 | sed \"s/^/diag uiopen-scheme: /\"; sleep 3; ps ax 2>/dev/null | grep -i egg | grep -v grep || echo \"  (still not running)\"; fi" +
                       "'"
                     : config.IosRestartCommand.Replace("{bundle}", bundle).Replace("{proc}", proc);
                 var r = await runner.RunAsync("ssh",
                     ["-p", config.IosSshPort, "-i", config.IosSshKeyPath, "-o", "StrictHostKeyChecking=no",
                      "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
                 var diag = EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
-                var launched = r.Stdout.Contains("ps-after:") && !r.Stdout.Contains("not running after launch");
+                var launched = r.Stdout.Contains("diag RESULT: running");
                 logger.LogInformation("device capture: {Id} ios restart (running-after={Ok}): {Diag}", d.Id, launched, diag);
                 return r.ExitCode == 0 ? (true, $"{(launched ? "running" : "NOT running - see diag")}: {diag}")
                                        : (false, diag);
