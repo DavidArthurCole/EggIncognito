@@ -91,6 +91,29 @@ public class CrawlManifestReaderTests
     }
 
     [Fact]
+    public void Read_OriginDate_NormalizedToUtc()
+    {
+        // Commit dates carry a local offset (here -08:00). Npgsql timestamptz only accepts UTC offset 0, so
+        // the reader must convert OriginDate to UTC, else the staged-import insert throws.
+        var manifest = JsonSerializer.Serialize(new[]
+        {
+            new { Repo = "r", Commit = "c", Date = "2022-02-04T12:59:44-08:00", ProtoPath = "ei.proto",
+                  ProtoSha256 = "shaTz", ClientVersion = (int?)null, AppVersion = (string?)null, Build = (string?)null,
+                  SnapshotFile = "snapshots/r/tz.proto", Reason = "x", VersionConfidence = "", CommitSubject = "s" },
+        });
+        var zip = BuildZip(new[]
+        {
+            ("manifest.json", manifest),
+            ("snapshots/r/tz.proto", "syntax = \"proto2\";"),
+        });
+
+        var rec = Assert.Single(CrawlManifestReader.Read(zip));
+        Assert.NotNull(rec.OriginDate);
+        Assert.Equal(TimeSpan.Zero, rec.OriginDate!.Value.Offset); // converted to UTC
+        Assert.Equal(new DateTimeOffset(2022, 2, 4, 20, 59, 44, TimeSpan.Zero), rec.OriginDate); // 12:59-08 = 20:59Z
+    }
+
+    [Fact]
     public void Read_SkipsRecordsWithMissingSnapshot()
     {
         var manifest = JsonSerializer.Serialize(new[]

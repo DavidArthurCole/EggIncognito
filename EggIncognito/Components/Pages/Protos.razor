@@ -68,7 +68,7 @@
     }
     @if (_canWrite && _editing is not null)
     {
-      <ProtoEditDialog Target="_editing" Patch="PatchJson" OnChanged="OnMutated" OnClose="@(() => _editing = null)" />
+      <ProtoEditDialog Targets="_editing" Patch="PatchJson" OnChanged="OnMutated" OnClose="@(() => _editing = null)" />
     }
 
     @if (_loading)
@@ -162,15 +162,8 @@
               @if (_canWrite)
               {
                 <td @onclick:stopPropagation="true">
-                  @* edit acts per-member; for a grouped release, one Edit button per platform member *@
-                  <div class="flex flex-col gap-0.5">
-                    @foreach (var m in rel.Members)
-                    {
-                      <button type="button" class="btn-mini" @onclick="@(() => EditRow(m))">
-                        Edit@(rel.IsGrouped ? $" {m.Platform}" : "")
-                      </button>
-                    }
-                  </div>
+                  @* one Edit button per release; the dialog shows every platform member of a grouped release *@
+                  <button type="button" class="btn-mini" @onclick="@(() => EditRelease(rel))">Edit</button>
                 </td>
               }
             </tr>
@@ -208,7 +201,7 @@
 
     ProtoDropZone.ExtractResult? _result;
     readonly List<ProtoSelectionBar.VersionKey> _selected = [];
-    ProtoEditDialog.Row? _editing;
+    List<ProtoEditDialog.Row>? _editing;
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
 
@@ -428,8 +421,12 @@
 
     void ClearSelection() => _selected.Clear();
 
-    void EditRow(VersionRow r) =>
-        _editing = new ProtoEditDialog.Row(r.Platform, r.Build, r.AppVersion, r.ClientVersion, r.Source);
+    // Open the editor for a whole release: a standalone row edits one member, a merged release edits all its
+    // platform members in one dialog.
+    void EditRelease(Release rel) =>
+        _editing = rel.Members
+            .Select(m => new ProtoEditDialog.Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
+            .ToList();
 
     void Navigate(string href) => _ = JS.InvokeVoidAsync("location.assign", href);
 

@@ -67,7 +67,9 @@ public static class CrawlManifestReader
                 trusted ? r.AppVersion : null,
                 trusted ? r.Build : null,
                 trusted ? r.ClientVersion?.ToString() : null,
-                r.ProtoSha256!, text, r.Repo, r.Commit, r.Date,
+                // OriginDate -> UTC: commit dates carry a local offset (e.g. -08:00), but Npgsql's timestamptz
+                // only accepts offset 0. Normalize so the import insert does not throw.
+                r.ProtoSha256!, text, r.Repo, r.Commit, r.Date?.ToUniversalTime(),
                 string.IsNullOrEmpty(r.VersionConfidence) ? null : r.VersionConfidence));
         }
         return result;
