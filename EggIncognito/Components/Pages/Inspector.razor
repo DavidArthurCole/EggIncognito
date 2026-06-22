@@ -2,6 +2,7 @@
 @rendermode @(RenderMode.InteractiveServer)
 @implements IAsyncDisposable
 @using System.Net.Http.Json
+@using System.Reflection
 @using System.Text.Json
 @using System.Text.Json.Nodes
 @using Microsoft.JSInterop
@@ -48,21 +49,40 @@
 
       <details class="env-box" open>
         <summary>Environment (BasicRequestInfo overrides)</summary>
-        <div class="fields">
+        <div class="env-grid">
           @foreach (var row in _envRows)
           {
             var r = row;
-            <div class="field-row">
-              <div class="field-name">@r.Key</div>
-              @if (r.Key is "eiUserId" or "userId")
+            var invalid = r.IsInvalid();
+            <label class="env-cell" title="@r.Key">
+              <span class="env-key">@r.Key</span>
+              @if (r.Editor == "select")
               {
-                <input list="recentEids" value="@r.Value" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
+                <select class="env-input" value="@r.Value" @onchange="e => OnEnvInput(r, e.Value?.ToString())">
+                  @foreach (var opt in r.Options ?? [])
+                  {
+                    <option value="@opt">@opt</option>
+                  }
+                </select>
+              }
+              else if (r.Editor == "bool")
+              {
+                <input class="env-check" type="checkbox" checked="@(r.Value == "true")"
+                       @onchange="e => OnEnvBool(r, e)" />
+              }
+              else if (r.Editor == "eid")
+              {
+                <input class="env-input @(invalid ? "env-invalid" : "")" list="recentEids" value="@r.Value"
+                       placeholder="@r.Hint" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                       @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
               }
               else
               {
-                <input value="@r.Value" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
+                <input class="env-input @(invalid ? "env-invalid" : "")" value="@r.Value"
+                       placeholder="@r.Hint" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                       @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
               }
-            </div>
+            </label>
           }
         </div>
       </details>
@@ -436,15 +456,19 @@
     {
         _envRows =
         [
-            new EnvRow { Key = "clientVersion", ValueType = "number", Value = _rinfo.ClientVersion.ToString() },
-            new EnvRow { Key = "version", ValueType = "string", Value = _rinfo.Version },
-            new EnvRow { Key = "build", ValueType = "string", Value = _rinfo.Build },
-            new EnvRow { Key = "platform", ValueType = "string", Value = _rinfo.Platform },
-            new EnvRow { Key = "country", ValueType = "string", Value = _rinfo.Country },
-            new EnvRow { Key = "language", ValueType = "string", Value = _rinfo.Language },
-            new EnvRow { Key = "debug", ValueType = "boolean", Value = _rinfo.Debug ? "true" : "false" },
+            new EnvRow { Key = "eiUserId", ValueType = "string", Editor = "eid", Hint = "EI...", Value = _rinfo.EiUserId },
+            new EnvRow { Key = "clientVersion", ValueType = "number", Editor = "int", Hint = "int", Value = _rinfo.ClientVersion.ToString() },
+            new EnvRow { Key = "version", ValueType = "string", Editor = "version", Hint = "1.35.8", Value = _rinfo.Version },
+            new EnvRow { Key = "build", ValueType = "string", Editor = "int", Hint = "int", Value = _rinfo.Build },
+            new EnvRow { Key = "platform", ValueType = "string", Editor = "select", Options = PlatformOptions, Value = _rinfo.Platform },
+            new EnvRow { Key = "country", ValueType = "string", Editor = "code", Hint = "US", Value = _rinfo.Country },
+            new EnvRow { Key = "language", ValueType = "string", Editor = "code", Hint = "en", Value = _rinfo.Language },
+            new EnvRow { Key = "debug", ValueType = "boolean", Editor = "bool", Value = _rinfo.Debug ? "true" : "false" },
         ];
     }
+
+    Task OnEnvBool(EnvRow row, ChangeEventArgs e) =>
+        OnEnvInput(row, e.Value is bool b && b ? "true" : "false");
 
     async Task OnEnvInput(EnvRow row, string? value)
     {
@@ -460,6 +484,7 @@
     {
         switch (row.Key)
         {
+            case "eiUserId": _rinfo.EiUserId = row.Value; break;
             case "clientVersion": _rinfo.ClientVersion = int.TryParse(row.Value, out var cv) ? cv : _rinfo.ClientVersion; break;
             case "version": _rinfo.Version = row.Value; break;
             case "build": _rinfo.Build = row.Value; break;
@@ -473,7 +498,11 @@
     void ApplyEnvLock()
     {
         if (_fieldNodes is null) return;
-        FieldTreeBuilder.ApplyEnvLock(_fieldNodes, EnvCollector.AsStrings(_envRows));
+        var env = EnvCollector.AsStrings(_envRows);
+        FieldTreeBuilder.ApplyEnvLock(_fieldNodes, env);
+        // Default top-level request fields (clientVersion, eiUserId, platform, ...) from the Environment
+        // constants so the same values do not have to be retyped per request.
+        FieldTreeBuilder.ApplyEnvDefaults(_fieldNodes, env);
     }
 
     void OnTreeChanged() { /* re-render; raw JSON is re-derived on toggle */ }
@@ -870,6 +899,7 @@
     // exactly (getRinfoDefaults returns clientVersion:int, debug:bool) so the JSON round-trips cleanly.
     sealed class RinfoDefaults
     {
+        public string EiUserId { get; set; } = "";
         public int ClientVersion { get; set; } = 72;
         public string Version { get; set; } = "1.35.7";
         public string Build { get; set; } = "111343";
@@ -878,6 +908,15 @@
         public string Language { get; set; } = "en";
         public bool Debug { get; set; }
     }
+
+    // Platform is a string field on BasicRequestInfo, but the only valid values are the proto Platform
+    // enum names (e.g. DROID, IOS). Source the dropdown from the enum's original proto names (the
+    // [OriginalName] attribute), not the PascalCase C# members, so the value on the wire matches what the
+    // real client sends and can never drift from the proto.
+    static readonly string[] PlatformOptions = typeof(Ei.Platform).GetFields()
+        .Where(f => f.IsLiteral)
+        .Select(f => f.GetCustomAttribute<Google.Protobuf.Reflection.OriginalNameAttribute>()?.Name ?? f.Name)
+        .ToArray();
 
     record StatusResult(List<string> Ok, List<string> Empty, List<string> Missing);
 

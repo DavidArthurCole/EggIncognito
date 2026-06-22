@@ -158,6 +158,23 @@ public static class FieldTreeBuilder
             }
         }
     }
+
+    // Default top-level request fields from the Environment constants when the user has not set them.
+    // Top-level fields that share a name with an Environment key (e.g. a request's own clientVersion,
+    // eiUserId, platform) prefill to the matching env value so the operator does not retype the same
+    // constants. Unlike the rinfo env-lock this is a soft default: it only fills empty nodes and never
+    // locks, so the user can override. Skips the rinfo subtree (the lock owns that).
+    public static void ApplyEnvDefaults(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env)
+    {
+        foreach (var n in nodes)
+        {
+            if (n.Field.JsonName == "rinfo") continue; // owned by ApplyEnvLock
+            if (n.IsMessage || n.Field.Repeated) continue;
+            if (!string.IsNullOrEmpty(n.Value)) continue; // user value wins
+            if (env.TryGetValue(n.Field.JsonName, out var v) && !string.IsNullOrEmpty(v))
+                n.Value = v;
+        }
+    }
 }
 
 // One Environment-panel row (a BasicRequestInfo override). Value typed as string; type recorded so
@@ -167,6 +184,27 @@ public sealed class EnvRow
     public required string Key { get; init; }
     public required string ValueType { get; init; } // "number" | "boolean" | "string"
     public string Value { get; set; } = "";
+    // Editor kind for the env panel: "text" | "int" | "version" | "code" | "bool" | "select" | "eid".
+    public string Editor { get; init; } = "text";
+    // For Editor == "select": the allowed option values (e.g. Platform enum names).
+    public IReadOnlyList<string>? Options { get; init; }
+    // Short label shown next to the input describing the expected format.
+    public string? Hint { get; init; }
+
+    // Soft client-side validity: an invalid value gets a subtle invalid state but is never hard-blocked.
+    public bool IsInvalid()
+    {
+        if (string.IsNullOrEmpty(Value)) return false;
+        return Editor switch
+        {
+            "int" => !int.TryParse(Value, out _),
+            "version" => !System.Text.RegularExpressions.Regex.IsMatch(Value, @"^\d+(\.\d+){1,3}$"),
+            "code" => !System.Text.RegularExpressions.Regex.IsMatch(Value, "^[A-Za-z]{2,3}$"),
+            "select" => Options is not null && !Options.Contains(Value),
+            "eid" => !System.Text.RegularExpressions.Regex.IsMatch(Value, @"^EI\d{10,}$"),
+            _ => false,
+        };
+    }
 }
 
 public static class EnvCollector

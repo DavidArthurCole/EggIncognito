@@ -188,8 +188,10 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         catch (Exception ex)
         {
             // The device rejected our leaf (CA not trusted) or the handshake failed. The trust-inference
-            // timer will surface "CA untrusted" if no flow ever decrypts.
-            Log($"MITM handshake failed for {host}: {ex.Message}");
+            // timer will surface "CA untrusted" if no flow ever decrypts. Log the inner exception too:
+            // "Authentication failed" server-side is usually an unusable leaf key, not device trust.
+            var inner = ex.InnerException is { } ie ? $" | inner: {ie.GetType().Name}: {ie.Message}" : "";
+            Log($"MITM handshake failed for {host}: {ex.Message}{inner} | leaf hasKey={leaf.HasPrivateKey}");
             return;
         }
 
@@ -292,6 +294,16 @@ public sealed class NativeCaptureProxy : ICaptureProxy
 
     private X509Certificate2 GetLeaf(string host) => _leafCache.GetOrAdd(host, MintLeaf);
 
+    // Test seam: mint a leaf against a freshly created root, exercising the exact cert path SslStream uses.
+    internal static X509Certificate2 MintLeafForTest(string host, out X509Certificate2 root)
+    {
+        var p = new NativeCaptureProxy();
+        var tmp = Path.Combine(Path.GetTempPath(), "egi-native-catest-" + Guid.NewGuid().ToString("N"));
+        root = LoadOrCreateRoot(tmp);
+        try { p._rootCa = root; return p.MintLeaf(host); }
+        finally { try { File.Delete(tmp); } catch { } }
+    }
+
     // Mint a leaf for `host`, signed by the root, with the SAN + EKU iOS requires. iOS rejects leafs with
     // validity over ~398 days, so keep it well under that.
     private X509Certificate2 MintLeaf(string host)
@@ -317,9 +329,13 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         var serial = new byte[8];
         RandomNumberGenerator.Fill(serial);
         using var signed = req.Create(_rootCa!, notBefore, notAfter, serial);
-        // Attach the leaf's private key so SslStream can use it as a server cert.
+        // Attach the leaf's private key so SslStream can use it as a server cert. Round-trip through a pfx so
+        // the cert+key handle is the form SslStream needs. NOTE: do NOT use EphemeralKeySet here - on Windows
+        // SChannel cannot use an ephemeral server key (handshake fails with an unexpected EOF). Default key
+        // storage works for SslStream server on both Windows and Linux.
+        using var withKey = signed.CopyWithPrivateKey(rsa);
         return X509CertificateLoader.LoadPkcs12(
-            signed.CopyWithPrivateKey(rsa).Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.Exportable);
+            withKey.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.Exportable);
     }
 
     private void TrustRootCa(X509Certificate2 cert)

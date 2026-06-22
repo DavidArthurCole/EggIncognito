@@ -461,9 +461,20 @@
   .status-panel { @apply border border-border rounded-md bg-panel2 p-2 mb-2 text-xs; }
   .status-panel .settings-title { @apply text-sm; }
   /* Environment section: a bordered box so it reads as a distinct group, not loose fields. */
-  .env-box { @apply border border-border rounded-md bg-panel2 p-3 my-2; }
-  .env-box > summary { @apply cursor-pointer font-semibold text-sm text-fg mb-2 select-none; }
-  .env-box[open] > summary { @apply mb-3; }
+  .env-box { @apply border border-border rounded-md bg-panel2 p-2 my-2; }
+  .env-box > summary { @apply cursor-pointer font-semibold text-xs text-fg select-none; }
+  .env-box[open] > summary { @apply mb-2; }
+  /* Compact BasicRequestInfo overrides: a dense auto-fit grid of stacked label+input cells so the whole
+     environment block stays short instead of one tall row-per-field column. */
+  .env-grid { @apply grid gap-x-2 gap-y-1; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .env-cell { @apply flex flex-col gap-0.5 min-w-0; }
+  .env-key { @apply font-mono text-[10px] text-muted overflow-hidden text-ellipsis whitespace-nowrap; }
+  .env-input {
+    @apply bg-panel border border-border rounded text-fg px-1.5 py-0.5 font-mono text-xs w-full;
+  }
+  .env-input:focus { @apply outline-none border-accent2; }
+  .env-invalid { @apply border-red-500; }
+  .env-check { @apply self-start mt-1 h-4 w-4 accent-accent; }
   .field-row { @apply grid items-center gap-2 py-0.5; grid-template-columns: minmax(160px, 240px) 1fr auto; }
   .field-row.nested { @apply border-l-2 border-border pl-2 ml-1; }
   .field-name { @apply font-mono text-xs min-w-0 overflow-hidden text-ellipsis whitespace-nowrap; }

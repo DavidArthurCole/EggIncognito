@@ -14,6 +14,7 @@ const EID_MAX = 12;
 
 // Seed defaults for BasicRequestInfo: the standard client constants a real request carries.
 const RINFO_SEED = {
+  eiUserId: "",
   clientVersion: 72,
   version: "1.35.7",
   build: "111343",
