@@ -123,7 +123,9 @@ public class CaInstallerTests
         var (path, cert) = MakeCa();
         try
         {
-            var runner = new FakeRunner((_, _) => new ProcessResult(0, "ok", ""));
+            // The corrected iOS-16 installer SELECTs the row back; success requires "row-present" in stdout
+            // (the old `; echo ok` masked failures). Simulate a verified install.
+            var runner = new FakeRunner((_, _) => new ProcessResult(0, "row-present", ""));
             var ssh = new IosCaInstaller.SshConfig("1.2.3.4", "2222", "/k", null, null);
             var inst = new IosCaInstaller(runner, ssh);
             var (ok, _) = await inst.InstallAsync(new DeviceCaTarget("d", "ios", "UDID"), path, default);
@@ -131,11 +133,13 @@ public class CaInstallerTests
             Assert.True(ok);
             var call = runner.Calls.Single(c => c.exe == "ssh");
             var remote = call.args[^1];
-            Assert.Contains(CaCertPrep.IosCertSha1Hex(cert), remote);
+            // iOS 16 tsettings keys on sha256, not sha1; default store moved under /var/protected/trustd.
+            Assert.Contains(CaCertPrep.IosCertSha256Hex(cert), remote);
             Assert.Contains(CaCertPrep.DerHex(cert), remote);
-            Assert.Contains("/private/var/Keychains/TrustStore.sqlite3", remote); // default store
+            Assert.Contains("/private/var/protected/trustd/private/TrustStore.sqlite3", remote); // default store
+            Assert.Contains("sha256", remote);
             Assert.Contains("killall -9 trustd", remote);
-            Assert.DoesNotContain("{sha1}", remote);
+            Assert.DoesNotContain("{sha256}", remote);
         }
         finally { File.Delete(path); }
     }

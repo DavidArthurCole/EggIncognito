@@ -20,8 +20,10 @@ public sealed class FakeCaptureProxy : ICaptureProxy
     public event Action? AuxbrainConnect;
     public event Action<string>? DecryptError;
     public event Action<string, bool>? ConnectSeen;
+    public event Action<string>? Trace;
 #pragma warning restore CS0067
 
+    public bool Verbose { get; set; }
     public bool FreshCa => false;
     public string? RootThumbprint => "FAKE-THUMB";
 
