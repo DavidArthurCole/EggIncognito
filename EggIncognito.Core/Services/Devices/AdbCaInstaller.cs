@@ -42,16 +42,28 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         "[ -f \"$D/{hash}.0\" ] && echo 'diag staged: ok' || echo 'diag staged: FAILED'\n" +
         "ZP=$(pidof zygote64 2>/dev/null || pidof zygote 2>/dev/null); echo \"diag zygote-pid: ${ZP:-none}\"\n" +
         "command -v nsenter >/dev/null 2>&1 && echo 'diag nsenter: present' || echo 'diag nsenter: MISSING'\n" +
-        // The conscrypt APEX path is the one Android 14 actually reads. The legacy /system path may not exist
-        // inside zygote's ns, so try each but only require the apex one. bind from the shared /dev source.
-        "for T in /apex/com.android.conscrypt/cacerts /system/etc/security/cacerts; do\n" +
-        "  if [ -n \"$ZP\" ] && command -v nsenter >/dev/null 2>&1; then\n" +
-        "    nsenter -t \"$ZP\" -m -- sh -c \"[ -d '$T' ] && mount --bind '$D' '$T'\" 2>&1 | sed \"s|^|diag zygote-mount $T: |\"\n" +
-        "    echo \"diag zygote-mount $T rc=$?\"\n" +
-        "  fi\n" +
-        "done\n" +
+        // RECON (no mount yet): the cross-namespace mount kept failing 'No such file' on a different path each
+        // attempt, so first dump what zygote's ns actually contains, then mount the RIGHT way (tmpfs in-ns,
+        // cert decoded from inline base64 so NO host path is needed - the bytes travel in the command string).
+        "B64='{cert_b64}'\n" +
         "if [ -n \"$ZP\" ] && command -v nsenter >/dev/null 2>&1; then\n" +
-        "  nsenter -t \"$ZP\" -m -- sh -c '[ -f /apex/com.android.conscrypt/cacerts/{hash}.0 ] && echo present || echo absent' 2>&1 | sed 's/^/diag verify-zygotens: /'\n" +
+        "  nsenter -t \"$ZP\" -m -- sh -c '" +
+        "    echo recon apex-dir:; ls -ld /apex/com.android.conscrypt/cacerts 2>&1; " +
+        "    echo recon sys-dir:; ls -ld /system/etc/security/cacerts 2>&1; " +
+        "    echo recon dev-shared:; ls -ld /dev/eggcacerts 2>&1; " +
+        "    echo recon mounts:; grep cacerts /proc/self/mounts 2>&1 | head -4" +
+        "  ' 2>&1 | sed 's/^/diag /'\n" +
+        // Attempt the real fix: tmpfs over the apex cacerts IN zygote ns, repopulate from the certs visible
+        // THERE, then add ours decoded from inline base64. No cross-ns file dependency.
+        "  nsenter -t \"$ZP\" -m -- sh -c \"" +
+        "    T=/apex/com.android.conscrypt/cacerts; " +
+        "    cp \\$T/* /dev/.eggorig 2>/dev/null; mkdir -p /dev/.eggorig; cp \\$T/* /dev/.eggorig/ 2>/dev/null; " +
+        "    mount -t tmpfs tmpfs \\$T 2>&1; " +
+        "    cp /dev/.eggorig/* \\$T/ 2>/dev/null; " +
+        "    echo '$B64' | base64 -d > \\$T/{hash}.0 2>&1; chmod 644 \\$T/{hash}.0; " +
+        "    chcon u:object_r:system_security_cacerts_file:s0 \\$T/{hash}.0 2>/dev/null; " +
+        "    [ -f \\$T/{hash}.0 ] && echo present || echo absent" +
+        "  \" 2>&1 | sed 's/^/diag tmpfs-inns: /'\n" +
         "fi\n" +
         "echo 'diag done {hash}.0'\n";
 
@@ -65,6 +77,9 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
 
         var hash = CaCertPrep.AndroidSubjectHashOld(cert);
         var pem = CaCertPrep.ToPem(cert);
+        // The Android system store parses PEM, so the inline-injected cert (decoded in zygote's ns) is the
+        // PEM, base64'd to one line so it survives the command string + `base64 -d` reproduces the PEM exactly.
+        var certB64 = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(pem));
 
         // Stage PEM + script as local temp files and push both (a pushed script preserves $vars + newlines,
         // which `adb shell su 0 sh -c "<script>"` does NOT - adb word-splits the one arg).
@@ -73,6 +88,7 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         var script = (installScriptTemplate ?? DefaultScript)
             .Replace("{hash}", hash)
             .Replace("{pem_path}", RemotePem)
+            .Replace("{cert_b64}", certB64)
             .Replace("\r\n", "\n"); // LF only - CRLF breaks the on-device shebang/parse
         try
         {
