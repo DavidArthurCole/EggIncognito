@@ -30,30 +30,26 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
     // since PID 1's is SELinux-denied. Reports every step. {hash}/{pem_path} substituted before push.
     private const string DefaultScript =
         "#!/system/bin/sh\n" +
-        "D=/data/local/tmp/eggcacerts\n" +
+        // Stage into /dev (a GLOBAL/shared tmpfs mount visible in EVERY namespace incl zygote's). /data paths
+        // are NOT reliably resolvable inside zygote's mount ns (earlier 'No such file' on the bind source), so
+        // the bind source must live on a shared mount. /dev is always shared on Android.
+        "D=/dev/eggcacerts\n" +
         "rm -rf \"$D\"; mkdir -p \"$D\"\n" +
-        "cp /system/etc/security/cacerts/* \"$D/\" 2>/dev/null\n" +
         "cp /apex/com.android.conscrypt/cacerts/* \"$D/\" 2>/dev/null\n" +
+        "cp /system/etc/security/cacerts/* \"$D/\" 2>/dev/null\n" +
         "cp {pem_path} \"$D/{hash}.0\" && chmod 644 \"$D/{hash}.0\" && chown 0:0 \"$D/{hash}.0\"\n" +
         "chcon u:object_r:system_security_cacerts_file:s0 \"$D\"/* 2>&1 | sed 's/^/diag chcon: /'\n" +
-        "[ -f \"$D/{hash}.0\" ] && echo 'diag staged: ok' || echo 'diag staged: FAILED (cert not in $D)'\n" +
-        // Find zygote (prefer 64-bit). Its mount namespace is what apps inherit and is reachable where PID 1 is not.
+        "[ -f \"$D/{hash}.0\" ] && echo 'diag staged: ok' || echo 'diag staged: FAILED'\n" +
         "ZP=$(pidof zygote64 2>/dev/null || pidof zygote 2>/dev/null); echo \"diag zygote-pid: ${ZP:-none}\"\n" +
         "command -v nsenter >/dev/null 2>&1 && echo 'diag nsenter: present' || echo 'diag nsenter: MISSING'\n" +
-        // Per cacerts dir: enter zygote's ns and, IN ONE shell there, mount a fresh tmpfs OVER the dir then
-        // populate it by copying the staged certs ($D, on the global /data mount, IS visible inside zygote's
-        // ns). A `mount --bind $D $T` from outside fails because $D is not resolvable in the target ns (the
-        // earlier 'No such file or directory'); doing the cp INSIDE the ns after the tmpfs mount avoids that.
-        "for T in /system/etc/security/cacerts /apex/com.android.conscrypt/cacerts; do\n" +
-        "  [ -d \"$T\" ] || continue\n" +
+        // The conscrypt APEX path is the one Android 14 actually reads. The legacy /system path may not exist
+        // inside zygote's ns, so try each but only require the apex one. bind from the shared /dev source.
+        "for T in /apex/com.android.conscrypt/cacerts /system/etc/security/cacerts; do\n" +
         "  if [ -n \"$ZP\" ] && command -v nsenter >/dev/null 2>&1; then\n" +
-        "    nsenter -t \"$ZP\" -m -- sh -c \"mount -t tmpfs tmpfs '$T' && cp '$D'/* '$T'/ && chmod 644 '$T'/* && chcon u:object_r:system_security_cacerts_file:s0 '$T'/*\" 2>&1 | sed \"s|^|diag zygote-mount $T: |\"\n" +
+        "    nsenter -t \"$ZP\" -m -- sh -c \"[ -d '$T' ] && mount --bind '$D' '$T'\" 2>&1 | sed \"s|^|diag zygote-mount $T: |\"\n" +
         "    echo \"diag zygote-mount $T rc=$?\"\n" +
         "  fi\n" +
-        // Also do it in the current ns (covers tooling that reads from this shell context).
-        "  mount -t tmpfs tmpfs \"$T\" 2>/dev/null && cp \"$D\"/* \"$T\"/ 2>/dev/null && chmod 644 \"$T\"/* 2>/dev/null\n" +
         "done\n" +
-        // Verify from zygote's namespace: will a freshly-forked app see our cert?
         "if [ -n \"$ZP\" ] && command -v nsenter >/dev/null 2>&1; then\n" +
         "  nsenter -t \"$ZP\" -m -- sh -c '[ -f /apex/com.android.conscrypt/cacerts/{hash}.0 ] && echo present || echo absent' 2>&1 | sed 's/^/diag verify-zygotens: /'\n" +
         "fi\n" +

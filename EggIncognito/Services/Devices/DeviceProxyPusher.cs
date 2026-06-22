@@ -145,7 +145,7 @@ public sealed class DeviceProxyPusher(
                       // launcher in turn (uiopen --bundle, then a Procursus `open -b`, then `sbreloadlaunch`,
                       // then `activator`), stopping when the app appears. Report uiopen's usage so we can see
                       // which flags this build supports if all miss.
-                      "command -v uiopen >/dev/null 2>&1 && uiopen --help 2>&1 | head -3 | sed \"s/^/diag uiopen-help: /\"; " +
+                      "command -v uiopen >/dev/null 2>&1 && uiopen --help 2>&1 | sed \"s/^/diag uiopen-help: /\"; " +
                       $"if [ -n \"$SCH\" ]; then uiopen \"$SCH://\" 2>&1 | sed \"s/^/diag launch-scheme: /\"; fi; " +
                       $"uiopen --bundle {bundle} 2>&1 | sed \"s/^/diag launch-uiopenbundle: /\"; " +
                       $"command -v open >/dev/null 2>&1 && open -b {bundle} 2>&1 | sed \"s/^/diag launch-open: /\"; " +
