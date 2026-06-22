@@ -34,13 +34,16 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
     // cert PEM is decoded from inline base64 (travels in the script, no fragile cross-namespace file path).
     // Activation: Magisk applies modules at boot, so this returns NEEDS-REBOOT; we also attempt a live mount
     // via Magisk's own cacerts handler when available so a reboot can be skipped. Reports each step as `diag`.
+    // Writes a Magisk module - PURE FILE OPS only, no `magisk` binary calls. Invoking the magisk client from a
+    // plain `su 0 sh` context fails 'Cannot connect to daemon' and SIGTRAPs (rc 133), aborting the script and
+    // leaving the module half-written. Module activation needs NO daemon: Magisk scans /data/adb/modules at
+    // boot and magic-mounts each module's system/ tree (incl the conscrypt APEX cacerts on Magisk 26.4+/27+)
+    // over the real filesystem for every process. So we only drop the files + report; activation is the reboot.
     private const string DefaultScript =
         "#!/system/bin/sh\n" +
         "MODID=eggincognito-ca\n" +
         "MOD=/data/adb/modules/$MODID\n" +
-        "echo \"diag magisk: $(magisk -V 2>/dev/null || echo none)\"\n" +
-        // Build the module tree. Both the legacy + the conscrypt overlay dirs so Magisk covers Android <=13 and 14.
-        "mkdir -p $MOD/system/etc/security/cacerts\n" +
+        "mkdir -p $MOD/system/etc/security/cacerts || { echo 'diag module: mkdir FAILED (no /data/adb/modules - is this Magisk?)'; exit 0; }\n" +
         "cat > $MOD/module.prop <<EOF\n" +
         "id=$MODID\n" +
         "name=EggIncognito Capture CA\n" +
@@ -52,15 +55,8 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         "echo '{cert_b64}' | base64 -d > $MOD/system/etc/security/cacerts/{hash}.0\n" +
         "chmod 644 $MOD/system/etc/security/cacerts/{hash}.0\n" +
         "chcon u:object_r:system_security_cacerts_file:s0 $MOD/system/etc/security/cacerts/{hash}.0 2>/dev/null\n" +
+        "rm -f $MOD/disable $MOD/remove 2>/dev/null\n" +    // ensure the module is enabled
         "[ -f $MOD/system/etc/security/cacerts/{hash}.0 ] && echo 'diag module: written' || echo 'diag module: FAILED'\n" +
-        // Try a LIVE apply so we can skip a reboot: Magisk 27 ships a cacerts injector. If present, run it; it
-        // mounts the module's certs into the running system + apex store via Magisk's own (propagating) mount.
-        "if [ -x /data/adb/magisk/magisk ] || command -v magisk >/dev/null 2>&1; then\n" +
-        "  magisk --denylist rm 2>/dev/null; " +
-        "  for h in /data/adb/magisk/*cacert* /data/adb/modules/*/post-fs-data.sh; do :; done; " +
-        "  echo 'diag live: module staged, Magisk applies on next boot (reboot to activate)'\n" +
-        "else echo 'diag live: magisk binary not found at expected path'\n" +
-        "fi\n" +
         "echo 'diag done {hash}.0 - REBOOT the device to activate the Magisk CA module'\n";
 
     public async Task<(bool Ok, string? Note)> InstallAsync(DeviceCaTarget device, string caPath, CancellationToken ct)

@@ -129,10 +129,11 @@ public sealed class DeviceProxyPusher(
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
                     ? "/bin/sh -c '" +
                       "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; sleep 1; " +
-                      // `open <bundle>` spawns a helper that talks to SpringBoard; run straight over ssh it gets
-                      // SIGKILL'd when the session tears down (err 'Killed: 9'). setsid + detach + redirect so it
-                      // survives the ssh exit and actually launches the app.
-                      $"if command -v open >/dev/null 2>&1; then (setsid open {bundle} </dev/null >/dev/null 2>&1 &) ; echo \"diag open: launched detached\"; " +
+                      // `open <bundle>` makes an XPC request to SpringBoard then exits. Run straight over ssh it
+                      // got SIGKILL'd on session teardown (err 'Killed: 9') BEFORE the request landed; fully
+                      // detached (setsid) it survived but the app still did not come up. Run it FOREGROUND and
+                      // hold the ssh session open a beat so the XPC handoff completes before the shell exits.
+                      $"if command -v open >/dev/null 2>&1; then open {bundle} 2>&1 | sed \"s/^/diag open: /\"; sleep 2; " +
                       $"else echo \"diag open: MISSING - apt install com.conradkramer.open\"; uiopen {bundle}:// 2>&1 | sed \"s/^/diag uiopen-fallback: /\"; fi; " +
                       "sleep 3; echo diag ps-after:; " +
                       "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running\"; else echo \"diag RESULT: NOT running\"; fi" +
