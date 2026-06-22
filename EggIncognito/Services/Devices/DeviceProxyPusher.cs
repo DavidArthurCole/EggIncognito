@@ -141,10 +141,18 @@ public sealed class DeviceProxyPusher(
                       "  SCH=$(plutil -p \"$APP/Info.plist\" 2>/dev/null | grep -A3 CFBundleURLSchemes | grep -oE \"\\\"[a-zA-Z0-9._-]+\\\"\" | grep -v CFBundle | head -1 | tr -d \\\"); " +
                       "fi; " +
                       "echo \"diag scheme: ${SCH:-none-found}\"; " +
-                      "if [ -n \"$SCH\" ]; then uiopen \"$SCH://\" 2>&1 | sed \"s/^/diag uiopen: /\"; " +
-                      $"else uiopen {bundle}:// 2>&1 | sed \"s/^/diag uiopen-fallback: /\"; fi; " +
+                      // EI registers no URL scheme, so launch BY BUNDLE ID. Try every known scheme-less
+                      // launcher in turn (uiopen --bundle, then a Procursus `open -b`, then `sbreloadlaunch`,
+                      // then `activator`), stopping when the app appears. Report uiopen's usage so we can see
+                      // which flags this build supports if all miss.
+                      "command -v uiopen >/dev/null 2>&1 && uiopen --help 2>&1 | head -3 | sed \"s/^/diag uiopen-help: /\"; " +
+                      $"if [ -n \"$SCH\" ]; then uiopen \"$SCH://\" 2>&1 | sed \"s/^/diag launch-scheme: /\"; fi; " +
+                      $"uiopen --bundle {bundle} 2>&1 | sed \"s/^/diag launch-uiopenbundle: /\"; " +
+                      $"command -v open >/dev/null 2>&1 && open -b {bundle} 2>&1 | sed \"s/^/diag launch-open: /\"; " +
+                      $"command -v sbreloadlaunch >/dev/null 2>&1 && sbreloadlaunch {bundle} 2>&1 | sed \"s/^/diag launch-sbrl: /\"; " +
+                      $"command -v activator >/dev/null 2>&1 && activator send libactivator.openapp \\\"{bundle}\\\" 2>&1 | sed \"s/^/diag launch-activator: /\"; " +
                       "sleep 3; echo diag ps-after:; " +
-                      "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running\"; else echo \"diag RESULT: NOT running\"; fi" +
+                      "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running\"; else echo \"diag RESULT: NOT running - no scheme-less launcher worked; install Procursus open: apt install com.conradkramer.open\"; fi" +
                       "'"
                     : config.IosRestartCommand.Replace("{bundle}", bundle).Replace("{proc}", proc);
                 var r = await runner.RunAsync("ssh",

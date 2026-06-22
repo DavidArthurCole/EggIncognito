@@ -24,10 +24,28 @@ Everything else tunnels through untouched and is never decrypted. This includes 
 | `HarWriter` | Appends each flow to the session HAR. |
 | `CaptureSession` | The thread-safe start/stop lifecycle owner the web app drives. Persists device + routes changes. |
 | `DeviceStore` | Remembers devices across runs in `captures/devices.json`. The hub seeds + merges live/offline; the session persists on change. |
+| `LiveVersionStore` | Persists the latest live app version per platform to `captures/live-versions.json`. Source is the harvested rinfo. This is the authoritative iOS `clientVersion` and build, which the static binary cannot give. |
+| `DeviceRinfoStore` | The per-device sibling of `LiveVersionStore`, keyed by device id, in `captures/device-rinfo.json`. Persistent per-device capture points each device at its own listener, so a harvested flow maps to exactly one device. |
 
 Captured flows funnel into Core's `EndpointExtractor.ProcessFlow`, the same per-flow contract the HAR import path uses, so a live capture and a HAR replay yield the same endpoints.
 
 The Blazor capture page (`Components/Capture/`) subscribes to `CaptureHub` in-process over its SignalR circuit for the live flow stream. The controller's SSE `stream` endpoint (`/api/capture/stream`) is no longer used by the UI but remains for external consumers.
+
+## Device farm (auto-capture)
+
+The manual walkthrough below is still the path for ad-hoc capture from any phone. Separately, the project drives a fixed farm of rooted Android and jailbroken iOS devices with zero on-device taps. Capture, proxy config, and CA trust are all automated over the same control channels the probes use (`adb` / `ssh`).
+
+Gated by `DeviceCapture:Enabled` (default off). When off, the farm path no-ops entirely and only the manual walkthrough applies.
+
+How it differs from the manual path:
+
+- **Persistent per-device listeners.** `DeviceCaptureManager` (in the web project, `Services/Devices/`) gives each declared device its own long-lived capture proxy on a dedicated loopback and LAN port. A harvested flow maps to exactly one device by listener identity. Failure of one device's proxy is isolated and never kills the others.
+- **Proxy auto-pointed.** The device's system HTTP proxy is set to its listener via Core's `IDeviceProxyConfigurator` (`AdbProxyConfigurator` over `adb`, `IosProxyConfigurator`). No manual Wi-Fi proxy entry.
+- **CA auto-installed and trusted.** Core's `IDeviceCaInstaller` installs the capture root CA on the device with no tap. Android (`AdbCaInstaller`) writes the cert into the system trust store on a rooted device, bind-mounting into zygote's mount namespace so freshly forked apps see it. iOS (`IosCaInstaller`) inserts a trust row into `TrustStore.sqlite3` over ssh and restarts `trustd`. Called on capture start and again whenever the proxy mints a fresh CA.
+- **Rinfo harvest, not endpoints.** The farm path is rolling-rinfo-only: no HAR, no endpoint extract. It decodes each request enough to read `BasicRequestInfo` (`clientVersion` / `version` / `build` / `platform`) via Core's `RinfoHarvester` and stores the latest per device in `DeviceRinfoStore`. This is the authoritative iOS `clientVersion` and build.
+- **Force-restart-app button.** `POST /api/devices/{id}/restart-app` kills and relaunches Egg, Inc. on the device (`DeviceProxyPusher.RestartAppAsync`) so it makes a fresh launch request to auxbrain. An idle or backgrounded app does not re-hit auxbrain on its own, so this is how you trigger a call to harvest from.
+
+Per-device diagnostics tell you which boundary failed when no rinfo harvests: client connects 0 means the device is not routing through the proxy; auxbrain connects 0 means it reaches the proxy but not auxbrain; flows 0 with auxbrain connects means the CA is not trusted and the TLS handshake fails.
 
 ## Device-capture walkthrough
 

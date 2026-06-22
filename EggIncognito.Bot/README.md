@@ -13,15 +13,23 @@ Part of [EggIncognito](../README.md). A gateway bot wired as `DiscordBotHostedSe
 
 ## Slash commands
 
-Five global + user-installable read-only commands:
+Five global, user-installable, read-only commands plus one guild-admin command:
 
-| Command | Purpose |
-|---|---|
-| `/health` | Liveness. |
-| `/status` | App status snapshot. |
-| `/verify` | Surfaces the running git SHA. |
-| `/endpoints` | Endpoint listing. |
-| `/proto` | Proto type list + lookup with autocomplete. |
+| Command | Scope | Purpose |
+|---|---|---|
+| `/health` | read-only | Liveness. |
+| `/status` | read-only | App status snapshot. |
+| `/verify` | read-only | Surfaces the running git SHA. |
+| `/endpoints` | read-only | Endpoint listing. |
+| `/proto` | read-only | Proto type list + lookup with autocomplete. |
+| `/updateserver` | guild admin | Pull latest and redeploy. |
+
+### `/updateserver`
+
+- Registered with `GuildPermission.Administrator`, so it only appears in a guild context.
+- `InteractionRouter` re-checks `GuildPermissions.Administrator` at runtime (defense-in-depth against rebound permissions); a non-admin gets an ephemeral "Not authorized."
+- On a real run it POSTs to a host-side deploy agent via `DeployAgentClient`, configured by `Discord:DeployAgentUrl` + `Discord:DeployAgentSecret`. Either missing means the command replies "Deploy agent not configured."
+- Result embeds cover already-up-to-date, success (from/to hash), and failure (log tail).
 
 ## Structure
 

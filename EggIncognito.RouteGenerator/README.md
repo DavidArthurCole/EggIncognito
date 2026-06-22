@@ -9,6 +9,7 @@ Part of [EggIncognito](../README.md). The generator runs automatically as part o
 - Reads `EggIncognito/RouteMap/routes.yaml`.
 - Emits one controller class per route entry.
 - Path-parameterized routes (`pathParam: true`) get a second `[HttpPost("{param}")]` action. `pathParamOnly: true` means there is no request body.
+- `requestWrapped` / `responseWrapped` flag whether the proto rides inside an `AuthenticatedMessage` envelope on the wire (request wrapped = signed; response wrapped = unwrap to inner).
 
 Generated controllers land in `obj/`. They are not checked in. Never edit them; they are overwritten on every build. Never hand-write a controller for a route in `routes.yaml` - it conflicts with the generated code.
 

@@ -40,14 +40,18 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         // Find zygote (prefer 64-bit). Its mount namespace is what apps inherit and is reachable where PID 1 is not.
         "ZP=$(pidof zygote64 2>/dev/null || pidof zygote 2>/dev/null); echo \"diag zygote-pid: ${ZP:-none}\"\n" +
         "command -v nsenter >/dev/null 2>&1 && echo 'diag nsenter: present' || echo 'diag nsenter: MISSING'\n" +
+        // Per cacerts dir: enter zygote's ns and, IN ONE shell there, mount a fresh tmpfs OVER the dir then
+        // populate it by copying the staged certs ($D, on the global /data mount, IS visible inside zygote's
+        // ns). A `mount --bind $D $T` from outside fails because $D is not resolvable in the target ns (the
+        // earlier 'No such file or directory'); doing the cp INSIDE the ns after the tmpfs mount avoids that.
         "for T in /system/etc/security/cacerts /apex/com.android.conscrypt/cacerts; do\n" +
         "  [ -d \"$T\" ] || continue\n" +
         "  if [ -n \"$ZP\" ] && command -v nsenter >/dev/null 2>&1; then\n" +
-        "    nsenter -t \"$ZP\" -m -- mount --bind \"$D\" \"$T\" 2>&1 | sed \"s|^|diag zygote-mount $T: |\"\n" +
+        "    nsenter -t \"$ZP\" -m -- sh -c \"mount -t tmpfs tmpfs '$T' && cp '$D'/* '$T'/ && chmod 644 '$T'/* && chcon u:object_r:system_security_cacerts_file:s0 '$T'/*\" 2>&1 | sed \"s|^|diag zygote-mount $T: |\"\n" +
         "    echo \"diag zygote-mount $T rc=$?\"\n" +
         "  fi\n" +
-        // Also bind in the current ns (covers tooling that reads from this context + some ROMs propagate).
-        "  mount --bind \"$D\" \"$T\" 2>&1 | sed \"s|^|diag shell-mount $T: |\"\n" +
+        // Also do it in the current ns (covers tooling that reads from this shell context).
+        "  mount -t tmpfs tmpfs \"$T\" 2>/dev/null && cp \"$D\"/* \"$T\"/ 2>/dev/null && chmod 644 \"$T\"/* 2>/dev/null\n" +
         "done\n" +
         // Verify from zygote's namespace: will a freshly-forked app see our cert?
         "if [ -n \"$ZP\" ] && command -v nsenter >/dev/null 2>&1; then\n" +

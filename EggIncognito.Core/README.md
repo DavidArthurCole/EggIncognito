@@ -8,7 +8,10 @@ Part of [EggIncognito](../README.md). Referenced by the [web app](../EggIncognit
 
 | Area | What lives here |
 |---|---|
-| Services | `EndpointExtractor`, `EndpointStore`, `TransportPipeline`, `RouteCatalog`, `AuxbrainHosts`, `ProtoReflection`, `EndpointStatus`, `BlobDecoder`, `ContentRoot`, `PostmanCollection`, `BuildInfo`, `Redactor`, `RoutesYamlEditor`, `ProtoFraming`, `MarkdownRenderer`, and more |
+| Services | `EndpointExtractor`, `EndpointStore`, `TransportPipeline`, `RouteCatalog`, `AuxbrainHosts`, `ProtoReflection`, `EndpointStatus`, `BlobDecoder`, `ContentRoot`, `PostmanCollection`, `BuildInfo`, `Redactor`, `RoutesYamlEditor`, `ProtoFraming`, `MarkdownRenderer`, `WireForensics`, `RinfoHarvester`, `MitmFlowReader`, and more |
+| Proto extraction (`Services/ProtoExtract/`) | Carves the `ei.proto` schema out of shipped mobile binaries: `ArchiveProtoExtractor` (APK/IPA), `MachoProtoExtractor` (iOS Mach-O), `DescriptorProtoCarver` (the format-agnostic core) |
+| Proto registry (`Services/Protos/`) | `CrawlManifestReader` ingests the GitHub-crawl backfill dataset for proto-version staging |
+| Devices (`Services/Devices/`) | Probe, proxy, and CA-install drivers for the physical capture farm (Android + iOS) |
 | Proto types | `Ei.*` message classes, built by Grpc.Tools from `Proto/ei.proto` |
 
 ## Proto types
@@ -29,6 +32,31 @@ Part of [EggIncognito](../README.md). Referenced by the [web app](../EggIncognit
 - **`ContentRoot.Resolve`** - finds the dir holding `RouteMap/` + `Endpoints/` from the app/base dir.
 - **`BuildInfo`** - parses the git SHA stamped into the assembly `InformationalVersion` by the `SourceRevisionId` target in the repo-root `Directory.Build.props`. Surfaced by the bot's `/verify`.
 - **`MarkdownRenderer`** - the in-house Markdown-to-HTML renderer for the docs hub (HTML-escapes input first, then applies a fixed transform set; allows only http(s)/relative links). Used by the Blazor `<Markdown>` component.
+- **`WireForensics`** - schema-less and schema-aware diagnosis of corrupt proto blobs. Walks raw bytes by wire type without depending on a parse, records the byte offset where structure first breaks, resolves field paths to names when a root type is supplied, and salvages printable-ASCII runs.
+- **`RinfoHarvester`** - reads `BasicRequestInfo` (`clientVersion` / `version` / `build` / `platform`) out of a request's already-decoded display JSON. This is the authoritative source for the iOS `clientVersion` and the real build, which the static binary cannot give. Never throws; returns null when there is no usable rinfo.
+
+## Proto extraction
+
+The `ei.proto` schema ships embedded in the Egg, Inc. native binary as serialized `FileDescriptorProto` blobs. These services carve it back out. The binary is read as bytes and never executed.
+
+- **`Services/ProtoExtract/DescriptorProtoCarver`** - the format-agnostic core. Locates and emits the embedded descriptors from a raw binary.
+- **`Services/ProtoExtract/ArchiveProtoExtractor`** - takes a mobile app archive (Android APK or iOS IPA, both zips), locates and decompresses the native binary entry (`lib/<abi>/libegginc.so`, arm64 preferred, or the IPA Mach-O), then carves. Size-capped against zip bombs because it runs on a public endpoint over attacker-supplied bytes.
+- **`Services/ProtoExtract/MachoProtoExtractor`** - the iOS-facing seam over the carver. Only the first `__TEXT` page of the Mach-O is FairPlay-encrypted, so the descriptor blobs past it carve straight from the raw on-disk binary with no decrypt. Proven across iOS 1.6.3 (2017) through 1.35.8.
+- **`Services/ProtoExtract/MachoClientVersionReader`**, `Arm64Decoder`, `MachoSymbols`, `MachoText`, `ProtoCleanup`, `ProtoDiff` - supporting carve, disasm, and normalization helpers.
+
+## Proto registry / backfill
+
+- **`Services/Protos/CrawlManifestReader`** - parses the GitHub-crawl backfill dataset (a zip of `manifest.json` plus `snapshots/*.proto`) into distinct proto states for staging. Dedupes by proto SHA-256, attaches a version only for trusted confidence (`version-file` or `subject`), and stages heuristic (`tree-scan`) rows version-less for manual review.
+
+## Devices (capture farm)
+
+Drivers for the physical device farm: rooted Android and jailbroken iOS phones, auto-probed, proxied, and CA-trusted so their auxbrain traffic decrypts. All are best-effort and never throw; a failure returns `(false, note)`. Core holds the platform-agnostic drivers; the web project orchestrates them.
+
+- **`IProcessRunner`** - the seam over external tools (`adb`, `ssh`, `ideviceinstaller`). Mockable, so the drivers unit-test without real hardware.
+- **`IDeviceProbe`** with `AdbDeviceProbe` / `IosDeviceProbe` - read the installed Egg, Inc. version off a device. Android via `adb shell dumpsys package`; iOS via `ideviceinstaller -l -o xml` (`CFBundleShortVersionString` + `CFBundleVersion`).
+- **`IDeviceProxyConfigurator`** with `AdbProxyConfigurator` / `IosProxyConfigurator` - point a device's system HTTP proxy at its capture listener and clear it after.
+- **`IDeviceCaInstaller`** with `AdbCaInstaller` / `IosCaInstaller` - install and trust the capture root CA on a device so the proxy's MITM TLS is accepted. Android writes the cert into the system trust store on a rooted device, bind-mounting into zygote's mount namespace (PID 1's is SELinux-denied on the farm ROM). iOS inserts a trust row into `TrustStore.sqlite3` over ssh, then restarts `trustd`. Idempotent; called on capture start and whenever the proxy mints a fresh CA.
+- **`CaCertPrep`**, **`DeviceParsing`**, **`IDeviceStoreChecker`** - cert encoding (Android subject hash, iOS DER hex), tool-output parsing, and the store-ahead check seam.
 
 ## Extraction pipeline
 

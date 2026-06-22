@@ -17,6 +17,19 @@ Part of [EggIncognito](../README.md). Active only when `ConnectionStrings:Postgr
 | `Tag` | `tags` | Slug/label/color catalog. |
 | `SubjectTag` | `subject_tags` | Subject -> tag join. |
 | `DocImage` | `doc_images` | Uploaded doc image bytes as Postgres bytea. |
+| `ProtoVersion` | `proto_versions` | One game build in the registry, keyed by `(platform, build)`. Soft-delete + canonical-alias merge. |
+| `ProtoProto` | `proto_protos` | The cleaned `.proto` text for one `ProtoVersion` plus a jsonb message/enum index. |
+| `StagedProto` | `staged_protos` | A proto awaiting review (`status` pending/approved/rejected; `source` offer/crawl). |
+| `FeedSubscription` | `feed_subscriptions` | A proto-update notification target (Discord webhook or HTTP). |
+| `FeedDelivery` | `feed_deliveries` | One delivery attempt of a proto event to a subscription. |
+| `KnownVersion` | `known_versions` | A version seen in the wild by a list source (metadata only, no proto). |
+| `BackfillJob` | `backfill_jobs` | Progress of a backfill import run. |
+| `ExtractJob` | `extract_jobs` | Progress of one per-version APK extract run. |
+| `Device` | `devices` | A physical device this host can probe (config-seeded). |
+| `DeviceProbe` | `device_probes` | One append-only probe of a device's installed version. |
+| `DeviceUpdate` | `device_updates` | One append-only update attempt on a device. |
+| `CaptureProxyAddr` | `capture_proxy_addrs` | A user's stable IPv6 hosted-capture address. |
+| `CaptureUserCa` | `capture_user_cas` | A user's hosted-capture root CA pfx (bytea). |
 
 `UserRole` (viewer / contributor / admin) is the role enum.
 
@@ -37,6 +50,43 @@ Lookup goes through the `IEndpointSource` seam.
 ## Write API
 
 `/api/db/*` upserts stored endpoints/routes, gated by `IAppMode.CanWrite` (403 in Hosted; contributor+ for the role-gated actions). Reads (`GET /api/db/endpoints|routes`) are public. With no DB, writes return 503 and reads return `[]`.
+
+## Proto-version registry
+
+A versioned catalog of game proto definitions per platform.
+
+- `ProtoVersion` is the build row, keyed by `(platform, build)`. It carries three version numbers: `app_version` (user label), `build` (monotonic versionCode), `client_version` (proto API version, nullable).
+- `ProtoProto` holds the cleaned `.proto` text plus a jsonb `message_index` for fast listing/search.
+- Soft-delete (`deleted_at`) hides a row without physically removing it, so an auto-importer cannot resurrect it. A merge (`canonical_id`) makes a row an alias of a canonical build sharing the same schema. Both are reversible.
+- `KnownVersion` is a metadata-only discovery list (fandom/uptodown/apkpure/itunes). Promoting one to a real `ProtoVersion` needs an APK extract.
+- `BackfillJob` and `ExtractJob` track import/extract progress so the admin UI shows state without tailing logs.
+
+## Staged protos
+
+A review queue in front of the live registry.
+
+- `StagedProto.source` is `offer` (a user analyzed a binary whose proto is not yet stored) or `crawl` (admin import of the GitHub backfill dataset).
+- `status` is `pending` / `approved` / `rejected`. Approval promotes the row into `proto_versions`.
+
+## Proto feed
+
+Outbound notifications when a proto changes or a new build lands.
+
+- `FeedSubscription` is a Discord webhook or HTTP target with chosen `platforms` + `trigger` (`proto_changed` / `new_version`). The target URL is the capability and is never echoed back.
+- `FeedDelivery` records one attempt per `(subscription, proto_version)`, so a retried ingest delivers at most once.
+
+## Device farm
+
+Status and update history for the physical devices this host probes.
+
+- `Device` rows are seeded from config on boot (config is authoritative); a dropped device is disabled, not deleted, to keep history FKs valid.
+- `DeviceProbe` is append-only: each row records reachability and the installed version with a `result` (`no_change` / `new_version` / `unreachable` / `error`).
+- `DeviceUpdate` is append-only update history with a `status` (`verified` / `failed` / `skipped`).
+
+## Hosted capture
+
+- `CaptureProxyAddr` is a user's stable per-user IPv6 proxy address, rotatable to kill a leaked one.
+- `CaptureUserCa` is the user's Unobtanium root CA pfx, restored to the session temp dir at start so the device trusts one cert forever.
 
 ## Migrations
 
