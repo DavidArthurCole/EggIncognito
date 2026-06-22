@@ -80,21 +80,21 @@ public class CaInstallerTests
         try
         {
             // verify line present => reported VISIBLE; also confirms note carries the diag.
-            var runner = new FakeRunner((_, _) => new ProcessResult(0, "diag verify-zygotens: present\ndiag done", ""));
+            var runner = new FakeRunner((_, _) => new ProcessResult(0, "diag module: written\ndiag done", ""));
             var inst = new AdbCaInstaller(runner);
             var (ok, note) = await inst.InstallAsync(new DeviceCaTarget("d", "android", "SERIAL"), path, default);
 
             Assert.True(ok);
-            // Two pushes: the PEM and the install script.
+            // Only the Magisk-install script is pushed (the cert travels inline as base64, no separate PEM push).
             var pushes = runner.Calls.Where(c => c.args.Contains("push")).ToList();
-            Assert.Equal(2, pushes.Count);
-            Assert.All(pushes, p => Assert.Contains("SERIAL", p.args));
+            Assert.Single(pushes);
+            Assert.Contains("SERIAL", pushes[0].args);
             // The script runs by PATH via `su 0 sh -c "sh <path> 2>&1"` (no inline word-split), as root.
             var run = runner.Calls.Single(c => c.args.Contains("su"));
-            Assert.Contains(run.args, a => a.Contains("/data/local/tmp/eggincognito-ca-install.sh"));
+            Assert.Contains(run.args, a => a.Contains("/data/local/tmp/eggincognito-ca-magisk.sh"));
             var hash = CaCertPrep.AndroidSubjectHashOld(cert);
             Assert.Contains(hash, note!);
-            Assert.Contains("VISIBLE", note!);
+            Assert.Contains("Magisk module written", note!);
         }
         finally { File.Delete(path); }
     }

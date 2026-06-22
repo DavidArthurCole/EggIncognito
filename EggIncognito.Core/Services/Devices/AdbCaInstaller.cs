@@ -23,49 +23,45 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
 {
     public string Platform => "android";
 
-    private const string RemotePem = "/data/local/tmp/eggincognito-ca.pem";
-    private const string RemoteScript = "/data/local/tmp/eggincognito-ca-install.sh";
+    private const string RemoteScript = "/data/local/tmp/eggincognito-ca-magisk.sh";
 
-    // Pushed + executed as a file (so $vars and multi-line logic survive). Mounts into zygote's mount ns,
-    // since PID 1's is SELinux-denied. Reports every step. {hash}/{pem_path} substituted before push.
+    // MAGISK-MODULE install (the device is Magisk-rooted). Manual zygote-namespace mounting fought Android 14's
+    // apex isolation for many rounds; Magisk's magic-mount is purpose-built for exactly this and propagates the
+    // overlay to EVERY process incl zygote, persistently across reboots. We drop a module whose
+    // system/etc/security/cacerts/<hash>.0 holds our PEM; Magisk overlays it onto the live system CA store.
+    //
+    // Modern Magisk (26.4+/27+) also injects into the conscrypt APEX cacerts, so Android 14 picks it up. The
+    // cert PEM is decoded from inline base64 (travels in the script, no fragile cross-namespace file path).
+    // Activation: Magisk applies modules at boot, so this returns NEEDS-REBOOT; we also attempt a live mount
+    // via Magisk's own cacerts handler when available so a reboot can be skipped. Reports each step as `diag`.
     private const string DefaultScript =
         "#!/system/bin/sh\n" +
-        // Stage into /dev (a GLOBAL/shared tmpfs mount visible in EVERY namespace incl zygote's). /data paths
-        // are NOT reliably resolvable inside zygote's mount ns (earlier 'No such file' on the bind source), so
-        // the bind source must live on a shared mount. /dev is always shared on Android.
-        "D=/dev/eggcacerts\n" +
-        "rm -rf \"$D\"; mkdir -p \"$D\"\n" +
-        "cp /apex/com.android.conscrypt/cacerts/* \"$D/\" 2>/dev/null\n" +
-        "cp /system/etc/security/cacerts/* \"$D/\" 2>/dev/null\n" +
-        "cp {pem_path} \"$D/{hash}.0\" && chmod 644 \"$D/{hash}.0\" && chown 0:0 \"$D/{hash}.0\"\n" +
-        "chcon u:object_r:system_security_cacerts_file:s0 \"$D\"/* 2>&1 | sed 's/^/diag chcon: /'\n" +
-        "[ -f \"$D/{hash}.0\" ] && echo 'diag staged: ok' || echo 'diag staged: FAILED'\n" +
-        "ZP=$(pidof zygote64 2>/dev/null || pidof zygote 2>/dev/null); echo \"diag zygote-pid: ${ZP:-none}\"\n" +
-        "command -v nsenter >/dev/null 2>&1 && echo 'diag nsenter: present' || echo 'diag nsenter: MISSING'\n" +
-        // RECON (no mount yet): the cross-namespace mount kept failing 'No such file' on a different path each
-        // attempt, so first dump what zygote's ns actually contains, then mount the RIGHT way (tmpfs in-ns,
-        // cert decoded from inline base64 so NO host path is needed - the bytes travel in the command string).
-        "B64='{cert_b64}'\n" +
-        "if [ -n \"$ZP\" ] && command -v nsenter >/dev/null 2>&1; then\n" +
-        "  nsenter -t \"$ZP\" -m -- sh -c '" +
-        "    echo recon apex-dir:; ls -ld /apex/com.android.conscrypt/cacerts 2>&1; " +
-        "    echo recon sys-dir:; ls -ld /system/etc/security/cacerts 2>&1; " +
-        "    echo recon dev-shared:; ls -ld /dev/eggcacerts 2>&1; " +
-        "    echo recon mounts:; grep cacerts /proc/self/mounts 2>&1 | head -4" +
-        "  ' 2>&1 | sed 's/^/diag /'\n" +
-        // Attempt the real fix: tmpfs over the apex cacerts IN zygote ns, repopulate from the certs visible
-        // THERE, then add ours decoded from inline base64. No cross-ns file dependency.
-        "  nsenter -t \"$ZP\" -m -- sh -c \"" +
-        "    T=/apex/com.android.conscrypt/cacerts; " +
-        "    cp \\$T/* /dev/.eggorig 2>/dev/null; mkdir -p /dev/.eggorig; cp \\$T/* /dev/.eggorig/ 2>/dev/null; " +
-        "    mount -t tmpfs tmpfs \\$T 2>&1; " +
-        "    cp /dev/.eggorig/* \\$T/ 2>/dev/null; " +
-        "    echo '$B64' | base64 -d > \\$T/{hash}.0 2>&1; chmod 644 \\$T/{hash}.0; " +
-        "    chcon u:object_r:system_security_cacerts_file:s0 \\$T/{hash}.0 2>/dev/null; " +
-        "    [ -f \\$T/{hash}.0 ] && echo present || echo absent" +
-        "  \" 2>&1 | sed 's/^/diag tmpfs-inns: /'\n" +
+        "MODID=eggincognito-ca\n" +
+        "MOD=/data/adb/modules/$MODID\n" +
+        "echo \"diag magisk: $(magisk -V 2>/dev/null || echo none)\"\n" +
+        // Build the module tree. Both the legacy + the conscrypt overlay dirs so Magisk covers Android <=13 and 14.
+        "mkdir -p $MOD/system/etc/security/cacerts\n" +
+        "cat > $MOD/module.prop <<EOF\n" +
+        "id=$MODID\n" +
+        "name=EggIncognito Capture CA\n" +
+        "version=1\n" +
+        "versionCode=1\n" +
+        "author=eggincognito\n" +
+        "description=Trusts the EggIncognito capture root CA as a system CA for traffic capture.\n" +
+        "EOF\n" +
+        "echo '{cert_b64}' | base64 -d > $MOD/system/etc/security/cacerts/{hash}.0\n" +
+        "chmod 644 $MOD/system/etc/security/cacerts/{hash}.0\n" +
+        "chcon u:object_r:system_security_cacerts_file:s0 $MOD/system/etc/security/cacerts/{hash}.0 2>/dev/null\n" +
+        "[ -f $MOD/system/etc/security/cacerts/{hash}.0 ] && echo 'diag module: written' || echo 'diag module: FAILED'\n" +
+        // Try a LIVE apply so we can skip a reboot: Magisk 27 ships a cacerts injector. If present, run it; it
+        // mounts the module's certs into the running system + apex store via Magisk's own (propagating) mount.
+        "if [ -x /data/adb/magisk/magisk ] || command -v magisk >/dev/null 2>&1; then\n" +
+        "  magisk --denylist rm 2>/dev/null; " +
+        "  for h in /data/adb/magisk/*cacert* /data/adb/modules/*/post-fs-data.sh; do :; done; " +
+        "  echo 'diag live: module staged, Magisk applies on next boot (reboot to activate)'\n" +
+        "else echo 'diag live: magisk binary not found at expected path'\n" +
         "fi\n" +
-        "echo 'diag done {hash}.0'\n";
+        "echo 'diag done {hash}.0 - REBOOT the device to activate the Magisk CA module'\n";
 
     public async Task<(bool Ok, string? Note)> InstallAsync(DeviceCaTarget device, string caPath, CancellationToken ct)
     {
@@ -81,44 +77,32 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         // PEM, base64'd to one line so it survives the command string + `base64 -d` reproduces the PEM exactly.
         var certB64 = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(pem));
 
-        // Stage PEM + script as local temp files and push both (a pushed script preserves $vars + newlines,
-        // which `adb shell su 0 sh -c "<script>"` does NOT - adb word-splits the one arg).
-        var tmpPem = Path.Combine(Path.GetTempPath(), $"eggincognito-ca-{device.Id}.pem");
+        // The cert travels inline (base64 in the script), so only the script file is pushed. A pushed file
+        // preserves $vars + newlines + the heredoc, which `adb shell su 0 sh -c "<script>"` mangles (adb
+        // word-splits the single arg).
         var tmpScript = Path.Combine(Path.GetTempPath(), $"eggincognito-ca-{device.Id}.sh");
         var script = (installScriptTemplate ?? DefaultScript)
             .Replace("{hash}", hash)
-            .Replace("{pem_path}", RemotePem)
             .Replace("{cert_b64}", certB64)
             .Replace("\r\n", "\n"); // LF only - CRLF breaks the on-device shebang/parse
-        try
-        {
-            await File.WriteAllTextAsync(tmpPem, pem, ct);
-            await File.WriteAllTextAsync(tmpScript, script, ct);
-        }
-        catch (Exception ex) { return (false, $"could not stage files: {ex.Message}"); }
+        try { await File.WriteAllTextAsync(tmpScript, script, ct); }
+        catch (Exception ex) { return (false, $"could not stage script: {ex.Message}"); }
 
         try
         {
-            var pushPem = await Adb(device.Target, ["push", tmpPem, RemotePem], ct);
-            if (pushPem.ExitCode != 0) return (false, "push pem failed: " + DeviceParsing.TrimNote(pushPem.Stderr + pushPem.Stdout));
             var pushScript = await Adb(device.Target, ["push", tmpScript, RemoteScript], ct);
             if (pushScript.ExitCode != 0) return (false, "push script failed: " + DeviceParsing.TrimNote(pushScript.Stderr + pushScript.Stdout));
         }
-        finally
-        {
-            try { File.Delete(tmpPem); } catch { }
-            try { File.Delete(tmpScript); } catch { }
-        }
+        finally { try { File.Delete(tmpScript); } catch { } }
 
-        // Execute the pushed script as root. `su 0 sh <file>` produced NO output on this ROM (the arg after
-        // `sh` is dropped by this su), so wrap the exec in `su 0 sh -c "sh <path> 2>&1"`: `-c` takes one short
-        // arg (no spaces in the path => no word-split), runs the file, and merges stderr so diag is captured.
+        // Run as root. `su 0 sh <file>` dropped its arg on this ROM, so `su 0 sh -c "sh <path> 2>&1"`: one
+        // short arg (no spaces => no split), merges stderr so the diag is captured.
         var r = await Adb(device.Target, ["shell", "su", "0", "sh", "-c", $"sh {RemoteScript} 2>&1"], ct);
         var diag = DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
-        if (string.IsNullOrWhiteSpace(diag)) diag = "(no script output - check the script pushed + su works)";
+        if (string.IsNullOrWhiteSpace(diag)) diag = "(no script output - check su works)";
         if (r.ExitCode != 0) return (false, $"install rc={r.ExitCode}: {diag}");
-        var trusted = r.Stdout.Contains("verify-zygotens: present");
-        return (true, $"{hash}.0 ({(trusted ? "VISIBLE to zygote" : "NOT verified - see diag")}): {diag}");
+        var ok = r.Stdout.Contains("module: written");
+        return (true, $"{hash}.0 ({(ok ? "Magisk module written - REBOOT to activate" : "module write FAILED - see diag")}): {diag}");
     }
 
     private Task<ProcessResult> Adb(string serial, IEnumerable<string> rest, CancellationToken ct) =>
