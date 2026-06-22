@@ -168,7 +168,10 @@
             _cookie = req.Headers.Cookie;
         }
         await LoadAsync();
-        _timer = new Timer(async _ => await InvokeAsync(LoadAsync), null, 15_000, 15_000);
+        // Poll every 8s so a device coming back online surfaces quickly (was 15s). A device mid-reboot reads
+        // unreachable; without a prod, the card stayed "?" until the next 3-min server probe. ReprobeStaleAsync
+        // (admin only) fires an immediate probe for any unreachable device so recovery shows within a poll.
+        _timer = new Timer(async _ => await InvokeAsync(LoadAsync), null, 8_000, 8_000);
     }
 
     // localStorage is only reachable after the first render on a Server circuit (no JS during prerender).
@@ -205,8 +208,35 @@
             _devices = rows ?? [];
             StateHasChanged();
             await LoadCaptureAsync();
+            await ReprobeStaleAsync();
         }
         catch { /* transient; keep last good */ }
+    }
+
+    bool _reprobing;
+
+    // Immediately re-probe any device that reads unreachable, so a device that just came back online (e.g.
+    // mid-reboot when the page loaded) self-heals within a poll instead of waiting for the 3-min server probe.
+    // Admin-gated (the refresh endpoint requires admin); a no-op for everyone else. Single-flight so a slow
+    // probe never stacks across the 8s polls. Best-effort: a still-offline device just stays unreachable.
+    async Task ReprobeStaleAsync()
+    {
+        if (!_isAdmin || _reprobing) return;
+        var stale = _devices.Where(d => !d.Reachable).Select(d => d.Id).ToList();
+        if (stale.Count == 0) return;
+        _reprobing = true;
+        try
+        {
+            foreach (var id in stale)
+            {
+                try { await Client().PostAsync($"/api/devices/{id}/refresh", null); }
+                catch { /* device still down; ignore */ }
+            }
+            // Pull the freshly-probed rows so a recovered device flips reachable now, not next tick.
+            var rows = await Client().GetFromJsonAsync<List<DeviceStatus>>("/api/devices/status");
+            if (rows is not null) { _devices = rows; await InvokeAsync(StateHasChanged); }
+        }
+        finally { _reprobing = false; }
     }
 
     // Per-device capture-boundary counters. Separate best-effort fetch so a slow/absent capture endpoint
