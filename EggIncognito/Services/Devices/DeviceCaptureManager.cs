@@ -141,6 +141,16 @@ public sealed class DeviceCaptureManager(
             logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca}, freshCa={Fresh})",
                 d.Id, port, caPath, proxy.FreshCa);
 
+            // A FRESH CA means the persisted root was missing this boot, so every cert already installed on a
+            // device is now for the OLD CA and will NOT match. In a container this happens on every recreate
+            // unless the captures dir is a persistent volume. Warn loudly: without persistence the per-device
+            // CA install is futile (install -> redeploy -> new CA -> stale cert -> "CA untrusted" forever).
+            if (proxy.FreshCa)
+                logger.LogWarning(
+                    "device capture: {Id} FRESH CA minted ({Ca}). Any cert installed on a device last run is now " +
+                    "STALE. Persist the captures dir across restarts (mount a volume at the CA's directory) or " +
+                    "the device trust resets on every deploy.", d.Id, caPath);
+
             // Auto-install + trust the capture CA on the (rooted/jailbroken) device, so the proxy's MITM TLS
             // is accepted and flows decrypt. Best-effort: a failure leaves the device untrusted (the chip will
             // show "CA untrusted"), never blocks the listener. Idempotent, so running it every start is safe.

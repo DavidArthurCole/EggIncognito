@@ -115,7 +115,11 @@
           @foreach (var rel in SortedReleases)
           {
             var primary = rel.Primary;
-            <tr class="reg-row">
+            @* The whole row opens the primary member's detail; the checkbox, SHA, and Edit cells stop
+               propagation so they keep their own behavior, and a grouped release's per-platform chips/builds
+               override with their own member link. *@
+            <tr class="reg-row cursor-pointer"
+                @onclick="@(() => Navigate($"/protos/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}"))">
               @if (_isAdmin)
               {
                 <td @onclick:stopPropagation="true">
@@ -128,7 +132,7 @@
                 <div class="flex flex-wrap gap-1">
                   @foreach (var m in rel.Members)
                   {
-                    <span class="code-chip cursor-pointer"
+                    <span class="code-chip cursor-pointer" @onclick:stopPropagation="true"
                           @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">@m.Platform</span>
                   }
                 </div>
@@ -140,7 +144,7 @@
                   <div class="flex flex-col gap-0.5">
                     @foreach (var m in rel.Members)
                     {
-                      <span class="cursor-pointer" @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
+                      <span class="cursor-pointer" @onclick:stopPropagation="true" @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
                         <span class="text-muted text-xs">@m.Platform</span> @m.Build
                       </span>
                     }
@@ -148,7 +152,7 @@
                 }
                 else
                 {
-                  <span class="cursor-pointer" @onclick="@(() => Navigate($"/protos/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}"))">@primary.Build</span>
+                  @primary.Build
                 }
               </td>
               <td class="mono text-muted">@(string.IsNullOrEmpty(primary.ClientVersion) ? "-" : primary.ClientVersion)</td>

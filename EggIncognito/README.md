@@ -21,7 +21,7 @@ Part of [EggIncognito](../README.md). Sibling projects:
 
 The UI is Blazor Server (Razor Components in `Components/`). `Components/App.razor` is the host page; `Components/Pages/*.razor` are the routable pages over `Components/Layout/MainLayout.razor` + `TopNav.razor`. `Components/Shared/` holds reusable pieces (`Icon`, `Markdown`, `MarkdownEditor`, `DocHelp`). Interactivity is `InteractiveServer` over a SignalR circuit.
 
-- Pages: `/` (Home), `/inspector`, `/capture`, `/import`, `/admin`, `/docs`.
+- Pages: `/` (Home), `/inspector`, `/capture`, `/import`, `/protos`, `/docs`, `/admin`, `/support`.
 - Navigation is normal Blazor routing. There is no separate client-side router.
 
 `wwwroot/` holds only static assets:
@@ -35,8 +35,10 @@ The tabs:
 - **Inspector** (`/inspector`) - builds, visualizes, and sends Egg, Inc. requests. See the Inspector send targets section.
 - **Capture** (`/capture`) - the live capture dashboard. Start/stop the proxy, watch flows stream in.
 - **Import** (`/import`) - import a HAR into `Endpoints/`. Local-only.
-- **Admin** (`/admin`) - user role management plus DB-contribution review. Admin-only.
+- **Protos** (`/protos`) - the proto registry console. Drop an `.ipa`/`.apk` to extract its `.proto` (everyone), browse detected builds per platform, diff two builds, and (contributor+) review the staged-proto queue. `/protos/{platform}/{build}` is one build's detail; `/protos/sources` credits the sources; `/protos/subscribe` manages proto feed webhooks.
 - **Docs** (`/docs`) - browses `IDocRegistry` subjects (proto messages + endpoints) with editable DB-backed Markdown + tags. `<DocHelp>` gives inline help next to controls elsewhere.
+- **Admin** (`/admin`) - user role management plus DB-contribution review. Admin-only.
+- **Support** (`/support`) - supporter / donation info.
 
 `TopNav` reads `GET /api/app/mode` and hides the Capture/Import/Admin links when the matching capability or role is off.
 
@@ -98,6 +100,13 @@ For a path-parameterized route (the EID rides in the URL), add `pathParam: true`
 | `CapturePath` | `<content root>/captures` | Directory the capture HAR is written to |
 | `CaPath` | `<CapturePath>/eggincognito-ca.cer` | The persisted capture root CA file |
 | `EGG_INC_API_SALT` | required for request signing | API signing phrase for the Inspector's "Live API" sends |
+| `Devices:*` | unset | Declares the wired phones to probe (`Id`/`Platform`/`Target`/`Label`/`Package` per device). Empty = no farm. |
+| `DevicePolling:Enabled` / `:IntervalMinutes` | `true` / `30` | The background probe heartbeat. |
+| `DeviceSync:Enabled` | `false` | Allow the heartbeat to drive a device store-update when its store is ahead. |
+| `DeviceCapture:Enabled` / `:BasePort` / `:HostIp` | `false` / `9100` / auto | Persistent per-device capture proxies (rinfo harvest). `HostIp` = the address devices dial back to. |
+| `DeviceCapture:Android:*` / `:Ios:*` | unset | CA-install scripts, iOS ssh creds + proxy/restart command templates (falls back to `DeviceUpdate:Ios`). |
+| `DeviceUpdate:Ios:SshHost` / `:SshPort` / `:SshKeyPath` | unset / `2222` / unset | iOS ssh creds for binary pull + update + CA install. |
+| `Feed:PageBaseUrl` | unset | Base URL stamped into proto feed notifications. |
 
 ## Web tooling
 
@@ -138,6 +147,50 @@ The signing salt stays client-owned (`inspector.salt`, sent only in `/build`). T
 
 `POST /api/inspector/decode-response` decodes both response framings: wrapped (`AuthenticatedMessage`, optionally compressed) and direct. It tries wrapped first, then falls back to direct.
 
+## Proto registry API
+
+A versioned store of Egg, Inc. `.proto` definitions, one row per app build. DB-backed: reads return empty / 404 without Postgres, writes return 503. Reads are public; writes are role-gated (contributor+ for additive, admin for destructive).
+
+| Route | Method | Access | Purpose |
+|---|---|---|---|
+| `/api/tools/extract-proto` | POST | public (read limiter) | Carve the `.proto` out of an uploaded `.apk`/`.ipa`. Powers the `/protos` drop zone. |
+| `/api/protos/versions` | GET | public | List detected builds, optionally `?platform=`. |
+| `/api/protos/versions/{platform}/{build}` | GET | public | One build's metadata + message index. Add `/proto` for the raw `.proto` text. |
+| `/api/protos/latest` | GET | public | Highest build for a platform. |
+| `/api/protos/diff?from=&to=&platform=` | GET | public | Namespace-insensitive `.proto` diff between two builds. |
+| `/api/protos/sources` | GET | public | Row count per source. |
+| `/api/protos/versions` | POST | contributor+ | Promote an analyzed extraction into the registry. |
+| `/api/protos/versions/{platform}/{build}` | PATCH | contributor+ | Correct a stored build's metadata. |
+| `/api/protos/versions/{platform}/{build}` | DELETE | admin | Soft-delete a build (`DeletedAt`, hidden not removed). |
+| `/api/protos/versions/delete` | POST | admin | Bulk soft-delete. |
+| `/api/protos/versions/{platform}/{build}/restore` | POST | admin | Restore a soft-deleted / merged build. |
+| `/api/protos/versions/merge-suggestions` | GET | public | Cross-platform releases sharing app version + proto SHA. |
+| `/api/protos/versions/merge` | POST | admin | Merge aliases into a canonical build (reversible). |
+| `/api/protos/staged/offer` | POST | public (write limiter) | Submit a proto for review (dedup-guarded). |
+| `/api/protos/staged/check` | GET | public | Does this proto already exist (registry or pending)? |
+| `/api/protos/staged/count` | GET | public | Pending count for the review badge. |
+| `/api/protos/staged` | GET | contributor+ | The pending review queue. |
+| `/api/protos/staged/{id}/approve` \| `/reject` | POST | contributor+ | Approve (promotes, with optional metadata edits) or reject. |
+| `/api/protos/staged/bulk-approve` \| `/bulk-reject` | POST | contributor+ | Same, in bulk. |
+| `/api/protos/staged/import-crawl` | POST | admin | Bulk-import the GitHub-crawl backfill dataset zip into staging. |
+| `/api/protos/feed` (+ `/mine`, `/{id}`) | POST/GET/PATCH/DELETE | owner | Manage proto feed Discord-webhook subscriptions. |
+| `/api/protos/backfill/*` | POST/GET | admin | Drive the version backfill crawlers + per-APK extract jobs (`BackfillController`). |
+
+## Device farm API
+
+A rack of wired Android + iOS phones, probed and updated and captured automatically. DB-backed and off by default. `DevicesController` (`/api/devices/*`): reads are public (empty `[]` without a DB), the mutating actions are admin-gated and 503 without a DB.
+
+| Route | Method | Access | Purpose |
+|---|---|---|---|
+| `/api/devices/status` | GET | public | Latest probe per device, reclassified live against the registry. |
+| `/api/devices/{id}/history` | GET | public | Recent probe rows for one device. |
+| `/api/devices/{id}/live` | GET | public | Latest rinfo harvested off the wire, plus capture-boundary diagnostics (listening, client/auxbrain connects, flows, rinfo harvests, last decrypt error) so an empty rinfo is debuggable. |
+| `/api/devices/{id}/refresh` | POST | admin | Run an immediate probe through the same runner the poller uses. |
+| `/api/devices/{id}/check-update` | POST | admin | Tell the device to ask its own store for an update and install it. Fire-and-forget (202); poll `check-status`. |
+| `/api/devices/{id}/check-status` | GET | admin | Live state of an in-flight check-update. |
+| `/api/devices/{id}/save` | POST | admin | Pull the installed app, carve its proto in-process, harvest clientVersion off the wire, and upsert a registry row. |
+| `/api/devices/{id}/restart-app` | POST | admin | Force-restart the app (kill + relaunch) so it hits auxbrain and a fresh rinfo can be captured. |
+
 ## Authentication (Discord OAuth, optional)
 
 Cookie auth + `AspNet.Security.OAuth.Discord`, wired only when a DB AND `Discord:ClientId` + `Discord:ClientSecret` are configured (`AuthSetup.AddDiscordAuthIfConfigured`). Without that config the app is fully anonymous and unchanged.
@@ -173,6 +226,7 @@ Tiers (requests/min):
 | contributor+ | 600 |
 
 - **Effective permit** = `min(policy, tier)`, so anonymous callers stay strictest.
+- **Admins are exempt entirely.** `RateLimiterSetup.IsExempt` returns true for `IsAtLeast(Admin)`, so an admin's partition is `GetNoLimiter`. The device farm + admin tooling legitimately burst (poll loops, force-restart + capture), which a per-tier cap would throttle.
 - **Partition.** `user:{DiscordId}` when logged in, else `ip:{clientIp}` from `CF-Connecting-IP`. The `X-Forwarded-For` first hop and the socket IP are local/no-CF fallbacks.
 - **Rejections.** 429 + `Retry-After` + a small JSON body.
 - **Config.** Driven by the `RateLimiting` appsettings section. `Enabled:false` makes it a no-op. `RateLimitOptions` / `RateLimitKeys` are pure + unit-tested.
