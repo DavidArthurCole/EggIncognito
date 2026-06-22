@@ -194,34 +194,48 @@ public sealed class LanForwarder : IAsyncDisposable
         return true;
     }
 
-    // Rewrite an HTTP CONNECT request head, the text up to but excluding the blank line, so Kestrel
-    // accepts it: drop hop-by-hop headers it 400s on, and force Host to exactly match the CONNECT
-    // authority (host:port). Returns the cleaned head terminated with \r\n\r\n. Pure.
+    // Rewrite a proxy request head (text up to but excluding the blank line) so the inner Kestrel proxy
+    // accepts it: drop hop-by-hop headers it 400s on, and fix the Host header. Handles BOTH request shapes
+    // a device sends to a proxy:
+    //   - CONNECT www.auxbrain.com:443 HTTP/1.1   (TLS tunnel setup) -> Host must EXACTLY match the
+    //     authority incl. port, or Kestrel 400s.
+    //   - GET http://ocsp.digicert.com/... HTTP/1.1 (absolute-URI plain proxy request, e.g. trustd OCSP)
+    //     -> Host must be the URL's host[:port], NOT the whole URL. The old code blindly set Host to
+    //     requestLine[1] (the full URL for a GET), which made Kestrel 400 EVERY OCSP request -> trustd
+    //     could not check revocation -> cert validation failed -> the app could not connect at all.
+    // Returns the cleaned head terminated with \r\n\r\n. Pure.
     internal static string CleanConnectHead(string head)
     {
         var lines = head.Split("\r\n");
         var requestLine = lines[0];
-
-        // The CONNECT target authority, e.g. "www.auxbrain.com:443". Kestrel requires the Host header
-        // to exactly match this, port included. iOS sends "Host: www.auxbrain.com" with no port, which
-        // mismatches the target and makes Kestrel 400. We rewrite Host to the target.
         var parts = requestLine.Split(' ');
-        var authority = parts.Length >= 2 ? parts[1] : "";
+        var method = parts.Length >= 1 ? parts[0] : "";
+        var target = parts.Length >= 2 ? parts[1] : "";
+
+        // The Host value Kestrel needs. CONNECT target is already an authority (host:port). For an
+        // absolute-URI request, extract the authority from the URL; never use the raw URL as Host.
+        string authority;
+        if (method.Equals("CONNECT", StringComparison.OrdinalIgnoreCase))
+            authority = target;
+        else if (Uri.TryCreate(target, UriKind.Absolute, out var uri))
+            authority = uri.IsDefaultPort ? uri.Host : $"{uri.Host}:{uri.Port}";
+        else
+            authority = ""; // origin-form request; keep the device's own Host header
 
         var kept = new List<string> { requestLine };
         bool hostWritten = false;
         foreach (var line in lines.Skip(1))
         {
             var name = line.Split(':', 2)[0].Trim();
-            // Drop hop-by-hop headers that make Kestrel 400 a CONNECT.
+            // Drop hop-by-hop headers that make Kestrel 400 a proxied request.
             if (name.Equals("Connection", StringComparison.OrdinalIgnoreCase) ||
                 name.Equals("Proxy-Connection", StringComparison.OrdinalIgnoreCase) ||
                 name.Equals("Keep-Alive", StringComparison.OrdinalIgnoreCase))
                 continue;
-            // Force Host to match the CONNECT authority.
             if (name.Equals("Host", StringComparison.OrdinalIgnoreCase))
             {
-                kept.Add($"Host: {authority}");
+                // Rewrite Host to the derived authority; if we could not derive one, keep the original.
+                kept.Add(authority.Length > 0 ? $"Host: {authority}" : line);
                 hostWritten = true;
                 continue;
             }

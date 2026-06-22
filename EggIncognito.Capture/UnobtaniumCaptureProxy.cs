@@ -102,17 +102,6 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         var pfxPath = Path.Combine(caCacheDir, "root.pfx");
         _freshCa = !File.Exists(pfxPath);
 
-        // Force the proxy's internal Kestrel (the MITM TLS terminator) to HTTP/1.1 only. The Unobtanium
-        // 0.9.x background service spins its OWN WebApplication.CreateBuilder() host whose ConfigureKestrel
-        // is hardcoded with no HttpProtocols set => Kestrel defaults to Http1AndHttp2 and advertises h2 in
-        // ALPN. iOS (NSURLSession) offers h2 and negotiates it; Unobtanium's request interception is HTTP/1.1
-        // -only, so the decrypted h2 connection dies with "Reading is not allowed after reader was completed"
-        // and no flow is captured (Android offers http/1.1 and works). CreateBuilder() reads ambient config,
-        // so set EndpointDefaults:Protocols=Http1 in-process before the proxy host is built - this disables
-        // h2 on the MITM endpoint without a compose-env dependency. Process-global, but the only other Kestrel
-        // (the main app on plain HTTP) is unaffected: h2 requires TLS, which the main HTTP endpoint lacks.
-        Environment.SetEnvironmentVariable("Kestrel__EndpointDefaults__Protocols", "Http1");
-
         WireEvents();
 
         // Unobtanium 0.9.x binds the proxy to 127.0.0.1 only. Run it on an internal loopback port and

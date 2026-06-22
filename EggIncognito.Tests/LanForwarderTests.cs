@@ -47,6 +47,29 @@ public class LanForwarderTests
     }
 
     [Fact]
+    public void CleanConnectHead_AbsoluteUriGet_HostIsUrlAuthorityNotWholeUrl()
+    {
+        // trustd sends absolute-URI proxy GETs for OCSP. The old code set Host to the whole URL, which
+        // Kestrel 400'd -> OCSP failed -> cert validation broke -> the device could not connect at all.
+        var head = "GET http://ocsp.digicert.com/MFAwTjBM HTTP/1.1\r\n" +
+                   "Host: ocsp.digicert.com\r\n" +
+                   "Proxy-Connection: keep-alive";
+        var cleaned = LanForwarder.CleanConnectHead(head);
+        Assert.Contains("Host: ocsp.digicert.com\r\n", cleaned);
+        Assert.DoesNotContain("Host: http://", cleaned); // never the raw URL
+        Assert.DoesNotContain("Proxy-Connection:", cleaned);
+        Assert.StartsWith("GET http://ocsp.digicert.com/MFAwTjBM HTTP/1.1\r\n", cleaned);
+    }
+
+    [Fact]
+    public void CleanConnectHead_AbsoluteUriWithPort_KeepsPortInHost()
+    {
+        var head = "GET http://example.com:8080/x HTTP/1.1\r\nHost: example.com:8080";
+        var cleaned = LanForwarder.CleanConnectHead(head);
+        Assert.Contains("Host: example.com:8080\r\n", cleaned);
+    }
+
+    [Fact]
     public void DeviceIp_UnwrapsIPv4MappedIPv6()
     {
         var mapped = IPAddress.Parse("192.168.1.50").MapToIPv6();
