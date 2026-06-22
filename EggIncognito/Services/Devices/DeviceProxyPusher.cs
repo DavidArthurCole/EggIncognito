@@ -129,12 +129,12 @@ public sealed class DeviceProxyPusher(
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
                     ? "/bin/sh -c '" +
                       "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; sleep 1; " +
-                      // `open <bundle>` makes an XPC request to SpringBoard then exits. Run straight over ssh it
-                      // got SIGKILL'd on session teardown (err 'Killed: 9') BEFORE the request landed; fully
-                      // detached (setsid) it survived but the app still did not come up. Run it FOREGROUND and
-                      // hold the ssh session open a beat so the XPC handoff completes before the shell exits.
-                      $"if command -v open >/dev/null 2>&1; then open {bundle} 2>&1 | sed \"s/^/diag open: /\"; sleep 2; " +
-                      $"else echo \"diag open: MISSING - apt install com.conradkramer.open\"; uiopen {bundle}:// 2>&1 | sed \"s/^/diag uiopen-fallback: /\"; fi; " +
+                      // Cold-launch by bundle id via the Procursus uiopen `--bundleid` flag. This routes through
+                      // LSApplicationWorkspace (lsd/runningboardd), which WORKS over root ssh - unlike `open`
+                      // (SIGKILL'd) and SBSLaunchApplicationWithIdentifier (FrontBoard rejects cross-domain,
+                      // err 3) and `uiopen <scheme>://` (EI registers no URL scheme). The classic `uiopen
+                      // --bundle` is a DIFFERENT, URL-scheme-only build; `--bundleid` is the one that launches.
+                      $"uiopen --bundleid {bundle} 2>&1 | sed \"s/^/diag uiopen: /\"; " +
                       "sleep 3; echo diag ps-after:; " +
                       "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running\"; else echo \"diag RESULT: NOT running\"; fi" +
                       "'"

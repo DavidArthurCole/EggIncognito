@@ -12,6 +12,9 @@ public sealed record DeviceCaptureConfig
     public bool Enabled { get; init; }
     public int BasePort { get; init; } = 9100;
     public string? HostIp { get; init; } // null => auto-detect
+    // Route the proxy's per-flow trace (OnRequest/OnResponse/decrypt-decision) to the logger. Off by default
+    // (noisy); flip via DeviceCapture:Verbose to diagnose why a decrypted CONNECT yields no captured flow.
+    public bool Verbose { get; init; }
 
     // iOS proxy push over ssh. Templates use {host}/{port}. Creds reuse DeviceUpdate:Ios when unset here.
     public string? IosSshHost { get; init; }
@@ -43,6 +46,7 @@ public sealed record DeviceCaptureConfig
         {
             Enabled = dc.GetValue("Enabled", false),
             BasePort = dc.GetValue("BasePort", 9100),
+            Verbose = dc.GetValue("Verbose", false),
             HostIp = Nz(dc["HostIp"]),
             IosSshHost = Nz(ios["SshHost"]) ?? Nz(upd["SshHost"]),
             IosSshPort = Nz(ios["SshPort"]) ?? Nz(upd["SshPort"]) ?? "2222",

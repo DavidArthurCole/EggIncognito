@@ -108,7 +108,9 @@ public sealed class DeviceCaptureManager(
 
             var diag = _diag.GetOrAdd(d.Id, _ => new DeviceCaptureDiag());
 
-            var proxy = _proxyFactory(false);
+            var proxy = _proxyFactory(config.Verbose);
+            if (config.Verbose)
+                proxy.Trace += line => logger.LogInformation("device capture: {Id} trace: {Line}", d.Id, line);
             proxy.FlowCaptured += flow =>
             {
                 diag.Bump(ref diag.Flows);

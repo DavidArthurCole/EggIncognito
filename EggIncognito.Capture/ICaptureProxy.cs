@@ -27,6 +27,11 @@ public interface ICaptureProxy : IAsyncDisposable
     event Action<string>? DecryptError; // a TLS/decrypt error message
     event Action<string, bool>? ConnectSeen; // every CONNECT target seen (host, willDecrypt) - diagnostics
 
+    // Per-flow diagnostic trace (request/response/decrypt-decision lines), emitted only when Verbose is on.
+    // Routed to the device-capture log to explain why a decrypted CONNECT produced no captured flow.
+    event Action<string>? Trace;
+    bool Verbose { get; set; }
+
     // True if the root CA was freshly created this run; operator must install it once.
     bool FreshCa { get; }
     // The persistent CA's thumbprint, available after StartAsync.

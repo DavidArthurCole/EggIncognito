@@ -31,8 +31,13 @@ public static class CaCertPrep
         return sb.ToString();
     }
 
-    // iOS TrustStore.sqlite3 `tsettings` row keys: the primary key `sha1` is the SHA-1 of the FULL DER
-    // certificate (the cert fingerprint), NOT the subject. Lowercase hex; the installer wraps it X'...'.
+    // iOS TrustStore.sqlite3 `tsettings` primary key. Legacy iOS (<=15) used a `sha1` column = SHA-1 of the
+    // full DER cert; iOS 16+ changed the schema to a `sha256` column = SHA-256 of the full DER cert. We key on
+    // sha256 (the current schema). Lowercase hex; the installer wraps it X'...'.
+    public static string IosCertSha256Hex(X509Certificate2 cert) =>
+        Convert.ToHexString(SHA256.HashData(cert.RawData)).ToLowerInvariant();
+
+    // Legacy SHA-1 fingerprint, kept for the old (iOS <=15) `sha1`-column schema if a device still uses it.
     public static string IosCertSha1Hex(X509Certificate2 cert) =>
         Convert.ToHexString(SHA1.HashData(cert.RawData)).ToLowerInvariant();
 
