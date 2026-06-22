@@ -307,7 +307,12 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         req.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(req.PublicKey, false));
 
         var notBefore = DateTimeOffset.UtcNow.AddDays(-1);
+        // A leaf must not outlive its issuer or .NET refuses to sign it. Clamp to just under the root's
+        // expiry (the persisted root may have been minted by an earlier build with a fixed lifetime).
         var notAfter = DateTimeOffset.UtcNow.AddDays(300);
+        var rootExpiry = new DateTimeOffset(_rootCa!.NotAfter).AddMinutes(-5);
+        if (notAfter > rootExpiry) notAfter = rootExpiry;
+        if (notAfter <= notBefore) notBefore = notAfter.AddDays(-1);
         // Random serial so re-mints across runs are distinct.
         var serial = new byte[8];
         RandomNumberGenerator.Fill(serial);
