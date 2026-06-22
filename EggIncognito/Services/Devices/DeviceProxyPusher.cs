@@ -121,38 +121,18 @@ public sealed class DeviceProxyPusher(
                 // worked. Override the whole command via DeviceCapture:Ios:RestartCommand if a method is wrong.
                 var bundle = d.Package; // com.auxbrain.egginc
                 var proc = string.IsNullOrEmpty(config.IosAppProcessName) ? "Egg, Inc." : config.IosAppProcessName;
-                // sh (not the login zsh) for predictable POSIX. Probe which launchers exist, kill any running
-                // egg process by PID, then try every known jailbroken cold-launch by BUNDLE ID until one
-                // brings the app up. `uiopen`/`open` take a bundle id on most jailbreaks; sbreloadlaunch via
-                // `launchctl`/`uicache -l` are fallbacks. Reports which launcher worked.
-                // /bin/sh. This jailbreak has ONLY `uiopen`, which on this build launches by URL SCHEME, not
-                // bundle id (--bundle + the guessed scheme both no-op'd). So: DISCOVER the app's real registered
-                // scheme from its on-disk Info.plist (CFBundleURLSchemes), then `uiopen <scheme>://`. Kill any
-                // running instance first (pure-sh PID parse; no awk on this device). Reports the discovered
-                // scheme + whether the app is running after. Override wholesale via Ios:RestartCommand.
+                // /bin/sh (not the login zsh). A suspended iOS app must be KILLED before relaunch or it just
+                // resumes without a fresh auxbrain call. EI registers no URL scheme, so cold-launch BY BUNDLE
+                // ID via the Procursus `open` CLI (`open <bundleid>`, installed on this phone). Kill by PID
+                // (pure-sh parse, no awk), then `open`, then report whether it is running after. Override the
+                // whole command via DeviceCapture:Ios:RestartCommand.
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
                     ? "/bin/sh -c '" +
                       "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; sleep 1; " +
-                      // Locate the app bundle dir by bundle id, then pull the first CFBundleURLScheme from Info.plist.
-                      $"APP=$(find /var/containers/Bundle/Application -maxdepth 3 -name Info.plist 2>/dev/null | while read f; do grep -lq {bundle} \"$f\" 2>/dev/null && dirname \"$f\"; done | head -1); " +
-                      "echo \"diag app-dir: ${APP:-NOT FOUND}\"; " +
-                      "SCH=\"\"; " +
-                      "if [ -n \"$APP\" ]; then " +
-                      "  SCH=$(plutil -p \"$APP/Info.plist\" 2>/dev/null | grep -A3 CFBundleURLSchemes | grep -oE \"\\\"[a-zA-Z0-9._-]+\\\"\" | grep -v CFBundle | head -1 | tr -d \\\"); " +
-                      "fi; " +
-                      "echo \"diag scheme: ${SCH:-none-found}\"; " +
-                      // EI registers no URL scheme, so launch BY BUNDLE ID. Try every known scheme-less
-                      // launcher in turn (uiopen --bundle, then a Procursus `open -b`, then `sbreloadlaunch`,
-                      // then `activator`), stopping when the app appears. Report uiopen's usage so we can see
-                      // which flags this build supports if all miss.
-                      "command -v uiopen >/dev/null 2>&1 && uiopen --help 2>&1 | sed \"s/^/diag uiopen-help: /\"; " +
-                      $"if [ -n \"$SCH\" ]; then uiopen \"$SCH://\" 2>&1 | sed \"s/^/diag launch-scheme: /\"; fi; " +
-                      $"uiopen --bundle {bundle} 2>&1 | sed \"s/^/diag launch-uiopenbundle: /\"; " +
-                      $"command -v open >/dev/null 2>&1 && open -b {bundle} 2>&1 | sed \"s/^/diag launch-open: /\"; " +
-                      $"command -v sbreloadlaunch >/dev/null 2>&1 && sbreloadlaunch {bundle} 2>&1 | sed \"s/^/diag launch-sbrl: /\"; " +
-                      $"command -v activator >/dev/null 2>&1 && activator send libactivator.openapp \\\"{bundle}\\\" 2>&1 | sed \"s/^/diag launch-activator: /\"; " +
+                      $"if command -v open >/dev/null 2>&1; then open {bundle} 2>&1 | sed \"s/^/diag open: /\"; " +
+                      $"else echo \"diag open: MISSING - apt install com.conradkramer.open\"; uiopen {bundle}:// 2>&1 | sed \"s/^/diag uiopen-fallback: /\"; fi; " +
                       "sleep 3; echo diag ps-after:; " +
-                      "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running\"; else echo \"diag RESULT: NOT running - no scheme-less launcher worked; install Procursus open: apt install com.conradkramer.open\"; fi" +
+                      "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running\"; else echo \"diag RESULT: NOT running\"; fi" +
                       "'"
                     : config.IosRestartCommand.Replace("{bundle}", bundle).Replace("{proc}", proc);
                 var r = await runner.RunAsync("ssh",
