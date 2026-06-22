@@ -369,7 +369,7 @@ builder.Services.AddSingleton(sp =>
             CapturePath: dir, CaPath: Path.Combine(dir, "ca.cer"),
             WriteEndpoints: false);
         return new EggIncognito.Capture.CaptureSession(contentRoot, hostedOpts,
-            verbose => new EggIncognito.Capture.UnobtaniumCaptureProxy(verbose)
+            verbose => new EggIncognito.Capture.NativeCaptureProxy(verbose)
             {
                 LanForwarderEnabled = false,
                 TrustCaInOsStore = false,

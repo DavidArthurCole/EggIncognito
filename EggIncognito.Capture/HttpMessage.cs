@@ -1,0 +1,179 @@
+using System.Globalization;
+using System.Text;
+
+namespace EggIncognito.Capture;
+
+// A minimal HTTP/1.1 message (request or response) read off a decrypted SslStream by NativeCaptureProxy.
+// Just enough to relay auxbrain's protobuf POSTs faithfully and re-serialize them byte-for-byte: a start
+// line, ordered headers, and a fully-buffered body (Content-Length or chunked). auxbrain bodies are small
+// (a base64 form param up; an AuthenticatedMessage down), so buffering is fine and lets us emit a flow.
+internal sealed class HttpMessage
+{
+    public required string StartLine { get; init; }
+    public required List<HttpHeader> Headers { get; init; }
+    public byte[]? Body { get; init; }
+
+    // Request view.
+    public string Method => StartLine.Split(' ') is { Length: > 0 } p ? p[0] : "";
+    public string Path => StartLine.Split(' ') is { Length: > 1 } p ? p[1] : "/";
+
+    // Response view.
+    public int StatusCode
+    {
+        get
+        {
+            var parts = StartLine.Split(' ');
+            return parts.Length > 1 && int.TryParse(parts[1], out var c) ? c : 0;
+        }
+    }
+
+    public bool IsConnectionClose =>
+        Headers.Any(h => h.Name.Equals("Connection", StringComparison.OrdinalIgnoreCase) &&
+                         h.Value.Contains("close", StringComparison.OrdinalIgnoreCase));
+
+    private bool IsRequest => !StartLine.StartsWith("HTTP/", StringComparison.OrdinalIgnoreCase);
+
+    // Read one full message, or null on a clean EOF before any bytes (peer closed the keep-alive).
+    public static async Task<HttpMessage?> ReadAsync(Stream s, CancellationToken ct)
+    {
+        var headBytes = await ReadHeadAsync(s, ct);
+        if (headBytes is null) return null;
+
+        var headText = Encoding.ASCII.GetString(headBytes);
+        var lines = headText.Split("\r\n");
+        var startLine = lines[0];
+        var headers = new List<HttpHeader>();
+        for (int i = 1; i < lines.Length; i++)
+        {
+            if (lines[i].Length == 0) continue;
+            var idx = lines[i].IndexOf(':');
+            if (idx <= 0) continue;
+            headers.Add(new HttpHeader(lines[i][..idx].Trim(), lines[i][(idx + 1)..].Trim()));
+        }
+
+        var msg = new HttpMessage { StartLine = startLine, Headers = headers, Body = null };
+        var body = await ReadBodyAsync(s, headers, msg.IsRequest, msg.StatusCode, ct);
+        return new HttpMessage { StartLine = startLine, Headers = headers, Body = body };
+    }
+
+    // Re-serialize exactly: start line, headers (order preserved), CRLF, then the buffered body framed by
+    // Content-Length. Any original Transfer-Encoding: chunked is dropped in favor of Content-Length since
+    // we have the whole body in hand - simpler and equivalent for the peer.
+    public async Task WriteAsync(Stream s, CancellationToken ct)
+    {
+        var sb = new StringBuilder();
+        sb.Append(StartLine).Append("\r\n");
+        var bodyLen = Body?.Length ?? 0;
+        bool wroteLen = false;
+        foreach (var h in Headers)
+        {
+            if (h.Name.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase)) continue; // we frame by length
+            if (h.Name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+            {
+                sb.Append("Content-Length: ").Append(bodyLen).Append("\r\n");
+                wroteLen = true;
+                continue;
+            }
+            sb.Append(h.Name).Append(": ").Append(h.Value).Append("\r\n");
+        }
+        if (!wroteLen && (bodyLen > 0 || HasBodySemantics()))
+            sb.Append("Content-Length: ").Append(bodyLen).Append("\r\n");
+        sb.Append("\r\n");
+
+        await s.WriteAsync(Encoding.ASCII.GetBytes(sb.ToString()), ct);
+        if (bodyLen > 0) await s.WriteAsync(Body.AsMemory(0, bodyLen), ct);
+        await s.FlushAsync(ct);
+    }
+
+    // A request with a method that normally carries a body, or any response, should advertise a length.
+    private bool HasBodySemantics() =>
+        IsRequest ? Method is "POST" or "PUT" or "PATCH" : StatusCode is not (204 or 304);
+
+    // Read up to and including the blank-line header terminator.
+    private static async Task<byte[]?> ReadHeadAsync(Stream s, CancellationToken ct)
+    {
+        var buf = new List<byte>(1024);
+        var one = new byte[1];
+        int matched = 0; // \r \n \r \n
+        while (true)
+        {
+            int n = await s.ReadAsync(one, ct);
+            if (n == 0) return buf.Count > 0 ? buf.ToArray() : null;
+            var b = one[0];
+            buf.Add(b);
+            matched = (matched, b) switch
+            {
+                (0, 13) => 1,
+                (1, 10) => 2,
+                (2, 13) => 3,
+                (3, 10) => 4,
+                _ => b == 13 ? 1 : 0,
+            };
+            if (matched == 4) return buf.ToArray(); // includes trailing CRLFCRLF
+            if (buf.Count > 64 * 1024) return buf.ToArray(); // defensive cap
+        }
+    }
+
+    private static async Task<byte[]> ReadBodyAsync(Stream s, List<HttpHeader> headers, bool isRequest, int status, CancellationToken ct)
+    {
+        var te = Get(headers, "Transfer-Encoding");
+        if (te is not null && te.Contains("chunked", StringComparison.OrdinalIgnoreCase))
+            return await ReadChunkedAsync(s, ct);
+
+        var clRaw = Get(headers, "Content-Length");
+        if (clRaw is not null && long.TryParse(clRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cl) && cl > 0)
+            return await ReadExactAsync(s, (int)cl, ct);
+
+        // No length + no chunked: a request has no body; a response (non-204/304) would read to EOF, but
+        // auxbrain always sends Content-Length, so treat as empty to avoid blocking the keep-alive loop.
+        return [];
+    }
+
+    private static async Task<byte[]> ReadExactAsync(Stream s, int count, CancellationToken ct)
+    {
+        var buf = new byte[count];
+        int read = 0;
+        while (read < count)
+        {
+            int n = await s.ReadAsync(buf.AsMemory(read, count - read), ct);
+            if (n == 0) break;
+            read += n;
+        }
+        return read == count ? buf : buf[..read];
+    }
+
+    private static async Task<byte[]> ReadChunkedAsync(Stream s, CancellationToken ct)
+    {
+        var outBuf = new List<byte>();
+        while (true)
+        {
+            var sizeLine = await ReadLineAsync(s, ct);
+            if (sizeLine is null) break;
+            var semi = sizeLine.IndexOf(';');
+            var hex = (semi >= 0 ? sizeLine[..semi] : sizeLine).Trim();
+            if (!int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var size)) break;
+            if (size == 0) { await ReadLineAsync(s, ct); break; } // trailing CRLF after last chunk
+            var chunk = await ReadExactAsync(s, size, ct);
+            outBuf.AddRange(chunk);
+            await ReadLineAsync(s, ct); // CRLF after chunk data
+        }
+        return outBuf.ToArray();
+    }
+
+    private static async Task<string?> ReadLineAsync(Stream s, CancellationToken ct)
+    {
+        var sb = new List<byte>();
+        var one = new byte[1];
+        while (true)
+        {
+            int n = await s.ReadAsync(one, ct);
+            if (n == 0) return sb.Count > 0 ? Encoding.ASCII.GetString(sb.ToArray()) : null;
+            if (one[0] == 13) continue;
+            if (one[0] == 10) return Encoding.ASCII.GetString(sb.ToArray());
+            sb.Add(one[0]);
+        }
+    }
+
+    private static string? Get(List<HttpHeader> headers, string name) =>
+        headers.FirstOrDefault(h => h.Name.Equals(name, StringComparison.OrdinalIgnoreCase))?.Value;
+}

@@ -53,7 +53,7 @@ public sealed class CaptureSession
     {
         _contentRoot = contentRoot;
         _opts = opts;
-        _proxyFactory = proxyFactory ?? (verbose => new UnobtaniumCaptureProxy(verbose));
+        _proxyFactory = proxyFactory ?? (verbose => new NativeCaptureProxy(verbose));
     }
 
     public CaptureSessionStatus Status =>

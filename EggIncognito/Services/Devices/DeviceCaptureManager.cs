@@ -27,7 +27,7 @@ public sealed class DeviceCaptureManager(
     ILogger<DeviceCaptureManager> logger,
     IEnumerable<EggIncognito.Core.Services.Devices.IDeviceCaInstaller>? caInstallers = null) : IHostedService
 {
-    private readonly Func<bool, ICaptureProxy> _proxyFactory = proxyFactory ?? (verbose => new UnobtaniumCaptureProxy(verbose));
+    private readonly Func<bool, ICaptureProxy> _proxyFactory = proxyFactory ?? (verbose => new NativeCaptureProxy(verbose));
     private readonly ConcurrentDictionary<string, DeviceCapture> _captures = new();
     private readonly ConcurrentDictionary<string, DeviceCaptureDiag> _diag = new();
     private readonly DeviceRinfoStore _rinfo = new(capturePath);
