@@ -1017,11 +1017,11 @@
     @apply fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 sm:p-8;
   }
   .modal-card {
-    @apply w-full max-w-2xl bg-panel border border-border rounded-lg shadow-xl my-auto;
+    @apply w-full max-w-3xl bg-panel border border-border rounded-lg shadow-xl my-auto overflow-hidden;
   }
   .modal-head { @apply flex items-center justify-between gap-3 px-5 py-3 border-b border-border; }
   .modal-title { @apply text-base font-semibold m-0 text-fg; }
-  .modal-body { @apply px-5 py-4; }
+  .modal-body { @apply px-5 py-4 overflow-x-auto; }
 
   /* Subscribe panel (roomier than the old squished page). */
   .sub-form { @apply flex flex-col gap-4; }
@@ -1035,5 +1035,7 @@
   .sub-table { @apply w-full text-sm border-collapse; }
   .sub-table thead th { @apply text-left font-normal text-muted text-xs pb-1 px-2 whitespace-nowrap; }
   .sub-table tbody td { @apply px-2 py-1.5 border-t border-border align-middle; }
+  /* The webhook cell can be long; cap + ellipsis it so the table never forces the modal wider. */
+  .sub-table .sub-hook { @apply max-w-[180px] truncate; }
   .sub-row-edit { @apply bg-panel2; }
 }

@@ -97,7 +97,7 @@ else
           @if (_editId == s.Id)
           {
             <tr class="sub-row-edit">
-              <td><span class="font-mono text-xs">@s.UrlMasked</span></td>
+              <td class="sub-hook"><span class="font-mono text-xs">@s.UrlMasked</span></td>
               <td>
                 <label class="settings-check"><input type="checkbox" @bind="_editAndroid" /> A</label>
                 <label class="settings-check"><input type="checkbox" @bind="_editIos" /> i</label>
@@ -120,7 +120,7 @@ else
           else
           {
             <tr>
-              <td>
+              <td class="sub-hook" title="@s.UrlMasked">
                 <span class="font-mono text-xs">@s.UrlMasked</span>
                 @if (!string.IsNullOrWhiteSpace(s.Label)) { <span class="text-muted text-xs ml-1">(@s.Label)</span> }
               </td>
