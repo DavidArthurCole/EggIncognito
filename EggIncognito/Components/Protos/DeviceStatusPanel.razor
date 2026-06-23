@@ -27,8 +27,9 @@
                         <Icon Name="@PlatformIcon(d.Platform)" />
                     </span>
                     <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-baseline gap-2">
                             <span class="text-sm font-medium truncate">@d.Label</span>
+                            <span class="text-xs text-muted opacity-60 whitespace-nowrap shrink-0" title="@d.ProbedAt.ToString("u")">@Ago(d.ProbedAt)</span>
                             @if (d.Result == "new_version")
                             {
                                 <span class="dev-badge-new" title="Installed version can populate new registry version">NEW</span>
@@ -50,7 +51,6 @@
                                         <span class="dev-versep">|</span><text> client @cv</text>
                                     }
                                 </span>
-                                <span class="text-muted opacity-60">@Ago(d.ProbedAt)</span>
                             }
                         </div>
                         @{ var cap = Capture(d.Id); }
@@ -60,12 +60,6 @@
                             <div class="text-xs mt-0.5 flex items-center gap-1.5" title="@v.Detail">
                                 <span class="@v.Color">capture: @v.Label</span>
                             </div>
-                            @if (v.Label != "ok" && cap.RecentConnects is { Count: > 0 } seen)
-                            {
-                                <div class="text-xs mt-0.5 text-muted opacity-70" title="recent CONNECT targets the device dialed through the proxy">
-                                    seen: @string.Join(", ", seen.Take(4))
-                                </div>
-                            }
                         }
                     </div>
                     @if (_isAdmin)

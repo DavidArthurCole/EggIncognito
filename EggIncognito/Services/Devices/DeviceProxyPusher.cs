@@ -80,13 +80,41 @@ public sealed class DeviceProxyPusher(
         await RestartAppAsync(d, ct);
 
         var deadline = DateTimeOffset.UtcNow + timeout;
+        DeviceRinfo? result = null;
         while (DateTimeOffset.UtcNow < deadline)
         {
             try { await Task.Delay(TimeSpan.FromSeconds(2), ct); } catch (OperationCanceledException) { break; }
             var now = manager.Rinfo.Latest(d.Id);
-            if (now is not null && (before is null || now.LastSeen != before.LastSeen)) return now;
+            if (now is not null && (before is null || now.LastSeen != before.LastSeen)) { result = now; break; }
         }
-        return manager.Rinfo.Latest(d.Id);
+        // Re-lock the device when done: the farm phones sit LOCKED (screen off) to save power; the harvest
+        // woke + unlocked them, so put them back. Best-effort, never fails the harvest.
+        try { await LockDeviceAsync(d, ct); } catch (Exception ex) { logger.LogDebug(ex, "device {Id} relock failed (non-fatal)", d.Id); }
+        return result ?? manager.Rinfo.Latest(d.Id);
+    }
+
+    // Re-lock + sleep the device after a capture so it returns to the low-power locked state it starts in.
+    // Android: the SLEEP keyevent (locks + screen off). iOS: the backboardd EggHomePress dylib presses the
+    // Power key (consumer usage 0x30) via the /tmp/ehp.cmd trigger, which sleeps + locks a no-passcode device.
+    public async Task<(bool Ok, string? Note)> LockDeviceAsync(DeviceEntry d, CancellationToken ct)
+    {
+        if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase))
+        {
+            var r = await runner.RunAsync("adb", ["-s", d.Target, "shell", "input", "keyevent", "KEYCODE_SLEEP"], ct);
+            return r.ExitCode == 0 ? (true, "locked") : (false, "lock failed");
+        }
+        if (string.Equals(d.Platform, "ios", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
+                return (false, "ios ssh not configured");
+            // Trigger the backboardd dylib's power-key press to lock + dim.
+            var remote = "/bin/sh -c 'echo lock > /tmp/ehp.cmd; sleep 1; echo locked'";
+            var r = await runner.RunAsync("ssh",
+                ["-p", config.IosSshPort, "-i", config.IosSshKeyPath, "-o", "StrictHostKeyChecking=no",
+                 "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
+            return r.ExitCode == 0 ? (true, "locked") : (false, "lock failed");
+        }
+        return (false, $"no lock for platform {d.Platform}");
     }
 
     // Force-stop the egginc app then relaunch it, so it makes a fresh launch request to auxbrain (an idle
@@ -128,6 +156,12 @@ public sealed class DeviceProxyPusher(
                 // whole command via DeviceCapture:Ios:RestartCommand.
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
                     ? "/bin/sh -c '" +
+                      // The farm phone starts LOCKED (screen off, no passcode) to save power. A locked iOS app
+                      // launches SUSPENDED and never phones auxbrain, so we must WAKE + UNLOCK first. homeunlock
+                      // = SBSUndimScreen (wake); `achome` -> the backboardd EggHomePress dylib presses the Home
+                      // key (consumer ACHome 0x223) which dismisses the passcode-free lock screen. (Restricted
+                      // entitlements block doing this from a plain CLI, so the dylib lives in backboardd.)
+                      "homeunlock >/dev/null 2>&1; echo home > /tmp/ehp.cmd; echo achome > /tmp/ehp.cmd; sleep 2; " +
                       "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; sleep 1; " +
                       // Cold-launch by bundle id via the Procursus uiopen `--bundleid` flag. This routes through
                       // LSApplicationWorkspace (lsd/runningboardd), which WORKS over root ssh - unlike `open`

@@ -38,10 +38,31 @@ public sealed class DeviceProbeService(
         try
         {
             await ProbeAllAsync(stoppingToken);
+            // On launch, run each device through one app cycle so clientVersion is captured immediately - the
+            // panel shows a populated cv from boot instead of looking broken until someone taps the play button.
+            await StartupHarvestAsync(stoppingToken);
             while (await timer.WaitForNextTickAsync(stoppingToken))
                 await ProbeAllAsync(stoppingToken);
         }
         catch (OperationCanceledException) { /* shutdown */ }
+    }
+
+    // One app cycle per device at launch so clientVersion is captured up front (panel shows a real cv from
+    // boot, not an empty/broken-looking row). Best-effort + logged; a device that is off or unreachable just
+    // logs and is picked up by the next manual/heartbeat trigger. Capture must be enabled for this to matter.
+    private async Task StartupHarvestAsync(CancellationToken ct)
+    {
+        foreach (var d in config.Devices)
+        {
+            try
+            {
+                var rinfo = await proxyPusher.ForceHarvestAsync(d, TimeSpan.FromSeconds(25), ct);
+                logger.LogInformation("device capture: {Id} startup harvest -> {Cv}",
+                    d.Id, rinfo?.ClientVersion is { } cv ? $"clientVersion {cv}" : "no rinfo (will retry on demand)");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) { logger.LogWarning(ex, "device capture: {Id} startup harvest threw", d.Id); }
+        }
     }
 
     internal async Task ProbeAllAsync(CancellationToken ct)
