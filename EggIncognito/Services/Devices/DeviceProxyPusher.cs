@@ -93,9 +93,10 @@ public sealed class DeviceProxyPusher(
         return result ?? manager.Rinfo.Latest(d.Id);
     }
 
-    // Re-lock + sleep the device after a capture so it returns to the low-power locked state it starts in.
-    // Android: the SLEEP keyevent (locks + screen off). iOS: the backboardd EggHomePress dylib presses the
-    // Power key (consumer usage 0x30) via the /tmp/ehp.cmd trigger, which sleeps + locks a no-passcode device.
+    // Re-lock + sleep the device after a capture so it returns to the low-power state it starts in.
+    // Android: the SLEEP keyevent (locks + screen off). iOS: the backboardd EggHomePress dylib blanks the
+    // screen (BKS, consumer-key-free) via the `sleep` cmd - the device has no passcode, so screen-off IS the
+    // low-power resting state (the prior power-key press opened the power-off menu and is gone).
     public async Task<(bool Ok, string? Note)> LockDeviceAsync(DeviceEntry d, CancellationToken ct)
     {
         if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase))
@@ -107,14 +108,56 @@ public sealed class DeviceProxyPusher(
         {
             if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
                 return (false, "ios ssh not configured");
-            // Trigger the backboardd dylib's power-key press to lock + dim.
-            var remote = "/bin/sh -c 'echo lock > /tmp/ehp.cmd; sleep 1; echo locked'";
-            var r = await runner.RunAsync("ssh",
-                ["-p", config.IosSshPort, "-i", config.IosSshKeyPath, "-o", "StrictHostKeyChecking=no",
-                 "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
-            return r.ExitCode == 0 ? (true, "locked") : (false, "lock failed");
+            var (ok, note) = await IosSendCmdAsync("sleep", ct);
+            return ok ? (true, "screen blanked") : (false, $"sleep failed: {note}");
         }
         return (false, $"no lock for platform {d.Platform}");
+    }
+
+    // --- iOS unlock primitives (server is the brain; the backboardd EggHomePress dylib is a dumb one-shot
+    // executor). The dylib NEVER reads lock state and NEVER retries - that stale in-dylib read caused an
+    // over-press spam loop. Instead: the server reads the headless `lockstate` CLI (exit 10=locked, 0=unlocked),
+    // decides, and writes ONE cmd to /tmp/ehp.cmd (chmod 666 so the mobile-uid dylib can truncate it after
+    // consuming). All retry lives here, against the accurate oracle. ---
+
+    // Read the device lock state via the `lockstate` CLI. Returns true=locked, false=unlocked, null=unknown.
+    private async Task<bool?> IosLockstateAsync(CancellationToken ct)
+    {
+        var r = await runner.RunAsync("ssh",
+            ["-p", config.IosSshPort, "-i", config.IosSshKeyPath!, "-o", "StrictHostKeyChecking=no",
+             "-o", "BatchMode=yes", $"root@{config.IosSshHost}", "lockstate"], ct);
+        // lockstate prints "locked=N passcode=M" and exits 10 (locked) / 0 (unlocked).
+        if (r.Stdout.Contains("locked=1")) return true;
+        if (r.Stdout.Contains("locked=0")) return false;
+        return r.ExitCode switch { 10 => true, 0 => false, _ => (bool?)null };
+    }
+
+    // Write one command to the dylib's trigger file, world-writable so the mobile-uid dylib can truncate it
+    // after consuming (consume = truncate-to-empty; empty content is ignored = exactly one action per write).
+    private async Task<(bool Ok, string? Note)> IosSendCmdAsync(string cmd, CancellationToken ct)
+    {
+        var remote = $"/bin/sh -c 'printf %s {cmd} > /tmp/ehp.cmd; chmod 666 /tmp/ehp.cmd; echo sent'";
+        var r = await runner.RunAsync("ssh",
+            ["-p", config.IosSshPort, "-i", config.IosSshKeyPath!, "-o", "StrictHostKeyChecking=no",
+             "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
+        return r.ExitCode == 0 ? (true, null)
+                               : (false, EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(r.Stderr + r.Stdout));
+    }
+
+    // Ensure the iOS device is unlocked: read state, and while locked send one `unlock` cmd and re-check, up
+    // to a few tries. The dylib's `unlock` = BKS wake + two consumer Menu(0x40) presses (iOS-16 passcode-free
+    // lockscreen: first press raises it, second dismisses to home). Server-side retry against `lockstate`
+    // (the accurate oracle) replaces the buggy in-dylib loop. Returns true once unlocked.
+    private async Task<bool> IosEnsureUnlockedAsync(CancellationToken ct, int maxTries = 3)
+    {
+        for (var i = 0; i < maxTries; i++)
+        {
+            var locked = await IosLockstateAsync(ct);
+            if (locked == false) return true;          // confirmed unlocked
+            await IosSendCmdAsync("unlock", ct);
+            try { await Task.Delay(TimeSpan.FromSeconds(4), ct); } catch (OperationCanceledException) { return false; }
+        }
+        return await IosLockstateAsync(ct) == false;
     }
 
     // Force-stop the egginc app then relaunch it, so it makes a fresh launch request to auxbrain (an idle
@@ -141,33 +184,27 @@ public sealed class DeviceProxyPusher(
             {
                 if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
                     return (false, "ios ssh not configured");
-                // Jailbroken cold-launch with diagnostics. A backgrounded iOS app stays suspended; uiopen just
-                // resumes it (no fresh auxbrain call), so we must KILL it first. The executable name is app-
-                // specific, so we (1) report what egg-ish processes are running, (2) kill by the configured
-                // name AND by anything matching the bundle, (3) try several launch methods (open <bundle> from
-                // Procursus, then uiopen <bundle>:// scheme). Every step echoes `diag:` so the note shows what
-                // worked. Override the whole command via DeviceCapture:Ios:RestartCommand if a method is wrong.
                 var bundle = d.Package; // com.auxbrain.egginc
                 var proc = string.IsNullOrEmpty(config.IosAppProcessName) ? "Egg, Inc." : config.IosAppProcessName;
-                // /bin/sh (not the login zsh). A suspended iOS app must be KILLED before relaunch or it just
-                // resumes without a fresh auxbrain call. EI registers no URL scheme, so cold-launch BY BUNDLE
-                // ID via the Procursus `open` CLI (`open <bundleid>`, installed on this phone). Kill by PID
-                // (pure-sh parse, no awk), then `open`, then report whether it is running after. Override the
-                // whole command via DeviceCapture:Ios:RestartCommand.
+                // The farm phone rests LOCKED (screen off, no passcode) to save power. A locked iOS app launches
+                // SUSPENDED and never phones auxbrain, so WAKE + UNLOCK first. The server reads `lockstate` and
+                // drives the dumb backboardd dylib until unlocked (IosEnsureUnlockedAsync) - no in-dylib state
+                // loop (that was the over-press spam bug). Skip the whole unlock/launch shell when overridden.
+                if (string.IsNullOrEmpty(config.IosRestartCommand))
+                {
+                    var unlocked = await IosEnsureUnlockedAsync(ct);
+                    if (!unlocked)
+                        logger.LogWarning("device capture: {Id} could not confirm unlock; launching anyway", d.Id);
+                }
+                // /bin/sh cold-launch with diagnostics. A suspended iOS app must be KILLED before relaunch or it
+                // just resumes without a fresh auxbrain call. Kill by PID (pure-sh parse, no awk), then cold-
+                // launch by bundle id via the Procursus `uiopen --bundleid` flag (routes through
+                // LSApplicationWorkspace, the one method that works over root ssh - `open` is SIGKILL'd,
+                // SBSLaunchApplicationWithIdentifier hits FrontBoard cross-domain err 3, and EI has no URL
+                // scheme). Override the whole command via DeviceCapture:Ios:RestartCommand.
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
                     ? "/bin/sh -c '" +
-                      // The farm phone starts LOCKED (screen off, no passcode) to save power. A locked iOS app
-                      // launches SUSPENDED and never phones auxbrain, so we must WAKE + UNLOCK first. homeunlock
-                      // = SBSUndimScreen (wake); `achome` -> the backboardd EggHomePress dylib presses the Home
-                      // key (consumer ACHome 0x223) which dismisses the passcode-free lock screen. (Restricted
-                      // entitlements block doing this from a plain CLI, so the dylib lives in backboardd.)
-                      "homeunlock >/dev/null 2>&1; echo home > /tmp/ehp.cmd; echo achome > /tmp/ehp.cmd; sleep 2; " +
                       "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; sleep 1; " +
-                      // Cold-launch by bundle id via the Procursus uiopen `--bundleid` flag. This routes through
-                      // LSApplicationWorkspace (lsd/runningboardd), which WORKS over root ssh - unlike `open`
-                      // (SIGKILL'd) and SBSLaunchApplicationWithIdentifier (FrontBoard rejects cross-domain,
-                      // err 3) and `uiopen <scheme>://` (EI registers no URL scheme). The classic `uiopen
-                      // --bundle` is a DIFFERENT, URL-scheme-only build; `--bundleid` is the one that launches.
                       $"uiopen --bundleid {bundle} 2>&1 | sed \"s/^/diag uiopen: /\"; " +
                       "sleep 3; echo diag ps-after:; " +
                       "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running\"; else echo \"diag RESULT: NOT running\"; fi" +
