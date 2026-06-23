@@ -36,6 +36,14 @@
         </div>
       </div>
 
+      @if (Hosted)
+      {
+        <button type="button" class="icon-btn" title="DM me my setup config (CA + proxy address)"
+                aria-label="DM setup config" disabled="@_dmBusy" @onclick="SendConfig"><Icon Name="bell" /></button>
+        <button type="button" class="icon-btn" title="Rotate my proxy address (invalidates the old one)"
+                aria-label="Rotate proxy address" disabled="@_rotateBusy" @onclick="RotateAddress"><Icon Name="refresh" /></button>
+      }
+
       <div class="settings-wrap" style="position: relative;">
         <button type="button" class="icon-btn" title="Settings" aria-label="Settings"
                 aria-haspopup="true" aria-expanded="@(_open == "settings")" @onclick="@(() => Toggle("settings"))"><Icon Name="gear" /></button>
@@ -74,6 +82,7 @@
     </div>
   </div>
   <div class="text-xs text-muted mt-2.5">@(Running ? "Capturing." : "Stopped.") Start/stop, clear the list, export a HAR, or tune the view.</div>
+  @if (_actionMsg is not null) { <div class="text-xs mt-1 @(_actionOk ? "text-green-400" : "text-err")">@_actionMsg</div> }
 </section>
 
 @code {
@@ -83,10 +92,53 @@
     [Parameter] public EventCallback OnToggleCapture { get; set; }
     [Parameter] public EventCallback OnClear { get; set; }
     [Parameter] public EventCallback OnViewChanged { get; set; }
+    // Hosted-only: the DM-config + rotate-address controls (moved here from the setup card). ClientFactory
+    // forwards the auth cookie; OnAddressRotated lets the page refresh the displayed server address.
+    [Parameter] public bool Hosted { get; set; }
+    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
+    [Parameter] public EventCallback<string> OnAddressRotated { get; set; }
 
     string? _open;
+    bool _dmBusy;
+    bool _rotateBusy;
+    string? _actionMsg;
+    bool _actionOk;
 
     void Toggle(string which) => _open = _open == which ? null : which;
+
+    async Task SendConfig()
+    {
+        if (ClientFactory is null) return;
+        _dmBusy = true; _actionMsg = null;
+        try
+        {
+            var res = await ClientFactory().PostAsync("/api/capture/send-config", null);
+            _actionOk = res.IsSuccessStatusCode;
+            _actionMsg = _actionOk ? "Setup DM sent." : "Could not DM your setup (start a session + enable DMs).";
+        }
+        catch (Exception ex) { _actionOk = false; _actionMsg = $"DM failed: {ex.Message}"; }
+        _dmBusy = false;
+    }
+
+    async Task RotateAddress()
+    {
+        if (ClientFactory is null) return;
+        _rotateBusy = true; _actionMsg = null;
+        try
+        {
+            var res = await ClientFactory().PostAsync("/api/capture/proxy-address/rotate", null);
+            if (res.IsSuccessStatusCode)
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+                var host = doc.RootElement.GetProperty("host").GetString();
+                _actionOk = true; _actionMsg = "New address issued. Update your device's proxy server.";
+                if (host is not null) await OnAddressRotated.InvokeAsync(host);
+            }
+            else { _actionOk = false; _actionMsg = $"Rotate failed (HTTP {(int)res.StatusCode})."; }
+        }
+        catch (Exception ex) { _actionOk = false; _actionMsg = $"Rotate failed: {ex.Message}"; }
+        _rotateBusy = false;
+    }
 
     async Task SetMode(string mode) { View.RedactionMode = mode; await OnViewChanged.InvokeAsync(); }
     async Task OnShowHeaders(ChangeEventArgs e) { View.ShowHeaders = e.Value is bool b && b; await OnViewChanged.InvokeAsync(); }

@@ -24,7 +24,8 @@
   {
     <div class="px-3 pt-3 setup-collapsible @(_connected ? "setup-hidden" : "")">
       <HostedSetupCard Port="HostedOptions.FrontDoorPort"
-                       ClientFactory="Client" InviteUrl="@Config["Discord:InviteUrl"]" />
+                       ClientFactory="Client" InviteUrl="@Config["Discord:InviteUrl"]"
+                       HostOverride="_rotatedHost" />
     </div>
   }
 
@@ -34,7 +35,9 @@
   <main class="capture-main grid gap-3 p-3 min-h-0">
     <div class="capture-side flex flex-col gap-3 min-h-0">
       <CaptureControlsPanel Running="_running" ToggleBusy="_toggleBusy" View="_view"
-                            OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged" />
+                            OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
+                            Hosted="_hosted" ClientFactory="Client"
+                            OnAddressRotated="@(h => { _rotatedHost = h; StateHasChanged(); })" />
       <CaptureNoticesPanel Notices="_notices" Unread="_unread"
                            OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
       <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
@@ -137,6 +140,7 @@ else
     // hosted supporter, null when this caller may not capture (pitch/login/capacity panels render).
     CaptureSession? _session;
     bool _hosted;
+    string? _rotatedHost;
     bool _isAuthenticated;
     bool _isSupporter;
     string? _userId;

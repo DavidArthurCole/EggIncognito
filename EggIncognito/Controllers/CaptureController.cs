@@ -170,6 +170,24 @@ public sealed class CaptureController(
         return Ok(result);
     }
 
+    // Re-send the setup DM (CA profile + proxy address) on demand, without restarting the session. Hosted
+    // + authenticated + supporter only; mirrors Start's gates. 200 {sent:true} when delivered, else a
+    // notice is flagged on the session and {sent:false} is returned.
+    [HttpPost("send-config")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> SendConfig(CancellationToken ct)
+    {
+        if (!appMode.HostedCaptureEnabled)
+            return StatusCode(403, new { error = "hosted capture disabled" });
+        if (!currentUser.IsAuthenticated || string.IsNullOrEmpty(currentUser.DiscordId))
+            return StatusCode(401, new { error = "log in to use hosted capture" });
+        var session = manager.Get(currentUser.DiscordId);
+        if (session is null) return StatusCode(409, new { error = "start a capture session first" });
+        session.CaDmFailed = false;
+        await DeliverSetupAsync(session, currentUser.DiscordId, Credentials, ct);
+        return Ok(new { sent = !session.CaDmFailed });
+    }
+
     // DM the install profile + the user's per-user proxy address so the user never hunts for a download
     // or copies a long token by hand. The front door identifies the user by destination address, so no
     // token is minted; the proxy needs no credentials. Runs on every session start. Best-effort: a

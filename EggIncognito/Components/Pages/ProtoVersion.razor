@@ -182,21 +182,28 @@
         _loading = false;
     }
 
-    // Find the previous build (largest numeric Build less than this one, same platform) and diff its
-    // message-name set against this version's.
+    // Find the immediately-prior version on this platform and diff its message-name set against this one.
+    // Order by (app-version semver, then numeric build) so it works for BOTH platforms - iOS builds like
+    // "1.35.7.1" are NOT numeric, so the old long-parse-the-build approach returned early for every iOS
+    // row ("nothing to compare"). Ranking by app version first fixes that.
     async Task LoadComparison()
     {
         try
         {
             var versions = await Client().GetFromJsonAsync<List<VersionRow>>(
                 $"/api/protos/versions?platform={Platform}", JsonOpts) ?? [];
-            if (!long.TryParse(Build, out var cur)) return;
+            // Rank ascending; the "previous" is the highest-ranked row strictly below this one.
+            int Cmp(string aApp, string aBuild, string bApp, string bBuild)
+            {
+                var s = CompareSemver(aApp, bApp);
+                return s != 0 ? s : CompareBuild(aBuild, bBuild);
+            }
             VersionRow? prev = null;
-            long prevVal = long.MinValue;
             foreach (var v in versions)
             {
-                if (!long.TryParse(v.Build, out var b)) continue;
-                if (b < cur && b > prevVal) { prevVal = b; prev = v; }
+                // Skip self + anything not strictly below this version.
+                if (Cmp(v.AppVersion, v.Build, _detail?.AppVersion ?? "", Build) >= 0) continue;
+                if (prev is null || Cmp(v.AppVersion, v.Build, prev.AppVersion, prev.Build) > 0) prev = v;
             }
             if (prev is null) return;
             _prevBuild = prev.Build;
@@ -212,6 +219,27 @@
             _removed = prevMsgs.Where(m => !thisSet.Contains(m)).ToList();
         }
         catch { }
+    }
+
+    // Semver-ish compare of dotted numeric versions (1.35.7 vs 1.35.6); missing parts = 0.
+    static int CompareSemver(string a, string b)
+    {
+        var ap = (a ?? "").Split('.');
+        var bp = (b ?? "").Split('.');
+        for (var i = 0; i < Math.Max(ap.Length, bp.Length); i++)
+        {
+            var av = i < ap.Length && long.TryParse(ap[i], out var x) ? x : 0;
+            var bv = i < bp.Length && long.TryParse(bp[i], out var y) ? y : 0;
+            if (av != bv) return av.CompareTo(bv);
+        }
+        return 0;
+    }
+
+    // Build compare: numeric when both parse (Android 111343), else dotted-semver (iOS 1.35.7.1).
+    static int CompareBuild(string a, string b)
+    {
+        if (long.TryParse(a, out var al) && long.TryParse(b, out var bl)) return al.CompareTo(bl);
+        return CompareSemver(a, b);
     }
 
     static List<string> ParseMessages(string json) =>

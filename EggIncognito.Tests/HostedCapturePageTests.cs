@@ -161,7 +161,7 @@ public class HostedCapturePageTests
             Assert.NotNull(cut.Find("#proxyHost"));
             Assert.Contains("Server", markup);
             Assert.Contains("Port", markup);
-            Assert.Contains("Authentication", markup);
+            Assert.Contains("Auth", markup);
             // No token / username credentials, no rotate button, no auto-proxy SSID card.
             Assert.Empty(cut.FindAll("#proxyProfileCard"));
             Assert.Empty(cut.FindAll("#mintedToken"));

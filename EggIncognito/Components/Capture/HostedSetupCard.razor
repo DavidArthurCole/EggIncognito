@@ -4,66 +4,52 @@
 @* Hosted-capture connection card: the caller's per-user IPv6 proxy host, the port, and the CA install
    steps. The front door identifies the user by destination address, so the proxy uses no auth. *@
 <section id="hostedSetupCard" class="panel">
-  <h2 class="text-base mt-0 mb-2 text-fg">Hosted proxy setup</h2>
-  <p class="text-muted text-sm mt-0 mb-3"><strong>Start capture</strong> (in the Controls widget) DMs you
-    the CA. Set your Wi-Fi proxy to Manual with the values below, install the CA, open Egg, Inc.</p>
+  <h2 class="text-base mt-0 mb-3 text-fg">Hosted proxy setup</h2>
 
-  <div class="mb-3">
-    <div class="mb-1 flex items-center gap-2">
-      <span class="text-muted text-xs">Server</span>
-      <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span>
-      <button type="button" class="icon-btn icon-btn-sm" title="Rotate address" aria-label="Rotate address"
-              @onclick="RotateAddress" disabled="@_rotating"><Icon Name="refresh" Class="icon-sm" /></button>
-    </div>
-    <div class="mb-1"><span class="text-muted text-xs">Port</span> <span class="code-chip">@Port</span></div>
-    <div class="mb-1"><span class="text-muted text-xs">Authentication</span> <span class="code-chip">off</span></div>
+  @* The proxy coordinates. Address rotation + DM-config live in the Controls widget, not here. *@
+  <div class="setup-coords mb-3">
+    <div class="setup-coord"><span class="text-muted text-xs">Server</span>
+      <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span></div>
+    <div class="setup-coord"><span class="text-muted text-xs">Port</span>
+      <span class="code-chip">@Port</span></div>
+    <div class="setup-coord"><span class="text-muted text-xs">Auth</span>
+      <span class="code-chip">off</span></div>
     @if (_rotated)
     {
-      <p class="text-muted text-xs mt-1 mb-0" id="rotatedNotice">New address issued. The old one no longer works. Update your device's proxy Server to the value above.</p>
+      <p class="text-muted text-xs mt-1 mb-0 basis-full" id="rotatedNotice">New address issued. Update your
+        device's proxy Server to the value above.</p>
     }
   </div>
 
   @if (_caDmFailed)
   {
-    <p class="text-muted text-xs mb-3" id="caDmFailedNotice">Could not DM you the setup. This usually means
-      you are not in the Discord server, or your DMs from server members are off
-      (Settings &gt; Privacy &amp; Safety). Everything you need is on this card.
+    <p class="text-muted text-xs mb-3" id="caDmFailedNotice">Could not DM you the CA. You may not be in the
+      Discord server, or your member DMs are off (Settings &gt; Privacy &amp; Safety).
       @if (!string.IsNullOrWhiteSpace(InviteUrl))
       {
-        <span>Join the server: <a href="@InviteUrl" target="_blank" rel="noopener" class="text-accent2 underline">@InviteUrl</a>, enable DMs, then restart the capture to retry.</span>
+        <span>Join: <a href="@InviteUrl" target="_blank" rel="noopener" class="text-accent2 underline">@InviteUrl</a>, enable DMs, then re-send the config from Controls.</span>
       }
       else
       {
-        <span>Enable DMs, then restart the capture to retry.</span>
+        <span>Enable DMs, then re-send the config from Controls.</span>
       }
     </p>
   }
 
-  <div class="setup-steps">
-    <div class="setup-summary">Setup instructions</div>
-
-    <ol class="text-muted text-sm leading-relaxed pl-5 mt-2 mb-3">
-      <li>Wi-Fi proxy to Manual: Server + Port above, auth off.</li>
-      <li>Install + trust the DM'd CA, see your platform below.</li>
-      <li>Open Egg, Inc. Flows appear live below.</li>
-    </ol>
-
-    <div class="setup-platforms">
-      <div class="setup-platform">
-        <span class="setup-platform-name">iOS</span>
-        <span class="text-muted text-xs leading-snug">Open the CA profile (DM or Safari), install it,
-          then full-trust under Settings &gt; General &gt; About &gt; Certificate Trust Settings.</span>
-      </div>
-      <div class="setup-platform">
-        <span class="setup-platform-name">Android</span>
-        <span class="text-muted text-xs leading-snug">Android 7+ ignores user CAs, so EI will not decrypt
-          on stock. Needs a rooted phone with the CA in the system trust store (Magisk cert module).</span>
-      </div>
-    </div>
-
-    <p class="text-muted text-xs mt-2 mb-0">Only Egg, Inc. traffic is decrypted; everything else passes
-      through untouched.</p>
-  </div>
+  @* One pass of steps, with the per-OS CA notes folded into step 2. No repeated instruction blocks. *@
+  <ol class="setup-list">
+    <li>Set your Wi-Fi proxy to <strong>Manual</strong> using the Server + Port above (auth off).</li>
+    <li>Install + trust the DM'd CA:
+      <ul class="setup-sublist">
+        <li><strong>iOS</strong>: open the CA profile, install it, then full-trust under Settings &gt;
+          General &gt; About &gt; Certificate Trust Settings.</li>
+        <li><strong>Android</strong>: needs a rooted phone with the CA in the system trust store (Android
+          7+ ignores user CAs), e.g. a Magisk cert module.</li>
+      </ul>
+    </li>
+    <li>Open Egg, Inc. Flows appear live below. Only Egg, Inc. traffic is decrypted; everything else
+      passes through untouched.</li>
+  </ol>
 </section>
 
 @code {
@@ -74,28 +60,19 @@
 
     string? _proxyHost;
     bool _caDmFailed;
-    bool _rotating;
     bool _rotated;
 
-    // Mint a fresh random address, killing the old (leaked) one. The server replaces the stored address
-    // so the old one stops resolving; the user re-points their device at the new value shown.
-    async Task RotateAddress()
+    // The page pushes a freshly-rotated host here (rotation now lives in the Controls widget), so the card
+    // updates the displayed Server without re-fetching.
+    [Parameter] public string? HostOverride { get; set; }
+
+    protected override void OnParametersSet()
     {
-        if (ClientFactory is null || _rotating) return;
-        _rotating = true;
-        _rotated = false;
-        try
+        if (!string.IsNullOrEmpty(HostOverride) && HostOverride != _proxyHost)
         {
-            var res = await ClientFactory().PostAsync("/api/capture/proxy-address/rotate", null);
-            if (res.IsSuccessStatusCode)
-            {
-                using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
-                _proxyHost = doc.RootElement.GetProperty("host").GetString();
-                _rotated = true;
-            }
+            _proxyHost = HostOverride;
+            _rotated = true;
         }
-        catch { /* leave the current address shown */ }
-        finally { _rotating = false; }
     }
 
     // After the interactive circuit is live (ClientFactory can forward the auth cookie), fetch the

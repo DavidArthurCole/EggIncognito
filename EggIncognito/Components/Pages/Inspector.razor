@@ -23,7 +23,7 @@
    left column carries the controls (Postman download + salt) above the endpoint/object explorer. *@
 <main class="inspector-main grid gap-3 p-3 min-h-0">
   <div class="inspector-side flex flex-col gap-3 min-h-0">
-    <section class="panel inspector-controls">
+    <section class="panel inspector-controls shrink-0">
       <h3 class="text-sm font-semibold mt-0 mb-2">Controls</h3>
       <div class="flex items-center gap-1.5">
         <a class="icon-btn" href="/api/tools/postman-collection" download
@@ -36,7 +36,7 @@
       </div>
       <div class="text-xs text-muted mt-2.5">Download a Postman collection, set the signing salt, or tune Inspector settings.</div>
     </section>
-    <aside class="panel min-h-0">
+    <aside class="panel min-h-0 flex-1 overflow-auto">
       <EndpointList Mode="@_listMode" ModeChanged="SetListMode"
                     Selected="@_selected" SelectedObject="@_selectedObject"
                     OnSelectEndpoint="SelectEndpoint" OnSelectObject="SelectObject"

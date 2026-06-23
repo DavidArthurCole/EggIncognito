@@ -18,23 +18,6 @@
       </dl>
     </div>
     <div class="stat-group">
-      <div class="stat-group-title">Devices</div>
-      <dl class="stat-rows">
-        <dt>Online</dt><dd>@_onlineCount</dd>
-        <dt>Known</dt><dd>@_knownCount</dd>
-        <dt>Connections</dt><dd>@(Stats?.ActiveConnections ?? 0)</dd>
-      </dl>
-      <div class="device-cards">
-        @if (Stats is not null)
-        {
-          @foreach (var d in Stats.Devices)
-          {
-            @DeviceCard(d)
-          }
-        }
-      </div>
-    </div>
-    <div class="stat-group">
       <div class="stat-group-title">Captured Data</div>
       <dl class="stat-rows">
         <dt>Auxbrain flows</dt><dd>@(Stats?.CapturedAuxbrain ?? 0)</dd>
@@ -59,18 +42,11 @@
     string _certCls = "cert-waiting";
     string _certText = "Waiting for device";
     string _certTitle = "No device traffic yet - point the device's Wi-Fi proxy here and generate traffic.";
-    int _onlineCount;
-    int _knownCount;
 
     string StatusText => Running ? (Port > 0 ? $"RUNNING : {Port}" : "RUNNING") : "STOPPED";
 
-    protected override void OnParametersSet()
-    {
-        var devices = Stats?.Devices ?? [];
-        _onlineCount = devices.Count(d => d.Online);
-        _knownCount = devices.Count;
+    protected override void OnParametersSet() =>
         UpdateCertState(Stats?.CertState, Stats?.ActiveConnections ?? 0);
-    }
 
     void UpdateCertState(string? state, int activeConnections)
     {
@@ -96,40 +72,4 @@
         }
     }
 
-    RenderFragment DeviceCard(DeviceInfo d) =>@<div class="device-card @(d.Online ? "" : "device-offline")">
-      <div class="device-head">
-        <span class="device-dot @(d.Online ? "online" : "offline")"
-              title="@(d.Online ? "Connected now" : "Seen in a previous session (offline)")"></span>
-        @if (!string.IsNullOrEmpty(d.Os))
-        {
-          <span class="device-os @OsClass(d.Os)">@d.Os</span>
-        }
-        <span class="device-ip">@d.Ip</span>
-        @if (!string.IsNullOrEmpty(d.Hostname))
-        {
-          <span class="device-host" title="Reverse-DNS hostname">@d.Hostname</span>
-        }
-      </div>
-      <dl class="device-rows">
-        <dt>Status</dt><dd>@(d.Online ? "Connected" : "Offline")</dd>
-        @if (d.Online)
-        {
-          <dt>Connections</dt><dd>@d.ActiveConnections</dd>
-        }
-        <dt>Seen</dt><dd>@d.TotalConnections time@(d.TotalConnections == 1 ? "" : "s")</dd>
-        <dt>First seen</dt><dd>@d.FirstSeen</dd>
-        <dt>Last seen</dt><dd>@d.LastSeen</dd>
-        @if (!string.IsNullOrEmpty(d.GameVersion))
-        {
-          <dt>Egg, Inc. version</dt><dd>@d.GameVersion</dd>
-        }
-      </dl>
-    </div>;
-
-    static string OsClass(string os) => os.ToLowerInvariant() switch
-    {
-        "ios" => "os-ios",
-        "android" => "os-android",
-        _ => "os-other",
-    };
 }
