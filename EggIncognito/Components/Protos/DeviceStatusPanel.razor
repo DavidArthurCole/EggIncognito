@@ -29,7 +29,6 @@
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2">
                             <span class="text-sm font-medium truncate">@d.Label</span>
-                            <span class="code-chip">@(d.InstalledAppVersion ?? "?")</span>
                             @if (d.Result == "new_version")
                             {
                                 <span class="dev-badge-new" title="Installed version can populate new registry version">NEW</span>
@@ -42,7 +41,15 @@
                             }
                             else
                             {
-                                <span class="text-muted">build @(d.InstalledBuild ?? "?")</span>
+                                @* version | build | client on one line; clientVersion only shown once captured *@
+                                <span class="dev-verline">
+                                    @(d.InstalledAppVersion ?? "?")
+                                    <span class="dev-versep">|</span> build @(d.InstalledBuild ?? "?")
+                                    @if (_clientVersion.GetValueOrDefault(d.Id) is int cv)
+                                    {
+                                        <span class="dev-versep">|</span><text> client @cv</text>
+                                    }
+                                </span>
                                 <span class="text-muted opacity-60">@Ago(d.ProbedAt)</span>
                             }
                         </div>
@@ -52,10 +59,6 @@
                             var v = CaptureVerdict(cap);
                             <div class="text-xs mt-0.5 flex items-center gap-1.5" title="@v.Detail">
                                 <span class="@v.Color">capture: @v.Label</span>
-                                @if (_clientVersion.GetValueOrDefault(d.Id) is int cv)
-                                {
-                                    <span class="code-chip">cv @cv</span>
-                                }
                             </div>
                             @if (v.Label != "ok" && cap.RecentConnects is { Count: > 0 } seen)
                             {

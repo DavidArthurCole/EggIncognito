@@ -241,6 +241,9 @@
     @apply bg-bg border border-border rounded px-[0.3rem] py-[0.05rem] font-mono;
     font-size: 0.85em;
   }
+  /* Device status: single mono line "version | build N | client N" - no boxed chips, muted separators. */
+  .dev-verline { @apply font-mono text-fg whitespace-nowrap; }
+  .dev-versep { @apply text-muted opacity-50 mx-1; }
   /* Device status: orange "NEW" pill (installed version can populate a registry row) + icon button. */
   .dev-badge-new {
     @apply inline-flex items-center rounded px-1.5 py-0.5 text-[0.65rem] font-bold tracking-wide uppercase whitespace-nowrap;

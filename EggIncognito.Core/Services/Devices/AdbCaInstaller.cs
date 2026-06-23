@@ -57,7 +57,15 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         "chcon u:object_r:system_security_cacerts_file:s0 $MOD/system/etc/security/cacerts/{hash}.0 2>/dev/null\n" +
         "rm -f $MOD/disable $MOD/remove 2>/dev/null\n" +    // ensure the module is enabled
         "[ -f $MOD/system/etc/security/cacerts/{hash}.0 ] && echo 'diag module: written' || echo 'diag module: FAILED'\n" +
-        "echo 'diag done {hash}.0 - REBOOT the device to activate the Magisk CA module'\n";
+        // LIVE activation, no reboot. On Android 14 the Magisk module's system/ overlay does NOT land in the
+        // live cacerts store (Magisk re-mounts /system/etc/security/cacerts as a tmpfs with per-cert bind
+        // mounts; the module tree is not picked up there). So copy our cert straight into the LIVE tmpfs
+        // cacerts. This MUST run in the GLOBAL mount namespace (su -mm) or it is invisible to apps - the caller
+        // invokes the script via `su -mm`. Idempotent: re-copies each run, survives until reboot; the module
+        // remains as the (best-effort) persistence attempt. Fix the SELinux context or the app rejects it.
+        "LIVE=/system/etc/security/cacerts/{hash}.0\n" +
+        "cp $MOD/system/etc/security/cacerts/{hash}.0 $LIVE 2>/dev/null && chown 0:0 $LIVE && chmod 644 $LIVE && chcon u:object_r:system_security_cacerts_file:s0 $LIVE 2>/dev/null && echo 'diag live: mounted into running cacerts' || echo 'diag live: copy FAILED (need su -mm global ns)'\n" +
+        "echo 'diag done {hash}.0'\n";
 
     public async Task<(bool Ok, string? Note)> InstallAsync(DeviceCaTarget device, string caPath, CancellationToken ct)
     {
@@ -91,14 +99,17 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         }
         finally { try { File.Delete(tmpScript); } catch { } }
 
-        // Run as root. `su 0 sh <file>` dropped its arg on this ROM, so `su 0 sh -c "sh <path> 2>&1"`: one
-        // short arg (no spaces => no split), merges stderr so the diag is captured.
-        var r = await Adb(device.Target, ["shell", "su", "0", "sh", "-c", $"sh {RemoteScript} 2>&1"], ct);
+        // Run as root in the GLOBAL mount namespace (`su -mm`): the script's live-cacerts copy must be visible
+        // to app processes (forked from zygote), which a per-shell namespace would hide. `-mm` = mount-master.
+        // Single short -c arg (no spaces => adb won't word-split) + merged stderr so the diag is captured.
+        var r = await Adb(device.Target, ["shell", "su", "-mm", "-c", $"sh {RemoteScript} 2>&1"], ct);
         var diag = DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
         if (string.IsNullOrWhiteSpace(diag)) diag = "(no script output - check su works)";
         if (r.ExitCode != 0) return (false, $"install rc={r.ExitCode}: {diag}");
-        var ok = r.Stdout.Contains("module: written");
-        return (true, $"{hash}.0 ({(ok ? "Magisk module written - REBOOT to activate" : "module write FAILED - see diag")}): {diag}");
+        // Live mount is the real success signal (works now, no reboot); module write is the persistence backup.
+        var live = r.Stdout.Contains("live: mounted");
+        var mod = r.Stdout.Contains("module: written");
+        return (live, $"{hash}.0 ({(live ? "trusted (live)" : mod ? "module written but live mount FAILED" : "FAILED")}): {diag}");
     }
 
     private Task<ProcessResult> Adb(string serial, IEnumerable<string> rest, CancellationToken ct) =>

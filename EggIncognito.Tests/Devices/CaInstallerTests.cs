@@ -79,8 +79,8 @@ public class CaInstallerTests
         var (path, cert) = MakeCa();
         try
         {
-            // verify line present => reported VISIBLE; also confirms note carries the diag.
-            var runner = new FakeRunner((_, _) => new ProcessResult(0, "diag module: written\ndiag done", ""));
+            // "live: mounted" is the real success signal (live cacerts copy works now, no reboot).
+            var runner = new FakeRunner((_, _) => new ProcessResult(0, "diag module: written\ndiag live: mounted into running cacerts\ndiag done", ""));
             var inst = new AdbCaInstaller(runner);
             var (ok, note) = await inst.InstallAsync(new DeviceCaTarget("d", "android", "SERIAL"), path, default);
 
@@ -89,12 +89,14 @@ public class CaInstallerTests
             var pushes = runner.Calls.Where(c => c.args.Contains("push")).ToList();
             Assert.Single(pushes);
             Assert.Contains("SERIAL", pushes[0].args);
-            // The script runs by PATH via `su 0 sh -c "sh <path> 2>&1"` (no inline word-split), as root.
+            // The script runs by PATH in the GLOBAL mount ns via `su -mm -c "sh <path> 2>&1"` (so the live
+            // cacerts copy is visible to app processes), as root.
             var run = runner.Calls.Single(c => c.args.Contains("su"));
+            Assert.Contains("-mm", run.args);
             Assert.Contains(run.args, a => a.Contains("/data/local/tmp/eggincognito-ca-magisk.sh"));
             var hash = CaCertPrep.AndroidSubjectHashOld(cert);
             Assert.Contains(hash, note!);
-            Assert.Contains("Magisk module written", note!);
+            Assert.Contains("trusted (live)", note!);
         }
         finally { File.Delete(path); }
     }
