@@ -60,20 +60,21 @@ public class ProtosPageTests
         }
 
         [Fact]
-        public void Admin_ShowsBackfillPanel()
+        public void Admin_ShowsBackfillControls_InSourcesWidget()
         {
             Wire(UserRole.Admin);
             var cut = Render<Protos>();
-            Assert.NotNull(cut.Find("#backfillPanel"));
+            // Backfill controls now live as buttons in the Sources side widget (admin-only), not a panel.
+            Assert.Contains("GitHub (elgranjero)", cut.Markup);
             Assert.Contains("Missing versions", cut.Markup);
         }
 
         [Fact]
-        public void Viewer_HidesBackfillPanel()
+        public void Viewer_HidesBackfillControls()
         {
             Wire(UserRole.Viewer);
             var cut = Render<Protos>();
-            Assert.Empty(cut.FindAll("#backfillPanel"));
+            Assert.DoesNotContain("GitHub (elgranjero)", cut.Markup);
         }
 
         [Fact]
@@ -86,27 +87,32 @@ public class ProtosPageTests
         }
 
         [Fact]
-        public void SourcesPanel_RendersAttribution()
+        public void SourcesPanel_RendersAttribution_TrimmedSources()
         {
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddHttpClient();
             JSInterop.Mode = JSRuntimeMode.Loose;
             var cut = Render<EggIncognito.Components.Protos.ProtoSourcesPanel>();
+            // Only farm + elgranjero + fandom remain; APKPure/Uptodown/iTunes were removed as bloat.
             Assert.Contains("elgranjero", cut.Markup);
             Assert.Contains("Device farm", cut.Markup);
+            Assert.Contains("Fandom", cut.Markup);
+            Assert.DoesNotContain("APKPure", cut.Markup);
+            Assert.DoesNotContain("Uptodown", cut.Markup);
+            Assert.DoesNotContain("iTunes", cut.Markup);
         }
 
         [Fact]
-        public void BackfillPanel_RendersActiveSourceRows()
+        public void SourcesPanel_Admin_ShowsBackfillButtons_ViewerDoesNot()
         {
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddHttpClient();
             JSInterop.Mode = JSRuntimeMode.Loose;
-            var cut = Render<BackfillPanel>();
-            // GitHub + Android only; the dead Apple iTunes/Archive sources were removed (gave nothing).
-            Assert.Contains("GitHub", cut.Markup);
-            Assert.Contains("Android", cut.Markup);
-            Assert.DoesNotContain("Apple", cut.Markup);
+            var admin = Render<EggIncognito.Components.Protos.ProtoSourcesPanel>(p => p.Add(x => x.IsAdmin, true));
+            Assert.Contains("GitHub (elgranjero)", admin.Markup);
+            Assert.Contains("Android (Fandom)", admin.Markup);
+            var viewer = Render<EggIncognito.Components.Protos.ProtoSourcesPanel>(p => p.Add(x => x.IsAdmin, false));
+            Assert.DoesNotContain("GitHub (elgranjero)", viewer.Markup);
         }
 
         [Fact]

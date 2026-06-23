@@ -2,7 +2,6 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Net.Http.Json
 @using System.Text.Json
-@using EggIncognito.Components.Layout
 @using EggIncognito.Components.Protos
 @using EggIncognito.Data.Models
 @using Microsoft.JSInterop
@@ -13,12 +12,6 @@
 @implements IAsyncDisposable
 
 <PageTitle>EggIncognito - Proto Registry</PageTitle>
-
-@* Controls project into the top nav (the Inspector/Capture pattern); the page body holds the console. *@
-<SectionContent SectionName="@NavSections.Toolbar">
-  <ProtosToolbar IsAdmin="_isAdmin" OnTrigger="OnTrigger"
-                 OnSubscribe="@(() => _showSubscribe = true)" OnSources="@(() => _showSources = true)" />
-</SectionContent>
 
 <main class="px-4 sm:px-8 pt-6 pb-8 max-w-7xl mx-auto w-full">
   <h1 class="text-[1.3rem] mt-0 mb-1">Proto Registry</h1>
@@ -212,55 +205,24 @@
     }
   </section>
 
-  @* Side column: device farm visible to everyone (read-only for non-admins; the panel gates its own
-     action buttons), backfill panel admin-only. *@
+  @* Side column: device farm + missing-versions (everyone), then the Notifications + Sources widgets
+     (formerly modals). Sources carries the admin-only backfill trigger buttons; each panel gates its own
+     write actions, the server ACL is the real gate. *@
   <div class="flex flex-col gap-6">
     <DeviceStatusPanel OnSaved="OnMutated" />
     <MissingVersionsPanel />
-    @if (_isAdmin)
-    {
-      <BackfillPanel />
-    }
+    <section class="panel">
+      <h3 class="text-sm font-semibold mt-0 mb-2">Notifications</h3>
+      <ProtoSubscribePanel />
+    </section>
+    <section class="panel">
+      <h3 class="text-sm font-semibold mt-0 mb-2">Sources</h3>
+      <ProtoSourcesPanel IsAdmin="_isAdmin" OnTrigger="OnTrigger" />
+    </section>
   </div>
   </div>
 </main>
 
-@* Subscribe-to-updates modal overlay (was its own /protos/subscribe page; now an overlay so users stay
-   on the registry). The panel holds the full form + subscription management; the bell in the toolbar opens it. *@
-@if (_showSubscribe)
-{
-  <div class="modal-backdrop" @onclick="@(() => _showSubscribe = false)">
-    <div class="modal-card" @onclick:stopPropagation="true">
-      <div class="modal-head">
-        <h2 class="modal-title">Subscribe to proto updates</h2>
-        <button type="button" class="icon-btn" title="Close" aria-label="Close" @onclick="@(() => _showSubscribe = false)">
-          <Icon Name="x" />
-        </button>
-      </div>
-      <div class="modal-body">
-        <ProtoSubscribePanel />
-      </div>
-    </div>
-  </div>
-}
-
-@* Sources attribution modal (was its own /protos/sources page). *@
-@if (_showSources)
-{
-  <div class="modal-backdrop" @onclick="@(() => _showSources = false)">
-    <div class="modal-card" @onclick:stopPropagation="true">
-      <div class="modal-head">
-        <h2 class="modal-title">Proto sources</h2>
-        <button type="button" class="icon-btn" title="Close" aria-label="Close" @onclick="@(() => _showSources = false)">
-          <Icon Name="x" />
-        </button>
-      </div>
-      <div class="modal-body">
-        <ProtoSourcesPanel />
-      </div>
-    </div>
-  </div>
-}
 
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -273,8 +235,6 @@
     string _fBuild = "";
     string _fClient = "";
     string _fSha = "";
-    bool _showSubscribe;
-    bool _showSources;
     bool _loading = true;
     bool _isAdmin;
     bool _isContributor;

@@ -18,6 +18,11 @@ public static class DeviceSeeder
             await store.UpsertDeviceAsync(d.Id, d.Platform, d.Label, d.Target, d.Package, ct);
             declared.Add(d.Id);
         }
+        // Disable-stale ONLY when this instance actually declares devices. An empty config means "this
+        // instance manages no devices" (e.g. a dev run sharing the prod DB), NOT "disable every device" -
+        // the latter nuked the farm roster for all viewers once. With no declared devices we upsert nothing
+        // and disable nothing; the owning instance stays authoritative.
+        if (declared.Count == 0) return;
         var stale = await db.Devices.Where(x => x.Enabled && !declared.Contains(x.Id)).ToListAsync(ct);
         foreach (var s in stale) s.Enabled = false;
         if (stale.Count > 0) await db.SaveChangesAsync(ct);

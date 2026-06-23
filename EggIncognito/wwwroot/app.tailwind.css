@@ -983,11 +983,16 @@
   .known-table tbody td:last-child { @apply flex items-center gap-2; }
   .known-pill { @apply text-[0.7rem]; }
 
-  /* Sources attribution grid */
+  /* Sources attribution grid (legacy page) */
   .src-grid { @apply grid gap-3 sm:grid-cols-2; }
   .src-card { @apply gap-1; }
   .src-head { @apply flex items-center justify-between gap-3 mb-1; }
   .src-role { @apply text-muted text-[13px] leading-snug m-0; }
+
+  /* Sources as a side-column widget: a compact stacked list, not a 2-col card grid. */
+  .src-list { @apply flex flex-col gap-2.5; }
+  .src-row { @apply flex flex-col gap-0.5; }
+  .src-row-head { @apply flex items-center justify-between gap-2; }
 
   /* Subscribe confirmation (legacy page bits still referenced) */
   .sub-section { @apply mb-0; }
@@ -995,23 +1000,31 @@
   .sub-confirm-row { @apply flex items-center gap-3; }
   .sub-confirm-label { @apply text-muted text-sm min-w-[80px]; }
 
-  /* Registry per-column filter row (ServiceNow-style: a control under each header). */
-  .reg-filter-row th { @apply px-3 py-1.5 bg-panel border-b border-border align-middle; }
+  /* Registry per-column filter row (ServiceNow-style: a control under each header). The whole row reads
+     as one banded toolbar (darker bg, bottom border) so the inputs sit ON it, not sunk into the table. */
+  .reg-filter-row th { @apply px-3 pt-1 pb-2 bg-panel2 border-b border-border align-middle; }
   .reg-filter-input {
-    @apply w-full bg-panel2 text-fg border border-border rounded px-2 py-1 text-xs font-mono;
+    @apply w-full bg-bg text-fg border border-border rounded px-2 py-1 text-xs font-mono;
   }
   .reg-filter-input:focus { @apply outline-none border-accent2; }
   .reg-filter-input::placeholder { @apply text-muted; }
   .reg-filter-clear {
-    @apply w-6 h-6 grid place-items-center rounded text-muted hover:text-fg hover:bg-panel2 text-base leading-none;
+    @apply w-6 h-6 grid place-items-center rounded text-muted hover:text-fg hover:bg-panel text-base leading-none;
   }
 
-  /* Pencil edit button + inline editor row (opens directly under the release, no scroll to top). */
+  /* Pencil edit button: dark, bordered, themed (browser-default white button otherwise). */
   .reg-edit-btn {
-    @apply w-7 h-7 grid place-items-center rounded-md text-muted border border-transparent hover:text-fg hover:border-border;
+    @apply w-7 h-7 grid place-items-center rounded-md bg-panel2 text-muted border border-border cursor-pointer;
   }
-  .reg-edit-btn.active { @apply text-accent2 border-accent2 bg-panel2; }
+  .reg-edit-btn:hover { @apply text-fg border-accent2; }
+  .reg-edit-btn.active { @apply text-accent2 border-accent2; }
   .reg-edit-row > td { @apply bg-panel2 p-3; }
+
+  /* Dark-mode every checkbox in the registry table (browser-default white box otherwise). */
+  .reg-table input[type="checkbox"] {
+    @apply w-4 h-4 align-middle cursor-pointer;
+    accent-color: var(--accent);
+  }
 
   /* Modal overlay (subscribe + any future /protos dialog). */
   .modal-backdrop {
