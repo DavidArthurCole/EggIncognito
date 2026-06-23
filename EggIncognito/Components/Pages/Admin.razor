@@ -7,7 +7,7 @@
 @using System.Text.Json
 
 <PageTitle>EggIncognito - Admin</PageTitle>
-<main id="adminMain" class="px-8 pt-6 pb-8 max-w-[900px]">
+<main id="adminMain" class="px-8 pt-6 pb-8 max-w-[1100px]">
   <h1 class="text-[1.3rem] mt-0 mb-4">Admin</h1>
   @if (!_isAdmin)
   {
@@ -15,111 +15,47 @@
   }
   else
   {
-    <section class="panel mb-4">
-      <h2>Users</h2>
-      <table>
-        <thead><tr><th>User</th><th>Discord ID</th><th>Role</th><th>Last login</th></tr></thead>
-        <tbody>
-          @foreach (var u in _users)
-          {
-            <tr>
-              <td>@u.Username</td>
-              <td class="mono muted">@u.DiscordId</td>
-              <td>
-                <select value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
-                  @foreach (var role in Roles)
-                  {
-                    <option value="@role">@role</option>
-                  }
-                </select>
-              </td>
-              <td class="muted">@u.LastLoginAt.ToLocalTime().ToString("g")</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </section>
+    @* Live API-rate metrics (DB-backed per-minute rollups, inline SVG charts). *@
+    <AdminMetricsPanel ClientFactory="Client" />
+
+    @* Active capture sessions: list + kill. *@
+    <AdminSessionsPanel ClientFactory="Client" />
 
     <section class="panel mb-4">
-      <h2>Contributed endpoints</h2>
-      @if (_endpoints.Count == 0)
-      {
-        <p class="muted text-sm m-0">No contributed endpoints.</p>
-      }
-      else
-      {
-        <table>
-          <thead><tr><th>Path</th><th>EID</th><th>Type</th><th></th></tr></thead>
+      <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Users</h2>
+        <span class="text-muted text-xs">@_users.Count total</span>
+      </div>
+      <div class="reg-wrap">
+        <table class="reg-table admin-users-table">
+          <thead>
+            <tr><th>User</th><th>Discord ID</th><th>Role</th><th>Last login</th></tr>
+          </thead>
           <tbody>
-            @foreach (var e in _endpoints)
+            @foreach (var u in _users)
             {
-              var key = $"endpoint:{e.Id}";
               <tr>
-                <td class="mono">@e.Path</td>
-                <td class="mono muted">@e.Eid</td>
-                <td class="mono muted">@e.ResponseType</td>
+                <td class="font-medium">@u.Username</td>
+                <td class="mono text-muted text-xs">@u.DiscordId</td>
                 <td>
-                  <div class="settings-wrap">
-                    <button class="danger" aria-haspopup="true" aria-expanded="@(_confirm == key)"
-                            @onclick="() => ToggleConfirm(key)">delete</button>
-                    <div class="settings-menu confirm-menu @(_confirm == key ? "open" : "")">
-                      <div class="settings-title">Delete this endpoint?</div>
-                      <div class="settings-hint">Removes the contributed endpoint from the shared DB.</div>
-                      <div class="confirm-actions">
-                        <button type="button" class="btn-mini" @onclick="@(() => _confirm = null)">Cancel</button>
-                        <button type="button" class="btn-mini btn-danger" @onclick='() => ConfirmDelete("endpoint", e.Id)'>Delete</button>
-                      </div>
-                    </div>
-                  </div>
+                  <select class="reg-filter-input w-auto" value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
+                    @foreach (var role in Roles)
+                    {
+                      <option value="@role">@role</option>
+                    }
+                  </select>
                 </td>
+                <td class="text-muted text-xs">@u.LastLoginAt.ToLocalTime().ToString("g")</td>
               </tr>
             }
           </tbody>
         </table>
-      }
-    </section>
-
-    <section class="panel mb-4">
-      <h2>Contributed routes</h2>
-      @if (_routes.Count == 0)
-      {
-        <p class="muted text-sm m-0">No contributed routes.</p>
-      }
-      else
-      {
-        <table>
-          <thead><tr><th>Path</th><th>Response type</th><th></th></tr></thead>
-          <tbody>
-            @foreach (var r in _routes)
-            {
-              var key = $"route:{r.Id}";
-              <tr>
-                <td class="mono">@r.Path</td>
-                <td class="mono muted">@r.ResponseType</td>
-                <td>
-                  <div class="settings-wrap">
-                    <button class="danger" aria-haspopup="true" aria-expanded="@(_confirm == key)"
-                            @onclick="() => ToggleConfirm(key)">delete</button>
-                    <div class="settings-menu confirm-menu @(_confirm == key ? "open" : "")">
-                      <div class="settings-title">Delete this route?</div>
-                      <div class="settings-hint">Removes the contributed route from the shared DB.</div>
-                      <div class="confirm-actions">
-                        <button type="button" class="btn-mini" @onclick="@(() => _confirm = null)">Cancel</button>
-                        <button type="button" class="btn-mini btn-danger" @onclick='() => ConfirmDelete("route", r.Id)'>Delete</button>
-                      </div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      }
+      </div>
     </section>
 
     @if (!string.IsNullOrEmpty(_log))
     {
-      <pre id="log">@_log</pre>
+      <pre id="log" class="result-pre">@_log</pre>
     }
   }
 </main>
@@ -131,8 +67,6 @@
     bool _isAdmin;
     string _log = "";
     List<UserRow> _users = [];
-    List<EndpointRow> _endpoints = [];
-    List<RouteRow> _routes = [];
 
     // Captured in OnInitializedAsync while HttpContext is live; reused for circuit-time calls (the
     // SignalR circuit has no HttpContext, so the auth cookie must be forwarded from the request).
@@ -150,7 +84,6 @@
         }
         if (!_isAdmin) return;
         await LoadUsers();
-        await LoadContributions();
     }
 
     // Self-call client forwarding the captured auth cookie so the admin ACL on the controller sees the role.
@@ -172,20 +105,6 @@
                 : [];
         }
         catch (Exception ex) { _users = []; _log = $"load users failed: {ex.Message}"; }
-    }
-
-    async Task LoadContributions()
-    {
-        try
-        {
-            _endpoints = await Client().GetFromJsonAsync<List<EndpointRow>>("/api/db/endpoints", JsonOpts) ?? [];
-        }
-        catch (Exception ex) { _endpoints = []; _log = $"load endpoints failed: {ex.Message}"; }
-        try
-        {
-            _routes = await Client().GetFromJsonAsync<List<RouteRow>>("/api/db/routes", JsonOpts) ?? [];
-        }
-        catch (Exception ex) { _routes = []; _log = $"load routes failed: {ex.Message}"; }
     }
 
     async Task SetRole(string discordId, string? role)
@@ -210,30 +129,6 @@
         catch (Exception ex) { _log = ex.Message; }
     }
 
-    // Delete needs an explicit confirm step (mirrors the Capture toolbar's clear-confirm popover): the
-    // row button opens the popover, only its Delete actually fires the DELETE.
-    string? _confirm;
-
-    void ToggleConfirm(string key) => _confirm = _confirm == key ? null : key;
-
-    async Task ConfirmDelete(string kind, long? id)
-    {
-        _confirm = null;
-        await Delete(kind, id);
-    }
-
-    async Task Delete(string kind, long? id)
-    {
-        if (id is null) { _log = "this row has no id"; return; }
-        try
-        {
-            var res = await Client().DeleteAsync($"/api/admin/{kind}/{id}");
-            _log = res.IsSuccessStatusCode ? $"deleted {kind} {id}" : $"HTTP {(int)res.StatusCode}";
-        }
-        catch (Exception ex) { _log = ex.Message; }
-        await LoadContributions();
-    }
-
     static async Task<string?> ReadError(HttpResponseMessage res)
     {
         try
@@ -245,8 +140,6 @@
     }
 
     record UserRow(string DiscordId, string Username, string Role, DateTimeOffset LastLoginAt);
-    record EndpointRow(long? Id, string Path, string? Eid, string ResponseType);
-    record RouteRow(long? Id, string Path, string? ResponseType);
     record SetRoleResult(string DiscordId, string Role);
     record ErrorResult(string Error);
 }

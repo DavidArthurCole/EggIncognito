@@ -1,0 +1,88 @@
+@* Admin API-rate metrics: last 60 minutes of request volume + 429s, rendered as a hand-rolled inline
+   SVG bar chart (no JS chart lib, fits the no-Node ethos). Reads /api/admin/metrics, polls every ~5s.
+   Server ACL gates; parent only renders this for an admin. *@
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@implements IDisposable
+
+<section class="panel mb-4">
+  <div class="admin-panel-head">
+    <h2 class="admin-panel-title">API rate (last hour)</h2>
+    <div class="metric-legend">
+      <span class="metric-key"><span class="metric-swatch metric-swatch-total"></span>requests/min</span>
+      <span class="metric-key"><span class="metric-swatch metric-swatch-limited"></span>429s</span>
+      <span class="text-muted text-xs">peak @_peak/min &middot; @_total total</span>
+    </div>
+  </div>
+
+  @if (_points.Count == 0)
+  {
+    <p class="text-muted text-sm m-0">No traffic recorded yet.</p>
+  }
+  else
+  {
+    <svg class="metric-chart" viewBox="0 0 @ChartW @ChartH" preserveAspectRatio="none" role="img" aria-label="API requests per minute">
+      @{
+        var n = _points.Count;
+        var slot = (double)ChartW / n;
+        var barW = Math.Max(1, slot - 1);
+        var max = Math.Max(1, _peak);
+      }
+      @for (var i = 0; i < n; i++)
+      {
+        var p = _points[i];
+        var x = i * slot;
+        var h = p.Total / (double)max * ChartH;
+        var lh = p.Limited / (double)max * ChartH;
+        <rect x="@F(x)" y="@F(ChartH - h)" width="@F(barW)" height="@F(h)" class="metric-bar-total">
+          <title>@p.Minute.ToLocalTime().ToString("HH:mm"): @p.Total req, @p.Limited 429</title>
+        </rect>
+        @if (p.Limited > 0)
+        {
+          <rect x="@F(x)" y="@F(ChartH - lh)" width="@F(barW)" height="@F(lh)" class="metric-bar-limited" />
+        }
+      }
+    </svg>
+  }
+</section>
+
+@code {
+    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
+
+    const int ChartW = 600;
+    const int ChartH = 80;
+
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    List<Point> _points = [];
+    int _peak;
+    int _total;
+    System.Threading.Timer? _timer;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _timer = new System.Threading.Timer(async _ => await InvokeAsync(async () => { await Load(); StateHasChanged(); }),
+                null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    async Task Load()
+    {
+        if (ClientFactory is null) return;
+        try
+        {
+            _points = await ClientFactory().GetFromJsonAsync<List<Point>>("/api/admin/metrics", JsonOpts) ?? [];
+            _peak = _points.Count == 0 ? 0 : _points.Max(p => p.Total);
+            _total = _points.Sum(p => p.Total);
+        }
+        catch { /* keep last good */ }
+    }
+
+    static string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    public void Dispose() => _timer?.Dispose();
+
+    record Point(DateTimeOffset Minute, int Total, int Limited);
+}

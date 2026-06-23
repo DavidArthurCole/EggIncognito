@@ -185,6 +185,7 @@ if (dbEnabled)
 var authEnabled = builder.AddDiscordAuthIfConfigured(dbEnabled);
 builder.Services.AddSingleton(new AuthState(authEnabled));
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<EggIncognito.Services.Metrics.ApiMetrics>();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
 // Supporter role check (login stamp + refresh-benefits). Always registered; without
 // Discord:GuildId + Discord:SupporterRoleId + Discord:BotToken it short-circuits to false.
@@ -615,6 +616,19 @@ if (authEnabled)
 // validate the token.
 app.UseAntiforgery();
 app.UseRateLimiter();
+
+// API-rate metrics: count every /api request + flag 429s, into the in-process ring (admin metrics panel).
+// After UseRateLimiter so a rejected request's 429 status is observable here. Cheap; skips non-API paths.
+{
+    var metrics = app.Services.GetRequiredService<EggIncognito.Services.Metrics.ApiMetrics>();
+    app.Use(async (ctx, next) =>
+    {
+        var isApi = ctx.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase);
+        await next();
+        if (isApi) metrics.Record(limited: ctx.Response.StatusCode == StatusCodes.Status429TooManyRequests);
+    });
+}
+
 app.MapControllers();
 app.MapRazorComponents<EggIncognito.Components.App>()
    .AddInteractiveServerRenderMode();

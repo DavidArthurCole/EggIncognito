@@ -18,29 +18,27 @@
 
 @if (_session is not null)
 {
-  @if (_hosted)
+  @* The hosted setup card collapses + fades away once a device is talking to the proxy (it is only needed
+     during setup), and re-appears when the session is stopped. *@
+  @if (_hosted && (!_connected || !_running))
   {
-    <div class="px-3 pt-3">
+    <div class="px-3 pt-3 setup-collapsible @(_connected ? "setup-hidden" : "")">
       <HostedSetupCard Port="HostedOptions.FrontDoorPort"
-                       ClientFactory="Client" Connected="_connected"
-                       Running="_running" StartBusy="_toggleBusy" OnStart="ToggleCapture"
-                       InviteUrl="@Config["Discord:InviteUrl"]" />
+                       ClientFactory="Client" InviteUrl="@Config["Discord:InviteUrl"]" />
     </div>
   }
 
-  @* Capture controls project into the top nav (left of the auth cluster). SectionContent from this
-     interactive page keeps the toolbar's handlers wired. *@
-  <SectionContent SectionName="@NavSections.Toolbar">
-    <CaptureToolbar Running="_running" ToggleBusy="_toggleBusy" View="_view"
-                    Notices="_notices" Unread="_unread"
-                    OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
-                    OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
-  </SectionContent>
-
   @* Responsive: panes stack in one scrolling column on phones; become the 220px stats + flow list +
-     detail columns filling the viewport on >=lg. *@
+     detail columns filling the viewport on >=lg. The left column carries the controls + notifications
+     widgets above the stats (was the nav toolbar). *@
   <main class="capture-main grid gap-3 p-3 min-h-0">
-    <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
+    <div class="capture-side flex flex-col gap-3 min-h-0">
+      <CaptureControlsPanel Running="_running" ToggleBusy="_toggleBusy" View="_view"
+                            OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged" />
+      <CaptureNoticesPanel Notices="_notices" Unread="_unread"
+                           OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
+      <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
+    </div>
 
     <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow" />
 

@@ -1026,6 +1026,28 @@
     accent-color: var(--accent);
   }
 
+  /* Admin metrics chart (hand-rolled inline SVG). */
+  .metric-chart { @apply w-full h-20 block; }
+  .metric-bar-total { fill: var(--accent2); opacity: 0.55; }
+  .metric-bar-limited { fill: var(--err); }
+  .metric-legend { @apply flex items-center gap-3 flex-wrap; }
+  .metric-key { @apply flex items-center gap-1.5 text-muted text-xs; }
+  .metric-swatch { @apply inline-block w-2.5 h-2.5 rounded-sm; }
+  .metric-swatch-total { background: var(--accent2); opacity: 0.55; }
+  .metric-swatch-limited { background: var(--err); }
+  /* Admin user table reuses .reg-table; select sits inline. */
+  .admin-users-table select { @apply w-auto; }
+
+  /* Hosted setup card: collapse + fade out once a device is connected (re-shows when stopped). */
+  .setup-collapsible { @apply transition-all duration-300; }
+  .setup-hidden { @apply opacity-0 max-h-0 overflow-hidden pointer-events-none p-0; }
+
+  /* Inline unread badge for the column notifications widget header. */
+  .notif-badge-inline {
+    @apply inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full
+           bg-accent text-white text-[10px] font-semibold leading-none;
+  }
+
   /* Modal overlay (subscribe + any future /protos dialog). */
   .modal-backdrop {
     @apply fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 sm:p-8;

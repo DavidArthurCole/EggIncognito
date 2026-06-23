@@ -4,16 +4,9 @@
 @* Hosted-capture connection card: the caller's per-user IPv6 proxy host, the port, and the CA install
    steps. The front door identifies the user by destination address, so the proxy uses no auth. *@
 <section id="hostedSetupCard" class="panel">
-  <div class="flex items-start justify-between gap-3 mb-2">
-    <h2 class="text-base mt-0 mb-0 text-fg">Hosted proxy setup</h2>
-    <button type="button" class="btn-primary inline-flex items-center gap-2 shrink-0"
-            @onclick="OnStart" disabled="@StartBusy">
-      <Icon Name="@(Running ? "pause" : "play")" Class="icon-sm" />
-      @(Running ? "Stop capture" : "Start capture")
-    </button>
-  </div>
-  <p class="text-muted text-sm mt-0 mb-3"><strong>Start capture</strong> DMs you the CA. Set your
-    Wi-Fi proxy to Manual with the values below, install the CA, open Egg, Inc.</p>
+  <h2 class="text-base mt-0 mb-2 text-fg">Hosted proxy setup</h2>
+  <p class="text-muted text-sm mt-0 mb-3"><strong>Start capture</strong> (in the Controls widget) DMs you
+    the CA. Set your Wi-Fi proxy to Manual with the values below, install the CA, open Egg, Inc.</p>
 
   <div class="mb-3">
     <div class="mb-1 flex items-center gap-2">
@@ -46,8 +39,8 @@
     </p>
   }
 
-  <details class="setup-steps" open="@(!Connected)">
-    <summary class="setup-summary">Setup instructions</summary>
+  <div class="setup-steps">
+    <div class="setup-summary">Setup instructions</div>
 
     <ol class="text-muted text-sm leading-relaxed pl-5 mt-2 mb-3">
       <li>Wi-Fi proxy to Manual: Server + Port above, auth off.</li>
@@ -57,33 +50,25 @@
 
     <div class="setup-platforms">
       <div class="setup-platform">
-        <div class="setup-platform-name">iOS</div>
-        <p class="text-muted text-xs leading-relaxed m-0">Open the CA profile (from the DM or Safari),
-          install it, then enable full trust under Settings &gt; General &gt; About &gt; Certificate
-          Trust Settings.</p>
+        <span class="setup-platform-name">iOS</span>
+        <span class="text-muted text-xs leading-snug">Open the CA profile (DM or Safari), install it,
+          then full-trust under Settings &gt; General &gt; About &gt; Certificate Trust Settings.</span>
       </div>
       <div class="setup-platform">
-        <div class="setup-platform-name">Android</div>
-        <p class="text-muted text-xs leading-relaxed m-0">Since Android 7, apps ignore user-installed CAs,
-          so Egg, Inc. will not decrypt on a stock device. Needs a rooted phone with the CA in the system
-          trust store (e.g. a Magisk cert module).</p>
+        <span class="setup-platform-name">Android</span>
+        <span class="text-muted text-xs leading-snug">Android 7+ ignores user CAs, so EI will not decrypt
+          on stock. Needs a rooted phone with the CA in the system trust store (Magisk cert module).</span>
       </div>
     </div>
 
-    <p class="text-muted text-xs mt-3 mb-0">Only Egg, Inc. traffic is decrypted; everything else passes
-      through untouched, so your other apps keep working normally with the proxy on.</p>
-  </details>
+    <p class="text-muted text-xs mt-2 mb-0">Only Egg, Inc. traffic is decrypted; everything else passes
+      through untouched.</p>
+  </div>
 </section>
 
 @code {
     [Parameter] public int Port { get; set; }
     [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
-    // Drives the instructions collapsing once a device is talking to the proxy.
-    [Parameter] public bool Connected { get; set; }
-    // Mirrors the toolbar capture toggle so the prominent in-card button starts/stops the session.
-    [Parameter] public bool Running { get; set; }
-    [Parameter] public bool StartBusy { get; set; }
-    [Parameter] public EventCallback OnStart { get; set; }
     // Discord invite shown in the DM-failed notice so the user can join + enable DMs. Null hides the link.
     [Parameter] public string? InviteUrl { get; set; }
 
