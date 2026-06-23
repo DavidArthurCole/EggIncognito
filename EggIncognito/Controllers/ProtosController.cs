@@ -22,10 +22,13 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
         if (Store is null) return Ok(Array.Empty<object>());
         var rows = await Store.ListAsync(platform, ct);
         // Id + CanonicalId let the UI group a cross-platform release (canonical + its aliases) into one row.
+        // buildFlag is COMPUTED (no DB column): flags rows whose build doesn't match their platform, e.g. an
+        // iOS row carrying an Android-style integer versionCode (the shared wire build leaking in).
         return Ok(rows.Select(r => new
         {
             r.Id, r.CanonicalId, r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.Package,
             r.ProtoSha, r.DetectedAt,
+            buildFlag = ProtoVersionQuality.BuildQualityFlag(r.Platform, r.Build),
         }));
     }
 
@@ -66,10 +69,11 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
     {
         if (Store is null) return NotFound();
         var rows = await Store.ListAsync(platform, ct);
-        // "Latest" = highest build (the monotonic versionCode), NOT the most-recently-inserted row.
-        // Backfill ingests historical versions in arbitrary order, so CreatedAt is not a recency proxy.
+        // "Latest" = newest release, NOT the most-recently-inserted row (backfill ingests history in arbitrary
+        // order, so CreatedAt is not a recency proxy). Platform-aware: Android orders by integer versionCode;
+        // iOS orders by dotted CFBundleVersion and refuses to let a bad Android-style integer build win.
         var r = rows
-            .OrderByDescending(p => long.TryParse(p.Build, out var b) ? b : long.MinValue)
+            .OrderByDescending(p => ProtoVersionQuality.LatestSortKey(p.Platform, p.Build, p.AppVersion))
             .ThenByDescending(p => p.CreatedAt)
             .FirstOrDefault();
         return r is null ? NotFound()

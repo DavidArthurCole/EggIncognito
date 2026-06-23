@@ -945,6 +945,8 @@
   .reg-version { @apply font-mono text-accent2; }
   .reg-sha { @apply cursor-pointer bg-bg text-fg text-[0.8rem]; }
   .reg-sha:hover { @apply border-accent2; }
+  /* Computed bad-data warning chip (e.g. an iOS row carrying an Android integer build). */
+  .reg-badwarn { @apply ml-1.5 inline-block rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide bg-red-500/15 text-red-400 align-middle; }
   .reg-empty { @apply flex flex-col items-center justify-center text-center text-muted text-[13px] px-6 py-12 gap-1; }
   .reg-empty-hint { @apply text-xs opacity-80 max-w-prose leading-relaxed; }
   .reg-page-head { @apply flex items-baseline justify-between gap-3 flex-wrap; }

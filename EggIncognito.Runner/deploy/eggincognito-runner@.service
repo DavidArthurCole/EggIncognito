@@ -27,6 +27,10 @@ Environment=RUNNER_TRIGGER_URLS=http://0.0.0.0:5055
 EnvironmentFile=/etc/eggincognito-runner/secret.env
 Restart=on-failure
 RestartSec=15
+# This runner is non-critical: a poll loop plus a local trigger listener. Do not let it hold up host
+# shutdown. SIGTERM the whole cgroup, give it 5s to exit, then SIGKILL.
+KillMode=mixed
+TimeoutStopSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 # ProtectHome off so the runner can read ~/.android/adbkey for USB adb auth.

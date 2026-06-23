@@ -48,7 +48,7 @@ public class NativeCaptureProxyCertTests
             });
             // Echo one byte so the client knows the channel is live.
             var buf = new byte[1];
-            await tls.ReadAsync(buf);
+            await tls.ReadExactlyAsync(buf);
             await tls.WriteAsync(buf);
         });
 
@@ -73,7 +73,7 @@ public class NativeCaptureProxyCertTests
         Assert.Equal(SslApplicationProtocol.Http11, ctls.NegotiatedApplicationProtocol);
         await ctls.WriteAsync(new byte[] { 42 });
         var back = new byte[1];
-        await ctls.ReadAsync(back);
+        await ctls.ReadExactlyAsync(back);
         Assert.Equal(42, back[0]);
 
         await serverTask;

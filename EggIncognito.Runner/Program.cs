@@ -28,6 +28,7 @@ public static class Program
         var extractorPython = Env("EXTRACTOR_PYTHON", Path.Combine(extractorRepo, ".venv", "bin", "python3"));
         var triggerSecret = Env("RUNNER_TRIGGER_SECRET");
         var triggerUrls = Env("RUNNER_TRIGGER_URLS", "http://127.0.0.1:5055");
+        var iosBinary = Env("IOS_BINARY_PATH", Path.Combine(apkStash, "ios-binary"));
 
         Directory.CreateDirectory(apkStash);
 
@@ -51,7 +52,9 @@ public static class Program
                 new AdbClient(target), new PbtkProtoExtractor(extractorRepo, extractorPython),
                 new VersionState(stateFile), clientVersion, cvState, package, apkStash,
                 evt => poster.PostAsync(evt).GetAwaiter().GetResult()),
-            "ios" => new IosRunner(),
+            "ios" => new IosRunner(
+                iosBinary, new VersionState(stateFile), package,
+                evt => poster.PostAsync(evt).GetAwaiter().GetResult()),
             _ => throw new InvalidOperationException($"unknown PLATFORM {platform}"),
         };
 
@@ -76,7 +79,11 @@ public static class Program
                 new PbtkProtoExtractor(extractorRepo, extractorPython), clientVersion, cvState,
                 evt => poster.PostAsync(evt));
             trigger = TriggerListener.Build(triggerUrls, handler, extractHandler);
-            _ = trigger.RunAsync();
+            // Start without handing SIGTERM to the web host's lifetime. StartAsync (not RunAsync) means we
+            // own shutdown: the host won't install its own ConsoleLifetime signal handler to race ours, and
+            // we explicitly stop it below. RunAsync left the host un-awaited and competing for SIGTERM,
+            // which is why shutdown stalled to systemd's kill timeout.
+            await trigger.StartAsync(ct);
             Console.WriteLine($"resync trigger listening on {triggerUrls}");
         }
 
@@ -85,9 +92,16 @@ public static class Program
         {
             try
             {
-                var outcome = runner.RunOnce(force: false);
+                // RunOnce is synchronous and ct-blind (adb poll / APK download / proto extract). Run it on a
+                // worker and race it against cancellation so SIGTERM returns control to the loop immediately
+                // instead of waiting for an in-flight tick to finish.
+                var tick = Task.Run(() => runner.RunOnce(force: false));
+                var done = await Task.WhenAny(tick, Task.Delay(Timeout.Infinite, ct));
+                if (done != tick) break; // cancelled mid-tick; abandon the worker and exit
+                var outcome = await tick;
                 if (outcome.Emitted) Console.WriteLine($"emitted build {outcome.Build}");
             }
+            catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"tick error: {ex.Message}");
@@ -96,6 +110,14 @@ public static class Program
             catch (OperationCanceledException) { break; }
         }
         Console.WriteLine("runner shutting down");
+        if (trigger is not null)
+        {
+            // Stop the listener with a bounded timeout so a hung in-flight request can't outlive the unit's
+            // TimeoutStopSec. The cgroup SIGKILL backstops anything still stuck after this.
+            using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            try { await trigger.StopAsync(stopCts.Token); }
+            catch (OperationCanceledException) { /* forced kill backstops a stuck host */ }
+        }
         return 0;
     }
 }

@@ -146,6 +146,7 @@
                     {
                       <span class="cursor-pointer" @onclick:stopPropagation="true" @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
                         <span class="text-muted text-xs">@m.Platform</span> @m.Build
+                        @if (m.BuildFlag is not null) { <span class="reg-badwarn" title="@BuildFlagTitle(m.BuildFlag)">bad build</span> }
                       </span>
                     }
                   </div>
@@ -153,6 +154,7 @@
                 else
                 {
                   @primary.Build
+                  @if (primary.BuildFlag is not null) { <span class="reg-badwarn" title="@BuildFlagTitle(primary.BuildFlag)">bad build</span> }
                 }
               </td>
               <td class="mono text-muted">@(string.IsNullOrEmpty(primary.ClientVersion) ? "-" : primary.ClientVersion)</td>
@@ -276,6 +278,13 @@
         if (ax && bx) return al.CompareTo(bl);
         return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
     }
+
+    // Human label for a computed build-quality flag (see ProtoVersionQuality).
+    static string BuildFlagTitle(string flag) => flag switch
+    {
+        "android_build_on_ios" => "iOS row has an Android-style integer build (versionCode) - mislabeled data",
+        _ => "build does not match platform",
+    };
 
     static int CompareSemver(string? a, string? b)
     {
@@ -484,7 +493,8 @@
     }
 
     record VersionRow(int Id, int? CanonicalId, string Platform, string AppVersion, string Build,
-        string? ClientVersion, string Source, string Package, string ProtoSha, DateTimeOffset DetectedAt);
+        string? ClientVersion, string Source, string Package, string ProtoSha, DateTimeOffset DetectedAt,
+        string? BuildFlag = null);
 
     // A release = a canonical row + any aliases merged into it (same app version + proto across platforms).
     // ReleaseKey groups them: an alias keys on its CanonicalId, a standalone row on its own Id. Members are
