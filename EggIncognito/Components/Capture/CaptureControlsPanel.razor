@@ -5,8 +5,8 @@
 @using EggIncognito.Components.Shared
 
 <section class="panel capture-controls">
-  <div class="flex items-center justify-between mb-2">
-    <h3 class="text-sm font-semibold m-0">Controls</h3>
+  <h3 class="text-sm font-semibold mt-0 mb-2">Controls</h3>
+  <div class="flex items-center justify-between gap-2">
     <div class="flex items-center gap-1.5">
       <button type="button" class="icon-btn @(Running ? "capture-stop" : "capture-start")" disabled="@ToggleBusy"
               title="@(Running ? "Stop capture" : "Start capture")"
@@ -73,7 +73,7 @@
       </div>
     </div>
   </div>
-  <div class="text-xs text-muted">@(Running ? "Capturing." : "Stopped.") Start/stop, clear the list, export a HAR, or tune the view.</div>
+  <div class="text-xs text-muted mt-2.5">@(Running ? "Capturing." : "Stopped.") Start/stop, clear the list, export a HAR, or tune the view.</div>
 </section>
 
 @code {

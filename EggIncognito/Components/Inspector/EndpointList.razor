@@ -11,30 +11,23 @@
             role="tab" @onclick="@(() => SetMode("endpoints"))">Endpoints</button>
     <button type="button" class="list-switch-opt @(Mode == "objects" ? "active" : "")"
             role="tab" @onclick="@(() => SetMode("objects"))">Objects</button>
+    <button type="button" class="list-switch-opt @(Mode == "history" ? "active" : "")"
+            role="tab" @onclick="@(() => SetMode("history"))">History</button>
   </div>
-  @* Endpoint-status refresh, next to the list switch. Endpoints-only (the counts are about mapped
-     routes, not proto objects), so it is hidden in Objects mode. *@
+  @* Endpoint-status: opens a modal (owned by the parent), not an inline column popover. Endpoints-only. *@
   @if (Mode == "endpoints")
   {
     <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
-            title="@(string.IsNullOrEmpty(StatusCounts) ? "Refresh endpoint status" : $"Endpoint status {StatusCounts}")"
-            aria-label="Refresh endpoint status" @onclick="OnToggleStatus"><Icon Name="refresh" /></button>
+            title="@(string.IsNullOrEmpty(StatusCounts) ? "Endpoint status" : $"Endpoint status {StatusCounts}")"
+            aria-label="Endpoint status" @onclick="OnToggleStatus"><Icon Name="refresh" /></button>
   }
 </div>
-@* Status detail renders inline (not an absolute popover) so the panel's overflow-hidden never clips
-   it. It expands below the header in the normal flow when toggled open. *@
-@if (Mode == "endpoints" && StatusOpen)
+@if (Mode != "history")
 {
-  <div class="status-panel">
-    <div class="settings-title">Endpoint status <span class="muted">@StatusCounts</span></div>
-    <div class="settings-hint">How many mapped routes have an ok / empty / missing fixture.</div>
-    <button type="button" class="btn-mini" @onclick="OnRefreshStatus">Refresh status</button>
-    <pre class="settings-out">@StatusOut</pre>
-  </div>
+  <input id="endpointFilter" type="search" placeholder="@(Mode == "objects" ? "filter objects..." : "filter...")"
+         autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+         value="@_filter" @oninput="OnFilter" />
 }
-<input id="endpointFilter" type="search" placeholder="@(Mode == "objects" ? "filter objects..." : "filter...")"
-       autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-       value="@_filter" @oninput="OnFilter" />
 
 @if (Mode == "endpoints")
 {
@@ -63,7 +56,7 @@
     }
   </div>
 }
-else
+else if (Mode == "objects")
 {
   <div id="objects">
     @foreach (var name in FilteredMessages())
@@ -71,6 +64,36 @@ else
       <div class="ep obj-row @(SelectedObject == name ? "active" : "")" @onclick="() => OnSelectObject.InvokeAsync(name)">
         <span class="obj-name">@name</span>
       </div>
+    }
+  </div>
+}
+else
+{
+  @* History: client-side saved requests, most-recent first. Click to restore into the builder. *@
+  <div id="history">
+    @if (!HistoryEnabled)
+    {
+      <div class="hist-empty">History is off. Turn it on in <span class="text-fg">Controls &rarr; settings</span>.</div>
+    }
+    else if (History.Count == 0)
+    {
+      <div class="hist-empty">No saved requests yet. Build a request and it lands here for quick re-use.</div>
+    }
+    else
+    {
+      <div class="hist-toolbar">
+        <span class="text-muted text-xs">@History.Count saved</span>
+        <button type="button" class="btn-mini ml-auto" @onclick="OnClearHistory">Clear</button>
+      </div>
+      @foreach (var h in History)
+      {
+        <div class="ep hist-row" @onclick="() => OnRestoreHistory.InvokeAsync(h)">
+          <span class="hist-path mono">@h.Path</span>
+          <span class="hist-meta">@h.Summary</span>
+          <button type="button" class="hist-del" title="Remove" aria-label="Remove"
+                  @onclick:stopPropagation="true" @onclick="() => OnDeleteHistory.InvokeAsync(h.Id)"><Icon Name="x" Class="icon-sm" /></button>
+        </div>
+      }
     }
   </div>
 }
@@ -91,6 +114,13 @@ else
     [Parameter] public string StatusOut { get; set; } = "";
     [Parameter] public EventCallback OnToggleStatus { get; set; }
     [Parameter] public EventCallback OnRefreshStatus { get; set; }
+
+    // Client-side request history (owned by the parent; persisted in the browser).
+    [Parameter] public bool HistoryEnabled { get; set; } = true;
+    [Parameter] public IReadOnlyList<InspectorHistoryEntry> History { get; set; } = [];
+    [Parameter] public EventCallback<InspectorHistoryEntry> OnRestoreHistory { get; set; }
+    [Parameter] public EventCallback<string> OnDeleteHistory { get; set; }
+    [Parameter] public EventCallback OnClearHistory { get; set; }
 
     string _filter = "";
     readonly HashSet<string> _collapsed = [];

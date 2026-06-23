@@ -1,0 +1,134 @@
+@* Proto documentation for a selected endpoint (folded in from the old /docs page). Shows the route's
+   request/response types as cross-links to their object docs, the DB Markdown doc, its tags, and a
+   contributor-gated editor. Mirrors ObjectView but keyed on kind="endpoint", key=path. Degrades to empty
+   without a DB. *@
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+@if (Route is null)
+{
+  <div class="empty-state">
+    No endpoint selected.
+    <div class="empty-hint">Pick an endpoint on the left to read + edit its documentation.</div>
+  </div>
+}
+else
+{
+  <div class="doc-head">
+    <h2 class="doc-title mono">@Route.Path</h2>
+    <span class="tag-chips">
+      @foreach (var t in _tags)
+      {
+        <span class="tag-chip" style="@TagStyle(t.Color)">@t.Label</span>
+      }
+    </span>
+  </div>
+
+  <div class="doc-types">
+    <span class="doc-type-row"><span class="text-muted text-xs">request</span>
+      @if (!string.IsNullOrEmpty(Route.Request))
+      {
+        <button type="button" class="doc-type-link mono" @onclick="() => OnSelectObject.InvokeAsync(Route.Request!)">@Route.Request</button>
+        @if (Route.RequestWrapped) { <span class="wrap-flag">signed</span> }
+      }
+      else { <span class="text-muted">none</span> }
+    </span>
+    <span class="doc-type-row"><span class="text-muted text-xs">response</span>
+      @if (!string.IsNullOrEmpty(Route.Response))
+      {
+        <button type="button" class="doc-type-link mono" @onclick="() => OnSelectObject.InvokeAsync(Route.Response!)">@Route.Response</button>
+      }
+      else { <span class="text-muted">none</span> }
+    </span>
+  </div>
+
+  <div class="doc-body">
+    @if (string.IsNullOrEmpty(_bodyMd))
+    {
+      <div class="muted">No documentation yet.</div>
+    }
+    else
+    {
+      <Markdown Body="@_bodyMd" />
+    }
+  </div>
+
+  @* Contributor-gated editor (self-gates via ICurrentUser). Keyed on the path so it re-seeds on change. *@
+  <MarkdownEditor @key="@Route.Path" Kind="endpoint" Key="@Route.Path" Initial="@_bodyMd" OnSaved="OnDocSaved" />
+}
+
+@code {
+    [Parameter] public RouteInfo? Route { get; set; }
+    [Parameter] public EventCallback<string> OnSelectObject { get; set; }
+
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    string? _bodyMd;
+    List<TagRow> _tags = [];
+    string? _loadedFor;
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Route is null || Route.Path == _loadedFor) return;
+        _loadedFor = Route.Path;
+        _bodyMd = null;
+        _tags = [];
+        await LoadDoc();
+        await LoadTags();
+    }
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task LoadDoc()
+    {
+        try
+        {
+            var doc = await Client().GetFromJsonAsync<DocResult>(
+                $"/api/docs/doc/endpoint/{Uri.EscapeDataString(Route!.Path)}", JsonOpts);
+            _bodyMd = doc?.BodyMd;
+        }
+        catch { _bodyMd = null; }
+    }
+
+    async Task LoadTags()
+    {
+        try
+        {
+            _tags = await Client().GetFromJsonAsync<List<TagRow>>(
+                $"/api/docs/subject-tags/endpoint/{Uri.EscapeDataString(Route!.Path)}", JsonOpts) ?? [];
+        }
+        catch { _tags = []; }
+    }
+
+    Task OnDocSaved(string body)
+    {
+        _bodyMd = string.IsNullOrWhiteSpace(body) ? null : body;
+        return Task.CompletedTask;
+    }
+
+    static string TagStyle(string? color) =>
+        string.IsNullOrEmpty(color) ? "" : $"border-color: {color}; color: {color};";
+
+    record DocResult(string? BodyMd);
+    record TagRow(long Id, string Slug, string Label, string? Color);
+}

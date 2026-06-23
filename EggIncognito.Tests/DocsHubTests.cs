@@ -18,18 +18,15 @@ public class DocsHubTests
         public Integration(WebApplicationFactory<Program> f) =>
             _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
 
+        // Docs folded into the Inspector; the legacy /docs route now redirects there. It must still
+        // respond 200 (client-side NavigateTo), not 404. The proto doc API + DocHelp affordance (asserted
+        // below) carry the actual docs surface now.
         [Fact]
-        public async Task Docs_RendersHubShell()
+        public async Task DocsRoute_StillResponds()
         {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/docs");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
-            var html = await r.Content.ReadAsStringAsync();
-            Assert.Contains("docsMain", html);
-            Assert.Contains("Messages", html);
-            Assert.Contains("Endpoints", html);
-            Assert.Contains("Config", html);
-            Assert.Contains("Controls", html);
         }
 
         // The widened ValidKind now accepts "config". With no DB the controller returns 200 + [], not 400.

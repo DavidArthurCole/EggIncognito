@@ -24,16 +24,17 @@
 <main class="inspector-main grid gap-3 p-3 min-h-0">
   <div class="inspector-side flex flex-col gap-3 min-h-0">
     <section class="panel inspector-controls">
-      <div class="flex items-center justify-between gap-2">
-        <h3 class="text-sm font-semibold m-0">Controls</h3>
-        <div class="flex items-center gap-1.5">
-          <a class="icon-btn" href="/api/tools/postman-collection" download
-             title="Download Postman collection" aria-label="Download Postman collection"><Icon Name="download" /></a>
-          <button type="button" class="badge @(_hasSalt ? "signed" : "unsigned")"
-                  title="@(_hasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
-                  @onclick="OpenSaltModal">@(_hasSalt ? "Salt Set" : "Salt Unset")</button>
-        </div>
+      <h3 class="text-sm font-semibold mt-0 mb-2">Controls</h3>
+      <div class="flex items-center gap-1.5">
+        <a class="icon-btn" href="/api/tools/postman-collection" download
+           title="Download Postman collection" aria-label="Download Postman collection"><Icon Name="postman" /></a>
+        <button type="button" class="badge @(_hasSalt ? "signed" : "unsigned")"
+                title="@(_hasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
+                @onclick="OpenSaltModal">@(_hasSalt ? "Salt Set" : "Salt Unset")</button>
+        <button type="button" class="icon-btn ml-auto" title="Inspector settings" aria-label="Inspector settings"
+                @onclick="@(() => _settingsModalOpen = true)"><Icon Name="gear" /></button>
       </div>
+      <div class="text-xs text-muted mt-2.5">Download a Postman collection, set the signing salt, or tune Inspector settings.</div>
     </section>
     <aside class="panel min-h-0">
       <EndpointList Mode="@_listMode" ModeChanged="SetListMode"
@@ -41,7 +42,9 @@
                     OnSelectEndpoint="SelectEndpoint" OnSelectObject="SelectObject"
                     StatusLoading="@_statusLoading" StatusOpen="@_statusOpen"
                     StatusCounts="@_statusCounts" StatusOut="@_statusOut"
-                    OnToggleStatus="ToggleStatus" OnRefreshStatus="RefreshStatus" />
+                    OnToggleStatus="ToggleStatus" OnRefreshStatus="RefreshStatus"
+                    HistoryEnabled="_historyEnabled" History="_history"
+                    OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory" OnClearHistory="ClearHistory" />
     </aside>
   </div>
 
@@ -52,45 +55,24 @@
     <div class="@(_listMode == "endpoints" ? "" : "hidden")">
       <h2>Request <span class="muted">@(_selected is null ? "" : $"({ReqTypeLabel(_selected)})")</span></h2>
 
-      <details class="env-box" open>
-        <summary>Environment (BasicRequestInfo overrides)</summary>
-        <div class="env-grid">
-          @foreach (var row in _envRows)
-          {
-            var r = row;
-            var invalid = r.IsInvalid();
-            <label class="env-cell" title="@r.Key">
-              <span class="env-key">@r.Key</span>
-              @if (r.Editor == "select")
-              {
-                <select class="env-input" value="@r.Value" @onchange="e => OnEnvInput(r, e.Value?.ToString())">
-                  @foreach (var opt in r.Options ?? [])
-                  {
-                    <option value="@opt">@opt</option>
-                  }
-                </select>
-              }
-              else if (r.Editor == "bool")
-              {
-                <input class="env-check" type="checkbox" checked="@(r.Value == "true")"
-                       @onchange="e => OnEnvBool(r, e)" />
-              }
-              else if (r.Editor == "eid")
-              {
-                <input class="env-input @(invalid ? "env-invalid" : "")" list="recentEids" value="@r.Value"
-                       placeholder="@r.Hint" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-                       @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
-              }
-              else
-              {
-                <input class="env-input @(invalid ? "env-invalid" : "")" value="@r.Value"
-                       placeholder="@r.Hint" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-                       @oninput="e => OnEnvInput(r, e.Value?.ToString())" />
-              }
-            </label>
-          }
+      <div class="env-box">
+        <div class="env-box-title">Environment (BasicRequestInfo overrides)</div>
+        @* Three intentional row-groups; each field sized to its data instead of one wide grid. *@
+        <div class="env-rowgroup">
+          @EnvField("eiUserId", "env-w-eid")
+          @EnvField("debug", "env-w-bool")
         </div>
-      </details>
+        <div class="env-rowgroup">
+          @EnvField("clientVersion", "env-w-tiny")
+          @EnvField("version", "env-w-sm")
+          @EnvField("build", "env-w-sm")
+        </div>
+        <div class="env-rowgroup">
+          @EnvField("platform", "env-w-sm")
+          @EnvField("country", "env-w-tiny")
+          @EnvField("language", "env-w-tiny")
+        </div>
+      </div>
 
       @if (_selected?.PathParam == true)
       {
@@ -155,9 +137,14 @@
             {
               <span class="muted">no schema for @_selected.Request</span>
             }
+            else if (NoFillableFields)
+            {
+              <div class="no-fields-note">This request needs no extra fields. Every value it carries is
+                already supplied by the Environment above, so just hit Build.</div>
+            }
             else
             {
-              <FieldTree Nodes="_fieldNodes" OnChanged="OnTreeChanged" />
+              <div class="fields-body"><FieldTree Nodes="_fieldNodes" OnChanged="OnTreeChanged" /></div>
             }
           }
         </div>
@@ -165,15 +152,15 @@
 
       <div class="sendbar">
         <div class="target-toggle" role="radiogroup" aria-label="Target">
-          <button type="button" class="target-opt @(_target == "mock" ? "active" : "")"
+          <button type="button" class="target-opt @(_target is "mock" ? "active" : "")"
                   @onclick="@(() => SelectTarget("mock"))">Mock</button>
+          @* Live API covers both server-routed and custom-proxy sends; the routing choice is a sub-option
+             shown below when Live API is selected, not a third slider segment. *@
           <button type="button"
-                  class="target-opt @(_target == "real" ? "active" : "") @(_liveDisabled ? "target-opt-disabled" : "")"
+                  class="target-opt @(_target is "real" or "custom" ? "active" : "") @(_liveDisabled ? "target-opt-disabled" : "")"
                   disabled="@_liveDisabled"
                   title="@(_liveDisabled ? "Log in to use Live API" : "")"
                   @onclick="@(() => RequestTarget("real"))">Live API <DocHelp Kind="endpoint" Key="__live_api" /></button>
-          <button type="button" class="target-opt @(_target == "custom" ? "active" : "")"
-                  @onclick="@(() => SelectTarget("custom"))">Custom</button>
         </div>
         <div class="sendbar-actions">
           <button class="btn-info" disabled="@(_selected is null || _busy)" @onclick="Build">Build</button>
@@ -181,27 +168,42 @@
         </div>
       </div>
 
-      @if (_target == "custom")
+      @* Live API sub-options: where the request actually goes (this server -> auxbrain, or browser ->
+         your own proxy), plus the supporter sealed-proxy toggle. Only shown in Live API mode. *@
+      @if (_target is "real" or "custom")
       {
-        <div class="custom-config">
-          <label>Custom proxy URL</label>
-          <input type="url" placeholder="https://your-proxy.example/" spellcheck="false"
-                 autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-                 value="@_customTarget" @oninput="OnCustomTargetInput" />
-          <span class="muted">Your browser posts the built request directly to this URL (this server is
-            bypassed); the proxy must reach auxbrain and allow this origin (CORS).</span>
-        </div>
-      }
+        <div class="live-suboptions">
+          <div class="live-route" role="radiogroup" aria-label="Live route">
+            <span class="text-xs text-muted mr-1">Route via</span>
+            <button type="button" class="seg-btn @(_target == "real" ? "active" : "")"
+                    @onclick="@(() => SelectTarget("real"))">This server</button>
+            <button type="button" class="seg-btn @(_target == "custom" ? "active" : "")"
+                    @onclick="@(() => SelectTarget("custom"))">Custom proxy</button>
+          </div>
 
-      @if (_target == "real" && _sealedAvailable)
-      {
-        <div class="sealed-config">
-          <label class="settings-check">
-            <input type="checkbox" checked="@_sealed" @onchange="OnSealedToggle" />
-            Sealed API proxy
-          </label>
-          <span class="muted">Routes this send through an authenticated tunnel that hides your identity
-            from the Live API. Supporter perk.</span>
+          @if (_target == "custom")
+          {
+            <div class="custom-config">
+              <label>Custom proxy URL</label>
+              <input type="url" placeholder="https://your-proxy.example/" spellcheck="false"
+                     autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                     value="@_customTarget" @oninput="OnCustomTargetInput" />
+              <span class="muted">Your browser posts the built request directly to this URL (this server is
+                bypassed); the proxy must reach auxbrain and allow this origin (CORS).</span>
+            </div>
+          }
+
+          @if (_target == "real" && _sealedAvailable)
+          {
+            <div class="sealed-config">
+              <label class="settings-check">
+                <input type="checkbox" checked="@_sealed" @onchange="OnSealedToggle" />
+                Sealed API proxy
+              </label>
+              <span class="muted">Routes this send through an authenticated tunnel that hides your identity
+                from the Live API. Supporter perk.</span>
+            </div>
+          }
         </div>
       }
     </div>
@@ -220,6 +222,7 @@
         <button type="button" class="tab-btn @(_resultTab == 0 ? "active" : "")" @onclick="@(() => _resultTab = 0)">Pipeline</button>
         <button type="button" class="tab-btn @(_resultTab == 1 ? "active" : "")" @onclick="@(() => _resultTab = 1)">Response</button>
         <button type="button" class="tab-btn @(_resultTab == 2 ? "active" : "")" @onclick="@(() => _resultTab = 2)">Diagnose</button>
+        <button type="button" class="tab-btn @(_resultTab == 3 ? "active" : "")" @onclick="@(() => _resultTab = 3)">Docs</button>
         @if (_resultTab == 1 && _canSaveDb && _response?.Json is not null)
         {
           <button type="button" class="btn-mini ml-auto" title="Save this response as a stored endpoint" @onclick="SaveToDb">Save to DB</button>
@@ -235,9 +238,15 @@
           <ResponsePanel Response="_response" />
           <pre class="settings-out">@_saveOut</pre>
         }
-        else
+        else if (_resultTab == 2)
         {
           <Forensics Result="_diagnosis" RootType="@(_selected?.Response)" ClientFactory="Client" />
+        }
+        else
+        {
+          @* Proto docs for the selected endpoint (folded in from /docs). Object docs live in the middle
+             ObjectView; this is the endpoint surface. *@
+          <EndpointDocsView Route="_selected" OnSelectObject="SelectObjectFromDocs" />
         }
       </div>
     </div>
@@ -277,6 +286,54 @@
   </div>
 }
 
+@if (_settingsModalOpen)
+{
+  <div class="modal-overlay" @onkeydown="OnModalKeyDown" @onclick="@(() => _settingsModalOpen = false)">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" @onclick:stopPropagation="true">
+      <h3 id="settingsTitle">Inspector settings</h3>
+      <label class="settings-check">
+        <input type="checkbox" checked="@_historyEnabled" @onchange="ToggleHistoryEnabled" />
+        Save request history
+      </label>
+      <p class="text-muted text-sm mt-1 mb-0">Keeps a client-side list of built requests for quick re-use
+        (stored only in this browser). Turn off to stop saving; existing history stays until cleared.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" @onclick="@(() => _settingsModalOpen = false)">Done</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (_historyNoticeOpen)
+{
+  <div class="modal-overlay" @onkeydown="OnModalKeyDown" @onclick="@(() => _historyNoticeOpen = false)">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="histNoticeTitle" @onclick:stopPropagation="true">
+      <h3 id="histNoticeTitle">Request history is on</h3>
+      <p>Built requests are now saved to a client-side History tab for quick swapping. It is stored only in
+        this browser. You can turn this off any time in Controls &rarr; settings.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" @onclick="@(() => { _historyNoticeOpen = false; _settingsModalOpen = true; })">Open settings</button>
+        <button type="button" class="btn-primary" @onclick="@(() => _historyNoticeOpen = false)">Got it</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (_statusModalOpen)
+{
+  <div class="modal-overlay" @onkeydown="OnModalKeyDown" @onclick="@(() => _statusModalOpen = false)">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="statusTitle" @onclick:stopPropagation="true">
+      <h3 id="statusTitle">Endpoint status <span class="muted text-sm">@_statusCounts</span></h3>
+      <p class="text-muted text-sm mt-0">How many mapped routes have an ok / empty / missing fixture.</p>
+      <pre class="result-pre max-h-[50vh] overflow-auto">@_statusOut</pre>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" disabled="@_statusLoading" @onclick="RefreshStatus">@(_statusLoading ? "Refreshing..." : "Refresh")</button>
+        <button type="button" class="btn-primary" @onclick="@(() => _statusModalOpen = false)">Close</button>
+      </div>
+    </div>
+  </div>
+}
+
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -305,6 +362,13 @@
     string _saltInput = "";
     bool _saltModalOpen;
     bool _liveConsentOpen;
+    bool _settingsModalOpen;
+    bool _historyNoticeOpen;
+
+    // Client-side request history ("quick swap"). Default on; toggled in the settings modal.
+    bool _historyEnabled = true;
+    List<InspectorHistoryEntry> _history = [];
+    bool _statusModalOpen;
     // Modal focus: move keyboard focus into a freshly opened modal so Escape works immediately.
     ElementReference _saltInputRef;
     ElementReference _consentCancelRef;
@@ -382,6 +446,8 @@
         _hasSalt = !string.IsNullOrEmpty(await InvokeOr("getSalt", ""));
         _customTarget = await InvokeOr("getCustomTarget", "");
         _recentEids = await InvokeOr("recentEids", Array.Empty<string>());
+        _historyEnabled = await InvokeOr("getHistoryEnabled", true);
+        _history = await InvokeOr("getHistory", new List<InspectorHistoryEntry>());
         SeedEnvRows();
         StateHasChanged();
     }
@@ -417,6 +483,13 @@
 
     void SelectObject(string name)
     {
+        _selectedObject = name;
+    }
+
+    // From the endpoint Docs tab's request/response type link: jump the left list to Objects + select it.
+    void SelectObjectFromDocs(string name)
+    {
+        _listMode = "objects";
         _selectedObject = name;
     }
 
@@ -472,6 +545,59 @@
         ];
     }
 
+    // One env field by key, with a width class. Sized per-field (clientVersion is tiny, eiUserId is wide)
+    // instead of a uniform grid. Returns nothing if the key is unknown (defensive).
+    RenderFragment EnvField(string key, string widthClass) => builder =>
+    {
+        var r = _envRows.FirstOrDefault(x => x.Key == key);
+        if (r is null) return;
+        var invalid = r.IsInvalid();
+        var seq = 0;
+        builder.OpenElement(seq++, "label");
+        builder.AddAttribute(seq++, "class", $"env-cell {widthClass}");
+        builder.AddAttribute(seq++, "title", r.Key);
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "env-key");
+        builder.AddContent(seq++, r.Key);
+        builder.CloseElement();
+        if (r.Editor == "select")
+        {
+            builder.OpenElement(seq++, "select");
+            builder.AddAttribute(seq++, "class", "env-input");
+            builder.AddAttribute(seq++, "value", r.Value);
+            builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvInput(r, e.Value?.ToString())));
+            foreach (var opt in r.Options ?? [])
+            {
+                builder.OpenElement(seq++, "option");
+                builder.AddAttribute(seq++, "value", opt);
+                builder.AddContent(seq++, opt);
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+        }
+        else if (r.Editor == "bool")
+        {
+            builder.OpenElement(seq++, "input");
+            builder.AddAttribute(seq++, "class", "env-check");
+            builder.AddAttribute(seq++, "type", "checkbox");
+            builder.AddAttribute(seq++, "checked", r.Value == "true");
+            builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvBool(r, e)));
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(seq++, "input");
+            builder.AddAttribute(seq++, "class", $"env-input {(invalid ? "env-invalid" : "")}");
+            if (r.Editor == "eid") builder.AddAttribute(seq++, "list", "recentEids");
+            builder.AddAttribute(seq++, "value", r.Value);
+            builder.AddAttribute(seq++, "placeholder", r.Hint);
+            builder.AddAttribute(seq++, "autocomplete", "off");
+            builder.AddAttribute(seq++, "oninput", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvInput(r, e.Value?.ToString())));
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
     Task OnEnvBool(EnvRow row, ChangeEventArgs e) =>
         OnEnvInput(row, e.Value is bool b && b ? "true" : "false");
 
@@ -512,6 +638,11 @@
 
     void OnTreeChanged() { /* re-render; raw JSON is re-derived on toggle */ }
 
+    // True when the request type has fields but they are ALL env-locked (covered by BasicRequestInfo
+    // overrides) - i.e. nothing left for the user to fill in. Drives the curated "no extra fields" note.
+    bool NoFillableFields =>
+        _fieldNodes is { Count: > 0 } && _fieldNodes.All(n => n.Locked);
+
     void ToggleRaw(ChangeEventArgs e)
     {
         var on = e.Value is bool b && b;
@@ -545,11 +676,11 @@
         _rawMode = false;
     }
 
-    // endpoint-status popover + salt
+    // endpoint-status modal (was a cramped inline column popover)
     async Task ToggleStatus()
     {
-        _statusOpen = !_statusOpen;
-        if (_statusOpen && string.IsNullOrEmpty(_statusCounts)) await RefreshStatus();
+        _statusModalOpen = true;
+        if (string.IsNullOrEmpty(_statusCounts)) await RefreshStatus();
     }
 
     async Task RefreshStatus()
@@ -585,6 +716,9 @@
         if (e.Key != "Escape") return;
         _saltModalOpen = false;
         _liveConsentOpen = false;
+        _settingsModalOpen = false;
+        _historyNoticeOpen = false;
+        _statusModalOpen = false;
     }
 
     async Task SaveSalt()
@@ -712,11 +846,77 @@
             }
             _lastBuild = data;
             _buildStages = data?.Stages;
+            await SaveToHistory(e, fields);
         }
         catch (Exception ex)
         {
             _response = new SendResponse(null, null, null, null, "build failed: " + ex.Message, null);
         }
+    }
+
+    // Persist the just-built request to client-side history (if enabled). On the very first save, pop a
+    // one-time notice that history can be turned off in settings.
+    async Task SaveToHistory(RouteInfo e, JsonNode? fields)
+    {
+        if (!_historyEnabled || _store is null) return;
+        var env = EnvCollector.AsStrings(_envRows);
+        var fieldsJson = fields?.ToJsonString() ?? "{}";
+        var entry = new InspectorHistoryEntry(
+            Id: Guid.NewGuid().ToString("n"),
+            Path: e.Path,
+            Summary: HistorySummary(e),
+            Env: env,
+            FieldsJson: fieldsJson,
+            PathParam: string.IsNullOrWhiteSpace(_pathParam) ? null : _pathParam.Trim(),
+            Target: _target,
+            Order: 0);
+        try { _history = await _store.InvokeAsync<List<InspectorHistoryEntry>>("saveHistory", entry); }
+        catch { return; }
+        var unseen = await InvokeOr("historyNoticeUnseen", false);
+        if (unseen) _historyNoticeOpen = true;
+    }
+
+    string HistorySummary(RouteInfo e)
+    {
+        var bits = new List<string>();
+        if (e.PathParam && !string.IsNullOrWhiteSpace(_pathParam)) bits.Add(_pathParam.Trim());
+        bits.Add(_target);
+        return string.Join(" · ", bits);
+    }
+
+    // Restore a history entry into the builder: select the endpoint, then re-apply the saved env, body,
+    // path param, and target.
+    async Task RestoreHistory(InspectorHistoryEntry h)
+    {
+        var route = Catalog.All().FirstOrDefault(r => r.Path == h.Path);
+        if (route is null) return;
+        await SelectEndpoint(route);
+        // Re-apply saved env onto the rows + persisted rinfo.
+        foreach (var row in _envRows)
+            if (h.Env.TryGetValue(row.Key, out var v)) { row.Value = v; SyncRinfoFromRow(row); }
+        if (!string.IsNullOrEmpty(h.PathParam)) _pathParam = h.PathParam;
+        _target = h.Target;
+        // Re-apply the saved body fields.
+        if (_fieldNodes is not null)
+        {
+            try
+            {
+                var obj = JsonNode.Parse(string.IsNullOrWhiteSpace(h.FieldsJson) ? "{}" : h.FieldsJson) as JsonObject;
+                if (obj is not null) FieldTreeBuilder.Apply(_fieldNodes, obj);
+            }
+            catch { /* malformed saved body; leave the freshly-seeded tree */ }
+        }
+        ApplyEnvLock();
+        _listMode = "endpoints";
+    }
+
+    async Task DeleteHistory(string id) => _history = await InvokeOr("deleteHistory", _history, id);
+    async Task ClearHistory() => _history = await InvokeOr("clearHistory", new List<InspectorHistoryEntry>());
+
+    async Task ToggleHistoryEnabled(ChangeEventArgs e)
+    {
+        _historyEnabled = e.Value is bool b && b;
+        await InvokeVoid("setHistoryEnabled", _historyEnabled);
     }
 
     async Task SendCore()

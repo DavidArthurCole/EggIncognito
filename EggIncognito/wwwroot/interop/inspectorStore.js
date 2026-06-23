@@ -8,6 +8,10 @@ const RINFO_KEY = "inspector.rinfoDefaults";
 const CUSTOM_TARGET_KEY = "inspector.customTarget";
 const EIDS_KEY = "inspector.recentEids";
 const LIVE_CONSENT_KEY = "egi:liveApiConsent";
+const HISTORY_KEY = "inspector.history";
+const HISTORY_ENABLED_KEY = "inspector.historyEnabled";
+const HISTORY_SEEN_KEY = "inspector.historySeenNotice";
+const HISTORY_MAX = 50;
 
 const EID_RE = /^EI\d{10,}$/;
 const EID_MAX = 12;
@@ -90,6 +94,53 @@ export function recentEids() {
   return loadEids().sort((a, b) => b.order - a.order).map((e) => e.eid);
 }
 export function forgetEids() { setRaw(EIDS_KEY, "[]"); return []; }
+
+// --- Inspector request history (client-side "quick swap"). Default ON. Each entry is the builder state
+// needed to restore a request: { id, path, summary, env, fieldsJson, pathParam, target, order }. ---
+
+export function getHistoryEnabled() {
+  const raw = getRaw(HISTORY_ENABLED_KEY);
+  return raw === null ? true : raw === "1"; // default ON
+}
+export function setHistoryEnabled(on) { setRaw(HISTORY_ENABLED_KEY, on ? "1" : "0"); }
+
+// True the first time history is ever saved (so the page can show the one-time "you can turn this off"
+// notice exactly once). Marks itself seen on read.
+export function historyNoticeUnseen() {
+  if (getRaw(HISTORY_SEEN_KEY) === "1") return false;
+  setRaw(HISTORY_SEEN_KEY, "1");
+  return true;
+}
+
+function loadHistory() {
+  try {
+    const raw = JSON.parse(getRaw(HISTORY_KEY) || "[]");
+    return Array.isArray(raw) ? raw : [];
+  } catch { return []; }
+}
+
+export function getHistory() {
+  return loadHistory().sort((a, b) => (b.order || 0) - (a.order || 0));
+}
+
+// Save an entry (no-op when history is off). De-dupes by (path + fieldsJson + pathParam) so re-building the
+// same request bumps it to the top instead of piling duplicates. Returns the refreshed list.
+export function saveHistory(entry) {
+  if (!getHistoryEnabled() || !entry || !entry.path) return getHistory();
+  const list = loadHistory().filter(
+    (e) => !(e.path === entry.path && e.fieldsJson === entry.fieldsJson && (e.pathParam || "") === (entry.pathParam || "")));
+  const nextOrder = list.reduce((m, e) => Math.max(m, e.order || 0), 0) + 1;
+  list.push({ ...entry, order: nextOrder });
+  list.sort((a, b) => (b.order || 0) - (a.order || 0));
+  setRaw(HISTORY_KEY, JSON.stringify(list.slice(0, HISTORY_MAX)));
+  return getHistory();
+}
+
+export function deleteHistory(id) {
+  setRaw(HISTORY_KEY, JSON.stringify(loadHistory().filter((e) => e.id !== id)));
+  return getHistory();
+}
+export function clearHistory() { setRaw(HISTORY_KEY, "[]"); return []; }
 
 // Browser-direct POST to the user's own proxy in Custom send mode. This server is bypassed: the request
 // goes straight from the browser to the proxy, which relays the same form body to auxbrain. Returns the

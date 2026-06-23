@@ -10,7 +10,6 @@
     <a class="btn-primary" href="/inspector/">Inspector</a>
     <a class="btn-primary" href="/capture/">Capture</a>
     <a class="btn-primary" href="/protos">Protos</a>
-    <a class="btn-primary" href="/docs/">Docs</a>
   </div>
 
   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10">
@@ -29,10 +28,6 @@
     <a class="panel card-link p-4" href="/protos">
       <strong>Protos</strong>
       <p class="text-sm mt-1">Versioned proto registry. Drop an .ipa/.apk to extract its schema, or browse detected builds per platform.</p>
-    </a>
-    <a class="panel card-link p-4" href="/docs/">
-      <strong>Docs</strong>
-      <p class="text-sm mt-1">Message + endpoint documentation, tags, and proto reference.</p>
     </a>
     <div class="panel p-4">
       <strong>Mock API</strong>
@@ -56,8 +51,20 @@
     </div>
   </div>
 
-  <div class="panel p-4 mb-10 flex items-center justify-between gap-4">
-    <p class="text-sm">Like the project? Supporting covers server costs and unlocks supporter perks.</p>
-    <a class="btn-primary shrink-0" href="/support">Support</a>
-  </div>
+  @* About / legal footer (folded in from the old /about page). *@
+  <footer class="home-footer">
+    <p class="text-muted text-sm leading-relaxed mb-3">
+      EggIncognito is an independent, fan-made tool and is not affiliated with, endorsed by, or
+      sponsored by Auxbrain Inc. Egg, Inc. and related marks are the property of their respective owners.
+    </p>
+    <p class="text-muted text-sm m-0">
+      <a href="/terms" class="text-accent2 underline">Terms</a>
+      <span class="mx-2">/</span>
+      <a href="/privacy" class="text-accent2 underline">Privacy &amp; Cookies</a>
+      <span class="mx-2">/</span>
+      <a href="https://github.com/DavidArthurCole/EggIncognito/blob/main/LICENSE" target="_blank" rel="noopener" class="text-accent2 underline">MIT License</a>
+      <span class="mx-2">·</span>
+      © 2026 David Cole
+    </p>
+  </footer>
 </main>
