@@ -42,13 +42,13 @@
                             }
                             else
                             {
-                                @* version | build | client on one line; clientVersion only shown once captured *@
+                                @* V version | B build | C client on one line; clientVersion only shown once captured *@
                                 <span class="dev-verline">
-                                    @(d.InstalledAppVersion ?? "?")
-                                    <span class="dev-versep">|</span> build @(d.InstalledBuild ?? "?")
+                                    V @(d.InstalledAppVersion ?? "?")
+                                    <span class="dev-versep">|</span> B @(d.InstalledBuild ?? "?")
                                     @if (_clientVersion.GetValueOrDefault(d.Id) is int cv)
                                     {
-                                        <span class="dev-versep">|</span><text> client @cv</text>
+                                        <span class="dev-versep">|</span><text> C @cv</text>
                                     }
                                 </span>
                             }

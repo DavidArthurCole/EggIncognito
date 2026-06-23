@@ -1,0 +1,290 @@
+@* Subscribe-to-proto-updates form + subscription manager. Rendered inside the /protos modal overlay
+   (ProtoSubscribePanel hosts no @page; the modal owns the chrome). Redesigned roomier than the old
+   squished page: the create form is a single column with clear sections, the manager is a compact table.
+   Server ACL gates writes; the feed API is the real authority. *@
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@using EggIncognito.Components.Shared
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject ICurrentUser User
+
+<p class="text-muted text-sm mb-4">
+  Get a Discord notification when the registry sees a new game build. Paste a channel webhook URL,
+  pick what you want, and we send a test message on save.
+</p>
+
+@if (_done is not null)
+{
+  <div class="sub-done">
+    <div class="sub-done-icon"><Icon Name="check" /></div>
+    <div>
+      <div class="font-semibold mb-1">Subscribed</div>
+      <p class="text-muted text-sm m-0">Test message sent. You will be notified on
+        <span class="code-chip">@_done.Platforms</span> for <span class="code-chip">@_done.Trigger</span>.</p>
+    </div>
+  </div>
+  <button type="button" class="btn-primary mt-4" @onclick="Reset">Add another</button>
+}
+else
+{
+  <div class="sub-form">
+    <label class="sub-field">
+      <span class="sub-field-label">Discord webhook URL</span>
+      <input class="field-input w-full" placeholder="https://discord.com/api/webhooks/..."
+             @bind="_url" @bind:event="oninput" />
+    </label>
+
+    <div class="sub-grid">
+      <fieldset class="sub-field border-0 p-0 m-0">
+        <legend class="sub-field-label p-0">Platforms</legend>
+        <div class="sub-checks">
+          <label class="settings-check"><input type="checkbox" @bind="_android" /> Android</label>
+          <label class="settings-check"><input type="checkbox" @bind="_ios" /> iOS</label>
+        </div>
+      </fieldset>
+
+      <fieldset class="sub-field border-0 p-0 m-0">
+        <legend class="sub-field-label p-0">Notify on</legend>
+        <div class="sub-checks">
+          <label class="settings-check">
+            <input type="radio" name="trigger" checked="@(_trigger == "proto_changed")"
+                   @onchange="@(() => _trigger = "proto_changed")" /> Proto changed
+          </label>
+          <label class="settings-check">
+            <input type="radio" name="trigger" checked="@(_trigger == "new_version")"
+                   @onchange="@(() => _trigger = "new_version")" /> Any new version
+          </label>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button type="button" class="btn-primary" disabled="@_busy" @onclick="Submit">
+        @(_busy ? "Sending test..." : "Subscribe")
+      </button>
+      @if (_error is not null) { <span class="text-err text-sm">@_error</span> }
+    </div>
+  </div>
+}
+
+<div class="sub-manage">
+  <h3 class="text-sm font-semibold mt-0 mb-2">Your subscriptions</h3>
+  @if (!_isAuthed)
+  {
+    <p class="text-muted text-sm m-0">Log in to manage your subscriptions.</p>
+  }
+  else if (_subs is null)
+  {
+    <p class="text-muted text-sm m-0">Loading...</p>
+  }
+  else if (_subs.Count == 0)
+  {
+    <p class="text-muted text-sm m-0">No subscriptions yet.</p>
+  }
+  else
+  {
+    @if (_deleted) { <p class="text-muted text-sm mb-2">Subscription deleted.</p> }
+    <table class="sub-table">
+      <thead>
+        <tr>
+          <th>Webhook</th><th>Platforms</th><th>Trigger</th><th>State</th><th>Last</th><th>Fails</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var s in _subs)
+        {
+          @if (_editId == s.Id)
+          {
+            <tr class="sub-row-edit">
+              <td><span class="font-mono text-xs">@s.UrlMasked</span></td>
+              <td>
+                <label class="settings-check"><input type="checkbox" @bind="_editAndroid" /> A</label>
+                <label class="settings-check"><input type="checkbox" @bind="_editIos" /> i</label>
+              </td>
+              <td>
+                <select class="field-input" @bind="_editTrigger">
+                  <option value="proto_changed">proto changed</option>
+                  <option value="new_version">any new</option>
+                </select>
+              </td>
+              <td><label class="settings-check"><input type="checkbox" @bind="_editActive" /> active</label></td>
+              <td class="text-muted">@(s.LastDeliveryAt?.ToString("MM-dd HH:mm") ?? "never")</td>
+              <td>@s.FailCount</td>
+              <td class="whitespace-nowrap">
+                <button type="button" class="btn-mini" disabled="@_saving" @onclick="() => SaveEdit(s.Id)">Save</button>
+                <button type="button" class="btn-mini ml-1" disabled="@_saving" @onclick="CancelEdit">Cancel</button>
+              </td>
+            </tr>
+          }
+          else
+          {
+            <tr>
+              <td>
+                <span class="font-mono text-xs">@s.UrlMasked</span>
+                @if (!string.IsNullOrWhiteSpace(s.Label)) { <span class="text-muted text-xs ml-1">(@s.Label)</span> }
+              </td>
+              <td>@string.Join(", ", s.Platforms)</td>
+              <td>@TriggerLabel(s.Trigger)</td>
+              <td>@(s.Active ? "active" : "paused")</td>
+              <td class="text-muted">@(s.LastDeliveryAt?.ToString("MM-dd HH:mm") ?? "never")</td>
+              <td>@s.FailCount</td>
+              <td class="whitespace-nowrap">
+                <button type="button" class="btn-mini" disabled="@(_deleting || _saving)" @onclick="() => StartEdit(s)">Edit</button>
+                <button type="button" class="btn-mini ml-1" disabled="@(_deleting || _saving)" @onclick="() => DeleteSub(s.Id)">Delete</button>
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  }
+</div>
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    string _url = "";
+    bool _android = true;
+    bool _ios = true;
+    string _trigger = "proto_changed";
+    bool _busy;
+    string? _error;
+    Confirmation? _done;
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    bool _isAuthed;
+    List<Sub>? _subs;
+    bool _deleting;
+    bool _deleted;
+
+    int? _editId;
+    bool _editAndroid;
+    bool _editIos;
+    string _editTrigger = "proto_changed";
+    bool _editActive = true;
+    bool _saving;
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+        _isAuthed = User.IsAuthenticated;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (_isAuthed) await LoadSubs();
+    }
+
+    async Task LoadSubs()
+    {
+        try
+        {
+            var res = await Client().GetAsync("/api/protos/feed/mine");
+            _subs = res.IsSuccessStatusCode
+                ? await res.Content.ReadFromJsonAsync<List<Sub>>(JsonOpts) ?? []
+                : [];
+        }
+        catch { _subs = []; }
+    }
+
+    void StartEdit(Sub s)
+    {
+        _editId = s.Id;
+        _editAndroid = s.Platforms.Contains("android");
+        _editIos = s.Platforms.Contains("ios");
+        _editTrigger = s.Trigger == "new_version" ? "new_version" : "proto_changed";
+        _editActive = s.Active;
+        _deleted = false;
+    }
+
+    void CancelEdit() => _editId = null;
+
+    async Task SaveEdit(int id)
+    {
+        _saving = true;
+        try
+        {
+            var platforms = new List<string>();
+            if (_editAndroid) platforms.Add("android");
+            if (_editIos) platforms.Add("ios");
+            var body = new { platforms = platforms.ToArray(), trigger = _editTrigger, active = _editActive };
+            var res = await Client().PatchAsJsonAsync($"/api/protos/feed/{id}", body, JsonOpts);
+            if (res.IsSuccessStatusCode) { _editId = null; await LoadSubs(); }
+        }
+        catch { }
+        _saving = false;
+    }
+
+    async Task DeleteSub(int id)
+    {
+        _deleting = true;
+        _deleted = false;
+        try
+        {
+            var res = await Client().DeleteAsync($"/api/protos/feed/{id}");
+            if (res.IsSuccessStatusCode) { _subs?.RemoveAll(s => s.Id == id); _deleted = true; }
+        }
+        catch { }
+        _deleting = false;
+    }
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    void Reset()
+    {
+        _done = null;
+        _error = null;
+        _url = "";
+        _android = true;
+        _ios = true;
+        _trigger = "proto_changed";
+    }
+
+    async Task Submit()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var platforms = new List<string>();
+            if (_android) platforms.Add("android");
+            if (_ios) platforms.Add("ios");
+            var body = new { webhookUrl = _url, platforms = platforms.ToArray(), trigger = _trigger, label = (string?)null };
+            var res = await Client().PostAsJsonAsync("/api/protos/feed", body, JsonOpts);
+            if (res.IsSuccessStatusCode)
+            {
+                var label = platforms.Count == 0 ? "none" : string.Join(", ", platforms);
+                _done = new Confirmation(label, TriggerLabel(_trigger));
+                if (_isAuthed) await LoadSubs();
+            }
+            else
+            {
+                var err = await res.Content.ReadFromJsonAsync<ErrorBody>(JsonOpts);
+                _error = err?.Error ?? $"Subscription failed ({(int)res.StatusCode}).";
+            }
+        }
+        catch (Exception ex) { _error = $"Subscription failed: {ex.Message}"; }
+        _busy = false;
+    }
+
+    static string TriggerLabel(string t) => t == "new_version" ? "any new version" : "proto changed";
+
+    record Confirmation(string Platforms, string Trigger);
+    record ErrorBody(string? Error);
+    record Sub(int Id, string? Label, string[] Platforms, string Trigger, bool Active,
+        DateTimeOffset CreatedAt, DateTimeOffset? LastDeliveryAt, int FailCount, string UrlMasked);
+}

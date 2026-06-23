@@ -1,24 +1,14 @@
 @* Proto-registry toolbar, projected into the top nav via SectionContent (the Inspector/Capture
-   pattern). Platform segmented control + filter input + Subscribe/Sources links, plus an admin-only
-   Backfill popover (the .settings-menu pattern from CaptureToolbar) holding the import triggers. The
-   admin button is hidden entirely for non-admins; the server ACL is the real gate. *@
+   pattern). Filtering now lives in the table's per-column filter row, so the toolbar holds only the
+   Subscribe (modal) + Sources links and the admin-only Backfill popover. The admin button is hidden
+   entirely for non-admins; the server ACL is the real gate. *@
 @using EggIncognito.Components.Shared
 
 <div class="protos-toolbar toolbar">
-  <div class="settings-seg protos-seg" role="radiogroup" aria-label="Platform">
-    @foreach (var p in Platforms)
-    {
-      <button type="button" class="seg-btn @(Platform == p.Key ? "active" : "")"
-              @onclick="@(() => OnPlatformChanged.InvokeAsync(p.Key))">@p.Value</button>
-    }
-  </div>
-
-  <input class="protos-filter" type="text" placeholder="Filter version..." value="@Filter"
-         @oninput="@(e => OnFilterChanged.InvokeAsync(e.Value?.ToString() ?? ""))" />
-
-  <a class="icon-btn" href="/protos/subscribe" title="Subscribe to updates" aria-label="Subscribe to updates">
+  <button type="button" class="icon-btn" title="Subscribe to updates" aria-label="Subscribe to updates"
+          @onclick="@(() => OnSubscribe.InvokeAsync())">
     <Icon Name="bell" />
-  </a>
+  </button>
   <a class="icon-btn" href="/protos/sources" title="Sources" aria-label="Sources">
     <Icon Name="info" />
   </a>
@@ -35,8 +25,6 @@
         <div class="settings-hint">Trigger an import. Status shows in the admin panel below the table.</div>
         <button type="button" class="btn-mini protos-trigger" @onclick="@(() => Trigger("github"))">GitHub (elgranjero)</button>
         <button type="button" class="btn-mini protos-trigger" @onclick="@(() => Trigger("android"))">Android (Fandom)</button>
-        <button type="button" class="btn-mini protos-trigger" @onclick="@(() => Trigger("apple"))">Apple (iTunes)</button>
-        <button type="button" class="btn-mini protos-trigger" @onclick="@(() => Trigger("archive"))">Apple (Archive history)</button>
         <button type="button" class="btn-mini protos-trigger" @onclick="@(() => Trigger("resync"))">Force re-sync</button>
       </div>
     </div>
@@ -44,19 +32,9 @@
 </div>
 
 @code {
-    static readonly KeyValuePair<string?, string>[] Platforms =
-    [
-        new(null, "All"),
-        new("android", "Android"),
-        new("ios", "iOS"),
-    ];
-
-    [Parameter] public string? Platform { get; set; }
-    [Parameter] public string Filter { get; set; } = "";
     [Parameter] public bool IsAdmin { get; set; }
-    [Parameter] public EventCallback<string?> OnPlatformChanged { get; set; }
-    [Parameter] public EventCallback<string> OnFilterChanged { get; set; }
     [Parameter] public EventCallback<string> OnTrigger { get; set; }
+    [Parameter] public EventCallback OnSubscribe { get; set; }
 
     bool _open;
 

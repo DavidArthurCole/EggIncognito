@@ -139,7 +139,7 @@ public sealed class InspectorApiController(
                 "Become a supporter and enable it, or send without sealed mode.",
                 StatusCodes.Status403Forbidden);
 
-        var uri = ResolveAllowedUrl(body.Url);
+        var uri = ResolveAllowedUrl(body.Url, Request.Host.Host);
 
         var client = useSealed ? sealedProxy.CreateEgressClient() : httpFactory.CreateClient("inspector");
         var content = new StringContent(body.FormBody,
@@ -244,7 +244,10 @@ public sealed class InspectorApiController(
 
     // Validates the send target against the host allowlist and returns the parsed Uri,
     // or throws ApiException with a resolution. Prevents /send from being an open proxy.
-    private static Uri ResolveAllowedUrl(string url)
+    // selfHost = this instance's own request host, always allowed so the "Mock (this instance)"
+    // target works on a public deploy (where the host is e.g. eggincognito.davidarthurcole.me, not
+    // localhost). Falls back to the auxbrain + localhost rule for every other target.
+    private static Uri ResolveAllowedUrl(string url, string selfHost)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
             || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
@@ -253,16 +256,20 @@ public sealed class InspectorApiController(
                 "URL must be an absolute http(s) URL.",
                 StatusCodes.Status400BadRequest);
 
-        if (IsAllowedHost(parsed.Host)) return parsed;
+        if (IsAllowedHost(parsed.Host, selfHost)) return parsed;
 
         throw new ApiException(
             $"target URL host '{parsed.Host}' is not allowed",
-            "Allowed hosts: localhost, 127.0.0.1, *.auxbrain.com, auxbrainhome.appspot.com, and its <service>-dot-auxbrainhome.appspot.com subdomains.",
+            "Allowed hosts: this instance, localhost, 127.0.0.1, *.auxbrain.com, auxbrainhome.appspot.com, and its <service>-dot-auxbrainhome.appspot.com subdomains.",
             StatusCodes.Status400BadRequest);
     }
 
-    // The /send target allowlist = auxbrain hosts (shared rule) plus localhost for the mock.
-    internal static bool IsAllowedHost(string host) =>
-        host is "localhost" or "127.0.0.1" || AuxbrainHosts.IsAuxbrain(host);
+    // The /send target allowlist = auxbrain hosts (shared rule) + localhost + this instance's own host
+    // (so "Mock (this instance)" works on a public deploy, not just on localhost). selfHost is compared
+    // case-insensitively; an empty selfHost (no request host) just falls through to the static rules.
+    internal static bool IsAllowedHost(string host, string? selfHost = null) =>
+        host is "localhost" or "127.0.0.1"
+        || (!string.IsNullOrEmpty(selfHost) && string.Equals(host, selfHost, StringComparison.OrdinalIgnoreCase))
+        || AuxbrainHosts.IsAuxbrain(host);
 
 }

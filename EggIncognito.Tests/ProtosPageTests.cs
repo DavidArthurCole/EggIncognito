@@ -88,15 +88,16 @@ public class ProtosPageTests
         }
 
         [Fact]
-        public void BackfillPanel_RendersThreeSourceRows()
+        public void BackfillPanel_RendersActiveSourceRows()
         {
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddHttpClient();
             JSInterop.Mode = JSRuntimeMode.Loose;
             var cut = Render<BackfillPanel>();
+            // GitHub + Android only; the dead Apple iTunes/Archive sources were removed (gave nothing).
             Assert.Contains("GitHub", cut.Markup);
             Assert.Contains("Android", cut.Markup);
-            Assert.Contains("Apple", cut.Markup);
+            Assert.DoesNotContain("Apple", cut.Markup);
         }
 
         [Fact]

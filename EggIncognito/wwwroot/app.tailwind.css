@@ -988,9 +988,52 @@
   .src-head { @apply flex items-center justify-between gap-3 mb-1; }
   .src-role { @apply text-muted text-[13px] leading-snug m-0; }
 
-  /* Subscribe confirmation */
+  /* Subscribe confirmation (legacy page bits still referenced) */
   .sub-section { @apply mb-0; }
   .sub-confirm { @apply flex flex-col gap-2; }
   .sub-confirm-row { @apply flex items-center gap-3; }
   .sub-confirm-label { @apply text-muted text-sm min-w-[80px]; }
+
+  /* Registry per-column filter row (ServiceNow-style: a control under each header). */
+  .reg-filter-row th { @apply px-3 py-1.5 bg-panel border-b border-border align-middle; }
+  .reg-filter-input {
+    @apply w-full bg-panel2 text-fg border border-border rounded px-2 py-1 text-xs font-mono;
+  }
+  .reg-filter-input:focus { @apply outline-none border-accent2; }
+  .reg-filter-input::placeholder { @apply text-muted; }
+  .reg-filter-clear {
+    @apply w-6 h-6 grid place-items-center rounded text-muted hover:text-fg hover:bg-panel2 text-base leading-none;
+  }
+
+  /* Pencil edit button + inline editor row (opens directly under the release, no scroll to top). */
+  .reg-edit-btn {
+    @apply w-7 h-7 grid place-items-center rounded-md text-muted border border-transparent hover:text-fg hover:border-border;
+  }
+  .reg-edit-btn.active { @apply text-accent2 border-accent2 bg-panel2; }
+  .reg-edit-row > td { @apply bg-panel2 p-3; }
+
+  /* Modal overlay (subscribe + any future /protos dialog). */
+  .modal-backdrop {
+    @apply fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 sm:p-8;
+  }
+  .modal-card {
+    @apply w-full max-w-2xl bg-panel border border-border rounded-lg shadow-xl my-auto;
+  }
+  .modal-head { @apply flex items-center justify-between gap-3 px-5 py-3 border-b border-border; }
+  .modal-title { @apply text-base font-semibold m-0 text-fg; }
+  .modal-body { @apply px-5 py-4; }
+
+  /* Subscribe panel (roomier than the old squished page). */
+  .sub-form { @apply flex flex-col gap-4; }
+  .sub-field { @apply flex flex-col gap-1; }
+  .sub-field-label { @apply text-muted text-sm; }
+  .sub-grid { @apply grid grid-cols-1 sm:grid-cols-2 gap-4; }
+  .sub-checks { @apply flex flex-col gap-1; }
+  .sub-done { @apply flex items-start gap-3 border border-ok/40 bg-ok/10 rounded-md p-3; }
+  .sub-done-icon { @apply text-ok shrink-0 mt-0.5; }
+  .sub-manage { @apply mt-6 pt-4 border-t border-border; }
+  .sub-table { @apply w-full text-sm border-collapse; }
+  .sub-table thead th { @apply text-left font-normal text-muted text-xs pb-1 px-2 whitespace-nowrap; }
+  .sub-table tbody td { @apply px-2 py-1.5 border-t border-border align-middle; }
+  .sub-row-edit { @apply bg-panel2; }
 }

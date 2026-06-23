@@ -33,7 +33,8 @@ public class UnifiedStyleTests : IClassFixture<WebApplicationFactory<Program>>
             ".toast", ".modal-overlay", ".known-card", ".tab-btn", ".notif-item",
             ".card-link", ".perk-list", ".rail", ".connect-card", ".faq-list",
             ".reg-table", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
-            ".admin-panel", ".backfill-row", ".backfill-status", ".src-card", ".sub-confirm",
+            ".reg-filter-input", ".reg-edit-btn", ".modal-card", ".sub-form", ".sub-table",
+            ".admin-panel", ".backfill-row", ".backfill-status", ".src-card",
             ".legal-disclaimer", ".legal-section" })
         {
             Assert.Contains(cls, css);

@@ -93,14 +93,16 @@ public sealed class DeviceProxyPusher(
         return result ?? manager.Rinfo.Latest(d.Id);
     }
 
-    // Re-lock + sleep the device after a capture so it returns to the low-power state it starts in.
-    // Android: the SLEEP keyevent (locks + screen off). iOS: the backboardd EggHomePress dylib blanks the
-    // screen (BKS, consumer-key-free) via the `sleep` cmd - the device has no passcode, so screen-off IS the
-    // low-power resting state (the prior power-key press opened the power-off menu and is gone).
+    // Return the device to its low-power locked resting state after a capture. Android: the SLEEP keyevent
+    // (locks + screen off). iOS: KILL the egginc app (so it is not left foregrounded on the game screen) then
+    // send the `lock` cmd - the backboardd EggHomePress dylib taps the power key (consumer 0x30, ONE short
+    // tap = sleep+lock, never the power-off menu), so the device returns to lockstate=1 with the screen off.
     public async Task<(bool Ok, string? Note)> LockDeviceAsync(DeviceEntry d, CancellationToken ct)
     {
         if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase))
         {
+            // Drop the stayon hold the harvest set (else SLEEP cannot keep the screen off), then sleep+lock.
+            await runner.RunAsync("adb", ["-s", d.Target, "shell", "svc", "power", "stayon", "false"], ct);
             var r = await runner.RunAsync("adb", ["-s", d.Target, "shell", "input", "keyevent", "KEYCODE_SLEEP"], ct);
             return r.ExitCode == 0 ? (true, "locked") : (false, "lock failed");
         }
@@ -108,10 +110,24 @@ public sealed class DeviceProxyPusher(
         {
             if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
                 return (false, "ios ssh not configured");
-            var (ok, note) = await IosSendCmdAsync("sleep", ct);
-            return ok ? (true, "screen blanked") : (false, $"sleep failed: {note}");
+            await IosKillAppAsync(ct);                       // leave the home screen, not the game, before locking
+            var (ok, note) = await IosSendCmdAsync("lock", ct);
+            return ok ? (true, "app killed + locked") : (false, $"lock failed: {note}");
         }
         return (false, $"no lock for platform {d.Platform}");
+    }
+
+    // Kill the egginc app over ssh (pure-sh PID parse, no awk). Used before locking so the device is left on
+    // the home screen, and before a fresh launch so a suspended app cannot just resume without re-hitting
+    // auxbrain. Best-effort: a no-op if the app is not running.
+    private async Task IosKillAppAsync(CancellationToken ct)
+    {
+        const string remote =
+            "/bin/sh -c 'for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | " +
+            "while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; echo killed'";
+        await runner.RunAsync("ssh",
+            ["-p", config.IosSshPort, "-i", config.IosSshKeyPath!, "-o", "StrictHostKeyChecking=no",
+             "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
     }
 
     // --- iOS unlock primitives (server is the brain; the backboardd EggHomePress dylib is a dumb one-shot
@@ -170,6 +186,13 @@ public sealed class DeviceProxyPusher(
         {
             if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase))
             {
+                // The farm phone rests DOZING (screen off). A dozing device throttles the app so it never
+                // completes its auxbrain launch call (the "not reaching auxbrain" symptom: other hosts connect
+                // but auxbrain never does). WAKE + dismiss the keyguard + hold the screen on, THEN launch, so
+                // the app runs at full speed and phones home. LockDeviceAsync drops stayon + sleeps afterward.
+                await runner.RunAsync("adb", ["-s", d.Target, "shell", "input", "keyevent", "KEYCODE_WAKEUP"], ct);
+                await runner.RunAsync("adb", ["-s", d.Target, "shell", "wm", "dismiss-keyguard"], ct);
+                await runner.RunAsync("adb", ["-s", d.Target, "shell", "svc", "power", "stayon", "true"], ct);
                 var stop = await runner.RunAsync("adb", ["-s", d.Target, "shell", "am", "force-stop", d.Package], ct);
                 if (stop.ExitCode != 0)
                     logger.LogWarning("device capture: {Id} force-stop failed: {Note}",

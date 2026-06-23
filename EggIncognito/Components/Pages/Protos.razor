@@ -16,8 +16,7 @@
 
 @* Controls project into the top nav (the Inspector/Capture pattern); the page body holds the console. *@
 <SectionContent SectionName="@NavSections.Toolbar">
-  <ProtosToolbar Platform="@_platform" Filter="@_filter" IsAdmin="_isAdmin"
-                 OnPlatformChanged="SetPlatform" OnFilterChanged="SetFilter" OnTrigger="OnTrigger" />
+  <ProtosToolbar IsAdmin="_isAdmin" OnTrigger="OnTrigger" OnSubscribe="@(() => _showSubscribe = true)" />
 </SectionContent>
 
 <main class="px-4 sm:px-8 pt-6 pb-8 max-w-7xl mx-auto w-full">
@@ -66,11 +65,6 @@
     {
       <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnMutated" OnClear="ClearSelection" />
     }
-    @if (_canWrite && _editing is not null)
-    {
-      <ProtoEditDialog Targets="_editing" Patch="PatchJson" OnChanged="OnMutated" OnClose="@(() => _editing = null)" />
-    }
-
     @if (_loading)
     {
       <div class="backfill-empty">Loading...</div>
@@ -107,8 +101,34 @@
             <th class="reg-th-sort" @onclick="@(() => Sort("detected"))"><span>Detected</span>@Caret("detected")</th>
             @if (_canWrite)
             {
-              <th class="w-16">Actions</th>
+              <th class="w-10"></th>
             }
+          </tr>
+          @* ServiceNow-style per-column filter row: a control per column. Replaces the old platform
+             segmented slider + the standalone "Filter version" box. Any active filter shows a Clear chip. *@
+          <tr class="reg-filter-row">
+            @if (_isAdmin)
+            {
+              <th>
+                @if (AnyFilter)
+                {
+                  <button type="button" class="reg-filter-clear" title="Clear filters" @onclick="ClearFilters">×</button>
+                }
+              </th>
+            }
+            <th>
+              <select class="reg-filter-input" value="@_fPlatform" @onchange="@(e => { _fPlatform = e.Value?.ToString() ?? ""; })">
+                <option value="">all</option>
+                <option value="android">android</option>
+                <option value="ios">ios</option>
+              </select>
+            </th>
+            <th><input class="reg-filter-input" placeholder="filter" value="@_fVersion" @oninput="@(e => _fVersion = e.Value?.ToString() ?? "")" /></th>
+            <th><input class="reg-filter-input" placeholder="filter" value="@_fBuild" @oninput="@(e => _fBuild = e.Value?.ToString() ?? "")" /></th>
+            <th><input class="reg-filter-input" placeholder="filter" value="@_fClient" @oninput="@(e => _fClient = e.Value?.ToString() ?? "")" /></th>
+            <th><input class="reg-filter-input" placeholder="filter" value="@_fSha" @oninput="@(e => _fSha = e.Value?.ToString() ?? "")" /></th>
+            <th></th>
+            @if (_canWrite) { <th></th> }
           </tr>
         </thead>
         <tbody>
@@ -168,11 +188,23 @@
               @if (_canWrite)
               {
                 <td @onclick:stopPropagation="true">
-                  @* one Edit button per release; the dialog shows every platform member of a grouped release *@
-                  <button type="button" class="btn-mini" @onclick="@(() => EditRelease(rel))">Edit</button>
+                  @* pencil per release; opens an inline editor row right below this one (no scroll to top) *@
+                  <button type="button" class="reg-edit-btn @(_editingKey == rel.Key ? "active" : "")"
+                          title="Edit" aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
+                    <Icon Name="pencil" />
+                  </button>
                 </td>
               }
             </tr>
+            @if (_canWrite && _editingKey == rel.Key)
+            {
+              <tr class="reg-edit-row">
+                <td colspan="@EditColspan">
+                  <ProtoEditDialog Targets="EditTargets(rel)" Patch="PatchJson"
+                                   OnChanged="OnMutated" OnClose="@(() => _editingKey = null)" />
+                </td>
+              </tr>
+            }
           }
         </tbody>
       </table>
@@ -192,12 +224,37 @@
   </div>
 </main>
 
+@* Subscribe-to-updates modal overlay (was its own /protos/subscribe page; now an overlay so users stay
+   on the registry). The panel holds the full form + subscription management; the bell in the toolbar opens it. *@
+@if (_showSubscribe)
+{
+  <div class="modal-backdrop" @onclick="@(() => _showSubscribe = false)">
+    <div class="modal-card" @onclick:stopPropagation="true">
+      <div class="modal-head">
+        <h2 class="modal-title">Subscribe to proto updates</h2>
+        <button type="button" class="icon-btn" title="Close" aria-label="Close" @onclick="@(() => _showSubscribe = false)">
+          <Icon Name="x" />
+        </button>
+      </div>
+      <div class="modal-body">
+        <ProtoSubscribePanel />
+      </div>
+    </div>
+  </div>
+}
+
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     List<VersionRow> _rows = [];
-    string? _platform;
-    string _filter = "";
+    // Per-column filters (the ServiceNow-style filter row). All are AND-combined, case-insensitive substring;
+    // platform is an exact dropdown. Replaces the old platform slider + single "filter version" box.
+    string _fPlatform = "";
+    string _fVersion = "";
+    string _fBuild = "";
+    string _fClient = "";
+    string _fSha = "";
+    bool _showSubscribe;
     bool _loading = true;
     bool _isAdmin;
     bool _isContributor;
@@ -209,7 +266,7 @@
 
     ProtoDropZone.ExtractResult? _result;
     readonly List<ProtoSelectionBar.VersionKey> _selected = [];
-    List<ProtoEditDialog.Row>? _editing;
+    int? _editingKey;   // release key whose inline editor row is open (null = none)
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
 
@@ -217,11 +274,24 @@
     string? _cookie;
     IJSObjectReference? _copy;
 
+    bool AnyFilter => _fPlatform.Length > 0 || _fVersion.Length > 0 || _fBuild.Length > 0
+                   || _fClient.Length > 0 || _fSha.Length > 0;
+
+    static bool Has(string field, string needle) =>
+        needle.Length == 0 || field.Contains(needle, StringComparison.OrdinalIgnoreCase);
+
     List<VersionRow> Filtered =>
-        string.IsNullOrWhiteSpace(_filter)
-            ? _rows
-            : _rows.Where(r => r.AppVersion.Contains(_filter, StringComparison.OrdinalIgnoreCase)
-                            || r.Build.Contains(_filter, StringComparison.OrdinalIgnoreCase)).ToList();
+        _rows.Where(r =>
+            (_fPlatform.Length == 0 || string.Equals(r.Platform, _fPlatform, StringComparison.OrdinalIgnoreCase))
+            && Has(r.AppVersion, _fVersion)
+            && Has(r.Build, _fBuild)
+            && Has(r.ClientVersion ?? "", _fClient)
+            && Has(r.ProtoSha, _fSha)).ToList();
+
+    void ClearFilters()
+    {
+        _fPlatform = _fVersion = _fBuild = _fClient = _fSha = "";
+    }
 
     List<VersionRow> Sorted
     {
@@ -346,10 +416,6 @@
         return c;
     }
 
-    Task SetPlatform(string? p) { _platform = p; ClearSelection(); return Load(); }
-
-    void SetFilter(string f) => _filter = f;
-
     void OnExtracted(ProtoDropZone.ExtractResult r) => _result = r;
 
     async Task OnTrigger(string which)
@@ -358,8 +424,6 @@
         {
             "github" => "/api/protos/backfill/elgranjero",
             "android" => "/api/protos/backfill/list/fandom",
-            "apple" => "/api/protos/backfill/list/itunes",
-            "archive" => "/api/protos/backfill/list/archive",
             "resync" => "/api/protos/backfill/runner-resync",
             _ => null,
         };
@@ -372,8 +436,8 @@
         _loading = true;
         try
         {
-            var url = _platform is null ? "/api/protos/versions" : $"/api/protos/versions?platform={_platform}";
-            _rows = await Client().GetFromJsonAsync<List<VersionRow>>(url, JsonOpts) ?? [];
+            // Always fetch the full set; the per-column filter row narrows it client-side.
+            _rows = await Client().GetFromJsonAsync<List<VersionRow>>("/api/protos/versions", JsonOpts) ?? [];
         }
         catch { _rows = []; }
         await LoadSuggestions();
@@ -423,7 +487,7 @@
         try
         {
             ClearSelection();
-            _editing = null;
+            _editingKey = null;
             await Load();
             if (_stagedPanel is not null) await _stagedPanel.Load();
         }
@@ -463,12 +527,17 @@
 
     void ClearSelection() => _selected.Clear();
 
-    // Open the editor for a whole release: a standalone row edits one member, a merged release edits all its
-    // platform members in one dialog.
-    void EditRelease(Release rel) =>
-        _editing = rel.Members
+    // Inline editor: clicking the pencil opens an editor row directly under the release (toggle to close).
+    // A standalone row edits one member; a merged release edits all its platform members in one dialog.
+    void ToggleEdit(Release rel) => _editingKey = _editingKey == rel.Key ? null : rel.Key;
+
+    List<ProtoEditDialog.Row> EditTargets(Release rel) =>
+        rel.Members
             .Select(m => new ProtoEditDialog.Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
             .ToList();
+
+    // Span the inline editor row across every column: checkbox (admin) + 6 data + actions (canWrite).
+    int EditColspan => 6 + (_isAdmin ? 1 : 0) + (_canWrite ? 1 : 0);
 
     void Navigate(string href) => _ = JS.InvokeVoidAsync("location.assign", href);
 

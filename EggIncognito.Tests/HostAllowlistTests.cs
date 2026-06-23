@@ -49,4 +49,16 @@ public class HostAllowlistTests
         Assert.True(InspectorApiController.IsAllowedHost(host));
         Assert.False(AuxbrainHosts.IsAuxbrain(host));
     }
+
+    // "Mock (this instance)" must work on a public deploy: the instance's own request host is allowed
+    // when passed as selfHost, case-insensitively, but never when it is not this instance.
+    [Fact]
+    public void SelfHost_IsAllowed_OnlyWhenItMatches()
+    {
+        const string self = "eggincognito.davidarthurcole.me";
+        Assert.True(InspectorApiController.IsAllowedHost(self, self));
+        Assert.True(InspectorApiController.IsAllowedHost("EggIncognito.DavidArthurCole.ME", self));
+        Assert.False(InspectorApiController.IsAllowedHost(self));            // no selfHost = rejected
+        Assert.False(InspectorApiController.IsAllowedHost("evil.com", self)); // different host still rejected
+    }
 }
