@@ -140,6 +140,36 @@ public sealed class DevicesController(
         });
     }
 
+    // Fan out a probe to every enabled device (the Sources "Device farm" refresh). Admin + DB gated.
+    // Best-effort per device; returns how many were probed.
+    [HttpPost("refresh-all")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> RefreshAll()
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Store;
+        var db = Db;
+        if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
+
+        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+        var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
+        var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
+
+        var devices = await store.EnabledDevicesAsync();
+        var n = 0;
+        foreach (var d in devices)
+        {
+            try
+            {
+                await DeviceProbeRunner.ProbeOneAsync(
+                    d, $"admin-all:{currentUser.DiscordId}", runner, store, db, logger, time, HttpContext.RequestAborted);
+                n++;
+            }
+            catch (Exception ex) { logger.LogWarning(ex, "refresh-all: {Id} threw", d.Id); }
+        }
+        return Ok(new { probed = n });
+    }
+
     // Tell the plugged-in device to ASK ITS OWN STORE for an Egg Inc update and install it if there is one.
     // Android: adb drives the on-device Play Store. iOS: ssh fires the eggupdate tweak (on-device App Store).
     // The device's store is the source of truth; the server only nudges + polls the installed version.

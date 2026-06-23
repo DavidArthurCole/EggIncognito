@@ -14,7 +14,15 @@
   pick what you want, and we send a test message on save.
 </p>
 
-@if (_done is not null)
+@if (!_isAuthed)
+{
+  <div class="sub-login-note">
+    <p class="text-muted text-sm m-0 mb-2">Subscriptions are tied to your account. Log in to create and
+      manage webhook notifications.</p>
+    <a class="btn-primary inline-block no-underline" href="/login?returnUrl=/protos">Log in with Discord</a>
+  </div>
+}
+else if (_done is not null)
 {
   <div class="sub-done">
     <div class="sub-done-icon"><Icon Name="check" /></div>

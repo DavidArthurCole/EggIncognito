@@ -64,8 +64,8 @@ public class ProtosPageTests
         {
             Wire(UserRole.Admin);
             var cut = Render<Protos>();
-            // Backfill controls now live as buttons in the Sources side widget (admin-only), not a panel.
-            Assert.Contains("GitHub (elgranjero)", cut.Markup);
+            // Backfill is now a per-source refresh icon in the Sources side widget (admin-only).
+            Assert.Contains("Re-import from elgranjero", cut.Markup);
             Assert.Contains("Missing versions", cut.Markup);
         }
 
@@ -74,7 +74,7 @@ public class ProtosPageTests
         {
             Wire(UserRole.Viewer);
             var cut = Render<Protos>();
-            Assert.DoesNotContain("GitHub (elgranjero)", cut.Markup);
+            Assert.DoesNotContain("Re-import from elgranjero", cut.Markup);
         }
 
         [Fact]
@@ -103,16 +103,18 @@ public class ProtosPageTests
         }
 
         [Fact]
-        public void SourcesPanel_Admin_ShowsBackfillButtons_ViewerDoesNot()
+        public void SourcesPanel_Admin_ShowsRefreshIcons_ViewerDoesNot()
         {
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddHttpClient();
             JSInterop.Mode = JSRuntimeMode.Loose;
+            // Per-source refresh icons (admin-only), incl. the device-farm fan-out.
             var admin = Render<EggIncognito.Components.Protos.ProtoSourcesPanel>(p => p.Add(x => x.IsAdmin, true));
-            Assert.Contains("GitHub (elgranjero)", admin.Markup);
-            Assert.Contains("Android (Fandom)", admin.Markup);
+            Assert.Contains("Re-import from elgranjero", admin.Markup);
+            Assert.Contains("Re-import from Fandom", admin.Markup);
+            Assert.Contains("Refresh connected devices now", admin.Markup);
             var viewer = Render<EggIncognito.Components.Protos.ProtoSourcesPanel>(p => p.Add(x => x.IsAdmin, false));
-            Assert.DoesNotContain("GitHub (elgranjero)", viewer.Markup);
+            Assert.DoesNotContain("Re-import from elgranjero", viewer.Markup);
         }
 
         [Fact]

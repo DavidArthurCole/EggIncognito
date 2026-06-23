@@ -27,8 +27,10 @@
       <span class="md-editor-spacer"></span>
       <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">Save</button>
     </div>
-    <div class="md-panes">
-      <textarea class="md-source" spellcheck="false" value="@_value" @oninput="OnInput"></textarea>
+    <textarea class="md-source" spellcheck="false" value="@_value" @oninput="OnInput"></textarea>
+    @* Preview stacked below the source in a dotted "preview" container (the dropzone look). *@
+    <div class="md-preview-wrap">
+      <div class="md-preview-label">Preview</div>
       <Markdown Body="@_value" CssClass="md-preview" />
     </div>
     @if (!string.IsNullOrEmpty(_status))

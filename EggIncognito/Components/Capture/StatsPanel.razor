@@ -40,7 +40,7 @@
     [Parameter] public int Port { get; set; }
 
     string _certCls = "cert-waiting";
-    string _certText = "Waiting for device";
+    string _certText = "Waiting";
     string _certTitle = "No device traffic yet - point the device's Wi-Fi proxy here and generate traffic.";
 
     string StatusText => Running ? (Port > 0 ? $"RUNNING : {Port}" : "RUNNING") : "STOPPED";
@@ -51,7 +51,7 @@
     void UpdateCertState(string? state, int activeConnections)
     {
         _certCls = "cert-waiting";
-        _certText = "Waiting for device";
+        _certText = "Waiting";
         _certTitle = "No device traffic yet - point the device's Wi-Fi proxy here and generate traffic.";
         if (state == "Trusted")
         {

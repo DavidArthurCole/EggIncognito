@@ -25,7 +25,7 @@
     <div class="px-3 pt-3 setup-collapsible @(_connected ? "setup-hidden" : "")">
       <HostedSetupCard Port="HostedOptions.FrontDoorPort"
                        ClientFactory="Client" InviteUrl="@Config["Discord:InviteUrl"]"
-                       HostOverride="_rotatedHost" />
+                       HostOverride="@_rotatedHost" />
     </div>
   }
 

@@ -6,8 +6,8 @@
 
 <section class="panel capture-controls">
   <h3 class="text-sm font-semibold mt-0 mb-2">Controls</h3>
-  <div class="flex items-center justify-between gap-2">
-    <div class="flex items-center gap-1.5">
+  <div class="flex items-center justify-center gap-2">
+    <div class="flex flex-wrap items-center justify-center gap-1.5 max-w-[10rem]">
       <button type="button" class="icon-btn @(Running ? "capture-stop" : "capture-start")" disabled="@ToggleBusy"
               title="@(Running ? "Stop capture" : "Start capture")"
               aria-label="@(Running ? "Stop capture" : "Start capture")" @onclick="OnToggleCapture">

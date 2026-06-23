@@ -65,9 +65,11 @@
       {
         <p class="proto-cmp-line">
           @_messages.Count messages.
-          <span class="proto-cmp-add">@_added.Count added</span>,
-          <span class="proto-cmp-rem">@_removed.Count removed</span>
-          vs build <span class="mono">@_prevBuild</span>@(string.IsNullOrEmpty(_prevAppVersion) ? "" : $" ({_prevAppVersion})").
+          <span class="proto-cmp-add">@_added.Count message@(_added.Count == 1 ? "" : "s") added</span>,
+          <span class="proto-cmp-rem">@_removed.Count removed</span>@(_lineAdds + _lineRems > 0
+            ? $", {_lineAdds + _lineRems} field change{(_lineAdds + _lineRems == 1 ? "" : "s")}" : "")
+          vs build
+          <a class="proto-version mono" href="/protos/@Platform/@Uri.EscapeDataString(_prevBuild!)">@_prevBuild</a>@(string.IsNullOrEmpty(_prevAppVersion) ? "" : $" ({_prevAppVersion})").
         </p>
 
         @if (_added.Count > 0)
@@ -135,6 +137,10 @@
     string? _prevAppVersion;
     List<string> _added = [];
     List<string> _removed = [];
+    // Field-level change counts (added/removed proto lines from the diff), so the summary reflects in-place
+    // edits like a new field on an existing message, not just whole-message add/remove.
+    int _lineAdds;
+    int _lineRems;
     bool _showDiff;
     MarkupString _diffMarkup;
     bool _diffLoaded;
@@ -165,6 +171,8 @@
         _prevAppVersion = null;
         _added = [];
         _removed = [];
+        _lineAdds = 0;
+        _lineRems = 0;
         _showDiff = false;
         _diffLoaded = false;
         _diffMarkup = default;
@@ -217,6 +225,21 @@
             var thisSet = new HashSet<string>(_messages);
             _added = _messages.Where(m => !prevSet.Contains(m)).ToList();
             _removed = prevMsgs.Where(m => !thisSet.Contains(m)).ToList();
+
+            // Count field-level changes from the actual proto diff so in-place edits (a new field on an
+            // existing message) are reflected even when no whole message was added/removed.
+            try
+            {
+                var diff = await Client().GetStringAsync(
+                    $"/api/protos/diff?from={Uri.EscapeDataString(_prevBuild!)}&to={Uri.EscapeDataString(Build)}&platform={Platform}");
+                foreach (var line in diff.Split('\n'))
+                {
+                    if (line.StartsWith("+++") || line.StartsWith("---")) continue;
+                    if (line.StartsWith('+')) _lineAdds++;
+                    else if (line.StartsWith('-')) _lineRems++;
+                }
+            }
+            catch { /* diff unavailable; message-level counts still show */ }
         }
         catch { }
     }

@@ -36,15 +36,15 @@
       </div>
       <div class="text-xs text-muted mt-2.5">Download a Postman collection, set the signing salt, or tune Inspector settings.</div>
     </section>
+    <HistoryPanel HistoryEnabled="_historyEnabled" History="_history"
+                  OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory" OnClearHistory="ClearHistory" />
     <aside class="panel min-h-0 flex-1 overflow-auto">
       <EndpointList Mode="@_listMode" ModeChanged="SetListMode"
                     Selected="@_selected" SelectedObject="@_selectedObject"
                     OnSelectEndpoint="SelectEndpoint" OnSelectObject="SelectObject"
                     StatusLoading="@_statusLoading" StatusOpen="@_statusOpen"
                     StatusCounts="@_statusCounts" StatusOut="@_statusOut"
-                    OnToggleStatus="ToggleStatus" OnRefreshStatus="RefreshStatus"
-                    HistoryEnabled="_historyEnabled" History="_history"
-                    OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory" OnClearHistory="ClearHistory" />
+                    OnToggleStatus="ToggleStatus" OnRefreshStatus="RefreshStatus" />
     </aside>
   </div>
 

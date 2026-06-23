@@ -108,7 +108,7 @@
 
   /* underline-link button (Inspector "forget" eids). */
   .forget-eids {
-    @apply bg-none border-0 text-accent2 cursor-pointer text-[11px] underline p-0;
+    @apply bg-transparent border-0 text-accent2 cursor-pointer text-[11px] underline p-0 ml-1.5;
   }
   .forget-eids:hover { @apply text-fg; }
 
@@ -353,6 +353,13 @@
   .settings-select { @apply w-full h-7 mt-0.5; }
   .settings-check { @apply flex items-center gap-2 text-[13px] text-fg cursor-pointer; }
   .settings-check input { @apply cursor-pointer; }
+  /* Dark-mode all checkboxes + radios inside panels (browser-default white box/circle otherwise). The
+     accent-color themes the checked fill; pairing it with a panel2 bg + border makes the UNCHECKED state
+     dark too. Covers Notifications (subscribe), Inspector env/raw/debug, settings checks, etc. */
+  .panel input[type="checkbox"], .panel input[type="radio"] {
+    @apply w-4 h-4 align-middle shrink-0 cursor-pointer;
+    accent-color: var(--accent);
+  }
   .settings-out {
     @apply mt-1.5 max-h-[160px] overflow-auto whitespace-pre-wrap [word-break:break-all] bg-bg
            border border-border rounded-md p-[0.4rem] font-mono text-xs text-muted;
@@ -479,12 +486,12 @@
 
   /* Inspector: field tree */
   /* Inspector layout: on phones the three panes stack and the page scrolls; on >=lg they are the
-     240px endpoint list + two equal columns filling the viewport, each pane scrolling on its own.
+     270px endpoint list + two equal columns filling the viewport, each pane scrolling on its own.
      Inline grid styles cannot do media queries, so this lives here. */
   .inspector-main, .capture-main { @apply grid-cols-1; }
   @media (min-width: 1024px) {
     .inspector-main {
-      grid-template-columns: 240px 1fr 1fr;
+      grid-template-columns: 270px 1fr 1fr;
       height: calc(100vh - var(--nav-h, 48px) - 2.75rem);
     }
     .capture-main {
@@ -547,6 +554,12 @@
     @apply bg-panel2 border border-border rounded text-fg px-1.5 py-1 font-mono text-xs w-full;
   }
   .field-row input:focus, .field-row select:focus { @apply outline-none border-accent2; }
+  /* Base text input (Notifications webhook, subscribe edit, etc). Was unstyled = browser-white. */
+  .field-input {
+    @apply bg-panel2 border border-border rounded-md text-fg px-2 py-1.5 text-sm w-full;
+  }
+  .field-input:focus { @apply outline-none border-accent2; }
+  .field-input::placeholder { @apply text-muted; }
   .field-input.env-locked, .field-input:disabled { @apply opacity-70 cursor-not-allowed; background: #20202733; }
   .repeated-items { @apply flex flex-col gap-[3px] w-full; }
   .repeated-item { @apply flex gap-1; }
@@ -651,15 +664,16 @@
   .md-toolbar .btn-primary { @apply h-7 box-border inline-flex items-center px-3 py-0 text-xs; }
   /* Source + preview side by side on wide editors; stack on narrow ones (e.g. the Inspector Objects
      pane). Both panes are a fixed height with their own scroll, so the editor never grows unbounded. */
-  .md-panes { @apply grid; grid-template-columns: 1fr; }
-  @media (min-width: 900px) { .md-panes { grid-template-columns: 1fr 1fr; } }
+  /* Source textarea full-width (matches the toolbar above), preview stacked below in a dotted container. */
   .md-source {
-    @apply border-0 h-[240px] max-h-[50vh] p-2 bg-bg text-fg font-mono text-xs overflow-auto;
+    @apply block w-full box-border border-0 h-[240px] max-h-[50vh] p-2 bg-bg text-fg font-mono text-xs overflow-auto;
     resize: vertical; border-bottom: 1px solid theme(colors.border);
   }
-  @media (min-width: 900px) { .md-source { border-bottom: 0; border-right: 1px solid theme(colors.border); } }
   .md-source:focus { @apply outline-none; }
-  .md-preview { @apply p-2 overflow-auto text-[13px] leading-relaxed h-[240px] max-h-[50vh]; }
+  /* Preview container: the dotted "preview" look (same dashed border as the /protos dropzone). */
+  .md-preview-wrap { @apply m-2 rounded-lg bg-bg; border: 1.5px dashed theme(colors.border); }
+  .md-preview-label { @apply text-[10px] uppercase tracking-wide text-muted px-2 pt-1.5; }
+  .md-preview { @apply p-2 overflow-auto text-[13px] leading-relaxed min-h-[80px] max-h-[40vh]; }
   .md-preview .md-h1 { @apply text-lg; }
   .md-preview .md-h2 { @apply text-base; }
   .md-preview .md-h3 { @apply text-sm; }
@@ -996,8 +1010,10 @@
      behind its border (was transparent = blended into the page). */
   .reg-wrap { @apply border border-border rounded-md overflow-x-auto bg-panel; }
   .reg-table { @apply w-full border-collapse text-[13px]; }
-  .reg-table thead th {
-    @apply text-left px-3 py-2 text-muted text-xs font-semibold border-b border-border bg-panel2;
+  /* The label header row is the darkest band (bg-bg), distinct from the filter row (bg-panel2) below it,
+     so the column labels read as labels, not clickable controls. */
+  .reg-table thead tr:first-child th {
+    @apply text-left px-3 py-2 text-muted text-xs font-semibold border-b border-border bg-bg;
   }
   .reg-th-sort { @apply cursor-pointer select-none whitespace-nowrap; }
   .reg-th-sort:hover { @apply text-fg; }
@@ -1084,10 +1100,13 @@
      unchecked box stays browser-white. Reset appearance + draw our own dark box so it matches the UI in
      both states. */
   .reg-table input[type="checkbox"] {
-    @apply w-4 h-4 align-middle cursor-pointer shrink-0 rounded-sm border border-border bg-panel2 relative;
+    @apply w-4 h-4 align-middle cursor-pointer shrink-0 rounded-sm border border-border bg-bg relative;
     -webkit-appearance: none;
     appearance: none;
   }
+  /* Row hover is bg-panel2, so the checkbox keeps a bg-bg fill + a brighter border on row-hover to stay
+     visible against it. */
+  .reg-row:hover input[type="checkbox"]:not(:checked) { @apply border-accent2/60; }
   .reg-table input[type="checkbox"]:hover { @apply border-accent2; }
   .reg-table input[type="checkbox"]:checked { @apply bg-accent border-accent; }
   .reg-table input[type="checkbox"]:checked::after {
@@ -1140,6 +1159,7 @@
   .sub-done { @apply flex items-start gap-3 border border-ok/40 bg-ok/10 rounded-md p-3; }
   .sub-done-icon { @apply text-ok shrink-0 mt-0.5; }
   .sub-manage { @apply mt-0; }
+  .sub-login-note { @apply border border-border bg-panel2 rounded-md p-3; }
   /* Subscription manager = a stacked card list (no wide table that clips out of the modal). */
   .sub-list { @apply flex flex-col gap-2; }
   .sub-item { @apply border border-border rounded-md bg-panel2 p-2.5 flex flex-col gap-1.5; }
