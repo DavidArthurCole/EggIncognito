@@ -84,6 +84,28 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         return Ok(new { deleted = true });
     }
 
+    // Re-send a test message to an existing subscription's webhook (owner-gated). The client never holds the
+    // full URL (it is masked), so the test must run server-side from the stored target.
+    [HttpPost("{id:int}/test")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Test(int id, CancellationToken ct)
+    {
+        var owner = DiscordId;
+        if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
+        if (Store is null) return StatusCode(503, new { error = "no database configured" });
+
+        var sub = (await Store.ByOwnerAsync(owner, ct)).FirstOrDefault(s => s.Id == id);
+        if (sub is null) return NotFound(new { error = "subscription not found" });
+
+        var http = httpFactory.CreateClient("discord-api");
+        var res = await http.PostAsync(sub.TargetUrl,
+            new StringContent("""{"content":"EggIncognito proto feed test."}""",
+                System.Text.Encoding.UTF8, "application/json"), ct);
+        if (!res.IsSuccessStatusCode)
+            return BadRequest(new { error = "webhook rejected the test message" });
+        return Ok(new { tested = true });
+    }
+
     public sealed record UpdateReq(string[]? Platforms, string? Trigger, bool? Active);
 
     // Owner-gated edit of a subscription's platforms / trigger / active state (not the webhook URL). Mirrors

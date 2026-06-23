@@ -9,6 +9,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
 
+<div class="sub-section-head">New subscription</div>
 <p class="text-muted text-sm mb-4">
   Get a Discord notification when the registry sees a new game build. Paste a channel webhook URL,
   pick what you want, and we send a test message on save.
@@ -68,8 +69,10 @@ else
   </div>
 }
 
+<hr class="settings-divider my-5" />
+
 <div class="sub-manage">
-  <h3 class="text-sm font-semibold mt-0 mb-2">Your subscriptions</h3>
+  <div class="sub-section-head mb-2">Your subscriptions</div>
   @if (!_isAuthed)
   {
     <p class="text-muted text-sm m-0">Log in to manage your subscriptions.</p>
@@ -85,59 +88,51 @@ else
   else
   {
     @if (_deleted) { <p class="text-muted text-sm mb-2">Subscription deleted.</p> }
-    <table class="sub-table">
-      <thead>
-        <tr>
-          <th>Webhook</th><th>Platforms</th><th>Trigger</th><th>State</th><th>Last</th><th>Fails</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @foreach (var s in _subs)
-        {
+    @if (_testMsg is not null) { <p class="text-sm mb-2 @(_testOk ? "text-green-400" : "text-err")">@_testMsg</p> }
+    <div class="sub-list">
+      @foreach (var s in _subs)
+      {
+        <div class="sub-item">
+          <div class="sub-item-hook">
+            <span class="font-mono text-xs truncate" title="@s.UrlMasked">@s.UrlMasked</span>
+            @if (!string.IsNullOrWhiteSpace(s.Label)) { <span class="text-muted text-xs">(@s.Label)</span> }
+          </div>
           @if (_editId == s.Id)
           {
-            <tr class="sub-row-edit">
-              <td class="sub-hook"><span class="font-mono text-xs">@s.UrlMasked</span></td>
-              <td>
-                <label class="settings-check"><input type="checkbox" @bind="_editAndroid" /> A</label>
-                <label class="settings-check"><input type="checkbox" @bind="_editIos" /> i</label>
-              </td>
-              <td>
-                <select class="field-input" @bind="_editTrigger">
-                  <option value="proto_changed">proto changed</option>
-                  <option value="new_version">any new</option>
-                </select>
-              </td>
-              <td><label class="settings-check"><input type="checkbox" @bind="_editActive" /> active</label></td>
-              <td class="text-muted">@(s.LastDeliveryAt?.ToString("MM-dd HH:mm") ?? "never")</td>
-              <td>@s.FailCount</td>
-              <td class="whitespace-nowrap">
+            <div class="sub-item-edit">
+              <div class="sub-checks-row">
+                <label class="settings-check"><input type="checkbox" @bind="_editAndroid" /> Android</label>
+                <label class="settings-check"><input type="checkbox" @bind="_editIos" /> iOS</label>
+                <label class="settings-check"><input type="checkbox" @bind="_editActive" /> active</label>
+              </div>
+              <select class="field-input" @bind="_editTrigger">
+                <option value="proto_changed">proto changed</option>
+                <option value="new_version">any new version</option>
+              </select>
+              <div class="sub-item-actions">
                 <button type="button" class="btn-mini" disabled="@_saving" @onclick="() => SaveEdit(s.Id)">Save</button>
-                <button type="button" class="btn-mini ml-1" disabled="@_saving" @onclick="CancelEdit">Cancel</button>
-              </td>
-            </tr>
+                <button type="button" class="btn-mini" disabled="@_saving" @onclick="CancelEdit">Cancel</button>
+              </div>
+            </div>
           }
           else
           {
-            <tr>
-              <td class="sub-hook" title="@s.UrlMasked">
-                <span class="font-mono text-xs">@s.UrlMasked</span>
-                @if (!string.IsNullOrWhiteSpace(s.Label)) { <span class="text-muted text-xs ml-1">(@s.Label)</span> }
-              </td>
-              <td>@string.Join(", ", s.Platforms)</td>
-              <td>@TriggerLabel(s.Trigger)</td>
-              <td>@(s.Active ? "active" : "paused")</td>
-              <td class="text-muted">@(s.LastDeliveryAt?.ToString("MM-dd HH:mm") ?? "never")</td>
-              <td>@s.FailCount</td>
-              <td class="whitespace-nowrap">
-                <button type="button" class="btn-mini" disabled="@(_deleting || _saving)" @onclick="() => StartEdit(s)">Edit</button>
-                <button type="button" class="btn-mini ml-1" disabled="@(_deleting || _saving)" @onclick="() => DeleteSub(s.Id)">Delete</button>
-              </td>
-            </tr>
+            <div class="sub-item-meta">
+              <span>@string.Join(", ", s.Platforms)</span>
+              <span class="text-muted">@TriggerLabel(s.Trigger)</span>
+              <span class="@(s.Active ? "text-green-400" : "text-muted")">@(s.Active ? "active" : "paused")</span>
+              <span class="text-muted">last @(s.LastDeliveryAt?.ToString("MM-dd HH:mm") ?? "never")</span>
+              @if (s.FailCount > 0) { <span class="text-err">@s.FailCount fails</span> }
+            </div>
+            <div class="sub-item-actions">
+              <button type="button" class="btn-mini" disabled="@_busyRow" @onclick="() => TestSub(s.Id)">Test</button>
+              <button type="button" class="btn-mini" disabled="@_busyRow" @onclick="() => StartEdit(s)">Edit</button>
+              <button type="button" class="btn-mini" disabled="@_busyRow" @onclick="() => DeleteSub(s.Id)">Delete</button>
+            </div>
           }
-        }
-      </tbody>
-    </table>
+        </div>
+      }
+    </div>
   }
 </div>
 
@@ -159,6 +154,10 @@ else
     List<Sub>? _subs;
     bool _deleting;
     bool _deleted;
+    bool _testing;
+    bool _busyRow => _deleting || _saving || _testing;
+    string? _testMsg;
+    bool _testOk;
 
     int? _editId;
     bool _editAndroid;
@@ -221,6 +220,20 @@ else
         }
         catch { }
         _saving = false;
+    }
+
+    async Task TestSub(int id)
+    {
+        _testing = true;
+        _testMsg = null;
+        try
+        {
+            var res = await Client().PostAsync($"/api/protos/feed/{id}/test", null);
+            _testOk = res.IsSuccessStatusCode;
+            _testMsg = _testOk ? "Test message sent." : "Webhook rejected the test.";
+        }
+        catch { _testOk = false; _testMsg = "Test failed."; }
+        _testing = false;
     }
 
     async Task DeleteSub(int id)

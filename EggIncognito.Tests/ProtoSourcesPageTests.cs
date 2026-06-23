@@ -10,15 +10,15 @@ public class ProtoSourcesPageTests : IClassFixture<WebApplicationFactory<Program
     public ProtoSourcesPageTests(WebApplicationFactory<Program> f) =>
         _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
 
+    // Sources is now a modal overlay on /protos; the legacy /protos/sources route redirects there. The
+    // redirect page must still respond 200 (client-side NavigateTo), not 404. The attribution content
+    // itself is covered by ProtosPageTests.Component.SourcesPanel_RendersAttribution.
     [Fact]
-    public async Task Sources_Page_Renders()
+    public async Task SourcesRoute_StillResponds()
     {
         var c = _f.CreateClient();
         var r = await c.GetAsync("/protos/sources");
         Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
-        var html = await r.Content.ReadAsStringAsync();
-        Assert.Contains("Proto sources", html);
-        Assert.Contains("elgranjero/EggIncProtos", html);
     }
 
     [Fact]

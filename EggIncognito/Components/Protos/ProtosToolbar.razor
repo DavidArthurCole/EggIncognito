@@ -9,9 +9,10 @@
           @onclick="@(() => OnSubscribe.InvokeAsync())">
     <Icon Name="bell" />
   </button>
-  <a class="icon-btn" href="/protos/sources" title="Sources" aria-label="Sources">
+  <button type="button" class="icon-btn" title="Sources" aria-label="Sources"
+          @onclick="@(() => OnSources.InvokeAsync())">
     <Icon Name="info" />
-  </a>
+  </button>
 
   @if (IsAdmin)
   {
@@ -35,6 +36,7 @@
     [Parameter] public bool IsAdmin { get; set; }
     [Parameter] public EventCallback<string> OnTrigger { get; set; }
     [Parameter] public EventCallback OnSubscribe { get; set; }
+    [Parameter] public EventCallback OnSources { get; set; }
 
     bool _open;
 

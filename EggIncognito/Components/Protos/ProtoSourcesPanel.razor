@@ -1,0 +1,106 @@
+@* Proto-sources attribution, rendered inside the /protos modal overlay (the modal owns the chrome).
+   Counts are live registry-row totals per source; list sources feed the discovery queue, not the
+   build-keyed registry. *@
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+<p class="text-muted text-sm mb-4">
+  Where the registry's proto definitions and version metadata come from. Counts are live registry-row
+  totals per source; list sources feed the discovery queue, not the build-keyed registry.
+</p>
+
+<div class="src-grid">
+  @foreach (var s in Sources)
+  {
+    <section class="panel src-card">
+      <div class="src-head">
+        <h2 class="text-base mt-0 mb-0">@s.Name</h2>
+        @if (s.HasCount)
+        {
+          <span class="code-chip">@Count(s.CountKey) versions</span>
+        }
+        else
+        {
+          <span class="pill">discovery</span>
+        }
+      </div>
+      <p class="src-role">@s.Role</p>
+      @if (s.Link is not null)
+      {
+        <a class="proto-version" href="@s.Link" target="_blank" rel="noopener noreferrer">@s.LinkLabel</a>
+      }
+      @if (s.License is not null)
+      {
+        <div class="text-muted text-xs mt-1">@s.License</div>
+      }
+    </section>
+  }
+</div>
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    static readonly SourceInfo[] Sources =
+    [
+        new("Device farm", "farm", true,
+            "First-party live source. Real Egg, Inc. builds extracted on device; the authoritative proto text.",
+            null, null, null),
+        new("elgranjero / EggIncProtos", "elgranjero", true,
+            "Community historical timeline: one commit per build with its ei.proto. The substantive backfill.",
+            "https://github.com/elgranjero/EggIncProtos", "github.com/elgranjero/EggIncProtos",
+            "Licensed GPL-2.0; credited per its terms."),
+        new("APKPure", "apkpure", true,
+            "Android version list and the APK download feeding the per-APK proto extract path.",
+            "https://apkpure.com/egg-inc/com.auxbrain.egginc/versions", "apkpure.com/egg-inc", null),
+        new("Fandom wiki", "fandom", false,
+            "Version_History via the MediaWiki API. Primary list source; carries changelog text.",
+            "https://egg-inc.fandom.com/wiki/Version_History", "egg-inc.fandom.com", null),
+        new("Uptodown", "uptodown", false,
+            "Android version list mirror. Backup discovery source for appVersion + release date.",
+            "https://egg-inc.en.uptodown.com/android/versions", "egg-inc.en.uptodown.com", null),
+        new("App Store (iTunes)", "itunes", false,
+            "Current iOS version metadata via the iTunes lookup API. Real iOS history arrives via the device farm.",
+            null, null, null),
+    ];
+
+    Dictionary<string, int> _counts = new();
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override Task OnInitializedAsync() => Load();
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task Load()
+    {
+        try
+        {
+            _counts = await Client().GetFromJsonAsync<Dictionary<string, int>>("/api/protos/sources", JsonOpts) ?? new();
+        }
+        catch { _counts = new(); }
+    }
+
+    int Count(string source) => _counts.TryGetValue(source, out var n) ? n : 0;
+
+    record SourceInfo(string Name, string CountKey, bool HasCount, string Role,
+        string? Link, string? LinkLabel, string? License);
+}

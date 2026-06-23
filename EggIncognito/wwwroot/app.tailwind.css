@@ -86,7 +86,8 @@
            inline-flex items-center justify-center p-0 no-underline text-[15px];
     line-height: 1;
   }
-  .icon-btn:hover { @apply border-accent2; }
+  .icon-btn:hover:not(:disabled) { @apply border-accent2; }
+  .icon-btn:disabled { @apply cursor-not-allowed opacity-40; }
   .icon-btn.active { @apply border-accent text-accent; }
   /* Capture toggle: green play (start), red pause (stop). The icon inherits currentColor. */
   .icon-btn.capture-start { @apply border-ok text-ok; }
@@ -1024,18 +1025,21 @@
   .modal-body { @apply px-5 py-4 overflow-x-auto; }
 
   /* Subscribe panel (roomier than the old squished page). */
+  .sub-section-head { @apply text-sm font-semibold text-fg; }
   .sub-form { @apply flex flex-col gap-4; }
   .sub-field { @apply flex flex-col gap-1; }
   .sub-field-label { @apply text-muted text-sm; }
   .sub-grid { @apply grid grid-cols-1 sm:grid-cols-2 gap-4; }
   .sub-checks { @apply flex flex-col gap-1; }
+  .sub-checks-row { @apply flex flex-wrap items-center gap-x-4 gap-y-1; }
   .sub-done { @apply flex items-start gap-3 border border-ok/40 bg-ok/10 rounded-md p-3; }
   .sub-done-icon { @apply text-ok shrink-0 mt-0.5; }
-  .sub-manage { @apply mt-6 pt-4 border-t border-border; }
-  .sub-table { @apply w-full text-sm border-collapse; }
-  .sub-table thead th { @apply text-left font-normal text-muted text-xs pb-1 px-2 whitespace-nowrap; }
-  .sub-table tbody td { @apply px-2 py-1.5 border-t border-border align-middle; }
-  /* The webhook cell can be long; cap + ellipsis it so the table never forces the modal wider. */
-  .sub-table .sub-hook { @apply max-w-[180px] truncate; }
-  .sub-row-edit { @apply bg-panel2; }
+  .sub-manage { @apply mt-0; }
+  /* Subscription manager = a stacked card list (no wide table that clips out of the modal). */
+  .sub-list { @apply flex flex-col gap-2; }
+  .sub-item { @apply border border-border rounded-md bg-panel2 p-2.5 flex flex-col gap-1.5; }
+  .sub-item-hook { @apply flex items-center gap-2 min-w-0; }
+  .sub-item-meta { @apply flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs; }
+  .sub-item-edit { @apply flex flex-col gap-2; }
+  .sub-item-actions { @apply flex flex-wrap gap-1.5; }
 }

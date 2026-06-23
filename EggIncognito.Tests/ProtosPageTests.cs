@@ -35,17 +35,15 @@ public class ProtosPageTests
             Assert.DoesNotContain("id=\"backfillPanel\"", html);
         }
 
+        // Subscribe + Sources are modal overlays on /protos now; the legacy routes redirect there. The
+        // redirect page must still respond 200 (a client-side NavigateTo), not 404.
         [Fact]
-        public async Task Subscribe_Renders() =>
+        public async Task SubscribeRoute_StillResponds() =>
             Assert.Equal(System.Net.HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/subscribe")).StatusCode);
 
         [Fact]
-        public async Task Sources_Renders()
-        {
-            var html = await _f.CreateClient().GetStringAsync("/protos/sources");
-            Assert.Contains("Proto sources", html);
-            Assert.Contains("elgranjero", html);
-        }
+        public async Task SourcesRoute_StillResponds() =>
+            Assert.Equal(System.Net.HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/sources")).StatusCode);
     }
 
     // Component-level (bUnit): a faked ICurrentUser drives the admin gate. Admin renders the backfill
@@ -85,6 +83,17 @@ public class ProtosPageTests
             var cut = Render<Protos>();
             // No DB -> the load fails and degrades to the styled empty table.
             Assert.Contains("No proto versions yet.", cut.Markup);
+        }
+
+        [Fact]
+        public void SourcesPanel_RendersAttribution()
+        {
+            Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
+            Services.AddHttpClient();
+            JSInterop.Mode = JSRuntimeMode.Loose;
+            var cut = Render<EggIncognito.Components.Protos.ProtoSourcesPanel>();
+            Assert.Contains("elgranjero", cut.Markup);
+            Assert.Contains("Device farm", cut.Markup);
         }
 
         [Fact]

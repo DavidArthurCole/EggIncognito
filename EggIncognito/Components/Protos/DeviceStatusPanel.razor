@@ -42,13 +42,13 @@
                             }
                             else
                             {
-                                @* V version | B build | C client on one line; clientVersion only shown once captured *@
+                                @* version | build | client on one line; clientVersion only shown once captured *@
                                 <span class="dev-verline">
-                                    V @(d.InstalledAppVersion ?? "?")
-                                    <span class="dev-versep">|</span> B @(d.InstalledBuild ?? "?")
+                                    @(d.InstalledAppVersion ?? "?")
+                                    <span class="dev-versep">|</span> @(d.InstalledBuild ?? "?")
                                     @if (_clientVersion.GetValueOrDefault(d.Id) is int cv)
                                     {
-                                        <span class="dev-versep">|</span><text> C @cv</text>
+                                        <span class="dev-versep">|</span><text> @cv</text>
                                     }
                                 </span>
                             }
@@ -66,15 +66,15 @@
                     {
                         @if (d.Result == "new_version")
                         {
-                            <button class="btn-ghost-sm" disabled="@act.Busy" title="Install this version into the proto registry" @onclick="() => Save(d.Id)">
-                                <Icon Name="@(act.Busy ? "clock" : "download")" Class="icon-sm" />
+                            <button class="icon-btn icon-btn-sm" disabled="@act.Busy" title="Install this version into the proto registry" @onclick="() => Save(d.Id)">
+                                <Icon Name="@(act.Busy ? "clock" : "download")" />
                             </button>
                         }
-                        <button class="btn-ghost-sm" disabled="@act.Busy" title="Check this device's store for an update now" @onclick="() => CheckUpdate(d.Id)">
-                            <Icon Name="@(act.Busy ? "clock" : "refresh")" Class="icon-sm" />
+                        <button class="icon-btn icon-btn-sm" disabled="@act.Busy" title="Check this device's store for an update now" @onclick="() => CheckUpdate(d.Id)">
+                            <Icon Name="@(act.Busy ? "clock" : "refresh")" />
                         </button>
-                        <button class="btn-ghost-sm" disabled="@act.Busy" title="Force-restart Egg Inc to trigger an auxbrain call + capture clientVersion" @onclick="() => RestartApp(d.Id)">
-                            <Icon Name="@(act.Busy ? "clock" : "play")" Class="icon-sm" />
+                        <button class="icon-btn icon-btn-sm" disabled="@act.Busy" title="Force-restart Egg Inc to trigger an auxbrain call + capture clientVersion" @onclick="() => RestartApp(d.Id)">
+                            <Icon Name="@(act.Busy ? "clock" : "play")" />
                         </button>
                     }
                 </div>

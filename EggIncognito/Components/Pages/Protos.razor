@@ -16,7 +16,8 @@
 
 @* Controls project into the top nav (the Inspector/Capture pattern); the page body holds the console. *@
 <SectionContent SectionName="@NavSections.Toolbar">
-  <ProtosToolbar IsAdmin="_isAdmin" OnTrigger="OnTrigger" OnSubscribe="@(() => _showSubscribe = true)" />
+  <ProtosToolbar IsAdmin="_isAdmin" OnTrigger="OnTrigger"
+                 OnSubscribe="@(() => _showSubscribe = true)" OnSources="@(() => _showSources = true)" />
 </SectionContent>
 
 <main class="px-4 sm:px-8 pt-6 pb-8 max-w-7xl mx-auto w-full">
@@ -243,6 +244,24 @@
   </div>
 }
 
+@* Sources attribution modal (was its own /protos/sources page). *@
+@if (_showSources)
+{
+  <div class="modal-backdrop" @onclick="@(() => _showSources = false)">
+    <div class="modal-card" @onclick:stopPropagation="true">
+      <div class="modal-head">
+        <h2 class="modal-title">Proto sources</h2>
+        <button type="button" class="icon-btn" title="Close" aria-label="Close" @onclick="@(() => _showSources = false)">
+          <Icon Name="x" />
+        </button>
+      </div>
+      <div class="modal-body">
+        <ProtoSourcesPanel />
+      </div>
+    </div>
+  </div>
+}
+
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -255,6 +274,7 @@
     string _fClient = "";
     string _fSha = "";
     bool _showSubscribe;
+    bool _showSources;
     bool _loading = true;
     bool _isAdmin;
     bool _isContributor;
