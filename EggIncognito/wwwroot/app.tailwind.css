@@ -358,9 +358,10 @@
      our own dark control so BOTH states match the UI. Covers Notifications (subscribe), Inspector
      env/raw/debug, settings checks, etc. */
   .panel input[type="checkbox"], .panel input[type="radio"] {
-    @apply w-4 h-4 align-middle shrink-0 cursor-pointer relative border border-border bg-panel2;
+    @apply w-4 h-4 align-middle shrink-0 cursor-pointer relative bg-panel2;
     -webkit-appearance: none;
     appearance: none;
+    border: 1.5px solid #6b6b78; /* bright enough to read against the dark panel; border token is too dim */
   }
   .panel input[type="checkbox"] { @apply rounded-sm; }
   .panel input[type="radio"] { @apply rounded-full; }
@@ -1094,7 +1095,7 @@
 
   /* Registry per-column filter row (ServiceNow-style: a control under each header). The whole row reads
      as one banded toolbar (darker bg, bottom border) so the inputs sit ON it, not sunk into the table. */
-  .reg-filter-row th { @apply px-3 pt-1 pb-2 bg-panel2 border-b border-border align-middle; }
+  .reg-filter-row th { @apply px-3 py-1.5 bg-panel2 border-b border-border align-middle; }
   .reg-filter-input {
     @apply w-full bg-bg text-fg border border-border rounded px-2 py-1 text-xs font-mono;
   }
@@ -1105,25 +1106,32 @@
   }
 
   /* Pencil edit button: dark, bordered, themed (browser-default white button otherwise). */
+  /* Action buttons sit in rows whose hover bg is panel2; use the darker bg fill + a readable border so the
+     buttons stay distinct from the row-hover (they were enveloped by it at bg-panel2). */
   .reg-edit-btn {
-    @apply w-7 h-7 grid place-items-center rounded-md bg-panel2 text-muted border border-border cursor-pointer;
+    @apply w-7 h-7 grid place-items-center rounded-md bg-bg text-muted cursor-pointer no-underline;
+    border: 1px solid #4d4d59;
   }
   .reg-edit-btn:hover { @apply text-fg border-accent2; }
   .reg-edit-btn.active { @apply text-accent2 border-accent2; }
   .reg-edit-row > td { @apply bg-panel2 p-3; }
   .reg-actions { @apply flex items-center gap-1.5; }
+  /* Transient "copied" bubble (SHA copy on the version detail page). */
+  .copy-toast {
+    @apply fixed left-1/2 bottom-6 z-[1000] -translate-x-1/2 px-3 py-2 rounded-md bg-panel2 border border-border
+           text-fg text-sm;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+  }
 
   /* Dark-mode every checkbox in the registry table. accent-color only themes the CHECKED fill; the
      unchecked box stays browser-white. Reset appearance + draw our own dark box so it matches the UI in
      both states. */
   .reg-table input[type="checkbox"] {
-    @apply w-4 h-4 align-middle cursor-pointer shrink-0 rounded-sm border border-border bg-bg relative;
+    @apply w-4 h-4 align-middle cursor-pointer shrink-0 rounded-sm bg-bg relative;
     -webkit-appearance: none;
     appearance: none;
+    border: 1.5px solid #6b6b78; /* readable against both the row + row-hover backgrounds */
   }
-  /* Row hover is bg-panel2, so the checkbox keeps a bg-bg fill + a brighter border on row-hover to stay
-     visible against it. */
-  .reg-row:hover input[type="checkbox"]:not(:checked) { @apply border-accent2/60; }
   .reg-table input[type="checkbox"]:hover { @apply border-accent2; }
   .reg-table input[type="checkbox"]:checked { @apply bg-accent border-accent; }
   .reg-table input[type="checkbox"]:checked::after {

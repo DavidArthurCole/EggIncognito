@@ -46,7 +46,7 @@
     </dl>
 
     <section class="panel mb-4">
-      <h2 class="text-base mt-0 mb-2">Messages and enums</h2>
+      <h2 class="text-base mt-0 mb-2">Proto changes</h2>
       @if (_messages.Count == 0)
       {
         <p class="text-muted">No proto text stored for this version yet.</p>
@@ -65,10 +65,19 @@
       {
         <p class="proto-cmp-line">
           @_messages.Count messages.
-          <span class="proto-cmp-add">@_added.Count message@(_added.Count == 1 ? "" : "s") added</span>,
-          <span class="proto-cmp-rem">@_removed.Count removed</span>@(_lineAdds + _lineRems > 0
-            ? $", {_lineAdds + _lineRems} field change{(_lineAdds + _lineRems == 1 ? "" : "s")}" : "")
-          vs build
+          @if (HasChanges)
+          {
+            <span class="proto-cmp-add">@_added.Count message@(_added.Count == 1 ? "" : "s") added</span>
+            <text>, </text>
+            <span class="proto-cmp-rem">@_removed.Count removed</span>
+            @(_lineAdds + _lineRems > 0
+              ? $", {_lineAdds + _lineRems} field change{(_lineAdds + _lineRems == 1 ? "" : "s")}" : "")
+            <text> vs build </text>
+          }
+          else
+          {
+            <text> Identical to build </text>
+          }
           <a class="proto-version mono" href="/protos/@Platform/@Uri.EscapeDataString(_prevBuild!)">@_prevBuild</a>@(string.IsNullOrEmpty(_prevAppVersion) ? "" : $" ({_prevAppVersion})").
         </p>
 
@@ -99,7 +108,8 @@
           </div>
         }
 
-        @if (_detail.HasProto)
+        @* Only offer the diff when there is actually something different from the prior version. *@
+        @if (_detail.HasProto && HasChanges)
         {
           <button type="button" class="btn-mini mt-2 @(_showDiff ? "active" : "")" @onclick="ToggleDiff">
             @(_showDiff ? "Hide diff" : "View diff")
@@ -121,6 +131,11 @@
   }
 </main>
 
+@if (_copiedToast)
+{
+  <div class="copy-toast">Copied SHA to clipboard</div>
+}
+
 @code {
     static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
 
@@ -141,6 +156,8 @@
     // edits like a new field on an existing message, not just whole-message add/remove.
     int _lineAdds;
     int _lineRems;
+
+    bool HasChanges => _added.Count > 0 || _removed.Count > 0 || _lineAdds > 0 || _lineRems > 0;
     bool _showDiff;
     MarkupString _diffMarkup;
     bool _diffLoaded;
@@ -320,6 +337,8 @@
         return (MarkupString)sb.ToString();
     }
 
+    bool _copiedToast;
+
     async Task CopySha()
     {
         if (_detail is null || string.IsNullOrEmpty(_detail.ProtoSha)) return;
@@ -327,6 +346,11 @@
         {
             _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
             await _copy.InvokeAsync<bool>("writeText", _detail.ProtoSha);
+            _copiedToast = true;
+            StateHasChanged();
+            await Task.Delay(1800);
+            _copiedToast = false;
+            StateHasChanged();
         }
         catch { }
     }
