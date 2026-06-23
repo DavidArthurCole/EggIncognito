@@ -353,12 +353,28 @@
   .settings-select { @apply w-full h-7 mt-0.5; }
   .settings-check { @apply flex items-center gap-2 text-[13px] text-fg cursor-pointer; }
   .settings-check input { @apply cursor-pointer; }
-  /* Dark-mode all checkboxes + radios inside panels (browser-default white box/circle otherwise). The
-     accent-color themes the checked fill; pairing it with a panel2 bg + border makes the UNCHECKED state
-     dark too. Covers Notifications (subscribe), Inspector env/raw/debug, settings checks, etc. */
+  /* Dark-mode all checkboxes + radios inside panels (browser-default white box/circle otherwise).
+     accent-color only themes the CHECKED fill; the unchecked control stays white. Reset appearance + draw
+     our own dark control so BOTH states match the UI. Covers Notifications (subscribe), Inspector
+     env/raw/debug, settings checks, etc. */
   .panel input[type="checkbox"], .panel input[type="radio"] {
-    @apply w-4 h-4 align-middle shrink-0 cursor-pointer;
-    accent-color: var(--accent);
+    @apply w-4 h-4 align-middle shrink-0 cursor-pointer relative border border-border bg-panel2;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .panel input[type="checkbox"] { @apply rounded-sm; }
+  .panel input[type="radio"] { @apply rounded-full; }
+  .panel input[type="checkbox"]:hover, .panel input[type="radio"]:hover { @apply border-accent2; }
+  .panel input[type="checkbox"]:checked, .panel input[type="radio"]:checked { @apply bg-accent border-accent; }
+  .panel input[type="checkbox"]:checked::after {
+    content: "";
+    @apply absolute left-[4px] top-[1px] w-[5px] h-[9px] border-white border-b-2 border-r-2;
+    transform: rotate(45deg);
+  }
+  .panel input[type="radio"]:checked::after {
+    content: "";
+    @apply absolute left-1/2 top-1/2 w-1.5 h-1.5 rounded-full bg-white;
+    transform: translate(-50%, -50%);
   }
   .settings-out {
     @apply mt-1.5 max-h-[160px] overflow-auto whitespace-pre-wrap [word-break:break-all] bg-bg
@@ -1013,7 +1029,7 @@
   /* The label header row is the darkest band (bg-bg), distinct from the filter row (bg-panel2) below it,
      so the column labels read as labels, not clickable controls. */
   .reg-table thead tr:first-child th {
-    @apply text-left px-3 py-2 text-muted text-xs font-semibold border-b border-border bg-bg;
+    @apply text-left px-3 py-2 text-muted text-xs font-semibold border-b border-border bg-panel0;
   }
   .reg-th-sort { @apply cursor-pointer select-none whitespace-nowrap; }
   .reg-th-sort:hover { @apply text-fg; }
@@ -1095,6 +1111,7 @@
   .reg-edit-btn:hover { @apply text-fg border-accent2; }
   .reg-edit-btn.active { @apply text-accent2 border-accent2; }
   .reg-edit-row > td { @apply bg-panel2 p-3; }
+  .reg-actions { @apply flex items-center gap-1.5; }
 
   /* Dark-mode every checkbox in the registry table. accent-color only themes the CHECKED fill; the
      unchecked box stays browser-white. Reset appearance + draw our own dark box so it matches the UI in

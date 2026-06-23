@@ -16,6 +16,7 @@ module.exports = {
     extend: {
       colors: {
         bg: "#1b1b1f",
+        panel0: "#202027",
         panel: "#25252b",
         panel2: "#2e2e36",
         fg: "#e7e7ea",

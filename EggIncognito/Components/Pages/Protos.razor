@@ -93,10 +93,8 @@
             <th class="reg-th-sort" @onclick="@(() => Sort("client"))"><span>Client</span>@Caret("client")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("sha"))"><span>Proto SHA</span>@Caret("sha")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("detected"))"><span>Detected</span>@Caret("detected")</th>
-            @if (_canWrite)
-            {
-              <th class="w-10"></th>
-            }
+            @* Actions (download for all + edit for contributors) always present. *@
+            <th class="w-16"></th>
           </tr>
           @* ServiceNow-style per-column filter row: a control per column. Replaces the old platform
              segmented slider + the standalone "Filter version" box. Any active filter shows a Clear chip. *@
@@ -122,7 +120,7 @@
             <th><input class="reg-filter-input" placeholder="filter" value="@_fClient" @oninput="@(e => _fClient = e.Value?.ToString() ?? "")" /></th>
             <th><input class="reg-filter-input" placeholder="filter" value="@_fSha" @oninput="@(e => _fSha = e.Value?.ToString() ?? "")" /></th>
             <th></th>
-            @if (_canWrite) { <th></th> }
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -174,23 +172,26 @@
                 }
               </td>
               <td class="mono text-muted">@(string.IsNullOrEmpty(primary.ClientVersion) ? "-" : primary.ClientVersion)</td>
+              @* SHA is display-only here; clicking anywhere on the row (incl. this cell) opens the entry.
+                 Copy lives on the detail page next to the full SHA. *@
               <td>
-                <button type="button" class="code-chip reg-sha" title="@primary.ProtoSha"
-                        @onclick:stopPropagation="true" @onclick="@(() => Copy(primary.ProtoSha))">
-                  @Short(primary.ProtoSha)
-                </button>
+                <span class="code-chip reg-sha" title="@primary.ProtoSha">@Short(primary.ProtoSha)</span>
               </td>
               <td class="text-muted text-xs">@primary.DetectedAt.ToString("u")</td>
-              @if (_canWrite)
-              {
-                <td @onclick:stopPropagation="true">
+              <td class="reg-actions" @onclick:stopPropagation="true">
+                @* Download the version's ei.proto - visible to everyone. *@
+                <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
+                   href="@($"/api/protos/versions/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}/proto")"
+                   title="Download .proto" aria-label="Download .proto"><Icon Name="download" /></a>
+                @if (_canWrite)
+                {
                   @* pencil per release; opens an inline editor row right below this one (no scroll to top) *@
                   <button type="button" class="reg-edit-btn @(_editingKey == rel.Key ? "active" : "")"
                           title="Edit" aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
                     <Icon Name="pencil" />
                   </button>
-                </td>
-              }
+                }
+              </td>
             </tr>
             @if (_canWrite && _editingKey == rel.Key)
             {
@@ -520,7 +521,7 @@
             .ToList();
 
     // Span the inline editor row across every column: checkbox (admin) + 6 data + actions (canWrite).
-    int EditColspan => 6 + (_isAdmin ? 1 : 0) + (_canWrite ? 1 : 0);
+    int EditColspan => 6 + (_isAdmin ? 1 : 0) + 1; // 6 data + optional select (admin) + actions (always)
 
     void Navigate(string href) => _ = JS.InvokeVoidAsync("location.assign", href);
 
