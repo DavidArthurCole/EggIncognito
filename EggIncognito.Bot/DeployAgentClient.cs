@@ -1,12 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using SyncKit.Contract;
 
 namespace EggIncognito.Bot;
 
-// Result of a deploy-agent call, mirroring synckit's contract.DeployResponse wire JSON.
-// Failures (HTTP errors, timeouts, bad JSON) are mapped to Ok=false with a human Tail, so the
-// router only ever renders three shapes: up-to-date, deployed, failed.
+// Result of a deploy-agent call. Wire shape is SyncKit.Contract.DeployResponse; this is the
+// router's domain view, which adds failure mapping (HTTP errors, timeouts, bad JSON -> Ok=false
+// with a human Tail) so the router only ever renders three shapes: up-to-date, deployed, failed.
 public sealed record DeployResult(
     bool Ok, bool AlreadyUpToDate, string? Tail, string? FromHash, string? ToHash,
     string? FromUrl = null, string? ToUrl = null)
@@ -42,25 +43,17 @@ public sealed class DeployAgentClient(string url, string secret)
         catch (HttpRequestException ex) { return DeployResult.Failure($"Could not reach deploy agent: {ex.Message}"); }
     }
 
-    // Pure JSON-to-result mapping, unit-tested without HTTP.
+    // Pure JSON-to-result mapping, unit-tested without HTTP. Decodes the shared
+    // SyncKit.Contract.DeployResponse wire type, then projects to the router's DeployResult.
     public static DeployResult Parse(string json)
     {
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object)
+            var r = JsonSerializer.Deserialize<DeployResponse>(json);
+            if (r is null)
                 return DeployResult.Failure("Could not decode deploy agent response.");
-            return new DeployResult(Bool(root, "ok"), Bool(root, "alreadyUpToDate"),
-                Str(root, "tail"), Str(root, "fromHash"), Str(root, "toHash"),
-                Str(root, "fromUrl"), Str(root, "toUrl"));
+            return new DeployResult(r.Ok, r.AlreadyUpToDate, r.Tail, r.FromHash, r.ToHash, r.FromUrl, r.ToUrl);
         }
         catch (JsonException) { return DeployResult.Failure("Could not decode deploy agent response."); }
     }
-
-    private static bool Bool(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
-
-    private static string? Str(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 }
