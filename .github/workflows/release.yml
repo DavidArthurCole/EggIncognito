@@ -83,6 +83,9 @@ jobs:
         with:
           context: .
           push: true
+          # SyncKit.Contract restore inside the image needs the GitHub Packages PAT.
+          secrets: |
+            github_token=${{ secrets.PACKAGES_PAT }}
           tags: |
             ${{ steps.img.outputs.name }}:${{ github.ref_name }}
             ${{ steps.img.outputs.name }}:latest

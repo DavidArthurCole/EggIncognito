@@ -2,13 +2,25 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy csprojs first so the restore layer caches independently of source.
+# nuget.config defines the GitHub Packages source for SyncKit.Contract (consumed by the Bot).
+COPY nuget.config ./
 COPY EggIncognito.Core/EggIncognito.Core.csproj EggIncognito.Core/
 COPY EggIncognito.Capture/EggIncognito.Capture.csproj EggIncognito.Capture/
 COPY EggIncognito.Data/EggIncognito.Data.csproj EggIncognito.Data/
 COPY EggIncognito.Bot/EggIncognito.Bot.csproj EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/EggIncognito.RouteGenerator.csproj EggIncognito.RouteGenerator/
 COPY EggIncognito/EggIncognito.csproj EggIncognito/
-RUN dotnet restore EggIncognito/EggIncognito.csproj
+# Bake the GitHub Packages PAT into the copied nuget.config (the GitHub NuGet feed needs auth
+# even for public packages). Persists in this layer so the later publish re-restore is also
+# authenticated. CI passes it as the github_token build secret; locally:
+#   docker build --secret id=github_token,env=GITHUB_PACKAGES_PAT ...
+RUN --mount=type=secret,id=github_token \
+    dotnet nuget update source github \
+      --username DavidArthurCole \
+      --password "$(cat /run/secrets/github_token)" \
+      --store-password-in-clear-text \
+      --configfile nuget.config \
+    && dotnet restore EggIncognito/EggIncognito.csproj
 
 # Fetch Tailwind CLI before source COPYs so the download caches independently of source edits.
 ARG TAILWIND_VERSION=v3.4.17
