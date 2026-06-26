@@ -567,30 +567,38 @@ public sealed class DevicesController(
         if (string.IsNullOrEmpty(stem) || stem.IndexOfAny(['/', '\\', '.']) >= 0)
             return BadRequest(new { error = "invalid mesh name" });
 
-        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
         var ct = HttpContext.RequestAborted;
+        var cache = services.GetService(typeof(MeshAssetCache)) as MeshAssetCache;
 
-        byte[]? rpo = null;
-        if (device.Platform == PlatformIos)
+        // Cache-first: a precomputed (un-animated) glb skips the device pull + decode entirely. Animation is
+        // applied on top below, so one cache entry serves every animation kind.
+        var glb = cache?.TryGet(device.Platform, stem);
+        if (glb is null)
         {
-            if (IosSsh(device) is not { } ssh)
-                return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
-            rpo = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullOneRpoAsync(device.Package, stem, ct);
+            var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+            byte[]? rpo = null;
+            if (device.Platform == PlatformIos)
+            {
+                if (IosSsh(device) is not { } ssh)
+                    return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
+                rpo = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullOneRpoAsync(device.Package, stem, ct);
+            }
+            else if (device.Platform == PlatformAndroid)
+            {
+                var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+                if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
+                rpo = Services.ProtoExtract.RpoAssetLister.ReadStem(apk, stem);
+            }
+            else return StatusCode(501, new { error = $"no mesh pull for platform {device.Platform}" });
+
+            if (rpo is null) return NotFound(new { error = "mesh not found on device" });
+
+            var decode = Services.ProtoExtract.RpoMeshDecoder.Decode(rpo, stem);
+            if (!decode.Ok) return Ok(new { ok = false, diagnostics = decode.Diagnostics });
+            glb = decode.Glb!;
+            if (cache is not null) await cache.PutAsync(device.Platform, stem, glb, ct); // write-through
         }
-        else if (device.Platform == PlatformAndroid)
-        {
-            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
-            if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
-            rpo = Services.ProtoExtract.RpoAssetLister.ReadStem(apk, stem);
-        }
-        else return StatusCode(501, new { error = $"no mesh pull for platform {device.Platform}" });
 
-        if (rpo is null) return NotFound(new { error = "mesh not found on device" });
-
-        var decode = Services.ProtoExtract.RpoMeshDecoder.Decode(rpo, stem);
-        if (!decode.Ok) return Ok(new { ok = false, diagnostics = decode.Diagnostics });
-
-        var glb = decode.Glb!;
         if (!string.IsNullOrEmpty(animate))
         {
             var opts = new Services.Assets.GltfAnimator.Options(
@@ -599,6 +607,60 @@ public sealed class DevicesController(
             if (anim.Ok) glb = anim.Glb!;
         }
         return File(glb, "model/gltf-binary", $"{stem}.glb");
+    }
+
+    // Pre-computes every mesh on the device into the on-disk glb cache, so later /mesh requests serve from
+    // cache (no device round-trip, no decode). Pulls the archive ONCE (full apk / rpos tar), decodes all,
+    // writes each un-animated glb. Admin-gated. Returns the cached count + any decode failures. Needs
+    // ShipAssets:OutputDir configured (else the cache is disabled and this is a no-op).
+    [HttpPost("{id}/precache-meshes")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> PrecacheMeshes(string id)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Store;
+        if (store is null) return StatusCode(503, new { error = "no database configured" });
+        var device = await store.GetAsync(id);
+        if (device is null) return NotFound(new { error = "unknown device" });
+
+        var cache = services.GetService(typeof(MeshAssetCache)) as MeshAssetCache;
+        if (cache is null || !cache.Enabled)
+            return StatusCode(503, new { error = "mesh cache needs ShipAssets:OutputDir configured" });
+
+        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+        var ct = HttpContext.RequestAborted;
+
+        // Pull every mesh once (the same full-archive path pull-meshes uses), decode all, cache each.
+        Services.ProtoExtract.RpoAssetExtractor.ExtractResult extract;
+        if (device.Platform == PlatformAndroid)
+        {
+            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+            if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
+            extract = Services.ProtoExtract.RpoAssetExtractor.Extract(apk);
+        }
+        else if (device.Platform == PlatformIos)
+        {
+            if (IosSsh(device) is not { } ssh)
+                return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
+            var tar = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullRposTarAsync(device.Package, ct);
+            if (tar is null) return StatusCode(502, new { error = "could not pull the rpos meshes over ssh" });
+            extract = Services.ProtoExtract.RpoAssetExtractor.FromEntries(
+                Services.ProtoExtract.TarReader.Read(tar).Select(e => (e.Name, e.Bytes)));
+        }
+        else return StatusCode(501, new { error = $"no mesh pull for platform {device.Platform}" });
+
+        var cached = 0;
+        var failed = new List<string>();
+        foreach (var asset in extract.Assets)
+        {
+            if (asset.Decode.Ok && asset.Decode.Glb is { } g)
+            {
+                await cache.PutAsync(device.Platform, asset.Key, g, ct);
+                cached++;
+            }
+            else failed.Add(asset.Key);
+        }
+        return Ok(new { ok = true, platform = device.Platform, cached, failed = failed.Count, failedKeys = failed.Take(20) });
     }
 
     // Force-restart the egginc app on the device (kill + relaunch) so it makes a fresh launch request to

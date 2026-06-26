@@ -58,6 +58,28 @@ public class GltfAnimatorTests
     }
 
     [Fact]
+    public void Animate_OffCenterMesh_PivotsAtCentroid()
+    {
+        // SampleRpo verts span x[0..1], y[0..2] -> bbox center (0.5, 1, 0). After re-pivoting, the animated
+        // node sits at the centroid and the mesh moved to an offset child, so the spin is about the center.
+        var r = GltfAnimator.Animate(SampleGlb(), GltfAnimator.Options.Spin());
+        Assert.True(r.Ok, r.Diagnostics);
+
+        var model = ModelRoot.ParseGLB(r.Glb!);
+        var anim = model.LogicalAnimations[0];
+        // the animated (rotation-channel) node carries the centroid translation.
+        var rotNode = anim.Channels.First(c => c.GetRotationSampler() is not null).TargetNode;
+        var t = rotNode.LocalTransform.Translation;
+        Assert.True(System.MathF.Abs(t.X - 0.5f) < 1e-4f, $"pivot x {t.X}");
+        Assert.True(System.MathF.Abs(t.Y - 1.0f) < 1e-4f, $"pivot y {t.Y}");
+        // the mesh now lives on a child node offset by -center, so geometry world position is unchanged.
+        Assert.Null(rotNode.Mesh);
+        var child = rotNode.VisualChildren.Single();
+        Assert.NotNull(child.Mesh);
+        Assert.True(System.MathF.Abs(child.LocalTransform.Translation.X + 0.5f) < 1e-4f);
+    }
+
+    [Fact]
     public void Animate_BadInput_FailsCleanly()
     {
         var r = GltfAnimator.Animate([1, 2, 3], GltfAnimator.Options.Spin());

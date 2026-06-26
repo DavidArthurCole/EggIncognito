@@ -90,20 +90,49 @@ else
       </div>
 
       <div>
+        <div class="settings-title">Shells</div>
+        @if (_assetTypes.Count > 0)
+        {
+          <select class="reg-filter-input w-full" @bind="_shellAssetType" @bind:after="FilterShells">
+            <option value="">Asset type…</option>
+            @foreach (var a in _assetTypes)
+            {
+              <option value="@a">@a</option>
+            }
+          </select>
+          @if (_filteredShells.Count > 0)
+          {
+            <select class="reg-filter-input w-full mt-2" @bind="_selectedShell">
+              <option value="">Choose a shell…</option>
+              @foreach (var s in _filteredShells)
+              {
+                <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option>
+              }
+            </select>
+            <button class="btn-primary w-full mt-2" @onclick="LoadShell" disabled="@(_busy || string.IsNullOrEmpty(_selectedShell))">Load shell</button>
+          }
+        }
+        else
+        {
+          <div class="text-muted text-xs">No shell config stored. Ingest a config in <a class="underline" href="/admin">Admin</a>.</div>
+        }
+      </div>
+
+      <div>
         <div class="settings-title">Upload .glb</div>
         <InputFile OnChange="OnUpload" accept=".glb" class="text-xs" />
       </div>
 
       <div>
         <div class="settings-title">Animation</div>
-        <select class="reg-filter-input w-full" @bind="_kind">
+        <select class="reg-filter-input w-full" @bind="_kind" @bind:after="ReapplyAnimation">
           <option value="none">None (as-is)</option>
           <option value="SpinY">Spin (Y)</option>
           <option value="SpinZ">Spin (Z)</option>
           <option value="HoverSpin">Hover + spin</option>
         </select>
         <label class="settings-check mt-2"><span class="text-xs text-muted">Seconds</span>
-          <input type="number" min="1" max="60" step="1" class="reg-filter-input w-[70px] ml-2" @bind="_seconds" />
+          <input type="number" min="1" max="60" step="1" class="reg-filter-input w-[70px] ml-2" @bind="_seconds" @bind:after="ReapplyAnimation" />
         </label>
       </div>
 
@@ -139,6 +168,13 @@ else
     string _selectedDeviceMesh = "";
     bool _deviceMeshLoading;
 
+    const string ShellPlatform = "ios";
+    List<ShellRow> _allShells = [];
+    List<string> _assetTypes = [];
+    List<ShellRow> _filteredShells = [];
+    string _shellAssetType = "";
+    string _selectedShell = "";
+
     string _kind = "SpinY";
     int _seconds = 6;
     bool _playing = true;
@@ -171,8 +207,36 @@ else
             await _mod.InvokeVoidAsync("init", _canvas);
             await LoadShipList();
             await LoadDevices();
+            await LoadShells();
         }
         catch (Exception ex) { Fail($"3D init failed: {ex.Message}"); }
+    }
+
+    async Task LoadShells()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<ShellListResult>($"/api/shells?platform={ShellPlatform}");
+            _allShells = res?.Shells?.ToList() ?? [];
+            _assetTypes = res?.AssetTypes?.ToList() ?? [];
+        }
+        catch { _allShells = []; _assetTypes = []; }
+        StateHasChanged();
+    }
+
+    void FilterShells()
+    {
+        _selectedShell = "";
+        _filteredShells = string.IsNullOrEmpty(_shellAssetType)
+            ? []
+            : _allShells.Where(s => s.AssetType == _shellAssetType).ToList();
+        StateHasChanged();
+    }
+
+    async Task LoadShell()
+    {
+        if (string.IsNullOrEmpty(_selectedShell)) return;
+        await FetchRawAndApply($"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(_selectedShell)}/glb");
     }
 
     async Task LoadDevices()
@@ -206,8 +270,7 @@ else
     async Task LoadDeviceMesh()
     {
         if (string.IsNullOrEmpty(_selectedDevice) || string.IsNullOrEmpty(_selectedDeviceMesh)) return;
-        var q = _kind == "none" ? "" : $"?animate={_kind}&seconds={_seconds}";
-        await LoadGlbFromUrl($"/api/devices/{_selectedDevice}/mesh/{_selectedDeviceMesh}{q}");
+        await FetchRawAndApply($"/api/devices/{_selectedDevice}/mesh/{_selectedDeviceMesh}");
     }
 
     HttpClient Client()
@@ -229,11 +292,15 @@ else
         StateHasChanged();
     }
 
+    // All sources fetch the RAW (un-animated) glb and stash it in _rawGlb; the animation is applied on top
+    // (server-side animate-glb) so changing the Animation dropdown just re-applies to _rawGlb without
+    // re-fetching from the device/disk.
+    byte[]? _rawGlb;
+
     async Task LoadSelected()
     {
         if (string.IsNullOrEmpty(_selectedShip)) return;
-        var q = _kind == "none" ? "" : $"?animate={_kind}&seconds={_seconds}";
-        await LoadGlbFromUrl($"/api/ship-assets/glb/{_selectedShip}{q}");
+        await FetchRawAndApply($"/api/ship-assets/glb/{_selectedShip}");
     }
 
     async Task OnUpload(InputFileChangeEventArgs e)
@@ -241,43 +308,52 @@ else
         _busy = true; Status("Uploading…");
         try
         {
-            using var content = new MultipartFormDataContent();
-            var stream = e.File.OpenReadStream(100_000_000);
-            content.Add(new StreamContent(stream), "file", e.File.Name);
-            var path = _kind == "none"
-                ? null
-                : $"/api/tools/animate-glb?kind={_kind}&seconds={_seconds}";
-            byte[] glb;
-            if (path is null)
-            {
-                // No animation: load the uploaded bytes directly.
-                using var ms = new MemoryStream();
-                await e.File.OpenReadStream(100_000_000).CopyToAsync(ms);
-                glb = ms.ToArray();
-            }
-            else
-            {
-                var res = await Client().PostAsync(path, content);
-                if (!res.IsSuccessStatusCode) { Fail($"animate failed: HTTP {(int)res.StatusCode}"); return; }
-                glb = await res.Content.ReadAsByteArrayAsync();
-            }
-            await LoadGlbBytes(glb);
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(100_000_000).CopyToAsync(ms);
+            _rawGlb = ms.ToArray();
+            await ApplyAndRender();
         }
         catch (Exception ex) { Fail(ex.Message); }
         finally { _busy = false; }
     }
 
-    async Task LoadGlbFromUrl(string url)
+    async Task FetchRawAndApply(string rawUrl)
     {
         _busy = true; Status("Loading…");
         try
         {
-            var res = await Client().GetAsync(url);
+            var res = await Client().GetAsync(rawUrl);
             if (!res.IsSuccessStatusCode) { Fail($"load failed: HTTP {(int)res.StatusCode}"); return; }
-            await LoadGlbBytes(await res.Content.ReadAsByteArrayAsync());
+            _rawGlb = await res.Content.ReadAsByteArrayAsync();
+            await ApplyAndRender();
         }
         catch (Exception ex) { Fail(ex.Message); }
         finally { _busy = false; }
+    }
+
+    // Re-applies the current animation choice to the loaded raw glb and renders it. Triggered by the load
+    // buttons and by changing the Animation dropdown / seconds (no re-fetch needed).
+    async Task ReapplyAnimation()
+    {
+        if (_rawGlb is null) return;
+        _busy = true;
+        try { await ApplyAndRender(); }
+        finally { _busy = false; }
+    }
+
+    async Task ApplyAndRender()
+    {
+        if (_mod is null || _rawGlb is null) return;
+        var glb = _rawGlb;
+        if (_kind != "none")
+        {
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(_rawGlb), "file", "model.glb");
+            var res = await Client().PostAsync($"/api/tools/animate-glb?kind={_kind}&seconds={_seconds}", content);
+            if (res.IsSuccessStatusCode) glb = await res.Content.ReadAsByteArrayAsync();
+            else { Fail($"animate failed: HTTP {(int)res.StatusCode}"); return; }
+        }
+        await LoadGlbBytes(glb);
     }
 
     async Task LoadGlbBytes(byte[] glb)
@@ -288,7 +364,7 @@ else
         _clips = clips?.ToList() ?? [];
         _loaded = true;
         _playing = true;
-        Status(_clips.Count > 0 ? $"Loaded, playing {_clips.Count} clip(s)." : "Loaded (no animation).");
+        Status(_clips.Count > 0 ? $"Playing {_clips.Count} clip(s)." : "Loaded (no animation).");
     }
 
     async Task TogglePlay()
@@ -309,6 +385,8 @@ else
     record ListResult(string[]? Ships);
     record MeshListResult(string[]? Meshes);
     record DeviceRow(string Id, string Platform, string Label);
+    record ShellRow(string Identifier, string? Name, string AssetType, string Url, bool ModifiedGeometry);
+    record ShellListResult(bool Ok, string[]? AssetTypes, ShellRow[]? Shells);
 
     public async ValueTask DisposeAsync()
     {

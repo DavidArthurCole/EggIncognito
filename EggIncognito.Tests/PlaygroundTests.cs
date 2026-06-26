@@ -81,5 +81,38 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 
+    [Fact]
+    public async Task Config_List_Responds()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/config");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task Config_Ingest_RequiresAdmin()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.PostAsJsonAsync("/api/config/ios/ingest", new { configResponseBase64 = "" });
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task Shells_List_Responds()
+    {
+        // No config stored in the test host, so ok=false with a diagnostic, but the route + parse work.
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/shells?platform=ios");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task Precache_RequiresAdmin()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.PostAsync("/api/devices/x/precache-meshes", null);
+        Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable);
+    }
+
     private record ListResult(string[]? Ships);
 }

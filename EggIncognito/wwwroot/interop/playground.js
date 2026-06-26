@@ -41,12 +41,18 @@ export async function init(canvas) {
   // resize after the camera exists (it sets camera.aspect); the renderer is enough for the size read.
   resize();
 
-  // Lighting that shows EI's per-vertex emission (COLOR_0) without washing it out: a soft hemisphere fill
-  // plus one key light. Emission is vertex color, so it reads even in shadow.
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x404050, 1.1));
-  const key = new THREE.DirectionalLight(0xffffff, 1.4);
-  key.position.set(3, 5, 2);
-  scene.add(key);
+  // Even, multi-directional lighting so a spinning model has no swinging dark side (a single key light made
+  // faces sweep bright/dark mid-rotation, which read as moving "shadows"). Strong hemisphere ambient + four
+  // directional fills from opposing axes keep every face lit through a full turn. No shadow maps (no ground
+  // plane to receive them); EI's emission rides COLOR_0 so it reads regardless.
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3a44, 1.4));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  const dirs = [[4, 6, 4], [-4, 4, -4], [4, 2, -4], [-4, 2, 4]];
+  for (const [x, y, z] of dirs) {
+    const d = new THREE.DirectionalLight(0xffffff, 0.5);
+    d.position.set(x, y, z);
+    scene.add(d);
+  }
 
   clock = new THREE.Clock();
   window.addEventListener('resize', resize);

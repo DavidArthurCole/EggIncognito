@@ -49,6 +49,28 @@ public sealed class ShipShellDownloader(IHttpClientFactory httpFactory, ILogger<
         return results;
     }
 
+    // Downloads + decodes ONE mesh by absolute CDN url (a shell's DLCItem url). Returns the decode result;
+    // a refused host or download error yields a failed decode with a diagnostic, never throws. Used by the
+    // shell viewer to fetch any catalog shell mesh.
+    public async Task<RpoMeshDecoder.DecodeResult> DownloadAndDecodeAsync(string url, string? name, CancellationToken ct)
+    {
+        if (!IsAllowed(url))
+            return RpoMeshDecoder.Decode([], name) with { Diagnostics = $"refused: host not in CDN allowlist ({url})" };
+        try
+        {
+            var client = httpFactory.CreateClient("inspector");
+            var bytes = await client.GetByteArrayAsync(url, ct);
+            var decode = RpoMeshDecoder.Decode(bytes, name);
+            logger.LogInformation("shell mesh {Url} -> {Bytes}B, decode {Ok}", url, bytes.Length, decode.Ok);
+            return decode;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "shell mesh {Url} -> download FAILED", url);
+            return RpoMeshDecoder.Decode([], name) with { Diagnostics = ex.Message };
+        }
+    }
+
     private static bool IsAllowed(string url) =>
         Uri.TryCreate(url, UriKind.Absolute, out var u)
         && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp)

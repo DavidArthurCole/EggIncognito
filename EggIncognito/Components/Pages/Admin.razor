@@ -103,11 +103,48 @@
               Unresolved:
               @foreach (var u in _shipResult.Unresolved)
               {
-                <div>@u.EnumName — @u.Diagnostics</div>
+                <div>@u.EnumName: @u.Diagnostics</div>
               }
             </div>
           }
         </div>
+      }
+    </section>
+
+    @* Mesh cache: pre-compute every device mesh into the on-disk glb cache so the playground + API serve
+       precomputed glbs without a per-request device pull + decode. *@
+    <section class="panel mb-4">
+      <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Mesh cache</h2>
+        <span class="text-muted text-xs">precompute device meshes to glb</span>
+      </div>
+      <p class="text-muted text-xs mb-3">
+        Pulls every mesh off a device once, decodes to <code class="code-chip">.glb</code>, and caches it under
+        <code class="code-chip">ShipAssets:OutputDir/cache</code>. Later playground / API requests serve the
+        cached glb (no device round-trip). Needs an output dir configured.
+      </p>
+      @if (_devices.Count > 0)
+      {
+        <div class="flex items-center gap-2">
+          <select class="reg-filter-input w-auto" @bind="_cacheDevice">
+            <option value="">Choose a device…</option>
+            @foreach (var d in _devices)
+            {
+              <option value="@d.Id">@d.Label (@d.Platform)</option>
+            }
+          </select>
+          <button class="btn-primary" @onclick="PrecacheMeshes" disabled="@(_cacheBusy || string.IsNullOrEmpty(_cacheDevice))">
+            @(_cacheBusy ? "Caching…" : "Pre-cache meshes")
+          </button>
+        </div>
+        @if (!string.IsNullOrEmpty(_cacheResult))
+        {
+          <div class="mt-2 text-xs text-muted">@_cacheResult</div>
+        }
+      }
+      else
+      {
+        <div class="text-muted text-xs">No devices configured.</div>
       }
     </section>
 
@@ -129,6 +166,11 @@
     bool _shipBusy;
     ShipPullResult? _shipResult;
 
+    List<DeviceRow> _devices = [];
+    string _cacheDevice = "";
+    bool _cacheBusy;
+    string _cacheResult = "";
+
     // Captured in OnInitializedAsync while HttpContext is live; reused for circuit-time calls (the
     // SignalR circuit has no HttpContext, so the auth cookie must be forwarded from the request).
     string _baseAddress = "";
@@ -145,6 +187,35 @@
         }
         if (!_isAdmin) return;
         await LoadUsers();
+        await LoadDevices();
+    }
+
+    async Task LoadDevices()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<DeviceRow[]>("/api/devices/status");
+            _devices = res?.ToList() ?? [];
+        }
+        catch { _devices = []; }
+    }
+
+    async Task PrecacheMeshes()
+    {
+        if (string.IsNullOrEmpty(_cacheDevice)) return;
+        _cacheBusy = true; _cacheResult = "";
+        try
+        {
+            var res = await Client().PostAsync($"/api/devices/{_cacheDevice}/precache-meshes", null);
+            if (res.IsSuccessStatusCode)
+            {
+                var d = await res.Content.ReadFromJsonAsync<PrecacheResult>(JsonOpts);
+                _cacheResult = d is null ? "done" : $"cached {d.Cached} meshes ({d.Failed} failed) for {d.Platform}";
+            }
+            else { _cacheResult = await ReadError(res) ?? $"HTTP {(int)res.StatusCode}"; }
+        }
+        catch (Exception ex) { _cacheResult = ex.Message; }
+        finally { _cacheBusy = false; }
     }
 
     // Self-call client forwarding the captured auth cookie so the admin ACL on the controller sees the role.
@@ -255,4 +326,6 @@
     }
     record ShipRow(string EnumName, string File, string Url, string Sha256);
     record UnresolvedRow(string EnumName, string? AfxName, string Diagnostics);
+    record DeviceRow(string Id, string Platform, string Label);
+    record PrecacheResult(bool Ok, string Platform, int Cached, int Failed);
 }
