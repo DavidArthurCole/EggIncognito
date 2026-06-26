@@ -85,6 +85,7 @@ function loop() {
 // Procedural whole-group animation (spin / hover), composed on top of the group's offset. The chicken and
 // its hat share the group root, so they rotate + bob together as one rigid unit.
 function applyAnim(g) {
+  if (g.pinned) { g.root.rotation.set(0, 0, 0); g.root.position.set(0, 0, 0); return; }
   const o = g.manual || g.autoOffset;
   const period = anim.seconds > 0 ? anim.seconds : 6;
   const phase = (anim.t / period) * Math.PI * 2;
@@ -131,7 +132,8 @@ export async function addGroup(groupId, glbBase64, opts) {
     for (const clip of hat.animations) hatMixer.clipAction(clip).play();
   }
 
-  groups.set(groupId, { root, mixer, hatMixer, autoOffset: { x: 0, y: 0, z: 0 }, manual: null });
+  // pinned groups (the env backdrop) sit at world origin: no auto-offset, no procedural spin, not framed.
+  groups.set(groupId, { root, mixer, hatMixer, autoOffset: { x: 0, y: 0, z: 0 }, manual: null, pinned: !!opts.pinned });
   scene.add(root);
   relayoutGroups();
   return clipNames;
@@ -155,12 +157,14 @@ export function setGroupOffset(groupId, x, y, z) {
   applyOffset(g);
 }
 
-// Space the groups along X by the widest group's bbox so they do not overlap. Groups with a manual offset
-// keep it; only auto offsets are recomputed. Then frame the camera on everything.
+// Space the model groups along X by the widest group's bbox so they do not overlap. Pinned env groups stay
+// at world origin and are excluded from the layout. Groups with a manual offset keep it. Then frame.
 export function relayoutGroups() {
-  const list = [...groups.values()];
-  if (list.length === 0) return;
+  const all = [...groups.values()];
+  if (all.length === 0) return;
+  for (const g of all.filter(g => g.pinned)) applyOffset(g);
 
+  const list = all.filter(g => !g.pinned);
   let maxW = 0;
   for (const g of list) {
     g.root.position.set(0, 0, 0); // measure unoffset
@@ -204,10 +208,26 @@ export function setAnimation(kind, seconds) {
 
 export function resetView() { frameScene(); }
 
+// Removes every current env (pinned) group. The Razor side adds the new preset's pieces via addGroup with
+// { pinned: true } and an id of "env:<stem>".
+export function clearEnvironment() {
+  for (const id of [...groups.keys()]) if (id.startsWith('env:')) removeGroup(id);
+}
+
+// Sets the scene background to a solid color, or clears it (transparent canvas) when null/empty.
+export function setBackground(hex) {
+  if (!scene) return;
+  if (hex) { scene.background = new THREE.Color(hex); }
+  else { scene.background = null; }
+}
+
 function frameScene() {
   if (groups.size === 0) return;
+  // frame on the model groups; fall back to everything (env-only scene) so the camera still has a target.
+  const models = [...groups.values()].filter(g => !g.pinned);
+  const framed = models.length > 0 ? models : [...groups.values()];
   const box = new THREE.Box3();
-  for (const g of groups.values()) box.expandByObject(g.root);
+  for (const g of framed) box.expandByObject(g.root);
   if (box.isEmpty()) return;
   const sphere = box.getBoundingSphere(new THREE.Sphere());
   const r = sphere.radius || 1;

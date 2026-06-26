@@ -94,6 +94,56 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task EnvPresets_ReturnsPiecesAndPresets()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/env/presets");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        var json = await r.Content.ReadAsStringAsync();
+        Assert.Contains("ei_farm_ground", json);
+        Assert.Contains("\"presets\"", json);
+    }
+
+    [Fact]
+    public async Task EnvGlb_DecodesShippedFarmGround()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/env/ei_farm_ground/glb");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        Assert.Equal("model/gltf-binary", r.Content.Headers.ContentType?.MediaType);
+        var glb = await r.Content.ReadAsByteArrayAsync();
+        var model = SharpGLTF.Schema2.ModelRoot.ParseGLB(glb);
+        Assert.NotEmpty(model.LogicalMeshes);
+    }
+
+    [Fact]
+    public async Task EnvGlb_DecodesShippedHab()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/env/hab_eggtopia/glb");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        var glb = await r.Content.ReadAsByteArrayAsync();
+        Assert.NotEmpty(SharpGLTF.Schema2.ModelRoot.ParseGLB(glb).LogicalMeshes);
+    }
+
+    [Fact]
+    public async Task EnvPresets_IncludesHabs()
+    {
+        var c = _factory.CreateClient();
+        var json = await (await c.GetAsync("/api/env/presets")).Content.ReadAsStringAsync();
+        Assert.Contains("\"habs\"", json);
+        Assert.Contains("hab_eggtopia", json);
+    }
+
+    [Fact]
+    public async Task EnvGlb_UnknownStem_Is404()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/env/not_a_real_mesh/glb");
+        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+    }
+
+    [Fact]
     public async Task Config_List_Responds()
     {
         var c = _factory.CreateClient();

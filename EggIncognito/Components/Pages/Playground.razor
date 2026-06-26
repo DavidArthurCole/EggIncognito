@@ -41,6 +41,22 @@ else
           <option value="SpinZ">Spin (Z)</option>
           <option value="HoverSpin">Hover + spin</option>
         </select>
+        <label class="bg-picker" title="Background color">
+          <input type="color" @bind="_bgColor" @bind:event="oninput" @bind:after="ApplyBackground" disabled="@_bgTransparent" />
+        </label>
+        <label class="settings-check" title="Transparent background">
+          <input type="checkbox" @bind="_bgTransparent" @bind:after="ApplyBackground" /><span class="text-xs text-muted ml-1">None</span>
+        </label>
+      </div>
+      <div class="flex gap-2 mt-2 items-center flex-wrap">
+        <span class="settings-title m-0">Configuration</span>
+        <input class="reg-filter-input w-[150px]" placeholder="Name…" @bind="_configName" @bind:event="oninput" />
+        <button class="btn-secondary" @onclick="SaveConfig" disabled="@string.IsNullOrWhiteSpace(_configName)">Save</button>
+        <select class="reg-filter-input w-[160px]" @bind="_selectedConfig" @bind:after="LoadConfig">
+          <option value="">Load saved…</option>
+          @foreach (var n in _savedConfigs) { <option value="@n">@n</option> }
+        </select>
+        <button class="btn-secondary" @onclick="DeleteConfig" disabled="@string.IsNullOrEmpty(_selectedConfig)">Delete</button>
       </div>
       @if (!string.IsNullOrEmpty(_status))
       {
@@ -49,6 +65,30 @@ else
     </section>
 
     <section class="w-[320px] flex flex-col gap-3">
+      <div class="widget-card">
+        <div class="widget-head">
+          <span class="settings-title m-0">Environment</span>
+          <label class="wtoggle"><input type="checkbox" checked="@_envOn" @onchange="ToggleEnv" /><span></span></label>
+        </div>
+        <select class="reg-filter-input w-full" @bind="_envPreset" @bind:after="OnEnvPresetChanged">
+          <option value="">Backdrop preset…</option>
+          @foreach (var p in _envPresets) { <option value="@p.Id">@p.Label</option> }
+        </select>
+        <div class="text-xs text-muted">Game farm meshes, composed as a backdrop at world origin.</div>
+      </div>
+
+      <div class="widget-card">
+        <div class="widget-head">
+          <span class="settings-title m-0">Hab</span>
+          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("hab")" @onchange="@(e => Toggle("hab", e))" /><span></span></label>
+        </div>
+        <select class="reg-filter-input w-full" @bind="_selectedHab" @bind:after="@(() => OnSelectChanged("hab"))">
+          <option value="">Choose a hab…</option>
+          @foreach (var h in _habs) { <option value="@h.Stem">@h.Label</option> }
+        </select>
+        @if (_active.Contains("hab")) { @OffsetInputs("hab") }
+      </div>
+
       <div class="widget-card">
         <div class="widget-head">
           <span class="settings-title m-0">Device files</span>
@@ -150,9 +190,22 @@ else
     // per-group manual offsets, keyed by group id: [x, y, z].
     readonly Dictionary<string, float[]> _offsets = new(StringComparer.Ordinal);
 
+    List<EnvPresetRow> _envPresets = [];
+    string _envPreset = "";
+    bool _envOn;
+    List<EnvPieceRow> _habs = [];
+    string _selectedHab = "";
+
     string _kind = "none";
+    string _bgColor = "#1a1a1f";
+    bool _bgTransparent = true;
     bool _playing = true;
     bool _error;
+
+    IJSObjectReference? _store;
+    List<string> _savedConfigs = [];
+    string _configName = "";
+    string _selectedConfig = "";
     string _status = "";
     byte[]? _uploadGlb;
 
@@ -181,10 +234,14 @@ else
             // the served file's last-write ticks so it changes exactly when playground.js changes.
             _mod = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playground.js?v={InteropVersion()}");
             await _mod.InvokeVoidAsync("init", _canvas);
+            await ApplyBackground();
             await LoadShipList();
             await LoadDevices();
             await LoadShellObjects();
             await LoadShells();
+            await LoadEnvPresets();
+            _store = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundStore.js?v={InteropVersion()}");
+            await RefreshConfigList();
         }
         catch (Exception ex) { Fail($"3D init failed: {ex.Message}"); }
     }
@@ -305,6 +362,8 @@ else
                 => $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(_selectedShell)}/glb",
             "static" when !string.IsNullOrEmpty(_selectedShip)
                 => $"/api/ship-assets/glb/{_selectedShip}",
+            "hab" when !string.IsNullOrEmpty(_selectedHab)
+                => $"/api/env/{Uri.EscapeDataString(_selectedHab)}/glb",
             _ => null,
         };
         if (url is null) { Status("Pick a selection for this widget."); return null; }
@@ -321,6 +380,60 @@ else
     async Task ApplyAnimation()
     {
         if (_mod is not null) await _mod.InvokeVoidAsync("setAnimation", _kind, 6);
+    }
+
+    async Task ApplyBackground()
+    {
+        if (_mod is not null) await _mod.InvokeVoidAsync("setBackground", _bgTransparent ? null : _bgColor);
+    }
+
+    async Task LoadEnvPresets()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<EnvPresetsResult>("/api/env/presets");
+            _envPresets = res?.Presets?.ToList() ?? [];
+            _habs = res?.Habs?.ToList() ?? [];
+        }
+        catch { _envPresets = []; _habs = []; }
+        StateHasChanged();
+    }
+
+    // Toggle the env backdrop. On with a preset chosen = load it; off = clear all env groups (keep the pick).
+    async Task ToggleEnv(ChangeEventArgs e)
+    {
+        _envOn = e.Value is bool b && b;
+        if (_envOn) await LoadEnv();
+        else if (_mod is not null) await _mod.InvokeVoidAsync("clearEnvironment");
+        StateHasChanged();
+    }
+
+    async Task OnEnvPresetChanged()
+    {
+        if (_envOn) await LoadEnv();
+        else StateHasChanged();
+    }
+
+    // Compose the chosen preset: clear old env groups, then add each piece as a pinned group at world origin.
+    async Task LoadEnv()
+    {
+        if (_mod is null) return;
+        await _mod.InvokeVoidAsync("clearEnvironment");
+        var preset = _envPresets.FirstOrDefault(p => p.Id == _envPreset);
+        if (preset is null) { Status("Pick a backdrop preset."); return; }
+
+        Status("Loading environment…");
+        try
+        {
+            foreach (var stem in preset.Pieces)
+            {
+                var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
+                if (glb is null) continue;
+                await _mod.InvokeAsync<string[]>("addGroup", $"env:{stem}", Convert.ToBase64String(glb), new { pinned = true });
+            }
+            Status("");
+        }
+        catch (Exception ex) { Fail(ex.Message); }
     }
 
     async Task OnUpload(InputFileChangeEventArgs e)
@@ -415,6 +528,98 @@ else
         if (_mod is not null) await _mod.InvokeVoidAsync("resetView");
     }
 
+    async Task RefreshConfigList()
+    {
+        if (_store is null) return;
+        try { _savedConfigs = (await _store.InvokeAsync<string[]>("listConfigs"))?.ToList() ?? []; }
+        catch { _savedConfigs = []; }
+        StateHasChanged();
+    }
+
+    // The full scene state captured into a named config. Offsets are only the touched groups.
+    sealed class SceneState
+    {
+        public List<string> Active { get; set; } = [];
+        public Dictionary<string, float[]> Offsets { get; set; } = [];
+        public string Device { get; set; } = "";
+        public string DeviceMesh { get; set; } = "";
+        public string Chicken { get; set; } = "";
+        public string Hat { get; set; } = "";
+        public string ShellAssetType { get; set; } = "";
+        public string Shell { get; set; } = "";
+        public string Ship { get; set; } = "";
+        public string Hab { get; set; } = "";
+        public bool EnvOn { get; set; }
+        public string EnvPreset { get; set; } = "";
+        public string Kind { get; set; } = "none";
+        public string BgColor { get; set; } = "#1a1a1f";
+        public bool BgTransparent { get; set; } = true;
+    }
+
+    async Task SaveConfig()
+    {
+        if (_store is null || string.IsNullOrWhiteSpace(_configName)) return;
+        var state = new SceneState
+        {
+            Active = _active.ToList(),
+            Offsets = _active.ToDictionary(id => id, Off),
+            Device = _selectedDevice, DeviceMesh = _selectedDeviceMesh,
+            Chicken = _selectedChicken, Hat = _selectedHat,
+            ShellAssetType = _shellAssetType, Shell = _selectedShell,
+            Ship = _selectedShip, Hab = _selectedHab,
+            EnvOn = _envOn, EnvPreset = _envPreset,
+            Kind = _kind, BgColor = _bgColor, BgTransparent = _bgTransparent,
+        };
+        var json = System.Text.Json.JsonSerializer.Serialize(state);
+        _savedConfigs = (await _store.InvokeAsync<string[]>("saveConfig", _configName.Trim(), json))?.ToList() ?? _savedConfigs;
+        Status($"Saved \"{_configName.Trim()}\".");
+    }
+
+    // Restore a saved config: set every selection, then render the active groups + env.
+    async Task LoadConfig()
+    {
+        if (_store is null || string.IsNullOrEmpty(_selectedConfig)) return;
+        var json = await _store.InvokeAsync<string?>("getConfig", _selectedConfig);
+        if (json is null) return;
+        SceneState? s;
+        try { s = System.Text.Json.JsonSerializer.Deserialize<SceneState>(json); }
+        catch { Fail("config is corrupt"); return; }
+        if (s is null) return;
+
+        // tear down the current scene groups before rebuilding from the config.
+        foreach (var id in _active.ToList())
+            if (_mod is not null) await _mod.InvokeVoidAsync("removeGroup", id);
+        if (_mod is not null) await _mod.InvokeVoidAsync("clearEnvironment");
+        _active.Clear();
+        _offsets.Clear();
+
+        _selectedDevice = s.Device;
+        _selectedChicken = s.Chicken; _selectedHat = s.Hat;
+        _shellAssetType = s.ShellAssetType; _selectedShell = s.Shell;
+        _selectedShip = s.Ship; _selectedHab = s.Hab;
+        _kind = s.Kind; _bgColor = s.BgColor; _bgTransparent = s.BgTransparent;
+        foreach (var (id, off) in s.Offsets) _offsets[id] = off;
+        if (!string.IsNullOrEmpty(_selectedDevice)) await LoadDeviceMeshes(); // resets _selectedDeviceMesh
+        _selectedDeviceMesh = s.DeviceMesh; // restore after the mesh list reload
+        FilterShells(); // resets _selectedShell
+        _selectedShell = s.Shell;
+
+        await ApplyBackground();
+        _envOn = s.EnvOn; _envPreset = s.EnvPreset;
+        if (_envOn) await LoadEnv();
+        foreach (var id in s.Active) { _active.Add(id); await RenderGroup(id); }
+        await ApplyAnimation();
+        Status($"Loaded \"{_selectedConfig}\".");
+    }
+
+    async Task DeleteConfig()
+    {
+        if (_store is null || string.IsNullOrEmpty(_selectedConfig)) return;
+        _savedConfigs = (await _store.InvokeAsync<string[]>("deleteConfig", _selectedConfig))?.ToList() ?? _savedConfigs;
+        _selectedConfig = "";
+        StateHasChanged();
+    }
+
     void Status(string s) { _error = false; _status = s; StateHasChanged(); }
     void Fail(string s) { _error = true; _status = s; StateHasChanged(); }
 
@@ -440,6 +645,9 @@ else
         public float[] Anchor { get; init; } = Anchor ?? [];
     }
     record ShellObjResult(bool Ok, ShellObjRow[]? Objects);
+    record EnvPresetRow(string Id, string Label, string[] Pieces);
+    record EnvPieceRow(string Stem, string Label);
+    record EnvPresetsResult(EnvPresetRow[]? Presets, EnvPieceRow[]? Habs);
 
     public async ValueTask DisposeAsync()
     {
@@ -448,5 +656,6 @@ else
             try { await _mod.InvokeVoidAsync("dispose"); } catch { }
             try { await _mod.DisposeAsync(); } catch { }
         }
+        if (_store is not null) { try { await _store.DisposeAsync(); } catch { } }
     }
 }

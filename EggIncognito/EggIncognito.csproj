@@ -23,6 +23,13 @@
     <AdditionalFiles Include="RouteMap\routes.yaml" />
   </ItemGroup>
 
+  <!-- Curated farm-environment meshes carved from the app bundle (.rpo, same format as shells). Shipped
+       with the app so the /playground env renders on the hosted site (which has no device bundle). Decoded
+       to glb on demand by EnvController via RpoMeshDecoder. -->
+  <ItemGroup>
+    <Content Include="Assets\env\*.rpo" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Regenerate the dashboard type defs (wwwroot/capture/types.d.ts) from the C# records on every
        build. Replaces the old `emit-types` CLI subcommand. Runs the freshly-built assembly directly
        (dotnet "$(TargetPath)") rather than `dotnet run`, so it never re-triggers a build (no

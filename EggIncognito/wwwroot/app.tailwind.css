@@ -1234,4 +1234,6 @@
   .wtoggle span::before { @apply content-[''] absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white transition-transform; }
   .wtoggle input:checked + span { @apply bg-[color:var(--accent)]; }
   .wtoggle input:checked + span::before { @apply translate-x-4; }
+  .bg-picker input { @apply w-9 h-9 p-0 border border-border rounded-md bg-transparent cursor-pointer; }
+  .bg-picker input:disabled { @apply opacity-40 cursor-not-allowed; }
 }
