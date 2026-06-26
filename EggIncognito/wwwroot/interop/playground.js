@@ -30,7 +30,6 @@ export async function init(canvas) {
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  resize();
 
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, aspect(), 0.01, 1000);
@@ -38,6 +37,9 @@ export async function init(canvas) {
 
   controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
+
+  // resize after the camera exists (it sets camera.aspect); the renderer is enough for the size read.
+  resize();
 
   // Lighting that shows EI's per-vertex emission (COLOR_0) without washing it out: a soft hemisphere fill
   // plus one key light. Emission is vertex color, so it reads even in shadow.

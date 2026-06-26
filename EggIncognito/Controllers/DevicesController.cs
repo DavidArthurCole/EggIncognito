@@ -519,6 +519,88 @@ public sealed class DevicesController(
         return Ok(export ? MeshManifest.Ships(extract, build, false, null) : MeshManifest.From(extract));
     }
 
+    // Lists the mesh (.rpo/.rpoz) file stems available on the device, names only, no decode. Powers the 3D
+    // playground's device source picker. iOS: ssh `find` in the .app bundle (cheap). Android: pull base.apk
+    // once and list its rpo entries. Admin-gated, read-only.
+    [HttpGet("{id}/list-meshes")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> ListMeshes(string id)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Store;
+        if (store is null) return StatusCode(503, new { error = "no database configured" });
+        var device = await store.GetAsync(id);
+        if (device is null) return NotFound(new { error = "unknown device" });
+
+        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+        var ct = HttpContext.RequestAborted;
+
+        if (device.Platform == PlatformIos)
+        {
+            if (IosSsh(device) is not { } ssh)
+                return StatusCode(503, new { error = "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured" });
+            var names = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).ListRposAsync(device.Package, ct);
+            return Ok(new { meshes = names });
+        }
+        if (device.Platform == PlatformAndroid)
+        {
+            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+            if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
+            var names = Services.ProtoExtract.RpoAssetLister.ListStems(apk);
+            return Ok(new { meshes = names });
+        }
+        return StatusCode(501, new { error = $"no mesh listing for platform {device.Platform}" });
+    }
+
+    // Pulls ONE mesh by stem off the device, decodes to glTF (.glb), optionally bakes an animation
+    // (?animate=spin). Returns the glb bytes for the playground viewer. Admin-gated, read-only.
+    [HttpGet("{id}/mesh/{stem}")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Mesh(string id, string stem, [FromQuery] string? animate, [FromQuery] float seconds)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Store;
+        if (store is null) return StatusCode(503, new { error = "no database configured" });
+        var device = await store.GetAsync(id);
+        if (device is null) return NotFound(new { error = "unknown device" });
+        // Stem allowlist: file-stem chars only, no path separators or traversal.
+        if (string.IsNullOrEmpty(stem) || stem.IndexOfAny(['/', '\\', '.']) >= 0)
+            return BadRequest(new { error = "invalid mesh name" });
+
+        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+        var ct = HttpContext.RequestAborted;
+
+        byte[]? rpo = null;
+        if (device.Platform == PlatformIos)
+        {
+            if (IosSsh(device) is not { } ssh)
+                return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
+            rpo = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullOneRpoAsync(device.Package, stem, ct);
+        }
+        else if (device.Platform == PlatformAndroid)
+        {
+            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+            if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
+            rpo = Services.ProtoExtract.RpoAssetLister.ReadStem(apk, stem);
+        }
+        else return StatusCode(501, new { error = $"no mesh pull for platform {device.Platform}" });
+
+        if (rpo is null) return NotFound(new { error = "mesh not found on device" });
+
+        var decode = Services.ProtoExtract.RpoMeshDecoder.Decode(rpo, stem);
+        if (!decode.Ok) return Ok(new { ok = false, diagnostics = decode.Diagnostics });
+
+        var glb = decode.Glb!;
+        if (!string.IsNullOrEmpty(animate))
+        {
+            var opts = new Services.Assets.GltfAnimator.Options(
+                Services.Assets.GltfAnimator.ParseKind(animate), seconds > 0 ? seconds : 6f);
+            var anim = Services.Assets.GltfAnimator.Animate(glb, opts);
+            if (anim.Ok) glb = anim.Glb!;
+        }
+        return File(glb, "model/gltf-binary", $"{stem}.glb");
+    }
+
     // Force-restart the egginc app on the device (kill + relaunch) so it makes a fresh launch request to
     // auxbrain, which the capture proxy decrypts to harvest rinfo (clientVersion/build). Needed because an
     // idle/backgrounded app does not re-hit auxbrain on its own. Admin-gated; capture must be running.

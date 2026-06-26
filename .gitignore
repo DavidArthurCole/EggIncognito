@@ -2,6 +2,7 @@ bin/
 obj/
 out/
 .vs/
+.vscode/
 .idea/
 *.user
 *.suo

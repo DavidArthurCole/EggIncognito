@@ -18,14 +18,26 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
         _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
 
     [Fact]
-    public async Task Playground_Page_Renders()
+    public async Task Playground_Page_Renders_AdminGated()
     {
+        // Anonymous (no auth wired in the test host) sees the admin-required view, not the 3D canvas.
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/playground");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var html = await r.Content.ReadAsStringAsync();
-        Assert.Contains("playgroundCanvas", html);
         Assert.Contains("3D Playground", html);
+        Assert.Contains("Admin access required", html);
+        Assert.DoesNotContain("playgroundCanvas", html);
+    }
+
+    [Fact]
+    public async Task Devices_ListMeshes_RequiresAdmin()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/devices/some-device/list-meshes");
+        // Anonymous: admin gate returns 403 (or 503 when no DB), never 200 with data.
+        Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
+            $"expected 403/503, got {(int)r.StatusCode}");
     }
 
     [Fact]

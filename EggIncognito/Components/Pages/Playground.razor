@@ -4,15 +4,25 @@
 @using Microsoft.JSInterop
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
+@inject ICurrentUser User
 @inject IJSRuntime JS
 
 <PageTitle>EggIncognito - 3D Playground</PageTitle>
 
+@if (!_isAdmin)
+{
+  <main class="px-8 pt-6 pb-8 max-w-[1100px]">
+    <h1 class="text-[1.3rem] mt-0 mb-4">3D Playground</h1>
+    <div class="panel">Admin access required. <a class="auth-btn" href="/login?returnUrl=/playground">Log in</a></div>
+  </main>
+}
+else
+{
 <main class="px-8 pt-6 pb-8 max-w-[1200px]">
   <h1 class="text-[1.3rem] mt-0 mb-1">3D Playground</h1>
   <p class="text-muted text-xs mb-4">
-    Render ship meshes (glTF) and play their animations. Pick an exported ship or upload a <code class="code-chip">.glb</code>,
-    choose an animation, and it bakes + plays in the scene. Drag to orbit, scroll to zoom.
+    Load any glTF model, pull a mesh off a device, or upload a <code class="code-chip">.glb</code>, pick an
+    animation, and it bakes + plays in the scene. Drag to orbit, scroll to zoom.
   </p>
 
   <div class="flex gap-4 flex-wrap">
@@ -24,21 +34,58 @@
 
     <section class="panel w-[260px] flex flex-col gap-3">
       <div>
-        <div class="settings-title">Source</div>
+        <div class="settings-title">Exported assets</div>
         @if (_ships.Count > 0)
         {
           <select class="reg-filter-input w-full" @bind="_selectedShip">
-            <option value="">Choose a ship…</option>
+            <option value="">Choose an asset…</option>
             @foreach (var s in _ships)
             {
               <option value="@s">@s</option>
             }
           </select>
-          <button class="btn-primary w-full mt-2" @onclick="LoadSelected" disabled="@(_busy || string.IsNullOrEmpty(_selectedShip))">Load ship</button>
+          <button class="btn-primary w-full mt-2" @onclick="LoadSelected" disabled="@(_busy || string.IsNullOrEmpty(_selectedShip))">Load asset</button>
         }
         else
         {
-          <div class="text-muted text-xs">No exported ships found. Set <code class="code-chip">ShipAssets:OutputDir</code> and export ships, or upload a .glb below.</div>
+          <div class="text-muted text-xs">No exported assets found. Set <code class="code-chip">ShipAssets:OutputDir</code> and export, or pull from a device / upload a .glb below.</div>
+        }
+      </div>
+
+      <div>
+        <div class="settings-title">Device files</div>
+        @if (_devices.Count > 0)
+        {
+          <select class="reg-filter-input w-full" @bind="_selectedDevice" @bind:after="LoadDeviceMeshes">
+            <option value="">Choose a device…</option>
+            @foreach (var d in _devices)
+            {
+              <option value="@d.Id">@d.Label (@d.Platform)</option>
+            }
+          </select>
+          @if (_deviceMeshes.Count > 0)
+          {
+            <select class="reg-filter-input w-full mt-2" @bind="_selectedDeviceMesh">
+              <option value="">Choose a mesh…</option>
+              @foreach (var m in _deviceMeshes)
+              {
+                <option value="@m">@m</option>
+              }
+            </select>
+            <button class="btn-primary w-full mt-2" @onclick="LoadDeviceMesh" disabled="@(_busy || string.IsNullOrEmpty(_selectedDeviceMesh))">Load from device</button>
+          }
+          else if (_deviceMeshLoading)
+          {
+            <div class="text-muted text-xs mt-2">Listing device meshes…</div>
+          }
+          else if (!string.IsNullOrEmpty(_selectedDevice))
+          {
+            <div class="text-muted text-xs mt-2">No meshes listed (device offline or ssh/adb not configured).</div>
+          }
+        }
+        else
+        {
+          <div class="text-muted text-xs">No devices configured.</div>
         }
       </div>
 
@@ -76,13 +123,22 @@
     </section>
   </div>
 </main>
+}
 
 @code {
+    bool _isAdmin;
     ElementReference _canvas;
     IJSObjectReference? _mod;
 
     List<string> _ships = [];
     string _selectedShip = "";
+
+    List<DeviceRow> _devices = [];
+    string _selectedDevice = "";
+    List<string> _deviceMeshes = [];
+    string _selectedDeviceMesh = "";
+    bool _deviceMeshLoading;
+
     string _kind = "SpinY";
     int _seconds = 6;
     bool _playing = true;
@@ -97,6 +153,7 @@
 
     protected override void OnInitialized()
     {
+        _isAdmin = User.IsAtLeast(UserRole.Admin);
         var req = HttpContextAccessor.HttpContext?.Request;
         if (req is not null)
         {
@@ -107,14 +164,50 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (!firstRender || !_isAdmin) return; // no 3D init for the denied view (no canvas rendered)
         try
         {
             _mod = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/playground.js");
             await _mod.InvokeVoidAsync("init", _canvas);
             await LoadShipList();
+            await LoadDevices();
         }
         catch (Exception ex) { Fail($"3D init failed: {ex.Message}"); }
+    }
+
+    async Task LoadDevices()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<DeviceRow[]>("/api/devices/status");
+            _devices = res?.ToList() ?? [];
+        }
+        catch { _devices = []; }
+        StateHasChanged();
+    }
+
+    // List the meshes on the chosen device (names only). Fires when the device dropdown changes.
+    async Task LoadDeviceMeshes()
+    {
+        _deviceMeshes = [];
+        _selectedDeviceMesh = "";
+        if (string.IsNullOrEmpty(_selectedDevice)) { StateHasChanged(); return; }
+        _deviceMeshLoading = true; StateHasChanged();
+        try
+        {
+            var res = await Client().GetFromJsonAsync<MeshListResult>($"/api/devices/{_selectedDevice}/list-meshes");
+            _deviceMeshes = res?.Meshes?.ToList() ?? [];
+        }
+        catch { _deviceMeshes = []; }
+        finally { _deviceMeshLoading = false; StateHasChanged(); }
+    }
+
+    // Pull + decode + (optionally) animate one device mesh, then render it.
+    async Task LoadDeviceMesh()
+    {
+        if (string.IsNullOrEmpty(_selectedDevice) || string.IsNullOrEmpty(_selectedDeviceMesh)) return;
+        var q = _kind == "none" ? "" : $"?animate={_kind}&seconds={_seconds}";
+        await LoadGlbFromUrl($"/api/devices/{_selectedDevice}/mesh/{_selectedDeviceMesh}{q}");
     }
 
     HttpClient Client()
@@ -214,6 +307,8 @@
     void Fail(string s) { _error = true; _status = s; StateHasChanged(); }
 
     record ListResult(string[]? Ships);
+    record MeshListResult(string[]? Meshes);
+    record DeviceRow(string Id, string Platform, string Label);
 
     public async ValueTask DisposeAsync()
     {

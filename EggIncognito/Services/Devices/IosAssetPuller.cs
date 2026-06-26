@@ -49,6 +49,55 @@ public sealed class IosAssetPuller(IProcessRunner runner, string sshHost, string
         }
     }
 
+    // Lists the .rpo/.rpoz file STEMS in the bundle's rpos dir (names only, no pull). ssh stdout is text, so
+    // this is safe through the IProcessRunner seam (unlike the binary tar). Returns [] on failure.
+    public async Task<IReadOnlyList<string>> ListRposAsync(string bundleId, CancellationToken ct)
+    {
+        var r = await Ssh(
+            $"app=$(for a in /private/var/containers/Bundle/Application/*/*.app; do " +
+            $"grep -qa {Shell(bundleId)} \"$a/Info.plist\" 2>/dev/null && echo \"$a\" && break; done); " +
+            $"[ -z \"$app\" ] && exit 3; " +
+            $"find \"$app\" \\( -iname '*.rpo' -o -iname '*.rpoz' \\) -exec basename {{}} \\; 2>/dev/null | sort -u", ct);
+        if (r.ExitCode != 0) return [];
+        return r.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(StripExt).Where(s => s.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+    }
+
+    // Pulls ONE .rpo/.rpoz by stem (e.g. "ei_ship_bcr") from the bundle's rpos dir. scp keeps the bytes
+    // intact. Tries .rpo then .rpoz. Returns the raw bytes (caller decodes), or null.
+    public async Task<byte[]?> PullOneRpoAsync(string bundleId, string stem, CancellationToken ct)
+    {
+        // Resolve the absolute path on-device (basename match, either extension), then scp it back.
+        var find = await Ssh(
+            $"app=$(for a in /private/var/containers/Bundle/Application/*/*.app; do " +
+            $"grep -qa {Shell(bundleId)} \"$a/Info.plist\" 2>/dev/null && echo \"$a\" && break; done); " +
+            $"[ -z \"$app\" ] && exit 3; " +
+            $"find \"$app\" \\( -name {Shell(stem + ".rpo")} -o -name {Shell(stem + ".rpoz")} \\) 2>/dev/null | head -1", ct);
+        if (find.ExitCode != 0) return null;
+        var path = find.Stdout.Trim().Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim();
+        if (string.IsNullOrEmpty(path)) return null;
+
+        var dest = Path.Combine(Path.GetTempPath(), $"egi-rpo-{Guid.NewGuid():N}.bin");
+        try
+        {
+            var scp = await runner.RunAsync("scp",
+                ["-P", sshPort, "-i", sshKeyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+                 $"root@{sshHost}:{path}", dest], ct);
+            if (scp.ExitCode != 0 || !File.Exists(dest)) return null;
+            return await File.ReadAllBytesAsync(dest, ct);
+        }
+        finally
+        {
+            try { if (File.Exists(dest)) File.Delete(dest); } catch { /* best-effort */ }
+        }
+    }
+
+    private static string StripExt(string name)
+    {
+        var dot = name.LastIndexOf('.');
+        return dot > 0 ? name[..dot] : name;
+    }
+
     private Task<ProcessResult> Ssh(string remoteCmd, CancellationToken ct) =>
         runner.RunAsync("ssh",
             ["-p", sshPort, "-i", sshKeyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
