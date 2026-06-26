@@ -45,16 +45,40 @@ public sealed class ConfigController(
     public async Task<IActionResult> Ingest(string platform, [FromBody] IngestRequest body, CancellationToken ct)
     {
         if (RequireAdmin() is { } no) return no;
-        Ei.ConfigResponse cfg;
-        try
-        {
-            var bytes = ProtoFraming.FromBase64Loose(body.ConfigResponseBase64 ?? "");
-            var inner = ProtoFraming.TryUnwrap(bytes) ?? bytes;
-            cfg = Ei.ConfigResponse.Parser.ParseFrom(inner);
-        }
-        catch (Exception ex) { return Ok(new { ok = false, diagnostics = $"could not parse ConfigResponse: {ex.Message}" }); }
+        byte[] bytes;
+        try { bytes = ProtoFraming.FromBase64Loose(body.ConfigResponseBase64 ?? ""); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = $"not valid base64: {ex.Message}" }); }
 
+        // The pasted bytes can be: a wrapped (+compressed) AuthenticatedMessage capture, OR the already-inner
+        // ConfigResponse proto (e.g. the Inspector's inflate-step base64). Proto parsing is lenient, so a raw
+        // ConfigResponse can also "parse" as an AuthenticatedMessage into a husk (the 0-shells bug). Try every
+        // interpretation and keep the one with the richest DLCCatalog.
+        var cfg = BestConfig(bytes);
+        if (cfg is null) return Ok(new { ok = false, diagnostics = "could not parse as a ConfigResponse (wrapped or direct)" });
         return await StoreAsync(platform, cfg, ct);
+    }
+
+    // Returns the ConfigResponse interpretation with the most shells across {direct parse, unwrapped parse}.
+    // null when neither parses. Logs which won so the deploy log shows the path taken.
+    private Ei.ConfigResponse? BestConfig(byte[] bytes)
+    {
+        Ei.ConfigResponse? Try(byte[] b)
+        {
+            try { return Ei.ConfigResponse.Parser.ParseFrom(b); }
+            catch { return null; }
+        }
+        int Shells(Ei.ConfigResponse? c) => c?.DlcCatalog?.Shells.Count ?? 0;
+
+        var direct = Try(bytes);
+        Ei.ConfigResponse? unwrapped = null;
+        var inner = ProtoFraming.TryUnwrap(bytes);
+        if (inner is not null) unwrapped = Try(inner);
+
+        var best = Shells(unwrapped) > Shells(direct) ? unwrapped : direct;
+        best ??= unwrapped ?? direct;
+        logger.LogInformation("config ingest: direct={D} shells, unwrapped={U} shells -> chose {C}",
+            Shells(direct), Shells(unwrapped), ReferenceEquals(best, unwrapped) ? "unwrapped" : "direct");
+        return best;
     }
 
     public sealed record IngestJsonRequest(string Json);
@@ -68,9 +92,17 @@ public sealed class ConfigController(
     public async Task<IActionResult> IngestJson(string platform, [FromBody] IngestJsonRequest body, CancellationToken ct)
     {
         if (RequireAdmin() is { } no) return no;
+        var jsonLen = body.Json?.Length ?? 0;
+        logger.LogInformation("config ingest-json: {Platform} received {Len} chars", platform, jsonLen);
         Ei.ConfigResponse cfg;
         try { cfg = Ei.ConfigResponse.Parser.ParseJson(body.Json ?? ""); }
-        catch (Exception ex) { return Ok(new { ok = false, diagnostics = $"could not parse ConfigResponse JSON: {ex.Message}" }); }
+        catch (Exception ex)
+        {
+            logger.LogWarning("config ingest-json: {Platform} ParseJson failed: {Err}", platform, ex.Message);
+            return Ok(new { ok = false, diagnostics = $"could not parse ConfigResponse JSON ({jsonLen} chars): {ex.Message}" });
+        }
+        logger.LogInformation("config ingest-json: {Platform} parsed, dlcCatalog={Has}, shells={Shells}",
+            platform, cfg.DlcCatalog is not null, cfg.DlcCatalog?.Shells.Count ?? 0);
         return await StoreAsync(platform, cfg, ct);
     }
 

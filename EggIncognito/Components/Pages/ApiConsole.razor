@@ -24,7 +24,7 @@ else
   </p>
 
   <div class="flex gap-4 flex-wrap">
-    <section class="panel w-[340px] flex flex-col gap-2" style="max-height: 75vh; overflow:auto;">
+    <section class="panel console-list w-[340px] flex flex-col gap-2" style="max-height: 75vh; overflow:auto;">
       <input class="reg-filter-input w-full" placeholder="Filter endpoints…" @bind="_filter" @bind:event="oninput" />
       @foreach (var group in Grouped())
       {

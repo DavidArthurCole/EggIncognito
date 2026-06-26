@@ -51,6 +51,49 @@ public class ShellCatalogTests
     }
 
     [Fact]
+    public void ConfigJson_RoundTrip_PreservesDlcCatalog()
+    {
+        // The ingest-json + StoreAsync path: ParseJson(decoded json) -> JsonFormatter.Format -> ParseJson.
+        // Proves the catalog survives the round-trip (not the 0-shells regression where a husk was stored).
+        var json = ConfigJson();
+        if (json is null) return;
+
+        var cfg = ConfigResponse.Parser.ParseJson(json);
+        var shells = cfg.DlcCatalog?.Shells.Count ?? 0;
+        Assert.True(shells > 1000, $"parse lost shells: {shells}");
+
+        var reformatted = Google.Protobuf.JsonFormatter.Default.Format(cfg); // what StoreAsync writes
+        var reparsed = ConfigResponse.Parser.ParseJson(reformatted); // what a later read does
+        Assert.Equal(shells, reparsed.DlcCatalog?.Shells.Count ?? 0);
+    }
+
+    [Fact]
+    public void InnerConfigProto_DirectParse_KeepsShells_WrappedAsAuthMsgIsHusk()
+    {
+        // Models the two ingest inputs. (1) The inflate-step base64 = the inner ConfigResponse proto: a
+        // DIRECT ParseFrom must keep the shells. (2) The same bytes wrapped in an AuthenticatedMessage:
+        // a direct ParseFrom-as-ConfigResponse yields a husk (lenient proto), so the ingest must prefer the
+        // unwrapped parse. This is the 0-shells bug the best-parse ingest fixes.
+        var json = ConfigJson();
+        if (json is null) return;
+        var full = ConfigResponse.Parser.ParseJson(json);
+        var fullShells = full.DlcCatalog?.Shells.Count ?? 0;
+        Assert.True(fullShells > 1000);
+
+        var innerBytes = full.ToByteArray();
+        // (1) direct parse of the inner proto: shells survive.
+        var direct = ConfigResponse.Parser.ParseFrom(innerBytes);
+        Assert.Equal(fullShells, direct.DlcCatalog?.Shells.Count ?? 0);
+
+        // (2) wrap it; a naive ParseFrom-as-ConfigResponse of the WRAPPED bytes loses the catalog.
+        var wrapped = new Ei.AuthenticatedMessage { Message = Google.Protobuf.ByteString.CopyFrom(innerBytes) }.ToByteArray();
+        ConfigResponse husk;
+        try { husk = ConfigResponse.Parser.ParseFrom(wrapped); }
+        catch { husk = new ConfigResponse(); }
+        Assert.True((husk.DlcCatalog?.Shells.Count ?? 0) < fullShells, "wrapped bytes should not parse to the full catalog directly");
+    }
+
+    [Fact]
     public void FromCatalog_RealConfig_HasManyShells()
     {
         var json = ConfigJson();

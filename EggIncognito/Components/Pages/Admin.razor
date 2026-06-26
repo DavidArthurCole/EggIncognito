@@ -154,11 +154,12 @@
 
       <details class="mt-2">
         <summary class="text-xs text-muted cursor-pointer">Or ingest a capture (file / base64)</summary>
-        <div class="flex items-center gap-2 mt-2">
-          <InputFile OnChange="OnConfigUpload" accept=".json,.bin,.txt" class="text-xs" />
-        </div>
+        <label class="file-btn mt-2">
+          <InputFile OnChange="OnConfigUpload" accept=".json,.bin,.txt" />
+          <span>Choose file…</span>
+        </label>
         <textarea class="reg-filter-input w-full font-mono text-xs mt-2" rows="2" placeholder="…or paste base64 ConfigResponse here"
-                  @bind="_configB64"></textarea>
+                  @bind="_configB64" @bind:event="oninput"></textarea>
         <button class="btn-secondary mt-2" @onclick="IngestConfig" disabled="@(_configBusy || string.IsNullOrWhiteSpace(_configB64))">
           @(_configBusy ? "Ingesting…" : "Ingest pasted base64")
         </button>
@@ -320,8 +321,8 @@
                 new { url = "https://www.auxbrain.com/ei/get_config", formBody = built.FinalFormBody, responseType = "ConfigResponse" });
             if (!send.IsSuccessStatusCode) { ConfigStatus($"send failed: HTTP {(int)send.StatusCode}", true); return; }
             var sent = await send.Content.ReadFromJsonAsync<SendResult>(JsonOpts);
-            // Use the DECODED json (Inspector already unwrapped + decompressed the wrapped get_config response).
-            // Storing the raw wire would re-parse a wrapped/compressed body as an empty config (the 0-shells bug).
+            // Diagnostics: surface the raw + decoded sizes so a thin response is visible at the UI.
+            _log = $"send: status={sent?.Status}, rawB64={sent?.RawBase64?.Length ?? 0} chars, json={sent?.Json?.Length ?? 0} chars, error={sent?.Error ?? "(none)"}";
             if (string.IsNullOrEmpty(sent?.Json)) { ConfigStatus(sent?.Error ?? "send returned no decoded config", true); return; }
 
             ConfigStatus("Storing config…", false);
@@ -460,5 +461,5 @@
     record ConfigListResult(bool Enabled, ConfigRow[]? Configs);
     record ConfigIngestResult(bool Ok, string? Platform, int Bytes, bool HasDlcCatalog, int Shells, int ShellObjects, string? Diagnostics);
     record BuildResult(string? FinalFormBody);
-    record SendResult(string? RawBase64, string? Json, string? Error);
+    record SendResult(int Status, string? RawBase64, string? Json, string? Error);
 }
