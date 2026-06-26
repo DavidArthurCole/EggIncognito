@@ -115,29 +115,56 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
     // to that dir - the CI artifact path. build= stamps the manifest's generatedFromBuild.
     [HttpPost("export-ships")]
     [RequestSizeLimit(200_000_000)]
-    public async Task<IActionResult> ExportShips(IFormFile file, [FromQuery] string? build, [FromQuery] bool write, CancellationToken ct)
+    public async Task<IActionResult> ExportShips(IFormFile file, [FromQuery] string? build, [FromQuery] bool write,
+        [FromQuery] string? animate, [FromQuery] float seconds, CancellationToken ct)
     {
         if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
         var bytes = new byte[file.Length];
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
 
+        // animate=spin|spinz|hoverspin bakes a glTF animation into each exported ship glb; absent = static.
+        var anim = string.IsNullOrEmpty(animate) ? null
+            : new Services.Assets.GltfAnimator.Options(Services.Assets.GltfAnimator.ParseKind(animate), seconds > 0 ? seconds : 6f);
+
         var r = Services.ProtoExtract.RpoAssetExtractor.Extract(bytes);
-        var (wrote, dir) = await MaybeWriteAsync(r, build, write, ct);
-        return Ok(Services.MeshManifest.Ships(r, build, wrote, dir));
+        var (wrote, dir) = await MaybeWriteAsync(r, build, write, anim, ct);
+        return Ok(Services.MeshManifest.Ships(r, build, wrote, dir, anim));
     }
 
     // Writes the ship export to ShipAssets:OutputDir when configured + requested + writes enabled. Returns
     // (wroteToDisk, dir). Gated by CanWrite so a Hosted instance never writes to shared disk.
     private async Task<(bool, string?)> MaybeWriteAsync(
-        Services.ProtoExtract.RpoAssetExtractor.ExtractResult r, string? build, bool write, CancellationToken ct)
+        Services.ProtoExtract.RpoAssetExtractor.ExtractResult r, string? build, bool write,
+        Services.Assets.GltfAnimator.Options? animate, CancellationToken ct)
     {
         if (!write) return (false, null);
         var dir = config["ShipAssets:OutputDir"];
         if (string.IsNullOrEmpty(dir)) return (false, null);
-        var export = Services.ShipAssetExporter.Build(r, build);
+        var export = Services.ShipAssetExporter.Build(r, build, animate);
         if (export.Ships.Count == 0) return (false, null);
         await Services.ShipAssetExporter.WriteToAsync(export, dir, ct);
         return (true, dir);
+    }
+
+    // Multipart drop-zone: a .glb in, an animated .glb out. Bakes a glTF rotation/hover animation into the
+    // model (the bundled ship meshes are static; the game spins them at runtime but never shipped that as an
+    // asset). kind = SpinY (default) | SpinZ | HoverSpin; seconds = clip length. Returns the animated glb
+    // bytes directly so a viewer or the asset pipeline can use it. Pure transform, no egress, hosted-safe.
+    [HttpPost("animate-glb")]
+    [RequestSizeLimit(100_000_000)]
+    public async Task<IActionResult> AnimateGlb(IFormFile file, [FromQuery] string? kind, [FromQuery] float seconds, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { ok = false, diagnostics = "no file uploaded" });
+        var bytes = new byte[file.Length];
+        using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
+
+        var opts = new Services.Assets.GltfAnimator.Options(
+            Services.Assets.GltfAnimator.ParseKind(kind), seconds > 0 ? seconds : 6f);
+        var r = Services.Assets.GltfAnimator.Animate(bytes, opts);
+        if (!r.Ok) return Ok(new { ok = false, diagnostics = r.Diagnostics });
+
+        var name = Path.GetFileNameWithoutExtension(file.FileName) is { Length: > 0 } n ? n : "model";
+        return File(r.Glb!, "model/gltf-binary", $"{name}.{r.AnimationName}.glb");
     }
 
     private IActionResult ExtractResultJson(Services.ProtoExtract.DescriptorProtoCarver.ExtractResult r) =>

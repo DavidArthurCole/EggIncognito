@@ -63,10 +63,12 @@
         <span class="text-muted text-xs">Galeggtica, Defihent, Voyegger, Henerprise (CDN shells)</span>
       </div>
       <p class="text-muted text-xs mb-3">
-        Pulls the 4 orbital ship meshes from the live game config, decodes to glTF, and writes
-        <code class="code-chip">ships/&lt;EnumName&gt;.glb</code> to the configured output dir. Signs the
-        get_config call with the salt set in the <a class="underline" href="/inspector">Inspector</a> (this
-        browser), falling back to the server salt. The 7 bundled ships come from a device pull (Devices panel).
+        Resolves the 4 orbital ship meshes from the live game config (DLCCatalog) and writes any it finds as
+        <code class="code-chip">ships/&lt;EnumName&gt;.glb</code>. Signs get_config with the
+        <a class="underline" href="/inspector">Inspector</a> salt (this browser), falling back to the server
+        salt. Note: as of the last checked config, Auxbrain does not publish these 4 as meshes (only 2D
+        icons), so this returns 0 until a mesh source surfaces. The 7 bundled ships come from a device pull
+        (Devices panel).
       </p>
       <button class="btn-primary" @onclick="PullShipAssets" disabled="@_shipBusy">
         @(_shipBusy ? "Pulling…" : "Pull ship meshes from live")

@@ -14,6 +14,9 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
+    <!-- glTF 2.0 read/write + animation authoring (MIT). Powers the asset AnimationToolkit: load a decoded
+         .glb, inject rotation/orbit animation channels, write back. -->
+    <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
   </ItemGroup>
 
   <ItemGroup>

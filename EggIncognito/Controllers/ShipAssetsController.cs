@@ -22,6 +22,46 @@ public sealed class ShipAssetsController(
     // Where the game's config (with the DLCCatalog) lives. www host is auxbrain-allowlisted.
     private const string GetConfigUrl = "https://www.auxbrain.com/ei/get_config";
 
+    // Lists the exported ship .glb files in ShipAssets:OutputDir/ships, for the 3D playground's source picker.
+    // Empty when no output dir is configured or nothing has been exported yet. Read-only, public.
+    [HttpGet("list")]
+    public IActionResult List()
+    {
+        var dir = config["ShipAssets:OutputDir"];
+        if (string.IsNullOrEmpty(dir)) return Ok(new { ships = Array.Empty<string>() });
+        var shipsDir = Path.Combine(dir, "ships");
+        if (!Directory.Exists(shipsDir)) return Ok(new { ships = Array.Empty<string>() });
+        var ships = Directory.EnumerateFiles(shipsDir, "*.glb")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(n => !string.IsNullOrEmpty(n))
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+        return Ok(new { ships });
+    }
+
+    // Serves one exported ship .glb by enum name, optionally animated on the fly (?animate=spin). The name is
+    // a Spaceship enum member; path traversal is blocked by allowing only known enum names. Read-only, public.
+    [HttpGet("glb/{name}")]
+    public IActionResult Glb(string name, [FromQuery] string? animate, [FromQuery] float seconds)
+    {
+        if (!ShipNameMap.All.Any(s => string.Equals(s.EnumName, name, StringComparison.Ordinal)))
+            return NotFound(new { error = "unknown ship name" });
+        var dir = config["ShipAssets:OutputDir"];
+        if (string.IsNullOrEmpty(dir)) return NotFound(new { error = "no ShipAssets:OutputDir configured" });
+        var path = Path.Combine(dir, "ships", $"{name}.glb");
+        if (!System.IO.File.Exists(path)) return NotFound(new { error = "ship not exported yet" });
+
+        var bytes = System.IO.File.ReadAllBytes(path);
+        if (!string.IsNullOrEmpty(animate))
+        {
+            var opts = new Services.Assets.GltfAnimator.Options(
+                Services.Assets.GltfAnimator.ParseKind(animate), seconds > 0 ? seconds : 6f);
+            var r = Services.Assets.GltfAnimator.Animate(bytes, opts);
+            if (r.Ok) bytes = r.Glb!;
+        }
+        return File(bytes, "model/gltf-binary", $"{name}.glb");
+    }
+
     public sealed record ResolveRequest(string ConfigResponseBase64);
 
     // Manual path: caller supplies a base64 ConfigResponse (a capture or a hand-pulled get_config). Useful

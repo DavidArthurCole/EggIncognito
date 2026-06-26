@@ -339,6 +339,15 @@
   .notif-menu { @apply w-[320px]; }
   .confirm-menu { @apply w-[240px]; }
   .confirm-actions { @apply flex justify-end gap-2 mt-2.5; }
+  /* Capture controls is a narrow left-column .panel (overflow-hidden), which clipped its own popovers off
+     the left edge of the screen. Let the popovers escape the panel, and open them rightward (left-0) so the
+     240px menu drops into the page instead of off-screen. */
+  /* 3D playground canvas: fills its panel, fixed aspect-ish height, dark scene backdrop. */
+  .canvas-wrap { @apply w-full rounded-md overflow-hidden bg-bg; height: min(70vh, 640px); }
+  .canvas-wrap canvas { @apply w-full h-full block; }
+  .capture-controls { @apply overflow-visible; }
+  .capture-controls .settings-menu { @apply left-0 right-auto; transform-origin: top left; }
+  .capture-controls .settings-menu.open::before { left: 12px; right: auto; }
   .settings-title { @apply text-xs font-semibold uppercase tracking-[0.05em] text-muted mb-1; }
   .settings-title .muted { @apply normal-case tracking-normal font-normal; }
   .settings-hint { @apply text-xs text-muted mb-2.5; }

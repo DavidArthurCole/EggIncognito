@@ -37,7 +37,10 @@ public static class ShipAssetExporter
     // Filters the decoded assets to bundled ships, renames to <EnumName>.glb, builds the manifest. SkippedShips
     // = enum ships with no bundled mesh in this archive (the 4 CDN ships, or anything missing), so the caller
     // can report coverage instead of silently shipping a partial set.
-    public static Result Build(RpoAssetExtractor.ExtractResult extract, string? generatedFromBuild)
+    // animate, when set, bakes a glTF animation (e.g. SpinY) into each ship .glb before hashing/export, so
+    // consumers get a self-playing spin without client-side animation code. null = static geometry only.
+    public static Result Build(RpoAssetExtractor.ExtractResult extract, string? generatedFromBuild,
+        EggIncognito.Services.Assets.GltfAnimator.Options? animate = null)
     {
         var exported = new List<Exported>();
         var entries = new Dictionary<string, ShipEntry>(StringComparer.Ordinal);
@@ -49,6 +52,13 @@ public static class ShipAssetExporter
             if (enumName is null) continue; // not a ship (or a CDN-only ship): drop
 
             var glb = asset.Decode.Glb!;
+            // Optionally bake the animation in. A failed animate keeps the static glb rather than dropping
+            // the ship, so a toolkit hiccup never silently loses a mesh.
+            if (animate is not null)
+            {
+                var anim = EggIncognito.Services.Assets.GltfAnimator.Animate(glb, animate);
+                if (anim.Ok) glb = anim.Glb!;
+            }
             var b = asset.Decode.Bounds!;
             var entry = new ShipEntry(
                 File: $"ships/{enumName}.glb",

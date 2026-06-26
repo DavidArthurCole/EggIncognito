@@ -1,0 +1,226 @@
+@page "/playground"
+@rendermode @(RenderMode.InteractiveServer)
+@implements IAsyncDisposable
+@using Microsoft.JSInterop
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+
+<PageTitle>EggIncognito - 3D Playground</PageTitle>
+
+<main class="px-8 pt-6 pb-8 max-w-[1200px]">
+  <h1 class="text-[1.3rem] mt-0 mb-1">3D Playground</h1>
+  <p class="text-muted text-xs mb-4">
+    Render ship meshes (glTF) and play their animations. Pick an exported ship or upload a <code class="code-chip">.glb</code>,
+    choose an animation, and it bakes + plays in the scene. Drag to orbit, scroll to zoom.
+  </p>
+
+  <div class="flex gap-4 flex-wrap">
+    <section class="panel flex-1 min-w-[320px]" style="overflow: visible;">
+      <div class="canvas-wrap">
+        <canvas @ref="_canvas" id="playgroundCanvas"></canvas>
+      </div>
+    </section>
+
+    <section class="panel w-[260px] flex flex-col gap-3">
+      <div>
+        <div class="settings-title">Source</div>
+        @if (_ships.Count > 0)
+        {
+          <select class="reg-filter-input w-full" @bind="_selectedShip">
+            <option value="">Choose a ship…</option>
+            @foreach (var s in _ships)
+            {
+              <option value="@s">@s</option>
+            }
+          </select>
+          <button class="btn-primary w-full mt-2" @onclick="LoadSelected" disabled="@(_busy || string.IsNullOrEmpty(_selectedShip))">Load ship</button>
+        }
+        else
+        {
+          <div class="text-muted text-xs">No exported ships found. Set <code class="code-chip">ShipAssets:OutputDir</code> and export ships, or upload a .glb below.</div>
+        }
+      </div>
+
+      <div>
+        <div class="settings-title">Upload .glb</div>
+        <InputFile OnChange="OnUpload" accept=".glb" class="text-xs" />
+      </div>
+
+      <div>
+        <div class="settings-title">Animation</div>
+        <select class="reg-filter-input w-full" @bind="_kind">
+          <option value="none">None (as-is)</option>
+          <option value="SpinY">Spin (Y)</option>
+          <option value="SpinZ">Spin (Z)</option>
+          <option value="HoverSpin">Hover + spin</option>
+        </select>
+        <label class="settings-check mt-2"><span class="text-xs text-muted">Seconds</span>
+          <input type="number" min="1" max="60" step="1" class="reg-filter-input w-[70px] ml-2" @bind="_seconds" />
+        </label>
+      </div>
+
+      <div class="flex gap-2">
+        <button class="btn-secondary flex-1" @onclick="TogglePlay" disabled="@(!_loaded)">@(_playing ? "Pause" : "Play")</button>
+        <button class="btn-secondary flex-1" @onclick="ResetView" disabled="@(!_loaded)">Reset view</button>
+      </div>
+
+      @if (_clips.Count > 0)
+      {
+        <div class="text-xs text-muted">Clips: @string.Join(", ", _clips)</div>
+      }
+      @if (!string.IsNullOrEmpty(_status))
+      {
+        <div class="text-xs @(_error ? "err" : "text-muted")">@_status</div>
+      }
+    </section>
+  </div>
+</main>
+
+@code {
+    ElementReference _canvas;
+    IJSObjectReference? _mod;
+
+    List<string> _ships = [];
+    string _selectedShip = "";
+    string _kind = "SpinY";
+    int _seconds = 6;
+    bool _playing = true;
+    bool _loaded;
+    bool _busy;
+    bool _error;
+    string _status = "";
+    List<string> _clips = [];
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            _mod = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/playground.js");
+            await _mod.InvokeVoidAsync("init", _canvas);
+            await LoadShipList();
+        }
+        catch (Exception ex) { Fail($"3D init failed: {ex.Message}"); }
+    }
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task LoadShipList()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<ListResult>("/api/ship-assets/list");
+            _ships = res?.Ships?.ToList() ?? [];
+        }
+        catch { _ships = []; }
+        StateHasChanged();
+    }
+
+    async Task LoadSelected()
+    {
+        if (string.IsNullOrEmpty(_selectedShip)) return;
+        var q = _kind == "none" ? "" : $"?animate={_kind}&seconds={_seconds}";
+        await LoadGlbFromUrl($"/api/ship-assets/glb/{_selectedShip}{q}");
+    }
+
+    async Task OnUpload(InputFileChangeEventArgs e)
+    {
+        _busy = true; Status("Uploading…");
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            var stream = e.File.OpenReadStream(100_000_000);
+            content.Add(new StreamContent(stream), "file", e.File.Name);
+            var path = _kind == "none"
+                ? null
+                : $"/api/tools/animate-glb?kind={_kind}&seconds={_seconds}";
+            byte[] glb;
+            if (path is null)
+            {
+                // No animation: load the uploaded bytes directly.
+                using var ms = new MemoryStream();
+                await e.File.OpenReadStream(100_000_000).CopyToAsync(ms);
+                glb = ms.ToArray();
+            }
+            else
+            {
+                var res = await Client().PostAsync(path, content);
+                if (!res.IsSuccessStatusCode) { Fail($"animate failed: HTTP {(int)res.StatusCode}"); return; }
+                glb = await res.Content.ReadAsByteArrayAsync();
+            }
+            await LoadGlbBytes(glb);
+        }
+        catch (Exception ex) { Fail(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    async Task LoadGlbFromUrl(string url)
+    {
+        _busy = true; Status("Loading…");
+        try
+        {
+            var res = await Client().GetAsync(url);
+            if (!res.IsSuccessStatusCode) { Fail($"load failed: HTTP {(int)res.StatusCode}"); return; }
+            await LoadGlbBytes(await res.Content.ReadAsByteArrayAsync());
+        }
+        catch (Exception ex) { Fail(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    async Task LoadGlbBytes(byte[] glb)
+    {
+        if (_mod is null) return;
+        var b64 = Convert.ToBase64String(glb);
+        var clips = await _mod.InvokeAsync<string[]>("loadGlbBase64", b64);
+        _clips = clips?.ToList() ?? [];
+        _loaded = true;
+        _playing = true;
+        Status(_clips.Count > 0 ? $"Loaded, playing {_clips.Count} clip(s)." : "Loaded (no animation).");
+    }
+
+    async Task TogglePlay()
+    {
+        if (_mod is null) return;
+        _playing = !_playing;
+        await _mod.InvokeVoidAsync("setPlaying", _playing);
+    }
+
+    async Task ResetView()
+    {
+        if (_mod is not null) await _mod.InvokeVoidAsync("resetView");
+    }
+
+    void Status(string s) { _error = false; _status = s; StateHasChanged(); }
+    void Fail(string s) { _error = true; _status = s; StateHasChanged(); }
+
+    record ListResult(string[]? Ships);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_mod is not null)
+        {
+            try { await _mod.InvokeVoidAsync("dispose"); } catch { }
+            try { await _mod.DisposeAsync(); } catch { }
+        }
+    }
+}

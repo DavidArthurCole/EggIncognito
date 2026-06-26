@@ -108,7 +108,9 @@ public sealed class CaptureHub
             if (stored is not null) ch.Writer.TryWrite(new CaptureEnvelope(KindFlow, stored, null, null));
             if (trustNotice is not null) ch.Writer.TryWrite(new CaptureEnvelope(KindNotice, null, null, trustNotice));
         }
-        if (trustNotice is not null) BroadcastStats();
+        // A published flow changes the stats (count, bytes, endpoints, decrypt tally), so always rebroadcast
+        // them, not just on the first-trust notice. Without this the stats panel froze after the first flow.
+        if (isAuxbrain || trustNotice is not null) BroadcastStats();
 
         return stored;
     }

@@ -37,9 +37,10 @@ public static class MeshManifest
     // Ship-export shape: filters the decoded set to Spaceship enum ships (via ShipNameMap), renames to
     // <EnumName>.glb, and returns the manifest + per-ship glb base64 + the enum ships still missing a mesh
     // (the CDN-only ships). Used by the /export-ships path so EggLedger gets enum-keyed assets directly.
-    public static object Ships(RpoAssetExtractor.ExtractResult r, string? build, bool wroteToDisk, string? outputDir)
+    public static object Ships(RpoAssetExtractor.ExtractResult r, string? build, bool wroteToDisk, string? outputDir,
+        EggIncognito.Services.Assets.GltfAnimator.Options? animate = null)
     {
-        var export = ShipAssetExporter.Build(r, build);
+        var export = ShipAssetExporter.Build(r, build, animate);
         var ships = export.Ships.Select(s => new
         {
             enumName = s.EnumName,
