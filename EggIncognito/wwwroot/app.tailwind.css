@@ -342,6 +342,15 @@
   /* Capture controls is a narrow left-column .panel (overflow-hidden), which clipped its own popovers off
      the left edge of the screen. Let the popovers escape the panel, and open them rightward (left-0) so the
      240px menu drops into the page instead of off-screen. */
+  /* API console: endpoint list rows + method chips. */
+  .console-ep { @apply flex items-center gap-2 w-full text-left px-2 py-1 rounded border border-transparent text-xs hover:border-border; }
+  .console-ep.active { @apply border-accent bg-panel2; }
+  .console-route { @apply font-mono truncate; }
+  .console-method { @apply font-mono text-[10px] font-bold px-1.5 py-0.5 rounded uppercase; }
+  .console-get { @apply bg-green-900 text-green-200; }
+  .console-post { @apply bg-orange-900 text-orange-200; }
+  .console-put, .console-patch { @apply bg-blue-900 text-blue-200; }
+  .console-delete { @apply bg-red-900 text-red-200; }
   /* 3D playground canvas: fills its panel, fixed aspect-ish height, dark scene backdrop. */
   .canvas-wrap { @apply w-full rounded-md overflow-hidden bg-bg; height: min(70vh, 640px); }
   .canvas-wrap canvas { @apply w-full h-full block; }

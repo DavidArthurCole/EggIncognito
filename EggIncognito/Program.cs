@@ -79,6 +79,8 @@ builder.WebHost.ConfigureKestrel((context, opts) =>
 });
 
 builder.Services.AddControllers();
+// API explorer powers the generic API console (/console): reflects every controller endpoint into a list.
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 // Behind the reverse proxy (Cloudflare -> origin nginx) TLS is terminated at the edge, so the origin

@@ -1,0 +1,242 @@
+@page "/console"
+@rendermode @(RenderMode.InteractiveServer)
+@using Microsoft.JSInterop
+@inject ICurrentUser User
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>EggIncognito - API Console</PageTitle>
+
+@if (!_isAdmin)
+{
+  <main class="px-8 pt-6 pb-8 max-w-[1100px]">
+    <h1 class="text-[1.3rem] mt-0 mb-4">API Console</h1>
+    <div class="panel">Admin access required. <a class="auth-btn" href="/login?returnUrl=/console">Log in</a></div>
+  </main>
+}
+else
+{
+<main class="px-8 pt-6 pb-8 max-w-[1200px]">
+  <h1 class="text-[1.3rem] mt-0 mb-1">API Console</h1>
+  <p class="text-muted text-xs mb-4">
+    Invoke any internal endpoint. Pick one, fill query params / JSON body / a file, and send. Every API
+    capability is reachable here.
+  </p>
+
+  <div class="flex gap-4 flex-wrap">
+    <section class="panel w-[340px] flex flex-col gap-2" style="max-height: 75vh; overflow:auto;">
+      <input class="reg-filter-input w-full" placeholder="Filter endpoints…" @bind="_filter" @bind:event="oninput" />
+      @foreach (var e in Filtered())
+      {
+        <button class="console-ep @(_selected == e ? "active" : "")" @onclick="() => Select(e)">
+          <span class="console-method console-@(e.Method.ToLower())">@e.Method</span>
+          <span class="console-route">@e.Route</span>
+        </button>
+      }
+    </section>
+
+    <section class="panel flex-1 min-w-[360px]">
+      @if (_selected is null)
+      {
+        <div class="text-muted text-sm">Pick an endpoint on the left.</div>
+      }
+      else
+      {
+        <div class="mb-3">
+          <span class="console-method console-@(_selected.Method.ToLower())">@_selected.Method</span>
+          <span class="font-mono text-sm">@_selected.Route</span>
+        </div>
+
+        @if (_pathParams.Count > 0 || _queryParams.Count > 0)
+        {
+          <div class="settings-title">Parameters</div>
+          @foreach (var p in _selected.Query)
+          {
+            <label class="block text-xs text-muted mt-1">@p.Name <span class="opacity-60">(@p.Source, @p.Type)</span>
+              <input class="reg-filter-input w-full" @bind="_paramValues[p.Name]" />
+            </label>
+          }
+        }
+
+        @if (_selected.HasFile)
+        {
+          <div class="settings-title mt-3">File</div>
+          <InputFile OnChange="OnFile" class="text-xs" />
+          @if (_fileName is not null) { <div class="text-xs text-muted">@_fileName (@(_fileBytes?.Length ?? 0) bytes)</div> }
+        }
+
+        @if (_selected.HasBody)
+        {
+          <div class="settings-title mt-3">JSON body @(_selected.BodyType is not null ? $"({_selected.BodyType})" : "")</div>
+          <textarea class="reg-filter-input w-full font-mono text-xs" rows="6" @bind="_body" placeholder="{ }"></textarea>
+        }
+
+        <button class="btn-primary mt-3" @onclick="Send" disabled="@_busy">@(_busy ? "Sending…" : "Send")</button>
+
+        @if (_status is not null)
+        {
+          <div class="mt-3 text-xs @(_ok ? "text-muted" : "err")">@_statusLine</div>
+          @if (_isBinary)
+          {
+            <div class="text-xs text-muted mt-1">Binary response (@_respBytes bytes). <a class="underline" href="@_blobUrl" download="@_downloadName">Download</a></div>
+          }
+          else
+          {
+            <pre class="result-pre mt-1" style="max-height:40vh;overflow:auto;">@_response</pre>
+          }
+        }
+      }
+    </section>
+  </div>
+</main>
+}
+
+@code {
+    bool _isAdmin;
+    string _filter = "";
+    List<Endpoint> _endpoints = [];
+    Endpoint? _selected;
+
+    readonly Dictionary<string, string?> _paramValues = new(StringComparer.Ordinal);
+    List<ParamRow> _pathParams = [];
+    List<ParamRow> _queryParams = [];
+    string _body = "";
+    byte[]? _fileBytes;
+    string? _fileName;
+
+    bool _busy;
+    bool _ok;
+    bool _isBinary;
+    int? _status;
+    string? _statusLine;
+    string _response = "";
+    long _respBytes;
+    string? _blobUrl;
+    string? _downloadName;
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized()
+    {
+        _isAdmin = User.IsAtLeast(UserRole.Admin);
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!_isAdmin) return;
+        try
+        {
+            var res = await Client().GetFromJsonAsync<EndpointList>("/api/console/endpoints");
+            _endpoints = res?.Endpoints?.ToList() ?? [];
+        }
+        catch { _endpoints = []; }
+    }
+
+    HttpClient Client()
+    {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    IEnumerable<Endpoint> Filtered() =>
+        string.IsNullOrWhiteSpace(_filter)
+            ? _endpoints
+            : _endpoints.Where(e => e.Route.Contains(_filter, StringComparison.OrdinalIgnoreCase)
+                                    || e.Method.Contains(_filter, StringComparison.OrdinalIgnoreCase));
+
+    void Select(Endpoint e)
+    {
+        _selected = e;
+        _pathParams = e.Query.Where(p => p.Source == "Path").ToList();
+        _queryParams = e.Query.Where(p => p.Source == "Query").ToList();
+        _paramValues.Clear();
+        foreach (var p in e.Query) _paramValues[p.Name] = "";
+        _body = "";
+        _fileBytes = null; _fileName = null;
+        _status = null; _statusLine = null; _response = ""; _isBinary = false; _blobUrl = null;
+    }
+
+    async Task OnFile(InputFileChangeEventArgs e)
+    {
+        using var ms = new MemoryStream();
+        await e.File.OpenReadStream(200_000_000).CopyToAsync(ms);
+        _fileBytes = ms.ToArray();
+        _fileName = e.File.Name;
+    }
+
+    async Task Send()
+    {
+        if (_selected is null) return;
+        _busy = true; _status = null; _isBinary = false; _blobUrl = null;
+        try
+        {
+            // Substitute {path} params into the route, collect the rest as a query string.
+            var route = _selected.Route;
+            var query = new List<string>();
+            foreach (var p in _selected.Query)
+            {
+                var v = _paramValues.GetValueOrDefault(p.Name) ?? "";
+                if (p.Source == "Path") route = route.Replace($"{{{p.Name}}}", Uri.EscapeDataString(v));
+                else if (!string.IsNullOrEmpty(v)) query.Add($"{Uri.EscapeDataString(p.Name)}={Uri.EscapeDataString(v)}");
+            }
+            if (query.Count > 0) route += "?" + string.Join("&", query);
+
+            var req = new HttpRequestMessage(new HttpMethod(_selected.Method), route);
+            if (_selected.HasFile && _fileBytes is not null)
+            {
+                var mp = new MultipartFormDataContent();
+                mp.Add(new ByteArrayContent(_fileBytes), "file", _fileName ?? "file");
+                req.Content = mp;
+            }
+            else if (_selected.HasBody && !string.IsNullOrWhiteSpace(_body))
+            {
+                req.Content = new StringContent(_body, System.Text.Encoding.UTF8, "application/json");
+            }
+
+            var res = await Client().SendAsync(req);
+            _status = (int)res.StatusCode;
+            _ok = res.IsSuccessStatusCode;
+            var ctype = res.Content.Headers.ContentType?.MediaType ?? "";
+            _statusLine = $"HTTP {_status} {res.ReasonPhrase} ({ctype})";
+
+            if (ctype.StartsWith("application/json") || ctype.StartsWith("text/"))
+            {
+                _response = Pretty(await res.Content.ReadAsStringAsync());
+            }
+            else
+            {
+                // Binary (a glb, file): expose a data-url download rather than dumping bytes.
+                var bytes = await res.Content.ReadAsByteArrayAsync();
+                _respBytes = bytes.Length;
+                _isBinary = true;
+                _blobUrl = $"data:{ctype};base64,{Convert.ToBase64String(bytes)}";
+                _downloadName = res.Content.Headers.ContentDisposition?.FileName?.Trim('"') ?? "response.bin";
+            }
+        }
+        catch (Exception ex) { _ok = false; _statusLine = ex.Message; _response = ""; }
+        finally { _busy = false; }
+    }
+
+    static string Pretty(string json)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch { return json; }
+    }
+
+    record Endpoint(string Method, string Route, List<ParamRow> Query, bool HasBody, string? BodyType, bool HasFile);
+    record ParamRow(string Name, string Source, string Type, bool Required);
+    record EndpointList(int Count, Endpoint[]? Endpoints);
+}

@@ -1,0 +1,56 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.AspNetCore.RateLimiting;
+using EggIncognito.Services;
+
+namespace EggIncognito.Controllers;
+
+// Backs the generic API console (/console): a machine list of every internal /api/* endpoint, reflected
+// from MVC's API explorer, so the UI can invoke ANY endpoint (this is a toolkit, not a black box). Lists
+// HTTP method, route template, parameters (name/source/type), and whether the body is a file upload. The
+// console page renders a form per endpoint from this. Read-only + admin-gated (the console can reach
+// admin/egress endpoints, so listing is admin-only too).
+[ApiController]
+[Route("api/console")]
+[EnableRateLimiting("read")]
+public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider explorer, ICurrentUser currentUser) : ControllerBase
+{
+    [HttpGet("endpoints")]
+    public IActionResult Endpoints()
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+
+        var endpoints = explorer.ApiDescriptionGroups.Items
+            .SelectMany(g => g.Items)
+            .Where(d => d.RelativePath is not null && d.RelativePath.StartsWith("api/", StringComparison.OrdinalIgnoreCase))
+            // skip the console's own listing + the openapi/catalog surface to keep the list to actionable calls.
+            .Where(d => !d.RelativePath!.StartsWith("api/console", StringComparison.OrdinalIgnoreCase))
+            .Select(d => new
+            {
+                method = d.HttpMethod ?? "GET",
+                route = "/" + d.RelativePath,
+                // Body params (the request DTO) vs route/query params; file uploads flagged for a file input.
+                query = d.ParameterDescriptions
+                    .Where(p => p.Source.Id is "Query" or "Path")
+                    .Select(p => new { name = p.Name, source = p.Source.Id, type = TypeName(p.Type), required = p.IsRequired })
+                    .ToList(),
+                hasBody = d.ParameterDescriptions.Any(p => p.Source.Id == "Body"),
+                bodyType = d.ParameterDescriptions.FirstOrDefault(p => p.Source.Id == "Body") is { } b ? TypeName(b.Type) : null,
+                hasFile = d.ParameterDescriptions.Any(p => p.Source.Id == "FormFile"
+                    || (p.Type is not null && typeof(IFormFile).IsAssignableFrom(p.Type))),
+            })
+            .OrderBy(e => e.route, StringComparer.Ordinal)
+            .ThenBy(e => e.method, StringComparer.Ordinal)
+            .ToList();
+
+        return Ok(new { count = endpoints.Count, endpoints });
+    }
+
+    private static string TypeName(Type? t)
+    {
+        if (t is null) return "string";
+        var u = Nullable.GetUnderlyingType(t) ?? t;
+        return u.Name;
+    }
+}

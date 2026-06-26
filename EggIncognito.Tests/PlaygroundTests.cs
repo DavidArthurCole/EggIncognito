@@ -114,5 +114,24 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable);
     }
 
+    [Fact]
+    public async Task Console_Endpoints_RequiresAdmin()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/console/endpoints");
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task Console_Page_Renders_AdminGated()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/console");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        var html = await r.Content.ReadAsStringAsync();
+        Assert.Contains("API Console", html);
+        Assert.Contains("Admin access required", html);
+    }
+
     private record ListResult(string[]? Ships);
 }

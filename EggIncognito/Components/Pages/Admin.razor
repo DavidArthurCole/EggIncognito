@@ -148,6 +148,46 @@
       }
     </section>
 
+    @* Game config: ingest a captured ConfigResponse (carries the DLCCatalog of shells) per platform, or
+       refresh from live. Feeds the shell viewer + asset pipeline. *@
+    <section class="panel mb-4">
+      <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Game config</h2>
+        <span class="text-muted text-xs">per-platform ConfigResponse + DLCCatalog</span>
+      </div>
+      <p class="text-muted text-xs mb-3">
+        Ingest a captured <code class="code-chip">ConfigResponse</code> (base64, raw or AuthenticatedMessage-wrapped)
+        so the shell viewer + asset pipeline have the DLCCatalog. Live refresh signs get_config with the
+        <a class="underline" href="/inspector">Inspector</a> salt, but the live config is often thin, so a
+        capture is the reliable source.
+      </p>
+
+      @if (_configs.Count > 0)
+      {
+        <div class="text-xs text-muted mb-3">
+          Stored: @string.Join(", ", _configs.Select(c => $"{c.Platform} ({c.Bytes / 1024}KB, {c.SavedAt.ToLocalTime():g})"))
+        </div>
+      }
+
+      <div class="flex items-center gap-2 mb-2">
+        <select class="reg-filter-input w-auto" @bind="_configPlatform">
+          <option value="ios">ios</option>
+          <option value="android">android</option>
+        </select>
+        <InputFile OnChange="OnConfigUpload" accept=".json,.bin,.txt" class="text-xs" />
+        <button class="btn-secondary" @onclick="RefreshLiveConfig" disabled="@_configBusy">Refresh from live</button>
+      </div>
+      <textarea class="reg-filter-input w-full font-mono text-xs" rows="3" placeholder="…or paste base64 ConfigResponse here"
+                @bind="_configB64"></textarea>
+      <button class="btn-primary mt-2" @onclick="IngestConfig" disabled="@(_configBusy || string.IsNullOrWhiteSpace(_configB64))">
+        @(_configBusy ? "Ingesting…" : "Ingest config")
+      </button>
+      @if (!string.IsNullOrEmpty(_configResult))
+      {
+        <div class="mt-2 text-xs @(_configError ? "err" : "text-muted")">@_configResult</div>
+      }
+    </section>
+
     @if (!string.IsNullOrEmpty(_log))
     {
       <pre id="log" class="result-pre">@_log</pre>
@@ -171,6 +211,13 @@
     bool _cacheBusy;
     string _cacheResult = "";
 
+    List<ConfigRow> _configs = [];
+    string _configPlatform = "ios";
+    string _configB64 = "";
+    bool _configBusy;
+    bool _configError;
+    string _configResult = "";
+
     // Captured in OnInitializedAsync while HttpContext is live; reused for circuit-time calls (the
     // SignalR circuit has no HttpContext, so the auth cookie must be forwarded from the request).
     string _baseAddress = "";
@@ -188,6 +235,7 @@
         if (!_isAdmin) return;
         await LoadUsers();
         await LoadDevices();
+        await LoadConfigs();
     }
 
     async Task LoadDevices()
@@ -199,6 +247,94 @@
         }
         catch { _devices = []; }
     }
+
+    async Task LoadConfigs()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<ConfigListResult>("/api/config");
+            _configs = res?.Configs?.ToList() ?? [];
+        }
+        catch { _configs = []; }
+    }
+
+    async Task OnConfigUpload(InputFileChangeEventArgs e)
+    {
+        _configBusy = true; ConfigStatus("Reading file…", false);
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(200_000_000).CopyToAsync(ms);
+            var bytes = ms.ToArray();
+            // A file may be raw proto bytes or already base64 text; if it decodes as UTF-8 base64-ish text,
+            // pass it through, else base64 the raw bytes. The server's loose decoder tolerates both.
+            _configB64 = LooksLikeBase64Text(bytes)
+                ? System.Text.Encoding.UTF8.GetString(bytes).Trim()
+                : Convert.ToBase64String(bytes);
+            await IngestConfig();
+        }
+        catch (Exception ex) { ConfigStatus(ex.Message, true); }
+        finally { _configBusy = false; }
+    }
+
+    static bool LooksLikeBase64Text(byte[] b)
+    {
+        // Heuristic: a JSON capture or base64 text is all printable ASCII; raw proto has control bytes.
+        var n = Math.Min(b.Length, 256);
+        for (var i = 0; i < n; i++)
+            if (b[i] < 0x09 || (b[i] > 0x0D && b[i] < 0x20)) return false;
+        return true;
+    }
+
+    async Task IngestConfig()
+    {
+        if (string.IsNullOrWhiteSpace(_configB64)) return;
+        _configBusy = true; ConfigStatus("Ingesting…", false);
+        try
+        {
+            var res = await Client().PostAsJsonAsync($"/api/config/{_configPlatform}/ingest",
+                new { configResponseBase64 = _configB64.Trim() });
+            await ReportConfig(res);
+            await LoadConfigs();
+        }
+        catch (Exception ex) { ConfigStatus(ex.Message, true); }
+        finally { _configBusy = false; }
+    }
+
+    async Task RefreshLiveConfig()
+    {
+        _configBusy = true; ConfigStatus("Refreshing from live…", false);
+        try
+        {
+            string salt = "";
+            try
+            {
+                var store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js");
+                salt = await store.InvokeAsync<string>("getSalt") ?? "";
+            }
+            catch { }
+            var res = await Client().PostAsJsonAsync($"/api/config/{_configPlatform}/refresh-live", new { salt });
+            await ReportConfig(res);
+            await LoadConfigs();
+        }
+        catch (Exception ex) { ConfigStatus(ex.Message, true); }
+        finally { _configBusy = false; }
+    }
+
+    async Task ReportConfig(HttpResponseMessage res)
+    {
+        if (res.IsSuccessStatusCode)
+        {
+            var d = await res.Content.ReadFromJsonAsync<ConfigIngestResult>(JsonOpts);
+            if (d is { Ok: true })
+                ConfigStatus($"stored {d.Platform}: {d.Bytes / 1024}KB, {d.Shells} shells, {d.ShellObjects} shell objects", false);
+            else
+                ConfigStatus(d?.Diagnostics ?? "ingest failed", true);
+        }
+        else { ConfigStatus(await ReadError(res) ?? $"HTTP {(int)res.StatusCode}", true); }
+    }
+
+    void ConfigStatus(string s, bool err) { _configError = err; _configResult = s; StateHasChanged(); }
 
     async Task PrecacheMeshes()
     {
@@ -328,4 +464,7 @@
     record UnresolvedRow(string EnumName, string? AfxName, string Diagnostics);
     record DeviceRow(string Id, string Platform, string Label);
     record PrecacheResult(bool Ok, string Platform, int Cached, int Failed);
+    record ConfigRow(string Platform, DateTimeOffset SavedAt, long Bytes);
+    record ConfigListResult(bool Enabled, ConfigRow[]? Configs);
+    record ConfigIngestResult(bool Ok, string? Platform, int Bytes, bool HasDlcCatalog, int Shells, int ShellObjects, string? Diagnostics);
 }
