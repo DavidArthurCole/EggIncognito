@@ -464,6 +464,61 @@ public sealed class DevicesController(
         return rinfo?.ClientVersion?.ToString();
     }
 
+    // Resolve the iOS ssh connection from DeviceUpdate:Ios config (same wiring IosBinaryPuller uses for the
+    // proto pull). host defaults to the device target. Returns null when no ssh key is configured.
+    private (string Host, string Port, string Key)? IosSsh(Device device)
+    {
+        var cfg = (services.GetService(typeof(IConfiguration)) as IConfiguration)!
+            .GetSection("DeviceUpdate").GetSection("Ios");
+        var key = cfg["SshKeyPath"];
+        if (string.IsNullOrEmpty(key)) return null;
+        var host = string.IsNullOrEmpty(cfg["SshHost"]) ? device.Target : cfg["SshHost"]!;
+        return (host, cfg["SshPort"] ?? "2222", key);
+    }
+
+    // Pull the 3D ship meshes off the device and decode them to glTF (.glb). Android: pull base.apk (the ship
+    // meshes live in its assets, NOT the arm split the proto carve uses) and run the zip asset extractor.
+    // iOS: ssh-tar the rpos files out of the on-disk (decrypted) .app bundle and run the tar asset extractor.
+    // Returns the same manifest shape as POST /api/tools/extract-meshes. Admin-gated; no DB needed (read-only).
+    [HttpPost("{id}/pull-meshes")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> PullMeshes(string id, [FromQuery] bool export = false, [FromQuery] string? build = null)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Store;
+        if (store is null) return StatusCode(503, new { error = "no database configured" });
+
+        var device = await store.GetAsync(id);
+        if (device is null) return NotFound(new { error = "unknown device" });
+        if (device.Platform is not (PlatformAndroid or PlatformIos))
+            return StatusCode(501, new { error = $"no mesh puller for platform {device.Platform}" });
+
+        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+        var ct = HttpContext.RequestAborted;
+
+        Services.ProtoExtract.RpoAssetExtractor.ExtractResult extract;
+        if (device.Platform == PlatformAndroid)
+        {
+            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+            if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
+            extract = Services.ProtoExtract.RpoAssetExtractor.Extract(apk);
+        }
+        else
+        {
+            if (IosSsh(device) is not { } ssh)
+                return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
+            var tar = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullRposTarAsync(device.Package, ct);
+            if (tar is null) return StatusCode(502, new { error = "could not pull the rpos meshes from the device over ssh" });
+            var entries = Services.ProtoExtract.TarReader.Read(tar)
+                .Select(e => (e.Name, e.Bytes));
+            extract = Services.ProtoExtract.RpoAssetExtractor.FromEntries(entries);
+        }
+
+        // export=true => Spaceship-enum-keyed ship .glb set + manifest (EggLedger's contract). Otherwise the
+        // raw per-mesh manifest (all 327 assets). build= stamps the manifest's generatedFromBuild.
+        return Ok(export ? MeshManifest.Ships(extract, build, false, null) : MeshManifest.From(extract));
+    }
+
     // Force-restart the egginc app on the device (kill + relaunch) so it makes a fresh launch request to
     // auxbrain, which the capture proxy decrypts to harvest rinfo (clientVersion/build). Needed because an
     // idle/backgrounded app does not re-hit auxbrain on its own. Admin-gated; capture must be running.

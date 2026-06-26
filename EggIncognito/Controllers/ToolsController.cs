@@ -91,6 +91,55 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         return ExtractResultJson(r);
     }
 
+    // Multipart drop-zone: an Android APK or iOS IPA (both zips). Decodes every .rpo/.rpoz ship mesh found
+    // inside to glTF 2.0 (.glb) and returns a manifest-shaped result: per-mesh key (the base filename, which
+    // the asset pipeline maps to the MissionInfo.Spaceship enum), bbox, vertex/index counts, a sha256 over
+    // the glb, an emission flag, and the glb bytes themselves base64-encoded. Public read tool, no writes;
+    // STATIC parse, never executed. EI's per-vertex emission is preserved as the glTF COLOR_0 attribute.
+    [HttpPost("extract-meshes")]
+    [RequestSizeLimit(200_000_000)]
+    public async Task<IActionResult> ExtractMeshes(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
+        var bytes = new byte[file.Length];
+        using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
+
+        var r = Services.ProtoExtract.RpoAssetExtractor.Extract(bytes);
+        return Ok(Services.MeshManifest.From(r));
+    }
+
+    // Multipart drop-zone, ship-export variant: decodes the archive's meshes, filters to the Spaceship enum
+    // ships (via ShipNameMap), renames each to <EnumName>.glb, and returns the asset-repo manifest + per-ship
+    // glb base64 + the enum ships still missing a bundled mesh (the CDN-only ships). When ShipAssets:OutputDir
+    // is configured AND write=true (and writes are enabled), also writes ships/<EnumName>.glb + manifest.json
+    // to that dir - the CI artifact path. build= stamps the manifest's generatedFromBuild.
+    [HttpPost("export-ships")]
+    [RequestSizeLimit(200_000_000)]
+    public async Task<IActionResult> ExportShips(IFormFile file, [FromQuery] string? build, [FromQuery] bool write, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
+        var bytes = new byte[file.Length];
+        using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
+
+        var r = Services.ProtoExtract.RpoAssetExtractor.Extract(bytes);
+        var (wrote, dir) = await MaybeWriteAsync(r, build, write, ct);
+        return Ok(Services.MeshManifest.Ships(r, build, wrote, dir));
+    }
+
+    // Writes the ship export to ShipAssets:OutputDir when configured + requested + writes enabled. Returns
+    // (wroteToDisk, dir). Gated by CanWrite so a Hosted instance never writes to shared disk.
+    private async Task<(bool, string?)> MaybeWriteAsync(
+        Services.ProtoExtract.RpoAssetExtractor.ExtractResult r, string? build, bool write, CancellationToken ct)
+    {
+        if (!write) return (false, null);
+        var dir = config["ShipAssets:OutputDir"];
+        if (string.IsNullOrEmpty(dir)) return (false, null);
+        var export = Services.ShipAssetExporter.Build(r, build);
+        if (export.Ships.Count == 0) return (false, null);
+        await Services.ShipAssetExporter.WriteToAsync(export, dir, ct);
+        return (true, dir);
+    }
+
     private IActionResult ExtractResultJson(Services.ProtoExtract.DescriptorProtoCarver.ExtractResult r) =>
         Ok(new { ok = r.Ok, proto = r.Proto, diagnostics = r.Diagnostics, protoSha = r.ProtoSha,
             messages = r.Messages, appVersion = r.AppVersion, build = r.Build });

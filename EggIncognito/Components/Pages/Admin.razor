@@ -53,6 +53,59 @@
       </div>
     </section>
 
+    @* Orbital ship 3D assets: pull the 4 CDN-only ship meshes live from get_config, decode to .glb, and
+       (when ShipAssets:OutputDir is set) write them into the asset-repo layout. *@
+    <section class="panel mb-4">
+      <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Ship 3D assets</h2>
+        <span class="text-muted text-xs">Galeggtica, Defihent, Voyegger, Henerprise (CDN shells)</span>
+      </div>
+      <p class="text-muted text-xs mb-3">
+        Pulls the 4 orbital ship meshes from the live game config, decodes to glTF, and writes
+        <code class="code-chip">ships/&lt;EnumName&gt;.glb</code> to the configured output dir. The 7 bundled
+        ships come from a device pull (Devices panel).
+      </p>
+      <button class="btn-primary" @onclick="PullShipAssets" disabled="@_shipBusy">
+        @(_shipBusy ? "Pulling…" : "Pull ship meshes from live")
+      </button>
+
+      @if (_shipResult is not null)
+      {
+        <div class="mt-3 text-sm">
+          <div class="mb-2">
+            Resolved <span class="font-medium">@_shipResult.Count</span>/4
+            @if (_shipResult.WroteToDisk) { <span class="text-muted">→ wrote to @_shipResult.OutputDir</span> }
+          </div>
+          @if (_shipResult.Ships.Count > 0)
+          {
+            <table class="reg-table">
+              <thead><tr><th>Ship</th><th>SHA-256</th><th>Source</th></tr></thead>
+              <tbody>
+                @foreach (var s in _shipResult.Ships)
+                {
+                  <tr>
+                    <td class="font-medium">@s.EnumName</td>
+                    <td class="mono text-muted text-xs">@s.Sha256[..12]…</td>
+                    <td class="mono text-muted text-xs truncate max-w-[280px]">@s.Url</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+          @if (_shipResult.Unresolved.Count > 0)
+          {
+            <div class="mt-2 text-muted text-xs">
+              Unresolved:
+              @foreach (var u in _shipResult.Unresolved)
+              {
+                <div>@u.EnumName — @u.Diagnostics</div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </section>
+
     @if (!string.IsNullOrEmpty(_log))
     {
       <pre id="log" class="result-pre">@_log</pre>
@@ -67,6 +120,9 @@
     bool _isAdmin;
     string _log = "";
     List<UserRow> _users = [];
+
+    bool _shipBusy;
+    ShipPullResult? _shipResult;
 
     // Captured in OnInitializedAsync while HttpContext is live; reused for circuit-time calls (the
     // SignalR circuit has no HttpContext, so the auth cookie must be forwarded from the request).
@@ -139,7 +195,41 @@
         catch { return null; }
     }
 
+    // Fires the live ship-mesh pull: server signs get_config, resolves the 4 CDN ships, decodes, and writes
+    // the .glb set (when an output dir is configured). Renders the resolved/unresolved breakdown.
+    async Task PullShipAssets()
+    {
+        _shipBusy = true;
+        _shipResult = null;
+        _log = "";
+        try
+        {
+            var res = await Client().PostAsync("/api/ship-assets/pull-from-live?write=true", null);
+            if (res.IsSuccessStatusCode)
+            {
+                _shipResult = await res.Content.ReadFromJsonAsync<ShipPullResult>(JsonOpts);
+                if (_shipResult is { Ok: false })
+                    _log = $"ship pull: {_shipResult.Diagnostics ?? "no ships resolved"}";
+            }
+            else
+            {
+                _log = await ReadError(res) ?? $"HTTP {(int)res.StatusCode}";
+            }
+        }
+        catch (Exception ex) { _log = ex.Message; }
+        finally { _shipBusy = false; }
+    }
+
     record UserRow(string DiscordId, string Username, string Role, DateTimeOffset LastLoginAt);
     record SetRoleResult(string DiscordId, string Role);
     record ErrorResult(string Error);
+
+    // Ships/Unresolved default to empty so an ok=false response (which omits them) renders without an NRE.
+    record ShipPullResult(bool Ok, int Count, string? Diagnostics, bool WroteToDisk, string? OutputDir)
+    {
+        public List<ShipRow> Ships { get; init; } = [];
+        public List<UnresolvedRow> Unresolved { get; init; } = [];
+    }
+    record ShipRow(string EnumName, string File, string Url, string Sha256);
+    record UnresolvedRow(string EnumName, string? AfxName, string Diagnostics);
 }

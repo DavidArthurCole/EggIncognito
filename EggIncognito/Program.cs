@@ -108,6 +108,9 @@ builder.Services.AddHttpClient("inspector", c =>
 {
     AutomaticDecompression = System.Net.DecompressionMethods.GZip,
 });
+// Orbital-ship mesh downloader: fetches the 4 CDN-only ship shells (resolved from a DLCCatalog) over the
+// inspector egress client + decodes them. Egress-gated at the controller like Inspector send.
+builder.Services.AddScoped<EggIncognito.Services.ShipShellDownloader>();
 // The "Sealed API proxy" supporter perk: a second inspector egress routed through a configured
 // upstream proxy so the downstream API cannot tie the request to this server. Same headers as the
 // plain inspector client; only the egress path differs. Unconfigured upstream = direct connection.
