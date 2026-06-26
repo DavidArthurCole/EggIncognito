@@ -18,7 +18,11 @@ public sealed class EnvController(IWebHostEnvironment env, MeshAssetCache cache,
     public IActionResult Presets() => Ok(new
     {
         pieces = EnvCatalog.Pieces.Select(p => new { p.Stem, p.Label }),
-        presets = EnvCatalog.Presets.Select(p => new { p.Id, p.Label, p.Pieces }),
+        presets = EnvCatalog.Presets.Select(p => new
+        {
+            p.Id, p.Label,
+            pieces = p.Pieces.Select(pp => new { pp.Stem, pp.Offset }),
+        }),
         habs = EnvCatalog.Habs.Select(p => new { p.Stem, p.Label }),
     });
 

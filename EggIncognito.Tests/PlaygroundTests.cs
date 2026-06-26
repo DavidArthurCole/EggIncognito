@@ -135,6 +135,20 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Contains("hab_eggtopia", json);
     }
 
+    [Theory]
+    [InlineData("ei_silo_0_large")]
+    [InlineData("ei_depot_3")]
+    [InlineData("ei_fuel_tank_2")]
+    [InlineData("coop")]
+    public async Task EnvGlb_DecodesShippedBuildings(string stem)
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync($"/api/env/{stem}/glb");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        var glb = await r.Content.ReadAsByteArrayAsync();
+        Assert.NotEmpty(SharpGLTF.Schema2.ModelRoot.ParseGLB(glb).LogicalMeshes);
+    }
+
     [Fact]
     public async Task EnvGlb_UnknownStem_Is404()
     {

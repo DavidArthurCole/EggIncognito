@@ -8,8 +8,17 @@ public class EnvCatalogTests
     public void Presets_OnlyReferenceKnownPieces()
     {
         foreach (var preset in EnvCatalog.Presets)
-            foreach (var stem in preset.Pieces)
-                Assert.True(EnvCatalog.IsKnownPiece(stem), $"preset {preset.Id} references unknown piece {stem}");
+            foreach (var pp in preset.Pieces)
+                Assert.True(EnvCatalog.IsKnownPiece(pp.Stem), $"preset {preset.Id} references unknown piece {pp.Stem}");
+    }
+
+    [Fact]
+    public void HabRowPreset_PlacesFourHabsAtDistinctX()
+    {
+        var p = EnvCatalog.PresetById("farm_habs")!;
+        var habs = p.Pieces.Where(pp => pp.Stem.StartsWith("hab_")).ToList();
+        Assert.Equal(4, habs.Count);
+        Assert.Equal(4, habs.Select(h => h.Offset[0]).Distinct().Count());
     }
 
     [Fact]

@@ -85,7 +85,8 @@ function loop() {
 // Procedural whole-group animation (spin / hover), composed on top of the group's offset. The chicken and
 // its hat share the group root, so they rotate + bob together as one rigid unit.
 function applyAnim(g) {
-  if (g.pinned) { g.root.rotation.set(0, 0, 0); g.root.position.set(0, 0, 0); return; }
+  // pinned groups (the env backdrop) hold their fixed placement offset, no auto-layout, no spin.
+  if (g.pinned) { g.root.rotation.set(0, 0, 0); const p = g.manual; g.root.position.set(p.x, p.y, p.z); return; }
   const o = g.manual || g.autoOffset;
   const period = anim.seconds > 0 ? anim.seconds : 6;
   const phase = (anim.t / period) * Math.PI * 2;
@@ -132,8 +133,15 @@ export async function addGroup(groupId, glbBase64, opts) {
     for (const clip of hat.animations) hatMixer.clipAction(clip).play();
   }
 
-  // pinned groups (the env backdrop) sit at world origin: no auto-offset, no procedural spin, not framed.
-  groups.set(groupId, { root, mixer, hatMixer, autoOffset: { x: 0, y: 0, z: 0 }, manual: null, pinned: !!opts.pinned });
+  // pinned groups (the env backdrop) hold a fixed placement offset (default origin): no auto-layout, no
+  // procedural spin, not framed. opts.offset = [x,y,z].
+  const off = opts.offset || [0, 0, 0];
+  groups.set(groupId, {
+    root, mixer, hatMixer,
+    autoOffset: { x: 0, y: 0, z: 0 },
+    manual: opts.pinned ? { x: off[0] || 0, y: off[1] || 0, z: off[2] || 0 } : null,
+    pinned: !!opts.pinned,
+  });
   scene.add(root);
   relayoutGroups();
   return clipNames;

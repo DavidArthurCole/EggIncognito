@@ -425,11 +425,14 @@ else
         Status("Loading environment…");
         try
         {
-            foreach (var stem in preset.Pieces)
+            for (var i = 0; i < preset.Pieces.Length; i++)
             {
-                var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
+                var pp = preset.Pieces[i];
+                var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(pp.Stem)}/glb");
                 if (glb is null) continue;
-                await _mod.InvokeAsync<string[]>("addGroup", $"env:{stem}", Convert.ToBase64String(glb), new { pinned = true });
+                // unique id per placement so duplicate stems (a row of habs) do not collide.
+                await _mod.InvokeAsync<string[]>("addGroup", $"env:{i}:{pp.Stem}", Convert.ToBase64String(glb),
+                    new { pinned = true, offset = pp.Offset });
             }
             Status("");
         }
@@ -645,7 +648,8 @@ else
         public float[] Anchor { get; init; } = Anchor ?? [];
     }
     record ShellObjResult(bool Ok, ShellObjRow[]? Objects);
-    record EnvPresetRow(string Id, string Label, string[] Pieces);
+    record PlacedPieceRow(string Stem, float[] Offset);
+    record EnvPresetRow(string Id, string Label, PlacedPieceRow[] Pieces);
     record EnvPieceRow(string Stem, string Label);
     record EnvPresetsResult(EnvPresetRow[]? Presets, EnvPieceRow[]? Habs);
 
