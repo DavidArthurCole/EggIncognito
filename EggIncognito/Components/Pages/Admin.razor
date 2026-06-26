@@ -55,62 +55,6 @@
       </div>
     </section>
 
-    @* Orbital ship 3D assets: pull the 4 CDN-only ship meshes live from get_config, decode to .glb, and
-       (when ShipAssets:OutputDir is set) write them into the asset-repo layout. *@
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Ship 3D assets</h2>
-        <span class="text-muted text-xs">Galeggtica, Defihent, Voyegger, Henerprise (CDN shells)</span>
-      </div>
-      <p class="text-muted text-xs mb-3">
-        Resolves the 4 orbital ship meshes from the live game config (DLCCatalog) and writes any it finds as
-        <code class="code-chip">ships/&lt;EnumName&gt;.glb</code>. Signs get_config with the
-        <a class="underline" href="/inspector">Inspector</a> salt (this browser), falling back to the server
-        salt. Note: as of the last checked config, Auxbrain does not publish these 4 as meshes (only 2D
-        icons), so this returns 0 until a mesh source surfaces. The 7 bundled ships come from a device pull
-        (Devices panel).
-      </p>
-      <button class="btn-primary" @onclick="PullShipAssets" disabled="@_shipBusy">
-        @(_shipBusy ? "Pulling…" : "Pull ship meshes from live")
-      </button>
-
-      @if (_shipResult is not null)
-      {
-        <div class="mt-3 text-sm">
-          <div class="mb-2">
-            Resolved <span class="font-medium">@_shipResult.Count</span>/4
-            @if (_shipResult.WroteToDisk) { <span class="text-muted">→ wrote to @_shipResult.OutputDir</span> }
-          </div>
-          @if (_shipResult.Ships.Count > 0)
-          {
-            <table class="reg-table">
-              <thead><tr><th>Ship</th><th>SHA-256</th><th>Source</th></tr></thead>
-              <tbody>
-                @foreach (var s in _shipResult.Ships)
-                {
-                  <tr>
-                    <td class="font-medium">@s.EnumName</td>
-                    <td class="mono text-muted text-xs">@s.Sha256[..12]…</td>
-                    <td class="mono text-muted text-xs truncate max-w-[280px]">@s.Url</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          }
-          @if (_shipResult.Unresolved.Count > 0)
-          {
-            <div class="mt-2 text-muted text-xs">
-              Unresolved:
-              @foreach (var u in _shipResult.Unresolved)
-              {
-                <div>@u.EnumName: @u.Diagnostics</div>
-              }
-            </div>
-          }
-        </div>
-      }
-    </section>
-
     @* Mesh cache: pre-compute every device mesh into the on-disk glb cache so the playground + API serve
        precomputed glbs without a per-request device pull + decode. *@
     <section class="panel mb-4">
@@ -126,7 +70,7 @@
       @if (_devices.Count > 0)
       {
         <div class="flex items-center gap-2">
-          <select class="reg-filter-input w-auto" @bind="_cacheDevice">
+          <select class="reg-filter-input w-auto" @bind="_cacheDevice" @bind:after="LoadCachedMeshes">
             <option value="">Choose a device…</option>
             @foreach (var d in _devices)
             {
@@ -136,10 +80,37 @@
           <button class="btn-primary" @onclick="PrecacheMeshes" disabled="@(_cacheBusy || string.IsNullOrEmpty(_cacheDevice))">
             @(_cacheBusy ? "Caching…" : "Pre-cache meshes")
           </button>
+          @if (_cachedMeshes.Count > 0)
+          {
+            <button class="btn-secondary" @onclick="ClearCachedMeshes" disabled="@_cacheBusy">Clear all (@_cachedMeshes.Count)</button>
+          }
         </div>
         @if (!string.IsNullOrEmpty(_cacheResult))
         {
           <div class="mt-2 text-xs text-muted">@_cacheResult</div>
+        }
+        @if (_cachedMeshes.Count > 0)
+        {
+          <div class="reg-wrap mt-3" style="max-height:40vh;overflow:auto;">
+            <table class="reg-table">
+              <thead><tr><th>Mesh</th><th>Size</th><th>Cached</th><th></th></tr></thead>
+              <tbody>
+                @foreach (var m in _cachedMeshes)
+                {
+                  <tr>
+                    <td class="font-mono text-xs">@m.Stem</td>
+                    <td class="text-muted text-xs">@(m.Bytes / 1024)KB</td>
+                    <td class="text-muted text-xs">@m.CachedAt.ToLocalTime().ToString("g")</td>
+                    <td><button class="btn-secondary text-xs" @onclick="() => DeleteCachedMesh(m.Stem)" disabled="@_cacheBusy">Delete</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        else if (!string.IsNullOrEmpty(_cacheDevice))
+        {
+          <div class="mt-2 text-xs text-muted">No cached meshes for this device.</div>
         }
       }
       else
@@ -156,10 +127,10 @@
         <span class="text-muted text-xs">per-platform ConfigResponse + DLCCatalog</span>
       </div>
       <p class="text-muted text-xs mb-3">
-        Ingest a captured <code class="code-chip">ConfigResponse</code> (base64, raw or AuthenticatedMessage-wrapped)
-        so the shell viewer + asset pipeline have the DLCCatalog. Live refresh signs get_config with the
-        <a class="underline" href="/inspector">Inspector</a> salt, but the live config is often thin, so a
-        capture is the reliable source.
+        Fetch the live config via the <a class="underline" href="/inspector">Inspector</a> pipeline (builds +
+        signs a <code class="code-chip">ConfigRequest</code> with the browser salt, sends to get_config), or
+        ingest a captured <code class="code-chip">ConfigResponse</code> (base64 / file). Either way it stores
+        the DLCCatalog for the shell viewer + asset pipeline.
       </p>
 
       @if (_configs.Count > 0)
@@ -174,14 +145,26 @@
           <option value="ios">ios</option>
           <option value="android">android</option>
         </select>
-        <InputFile OnChange="OnConfigUpload" accept=".json,.bin,.txt" class="text-xs" />
-        <button class="btn-secondary" @onclick="RefreshLiveConfig" disabled="@_configBusy">Refresh from live</button>
+        <input class="reg-filter-input w-auto" placeholder="EID (optional)" @bind="_configEid" />
+        <button class="btn-primary" @onclick="FetchConfigViaInspector" disabled="@_configBusy">
+          @(_configBusy ? "Fetching…" : "Fetch live via Inspector")
+        </button>
       </div>
-      <textarea class="reg-filter-input w-full font-mono text-xs" rows="3" placeholder="…or paste base64 ConfigResponse here"
-                @bind="_configB64"></textarea>
-      <button class="btn-primary mt-2" @onclick="IngestConfig" disabled="@(_configBusy || string.IsNullOrWhiteSpace(_configB64))">
-        @(_configBusy ? "Ingesting…" : "Ingest config")
-      </button>
+
+      <details class="mt-1">
+        <summary class="text-xs text-muted cursor-pointer">Advanced: custom rinfo JSON / paste base64 / upload</summary>
+        <textarea class="reg-filter-input w-full font-mono text-xs mt-2" rows="3"
+                  placeholder='ConfigRequest JSON for the live fetch, e.g. {"rinfo":{"eiUserId":"EI...","clientVersion":72}}'
+                  @bind="_configRequestJson"></textarea>
+        <div class="flex items-center gap-2 mt-2">
+          <InputFile OnChange="OnConfigUpload" accept=".json,.bin,.txt" class="text-xs" />
+        </div>
+        <textarea class="reg-filter-input w-full font-mono text-xs mt-2" rows="2" placeholder="…or paste base64 ConfigResponse here"
+                  @bind="_configB64"></textarea>
+        <button class="btn-secondary mt-2" @onclick="IngestConfig" disabled="@(_configBusy || string.IsNullOrWhiteSpace(_configB64))">
+          @(_configBusy ? "Ingesting…" : "Ingest pasted base64")
+        </button>
+      </details>
       @if (!string.IsNullOrEmpty(_configResult))
       {
         <div class="mt-2 text-xs @(_configError ? "err" : "text-muted")">@_configResult</div>
@@ -203,16 +186,16 @@
     string _log = "";
     List<UserRow> _users = [];
 
-    bool _shipBusy;
-    ShipPullResult? _shipResult;
-
     List<DeviceRow> _devices = [];
     string _cacheDevice = "";
     bool _cacheBusy;
     string _cacheResult = "";
+    List<CachedMeshRow> _cachedMeshes = [];
 
     List<ConfigRow> _configs = [];
     string _configPlatform = "ios";
+    string _configEid = "";
+    string _configRequestJson = "";
     string _configB64 = "";
     bool _configBusy;
     bool _configError;
@@ -301,9 +284,12 @@
         finally { _configBusy = false; }
     }
 
-    async Task RefreshLiveConfig()
+    // Fetch the live config through the Inspector ecosystem: build+sign a ConfigRequest (browser salt) via
+    // /api/inspector/build, send it to get_config via /api/inspector/send, then ingest the decoded response.
+    // Reuses the exact pipeline the Inspector page uses, no bespoke server path.
+    async Task FetchConfigViaInspector()
     {
-        _configBusy = true; ConfigStatus("Refreshing from live…", false);
+        _configBusy = true; ConfigStatus("Building request…", false);
         try
         {
             string salt = "";
@@ -313,8 +299,29 @@
                 salt = await store.InvokeAsync<string>("getSalt") ?? "";
             }
             catch { }
-            var res = await Client().PostAsJsonAsync($"/api/config/{_configPlatform}/refresh-live", new { salt });
-            await ReportConfig(res);
+
+            // Fields = the custom rinfo JSON if given, else a minimal rinfo with the optional EID + platform.
+            object fields = !string.IsNullOrWhiteSpace(_configRequestJson)
+                ? System.Text.Json.JsonSerializer.Deserialize<object>(_configRequestJson)!
+                : new { rinfo = new { eiUserId = string.IsNullOrWhiteSpace(_configEid) ? null : _configEid, platform = _configPlatform } };
+
+            var build = await Client().PostAsJsonAsync("/api/inspector/build",
+                new { requestType = "ConfigRequest", fields, wrap = true, salt });
+            if (!build.IsSuccessStatusCode) { ConfigStatus($"build failed: HTTP {(int)build.StatusCode}", true); return; }
+            var built = await build.Content.ReadFromJsonAsync<BuildResult>(JsonOpts);
+            if (built?.FinalFormBody is null) { ConfigStatus("build returned no form body", true); return; }
+
+            ConfigStatus("Sending to get_config…", false);
+            var send = await Client().PostAsJsonAsync("/api/inspector/send",
+                new { url = "https://www.auxbrain.com/ei/get_config", formBody = built.FinalFormBody, responseType = "ConfigResponse" });
+            if (!send.IsSuccessStatusCode) { ConfigStatus($"send failed: HTTP {(int)send.StatusCode}", true); return; }
+            var sent = await send.Content.ReadFromJsonAsync<SendResult>(JsonOpts);
+            if (string.IsNullOrEmpty(sent?.RawBase64)) { ConfigStatus(sent?.Error ?? "send returned no body", true); return; }
+
+            ConfigStatus("Storing config…", false);
+            var ingest = await Client().PostAsJsonAsync($"/api/config/{_configPlatform}/ingest",
+                new { configResponseBase64 = sent.RawBase64 });
+            await ReportConfig(ingest);
             await LoadConfigs();
         }
         catch (Exception ex) { ConfigStatus(ex.Message, true); }
@@ -351,7 +358,36 @@
             else { _cacheResult = await ReadError(res) ?? $"HTTP {(int)res.StatusCode}"; }
         }
         catch (Exception ex) { _cacheResult = ex.Message; }
-        finally { _cacheBusy = false; }
+        finally { _cacheBusy = false; await LoadCachedMeshes(); }
+    }
+
+    async Task LoadCachedMeshes()
+    {
+        _cachedMeshes = [];
+        if (string.IsNullOrEmpty(_cacheDevice)) { StateHasChanged(); return; }
+        try
+        {
+            var res = await Client().GetFromJsonAsync<CachedMeshList>($"/api/devices/{_cacheDevice}/cached-meshes");
+            _cachedMeshes = res?.Meshes?.ToList() ?? [];
+        }
+        catch { _cachedMeshes = []; }
+        StateHasChanged();
+    }
+
+    async Task DeleteCachedMesh(string stem)
+    {
+        _cacheBusy = true;
+        try { await Client().DeleteAsync($"/api/devices/{_cacheDevice}/cached-meshes/{Uri.EscapeDataString(stem)}"); }
+        catch (Exception ex) { _cacheResult = ex.Message; }
+        finally { _cacheBusy = false; await LoadCachedMeshes(); }
+    }
+
+    async Task ClearCachedMeshes()
+    {
+        _cacheBusy = true;
+        try { await Client().DeleteAsync($"/api/devices/{_cacheDevice}/cached-meshes/*"); }
+        catch (Exception ex) { _cacheResult = ex.Message; }
+        finally { _cacheBusy = false; await LoadCachedMeshes(); }
     }
 
     // Self-call client forwarding the captured auth cookie so the admin ACL on the controller sees the role.
@@ -407,64 +443,16 @@
         catch { return null; }
     }
 
-    // Fires the live ship-mesh pull: server signs get_config, resolves the 4 CDN ships, decodes, and writes
-    // the .glb set (when an output dir is configured). Renders the resolved/unresolved breakdown.
-    async Task PullShipAssets()
-    {
-        _shipBusy = true;
-        _shipResult = null;
-        _log = "";
-        try
-        {
-            // Reuse the Inspector's client-owned salt (browser localStorage) so the live get_config can be
-            // signed without an instance EGG_INC_API_SALT. Empty when unset; the server then falls back to
-            // its own salt, or 503s if neither is available.
-            var salt = await ReadInspectorSalt();
-            var res = await Client().PostAsJsonAsync("/api/ship-assets/pull-from-live?write=true", new { salt });
-            if (res.IsSuccessStatusCode)
-            {
-                _shipResult = await res.Content.ReadFromJsonAsync<ShipPullResult>(JsonOpts);
-                if (_shipResult is { Ok: false })
-                    _log = $"ship pull: {_shipResult.Diagnostics ?? "no ships resolved"}";
-            }
-            else
-            {
-                _log = await ReadError(res) ?? $"HTTP {(int)res.StatusCode}";
-            }
-        }
-        catch (Exception ex) { _log = ex.Message; }
-        finally { _shipBusy = false; }
-    }
-
-    // Reads the salt the Inspector stores in this browser's localStorage (key inspector.salt), via the same
-    // ES module Inspector uses. The salt never lives server-side; it is read fresh here and sent only on this
-    // one signing call. Returns "" on any failure (no module, no salt) so the server can fall back.
-    IJSObjectReference? _store;
-    async Task<string> ReadInspectorSalt()
-    {
-        try
-        {
-            _store ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js");
-            return await _store.InvokeAsync<string>("getSalt") ?? "";
-        }
-        catch { return ""; }
-    }
-
     record UserRow(string DiscordId, string Username, string Role, DateTimeOffset LastLoginAt);
     record SetRoleResult(string DiscordId, string Role);
     record ErrorResult(string Error);
-
-    // Ships/Unresolved default to empty so an ok=false response (which omits them) renders without an NRE.
-    record ShipPullResult(bool Ok, int Count, string? Diagnostics, bool WroteToDisk, string? OutputDir)
-    {
-        public List<ShipRow> Ships { get; init; } = [];
-        public List<UnresolvedRow> Unresolved { get; init; } = [];
-    }
-    record ShipRow(string EnumName, string File, string Url, string Sha256);
-    record UnresolvedRow(string EnumName, string? AfxName, string Diagnostics);
     record DeviceRow(string Id, string Platform, string Label);
     record PrecacheResult(bool Ok, string Platform, int Cached, int Failed);
+    record CachedMeshRow(string Stem, long Bytes, DateTimeOffset CachedAt);
+    record CachedMeshList(bool Enabled, string? Platform, CachedMeshRow[]? Meshes);
     record ConfigRow(string Platform, DateTimeOffset SavedAt, long Bytes);
     record ConfigListResult(bool Enabled, ConfigRow[]? Configs);
     record ConfigIngestResult(bool Ok, string? Platform, int Bytes, bool HasDlcCatalog, int Shells, int ShellObjects, string? Diagnostics);
+    record BuildResult(string? FinalFormBody);
+    record SendResult(string? RawBase64, string? Error);
 }

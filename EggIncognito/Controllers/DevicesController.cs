@@ -663,6 +663,40 @@ public sealed class DevicesController(
         return Ok(new { ok = true, platform = device.Platform, cached, failed = failed.Count, failedKeys = failed.Take(20) });
     }
 
+    // Lists the cached meshes for a device's platform (stem + size + time). Admin-gated, read-only.
+    [HttpGet("{id}/cached-meshes")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> CachedMeshes(string id)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var device = await Store?.GetAsync(id)!;
+        if (device is null) return NotFound(new { error = "unknown device" });
+        var cache = services.GetService(typeof(MeshAssetCache)) as MeshAssetCache;
+        if (cache is null || !cache.Enabled) return Ok(new { enabled = false, meshes = Array.Empty<object>() });
+        var meshes = cache.List(device.Platform).Select(m => new { stem = m.Stem, bytes = m.Bytes, cachedAt = m.CachedAt });
+        return Ok(new { enabled = true, platform = device.Platform, meshes });
+    }
+
+    // Deletes one cached mesh by stem (or all when stem is "*"). Admin-gated.
+    [HttpDelete("{id}/cached-meshes/{stem}")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> DeleteCachedMesh(string id, string stem)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var device = await Store?.GetAsync(id)!;
+        if (device is null) return NotFound(new { error = "unknown device" });
+        var cache = services.GetService(typeof(MeshAssetCache)) as MeshAssetCache;
+        if (cache is null || !cache.Enabled) return StatusCode(503, new { error = "mesh cache not configured" });
+
+        if (stem == "*")
+        {
+            var n = cache.Clear(device.Platform);
+            return Ok(new { ok = true, cleared = n });
+        }
+        var deleted = cache.Delete(device.Platform, stem);
+        return Ok(new { ok = deleted, deleted });
+    }
+
     // Force-restart the egginc app on the device (kill + relaunch) so it makes a fresh launch request to
     // auxbrain, which the capture proxy decrypts to harvest rinfo (clientVersion/build). Needed because an
     // idle/backgrounded app does not re-hit auxbrain on its own. Admin-gated; capture must be running.

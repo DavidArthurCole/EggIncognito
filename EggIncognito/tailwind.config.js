@@ -8,6 +8,9 @@ module.exports = {
     "./wwwroot/**/*.html",
     "./wwwroot/**/*.js",
   ],
+  // The API console builds method-chip classes dynamically (console-@(verb)), so the scanner never sees the
+  // literal names; safelist them so the @layer-components rules survive the purge.
+  safelist: ["console-get", "console-post", "console-put", "console-patch", "console-delete"],
   // Preflight (Tailwind's CSS reset) is OFF for Phase 1: the compiled sheet is ADDITIVE alongside the
   // legacy per-tab CSS, and a reset would restyle existing elements (a visual regression). Re-enable in
   // a later phase once the legacy CSS is being removed.

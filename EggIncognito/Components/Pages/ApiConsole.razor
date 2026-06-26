@@ -26,12 +26,16 @@ else
   <div class="flex gap-4 flex-wrap">
     <section class="panel w-[340px] flex flex-col gap-2" style="max-height: 75vh; overflow:auto;">
       <input class="reg-filter-input w-full" placeholder="Filter endpoints…" @bind="_filter" @bind:event="oninput" />
-      @foreach (var e in Filtered())
+      @foreach (var group in Grouped())
       {
-        <button class="console-ep @(_selected == e ? "active" : "")" @onclick="() => Select(e)">
-          <span class="console-method console-@(e.Method.ToLower())">@e.Method</span>
-          <span class="console-route">@e.Route</span>
-        </button>
+        <div class="console-group-title">@group.Key</div>
+        @foreach (var e in group)
+        {
+          <button class="console-ep @(_selected == e ? "active" : "")" @onclick="() => Select(e)">
+            <span class="console-method console-@(e.Method.ToLower())">@e.Method</span>
+            <span class="console-route">@ShortRoute(e.Route)</span>
+          </button>
+        }
       }
     </section>
 
@@ -152,6 +156,23 @@ else
             ? _endpoints
             : _endpoints.Where(e => e.Route.Contains(_filter, StringComparison.OrdinalIgnoreCase)
                                     || e.Method.Contains(_filter, StringComparison.OrdinalIgnoreCase));
+
+    // Group the (filtered) endpoints by their namespace, the segment after /api/ (tools, devices, capture…).
+    IEnumerable<IGrouping<string, Endpoint>> Grouped() =>
+        Filtered().GroupBy(Namespace).OrderBy(g => g.Key, StringComparer.Ordinal);
+
+    static string Namespace(Endpoint e)
+    {
+        var parts = e.Route.TrimStart('/').Split('/');
+        return parts.Length >= 2 && parts[0] == "api" ? parts[1] : parts.ElementAtOrDefault(0) ?? "api";
+    }
+
+    // Drops the /api/<namespace>/ prefix so rows read compactly under their group header.
+    static string ShortRoute(string route)
+    {
+        var parts = route.TrimStart('/').Split('/');
+        return parts.Length > 2 && parts[0] == "api" ? "/" + string.Join('/', parts.Skip(2)) : route;
+    }
 
     void Select(Endpoint e)
     {
