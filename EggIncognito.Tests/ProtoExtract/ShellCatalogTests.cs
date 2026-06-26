@@ -161,6 +161,17 @@ public class ShellCatalogTests
     }
 
     [Fact]
+    public void HatWearingChicken_WithoutMetadata_GetsDefaultAnchor()
+    {
+        var cat = new DLCCatalog();
+        // a chicken that wears a hat (noHats=false) but ships no metadata override.
+        cat.ShellObjects.Add(Obj("ei_chicken_skis", ShellSpec.Types.AssetType.Chicken));
+        var o = Assert.Single(ShellCatalog.Chickens(cat));
+        Assert.False(o.NoHats);
+        Assert.Equal(ShellCatalog.DefaultChickenAnchor, o.Anchor);
+    }
+
+    [Fact]
     public void RealConfig_HasChickensWithAnchors_AndHats()
     {
         var json = ConfigJson();

@@ -6,6 +6,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 <PageTitle>EggIncognito - 3D Playground</PageTitle>
 
@@ -176,7 +177,9 @@ else
         if (!firstRender || !_isAdmin) return;
         try
         {
-            _mod = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/playground.js");
+            // version query busts a stale browser/CDN cache after a deploy ships a new module shape. Keyed on
+            // the served file's last-write ticks so it changes exactly when playground.js changes.
+            _mod = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playground.js?v={InteropVersion()}");
             await _mod.InvokeVoidAsync("init", _canvas);
             await LoadShipList();
             await LoadDevices();
@@ -416,6 +419,18 @@ else
 
     void Status(string s) { _error = false; _status = s; StateHasChanged(); }
     void Fail(string s) { _error = true; _status = s; StateHasChanged(); }
+
+    // Cache-bust token = last-write ticks of the served interop module (falls back to a constant offline).
+    string InteropVersion()
+    {
+        try
+        {
+            var fi = Env.WebRootFileProvider.GetFileInfo("interop/playground.js");
+            if (fi.Exists) return fi.LastModified.UtcTicks.ToString();
+        }
+        catch { }
+        return "1";
+    }
 
     record ListResult(string[]? Ships);
     record MeshListResult(string[]? Meshes);

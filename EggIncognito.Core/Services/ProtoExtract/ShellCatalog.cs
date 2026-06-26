@@ -61,7 +61,13 @@ public static class ShellCatalog
     public static Shell? ById(DLCCatalog catalog, string identifier) =>
         FromCatalog(catalog).FirstOrDefault(s => string.Equals(s.Identifier, identifier, StringComparison.Ordinal));
 
-    // Every shellObject with a resolvable mesh url. Same lowest-LOD piece rule as the shells path.
+    // The standard chicken head anchor [x, hatY, hatZ, scale]. Only ~29 of 105 chickens carry their own
+    // metadata (an override for an off-shape head); the rest wear a hat at this default. It is the modal
+    // metadata value across the catalog. Used when a hat-wearing chicken has no explicit metadata.
+    public static readonly IReadOnlyList<double> DefaultChickenAnchor = new[] { 0.0, 0.428, -0.11, 1.06 };
+
+    // Every shellObject with a resolvable mesh url. Same lowest-LOD piece rule as the shells path. Chickens
+    // that wear a hat but ship no metadata fall back to the default head anchor so the hat sits on the head.
     public static IReadOnlyList<ShellObject> Objects(DLCCatalog catalog)
     {
         var objs = new List<ShellObject>();
@@ -72,8 +78,12 @@ public static class ShellCatalog
             if (piece?.Dlc is not { } dlc) continue;
             var url = Url(dlc);
             if (url is null) continue;
+            var isChicken = o.AssetType == ShellSpec.Types.AssetType.Chicken;
+            var anchor = o.Metadata.Count > 0
+                ? o.Metadata.ToList()
+                : (isChicken && !o.NoHats ? DefaultChickenAnchor : []);
             objs.Add(new ShellObject(o.Identifier ?? "", NullIfEmpty(o.Name), AssetTypeName(o.AssetType),
-                url, NullIfEmpty(dlc.Checksum), o.Metadata.ToList(), o.NoHats));
+                url, NullIfEmpty(dlc.Checksum), anchor, o.NoHats));
         }
         return objs;
     }
