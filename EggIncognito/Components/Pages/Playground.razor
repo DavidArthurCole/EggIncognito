@@ -35,7 +35,7 @@ else
       <div class="flex gap-2 mt-3">
         <button class="btn-secondary flex-1" @onclick="TogglePlay" disabled="@(_active.Count == 0)">@(_playing ? "Pause" : "Play")</button>
         <button class="btn-secondary flex-1" @onclick="ResetView" disabled="@(_active.Count == 0)">Reset view</button>
-        <select class="reg-filter-input w-[150px]" @bind="_kind">
+        <select class="reg-filter-input w-[150px]" @bind="_kind" @bind:after="ApplyAnimation">
           <option value="none">No animation</option>
           <option value="SpinY">Spin (Y)</option>
           <option value="SpinZ">Spin (Z)</option>
@@ -281,16 +281,19 @@ else
                 await _mod.InvokeAsync<string[]>("addGroup", id, Convert.ToBase64String(glb), new { });
             }
             await PushOffset(id);
+            await ApplyAnimation();
             Status("");
         }
         catch (Exception ex) { Fail(ex.Message); }
     }
 
-    // The raw glb bytes for a group's current selection, animated if a kind is picked. Null = nothing picked.
+    // The raw glb bytes for a group's current selection. Spin/hover is a client-side whole-group transform
+    // (so chicken+hat rotate as one), not baked per-mesh; the mesh's own embedded clips still play. Null =
+    // nothing picked.
     async Task<byte[]?> FetchGroupGlb(string id)
     {
         if (id == "static" && string.IsNullOrEmpty(_selectedShip) && _uploadGlb is not null)
-            return await Animate(_uploadGlb);
+            return _uploadGlb;
 
         string? url = id switch
         {
@@ -305,8 +308,7 @@ else
             _ => null,
         };
         if (url is null) { Status("Pick a selection for this widget."); return null; }
-        var raw = await FetchRaw(url);
-        return raw is null ? null : await Animate(raw);
+        return await FetchRaw(url);
     }
 
     async Task<byte[]?> FetchRaw(string url)
@@ -316,13 +318,9 @@ else
         return await res.Content.ReadAsByteArrayAsync();
     }
 
-    async Task<byte[]> Animate(byte[] raw)
+    async Task ApplyAnimation()
     {
-        if (_kind == "none") return raw;
-        using var content = new MultipartFormDataContent();
-        content.Add(new ByteArrayContent(raw), "file", "model.glb");
-        var res = await Client().PostAsync($"/api/tools/animate-glb?kind={_kind}&seconds=6", content);
-        return res.IsSuccessStatusCode ? await res.Content.ReadAsByteArrayAsync() : raw;
+        if (_mod is not null) await _mod.InvokeVoidAsync("setAnimation", _kind, 6);
     }
 
     async Task OnUpload(InputFileChangeEventArgs e)

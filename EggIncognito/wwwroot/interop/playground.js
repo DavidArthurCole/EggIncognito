@@ -23,6 +23,11 @@ const ORBIT_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/OrbitContr
 let THREE, GLTFLoader, OrbitControls;
 let renderer, scene, camera, controls, clock, raf;
 
+// scene-wide procedural animation applied to whole groups (a chicken+hat spins as one rigid unit). Distinct
+// from each group's mixer, which plays the mesh's own baked clips. { kind, seconds, t }.
+let anim = { kind: 'none', seconds: 6, t: 0 };
+let animPlaying = true;
+
 // groupId -> { root: THREE.Group, mixer, hatMixer, autoOffset: {x,y,z}, manual: {x,y,z} | null }
 const groups = new Map();
 
@@ -67,12 +72,30 @@ export async function init(canvas) {
 function loop() {
   raf = requestAnimationFrame(loop);
   const dt = clock.getDelta();
+  if (anim.kind !== 'none' && animPlaying) anim.t += dt;
   for (const g of groups.values()) {
     if (g.mixer) g.mixer.update(dt);
     if (g.hatMixer) g.hatMixer.update(dt);
+    applyAnim(g);
   }
   controls.update();
   renderer.render(scene, camera);
+}
+
+// Procedural whole-group animation (spin / hover), composed on top of the group's offset. The chicken and
+// its hat share the group root, so they rotate + bob together as one rigid unit.
+function applyAnim(g) {
+  const o = g.manual || g.autoOffset;
+  const period = anim.seconds > 0 ? anim.seconds : 6;
+  const phase = (anim.t / period) * Math.PI * 2;
+  let rx = 0, ry = 0, rz = 0, bob = 0;
+  switch (anim.kind) {
+    case 'SpinY': ry = phase; break;
+    case 'SpinZ': rz = phase; break;
+    case 'HoverSpin': ry = phase; bob = Math.sin(phase) * 0.15; break;
+  }
+  g.root.rotation.set(rx, ry, rz);
+  g.root.position.set(o.x, o.y + bob, o.z);
 }
 
 async function parseGlb(b64) {
@@ -161,10 +184,21 @@ function applyOffset(g) {
 }
 
 export function setPlaying(playing) {
+  animPlaying = playing;
   const t = playing ? 1 : 0;
   for (const g of groups.values()) {
     if (g.mixer) g.mixer.timeScale = t;
     if (g.hatMixer) g.hatMixer.timeScale = t;
+  }
+}
+
+// Sets the whole-group procedural animation (spin / hover). Live: takes effect next frame, no reload.
+export function setAnimation(kind, seconds) {
+  anim.kind = kind || 'none';
+  anim.seconds = +seconds || 6;
+  if (anim.kind === 'none') {
+    anim.t = 0;
+    for (const g of groups.values()) { g.root.rotation.set(0, 0, 0); applyOffset(g); }
   }
 }
 
