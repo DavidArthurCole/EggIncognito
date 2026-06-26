@@ -48,21 +48,28 @@ public sealed class ShipAssetsController(
         return await ResolveAndDownloadAsync(config, write, ct);
     }
 
-    // Automatic path: the server calls auxbrain ei/get_config itself (signing the ConfigRequest with the
-    // instance salt), decodes the ConfigResponse, and resolves+downloads the 4 CDN ships - no manual
-    // capture step. Needs a signing salt (EGG_INC_API_SALT); without it the request is unsigned and the API
-    // will reject it, so we fail fast with a clear message.
+    public sealed record PullRequest(string? Salt);
+
+    // Automatic path: the server calls auxbrain ei/get_config itself (signing the ConfigRequest), decodes
+    // the ConfigResponse, and resolves+downloads the 4 CDN ships - no manual capture step. The signing salt
+    // comes from the request body when supplied (the same client-owned salt the Inspector keeps in browser
+    // localStorage, so the admin button can reuse it) and falls back to the instance salt (EGG_INC_API_SALT).
+    // Without either, the request is unsigned and the API rejects it, so we fail fast with a clear message.
     [HttpPost("pull-from-live")]
     [EnableRateLimiting("egress")]
-    public async Task<IActionResult> PullFromLive([FromQuery] bool write, CancellationToken ct)
+    public async Task<IActionResult> PullFromLive([FromQuery] bool write, [FromBody] PullRequest? body, CancellationToken ct)
     {
         if (HostedGate() is { } gate) return gate;
-        if (!pipeline.CanSign)
-            return StatusCode(503, new { error = "live get_config needs a signing salt (EGG_INC_API_SALT); use resolve-from-config with a captured ConfigResponse instead" });
+        // Prefer the caller-supplied salt (Inspector's browser salt); else the instance salt.
+        var salt = string.IsNullOrEmpty(body?.Salt) ? null : body!.Salt;
+        if (salt is null && !pipeline.CanSign)
+            return StatusCode(503, new { error = "live get_config needs a signing salt - set one in the Inspector (browser) or EGG_INC_API_SALT, or use resolve-from-config with a captured ConfigResponse" });
 
         // Minimal signed ConfigRequest. The DLCCatalog is global config, so a bare rinfo suffices.
         var req = new Ei.ConfigRequest { Rinfo = new Ei.BasicRequestInfo() };
-        var built = pipeline.Build(req.ToByteArray(), wrap: true);
+        // 3-arg Build signs with the supplied salt; a null salt uses the instance salt (pipeline.CanSign).
+        var built = salt is null ? pipeline.Build(req.ToByteArray(), wrap: true)
+                                 : pipeline.Build(req.ToByteArray(), wrap: true, salt);
 
         var client = httpFactory.CreateClient("inspector");
         string rawBody;

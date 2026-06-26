@@ -48,7 +48,7 @@ public class DeviceConfigTests
     {
         var c = DeviceConfig.Bind(Cfg(new()
         {
-            ["Devices:0:Platform"] = "android",  // no Id, no Target
+            ["Devices:0:Platform"] = "android", // no Id, no Target
             ["Devices:1:Id"] = "ok",
             ["Devices:1:Platform"] = "ios",
             ["Devices:1:Target"] = "udid",

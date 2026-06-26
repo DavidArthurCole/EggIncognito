@@ -3,8 +3,10 @@
 @inject ICurrentUser User
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
 @using System.Net.Http.Json
 @using System.Text.Json
+@using Microsoft.JSInterop
 
 <PageTitle>EggIncognito - Admin</PageTitle>
 <main id="adminMain" class="px-8 pt-6 pb-8 max-w-[1100px]">
@@ -62,8 +64,9 @@
       </div>
       <p class="text-muted text-xs mb-3">
         Pulls the 4 orbital ship meshes from the live game config, decodes to glTF, and writes
-        <code class="code-chip">ships/&lt;EnumName&gt;.glb</code> to the configured output dir. The 7 bundled
-        ships come from a device pull (Devices panel).
+        <code class="code-chip">ships/&lt;EnumName&gt;.glb</code> to the configured output dir. Signs the
+        get_config call with the salt set in the <a class="underline" href="/inspector">Inspector</a> (this
+        browser), falling back to the server salt. The 7 bundled ships come from a device pull (Devices panel).
       </p>
       <button class="btn-primary" @onclick="PullShipAssets" disabled="@_shipBusy">
         @(_shipBusy ? "Pulling…" : "Pull ship meshes from live")
@@ -204,7 +207,11 @@
         _log = "";
         try
         {
-            var res = await Client().PostAsync("/api/ship-assets/pull-from-live?write=true", null);
+            // Reuse the Inspector's client-owned salt (browser localStorage) so the live get_config can be
+            // signed without an instance EGG_INC_API_SALT. Empty when unset; the server then falls back to
+            // its own salt, or 503s if neither is available.
+            var salt = await ReadInspectorSalt();
+            var res = await Client().PostAsJsonAsync("/api/ship-assets/pull-from-live?write=true", new { salt });
             if (res.IsSuccessStatusCode)
             {
                 _shipResult = await res.Content.ReadFromJsonAsync<ShipPullResult>(JsonOpts);
@@ -218,6 +225,20 @@
         }
         catch (Exception ex) { _log = ex.Message; }
         finally { _shipBusy = false; }
+    }
+
+    // Reads the salt the Inspector stores in this browser's localStorage (key inspector.salt), via the same
+    // ES module Inspector uses. The salt never lives server-side; it is read fresh here and sent only on this
+    // one signing call. Returns "" on any failure (no module, no salt) so the server can fall back.
+    IJSObjectReference? _store;
+    async Task<string> ReadInspectorSalt()
+    {
+        try
+        {
+            _store ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js");
+            return await _store.InvokeAsync<string>("getSalt") ?? "";
+        }
+        catch { return ""; }
     }
 
     record UserRow(string DiscordId, string Username, string Role, DateTimeOffset LastLoginAt);

@@ -37,8 +37,8 @@ public sealed class NativeCaptureProxy : ICaptureProxy
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
-    private X509Certificate2? _rootCa;        // root with private key, for signing leafs + (optionally) OS trust
-    private X509Certificate2? _rootCaPublic;  // public-only copy exported to the device + OS store
+    private X509Certificate2? _rootCa; // root with private key, for signing leafs + (optionally) OS trust
+    private X509Certificate2? _rootCaPublic; // public-only copy exported to the device + OS store
     private bool _trustAdded;
     private bool _freshCa;
 
@@ -271,7 +271,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         finally { ArrayPool<byte>.Shared.Return(buf); }
     }
 
-    // ---- CA + leaf minting ----
+    // CA + leaf minting
 
     private static X509Certificate2 LoadOrCreateRoot(string pfxPath)
     {
@@ -371,7 +371,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         catch (Exception ex) { Log($"TRUST-ERR {ex.Message}"); }
     }
 
-    // ---- trust inference (mirrors UnobtaniumCaptureProxy) ----
+    // trust inference (mirrors UnobtaniumCaptureProxy)
 
     private void ArmTrustInference(string host)
     {
@@ -407,7 +407,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         DecryptError?.Invoke($"No decrypted traffic after connecting to {host} - is the CA installed and trusted on the device?");
     }
 
-    // ---- request-head parsing ----
+    // request-head parsing
 
     private static async Task<string?> ReadHeadAsync(NetworkStream net, CancellationToken ct)
     {

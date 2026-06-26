@@ -49,19 +49,19 @@ public class CrawlManifestReaderTests
 
         Assert.Equal(2, recs.Count); // shaA + shaB
         var a = Assert.Single(recs, r => r.ProtoSha == "shaA");
-        Assert.Equal("r1", a.OriginRepo);            // subject record chosen
+        Assert.Equal("r1", a.OriginRepo); // subject record chosen
         Assert.Equal("subject", a.Confidence);
-        Assert.Equal("1.21", a.AppVersion);           // trusted version attached
+        Assert.Equal("1.21", a.AppVersion); // trusted version attached
         Assert.Equal("111", a.Build);
         Assert.Equal("40", a.ClientVersion);
         Assert.Contains("// A", a.ProtoText);
         Assert.Equal("android", a.Platform);
 
         var b = Assert.Single(recs, r => r.ProtoSha == "shaB");
-        Assert.Null(b.AppVersion);                    // empty confidence -> version dropped
+        Assert.Null(b.AppVersion); // empty confidence -> version dropped
         Assert.Null(b.Build);
         Assert.Null(b.ClientVersion);
-        Assert.Null(b.Confidence);                    // empty normalized to null
+        Assert.Null(b.Confidence); // empty normalized to null
         Assert.Contains("// C", b.ProtoText);
     }
 
@@ -87,12 +87,12 @@ public class CrawlManifestReaderTests
         });
 
         var rec = Assert.Single(CrawlManifestReader.Read(zip));
-        Assert.Equal("version-file", rec.Confidence);   // beat subject
+        Assert.Equal("version-file", rec.Confidence); // beat subject
         Assert.Equal("vfile", rec.OriginRepo);
-        Assert.Equal("1.23.1", rec.AppVersion);          // full triple from the version file
+        Assert.Equal("1.23.1", rec.AppVersion); // full triple from the version file
         Assert.Equal("1.23.1.0", rec.Build);
         Assert.Equal("40", rec.ClientVersion);
-        Assert.Equal("ios", rec.Platform);               // IOS -> ios
+        Assert.Equal("ios", rec.Platform); // IOS -> ios
         Assert.Contains("// V", rec.ProtoText);
     }
 
@@ -131,11 +131,11 @@ public class CrawlManifestReaderTests
 
         var rec = Assert.Single(CrawlManifestReader.Read(zip));
         Assert.Equal("shaT", rec.ProtoSha);
-        Assert.Contains("// T", rec.ProtoText);       // content always ingested
-        Assert.Null(rec.AppVersion);                  // tree-scan version NOT attached
+        Assert.Contains("// T", rec.ProtoText); // content always ingested
+        Assert.Null(rec.AppVersion); // tree-scan version NOT attached
         Assert.Null(rec.Build);
         Assert.Null(rec.ClientVersion);
-        Assert.Equal("tree-scan", rec.Confidence);    // hint carried for the reviewer
+        Assert.Equal("tree-scan", rec.Confidence); // hint carried for the reviewer
     }
 
     [Fact]

@@ -40,9 +40,9 @@ public static class SampleRpo
         void W32(uint v) { BinaryPrimitives.WriteUInt32LittleEndian(u32, v); ms.Write(u32); }
         void WF(float v) { BinaryPrimitives.WriteSingleLittleEndian(u32, v); ms.Write(u32); }
 
-        W32(0x314F5052);                 // magic: writes bytes "RPO1" (52 50 4F 31) on disk, like real files
-        W32((uint)Positions.Length);     // vertex count
-        W32((uint)(indexCount * 2));     // face bytes
+        W32(0x314F5052); // magic: writes bytes "RPO1" (52 50 4F 31) on disk, like real files
+        W32((uint)Positions.Length); // vertex count
+        W32((uint)(indexCount * 2)); // face bytes
 
         foreach (var s in Strides)
         {

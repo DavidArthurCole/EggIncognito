@@ -101,10 +101,10 @@ public sealed partial class FandomSource(IHttpClientFactory httpFactory, ILogger
         tail = DateRe().Replace(tail, "");
         // Strip wiki cell separators, links, bold/italic, list bullets, templates.
         tail = Regex.Replace(tail, @"\[\[([^\]|]*\|)?([^\]]*)\]\]", "$2"); // [[a|b]] -> b
-        tail = Regex.Replace(tail, @"\{\{[^}]*\}\}", "");                   // {{templates}}
+        tail = Regex.Replace(tail, @"\{\{[^}]*\}\}", ""); // {{templates}}
         tail = tail.Replace("||", " ").Replace("'''", "").Replace("''", "");
         tail = Regex.Replace(tail, @"[|*#]+", " ");
-        tail = Regex.Replace(tail, @"<[^>]+>", " ");                        // stray html
+        tail = Regex.Replace(tail, @"<[^>]+>", " "); // stray html
         tail = Regex.Replace(tail, @"\s+", " ").Trim();
         return string.IsNullOrWhiteSpace(tail) ? null : tail;
     }

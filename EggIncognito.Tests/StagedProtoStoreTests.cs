@@ -60,7 +60,7 @@ public class StagedProtoStoreTests
             await store.OfferAsync("android", "1.5", "5", "72", "p", "sha3", "proto", null, "u", default));
         var pend = await store.PendingAsync(default);
         Assert.Single(pend);
-        Assert.Equal("5", pend[0].Build);          // filled on revive
+        Assert.Equal("5", pend[0].Build); // filled on revive
         Assert.Equal("72", pend[0].ClientVersion);
     }
 
@@ -109,7 +109,7 @@ public class StagedProtoStoreTests
             r.Id, r.Platform, r.AppVersion, r.Build, r.ClientVersion)).ToList();
         var res = await store.BulkApproveAsync(items, "admin", default);
         Assert.Equal(1, res.Approved); // the one with build
-        Assert.Equal(1, res.Skipped);  // the missing-build one
+        Assert.Equal(1, res.Skipped); // the missing-build one
         Assert.Equal(0, res.Failed);
     }
 }

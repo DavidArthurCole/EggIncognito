@@ -24,8 +24,8 @@ public sealed class CaptureAddressStore(EggIncognitoDbContext db)
         for (var i = 0; i < 16; i++)
         {
             var firstBit = i * 8;
-            if (firstBit + 8 <= prefixLen) { bytes[i] = prefix[i]; continue; }   // fully inside the prefix
-            if (firstBit >= prefixLen) { bytes[i] = rnd[i]; continue; }           // fully a host byte
+            if (firstBit + 8 <= prefixLen) { bytes[i] = prefix[i]; continue; } // fully inside the prefix
+            if (firstBit >= prefixLen) { bytes[i] = rnd[i]; continue; } // fully a host byte
             // Straddling byte: high (prefixLen - firstBit) bits from the prefix, the rest random.
             var prefixBits = prefixLen - firstBit;
             var mask = (byte)(0xFF << (8 - prefixBits));

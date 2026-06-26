@@ -58,7 +58,7 @@ public class HostAllowlistTests
         const string self = "eggincognito.davidarthurcole.me";
         Assert.True(InspectorApiController.IsAllowedHost(self, self));
         Assert.True(InspectorApiController.IsAllowedHost("EggIncognito.DavidArthurCole.ME", self));
-        Assert.False(InspectorApiController.IsAllowedHost(self));            // no selfHost = rejected
+        Assert.False(InspectorApiController.IsAllowedHost(self)); // no selfHost = rejected
         Assert.False(InspectorApiController.IsAllowedHost("evil.com", self)); // different host still rejected
     }
 }

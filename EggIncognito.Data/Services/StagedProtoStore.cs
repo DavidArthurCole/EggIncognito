@@ -193,8 +193,8 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
             switch (r)
             {
                 case ApproveResult.Ok or ApproveResult.Merged: ok++; break; // both promote + clear the queue
-                case ApproveResult.MissingBuild: skipped++; break;          // no build -> needs a manual fill
-                default: failed++; break;                                   // NotFound
+                case ApproveResult.MissingBuild: skipped++; break; // no build -> needs a manual fill
+                default: failed++; break; // NotFound
             }
         }
         return new BulkApproveResult(ok, skipped, failed);

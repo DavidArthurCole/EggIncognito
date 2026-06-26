@@ -50,9 +50,9 @@ public class TarReaderTests
             var header = new byte[512];
             var nameBytes = Encoding.ASCII.GetBytes(name);
             Array.Copy(nameBytes, header, Math.Min(nameBytes.Length, 100));
-            WriteOctal(header, 100, 8, 0b110_100_100);            // mode 0644
-            WriteOctal(header, 124, 12, data.Length);             // size
-            header[156] = (byte)'0';                              // typeflag: regular file
+            WriteOctal(header, 100, 8, 0b110_100_100); // mode 0644
+            WriteOctal(header, 124, 12, data.Length); // size
+            header[156] = (byte)'0'; // typeflag: regular file
             Encoding.ASCII.GetBytes("ustar\0").CopyTo(header, 257);
             // checksum: spaces while summing, then the octal sum written back.
             for (var i = 148; i < 156; i++) header[i] = (byte)' ';

@@ -18,11 +18,11 @@ public sealed record JobStatus(
 
 public interface IDeviceJobTracker
 {
-    bool TryStart(string deviceId, string message);   // false if one is already Running
+    bool TryStart(string deviceId, string message); // false if one is already Running
     void Progress(string deviceId, string message);
     void Finish(string deviceId, StoreCheckResult result);
     void Fail(string deviceId, string note);
-    JobStatus? Get(string deviceId);                  // null => idle/expired
+    JobStatus? Get(string deviceId); // null => idle/expired
 }
 
 public sealed class DeviceJobTracker(TimeProvider time) : IDeviceJobTracker

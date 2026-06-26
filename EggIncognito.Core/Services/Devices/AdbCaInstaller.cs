@@ -55,7 +55,7 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         "echo '{cert_b64}' | base64 -d > $MOD/system/etc/security/cacerts/{hash}.0\n" +
         "chmod 644 $MOD/system/etc/security/cacerts/{hash}.0\n" +
         "chcon u:object_r:system_security_cacerts_file:s0 $MOD/system/etc/security/cacerts/{hash}.0 2>/dev/null\n" +
-        "rm -f $MOD/disable $MOD/remove 2>/dev/null\n" +    // ensure the module is enabled
+        "rm -f $MOD/disable $MOD/remove 2>/dev/null\n" + // ensure the module is enabled
         "[ -f $MOD/system/etc/security/cacerts/{hash}.0 ] && echo 'diag module: written' || echo 'diag module: FAILED'\n" +
         // LIVE activation, no reboot. On Android 14 the Magisk module's system/ overlay does NOT land in the
         // live cacerts store (Magisk re-mounts /system/etc/security/cacerts as a tmpfs with per-cert bind

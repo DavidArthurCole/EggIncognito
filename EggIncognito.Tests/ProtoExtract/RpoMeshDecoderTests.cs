@@ -44,8 +44,8 @@ public class RpoMeshDecoderTests
     public void Decode_ProducesValidGlbContainer()
     {
         var glb = RpoMeshDecoder.Decode(BuildRpo()).Glb!;
-        Assert.Equal((uint)0x46546C67, BinaryPrimitives.ReadUInt32LittleEndian(glb));          // "glTF"
-        Assert.Equal((uint)2, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(4)));         // version
+        Assert.Equal((uint)0x46546C67, BinaryPrimitives.ReadUInt32LittleEndian(glb)); // "glTF"
+        Assert.Equal((uint)2, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(4))); // version
         Assert.Equal((uint)glb.Length, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(8))); // total length
         Assert.Equal((uint)0x4E4F534A, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(16))); // "JSON"
         Assert.Equal(0, glb.Length % 4); // 4-byte aligned container

@@ -8,7 +8,7 @@ namespace EggIncognito.Tests.Devices;
 
 public class DeviceCaptureTests
 {
-    // ---- DeviceRinfoStore: per-device latest, keep-prior-on-null, corrupt tolerance ----
+    // DeviceRinfoStore: per-device latest, keep-prior-on-null, corrupt tolerance
 
     private static string TempDir()
     {
@@ -72,7 +72,7 @@ public class DeviceCaptureTests
         finally { Directory.Delete(dir, true); }
     }
 
-    // ---- HostAddress.Pick: prefer private LAN IPv4, skip loopback/virtual/down/APIPA ----
+    // HostAddress.Pick: prefer private LAN IPv4, skip loopback/virtual/down/APIPA
 
     [Fact]
     public void HostAddress_Picks_Private_Over_Public()
@@ -90,11 +90,11 @@ public class DeviceCaptureTests
     {
         var nics = new List<HostAddress.Nic>
         {
-            new("lo", true, true, ["127.0.0.1"]),          // loopback
-            new("docker0", true, false, ["172.17.0.1"]),   // virtual name
-            new("eth-down", false, false, ["192.168.1.9"]),// down
-            new("wlan0", true, false, ["169.254.1.2"]),    // APIPA
-            new("eth0", true, false, ["10.0.0.5"]),        // good private
+            new("lo", true, true, ["127.0.0.1"]), // loopback
+            new("docker0", true, false, ["172.17.0.1"]), // virtual name
+            new("eth-down", false, false, ["192.168.1.9"]), // down
+            new("wlan0", true, false, ["169.254.1.2"]), // APIPA
+            new("eth0", true, false, ["10.0.0.5"]), // good private
         };
         Assert.Equal("10.0.0.5", HostAddress.Pick(nics));
     }
@@ -110,7 +110,7 @@ public class DeviceCaptureTests
     public void HostAddress_Pick_NoCandidates_ReturnsNull() =>
         Assert.Null(HostAddress.Pick([]));
 
-    // ---- Configurators: correct command args, idempotent set/clear, error surfaces ----
+    // Configurators: correct command args, idempotent set/clear, error surfaces
 
     sealed class CapturingRunner(Func<string[], ProcessResult> fn) : IProcessRunner
     {
@@ -194,7 +194,7 @@ public class DeviceCaptureTests
         Assert.Empty(runner.Calls);
     }
 
-    // ---- Capture port allocation: each device owns a non-overlapping 3-port block ----
+    // Capture port allocation: each device owns a non-overlapping 3-port block
 
     [Fact]
     public void CapturePorts_DevicesGet_NonOverlapping_Blocks()

@@ -84,7 +84,7 @@ public static class DescriptorProtoCarver
         catch { return null; }
     }
 
-    // ---- carving ----
+    // carving
 
     private static int FindAnchor(byte[] b, string protoName)
     {
@@ -151,7 +151,7 @@ public static class DescriptorProtoCarver
         return result;
     }
 
-    // ---- emission ----
+    // emission
 
     private static void EmitFile(FileDescriptorProto f, StringBuilder sb)
     {

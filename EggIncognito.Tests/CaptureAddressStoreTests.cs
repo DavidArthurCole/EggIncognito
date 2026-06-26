@@ -31,7 +31,7 @@ public class CaptureAddressStoreTests
         {
             var bytes = CaptureAddressStore.RandomInPrefix(sub).GetAddressBytes();
             for (var i = 0; i < 8; i++) Assert.Equal(prefixBytes[i], bytes[i]); // /64 prefix intact
-            Assert.Equal(0x80, bytes[8] & 0x80);                                // bit 64 set (upper half)
+            Assert.Equal(0x80, bytes[8] & 0x80); // bit 64 set (upper half)
         }
     }
 

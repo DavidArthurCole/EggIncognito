@@ -177,8 +177,8 @@
   .card-link:hover { @apply border-accent; }
   .card-link p { @apply text-muted; }
 
-  /* ---- /support page. Flat panels, outlined pills, mono chips - same vocabulary as the rest of
-     the app. No gradients, no filled color blobs, no brand dots. ---- */
+  /* /support page. Flat panels, outlined pills, mono chips, same vocabulary as the rest of
+     the app. No gradients, no filled color blobs, no brand dots. */
   .support-title { @apply text-[1.4rem] font-semibold leading-tight text-fg m-0 mb-2; }
   .support-lede { @apply text-sm text-muted leading-relaxed max-w-[64ch] m-0 mb-8; }
 

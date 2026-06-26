@@ -15,9 +15,9 @@ public sealed class ApiMetrics(TimeProvider time)
 
     private sealed class Bucket
     {
-        public long Epoch;     // minute index this bucket represents
+        public long Epoch; // minute index this bucket represents
         public int Total;
-        public int Limited;    // 429s
+        public int Limited; // 429s
     }
 
     private readonly Bucket[] _ring = Enumerable.Range(0, Minutes).Select(_ => new Bucket()).ToArray();

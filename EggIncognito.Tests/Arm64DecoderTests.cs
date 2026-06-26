@@ -57,8 +57,8 @@ public class Arm64DecoderTests
         var insns = Arm64Decoder.Decode(Words(Str(0, 1, 0x110)), 0x2000);
         var str = Assert.Single(insns, i => i.Op == Arm64Op.Str);
         Assert.Equal(0x2000u, str.Address);
-        Assert.Equal(0, str.Rd);      // Rt
-        Assert.Equal(1, str.Rn);      // base
+        Assert.Equal(0, str.Rd); // Rt
+        Assert.Equal(1, str.Rn); // base
         Assert.Equal(0x110, str.Imm); // byte offset
     }
 

@@ -80,9 +80,9 @@ public class DeviceProbeTests
         var runner = new FakeRunner((_, _) => new ProcessResult(0, empty, ""));
         var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
         var r = await probe.ProbeAsync(default);
-        Assert.True(r.Reachable);     // device answered
+        Assert.True(r.Reachable); // device answered
         Assert.Null(r.InstalledAppVersion);
-        Assert.NotNull(r.Note);       // "app not installed"
+        Assert.NotNull(r.Note); // "app not installed"
     }
 
     [Fact]

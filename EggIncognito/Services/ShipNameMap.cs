@@ -26,18 +26,18 @@ public static class ShipNameMap
 
     public static readonly IReadOnlyList<Ship> All =
     [
-        new(0,  "ChickenOne",         "Chicken One",          "ei_ship_chicken_one",          "afx_ship_chicken_1"),
-        new(1,  "ChickenNine",        "Chicken Nine",         "ei_ship_chicken_nine",         "afx_ship_chicken_9"),
-        new(2,  "ChickenHeavy",       "Chicken Heavy",        "ei_ship_chicken_heavy",        "afx_ship_chicken_heavy"),
-        new(3,  "Bcr",                "BCR",                  "ei_ship_bcr",                  "afx_ship_bcr"),
-        new(4,  "MilleniumChicken",   "Quintillion Chicken",  "ei_ship_millenium_chicken",    "afx_ship_millenium_chicken"),
-        new(5,  "CorellihenCorvette", "Cornish-Hen Corvette", "ei_ship_corellihen_corvette",  "afx_ship_corellihen_corvette"),
+        new(0, "ChickenOne", "Chicken One", "ei_ship_chicken_one", "afx_ship_chicken_1"),
+        new(1, "ChickenNine", "Chicken Nine", "ei_ship_chicken_nine", "afx_ship_chicken_9"),
+        new(2, "ChickenHeavy", "Chicken Heavy", "ei_ship_chicken_heavy", "afx_ship_chicken_heavy"),
+        new(3, "Bcr", "BCR", "ei_ship_bcr", "afx_ship_bcr"),
+        new(4, "MilleniumChicken", "Quintillion Chicken", "ei_ship_millenium_chicken", "afx_ship_millenium_chicken"),
+        new(5, "CorellihenCorvette", "Cornish-Hen Corvette", "ei_ship_corellihen_corvette", "afx_ship_corellihen_corvette"),
         // 6-9: CDN shells only, no bundled rpos/ mesh. BundleStem null until shell ids resolve.
-        new(6,  "Galeggtica",         "Galeggtica",           null,                           "afx_ship_galeggtica"),
-        new(7,  "Chickfiant",         "Defihent",             null,                           "afx_ship_defihent"),
-        new(8,  "Voyegger",           "Voyegger",             null,                           "afx_ship_voyegger"),
-        new(9,  "Henerprise",         "Henerprise",           null,                           "afx_ship_henerprise"),
-        new(10, "Atreggies",          "Atreggies Henliner",   "ei_ship_atreggies_shuttle",    "afx_ship_atreggies"),
+        new(6, "Galeggtica", "Galeggtica", null, "afx_ship_galeggtica"),
+        new(7, "Chickfiant", "Defihent", null, "afx_ship_defihent"),
+        new(8, "Voyegger", "Voyegger", null, "afx_ship_voyegger"),
+        new(9, "Henerprise", "Henerprise", null, "afx_ship_henerprise"),
+        new(10, "Atreggies", "Atreggies Henliner", "ei_ship_atreggies_shuttle", "afx_ship_atreggies"),
     ];
 
     // Lookup by the rpos/ file stem (mesh key from RpoAssetExtractor). Returns the enum name, or null when

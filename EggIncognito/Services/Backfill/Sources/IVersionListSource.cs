@@ -10,7 +10,7 @@ public sealed record ListedVersion(string AppVersion, DateTimeOffset? ReleaseDat
 // warning, never throws into the importer.
 public interface IVersionListSource
 {
-    string Name { get; }      // fandom | uptodown | apkpure | itunes | ipa4fun
-    string Platform { get; }  // android | ios
+    string Name { get; } // fandom | uptodown | apkpure | itunes | ipa4fun
+    string Platform { get; } // android | ios
     Task<IReadOnlyList<ListedVersion>> FetchAsync(CancellationToken ct);
 }

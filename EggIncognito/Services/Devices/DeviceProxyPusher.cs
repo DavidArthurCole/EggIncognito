@@ -110,7 +110,7 @@ public sealed class DeviceProxyPusher(
         {
             if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
                 return (false, "ios ssh not configured");
-            await IosKillAppAsync(ct);                       // leave the home screen, not the game, before locking
+            await IosKillAppAsync(ct); // leave the home screen, not the game, before locking
             var (ok, note) = await IosSendCmdAsync("lock", ct);
             return ok ? (true, "app killed + locked") : (false, $"lock failed: {note}");
         }
@@ -169,7 +169,7 @@ public sealed class DeviceProxyPusher(
         for (var i = 0; i < maxTries; i++)
         {
             var locked = await IosLockstateAsync(ct);
-            if (locked == false) return true;          // confirmed unlocked
+            if (locked == false) return true; // confirmed unlocked
             await IosSendCmdAsync("unlock", ct);
             try { await Task.Delay(TimeSpan.FromSeconds(4), ct); } catch (OperationCanceledException) { return false; }
         }

@@ -9,7 +9,7 @@ public class ProtoVersionQualityTests
     [Theory]
     [InlineData("111342", true)]
     [InlineData("72", true)]
-    [InlineData("1.35.7.1", false)]   // dotted iOS build
+    [InlineData("1.35.7.1", false)] // dotted iOS build
     [InlineData("a1b2c3d4e5f6g7h8", false)] // hash build (has letters)
     [InlineData("", false)]
     [InlineData(null, false)]

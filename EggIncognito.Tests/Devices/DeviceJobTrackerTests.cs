@@ -85,9 +85,9 @@ public class DeviceJobTrackerTests
         var t = new DeviceJobTracker(time);
         t.TryStart("dev", "checking...");
         t.Finish("dev", UpToDate);
-        Assert.NotNull(t.Get("dev"));      // fresh: still visible
+        Assert.NotNull(t.Get("dev")); // fresh: still visible
         time.Advance(TimeSpan.FromMinutes(3)); // past the 2-min TTL
-        Assert.Null(t.Get("dev"));         // expired -> idle
+        Assert.Null(t.Get("dev")); // expired -> idle
     }
 
     [Fact]
