@@ -98,6 +98,27 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task InspectorBuild_ConfigRequest_WithClonedRinfo_Is200()
+    {
+        // The Admin "Fetch live via Inspector" path builds a ConfigRequest with the Inspector's rinfo defaults
+        // as env (minus the UI-only "debug"). This must build, not 400 (the bug the thin/empty rinfo caused).
+        var c = _factory.CreateClient();
+        var body = new
+        {
+            path = "ei/get_config",
+            requestType = "ConfigRequest",
+            fields = new { },
+            env = new { eiUserId = "EI5862923193024512", clientVersion = 72, version = "1.35.7", build = "111343", platform = "DROID", country = "US", language = "en" },
+            wrap = true,
+            salt = "",
+        };
+        var r = await c.PostAsJsonAsync("/api/inspector/build", body);
+        var json = await r.Content.ReadAsStringAsync();
+        Assert.True(r.StatusCode == HttpStatusCode.OK, $"HTTP {(int)r.StatusCode}: {json}");
+        Assert.Contains("finalFormBody", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Shells_List_Responds()
     {
         // No config stored in the test host, so ok=false with a diagnostic, but the route + parse work.

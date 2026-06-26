@@ -145,17 +145,15 @@
           <option value="ios">ios</option>
           <option value="android">android</option>
         </select>
-        <input class="reg-filter-input w-auto" placeholder="EID (optional)" @bind="_configEid" />
-        <button class="btn-primary" @onclick="FetchConfigViaInspector" disabled="@_configBusy">
+        <input class="reg-filter-input w-auto" placeholder="EID (required)" @bind="_configEid" />
+        <button class="btn-primary" @onclick="FetchConfigViaInspector" disabled="@(_configBusy || string.IsNullOrWhiteSpace(_configEid))">
           @(_configBusy ? "Fetching…" : "Fetch live via Inspector")
         </button>
       </div>
+      <p class="text-muted text-xs">rinfo is cloned from the Inspector's BasicRequestInfo defaults; only the EID is needed.</p>
 
-      <details class="mt-1">
-        <summary class="text-xs text-muted cursor-pointer">Advanced: custom rinfo JSON / paste base64 / upload</summary>
-        <textarea class="reg-filter-input w-full font-mono text-xs mt-2" rows="3"
-                  placeholder='ConfigRequest JSON for the live fetch, e.g. {"rinfo":{"eiUserId":"EI...","clientVersion":72}}'
-                  @bind="_configRequestJson"></textarea>
+      <details class="mt-2">
+        <summary class="text-xs text-muted cursor-pointer">Or ingest a capture (file / base64)</summary>
         <div class="flex items-center gap-2 mt-2">
           <InputFile OnChange="OnConfigUpload" accept=".json,.bin,.txt" class="text-xs" />
         </div>
@@ -195,7 +193,6 @@
     List<ConfigRow> _configs = [];
     string _configPlatform = "ios";
     string _configEid = "";
-    string _configRequestJson = "";
     string _configB64 = "";
     bool _configBusy;
     bool _configError;
@@ -289,24 +286,31 @@
     // Reuses the exact pipeline the Inspector page uses, no bespoke server path.
     async Task FetchConfigViaInspector()
     {
+        if (string.IsNullOrWhiteSpace(_configEid)) { ConfigStatus("EID is required", true); return; }
         _configBusy = true; ConfigStatus("Building request…", false);
         try
         {
+            // Pull the salt + the Inspector's BasicRequestInfo defaults from the same browser store the
+            // Inspector page uses. rinfo is mandatory: clone the defaults, set the EID, and pass them as the
+            // build env (MergeEnv injects env onto the request's rinfo, exactly like the Inspector does).
             string salt = "";
+            System.Text.Json.JsonElement env = default;
             try
             {
                 var store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js");
                 salt = await store.InvokeAsync<string>("getSalt") ?? "";
+                env = await store.InvokeAsync<System.Text.Json.JsonElement>("getRinfoDefaults");
             }
-            catch { }
+            catch { ConfigStatus("could not read Inspector rinfo defaults", true); return; }
 
-            // Fields = the custom rinfo JSON if given, else a minimal rinfo with the optional EID + platform.
-            object fields = !string.IsNullOrWhiteSpace(_configRequestJson)
-                ? System.Text.Json.JsonSerializer.Deserialize<object>(_configRequestJson)!
-                : new { rinfo = new { eiUserId = string.IsNullOrWhiteSpace(_configEid) ? null : _configEid, platform = _configPlatform } };
+            // Override the EID on the cloned rinfo (the one field the user supplies). Drop "debug": it is a
+            // UI-only toggle in the seed, not a BasicRequestInfo proto field, so it would fail ParseJson.
+            var envObj = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(env.GetRawText()) ?? new();
+            envObj.Remove("debug");
+            envObj["eiUserId"] = _configEid.Trim();
 
             var build = await Client().PostAsJsonAsync("/api/inspector/build",
-                new { requestType = "ConfigRequest", fields, wrap = true, salt });
+                new { path = "ei/get_config", requestType = "ConfigRequest", fields = new { }, env = envObj, wrap = true, salt });
             if (!build.IsSuccessStatusCode) { ConfigStatus($"build failed: HTTP {(int)build.StatusCode}", true); return; }
             var built = await build.Content.ReadFromJsonAsync<BuildResult>(JsonOpts);
             if (built?.FinalFormBody is null) { ConfigStatus("build returned no form body", true); return; }
