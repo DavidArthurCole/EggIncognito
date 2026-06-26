@@ -18,137 +18,102 @@
 }
 else
 {
-<main class="px-8 pt-6 pb-8 max-w-[1200px]">
+<main class="px-8 pt-6 pb-8 max-w-[1280px]">
   <h1 class="text-[1.3rem] mt-0 mb-1">3D Playground</h1>
   <p class="text-muted text-xs mb-4">
-    Load any glTF model, pull a mesh off a device, or upload a <code class="code-chip">.glb</code>, pick an
-    animation, and it bakes + plays in the scene. Drag to orbit, scroll to zoom.
+    Compose several sources at once: pull a mesh off a device, dress a chicken in a hat, stack farm-element
+    shells, or load exported / uploaded models. Toggle a widget to add or remove it; set X/Y/Z offsets to
+    arrange the scene. Drag to orbit, scroll to zoom.
   </p>
 
   <div class="flex gap-4 flex-wrap">
-    <section class="panel flex-1 min-w-[320px]" style="overflow: visible;">
+    <section class="panel flex-1 min-w-[480px]" style="overflow: visible;">
       <div class="canvas-wrap">
         <canvas @ref="_canvas" id="playgroundCanvas"></canvas>
       </div>
-    </section>
-
-    <section class="panel w-[260px] flex flex-col gap-3">
-      <div>
-        <div class="settings-title">Exported assets</div>
-        @if (_ships.Count > 0)
-        {
-          <select class="reg-filter-input w-full" @bind="_selectedShip">
-            <option value="">Choose an asset…</option>
-            @foreach (var s in _ships)
-            {
-              <option value="@s">@s</option>
-            }
-          </select>
-          <button class="btn-primary w-full mt-2" @onclick="LoadSelected" disabled="@(_busy || string.IsNullOrEmpty(_selectedShip))">Load asset</button>
-        }
-        else
-        {
-          <div class="text-muted text-xs">No exported assets found. Set <code class="code-chip">ShipAssets:OutputDir</code> and export, or pull from a device / upload a .glb below.</div>
-        }
-      </div>
-
-      <div>
-        <div class="settings-title">Device files</div>
-        @if (_devices.Count > 0)
-        {
-          <select class="reg-filter-input w-full" @bind="_selectedDevice" @bind:after="LoadDeviceMeshes">
-            <option value="">Choose a device…</option>
-            @foreach (var d in _devices)
-            {
-              <option value="@d.Id">@d.Label (@d.Platform)</option>
-            }
-          </select>
-          @if (_deviceMeshes.Count > 0)
-          {
-            <select class="reg-filter-input w-full mt-2" @bind="_selectedDeviceMesh">
-              <option value="">Choose a mesh…</option>
-              @foreach (var m in _deviceMeshes)
-              {
-                <option value="@m">@m</option>
-              }
-            </select>
-            <button class="btn-primary w-full mt-2" @onclick="LoadDeviceMesh" disabled="@(_busy || string.IsNullOrEmpty(_selectedDeviceMesh))">Load from device</button>
-          }
-          else if (_deviceMeshLoading)
-          {
-            <div class="text-muted text-xs mt-2">Listing device meshes…</div>
-          }
-          else if (!string.IsNullOrEmpty(_selectedDevice))
-          {
-            <div class="text-muted text-xs mt-2">No meshes listed (device offline or ssh/adb not configured).</div>
-          }
-        }
-        else
-        {
-          <div class="text-muted text-xs">No devices configured.</div>
-        }
-      </div>
-
-      <div>
-        <div class="settings-title">Shells</div>
-        @if (_assetTypes.Count > 0)
-        {
-          <select class="reg-filter-input w-full" @bind="_shellAssetType" @bind:after="FilterShells">
-            <option value="">Asset type…</option>
-            @foreach (var a in _assetTypes)
-            {
-              <option value="@a">@a</option>
-            }
-          </select>
-          @if (_filteredShells.Count > 0)
-          {
-            <select class="reg-filter-input w-full mt-2" @bind="_selectedShell">
-              <option value="">Choose a shell…</option>
-              @foreach (var s in _filteredShells)
-              {
-                <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option>
-              }
-            </select>
-            <button class="btn-primary w-full mt-2" @onclick="LoadShell" disabled="@(_busy || string.IsNullOrEmpty(_selectedShell))">Load shell</button>
-          }
-        }
-        else
-        {
-          <div class="text-muted text-xs">No shell config stored. Ingest a config in <a class="underline" href="/admin">Admin</a>.</div>
-        }
-      </div>
-
-      <div>
-        <div class="settings-title">Upload .glb</div>
-        <InputFile OnChange="OnUpload" accept=".glb" class="text-xs" />
-      </div>
-
-      <div>
-        <div class="settings-title">Animation</div>
-        <select class="reg-filter-input w-full" @bind="_kind" @bind:after="ReapplyAnimation">
-          <option value="none">None (as-is)</option>
+      <div class="flex gap-2 mt-3">
+        <button class="btn-secondary flex-1" @onclick="TogglePlay" disabled="@(_active.Count == 0)">@(_playing ? "Pause" : "Play")</button>
+        <button class="btn-secondary flex-1" @onclick="ResetView" disabled="@(_active.Count == 0)">Reset view</button>
+        <select class="reg-filter-input w-[150px]" @bind="_kind">
+          <option value="none">No animation</option>
           <option value="SpinY">Spin (Y)</option>
           <option value="SpinZ">Spin (Z)</option>
           <option value="HoverSpin">Hover + spin</option>
         </select>
-        <label class="settings-check mt-2"><span class="text-xs text-muted">Seconds</span>
-          <input type="number" min="1" max="60" step="1" class="reg-filter-input w-[70px] ml-2" @bind="_seconds" @bind:after="ReapplyAnimation" />
-        </label>
       </div>
-
-      <div class="flex gap-2">
-        <button class="btn-secondary flex-1" @onclick="TogglePlay" disabled="@(!_loaded)">@(_playing ? "Pause" : "Play")</button>
-        <button class="btn-secondary flex-1" @onclick="ResetView" disabled="@(!_loaded)">Reset view</button>
-      </div>
-
-      @if (_clips.Count > 0)
-      {
-        <div class="text-xs text-muted">Clips: @string.Join(", ", _clips)</div>
-      }
       @if (!string.IsNullOrEmpty(_status))
       {
-        <div class="text-xs @(_error ? "err" : "text-muted")">@_status</div>
+        <div class="text-xs mt-2 @(_error ? "err" : "text-muted")">@_status</div>
       }
+    </section>
+
+    <section class="w-[320px] flex flex-col gap-3">
+      <div class="widget-card">
+        <div class="widget-head">
+          <span class="settings-title m-0">Device files</span>
+          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("device")" @onchange="@(e => Toggle("device", e))" /><span></span></label>
+        </div>
+        <select class="reg-filter-input w-full" @bind="_selectedDevice" @bind:after="LoadDeviceMeshes">
+          <option value="">Choose a device…</option>
+          @foreach (var d in _devices) { <option value="@d.Id">@d.Label (@d.Platform)</option> }
+        </select>
+        @if (_deviceMeshes.Count > 0)
+        {
+          <select class="reg-filter-input w-full mt-2" @bind="_selectedDeviceMesh" @bind:after="@(() => OnSelectChanged("device"))">
+            <option value="">Choose a mesh…</option>
+            @foreach (var m in _deviceMeshes) { <option value="@m">@m</option> }
+          </select>
+        }
+        @if (_active.Contains("device")) { @OffsetInputs("device") }
+      </div>
+
+      <div class="widget-card">
+        <div class="widget-head">
+          <span class="settings-title m-0">Chicken + Hat</span>
+          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("chickenhat")" @onchange="@(e => Toggle("chickenhat", e))" /><span></span></label>
+        </div>
+        <select class="reg-filter-input w-full" @bind="_selectedChicken" @bind:after="@(() => OnSelectChanged("chickenhat"))">
+          <option value="">Choose a chicken…</option>
+          @foreach (var c in _chickens) { <option value="@c.Identifier">@(c.Name ?? c.Identifier)</option> }
+        </select>
+        <select class="reg-filter-input w-full mt-2" @bind="_selectedHat" @bind:after="@(() => OnSelectChanged("chickenhat"))" disabled="@ChickenNoHats">
+          <option value="">@(ChickenNoHats ? "This chicken takes no hat" : "Choose a hat…")</option>
+          @foreach (var h in _hats) { <option value="@h.Identifier">@(h.Name ?? h.Identifier)</option> }
+        </select>
+        @if (_active.Contains("chickenhat")) { @OffsetInputs("chickenhat") }
+      </div>
+
+      <div class="widget-card">
+        <div class="widget-head">
+          <span class="settings-title m-0">Shell compatibles</span>
+          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("shell")" @onchange="@(e => Toggle("shell", e))" /><span></span></label>
+        </div>
+        <select class="reg-filter-input w-full" @bind="_shellAssetType" @bind:after="FilterShells">
+          <option value="">Asset type…</option>
+          @foreach (var a in _compatAssetTypes) { <option value="@a">@a</option> }
+        </select>
+        @if (_filteredShells.Count > 0)
+        {
+          <select class="reg-filter-input w-full mt-2" @bind="_selectedShell" @bind:after="@(() => OnSelectChanged("shell"))">
+            <option value="">Choose a shell…</option>
+            @foreach (var s in _filteredShells) { <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option> }
+          </select>
+        }
+        @if (_active.Contains("shell")) { @OffsetInputs("shell") }
+      </div>
+
+      <div class="widget-card">
+        <div class="widget-head">
+          <span class="settings-title m-0">Static game models</span>
+          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("static")" @onchange="@(e => Toggle("static", e))" /><span></span></label>
+        </div>
+        <select class="reg-filter-input w-full" @bind="_selectedShip" @bind:after="@(() => OnSelectChanged("static"))">
+          <option value="">Choose an asset…</option>
+          @foreach (var s in _ships) { <option value="@s">@s</option> }
+        </select>
+        <div class="mt-2"><InputFile OnChange="OnUpload" accept=".glb" class="text-xs" /></div>
+        @if (_active.Contains("static")) { @OffsetInputs("static") }
+      </div>
     </section>
   </div>
 </main>
@@ -159,6 +124,8 @@ else
     ElementReference _canvas;
     IJSObjectReference? _mod;
 
+    const string ShellPlatform = "ios";
+
     List<string> _ships = [];
     string _selectedShip = "";
 
@@ -166,26 +133,32 @@ else
     string _selectedDevice = "";
     List<string> _deviceMeshes = [];
     string _selectedDeviceMesh = "";
-    bool _deviceMeshLoading;
 
-    const string ShellPlatform = "ios";
+    List<ShellObjRow> _chickens = [];
+    List<ShellObjRow> _hats = [];
+    string _selectedChicken = "";
+    string _selectedHat = "";
+
     List<ShellRow> _allShells = [];
-    List<string> _assetTypes = [];
+    List<string> _compatAssetTypes = [];
     List<ShellRow> _filteredShells = [];
     string _shellAssetType = "";
     string _selectedShell = "";
 
-    string _kind = "SpinY";
-    int _seconds = 6;
+    readonly HashSet<string> _active = new(StringComparer.Ordinal);
+    // per-group manual offsets, keyed by group id: [x, y, z].
+    readonly Dictionary<string, float[]> _offsets = new(StringComparer.Ordinal);
+
+    string _kind = "none";
     bool _playing = true;
-    bool _loaded;
-    bool _busy;
     bool _error;
     string _status = "";
-    List<string> _clips = [];
+    byte[]? _uploadGlb;
 
     string _baseAddress = "";
     string? _cookie;
+
+    bool ChickenNoHats => _chickens.FirstOrDefault(c => c.Identifier == _selectedChicken)?.NoHats ?? false;
 
     protected override void OnInitialized()
     {
@@ -200,77 +173,225 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || !_isAdmin) return; // no 3D init for the denied view (no canvas rendered)
+        if (!firstRender || !_isAdmin) return;
         try
         {
             _mod = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/playground.js");
             await _mod.InvokeVoidAsync("init", _canvas);
             await LoadShipList();
             await LoadDevices();
+            await LoadShellObjects();
             await LoadShells();
         }
         catch (Exception ex) { Fail($"3D init failed: {ex.Message}"); }
     }
 
+    // The 3-float offset for a group (defaults to 0,0,0). Index 0=x,1=y,2=z.
+    float[] Off(string id)
+    {
+        if (!_offsets.TryGetValue(id, out var o)) { o = new float[3]; _offsets[id] = o; }
+        return o;
+    }
+
+    // Renders the X/Y/Z manual offset inputs for an active group; editing pushes the offset live.
+    RenderFragment OffsetInputs(string id) => builder =>
+    {
+        var o = Off(id);
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "offset-row");
+        void Axis(int seq, int idx, string label)
+        {
+            builder.OpenElement(seq, "label");
+            builder.AddAttribute(seq + 1, "class", "offset-axis");
+            builder.AddContent(seq + 2, label);
+            builder.OpenElement(seq + 3, "input");
+            builder.AddAttribute(seq + 4, "type", "number");
+            builder.AddAttribute(seq + 5, "step", "0.1");
+            builder.AddAttribute(seq + 6, "class", "reg-filter-input w-[64px]");
+            builder.AddAttribute(seq + 7, "value", o[idx]);
+            builder.AddAttribute(seq + 8, "onchange",
+                EventCallback.Factory.Create<ChangeEventArgs>(this, async e =>
+                {
+                    o[idx] = float.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+                    await PushOffset(id);
+                }));
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        Axis(2, 0, "X");
+        Axis(12, 1, "Y");
+        Axis(22, 2, "Z");
+        builder.CloseElement();
+    };
+
+    async Task PushOffset(string id)
+    {
+        if (_mod is null) return;
+        var o = Off(id);
+        await _mod.InvokeVoidAsync("setGroupOffset", id, o[0], o[1], o[2]);
+    }
+
+    // Toggle a widget on/off. On = render its current selection as that group; off = remove the group but
+    // keep the dropdown selection so re-toggling re-renders without re-picking.
+    async Task Toggle(string id, ChangeEventArgs e)
+    {
+        var on = e.Value is bool b && b;
+        if (on)
+        {
+            _active.Add(id);
+            await RenderGroup(id);
+        }
+        else
+        {
+            _active.Remove(id);
+            if (_mod is not null) await _mod.InvokeVoidAsync("removeGroup", id);
+        }
+        StateHasChanged();
+    }
+
+    // A dropdown changed: if that group is active, reload it; otherwise just hold the selection.
+    async Task OnSelectChanged(string id)
+    {
+        if (_active.Contains(id)) await RenderGroup(id);
+        else StateHasChanged();
+    }
+
+    // Fetch the selected mesh(es) for a group and add it to the scene. Chicken+hat composes two meshes.
+    async Task RenderGroup(string id)
+    {
+        if (_mod is null) return;
+        Status("Loading…");
+        try
+        {
+            var glb = await FetchGroupGlb(id);
+            if (glb is null) { return; }
+
+            if (id == "chickenhat" && !string.IsNullOrEmpty(_selectedHat) && !ChickenNoHats)
+            {
+                var hat = await FetchRaw($"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(_selectedHat)}/glb");
+                var anchor = _chickens.FirstOrDefault(c => c.Identifier == _selectedChicken)?.Anchor ?? [];
+                await _mod.InvokeAsync<string[]>("addGroup", id, Convert.ToBase64String(glb),
+                    new { hatBase64 = hat is null ? null : Convert.ToBase64String(hat), anchor });
+            }
+            else
+            {
+                await _mod.InvokeAsync<string[]>("addGroup", id, Convert.ToBase64String(glb), new { });
+            }
+            await PushOffset(id);
+            Status("");
+        }
+        catch (Exception ex) { Fail(ex.Message); }
+    }
+
+    // The raw glb bytes for a group's current selection, animated if a kind is picked. Null = nothing picked.
+    async Task<byte[]?> FetchGroupGlb(string id)
+    {
+        if (id == "static" && string.IsNullOrEmpty(_selectedShip) && _uploadGlb is not null)
+            return await Animate(_uploadGlb);
+
+        string? url = id switch
+        {
+            "device" when !string.IsNullOrEmpty(_selectedDevice) && !string.IsNullOrEmpty(_selectedDeviceMesh)
+                => $"/api/devices/{_selectedDevice}/mesh/{_selectedDeviceMesh}",
+            "chickenhat" when !string.IsNullOrEmpty(_selectedChicken)
+                => $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(_selectedChicken)}/glb",
+            "shell" when !string.IsNullOrEmpty(_selectedShell)
+                => $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(_selectedShell)}/glb",
+            "static" when !string.IsNullOrEmpty(_selectedShip)
+                => $"/api/ship-assets/glb/{_selectedShip}",
+            _ => null,
+        };
+        if (url is null) { Status("Pick a selection for this widget."); return null; }
+        var raw = await FetchRaw(url);
+        return raw is null ? null : await Animate(raw);
+    }
+
+    async Task<byte[]?> FetchRaw(string url)
+    {
+        var res = await Client().GetAsync(url);
+        if (!res.IsSuccessStatusCode) { Fail($"load failed: HTTP {(int)res.StatusCode}"); return null; }
+        return await res.Content.ReadAsByteArrayAsync();
+    }
+
+    async Task<byte[]> Animate(byte[] raw)
+    {
+        if (_kind == "none") return raw;
+        using var content = new MultipartFormDataContent();
+        content.Add(new ByteArrayContent(raw), "file", "model.glb");
+        var res = await Client().PostAsync($"/api/tools/animate-glb?kind={_kind}&seconds=6", content);
+        return res.IsSuccessStatusCode ? await res.Content.ReadAsByteArrayAsync() : raw;
+    }
+
+    async Task OnUpload(InputFileChangeEventArgs e)
+    {
+        Status("Uploading…");
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(100_000_000).CopyToAsync(ms);
+            _uploadGlb = ms.ToArray();
+            _selectedShip = "";
+            _active.Add("static");
+            await RenderGroup("static");
+        }
+        catch (Exception ex) { Fail(ex.Message); }
+        finally { StateHasChanged(); }
+    }
+
+    async Task LoadShipList()
+    {
+        try { _ships = (await Client().GetFromJsonAsync<ListResult>("/api/ship-assets/list"))?.Ships?.ToList() ?? []; }
+        catch { _ships = []; }
+        StateHasChanged();
+    }
+
+    async Task LoadDevices()
+    {
+        try { _devices = (await Client().GetFromJsonAsync<DeviceRow[]>("/api/devices/status"))?.ToList() ?? []; }
+        catch { _devices = []; }
+        StateHasChanged();
+    }
+
+    async Task LoadDeviceMeshes()
+    {
+        _deviceMeshes = []; _selectedDeviceMesh = "";
+        if (string.IsNullOrEmpty(_selectedDevice)) { StateHasChanged(); return; }
+        try { _deviceMeshes = (await Client().GetFromJsonAsync<MeshListResult>($"/api/devices/{_selectedDevice}/list-meshes"))?.Meshes?.ToList() ?? []; }
+        catch { _deviceMeshes = []; }
+        StateHasChanged();
+    }
+
+    async Task LoadShellObjects()
+    {
+        try
+        {
+            _chickens = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={ShellPlatform}&type=chicken"))?.Objects?.ToList() ?? [];
+            _hats = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={ShellPlatform}&type=hat"))?.Objects?.ToList() ?? [];
+        }
+        catch { _chickens = []; _hats = []; }
+        StateHasChanged();
+    }
+
+    // Shells for widget 3: every shell asset type except CHICKEN / HAT (those are the chicken+hat widget).
     async Task LoadShells()
     {
         try
         {
             var res = await Client().GetFromJsonAsync<ShellListResult>($"/api/shells?platform={ShellPlatform}");
             _allShells = res?.Shells?.ToList() ?? [];
-            _assetTypes = res?.AssetTypes?.ToList() ?? [];
+            _compatAssetTypes = (res?.AssetTypes ?? [])
+                .Where(a => !a.Equals("Chicken", StringComparison.OrdinalIgnoreCase) && !a.Equals("Hat", StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
-        catch { _allShells = []; _assetTypes = []; }
+        catch { _allShells = []; _compatAssetTypes = []; }
         StateHasChanged();
     }
 
     void FilterShells()
     {
         _selectedShell = "";
-        _filteredShells = string.IsNullOrEmpty(_shellAssetType)
-            ? []
-            : _allShells.Where(s => s.AssetType == _shellAssetType).ToList();
+        _filteredShells = string.IsNullOrEmpty(_shellAssetType) ? [] : _allShells.Where(s => s.AssetType == _shellAssetType).ToList();
         StateHasChanged();
-    }
-
-    async Task LoadShell()
-    {
-        if (string.IsNullOrEmpty(_selectedShell)) return;
-        await FetchRawAndApply($"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(_selectedShell)}/glb");
-    }
-
-    async Task LoadDevices()
-    {
-        try
-        {
-            var res = await Client().GetFromJsonAsync<DeviceRow[]>("/api/devices/status");
-            _devices = res?.ToList() ?? [];
-        }
-        catch { _devices = []; }
-        StateHasChanged();
-    }
-
-    // List the meshes on the chosen device (names only). Fires when the device dropdown changes.
-    async Task LoadDeviceMeshes()
-    {
-        _deviceMeshes = [];
-        _selectedDeviceMesh = "";
-        if (string.IsNullOrEmpty(_selectedDevice)) { StateHasChanged(); return; }
-        _deviceMeshLoading = true; StateHasChanged();
-        try
-        {
-            var res = await Client().GetFromJsonAsync<MeshListResult>($"/api/devices/{_selectedDevice}/list-meshes");
-            _deviceMeshes = res?.Meshes?.ToList() ?? [];
-        }
-        catch { _deviceMeshes = []; }
-        finally { _deviceMeshLoading = false; StateHasChanged(); }
-    }
-
-    // Pull + decode + (optionally) animate one device mesh, then render it.
-    async Task LoadDeviceMesh()
-    {
-        if (string.IsNullOrEmpty(_selectedDevice) || string.IsNullOrEmpty(_selectedDeviceMesh)) return;
-        await FetchRawAndApply($"/api/devices/{_selectedDevice}/mesh/{_selectedDeviceMesh}");
     }
 
     HttpClient Client()
@@ -279,92 +400,6 @@ else
         if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
         if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
         return c;
-    }
-
-    async Task LoadShipList()
-    {
-        try
-        {
-            var res = await Client().GetFromJsonAsync<ListResult>("/api/ship-assets/list");
-            _ships = res?.Ships?.ToList() ?? [];
-        }
-        catch { _ships = []; }
-        StateHasChanged();
-    }
-
-    // All sources fetch the RAW (un-animated) glb and stash it in _rawGlb; the animation is applied on top
-    // (server-side animate-glb) so changing the Animation dropdown just re-applies to _rawGlb without
-    // re-fetching from the device/disk.
-    byte[]? _rawGlb;
-
-    async Task LoadSelected()
-    {
-        if (string.IsNullOrEmpty(_selectedShip)) return;
-        await FetchRawAndApply($"/api/ship-assets/glb/{_selectedShip}");
-    }
-
-    async Task OnUpload(InputFileChangeEventArgs e)
-    {
-        _busy = true; Status("Uploading…");
-        try
-        {
-            using var ms = new MemoryStream();
-            await e.File.OpenReadStream(100_000_000).CopyToAsync(ms);
-            _rawGlb = ms.ToArray();
-            await ApplyAndRender();
-        }
-        catch (Exception ex) { Fail(ex.Message); }
-        finally { _busy = false; }
-    }
-
-    async Task FetchRawAndApply(string rawUrl)
-    {
-        _busy = true; Status("Loading…");
-        try
-        {
-            var res = await Client().GetAsync(rawUrl);
-            if (!res.IsSuccessStatusCode) { Fail($"load failed: HTTP {(int)res.StatusCode}"); return; }
-            _rawGlb = await res.Content.ReadAsByteArrayAsync();
-            await ApplyAndRender();
-        }
-        catch (Exception ex) { Fail(ex.Message); }
-        finally { _busy = false; }
-    }
-
-    // Re-applies the current animation choice to the loaded raw glb and renders it. Triggered by the load
-    // buttons and by changing the Animation dropdown / seconds (no re-fetch needed).
-    async Task ReapplyAnimation()
-    {
-        if (_rawGlb is null) return;
-        _busy = true;
-        try { await ApplyAndRender(); }
-        finally { _busy = false; }
-    }
-
-    async Task ApplyAndRender()
-    {
-        if (_mod is null || _rawGlb is null) return;
-        var glb = _rawGlb;
-        if (_kind != "none")
-        {
-            using var content = new MultipartFormDataContent();
-            content.Add(new ByteArrayContent(_rawGlb), "file", "model.glb");
-            var res = await Client().PostAsync($"/api/tools/animate-glb?kind={_kind}&seconds={_seconds}", content);
-            if (res.IsSuccessStatusCode) glb = await res.Content.ReadAsByteArrayAsync();
-            else { Fail($"animate failed: HTTP {(int)res.StatusCode}"); return; }
-        }
-        await LoadGlbBytes(glb);
-    }
-
-    async Task LoadGlbBytes(byte[] glb)
-    {
-        if (_mod is null) return;
-        var b64 = Convert.ToBase64String(glb);
-        var clips = await _mod.InvokeAsync<string[]>("loadGlbBase64", b64);
-        _clips = clips?.ToList() ?? [];
-        _loaded = true;
-        _playing = true;
-        Status(_clips.Count > 0 ? $"Playing {_clips.Count} clip(s)." : "Loaded (no animation).");
     }
 
     async Task TogglePlay()
@@ -387,6 +422,11 @@ else
     record DeviceRow(string Id, string Platform, string Label);
     record ShellRow(string Identifier, string? Name, string AssetType, string Url, bool ModifiedGeometry);
     record ShellListResult(bool Ok, string[]? AssetTypes, ShellRow[]? Shells);
+    record ShellObjRow(string Identifier, string? Name, string AssetType, string Url, float[]? Anchor, bool NoHats)
+    {
+        public float[] Anchor { get; init; } = Anchor ?? [];
+    }
+    record ShellObjResult(bool Ok, ShellObjRow[]? Objects);
 
     public async ValueTask DisposeAsync()
     {

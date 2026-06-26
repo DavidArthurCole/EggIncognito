@@ -15,6 +15,13 @@ public static class ShellCatalog
     // only the shells valid for the loaded model.
     public sealed record Shell(string Identifier, string? Name, string AssetType, string Url, string? Checksum, bool ModifiedGeometry);
 
+    // One shellObject: a chicken or hat (or other interactive shell object). Carries the hat anchor
+    // (metadata = [x, hatY, hatZ, scale] on chickens) and the noHats flag so the compositor can place a hat
+    // on the chicken at the game-accurate transform, or know a chicken takes no hat.
+    public sealed record ShellObject(
+        string Identifier, string? Name, string AssetType, string Url, string? Checksum,
+        IReadOnlyList<double> Anchor, bool NoHats);
+
     // Every shell in the catalog with a resolvable mesh url. Pulls the primary piece (the main mesh); shells
     // without a primary piece dlc are skipped. ShellObjects (LOD pieces) are included via their first piece.
     public static IReadOnlyList<Shell> FromCatalog(DLCCatalog catalog)
@@ -53,6 +60,32 @@ public static class ShellCatalog
     // One shell by identifier (case-sensitive identifiers in the catalog), or null.
     public static Shell? ById(DLCCatalog catalog, string identifier) =>
         FromCatalog(catalog).FirstOrDefault(s => string.Equals(s.Identifier, identifier, StringComparison.Ordinal));
+
+    // Every shellObject with a resolvable mesh url. Same lowest-LOD piece rule as the shells path.
+    public static IReadOnlyList<ShellObject> Objects(DLCCatalog catalog)
+    {
+        var objs = new List<ShellObject>();
+        if (catalog is null) return objs;
+        foreach (var o in catalog.ShellObjects)
+        {
+            var piece = o.Pieces.Where(p => p.Dlc is not null).OrderBy(p => p.Lod).FirstOrDefault();
+            if (piece?.Dlc is not { } dlc) continue;
+            var url = Url(dlc);
+            if (url is null) continue;
+            objs.Add(new ShellObject(o.Identifier ?? "", NullIfEmpty(o.Name), AssetTypeName(o.AssetType),
+                url, NullIfEmpty(dlc.Checksum), o.Metadata.ToList(), o.NoHats));
+        }
+        return objs;
+    }
+
+    public static IReadOnlyList<ShellObject> Chickens(DLCCatalog catalog) =>
+        Objects(catalog).Where(o => string.Equals(o.AssetType, "Chicken", StringComparison.OrdinalIgnoreCase)).ToList();
+
+    public static IReadOnlyList<ShellObject> Hats(DLCCatalog catalog) =>
+        Objects(catalog).Where(o => string.Equals(o.AssetType, "Hat", StringComparison.OrdinalIgnoreCase)).ToList();
+
+    public static ShellObject? ObjectById(DLCCatalog catalog, string identifier) =>
+        Objects(catalog).FirstOrDefault(o => string.Equals(o.Identifier, identifier, StringComparison.Ordinal));
 
     private static string? Url(DLCItem dlc)
     {

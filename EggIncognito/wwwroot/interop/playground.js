@@ -1,21 +1,30 @@
-// 3D playground: a three.js scene that loads .glb ship meshes and plays their embedded animations. three.js
-// + GLTFLoader + OrbitControls are pulled as ES modules from a CDN at runtime (the app has no JS bundler;
-// every other interop module here is hand-authored ESM too). The Blazor page owns the canvas + UI; this owns
-// the WebGL scene. One scene per page instance; dispose() tears it down when the circuit ends.
+// 3D playground: a three.js scene that composes several named groups (device meshes, a chicken wearing a
+// hat, shells, static models) into one view at once. three.js + GLTFLoader + OrbitControls are pulled as ES
+// modules from a CDN at runtime (the app has no JS bundler). The Blazor page owns the canvas + the widget UI;
+// this owns the WebGL scene and the group registry. One scene per page instance; dispose() tears it down.
+//
+// A "group" is one rendered source, keyed by a string id (the widget name). Each group is a THREE.Group with
+// its own mixer for embedded clips, an auto-offset (laid out so groups do not overlap), and an optional
+// manual offset (user X/Y/Z, overrides the auto-offset once set). A chicken group may carry a hat parented at
+// the game anchor so the two move + animate as one.
 //
 // API (called from Playground.razor via JS interop):
-//   init(canvas)              -> set up renderer/scene/camera/controls + start the render loop
-//   loadGlbBase64(b64)        -> replace the current model with a .glb decoded from base64, play its animation
-//   setPlaying(bool)          -> pause/resume animation playback
-//   resetView()               -> frame the camera on the model bounds
-//   dispose()                 -> stop the loop, free GL resources
+//   init(canvas)
+//   addGroup(groupId, glbBase64, opts)  -> { hatBase64?, anchor? } composes a chicken+hat; returns clip names
+//   removeGroup(groupId)
+//   setGroupOffset(groupId, x, y, z)    -> live manual offset
+//   relayoutGroups()                    -> recompute auto-offsets + frame camera
+//   setPlaying(bool) / resetView() / dispose()
 
 const THREE_URL = 'https://esm.sh/three@0.169.0';
 const GLTF_URL = 'https://esm.sh/three@0.169.0/examples/jsm/loaders/GLTFLoader.js';
 const ORBIT_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/OrbitControls.js';
 
 let THREE, GLTFLoader, OrbitControls;
-let renderer, scene, camera, controls, clock, mixer, current, raf;
+let renderer, scene, camera, controls, clock, raf;
+
+// groupId -> { root: THREE.Group, mixer, hatMixer, autoOffset: {x,y,z}, manual: {x,y,z} | null }
+const groups = new Map();
 
 async function ensureLibs() {
   if (THREE) return;
@@ -38,13 +47,9 @@ export async function init(canvas) {
   controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
 
-  // resize after the camera exists (it sets camera.aspect); the renderer is enough for the size read.
   resize();
 
-  // Even, multi-directional lighting so a spinning model has no swinging dark side (a single key light made
-  // faces sweep bright/dark mid-rotation, which read as moving "shadows"). Strong hemisphere ambient + four
-  // directional fills from opposing axes keep every face lit through a full turn. No shadow maps (no ground
-  // plane to receive them); EI's emission rides COLOR_0 so it reads regardless.
+  // Even, multi-directional lighting so spinning models have no swinging dark side. Hemisphere + four fills.
   scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3a44, 1.4));
   scene.add(new THREE.AmbientLight(0xffffff, 0.35));
   const dirs = [[4, 6, 4], [-4, 4, -4], [4, 2, -4], [-4, 2, 4]];
@@ -62,41 +67,114 @@ export async function init(canvas) {
 function loop() {
   raf = requestAnimationFrame(loop);
   const dt = clock.getDelta();
-  if (mixer) mixer.update(dt);
+  for (const g of groups.values()) {
+    if (g.mixer) g.mixer.update(dt);
+    if (g.hatMixer) g.hatMixer.update(dt);
+  }
   controls.update();
   renderer.render(scene, camera);
 }
 
-export async function loadGlbBase64(b64) {
-  await ensureLibs();
+async function parseGlb(b64) {
   const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
-  const loader = new GLTFLoader();
-  const gltf = await loader.parseAsync(buf, '');
+  return new GLTFLoader().parseAsync(buf, '');
+}
 
-  if (current) { scene.remove(current); disposeObject(current); }
-  current = gltf.scene;
-  scene.add(current);
+export async function addGroup(groupId, glbBase64, opts) {
+  await ensureLibs();
+  opts = opts || {};
+  removeGroup(groupId);
 
-  // Play every embedded clip (the baked spin/hover) on a fresh mixer.
-  if (mixer) mixer.stopAllAction();
-  mixer = new THREE.AnimationMixer(current);
+  const gltf = await parseGlb(glbBase64);
+  const root = new THREE.Group();
+  root.add(gltf.scene);
+
+  const mixer = new THREE.AnimationMixer(root);
   for (const clip of gltf.animations) mixer.clipAction(clip).play();
+  const clipNames = gltf.animations.map(c => c.name);
 
-  frameModel();
-  return gltf.animations.map(c => c.name);
+  let hatMixer = null;
+  // chicken + hat: parent the hat under a node at the anchor, scaled, so it rides the chicken.
+  if (opts.hatBase64) {
+    const hat = await parseGlb(opts.hatBase64);
+    const a = opts.anchor || [0, 0, 0, 1];
+    const anchor = new THREE.Group();
+    anchor.position.set(a[0] || 0, a[1] || 0, a[2] || 0);
+    const s = a[3] || 1;
+    anchor.scale.set(s, s, s);
+    anchor.add(hat.scene);
+    root.add(anchor);
+    hatMixer = new THREE.AnimationMixer(anchor);
+    for (const clip of hat.animations) hatMixer.clipAction(clip).play();
+  }
+
+  groups.set(groupId, { root, mixer, hatMixer, autoOffset: { x: 0, y: 0, z: 0 }, manual: null });
+  scene.add(root);
+  relayoutGroups();
+  return clipNames;
+}
+
+export function removeGroup(groupId) {
+  const g = groups.get(groupId);
+  if (!g) return;
+  if (g.mixer) g.mixer.stopAllAction();
+  if (g.hatMixer) g.hatMixer.stopAllAction();
+  scene.remove(g.root);
+  disposeObject(g.root);
+  groups.delete(groupId);
+  relayoutGroups();
+}
+
+export function setGroupOffset(groupId, x, y, z) {
+  const g = groups.get(groupId);
+  if (!g) return;
+  g.manual = { x: +x || 0, y: +y || 0, z: +z || 0 };
+  applyOffset(g);
+}
+
+// Space the groups along X by the widest group's bbox so they do not overlap. Groups with a manual offset
+// keep it; only auto offsets are recomputed. Then frame the camera on everything.
+export function relayoutGroups() {
+  const list = [...groups.values()];
+  if (list.length === 0) return;
+
+  let maxW = 0;
+  for (const g of list) {
+    g.root.position.set(0, 0, 0); // measure unoffset
+    const box = new THREE.Box3().setFromObject(g.root);
+    const w = box.max.x - box.min.x;
+    if (Number.isFinite(w)) maxW = Math.max(maxW, w);
+  }
+  const spacing = (maxW || 1) * 1.4;
+  const n = list.length;
+  list.forEach((g, i) => {
+    const x = (i - (n - 1) / 2) * spacing;
+    g.autoOffset = { x, y: 0, z: 0 };
+    applyOffset(g);
+  });
+  frameScene();
+}
+
+function applyOffset(g) {
+  const o = g.manual || g.autoOffset;
+  g.root.position.set(o.x, o.y, o.z);
 }
 
 export function setPlaying(playing) {
-  if (mixer) mixer.timeScale = playing ? 1 : 0;
+  const t = playing ? 1 : 0;
+  for (const g of groups.values()) {
+    if (g.mixer) g.mixer.timeScale = t;
+    if (g.hatMixer) g.hatMixer.timeScale = t;
+  }
 }
 
-export function resetView() {
-  if (current) frameModel();
-}
+export function resetView() { frameScene(); }
 
-// Frame the camera so the model fills the view, using its bounding sphere.
-function frameModel() {
-  const box = new THREE.Box3().setFromObject(current);
+function frameScene() {
+  if (groups.size === 0) return;
+  const box = new THREE.Box3();
+  for (const g of groups.values()) box.expandByObject(g.root);
+  if (box.isEmpty()) return;
   const sphere = box.getBoundingSphere(new THREE.Sphere());
   const r = sphere.radius || 1;
   controls.target.copy(sphere.center);
@@ -137,8 +215,13 @@ export function dispose() {
   if (raf) cancelAnimationFrame(raf);
   raf = null;
   window.removeEventListener('resize', resize);
-  if (mixer) mixer.stopAllAction();
-  if (current) { scene?.remove(current); disposeObject(current); current = null; }
+  for (const g of groups.values()) {
+    if (g.mixer) g.mixer.stopAllAction();
+    if (g.hatMixer) g.hatMixer.stopAllAction();
+    scene?.remove(g.root);
+    disposeObject(g.root);
+  }
+  groups.clear();
   renderer?.dispose();
-  renderer = scene = camera = controls = mixer = null;
+  renderer = scene = camera = controls = null;
 }

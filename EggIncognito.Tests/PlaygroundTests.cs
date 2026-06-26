@@ -82,6 +82,18 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task ShellsObjects_ReturnsShape()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/shells/objects?platform=ios&type=chicken");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        var json = await r.Content.ReadAsStringAsync();
+        // public read; no stored config -> ok:false diagnostics, with one -> objects. either echoes type.
+        Assert.Contains("\"ok\"", json);
+        Assert.Contains("\"type\":\"chicken\"", json);
+    }
+
+    [Fact]
     public async Task Config_List_Responds()
     {
         var c = _factory.CreateClient();

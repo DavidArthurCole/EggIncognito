@@ -109,6 +109,78 @@ public class ShellCatalogTests
         Assert.NotEmpty(ShellCatalog.ForAssetType(cfg.DlcCatalog, "CHICKEN"));
     }
 
+    [Fact]
+    public void Objects_ResolvesChickenWithAnchorAndNoHatsFlag()
+    {
+        var cat = new DLCCatalog();
+        var chicken = new ShellObjectSpec { Identifier = "ei_chicken_base", Name = "Base", AssetType = ShellSpec.Types.AssetType.Chicken, NoHats = false };
+        chicken.Metadata.Add(new[] { 0.0, 0.5, -0.1, 1.2 });
+        chicken.Pieces.Add(new ShellObjectSpec.Types.LODPiece { Lod = 1, Dlc = new DLCItem { Url = "https://www.auxbrain.com/dlc/shellobjects/chicken_lod1.rpoz" } });
+        chicken.Pieces.Add(new ShellObjectSpec.Types.LODPiece { Lod = 0, Dlc = new DLCItem { Url = "https://www.auxbrain.com/dlc/shellobjects/chicken_lod0.rpoz" } });
+        cat.ShellObjects.Add(chicken);
+
+        var objs = ShellCatalog.Objects(cat);
+        var o = Assert.Single(objs);
+        Assert.Equal("ei_chicken_base", o.Identifier);
+        Assert.Equal("Chicken", o.AssetType);
+        Assert.Equal(new[] { 0.0, 0.5, -0.1, 1.2 }, o.Anchor);
+        Assert.False(o.NoHats);
+        Assert.Equal("https://www.auxbrain.com/dlc/shellobjects/chicken_lod0.rpoz", o.Url);
+    }
+
+    [Fact]
+    public void Chickens_And_Hats_FilterByAssetType()
+    {
+        var cat = new DLCCatalog();
+        cat.ShellObjects.Add(Obj("c1", ShellSpec.Types.AssetType.Chicken));
+        cat.ShellObjects.Add(Obj("h1", ShellSpec.Types.AssetType.Hat));
+        cat.ShellObjects.Add(Obj("h2", ShellSpec.Types.AssetType.Hat));
+        Assert.Single(ShellCatalog.Chickens(cat));
+        Assert.Equal(2, ShellCatalog.Hats(cat).Count);
+    }
+
+    [Fact]
+    public void ObjectById_FindsObject()
+    {
+        var cat = new DLCCatalog();
+        cat.ShellObjects.Add(Obj("ei_hat_x", ShellSpec.Types.AssetType.Hat));
+        Assert.NotNull(ShellCatalog.ObjectById(cat, "ei_hat_x"));
+        Assert.Null(ShellCatalog.ObjectById(cat, "missing"));
+    }
+
+    [Fact]
+    public void NoHatsChicken_HasEmptyAnchor()
+    {
+        var cat = new DLCCatalog();
+        var polish = new ShellObjectSpec { Identifier = "ei_chicken_polish", AssetType = ShellSpec.Types.AssetType.Chicken, NoHats = true };
+        polish.Pieces.Add(new ShellObjectSpec.Types.LODPiece { Lod = 0, Dlc = new DLCItem { Url = "https://www.auxbrain.com/dlc/shellobjects/polish.rpoz" } });
+        cat.ShellObjects.Add(polish);
+        var o = Assert.Single(ShellCatalog.Chickens(cat));
+        Assert.True(o.NoHats);
+        Assert.Empty(o.Anchor);
+    }
+
+    [Fact]
+    public void RealConfig_HasChickensWithAnchors_AndHats()
+    {
+        var json = ConfigJson();
+        if (json is null) return; // fixture absent (CI)
+        var cfg = ConfigResponse.Parser.ParseJson(json);
+        var chickens = ShellCatalog.Chickens(cfg.DlcCatalog!);
+        var hats = ShellCatalog.Hats(cfg.DlcCatalog!);
+        Assert.True(chickens.Count > 50, $"expected many chickens, got {chickens.Count}");
+        Assert.True(hats.Count > 50, $"expected many hats, got {hats.Count}");
+        Assert.Contains(chickens, c => !c.NoHats && c.Anchor.Count == 4);
+        Assert.All(chickens, c => Assert.Contains("auxbrain.com/dlc", c.Url));
+    }
+
+    private static ShellObjectSpec Obj(string id, ShellSpec.Types.AssetType type)
+    {
+        var o = new ShellObjectSpec { Identifier = id, AssetType = type };
+        o.Pieces.Add(new ShellObjectSpec.Types.LODPiece { Lod = 0, Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shellobjects/{id}.rpoz" } });
+        return o;
+    }
+
     private static ShellSpec Shell(string id, ShellSpec.Types.AssetType type)
     {
         var s = new ShellSpec { Identifier = id };

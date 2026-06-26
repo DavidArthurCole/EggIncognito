@@ -1222,4 +1222,16 @@
   .sub-item-meta { @apply flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs; }
   .sub-item-edit { @apply flex flex-col gap-2; }
   .sub-item-actions { @apply flex flex-wrap gap-1.5; }
+
+  /* Playground compositor widgets: one card per source, a toggle, selectors, and live X/Y/Z offsets. */
+  .widget-card { @apply panel p-3 flex flex-col gap-2; }
+  .widget-head { @apply flex items-center justify-between; }
+  .offset-row { @apply flex gap-2 mt-2; }
+  .offset-axis { @apply flex items-center gap-1 text-xs text-muted; }
+  .wtoggle { @apply relative inline-block w-9 h-5 cursor-pointer; }
+  .wtoggle input { @apply opacity-0 w-0 h-0 absolute; }
+  .wtoggle span { @apply absolute inset-0 rounded-full bg-zinc-600 transition-colors; }
+  .wtoggle span::before { @apply content-[''] absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white transition-transform; }
+  .wtoggle input:checked + span { @apply bg-[color:var(--accent)]; }
+  .wtoggle input:checked + span::before { @apply translate-x-4; }
 }

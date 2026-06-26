@@ -315,6 +315,9 @@
             if (!build.IsSuccessStatusCode) { ConfigStatus($"build failed: HTTP {(int)build.StatusCode}", true); return; }
             var built = await build.Content.ReadFromJsonAsync<BuildResult>(JsonOpts);
             if (built?.FinalFormBody is null) { ConfigStatus("build returned no form body", true); return; }
+            // Diagnostic: a missing salt => unsigned request => auxbrain returns a thin config. Surface it.
+            if (string.IsNullOrEmpty(salt))
+                _log = "WARNING: no Inspector salt set, request is UNSIGNED (set the salt in the Inspector). ";
 
             ConfigStatus("Sending to get_config…", false);
             var send = await Client().PostAsJsonAsync("/api/inspector/send",
@@ -322,8 +325,17 @@
             if (!send.IsSuccessStatusCode) { ConfigStatus($"send failed: HTTP {(int)send.StatusCode}", true); return; }
             var sent = await send.Content.ReadFromJsonAsync<SendResult>(JsonOpts);
             // Diagnostics: surface the raw + decoded sizes so a thin response is visible at the UI.
-            _log = $"send: status={sent?.Status}, rawB64={sent?.RawBase64?.Length ?? 0} chars, json={sent?.Json?.Length ?? 0} chars, error={sent?.Error ?? "(none)"}";
+            _log += $"send: status={sent?.Status}, signed={!string.IsNullOrEmpty(salt)}, rawB64={sent?.RawBase64?.Length ?? 0} chars, json={sent?.Json?.Length ?? 0} chars, error={sent?.Error ?? "(none)"}";
             if (string.IsNullOrEmpty(sent?.Json)) { ConfigStatus(sent?.Error ?? "send returned no decoded config", true); return; }
+
+            // A thin live response (no dlcCatalog) is common: auxbrain gates the full config behind a real
+            // client context. Detect it from the decoded json + steer to the reliable manual-paste path.
+            if (!sent.Json.Contains("dlcCatalog"))
+            {
+                ConfigStatus($"live get_config returned a thin config ({sent.Json.Length} chars, no DLCCatalog). "
+                    + "Auxbrain gates the full catalog; use the manual paste below (Inspector Response -> inflate-step base64).", true);
+                return;
+            }
 
             ConfigStatus("Storing config…", false);
             var ingest = await Client().PostAsJsonAsync($"/api/config/{_configPlatform}/ingest-json",

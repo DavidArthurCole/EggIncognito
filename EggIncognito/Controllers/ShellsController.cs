@@ -42,6 +42,33 @@ public sealed class ShellsController(
         });
     }
 
+    // Lists shellObjects (chickens / hats / all) from the stored config for the chicken+hat compositor.
+    // ?type=chicken|hat filters; empty = all. Returns the hat anchor + noHats per object so the client can
+    // place a hat at the game transform. Public read (the glb egress is gated, not the list).
+    [HttpGet("objects")]
+    public IActionResult Objects([FromQuery] string platform = "ios", [FromQuery] string? type = null)
+    {
+        var catalog = LoadCatalog(platform);
+        if (catalog is null)
+            return Ok(new { ok = false, platform, type = type ?? "", diagnostics = $"no stored config for {platform}; ingest one via /api/config" });
+
+        var objs = type?.ToLowerInvariant() switch
+        {
+            "chicken" => ShellCatalog.Chickens(catalog),
+            "hat" => ShellCatalog.Hats(catalog),
+            _ => ShellCatalog.Objects(catalog),
+        };
+
+        return Ok(new
+        {
+            ok = true,
+            platform,
+            type = type ?? "",
+            count = objs.Count,
+            objects = objs.Select(o => new { o.Identifier, o.Name, o.AssetType, o.Url, anchor = o.Anchor, o.NoHats }),
+        });
+    }
+
     // Fetches one shell's mesh as .glb: resolve its url from the catalog, download + decode, optional animate.
     // Caches the decoded glb (platform "shell") so repeat views skip the CDN. Egress + hosted-auth gated.
     [HttpGet("{platform}/{identifier}/glb")]
@@ -57,10 +84,12 @@ public sealed class ShellsController(
         {
             var catalog = LoadCatalog(platform);
             if (catalog is null) return NotFound(new { error = $"no stored config for {platform}" });
-            var shell = ShellCatalog.ById(catalog, identifier);
-            if (shell is null) return NotFound(new { error = "unknown shell identifier" });
+            // a shell (asset reskin) or a shellObject (chicken / hat) - both resolve to a mesh url.
+            var url = ShellCatalog.ById(catalog, identifier)?.Url
+                      ?? ShellCatalog.ObjectById(catalog, identifier)?.Url;
+            if (url is null) return NotFound(new { error = "unknown shell identifier" });
 
-            var decode = await downloader.DownloadAndDecodeAsync(shell.Url, identifier, ct);
+            var decode = await downloader.DownloadAndDecodeAsync(url, identifier, ct);
             if (!decode.Ok) return Ok(new { ok = false, diagnostics = decode.Diagnostics });
             glb = decode.Glb!;
             await cache.PutAsync("shell", cacheKey, glb, ct);
