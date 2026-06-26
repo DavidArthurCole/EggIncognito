@@ -57,6 +57,23 @@ public sealed class ConfigController(
         return await StoreAsync(platform, cfg, ct);
     }
 
+    public sealed record IngestJsonRequest(string Json);
+
+    // Ingest an already-DECODED ConfigResponse JSON (what /api/inspector/send returns in its `json` field,
+    // fully unwrapped + decompressed by the Inspector pipeline). This is the reliable Admin path: it reuses
+    // the Inspector's decode rather than re-implementing unwrap here (raw get_config bytes are wrapped +
+    // compressed in a way a naive parse misreads as an empty config). Admin-gated.
+    [HttpPost("{platform}/ingest-json")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> IngestJson(string platform, [FromBody] IngestJsonRequest body, CancellationToken ct)
+    {
+        if (RequireAdmin() is { } no) return no;
+        Ei.ConfigResponse cfg;
+        try { cfg = Ei.ConfigResponse.Parser.ParseJson(body.Json ?? ""); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = $"could not parse ConfigResponse JSON: {ex.Message}" }); }
+        return await StoreAsync(platform, cfg, ct);
+    }
+
     // Refresh from the live API: server signs a get_config and stores the response. Best-effort; the live
     // config can be thin (no DLCCatalog) without a full client context, so ingest-from-capture is preferred.
     // Egress-gated like Inspector send. Needs a signing salt (body Salt, or EGG_INC_API_SALT).

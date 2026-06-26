@@ -119,6 +119,14 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Config_IngestJson_RequiresAdmin()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.PostAsJsonAsync("/api/config/ios/ingest-json", new { json = "{}" });
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
+    }
+
+    [Fact]
     public async Task Shells_List_Responds()
     {
         // No config stored in the test host, so ok=false with a diagnostic, but the route + parse work.

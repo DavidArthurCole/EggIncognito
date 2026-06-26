@@ -320,11 +320,13 @@
                 new { url = "https://www.auxbrain.com/ei/get_config", formBody = built.FinalFormBody, responseType = "ConfigResponse" });
             if (!send.IsSuccessStatusCode) { ConfigStatus($"send failed: HTTP {(int)send.StatusCode}", true); return; }
             var sent = await send.Content.ReadFromJsonAsync<SendResult>(JsonOpts);
-            if (string.IsNullOrEmpty(sent?.RawBase64)) { ConfigStatus(sent?.Error ?? "send returned no body", true); return; }
+            // Use the DECODED json (Inspector already unwrapped + decompressed the wrapped get_config response).
+            // Storing the raw wire would re-parse a wrapped/compressed body as an empty config (the 0-shells bug).
+            if (string.IsNullOrEmpty(sent?.Json)) { ConfigStatus(sent?.Error ?? "send returned no decoded config", true); return; }
 
             ConfigStatus("Storing config…", false);
-            var ingest = await Client().PostAsJsonAsync($"/api/config/{_configPlatform}/ingest",
-                new { configResponseBase64 = sent.RawBase64 });
+            var ingest = await Client().PostAsJsonAsync($"/api/config/{_configPlatform}/ingest-json",
+                new { json = sent.Json });
             await ReportConfig(ingest);
             await LoadConfigs();
         }
@@ -458,5 +460,5 @@
     record ConfigListResult(bool Enabled, ConfigRow[]? Configs);
     record ConfigIngestResult(bool Ok, string? Platform, int Bytes, bool HasDlcCatalog, int Shells, int ShellObjects, string? Diagnostics);
     record BuildResult(string? FinalFormBody);
-    record SendResult(string? RawBase64, string? Error);
+    record SendResult(string? RawBase64, string? Json, string? Error);
 }
