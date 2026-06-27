@@ -29,6 +29,7 @@ let designMode = false;
 // composed on top of that element's placed transform. Distinct from a group's mixer (baked mesh clips).
 let animClock = 0;
 let animPlaying = true;
+let capturing = false;
 const ANIM_PERIOD = 6;
 
 // groupId -> { root, mixer, hatMixer, autoOffset, manual, pinned, anim, base }
@@ -47,7 +48,7 @@ export async function init(canvas) {
   await ensureLibs();
   if (renderer) dispose();
 
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
   scene = new THREE.Scene();
@@ -77,17 +78,21 @@ export async function init(canvas) {
   resizeObserver.observe(canvas);
   // Publish the live engine accessors on a single global so the designer module reaches THIS instance. A
   // cache-bust query (?v=) on the module URL would otherwise fork a second, uninitialized engine instance.
-  window.__pgEngine = { scene: _scene, camera: _camera, renderer: _renderer, controls: _controls, getGroupRoot, getGroupBase, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline };
+  window.__pgEngine = {
+    scene: _scene, camera: _camera, renderer: _renderer, controls: _controls,
+    getGroupRoot, getGroupBase, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
+    captureBegin, renderAtPhase, captureEnd, anyAnimated, sceneBackgroundHex, animPeriod, captureCleanOutline,
+  };
   loop();
 }
 
 function loop() {
   raf = requestAnimationFrame(loop);
   const dt = clock.getDelta();
-  if (animPlaying) animClock += dt;
+  if (animPlaying && !capturing) animClock += dt;
   for (const g of groups.values()) {
-    if (g.mixer) g.mixer.update(dt);
-    if (g.hatMixer) g.hatMixer.update(dt);
+    if (g.mixer) g.mixer.update(capturing ? 0 : dt);
+    if (g.hatMixer) g.hatMixer.update(capturing ? 0 : dt);
     applyAnim(g);
   }
   controls.update();
@@ -380,6 +385,59 @@ function removeOutline(root, added) {
     w.parent?.remove(w);
     w.geometry?.dispose();
     w.material?.dispose();
+  }
+}
+
+// Deterministic capture for the GIF recorder. captureBegin freezes the live clock; renderAtPhase sets the
+// absolute animation time + renders one frame; captureEnd restores. The recorder steps phases 0..period to
+// grab one perfect loop without depending on wall-clock timing.
+let _savedClock = 0;
+export function captureBegin() {
+  _savedClock = animClock;
+  capturing = true;
+}
+
+export function renderAtPhase(t) {
+  if (!renderer) return;
+  animClock = t;
+  // step every mixer to absolute time t (setTime gives a deterministic pose, unlike incremental update).
+  for (const g of groups.values()) {
+    if (g.mixer) g.mixer.setTime(t);
+    if (g.hatMixer) g.hatMixer.setTime(t);
+    applyAnim(g);
+  }
+  renderer.render(scene, camera);
+}
+
+export function captureEnd() {
+  capturing = false;
+  animClock = _savedClock;
+}
+
+// True if any element has a procedural animation set (the Record gate).
+export function anyAnimated() {
+  for (const g of groups.values()) if (g.anim && g.anim !== 'none') return true;
+  return false;
+}
+
+// The scene's solid background as #rrggbb, or null when transparent (so the recorder uses a fallback bg).
+export function sceneBackgroundHex() {
+  if (!scene || !scene.background || !scene.background.getHexString) return null;
+  return '#' + scene.background.getHexString();
+}
+
+// One full loop period in seconds (the procedural animation period).
+export function animPeriod() { return ANIM_PERIOD; }
+
+// Around a capture, remove the selection outline so the recorded frames are clean. Restores it after.
+let _outlinedBeforeCapture = null;
+export function captureCleanOutline(on) {
+  if (on) {
+    _outlinedBeforeCapture = null;
+    for (const [id, g] of groups) if (g._outline) { _outlinedBeforeCapture = id; setSelectionOutline(id, false); }
+  } else if (_outlinedBeforeCapture) {
+    setSelectionOutline(_outlinedBeforeCapture, true);
+    _outlinedBeforeCapture = null;
   }
 }
 

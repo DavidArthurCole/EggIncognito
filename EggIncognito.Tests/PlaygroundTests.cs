@@ -94,6 +94,17 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task PlaygroundRecorder_ScriptIsServed()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/interop/playgroundRecorder.js");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        var body = await r.Content.ReadAsStringAsync();
+        Assert.Contains("renderAtPhase", body);
+        Assert.Contains("playground-loop.gif", body);
+    }
+
+    [Fact]
     public async Task EnvCatalog_ReturnsPiecesAndHabs()
     {
         var c = _factory.CreateClient();

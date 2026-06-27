@@ -40,23 +40,20 @@ else
         <div class="designer-section-head">Scene</div>
         <div class="designer-section-body flex flex-col gap-3">
           <label class="settings-check"><input type="checkbox" @bind="_designMode" @bind:after="ToggleDesignMode" /><span class="ml-2 font-semibold">Design mode</span></label>
-          <div class="flex gap-2">
-            <button class="btn-secondary flex-1" @onclick="TogglePlay">@(_playing ? "Pause" : "Play")</button>
-            <button class="btn-secondary flex-1" @onclick="ResetView">Reset view</button>
-          </div>
+          <button class="btn-secondary w-full" @onclick="ResetView">Reset view</button>
           <div class="flex flex-col gap-2">
             @if (_designMode)
             {
-              <input class="reg-filter-input w-full" placeholder="Design name…" @bind="_designName" @bind:event="oninput" />
+              <input class="reg-filter-input w-full" placeholder="Design name…" value="@_designName" @oninput="OnDesignNameInput" />
               <button class="btn-secondary" @onclick="SaveDesign" disabled="@string.IsNullOrWhiteSpace(_designName)">Save design</button>
             }
             <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
               <option value="">@(_designMode ? "Load design…" : "Choose a design…")</option>
               @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
             </select>
-            @if (_designMode)
+            @if (_designMode && !string.IsNullOrEmpty(_selectedDesign))
             {
-              <button class="btn-secondary" @onclick="DeleteDesign" disabled="@string.IsNullOrEmpty(_selectedDesign)">Delete design</button>
+              <button class="btn-secondary" @onclick="DeleteDesign">Delete design</button>
             }
           </div>
         </div>
@@ -80,6 +77,36 @@ else
           <label class="light-field"><span>Fog density</span><input type="range" min="0" max="0.03" step="0.0005" class="w-full" @bind="_lighting.FogDensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
         </div>
       </div>
+
+      @if (_designMode)
+      {
+        <div class="designer-section">
+          <div class="designer-section-head">Record loop GIF</div>
+          <div class="designer-section-body flex flex-col gap-2 text-xs">
+            <label class="light-field"><span>FPS</span>
+              <input type="number" min="5" max="30" class="reg-filter-input w-[70px]" @bind="_gifFps" />
+            </label>
+            <label class="light-field"><span>Size</span>
+              <select class="reg-filter-input w-full" @bind="_gifMaxWidth">
+                <option value="0">Full</option>
+                <option value="640">Medium (640)</option>
+                <option value="400">Small (400)</option>
+              </select>
+            </label>
+            <button class="btn-secondary" @onclick="RecordGif" disabled="@(!_anyAnimated || _recording)">
+              @(_recording ? "Recording…" : "Record GIF")
+            </button>
+            @if (!_anyAnimated)
+            {
+              <div class="text-muted">Set an animation on an element to record.</div>
+            }
+            @if (_recording)
+            {
+              <div class="text-muted">@_recordStage @($"{_recordFraction * 100:0}%")</div>
+            }
+          </div>
+        </div>
+      }
     </section>
 
     @if (_designMode)
@@ -206,6 +233,13 @@ else
     IJSObjectReference? _mod;
     IJSObjectReference? _designer;
     IJSObjectReference? _autosave;
+    IJSObjectReference? _recorder;
+    int _gifFps = 20;
+    int _gifMaxWidth = 0;        // 0 = full
+    bool _recording;
+    string _recordStage = "";
+    double _recordFraction;
+    bool _anyAnimated;
     DotNetObjectReference<Playground>? _selfRef;
     string _appVersion = "";
     System.Threading.CancellationTokenSource? _autosaveCts;
@@ -234,7 +268,6 @@ else
 
     string _bgColor = "#1a1a1f";
     bool _bgTransparent = true;
-    bool _playing = true;
     bool _busy;
     bool _error;
     string _status = "";
@@ -269,6 +302,7 @@ else
             await LoadCatalog();
             await RefreshDesigns();
             _autosave = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundAutosave.js?v={InteropVersion()}");
+            _recorder = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundRecorder.js?v={InteropVersion()}");
             try { _appVersion = (await Client().GetFromJsonAsync<AppVersionDto>("/api/app/version"))?.Version ?? ""; }
             catch { _appVersion = ""; }
             await TryRestoreAutosave();
@@ -312,6 +346,39 @@ else
     {
         if (_mod is not null) await _mod.InvokeVoidAsync("setGroupAnimation", el.Id, el.Anim);
         Autosave();
+        await RefreshAnimatedFlag();
+    }
+
+    // Reads the engine's "is anything animated" flag to gate the Record button.
+    async Task RefreshAnimatedFlag()
+    {
+        if (_mod is null) return;
+        try { _anyAnimated = await _mod.InvokeAsync<bool>("anyAnimated"); }
+        catch { _anyAnimated = false; }
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public Task OnRecordProgress(string stage, double fraction)
+    {
+        _recordStage = stage;
+        _recordFraction = fraction;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    async Task RecordGif()
+    {
+        if (_recorder is null || _recording) return;
+        _selfRef ??= DotNetObjectReference.Create(this);
+        _recording = true; _recordStage = "capturing"; _recordFraction = 0; StateHasChanged();
+        try
+        {
+            var opts = new { fps = _gifFps, maxWidth = _gifMaxWidth, fallbackColor = "#1a1a1f" };
+            await _recorder.InvokeVoidAsync("record", _selfRef, opts);
+            Status("GIF downloaded.");
+        }
+        catch (Exception ex) { Fail($"record failed: {ex.Message}"); }
+        finally { _recording = false; _recordStage = ""; StateHasChanged(); }
     }
 
     async Task ApplyLighting()
@@ -325,11 +392,10 @@ else
         Autosave();
     }
 
-    async Task TogglePlay()
+    void OnDesignNameInput(ChangeEventArgs e)
     {
-        if (_mod is null) return;
-        _playing = !_playing;
-        await _mod.InvokeVoidAsync("setPlaying", _playing);
+        _designName = e.Value?.ToString() ?? "";
+        StateHasChanged();
     }
 
     async Task ResetView()
@@ -729,6 +795,7 @@ else
             await RenderElement(el);
         }
         await ResetView();
+        await RefreshAnimatedFlag();
     }
 
     static int ParseSeq(string id) => int.TryParse(id.TrimStart('e', 'l'), out var n) ? n : 0;
@@ -832,6 +899,7 @@ else
             try { await _designer.DisposeAsync(); } catch { }
         }
         if (_autosave is not null) { try { await _autosave.DisposeAsync(); } catch { } }
+        if (_recorder is not null) { try { await _recorder.DisposeAsync(); } catch { } }
         _autosaveCts?.Cancel();
         _selfRef?.Dispose();
     }

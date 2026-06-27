@@ -79,6 +79,14 @@ export async function initDesigner(dotnetRef) {
   });
 
   e.scene().add(gizmo);
+  // expose the gizmo-hide toggle for the recorder (which cannot import this module without forking it).
+  globalThis.__pgDesigner = { setGizmoVisible };
+}
+
+// Hide/show the gizmo around a capture so it does not appear in the recorded frames. Keeps the attachment so
+// selection is unchanged after.
+export function setGizmoVisible(on) {
+  if (gizmo) gizmo.visible = !!on;
 }
 
 function deg(rad) { return rad * 180 / Math.PI; }
@@ -163,4 +171,5 @@ export function disposeDesigner() {
     gizmo = null;
   }
   selectedId = null; domEl = null; dotnet = null;
+  globalThis.__pgDesigner = null;
 }
