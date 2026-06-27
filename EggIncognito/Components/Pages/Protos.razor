@@ -59,27 +59,23 @@
     {
       <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnMutated" OnClear="ClearSelection" />
     }
-    @if (_loading)
+    @if (_loading && _rows.Count == 0)
     {
       <div class="backfill-empty">Loading...</div>
     }
-    else if (Filtered.Count == 0)
+    else if (_rows.Count == 0)
     {
       <div class="reg-empty">
-        @if (_rows.Count == 0)
-        {
-          <div>No proto versions yet.</div>
-          <div class="reg-empty-hint">Drop a binary above to analyze one, or let the device farm + backfill
-            importers populate this registry as new builds are detected.</div>
-        }
-        else
-        {
-          <div>No versions match this filter.</div>
-        }
+        <div>No proto versions yet.</div>
+        <div class="reg-empty-hint">Drop a binary above to analyze one, or let the device farm + backfill
+          importers populate this registry as new builds are detected.</div>
       </div>
     }
     else
     {
+      @* The table (head + filter row) always renders once any rows exist, so the filter inputs stay
+         reachable even when the current filter matches nothing. A no-match shows an empty-state row in
+         the body instead of unmounting the controls. *@
       <table class="reg-table">
         <thead>
           <tr>
@@ -124,6 +120,10 @@
           </tr>
         </thead>
         <tbody>
+          @if (Filtered.Count == 0)
+          {
+            <tr><td colspan="@EditColspan" class="reg-empty">No versions match this filter.</td></tr>
+          }
           @foreach (var rel in SortedReleases)
           {
             var primary = rel.Primary;
@@ -384,7 +384,7 @@
     async Task RefreshAll()
     {
         if (_loading || _busyMutating) return; // don't fight an in-flight load or a mutation
-        await Load();
+        await Load(background: true);
         if (_stagedPanel is not null) await _stagedPanel.Load();
         StateHasChanged();
     }
@@ -415,27 +415,30 @@
         try { await Client().PostAsync(url, null); } catch { }
     }
 
-    async Task Load()
+    // background = the 6s poll. A background refresh must not flash the "Loading..." state, and a transient
+    // fetch failure must not wipe the already-rendered rows (that was the empty<->full flicker). Foreground
+    // (initial + post-mutation) keeps the old behavior: show the spinner, surface a real empty on failure.
+    async Task Load(bool background = false)
     {
-        _loading = true;
+        if (!background) _loading = true;
         try
         {
             // Always fetch the full set; the per-column filter row narrows it client-side.
             _rows = await Client().GetFromJsonAsync<List<VersionRow>>("/api/protos/versions", JsonOpts) ?? [];
         }
-        catch { _rows = []; }
-        await LoadSuggestions();
-        _loading = false;
+        catch { if (!background) _rows = []; } // keep last-good rows on a background poll failure
+        await LoadSuggestions(background);
+        if (!background) _loading = false;
     }
 
     // Cross-platform merge suggestions: rows sharing app version + proto SHA across platforms. Admin-only UI
     // (the merge action is admin-gated server-side too). Best-effort; a failure just hides the banner.
-    async Task LoadSuggestions()
+    async Task LoadSuggestions(bool background = false)
     {
         if (!_isAdmin) { _suggestions = []; return; }
         try { _suggestions = await Client().GetFromJsonAsync<List<MergeSuggestion>>(
             "/api/protos/versions/merge-suggestions", JsonOpts) ?? []; }
-        catch { _suggestions = []; }
+        catch { if (!background) _suggestions = []; } // keep last-good on a background poll failure
     }
 
     // One-click: merge a suggested group, keeping the FIRST member (alphabetical by platform = android) as the
