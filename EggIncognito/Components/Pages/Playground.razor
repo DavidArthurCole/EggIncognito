@@ -41,33 +41,29 @@ else
       <div class="designer-section">
         <div class="designer-section-head">Scene</div>
         <div class="designer-section-body">
-          <label class="block text-xs text-muted mb-1">Background</label>
-          <div class="flex items-center gap-2">
-            <input type="color" class="bg-picker-input" @bind="_bgColor" @bind:event="oninput" @bind:after="ApplyBackground" disabled="@_bgTransparent" />
-            <label class="settings-check"><input type="checkbox" @bind="_bgTransparent" @bind:after="ApplyBackground" /><span class="text-xs text-muted ml-1">Transparent</span></label>
-          </div>
-          <div class="flex gap-2 mt-3">
-            <button class="btn-secondary flex-1" @onclick="TogglePlay" disabled="@(_elements.Count == 0)">@(_playing ? "Pause" : "Play")</button>
+          <div class="flex gap-2">
+            <button class="btn-secondary flex-1" @onclick="TogglePlay">@(_playing ? "Pause" : "Play")</button>
             <button class="btn-secondary flex-1" @onclick="ResetView">Reset view</button>
           </div>
-          <select class="reg-filter-input w-full mt-2" @bind="_kind" @bind:after="ApplyAnimation">
-            <option value="none">No animation</option>
-            <option value="SpinY">Spin (Y)</option>
-            <option value="SpinZ">Spin (Z)</option>
-            <option value="HoverSpin">Hover + spin</option>
-          </select>
         </div>
       </div>
 
       <div class="designer-section">
-        <div class="designer-section-head">Lighting</div>
+        <div class="designer-section-head">Lighting + Colors</div>
         <div class="designer-section-body grid grid-cols-2 gap-3 text-xs">
+          <label class="light-field"><span>Background</span>
+            <span class="flex items-center gap-2">
+              <input type="color" class="bg-picker-input" @bind="_bgColor" @bind:event="oninput" @bind:after="ApplyBackground" disabled="@_bgTransparent" />
+              <label class="settings-check"><input type="checkbox" @bind="_bgTransparent" @bind:after="ApplyBackground" /><span class="text-muted ml-1">None</span></label>
+            </span>
+          </label>
+          <div></div>
           <label class="light-field"><span>Sun azimuth</span><input type="range" min="0" max="360" class="w-full" @bind="_lighting.SunAzimuthDeg" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Sun elevation</span><input type="range" min="0" max="90" class="w-full" @bind="_lighting.SunElevationDeg" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Sun color</span><input type="color" class="bg-picker-input" @bind="_lighting.SunColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Sun intensity</span><input type="range" min="0" max="3" step="0.05" class="w-full" @bind="_lighting.SunIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
-          <label class="light-field"><span>Ambient color</span><input type="color" class="bg-picker-input" @bind="_lighting.AmbientColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
-          <label class="light-field"><span>Ambient intensity</span><input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Fog color</span><input type="color" class="bg-picker-input" @bind="_lighting.FogColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Fog density</span><input type="range" min="0" max="0.15" step="0.002" class="w-full" @bind="_lighting.FogDensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
         </div>
       </div>
 
@@ -77,37 +73,34 @@ else
           <div class="designer-section-head">Elements</div>
           <div class="designer-section-body">
             <button class="btn-primary w-full" @onclick="() => _pickerOpen = !_pickerOpen">@(_pickerOpen ? "Close picker" : "Add element")</button>
+            <button class="btn-secondary w-full mt-2" @onclick="AutoArrangeFarm" disabled="@_busy">Auto-arrange farm</button>
             @if (_pickerOpen)
             {
               <div class="picker mt-2">
                 <div class="flex mb-1">
                   <button class="picker-tab @(_pickerTab == "building" ? "active" : "")" @onclick='() => _pickerTab = "building"'>Buildings</button>
                   <button class="picker-tab @(_pickerTab == "chicken" ? "active" : "")" @onclick='() => _pickerTab = "chicken"'>Chicken</button>
-                  <button class="picker-tab @(_pickerTab == "shell" ? "active" : "")" @onclick='() => _pickerTab = "shell"'>Shell</button>
                 </div>
                 <div class="picker-body">
                   @if (_pickerTab == "building")
                   {
                     @if (_catalogPieces.Count == 0) { <div class="text-xs text-muted">Catalog empty.</div> }
-                    @foreach (var p in _catalogPieces)
+                    @foreach (var grp in _catalogPieces.GroupBy(p => p.Group))
                     {
-                      <button class="picker-item" @onclick='() => AddElement("env", p.Stem, p.Label)'>@p.Label</button>
+                      <div class="picker-group-title">@grp.Key</div>
+                      @foreach (var p in grp)
+                      {
+                        var placed = p.Singleton && _elements.Any(e => e.Kind == "env" && e.Ref == p.Stem);
+                        <button class="picker-item" @onclick='() => AddElement("env", p.Stem, p.Label)' disabled="@placed">@p.Label@(placed ? " (placed)" : "")</button>
+                      }
                     }
                   }
-                  else if (_pickerTab == "chicken")
+                  else
                   {
                     @if (_chickens.Count == 0) { <div class="text-xs text-muted">No chickens (ingest a config in Admin).</div> }
                     @foreach (var c in _chickens)
                     {
                       <button class="picker-item" @onclick='() => AddElement("chicken", c.Identifier, c.Name ?? c.Identifier)'>@(c.Name ?? c.Identifier)</button>
-                    }
-                  }
-                  else
-                  {
-                    @if (_allShells.Count == 0) { <div class="text-xs text-muted">No shells (ingest a config in Admin).</div> }
-                    @foreach (var s in _allShells)
-                    {
-                      <button class="picker-item" @onclick='() => AddElement("shell", s.Identifier, s.Name ?? s.Identifier)'>@(s.Name ?? s.Identifier)</button>
                     }
                   }
                 </div>
@@ -136,6 +129,14 @@ else
                 <button class="btn-secondary flex-1" @onclick='() => SetGizmoMode("rotate")'>Rotate</button>
               </div>
               @TransformFields(sel)
+              <label class="block">Animation
+                <select class="reg-filter-input w-full" @bind="sel.Anim" @bind:after="() => ApplyElementAnimation(sel)">
+                  <option value="none">None</option>
+                  <option value="SpinY">Spin (Y)</option>
+                  <option value="SpinZ">Spin (Z)</option>
+                  <option value="HoverSpin">Hover + spin</option>
+                </select>
+              </label>
               @if (sel.Kind is "env" or "shell")
               {
                 <label class="block">Shell
@@ -220,10 +221,10 @@ else
     string _selectedDesign = "";
     List<string> _savedDesigns = [];
 
-    string _kind = "none";
     string _bgColor = "#1a1a1f";
     bool _bgTransparent = true;
     bool _playing = true;
+    bool _busy;
     bool _error;
     string _status = "";
 
@@ -291,9 +292,9 @@ else
         if (_mod is not null) await _mod.InvokeVoidAsync("setBackground", _bgTransparent ? null : _bgColor);
     }
 
-    async Task ApplyAnimation()
+    async Task ApplyElementAnimation(DesignElement el)
     {
-        if (_mod is not null) await _mod.InvokeVoidAsync("setAnimation", _kind, 6);
+        if (_mod is not null) await _mod.InvokeVoidAsync("setGroupAnimation", el.Id, el.Anim);
     }
 
     async Task ApplyLighting()
@@ -302,7 +303,7 @@ else
         await _mod.InvokeVoidAsync("setLighting", new
         {
             sun = new { azimuthDeg = _lighting.SunAzimuthDeg, elevationDeg = _lighting.SunElevationDeg, color = _lighting.SunColor, intensity = _lighting.SunIntensity },
-            ambient = new { color = _lighting.AmbientColor, intensity = _lighting.AmbientIntensity },
+            fog = new { color = _lighting.FogColor, density = _lighting.FogDensity },
         });
     }
 
@@ -412,12 +413,17 @@ else
             await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb), new { });
         }
         await PushElementTransform(el);
+        await ApplyElementAnimation(el);
     }
 
+    // Set the element's placed transform on its group (works in view + design mode; the gizmo reads the same
+    // base). When the gizmo is attached to this element, re-point it so it follows the new transform.
     async Task PushElementTransform(DesignElement el)
     {
-        if (_designer is not null)
-            await _designer.InvokeVoidAsync("applyTransform", el.Id, el.Pos, el.RotDeg, el.Scale);
+        if (_mod is not null)
+            await _mod.InvokeVoidAsync("setGroupTransform", el.Id, el.Pos, el.RotDeg, el.Scale);
+        if (_designer is not null && _selectedElementId == el.Id)
+            await _designer.InvokeVoidAsync("selectElement", el.Id);
     }
 
     async Task SelectElement(string id)
@@ -435,9 +441,51 @@ else
         StateHasChanged();
     }
 
-    // Add a picked element of a kind. Selects + renders it.
+    // Builds a game-like farm in one click: clears the scene, fetches the standard layout, adds each element
+    // at its plot position. Honors singletons (ground/hardscape added once). A starting point to tweak, not a
+    // pixel-exact game farm (positions are derived, not extracted from the binary).
+    async Task AutoArrangeFarm()
+    {
+        if (_mod is null) return;
+        _busy = true; Status("Arranging farm…");
+        try
+        {
+            FarmLayoutResult? layout;
+            try { layout = await Client().GetFromJsonAsync<FarmLayoutResult>("/api/env/farm-layout"); }
+            catch (Exception ex) { Fail($"layout fetch failed: {ex.Message}"); return; }
+            var placed = layout?.Elements ?? [];
+            if (placed.Length == 0) { Fail("no layout returned"); return; }
+
+            foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
+            _elements.Clear();
+            _selectedElementId = null;
+            if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
+
+            foreach (var pl in placed)
+            {
+                var el = new DesignElement
+                {
+                    Id = NextElementId(), Kind = "env", Ref = pl.Stem, Label = pl.Label,
+                    Pos = pl.Pos, RotDeg = [0, pl.RotY, 0], Scale = pl.Scale <= 0 ? 1 : pl.Scale,
+                };
+                _elements.Add(el);
+                await RenderElement(el);
+            }
+            Status($"Arranged {placed.Length} elements.");
+        }
+        catch (Exception ex) { Fail(ex.Message); }
+        finally { _busy = false; StateHasChanged(); }
+    }
+
+    // Add a picked element of a kind. Selects + renders it. Singleton env pieces (ground, hardscape, ...) add
+    // at most once; a repeat just selects the existing one.
     async Task AddElement(string kind, string id, string label)
     {
+        if (kind == "env" && _catalogPieces.FirstOrDefault(p => p.Stem == id)?.Singleton == true)
+        {
+            var dup = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref == id);
+            if (dup is not null) { await SelectElement(dup.Id); _pickerOpen = false; return; }
+        }
         var el = new DesignElement { Id = NextElementId(), Kind = kind, Ref = id, Label = label };
         _elements.Add(el);
         await RenderElement(el);
@@ -584,6 +632,7 @@ else
         public float[] Pos { get; set; } = [0, 0, 0];
         public float[] RotDeg { get; set; } = [0, 0, 0];
         public float Scale { get; set; } = 1f;
+        public string Anim { get; set; } = "none";       // none | SpinY | SpinZ | HoverSpin (per element)
     }
 
     public sealed class LightingState
@@ -592,8 +641,8 @@ else
         public float SunElevationDeg { get; set; } = 55;
         public string SunColor { get; set; } = "#ffffff";
         public float SunIntensity { get; set; } = 1.0f;
-        public string AmbientColor { get; set; } = "#ffffff";
-        public float AmbientIntensity { get; set; } = 0.5f;
+        public string FogColor { get; set; } = "#1a1a1f";
+        public float FogDensity { get; set; } = 0f;
     }
 
     public sealed class DesignPayload
@@ -611,8 +660,10 @@ else
         public float[] Anchor { get; init; } = Anchor ?? [];
     }
     record ShellObjResult(bool Ok, ShellObjRow[]? Objects);
-    record EnvPieceRow(string Stem, string Label);
+    record EnvPieceRow(string Stem, string Label, string Group, bool Singleton = false);
     record EnvCatalogResult(EnvPieceRow[]? Pieces, EnvPieceRow[]? Habs);
+    record FarmPlaced(string Stem, string Label, float[] Pos, float RotY, float Scale);
+    record FarmLayoutResult(FarmPlaced[]? Elements);
     record DesignRow(string Name, DateTimeOffset UpdatedAt, string? Owner);
     record DesignListResult(DesignRow[]? Designs);
 

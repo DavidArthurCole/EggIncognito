@@ -28,14 +28,15 @@ export async function initDesigner(dotnetRef) {
   // Dragging the gizmo must not also orbit the camera.
   gizmo.addEventListener('dragging-changed', e => { controls.enabled = !e.value; });
 
-  // Push the live transform back to .NET so the inspector fields follow the gizmo (unless we set it ourselves).
+  // On a gizmo drag: write the new transform into the group's base immediately (so the anim loop does not
+  // revert it next frame), then notify .NET so the inspector fields follow.
   gizmo.addEventListener('objectChange', () => {
     if (suppress || !selectedId || !gizmo.object) return;
     const o = gizmo.object;
-    dotnet.invokeMethodAsync('OnGizmoTransform', selectedId,
-      [o.position.x, o.position.y, o.position.z],
-      [deg(o.rotation.x), deg(o.rotation.y), deg(o.rotation.z)],
-      o.scale.x);
+    const pos = [o.position.x, o.position.y, o.position.z];
+    const rotDeg = [deg(o.rotation.x), deg(o.rotation.y), deg(o.rotation.z)];
+    e.setGroupTransform(selectedId, pos, rotDeg, o.scale.x);
+    dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, rotDeg, o.scale.x);
   });
 
   e.scene().add(gizmo);
@@ -60,15 +61,13 @@ export function setGizmoMode(mode) {
   if (gizmo && (mode === 'translate' || mode === 'rotate')) gizmo.setMode(mode);
 }
 
-// Apply a transform from .NET (numeric fields). suppress stops the objectChange echo back to .NET.
+// Apply a transform from .NET (numeric fields). Sets the group's BASE (via the engine) so the per-frame anim
+// loop composes spin on top of it instead of reverting the gizmo. suppress stops the objectChange echo.
 export function applyTransform(id, pos, rotDeg, scale) {
-  const root = engine()?.getGroupRoot(id);
-  if (!root) return;
+  const e = engine();
+  if (!e) return;
   suppress = true;
-  root.position.set(pos[0] || 0, pos[1] || 0, pos[2] || 0);
-  root.rotation.set(rad(rotDeg[0] || 0), rad(rotDeg[1] || 0), rad(rotDeg[2] || 0));
-  const s = scale || 1;
-  root.scale.set(s, s, s);
+  e.setGroupTransform(id, pos, rotDeg, scale);
   suppress = false;
 }
 

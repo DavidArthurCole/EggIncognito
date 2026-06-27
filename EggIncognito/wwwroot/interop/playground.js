@@ -25,12 +25,15 @@ let renderer, scene, camera, controls, clock, raf;
 let sun, ambient;
 let designMode = false;
 
-// scene-wide procedural animation applied to whole groups (a chicken+hat spins as one rigid unit). Distinct
-// from each group's mixer, which plays the mesh's own baked clips. { kind, seconds, t }.
-let anim = { kind: 'none', seconds: 6, t: 0 };
+// procedural animation clock + global play/pause. Each group carries its OWN anim kind (per-element spin),
+// composed on top of that element's placed transform. Distinct from a group's mixer (baked mesh clips).
+let animClock = 0;
 let animPlaying = true;
+const ANIM_PERIOD = 6;
 
-// groupId -> { root: THREE.Group, mixer, hatMixer, autoOffset: {x,y,z}, manual: {x,y,z} | null }
+// groupId -> { root, mixer, hatMixer, autoOffset, manual, pinned, anim, base }
+//   anim = 'none'|'SpinY'|'SpinZ'|'HoverSpin' (per-element procedural)
+//   base = { pos:[x,y,z], rotDeg:[x,y,z], scale } the element's placed transform (design mode), spin rides it
 const groups = new Map();
 
 async function ensureLibs() {
@@ -56,26 +59,27 @@ export async function init(canvas) {
 
   resize();
 
-  // One adjustable sun (directional) + ambient fill, owned by the designer. A default keeps a fresh scene lit.
+  // Adjustable sun (directional) + a fixed soft ambient fill so emissive meshes never go fully black. Fog is
+  // optional (density 0 = off). A default keeps a fresh scene lit.
   sun = new THREE.DirectionalLight(0xffffff, 1.0);
-  ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  ambient = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(sun);
   scene.add(ambient);
   setLighting({ sun: { azimuthDeg: 45, elevationDeg: 55, color: '#ffffff', intensity: 1.0 },
-                ambient: { color: '#ffffff', intensity: 0.5 } });
+                fog: { color: '#1a1a1f', density: 0 } });
 
   clock = new THREE.Clock();
   window.addEventListener('resize', resize);
   // Publish the live engine accessors on a single global so the designer module reaches THIS instance. A
   // cache-bust query (?v=) on the module URL would otherwise fork a second, uninitialized engine instance.
-  window.__pgEngine = { scene: _scene, camera: _camera, renderer: _renderer, controls: _controls, getGroupRoot };
+  window.__pgEngine = { scene: _scene, camera: _camera, renderer: _renderer, controls: _controls, getGroupRoot, setGroupTransform };
   loop();
 }
 
 function loop() {
   raf = requestAnimationFrame(loop);
   const dt = clock.getDelta();
-  if (anim.kind !== 'none' && animPlaying) anim.t += dt;
+  if (animPlaying) animClock += dt;
   for (const g of groups.values()) {
     if (g.mixer) g.mixer.update(dt);
     if (g.hatMixer) g.hatMixer.update(dt);
@@ -85,23 +89,32 @@ function loop() {
   renderer.render(scene, camera);
 }
 
-// Procedural whole-group animation (spin / hover), composed on top of the group's offset. The chicken and
-// its hat share the group root, so they rotate + bob together as one rigid unit.
+// Per-element procedural animation (spin / hover), composed on top of that element's base transform. Only the
+// animated element moves; everything else holds still. The chicken + its hat share the group root, so they
+// ride as one rigid unit.
 function applyAnim(g) {
-  // pinned groups (the env backdrop) hold their fixed placement offset, no auto-layout, no spin.
-  if (g.pinned) { g.root.rotation.set(0, 0, 0); const p = g.manual; g.root.position.set(p.x, p.y, p.z); return; }
-  const o = g.manual || g.autoOffset;
-  const period = anim.seconds > 0 ? anim.seconds : 6;
-  const phase = (anim.t / period) * Math.PI * 2;
-  let rx = 0, ry = 0, rz = 0, bob = 0;
-  switch (anim.kind) {
-    case 'SpinY': ry = phase; break;
-    case 'SpinZ': rz = phase; break;
-    case 'HoverSpin': ry = phase; bob = Math.sin(phase) * 0.15; break;
+  const phase = (animClock / ANIM_PERIOD) * Math.PI * 2;
+  let addRy = 0, addRz = 0, bob = 0;
+  switch (g.anim) {
+    case 'SpinY': addRy = phase; break;
+    case 'SpinZ': addRz = phase; break;
+    case 'HoverSpin': addRy = phase; bob = Math.sin(phase) * 0.15; break;
   }
-  g.root.rotation.set(rx, ry, rz);
+  // base: an explicit placed transform (design mode) takes precedence; else the offset (view mode).
+  if (g.base) {
+    const b = g.base;
+    g.root.position.set(b.pos[0], b.pos[1] + bob, b.pos[2]);
+    g.root.rotation.set(rad(b.rotDeg[0]), rad(b.rotDeg[1]) + addRy, rad(b.rotDeg[2]) + addRz);
+    const s = b.scale || 1;
+    g.root.scale.set(s, s, s);
+    return;
+  }
+  const o = g.manual || g.autoOffset;
   g.root.position.set(o.x, o.y + bob, o.z);
+  g.root.rotation.set(0, addRy, addRz);
 }
+
+function rad(d) { return (d || 0) * Math.PI / 180; }
 
 async function parseGlb(b64) {
   const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
@@ -111,6 +124,8 @@ async function parseGlb(b64) {
 export async function addGroup(groupId, glbBase64, opts) {
   await ensureLibs();
   opts = opts || {};
+  // remember anim + placement before removeGroup wipes the entry, so a re-render keeps them.
+  const carried = groups.get(groupId);
   removeGroup(groupId);
 
   const gltf = await parseGlb(glbBase64);
@@ -144,6 +159,9 @@ export async function addGroup(groupId, glbBase64, opts) {
     autoOffset: { x: 0, y: 0, z: 0 },
     manual: opts.pinned ? { x: off[0] || 0, y: off[1] || 0, z: off[2] || 0 } : null,
     pinned: !!opts.pinned,
+    // preserve anim + placement across a re-render (reshell / hat change keeps spin + position).
+    anim: carried?.anim || 'none',
+    base: carried?.base || null,
   });
   scene.add(root);
   relayoutGroups();
@@ -209,14 +227,18 @@ export function setPlaying(playing) {
   }
 }
 
-// Sets the whole-group procedural animation (spin / hover). Live: takes effect next frame, no reload.
-export function setAnimation(kind, seconds) {
-  anim.kind = kind || 'none';
-  anim.seconds = +seconds || 6;
-  if (anim.kind === 'none') {
-    anim.t = 0;
-    for (const g of groups.values()) { g.root.rotation.set(0, 0, 0); applyOffset(g); }
-  }
+// Sets ONE element's procedural animation (spin / hover). Per-element: only that group moves. Live.
+export function setGroupAnimation(id, kind) {
+  const g = groups.get(id);
+  if (g) g.anim = kind || 'none';
+}
+
+// Sets ONE element's placed transform (the designer's gizmo / numeric fields). Stored as the group's base so
+// a per-element spin rides on top of it. pos + rotDeg are 3-arrays, scale a number.
+export function setGroupTransform(id, pos, rotDeg, scale) {
+  const g = groups.get(id);
+  if (!g) return;
+  g.base = { pos: [pos[0] || 0, pos[1] || 0, pos[2] || 0], rotDeg: [rotDeg[0] || 0, rotDeg[1] || 0, rotDeg[2] || 0], scale: scale || 1 };
 }
 
 export function resetView() { frameScene(); }
@@ -229,19 +251,28 @@ export function setBackground(hex) {
 }
 
 // Positions the sun on a unit dome from azimuth (around Y) + elevation (up from the horizon), and sets the
-// sun + ambient color/intensity. Live; safe to call before any element loads.
+// Sun (positioned on a dome from azimuth+elevation, color, intensity) + scene fog (color + density). Ambient
+// stays a fixed soft fill so emissive meshes never go fully black. Live; safe before any element loads.
 export function setLighting(opts) {
-  if (!sun || !ambient) return;
+  if (!sun || !ambient || !scene) return;
   const s = (opts && opts.sun) || {};
-  const a = (opts && opts.ambient) || {};
+  const f = (opts && opts.fog) || {};
   const az = (s.azimuthDeg || 0) * Math.PI / 180;
   const el = (s.elevationDeg || 0) * Math.PI / 180;
   const r = 10;
   sun.position.set(r * Math.cos(el) * Math.sin(az), r * Math.sin(el), r * Math.cos(el) * Math.cos(az));
   if (s.color) sun.color.set(s.color);
   if (typeof s.intensity === 'number') sun.intensity = s.intensity;
-  if (a.color) ambient.color.set(a.color);
-  if (typeof a.intensity === 'number') ambient.intensity = a.intensity;
+
+  // Fog: exponential, density 0 = off. Color defaults to white.
+  const density = typeof f.density === 'number' ? f.density : 0;
+  if (density > 0) {
+    if (!scene.fog) scene.fog = new THREE.FogExp2(0xffffff, density);
+    scene.fog.density = density;
+    if (f.color) scene.fog.color.set(f.color);
+  } else {
+    scene.fog = null;
+  }
 }
 
 // In design mode, groups hold their own transform (no auto-offset layout on add/remove).

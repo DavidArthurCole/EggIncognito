@@ -18,9 +18,24 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     [HttpGet("catalog")]
     public IActionResult Catalog() => Ok(new
     {
-        pieces = EnvCatalog.Pieces.Select(p => new { p.Stem, p.Label }),
+        pieces = EnvCatalog.Pieces.Select(p => new { p.Stem, p.Label, p.Group, p.Singleton }),
         habs = EnvCatalog.Habs.Select(p => new { p.Stem, p.Label }),
     });
+
+    // A game-like default farm layout: the standard farm elements at approximate plot positions, for the
+    // designer's one-click "Auto-arrange". ?hab= picks the hab used for the 4-plot row. Public (names + math).
+    [HttpGet("farm-layout")]
+    public IActionResult FarmLayout([FromQuery] string hab = "hab_10k")
+    {
+        var stem = EnvCatalog.IsKnownPiece(hab) ? hab : "hab_10k";
+        var placed = EggIncognito.Services.ProtoExtract.FarmLayout.Standard(stem)
+            .Where(p => EnvCatalog.IsKnownPiece(p.Stem))
+            .Select(p => new { p.Stem, label = LabelFor(p.Stem), p.Pos, p.RotY, p.Scale });
+        return Ok(new { elements = placed });
+    }
+
+    private static string LabelFor(string stem) =>
+        EnvCatalog.Pieces.FirstOrDefault(p => p.Stem == stem)?.Label ?? stem;
 
     // One env mesh decoded to glb, by stem (allowlisted). Pulled off the asset-source device, cache-first.
     // Admin-gated (device round-trip). ?device= picks a specific source device, else first reachable.
