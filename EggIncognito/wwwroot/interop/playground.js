@@ -66,6 +66,9 @@ export async function init(canvas) {
 
   clock = new THREE.Clock();
   window.addEventListener('resize', resize);
+  // Publish the live engine accessors on a single global so the designer module reaches THIS instance. A
+  // cache-bust query (?v=) on the module URL would otherwise fork a second, uninitialized engine instance.
+  window.__pgEngine = { scene: _scene, camera: _camera, renderer: _renderer, controls: _controls, getGroupRoot };
   loop();
 }
 

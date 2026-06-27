@@ -4,7 +4,10 @@
 // group's transform; every change is pushed back to .NET so the numeric inspector fields stay in sync, and
 // .NET can push edits the other way via applyTransform.
 
-import { _scene, _camera, _renderer, _controls, getGroupRoot } from './playground.js';
+// The engine (playground.js) publishes its live accessors on window.__pgEngine. We read THAT instance rather
+// than importing playground.js here: the Razor side loads the engine with a ?v= cache-bust query, so a static
+// import would resolve to a DIFFERENT (uninitialized) module instance whose renderer is undefined.
+function engine() { return globalThis.__pgEngine; }
 
 const TC_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/TransformControls.js';
 const THREE_URL = 'https://esm.sh/three@0.169.0';
@@ -16,7 +19,9 @@ export async function initDesigner(dotnetRef) {
   THREE = await import(THREE_URL);
   ({ TransformControls } = await import(TC_URL));
 
-  const cam = _camera(), dom = _renderer().domElement, controls = _controls();
+  const e = engine();
+  if (!e || !e.renderer()) throw new Error('playground engine not initialized');
+  const cam = e.camera(), dom = e.renderer().domElement, controls = e.controls();
   gizmo = new TransformControls(cam, dom);
   gizmo.setMode('translate');
 
@@ -33,14 +38,14 @@ export async function initDesigner(dotnetRef) {
       o.scale.x);
   });
 
-  _scene().add(gizmo);
+  e.scene().add(gizmo);
 }
 
 function deg(rad) { return rad * 180 / Math.PI; }
 function rad(d) { return d * Math.PI / 180; }
 
 export function selectElement(id) {
-  const root = getGroupRoot(id);
+  const root = engine()?.getGroupRoot(id);
   if (!root) { deselect(); return; }
   selectedId = id;
   gizmo.attach(root);
@@ -57,7 +62,7 @@ export function setGizmoMode(mode) {
 
 // Apply a transform from .NET (numeric fields). suppress stops the objectChange echo back to .NET.
 export function applyTransform(id, pos, rotDeg, scale) {
-  const root = getGroupRoot(id);
+  const root = engine()?.getGroupRoot(id);
   if (!root) return;
   suppress = true;
   root.position.set(pos[0] || 0, pos[1] || 0, pos[2] || 0);
@@ -70,7 +75,7 @@ export function applyTransform(id, pos, rotDeg, scale) {
 export function disposeDesigner() {
   if (gizmo) {
     gizmo.detach();
-    _scene()?.remove(gizmo);
+    engine()?.scene()?.remove(gizmo);
     gizmo.dispose?.();
     gizmo = null;
   }
