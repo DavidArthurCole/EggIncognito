@@ -559,45 +559,14 @@ public sealed class DevicesController(
     public async Task<IActionResult> Mesh(string id, string stem, [FromQuery] string? animate, [FromQuery] float seconds)
     {
         if (RequireAdmin() is { } no) return no;
-        var store = Store;
-        if (store is null) return StatusCode(503, new { error = "no database configured" });
-        var device = await store.GetAsync(id);
-        if (device is null) return NotFound(new { error = "unknown device" });
-        // Stem allowlist: file-stem chars only, no path separators or traversal.
-        if (string.IsNullOrEmpty(stem) || stem.IndexOfAny(['/', '\\', '.']) >= 0)
-            return BadRequest(new { error = "invalid mesh name" });
-
         var ct = HttpContext.RequestAborted;
-        var cache = services.GetService(typeof(MeshAssetCache)) as MeshAssetCache;
 
-        // Cache-first: a precomputed (un-animated) glb skips the device pull + decode entirely. Animation is
-        // applied on top below, so one cache entry serves every animation kind.
-        var glb = cache?.TryGet(device.Platform, stem);
-        if (glb is null)
-        {
-            var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
-            byte[]? rpo = null;
-            if (device.Platform == PlatformIos)
-            {
-                if (IosSsh(device) is not { } ssh)
-                    return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
-                rpo = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullOneRpoAsync(device.Package, stem, ct);
-            }
-            else if (device.Platform == PlatformAndroid)
-            {
-                var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
-                if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
-                rpo = Services.ProtoExtract.RpoAssetLister.ReadStem(apk, stem);
-            }
-            else return StatusCode(501, new { error = $"no mesh pull for platform {device.Platform}" });
-
-            if (rpo is null) return NotFound(new { error = "mesh not found on device" });
-
-            var decode = Services.ProtoExtract.RpoMeshDecoder.Decode(rpo, stem);
-            if (!decode.Ok) return Ok(new { ok = false, diagnostics = decode.Diagnostics });
-            glb = decode.Glb!;
-            if (cache is not null) await cache.PutAsync(device.Platform, stem, glb, ct); // write-through
-        }
+        // Cache-first device pull (DB cache, then on-disk, then the device), factored into the shared provider.
+        // Animation is applied on top so one cached glb serves every animation kind.
+        var provider = (DeviceMeshProvider)services.GetRequiredService(typeof(DeviceMeshProvider));
+        var res = await provider.GetGlbAsync(stem, id, ct);
+        if (!res.Ok) return StatusCode(res.Status, new { error = res.Diagnostics });
+        var glb = res.Glb!;
 
         if (!string.IsNullOrEmpty(animate))
         {

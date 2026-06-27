@@ -105,28 +105,6 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task EnvGlb_DecodesShippedFarmGround()
-    {
-        var c = _factory.CreateClient();
-        var r = await c.GetAsync("/api/env/ei_farm_ground/glb");
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        Assert.Equal("model/gltf-binary", r.Content.Headers.ContentType?.MediaType);
-        var glb = await r.Content.ReadAsByteArrayAsync();
-        var model = SharpGLTF.Schema2.ModelRoot.ParseGLB(glb);
-        Assert.NotEmpty(model.LogicalMeshes);
-    }
-
-    [Fact]
-    public async Task EnvGlb_DecodesShippedHab()
-    {
-        var c = _factory.CreateClient();
-        var r = await c.GetAsync("/api/env/hab_eggtopia/glb");
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var glb = await r.Content.ReadAsByteArrayAsync();
-        Assert.NotEmpty(SharpGLTF.Schema2.ModelRoot.ParseGLB(glb).LogicalMeshes);
-    }
-
-    [Fact]
     public async Task EnvPresets_IncludesHabs()
     {
         var c = _factory.CreateClient();
@@ -135,26 +113,14 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Contains("hab_eggtopia", json);
     }
 
-    [Theory]
-    [InlineData("ei_silo_0_large")]
-    [InlineData("ei_depot_3")]
-    [InlineData("ei_fuel_tank_2")]
-    [InlineData("coop")]
-    public async Task EnvGlb_DecodesShippedBuildings(string stem)
-    {
-        var c = _factory.CreateClient();
-        var r = await c.GetAsync($"/api/env/{stem}/glb");
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var glb = await r.Content.ReadAsByteArrayAsync();
-        Assert.NotEmpty(SharpGLTF.Schema2.ModelRoot.ParseGLB(glb).LogicalMeshes);
-    }
-
     [Fact]
-    public async Task EnvGlb_UnknownStem_Is404()
+    public async Task EnvGlb_RequiresAdmin()
     {
+        // env meshes are pulled off a device (round-trip), so the glb route is admin-gated. Anonymous = 403,
+        // never 200 with data. (No shipped assets: a 200 would mean a committed mesh, which must not exist.)
         var c = _factory.CreateClient();
-        var r = await c.GetAsync("/api/env/not_a_real_mesh/glb");
-        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+        var r = await c.GetAsync("/api/env/ei_farm_ground/glb");
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
     [Fact]

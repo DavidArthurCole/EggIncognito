@@ -115,6 +115,9 @@ builder.Services.AddHttpClient("inspector", c =>
 builder.Services.AddScoped<EggIncognito.Services.ShipShellDownloader>();
 // On-disk decoded-mesh cache so device mesh requests serve a precomputed glb instead of re-pulling.
 builder.Services.AddSingleton<EggIncognito.Services.MeshAssetCache>();
+// Resolves a mesh stem to a glb by pulling it off a device + caching it (no shipped assets). Used by the
+// playground environment + device-mesh paths.
+builder.Services.AddScoped<EggIncognito.Services.DeviceMeshProvider>();
 // Local copy of the game's per-platform *Config (ConfigResponse + DLCCatalog), feeds the shell viewer.
 builder.Services.AddSingleton<EggIncognito.Services.GameConfigStore>();
 // The "Sealed API proxy" supporter perk: a second inspector egress routed through a configured

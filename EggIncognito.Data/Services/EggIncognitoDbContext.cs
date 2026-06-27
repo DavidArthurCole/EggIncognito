@@ -28,6 +28,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
     public DbSet<DeviceUpdate> DeviceUpdates => Set<DeviceUpdate>();
     public DbSet<StagedProto> StagedProtos => Set<StagedProto>();
+    public DbSet<StoredMesh> StoredMeshes => Set<StoredMesh>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -137,6 +138,12 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         {
             e.HasIndex(x => x.ProtoSha);
             e.HasIndex(x => x.Status);
+        });
+        b.Entity<StoredMesh>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Platform, x.Stem }).IsUnique();
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
     }
 }

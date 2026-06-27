@@ -1,19 +1,20 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using EggIncognito.Services;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Controllers;
 
-// Serves the farm-environment meshes shipped with the app (Assets/env/*.rpo) as glb, plus the presets that
-// compose them into a playground backdrop. Local files only (no egress, no device), so reads are public and
-// work on the hosted site. Decoded glbs are cached under platform "env" like every other mesh.
+// Serves the farm-environment meshes + the presets that compose them into a playground backdrop. The meshes
+// are NOT shipped: they are pulled off a connected device's bundle on demand and cached (DeviceMeshProvider),
+// the same way every other game mesh is sourced. The env catalog is just names + layout (no asset bytes).
+// Presets read is public; the glb pull does a device round-trip so it is admin-gated like the device-mesh
+// route. Without a reachable device the glb pull returns 503 (the catalog still lists what is available).
 [ApiController]
 [Route("api/env")]
-public sealed class EnvController(IWebHostEnvironment env, MeshAssetCache cache, ILogger<EnvController> logger) : ControllerBase
+public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser currentUser) : ControllerBase
 {
-    private const string CachePlatform = "env";
-
-    // The available env pieces + presets, for the playground env widget.
+    // The available env pieces + presets + habs, for the playground env widget. Public read (names only).
     [HttpGet("presets")]
     public IActionResult Presets() => Ok(new
     {
@@ -26,27 +27,18 @@ public sealed class EnvController(IWebHostEnvironment env, MeshAssetCache cache,
         habs = EnvCatalog.Habs.Select(p => new { p.Stem, p.Label }),
     });
 
-    // One env mesh decoded to glb, by stem (allowlisted). Cache-first; decodes the shipped .rpo on a miss.
+    // One env mesh decoded to glb, by stem (allowlisted). Pulled off the asset-source device, cache-first.
+    // Admin-gated (device round-trip). ?device= picks a specific source device, else first reachable.
     [HttpGet("{stem}/glb")]
-    public async Task<IActionResult> Glb(string stem, CancellationToken ct)
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Glb(string stem, [FromQuery] string? device, CancellationToken ct)
     {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
         if (!EnvCatalog.IsKnownPiece(stem)) return NotFound(new { error = "unknown env mesh" });
 
-        var glb = cache.TryGet(CachePlatform, stem);
-        if (glb is null)
-        {
-            var path = Path.Combine(env.ContentRootPath, "Assets", "env", stem + ".rpo");
-            if (!System.IO.File.Exists(path)) return NotFound(new { error = $"env mesh not shipped: {stem}" });
-
-            byte[] rpo;
-            try { rpo = await System.IO.File.ReadAllBytesAsync(path, ct); }
-            catch (Exception ex) { logger.LogWarning(ex, "env read failed {Stem}", stem); return StatusCode(500, new { error = "read failed" }); }
-
-            var decode = RpoMeshDecoder.Decode(rpo, stem);
-            if (!decode.Ok) return Ok(new { ok = false, diagnostics = decode.Diagnostics });
-            glb = decode.Glb!;
-            await cache.PutAsync(CachePlatform, stem, glb, ct);
-        }
-        return File(glb, "model/gltf-binary", $"{stem}.glb");
+        var res = await meshes.GetGlbAsync(stem, device, ct);
+        if (!res.Ok) return StatusCode(res.Status, new { error = res.Diagnostics });
+        return File(res.Glb!, "model/gltf-binary", $"{stem}.glb");
     }
 }
