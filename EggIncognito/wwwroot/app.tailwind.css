@@ -364,7 +364,7 @@
   .console-put, .console-patch { @apply bg-sky-500/15 text-sky-300 border border-sky-500/30; }
   .console-delete { @apply bg-red-500/15 text-red-300 border border-red-500/30; }
   /* 3D playground canvas: fills its panel, fixed aspect-ish height, dark scene backdrop. */
-  .canvas-wrap { @apply w-full rounded-md overflow-hidden bg-bg; height: min(70vh, 640px); }
+  .canvas-wrap { @apply w-full rounded-md overflow-hidden bg-bg; height: min(80vh, 820px); }
   .canvas-wrap canvas { @apply w-full h-full block; }
   .capture-controls { @apply overflow-visible; }
   .capture-controls .settings-menu { @apply left-0 right-auto; transform-origin: top left; }

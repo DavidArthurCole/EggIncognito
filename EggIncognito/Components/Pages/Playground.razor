@@ -20,7 +20,7 @@
 }
 else
 {
-<main class="px-8 pt-6 pb-8 max-w-[1280px]">
+<main class="px-8 pt-6 pb-8">
   <h1 class="text-[1.3rem] mt-0 mb-1">3D Playground</h1>
   <p class="text-muted text-xs mb-4">
     View a saved environment, or flip on Design mode to free-place game elements: add habs, silos, chickens
@@ -36,14 +36,28 @@ else
     </section>
 
     <section class="w-[340px] flex flex-col gap-2">
-      <label class="settings-check"><input type="checkbox" @bind="_designMode" @bind:after="ToggleDesignMode" /><span class="ml-2 font-semibold">Design mode</span></label>
-
       <div class="designer-section">
         <div class="designer-section-head">Scene</div>
-        <div class="designer-section-body">
+        <div class="designer-section-body flex flex-col gap-3">
+          <label class="settings-check"><input type="checkbox" @bind="_designMode" @bind:after="ToggleDesignMode" /><span class="ml-2 font-semibold">Design mode</span></label>
           <div class="flex gap-2">
             <button class="btn-secondary flex-1" @onclick="TogglePlay">@(_playing ? "Pause" : "Play")</button>
             <button class="btn-secondary flex-1" @onclick="ResetView">Reset view</button>
+          </div>
+          <div class="flex flex-col gap-2">
+            @if (_designMode)
+            {
+              <input class="reg-filter-input w-full" placeholder="Design name…" @bind="_designName" @bind:event="oninput" />
+              <button class="btn-secondary" @onclick="SaveDesign" disabled="@string.IsNullOrWhiteSpace(_designName)">Save design</button>
+            }
+            <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
+              <option value="">@(_designMode ? "Load design…" : "Choose a design…")</option>
+              @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
+            </select>
+            @if (_designMode)
+            {
+              <button class="btn-secondary" @onclick="DeleteDesign" disabled="@string.IsNullOrEmpty(_selectedDesign)">Delete design</button>
+            }
           </div>
         </div>
       </div>
@@ -63,33 +77,9 @@ else
           <label class="light-field"><span>Sun color</span><input type="color" class="bg-picker-input" @bind="_lighting.SunColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Sun intensity</span><input type="range" min="0" max="3" step="0.05" class="w-full" @bind="_lighting.SunIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Fog color</span><input type="color" class="bg-picker-input" @bind="_lighting.FogColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
-          <label class="light-field"><span>Fog density</span><input type="range" min="0" max="0.15" step="0.002" class="w-full" @bind="_lighting.FogDensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Fog density</span><input type="range" min="0" max="0.03" step="0.0005" class="w-full" @bind="_lighting.FogDensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
         </div>
       </div>
-
-      <div class="designer-section">
-        <div class="designer-section-head">Design</div>
-        <div class="designer-section-body flex flex-col gap-2">
-          @if (_designMode)
-          {
-            <input class="reg-filter-input w-full" placeholder="Design name…" @bind="_designName" @bind:event="oninput" />
-            <button class="btn-secondary" @onclick="SaveDesign" disabled="@string.IsNullOrWhiteSpace(_designName)">Save design</button>
-          }
-          <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
-            <option value="">@(_designMode ? "Load design…" : "Choose a design…")</option>
-            @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
-          </select>
-          @if (_designMode)
-          {
-            <button class="btn-secondary" @onclick="DeleteDesign" disabled="@string.IsNullOrEmpty(_selectedDesign)">Delete design</button>
-          }
-        </div>
-      </div>
-
-      @if (!string.IsNullOrEmpty(_status))
-      {
-        <div class="text-xs mt-1 @(_error ? "err" : "text-muted")">@_status</div>
-      }
     </section>
 
     @if (_designMode)
@@ -100,6 +90,10 @@ else
           <div class="designer-section-body">
             <button class="btn-primary w-full" @onclick="() => _pickerOpen = !_pickerOpen">@(_pickerOpen ? "Close picker" : "Add element")</button>
             <button class="btn-secondary w-full mt-2" @onclick="AutoArrangeFarm" disabled="@_busy">Auto-arrange farm</button>
+            @if (!string.IsNullOrEmpty(_status))
+            {
+              <div class="text-xs mt-1 @(_error ? "err" : "text-muted")">@_status</div>
+            }
             @if (_pickerOpen)
             {
               <div class="picker mt-2">
@@ -503,6 +497,7 @@ else
                 _elements.Add(el);
                 await RenderElement(el);
             }
+            await ResetView();
             Status($"Arranged {placed.Length} elements.");
         }
         catch (Exception ex) { Fail(ex.Message); }
@@ -624,6 +619,7 @@ else
                 _elementSeq = Math.Max(_elementSeq, ParseSeq(el.Id));
                 await RenderElement(el);
             }
+            await ResetView();
             Status($"Loaded \"{_selectedDesign}\".");
         }
         catch (Exception ex) { Fail(ex.Message); }
@@ -650,8 +646,24 @@ else
         StateHasChanged();
     }
 
-    void Status(string s) { _error = false; _status = s; StateHasChanged(); }
-    void Fail(string s) { _error = true; _status = s; StateHasChanged(); }
+    System.Threading.CancellationTokenSource? _statusCts;
+
+    // Transient status: shows the message then auto-clears after a few seconds (cancels any prior clear).
+    void Status(string s)
+    {
+        _error = false; _status = s; StateHasChanged();
+        _statusCts?.Cancel();
+        if (string.IsNullOrEmpty(s)) return;
+        var cts = new System.Threading.CancellationTokenSource();
+        _statusCts = cts;
+        _ = Task.Delay(3000, cts.Token).ContinueWith(t =>
+        {
+            if (t.IsCanceled) return;
+            _status = ""; InvokeAsync(StateHasChanged);
+        }, TaskScheduler.Default);
+    }
+
+    void Fail(string s) { _statusCts?.Cancel(); _error = true; _status = s; StateHasChanged(); }
 
     public sealed class DesignElement
     {

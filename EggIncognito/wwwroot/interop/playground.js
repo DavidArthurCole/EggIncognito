@@ -22,7 +22,7 @@ const ORBIT_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/OrbitContr
 
 let THREE, GLTFLoader, OrbitControls;
 let renderer, scene, camera, controls, clock, raf;
-let sun, ambient;
+let sun, ambient, resizeObserver;
 let designMode = false;
 
 // procedural animation clock + global play/pause. Each group carries its OWN anim kind (per-element spin),
@@ -70,6 +70,11 @@ export async function init(canvas) {
 
   clock = new THREE.Clock();
   window.addEventListener('resize', resize);
+  // Track the canvas element's actual size, not just window resize: a layout change (e.g. a control column
+  // appearing) resizes the canvas without a window event, which otherwise leaves the camera aspect stale and
+  // stretches the render.
+  resizeObserver = new ResizeObserver(() => resize());
+  resizeObserver.observe(canvas);
   // Publish the live engine accessors on a single global so the designer module reaches THIS instance. A
   // cache-bust query (?v=) on the module URL would otherwise fork a second, uninitialized engine instance.
   window.__pgEngine = { scene: _scene, camera: _camera, renderer: _renderer, controls: _controls, getGroupRoot, setGroupTransform };
@@ -188,11 +193,13 @@ export function setGroupOffset(groupId, x, y, z) {
 
 // Space the model groups along X by the widest group's bbox so they do not overlap. Pinned env groups stay
 // at world origin and are excluded from the layout. Groups with a manual offset keep it. Then frame.
+// Recomputes group positions. Does NOT move the camera: re-framing on every add/reshell/transform yanked the
+// view. The camera is framed only on explicit resetView() (and the first load, via frameOnce).
 export function relayoutGroups() {
   const all = [...groups.values()];
   if (all.length === 0) return;
-  // design mode: every group holds its own transform; skip the auto-offset layout entirely, just frame.
-  if (designMode) { frameScene(); return; }
+  // design mode: every group holds its own transform; no auto-offset layout.
+  if (designMode) { maybeFrameOnce(); return; }
   for (const g of all.filter(g => g.pinned)) applyOffset(g);
 
   const list = all.filter(g => !g.pinned);
@@ -210,6 +217,15 @@ export function relayoutGroups() {
     g.autoOffset = { x, y: 0, z: 0 };
     applyOffset(g);
   });
+  maybeFrameOnce();
+}
+
+// Frames the camera exactly once after the scene first gets content, so an empty-start scene still gets a
+// sensible initial view without re-framing on every later change.
+let framedOnce = false;
+function maybeFrameOnce() {
+  if (framedOnce || groups.size === 0) return;
+  framedOnce = true;
   frameScene();
 }
 
@@ -339,6 +355,8 @@ export function dispose() {
   if (raf) cancelAnimationFrame(raf);
   raf = null;
   window.removeEventListener('resize', resize);
+  if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
+  framedOnce = false;
   for (const g of groups.values()) {
     if (g.mixer) g.mixer.stopAllAction();
     if (g.hatMixer) g.hatMixer.stopAllAction();

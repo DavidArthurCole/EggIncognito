@@ -36,6 +36,7 @@ public static class FarmLayout
             // self-placing buildings: the mesh vertices already sit at the in-game plot, so origin is correct.
             new("ei_depot_3", [0, 0, 0], 0),            // near side (z~7-12), in front of the road
             new("ei_hyperloop_stop", [0, 0, 0], 0),     // across the road (z~19-27)
+            new("ei_hyperloop_track", [0, 0, 0], 0),    // the hyperloop tube, self-placing
             new("ei_lab_3", [0, 0, 0], 0),              // research lab
             new("ei_mission_control_1", [0, 0, 0], 0),
             new("ei_hoa_1", [0, 0, 0], 0),
