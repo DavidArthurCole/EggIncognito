@@ -57,8 +57,29 @@ public static class EnvCatalog
         new EnvPiece("ei_hoa_3", "HOA (3)", "Buildings", Singleton: true, Family: "hoa"),
         new EnvPiece("ei_trophy_case", "Trophy case", "Buildings", Singleton: true, Family: "trophy"),
         new EnvPiece("ei_trophy_case2", "Trophy case (2)", "Buildings", Singleton: true, Family: "trophy"),
-        new EnvPiece("ei_afx_construction_site", "Artifact hall site", "Buildings", Singleton: true),
-        new EnvPiece("ei_hatchery_rocketfuel", "Rocket fuel hatchery", "Buildings", Singleton: true),
+        new EnvPiece("ei_afx_construction_site", "Artifact hall", "Buildings", Singleton: true),
+
+        // The egg hatchery (between the depot + research lab). One per farm; the variation dropdown swaps the
+        // egg type. Self-places (the mesh sits at the real plot). Sub-part meshes (_top/_ring/_orb/...) are
+        // excluded; they are pieces of specific hatcheries, not standalone.
+        new EnvPiece("ei_hatchery_edible", "Hatchery (Edible)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_superfood", "Hatchery (Superfood)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_medical", "Hatchery (Medical)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_supermaterial", "Hatchery (Super Material)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_fusion", "Hatchery (Fusion)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_quantum", "Hatchery (Quantum)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_immortality", "Hatchery (Immortality)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_tachyon", "Hatchery (Tachyon)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_graviton", "Hatchery (Graviton)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_dilithium", "Hatchery (Dilithium)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_prodigy", "Hatchery (Prodigy)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_terraform", "Hatchery (Terraform)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_antimatter", "Hatchery (Antimatter)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_darkmatter", "Hatchery (Dark Matter)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_ai", "Hatchery (AI)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_vision", "Hatchery (Nebula)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_universe", "Hatchery (Universe)", "Buildings", Singleton: true, Family: "hatchery"),
+        new EnvPiece("ei_hatchery_enlightenment", "Hatchery (Enlightenment)", "Buildings", Singleton: true, Family: "hatchery"),
 
         new EnvPiece("coop", "Coop", "Structures", Singleton: true),
         new EnvPiece("ei_farm_mailbox_full", "Mailbox", "Structures", Singleton: true),

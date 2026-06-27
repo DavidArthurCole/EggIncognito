@@ -126,15 +126,9 @@ else
                 </div>
               </div>
             }
-            <div class="element-list mt-2">
-              @foreach (var el in _elements)
-              {
-                <div class="element-row @(el.Id == _selectedElementId ? "active" : "")">
-                  <button class="element-name" @onclick="() => SelectElement(el.Id)">@el.Label</button>
-                  <button class="element-del" @onclick="() => DeleteElement(el)">✕</button>
-                </div>
-              }
-              @if (_elements.Count == 0) { <div class="text-xs text-muted">No elements. Add one above.</div> }
+            <div class="text-xs text-muted mt-2">
+              @if (_elements.Count == 0) { <span>No elements. Add one above.</span> }
+              else { <span>@_elements.Count element(s). Click one in the scene to select it.</span> }
             </div>
           </div>
         </div>
@@ -183,6 +177,20 @@ else
                   </select>
                 </label>
               }
+              <div class="border-t border-border mt-1 pt-2">
+                @if (_confirmDeleteId == sel.Id)
+                {
+                  <div class="text-xs text-muted mb-1">Delete @sel.Label?</div>
+                  <div class="flex gap-2">
+                    <button class="btn-danger flex-1" @onclick="() => ConfirmDelete(sel)">Delete</button>
+                    <button class="btn-secondary flex-1" @onclick="() => _confirmDeleteId = null">Cancel</button>
+                  </div>
+                }
+                else
+                {
+                  <button class="btn-secondary w-full" @onclick="() => _confirmDeleteId = sel.Id">Delete element</button>
+                }
+              </div>
             </div>
           </div>
         }
@@ -197,7 +205,10 @@ else
     ElementReference _canvas;
     IJSObjectReference? _mod;
     IJSObjectReference? _designer;
+    IJSObjectReference? _autosave;
     DotNetObjectReference<Playground>? _selfRef;
+    string _appVersion = "";
+    System.Threading.CancellationTokenSource? _autosaveCts;
 
     const string ShellPlatform = "ios";
 
@@ -215,6 +226,7 @@ else
     bool _pickerOpen;
     string _pickerTab = "building";
     List<FamilyOption> _familyOptions = [];
+    string? _confirmDeleteId;
 
     string _designName = "";
     string _selectedDesign = "";
@@ -256,6 +268,10 @@ else
             await LoadShells();
             await LoadCatalog();
             await RefreshDesigns();
+            _autosave = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundAutosave.js?v={InteropVersion()}");
+            try { _appVersion = (await Client().GetFromJsonAsync<AppVersionDto>("/api/app/version"))?.Version ?? ""; }
+            catch { _appVersion = ""; }
+            await TryRestoreAutosave();
         }
         catch (Exception ex) { Fail($"3D init failed: {ex.Message}"); }
     }
@@ -289,11 +305,13 @@ else
     async Task ApplyBackground()
     {
         if (_mod is not null) await _mod.InvokeVoidAsync("setBackground", _bgTransparent ? null : _bgColor);
+        Autosave();
     }
 
     async Task ApplyElementAnimation(DesignElement el)
     {
         if (_mod is not null) await _mod.InvokeVoidAsync("setGroupAnimation", el.Id, el.Anim);
+        Autosave();
     }
 
     async Task ApplyLighting()
@@ -304,6 +322,7 @@ else
             sun = new { azimuthDeg = _lighting.SunAzimuthDeg, elevationDeg = _lighting.SunElevationDeg, color = _lighting.SunColor, intensity = _lighting.SunIntensity },
             fog = new { color = _lighting.FogColor, density = _lighting.FogDensity },
         });
+        Autosave();
     }
 
     async Task TogglePlay()
@@ -375,6 +394,7 @@ else
             el.RotDeg = [(float)rotDeg[0], (float)rotDeg[1], (float)rotDeg[2]];
             el.Scale = (float)scale;
             InvokeAsync(StateHasChanged);
+            Autosave();
         }
         return Task.CompletedTask;
     }
@@ -385,6 +405,7 @@ else
     public async Task OnPickElement(string? id)
     {
         _selectedElementId = id is not null && _elements.Any(e => e.Id == id) ? id : null;
+        _confirmDeleteId = null;
         await LoadFamilyOptions();
         await InvokeAsync(StateHasChanged);
     }
@@ -423,6 +444,7 @@ else
         }
         await PushElementTransform(el);
         await ApplyElementAnimation(el);
+        Autosave();
     }
 
     // Set the element's placed transform on its group (works in view + design mode; the gizmo reads the same
@@ -433,11 +455,13 @@ else
             await _mod.InvokeVoidAsync("setGroupTransform", el.Id, el.Pos, el.RotDeg, el.Scale);
         if (_designer is not null && _selectedElementId == el.Id)
             await _designer.InvokeVoidAsync("selectElement", el.Id);
+        Autosave();
     }
 
     async Task SelectElement(string id)
     {
         _selectedElementId = id;
+        _confirmDeleteId = null; // a pending delete-confirm does not carry to a newly selected element
         if (_designer is not null) await _designer.InvokeVoidAsync("selectElement", id);
         await LoadFamilyOptions();
         StateHasChanged();
@@ -469,12 +493,20 @@ else
         await SelectElement(sel.Id);
     }
 
+    // Delete after the inline confirm. Clears the confirm + selection, removes the group.
+    async Task ConfirmDelete(DesignElement el)
+    {
+        _confirmDeleteId = null;
+        await DeleteElement(el);
+    }
+
     async Task DeleteElement(DesignElement el)
     {
         _elements.Remove(el);
         if (_selectedElementId == el.Id) { _selectedElementId = null; if (_designer is not null) await _designer.InvokeVoidAsync("deselect"); }
         if (_mod is not null) await _mod.InvokeVoidAsync("removeGroup", el.Id);
         StateHasChanged();
+        Autosave();
     }
 
     // Builds a game-like farm in one click: clears the scene, fetches the standard layout, adds each element
@@ -598,7 +630,12 @@ else
         };
         var json = System.Text.Json.JsonSerializer.Serialize(payload);
         var res = await Client().PutAsJsonAsync($"/api/env/designs/{Uri.EscapeDataString(_designName.Trim())}", new { payload = json });
-        if (res.IsSuccessStatusCode) { Status($"Saved \"{_designName.Trim()}\"."); await RefreshDesigns(); }
+        if (res.IsSuccessStatusCode)
+        {
+            Status($"Saved \"{_designName.Trim()}\".");
+            await RefreshDesigns();
+            if (_autosave is not null) { try { await _autosave.InvokeVoidAsync("clear"); } catch { } }
+        }
         else Fail($"save failed: HTTP {(int)res.StatusCode}");
     }
 
@@ -611,28 +648,87 @@ else
             var json = await Client().GetStringAsync($"/api/env/designs/{Uri.EscapeDataString(_selectedDesign)}");
             var payload = System.Text.Json.JsonSerializer.Deserialize<DesignPayload>(json);
             if (payload is null) { Fail("design is corrupt"); return; }
-
-            foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
-            _elements.Clear();
-            _selectedElementId = null;
-            if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
-
-            _bgColor = string.IsNullOrEmpty(payload.Background) ? _bgColor : payload.Background;
-            _bgTransparent = payload.BackgroundTransparent;
-            _lighting = payload.Lighting ?? new();
-            await ApplyBackground();
-            await ApplyLighting();
-
-            foreach (var el in payload.Elements)
-            {
-                _elements.Add(el);
-                _elementSeq = Math.Max(_elementSeq, ParseSeq(el.Id));
-                await RenderElement(el);
-            }
-            await ResetView();
+            await RestoreFromPayload(payload);
             Status($"Loaded \"{_selectedDesign}\".");
         }
         catch (Exception ex) { Fail(ex.Message); }
+    }
+
+    // On load, silently restore a recent autosaved design (a redeploy reload or a crash left one), then clear
+    // it and show a dismissible notice. Stale or absent autosave is ignored.
+    async Task TryRestoreAutosave()
+    {
+        if (_autosave is null || _mod is null) return;
+        AutosaveRecord? rec;
+        try { rec = await _autosave.InvokeAsync<AutosaveRecord?>("load"); }
+        catch { rec = null; }
+        if (rec is null || string.IsNullOrEmpty(rec.Json)) return;
+        if (!EggIncognito.Services.AutosaveRecency.IsFresh(rec.SavedAt, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()))
+        {
+            await _autosave.InvokeVoidAsync("clear");
+            return;
+        }
+        try
+        {
+            var payload = System.Text.Json.JsonSerializer.Deserialize<DesignPayload>(rec.Json);
+            if (payload is not null) { await RestoreFromPayload(payload); Status("Restored your unsaved design."); }
+        }
+        catch { /* corrupt autosave: ignore */ }
+        finally { await _autosave.InvokeVoidAsync("clear"); }
+    }
+
+    // Debounced autosave of the current scene to the localStorage slot. Called on every meaningful change.
+    void Autosave()
+    {
+        _autosaveCts?.Cancel();
+        var cts = new System.Threading.CancellationTokenSource();
+        _autosaveCts = cts;
+        _ = Task.Delay(750, cts.Token).ContinueWith(async t =>
+        {
+            if (t.IsCanceled || _autosave is null) return;
+            var payload = new DesignPayload
+            {
+                Background = _bgColor, BackgroundTransparent = _bgTransparent,
+                Lighting = _lighting, Elements = _elements.ToList(),
+            };
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            try { await _autosave.InvokeVoidAsync("save", json, _appVersion, now); } catch { /* ignore */ }
+        }, TaskScheduler.Default);
+    }
+
+    sealed class AutosaveRecord
+    {
+        public string Json { get; set; } = "";
+        public string Version { get; set; } = "";
+        public long SavedAt { get; set; }
+    }
+
+    record AppVersionDto(string Version, string Sha);
+
+    // Rebuilds the scene from a design payload: clears the current groups, restores background + lighting, then
+    // re-renders every element. Shared by Load-design and the autosave restore.
+    async Task RestoreFromPayload(DesignPayload payload)
+    {
+        if (_mod is null) return;
+        foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
+        _elements.Clear();
+        _selectedElementId = null;
+        if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
+
+        _bgColor = string.IsNullOrEmpty(payload.Background) ? _bgColor : payload.Background;
+        _bgTransparent = payload.BackgroundTransparent;
+        _lighting = payload.Lighting ?? new();
+        await ApplyBackground();
+        await ApplyLighting();
+
+        foreach (var el in payload.Elements)
+        {
+            _elements.Add(el);
+            _elementSeq = Math.Max(_elementSeq, ParseSeq(el.Id));
+            await RenderElement(el);
+        }
+        await ResetView();
     }
 
     static int ParseSeq(string id) => int.TryParse(id.TrimStart('e', 'l'), out var n) ? n : 0;
@@ -735,6 +831,8 @@ else
             try { await _designer.InvokeVoidAsync("disposeDesigner"); } catch { }
             try { await _designer.DisposeAsync(); } catch { }
         }
+        if (_autosave is not null) { try { await _autosave.DisposeAsync(); } catch { } }
+        _autosaveCts?.Cancel();
         _selfRef?.Dispose();
     }
 }

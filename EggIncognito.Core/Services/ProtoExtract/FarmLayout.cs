@@ -26,9 +26,9 @@ public static class FarmLayout
     //
     // Two placement classes:
     // - SELF-PLACING (pos [0,0,0]): the mesh vertices already sit at the real in-game plot (depot z~7-12,
-    //   hyperloop z~19-27, lab z~-6..0, fuel/mailbox offset). Origin is correct.
-    // - ORIGIN-AUTHORED (explicit pos): trophy, mission control, artifact hall, rocket platform are authored
-    //   at the mesh origin, so they need an explicit world position or they overlap. Laid out relative to the
+    //   hyperloop z~19-27, lab z~-6..0, mailbox offset). Origin is correct.
+    // - ORIGIN-AUTHORED (explicit pos): trophy, mission control, artifact hall, fuel tank are authored at the
+    //   mesh origin, so they need an explicit world position or they overlap. Laid out relative to the
     //   self-placed depot (center ~x7,z9): near row z~9, back row z~-3.
     public static IReadOnlyList<Placed> Standard(string defaultHab = "hab_10k")
     {
@@ -41,16 +41,16 @@ public static class FarmLayout
             new("ei_farm_misc", [0, 0, 0], 0),
             // self-placing: mesh carries the offset.
             new("ei_depot_3", [0, 0, 0], 0),            // right-near (z~7-12), in front of the road
+            new("ei_hatchery_edible", [0, 0, 0], 0),    // egg hatchery, between depot + lab (z~0.5-5.5)
             new("ei_lab_3", [0, 0, 0], 0),              // research lab, BEHIND the depot (z~-6..0)
             new("ei_hyperloop_stop", [0, 0, 0], 0),     // across the road (z~19-27)
             new("ei_hyperloop_track", [0, 0, 0], 0),    // the hyperloop tube
-            new("ei_fuel_tank_2", [13, 0, 8], 0),       // next to the launch platform, on the near row
             new("ei_farm_mailbox_full", [0, 0, 0], 0),  // self-places near (-3, 11)
             // origin-authored: placed explicitly relative to the depot.
-            new("ei_hatchery_rocketfuel", [18, 0, 9], 0),  // launch platform, RIGHT of the depot
-            new("ei_afx_construction_site", [18, 0, -3], 0), // artifact hall, BEHIND the launch platform
+            new("ei_mission_control_1", [16, 0, 9], 0),   // RIGHT of the depot, near row
+            new("ei_fuel_tank_2", [23, 0, 9], 0),         // next to mission control
+            new("ei_afx_construction_site", [16, 0, -3], 0), // artifact hall, BEHIND mission control
             new("ei_trophy_case", [-7, 0, 11], 0),      // LEFT of the mailbox
-            new("ei_mission_control_1", [-9, 0, -3], 0), // back-left
         };
 
         // hab row: 4 plots, evenly spaced (no game spacing constant; positions are model-baked).
