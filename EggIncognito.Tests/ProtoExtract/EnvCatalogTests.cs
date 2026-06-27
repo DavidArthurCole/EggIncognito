@@ -33,15 +33,28 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void FarmLayout_Standard_PlacesKnownStemsAndFourHabs()
+    public void FarmLayout_Standard_HasFourHabs_TenSilos_NoCoop_KnownStems()
     {
         var placed = FarmLayout.Standard("hab_10k");
         Assert.All(placed, p => Assert.True(EnvCatalog.IsKnownPiece(p.Stem), $"unknown stem {p.Stem}"));
-        // ground + the 4-plot hab row present.
         Assert.Contains(placed, p => p.Stem == "ei_farm_ground");
         var habs = placed.Where(p => p.Stem == "hab_10k").ToList();
         Assert.Equal(4, habs.Count);
         Assert.Equal(4, habs.Select(h => h.Pos[0]).Distinct().Count());
+        Assert.Equal(10, placed.Count(p => p.Stem == "ei_silo_0_large"));
+        Assert.DoesNotContain(placed, p => p.Stem == "coop");
+        // the hyperloop station is part of the standard farm (across the road).
+        Assert.Contains(placed, p => p.Stem == "ei_hyperloop_stop");
+    }
+
+    [Fact]
+    public void Family_ReturnsHabTiers()
+    {
+        var fam = EnvCatalog.Family("hab_10k");
+        Assert.True(fam.Count >= 5);
+        Assert.All(fam, p => Assert.Equal("hab", p.Family));
+        // a non-family piece has no siblings.
+        Assert.Empty(EnvCatalog.Family("ei_farm_ground"));
     }
 
     [Fact]

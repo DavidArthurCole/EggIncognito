@@ -18,8 +18,16 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     [HttpGet("catalog")]
     public IActionResult Catalog() => Ok(new
     {
-        pieces = EnvCatalog.Pieces.Select(p => new { p.Stem, p.Label, p.Group, p.Singleton }),
+        pieces = EnvCatalog.Pieces.Select(p => new { p.Stem, p.Label, p.Group, p.Singleton, p.Family }),
         habs = EnvCatalog.Habs.Select(p => new { p.Stem, p.Label }),
+    });
+
+    // The swap-family siblings of a placed piece (hab tiers for a hab, lab levels for a lab). Empty when the
+    // piece has no family. Powers the "switch variation" dropdown on a selected element. Public.
+    [HttpGet("family/{stem}")]
+    public IActionResult Family(string stem) => Ok(new
+    {
+        family = EnvCatalog.Family(stem).Select(p => new { p.Stem, p.Label }),
     });
 
     // A game-like default farm layout: the standard farm elements at approximate plot positions, for the

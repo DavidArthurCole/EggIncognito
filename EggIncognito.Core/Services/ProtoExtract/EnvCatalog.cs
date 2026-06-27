@@ -4,15 +4,17 @@ namespace EggIncognito.Services.ProtoExtract;
 // designer can place. The meshes themselves are pulled off a device + cached (DeviceMeshProvider); this is
 // just the allowlist of known stems + their display labels. Layouts are authored in the designer (EnvDesign),
 // not hardcoded here.
+//
+// Most building meshes are authored at their real in-game plot position in their own vertex coords (depot
+// z~7-12, hyperloop z~19-27, lab x~4-10, ...), so placing them at world origin self-positions them. Only the
+// repeated rows (habs, silos) are centered-at-origin single plots that the layout instances at multiple spots.
 public static class EnvCatalog
 {
-    // Singleton = the scene holds at most one (the ground plane, paths, hardscape, ground detail, display
-    // pedestal, mailbox). Adding a second is blocked client-side. Buildings/habs are repeatable.
-    // Group = the picker section a piece appears under (Terrain / Habs / Storage / Structures).
-    public sealed record EnvPiece(string Stem, string Label, string Group, bool Singleton = false);
+    // Singleton = the scene holds at most one (terrain layers + the self-placing single-slot buildings).
+    // Group = the picker section. Family = the swap group: a placed element can be switched to another piece
+    // in the same family (a hab tier for a hab, a lab level for a lab); "" = not swappable.
+    public sealed record EnvPiece(string Stem, string Label, string Group, bool Singleton = false, string Family = "");
 
-    // Every placeable env mesh stem + label. A requested stem is validated against this allowlist so no
-    // arbitrary file is served off a device.
     public static readonly IReadOnlyList<EnvPiece> Pieces = new[]
     {
         new EnvPiece("ei_farm_ground", "Farm ground", "Terrain", Singleton: true),
@@ -21,25 +23,59 @@ public static class EnvCatalog
         new EnvPiece("ei_farm_misc", "Ground detail", "Terrain", Singleton: true),
         new EnvPiece("ei_chicken_display_ground", "Display ground", "Terrain", Singleton: true),
 
-        new EnvPiece("hab_1k", "Coop (1k)", "Habs"),
-        new EnvPiece("hab_10k", "Shack (10k)", "Habs"),
-        new EnvPiece("hab_eggtopia", "Eggtopia", "Habs"),
-        new EnvPiece("hab_monolith", "Monolith", "Habs"),
-        new EnvPiece("hab_portal", "Portal", "Habs"),
-        new EnvPiece("hab_chicken_universe", "Chicken Universe", "Habs"),
+        new EnvPiece("hab_1k", "Coop (1k)", "Habs", Family: "hab"),
+        new EnvPiece("hab_10k", "Shack (10k)", "Habs", Family: "hab"),
+        new EnvPiece("hab_eggtopia", "Eggtopia", "Habs", Family: "hab"),
+        new EnvPiece("hab_monolith", "Monolith", "Habs", Family: "hab"),
+        new EnvPiece("hab_portal", "Portal", "Habs", Family: "hab"),
+        new EnvPiece("hab_chicken_universe", "Chicken Universe", "Habs", Family: "hab"),
 
         new EnvPiece("ei_silo_0_large", "Silo", "Storage"),
         new EnvPiece("ei_silo", "Silo (alt)", "Storage"),
-        new EnvPiece("ei_depot_3", "Depot", "Storage"),
-        new EnvPiece("ei_fuel_tank_2", "Fuel tank", "Storage"),
+        new EnvPiece("ei_depot_1", "Depot (1)", "Storage", Singleton: true, Family: "depot"),
+        new EnvPiece("ei_depot_2", "Depot (2)", "Storage", Singleton: true, Family: "depot"),
+        new EnvPiece("ei_depot_3", "Depot (3)", "Storage", Singleton: true, Family: "depot"),
+        new EnvPiece("ei_depot_4", "Depot (4)", "Storage", Singleton: true, Family: "depot"),
+        new EnvPiece("ei_depot_5", "Depot (5)", "Storage", Singleton: true, Family: "depot"),
+        new EnvPiece("ei_depot_6", "Depot (6)", "Storage", Singleton: true, Family: "depot"),
+        new EnvPiece("ei_depot_7", "Depot (7)", "Storage", Singleton: true, Family: "depot"),
+        new EnvPiece("ei_fuel_tank_2", "Fuel tank", "Storage", Singleton: true, Family: "fuel"),
+        new EnvPiece("ei_hyperloop_stop", "Hyperloop station", "Storage", Singleton: true),
+        new EnvPiece("ei_hyperloop_track", "Hyperloop track", "Storage", Singleton: true),
 
-        new EnvPiece("coop", "Coop", "Structures"),
+        new EnvPiece("ei_lab_1", "Research lab (1)", "Buildings", Singleton: true, Family: "lab"),
+        new EnvPiece("ei_lab_2", "Research lab (2)", "Buildings", Singleton: true, Family: "lab"),
+        new EnvPiece("ei_lab_3", "Research lab (3)", "Buildings", Singleton: true, Family: "lab"),
+        new EnvPiece("ei_lab_4", "Research lab (4)", "Buildings", Singleton: true, Family: "lab"),
+        new EnvPiece("ei_lab_5", "Research lab (5)", "Buildings", Singleton: true, Family: "lab"),
+        new EnvPiece("ei_lab_6", "Research lab (6)", "Buildings", Singleton: true, Family: "lab"),
+        new EnvPiece("ei_mission_control_1", "Mission control (1)", "Buildings", Singleton: true, Family: "mission"),
+        new EnvPiece("ei_mission_control_2", "Mission control (2)", "Buildings", Singleton: true, Family: "mission"),
+        new EnvPiece("ei_mission_control_3", "Mission control (3)", "Buildings", Singleton: true, Family: "mission"),
+        new EnvPiece("ei_hoa_1", "HOA (1)", "Buildings", Singleton: true, Family: "hoa"),
+        new EnvPiece("ei_hoa_2", "HOA (2)", "Buildings", Singleton: true, Family: "hoa"),
+        new EnvPiece("ei_hoa_3", "HOA (3)", "Buildings", Singleton: true, Family: "hoa"),
+        new EnvPiece("ei_trophy_case", "Trophy case", "Buildings", Singleton: true, Family: "trophy"),
+        new EnvPiece("ei_trophy_case2", "Trophy case (2)", "Buildings", Singleton: true, Family: "trophy"),
+        new EnvPiece("ei_afx_construction_site", "Artifact hall site", "Buildings", Singleton: true),
+        new EnvPiece("ei_hatchery_rocketfuel", "Rocket fuel hatchery", "Buildings", Singleton: true),
+
+        new EnvPiece("coop", "Coop", "Structures", Singleton: true),
         new EnvPiece("ei_farm_mailbox_full", "Mailbox", "Structures", Singleton: true),
     };
 
     // The hab meshes (the "Habs" group), for any caller wanting just the habs.
     public static IReadOnlyList<EnvPiece> Habs =>
         Pieces.Where(p => p.Group == "Habs").ToList();
+
+    // The other pieces in a piece's swap family (a hab tier's siblings, a lab level's siblings). Empty for
+    // pieces with no family. Used to offer a "switch variation" dropdown on a placed element.
+    public static IReadOnlyList<EnvPiece> Family(string stem)
+    {
+        var fam = Pieces.FirstOrDefault(p => p.Stem == stem)?.Family ?? "";
+        if (string.IsNullOrEmpty(fam)) return [];
+        return Pieces.Where(p => p.Family == fam).ToList();
+    }
 
     public static bool IsKnownPiece(string stem) =>
         Pieces.Any(p => string.Equals(p.Stem, stem, StringComparison.Ordinal));

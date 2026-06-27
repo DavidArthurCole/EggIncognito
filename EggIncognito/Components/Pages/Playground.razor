@@ -67,8 +67,34 @@ else
         </div>
       </div>
 
-      @if (_designMode)
+      <div class="designer-section">
+        <div class="designer-section-head">Design</div>
+        <div class="designer-section-body flex flex-col gap-2">
+          @if (_designMode)
+          {
+            <input class="reg-filter-input w-full" placeholder="Design name…" @bind="_designName" @bind:event="oninput" />
+            <button class="btn-secondary" @onclick="SaveDesign" disabled="@string.IsNullOrWhiteSpace(_designName)">Save design</button>
+          }
+          <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
+            <option value="">@(_designMode ? "Load design…" : "Choose a design…")</option>
+            @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
+          </select>
+          @if (_designMode)
+          {
+            <button class="btn-secondary" @onclick="DeleteDesign" disabled="@string.IsNullOrEmpty(_selectedDesign)">Delete design</button>
+          }
+        </div>
+      </div>
+
+      @if (!string.IsNullOrEmpty(_status))
       {
+        <div class="text-xs mt-1 @(_error ? "err" : "text-muted")">@_status</div>
+      }
+    </section>
+
+    @if (_designMode)
+    {
+      <section class="w-[300px] flex flex-col gap-2">
         <div class="designer-section">
           <div class="designer-section-head">Elements</div>
           <div class="designer-section-body">
@@ -129,6 +155,14 @@ else
                 <button class="btn-secondary flex-1" @onclick='() => SetGizmoMode("rotate")'>Rotate</button>
               </div>
               @TransformFields(sel)
+              @if (_familyOptions.Count > 1)
+              {
+                <label class="block">Variation
+                  <select class="reg-filter-input w-full" @bind="sel.Ref" @bind:after="() => SwapVariation(sel)">
+                    @foreach (var f in _familyOptions) { <option value="@f.Stem">@f.Label</option> }
+                  </select>
+                </label>
+              }
               <label class="block">Animation
                 <select class="reg-filter-input w-full" @bind="sel.Anim" @bind:after="() => ApplyElementAnimation(sel)">
                   <option value="none">None</option>
@@ -158,38 +192,8 @@ else
             </div>
           </div>
         }
-
-        <div class="designer-section">
-          <div class="designer-section-head">Design</div>
-          <div class="designer-section-body flex flex-col gap-2">
-            <input class="reg-filter-input w-full" placeholder="Design name…" @bind="_designName" @bind:event="oninput" />
-            <button class="btn-secondary" @onclick="SaveDesign" disabled="@string.IsNullOrWhiteSpace(_designName)">Save design</button>
-            <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
-              <option value="">Load design…</option>
-              @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
-            </select>
-            <button class="btn-secondary" @onclick="DeleteDesign" disabled="@string.IsNullOrEmpty(_selectedDesign)">Delete design</button>
-          </div>
-        </div>
-      }
-      else
-      {
-        <div class="designer-section">
-          <div class="designer-section-head">Load design</div>
-          <div class="designer-section-body">
-            <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
-              <option value="">Choose a design…</option>
-              @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
-            </select>
-          </div>
-        </div>
-      }
-
-      @if (!string.IsNullOrEmpty(_status))
-      {
-        <div class="text-xs mt-1 @(_error ? "err" : "text-muted")">@_status</div>
-      }
-    </section>
+      </section>
+    }
   </div>
 </main>
 }
@@ -216,6 +220,7 @@ else
 
     bool _pickerOpen;
     string _pickerTab = "building";
+    List<FamilyOption> _familyOptions = [];
 
     string _designName = "";
     string _selectedDesign = "";
@@ -430,7 +435,34 @@ else
     {
         _selectedElementId = id;
         if (_designer is not null) await _designer.InvokeVoidAsync("selectElement", id);
+        await LoadFamilyOptions();
         StateHasChanged();
+    }
+
+    // Fetch the swap-family siblings for the selected env element (hab tiers, lab levels, ...). Empty for
+    // pieces with no family or non-env elements.
+    async Task LoadFamilyOptions()
+    {
+        _familyOptions = [];
+        if (Selected is { Kind: "env" } sel && !string.IsNullOrEmpty(sel.Ref))
+        {
+            try
+            {
+                var res = await Client().GetFromJsonAsync<FamilyResult>($"/api/env/family/{Uri.EscapeDataString(sel.Ref)}");
+                _familyOptions = res?.Family?.ToList() ?? [];
+            }
+            catch { _familyOptions = []; }
+        }
+    }
+
+    // Swap a placed element to another piece in its family (a different hab tier / lab level), keeping its
+    // transform. sel.Ref is already updated by the bind; re-render with the new mesh + refresh the family.
+    async Task SwapVariation(DesignElement sel)
+    {
+        var opt = _familyOptions.FirstOrDefault(f => f.Stem == sel.Ref);
+        if (opt is not null) sel.Label = opt.Label;
+        await RenderElement(sel);
+        await SelectElement(sel.Id);
     }
 
     async Task DeleteElement(DesignElement el)
@@ -660,8 +692,10 @@ else
         public float[] Anchor { get; init; } = Anchor ?? [];
     }
     record ShellObjResult(bool Ok, ShellObjRow[]? Objects);
-    record EnvPieceRow(string Stem, string Label, string Group, bool Singleton = false);
+    record EnvPieceRow(string Stem, string Label, string Group, bool Singleton = false, string Family = "");
     record EnvCatalogResult(EnvPieceRow[]? Pieces, EnvPieceRow[]? Habs);
+    record FamilyOption(string Stem, string Label);
+    record FamilyResult(FamilyOption[]? Family);
     record FarmPlaced(string Stem, string Label, float[] Pos, float RotY, float Scale);
     record FarmLayoutResult(FarmPlaced[]? Elements);
     record DesignRow(string Name, DateTimeOffset UpdatedAt, string? Owner);
