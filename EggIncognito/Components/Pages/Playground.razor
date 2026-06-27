@@ -379,6 +379,16 @@ else
         return Task.CompletedTask;
     }
 
+    // Called from the canvas raycast (playgroundDesigner.js) when the user clicks an element (or empty space).
+    // The JS side already attached the gizmo + outline, so this only syncs the C# selection + inspector.
+    [JSInvokable]
+    public async Task OnPickElement(string? id)
+    {
+        _selectedElementId = id is not null && _elements.Any(e => e.Id == id) ? id : null;
+        await LoadFamilyOptions();
+        await InvokeAsync(StateHasChanged);
+    }
+
     string NextElementId() => $"el{++_elementSeq}";
 
     // The glb URL for an element by kind. mesh + env share the env route; shell/chicken use the shells route.

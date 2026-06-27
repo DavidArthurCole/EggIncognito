@@ -77,7 +77,7 @@ export async function init(canvas) {
   resizeObserver.observe(canvas);
   // Publish the live engine accessors on a single global so the designer module reaches THIS instance. A
   // cache-bust query (?v=) on the module URL would otherwise fork a second, uninitialized engine instance.
-  window.__pgEngine = { scene: _scene, camera: _camera, renderer: _renderer, controls: _controls, getGroupRoot, setGroupTransform };
+  window.__pgEngine = { scene: _scene, camera: _camera, renderer: _renderer, controls: _controls, getGroupRoot, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline };
   loop();
 }
 
@@ -300,6 +300,51 @@ export function getGroupRoot(id) {
 }
 
 export function listGroupIds() { return [...groups.keys()]; }
+
+// The group id whose root is an ancestor of a clicked object3d, or null. Lets a raycast hit on any child mesh
+// resolve back to the element it belongs to.
+export function groupIdOf(obj) {
+  for (const [id, g] of groups) {
+    let o = obj;
+    while (o) { if (o === g.root) return id; o = o.parent; }
+  }
+  return null;
+}
+
+// The group roots, as raycast targets for click-to-select.
+export function groupRoots() { return [...groups.values()].map(g => g.root); }
+
+// Faint selection outline: add/remove a wireframe overlay on a group's meshes so the selected element reads
+// without obscuring it. Stored on the group so it can be cleared.
+export function setSelectionOutline(id, on) {
+  for (const [gid, g] of groups) {
+    const want = on && gid === id;
+    if (want && !g._outline) g._outline = addOutline(g.root);
+    else if (!want && g._outline) { removeOutline(g.root, g._outline); g._outline = null; }
+  }
+}
+
+function addOutline(root) {
+  const added = [];
+  root.traverse(o => {
+    if (!o.isMesh || !o.geometry) return;
+    const wire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(o.geometry, 30),
+      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, depthTest: false }));
+    wire.renderOrder = 999;
+    o.add(wire);
+    added.push(wire);
+  });
+  return added;
+}
+
+function removeOutline(root, added) {
+  for (const w of added) {
+    w.parent?.remove(w);
+    w.geometry?.dispose();
+    w.material?.dispose();
+  }
+}
 
 // Internal accessors for the designer module (gizmo needs the live camera/renderer/controls).
 export function _scene() { return scene; }

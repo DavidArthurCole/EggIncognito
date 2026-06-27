@@ -13,6 +13,7 @@ const TC_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/TransformCont
 const THREE_URL = 'https://esm.sh/three@0.169.0';
 
 let THREE, TransformControls, gizmo, dotnet, selectedId = null, suppress = false;
+let raycaster, pointer, domEl, onPointerDown, onPointerUp, downXY = null, dragging = false;
 
 export async function initDesigner(dotnetRef) {
   dotnet = dotnetRef;
@@ -22,11 +23,34 @@ export async function initDesigner(dotnetRef) {
   const e = engine();
   if (!e || !e.renderer()) throw new Error('playground engine not initialized');
   const cam = e.camera(), dom = e.renderer().domElement, controls = e.controls();
+  domEl = dom;
   gizmo = new TransformControls(cam, dom);
   gizmo.setMode('translate');
 
   // Dragging the gizmo must not also orbit the camera.
-  gizmo.addEventListener('dragging-changed', e => { controls.enabled = !e.value; });
+  gizmo.addEventListener('dragging-changed', ev => { controls.enabled = !ev.value; dragging = ev.value; });
+
+  // Click-to-select: raycast from a click that was NOT a drag (orbit) onto the element group roots. Hit ->
+  // select that element + notify .NET; miss -> deselect.
+  raycaster = new THREE.Raycaster();
+  pointer = new THREE.Vector2();
+  onPointerDown = ev => { downXY = [ev.clientX, ev.clientY]; };
+  onPointerUp = ev => {
+    if (dragging || !downXY) { downXY = null; return; }
+    const moved = Math.abs(ev.clientX - downXY[0]) + Math.abs(ev.clientY - downXY[1]);
+    downXY = null;
+    if (moved > 5) return; // it was an orbit drag, not a click
+    const rect = domEl.getBoundingClientRect();
+    pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, cam);
+    const hits = raycaster.intersectObjects(e.groupRoots(), true);
+    const id = hits.length ? e.groupIdOf(hits[0].object) : null;
+    if (id) { selectElement(id); dotnet.invokeMethodAsync('OnPickElement', id); }
+    else { deselect(); dotnet.invokeMethodAsync('OnPickElement', null); }
+  };
+  dom.addEventListener('pointerdown', onPointerDown);
+  dom.addEventListener('pointerup', onPointerUp);
 
   // On a gizmo drag: write the new transform into the group's base immediately (so the anim loop does not
   // revert it next frame), then notify .NET so the inspector fields follow.
@@ -46,13 +70,17 @@ function deg(rad) { return rad * 180 / Math.PI; }
 function rad(d) { return d * Math.PI / 180; }
 
 export function selectElement(id) {
-  const root = engine()?.getGroupRoot(id);
+  const e = engine();
+  const root = e?.getGroupRoot(id);
   if (!root) { deselect(); return; }
+  if (selectedId && selectedId !== id) e.setSelectionOutline(selectedId, false);
   selectedId = id;
   gizmo.attach(root);
+  e.setSelectionOutline(id, true);
 }
 
 export function deselect() {
+  if (selectedId) engine()?.setSelectionOutline(selectedId, false);
   selectedId = null;
   if (gizmo) gizmo.detach();
 }
@@ -72,12 +100,16 @@ export function applyTransform(id, pos, rotDeg, scale) {
 }
 
 export function disposeDesigner() {
+  if (selectedId) engine()?.setSelectionOutline(selectedId, false);
+  if (domEl) {
+    if (onPointerDown) domEl.removeEventListener('pointerdown', onPointerDown);
+    if (onPointerUp) domEl.removeEventListener('pointerup', onPointerUp);
+  }
   if (gizmo) {
     gizmo.detach();
     engine()?.scene()?.remove(gizmo);
     gizmo.dispose?.();
     gizmo = null;
   }
-  selectedId = null;
-  dotnet = null;
+  selectedId = null; domEl = null; dotnet = null;
 }

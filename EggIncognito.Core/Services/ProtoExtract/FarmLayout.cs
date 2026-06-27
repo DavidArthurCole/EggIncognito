@@ -14,7 +14,7 @@ public static class FarmLayout
     public sealed record Placed(string Stem, float[] Pos, float RotY, float Scale = 1f);
 
     private const float HabSpacing = 13f;   // X gap between the 4 hab plots (hab ~12 wide)
-    private const float HabZ = -16f;        // pushed back so hab ramps (z to ~0) clear the path
+    private const float HabZ = -10f;         // ramp front (hab z max ~0 local) meets the path edge
     private const int SiloCount = 10;       // a full silo row
 
     // The exact in-game silo position (FarmScene::updateSilo, disassembled): a 2-column row stepping back in X
@@ -22,8 +22,14 @@ public static class FarmLayout
     public static float[] SiloPos(int i) =>
         [-6f * (i / 2) - 5f, 0f, (i % 2 == 0) ? 5.5f : -0.5f];
 
-    // The standard farm. defaultHab = the hab stem for the 4-plot row. The self-placing buildings sit at
-    // origin (their mesh carries the offset); habs + silos are positioned here.
+    // The standard farm. defaultHab = the hab stem for the 4-plot row.
+    //
+    // Two placement classes:
+    // - SELF-PLACING (pos [0,0,0]): the mesh vertices already sit at the real in-game plot (depot z~7-12,
+    //   hyperloop z~19-27, lab z~-6..0, fuel/mailbox offset). Origin is correct.
+    // - ORIGIN-AUTHORED (explicit pos): trophy, mission control, artifact hall, rocket platform are authored
+    //   at the mesh origin, so they need an explicit world position or they overlap. Laid out relative to the
+    //   self-placed depot (center ~x7,z9): near row z~9, back row z~-3.
     public static IReadOnlyList<Placed> Standard(string defaultHab = "hab_10k")
     {
         var p = new List<Placed>
@@ -33,18 +39,21 @@ public static class FarmLayout
             new("ei_farm", [0, 0, 0], 0),
             new("ei_farm_hardscape", [0, 0, 0], 0),
             new("ei_farm_misc", [0, 0, 0], 0),
-            // self-placing buildings: the mesh vertices already sit at the in-game plot, so origin is correct.
-            new("ei_depot_3", [0, 0, 0], 0),            // near side (z~7-12), in front of the road
+            // self-placing: mesh carries the offset.
+            new("ei_depot_3", [0, 0, 0], 0),            // right-near (z~7-12), in front of the road
+            new("ei_lab_3", [0, 0, 0], 0),              // research lab, BEHIND the depot (z~-6..0)
             new("ei_hyperloop_stop", [0, 0, 0], 0),     // across the road (z~19-27)
-            new("ei_hyperloop_track", [0, 0, 0], 0),    // the hyperloop tube, self-placing
-            new("ei_lab_3", [0, 0, 0], 0),              // research lab
-            new("ei_mission_control_1", [0, 0, 0], 0),
-            new("ei_hoa_1", [0, 0, 0], 0),
-            new("ei_trophy_case", [0, 0, 0], 0),
-            new("ei_farm_mailbox_full", [0, 0, 0], 0),
+            new("ei_hyperloop_track", [0, 0, 0], 0),    // the hyperloop tube
+            new("ei_fuel_tank_2", [13, 0, 8], 0),       // next to the launch platform, on the near row
+            new("ei_farm_mailbox_full", [0, 0, 0], 0),  // self-places near (-3, 11)
+            // origin-authored: placed explicitly relative to the depot.
+            new("ei_hatchery_rocketfuel", [18, 0, 9], 0),  // launch platform, RIGHT of the depot
+            new("ei_afx_construction_site", [18, 0, -3], 0), // artifact hall, BEHIND the launch platform
+            new("ei_trophy_case", [-7, 0, 11], 0),      // LEFT of the mailbox
+            new("ei_mission_control_1", [-9, 0, -3], 0), // back-left
         };
 
-        // hab row: 4 plots, evenly spaced (no game spacing constant; positions are model-baked), pushed back.
+        // hab row: 4 plots, evenly spaced (no game spacing constant; positions are model-baked).
         for (var i = 0; i < 4; i++)
         {
             var x = (i - 1.5f) * HabSpacing;
