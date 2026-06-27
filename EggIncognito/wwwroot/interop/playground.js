@@ -108,18 +108,35 @@ function applyAnim(g) {
   // base: an explicit placed transform (design mode) takes precedence; else the offset (view mode).
   if (g.base) {
     const b = g.base;
-    g.root.position.set(b.pos[0], b.pos[1] + bob, b.pos[2]);
-    g.root.rotation.set(rad(b.rotDeg[0]), rad(b.rotDeg[1]) + addRy, rad(b.rotDeg[2]) + addRz);
     const s = b.scale || 1;
     g.root.scale.set(s, s, s);
+    g.root.rotation.set(rad(b.rotDeg[0]), rad(b.rotDeg[1]) + addRy, rad(b.rotDeg[2]) + addRz);
+    const p = pivotCorrected(g, b.pos[0], b.pos[1] + bob, b.pos[2], s);
+    g.root.position.copy(p);
     return;
   }
   const o = g.manual || g.autoOffset;
-  g.root.position.set(o.x, o.y + bob, o.z);
   g.root.rotation.set(0, addRy, addRz);
+  const p = pivotCorrected(g, o.x, o.y + bob, o.z, 1);
+  g.root.position.copy(p);
 }
 
 function rad(d) { return (d || 0) * Math.PI / 180; }
+
+// The root position that keeps the mesh's center fixed under the current root rotation, so a spin pivots about
+// the visual center instead of the (possibly off-origin) placement point. With no rotation it equals (x,y,z).
+// Reuses scratch vectors to avoid per-frame allocation.
+let _pivotVec, _scaledC, _rotatedC;
+function pivotCorrected(g, x, y, z, scale) {
+  if (!_pivotVec) { _pivotVec = new THREE.Vector3(); _scaledC = new THREE.Vector3(); _rotatedC = new THREE.Vector3(); }
+  const c = g.center;
+  if (!c) return _pivotVec.set(x, y, z);
+  // root applies rotation then translation: worldCenter = pos + R*(c*scale). We want worldCenter == pos + c
+  // (the unrotated placed center stays put), so pos = (x,y,z) + c - R*(c*scale).
+  _scaledC.set(c.x * scale, c.y * scale, c.z * scale);
+  _rotatedC.copy(_scaledC).applyEuler(g.root.rotation);
+  return _pivotVec.set(x + c.x - _rotatedC.x, y + c.y - _rotatedC.y, z + c.z - _rotatedC.z);
+}
 
 async function parseGlb(b64) {
   const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
@@ -136,6 +153,14 @@ export async function addGroup(groupId, glbBase64, opts) {
   const gltf = await parseGlb(glbBase64);
   const root = new THREE.Group();
   root.add(gltf.scene);
+
+  // The mesh's bbox center in the group's local space. A procedural spin pivots about THIS, not the group
+  // origin, so an off-origin-authored mesh (env buildings sit at their plot offset) spins in place rather
+  // than orbiting the placement point.
+  const box = new THREE.Box3().setFromObject(gltf.scene);
+  const center = box.isEmpty()
+    ? new THREE.Vector3(0, 0, 0)
+    : box.getCenter(new THREE.Vector3());
 
   const mixer = new THREE.AnimationMixer(root);
   for (const clip of gltf.animations) mixer.clipAction(clip).play();
@@ -164,6 +189,7 @@ export async function addGroup(groupId, glbBase64, opts) {
     autoOffset: { x: 0, y: 0, z: 0 },
     manual: opts.pinned ? { x: off[0] || 0, y: off[1] || 0, z: off[2] || 0 } : null,
     pinned: !!opts.pinned,
+    center,
     // preserve anim + placement across a re-render (reshell / hat change keeps spin + position).
     anim: carried?.anim || 'none',
     base: carried?.base || null,
