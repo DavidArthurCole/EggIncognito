@@ -77,7 +77,7 @@ export async function init(canvas) {
   resizeObserver.observe(canvas);
   // Publish the live engine accessors on a single global so the designer module reaches THIS instance. A
   // cache-bust query (?v=) on the module URL would otherwise fork a second, uninitialized engine instance.
-  window.__pgEngine = { scene: _scene, camera: _camera, renderer: _renderer, controls: _controls, getGroupRoot, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline };
+  window.__pgEngine = { scene: _scene, camera: _camera, renderer: _renderer, controls: _controls, getGroupRoot, getGroupBase, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline };
   loop();
 }
 
@@ -297,6 +297,17 @@ export function setDesignMode(on) { designMode = !!on; }
 export function getGroupRoot(id) {
   const g = groups.get(id);
   return g ? g.root : null;
+}
+
+// The group's placed base transform (pos/rotDeg/scale), or null. Reads the stored base (not the live root,
+// which a per-element spin animates), so a nudge composes correctly. Defaults to the root position if no base
+// was set yet (an element placed without a design transform).
+export function getGroupBase(id) {
+  const g = groups.get(id);
+  if (!g) return null;
+  if (g.base) return { pos: g.base.pos.slice(), rotDeg: g.base.rotDeg.slice(), scale: g.base.scale };
+  const o = g.manual || g.autoOffset || { x: 0, y: 0, z: 0 };
+  return { pos: [o.x, o.y, o.z], rotDeg: [0, 0, 0], scale: 1 };
 }
 
 export function listGroupIds() { return [...groups.keys()]; }

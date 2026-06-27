@@ -14,6 +14,7 @@ const THREE_URL = 'https://esm.sh/three@0.169.0';
 
 let THREE, TransformControls, gizmo, dotnet, selectedId = null, suppress = false;
 let raycaster, pointer, domEl, onPointerDown, onPointerUp, downXY = null, dragging = false;
+let onKeyDown;
 
 export async function initDesigner(dotnetRef) {
   dotnet = dotnetRef;
@@ -52,6 +53,20 @@ export async function initDesigner(dotnetRef) {
   dom.addEventListener('pointerdown', onPointerDown);
   dom.addEventListener('pointerup', onPointerUp);
 
+  // Arrow keys nudge the selected element along the GROUND, relative to the current view angle: Up pushes it
+  // away from the camera, Down toward, Left/Right screen-left/right. Shift = a bigger step. Ignored while
+  // typing in an input so the inspector fields still work.
+  onKeyDown = ev => {
+    if (!selectedId) return;
+    const k = ev.key;
+    if (k !== 'ArrowUp' && k !== 'ArrowDown' && k !== 'ArrowLeft' && k !== 'ArrowRight') return;
+    const t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    ev.preventDefault();
+    nudge(k, ev.shiftKey ? 2.0 : 0.5);
+  };
+  window.addEventListener('keydown', onKeyDown);
+
   // On a gizmo drag: write the new transform into the group's base immediately (so the anim loop does not
   // revert it next frame), then notify .NET so the inspector fields follow.
   gizmo.addEventListener('objectChange', () => {
@@ -68,6 +83,41 @@ export async function initDesigner(dotnetRef) {
 
 function deg(rad) { return rad * 180 / Math.PI; }
 function rad(d) { return d * Math.PI / 180; }
+
+// Moves the selected element by `step` along the ground, in the screen direction of the pressed arrow. The
+// camera's forward + right vectors are flattened onto the XZ plane so Up always means "deeper into the scene"
+// from the current view, regardless of orbit angle.
+function nudge(key, step) {
+  const e = engine();
+  if (!e || !selectedId) return;
+  const base = e.getGroupBase(selectedId);
+  if (!base) return;
+  const cam = e.camera();
+
+  // forward = where the camera looks, flattened to the ground. right = the camera's own +X axis (screen
+  // right), also flattened, so left/right match what the user sees regardless of orbit.
+  const f = new THREE.Vector3();
+  cam.getWorldDirection(f);
+  f.y = 0;
+  if (f.lengthSq() < 1e-6) return;
+  f.normalize();
+  const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0); // camera local +X = screen right
+  right.y = 0;
+  right.normalize();
+
+  let dx = 0, dz = 0;
+  switch (key) {
+    case 'ArrowUp': dx = f.x * step; dz = f.z * step; break;            // away from camera
+    case 'ArrowDown': dx = -f.x * step; dz = -f.z * step; break;        // toward camera
+    case 'ArrowRight': dx = right.x * step; dz = right.z * step; break;
+    case 'ArrowLeft': dx = -right.x * step; dz = -right.z * step; break;
+  }
+
+  const pos = [base.pos[0] + dx, base.pos[1], base.pos[2] + dz];
+  e.setGroupTransform(selectedId, pos, base.rotDeg, base.scale);
+  // the gizmo is attached to the group root, which the anim loop repositions from the new base, so it follows.
+  dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, base.rotDeg, base.scale);
+}
 
 export function selectElement(id) {
   const e = engine();
@@ -105,6 +155,7 @@ export function disposeDesigner() {
     if (onPointerDown) domEl.removeEventListener('pointerdown', onPointerDown);
     if (onPointerUp) domEl.removeEventListener('pointerup', onPointerUp);
   }
+  if (onKeyDown) { window.removeEventListener('keydown', onKeyDown); onKeyDown = null; }
   if (gizmo) {
     gizmo.detach();
     engine()?.scene()?.remove(gizmo);
