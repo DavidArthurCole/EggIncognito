@@ -14,16 +14,11 @@ namespace EggIncognito.Controllers;
 [Route("api/env")]
 public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser currentUser) : ControllerBase
 {
-    // The available env pieces + presets + habs, for the playground env widget. Public read (names only).
-    [HttpGet("presets")]
-    public IActionResult Presets() => Ok(new
+    // The placeable env catalog (buildings + habs), for the designer's Add-element picker. Public, names only.
+    [HttpGet("catalog")]
+    public IActionResult Catalog() => Ok(new
     {
         pieces = EnvCatalog.Pieces.Select(p => new { p.Stem, p.Label }),
-        presets = EnvCatalog.Presets.Select(p => new
-        {
-            p.Id, p.Label,
-            pieces = p.Pieces.Select(pp => new { pp.Stem, pp.Offset }),
-        }),
         habs = EnvCatalog.Habs.Select(p => new { p.Stem, p.Label }),
     });
 

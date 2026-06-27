@@ -22,6 +22,8 @@ const ORBIT_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/OrbitContr
 
 let THREE, GLTFLoader, OrbitControls;
 let renderer, scene, camera, controls, clock, raf;
+let sun, ambient;
+let designMode = false;
 
 // scene-wide procedural animation applied to whole groups (a chicken+hat spins as one rigid unit). Distinct
 // from each group's mixer, which plays the mesh's own baked clips. { kind, seconds, t }.
@@ -54,15 +56,13 @@ export async function init(canvas) {
 
   resize();
 
-  // Even, multi-directional lighting so spinning models have no swinging dark side. Hemisphere + four fills.
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3a44, 1.4));
-  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-  const dirs = [[4, 6, 4], [-4, 4, -4], [4, 2, -4], [-4, 2, 4]];
-  for (const [x, y, z] of dirs) {
-    const d = new THREE.DirectionalLight(0xffffff, 0.5);
-    d.position.set(x, y, z);
-    scene.add(d);
-  }
+  // One adjustable sun (directional) + ambient fill, owned by the designer. A default keeps a fresh scene lit.
+  sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  scene.add(sun);
+  scene.add(ambient);
+  setLighting({ sun: { azimuthDeg: 45, elevationDeg: 55, color: '#ffffff', intensity: 1.0 },
+                ambient: { color: '#ffffff', intensity: 0.5 } });
 
   clock = new THREE.Clock();
   window.addEventListener('resize', resize);
@@ -170,6 +170,8 @@ export function setGroupOffset(groupId, x, y, z) {
 export function relayoutGroups() {
   const all = [...groups.values()];
   if (all.length === 0) return;
+  // design mode: every group holds its own transform; skip the auto-offset layout entirely, just frame.
+  if (designMode) { frameScene(); return; }
   for (const g of all.filter(g => g.pinned)) applyOffset(g);
 
   const list = all.filter(g => !g.pinned);
@@ -216,18 +218,44 @@ export function setAnimation(kind, seconds) {
 
 export function resetView() { frameScene(); }
 
-// Removes every current env (pinned) group. The Razor side adds the new preset's pieces via addGroup with
-// { pinned: true } and an id of "env:<stem>".
-export function clearEnvironment() {
-  for (const id of [...groups.keys()]) if (id.startsWith('env:')) removeGroup(id);
-}
-
 // Sets the scene background to a solid color, or clears it (transparent canvas) when null/empty.
 export function setBackground(hex) {
   if (!scene) return;
   if (hex) { scene.background = new THREE.Color(hex); }
   else { scene.background = null; }
 }
+
+// Positions the sun on a unit dome from azimuth (around Y) + elevation (up from the horizon), and sets the
+// sun + ambient color/intensity. Live; safe to call before any element loads.
+export function setLighting(opts) {
+  if (!sun || !ambient) return;
+  const s = (opts && opts.sun) || {};
+  const a = (opts && opts.ambient) || {};
+  const az = (s.azimuthDeg || 0) * Math.PI / 180;
+  const el = (s.elevationDeg || 0) * Math.PI / 180;
+  const r = 10;
+  sun.position.set(r * Math.cos(el) * Math.sin(az), r * Math.sin(el), r * Math.cos(el) * Math.cos(az));
+  if (s.color) sun.color.set(s.color);
+  if (typeof s.intensity === 'number') sun.intensity = s.intensity;
+  if (a.color) ambient.color.set(a.color);
+  if (typeof a.intensity === 'number') ambient.intensity = a.intensity;
+}
+
+// In design mode, groups hold their own transform (no auto-offset layout on add/remove).
+export function setDesignMode(on) { designMode = !!on; }
+
+export function getGroupRoot(id) {
+  const g = groups.get(id);
+  return g ? g.root : null;
+}
+
+export function listGroupIds() { return [...groups.keys()]; }
+
+// Internal accessors for the designer module (gizmo needs the live camera/renderer/controls).
+export function _scene() { return scene; }
+export function _camera() { return camera; }
+export function _renderer() { return renderer; }
+export function _controls() { return controls; }
 
 function frameScene() {
   if (groups.size === 0) return;
@@ -285,5 +313,5 @@ export function dispose() {
   }
   groups.clear();
   renderer?.dispose();
-  renderer = scene = camera = controls = null;
+  renderer = scene = camera = controls = sun = ambient = null;
 }

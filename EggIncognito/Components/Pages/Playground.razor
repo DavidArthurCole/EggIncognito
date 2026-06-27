@@ -2,6 +2,7 @@
 @rendermode @(RenderMode.InteractiveServer)
 @implements IAsyncDisposable
 @using Microsoft.JSInterop
+@using System.Net.Http.Json
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
@@ -22,9 +23,9 @@ else
 <main class="px-8 pt-6 pb-8 max-w-[1280px]">
   <h1 class="text-[1.3rem] mt-0 mb-1">3D Playground</h1>
   <p class="text-muted text-xs mb-4">
-    Compose several sources at once: pull a mesh off a device, dress a chicken in a hat, stack farm-element
-    shells, or load exported / uploaded models. Toggle a widget to add or remove it; set X/Y/Z offsets to
-    arrange the scene. Drag to orbit, scroll to zoom.
+    View a saved environment, or flip on Design mode to free-place game elements: add habs, silos, chickens
+    and shells, drag the gizmo to arrange them, light the scene, and save named designs. Drag to orbit, scroll
+    to zoom.
   </p>
 
   <div class="flex gap-4 flex-wrap">
@@ -32,129 +33,126 @@ else
       <div class="canvas-wrap">
         <canvas @ref="_canvas" id="playgroundCanvas"></canvas>
       </div>
-      <div class="flex gap-2 mt-3">
-        <button class="btn-secondary flex-1" @onclick="TogglePlay" disabled="@(_active.Count == 0)">@(_playing ? "Pause" : "Play")</button>
-        <button class="btn-secondary flex-1" @onclick="ResetView" disabled="@(_active.Count == 0)">Reset view</button>
-        <select class="reg-filter-input w-[150px]" @bind="_kind" @bind:after="ApplyAnimation">
-          <option value="none">No animation</option>
-          <option value="SpinY">Spin (Y)</option>
-          <option value="SpinZ">Spin (Z)</option>
-          <option value="HoverSpin">Hover + spin</option>
-        </select>
-        <label class="bg-picker" title="Background color">
-          <input type="color" @bind="_bgColor" @bind:event="oninput" @bind:after="ApplyBackground" disabled="@_bgTransparent" />
-        </label>
-        <label class="settings-check" title="Transparent background">
-          <input type="checkbox" @bind="_bgTransparent" @bind:after="ApplyBackground" /><span class="text-xs text-muted ml-1">None</span>
-        </label>
-      </div>
-      <div class="flex gap-2 mt-2 items-center flex-wrap">
-        <span class="settings-title m-0">Configuration</span>
-        <input class="reg-filter-input w-[150px]" placeholder="Name…" @bind="_configName" @bind:event="oninput" />
-        <button class="btn-secondary" @onclick="SaveConfig" disabled="@string.IsNullOrWhiteSpace(_configName)">Save</button>
-        <select class="reg-filter-input w-[160px]" @bind="_selectedConfig" @bind:after="LoadConfig">
-          <option value="">Load saved…</option>
-          @foreach (var n in _savedConfigs) { <option value="@n">@n</option> }
-        </select>
-        <button class="btn-secondary" @onclick="DeleteConfig" disabled="@string.IsNullOrEmpty(_selectedConfig)">Delete</button>
-      </div>
-      @if (!string.IsNullOrEmpty(_status))
-      {
-        <div class="text-xs mt-2 @(_error ? "err" : "text-muted")">@_status</div>
-      }
     </section>
 
-    <section class="w-[320px] flex flex-col gap-3">
-      <div class="widget-card">
-        <div class="widget-head">
-          <span class="settings-title m-0">Environment</span>
-          <label class="wtoggle"><input type="checkbox" checked="@_envOn" @onchange="ToggleEnv" /><span></span></label>
-        </div>
-        <select class="reg-filter-input w-full" @bind="_envPreset" @bind:after="OnEnvPresetChanged">
-          <option value="">Backdrop preset…</option>
-          @foreach (var p in _envPresets) { <option value="@p.Id">@p.Label</option> }
-        </select>
-        <div class="text-xs text-muted">Game farm meshes, composed as a backdrop at world origin.</div>
-      </div>
+    <section class="w-[340px] flex flex-col gap-2">
+      <label class="settings-check"><input type="checkbox" @bind="_designMode" @bind:after="ToggleDesignMode" /><span class="ml-2 font-semibold">Design mode</span></label>
 
-      <div class="widget-card">
-        <div class="widget-head">
-          <span class="settings-title m-0">Hab</span>
-          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("hab")" @onchange="@(e => Toggle("hab", e))" /><span></span></label>
-        </div>
-        <select class="reg-filter-input w-full" @bind="_selectedHab" @bind:after="@(() => OnSelectChanged("hab"))">
-          <option value="">Choose a hab…</option>
-          @foreach (var h in _habs) { <option value="@h.Stem">@h.Label</option> }
-        </select>
-        @if (_active.Contains("hab")) { @OffsetInputs("hab") }
-      </div>
-
-      <div class="widget-card">
-        <div class="widget-head">
-          <span class="settings-title m-0">Device files</span>
-          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("device")" @onchange="@(e => Toggle("device", e))" /><span></span></label>
-        </div>
-        <select class="reg-filter-input w-full" @bind="_selectedDevice" @bind:after="LoadDeviceMeshes">
-          <option value="">Choose a device…</option>
-          @foreach (var d in _devices) { <option value="@d.Id">@d.Label (@d.Platform)</option> }
-        </select>
-        @if (_deviceMeshes.Count > 0)
-        {
-          <select class="reg-filter-input w-full mt-2" @bind="_selectedDeviceMesh" @bind:after="@(() => OnSelectChanged("device"))">
-            <option value="">Choose a mesh…</option>
-            @foreach (var m in _deviceMeshes) { <option value="@m">@m</option> }
+      <div class="designer-section">
+        <div class="designer-section-head">Scene</div>
+        <div class="designer-section-body">
+          <label class="block text-xs text-muted mb-1">Background</label>
+          <div class="flex items-center gap-2">
+            <input type="color" class="bg-picker-input" @bind="_bgColor" @bind:event="oninput" @bind:after="ApplyBackground" disabled="@_bgTransparent" />
+            <label class="settings-check"><input type="checkbox" @bind="_bgTransparent" @bind:after="ApplyBackground" /><span class="text-xs text-muted ml-1">Transparent</span></label>
+          </div>
+          <div class="flex gap-2 mt-3">
+            <button class="btn-secondary flex-1" @onclick="TogglePlay" disabled="@(_elements.Count == 0)">@(_playing ? "Pause" : "Play")</button>
+            <button class="btn-secondary flex-1" @onclick="ResetView">Reset view</button>
+          </div>
+          <select class="reg-filter-input w-full mt-2" @bind="_kind" @bind:after="ApplyAnimation">
+            <option value="none">No animation</option>
+            <option value="SpinY">Spin (Y)</option>
+            <option value="SpinZ">Spin (Z)</option>
+            <option value="HoverSpin">Hover + spin</option>
           </select>
-        }
-        @if (_active.Contains("device")) { @OffsetInputs("device") }
+        </div>
       </div>
 
-      <div class="widget-card">
-        <div class="widget-head">
-          <span class="settings-title m-0">Chicken + Hat</span>
-          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("chickenhat")" @onchange="@(e => Toggle("chickenhat", e))" /><span></span></label>
+      <div class="designer-section">
+        <div class="designer-section-head">Lighting</div>
+        <div class="designer-section-body grid grid-cols-2 gap-2 text-xs">
+          <label class="block">Sun azimuth<input type="range" min="0" max="360" class="w-full" @bind="_lighting.SunAzimuthDeg" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="block">Sun elevation<input type="range" min="0" max="90" class="w-full" @bind="_lighting.SunElevationDeg" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="block">Sun color<input type="color" class="bg-picker-input" @bind="_lighting.SunColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="block">Sun intensity<input type="range" min="0" max="3" step="0.05" class="w-full" @bind="_lighting.SunIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="block">Ambient color<input type="color" class="bg-picker-input" @bind="_lighting.AmbientColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="block">Ambient intensity<input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
         </div>
-        <select class="reg-filter-input w-full" @bind="_selectedChicken" @bind:after="@(() => OnSelectChanged("chickenhat"))">
-          <option value="">Choose a chicken…</option>
-          @foreach (var c in _chickens) { <option value="@c.Identifier">@(c.Name ?? c.Identifier)</option> }
-        </select>
-        <select class="reg-filter-input w-full mt-2" @bind="_selectedHat" @bind:after="@(() => OnSelectChanged("chickenhat"))" disabled="@ChickenNoHats">
-          <option value="">@(ChickenNoHats ? "This chicken takes no hat" : "Choose a hat…")</option>
-          @foreach (var h in _hats) { <option value="@h.Identifier">@(h.Name ?? h.Identifier)</option> }
-        </select>
-        @if (_active.Contains("chickenhat")) { @OffsetInputs("chickenhat") }
       </div>
 
-      <div class="widget-card">
-        <div class="widget-head">
-          <span class="settings-title m-0">Shell compatibles</span>
-          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("shell")" @onchange="@(e => Toggle("shell", e))" /><span></span></label>
+      @if (_designMode)
+      {
+        <div class="designer-section">
+          <div class="designer-section-head">Elements</div>
+          <div class="designer-section-body">
+            <button class="btn-primary w-full" @onclick="() => _pickerOpen = !_pickerOpen">@(_pickerOpen ? "Close picker" : "Add element")</button>
+            @if (_pickerOpen) { @ElementPicker() }
+            <div class="element-list mt-2">
+              @foreach (var el in _elements)
+              {
+                <div class="element-row @(el.Id == _selectedElementId ? "active" : "")">
+                  <button class="element-name" @onclick="() => SelectElement(el.Id)">@el.Label</button>
+                  <button class="element-del" @onclick="() => DeleteElement(el)">✕</button>
+                </div>
+              }
+              @if (_elements.Count == 0) { <div class="text-xs text-muted">No elements. Add one above.</div> }
+            </div>
+          </div>
         </div>
-        <select class="reg-filter-input w-full" @bind="_shellAssetType" @bind:after="FilterShells">
-          <option value="">Asset type…</option>
-          @foreach (var a in _compatAssetTypes) { <option value="@a">@a</option> }
-        </select>
-        @if (_filteredShells.Count > 0)
+
+        @if (Selected is { } sel)
         {
-          <select class="reg-filter-input w-full mt-2" @bind="_selectedShell" @bind:after="@(() => OnSelectChanged("shell"))">
-            <option value="">Choose a shell…</option>
-            @foreach (var s in _filteredShells) { <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option> }
-          </select>
+          <div class="designer-section">
+            <div class="designer-section-head">Selected: @sel.Label</div>
+            <div class="designer-section-body text-xs flex flex-col gap-2">
+              <div class="flex gap-2">
+                <button class="btn-secondary flex-1" @onclick='() => SetGizmoMode("translate")'>Move</button>
+                <button class="btn-secondary flex-1" @onclick='() => SetGizmoMode("rotate")'>Rotate</button>
+              </div>
+              @TransformFields(sel)
+              @if (sel.Kind is "env" or "shell")
+              {
+                <label class="block">Shell
+                  <select class="reg-filter-input w-full" @bind="sel.Shell" @bind:after="ReshellSelected">
+                    <option value="">Base mesh</option>
+                    @foreach (var s in ShellsForAssetTypeOf(sel)) { <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option> }
+                  </select>
+                </label>
+              }
+              @if (sel.Kind == "chicken")
+              {
+                <label class="block">Hat
+                  <select class="reg-filter-input w-full" @bind="sel.Hat" @bind:after="() => RenderAndReselect(sel)">
+                    <option value="">No hat</option>
+                    @foreach (var h in _hats) { <option value="@h.Identifier">@(h.Name ?? h.Identifier)</option> }
+                  </select>
+                </label>
+              }
+            </div>
+          </div>
         }
-        @if (_active.Contains("shell")) { @OffsetInputs("shell") }
-      </div>
 
-      <div class="widget-card">
-        <div class="widget-head">
-          <span class="settings-title m-0">Static game models</span>
-          <label class="wtoggle"><input type="checkbox" checked="@_active.Contains("static")" @onchange="@(e => Toggle("static", e))" /><span></span></label>
+        <div class="designer-section">
+          <div class="designer-section-head">Design</div>
+          <div class="designer-section-body flex flex-col gap-2">
+            <input class="reg-filter-input w-full" placeholder="Design name…" @bind="_designName" @bind:event="oninput" />
+            <button class="btn-secondary" @onclick="SaveDesign" disabled="@string.IsNullOrWhiteSpace(_designName)">Save design</button>
+            <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
+              <option value="">Load design…</option>
+              @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
+            </select>
+            <button class="btn-secondary" @onclick="DeleteDesign" disabled="@string.IsNullOrEmpty(_selectedDesign)">Delete design</button>
+          </div>
         </div>
-        <select class="reg-filter-input w-full" @bind="_selectedShip" @bind:after="@(() => OnSelectChanged("static"))">
-          <option value="">Choose an asset…</option>
-          @foreach (var s in _ships) { <option value="@s">@s</option> }
-        </select>
-        <div class="mt-2"><InputFile OnChange="OnUpload" accept=".glb" class="text-xs" /></div>
-        @if (_active.Contains("static")) { @OffsetInputs("static") }
-      </div>
+      }
+      else
+      {
+        <div class="designer-section">
+          <div class="designer-section-head">Load design</div>
+          <div class="designer-section-body">
+            <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
+              <option value="">Choose a design…</option>
+              @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
+            </select>
+          </div>
+        </div>
+      }
+
+      @if (!string.IsNullOrEmpty(_status))
+      {
+        <div class="text-xs mt-1 @(_error ? "err" : "text-muted")">@_status</div>
+      }
     </section>
   </div>
 </main>
@@ -164,55 +162,40 @@ else
     bool _isAdmin;
     ElementReference _canvas;
     IJSObjectReference? _mod;
+    IJSObjectReference? _designer;
+    DotNetObjectReference<Playground>? _selfRef;
 
     const string ShellPlatform = "ios";
 
-    List<string> _ships = [];
-    string _selectedShip = "";
-
-    List<DeviceRow> _devices = [];
-    string _selectedDevice = "";
-    List<string> _deviceMeshes = [];
-    string _selectedDeviceMesh = "";
-
     List<ShellObjRow> _chickens = [];
     List<ShellObjRow> _hats = [];
-    string _selectedChicken = "";
-    string _selectedHat = "";
-
     List<ShellRow> _allShells = [];
-    List<string> _compatAssetTypes = [];
-    List<ShellRow> _filteredShells = [];
-    string _shellAssetType = "";
-    string _selectedShell = "";
+    List<EnvPieceRow> _catalogPieces = [];
 
-    readonly HashSet<string> _active = new(StringComparer.Ordinal);
-    // per-group manual offsets, keyed by group id: [x, y, z].
-    readonly Dictionary<string, float[]> _offsets = new(StringComparer.Ordinal);
+    bool _designMode;
+    readonly List<DesignElement> _elements = [];
+    string? _selectedElementId;
+    LightingState _lighting = new();
+    int _elementSeq;
 
-    List<EnvPresetRow> _envPresets = [];
-    string _envPreset = "";
-    bool _envOn;
-    List<EnvPieceRow> _habs = [];
-    string _selectedHab = "";
+    bool _pickerOpen;
+    string _pickerTab = "building";
+
+    string _designName = "";
+    string _selectedDesign = "";
+    List<string> _savedDesigns = [];
 
     string _kind = "none";
     string _bgColor = "#1a1a1f";
     bool _bgTransparent = true;
     bool _playing = true;
     bool _error;
-
-    IJSObjectReference? _store;
-    List<string> _savedConfigs = [];
-    string _configName = "";
-    string _selectedConfig = "";
     string _status = "";
-    byte[]? _uploadGlb;
 
     string _baseAddress = "";
     string? _cookie;
 
-    bool ChickenNoHats => _chickens.FirstOrDefault(c => c.Identifier == _selectedChicken)?.NoHats ?? false;
+    DesignElement? Selected => _elements.FirstOrDefault(e => e.Id == _selectedElementId);
 
     protected override void OnInitialized()
     {
@@ -230,144 +213,35 @@ else
         if (!firstRender || !_isAdmin) return;
         try
         {
-            // version query busts a stale browser/CDN cache after a deploy ships a new module shape. Keyed on
-            // the served file's last-write ticks so it changes exactly when playground.js changes.
             _mod = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playground.js?v={InteropVersion()}");
             await _mod.InvokeVoidAsync("init", _canvas);
             await ApplyBackground();
-            await LoadShipList();
-            await LoadDevices();
+            await ApplyLighting();
             await LoadShellObjects();
             await LoadShells();
-            await LoadEnvPresets();
-            _store = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundStore.js?v={InteropVersion()}");
-            await RefreshConfigList();
+            await LoadCatalog();
+            await RefreshDesigns();
         }
         catch (Exception ex) { Fail($"3D init failed: {ex.Message}"); }
     }
 
-    // The 3-float offset for a group (defaults to 0,0,0). Index 0=x,1=y,2=z.
-    float[] Off(string id)
+    string InteropVersion()
     {
-        if (!_offsets.TryGetValue(id, out var o)) { o = new float[3]; _offsets[id] = o; }
-        return o;
-    }
-
-    // Renders the X/Y/Z manual offset inputs for an active group; editing pushes the offset live.
-    RenderFragment OffsetInputs(string id) => builder =>
-    {
-        var o = Off(id);
-        builder.OpenElement(0, "div");
-        builder.AddAttribute(1, "class", "offset-row");
-        void Axis(int seq, int idx, string label)
-        {
-            builder.OpenElement(seq, "label");
-            builder.AddAttribute(seq + 1, "class", "offset-axis");
-            builder.AddContent(seq + 2, label);
-            builder.OpenElement(seq + 3, "input");
-            builder.AddAttribute(seq + 4, "type", "number");
-            builder.AddAttribute(seq + 5, "step", "0.1");
-            builder.AddAttribute(seq + 6, "class", "reg-filter-input w-[64px]");
-            builder.AddAttribute(seq + 7, "value", o[idx]);
-            builder.AddAttribute(seq + 8, "onchange",
-                EventCallback.Factory.Create<ChangeEventArgs>(this, async e =>
-                {
-                    o[idx] = float.TryParse(e.Value?.ToString(), out var v) ? v : 0;
-                    await PushOffset(id);
-                }));
-            builder.CloseElement();
-            builder.CloseElement();
-        }
-        Axis(2, 0, "X");
-        Axis(12, 1, "Y");
-        Axis(22, 2, "Z");
-        builder.CloseElement();
-    };
-
-    async Task PushOffset(string id)
-    {
-        if (_mod is null) return;
-        var o = Off(id);
-        await _mod.InvokeVoidAsync("setGroupOffset", id, o[0], o[1], o[2]);
-    }
-
-    // Toggle a widget on/off. On = render its current selection as that group; off = remove the group but
-    // keep the dropdown selection so re-toggling re-renders without re-picking.
-    async Task Toggle(string id, ChangeEventArgs e)
-    {
-        var on = e.Value is bool b && b;
-        if (on)
-        {
-            _active.Add(id);
-            await RenderGroup(id);
-        }
-        else
-        {
-            _active.Remove(id);
-            if (_mod is not null) await _mod.InvokeVoidAsync("removeGroup", id);
-        }
-        StateHasChanged();
-    }
-
-    // A dropdown changed: if that group is active, reload it; otherwise just hold the selection.
-    async Task OnSelectChanged(string id)
-    {
-        if (_active.Contains(id)) await RenderGroup(id);
-        else StateHasChanged();
-    }
-
-    // Fetch the selected mesh(es) for a group and add it to the scene. Chicken+hat composes two meshes.
-    async Task RenderGroup(string id)
-    {
-        if (_mod is null) return;
-        Status("Loading…");
         try
         {
-            var glb = await FetchGroupGlb(id);
-            if (glb is null) { return; }
-
-            if (id == "chickenhat" && !string.IsNullOrEmpty(_selectedHat) && !ChickenNoHats)
-            {
-                var hat = await FetchRaw($"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(_selectedHat)}/glb");
-                var anchor = _chickens.FirstOrDefault(c => c.Identifier == _selectedChicken)?.Anchor ?? [];
-                await _mod.InvokeAsync<string[]>("addGroup", id, Convert.ToBase64String(glb),
-                    new { hatBase64 = hat is null ? null : Convert.ToBase64String(hat), anchor });
-            }
-            else
-            {
-                await _mod.InvokeAsync<string[]>("addGroup", id, Convert.ToBase64String(glb), new { });
-            }
-            await PushOffset(id);
-            await ApplyAnimation();
-            Status("");
+            var fi = Env.WebRootFileProvider.GetFileInfo("interop/playground.js");
+            if (fi.Exists) return fi.LastModified.UtcTicks.ToString();
         }
-        catch (Exception ex) { Fail(ex.Message); }
+        catch { }
+        return "1";
     }
 
-    // The raw glb bytes for a group's current selection. Spin/hover is a client-side whole-group transform
-    // (so chicken+hat rotate as one), not baked per-mesh; the mesh's own embedded clips still play. Null =
-    // nothing picked.
-    async Task<byte[]?> FetchGroupGlb(string id)
+    HttpClient Client()
     {
-        if (id == "static" && string.IsNullOrEmpty(_selectedShip) && _uploadGlb is not null)
-            return _uploadGlb;
-
-        string? url = id switch
-        {
-            "device" when !string.IsNullOrEmpty(_selectedDevice) && !string.IsNullOrEmpty(_selectedDeviceMesh)
-                => $"/api/devices/{_selectedDevice}/mesh/{_selectedDeviceMesh}",
-            "chickenhat" when !string.IsNullOrEmpty(_selectedChicken)
-                => $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(_selectedChicken)}/glb",
-            "shell" when !string.IsNullOrEmpty(_selectedShell)
-                => $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(_selectedShell)}/glb",
-            "static" when !string.IsNullOrEmpty(_selectedShip)
-                => $"/api/ship-assets/glb/{_selectedShip}",
-            "hab" when !string.IsNullOrEmpty(_selectedHab)
-                => $"/api/env/{Uri.EscapeDataString(_selectedHab)}/glb",
-            _ => null,
-        };
-        if (url is null) { Status("Pick a selection for this widget."); return null; }
-        return await FetchRaw(url);
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
     }
 
     async Task<byte[]?> FetchRaw(string url)
@@ -377,146 +251,24 @@ else
         return await res.Content.ReadAsByteArrayAsync();
     }
 
-    async Task ApplyAnimation()
-    {
-        if (_mod is not null) await _mod.InvokeVoidAsync("setAnimation", _kind, 6);
-    }
-
     async Task ApplyBackground()
     {
         if (_mod is not null) await _mod.InvokeVoidAsync("setBackground", _bgTransparent ? null : _bgColor);
     }
 
-    async Task LoadEnvPresets()
+    async Task ApplyAnimation()
     {
-        try
-        {
-            var res = await Client().GetFromJsonAsync<EnvPresetsResult>("/api/env/presets");
-            _envPresets = res?.Presets?.ToList() ?? [];
-            _habs = res?.Habs?.ToList() ?? [];
-        }
-        catch { _envPresets = []; _habs = []; }
-        StateHasChanged();
+        if (_mod is not null) await _mod.InvokeVoidAsync("setAnimation", _kind, 6);
     }
 
-    // Toggle the env backdrop. On with a preset chosen = load it; off = clear all env groups (keep the pick).
-    async Task ToggleEnv(ChangeEventArgs e)
-    {
-        _envOn = e.Value is bool b && b;
-        if (_envOn) await LoadEnv();
-        else if (_mod is not null) await _mod.InvokeVoidAsync("clearEnvironment");
-        StateHasChanged();
-    }
-
-    async Task OnEnvPresetChanged()
-    {
-        if (_envOn) await LoadEnv();
-        else StateHasChanged();
-    }
-
-    // Compose the chosen preset: clear old env groups, then add each piece as a pinned group at world origin.
-    async Task LoadEnv()
+    async Task ApplyLighting()
     {
         if (_mod is null) return;
-        await _mod.InvokeVoidAsync("clearEnvironment");
-        var preset = _envPresets.FirstOrDefault(p => p.Id == _envPreset);
-        if (preset is null) { Status("Pick a backdrop preset."); return; }
-
-        Status("Loading environment…");
-        try
+        await _mod.InvokeVoidAsync("setLighting", new
         {
-            for (var i = 0; i < preset.Pieces.Length; i++)
-            {
-                var pp = preset.Pieces[i];
-                var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(pp.Stem)}/glb");
-                if (glb is null) continue;
-                // unique id per placement so duplicate stems (a row of habs) do not collide.
-                await _mod.InvokeAsync<string[]>("addGroup", $"env:{i}:{pp.Stem}", Convert.ToBase64String(glb),
-                    new { pinned = true, offset = pp.Offset });
-            }
-            Status("");
-        }
-        catch (Exception ex) { Fail(ex.Message); }
-    }
-
-    async Task OnUpload(InputFileChangeEventArgs e)
-    {
-        Status("Uploading…");
-        try
-        {
-            using var ms = new MemoryStream();
-            await e.File.OpenReadStream(100_000_000).CopyToAsync(ms);
-            _uploadGlb = ms.ToArray();
-            _selectedShip = "";
-            _active.Add("static");
-            await RenderGroup("static");
-        }
-        catch (Exception ex) { Fail(ex.Message); }
-        finally { StateHasChanged(); }
-    }
-
-    async Task LoadShipList()
-    {
-        try { _ships = (await Client().GetFromJsonAsync<ListResult>("/api/ship-assets/list"))?.Ships?.ToList() ?? []; }
-        catch { _ships = []; }
-        StateHasChanged();
-    }
-
-    async Task LoadDevices()
-    {
-        try { _devices = (await Client().GetFromJsonAsync<DeviceRow[]>("/api/devices/status"))?.ToList() ?? []; }
-        catch { _devices = []; }
-        StateHasChanged();
-    }
-
-    async Task LoadDeviceMeshes()
-    {
-        _deviceMeshes = []; _selectedDeviceMesh = "";
-        if (string.IsNullOrEmpty(_selectedDevice)) { StateHasChanged(); return; }
-        try { _deviceMeshes = (await Client().GetFromJsonAsync<MeshListResult>($"/api/devices/{_selectedDevice}/list-meshes"))?.Meshes?.ToList() ?? []; }
-        catch { _deviceMeshes = []; }
-        StateHasChanged();
-    }
-
-    async Task LoadShellObjects()
-    {
-        try
-        {
-            _chickens = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={ShellPlatform}&type=chicken"))?.Objects?.ToList() ?? [];
-            _hats = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={ShellPlatform}&type=hat"))?.Objects?.ToList() ?? [];
-        }
-        catch { _chickens = []; _hats = []; }
-        StateHasChanged();
-    }
-
-    // Shells for widget 3: every shell asset type except CHICKEN / HAT (those are the chicken+hat widget).
-    async Task LoadShells()
-    {
-        try
-        {
-            var res = await Client().GetFromJsonAsync<ShellListResult>($"/api/shells?platform={ShellPlatform}");
-            _allShells = res?.Shells?.ToList() ?? [];
-            _compatAssetTypes = (res?.AssetTypes ?? [])
-                .Where(a => !a.Equals("Chicken", StringComparison.OrdinalIgnoreCase) && !a.Equals("Hat", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-        catch { _allShells = []; _compatAssetTypes = []; }
-        StateHasChanged();
-    }
-
-    void FilterShells()
-    {
-        _selectedShell = "";
-        _filteredShells = string.IsNullOrEmpty(_shellAssetType) ? [] : _allShells.Where(s => s.AssetType == _shellAssetType).ToList();
-        StateHasChanged();
-    }
-
-    HttpClient Client()
-    {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
+            sun = new { azimuthDeg = _lighting.SunAzimuthDeg, elevationDeg = _lighting.SunElevationDeg, color = _lighting.SunColor, intensity = _lighting.SunIntensity },
+            ambient = new { color = _lighting.AmbientColor, intensity = _lighting.AmbientIntensity },
+        });
     }
 
     async Task TogglePlay()
@@ -531,116 +283,351 @@ else
         if (_mod is not null) await _mod.InvokeVoidAsync("resetView");
     }
 
-    async Task RefreshConfigList()
+    async Task LoadShellObjects()
     {
-        if (_store is null) return;
-        try { _savedConfigs = (await _store.InvokeAsync<string[]>("listConfigs"))?.ToList() ?? []; }
-        catch { _savedConfigs = []; }
+        try
+        {
+            _chickens = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={ShellPlatform}&type=chicken"))?.Objects?.ToList() ?? [];
+            _hats = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={ShellPlatform}&type=hat"))?.Objects?.ToList() ?? [];
+        }
+        catch { _chickens = []; _hats = []; }
         StateHasChanged();
     }
 
-    // The full scene state captured into a named config. Offsets are only the touched groups.
-    sealed class SceneState
+    async Task LoadShells()
     {
-        public List<string> Active { get; set; } = [];
-        public Dictionary<string, float[]> Offsets { get; set; } = [];
-        public string Device { get; set; } = "";
-        public string DeviceMesh { get; set; } = "";
-        public string Chicken { get; set; } = "";
-        public string Hat { get; set; } = "";
-        public string ShellAssetType { get; set; } = "";
-        public string Shell { get; set; } = "";
-        public string Ship { get; set; } = "";
-        public string Hab { get; set; } = "";
-        public bool EnvOn { get; set; }
-        public string EnvPreset { get; set; } = "";
-        public string Kind { get; set; } = "none";
-        public string BgColor { get; set; } = "#1a1a1f";
-        public bool BgTransparent { get; set; } = true;
-    }
-
-    async Task SaveConfig()
-    {
-        if (_store is null || string.IsNullOrWhiteSpace(_configName)) return;
-        var state = new SceneState
+        try
         {
-            Active = _active.ToList(),
-            Offsets = _active.ToDictionary(id => id, Off),
-            Device = _selectedDevice, DeviceMesh = _selectedDeviceMesh,
-            Chicken = _selectedChicken, Hat = _selectedHat,
-            ShellAssetType = _shellAssetType, Shell = _selectedShell,
-            Ship = _selectedShip, Hab = _selectedHab,
-            EnvOn = _envOn, EnvPreset = _envPreset,
-            Kind = _kind, BgColor = _bgColor, BgTransparent = _bgTransparent,
+            var res = await Client().GetFromJsonAsync<ShellListResult>($"/api/shells?platform={ShellPlatform}");
+            _allShells = res?.Shells?.ToList() ?? [];
+        }
+        catch { _allShells = []; }
+        StateHasChanged();
+    }
+
+    async Task LoadCatalog()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<EnvCatalogResult>("/api/env/catalog");
+            _catalogPieces = res?.Pieces?.ToList() ?? [];
+        }
+        catch { _catalogPieces = []; }
+    }
+
+    async Task ToggleDesignMode()
+    {
+        if (_mod is not null) await _mod.InvokeVoidAsync("setDesignMode", _designMode);
+        if (_designMode && _designer is null)
+        {
+            _selfRef ??= DotNetObjectReference.Create(this);
+            _designer = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundDesigner.js?v={InteropVersion()}");
+            await _designer.InvokeVoidAsync("initDesigner", _selfRef);
+        }
+        if (!_designMode && _designer is not null) await _designer.InvokeVoidAsync("deselect");
+        StateHasChanged();
+    }
+
+    // Called from the gizmo (playgroundDesigner.js) whenever a drag moves the selected element, so the numeric
+    // inspector fields follow the gizmo live.
+    [JSInvokable]
+    public Task OnGizmoTransform(string id, double[] pos, double[] rotDeg, double scale)
+    {
+        var el = _elements.FirstOrDefault(e => e.Id == id);
+        if (el is not null)
+        {
+            el.Pos = [(float)pos[0], (float)pos[1], (float)pos[2]];
+            el.RotDeg = [(float)rotDeg[0], (float)rotDeg[1], (float)rotDeg[2]];
+            el.Scale = (float)scale;
+            InvokeAsync(StateHasChanged);
+        }
+        return Task.CompletedTask;
+    }
+
+    string NextElementId() => $"el{++_elementSeq}";
+
+    // The glb URL for an element by kind. mesh + env share the env route; shell/chicken use the shells route.
+    string? ElementGlbUrl(DesignElement el) => el.Kind switch
+    {
+        "env" => $"/api/env/{Uri.EscapeDataString(el.Shell ?? el.Ref)}/glb",
+        "shell" => $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(el.Shell ?? el.Ref)}/glb",
+        "chicken" => $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(el.Ref)}/glb",
+        "mesh" => $"/api/env/{Uri.EscapeDataString(el.Ref)}/glb",
+        _ => null,
+    };
+
+    // Render (or re-render) an element's group at its transform. Chickens compose the hat.
+    async Task RenderElement(DesignElement el)
+    {
+        if (_mod is null) return;
+        var url = ElementGlbUrl(el);
+        if (url is null) return;
+        var glb = await FetchRaw(url);
+        if (glb is null) return;
+
+        if (el.Kind == "chicken" && !string.IsNullOrEmpty(el.Hat))
+        {
+            var hat = await FetchRaw($"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(el.Hat)}/glb");
+            var anchor = _chickens.FirstOrDefault(c => c.Identifier == el.Ref)?.Anchor ?? [];
+            await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb),
+                new { hatBase64 = hat is null ? null : Convert.ToBase64String(hat), anchor });
+        }
+        else
+        {
+            await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb), new { });
+        }
+        await PushElementTransform(el);
+    }
+
+    async Task PushElementTransform(DesignElement el)
+    {
+        if (_designer is not null)
+            await _designer.InvokeVoidAsync("applyTransform", el.Id, el.Pos, el.RotDeg, el.Scale);
+    }
+
+    async Task SelectElement(string id)
+    {
+        _selectedElementId = id;
+        if (_designer is not null) await _designer.InvokeVoidAsync("selectElement", id);
+        StateHasChanged();
+    }
+
+    async Task DeleteElement(DesignElement el)
+    {
+        _elements.Remove(el);
+        if (_selectedElementId == el.Id) { _selectedElementId = null; if (_designer is not null) await _designer.InvokeVoidAsync("deselect"); }
+        if (_mod is not null) await _mod.InvokeVoidAsync("removeGroup", el.Id);
+        StateHasChanged();
+    }
+
+    // Add a picked element of a kind. Selects + renders it.
+    async Task AddElement(string kind, string id, string label)
+    {
+        var el = new DesignElement { Id = NextElementId(), Kind = kind, Ref = id, Label = label };
+        _elements.Add(el);
+        await RenderElement(el);
+        await SelectElement(el.Id);
+        _pickerOpen = false;
+        StateHasChanged();
+    }
+
+    async Task ReshellSelected()
+    {
+        if (Selected is { } sel) await RenderAndReselect(sel);
+    }
+
+    async Task RenderAndReselect(DesignElement el)
+    {
+        await RenderElement(el);
+        await SelectElement(el.Id);
+    }
+
+    // Shells offered for an element's shell dropdown. v1: all shells (the env catalog carries no asset-type
+    // map per stem, so a precise filter is deferred); the user picks a compatible shell.
+    IEnumerable<ShellRow> ShellsForAssetTypeOf(DesignElement el) => _allShells;
+
+    async Task SetGizmoMode(string mode)
+    {
+        if (_designer is not null) await _designer.InvokeVoidAsync("setGizmoMode", mode);
+    }
+
+    RenderFragment ElementPicker() => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "picker mt-2");
+        void Tab(int seq, string id, string label)
+        {
+            builder.OpenElement(seq, "button");
+            builder.AddAttribute(seq + 1, "class", "picker-tab " + (_pickerTab == id ? "active" : ""));
+            builder.AddAttribute(seq + 2, "onclick", EventCallback.Factory.Create(this, () => { _pickerTab = id; }));
+            builder.AddContent(seq + 3, label);
+            builder.CloseElement();
+        }
+        Tab(2, "building", "Buildings");
+        Tab(6, "chicken", "Chicken");
+        Tab(10, "shell", "Shell");
+
+        builder.OpenElement(20, "div");
+        builder.AddAttribute(21, "class", "picker-body mt-2");
+        if (_pickerTab == "building")
+        {
+            foreach (var p in _catalogPieces)
+            {
+                var piece = p;
+                builder.OpenElement(22, "button");
+                builder.AddAttribute(23, "class", "picker-item");
+                builder.AddAttribute(24, "onclick", EventCallback.Factory.Create(this, () => AddElement("env", piece.Stem, piece.Label)));
+                builder.AddContent(25, piece.Label);
+                builder.CloseElement();
+            }
+        }
+        else if (_pickerTab == "chicken")
+        {
+            foreach (var ch in _chickens)
+            {
+                var c = ch;
+                builder.OpenElement(26, "button");
+                builder.AddAttribute(27, "class", "picker-item");
+                builder.AddAttribute(28, "onclick", EventCallback.Factory.Create(this, () => AddElement("chicken", c.Identifier, c.Name ?? c.Identifier)));
+                builder.AddContent(29, c.Name ?? c.Identifier);
+                builder.CloseElement();
+            }
+        }
+        else if (_pickerTab == "shell")
+        {
+            foreach (var s in _allShells)
+            {
+                var sh = s;
+                builder.OpenElement(30, "button");
+                builder.AddAttribute(31, "class", "picker-item");
+                builder.AddAttribute(32, "onclick", EventCallback.Factory.Create(this, () => AddElement("shell", sh.Identifier, sh.Name ?? sh.Identifier)));
+                builder.AddContent(33, sh.Name ?? sh.Identifier);
+                builder.CloseElement();
+            }
+        }
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+
+    // The transform numeric fields for the selected element; editing pushes the transform to the gizmo + group.
+    RenderFragment TransformFields(DesignElement el) => builder =>
+    {
+        int seq = 0;
+        void Num(string label, Func<float> get, Action<float> set)
+        {
+            builder.OpenElement(seq++, "label");
+            builder.AddAttribute(seq++, "class", "flex items-center gap-1");
+            builder.AddContent(seq++, label);
+            builder.OpenElement(seq++, "input");
+            builder.AddAttribute(seq++, "type", "number");
+            builder.AddAttribute(seq++, "step", "0.1");
+            builder.AddAttribute(seq++, "class", "reg-filter-input w-[60px]");
+            builder.AddAttribute(seq++, "value", get());
+            builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, async e =>
+            {
+                set(float.TryParse(e.Value?.ToString(), out var v) ? v : 0);
+                await PushElementTransform(el);
+            }));
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "flex gap-2");
+        Num("X", () => el.Pos[0], v => el.Pos[0] = v);
+        Num("Y", () => el.Pos[1], v => el.Pos[1] = v);
+        Num("Z", () => el.Pos[2], v => el.Pos[2] = v);
+        builder.CloseElement();
+        builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "flex gap-2 mt-1");
+        Num("rX", () => el.RotDeg[0], v => el.RotDeg[0] = v);
+        Num("rY", () => el.RotDeg[1], v => el.RotDeg[1] = v);
+        Num("rZ", () => el.RotDeg[2], v => el.RotDeg[2] = v);
+        builder.CloseElement();
+        builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "flex gap-2 mt-1");
+        Num("scale", () => el.Scale, v => el.Scale = v <= 0 ? 1 : v);
+        builder.CloseElement();
+    };
+
+    async Task SaveDesign()
+    {
+        if (string.IsNullOrWhiteSpace(_designName)) return;
+        var payload = new DesignPayload
+        {
+            Background = _bgColor, BackgroundTransparent = _bgTransparent,
+            Lighting = _lighting, Elements = _elements.ToList(),
         };
-        var json = System.Text.Json.JsonSerializer.Serialize(state);
-        _savedConfigs = (await _store.InvokeAsync<string[]>("saveConfig", _configName.Trim(), json))?.ToList() ?? _savedConfigs;
-        Status($"Saved \"{_configName.Trim()}\".");
+        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+        var res = await Client().PutAsJsonAsync($"/api/env/designs/{Uri.EscapeDataString(_designName.Trim())}", new { payload = json });
+        if (res.IsSuccessStatusCode) { Status($"Saved \"{_designName.Trim()}\"."); await RefreshDesigns(); }
+        else Fail($"save failed: HTTP {(int)res.StatusCode}");
     }
 
-    // Restore a saved config: set every selection, then render the active groups + env.
-    async Task LoadConfig()
+    async Task LoadDesign()
     {
-        if (_store is null || string.IsNullOrEmpty(_selectedConfig)) return;
-        var json = await _store.InvokeAsync<string?>("getConfig", _selectedConfig);
-        if (json is null) return;
-        SceneState? s;
-        try { s = System.Text.Json.JsonSerializer.Deserialize<SceneState>(json); }
-        catch { Fail("config is corrupt"); return; }
-        if (s is null) return;
+        if (string.IsNullOrEmpty(_selectedDesign) || _mod is null) return;
+        Status("Loading design…");
+        try
+        {
+            var json = await Client().GetStringAsync($"/api/env/designs/{Uri.EscapeDataString(_selectedDesign)}");
+            var payload = System.Text.Json.JsonSerializer.Deserialize<DesignPayload>(json);
+            if (payload is null) { Fail("design is corrupt"); return; }
 
-        // tear down the current scene groups before rebuilding from the config.
-        foreach (var id in _active.ToList())
-            if (_mod is not null) await _mod.InvokeVoidAsync("removeGroup", id);
-        if (_mod is not null) await _mod.InvokeVoidAsync("clearEnvironment");
-        _active.Clear();
-        _offsets.Clear();
+            foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
+            _elements.Clear();
+            _selectedElementId = null;
+            if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
 
-        _selectedDevice = s.Device;
-        _selectedChicken = s.Chicken; _selectedHat = s.Hat;
-        _shellAssetType = s.ShellAssetType; _selectedShell = s.Shell;
-        _selectedShip = s.Ship; _selectedHab = s.Hab;
-        _kind = s.Kind; _bgColor = s.BgColor; _bgTransparent = s.BgTransparent;
-        foreach (var (id, off) in s.Offsets) _offsets[id] = off;
-        if (!string.IsNullOrEmpty(_selectedDevice)) await LoadDeviceMeshes(); // resets _selectedDeviceMesh
-        _selectedDeviceMesh = s.DeviceMesh; // restore after the mesh list reload
-        FilterShells(); // resets _selectedShell
-        _selectedShell = s.Shell;
+            _bgColor = string.IsNullOrEmpty(payload.Background) ? _bgColor : payload.Background;
+            _bgTransparent = payload.BackgroundTransparent;
+            _lighting = payload.Lighting ?? new();
+            await ApplyBackground();
+            await ApplyLighting();
 
-        await ApplyBackground();
-        _envOn = s.EnvOn; _envPreset = s.EnvPreset;
-        if (_envOn) await LoadEnv();
-        foreach (var id in s.Active) { _active.Add(id); await RenderGroup(id); }
-        await ApplyAnimation();
-        Status($"Loaded \"{_selectedConfig}\".");
+            foreach (var el in payload.Elements)
+            {
+                _elements.Add(el);
+                _elementSeq = Math.Max(_elementSeq, ParseSeq(el.Id));
+                await RenderElement(el);
+            }
+            Status($"Loaded \"{_selectedDesign}\".");
+        }
+        catch (Exception ex) { Fail(ex.Message); }
     }
 
-    async Task DeleteConfig()
+    static int ParseSeq(string id) => int.TryParse(id.TrimStart('e', 'l'), out var n) ? n : 0;
+
+    async Task DeleteDesign()
     {
-        if (_store is null || string.IsNullOrEmpty(_selectedConfig)) return;
-        _savedConfigs = (await _store.InvokeAsync<string[]>("deleteConfig", _selectedConfig))?.ToList() ?? _savedConfigs;
-        _selectedConfig = "";
+        if (string.IsNullOrEmpty(_selectedDesign)) return;
+        var res = await Client().DeleteAsync($"/api/env/designs/{Uri.EscapeDataString(_selectedDesign)}");
+        if (res.IsSuccessStatusCode) { _selectedDesign = ""; await RefreshDesigns(); }
+        else Fail($"delete failed: HTTP {(int)res.StatusCode}");
+    }
+
+    async Task RefreshDesigns()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<DesignListResult>("/api/env/designs");
+            _savedDesigns = res?.Designs?.Select(d => d.Name).ToList() ?? [];
+        }
+        catch { _savedDesigns = []; }
         StateHasChanged();
     }
 
     void Status(string s) { _error = false; _status = s; StateHasChanged(); }
     void Fail(string s) { _error = true; _status = s; StateHasChanged(); }
 
-    // Cache-bust token = last-write ticks of the served interop module (falls back to a constant offline).
-    string InteropVersion()
+    public sealed class DesignElement
     {
-        try
-        {
-            var fi = Env.WebRootFileProvider.GetFileInfo("interop/playground.js");
-            if (fi.Exists) return fi.LastModified.UtcTicks.ToString();
-        }
-        catch { }
-        return "1";
+        public string Id { get; set; } = "";
+        public string Kind { get; set; } = "env";      // env | chicken | shell | mesh
+        public string Ref { get; set; } = "";           // stem or identifier
+        public string Label { get; set; } = "";
+        public string? Hat { get; set; }                 // chicken hat identifier
+        public string? Shell { get; set; }               // applied shell identifier
+        public float[] Pos { get; set; } = [0, 0, 0];
+        public float[] RotDeg { get; set; } = [0, 0, 0];
+        public float Scale { get; set; } = 1f;
     }
 
-    record ListResult(string[]? Ships);
-    record MeshListResult(string[]? Meshes);
-    record DeviceRow(string Id, string Platform, string Label);
+    public sealed class LightingState
+    {
+        public float SunAzimuthDeg { get; set; } = 45;
+        public float SunElevationDeg { get; set; } = 55;
+        public string SunColor { get; set; } = "#ffffff";
+        public float SunIntensity { get; set; } = 1.0f;
+        public string AmbientColor { get; set; } = "#ffffff";
+        public float AmbientIntensity { get; set; } = 0.5f;
+    }
+
+    public sealed class DesignPayload
+    {
+        public string Background { get; set; } = "";
+        public bool BackgroundTransparent { get; set; } = true;
+        public LightingState Lighting { get; set; } = new();
+        public List<DesignElement> Elements { get; set; } = [];
+    }
+
     record ShellRow(string Identifier, string? Name, string AssetType, string Url, bool ModifiedGeometry);
     record ShellListResult(bool Ok, string[]? AssetTypes, ShellRow[]? Shells);
     record ShellObjRow(string Identifier, string? Name, string AssetType, string Url, float[]? Anchor, bool NoHats)
@@ -648,10 +635,10 @@ else
         public float[] Anchor { get; init; } = Anchor ?? [];
     }
     record ShellObjResult(bool Ok, ShellObjRow[]? Objects);
-    record PlacedPieceRow(string Stem, float[] Offset);
-    record EnvPresetRow(string Id, string Label, PlacedPieceRow[] Pieces);
     record EnvPieceRow(string Stem, string Label);
-    record EnvPresetsResult(EnvPresetRow[]? Presets, EnvPieceRow[]? Habs);
+    record EnvCatalogResult(EnvPieceRow[]? Pieces, EnvPieceRow[]? Habs);
+    record DesignRow(string Name, DateTimeOffset UpdatedAt, string? Owner);
+    record DesignListResult(DesignRow[]? Designs);
 
     public async ValueTask DisposeAsync()
     {
@@ -660,6 +647,11 @@ else
             try { await _mod.InvokeVoidAsync("dispose"); } catch { }
             try { await _mod.DisposeAsync(); } catch { }
         }
-        if (_store is not null) { try { await _store.DisposeAsync(); } catch { } }
+        if (_designer is not null)
+        {
+            try { await _designer.InvokeVoidAsync("disposeDesigner"); } catch { }
+            try { await _designer.DisposeAsync(); } catch { }
+        }
+        _selfRef?.Dispose();
     }
 }

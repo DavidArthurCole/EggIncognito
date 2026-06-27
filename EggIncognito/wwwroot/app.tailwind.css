@@ -1236,4 +1236,21 @@
   .wtoggle input:checked + span::before { @apply translate-x-4; }
   .bg-picker input { @apply w-9 h-9 p-0 border border-border rounded-md bg-transparent cursor-pointer; }
   .bg-picker input:disabled { @apply opacity-40 cursor-not-allowed; }
+
+  /* Environment designer: collapsible labeled control sections + element list + picker. */
+  .designer-section { @apply panel p-0 overflow-hidden; }
+  .designer-section-head { @apply px-3 py-2 text-[12px] uppercase tracking-[0.05em] text-muted bg-panel2 border-b border-border; }
+  .designer-section-body { @apply p-3; }
+  .bg-picker-input { @apply w-8 h-8 p-0 border border-border rounded-md bg-transparent cursor-pointer; }
+  .bg-picker-input:disabled { @apply opacity-40 cursor-not-allowed; }
+  .element-list { @apply flex flex-col gap-1; }
+  .element-row { @apply flex items-center justify-between gap-2 border border-border rounded-md px-2 py-1; }
+  .element-row.active { @apply border-accent; }
+  .element-name { @apply flex-1 text-left text-xs truncate; }
+  .element-del { @apply text-xs text-muted hover:text-fg; }
+  .picker { @apply border border-border rounded-md p-2; }
+  .picker-tab { @apply text-xs px-2 py-1 rounded-md mr-1 bg-panel2; }
+  .picker-tab.active { @apply bg-accent text-bg; }
+  .picker-body { @apply max-h-48 overflow-auto flex flex-col gap-1; }
+  .picker-item { @apply text-left text-xs px-2 py-1 rounded-md hover:bg-panel2; }
 }

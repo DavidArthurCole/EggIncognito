@@ -94,23 +94,45 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task EnvPresets_ReturnsPiecesAndPresets()
+    public async Task EnvCatalog_ReturnsPiecesAndHabs()
     {
         var c = _factory.CreateClient();
-        var r = await c.GetAsync("/api/env/presets");
+        var r = await c.GetAsync("/api/env/catalog");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var json = await r.Content.ReadAsStringAsync();
-        Assert.Contains("ei_farm_ground", json);
-        Assert.Contains("\"presets\"", json);
+        Assert.Contains("ei_silo_0_large", json);
+        Assert.Contains("\"habs\"", json);
+        Assert.Contains("hab_eggtopia", json);
+        Assert.DoesNotContain("\"presets\"", json);
     }
 
     [Fact]
-    public async Task EnvPresets_IncludesHabs()
+    public async Task EnvDesigns_List_PublicReturnsArrayShape()
     {
         var c = _factory.CreateClient();
-        var json = await (await c.GetAsync("/api/env/presets")).Content.ReadAsStringAsync();
-        Assert.Contains("\"habs\"", json);
-        Assert.Contains("hab_eggtopia", json);
+        var r = await c.GetAsync("/api/env/designs");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        Assert.Contains("designs", await r.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task EnvDesigns_Save_RequiresContributor()
+    {
+        var c = _factory.CreateClient();
+        var body = new StringContent("{\"payload\":\"{}\"}", System.Text.Encoding.UTF8, "application/json");
+        var r = await c.PutAsync("/api/env/designs/test", body);
+        // anon (no auth wired in the test host) is a viewer: 403, or 503 when no DB. Never 200.
+        Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
+            $"expected 403/503, got {(int)r.StatusCode}");
+    }
+
+    [Fact]
+    public async Task EnvDesigns_Delete_RequiresContributor()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.DeleteAsync("/api/env/designs/test");
+        Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
+            $"expected 403/503, got {(int)r.StatusCode}");
     }
 
     [Fact]

@@ -5,23 +5,6 @@ namespace EggIncognito.Tests.ProtoExtract;
 public class EnvCatalogTests
 {
     [Fact]
-    public void Presets_OnlyReferenceKnownPieces()
-    {
-        foreach (var preset in EnvCatalog.Presets)
-            foreach (var pp in preset.Pieces)
-                Assert.True(EnvCatalog.IsKnownPiece(pp.Stem), $"preset {preset.Id} references unknown piece {pp.Stem}");
-    }
-
-    [Fact]
-    public void HabRowPreset_PlacesFourHabsAtDistinctX()
-    {
-        var p = EnvCatalog.PresetById("farm_habs")!;
-        var habs = p.Pieces.Where(pp => pp.Stem.StartsWith("hab_")).ToList();
-        Assert.Equal(4, habs.Count);
-        Assert.Equal(4, habs.Select(h => h.Offset[0]).Distinct().Count());
-    }
-
-    [Fact]
     public void IsKnownPiece_RejectsTraversalAndUnknown()
     {
         Assert.True(EnvCatalog.IsKnownPiece("ei_farm_ground"));
@@ -30,10 +13,11 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void PresetById_FindsAndMisses()
+    public void Pieces_IncludeBuildingsAndHabs()
     {
-        Assert.NotNull(EnvCatalog.PresetById("farm_full"));
-        Assert.Null(EnvCatalog.PresetById("missing"));
+        Assert.Contains(EnvCatalog.Pieces, p => p.Stem == "ei_silo_0_large");
+        Assert.Contains(EnvCatalog.Pieces, p => p.Stem == "hab_10k");
+        Assert.True(EnvCatalog.Pieces.Count >= 12);
     }
 
     [Fact]
