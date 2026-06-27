@@ -109,8 +109,10 @@ public sealed class DeviceCaptureManager(
             var diag = _diag.GetOrAdd(d.Id, _ => new DeviceCaptureDiag());
 
             var proxy = _proxyFactory(config.Verbose);
+            // Verbose forwarder trace (raw CONNECT heads + byte previews) is debug-grade: gated behind both the
+            // Verbose flag AND the Debug log level so it never floods the default Information log.
             if (config.Verbose)
-                proxy.Trace += line => logger.LogInformation("device capture: {Id} trace: {Line}", d.Id, line);
+                proxy.Trace += line => logger.LogDebug("device capture: {Id} trace: {Line}", d.Id, line);
             proxy.FlowCaptured += flow =>
             {
                 diag.Bump(ref diag.Flows);
@@ -126,7 +128,8 @@ public sealed class DeviceCaptureManager(
             proxy.AuxbrainConnect += () =>
             {
                 diag.Bump(ref diag.AuxbrainConnects);
-                logger.LogInformation("device capture: {Id} auxbrain CONNECT decrypted", d.Id);
+                // per-CONNECT, so debug-level; the running count is on the diag (DiagFor) for the status panel.
+                logger.LogDebug("device capture: {Id} auxbrain CONNECT decrypted", d.Id);
             };
             proxy.DecryptError += msg =>
             {

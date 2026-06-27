@@ -61,13 +61,13 @@ else
 
       <div class="designer-section">
         <div class="designer-section-head">Lighting</div>
-        <div class="designer-section-body grid grid-cols-2 gap-2 text-xs">
-          <label class="block">Sun azimuth<input type="range" min="0" max="360" class="w-full" @bind="_lighting.SunAzimuthDeg" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
-          <label class="block">Sun elevation<input type="range" min="0" max="90" class="w-full" @bind="_lighting.SunElevationDeg" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
-          <label class="block">Sun color<input type="color" class="bg-picker-input" @bind="_lighting.SunColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
-          <label class="block">Sun intensity<input type="range" min="0" max="3" step="0.05" class="w-full" @bind="_lighting.SunIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
-          <label class="block">Ambient color<input type="color" class="bg-picker-input" @bind="_lighting.AmbientColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
-          <label class="block">Ambient intensity<input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+        <div class="designer-section-body grid grid-cols-2 gap-3 text-xs">
+          <label class="light-field"><span>Sun azimuth</span><input type="range" min="0" max="360" class="w-full" @bind="_lighting.SunAzimuthDeg" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Sun elevation</span><input type="range" min="0" max="90" class="w-full" @bind="_lighting.SunElevationDeg" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Sun color</span><input type="color" class="bg-picker-input" @bind="_lighting.SunColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Sun intensity</span><input type="range" min="0" max="3" step="0.05" class="w-full" @bind="_lighting.SunIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Ambient color</span><input type="color" class="bg-picker-input" @bind="_lighting.AmbientColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Ambient intensity</span><input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
         </div>
       </div>
 
@@ -77,7 +77,42 @@ else
           <div class="designer-section-head">Elements</div>
           <div class="designer-section-body">
             <button class="btn-primary w-full" @onclick="() => _pickerOpen = !_pickerOpen">@(_pickerOpen ? "Close picker" : "Add element")</button>
-            @if (_pickerOpen) { @ElementPicker() }
+            @if (_pickerOpen)
+            {
+              <div class="picker mt-2">
+                <div class="flex mb-1">
+                  <button class="picker-tab @(_pickerTab == "building" ? "active" : "")" @onclick='() => _pickerTab = "building"'>Buildings</button>
+                  <button class="picker-tab @(_pickerTab == "chicken" ? "active" : "")" @onclick='() => _pickerTab = "chicken"'>Chicken</button>
+                  <button class="picker-tab @(_pickerTab == "shell" ? "active" : "")" @onclick='() => _pickerTab = "shell"'>Shell</button>
+                </div>
+                <div class="picker-body">
+                  @if (_pickerTab == "building")
+                  {
+                    @if (_catalogPieces.Count == 0) { <div class="text-xs text-muted">Catalog empty.</div> }
+                    @foreach (var p in _catalogPieces)
+                    {
+                      <button class="picker-item" @onclick='() => AddElement("env", p.Stem, p.Label)'>@p.Label</button>
+                    }
+                  }
+                  else if (_pickerTab == "chicken")
+                  {
+                    @if (_chickens.Count == 0) { <div class="text-xs text-muted">No chickens (ingest a config in Admin).</div> }
+                    @foreach (var c in _chickens)
+                    {
+                      <button class="picker-item" @onclick='() => AddElement("chicken", c.Identifier, c.Name ?? c.Identifier)'>@(c.Name ?? c.Identifier)</button>
+                    }
+                  }
+                  else
+                  {
+                    @if (_allShells.Count == 0) { <div class="text-xs text-muted">No shells (ingest a config in Admin).</div> }
+                    @foreach (var s in _allShells)
+                    {
+                      <button class="picker-item" @onclick='() => AddElement("shell", s.Identifier, s.Name ?? s.Identifier)'>@(s.Name ?? s.Identifier)</button>
+                    }
+                  }
+                </div>
+              </div>
+            }
             <div class="element-list mt-2">
               @foreach (var el in _elements)
               {
@@ -430,65 +465,6 @@ else
     {
         if (_designer is not null) await _designer.InvokeVoidAsync("setGizmoMode", mode);
     }
-
-    RenderFragment ElementPicker() => builder =>
-    {
-        builder.OpenElement(0, "div");
-        builder.AddAttribute(1, "class", "picker mt-2");
-        void Tab(int seq, string id, string label)
-        {
-            builder.OpenElement(seq, "button");
-            builder.AddAttribute(seq + 1, "class", "picker-tab " + (_pickerTab == id ? "active" : ""));
-            builder.AddAttribute(seq + 2, "onclick", EventCallback.Factory.Create(this, () => { _pickerTab = id; }));
-            builder.AddContent(seq + 3, label);
-            builder.CloseElement();
-        }
-        Tab(2, "building", "Buildings");
-        Tab(6, "chicken", "Chicken");
-        Tab(10, "shell", "Shell");
-
-        builder.OpenElement(20, "div");
-        builder.AddAttribute(21, "class", "picker-body mt-2");
-        if (_pickerTab == "building")
-        {
-            foreach (var p in _catalogPieces)
-            {
-                var piece = p;
-                builder.OpenElement(22, "button");
-                builder.AddAttribute(23, "class", "picker-item");
-                builder.AddAttribute(24, "onclick", EventCallback.Factory.Create(this, () => AddElement("env", piece.Stem, piece.Label)));
-                builder.AddContent(25, piece.Label);
-                builder.CloseElement();
-            }
-        }
-        else if (_pickerTab == "chicken")
-        {
-            foreach (var ch in _chickens)
-            {
-                var c = ch;
-                builder.OpenElement(26, "button");
-                builder.AddAttribute(27, "class", "picker-item");
-                builder.AddAttribute(28, "onclick", EventCallback.Factory.Create(this, () => AddElement("chicken", c.Identifier, c.Name ?? c.Identifier)));
-                builder.AddContent(29, c.Name ?? c.Identifier);
-                builder.CloseElement();
-            }
-        }
-        else if (_pickerTab == "shell")
-        {
-            foreach (var s in _allShells)
-            {
-                var sh = s;
-                builder.OpenElement(30, "button");
-                builder.AddAttribute(31, "class", "picker-item");
-                builder.AddAttribute(32, "onclick", EventCallback.Factory.Create(this, () => AddElement("shell", sh.Identifier, sh.Name ?? sh.Identifier)));
-                builder.AddContent(33, sh.Name ?? sh.Identifier);
-                builder.CloseElement();
-            }
-        }
-        builder.CloseElement();
-
-        builder.CloseElement();
-    };
 
     // The transform numeric fields for the selected element; editing pushes the transform to the gizmo + group.
     RenderFragment TransformFields(DesignElement el) => builder =>

@@ -1253,4 +1253,6 @@
   .picker-tab.active { @apply bg-accent text-bg; }
   .picker-body { @apply max-h-48 overflow-auto flex flex-col gap-1; }
   .picker-item { @apply text-left text-xs px-2 py-1 rounded-md hover:bg-panel2; }
+  .light-field { @apply flex flex-col gap-1; }
+  .light-field > span { @apply text-muted; }
 }
