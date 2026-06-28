@@ -28,8 +28,13 @@ export async function initDesigner(dotnetRef) {
   gizmo = new TransformControls(cam, dom);
   gizmo.setMode('translate');
 
-  // Dragging the gizmo must not also orbit the camera.
-  gizmo.addEventListener('dragging-changed', ev => { controls.enabled = !ev.value; dragging = ev.value; });
+  // Dragging the gizmo must not also orbit the camera. On the drag START edge, snapshot history once so a whole
+  // drag is a single undo step (objectChange fires per frame; we do NOT push there).
+  gizmo.addEventListener('dragging-changed', ev => {
+    controls.enabled = !ev.value;
+    dragging = ev.value;
+    if (ev.value && dotnet) dotnet.invokeMethodAsync('OnGizmoDragStart');
+  });
 
   // Click-to-select: raycast from a click that was NOT a drag (orbit) onto the element group roots. Hit ->
   // select that element + notify .NET; miss -> deselect.
@@ -57,11 +62,18 @@ export async function initDesigner(dotnetRef) {
   // away from the camera, Down toward, Left/Right screen-left/right. Shift = a bigger step. Ignored while
   // typing in an input so the inspector fields still work.
   onKeyDown = ev => {
+    const t = ev.target;
+    const typing = t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    // Undo / redo: ctrl+z, ctrl+y (and ctrl+shift+z). Works with nothing selected. Ignored while typing.
+    if ((ev.ctrlKey || ev.metaKey) && !typing) {
+      const key = ev.key.toLowerCase();
+      if (key === 'z' && !ev.shiftKey) { ev.preventDefault(); dotnet?.invokeMethodAsync('OnUndo'); return; }
+      if (key === 'y' || (key === 'z' && ev.shiftKey)) { ev.preventDefault(); dotnet?.invokeMethodAsync('OnRedo'); return; }
+    }
     if (!selectedId) return;
     const k = ev.key;
     if (k !== 'ArrowUp' && k !== 'ArrowDown' && k !== 'ArrowLeft' && k !== 'ArrowRight') return;
-    const t = ev.target;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (typing) return;
     ev.preventDefault();
     nudge(k, ev.shiftKey ? 2.0 : 0.5);
   };
@@ -78,7 +90,10 @@ export async function initDesigner(dotnetRef) {
     dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, rotDeg, o.scale.x);
   });
 
-  e.scene().add(gizmo);
+  // r0.169: TransformControls is no longer an Object3D. Its rendered + interactive form is the helper; adding
+  // the controls object itself silently does nothing (that left the old gizmo invisible, so Move/Rotate looked
+  // dead).
+  e.scene().add(gizmo.getHelper());
   // expose the gizmo-hide toggle for the recorder (which cannot import this module without forking it).
   globalThis.__pgDesigner = { setGizmoVisible };
 }
@@ -86,7 +101,7 @@ export async function initDesigner(dotnetRef) {
 // Hide/show the gizmo around a capture so it does not appear in the recorded frames. Keeps the attachment so
 // selection is unchanged after.
 export function setGizmoVisible(on) {
-  if (gizmo) gizmo.visible = !!on;
+  if (gizmo) gizmo.getHelper().visible = !!on;
 }
 
 function deg(rad) { return rad * 180 / Math.PI; }
@@ -100,6 +115,8 @@ function nudge(key, step) {
   if (!e || !selectedId) return;
   const base = e.getGroupBase(selectedId);
   if (!base) return;
+  // One undo step per nudge keypress (nudge does not fire dragging-changed, so push here).
+  if (dotnet) dotnet.invokeMethodAsync('OnGizmoDragStart');
   const cam = e.camera();
 
   // forward = where the camera looks, flattened to the ground. right = the camera's own +X axis (screen
@@ -166,7 +183,7 @@ export function disposeDesigner() {
   if (onKeyDown) { window.removeEventListener('keydown', onKeyDown); onKeyDown = null; }
   if (gizmo) {
     gizmo.detach();
-    engine()?.scene()?.remove(gizmo);
+    engine()?.scene()?.remove(gizmo.getHelper());
     gizmo.dispose?.();
     gizmo = null;
   }

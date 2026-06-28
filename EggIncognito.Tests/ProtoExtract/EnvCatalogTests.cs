@@ -69,6 +69,31 @@ public class EnvCatalogTests
     }
 
     [Fact]
+    public void Family_FuelTank_HasFourVariants()
+    {
+        var fam = EnvCatalog.Family("ei_fuel_tank_2");
+        Assert.Equal(4, fam.Count);
+        Assert.All(fam, p => Assert.Equal("fuel", p.Family));
+        Assert.Contains(fam, p => p.Stem == "ei_fuel_tank_1");
+        Assert.Contains(fam, p => p.Stem == "ei_fuel_tank_4");
+        Assert.All(fam, p => Assert.True(EnvCatalog.IsKnownPiece(p.Stem)));
+    }
+
+    [Fact]
+    public void AssetTypeOf_MapsRepresentativeStems()
+    {
+        Assert.Equal("Depot3", EnvCatalog.AssetTypeOf("ei_depot_3"));
+        Assert.Equal("Lab1", EnvCatalog.AssetTypeOf("ei_lab_1"));
+        Assert.Equal("Hab1K", EnvCatalog.AssetTypeOf("hab_1k"));
+        Assert.Equal("Hab10K", EnvCatalog.AssetTypeOf("hab_10k"));
+        Assert.Equal("FuelTank3", EnvCatalog.AssetTypeOf("ei_fuel_tank_3"));
+        Assert.Equal("MissionControl2", EnvCatalog.AssetTypeOf("ei_mission_control_2"));
+        Assert.Equal("HatcheryEdible", EnvCatalog.AssetTypeOf("ei_hatchery_edible"));
+        Assert.Null(EnvCatalog.AssetTypeOf("ei_farm_ground"));
+        Assert.Null(EnvCatalog.AssetTypeOf("nope"));
+    }
+
+    [Fact]
     public void Habs_AreAllKnownPieces()
     {
         Assert.NotEmpty(EnvCatalog.Habs);

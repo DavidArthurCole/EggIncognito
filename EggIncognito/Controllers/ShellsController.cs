@@ -69,6 +69,30 @@ public sealed class ShellsController(
         });
     }
 
+    // Lists shell sets + decorators from the stored config so the designer can apply a whole coordinated reskin
+    // (set) across matching elements, or a farm-wide cosmetic overlay (decorator). Public read; the per-mesh glb
+    // egress stays gated. Members carry the asset type so the client matches each to a placed element.
+    [HttpGet("sets")]
+    public IActionResult Sets([FromQuery] string platform = "ios")
+    {
+        var catalog = LoadCatalog(platform);
+        if (catalog is null) return Ok(new { ok = false, platform, diagnostics = $"no stored config for {platform}; ingest one via /api/config" });
+
+        static object Shape(ShellCatalog.ShellSet s) => new
+        {
+            s.Identifier, s.Name, s.Decorator,
+            members = s.Members.Select(m => new { m.Identifier, m.AssetType }),
+        };
+
+        return Ok(new
+        {
+            ok = true,
+            platform,
+            sets = ShellCatalog.Sets(catalog).Select(Shape),
+            decorators = ShellCatalog.Decorators(catalog).Select(Shape),
+        });
+    }
+
     // Fetches one shell's mesh as .glb: resolve its url from the catalog, download + decode, optional animate.
     // Caches the decoded glb (platform "shell") so repeat views skip the CDN. Egress + hosted-auth gated.
     [HttpGet("{platform}/{identifier}/glb")]

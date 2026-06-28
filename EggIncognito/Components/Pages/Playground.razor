@@ -3,6 +3,7 @@
 @implements IAsyncDisposable
 @using Microsoft.JSInterop
 @using System.Net.Http.Json
+@using EggIncognito.Services.ProtoExtract
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
@@ -157,6 +158,10 @@ else
               @if (_elements.Count == 0) { <span>No elements. Add one above.</span> }
               else { <span>@_elements.Count element(s). Click one in the scene to select it.</span> }
             </div>
+            <div class="flex gap-2 mt-2">
+              <button class="btn-secondary flex-1" disabled="@(_undo.Count == 0)" @onclick="OnUndo" title="Undo (Ctrl+Z)">Undo</button>
+              <button class="btn-secondary flex-1" disabled="@(_redo.Count == 0)" @onclick="OnRedo" title="Redo (Ctrl+Y)">Redo</button>
+            </div>
           </div>
         </div>
 
@@ -179,7 +184,7 @@ else
                 </label>
               }
               <label class="block">Animation
-                <select class="reg-filter-input w-full" @bind="sel.Anim" @bind:after="() => ApplyElementAnimation(sel)">
+                <select class="reg-filter-input w-full" @bind="sel.Anim" @bind:after="() => OnAnimChanged(sel)">
                   <option value="none">None</option>
                   <option value="SpinY">Spin (Y)</option>
                   <option value="SpinZ">Spin (Z)</option>
@@ -189,7 +194,7 @@ else
               @if (sel.Kind is "env" or "shell")
               {
                 <label class="block">Shell
-                  <select class="reg-filter-input w-full" @bind="sel.Shell" @bind:after="ReshellSelected">
+                  <select class="reg-filter-input w-full" @bind="sel.Shell" @bind:after="OnShellChanged">
                     <option value="">Base mesh</option>
                     @foreach (var s in ShellsForAssetTypeOf(sel)) { <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option> }
                   </select>
@@ -197,8 +202,13 @@ else
               }
               @if (sel.Kind == "chicken")
               {
+                <label class="block">Skin
+                  <select class="reg-filter-input w-full" @bind="sel.Ref" @bind:after="() => OnChickenSkinChanged(sel)">
+                    @foreach (var c in _chickens) { <option value="@c.Identifier">@(c.Name ?? c.Identifier)</option> }
+                  </select>
+                </label>
                 <label class="block">Hat
-                  <select class="reg-filter-input w-full" @bind="sel.Hat" @bind:after="() => RenderAndReselect(sel)">
+                  <select class="reg-filter-input w-full" @bind="sel.Hat" @bind:after="() => OnHatChanged(sel)">
                     <option value="">No hat</option>
                     @foreach (var h in _hats) { <option value="@h.Identifier">@(h.Name ?? h.Identifier)</option> }
                   </select>
@@ -218,6 +228,39 @@ else
                   <button class="btn-secondary w-full" @onclick="() => _confirmDeleteId = sel.Id">Delete element</button>
                 }
               </div>
+            </div>
+          </div>
+        }
+
+        @if (_shellSets.Count > 0 || _decorators.Count > 0)
+        {
+          <div class="designer-section">
+            <div class="designer-section-head">Shell sets</div>
+            <div class="designer-section-body text-xs flex flex-col gap-2">
+              <label class="block">Apply mode
+                <select class="reg-filter-input w-full" @bind="_setApplyMode">
+                  <option value="all">All matching elements</option>
+                  <option value="selected">Selected element only</option>
+                </select>
+              </label>
+              @if (_shellSets.Count > 0)
+              {
+                <div class="flex flex-col gap-1">
+                  @foreach (var set in _shellSets)
+                  {
+                    <button class="btn-secondary text-left" @onclick="() => ApplyShellSet(set)">@(set.Name ?? set.Identifier) <span class="text-muted">(@(set.Members?.Length ?? 0))</span></button>
+                  }
+                </div>
+              }
+              @if (_decorators.Count > 0)
+              {
+                <label class="block">Farm decorator
+                  <select class="reg-filter-input w-full" @bind="_decoratorId" @bind:after="ApplyDecorator">
+                    <option value="">None</option>
+                    @foreach (var d in _decorators) { <option value="@d.Identifier">@(d.Name ?? d.Identifier)</option> }
+                  </select>
+                </label>
+              }
             </div>
           </div>
         }
@@ -256,6 +299,16 @@ else
     string? _selectedElementId;
     LightingState _lighting = new();
     int _elementSeq;
+
+    readonly Stack<List<DesignElement>> _undo = new();
+    readonly Stack<List<DesignElement>> _redo = new();
+    const int HistoryCap = 50;
+    bool _restoringHistory;          // guards re-entrant history push + autosave storm during a rebuild
+
+    string? _decoratorId;            // farm-wide decorator selection (null/empty = none)
+    string _setApplyMode = "all";    // "all" | "selected"
+    List<ShellSetRow> _shellSets = [];
+    List<ShellSetRow> _decorators = [];
 
     bool _pickerOpen;
     string _pickerTab = "building";
@@ -299,6 +352,7 @@ else
             await ApplyLighting();
             await LoadShellObjects();
             await LoadShells();
+            await LoadShellSets();
             await LoadCatalog();
             await RefreshDesigns();
             _autosave = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundAutosave.js?v={InteropVersion()}");
@@ -553,6 +607,7 @@ else
     // transform. sel.Ref is already updated by the bind; re-render with the new mesh + refresh the family.
     async Task SwapVariation(DesignElement sel)
     {
+        PushHistory();
         var opt = _familyOptions.FirstOrDefault(f => f.Stem == sel.Ref);
         if (opt is not null) sel.Label = opt.Label;
         await RenderElement(sel);
@@ -568,9 +623,73 @@ else
 
     async Task DeleteElement(DesignElement el)
     {
+        PushHistory();
         _elements.Remove(el);
         if (_selectedElementId == el.Id) { _selectedElementId = null; if (_designer is not null) await _designer.InvokeVoidAsync("deselect"); }
         if (_mod is not null) await _mod.InvokeVoidAsync("removeGroup", el.Id);
+        StateHasChanged();
+        Autosave();
+    }
+
+    List<DesignElement> CloneElements() => _elements.Select(e => new DesignElement
+    {
+        Id = e.Id, Kind = e.Kind, Ref = e.Ref, Label = e.Label, Hat = e.Hat, Shell = e.Shell,
+        Pos = [e.Pos[0], e.Pos[1], e.Pos[2]], RotDeg = [e.RotDeg[0], e.RotDeg[1], e.RotDeg[2]],
+        Scale = e.Scale, Anim = e.Anim,
+    }).ToList();
+
+    // Snapshot the element list BEFORE a mutating action so it can be undone. Clears the redo branch. Skipped
+    // while a history restore is in flight, so undo/redo do not push their own result.
+    void PushHistory()
+    {
+        if (_restoringHistory) return;
+        _undo.Push(CloneElements());
+        if (_undo.Count > HistoryCap)
+        {
+            var keep = _undo.Take(HistoryCap).ToArray();
+            _undo.Clear();
+            for (var i = keep.Length - 1; i >= 0; i--) _undo.Push(keep[i]);
+        }
+        _redo.Clear();
+    }
+
+    [JSInvokable]
+    public Task OnGizmoDragStart() { PushHistory(); return Task.CompletedTask; }
+
+    [JSInvokable]
+    public async Task OnUndo()
+    {
+        if (_undo.Count == 0) return;
+        _redo.Push(CloneElements());
+        await ApplyHistorySnapshot(_undo.Pop());
+    }
+
+    [JSInvokable]
+    public async Task OnRedo()
+    {
+        if (_redo.Count == 0) return;
+        _undo.Push(CloneElements());
+        await ApplyHistorySnapshot(_redo.Pop());
+    }
+
+    // Replace the live element list with a history snapshot and rebuild the scene. Reselects the prior selection
+    // if it still exists. Guards re-entrant history pushes + autosave storm during the rebuild.
+    async Task ApplyHistorySnapshot(List<DesignElement> snapshot)
+    {
+        if (_mod is null) return;
+        _restoringHistory = true;
+        try
+        {
+            var keepSel = _selectedElementId;
+            foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
+            _elements.Clear();
+            _selectedElementId = null;
+            if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
+            foreach (var el in snapshot) { _elements.Add(el); await RenderElement(el); }
+            if (keepSel is not null && _elements.Any(e => e.Id == keepSel)) await SelectElement(keepSel);
+            await RefreshAnimatedFlag();
+        }
+        finally { _restoringHistory = false; }
         StateHasChanged();
         Autosave();
     }
@@ -621,6 +740,7 @@ else
             var dup = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref == id);
             if (dup is not null) { await SelectElement(dup.Id); _pickerOpen = false; return; }
         }
+        PushHistory();
         var el = new DesignElement { Id = NextElementId(), Kind = kind, Ref = id, Label = label };
         _elements.Add(el);
         await RenderElement(el);
@@ -632,6 +752,81 @@ else
     async Task ReshellSelected()
     {
         if (Selected is { } sel) await RenderAndReselect(sel);
+    }
+
+    // Discrete-edit wrappers: each pushes one undo step before the underlying re-render. The inner methods are
+    // also called internally (e.g. RenderElement -> ApplyElementAnimation) where a push would be wrong, so the
+    // push lives in the wrapper, not the inner method.
+    async Task OnAnimChanged(DesignElement sel) { PushHistory(); await ApplyElementAnimation(sel); }
+    async Task OnShellChanged() { PushHistory(); await ReshellSelected(); }
+    async Task OnHatChanged(DesignElement sel) { PushHistory(); await RenderAndReselect(sel); }
+
+    async Task OnChickenSkinChanged(DesignElement sel)
+    {
+        PushHistory();
+        var c = _chickens.FirstOrDefault(x => x.Identifier == sel.Ref);
+        if (c is not null) sel.Label = c.Name ?? c.Identifier;
+        await RenderAndReselect(sel);
+    }
+
+    async Task LoadShellSets()
+    {
+        try
+        {
+            var res = await Client().GetFromJsonAsync<ShellSetsResult>($"/api/shells/sets?platform={ShellPlatform}");
+            _shellSets = res?.Sets?.ToList() ?? [];
+            _decorators = res?.Decorators?.ToList() ?? [];
+        }
+        catch { _shellSets = []; _decorators = []; }
+    }
+
+    // Apply a shell set: for each placed element whose asset type matches a set member, set that element's Shell
+    // to the member identifier and re-render. "selected" mode limits it to the selected element. One undoable
+    // action. Elements with no matching member are left untouched (single cosmetic per element).
+    async Task ApplyShellSet(ShellSetRow set)
+    {
+        var members = set.Members ?? [];
+        if (members.Length == 0) return;
+        var targets = _setApplyMode == "selected"
+            ? (Selected is { } s ? new[] { s } : [])
+            : _elements.ToArray();
+        if (targets.Length == 0) return;
+        PushHistory();
+        foreach (var el in targets)
+        {
+            var at = EnvCatalog.AssetTypeOf(el.Ref);
+            if (at is null) continue;
+            var member = members.FirstOrDefault(m => string.Equals(m.AssetType, at, StringComparison.OrdinalIgnoreCase));
+            if (member is null) continue;
+            el.Shell = member.Identifier;
+            await RenderElement(el);
+        }
+        if (_selectedElementId is not null) await SelectElement(_selectedElementId);
+        Status($"Applied set \"{set.Name ?? set.Identifier}\".");
+    }
+
+    // Farm-wide decorator: a single design-level cosmetic overlay across matching elements. Applies the
+    // decorator's member shells to matching elements' Shell (same match rule as a set), and records the
+    // selection so it persists with the design. None clears the recorded selection (placed base meshes stay).
+    async Task ApplyDecorator()
+    {
+        PushHistory();
+        var deco = _decorators.FirstOrDefault(d => d.Identifier == _decoratorId);
+        if (deco is not null)
+        {
+            var members = deco.Members ?? [];
+            foreach (var el in _elements.ToArray())
+            {
+                var at = EnvCatalog.AssetTypeOf(el.Ref);
+                if (at is null) continue;
+                var member = members.FirstOrDefault(m => string.Equals(m.AssetType, at, StringComparison.OrdinalIgnoreCase));
+                if (member is null) continue;
+                el.Shell = member.Identifier;
+                await RenderElement(el);
+            }
+            if (_selectedElementId is not null) await SelectElement(_selectedElementId);
+        }
+        Autosave();
     }
 
     async Task RenderAndReselect(DesignElement el)
@@ -665,6 +860,7 @@ else
             builder.AddAttribute(seq++, "value", get());
             builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, async e =>
             {
+                PushHistory();
                 set(float.TryParse(e.Value?.ToString(), out var v) ? v : 0);
                 await PushElementTransform(el);
             }));
@@ -692,7 +888,7 @@ else
         var payload = new DesignPayload
         {
             Background = _bgColor, BackgroundTransparent = _bgTransparent,
-            Lighting = _lighting, Elements = _elements.ToList(),
+            Lighting = _lighting, Elements = _elements.ToList(), DecoratorId = _decoratorId,
         };
         var json = System.Text.Json.JsonSerializer.Serialize(payload);
         var res = await Client().PutAsJsonAsync($"/api/env/designs/{Uri.EscapeDataString(_designName.Trim())}", new { payload = json });
@@ -755,7 +951,7 @@ else
             var payload = new DesignPayload
             {
                 Background = _bgColor, BackgroundTransparent = _bgTransparent,
-                Lighting = _lighting, Elements = _elements.ToList(),
+                Lighting = _lighting, Elements = _elements.ToList(), DecoratorId = _decoratorId,
             };
             var json = System.Text.Json.JsonSerializer.Serialize(payload);
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -785,6 +981,7 @@ else
         _bgColor = string.IsNullOrEmpty(payload.Background) ? _bgColor : payload.Background;
         _bgTransparent = payload.BackgroundTransparent;
         _lighting = payload.Lighting ?? new();
+        _decoratorId = payload.DecoratorId;
         await ApplyBackground();
         await ApplyLighting();
 
@@ -868,7 +1065,12 @@ else
         public bool BackgroundTransparent { get; set; } = true;
         public LightingState Lighting { get; set; } = new();
         public List<DesignElement> Elements { get; set; } = [];
+        public string? DecoratorId { get; set; }
     }
+
+    sealed class ShellSetsResult { public bool Ok { get; set; } public ShellSetRow[]? Sets { get; set; } public ShellSetRow[]? Decorators { get; set; } }
+    public sealed class ShellSetRow { public string Identifier { get; set; } = ""; public string? Name { get; set; } public bool Decorator { get; set; } public ShellSetMember[]? Members { get; set; } }
+    public sealed class ShellSetMember { public string Identifier { get; set; } = ""; public string AssetType { get; set; } = ""; }
 
     record ShellRow(string Identifier, string? Name, string AssetType, string Url, bool ModifiedGeometry);
     record ShellListResult(bool Ok, string[]? AssetTypes, ShellRow[]? Shells);

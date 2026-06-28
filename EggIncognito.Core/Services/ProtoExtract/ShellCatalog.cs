@@ -13,7 +13,7 @@ public static class ShellCatalog
     // One shell: its identifier, display set, the asset type it applies to (DEPOT_1, CHICKEN, ...), and the
     // resolved mesh url + checksum. AssetType groups shells by the model they fit, so the viewer can offer
     // only the shells valid for the loaded model.
-    public sealed record Shell(string Identifier, string? Name, string AssetType, string Url, string? Checksum, bool ModifiedGeometry);
+    public sealed record Shell(string Identifier, string? Name, string AssetType, string Url, string? Checksum, bool ModifiedGeometry, string? SetIdentifier = null);
 
     // One shellObject: a chicken or hat (or other interactive shell object). Carries the hat anchor
     // (metadata = [x, hatY, hatZ, scale] on chickens) and the noHats flag so the compositor can place a hat
@@ -36,7 +36,7 @@ public static class ShellCatalog
             var url = Url(dlc);
             if (url is null) continue;
             shells.Add(new Shell(s.Identifier ?? "", NullIfEmpty(s.Name), AssetTypeName(piece.AssetType),
-                url, NullIfEmpty(dlc.Checksum), s.ModifiedGeometry));
+                url, NullIfEmpty(dlc.Checksum), s.ModifiedGeometry, NullIfEmpty(s.SetIdentifier)));
         }
 
         foreach (var o in catalog.ShellObjects)
@@ -96,6 +96,32 @@ public static class ShellCatalog
 
     public static ShellObject? ObjectById(DLCCatalog catalog, string identifier) =>
         Objects(catalog).FirstOrDefault(o => string.Equals(o.Identifier, identifier, StringComparison.Ordinal));
+
+    // A shell set (a coordinated reskin across asset types) or a decorator (a farm-wide cosmetic overlay).
+    // Members are the shells whose SetIdentifier ties them to this set; Name comes from the set spec.
+    // Decorator=true marks a decorator (DLCCatalog.decorators) vs a set (DLCCatalog.shell_sets).
+    public sealed record ShellSet(string Identifier, string? Name, bool Decorator, IReadOnlyList<Shell> Members);
+
+    public static IReadOnlyList<ShellSet> Sets(DLCCatalog catalog) => BuildSets(catalog, catalog?.ShellSets, decorator: false);
+    public static IReadOnlyList<ShellSet> Decorators(DLCCatalog catalog) => BuildSets(catalog, catalog?.Decorators, decorator: true);
+
+    private static IReadOnlyList<ShellSet> BuildSets(DLCCatalog? catalog, IEnumerable<ShellSetSpec>? specs, bool decorator)
+    {
+        var result = new List<ShellSet>();
+        if (catalog is null || specs is null) return result;
+        var bySet = FromCatalog(catalog)
+            .Where(s => !string.IsNullOrEmpty(s.SetIdentifier))
+            .GroupBy(s => s.SetIdentifier!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<Shell>)g.ToList(), StringComparer.Ordinal);
+        foreach (var spec in specs)
+        {
+            var id = spec.Identifier ?? "";
+            if (id.Length == 0) continue;
+            var members = bySet.TryGetValue(id, out var m) ? m : [];
+            result.Add(new ShellSet(id, NullIfEmpty(spec.Name), decorator, members));
+        }
+        return result;
+    }
 
     private static string? Url(DLCItem dlc)
     {

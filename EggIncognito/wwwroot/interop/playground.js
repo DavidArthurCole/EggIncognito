@@ -22,7 +22,7 @@ const ORBIT_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/OrbitContr
 
 let THREE, GLTFLoader, OrbitControls;
 let renderer, scene, camera, controls, clock, raf;
-let sun, ambient, resizeObserver;
+let sun, ambient, hemi, shadowCatcher, resizeObserver;
 let designMode = false;
 
 // procedural animation clock + global play/pause. Each group carries its OWN anim kind (per-element spin),
@@ -50,6 +50,11 @@ export async function init(canvas) {
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, aspect(), 0.01, 1000);
@@ -60,12 +65,30 @@ export async function init(canvas) {
 
   resize();
 
-  // Adjustable sun (directional) + a fixed soft ambient fill so emissive meshes never go fully black. Fog is
-  // optional (density 0 = off). A default keeps a fresh scene lit.
+  // Adjustable shadow-casting sun + a hemisphere sky/ground fill for a natural gradient + a tiny ambient floor
+  // so emissive meshes never go fully black. Fog optional (density 0 = off). A default keeps a fresh scene lit.
   sun = new THREE.DirectionalLight(0xffffff, 1.0);
-  ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.02;
+  hemi = new THREE.HemisphereLight(0xbfd4ff, 0x4a3f33, 0.5);
+  ambient = new THREE.AmbientLight(0xffffff, 0.15);
   scene.add(sun);
+  scene.add(sun.target);
+  scene.add(hemi);
   scene.add(ambient);
+
+  // An invisible ground plane that only receives shadow, so cast shadows land even when no farm-ground mesh is
+  // placed. Sits at y=0 under everything.
+  shadowCatcher = new THREE.Mesh(
+    new THREE.PlaneGeometry(200, 200),
+    new THREE.ShadowMaterial({ opacity: 0.35 }));
+  shadowCatcher.rotation.x = -Math.PI / 2;
+  shadowCatcher.position.y = 0;
+  shadowCatcher.receiveShadow = true;
+  scene.add(shadowCatcher);
+
   setLighting({ sun: { azimuthDeg: 45, elevationDeg: 55, color: '#ffffff', intensity: 1.0 },
                 fog: { color: '#1a1a1f', density: 0 } });
 
@@ -199,6 +222,9 @@ export async function addGroup(groupId, glbBase64, opts) {
     anim: carried?.anim || 'none',
     base: carried?.base || null,
   });
+  // Every mesh in the group casts + receives shadow (the chicken, its hat, env buildings) so the scene reads
+  // with grounded contact shadows, not floating.
+  root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   scene.add(root);
   relayoutGroups();
   return clipNames;
@@ -306,10 +332,21 @@ export function setLighting(opts) {
   const f = (opts && opts.fog) || {};
   const az = (s.azimuthDeg || 0) * Math.PI / 180;
   const el = (s.elevationDeg || 0) * Math.PI / 180;
-  const r = 10;
+  // Far enough out that the ortho shadow-cam near/far bracket the whole scene.
+  const r = 100;
   sun.position.set(r * Math.cos(el) * Math.sin(az), r * Math.sin(el), r * Math.cos(el) * Math.cos(az));
   if (s.color) sun.color.set(s.color);
   if (typeof s.intensity === 'number') sun.intensity = s.intensity;
+
+  // Aim the sun at the origin and size its ortho shadow frustum to cover a standard farm. Generous half-extent
+  // so nothing clips; refit here so a lighting change keeps shadows correct.
+  sun.target.position.set(0, 0, 0);
+  sun.target.updateMatrixWorld();
+  const cam = sun.shadow.camera;
+  const half = 40;
+  cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half;
+  cam.near = 0.5; cam.far = 400;
+  cam.updateProjectionMatrix();
 
   // Fog: exponential, density 0 = off. Color defaults to white.
   const density = typeof f.density === 'number' ? f.density : 0;
@@ -504,6 +541,7 @@ export function dispose() {
     disposeObject(g.root);
   }
   groups.clear();
+  if (shadowCatcher) { shadowCatcher.geometry?.dispose(); shadowCatcher.material?.dispose(); }
   renderer?.dispose();
-  renderer = scene = camera = controls = sun = ambient = null;
+  renderer = scene = camera = controls = sun = ambient = hemi = shadowCatcher = null;
 }

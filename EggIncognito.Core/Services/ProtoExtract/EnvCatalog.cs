@@ -39,7 +39,10 @@ public static class EnvCatalog
         new EnvPiece("ei_depot_5", "Depot (5)", "Storage", Singleton: true, Family: "depot"),
         new EnvPiece("ei_depot_6", "Depot (6)", "Storage", Singleton: true, Family: "depot"),
         new EnvPiece("ei_depot_7", "Depot (7)", "Storage", Singleton: true, Family: "depot"),
-        new EnvPiece("ei_fuel_tank_2", "Fuel tank", "Storage", Singleton: true, Family: "fuel"),
+        new EnvPiece("ei_fuel_tank_1", "Fuel tank (1)", "Storage", Singleton: true, Family: "fuel"),
+        new EnvPiece("ei_fuel_tank_2", "Fuel tank (2)", "Storage", Singleton: true, Family: "fuel"),
+        new EnvPiece("ei_fuel_tank_3", "Fuel tank (3)", "Storage", Singleton: true, Family: "fuel"),
+        new EnvPiece("ei_fuel_tank_4", "Fuel tank (4)", "Storage", Singleton: true, Family: "fuel"),
         new EnvPiece("ei_hyperloop_stop", "Hyperloop station", "Storage", Singleton: true),
         new EnvPiece("ei_hyperloop_track", "Hyperloop track", "Storage", Singleton: true),
 
@@ -100,4 +103,46 @@ public static class EnvCatalog
 
     public static bool IsKnownPiece(string stem) =>
         Pieces.Any(p => string.Equals(p.Stem, stem, StringComparison.Ordinal));
+
+    // Maps an env stem to its ShellSpec.AssetType enum name (the C# PascalCase form), so a placed element can be
+    // matched to the shell-set member that reskins that asset type. Returns null for terrain + pieces with no
+    // shellable asset type. A table, not reflection: stem naming and enum names do not align 1:1 (hab_1k ->
+    // Hab1k, hab_10k -> Hab10K, hab_eggtopia -> Eggtopia).
+    private static readonly Dictionary<string, string?> _assetTypeByStem = new(StringComparer.Ordinal)
+    {
+        ["hab_1k"] = "Hab1K", ["hab_10k"] = "Hab10K", ["hab_eggtopia"] = "Eggtopia",
+        ["hab_monolith"] = "Monolith", ["hab_portal"] = "PlanetPortal", ["hab_chicken_universe"] = "ChickenUniverse",
+        ["ei_depot_1"] = "Depot1", ["ei_depot_2"] = "Depot2", ["ei_depot_3"] = "Depot3", ["ei_depot_4"] = "Depot4",
+        ["ei_depot_5"] = "Depot5", ["ei_depot_6"] = "Depot6", ["ei_depot_7"] = "Depot7",
+        ["ei_fuel_tank_1"] = "FuelTank1", ["ei_fuel_tank_2"] = "FuelTank2",
+        ["ei_fuel_tank_3"] = "FuelTank3", ["ei_fuel_tank_4"] = "FuelTank4",
+        ["ei_lab_1"] = "Lab1", ["ei_lab_2"] = "Lab2", ["ei_lab_3"] = "Lab3",
+        ["ei_lab_4"] = "Lab4", ["ei_lab_5"] = "Lab5", ["ei_lab_6"] = "Lab6",
+        ["ei_mission_control_1"] = "MissionControl1", ["ei_mission_control_2"] = "MissionControl2",
+        ["ei_mission_control_3"] = "MissionControl3",
+        ["ei_hoa_1"] = "Hoa1", ["ei_hoa_2"] = "Hoa2", ["ei_hoa_3"] = "Hoa3",
+        ["ei_trophy_case"] = "TrophyCase", ["ei_trophy_case2"] = "TrophyCase",
+        ["ei_silo_0_large"] = "Silo0Large", ["ei_silo"] = "Silo0Large",
+        ["ei_farm_mailbox_full"] = "Mailbox", ["ei_farm_hardscape"] = "Hardscape",
+        ["ei_hyperloop_stop"] = "Hyperloop", ["ei_hyperloop_track"] = "Hyperloop",
+    };
+
+    public static string? AssetTypeOf(string stem)
+    {
+        if (stem.StartsWith("ei_hatchery_", StringComparison.Ordinal))
+        {
+            var suffix = stem["ei_hatchery_".Length..];
+            return suffix switch
+            {
+                "edible" => "HatcheryEdible", "superfood" => "HatcherySuperfood", "medical" => "HatcheryMedical",
+                "supermaterial" => "HatcherySupermaterial", "fusion" => "HatcheryFusion", "quantum" => "HatcheryQuantum",
+                "immortality" => "HatcheryImmortality", "tachyon" => "HatcheryTachyon", "graviton" => "HatcheryGraviton",
+                "dilithium" => "HatcheryDilithium", "prodigy" => "HatcheryProdigy", "terraform" => "HatcheryTerraform",
+                "antimatter" => "HatcheryAntimatter", "darkmatter" => "HatcheryDarkMatter", "ai" => "HatcheryAi",
+                "vision" => "HatcheryNebula", "universe" => "HatcheryUniverse", "enlightenment" => "HatcheryEnlightenment",
+                _ => null,
+            };
+        }
+        return _assetTypeByStem.TryGetValue(stem, out var t) ? t : null;
+    }
 }

@@ -185,6 +185,63 @@ public class ShellCatalogTests
         Assert.All(chickens, c => Assert.Contains("auxbrain.com/dlc", c.Url));
     }
 
+    [Fact]
+    public void Shell_CarriesSetIdentifier()
+    {
+        var cat = new DLCCatalog();
+        cat.Shells.Add(SetShell("ei_depot_1_neon", ShellSpec.Types.AssetType.Depot1, "neon"));
+        Assert.Equal("neon", ShellCatalog.FromCatalog(cat).Single().SetIdentifier);
+    }
+
+    [Fact]
+    public void Sets_GroupsMembersBySetIdentifier_WithSetName()
+    {
+        var cat = new DLCCatalog();
+        cat.ShellSets.Add(new ShellSetSpec { Identifier = "neon", Name = "Neon", Decorator = false });
+        cat.Shells.Add(SetShell("ei_depot_1_neon", ShellSpec.Types.AssetType.Depot1, "neon"));
+        cat.Shells.Add(SetShell("ei_hab_1k_neon", ShellSpec.Types.AssetType.Hab1K, "neon"));
+        cat.Shells.Add(SetShell("loner", ShellSpec.Types.AssetType.Silo0Small, ""));
+
+        var sets = ShellCatalog.Sets(cat);
+        var set = Assert.Single(sets);
+        Assert.Equal("neon", set.Identifier);
+        Assert.Equal("Neon", set.Name);
+        Assert.False(set.Decorator);
+        Assert.Equal(2, set.Members.Count);
+        Assert.Contains(set.Members, m => m.AssetType == "Depot1");
+        Assert.Contains(set.Members, m => m.AssetType == "Hab1K");
+    }
+
+    [Fact]
+    public void Decorators_AreSeparateFromSets()
+    {
+        var cat = new DLCCatalog();
+        cat.ShellSets.Add(new ShellSetSpec { Identifier = "neon", Name = "Neon" });
+        cat.Decorators.Add(new ShellSetSpec { Identifier = "lights", Name = "Lights", Decorator = true });
+        cat.Shells.Add(SetShell("ei_depot_1_neon", ShellSpec.Types.AssetType.Depot1, "neon"));
+        cat.Shells.Add(SetShell("ei_depot_1_lights", ShellSpec.Types.AssetType.Depot1, "lights"));
+
+        var sets = ShellCatalog.Sets(cat);
+        var decos = ShellCatalog.Decorators(cat);
+        Assert.Single(sets);
+        Assert.Equal("neon", sets[0].Identifier);
+        var deco = Assert.Single(decos);
+        Assert.Equal("lights", deco.Identifier);
+        Assert.True(deco.Decorator);
+        Assert.Single(deco.Members);
+    }
+
+    private static ShellSpec SetShell(string id, ShellSpec.Types.AssetType type, string setId)
+    {
+        var s = new ShellSpec { Identifier = id, SetIdentifier = setId };
+        s.PrimaryPiece = new ShellSpec.Types.ShellPiece
+        {
+            AssetType = type,
+            Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shells/{id}.rpoz" },
+        };
+        return s;
+    }
+
     private static ShellObjectSpec Obj(string id, ShellSpec.Types.AssetType type)
     {
         var o = new ShellObjectSpec { Identifier = id, AssetType = type };
