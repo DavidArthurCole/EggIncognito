@@ -51,7 +51,9 @@ export async function init(canvas) {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  // Tone mapping is OFF by default (punchy, un-faded colors that match the game's flat-shaded meshes). The
+  // lighting panel can switch it on (ACES / Reinhard / ...) live via setLighting.
+  renderer.toneMapping = THREE.NoToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -72,8 +74,10 @@ export async function init(canvas) {
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.02;
-  hemi = new THREE.HemisphereLight(0xbfd4ff, 0x4a3f33, 0.5);
-  ambient = new THREE.AmbientLight(0xffffff, 0.15);
+  // Near-neutral sky/ground so the fill does not tint the scene (a brown ground bounce read as "faded"). The
+  // panel drives the intensities; ambient default is a strong-ish fill so flat meshes stay bright.
+  hemi = new THREE.HemisphereLight(0xeaf0ff, 0xddd7cc, 0.5);
+  ambient = new THREE.AmbientLight(0xffffff, 0.55);
   scene.add(sun);
   scene.add(sun.target);
   scene.add(hemi);
@@ -255,8 +259,10 @@ export function setGroupOffset(groupId, x, y, z) {
 export function relayoutGroups() {
   const all = [...groups.values()];
   if (all.length === 0) return;
-  // design mode: every group holds its own transform; no auto-offset layout.
-  if (designMode) { maybeFrameOnce(); return; }
+  // design mode: every group holds its own transform; no auto-offset layout AND no auto-framing. The user
+  // owns the camera; framing on each add yanked the view (a far-offset env piece zoomed the camera way out).
+  // The explicit "Reset view" button (resetView) frames on demand.
+  if (designMode) return;
   for (const g of all.filter(g => g.pinned)) applyOffset(g);
 
   const list = all.filter(g => !g.pinned);
@@ -326,10 +332,27 @@ export function setBackground(hex) {
 // Positions the sun on a unit dome from azimuth (around Y) + elevation (up from the horizon), and sets the
 // Sun (positioned on a dome from azimuth+elevation, color, intensity) + scene fog (color + density). Ambient
 // stays a fixed soft fill so emissive meshes never go fully black. Live; safe before any element loads.
+const TONE_MAPS = {
+  none: () => THREE.NoToneMapping,
+  linear: () => THREE.LinearToneMapping,
+  aces: () => THREE.ACESFilmicToneMapping,
+  reinhard: () => THREE.ReinhardToneMapping,
+  cineon: () => THREE.CineonToneMapping,
+};
+
 export function setLighting(opts) {
   if (!sun || !ambient || !scene) return;
   const s = (opts && opts.sun) || {};
   const f = (opts && opts.fog) || {};
+
+  // Renderer tone mapping + exposure (default none = punchy, un-faded). Fill intensities for the flat meshes.
+  if (renderer) {
+    const tm = TONE_MAPS[opts && opts.toneMapping] || TONE_MAPS.none;
+    renderer.toneMapping = tm();
+    if (typeof (opts && opts.exposure) === 'number') renderer.toneMappingExposure = opts.exposure;
+  }
+  if (typeof (opts && opts.ambient) === 'number') ambient.intensity = opts.ambient;
+  if (hemi && typeof (opts && opts.hemi) === 'number') hemi.intensity = opts.hemi;
   const az = (s.azimuthDeg || 0) * Math.PI / 180;
   const el = (s.elevationDeg || 0) * Math.PI / 180;
   // Far enough out that the ortho shadow-cam near/far bracket the whole scene.

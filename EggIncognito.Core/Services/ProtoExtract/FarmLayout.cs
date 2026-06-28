@@ -30,7 +30,7 @@ public static class FarmLayout
     // - ORIGIN-AUTHORED (explicit pos): trophy, mission control, artifact hall, fuel tank are authored at the
     //   mesh origin, so they need an explicit world position or they overlap. Laid out relative to the
     //   self-placed depot (center ~x7,z9): near row z~9, back row z~-3.
-    public static IReadOnlyList<Placed> Standard(string defaultHab = "hab_10k")
+    public static IReadOnlyList<Placed> Standard(string defaultHab = "ei_hab_10k")
     {
         var p = new List<Placed>
         {

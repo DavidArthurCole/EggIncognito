@@ -74,6 +74,18 @@ else
           <label class="light-field"><span>Sun elevation</span><input type="range" min="0" max="90" class="w-full" @bind="_lighting.SunElevationDeg" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Sun color</span><input type="color" class="bg-picker-input" @bind="_lighting.SunColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Sun intensity</span><input type="range" min="0" max="3" step="0.05" class="w-full" @bind="_lighting.SunIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Ambient fill</span><input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Sky fill</span><input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.HemiIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Tone mapping</span>
+            <select class="reg-filter-input w-full" @bind="_lighting.ToneMapping" @bind:after="ApplyLighting">
+              <option value="none">None (punchy)</option>
+              <option value="linear">Linear</option>
+              <option value="aces">ACES filmic</option>
+              <option value="reinhard">Reinhard</option>
+              <option value="cineon">Cineon</option>
+            </select>
+          </label>
+          <label class="light-field"><span>Exposure</span><input type="range" min="0.1" max="3" step="0.05" class="w-full" @bind="_lighting.Exposure" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Fog color</span><input type="color" class="bg-picker-input" @bind="_lighting.FogColor" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Fog density</span><input type="range" min="0" max="0.03" step="0.0005" class="w-full" @bind="_lighting.FogDensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
         </div>
@@ -442,6 +454,8 @@ else
         {
             sun = new { azimuthDeg = _lighting.SunAzimuthDeg, elevationDeg = _lighting.SunElevationDeg, color = _lighting.SunColor, intensity = _lighting.SunIntensity },
             fog = new { color = _lighting.FogColor, density = _lighting.FogDensity },
+            toneMapping = _lighting.ToneMapping, exposure = _lighting.Exposure,
+            ambient = _lighting.AmbientIntensity, hemi = _lighting.HemiIntensity,
         });
         Autosave();
     }
@@ -1055,6 +1069,10 @@ else
         public float SunElevationDeg { get; set; } = 55;
         public string SunColor { get; set; } = "#ffffff";
         public float SunIntensity { get; set; } = 1.0f;
+        public string ToneMapping { get; set; } = "none";   // none | linear | aces | reinhard | cineon
+        public float Exposure { get; set; } = 1.0f;
+        public float AmbientIntensity { get; set; } = 0.55f;
+        public float HemiIntensity { get; set; } = 0.5f;
         public string FogColor { get; set; } = "#1a1a1f";
         public float FogDensity { get; set; } = 0f;
     }

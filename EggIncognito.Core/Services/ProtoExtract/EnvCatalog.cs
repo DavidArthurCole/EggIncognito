@@ -23,12 +23,27 @@ public static class EnvCatalog
         new EnvPiece("ei_farm_misc", "Ground detail", "Terrain", Singleton: true),
         new EnvPiece("ei_chicken_display_ground", "Display ground", "Terrain", Singleton: true),
 
-        new EnvPiece("hab_1k", "Coop (1k)", "Habs", Family: "hab"),
-        new EnvPiece("hab_10k", "Shack (10k)", "Habs", Family: "hab"),
-        new EnvPiece("hab_eggtopia", "Eggtopia", "Habs", Family: "hab"),
-        new EnvPiece("hab_monolith", "Monolith", "Habs", Family: "hab"),
-        new EnvPiece("hab_portal", "Portal", "Habs", Family: "hab"),
-        new EnvPiece("hab_chicken_universe", "Chicken Universe", "Habs", Family: "hab"),
+        // The 19 hab tiers, in capacity order. Each tier has its OWN mesh (stems verified from the game's shell
+        // identifiers ei_hab_<tier>_*). "hanger" is the game's own spelling. Labels match the in-game names.
+        new EnvPiece("ei_hab_coop", "Coop", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_shack", "Shack", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_super_shack", "Super Shack", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_short_house", "Short House", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_the_standard", "The Standard", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_long_house", "Long House", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_double_decker", "Double Decker", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_warehouse", "Warehouse", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_center", "Center", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_bunker", "Bunker", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_eggkea", "Eggkea", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_1k", "HAB 1000", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_hanger", "Hangar", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_tower", "Tower", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_10k", "HAB 10,000", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_eggtopia", "Eggtopia", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_monolith", "Monolith", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_portal", "Planet Portal", "Habs", Family: "hab"),
+        new EnvPiece("ei_hab_chicken_universe", "Chicken Universe", "Habs", Family: "hab"),
 
         new EnvPiece("ei_silo_0_large", "Silo", "Storage"),
         new EnvPiece("ei_silo", "Silo (alt)", "Storage"),
@@ -106,12 +121,18 @@ public static class EnvCatalog
 
     // Maps an env stem to its ShellSpec.AssetType enum name (the C# PascalCase form), so a placed element can be
     // matched to the shell-set member that reskins that asset type. Returns null for terrain + pieces with no
-    // shellable asset type. A table, not reflection: stem naming and enum names do not align 1:1 (hab_1k ->
-    // Hab1k, hab_10k -> Hab10K, hab_eggtopia -> Eggtopia).
+    // shellable asset type. A table, not reflection: stem naming and enum names do not align 1:1 (ei_hab_1k ->
+    // Hab1K, ei_hab_hanger -> Hangar, ei_hab_portal -> PlanetPortal).
     private static readonly Dictionary<string, string?> _assetTypeByStem = new(StringComparer.Ordinal)
     {
-        ["hab_1k"] = "Hab1K", ["hab_10k"] = "Hab10K", ["hab_eggtopia"] = "Eggtopia",
-        ["hab_monolith"] = "Monolith", ["hab_portal"] = "PlanetPortal", ["hab_chicken_universe"] = "ChickenUniverse",
+        ["ei_hab_coop"] = "Coop", ["ei_hab_shack"] = "Shack", ["ei_hab_super_shack"] = "SuperShack",
+        ["ei_hab_short_house"] = "ShortHouse", ["ei_hab_the_standard"] = "TheStandard",
+        ["ei_hab_long_house"] = "LongHouse", ["ei_hab_double_decker"] = "DoubleDecker",
+        ["ei_hab_warehouse"] = "Warehouse", ["ei_hab_center"] = "Center", ["ei_hab_bunker"] = "Bunker",
+        ["ei_hab_eggkea"] = "Eggkea", ["ei_hab_1k"] = "Hab1K", ["ei_hab_hanger"] = "Hangar",
+        ["ei_hab_tower"] = "Tower", ["ei_hab_10k"] = "Hab10K", ["ei_hab_eggtopia"] = "Eggtopia",
+        ["ei_hab_monolith"] = "Monolith", ["ei_hab_portal"] = "PlanetPortal",
+        ["ei_hab_chicken_universe"] = "ChickenUniverse",
         ["ei_depot_1"] = "Depot1", ["ei_depot_2"] = "Depot2", ["ei_depot_3"] = "Depot3", ["ei_depot_4"] = "Depot4",
         ["ei_depot_5"] = "Depot5", ["ei_depot_6"] = "Depot6", ["ei_depot_7"] = "Depot7",
         ["ei_fuel_tank_1"] = "FuelTank1", ["ei_fuel_tank_2"] = "FuelTank2",
