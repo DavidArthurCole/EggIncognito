@@ -85,6 +85,20 @@ public sealed class DeviceMeshProvider(
         return new Result(true, glb, null, 200);
     }
 
+    // Lists the .rpo/.rpoz mesh stems actually present on the asset-source device (Android: enumerate the apk;
+    // iOS has no cheap listing so it returns empty + a diagnostic). Used to map the env catalog to the real
+    // on-device asset names (hab tiers, the completed artifact hall) instead of guessing stems.
+    public async Task<(bool Ok, IReadOnlyList<string> Stems, string? Diagnostics)> ListStemsAsync(string? deviceId, CancellationToken ct)
+    {
+        var device = await ResolveDeviceAsync(deviceId, ct);
+        if (device is null) return (false, [], "no asset-source device available");
+        if (device.Platform != PlatformAndroid)
+            return (false, [], $"stem listing is android-only (device is {device.Platform})");
+        var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+        if (apk is null) return (false, [], "could not pull base.apk from the device");
+        return (true, RpoAssetLister.ListStems(apk), null);
+    }
+
     // The cached glb for (platform, stem) from Postgres, or null (miss / no DB). When platform is null (no
     // device online) any platform's stored copy is accepted.
     private async Task<byte[]?> TryDbGetAsync(string? platform, string stem, CancellationToken ct)

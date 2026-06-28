@@ -175,6 +175,41 @@ async function parseGlb(b64) {
   return new GLTFLoader().parseAsync(buf, '');
 }
 
+// A material that renders EI's per-vertex COLOR_0 emission as vibrant flat color while still casting/receiving
+// shadow. vertexColors feeds the base color; onBeforeCompile adds that same color to emissive so the mesh
+// reads at full saturation regardless of scene lights (the game look), with shadows still landing on it.
+// `emissiveBoost` is exposed live so the lighting panel can dial the flat-vs-lit balance.
+let _emissiveBoost = 0.85;
+function emissiveVertexMaterial() {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0, roughness: 1 });
+  m.onBeforeCompile = shader => {
+    shader.uniforms.uEmissiveBoost = { value: _emissiveBoost };
+    m.userData.shaderRef = shader;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uEmissiveBoost;\nvarying vec3 vEgiColor;')
+      .replace('#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vEgiColor * uEmissiveBoost;');
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vEgiColor;')
+      .replace('#include <color_vertex>', '#include <color_vertex>\nvEgiColor = vec3(1.0);\n#ifdef USE_COLOR\nvEgiColor = color.rgb;\n#endif');
+  };
+  m.userData.egiEmissive = true;
+  return m;
+}
+
+// Live tweak of how strongly the per-vertex emission shows (0 = fully lit/dull, 1 = flat vibrant). Walks every
+// loaded mesh's material and updates its shader uniform without a rebuild.
+export function setEmissiveBoost(v) {
+  _emissiveBoost = typeof v === 'number' ? v : 0.85;
+  for (const g of groups.values()) {
+    g.root.traverse(o => {
+      const mat = o.isMesh ? o.material : null;
+      if (mat && mat.userData && mat.userData.egiEmissive && mat.userData.shaderRef)
+        mat.userData.shaderRef.uniforms.uEmissiveBoost.value = _emissiveBoost;
+    });
+  }
+}
+
 export async function addGroup(groupId, glbBase64, opts) {
   await ensureLibs();
   opts = opts || {};
@@ -226,9 +261,17 @@ export async function addGroup(groupId, glbBase64, opts) {
     anim: carried?.anim || 'none',
     base: carried?.base || null,
   });
-  // Every mesh in the group casts + receives shadow (the chicken, its hat, env buildings) so the scene reads
-  // with grounded contact shadows, not floating.
-  root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  // Fix up materials + shadow flags. The decoded glb carries NO material, only a COLOR_0 attribute that is
+  // EI's per-vertex EMISSION. GLTFLoader's default material is MeshStandardMaterial(metal=1, rough=1) which
+  // ignores that color and renders dark/desaturated ("faded"). Rebuild each mesh's material so the vertex
+  // emission shows as vibrant flat color (matches the in-game unlit look) while the surface still takes a
+  // little shading + casts/receives shadow.
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    o.material = emissiveVertexMaterial();
+  });
   scene.add(root);
   relayoutGroups();
   return clipNames;
@@ -353,6 +396,7 @@ export function setLighting(opts) {
   }
   if (typeof (opts && opts.ambient) === 'number') ambient.intensity = opts.ambient;
   if (hemi && typeof (opts && opts.hemi) === 'number') hemi.intensity = opts.hemi;
+  if (typeof (opts && opts.emissive) === 'number') setEmissiveBoost(opts.emissive);
   const az = (s.azimuthDeg || 0) * Math.PI / 180;
   const el = (s.elevationDeg || 0) * Math.PI / 180;
   // Far enough out that the ortho shadow-cam near/far bracket the whole scene.
@@ -516,12 +560,14 @@ function frameScene() {
   for (const g of framed) box.expandByObject(g.root);
   if (box.isEmpty()) return;
   const sphere = box.getBoundingSphere(new THREE.Sphere());
-  const r = sphere.radius || 1;
+  // Clamp the framing radius so one giant outlier (the hyperloop track spans ~100u) does not yank the camera
+  // miles back. The farm core is ~25u; cap there so reset/load lands close to the buildings.
+  const r = Math.min(sphere.radius || 1, 28);
   controls.target.copy(sphere.center);
-  const dist = r / Math.sin((camera.fov * Math.PI / 180) / 2) * 1.3;
-  camera.position.set(sphere.center.x, sphere.center.y + r * 0.4, sphere.center.z + dist);
-  camera.near = r / 100;
-  camera.far = r * 100;
+  const dist = r / Math.sin((camera.fov * Math.PI / 180) / 2) * 0.9;
+  camera.position.set(sphere.center.x, sphere.center.y + r * 0.5, sphere.center.z + dist);
+  camera.near = Math.max(0.05, r / 100);
+  camera.far = Math.max(2000, r * 100);
   camera.updateProjectionMatrix();
   controls.update();
 }

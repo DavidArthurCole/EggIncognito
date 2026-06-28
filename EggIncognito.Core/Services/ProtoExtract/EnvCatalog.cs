@@ -75,7 +75,11 @@ public static class EnvCatalog
         new EnvPiece("ei_hoa_3", "HOA (3)", "Buildings", Singleton: true, Family: "hoa"),
         new EnvPiece("ei_trophy_case", "Trophy case", "Buildings", Singleton: true, Family: "trophy"),
         new EnvPiece("ei_trophy_case2", "Trophy case (2)", "Buildings", Singleton: true, Family: "trophy"),
-        new EnvPiece("ei_afx_construction_site", "Artifact hall", "Buildings", Singleton: true),
+        // Artifact hall has two states: the construction site (in progress) and the completed hall. Both share
+        // the "afx" family so the variation dropdown swaps between them. Completed stem must be confirmed via
+        // /api/env/device-stems?filter=afx (the real on-device name); ei_afx_artifact_hall is the expected name.
+        new EnvPiece("ei_afx_construction_site", "Artifact hall (construction)", "Buildings", Singleton: true, Family: "afx"),
+        new EnvPiece("ei_afx_artifact_hall", "Artifact hall (completed)", "Buildings", Singleton: true, Family: "afx"),
 
         // The egg hatchery (between the depot + research lab). One per farm; the variation dropdown swaps the
         // egg type. Self-places (the mesh sits at the real plot). Sub-part meshes (_top/_ring/_orb/...) are

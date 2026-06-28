@@ -45,6 +45,23 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     private static string LabelFor(string stem) =>
         EnvCatalog.Pieces.FirstOrDefault(p => p.Stem == stem)?.Label ?? stem;
 
+    // Lists the mesh stems actually present on the asset-source device (Android apk enumeration). Admin-gated
+    // (device round-trip). Diagnostic tool to map the env catalog to real on-device asset names. ?filter= is a
+    // case-insensitive substring (e.g. ?filter=hab to see every hab mesh the device ships).
+    [HttpGet("device-stems")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> DeviceStems([FromQuery] string? device, [FromQuery] string? filter, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        var (ok, stems, diag) = await meshes.ListStemsAsync(device, ct);
+        if (!ok) return Ok(new { ok = false, diagnostics = diag });
+        var filtered = string.IsNullOrEmpty(filter)
+            ? stems
+            : stems.Where(s => s.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+        return Ok(new { ok = true, count = filtered.Count, stems = filtered });
+    }
+
     // One env mesh decoded to glb, by stem (allowlisted). Pulled off the asset-source device, cache-first.
     // Admin-gated (device round-trip). ?device= picks a specific source device, else first reachable.
     [HttpGet("{stem}/glb")]

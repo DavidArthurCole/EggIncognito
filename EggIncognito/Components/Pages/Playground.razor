@@ -76,6 +76,7 @@ else
           <label class="light-field"><span>Sun intensity</span><input type="range" min="0" max="3" step="0.05" class="w-full" @bind="_lighting.SunIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Ambient fill</span><input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Sky fill</span><input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.HemiIntensity" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
+          <label class="light-field"><span>Emission (vibrancy)</span><input type="range" min="0" max="1.5" step="0.05" class="w-full" @bind="_lighting.Emission" @bind:event="oninput" @bind:after="ApplyLighting" /></label>
           <label class="light-field"><span>Tone mapping</span>
             <select class="reg-filter-input w-full" @bind="_lighting.ToneMapping" @bind:after="ApplyLighting">
               <option value="none">None (punchy)</option>
@@ -247,7 +248,12 @@ else
         @if (_shellSets.Count > 0 || _decorators.Count > 0)
         {
           <div class="designer-section">
-            <div class="designer-section-head">Shell sets</div>
+            <button class="designer-section-head flex w-full items-center justify-between" @onclick="() => _shellSetsOpen = !_shellSetsOpen">
+              <span>Shell sets</span>
+              <span class="text-muted">@(_shellSetsOpen ? "▾" : "▸")</span>
+            </button>
+            @if (_shellSetsOpen)
+            {
             <div class="designer-section-body text-xs flex flex-col gap-2">
               <label class="block">Apply mode
                 <select class="reg-filter-input w-full" @bind="_setApplyMode">
@@ -274,6 +280,7 @@ else
                 </label>
               }
             </div>
+            }
           </div>
         }
       </section>
@@ -321,6 +328,7 @@ else
     string _setApplyMode = "all";    // "all" | "selected"
     List<ShellSetRow> _shellSets = [];
     List<ShellSetRow> _decorators = [];
+    bool _shellSetsOpen;
 
     bool _pickerOpen;
     string _pickerTab = "building";
@@ -456,6 +464,7 @@ else
             fog = new { color = _lighting.FogColor, density = _lighting.FogDensity },
             toneMapping = _lighting.ToneMapping, exposure = _lighting.Exposure,
             ambient = _lighting.AmbientIntensity, hemi = _lighting.HemiIntensity,
+            emissive = _lighting.Emission,
         });
         Autosave();
     }
@@ -1073,6 +1082,7 @@ else
         public float Exposure { get; set; } = 1.0f;
         public float AmbientIntensity { get; set; } = 0.55f;
         public float HemiIntensity { get; set; } = 0.5f;
+        public float Emission { get; set; } = 0.85f;   // 0 = fully lit/dull, 1 = flat vibrant (game look)
         public string FogColor { get; set; } = "#1a1a1f";
         public float FogDensity { get; set; } = 0f;
     }
