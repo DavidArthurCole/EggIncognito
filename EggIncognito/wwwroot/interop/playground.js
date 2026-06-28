@@ -71,9 +71,9 @@ export async function init(canvas) {
   // so emissive meshes never go fully black. Fog optional (density 0 = off). A default keeps a fresh scene lit.
   sun = new THREE.DirectionalLight(0xffffff, 1.0);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.02;
+  sun.shadow.mapSize.set(4096, 4096);
+  sun.shadow.bias = -0.0002;
+  sun.shadow.normalBias = 0.08;
   // Near-neutral sky/ground so the fill does not tint the scene (a brown ground bounce read as "faded"). The
   // panel drives the intensities; ambient default is a strong-ish fill so flat meshes stay bright.
   hemi = new THREE.HemisphereLight(0xeaf0ff, 0xddd7cc, 0.5);
@@ -113,6 +113,7 @@ export async function init(canvas) {
   loop();
 }
 
+let _shadowTick = 0;
 function loop() {
   raf = requestAnimationFrame(loop);
   const dt = clock.getDelta();
@@ -122,6 +123,9 @@ function loop() {
     if (g.hatMixer) g.hatMixer.update(capturing ? 0 : dt);
     applyAnim(g);
   }
+  // Refit the shadow frustum to the (now positioned) groups a few times a second, so newly placed or moved
+  // elements get tight shadows without striping. Cheap: a bbox over ~30 groups. Skipped during a capture.
+  if (!capturing && (_shadowTick++ % 20) === 0) refitShadow();
   controls.update();
   renderer.render(scene, camera);
 }
@@ -383,6 +387,39 @@ const TONE_MAPS = {
   cineon: () => THREE.CineonToneMapping,
 };
 
+// The current sun direction (unit vector from target toward the sun), kept so refitShadow can reposition the
+// sun relative to the scene center without re-reading the azimuth/elevation.
+let _sunDir = new THREE.Vector3(0.5, 0.8, 0.5).normalize();
+
+// Fit the directional light + its ortho shadow frustum to the elements actually in the scene. Targets the
+// scene center (not origin) and sizes the frustum to the content bbox, clamped so one far outlier (the ~100u
+// hyperloop track) does not blow the frustum up and stripe the shadow map. Keeps texel density high -> crisp
+// shadows at any zoom. No groups -> a sane default box at the origin.
+function refitShadow() {
+  if (!sun) return;
+  const all = [...groups.values()];
+  const box = new THREE.Box3();
+  for (const g of all) box.expandByObject(g.root);
+  const center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());
+  const sphere = box.isEmpty() ? null : box.getBoundingSphere(new THREE.Sphere());
+  // Clamp the covered radius: the farm core is ~30u; cap so the hyperloop outlier does not stretch the map.
+  const radius = Math.min(sphere ? sphere.radius : 30, 45);
+
+  sun.target.position.copy(center);
+  sun.target.updateMatrixWorld();
+  const dist = Math.max(radius * 2.5, 60);
+  sun.position.copy(center).addScaledVector(_sunDir, dist);
+
+  const cam = sun.shadow.camera;
+  cam.left = -radius; cam.right = radius; cam.top = radius; cam.bottom = -radius;
+  cam.near = 0.5; cam.far = dist + radius * 2;
+  cam.updateProjectionMatrix();
+  sun.shadow.needsUpdate = true;
+}
+
+// Public hook so the element add/remove path can refit the shadow without a full setLighting round-trip.
+export function refitShadows() { refitShadow(); }
+
 export function setLighting(opts) {
   if (!sun || !ambient || !scene) return;
   const s = (opts && opts.sun) || {};
@@ -399,21 +436,16 @@ export function setLighting(opts) {
   if (typeof (opts && opts.emissive) === 'number') setEmissiveBoost(opts.emissive);
   const az = (s.azimuthDeg || 0) * Math.PI / 180;
   const el = (s.elevationDeg || 0) * Math.PI / 180;
-  // Far enough out that the ortho shadow-cam near/far bracket the whole scene.
-  const r = 100;
-  sun.position.set(r * Math.cos(el) * Math.sin(az), r * Math.sin(el), r * Math.cos(el) * Math.cos(az));
+  // Sun direction from azimuth (around Y) + elevation (up from horizon). refitShadow places the sun at
+  // center + dir*dist so the shadow frustum stays tight around the content regardless of where it sits.
+  _sunDir.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)).normalize();
   if (s.color) sun.color.set(s.color);
   if (typeof s.intensity === 'number') sun.intensity = s.intensity;
 
-  // Aim the sun at the origin and size its ortho shadow frustum to cover a standard farm. Generous half-extent
-  // so nothing clips; refit here so a lighting change keeps shadows correct.
-  sun.target.position.set(0, 0, 0);
-  sun.target.updateMatrixWorld();
-  const cam = sun.shadow.camera;
-  const half = 40;
-  cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half;
-  cam.near = 0.5; cam.far = 400;
-  cam.updateProjectionMatrix();
+  // Fit the shadow frustum to where the elements actually are (refit on lighting + element change). A fixed
+  // frustum either clipped shadows or, when sized for the worst case, stretched the 4096 map across a huge area
+  // so it striped/acned when zoomed out.
+  refitShadow();
 
   // Fog: exponential, density 0 = off. Color defaults to white.
   const density = typeof f.density === 'number' ? f.density : 0;
