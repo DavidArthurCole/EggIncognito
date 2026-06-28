@@ -16,7 +16,7 @@ public class EnvCatalogTests
     public void Pieces_IncludeBuildingsAndHabs()
     {
         Assert.Contains(EnvCatalog.Pieces, p => p.Stem == "ei_silo_0_large");
-        Assert.Contains(EnvCatalog.Pieces, p => p.Stem == "ei_hab_10k");
+        Assert.Contains(EnvCatalog.Pieces, p => p.Stem == "hab_10k");
         Assert.True(EnvCatalog.Pieces.Count >= 12);
     }
 
@@ -27,18 +27,18 @@ public class EnvCatalogTests
         Assert.True(ground.Singleton);
         Assert.Equal("Terrain", ground.Group);
         // habs + storage are repeatable.
-        Assert.False(EnvCatalog.Pieces.First(p => p.Stem == "ei_hab_10k").Singleton);
-        Assert.Equal("Habs", EnvCatalog.Pieces.First(p => p.Stem == "ei_hab_10k").Group);
+        Assert.False(EnvCatalog.Pieces.First(p => p.Stem == "hab_10k").Singleton);
+        Assert.Equal("Habs", EnvCatalog.Pieces.First(p => p.Stem == "hab_10k").Group);
         Assert.Equal("Storage", EnvCatalog.Pieces.First(p => p.Stem == "ei_silo_0_large").Group);
     }
 
     [Fact]
     public void FarmLayout_Standard_HasFourHabs_TenSilos_NoCoop_KnownStems()
     {
-        var placed = FarmLayout.Standard("ei_hab_10k");
+        var placed = FarmLayout.Standard("hab_10k");
         Assert.All(placed, p => Assert.True(EnvCatalog.IsKnownPiece(p.Stem), $"unknown stem {p.Stem}"));
         Assert.Contains(placed, p => p.Stem == "ei_farm_ground");
-        var habs = placed.Where(p => p.Stem == "ei_hab_10k").ToList();
+        var habs = placed.Where(p => p.Stem == "hab_10k").ToList();
         Assert.Equal(4, habs.Count);
         Assert.Equal(4, habs.Select(h => h.Pos[0]).Distinct().Count());
         Assert.Equal(10, placed.Count(p => p.Stem == "ei_silo_0_large"));
@@ -50,7 +50,7 @@ public class EnvCatalogTests
     [Fact]
     public void Family_ReturnsHabTiers()
     {
-        var fam = EnvCatalog.Family("ei_hab_10k");
+        var fam = EnvCatalog.Family("hab_10k");
         Assert.True(fam.Count >= 5);
         Assert.All(fam, p => Assert.Equal("hab", p.Family));
         // a non-family piece has no siblings.
@@ -84,8 +84,8 @@ public class EnvCatalogTests
     {
         Assert.Equal("Depot3", EnvCatalog.AssetTypeOf("ei_depot_3"));
         Assert.Equal("Lab1", EnvCatalog.AssetTypeOf("ei_lab_1"));
-        Assert.Equal("Hab1K", EnvCatalog.AssetTypeOf("ei_hab_1k"));
-        Assert.Equal("Hab10K", EnvCatalog.AssetTypeOf("ei_hab_10k"));
+        Assert.Equal("Hab1K", EnvCatalog.AssetTypeOf("hab_1k"));
+        Assert.Equal("Hab10K", EnvCatalog.AssetTypeOf("hab_10k"));
         Assert.Equal("FuelTank3", EnvCatalog.AssetTypeOf("ei_fuel_tank_3"));
         Assert.Equal("MissionControl2", EnvCatalog.AssetTypeOf("ei_mission_control_2"));
         Assert.Equal("HatcheryEdible", EnvCatalog.AssetTypeOf("ei_hatchery_edible"));
