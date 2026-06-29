@@ -17,6 +17,9 @@
     <!-- glTF 2.0 read/write + animation authoring (MIT). Powers the asset AnimationToolkit: load a decoded
          .glb, inject rotation/orbit animation channels, write back. -->
     <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
+    <!-- arm64 disassembler (C# binding to native capstone, BSD). Powers the decomp constant extractor that
+         reads game behavior out of the egginc binary. Admin/offline path only, never the hot mock path. -->
+    <PackageReference Include="Gee.External.Capstone" Version="2.3.0" />
   </ItemGroup>
 
   <ItemGroup>

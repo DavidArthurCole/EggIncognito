@@ -1,0 +1,64 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using EggIncognito.Services;
+using EggIncognito.Services.ProtoExtract;
+
+namespace EggIncognito.Controllers;
+
+// Admin decomp-extraction endpoints. Reads float/double constants + call targets out of named functions in the
+// egginc binary (pulled from the device, cached). The reusable primitive for extracting game behavior instead
+// of hand-authoring it (see CLAUDE.md "EXTRACT, don't author"). Admin-only; degrades with a diagnostic when no
+// binary or the disassembler is unavailable. Never throws to the client.
+[ApiController]
+[Route("api/decomp")]
+public sealed class DecompController(GameBinaryProvider binaries, ICurrentUser currentUser) : ControllerBase
+{
+    // Constants + calls for the first function whose symbol contains `name`. The generic extraction primitive.
+    [HttpGet("function-constants")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> FunctionConstants([FromQuery] string name, [FromQuery] string? device, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
+        return await ExtractAsync([name], device, ct);
+    }
+
+    // The proven slice: the Chicken Universe hab's floating effect is a GalaxyParticle system; its orbit
+    // constants live in GalaxyParticle::onBirth + ::update. Returns both.
+    [HttpGet("galaxy-particle")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> GalaxyParticle([FromQuery] string? device, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        try
+        {
+            var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
+            if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
+            var onBirth = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle7onBirth"]);
+            var update = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle6update"]);
+            return Ok(new { ok = true, onBirth = Shape(onBirth), update = Shape(update) });
+        }
+        catch (DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
+    private async Task<IActionResult> ExtractAsync(string[] needles, string? device, CancellationToken ct)
+    {
+        try
+        {
+            var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
+            if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
+            var res = FunctionConstantExtractor.Extract(bin, needles);
+            return Ok(new { ok = res.Ok, result = Shape(res) });
+        }
+        catch (DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
+    private static object Shape(FunctionConstantExtractor.ExtractResult r) => new
+    {
+        ok = r.Ok, function = r.FunctionName, floats = r.Floats, calls = r.Calls, diagnostics = r.Diagnostics,
+    };
+}

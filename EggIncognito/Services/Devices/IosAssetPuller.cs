@@ -92,6 +92,35 @@ public sealed class IosAssetPuller(IProcessRunner runner, string sshHost, string
         }
     }
 
+    // Pulls the app's decrypted Mach-O executable (e.g. egginc.app/egginc) back as raw bytes, or null. The
+    // executable is the file named like the .app (CFBundleExecutable for egginc), sitting at the bundle root.
+    // scp keeps the bytes intact. Used by the decomp constant extractor; the binary never lands in the repo.
+    public async Task<byte[]?> PullAppBinaryAsync(string bundleId, CancellationToken ct)
+    {
+        var find = await Ssh(
+            $"app=$(for a in /private/var/containers/Bundle/Application/*/*.app; do " +
+            $"grep -qa {Shell(bundleId)} \"$a/Info.plist\" 2>/dev/null && echo \"$a\" && break; done); " +
+            $"[ -z \"$app\" ] && exit 3; " +
+            $"exe=\"$app/$(basename \"$app\" .app)\"; [ -f \"$exe\" ] && echo \"$exe\"", ct);
+        if (find.ExitCode != 0) return null;
+        var path = find.Stdout.Trim().Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim();
+        if (string.IsNullOrEmpty(path)) return null;
+
+        var dest = Path.Combine(Path.GetTempPath(), $"egi-bin-{Guid.NewGuid():N}.bin");
+        try
+        {
+            var scp = await runner.RunAsync("scp",
+                ["-P", sshPort, "-i", sshKeyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+                 $"root@{sshHost}:{path}", dest], ct);
+            if (scp.ExitCode != 0 || !File.Exists(dest)) return null;
+            return await File.ReadAllBytesAsync(dest, ct);
+        }
+        finally
+        {
+            try { if (File.Exists(dest)) File.Delete(dest); } catch { /* best-effort */ }
+        }
+    }
+
     private static string StripExt(string name)
     {
         var dot = name.LastIndexOf('.');

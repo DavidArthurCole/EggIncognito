@@ -6,8 +6,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// ApkExtractService gate + config binding, DB-free. The heavy extract (APK download + pbtk) is
-// integration-only; here only the disabled-throws gate and the ProtoExtract binding are asserted.
+// ApkExtractService gate + config binding, DB-free. The heavy extract (APKPure download + C# carve) is
+// integration-only; here only the disabled-throws gate and the ProtoExtract:Enabled binding are asserted.
 public class ApkExtractGateTests
 {
     private static IConfiguration Config(Dictionary<string, string?> values) =>
@@ -43,44 +43,17 @@ public class ApkExtractGateTests
     }
 
     [Fact]
-    public async Task Enabled_But_Missing_Paths_Throws()
+    public void Bind_Reads_Enabled()
     {
-        // Enabled alone is not configured: half-configured hosts are treated as not configured.
-        var svc = Service(Config(new() { ["ProtoExtract:Enabled"] = "true" }));
-        await Assert.ThrowsAsync<ExtractNotConfiguredException>(() => svc.ExtractAsync("1.0.0"));
-    }
-
-    [Fact]
-    public void Bind_Reads_All_Fields()
-    {
-        var opts = ApkExtractService.Bind(Config(new()
-        {
-            ["ProtoExtract:Enabled"] = "true",
-            ["ProtoExtract:PythonPath"] = "/usr/bin/python3",
-            ["ProtoExtract:RepoPath"] = "/opt/pbtk",
-        }));
+        var opts = ApkExtractService.Bind(Config(new() { ["ProtoExtract:Enabled"] = "true" }));
         Assert.True(opts.Enabled);
-        Assert.Equal("/usr/bin/python3", opts.PythonPath);
-        Assert.Equal("/opt/pbtk", opts.RepoPath);
         Assert.True(opts.IsConfigured);
     }
 
     [Fact]
-    public void IsConfigured_False_When_Enabled_But_No_Paths()
+    public void IsConfigured_False_When_Disabled()
     {
-        var opts = ApkExtractService.Bind(Config(new() { ["ProtoExtract:Enabled"] = "true" }));
-        Assert.False(opts.IsConfigured);
-    }
-
-    [Fact]
-    public void IsConfigured_False_When_Paths_But_Disabled()
-    {
-        var opts = ApkExtractService.Bind(Config(new()
-        {
-            ["ProtoExtract:Enabled"] = "false",
-            ["ProtoExtract:PythonPath"] = "/usr/bin/python3",
-            ["ProtoExtract:RepoPath"] = "/opt/pbtk",
-        }));
+        var opts = ApkExtractService.Bind(Config(new() { ["ProtoExtract:Enabled"] = "false" }));
         Assert.False(opts.IsConfigured);
     }
 }
