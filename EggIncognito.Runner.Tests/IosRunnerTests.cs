@@ -1,4 +1,6 @@
+using EggIncognito.Core.Models;
 using EggIncognito.Runner.Runners;
+using EggIncognito.Runner.State;
 using Xunit;
 
 namespace EggIncognito.Runner.Tests;
@@ -6,8 +8,11 @@ namespace EggIncognito.Runner.Tests;
 public class IosRunnerTests
 {
     [Fact]
-    public void RunOnce_Throws_NotSupported()
+    public void RunOnce_MissingBinary_ReturnsFailed()
     {
-        Assert.Throws<NotSupportedException>(() => new IosRunner().RunOnce(force: true));
+        var state = new VersionState(Path.Combine(Path.GetTempPath(), $"ios-vs-{Guid.NewGuid():N}"));
+        var runner = new IosRunner("/nonexistent/binary", state, "com.auxbrain.egginc", _ => { });
+        var outcome = runner.RunOnce(force: false);
+        Assert.False(outcome.Emitted);
     }
 }

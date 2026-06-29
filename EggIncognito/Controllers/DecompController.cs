@@ -13,6 +13,32 @@ namespace EggIncognito.Controllers;
 [Route("api/decomp")]
 public sealed class DecompController(GameBinaryProvider binaries, ICurrentUser currentUser) : ControllerBase
 {
+    // Diagnostic: how many symbols the parser sees + sample names matching an optional filter. Tells us whether
+    // the live binary is symbolized + what the real mangled names look like (so needles can be tuned).
+    [HttpGet("symbols")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Symbols([FromQuery] string? filter, [FromQuery] string? device, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
+        if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
+
+        var syms = MachoSymbols.Read(bin);
+        var named = syms.Where(s => !string.IsNullOrEmpty(s.Name)).ToList();
+        var matches = string.IsNullOrEmpty(filter)
+            ? named.Take(40).Select(s => s.Name)
+            : named.Where(s => s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)).Take(60).Select(s => s.Name);
+        return Ok(new
+        {
+            ok = true,
+            totalSymbols = syms.Count,
+            namedSymbols = named.Count,
+            withAddress = named.Count(s => s.Value != 0),
+            sample = matches.ToList(),
+        });
+    }
+
     // Constants + calls for the first function whose symbol contains `name`. The generic extraction primitive.
     [HttpGet("function-constants")]
     [EnableRateLimiting("read")]

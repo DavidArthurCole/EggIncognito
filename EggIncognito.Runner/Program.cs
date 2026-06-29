@@ -49,7 +49,7 @@ public static class Program
         IDeviceRunner runner = platform switch
         {
             "android" => new AndroidRunner(
-                new AdbClient(target), new PbtkProtoExtractor(extractorRepo, extractorPython),
+                new AdbClient(target), new CSharpProtoExtractor(),
                 new VersionState(stateFile), clientVersion, cvState, package, apkStash,
                 evt => poster.PostAsync(evt).GetAwaiter().GetResult()),
             "ios" => new IosRunner(
@@ -76,7 +76,7 @@ public static class Program
             handler = new ResyncHandler(triggerSecret, f => runner.RunOnce(f));
             var extractHandler = new ApkPureExtractHandler(
                 triggerSecret, new ApkPureDownloader(http),
-                new PbtkProtoExtractor(extractorRepo, extractorPython), clientVersion, cvState,
+                new CSharpProtoExtractor(), clientVersion, cvState,
                 evt => poster.PostAsync(evt));
             trigger = TriggerListener.Build(triggerUrls, handler, extractHandler);
             // Start without handing SIGTERM to the web host's lifetime. StartAsync (not RunAsync) means we

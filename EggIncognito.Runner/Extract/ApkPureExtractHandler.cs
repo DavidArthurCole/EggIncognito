@@ -10,7 +10,7 @@ public sealed record ExtractResult(int Status, string? Build, string? ProtoSha, 
 // On-demand extract from APKPure: download XAPK, pull arm split, extract+clean proto, emit event.
 // Bearer + single-flight gate mirrors ResyncHandler.
 public sealed class ApkPureExtractHandler(
-    string secret, ApkPureDownloader downloader, PbtkProtoExtractor extractor,
+    string secret, ApkPureDownloader downloader, IProtoExtractor extractor,
     IClientVersionReader clientVersion, State.ClientVersionState cvState,
     Func<NewVersionEvent, Task> postEvent)
 {
