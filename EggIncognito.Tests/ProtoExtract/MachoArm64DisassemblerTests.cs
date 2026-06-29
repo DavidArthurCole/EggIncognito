@@ -34,6 +34,20 @@ public class MachoArm64DisassemblerTests
         Assert.Contains(res.CallTargets, t => t == 0x2000);
     }
 
+    [Fact]
+    public void Analyze_ReadsVectorImmediates_FmovBroadcast_AndMoviZero()
+    {
+        const ulong codeVa = 0x1000;
+        // fmov v0.4s, #1.0 (0x4F03F600) broadcasts 1.0 across the lanes; movi v0.4s, #0 (0x4F000400) zeroes.
+        var words = new uint[] { 0x4F03F600u, 0x4F000400u };
+        var code = words.SelectMany(BitConverter.GetBytes).ToArray();
+
+        var res = MachoArm64Disassembler.Analyze(code, codeVa, codeVa + (ulong)code.Length, textVmAddr: codeVa, textFileOff: 0);
+
+        Assert.Contains(res.Floats, f => Math.Abs(f.Value - 1.0) < 0.001);
+        Assert.Contains(res.Floats, f => f.Value == 0.0);
+    }
+
     // adrp Xd, <page of target>: imm21 = (targetPage - pcPage) >> 12, split immlo(2)+immhi(19).
     static uint Adrp(int rd, ulong pc, ulong target)
     {

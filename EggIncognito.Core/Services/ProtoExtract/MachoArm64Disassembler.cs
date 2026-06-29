@@ -79,14 +79,25 @@ public static class MachoArm64Disassembler
                     break;
 
                 case Arm64InstructionId.ARM64_INS_FMOV:
-                    // fmov sN/dN, #imm bakes the constant into the instruction. capstone surfaces it as a
-                    // FloatingPoint operand; the destination register width gives f32 vs f64.
+                    // fmov bakes the constant into the instruction; capstone surfaces it as a FloatingPoint
+                    // operand. Covers scalar (fmov s0/d0, #imm) and the vector-broadcast form (fmov v0.4s, #imm,
+                    // which splats one immediate across the lanes). The dest register name gives the width:
+                    // d = f64, s / v = f32. The broadcast records the single distinct value (lanes are equal).
                     if (ops.Length == 2 && ops[0].Type == Arm64OperandType.Register
                         && ops[1].Type == Arm64OperandType.FloatingPoint && ops[0].Register is { } fmovRd)
                     {
                         bool f64 = fmovRd.Name?.StartsWith('d') == true;
                         floats.Add(new FloatConst((ulong)insn.Address, ops[1].FloatingPoint, f64));
                     }
+                    break;
+
+                case Arm64InstructionId.ARM64_INS_MOVI:
+                    // movi vN.T, #imm builds a vector immediate. The general 8-bit-replicated encoding is not a
+                    // clean float, but the overwhelmingly common case in this codebase is the zero vector
+                    // (movi v0.2d/4s, #0), which initializes a position/velocity/color accumulator. Record only
+                    // the unambiguous #0 as 0.0; non-zero bit-pattern immediates are left out (would be junk).
+                    if (ops.Length == 2 && ops[1].Type == Arm64OperandType.Immediate && ops[1].Immediate == 0)
+                        floats.Add(new FloatConst((ulong)insn.Address, 0.0, false));
                     break;
 
                 case Arm64InstructionId.ARM64_INS_BL:
