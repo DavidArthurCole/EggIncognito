@@ -104,8 +104,31 @@ public static class EnvCatalog
         new EnvPiece("ei_hatchery_universe", "Hatchery (Universe)", "Buildings", Singleton: true, Family: "hatchery"),
         new EnvPiece("ei_hatchery_enlightenment", "Hatchery (Enlightenment)", "Buildings", Singleton: true, Family: "hatchery"),
 
-        new EnvPiece("coop", "Coop", "Structures", Singleton: true),
         new EnvPiece("ei_farm_mailbox_full", "Mailbox", "Structures", Singleton: true),
+
+        // Road vehicles (device-verified ei_vehicle_* base meshes). Non-singleton: place several. Placed as
+        // actors + animated driving the road; the _aux/_light sub-meshes are not placed standalone.
+        new EnvPiece("ei_vehicle_semi", "Semi", "Vehicles"),
+        new EnvPiece("ei_vehicle_pickup", "Pickup", "Vehicles"),
+        new EnvPiece("ei_vehicle_trike", "Trike", "Vehicles"),
+        new EnvPiece("ei_vehicle_transit_van", "Transit van", "Vehicles"),
+        new EnvPiece("ei_vehicle_10ft", "10ft truck", "Vehicles"),
+        new EnvPiece("ei_vehicle_24ft", "24ft truck", "Vehicles"),
+        new EnvPiece("ei_vehicle_double_semi", "Double semi", "Vehicles"),
+        new EnvPiece("ei_vehicle_future_semi", "Future semi", "Vehicles"),
+        new EnvPiece("ei_vehicle_hover_semi", "Hover semi", "Vehicles"),
+        new EnvPiece("ei_vehicle_mega_semi", "Mega semi", "Vehicles"),
+
+        // Ships (device-verified ei_ship_* meshes), used for the rocket-launch actor from mission control.
+        new EnvPiece("ei_ship_egg_shuttle", "Egg shuttle", "Ships"),
+        new EnvPiece("ei_ship_rooster", "Rooster", "Ships"),
+        new EnvPiece("ei_ship_bcr", "BCR", "Ships"),
+        new EnvPiece("ei_ship_chicken_one", "Chicken One", "Ships"),
+        new EnvPiece("ei_ship_chicken_nine", "Chicken Nine", "Ships"),
+        new EnvPiece("ei_ship_chicken_heavy", "Chicken Heavy", "Ships"),
+        new EnvPiece("ei_ship_corellihen_corvette", "Corellihen Corvette", "Ships"),
+        new EnvPiece("ei_ship_millenium_chicken", "Millenium Chicken", "Ships"),
+        new EnvPiece("ei_ship_atreggies_shuttle", "Atreggies Shuttle", "Ships"),
     };
 
     // The hab meshes (the "Habs" group), for any caller wanting just the habs.

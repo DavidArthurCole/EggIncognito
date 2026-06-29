@@ -94,6 +94,27 @@ public class EnvCatalogTests
     }
 
     [Fact]
+    public void Vehicles_AreKnown_AndGrouped()
+    {
+        Assert.True(EnvCatalog.IsKnownPiece("ei_vehicle_semi"));
+        Assert.True(EnvCatalog.IsKnownPiece("ei_vehicle_pickup"));
+        Assert.True(EnvCatalog.IsKnownPiece("ei_vehicle_mega_semi"));
+        var vehicles = EnvCatalog.Pieces.Where(p => p.Group == "Vehicles").ToList();
+        Assert.True(vehicles.Count >= 10, $"expected 10+ vehicles, got {vehicles.Count}");
+        Assert.All(vehicles, v => Assert.False(v.Singleton));
+        Assert.Null(EnvCatalog.AssetTypeOf("ei_vehicle_semi"));
+    }
+
+    [Fact]
+    public void Ships_AreKnown_AndGrouped()
+    {
+        Assert.True(EnvCatalog.IsKnownPiece("ei_ship_egg_shuttle"));
+        var ships = EnvCatalog.Pieces.Where(p => p.Group == "Ships").ToList();
+        Assert.True(ships.Count >= 5, $"expected 5+ ships, got {ships.Count}");
+        Assert.Null(EnvCatalog.AssetTypeOf("ei_ship_egg_shuttle"));
+    }
+
+    [Fact]
     public void Habs_AreAllKnownPieces()
     {
         Assert.NotEmpty(EnvCatalog.Habs);

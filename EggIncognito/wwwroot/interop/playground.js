@@ -16,6 +16,8 @@
 //   relayoutGroups()                    -> recompute auto-offsets + frame camera
 //   setPlaying(bool) / resetView() / dispose()
 
+import { splineLength, sampleSpline, tangentAt } from './playgroundMotion.js';
+
 const THREE_URL = 'https://esm.sh/three@0.169.0';
 const GLTF_URL = 'https://esm.sh/three@0.169.0/examples/jsm/loaders/GLTFLoader.js';
 const ORBIT_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/OrbitControls.js';
@@ -134,6 +136,7 @@ function loop() {
 // animated element moves; everything else holds still. The chicken + its hat share the group root, so they
 // ride as one rigid unit.
 function applyAnim(g) {
+  if (g.motion) { applyMotion(g); return; }
   const phase = (animClock / ANIM_PERIOD) * Math.PI * 2;
   let addRy = 0, addRz = 0, bob = 0;
   switch (g.anim) {
@@ -156,6 +159,49 @@ function applyAnim(g) {
   const p = pivotCorrected(g, o.x, o.y + bob, o.z, 1);
   g.root.position.copy(p);
 }
+
+// Path-follow or launch motion, composed on the group's base transform. Deterministic on animClock so the GIF
+// recorder captures it. Path points are world-space, so the sampled point is used directly as the position.
+function applyMotion(g) {
+  const m = g.motion;
+  const b = g.base;
+  const baseScale = b && b.scale ? b.scale : 1;
+  const baseRy = b ? rad(b.rotDeg[1]) : 0;
+  const bx = b ? b.pos[0] : 0, by = b ? b.pos[1] : 0, bz = b ? b.pos[2] : 0;
+
+  if (m.kind === 'launch') {
+    const period = m.period || 6;
+    const phase = (animClock % period) / period;
+    const rise = m.height || 12;
+    const up = phase < 0.7 ? easeOut(phase / 0.7) * rise : rise;
+    g.root.scale.set(baseScale, baseScale, baseScale);
+    g.root.rotation.set(0, baseRy, 0);
+    g.root.position.set(bx, by + up, bz);
+    return;
+  }
+
+  const len = splineLength(m.path);
+  if (len <= 0) { g.root.position.set(bx, by, bz); return; }
+  const speed = m.speed || 3;
+  let d = animClock * speed;
+  if (m.loop === 'pingpong') {
+    const cycle = d % (2 * len);
+    d = cycle <= len ? cycle : 2 * len - cycle;
+  } else {
+    d = d % len;
+  }
+  const p = sampleSpline(m.path, d);
+  g.root.scale.set(baseScale, baseScale, baseScale);
+  let ry = baseRy;
+  if (m.facePath) {
+    const t = tangentAt(m.path, d);
+    ry = Math.atan2(t[0], t[2]);
+  }
+  g.root.rotation.set(0, ry, 0);
+  g.root.position.set(p[0], p[1], p[2]);
+}
+
+function easeOut(x) { return 1 - (1 - x) * (1 - x); }
 
 function rad(d) { return (d || 0) * Math.PI / 180; }
 
@@ -264,6 +310,7 @@ export async function addGroup(groupId, glbBase64, opts) {
     // preserve anim + placement across a re-render (reshell / hat change keeps spin + position).
     anim: carried?.anim || 'none',
     base: carried?.base || null,
+    motion: carried?.motion || null,
   });
   // Fix up materials + shadow flags. The decoded glb carries NO material, only a COLOR_0 attribute that is
   // EI's per-vertex EMISSION. GLTFLoader's default material is MeshStandardMaterial(metal=1, rough=1) which
@@ -357,6 +404,14 @@ export function setPlaying(playing) {
 export function setGroupAnimation(id, kind) {
   const g = groups.get(id);
   if (g) g.anim = kind || 'none';
+}
+
+// Attaches (or clears) a motion descriptor to a group: a path-follow (chicken / vehicle) or a launch (rocket).
+// Motion composes on the group's base transform in applyAnim. null clears it. See applyMotion for the shape.
+export function setGroupMotion(id, motion) {
+  const g = groups.get(id);
+  if (!g) return;
+  g.motion = motion && motion.kind ? motion : null;
 }
 
 // Sets ONE element's placed transform (the designer's gizmo / numeric fields). Stored as the group's base so
@@ -552,7 +607,7 @@ export function captureEnd() {
 
 // True if any element has a procedural animation set (the Record gate).
 export function anyAnimated() {
-  for (const g of groups.values()) if (g.anim && g.anim !== 'none') return true;
+  for (const g of groups.values()) if ((g.anim && g.anim !== 'none') || g.motion) return true;
   return false;
 }
 
