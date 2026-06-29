@@ -258,6 +258,7 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
     // (contribute binaries for the gaps) reaches all visitors. Reads only the known-versions list; the
     // admin-only Status endpoint keeps the job/extract detail. Empty [] without a DB.
     [HttpGet("known")]
+    [EnableRateLimiting("fetch")] // public + polled by the Missing-versions panel; not the class "write" limiter
     public async Task<IActionResult> Known(CancellationToken ct)
     {
         if (services.GetService(typeof(IBackfillJobStore)) is not IBackfillJobStore jobs)

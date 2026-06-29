@@ -28,6 +28,10 @@ public sealed record RateLimitOptions(
             ["Egress"] = new(PermitLimit: 10, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Write"] = new(PermitLimit: 60, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Read"] = new(PermitLimit: 120, WindowSeconds: 60, SegmentsPerWindow: 6),
+            // Public user-facing GET data the UI polls (proto registry, known versions, device status). NOT
+            // tier-capped (see RateLimiterSetup.Partition): a page polls several of these panels every few
+            // seconds, so an anon visitor must not hit the Anon tier's 30/min and get a fetch wiped to a 429.
+            ["Fetch"] = new(PermitLimit: 300, WindowSeconds: 60, SegmentsPerWindow: 6),
         });
 
     public static RateLimitOptions Bind(IConfiguration config)

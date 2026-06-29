@@ -13,9 +13,9 @@ public static class FarmLayout
     // One placed element: the catalog stem + a world transform (position, Y rotation, scale).
     public sealed record Placed(string Stem, float[] Pos, float RotY, float Scale = 1f);
 
-    private const float HabSpacing = 13f;   // X gap between the 4 hab plots (hab ~12 wide)
-    private const float HabZ = -10f;         // ramp front (hab z max ~0 local) meets the path edge
-    private const int SiloCount = 10;       // a full silo row
+    private const float HabSpacing = 13f; // X gap between the 4 hab plots (hab ~12 wide)
+    private const float HabZ = -10f; // ramp front (hab z max ~0 local) meets the path edge
+    private const int SiloCount = 10; // a full silo row
 
     // The exact in-game silo position (FarmScene::updateSilo, disassembled): a 2-column row stepping back in X
     // every pair. X = -6*floor(i/2) - 5; Y = 0; Z = (i even) ? 5.5 : -0.5.
@@ -40,17 +40,17 @@ public static class FarmLayout
             new("ei_farm_hardscape", [0, 0, 0], 0),
             new("ei_farm_misc", [0, 0, 0], 0),
             // self-placing: mesh carries the offset.
-            new("ei_depot_3", [0, 0, 0], 0),            // right-near (z~7-12), in front of the road
-            new("ei_hatchery_edible", [0, 0, 0], 0),    // egg hatchery, between depot + lab (z~0.5-5.5)
-            new("ei_lab_3", [0, 0, 0], 0),              // research lab, BEHIND the depot (z~-6..0)
-            new("ei_hyperloop_stop", [0, 0, 0], 0),     // across the road (z~19-27)
-            new("ei_hyperloop_track", [0, 0, 0], 0),    // the hyperloop tube
-            new("ei_farm_mailbox_full", [0, 0, 0], 0),  // self-places near (-3, 11)
+            new("ei_depot_3", [0, 0, 0], 0), // right-near (z~7-12), in front of the road
+            new("ei_hatchery_edible", [0, 0, 0], 0), // egg hatchery, between depot + lab (z~0.5-5.5)
+            new("ei_lab_3", [0, 0, 0], 0), // research lab, BEHIND the depot (z~-6..0)
+            new("ei_hyperloop_stop", [0, 0, 0], 0), // across the road (z~19-27)
+            new("ei_hyperloop_track", [0, 0, 0], 0), // the hyperloop tube
+            new("ei_farm_mailbox_full", [0, 0, 0], 0), // self-places near (-3, 11)
             // origin-authored: placed explicitly relative to the depot.
-            new("ei_mission_control_1", [16, 0, 9], 0),   // RIGHT of the depot, near row
-            new("ei_fuel_tank_2", [23, 0, 9], 0),         // next to mission control
+            new("ei_mission_control_1", [16, 0, 9], 0), // RIGHT of the depot, near row
+            new("ei_fuel_tank_2", [23, 0, 9], 0), // next to mission control
             new("ei_afx_construction_site", [16, 0, -3], 0), // artifact hall, BEHIND mission control
-            new("ei_trophy_case", [-7, 0, 11], 0),      // LEFT of the mailbox
+            new("ei_trophy_case", [-7, 0, 11], 0), // LEFT of the mailbox
         };
 
         // hab row: 4 plots, evenly spaced (no game spacing constant; positions are model-baked).

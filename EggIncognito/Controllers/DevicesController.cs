@@ -27,6 +27,7 @@ public sealed class DevicesController(
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
 
     [HttpGet("status")]
+    [EnableRateLimiting("fetch")] // public + polled every 8s by DeviceStatusPanel; not the class "read" cap
     public async Task<IActionResult> Status()
     {
         var store = Store;
@@ -690,6 +691,7 @@ public sealed class DevicesController(
     // Latest live rinfo harvested off the wire for a device (build/clientVersion/version + recency). Public
     // read so the status panel can show the captured build to anyone. Empty 200 when none seen / capture off.
     [HttpGet("{id}/live")]
+    [EnableRateLimiting("fetch")] // public + polled per-device by DeviceStatusPanel; not the class "read" cap
     public IActionResult Live(string id)
     {
         if (services.GetService(typeof(DeviceCaptureManager)) is not DeviceCaptureManager mgr)

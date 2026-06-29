@@ -10,7 +10,10 @@ namespace EggIncognito.Controllers;
 // event. No DB configured => empty list / 404, mirroring ToolsController's DB-free tolerance.
 [ApiController]
 [Route("api/protos")]
-[EnableRateLimiting("read")]
+// Public registry GETs the /protos UI polls (versions list, version detail, diff). "fetch" = flat,
+// not tier-capped, so an anon visitor polling several panels never trips the Anon 30/min and sees a
+// 429 surface as "Version not found".
+[EnableRateLimiting("fetch")]
 public sealed class ProtosController(IServiceProvider services) : ControllerBase
 {
     private ProtoRegistryStore? Store =>

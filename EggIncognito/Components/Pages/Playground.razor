@@ -24,9 +24,8 @@ else
 <main class="px-8 pt-6 pb-8">
   <h1 class="text-[1.3rem] mt-0 mb-1">3D Playground</h1>
   <p class="text-muted text-xs mb-4">
-    View a saved environment, or flip on Design mode to free-place game elements: add habs, silos, chickens
-    and shells, drag the gizmo to arrange them, light the scene, and save named designs. Drag to orbit, scroll
-    to zoom.
+    Free-place game elements: add habs, silos, chickens and shells, drag the gizmo to arrange them, light the
+    scene, and save named designs. Drag to orbit, scroll to zoom.
   </p>
 
   <div class="flex gap-4 flex-wrap">
@@ -46,27 +45,70 @@ else
       </div>
     </section>
 
-    <section class="w-[340px] flex flex-col gap-2">
+    <section class="w-[340px] flex flex-col gap-2 self-start max-h-[85vh] overflow-auto">
       <div class="designer-section">
         <div class="designer-section-head">Scene</div>
         <div class="designer-section-body flex flex-col gap-3">
-          <label class="settings-check"><input type="checkbox" @bind="_designMode" @bind:after="ToggleDesignMode" /><span class="ml-2 font-semibold">Design mode</span></label>
           <button class="btn-secondary w-full" @onclick="ResetView">Reset view</button>
-          <div class="flex flex-col gap-2">
-            @if (_designMode)
+        </div>
+      </div>
+
+      <div class="designer-section">
+        <div class="designer-section-head flex items-center justify-between">
+          <span>Design</span>
+          @if (!string.IsNullOrEmpty(_currentDesign))
+          {
+            <span class="text-muted text-[11px]">@_currentDesign@(_dirty ? " •" : "")</span>
+          }
+        </div>
+        <div class="designer-section-body flex flex-col gap-2 text-xs">
+          @if (string.IsNullOrEmpty(_currentDesign))
+          {
+            <div class="text-muted">New design (unsaved). Name it + save to start its history.</div>
+            <input class="reg-filter-input w-full" placeholder="Design name…" value="@_designName" @oninput="OnDesignNameInput" />
+          }
+          else
+          {
+            <div class="text-muted">Editing <b>@_currentDesign</b> (v@_currentVersion). Saving adds a new version.</div>
+          }
+          <input class="reg-filter-input w-full" placeholder="Version note (optional)…" value="@_versionNote" @oninput="e => _versionNote = e.Value?.ToString() ?? string.Empty" />
+          <div class="flex gap-2">
+            <button class="btn-primary flex-1" @onclick="SaveDesign" disabled="@(SaveDisabled)">@(string.IsNullOrEmpty(_currentDesign) ? "Save design" : "Save new version")</button>
+            @if (!string.IsNullOrEmpty(_currentDesign))
             {
-              <input class="reg-filter-input w-full" placeholder="Design name…" value="@_designName" @oninput="OnDesignNameInput" />
-              <button class="btn-secondary" @onclick="SaveDesign" disabled="@string.IsNullOrWhiteSpace(_designName)">Save design</button>
-            }
-            <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
-              <option value="">@(_designMode ? "Load design…" : "Choose a design…")</option>
-              @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
-            </select>
-            @if (_designMode && !string.IsNullOrEmpty(_selectedDesign))
-            {
-              <button class="btn-secondary" @onclick="DeleteDesign">Delete design</button>
+              <button class="btn-secondary" @onclick="NewDesign" title="Start a fresh design">New</button>
             }
           </div>
+
+          <div class="border-t border-border pt-2 mt-1 flex flex-col gap-2">
+            <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
+              <option value="">Open a saved design…</option>
+              @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
+            </select>
+            @if (!string.IsNullOrEmpty(_currentDesign))
+            {
+              <button class="btn-secondary w-full" @onclick="DeleteDesign">Delete this design</button>
+            }
+          </div>
+
+          @if (!string.IsNullOrEmpty(_currentDesign) && _versions.Count > 0)
+          {
+            <div class="border-t border-border pt-2 mt-1">
+              <div class="picker-group-title">History</div>
+              <div class="flex flex-col gap-1 max-h-48 overflow-auto">
+                @foreach (var v in _versions)
+                {
+                  <div class="flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-panel2 border border-border">
+                    <span class="truncate">v@v.VersionNo@(v.VersionNo == _currentVersion ? " (current)" : "")@(string.IsNullOrEmpty(v.Note) ? "" : $" — {v.Note}")</span>
+                    @if (v.VersionNo != _currentVersion)
+                    {
+                      <button class="element-del" title="Roll back to this version" @onclick="() => RollbackTo(v.VersionNo)">restore</button>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          }
         </div>
       </div>
 
@@ -135,7 +177,7 @@ else
 
     @if (_designMode)
     {
-      <section class="w-[300px] flex flex-col gap-2">
+      <section class="w-[300px] flex flex-col gap-2 self-start max-h-[85vh] overflow-auto">
         <div class="designer-section">
           <div class="designer-section-head">Elements</div>
           <div class="designer-section-body">
@@ -160,10 +202,12 @@ else
                     @foreach (var grp in _catalogPieces.Where(p => p.Group != "Vehicles" && p.Group != "Ships").GroupBy(p => p.Group))
                     {
                       <div class="picker-group-title">@grp.Key</div>
-                      @foreach (var p in grp)
+                      @* one entry per family (placing the highest tier; tier is changed on the placed element);
+                         non-family pieces shown individually. *@
+                      @foreach (var entry in FamilyPickerEntries(grp))
                       {
-                        var placed = p.Singleton && _elements.Any(e => e.Kind == "env" && e.Ref == p.Stem);
-                        <button class="picker-item" @onclick='() => AddElement("env", p.Stem, p.Label)' disabled="@placed">@p.Label@(placed ? " (placed)" : "")</button>
+                        var reason = PlacementBlockedReason(entry.Piece);
+                        <button class="picker-item" @onclick='() => AddElement("env", entry.Piece.Stem, entry.Piece.Label)' disabled="@(reason is not null)">@entry.Display@(reason is null ? "" : $" ({reason})")</button>
                       }
                     }
                   }
@@ -252,6 +296,21 @@ else
                       <option value="pingpong">Ping-pong</option>
                     </select>
                   </label>
+                  @if (sel.Actor == "chicken")
+                  {
+                    <label class="block">Chickens running
+                      <input type="number" min="1" max="50" class="reg-filter-input w-[80px]" @bind="mo.Count" @bind:after="() => PushElementMotion(sel)" />
+                    </label>
+                  }
+                  @if (sel.Actor == "vehicle")
+                  {
+                    <label class="block">Vehicles
+                      <input type="number" min="1" max="20" class="reg-filter-input w-[80px]" @bind="mo.Count" @bind:after="() => PushElementMotion(sel)" />
+                    </label>
+                    <label class="block">Depot stop (s)
+                      <input type="range" min="0" max="5" step="0.5" class="w-full" @bind="mo.StopSeconds" @bind:event="oninput" @bind:after="() => PushElementMotion(sel)" />
+                    </label>
+                  }
                 }
                 else
                 {
@@ -262,7 +321,6 @@ else
                     <input type="range" min="2" max="15" step="0.5" class="w-full" @bind="mo.Period" @bind:event="oninput" @bind:after="() => PushElementMotion(sel)" />
                   </label>
                 }
-                <button class="btn-secondary w-full" @onclick="() => RederiveAndPush(sel)">Re-route from buildings</button>
               }
               @if (sel.Kind is "env" or "shell")
               {
@@ -323,11 +381,13 @@ else
               </label>
               @if (_shellSets.Count > 0)
               {
-                <div class="flex flex-col gap-1">
-                  @foreach (var set in _shellSets)
+                <input class="reg-filter-input w-full" placeholder="Search shell sets…" value="@_shellSetSearch" @oninput="e => _shellSetSearch = e.Value?.ToString() ?? string.Empty" />
+                <div class="flex flex-col gap-1 max-h-60 overflow-auto">
+                  @foreach (var set in FilteredShellSets())
                   {
                     <button class="btn-secondary text-left" @onclick="() => ApplyShellSet(set)">@(set.Name ?? set.Identifier) <span class="text-muted">(@(set.Members?.Length ?? 0))</span></button>
                   }
+                  @if (!FilteredShellSets().Any()) { <div class="text-muted">No matches.</div> }
                 </div>
               }
               @if (_decorators.Count > 0)
@@ -357,7 +417,7 @@ else
     IJSObjectReference? _autosave;
     IJSObjectReference? _recorder;
     int _gifFps = 20;
-    int _gifMaxWidth = 0;        // 0 = full
+    int _gifMaxWidth = 0; // 0 = full
     bool _recording;
     string _recordStage = "";
     double _recordFraction;
@@ -373,7 +433,9 @@ else
     List<ShellRow> _allShells = [];
     List<EnvPieceRow> _catalogPieces = [];
 
-    bool _designMode;
+    // The playground is ALWAYS in design mode now (no view-only state). Kept as a const-true field so the many
+    // `@if (_designMode)` blocks + the JS setDesignMode call still read naturally.
+    const bool _designMode = true;
     readonly List<DesignElement> _elements = [];
     string? _selectedElementId;
     LightingState _lighting = new();
@@ -382,13 +444,19 @@ else
     readonly Stack<List<DesignElement>> _undo = new();
     readonly Stack<List<DesignElement>> _redo = new();
     const int HistoryCap = 50;
-    bool _restoringHistory;          // guards re-entrant history push + autosave storm during a rebuild
+    bool _restoringHistory; // guards re-entrant history push + autosave storm during a rebuild
 
-    string? _decoratorId;            // farm-wide decorator selection (null/empty = none)
-    string _setApplyMode = "all";    // "all" | "selected"
+    string? _decoratorId; // farm-wide decorator selection (null/empty = none)
+    string _setApplyMode = "all"; // "all" | "selected"
     List<ShellSetRow> _shellSets = [];
     List<ShellSetRow> _decorators = [];
     bool _shellSetsOpen;
+    string _shellSetSearch = "";
+
+    IEnumerable<ShellSetRow> FilteredShellSets() =>
+        string.IsNullOrWhiteSpace(_shellSetSearch)
+            ? _shellSets
+            : _shellSets.Where(s => ((s.Name ?? s.Identifier) ?? "").Contains(_shellSetSearch, StringComparison.OrdinalIgnoreCase));
 
     bool _pickerOpen;
     string _pickerTab = "building";
@@ -398,6 +466,21 @@ else
     string _designName = "";
     string _selectedDesign = "";
     List<string> _savedDesigns = [];
+
+    // Stateful design editing: the design the user is working on (empty = a new unsaved one), the version they
+    // last saved/loaded, the version timeline, an optional note for the next save, and a dirty flag set on any
+    // scene change since the last save.
+    string _currentDesign = "";
+    int _currentVersion;
+    string _versionNote = "";
+    bool _dirty;
+    List<DesignVersionRow> _versions = [];
+
+    bool SaveDisabled =>
+        _busy || (string.IsNullOrEmpty(_currentDesign) && string.IsNullOrWhiteSpace(_designName));
+
+    record DesignVersionRow(int VersionNo, string? Note, DateTimeOffset CreatedAt, string? AuthorUserId, int? RolledBackFrom);
+    record DesignVersionsResult(DesignVersionRow[]? Versions);
 
     string _bgColor = "#1a1a1f";
     bool _bgTransparent = true;
@@ -429,6 +512,7 @@ else
         {
             _mod = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playground.js?v={InteropVersion()}");
             await _mod.InvokeVoidAsync("init", _canvas);
+            await EnsureDesigner();
             await ApplyBackground();
             await ApplyLighting();
             await LoadShellObjects();
@@ -573,17 +657,16 @@ else
         catch { _catalogPieces = []; }
     }
 
-    async Task ToggleDesignMode()
+    // The playground is always in design mode: load the gizmo designer module once at startup.
+    async Task EnsureDesigner()
     {
-        if (_mod is not null) await _mod.InvokeVoidAsync("setDesignMode", _designMode);
-        if (_designMode && _designer is null)
+        if (_mod is not null) await _mod.InvokeVoidAsync("setDesignMode", true);
+        if (_designer is null)
         {
             _selfRef ??= DotNetObjectReference.Create(this);
             _designer = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundDesigner.js?v={InteropVersion()}");
             await _designer.InvokeVoidAsync("initDesigner", _selfRef);
         }
-        if (!_designMode && _designer is not null) await _designer.InvokeVoidAsync("deselect");
-        StateHasChanged();
     }
 
     // Called from the gizmo (playgroundDesigner.js) whenever a drag moves the selected element, so the numeric
@@ -639,7 +722,8 @@ else
         object? motion = el.Kind == "actor" && el.Motion is not null
             ? new { kind = el.Motion.Kind, path = el.Motion.Path, speed = el.Motion.Speed,
                     loop = el.Motion.Loop, facePath = el.Motion.FacePath, faceOffset = el.Motion.FaceOffset,
-                    height = el.Motion.Height, period = el.Motion.Period }
+                    height = el.Motion.Height, period = el.Motion.Period, count = el.Motion.Count,
+                    stopSeconds = el.Motion.StopSeconds }
             : null;
         await _mod.InvokeVoidAsync("setGroupMotion", el.Id, motion);
         await RefreshAnimatedFlag();
@@ -655,6 +739,12 @@ else
             var mc = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_mission_control"));
             var pos = mc?.Pos ?? [16f, 0f, 9f];
             if (mc is null) Status("Place a mission control to launch the rocket from it.");
+            else
+            {
+                // align the rocket to the mission control pad: sit on it + share its Y-orientation.
+                actor.Pos = [pos[0], pos[1], pos[2]];
+                actor.RotDeg = [0f, mc.RotDeg[1], 0f];
+            }
             return new MotionState { Kind = "launch", Path = PlaygroundPaths.LaunchPath(pos, 12f), Height = 12f, Period = 6f };
         }
         if (actor.Actor == "vehicle")
@@ -669,17 +759,23 @@ else
             {
                 Kind = "path", Path = PlaygroundPaths.RoadPath(maxX, minX), Speed = 6f,
                 Loop = "cycle", FacePath = true, FaceOffset = System.MathF.PI / 2f,
+                Count = actor.Motion?.Count is > 0 ? actor.Motion.Count : 1,
+                StopSeconds = actor.Motion?.StopSeconds ?? 0f,
             };
         }
+        // chickens run UNI-DIRECTIONALLY hatchery-door -> hab (Loop=cycle, wrapping back to the door, never
+        // pingponging back). Count > 1 runs several chickens at once, staggered in phase + offset into parallel
+        // lanes by the engine.
+        var count = actor.Motion?.Count is > 0 ? actor.Motion.Count : 1;
         var hatch = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_hatchery"));
         var habs = _elements.Where(e => e.Kind == "env" && EnvCatalog.AssetTypeOf(e.Ref) is { } at && IsHab(at)).ToList();
         if (hatch is null || habs.Count == 0)
         {
             Status("Place a hatchery and a hab to route the chicken.");
-            return new MotionState { Kind = "path", Path = [[0f, 0f, 2f], [4f, 0f, -8f]], Speed = 2f, Loop = "pingpong", FacePath = true };
+            return new MotionState { Kind = "path", Path = [[0f, 0f, 2f], [4f, 0f, -8f]], Speed = 2f, Loop = "cycle", FacePath = true, Count = count };
         }
         var nearest = habs.OrderBy(h => Dist2(h.Pos, hatch.Pos)).First();
-        return new MotionState { Kind = "path", Path = PlaygroundPaths.ChickenRun(hatch.Pos, nearest.Pos), Speed = 2.5f, Loop = "pingpong", FacePath = true };
+        return new MotionState { Kind = "path", Path = PlaygroundPaths.ChickenRun(hatch.Pos, nearest.Pos), Speed = 2.5f, Loop = "cycle", FacePath = true, Count = count };
     }
 
     static bool IsHab(string assetType) => assetType is "Coop" or "Shack" or "SuperShack" or "ShortHouse"
@@ -693,8 +789,14 @@ else
     }
 
     // Place an actor (chicken / vehicle / rocket). Derives its path from the placed buildings, renders, selects.
+    // Rockets (ships) are capped at one per farm; a second add selects the existing one instead.
     async Task AddActor(string actorType, string meshRef, string label)
     {
+        if (actorType == "rocket")
+        {
+            var existing = _elements.FirstOrDefault(e => e.Kind == "actor" && e.Actor == "rocket");
+            if (existing is not null) { await SelectElement(existing.Id); _pickerOpen = false; StateHasChanged(); return; }
+        }
         PushHistory();
         var el = new DesignElement { Id = NextElementId(), Kind = "actor", Actor = actorType, Ref = meshRef, Label = label };
         el.Motion = DeriveMotion(el);
@@ -710,19 +812,10 @@ else
     {
         foreach (var a in _elements.Where(e => e.Kind == "actor").ToList())
         {
-            a.Motion = DeriveMotion(a);
+            a.Motion = DeriveMotion(a); // may realign the rocket onto the mission control
+            if (a.Actor == "rocket") await PushElementTransform(a);
             await PushElementMotion(a);
         }
-    }
-
-    // Re-route a single selected actor on demand, keeping the user's launch height across the re-derive.
-    async Task RederiveAndPush(DesignElement sel)
-    {
-        PushHistory();
-        var h = sel.Motion?.Height ?? 12f;
-        sel.Motion = DeriveMotion(sel);
-        if (sel.Motion.Kind == "launch") sel.Motion.Height = h;
-        await PushElementMotion(sel);
     }
 
     // Render (or re-render) an element's group at its transform. Chickens compose the hat.
@@ -823,8 +916,8 @@ else
         Motion = e.Motion is null ? null : new MotionState
         {
             Kind = e.Motion.Kind, Path = e.Motion.Path.Select(w => (float[])w.Clone()).ToArray(),
-            Speed = e.Motion.Speed, Loop = e.Motion.Loop, FacePath = e.Motion.FacePath,
-            Height = e.Motion.Height, Period = e.Motion.Period,
+            Speed = e.Motion.Speed, Loop = e.Motion.Loop, FacePath = e.Motion.FacePath, FaceOffset = e.Motion.FaceOffset,
+            Height = e.Motion.Height, Period = e.Motion.Period, Count = e.Motion.Count, StopSeconds = e.Motion.StopSeconds,
         },
     }).ToList();
 
@@ -862,8 +955,10 @@ else
         await ApplyHistorySnapshot(_redo.Pop());
     }
 
-    // Replace the live element list with a history snapshot and rebuild the scene. Reselects the prior selection
-    // if it still exists. Guards re-entrant history pushes + autosave storm during the rebuild.
+    // Restore a history snapshot by DIFFING it against the live scene and touching only what changed: remove
+    // elements gone from the snapshot, add ones new to it, re-render ones whose mesh-affecting fields differ,
+    // and just re-place (no mesh rebuild) ones where only the transform moved. A typical undo (one element
+    // dragged) re-places a single group instead of tearing down + reloading the whole farm.
     async Task ApplyHistorySnapshot(List<DesignElement> snapshot)
     {
         if (_mod is null) return;
@@ -871,11 +966,28 @@ else
         try
         {
             var keepSel = _selectedElementId;
-            foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
-            _elements.Clear();
+            var byId = _elements.ToDictionary(e => e.Id);
+            var snapIds = snapshot.Select(s => s.Id).ToHashSet();
+
+            foreach (var live in _elements.ToList())
+                if (!snapIds.Contains(live.Id)) { await _mod.InvokeVoidAsync("removeGroup", live.Id); _elements.Remove(live); }
+
+            foreach (var snap in snapshot)
+            {
+                if (!byId.TryGetValue(snap.Id, out var live))
+                {
+                    _elements.Add(snap);
+                    await RenderElement(snap);
+                    continue;
+                }
+                bool meshChanged = !MeshIdentical(live, snap);
+                CopyInto(live, snap);
+                if (meshChanged) await RenderElement(live);
+                else await PushElementTransform(live);
+            }
+
             _selectedElementId = null;
             if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
-            foreach (var el in snapshot) { _elements.Add(el); await RenderElement(el); }
             if (keepSel is not null && _elements.Any(e => e.Id == keepSel)) await SelectElement(keepSel);
             await RefreshAnimatedFlag();
         }
@@ -883,6 +995,22 @@ else
         StateHasChanged();
         Autosave();
     }
+
+    // Mesh-affecting fields: a change here needs a full RenderElement (new geometry/shell/hat/actor). A pure
+    // transform/anim change does not. Motion is compared by reference-free value via the actor/kind it rides.
+    static bool MeshIdentical(DesignElement a, DesignElement b) =>
+        a.Kind == b.Kind && a.Ref == b.Ref && a.Hat == b.Hat && a.Shell == b.Shell && a.Actor == b.Actor;
+
+    // Copy a snapshot's fields onto the live element in place (keeps the same object identity so selection +
+    // group bindings hold).
+    static void CopyInto(DesignElement live, DesignElement snap)
+    {
+        live.Kind = snap.Kind; live.Ref = snap.Ref; live.Label = snap.Label; live.Hat = snap.Hat; live.Shell = snap.Shell;
+        live.Pos = [snap.Pos[0], snap.Pos[1], snap.Pos[2]];
+        live.RotDeg = [snap.RotDeg[0], snap.RotDeg[1], snap.RotDeg[2]];
+        live.Scale = snap.Scale; live.Anim = snap.Anim; live.Actor = snap.Actor; live.Motion = snap.Motion;
+    }
+
 
     // Builds a game-like farm in one click: clears the scene, fetches the standard layout, adds each element
     // at its plot position. Honors singletons (ground/hardscape added once). A starting point to tweak, not a
@@ -921,14 +1049,77 @@ else
         finally { _busy = false; StateHasChanged(); }
     }
 
-    // Add a picked element of a kind. Selects + renders it. Singleton env pieces (ground, hardscape, ...) add
-    // at most once; a repeat just selects the existing one.
+    // Per-farm placement limits. Families that allow exactly one instance regardless of tier (a farm has one
+    // research lab, one mission control, one artifact hall, one hatchery, one trophy case). Plus count caps on
+    // the multi-instance pieces: habs and silos.
+    static readonly HashSet<string> SingleInstanceFamilies = new(StringComparer.Ordinal)
+        { "lab", "mission", "hoa", "hatchery", "trophy" };
+    const int MaxHabs = 4;
+    const int MaxSilos = 10;
+
+    static bool IsSilo(string stem) => stem.StartsWith("ei_silo", StringComparison.Ordinal);
+
+    int CountFamily(string family) => _elements.Count(e =>
+        e.Kind == "env" && _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family == family);
+    int CountHabs() => CountFamily("hab");
+    int CountSilos() => _elements.Count(e => e.Kind == "env" && IsSilo(e.Ref));
+
+    // Why a piece cannot be placed right now (null = placeable). Drives both the disabled picker state + the
+    // AddElement guard. A single-instance family already present blocks; habs/silos block at their cap.
+    string? PlacementBlockedReason(EnvPieceRow p)
+    {
+        if (!string.IsNullOrEmpty(p.Family) && SingleInstanceFamilies.Contains(p.Family) && CountFamily(p.Family) >= 1)
+            return "placed";
+        if (p.Family == "hab" && CountHabs() >= MaxHabs) return "max " + MaxHabs;
+        if (IsSilo(p.Stem) && CountSilos() >= MaxSilos) return "max " + MaxSilos;
+        if (p.Singleton && _elements.Any(e => e.Kind == "env" && e.Ref == p.Stem)) return "placed";
+        return null;
+    }
+
+    // One picker entry per family (placing the highest tier = the last catalog piece in the family), plus each
+    // family-less piece on its own. Display name strips the trophy/lab-style "(n)" tier suffix for families.
+    readonly record struct PickerEntry(EnvPieceRow Piece, string Display);
+    IEnumerable<PickerEntry> FamilyPickerEntries(IEnumerable<EnvPieceRow> group)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var p in group)
+        {
+            if (string.IsNullOrEmpty(p.Family)) { yield return new(p, p.Label); continue; }
+            if (!seen.Add(p.Family)) continue;
+            // highest tier = the last catalog piece sharing this family (catalog is tier-ascending).
+            var top = _catalogPieces.Last(q => q.Family == p.Family);
+            yield return new(top, FamilyDisplayName(p.Family, top.Label));
+        }
+    }
+
+    static string FamilyDisplayName(string family, string fallbackLabel) => family switch
+    {
+        "hab" => "Hab", "depot" => "Depot", "fuel" => "Fuel tank", "lab" => "Research lab",
+        "mission" => "Mission control", "hoa" => "Artifact hall", "trophy" => "Trophy case",
+        "hatchery" => "Hatchery", _ => StripTier(fallbackLabel),
+    };
+
+    static string StripTier(string label)
+    {
+        var i = label.LastIndexOf(" (", StringComparison.Ordinal);
+        return i > 0 ? label[..i] : label;
+    }
+
+    // Add a picked element of a kind. Selects + renders it. Enforces the per-farm placement limits; a blocked
+    // add (cap reached / single-instance present) just selects the existing one when there is one.
     async Task AddElement(string kind, string id, string label)
     {
-        if (kind == "env" && _catalogPieces.FirstOrDefault(p => p.Stem == id)?.Singleton == true)
+        if (kind == "env")
         {
-            var dup = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref == id);
-            if (dup is not null) { await SelectElement(dup.Id); _pickerOpen = false; return; }
+            var piece = _catalogPieces.FirstOrDefault(p => p.Stem == id);
+            if (piece is not null && PlacementBlockedReason(piece) is not null)
+            {
+                var dup = _elements.FirstOrDefault(e => e.Kind == "env"
+                    && (e.Ref == id || (!string.IsNullOrEmpty(piece.Family) && _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family == piece.Family)));
+                if (dup is not null) await SelectElement(dup.Id);
+                _pickerOpen = false; StateHasChanged();
+                return;
+            }
         }
         PushHistory();
         var el = new DesignElement { Id = NextElementId(), Kind = kind, Ref = id, Label = label };
@@ -1072,24 +1263,37 @@ else
         builder.CloseElement();
     };
 
+    // Save appends a new version to the working design's history. For a brand-new design, the typed name becomes
+    // the working design. The server returns the new version number; the timeline refreshes + dirty clears.
     async Task SaveDesign()
     {
-        if (string.IsNullOrWhiteSpace(_designName)) return;
+        var name = string.IsNullOrEmpty(_currentDesign) ? _designName.Trim() : _currentDesign;
+        if (string.IsNullOrWhiteSpace(name)) return;
         var payload = new DesignPayload
         {
             Background = _bgColor, BackgroundTransparent = _bgTransparent,
             Lighting = _lighting, Elements = _elements.ToList(), DecoratorId = _decoratorId,
         };
         var json = System.Text.Json.JsonSerializer.Serialize(payload);
-        var res = await Client().PutAsJsonAsync($"/api/env/designs/{Uri.EscapeDataString(_designName.Trim())}", new { payload = json });
+        var res = await Client().PutAsJsonAsync($"/api/env/designs/{Uri.EscapeDataString(name)}",
+            new { payload = json, note = string.IsNullOrWhiteSpace(_versionNote) ? null : _versionNote.Trim() });
         if (res.IsSuccessStatusCode)
         {
-            Status($"Saved \"{_designName.Trim()}\".");
+            var body = await res.Content.ReadFromJsonAsync<SaveResult>();
+            _currentDesign = name;
+            _currentVersion = body?.Version ?? _currentVersion + 1;
+            _designName = "";
+            _versionNote = "";
+            _dirty = false;
+            Status($"Saved \"{name}\" v{_currentVersion}.");
             await RefreshDesigns();
+            await LoadVersions();
             if (_autosave is not null) { try { await _autosave.InvokeVoidAsync("clear"); } catch { } }
         }
         else Fail($"save failed: HTTP {(int)res.StatusCode}");
     }
+
+    record SaveResult(string Saved, int Version);
 
     async Task LoadDesign()
     {
@@ -1101,9 +1305,68 @@ else
             var payload = System.Text.Json.JsonSerializer.Deserialize<DesignPayload>(json);
             if (payload is null) { Fail("design is corrupt"); return; }
             await RestoreFromPayload(payload);
-            Status($"Loaded \"{_selectedDesign}\".");
+            _currentDesign = _selectedDesign;
+            _selectedDesign = "";
+            _dirty = false;
+            await LoadVersions();
+            _currentVersion = _versions.Count > 0 ? _versions[0].VersionNo : 0; // newest = head
+            Status($"Loaded \"{_currentDesign}\" v{_currentVersion}.");
         }
         catch (Exception ex) { Fail(ex.Message); }
+    }
+
+    // Start a fresh, unsaved design: clear the scene + the working-design state.
+    async Task NewDesign()
+    {
+        await ClearScene();
+        _currentDesign = ""; _currentVersion = 0; _versions = []; _designName = ""; _versionNote = ""; _dirty = false;
+        Status("New design.");
+    }
+
+    async Task LoadVersions()
+    {
+        if (string.IsNullOrEmpty(_currentDesign)) { _versions = []; return; }
+        try
+        {
+            var res = await Client().GetFromJsonAsync<DesignVersionsResult>(
+                $"/api/env/designs/{Uri.EscapeDataString(_currentDesign)}/versions");
+            _versions = res?.Versions?.ToList() ?? [];
+        }
+        catch { _versions = []; }
+    }
+
+    // Roll back to a prior version: the server appends a new version copying it (non-destructive), then we load
+    // that restored payload into the scene + refresh the timeline.
+    async Task RollbackTo(int versionNo)
+    {
+        if (string.IsNullOrEmpty(_currentDesign)) return;
+        try
+        {
+            var res = await Client().PostAsJsonAsync(
+                $"/api/env/designs/{Uri.EscapeDataString(_currentDesign)}/rollback", new { versionNo });
+            if (!res.IsSuccessStatusCode) { Fail($"rollback failed: HTTP {(int)res.StatusCode}"); return; }
+            var body = await res.Content.ReadFromJsonAsync<RollbackResult>();
+            var json = await Client().GetStringAsync($"/api/env/designs/{Uri.EscapeDataString(_currentDesign)}");
+            var payload = System.Text.Json.JsonSerializer.Deserialize<DesignPayload>(json);
+            if (payload is not null) await RestoreFromPayload(payload);
+            _currentVersion = body?.NewVersion ?? _currentVersion;
+            _dirty = false;
+            await LoadVersions();
+            Status($"Rolled back to v{versionNo} (now v{_currentVersion}).");
+        }
+        catch (Exception ex) { Fail(ex.Message); }
+    }
+
+    record RollbackResult(string RolledBack, int FromVersion, int NewVersion);
+
+    // Clear the scene without touching the working-design state. Shared by NewDesign + payload restore.
+    async Task ClearScene()
+    {
+        if (_mod is null) return;
+        foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
+        _elements.Clear();
+        _selectedElementId = null;
+        if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
     }
 
     // On load, silently restore a recent autosaved design (a redeploy reload or a crash left one), then clear
@@ -1132,6 +1395,7 @@ else
     // Debounced autosave of the current scene to the localStorage slot. Called on every meaningful change.
     void Autosave()
     {
+        _dirty = true; // any scene change makes the working design dirty until the next explicit save
         _autosaveCts?.Cancel();
         var cts = new System.Threading.CancellationTokenSource();
         _autosaveCts = cts;
@@ -1189,9 +1453,13 @@ else
 
     async Task DeleteDesign()
     {
-        if (string.IsNullOrEmpty(_selectedDesign)) return;
-        var res = await Client().DeleteAsync($"/api/env/designs/{Uri.EscapeDataString(_selectedDesign)}");
-        if (res.IsSuccessStatusCode) { _selectedDesign = ""; await RefreshDesigns(); }
+        if (string.IsNullOrEmpty(_currentDesign)) return;
+        var res = await Client().DeleteAsync($"/api/env/designs/{Uri.EscapeDataString(_currentDesign)}");
+        if (res.IsSuccessStatusCode)
+        {
+            await NewDesign();
+            await RefreshDesigns();
+        }
         else Fail($"delete failed: HTTP {(int)res.StatusCode}");
     }
 
@@ -1233,29 +1501,31 @@ else
     public sealed class DesignElement
     {
         public string Id { get; set; } = "";
-        public string Kind { get; set; } = "env";      // env | chicken | shell | mesh
-        public string Ref { get; set; } = "";           // stem or identifier
+        public string Kind { get; set; } = "env"; // env | chicken | shell | mesh
+        public string Ref { get; set; } = ""; // stem or identifier
         public string Label { get; set; } = "";
-        public string? Hat { get; set; }                 // chicken hat identifier
-        public string? Shell { get; set; }               // applied shell identifier
+        public string? Hat { get; set; } // chicken hat identifier
+        public string? Shell { get; set; } // applied shell identifier
         public float[] Pos { get; set; } = [0, 0, 0];
         public float[] RotDeg { get; set; } = [0, 0, 0];
         public float Scale { get; set; } = 1f;
-        public string Anim { get; set; } = "none";       // none | SpinY | SpinZ | HoverSpin (per element)
-        public string Actor { get; set; } = "";          // ""|chicken|vehicle|rocket (kind=="actor")
+        public string Anim { get; set; } = "none"; // none | SpinY | SpinZ | HoverSpin (per element)
+        public string Actor { get; set; } = ""; // ""|chicken|vehicle|rocket (kind=="actor")
         public MotionState? Motion { get; set; }
     }
 
     public sealed class MotionState
     {
-        public string Kind { get; set; } = "path";        // path | launch
-        public float[][] Path { get; set; } = [];          // world waypoints (path kind)
+        public string Kind { get; set; } = "path"; // path | launch
+        public float[][] Path { get; set; } = []; // world waypoints (path kind)
         public float Speed { get; set; } = 3f;
-        public string Loop { get; set; } = "cycle";        // cycle | pingpong
+        public string Loop { get; set; } = "cycle"; // cycle | pingpong
         public bool FacePath { get; set; } = true;
-        public float FaceOffset { get; set; } = 0f;         // radians added to the face-path heading (mesh forward fix)
-        public float Height { get; set; } = 12f;            // launch rise
-        public float Period { get; set; } = 6f;             // launch seconds/cycle
+        public float FaceOffset { get; set; } = 0f; // radians added to the face-path heading (mesh forward fix)
+        public float Height { get; set; } = 12f; // launch rise
+        public float Period { get; set; } = 6f; // launch seconds/cycle
+        public int Count { get; set; } = 1; // instances running this path at once (chickens)
+        public float StopSeconds { get; set; } = 0f; // dwell at the path end before wrapping (vehicle depot stop)
     }
 
     public sealed class LightingState
@@ -1264,11 +1534,11 @@ else
         public float SunElevationDeg { get; set; } = 55;
         public string SunColor { get; set; } = "#ffffff";
         public float SunIntensity { get; set; } = 1.0f;
-        public string ToneMapping { get; set; } = "none";   // none | linear | aces | reinhard | cineon
+        public string ToneMapping { get; set; } = "none"; // none | linear | aces | reinhard | cineon
         public float Exposure { get; set; } = 1.0f;
         public float AmbientIntensity { get; set; } = 0.55f;
         public float HemiIntensity { get; set; } = 0.5f;
-        public float Emission { get; set; } = 0.85f;   // 0 = fully lit/dull, 1 = flat vibrant (game look)
+        public float Emission { get; set; } = 0.85f; // 0 = fully lit/dull, 1 = flat vibrant (game look)
         public string FogColor { get; set; } = "#1a1a1f";
         public float FogDensity { get; set; } = 0f;
     }

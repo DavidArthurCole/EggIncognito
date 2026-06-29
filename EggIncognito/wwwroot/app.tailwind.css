@@ -1254,8 +1254,8 @@
   .picker-tab { @apply text-xs px-2 py-1 rounded-md mr-1 bg-panel2; }
   .picker-tab.active { @apply bg-accent text-bg; }
   .picker-body { @apply max-h-48 overflow-auto flex flex-col gap-1; }
-  .picker-item { @apply text-left text-xs px-2 py-1 rounded-md hover:bg-panel2; }
-  .picker-item:disabled { @apply opacity-40 cursor-not-allowed; }
+  .picker-item { @apply block w-full text-left text-xs px-2 py-1 rounded-md bg-panel2 text-fg border border-border hover:border-accent hover:bg-panel; }
+  .picker-item:disabled { @apply opacity-40 cursor-not-allowed hover:border-border; }
   .picker-group-title { @apply text-[11px] uppercase tracking-[0.05em] text-muted mt-2 first:mt-0 mb-0.5; }
   .light-field { @apply flex flex-col gap-1; }
   .light-field > span { @apply text-muted; }

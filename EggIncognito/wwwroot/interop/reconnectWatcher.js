@@ -9,7 +9,7 @@
 (function () {
   const VERSION_URL = '/api/app/version';
   const POLL_MS = 2000;
-  const MAX_POLLS = 90;        // ~3 minutes of polling, then give up to the manual reconnect dialog
+  const MAX_POLLS = 90; // ~3 minutes of polling, then give up to the manual reconnect dialog
   let loadedVersion = null;
   let polling = false;
   let polls = 0;

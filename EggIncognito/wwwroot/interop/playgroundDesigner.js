@@ -132,8 +132,8 @@ function nudge(key, step) {
 
   let dx = 0, dz = 0;
   switch (key) {
-    case 'ArrowUp': dx = f.x * step; dz = f.z * step; break;            // away from camera
-    case 'ArrowDown': dx = -f.x * step; dz = -f.z * step; break;        // toward camera
+    case 'ArrowUp': dx = f.x * step; dz = f.z * step; break; // away from camera
+    case 'ArrowDown': dx = -f.x * step; dz = -f.z * step; break; // toward camera
     case 'ArrowRight': dx = right.x * step; dz = right.z * step; break;
     case 'ArrowLeft': dx = -right.x * step; dz = -right.z * step; break;
   }

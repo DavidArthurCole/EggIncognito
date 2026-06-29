@@ -52,11 +52,11 @@ public static class SymbolRecovery
         return new RecoveryReport("content-hash", recovered.Count, recovered, found, missing, diag);
     }
 
-    private const int MinFuncLen = 32;       // 8 instructions; skips tiny shared stubs + thunks that pile up
-                                             // into hot prefix buckets without being useful recovery targets
+    // 8 instructions; skips tiny shared stubs + thunks that pile into hot prefix buckets without being useful.
+    private const int MinFuncLen = 32;
     private const int MaxFuncLen = 0x20000;
-    private const int PrefixLen = 32;        // normalized 32-byte prefix = the cheap candidate filter; longer
-                                             // than 16 to break up hot prologue buckets that dominate the scan
+    // normalized 32-byte prefix = the cheap candidate filter; longer than 16 to break up hot prologue buckets.
+    private const int PrefixLen = 32;
 
     // Recover function symbols whose normalized body is byte-identical between ref and target. A naive scan of
     // every target offset at every reference length is O(textSize x lengths) and takes ~100s on a 34MB text.

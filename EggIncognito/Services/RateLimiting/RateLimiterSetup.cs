@@ -33,6 +33,9 @@ public static class RateLimiterSetup
             AddPolicy(o, "egress", opts);
             AddPolicy(o, "write", opts);
             AddPolicy(o, "read", opts);
+            // "fetch" is the public-data poll surface; it skips the per-tier min so anon visitors get the
+            // full Fetch limit instead of the Anon tier's 30/min.
+            o.AddPolicy("fetch", ctx => Partition(ctx, "Fetch", opts, tierCapped: false));
 
             o.OnRejected = async (ctx, ct) =>
             {
@@ -77,8 +80,11 @@ public static class RateLimiterSetup
         return Math.Min(opts.Policies[policyOptionKey].PermitLimit, best);
     }
 
-    // Build a sliding-window partition for a caller, using the smaller of the policy + tier limits.
-    private static RateLimitPartition<string> Partition(HttpContext ctx, string policyOptionKey, RateLimitOptions opts)
+    // Build a sliding-window partition for a caller. tierCapped policies use min(policy, tier) so anon stays
+    // stricter; tierCapped=false (the "fetch" surface) uses the flat policy limit so public polling reads are
+    // never throttled by the Anon tier.
+    private static RateLimitPartition<string> Partition(
+        HttpContext ctx, string policyOptionKey, RateLimitOptions opts, bool tierCapped = true)
     {
         var user = ctx.RequestServices.GetRequiredService<ICurrentUser>();
         // Admins bypass rate limiting entirely - they run the device farm + admin tooling, which legitimately
@@ -87,7 +93,9 @@ public static class RateLimiterSetup
         var hosted = ctx.RequestServices.GetRequiredService<IAppMode>().Mode == AppMode.Hosted;
         var key = RateLimitKeys.PartitionKey(ctx, user, hosted);
         var policy = opts.Policies[policyOptionKey];
-        var permit = EffectivePermit(opts, RateLimitKeys.TiersFor(user), policyOptionKey);
+        var permit = tierCapped
+            ? EffectivePermit(opts, RateLimitKeys.TiersFor(user), policyOptionKey)
+            : policy.PermitLimit;
 
         return RateLimitPartition.GetSlidingWindowLimiter($"{policyOptionKey}:{key}", _ =>
             new SlidingWindowRateLimiterOptions

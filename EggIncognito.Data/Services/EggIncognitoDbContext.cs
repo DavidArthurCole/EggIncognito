@@ -30,6 +30,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<StagedProto> StagedProtos => Set<StagedProto>();
     public DbSet<StoredMesh> StoredMeshes => Set<StoredMesh>();
     public DbSet<EnvDesign> EnvDesigns => Set<EnvDesign>();
+    public DbSet<EnvDesignVersion> EnvDesignVersions => Set<EnvDesignVersion>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -152,6 +153,12 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasIndex(x => x.Name).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        });
+        b.Entity<EnvDesignVersion>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.DesignId, x.VersionNo }).IsUnique();
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
     }
 }

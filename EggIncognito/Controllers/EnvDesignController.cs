@@ -47,8 +47,11 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         return Content(row.Payload, "application/json");
     }
 
-    public sealed record SaveDesign(string Payload);
+    public sealed record SaveDesign(string Payload, string? Note);
 
+    // Save appends a new VERSION to the design's history (and updates the head payload), instead of silently
+    // overwriting. The design carries its full timeline; the user can list versions + roll back to any. Creating
+    // the design seeds version 1.
     [HttpPut("{name}")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Save(string name, [FromBody] SaveDesign body)
@@ -67,16 +70,95 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         var existing = await db.EnvDesigns.FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
         if (existing is null)
         {
-            db.EnvDesigns.Add(new EnvDesign { Name = name, Payload = payload, OwnerUserId = currentUser.DiscordId });
+            existing = new EnvDesign { Name = name, Payload = payload, OwnerUserId = currentUser.DiscordId };
+            db.EnvDesigns.Add(existing);
+            await db.SaveChangesAsync(HttpContext.RequestAborted); // get the id for the version row
         }
         else
         {
             existing.Payload = payload;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        var next = await NextVersionNo(db, existing.Id);
+        db.EnvDesignVersions.Add(new EnvDesignVersion
+        {
+            DesignId = existing.Id, VersionNo = next, Payload = payload,
+            AuthorUserId = currentUser.DiscordId, Note = Trim(body?.Note),
+        });
         await db.SaveChangesAsync(HttpContext.RequestAborted);
-        return Ok(new { saved = name });
+        return Ok(new { saved = name, version = next });
     }
+
+    // The version timeline for a design, newest first.
+    [HttpGet("{name}/versions")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Versions(string name)
+    {
+        var db = Db;
+        if (db is null) return Ok(new { versions = Array.Empty<object>() });
+        var design = await db.EnvDesigns.AsNoTracking().FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
+        if (design is null) return NotFound(new { error = "unknown design" });
+        var rows = await db.EnvDesignVersions.AsNoTracking()
+            .Where(v => v.DesignId == design.Id)
+            .OrderByDescending(v => v.VersionNo)
+            .Select(v => new { v.VersionNo, v.Note, v.CreatedAt, v.AuthorUserId, v.RolledBackFrom })
+            .ToListAsync(HttpContext.RequestAborted);
+        return Ok(new { versions = rows });
+    }
+
+    // The payload of one specific version (for preview / load-without-rollback).
+    [HttpGet("{name}/versions/{versionNo:int}")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> GetVersion(string name, int versionNo)
+    {
+        var db = Db;
+        if (db is null) return NotFound(new { error = "no database configured" });
+        var design = await db.EnvDesigns.AsNoTracking().FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
+        if (design is null) return NotFound(new { error = "unknown design" });
+        var row = await db.EnvDesignVersions.AsNoTracking()
+            .FirstOrDefaultAsync(v => v.DesignId == design.Id && v.VersionNo == versionNo, HttpContext.RequestAborted);
+        if (row is null) return NotFound(new { error = "unknown version" });
+        return Content(row.Payload, "application/json");
+    }
+
+    public sealed record RollbackBody(int VersionNo);
+
+    // Roll back: append a NEW version whose payload is copied from an older one (non-destructive; history is
+    // preserved + the restore is itself auditable via RolledBackFrom). Updates the head payload to match.
+    [HttpPost("{name}/rollback")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Rollback(string name, [FromBody] RollbackBody body)
+    {
+        if (RequireContributor() is { } no) return no;
+        var db = Db;
+        if (db is null) return StatusCode(503, new { error = "no database configured" });
+        var design = await db.EnvDesigns.FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
+        if (design is null) return NotFound(new { error = "unknown design" });
+        var src = await db.EnvDesignVersions
+            .FirstOrDefaultAsync(v => v.DesignId == design.Id && v.VersionNo == body.VersionNo, HttpContext.RequestAborted);
+        if (src is null) return NotFound(new { error = "unknown version" });
+
+        design.Payload = src.Payload;
+        design.UpdatedAt = DateTimeOffset.UtcNow;
+        var next = await NextVersionNo(db, design.Id);
+        db.EnvDesignVersions.Add(new EnvDesignVersion
+        {
+            DesignId = design.Id, VersionNo = next, Payload = src.Payload,
+            AuthorUserId = currentUser.DiscordId, RolledBackFrom = src.VersionNo,
+            Note = $"rolled back to v{src.VersionNo}",
+        });
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(new { rolledBack = name, fromVersion = src.VersionNo, newVersion = next });
+    }
+
+    private static async Task<int> NextVersionNo(EggIncognitoDbContext db, long designId)
+    {
+        var max = await db.EnvDesignVersions.Where(v => v.DesignId == designId)
+            .MaxAsync(v => (int?)v.VersionNo, default) ?? 0;
+        return max + 1;
+    }
+
+    private static string? Trim(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     [HttpDelete("{name}")]
     [EnableRateLimiting("write")]

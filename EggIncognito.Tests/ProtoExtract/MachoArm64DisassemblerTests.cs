@@ -16,12 +16,12 @@ public class MachoArm64DisassemblerTests
 
         var words = new List<uint>
         {
-            Adrp(0, codeVa, 0x1080),   // x0 = page of 0x1080 = 0x1000
-            Add(0, 0, 0x80),           // x0 = 0x1080
-            LdrS(0, 0, 0),             // s0 = f32 @ 0x1080 = 5.5
+            Adrp(0, codeVa, 0x1080), // x0 = page of 0x1080 = 0x1000
+            Add(0, 0, 0x80), // x0 = 0x1080
+            LdrS(0, 0, 0), // s0 = f32 @ 0x1080 = 5.5
             Adrp(1, codeVa + 12, 0x1088),
             Add(1, 1, 0x88),
-            LdrD(2, 1, 0),             // d2 = f64 @ 0x1088 = -0.5
+            LdrD(2, 1, 0), // d2 = f64 @ 0x1088 = -0.5
             Bl(codeVa + 24, 0x2000),
         };
         var code = words.SelectMany(BitConverter.GetBytes).ToArray();

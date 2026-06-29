@@ -17,6 +17,7 @@
 //   setPlaying(bool) / resetView() / dispose()
 
 import { splineLength, sampleSpline, tangentAt } from './playgroundMotion.js';
+import { evalExpr, evalMatrix } from './effectEval.js';
 
 const THREE_URL = 'https://esm.sh/three@0.169.0';
 const GLTF_URL = 'https://esm.sh/three@0.169.0/examples/jsm/loaders/GLTFLoader.js';
@@ -31,6 +32,11 @@ let designMode = false;
 // composed on top of that element's placed transform. Distinct from a group's mixer (baked mesh clips).
 let animClock = 0;
 let animPlaying = true;
+
+// Recovered decomp effects attached to groups: groupId -> { model, mesh, count }. Driven each frame from the
+// model's placement expression tree (see effectEval.js). The math is extracted from the game binary, not
+// authored here (CLAUDE.md "EXTRACT, don't author"); the EffectModel comes from /api/decomp/effect.
+const effects = new Map();
 let capturing = false;
 const ANIM_PERIOD = 6;
 
@@ -111,6 +117,7 @@ export async function init(canvas) {
     scene: _scene, camera: _camera, renderer: _renderer, controls: _controls,
     getGroupRoot, getGroupBase, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
     captureBegin, renderAtPhase, captureEnd, anyAnimated, sceneBackgroundHex, animPeriod, captureCleanOutline,
+    attachEffect,
   };
   loop();
 }
@@ -125,6 +132,7 @@ function loop() {
     if (g.hatMixer) g.hatMixer.update(capturing ? 0 : dt);
     applyAnim(g);
   }
+  updateEffects(animClock);
   // Refit the shadow frustum to the (now positioned) groups a few times a second, so newly placed or moved
   // elements get tight shadows without striping. Cheap: a bbox over ~30 groups. Skipped during a capture.
   if (!capturing && (_shadowTick++ % 20) === 0) refitShadow();
@@ -152,17 +160,20 @@ function applyAnim(g) {
     g.root.rotation.set(rad(b.rotDeg[0]), rad(b.rotDeg[1]) + addRy, rad(b.rotDeg[2]) + addRz);
     const p = pivotCorrected(g, b.pos[0], b.pos[1] + bob, b.pos[2], s);
     g.root.position.copy(p);
+    g.root.visible = true; // positioned this frame: safe to show (was hidden on add to avoid the origin flash)
     return;
   }
   const o = g.manual || g.autoOffset;
   g.root.rotation.set(0, addRy, addRz);
   const p = pivotCorrected(g, o.x, o.y + bob, o.z, 1);
   g.root.position.copy(p);
+  g.root.visible = true;
 }
 
 // Path-follow or launch motion, composed on the group's base transform. Deterministic on animClock so the GIF
 // recorder captures it. Path points are world-space, so the sampled point is used directly as the position.
 function applyMotion(g) {
+  g.root.visible = true; // an actor is positioned each frame by its motion; reveal it (hidden on add)
   const m = g.motion;
   const b = g.base;
   const baseScale = b && b.scale ? b.scale : 1;
@@ -182,30 +193,118 @@ function applyMotion(g) {
 
   const len = splineLength(m.path);
   if (len <= 0) { g.root.position.set(bx, by, bz); return; }
-  const speed = m.speed || 3;
-  let d = animClock * speed;
-  if (m.loop === 'pingpong') {
-    const cycle = d % (2 * len);
-    d = cycle <= len ? cycle : 2 * len - cycle;
-  } else {
-    d = d % len;
+  const count = Math.max(1, Math.round(m.count || 1));
+
+  // Single runner: drive the group root directly (the common case: one vehicle / one rocket / one chicken).
+  if (count <= 1) {
+    g.root.scale.set(baseScale, baseScale, baseScale);
+    placeAlongPath(g.root, m, len, runnerDistance(m, len, 0, 1), baseRy);
+    return;
   }
+
+  // Multiple runners (e.g. N chickens at once): the root holds N cloned children, each on a parallel lane at a
+  // staggered phase. The root itself stays at the origin; the lane offset is folded into each child's path.
+  ensureRunners(g, count, baseScale);
+  for (let i = 0; i < count; i++) {
+    const lane = (i - (count - 1) / 2) * 1.2; // parallel lanes centered on the original path
+    const laneM = laneShifted(m, lane);
+    placeAlongPath(g.runners[i], laneM, len, runnerDistance(m, len, i, count), baseRy);
+  }
+}
+
+// Along-path distance for one runner this frame. A cycle = the drive time plus an optional dwell at the end
+// (the vehicle's depot stop). pingpong reflects; cycle wraps pacman-style. Runners are evenly phase-staggered.
+function runnerDistance(m, len, index, count) {
+  const speed = m.speed || 3;
+  const driveTime = len / speed;
+  const stop = Math.max(0, m.stopSeconds || 0);
+  const cycleTime = driveTime + stop;
+  const stagger = cycleTime * (index / count);
+  let tt = (animClock + stagger);
+  if (m.loop === 'pingpong') {
+    const full = 2 * cycleTime;
+    let ph = ((tt % full) + full) % full;
+    if (ph > cycleTime) ph = full - ph; // reflect
+    return Math.min(1, ph / driveTime) * len; // dwell once past driveTime
+  }
+  let ph = ((tt % cycleTime) + cycleTime) % cycleTime;
+  return Math.min(1, ph / driveTime) * len; // clamp at the end during the dwell, then wrap
+}
+
+// Position + orient an object3D at distance d along the motion path, applying the per-element base scale +
+// face-path heading. Shared by the single-runner root + each multi-runner child.
+function placeAlongPath(obj, m, len, d, baseRy) {
   const p = sampleSpline(m.path, d);
-  g.root.scale.set(baseScale, baseScale, baseScale);
   let ry = baseRy;
   if (m.facePath) {
     const t = tangentAt(m.path, d);
-    // atan2(x,z) aligns a +Z-forward mesh to the tangent; faceOffset corrects meshes whose forward axis is
-    // rotated (vehicles model +X-forward, so a +90deg offset turns them to face along the drive direction).
     ry = Math.atan2(t[0], t[2]) + (m.faceOffset || 0);
   }
-  g.root.rotation.set(0, ry, 0);
-  g.root.position.set(p[0], p[1], p[2]);
+  obj.rotation.set(0, ry, 0);
+  obj.position.set(p[0], p[1], p[2]);
+}
+
+// A copy of the motion with every path waypoint shifted sideways (perpendicular-ish, in Z) so several runners
+// occupy distinct lanes instead of overlapping. Cheap: the chicken/vehicle paths run mostly along X.
+function laneShifted(m, laneZ) {
+  if (!laneZ) return m;
+  return { ...m, path: m.path.map(w => [w[0], w[1], w[2] + laneZ]) };
+}
+
+// Lazily build `count` cloned runner children under the group root (for a multi-instance actor). The first
+// child reuses the loaded mesh; the rest are clones. Rebuilt if the count changed.
+function ensureRunners(g, count, baseScale) {
+  if (g.runners && g.runners.length === count) return;
+  if (g.runners) for (const r of g.runners) g.root.remove(r);
+  const source = g.root.children.find(c => c.type === 'Group' || c.isMesh) || g.root.children[0];
+  g.runners = [];
+  // hide the original direct child; runners render instead.
+  if (source) source.visible = false;
+  for (let i = 0; i < count; i++) {
+    const clone = source ? source.clone(true) : new THREE.Group();
+    clone.visible = true;
+    clone.scale.set(baseScale, baseScale, baseScale);
+    g.root.add(clone);
+    g.runners.push(clone);
+  }
+  g.root.position.set(0, 0, 0);
+  g.root.rotation.set(0, 0, 0);
 }
 
 function easeOut(x) { return 1 - (1 - x) * (1 - x); }
 
 function rad(d) { return (d || 0) * Math.PI / 180; }
+
+// Attach (or clear) a recovered decomp effect to a group. The EffectModel (from /api/decomp/effect) carries a
+// count + a per-particle placement expression tree extracted from the game binary. Builds an InstancedMesh of
+// `count` small emissive quads; updateEffects places each per frame by evaluating the tree. A null/!ok model
+// clears any existing effect. Safe only after init (uses THREE). Exposed on the engine handle for the UI hook.
+export function attachEffect(groupId, model) {
+  const existing = effects.get(groupId);
+  if (existing) { existing.mesh.parent?.remove(existing.mesh); existing.mesh.geometry.dispose(); existing.mesh.material.dispose(); effects.delete(groupId); }
+  const g = groups.get(groupId);
+  if (!g || !model || !model.ok || !model.placement) return;
+  const count = Math.max(1, Math.min(2000, Math.round(evalExpr(model.count, { t: 0, particleIndex: 0, count: 0 })) || 1));
+  const geo = new THREE.PlaneGeometry(0.15, 0.15);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xfff2a8, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  mesh.frustumCulled = false;
+  g.root.add(mesh);
+  effects.set(groupId, { model, mesh, count });
+}
+
+let _effectMat;
+function updateEffects(tSeconds) {
+  if (effects.size === 0) return;
+  if (!_effectMat) _effectMat = new THREE.Matrix4();
+  for (const { model, mesh, count } of effects.values()) {
+    for (let i = 0; i < count; i++) {
+      _effectMat.fromArray(evalMatrix(model.placement, { t: tSeconds, particleIndex: i, count }));
+      mesh.setMatrixAt(i, _effectMat);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+}
 
 // The root position that keeps the mesh's center fixed under the current root rotation, so a spin pivots about
 // the visual center instead of the (possibly off-origin) placement point. With no rotation it equals (x,y,z).
@@ -272,14 +371,26 @@ export async function addGroup(groupId, glbBase64, opts) {
   const gltf = await parseGlb(glbBase64);
   const root = new THREE.Group();
   root.add(gltf.scene);
+  // Hidden until its placement lands: a freshly added group would otherwise flash at the origin for a frame
+  // before setGroupTransform moves it ("snap into existence at 0,0 then jump"). setGroupTransform / the layout
+  // reveal it once positioned. Pinned (backdrop) groups carry their offset immediately, so they stay visible.
+  root.visible = !!opts.pinned;
 
-  // The mesh's bbox center in the group's local space. A procedural spin pivots about THIS, not the group
-  // origin, so an off-origin-authored mesh (env buildings sit at their plot offset) spins in place rather
-  // than orbiting the placement point.
+  // Re-center the mesh so the GROUP ORIGIN sits at the model's ground-center: shift the inner scene by its
+  // bbox center in X/Z and by its bbox MIN in Y. Env buildings are authored at their plot offset, so without
+  // this the group origin (where the placement gizmo renders + the position is measured) floats away from the
+  // visible building. After the shift: root.position == the building's visible ground-center, the gizmo lands
+  // dead-center at ground level, a spin pivots in place, and (0,0,0) places the center at the world origin.
+  // Pinned backdrop pieces are authored at exact inter-relative plot offsets and must stay where the game put
+  // them, so they are NOT re-centered. Free-placed elements ARE re-centered so the gizmo + placement match.
   const box = new THREE.Box3().setFromObject(gltf.scene);
-  const center = box.isEmpty()
-    ? new THREE.Vector3(0, 0, 0)
-    : box.getCenter(new THREE.Vector3());
+  let center;
+  if (!opts.pinned && !box.isEmpty()) {
+    const c = box.getCenter(new THREE.Vector3());
+    gltf.scene.position.set(-c.x, -box.min.y, -c.z);
+    center = new THREE.Vector3(0, 0, 0);
+  }
+  else center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());
 
   const mixer = new THREE.AnimationMixer(root);
   for (const clip of gltf.animations) mixer.clipAction(clip).play();
@@ -422,6 +533,7 @@ export function setGroupTransform(id, pos, rotDeg, scale) {
   const g = groups.get(id);
   if (!g) return;
   g.base = { pos: [pos[0] || 0, pos[1] || 0, pos[2] || 0], rotDeg: [rotDeg[0] || 0, rotDeg[1] || 0, rotDeg[2] || 0], scale: scale || 1 };
+  g.root.visible = true; // now placed: reveal it (it was hidden on add to avoid the origin flash)
 }
 
 export function resetView() { frameScene(); }

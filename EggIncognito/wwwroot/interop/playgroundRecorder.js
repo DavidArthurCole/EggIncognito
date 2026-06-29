@@ -11,6 +11,7 @@ const GIF_URL = 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js';
 const GIF_WORKER_URL = 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js';
 
 let GIFClass = null;
+let workerBlobUrl = null;
 
 async function ensureGif() {
   if (GIFClass) return GIFClass;
@@ -26,6 +27,18 @@ async function ensureGif() {
   GIFClass = globalThis.GIF;
   if (!GIFClass) throw new Error('gif.js did not register');
   return GIFClass;
+}
+
+// A Web Worker cannot be created from a cross-origin URL (the CDN worker is blocked: "may not load data from
+// cdn.jsdelivr.net"). Fetch the worker source as text and wrap it in a same-origin blob URL, which a Worker is
+// allowed to load. Cached after the first fetch.
+async function ensureWorkerUrl() {
+  if (workerBlobUrl) return workerBlobUrl;
+  const resp = await fetch(GIF_WORKER_URL);
+  if (!resp.ok) throw new Error('failed to fetch gif.worker.js (' + resp.status + ')');
+  const src = await resp.text();
+  workerBlobUrl = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+  return workerBlobUrl;
 }
 
 // round half away from zero, matching the C# LoopFrames contract.
@@ -56,7 +69,8 @@ export async function record(dotnetRef, opts) {
   const ctx = off.getContext('2d');
 
   const GIF = await ensureGif();
-  const gif = new GIF({ workers: 2, quality: 10, width: outW, height: outH, workerScript: GIF_WORKER_URL, repeat: 0 });
+  const workerScript = await ensureWorkerUrl();
+  const gif = new GIF({ workers: 2, quality: 10, width: outW, height: outH, workerScript, repeat: 0 });
 
   // clean frames: drop the selection outline + hide the gizmo for the duration of the capture.
   e.captureCleanOutline(true);

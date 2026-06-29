@@ -86,7 +86,7 @@
         }
     }
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync() => await Load(background: false);
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -112,7 +112,7 @@
         try { await JS.InvokeVoidAsync("localStorage.setItem", NoteDismissKey, "1"); } catch { }
     }
 
-    async Task Tick() => await InvokeAsync(async () => { await Load(); StateHasChanged(); });
+    async Task Tick() => await InvokeAsync(async () => { await Load(background: true); StateHasChanged(); });
 
     HttpClient Client()
     {
@@ -122,16 +122,21 @@
         return c;
     }
 
-    async Task Load()
+    // background = the 10s poll. A transient fetch failure (e.g. a 429) must not wipe the already-rendered
+    // chips to "No discovered versions yet" until the next tick. Background keeps last-good on failure;
+    // foreground (initial load) clears so a real empty registry shows. Both endpoints fetch into temps so a
+    // partial failure never leaves _known and _stored inconsistent.
+    async Task Load(bool background)
     {
         try
         {
             // Public endpoints both: known-versions discovery list + the registry (to hide already-stored).
-            _known = await Client().GetFromJsonAsync<List<KnownRow>>("/api/protos/backfill/known", JsonOpts) ?? [];
+            var known = await Client().GetFromJsonAsync<List<KnownRow>>("/api/protos/backfill/known", JsonOpts) ?? [];
             var versions = await Client().GetFromJsonAsync<List<RegRow>>("/api/protos/versions", JsonOpts);
+            _known = known;
             _stored = versions is null ? [] : versions.Select(v => (v.Platform, v.AppVersion)).ToHashSet();
         }
-        catch { _known = []; _stored = []; }
+        catch { if (!background) { _known = []; _stored = []; } }
     }
 
     static string PlatformIcon(string platform) => platform.ToLowerInvariant() switch

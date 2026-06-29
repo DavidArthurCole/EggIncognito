@@ -43,41 +43,41 @@ public static class SyntheticMacho
         var bin = new byte[total];
 
         // mach_header_64
-        WU32(bin, 0, 0xFEEDFACF);          // magic
-        WU32(bin, 4, 0x0100000C);          // cputype ARM64
-        WU32(bin, 8, 0);                   // cpusubtype
-        WU32(bin, 12, 2);                  // filetype MH_EXECUTE
-        WU32(bin, 16, 2);                  // ncmds (segment + symtab)
+        WU32(bin, 0, 0xFEEDFACF); // magic
+        WU32(bin, 4, 0x0100000C); // cputype ARM64
+        WU32(bin, 8, 0); // cpusubtype
+        WU32(bin, 12, 2); // filetype MH_EXECUTE
+        WU32(bin, 16, 2); // ncmds (segment + symtab)
         WU32(bin, 20, (uint)loadCmdsSize); // sizeofcmds
-        WU32(bin, 24, 0);                  // flags
-        WU32(bin, 28, 0);                  // reserved
+        WU32(bin, 24, 0); // flags
+        WU32(bin, 28, 0); // reserved
 
         // LC_SEGMENT_64 __TEXT
         int lc = headerSize;
-        WU32(bin, lc, 0x19);                       // cmd LC_SEGMENT_64
-        WU32(bin, lc + 4, (uint)segCmdSize);       // cmdsize
-        WStr16(bin, lc + 8, "__TEXT");             // segname
-        WU64(bin, lc + 24, TextVm);                // vmaddr
-        WU64(bin, lc + 32, (ulong)text.Length);    // vmsize
-        WU64(bin, lc + 40, (ulong)textFileOff);    // fileoff
-        WU64(bin, lc + 48, (ulong)text.Length);    // filesize
-        WU32(bin, lc + 56, 7);                     // maxprot
-        WU32(bin, lc + 60, 5);                     // initprot
-        WU32(bin, lc + 64, 1);                     // nsects
-        WU32(bin, lc + 68, 0);                     // flags
+        WU32(bin, lc, 0x19); // cmd LC_SEGMENT_64
+        WU32(bin, lc + 4, (uint)segCmdSize); // cmdsize
+        WStr16(bin, lc + 8, "__TEXT"); // segname
+        WU64(bin, lc + 24, TextVm); // vmaddr
+        WU64(bin, lc + 32, (ulong)text.Length); // vmsize
+        WU64(bin, lc + 40, (ulong)textFileOff); // fileoff
+        WU64(bin, lc + 48, (ulong)text.Length); // filesize
+        WU32(bin, lc + 56, 7); // maxprot
+        WU32(bin, lc + 60, 5); // initprot
+        WU32(bin, lc + 64, 1); // nsects
+        WU32(bin, lc + 68, 0); // flags
 
         // section_64 __text
         int sec = lc + 72;
-        WStr16(bin, sec, "__text");                // sectname
-        WStr16(bin, sec + 16, "__TEXT");           // segname
-        WU64(bin, sec + 32, TextVm);               // addr
-        WU64(bin, sec + 40, (ulong)text.Length);   // size
-        WU32(bin, sec + 48, (uint)textFileOff);    // offset
-        WU32(bin, sec + 52, 4);                    // align (2^4)
+        WStr16(bin, sec, "__text"); // sectname
+        WStr16(bin, sec + 16, "__TEXT"); // segname
+        WU64(bin, sec + 32, TextVm); // addr
+        WU64(bin, sec + 40, (ulong)text.Length); // size
+        WU32(bin, sec + 48, (uint)textFileOff); // offset
+        WU32(bin, sec + 52, 4); // align (2^4)
 
         // LC_SYMTAB
         lc = headerSize + segCmdSize;
-        WU32(bin, lc, 0x02);                  // cmd LC_SYMTAB
+        WU32(bin, lc, 0x02); // cmd LC_SYMTAB
         WU32(bin, lc + 4, (uint)symtabCmdSize);
         WU32(bin, lc + 8, (uint)symoff);
         WU32(bin, lc + 12, (uint)nsyms);
@@ -91,11 +91,11 @@ public static class SyntheticMacho
         for (int i = 0; i < nsyms; i++)
         {
             int e = symoff + i * 16;
-            WU32(bin, e, strx[symList[i].Name]);  // n_strx
-            bin[e + 4] = 0x0E;                     // n_type N_SECT | N_EXT-ish (nonzero, parser ignores)
-            bin[e + 5] = 1;                        // n_sect
-            WU16(bin, e + 6, 0);                   // n_desc
-            WU64(bin, e + 8, symList[i].Value);    // n_value
+            WU32(bin, e, strx[symList[i].Name]); // n_strx
+            bin[e + 4] = 0x0E; // n_type N_SECT | N_EXT-ish (nonzero, parser ignores)
+            bin[e + 5] = 1; // n_sect
+            WU16(bin, e + 6, 0); // n_desc
+            WU64(bin, e + 8, symList[i].Value); // n_value
         }
 
         // string table

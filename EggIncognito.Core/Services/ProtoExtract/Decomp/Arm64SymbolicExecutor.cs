@@ -1,0 +1,418 @@
+using Gee.External.Capstone.Arm64;
+
+namespace EggIncognito.Services.ProtoExtract.Decomp;
+
+// Symbolically executes an arm64 function: instead of computing values it builds an ExprNode per register +
+// stack slot, so the function's MATH comes back as a portable tree. Models the idioms a real Eigen-heavy
+// particle update uses: scalar + vector FP arithmetic, per-lane vector tracking (ins/zip1/ext/dup/st1),
+// stack stores/loads (the affine transform is assembled on the stack and passed by pointer), movz/movk GP
+// immediates reinterpreted as floats, and fmadd/fmaxnm/fminnm/fcvt. Calls are modeled via the injected
+// delegate (KnownCallModels) for direct bl; indirect blr is opaque but flagged as the placement SINK when its
+// pointer arg (x2) targets the assembled stack matrix. Bounded (instr budget, no recursion). Never throws.
+public static class Arm64SymbolicExecutor
+{
+    public readonly record struct ExecResult(
+        IReadOnlyDictionary<string, ExprNode> Regs, IReadOnlyDictionary<long, ExprNode> Stack,
+        ExprNode? SinkArg, long? SinkStackPtr, int Opaque, string Diagnostics)
+    {
+        // Read a register's recovered expression by any alias (s3/v3/q3/d3, x8/w8). Regs are stored under the
+        // normalized SIMD/GP key; this resolves the alias the caller used.
+        public ExprNode? Reg(string name) => Regs.TryGetValue(NormKey(name), out var e) ? e : null;
+    }
+
+    private static string NormKey(string name)
+    {
+        if (name.Length == 0) return name;
+        char c = name[0];
+        int i = 1;
+        while (i < name.Length && char.IsDigit(name[i])) i++;
+        var num = name[1..i];
+        if (c is 'v' or 'q' or 'd' or 's') return "v" + num;
+        if (c is 'x' or 'w') return "x" + num;
+        return name;
+    }
+
+    private const int InstrBudget = 5000;
+
+    public static ExecResult Run(
+        byte[] code, MachoSymbols.FuncRange fn, ulong textVmAddr, int textFileOff,
+        IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyDictionary<string, ExprNode> seedInputs,
+        Func<string, ExprNode[], ExprNode?> resolveCall)
+    {
+        var st = new State(seedInputs);
+        int n = 0;
+
+        try
+        {
+            using var cs = Arm64Decode.CreateDisassembler();
+            foreach (var insn in cs.Disassemble(code, (long)fn.Start))
+            {
+                if (++n > InstrBudget) return st.Result("instruction budget exceeded");
+                var ops = insn.Details?.Operands;
+                if (ops is null) continue;
+                Step(st, insn, ops, syms, resolveCall);
+            }
+        }
+        catch (Exception ex)
+        {
+            return st.Result("executor error: " + ex.Message);
+        }
+        return st.Result("ok");
+    }
+
+    private static void Step(State st, Arm64Instruction insn, Arm64Operand[] ops,
+        IReadOnlyList<MachoSymbols.Symbol> syms, Func<string, ExprNode[], ExprNode?> resolveCall)
+    {
+        switch (insn.Id)
+        {
+            case Arm64InstructionId.ARM64_INS_FMOV when ops.Length == 2 && ops[1].Type == Arm64OperandType.FloatingPoint && ops[0].Register is { } fi:
+                st.SetScalar(fi.Name, new Const(ops[1].FloatingPoint));
+                break;
+            case Arm64InstructionId.ARM64_INS_FMOV when ops.Length == 2 && ops[0].Register is { } fd && ops[1].Register is { } fs:
+                // fmov s,w reinterprets a GP register's value as a float; fmov s,s copies.
+                st.SetScalar(fd.Name, st.RegExpr(fs.Name));
+                break;
+            case Arm64InstructionId.ARM64_INS_FMUL: st.Bin(ops, BinOp.Mul); break;
+            case Arm64InstructionId.ARM64_INS_FADD: st.Bin(ops, BinOp.Add); break;
+            case Arm64InstructionId.ARM64_INS_FSUB: st.Bin(ops, BinOp.Sub); break;
+            case Arm64InstructionId.ARM64_INS_FDIV: st.Bin(ops, BinOp.Div); break;
+            case Arm64InstructionId.ARM64_INS_FNEG: st.Un(ops, UnOp.Neg); break;
+            case Arm64InstructionId.ARM64_INS_FABS: st.Un(ops, UnOp.Abs); break;
+            case Arm64InstructionId.ARM64_INS_FSQRT: st.Un(ops, UnOp.Sqrt); break;
+            case Arm64InstructionId.ARM64_INS_FMAXNM: st.Bin(ops, BinOp.Max); break;
+            case Arm64InstructionId.ARM64_INS_FMINNM: st.Bin(ops, BinOp.Min); break;
+            case Arm64InstructionId.ARM64_INS_FCVT when ops.Length == 2 && ops[0].Register is { } cd && ops[1].Register is { } cs2:
+                st.SetScalar(cd.Name, st.Scalar(cs2.Name)); // numeric pass-through (f32<->f64)
+                break;
+            case Arm64InstructionId.ARM64_INS_FMADD when ops.Length == 4 && ops[0].Register is { } md:
+                // fmadd d, n, m, a => a + n*m
+                st.SetScalar(md.Name, new Binary(BinOp.Add, st.Scalar(RegName(ops, 3)),
+                    new Binary(BinOp.Mul, st.Scalar(RegName(ops, 1)), st.Scalar(RegName(ops, 2)))));
+                break;
+            case Arm64InstructionId.ARM64_INS_FCSEL when ops.Length >= 3 && ops[0].Register is { } cd2:
+                st.SetScalar(cd2.Name, new Select(new Opaque("cond", []), st.Scalar(RegName(ops, 1)), st.Scalar(RegName(ops, 2))));
+                break;
+
+            case Arm64InstructionId.ARM64_INS_MOVZ when ops.Length >= 2 && ops[0].Register is { } mz && ops[1].Type == Arm64OperandType.Immediate:
+                st.SetGp(mz.Name, ShiftImm(ops));
+                break;
+            case Arm64InstructionId.ARM64_INS_MOVK when ops.Length >= 2 && ops[0].Register is { } mk && ops[1].Type == Arm64OperandType.Immediate:
+                st.SetGp(mk.Name, st.GpVal(mk.Name) | ShiftImm(ops));
+                break;
+            case Arm64InstructionId.ARM64_INS_MOV when ops.Length == 2 && ops[0].Register is { } gd && ops[1].Register is { } gs:
+                st.CopyReg(gd.Name, gs.Name);
+                break;
+            case Arm64InstructionId.ARM64_INS_ADD when ops.Length == 3 && ops[0].Register is { } ad && ops[1].Register is { } an && ops[2].Type == Arm64OperandType.Immediate:
+                st.AddImm(ad.Name, an.Name, ops[2].Immediate);
+                break;
+            case Arm64InstructionId.ARM64_INS_ORR when ops.Length == 3 && ops[0].Register is { } od && ops[1].Register is { } on && ops[2].Type == Arm64OperandType.Immediate:
+                // orr x8, x21, #8 = pointer + 8 when x21 is a known stack pointer (a lane-store address calc).
+                st.OrrImm(od.Name, on.Name, ops[2].Immediate);
+                break;
+
+            case Arm64InstructionId.ARM64_INS_INS when ops.Length == 2 && ops[0].Register is { } id0 && ops[1].Register is { } is0:
+                st.VecInsert(id0.Name, ops[0].VectorIndex, is0.Name, ops[1].VectorIndex);
+                break;
+            case Arm64InstructionId.ARM64_INS_DUP when ops.Length == 2 && ops[0].Register is { } dd && ops[1].Register is { } ds:
+                st.VecDup(dd.Name, ds.Name, ops[1].VectorIndex);
+                break;
+            case Arm64InstructionId.ARM64_INS_ZIP1 when ops.Length == 3 && ops[0].Register is { } zd:
+                st.VecZip1(zd.Name, RegName(ops, 1), RegName(ops, 2));
+                break;
+            case Arm64InstructionId.ARM64_INS_EXT when ops.Length == 4 && ops[0].Register is { } ed && ops[3].Type == Arm64OperandType.Immediate:
+                st.VecExt(ed.Name, RegName(ops, 1), RegName(ops, 2), (int)ops[3].Immediate);
+                break;
+
+            case Arm64InstructionId.ARM64_INS_STR: st.Store(ops, 1); break;
+            case Arm64InstructionId.ARM64_INS_STUR: st.Store(ops, 1); break;
+            case Arm64InstructionId.ARM64_INS_STP: st.StorePair(ops); break;
+            case Arm64InstructionId.ARM64_INS_ST1: st.St1(ops); break;
+            case Arm64InstructionId.ARM64_INS_LDR: st.Load(ops); break;
+            case Arm64InstructionId.ARM64_INS_LDUR: st.Load(ops); break;
+            case Arm64InstructionId.ARM64_INS_LDP: st.LoadPair(ops); break;
+
+            case Arm64InstructionId.ARM64_INS_BL:
+                st.DirectCall(ops, syms, resolveCall);
+                break;
+            case Arm64InstructionId.ARM64_INS_BLR:
+                st.IndirectCall();
+                break;
+        }
+    }
+
+    private static long ShiftImm(Arm64Operand[] ops)
+    {
+        long v = ops[1].Immediate;
+        // a movz/movk may carry a shift in the operand text; capstone folds lsl into the immediate for movz on
+        // most builds, but when a shifter is exposed apply it. ShiftValue is 0 when absent.
+        if (ops.Length >= 2)
+        {
+            try { if (ops[1].ShiftOperation != Arm64ShiftOperation.Invalid) v <<= ops[1].ShiftValue; } catch { }
+        }
+        return v;
+    }
+
+    private static string RegName(Arm64Operand[] ops, int i) => i < ops.Length && ops[i].Register is { } r ? r.Name : "";
+
+    // Mutable execution state: GP/vector registers as ExprNodes, integer GP values for address + immediate
+    // tracking, and a stack model keyed by absolute sp-offset (one ExprNode per 4-byte lane).
+    private sealed class State
+    {
+        private readonly Dictionary<string, ExprNode> _regs = new(); // s/d/x/w/v -> expr
+        private readonly Dictionary<string, ExprNode[]> _vecs = new(); // vN -> 4 lane exprs
+        private readonly Dictionary<string, long> _gp = new(); // x/w -> integer value (addresses, imms)
+        private readonly Dictionary<string, long> _ptr = new(); // reg -> sp-relative offset (stack ptr)
+        private readonly Dictionary<long, ExprNode> _stack = new(); // sp-offset -> expr (per 4 bytes)
+        public int Opaque;
+        public ExprNode? SinkArg;
+        public long? SinkStackPtr;
+
+        public State(IReadOnlyDictionary<string, ExprNode> seed)
+        {
+            foreach (var (k, v) in seed) _regs[Norm(k)] = v;
+            _ptr["sp"] = 0; // sp is the stack origin
+            _regs["zr"] = new Const(0); // wzr/xzr read as 0
+            _gp["zr"] = 0;
+        }
+
+        public ExecResult Result(string diag) =>
+            new(_regs, _stack, SinkArg, SinkStackPtr, Opaque, diag);
+
+        public ExprNode Scalar(string name) => _regs.TryGetValue(Norm(name), out var e) ? e : new Opaque("unset", []);
+        public ExprNode RegExpr(string name) => Scalar(name);
+
+        public void SetScalar(string name, ExprNode e) => _regs[Norm(name)] = e;
+
+        public void Bin(Arm64Operand[] ops, BinOp op)
+        {
+            if (ops.Length < 3 || ops[0].Register is not { } d) return;
+            // vector form (vN.4s) writes lanes; scalar form writes one reg.
+            if (IsVec(ops[0]))
+            {
+                var a = Lanes(RegName(ops, 1)); var b = Lanes(RegName(ops, 2));
+                var outl = new ExprNode[4];
+                for (int i = 0; i < 4; i++) outl[i] = new Binary(op, a[i], b[i]);
+                SetVec(d.Name, outl);
+            }
+            else SetScalar(d.Name, new Binary(op, Scalar(RegName(ops, 1)), Scalar(RegName(ops, 2))));
+        }
+
+        public void Un(Arm64Operand[] ops, UnOp op)
+        {
+            if (ops.Length < 2 || ops[0].Register is not { } d) return;
+            SetScalar(d.Name, new Unary(op, Scalar(RegName(ops, 1))));
+        }
+
+        public void SetGp(string name, long v) { _gp[Norm(name)] = v; _regs[Norm(name)] = new Const(ReinterpretFloat(v)); }
+        public long GpVal(string name) => _gp.TryGetValue(Norm(name), out var v) ? v : 0;
+
+        public void CopyReg(string d, string s)
+        {
+            d = Norm(d); s = Norm(s);
+            if (_regs.TryGetValue(s, out var e)) _regs[d] = e;
+            if (_gp.TryGetValue(s, out var g)) _gp[d] = g;
+            if (_ptr.TryGetValue(s, out var p)) _ptr[d] = p; else _ptr.Remove(d);
+            if (_vecs.TryGetValue(s, out var v)) _vecs[d] = (ExprNode[])v.Clone();
+        }
+
+        public void AddImm(string d, string n, long imm)
+        {
+            d = Norm(d); n = Norm(n);
+            if (_ptr.TryGetValue(n, out var off)) _ptr[d] = off + imm;
+            else { _ptr.Remove(d); if (_gp.TryGetValue(n, out var g)) _gp[d] = g + imm; }
+        }
+
+        public void OrrImm(string d, string n, long imm)
+        {
+            d = Norm(d); n = Norm(n);
+            if (_ptr.TryGetValue(n, out var off)) _ptr[d] = off | imm; // address bit-set on a stack ptr
+        }
+
+        // --- vectors ---
+        public ExprNode[] Lanes(string name)
+        {
+            name = Norm(name);
+            if (_vecs.TryGetValue(name, out var v)) return v;
+            // a scalar value broadcast into lane 0, others unset.
+            var e = _regs.TryGetValue(name, out var r) ? r : new Opaque("unset", []);
+            return [e, new Opaque("unset", []), new Opaque("unset", []), new Opaque("unset", [])];
+        }
+        public void SetVec(string name, ExprNode[] lanes) { name = Norm(name); _vecs[name] = lanes; _regs[name] = new Const(0); }
+
+        public void VecInsert(string d, int di, string s, int si)
+        {
+            var dl = (ExprNode[])Lanes(d).Clone(); var sl = Lanes(s);
+            if (di >= 0 && di < 4 && si >= 0 && si < 4) dl[di] = sl[si];
+            SetVec(d, dl);
+        }
+        public void VecDup(string d, string s, int si)
+        {
+            var sl = Lanes(s); var e = si >= 0 && si < 4 ? sl[si] : sl[0];
+            SetVec(d, [e, e, e, e]);
+        }
+        public void VecZip1(string d, string a, string b)
+        {
+            var al = Lanes(a); var bl = Lanes(b);
+            SetVec(d, [al[0], bl[0], al[1], bl[1]]);
+        }
+        public void VecExt(string d, string a, string b, int byteIdx)
+        {
+            // ext takes a window across [a:b] starting byteIdx; model the common 4-byte-lane shifts (#8 -> 2
+            // lanes, #0xc -> 3 lanes). Lanes are 4 bytes; shift = byteIdx/4.
+            var al = Lanes(a); var bl = Lanes(b); int sh = byteIdx / 4;
+            var combined = new[] { al[0], al[1], al[2], al[3], bl[0], bl[1], bl[2], bl[3] };
+            SetVec(d, [combined[sh], combined[sh + 1], combined[sh + 2], combined[sh + 3]]);
+        }
+
+        // --- stack ---
+        public void Store(Arm64Operand[] ops, int srcCount)
+        {
+            if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory) return;
+            if (!StackOffset(ops[^1], out var off)) return;
+            var src = ops[0];
+            if (src.Register is not { } r) return;
+            if (IsVec(src) || r.Name.StartsWith('q'))
+            {
+                var lanes = Lanes(r.Name);
+                for (int i = 0; i < 4; i++) _stack[off + i * 4] = lanes[i];
+            }
+            else if (r.Name.StartsWith('d'))
+            {
+                var lanes = Lanes(r.Name);
+                _stack[off] = lanes[0]; _stack[off + 4] = lanes[1];
+            }
+            else // s / w / x scalar
+            {
+                _stack[off] = Scalar(r.Name);
+            }
+        }
+
+        public void StorePair(Arm64Operand[] ops)
+        {
+            if (ops.Length < 3 || ops[^1].Type != Arm64OperandType.Memory) return;
+            if (!StackOffset(ops[^1], out var off)) return;
+            if (ops[0].Register is { } a) _stack[off] = Scalar(a.Name);
+            if (ops[1].Register is { } b) _stack[off + LaneSize(ops[0])] = Scalar(b.Name);
+        }
+
+        public void St1(Arm64Operand[] ops)
+        {
+            // st1 {vN.s}[i], [xPtr] stores one lane to a pointer address. The pointer reg holds a stack offset.
+            if (ops.Length < 2) return;
+            var memOp = ops[^1];
+            if (memOp.Type != Arm64OperandType.Memory || memOp.Memory?.Base is not { } b) return;
+            if (!_ptr.TryGetValue(Norm(b.Name), out var off)) return;
+            if (ops[0].Register is { } v)
+            {
+                var lanes = Lanes(v.Name);
+                int li = ops[0].VectorIndex >= 0 ? ops[0].VectorIndex : 0;
+                _stack[off] = li < 4 ? lanes[li] : lanes[0];
+            }
+        }
+
+        public void Load(Arm64Operand[] ops)
+        {
+            if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory || ops[0].Register is not { } r) return;
+            if (StackOffset(ops[^1], out var off))
+            {
+                if (IsVec(ops[0]) || r.Name.StartsWith('q'))
+                    SetVec(r.Name, [Slot(off), Slot(off + 4), Slot(off + 8), Slot(off + 12)]);
+                else
+                    SetScalar(r.Name, Slot(off));
+                return;
+            }
+            // a non-stack load reads a struct/heap field; name it Field(base, offset) so it is honest +
+            // inspectable (the renderer can later resolve it from the spawn data) instead of an anonymous opaque.
+            _ptr.Remove(Norm(r.Name));
+            if (ops[^1].Memory?.Base is { } b)
+            {
+                var disp = ops[^1].Memory.Displacement;
+                if (IsVec(ops[0]) || r.Name.StartsWith('q'))
+                    SetVec(r.Name, [new Field(b.Name, disp), new Field(b.Name, disp + 4), new Field(b.Name, disp + 8), new Field(b.Name, disp + 12)]);
+                else
+                    SetScalar(r.Name, new Field(b.Name, disp));
+            }
+            else _regs.Remove(Norm(r.Name));
+        }
+
+        public void LoadPair(Arm64Operand[] ops)
+        {
+            if (ops.Length < 3 || ops[^1].Type != Arm64OperandType.Memory) return;
+            var sz = LaneSize(ops[0]);
+            if (StackOffset(ops[^1], out var off))
+            {
+                if (ops[0].Register is { } a) SetScalar(a.Name, Slot(off));
+                if (ops[1].Register is { } b) SetScalar(b.Name, Slot(off + sz));
+                return;
+            }
+            if (ops[^1].Memory?.Base is { } mb)
+            {
+                var disp = ops[^1].Memory.Displacement;
+                if (ops[0].Register is { } a) SetScalar(a.Name, new Field(mb.Name, disp));
+                if (ops[1].Register is { } b) SetScalar(b.Name, new Field(mb.Name, disp + sz));
+            }
+        }
+
+        private ExprNode Slot(long off) => _stack.TryGetValue(off, out var e) ? e : new Field("stack", off);
+
+        private bool StackOffset(Arm64Operand mem, out long off)
+        {
+            off = 0;
+            if (mem.Memory?.Base is not { } b) return false;
+            if (!_ptr.TryGetValue(Norm(b.Name), out var baseOff)) return false;
+            off = baseOff + mem.Memory.Displacement;
+            return true;
+        }
+
+        // --- calls ---
+        public void DirectCall(Arm64Operand[] ops, IReadOnlyList<MachoSymbols.Symbol> syms, Func<string, ExprNode[], ExprNode?> resolveCall)
+        {
+            var target = ops.Length == 1 && ops[0].Type == Arm64OperandType.Immediate ? (ulong)ops[0].Immediate : 0;
+            var name = Nearest(syms, target);
+            var args = new[] { Scalar("s0"), Scalar("s1"), Scalar("s2") };
+            var modeled = resolveCall(name, args);
+            if (modeled is null) { SetScalar("s0", new Opaque(name, [])); SetScalar("x0", Scalar("s0")); Opaque++; return; }
+            if (modeled is Opaque { Call: "@sink" } sink && sink.Args.Count > 0) SinkArg = sink.Args[0];
+            SetScalar("s0", modeled); SetScalar("x0", modeled);
+        }
+
+        // An indirect call (vtable) cannot be name-resolved. It is the placement SINK when its pointer arg x2
+        // holds the assembled stack matrix; record that stack offset so EffectRecovery reads the 4x4 from there.
+        public void IndirectCall()
+        {
+            Opaque++;
+            if (_ptr.TryGetValue("x2", out var off)) SinkStackPtr = off;
+        }
+
+        private static string Nearest(IReadOnlyList<MachoSymbols.Symbol> syms, ulong target)
+        {
+            string? best = null; ulong bestAddr = 0;
+            foreach (var s in syms)
+            {
+                if (s.Value == 0 || string.IsNullOrEmpty(s.Name)) continue;
+                if (s.Value <= target && s.Value >= bestAddr) { bestAddr = s.Value; best = s.Name; }
+            }
+            return best ?? $"0x{target:x}";
+        }
+
+        // 0x3f800000 -> 1.0f: a movz/movk that builds a float bit pattern in a GP reg, later fmov'd to s.
+        private static double ReinterpretFloat(long bits) => BitConverter.Int32BitsToSingle((int)(bits & 0xFFFFFFFF));
+
+        private static bool IsVec(Arm64Operand op) => op.VectorArrangementSpecifier != Arm64VectorArrangementSpecifier.Invalid;
+        private static int LaneSize(Arm64Operand op)
+        {
+            var r = op.Register;
+            return r is null ? 8 : r.Name.StartsWith('d') ? 8 : r.Name.StartsWith('s') || r.Name.StartsWith('w') ? 4 : 8;
+        }
+
+        // Normalize a register alias to the value key. v/q/d/s share the SIMD register file (v0==q0==d0==s0);
+        // x/w share the GP file (x0==w0). Canonical = leading-letter family + the numeric id (digits up to a
+        // '.' arrangement suffix). "v10.4s"->"v10", "q3"->"v3", "s0"->"v0", "x8"->"x8", "w9"->"x9".
+        private static string Norm(string name)
+        {
+            if (name is "sp" or "wsp") return "sp";
+            if (name is "wzr" or "xzr") return "zr";
+            return NormKey(name);
+        }
+    }
+}

@@ -13,12 +13,19 @@ public static class PlaygroundPaths
     // hyperloop itself is NOT the road and its cars do not drive.
     public const float RoadZ = 15f;
 
-    // A chicken's run: from the hatchery door out to the hab ramp, with a gentle midpoint bow so it curves
-    // rather than sliding straight. The client Catmull-Rom smooths it further.
-    public static float[][] ChickenRun(float[] hatcheryPos, float[] habPos)
+    // The hatchery has a small fenced area in front of it that chickens flow into; its right-most point is the
+    // "door" the chickens emerge from. Approximated as an offset from the hatchery placement toward +X (the
+    // fenced area's right edge). STOPGAP: the exact door point is in the hatchery model node graph; extract it.
+    public const float HatcheryDoorOffsetX = 2.5f;
+
+    // A chicken's run: from the hatchery DOOR (right-most fenced point, not the hatchery center) out to the hab
+    // ramp, with a gentle midpoint bow so it curves rather than sliding straight. Catmull-Rom smooths it client
+    // side. laneOffsetZ shifts the whole run sideways so several chickens run in parallel lanes, not on top of
+    // each other.
+    public static float[][] ChickenRun(float[] hatcheryPos, float[] habPos, float laneOffsetZ = 0f)
     {
-        var start = new[] { hatcheryPos[0], 0f, hatcheryPos[2] };
-        var end = new[] { habPos[0], 0f, habPos[2] };
+        var start = new[] { hatcheryPos[0] + HatcheryDoorOffsetX, 0f, hatcheryPos[2] + laneOffsetZ };
+        var end = new[] { habPos[0], 0f, habPos[2] + laneOffsetZ };
         var mid = new[] { (start[0] + end[0]) / 2f + 1.5f, 0f, (start[2] + end[2]) / 2f };
         return [start, mid, end];
     }

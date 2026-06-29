@@ -11,8 +11,8 @@ public class Elf64Tests
     {
         // Layout: [ehdr 64][shstrtab bytes][shdr0 null][shdr1 .text][shdr2 .shstrtab]
         var shstrtab = System.Text.Encoding.ASCII.GetBytes("\0.text\0.shstrtab\0");
-        int textNameOff = 1;          // ".text" starts at index 1
-        int strtabNameOff = 7;        // ".shstrtab" starts at index 7
+        int textNameOff = 1; // ".text" starts at index 1
+        int strtabNameOff = 7; // ".shstrtab" starts at index 7
         int ehdr = 64, shentsize = 64;
         int shstrtabFileOff = ehdr;
         int shoff = shstrtabFileOff + shstrtab.Length;
