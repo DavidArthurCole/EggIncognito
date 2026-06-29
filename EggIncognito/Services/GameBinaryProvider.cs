@@ -1,56 +1,73 @@
-using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
-using EggIncognito.Services.Devices;
+using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
 
-// Pulls the decrypted egginc iOS Mach-O off the asset-source device and caches it, so the decomp constant
-// extractor can read game behavior out of it without the binary ever living in the repo (no-game-assets rule).
-// Mirrors DeviceMeshProvider's device resolution + cache. iOS-only in v1: the extractor's slide/section logic
-// is Mach-O; the android .so is ELF and is deferred.
+// Supplies a SYMBOLIZED egginc Mach-O to the decomp extractor, version-matched to what the device runs. The
+// device build is STRIPPED, so the binary is sourced from the local symbolized-IPA store (mirror/older builds
+// carry the ~450k symbols), NOT pulled off the device. The device is only the version oracle. A configured
+// Decomp:BinaryPath short-circuits to one explicit symbolized binary. No game binary ever lands in the repo.
 public sealed class GameBinaryProvider(
-    IServiceProvider services, MeshAssetCache cache, IProcessRunner runner, IConfiguration config,
-    ILogger<GameBinaryProvider> logger)
+    IServiceProvider services, IConfiguration config, ILogger<GameBinaryProvider> logger)
 {
-    private const string CacheKind = "binary";
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
 
     public async Task<(bool Ok, byte[]? Bytes, string? Diagnostics)> GetBinaryAsync(string? deviceId, CancellationToken ct)
     {
-        var store = Store;
-        if (store is null) return (false, null, "device subsystem unavailable");
+        var overridePath = config["Decomp:BinaryPath"];
+        if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath))
+        {
+            var bytes = await File.ReadAllBytesAsync(overridePath, ct);
+            return (true, bytes, null);
+        }
 
-        var device = await ResolveDeviceAsync(store, deviceId, ct);
-        var platform = device?.Platform ?? "ios";
+        string? version = await DeviceVersionAsync(deviceId, ct);
 
-        if (cache.TryGet(CacheKind, platform) is { } cached) return (true, cached, null);
+        var dir = config["Decomp:SymbolizedIpaDir"];
+        if (string.IsNullOrEmpty(dir)) dir = Path.Combine("captures", "ipas");
+        var store = new SymbolizedBinaryStore(dir);
+        var r = store.Get(version);
+        if (!r.Ok || r.Bytes is null) return (false, null, r.Diagnostics);
 
-        if (device is null) return (false, null, "no asset-source device available");
-        if (device.Platform != "ios")
-            return (false, null, "v1 extracts the iOS Mach-O only; android .so deferred");
-
-        var cfg = config.GetSection("DeviceUpdate").GetSection("Ios");
-        var key = cfg["SshKeyPath"];
-        if (string.IsNullOrEmpty(key)) return (false, null, "ios pull needs DeviceUpdate:Ios:SshKeyPath");
-        var host = string.IsNullOrEmpty(cfg["SshHost"]) ? device.Target : cfg["SshHost"]!;
-        var port = cfg["SshPort"] ?? "2222";
-
-        var bytes = await new IosAssetPuller(runner, host, port, key).PullAppBinaryAsync(device.Package, ct);
-        if (bytes is null) return (false, null, "could not pull egginc binary off the device");
-
-        await cache.PutAsync(CacheKind, platform, bytes, ct);
-        logger.LogInformation("decomp: pulled egginc binary off {Id} ({Bytes} bytes)", device.Id, bytes.Length);
-        return (true, bytes, null);
+        if (!r.ExactVersion)
+            logger.LogInformation("decomp: device version {Dev} not in stash, using symbolized {Use}", version ?? "?", r.Version);
+        return (true, r.Bytes, r.ExactVersion ? null : $"version mismatch: device {version ?? "?"}, using symbolized {r.Version}");
     }
 
-    private static async Task<Device?> ResolveDeviceAsync(IDeviceStatusStore store, string? deviceId, CancellationToken ct)
+    // Inputs for v2 symbol recovery: a SYMBOLIZED reference (from the store) + a STRIPPED target. The target is
+    // an explicit Decomp:StrippedTargetPath (e.g. the decrypted device binary saved to disk); when unset the
+    // recovery has nothing to project onto and returns a diagnostic. Reference defaults to the store's newest
+    // symbolized build unless refVersion is given.
+    public async Task<(bool Ok, byte[]? RefBytes, byte[]? TargetBytes, string? Diagnostics)> GetRecoveryInputsAsync(
+        string? refVersion, string? targetPathOverride, CancellationToken ct)
     {
-        if (!string.IsNullOrEmpty(deviceId)) return await store.GetAsync(deviceId, ct);
-        var devices = await store.EnabledDevicesAsync(ct);
-        if (devices.Count == 0) return null;
-        var latest = (await store.LatestPerDeviceAsync(ct)).ToDictionary(p => p.DeviceId);
-        var reachable = devices.FirstOrDefault(d => latest.TryGetValue(d.Id, out var p) && p.Reachable);
-        return reachable ?? devices[0];
+        var dir = config["Decomp:SymbolizedIpaDir"];
+        if (string.IsNullOrEmpty(dir)) dir = Path.Combine("captures", "ipas");
+        var store = new SymbolizedBinaryStore(dir);
+        var refr = store.Get(refVersion);
+        if (!refr.Ok || refr.Bytes is null) return (false, null, null, refr.Diagnostics);
+
+        var targetPath = targetPathOverride ?? config["Decomp:StrippedTargetPath"];
+        if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath))
+            return (false, refr.Bytes, null, "no stripped target binary; set Decomp:StrippedTargetPath or pass targetPath");
+
+        var targetBytes = await File.ReadAllBytesAsync(targetPath, ct);
+        return (true, refr.Bytes, targetBytes, null);
+    }
+
+    private async Task<string?> DeviceVersionAsync(string? deviceId, CancellationToken ct)
+    {
+        var store = Store;
+        if (store is null) return null;
+        try
+        {
+            var latest = await store.LatestPerDeviceAsync(ct);
+            DeviceProbe? row = deviceId is null
+                ? latest.FirstOrDefault(p => !string.IsNullOrEmpty(p.InstalledAppVersion))
+                : latest.FirstOrDefault(p => p.DeviceId == deviceId);
+            return row?.InstalledAppVersion;
+        }
+        catch { return null; }
     }
 }

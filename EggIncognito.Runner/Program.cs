@@ -24,8 +24,6 @@ public static class Program
         var interval = int.TryParse(Env("POLL_INTERVAL"), out var s) ? s : 300;
         var eventUrl = Env("SYNC_EVENT_URL");
         var eventSecret = Env("SYNC_EVENT_SECRET");
-        var extractorRepo = Env("EXTRACTOR_REPO", "../tools/proto-extract");
-        var extractorPython = Env("EXTRACTOR_PYTHON", Path.Combine(extractorRepo, ".venv", "bin", "python3"));
         var triggerSecret = Env("RUNNER_TRIGGER_SECRET");
         var triggerUrls = Env("RUNNER_TRIGGER_URLS", "http://127.0.0.1:5055");
         var iosBinary = Env("IOS_BINARY_PATH", Path.Combine(apkStash, "ios-binary"));
@@ -42,7 +40,7 @@ public static class Program
 
         var http = new HttpClient();
         var poster = new EventPoster(http, eventUrl, eventSecret);
-        var clientVersion = new LibegincClientVersionReader(extractorRepo, extractorPython);
+        var clientVersion = new LibegincClientVersionReader();
         int? prevCv = int.TryParse(Env("PREV_CLIENT_VERSION"), out var pcv) ? pcv : null;
         var cvState = new ClientVersionState(Path.Combine(apkStash, $"clientversion-{platform}.txt"), prevCv);
 

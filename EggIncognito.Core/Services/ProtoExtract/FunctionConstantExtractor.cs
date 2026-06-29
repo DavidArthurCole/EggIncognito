@@ -12,10 +12,19 @@ public static class FunctionConstantExtractor
     public static ExtractResult Extract(byte[] bin, string[] nameNeedles)
     {
         if (bin is null || bin.Length < 64) return new(false, "", [], [], "binary too short");
+        return ExtractWith(bin, MachoSymbols.Read(bin), nameNeedles);
+    }
+
+    // Extract using an EXPLICIT symbol list instead of the binary's own table. The recovery path (v2) hands a
+    // stripped target binary plus the (name, target-VA) symbols recovered from a symbolized reference, so the
+    // extractor can resolve functions the stripped binary lost. Pass the full recovered set so a function's end
+    // VA can be inferred from the next symbol.
+    public static ExtractResult ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string[] nameNeedles)
+    {
+        if (bin is null || bin.Length < 64) return new(false, "", [], [], "binary too short");
         if (!MachoText.TryFindText(bin, out var textFileOff, out _, out var textVmAddr))
             return new(false, "", [], [], "no __text section");
 
-        var syms = MachoSymbols.Read(bin);
         if (!MachoSymbols.TryFindFunc(syms, nameNeedles, out var fn))
             return new(false, "", [], [], $"symbol not found: {string.Join("|", nameNeedles)}");
 

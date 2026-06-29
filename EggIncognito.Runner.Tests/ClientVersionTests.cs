@@ -9,8 +9,8 @@ public class ClientVersionTests
     [Fact]
     public void Reader_NullPrev_ReturnsNull_WithoutRunningTool()
     {
-        // No anchor means no disambiguation; the reader returns null without shelling python.
-        var reader = new LibegincClientVersionReader("repo", "python-does-not-exist");
+        // No anchor means no disambiguation; the reader returns null without reading the file.
+        var reader = new LibegincClientVersionReader();
         Assert.Null(reader.Read("/x/arm.apk", null));
     }
 

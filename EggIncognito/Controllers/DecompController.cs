@@ -70,6 +70,47 @@ public sealed class DecompController(GameBinaryProvider binaries, ICurrentUser c
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
 
+    // v2 cross/adjacent-version symbol recovery: project a symbolized reference's symbols onto a stripped target
+    // (LC_FUNCTION_STARTS-anchored, byte-verified), then extract the requested functions' constants from the
+    // STRIPPED target using the recovered VAs. For the device path when only an adjacent symbolized build exists.
+    [HttpGet("recover")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Recover(
+        [FromQuery] string? name, [FromQuery] string? refVersion, [FromQuery] string? targetPath, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        try
+        {
+            var (ok, refBytes, tgtBytes, diag) = await binaries.GetRecoveryInputsAsync(refVersion, targetPath, ct);
+            if (!ok || refBytes is null || tgtBytes is null) return Ok(new { ok = false, diagnostics = diag });
+
+            var needles = string.IsNullOrWhiteSpace(name)
+                ? new[] { "GalaxyParticle6update", "GalaxyParticle7onBirth", "FarmScene10updateSilo" }
+                : [name];
+            var report = SymbolRecovery.Recover(refBytes, tgtBytes, needles);
+
+            var extracted = needles.Select(n =>
+            {
+                var ex = FunctionConstantExtractor.ExtractWith(tgtBytes, report.Symbols, [n]);
+                return new { needle = n, result = Shape(ex) };
+            }).ToList();
+
+            return Ok(new
+            {
+                ok = true,
+                tier = report.Tier,
+                recovered = report.Recovered,
+                requestedFound = report.RequestedFound,
+                requestedMissing = report.RequestedMissing,
+                diagnostics = report.Diagnostics,
+                extracted,
+            });
+        }
+        catch (DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
     private async Task<IActionResult> ExtractAsync(string[] needles, string? device, CancellationToken ct)
     {
         try

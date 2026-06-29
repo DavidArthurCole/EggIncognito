@@ -24,16 +24,32 @@ public class FunctionConstantExtractorTests
         if (bin is null) return; // fixture absent (CI): the synthetic + manual cover the path
 
         // The silo layout function carries the disassembled constants 5.5 and -0.5 (FarmLayout.SiloPos Z values).
-        var res = FunctionConstantExtractor.Extract(bin, ["updateSilo", "FarmScene9updateSilo", "FarmScene10updateSilos"]);
+        var res = FunctionConstantExtractor.Extract(bin, ["FarmScene10updateSilo"]);
         Assert.True(res.Ok, res.Diagnostics);
         Assert.Contains(res.Floats, f => Math.Abs(f - 5.5) < 0.01);
         Assert.Contains(res.Floats, f => Math.Abs(f - (-0.5)) < 0.01);
     }
 
+    [Fact]
+    public void Extract_RealBinary_GalaxyParticle_HasConstants()
+    {
+        var bin = TestBinary();
+        if (bin is null) return;
+
+        // The Chicken Universe hab floating effect = a GalaxyParticle system; its orbit constants live in
+        // GalaxyParticle::onBirth + ::update. The decomp feature reads them; assert the symbols resolve and
+        // each carries at least one constant (proves the fmov-immediate path, not just memory-pool loads).
+        var onBirth = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle7onBirth"]);
+        var update = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle6update"]);
+        Assert.True(onBirth.Ok, onBirth.Diagnostics);
+        Assert.True(update.Ok, update.Diagnostics);
+        Assert.True(onBirth.Floats.Count + update.Floats.Count > 0, "no orbit constants recovered");
+    }
+
     // Optional local egginc Mach-O fixture; absent on CI. Same pattern as ShellCatalogTests.ConfigJson().
     private static byte[]? TestBinary()
     {
-        foreach (var rel in new[] { "../../../../captures/egginc", "../../../../../captures/egginc" })
+        foreach (var rel in new[] { "../../../../captures/egginc", "../../../../../captures/egginc", "../../../../EggIncognito/captures/egginc" })
         {
             var full = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, rel));
             if (File.Exists(full)) return File.ReadAllBytes(full);

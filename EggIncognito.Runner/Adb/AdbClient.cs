@@ -9,7 +9,7 @@ public interface IAdbClient
     string DumpsysPackage(string package);
 
     // PullArmApk resolves the arm split via `pm path` and pulls it to destPath.
-    // The arm split carries the proto descriptors pbtk needs.
+    // The arm split carries the proto descriptors the carver needs.
     string PullArmApk(string package, string destPath);
 }
 
@@ -55,7 +55,7 @@ public sealed class AdbClient : IAdbClient
         return paths;
     }
 
-    // SelectArmApk picks the arm split, which carries the native + descriptor payload pbtk needs.
+    // SelectArmApk picks the arm split, which carries the native + descriptor payload the carver needs.
     public static string SelectArmApk(IReadOnlyList<string> apkPaths)
     {
         foreach (var p in apkPaths)

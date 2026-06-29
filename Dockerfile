@@ -68,7 +68,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # Npgsql/HttpClient dlopen libgssapi_krb5 during OAuth token exchange; aspnet base omits it. Ship it.
 # iproute2: hosted capture binds a per-user IPv6 /65 via an AnyIP local route added at startup (the
 # host routes the prefix to this container; the container kernel must accept those destinations so the
-# front-door socket sees the real per-user dest). proto-extract toolchain NOT baked (~250MB).
+# front-door socket sees the real per-user dest). Proto + clientVersion extraction is in-process C#.
 # adb + ideviceinstaller: device-status probes shell out to these to read the installed EI version.
 # They reach the plugged-in devices via the host's adb server (ADB_SERVER_SOCKET) + usbmuxd socket
 # (mounted at runtime), not raw USB. Without them every probe reports the device unreachable.

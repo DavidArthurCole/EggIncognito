@@ -7,9 +7,7 @@
 #     OR pass its path as $RUNNER_BIN. Build it with:
 #       dotnet publish EggIncognito.Runner/EggIncognito.Runner.csproj -c Release -r linux-x64 \
 #         --self-contained true -p:PublishSingleFile=true -o <outdir>
-#   - The proto-extract toolchain dir (this repo's tools/proto-extract), passed as $TOOLCHAIN_SRC
-#     (default: ../../tools/proto-extract relative to this script).
-#   - java on PATH (dex2jar), adb on PATH with the device authorized (poll path).
+#   - adb on PATH with the device authorized (poll path).
 #   - Run as the user that owns the adb key + USB device (NOT root; sudo is used per-step).
 #
 # Env overrides:
@@ -21,7 +19,6 @@
 #   TRIGGER_SECRET    bearer for the extract/resync listener (default: generated; printed at the end)
 #   TRIGGER_PORT      listener port (default: 5055)
 #   RUNNER_BIN        path to the published binary (default: ./EggIncognito.Runner)
-#   TOOLCHAIN_SRC     proto-extract source dir (default: ../../tools/proto-extract)
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 
@@ -29,7 +26,6 @@ RUN_USER="${RUN_USER:-$USER}"
 PLATFORM="${PLATFORM:-android}"
 TRIGGER_PORT="${TRIGGER_PORT:-5055}"
 RUNNER_BIN="${RUNNER_BIN:-$here/EggIncognito.Runner}"
-TOOLCHAIN_SRC="${TOOLCHAIN_SRC:-$here/../../tools/proto-extract}"
 DEST=/opt/eggincognito-runner
 SECRET_DIR=/etc/eggincognito-runner
 UNIT=/etc/systemd/system/eggincognito-runner@.service
@@ -37,7 +33,6 @@ UNIT=/etc/systemd/system/eggincognito-runner@.service
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
 [ -f "$RUNNER_BIN" ] || fail "runner binary not found at $RUNNER_BIN (build it or set RUNNER_BIN)"
-[ -d "$TOOLCHAIN_SRC/pbtk" ] || fail "toolchain not found at $TOOLCHAIN_SRC (set TOOLCHAIN_SRC)"
 [ -n "${ADB_TARGET:-}" ] || echo "WARN: ADB_TARGET unset; the device poll will fail until it is set in $SECRET_DIR/secret.env"
 [ -n "${SYNC_EVENT_SECRET:-}" ] || fail "SYNC_EVENT_SECRET required (the EGI_SYNC_EVENT_SECRET from the eggincognito stack)"
 
@@ -56,9 +51,6 @@ echo "installing runner -> $DEST (user $RUN_USER, platform $PLATFORM, listener :
 
 sudo mkdir -p "$DEST" "$SECRET_DIR"
 sudo install -m 0755 "$RUNNER_BIN" "$DEST/EggIncognito.Runner"
-sudo rm -rf "$DEST/proto-extract"
-sudo cp -r "$TOOLCHAIN_SRC" "$DEST/proto-extract"
-sudo bash "$DEST/proto-extract/setup.sh"
 
 # secret.env, mode 0600, only written if absent so a re-run does not clobber a hand-edited secret.
 if [ ! -f "$SECRET_DIR/secret.env" ]; then
@@ -92,8 +84,6 @@ Environment=PACKAGE=com.auxbrain.egginc
 Environment=STATE_FILE=$DEST/state-%i.json
 Environment=APK_STASH_DIR=$DEST/apks
 Environment=POLL_INTERVAL=300
-Environment=EXTRACTOR_REPO=$DEST/proto-extract
-Environment=EXTRACTOR_PYTHON=$DEST/proto-extract/.venv/bin/python3
 Environment=RUNNER_TRIGGER_URLS=http://0.0.0.0:$TRIGGER_PORT
 EnvironmentFile=$SECRET_DIR/secret.env
 Restart=on-failure

@@ -3,10 +3,12 @@ using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Disassembles an arm64 function byte range and recovers the float/double constants it loads + the functions
-// it calls. Tracks the adrp/add address-pair idiom so a `ldr s0, [xN, #off]` resolves to an absolute VA, then
-// reads the f32/f64 from the binary via the __text slide. Reimplements in C# (over capstone) the logic the
-// throwaway /tmp/disas.py harness used to recover the silo formula. No Python, no shell-out.
+// Disassembles an arm64 function byte range and recovers the float/double constants it uses + the functions
+// it calls. Two constant idioms: a memory-pool load (`adrp`+`add`+`ldr s0,[xN,#off]` resolves to an absolute
+// VA and the f32/f64 is read from the binary via the __text slide) and an inline FP immediate (`fmov s0, #5.5`,
+// the value baked into the instruction). Both reach FarmScene::updateSilo's 5.5/-0.5 silo offsets; the game
+// emits the small representable constants as fmov immediates, larger/odd ones as pool loads. Reimplements in
+// C# (over capstone) the logic the throwaway /tmp/disas.py harness used to recover the silo formula. No Python.
 //
 // capstone-net note: Arm64Operand is a tagged union; reading .Immediate/.Register/.Memory on the wrong .Type
 // throws, so every access is guarded by op.Type. adrp's immediate is already the resolved absolute page.
@@ -64,6 +66,17 @@ public static class MachoArm64Disassembler
                             floats.Add(new FloatConst(va, BitConverter.ToDouble(bin, (int)fileOff), true));
                         else if (name.StartsWith('s') && fileOff >= 0 && fileOff + 4 <= bin.Length)
                             floats.Add(new FloatConst(va, BitConverter.ToSingle(bin, (int)fileOff), false));
+                    }
+                    break;
+
+                case Arm64InstructionId.ARM64_INS_FMOV:
+                    // fmov sN/dN, #imm bakes the constant into the instruction. capstone surfaces it as a
+                    // FloatingPoint operand; the destination register width gives f32 vs f64.
+                    if (ops.Length == 2 && ops[0].Type == Arm64OperandType.Register
+                        && ops[1].Type == Arm64OperandType.FloatingPoint && ops[0].Register is { } fmovRd)
+                    {
+                        bool f64 = fmovRd.Name?.StartsWith('d') == true;
+                        floats.Add(new FloatConst((ulong)insn.Address, ops[1].FloatingPoint, f64));
                     }
                     break;
 

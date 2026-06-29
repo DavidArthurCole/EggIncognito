@@ -19,8 +19,6 @@ Environment=PACKAGE=com.auxbrain.egginc
 Environment=STATE_FILE=/opt/eggincognito-runner/state-%i.json
 Environment=APK_STASH_DIR=/opt/eggincognito-runner/apks
 Environment=POLL_INTERVAL=300
-Environment=EXTRACTOR_REPO=/opt/eggincognito-runner/proto-extract
-Environment=EXTRACTOR_PYTHON=/opt/eggincognito-runner/proto-extract/.venv/bin/python3
 # Bind all interfaces so a container on the same host can reach the runner. Loopback would only be
 # reachable from the host itself, not across the container boundary.
 Environment=RUNNER_TRIGGER_URLS=http://0.0.0.0:5055

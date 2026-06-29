@@ -8,14 +8,7 @@ Host-side device runner. Polls a device over adb, extracts the cleaned proto, po
 dotnet publish EggIncognito.Runner -c Release -o /opt/eggincognito-runner
 ```
 
-Copy the vendored toolchain beside the binary as `proto-extract/`, run its setup once:
-
-```bash
-cp -r tools/proto-extract /opt/eggincognito-runner/proto-extract
-cd /opt/eggincognito-runner/proto-extract && bash setup.sh
-```
-
-Needs java on PATH (dex2jar). The runner shells `proto-extract/.venv/bin/python3`, then runs in-process C# `ProtoCleanup`.
+Proto extraction and clientVersion scanning run in-process in C# (`AndroidProtoExtractor`, `Elf64`, `Arm64ClientVersionScanner`). No external toolchain, no python, no java.
 
 ## systemd instances
 
@@ -48,4 +41,4 @@ The unit binds `RUNNER_TRIGGER_URLS=http://0.0.0.0:5055` so a container on the h
 
 ## clientVersion extraction
 
-The runner extracts the proto/API `clientVersion` (e.g. 72) by disassembling `libegginc.so` (`proto-extract/pbtk/extractors/client_version.py`, capstone) and picking the compiled-in constant anchored to `PREV_CLIENT_VERSION` (it increments by 0-1 per build). Seed `PREV_CLIENT_VERSION` once; the runner advances it automatically. Null when no anchor is set.
+The runner extracts the API `clientVersion` (e.g. 72) in-process using pure C# (`Elf64` + `Arm64ClientVersionScanner`). It disassembles `libegginc.so` and picks the compiled-in constant anchored to `PREV_CLIENT_VERSION` (increments by 0-1 per build). Seed `PREV_CLIENT_VERSION` once; the runner advances it automatically. Null when no anchor is set.
