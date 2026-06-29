@@ -17,21 +17,34 @@
 // host fitter still sees garbage clearly, so we log raw and decide host-side.
 
 const SYMBOL = '__ZN19ParticleBatchedMesh11addParticleEN5Eigen9TransformIfLi3ELi2ELi0EEEf';
+const MODULE = 'egginc';
 const OUT_PATH = '/var/root/particle-capture.ndjson';
 const DURATION_MS = 5000; // capture window; the host triggers at the hatchery view
 const MAX_RECORDS = 60000; // hard cap so a runaway frame rate can't fill the disk
 
+// The device build is STRIPPED of the C++ symbol table (only ~3.4k SDK export stubs survive), so addParticle is
+// not resolvable by name on-device (verified on egginc 1.36 stripped). Its file offset is recovered host-side by
+// content-hash symbol recovery against an adjacent symbolized build (/api/decomp/resolve-va), passed in here as
+// ADDR_OFFSET = the bytes from the __text vmaddr to the function = (recovered VA - text vmaddr). The runtime
+// address is then module.base + ADDR_OFFSET. Set via the capturer (-P key=value) or hardcode after resolve-va.
+const ADDR_OFFSET = (typeof addrOffset !== 'undefined' && addrOffset) ? addrOffset : null;
+
 function resolveAddParticle() {
-    // Prefer an exact export. Fall back to scanning module symbols for the demangled-ish substring, since some
-    // builds expose it as a local symbol rather than an export.
-    let p = Module.findExportByName(null, SYMBOL);
+    // recovered-offset path (stripped device build): module.base + the host-recovered text offset.
+    if (ADDR_OFFSET) {
+        const m = Process.getModuleByName(MODULE);
+        if (m) return m.base.add(ptr(ADDR_OFFSET));
+    }
+    // symbol path (only if a symbolized build is ever on-device): exact name, then a Contains scan.
+    let p = null;
+    try { p = Module.findGlobalExportByName(SYMBOL); } catch (e) {}
     if (p) return p;
     for (const m of Process.enumerateModules()) {
-        if (!/egg/i.test(m.name) && m.name !== 'Egg, Inc.') continue;
-        for (const s of m.enumerateSymbols()) {
-            if (s.name === SYMBOL || (s.name.indexOf('ParticleBatchedMesh') >= 0 && s.name.indexOf('addParticle') >= 0)) {
-                if (s.address && !s.address.isNull()) return s.address;
-            }
+        if (!/egg/i.test(m.name)) continue;
+        let syms;
+        try { syms = m.enumerateSymbols(); } catch (e) { continue; }
+        for (const s of syms) {
+            if (s.name === SYMBOL && s.address && !s.address.isNull()) return s.address;
         }
     }
     return null;

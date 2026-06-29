@@ -248,7 +248,7 @@ public sealed class DecompController(
     // triggers this while the target farm is on screen. Returns the clustered capture model; degrades cleanly.
     [HttpPost("particle-capture")]
     [EnableRateLimiting("read")]
-    public async Task<IActionResult> ParticleCapture(CancellationToken ct)
+    public async Task<IActionResult> ParticleCapture([FromQuery] string? addrOffset, CancellationToken ct)
     {
         if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
@@ -266,7 +266,7 @@ public sealed class DecompController(
 
         try
         {
-            var capturer = new IosParticleCapturer(runner, host, capture.IosSshPort, key, script);
+            var capturer = new IosParticleCapturer(runner, host, capture.IosSshPort, key, script, addrOffset);
             var model = await capturer.CaptureAsync(ct);
             if (model is null) return Ok(new { ok = false, diagnostics = "capture failed (scp/frida)" });
             return Content(model.Value.ToJson().ToJsonString(), "application/json");

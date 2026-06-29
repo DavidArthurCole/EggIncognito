@@ -77,6 +77,34 @@ public class IosParticleCapturerTests
     }
 
     [Fact]
+    public async Task Capture_InjectsAddrOffsetIntoStagedScript()
+    {
+        var script = TempScript();
+        try
+        {
+            string? pushedContent = null;
+            int scpCount = 0;
+            var runner = new FakeRunner((exe, args) =>
+            {
+                if (exe == "scp")
+                {
+                    scpCount++;
+                    if (scpCount == 1) pushedContent = File.ReadAllText(args[^2]); // push: local staged path is 2nd-last arg
+                    return new ProcessResult(0, "", "");
+                }
+                return new ProcessResult(0, "", "");
+            });
+            var cap = new IosParticleCapturer(runner, "h", "2222", "/key", script, "0x1234abc");
+            await cap.CaptureAsync(default);
+
+            Assert.NotNull(pushedContent);
+            Assert.Contains("const addrOffset = '0x1234abc';", pushedContent);
+            Assert.Contains("// fake hook", pushedContent); // original body preserved
+        }
+        finally { File.Delete(script); }
+    }
+
+    [Fact]
     public async Task Capture_Success_PullsAndParses()
     {
         var script = TempScript();
@@ -102,10 +130,10 @@ public class IosParticleCapturerTests
             Assert.Equal(1, m.Value.TotalSamples);
             Assert.Equal("0xA", m.Value.Dominant!.Value.Mesh);
             Assert.Equal(4f, m.Value.Dominant!.Value.Centroid[0], 3);
-            // the push scp must reference the configured host + the remote script path.
+            // the push scp stages a temp copy of the script to the configured host's remote path.
             var push = runner.Calls.First(c => c.exe == "scp");
-            Assert.Contains(push.args, a => a == script);
             Assert.Contains(push.args, a => a.StartsWith("root@phone:"));
+            Assert.EndsWith(".js", push.args[^2]); // a staged .js source
         }
         finally { File.Delete(script); }
     }
