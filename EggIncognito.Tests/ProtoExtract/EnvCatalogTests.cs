@@ -69,6 +69,37 @@ public class EnvCatalogTests
     }
 
     [Fact]
+    public void StandardRecovered_AppliesRecoveredX_AtFarmWidth()
+    {
+        // a recovered missionControl model: X = (2.8 + farmWidth) + 1.5, fully resolved (no residual field).
+        var x = new EggIncognito.Services.ProtoExtract.Decomp.Binary(
+            EggIncognito.Services.ProtoExtract.Decomp.BinOp.Add,
+            new EggIncognito.Services.ProtoExtract.Decomp.Binary(
+                EggIncognito.Services.ProtoExtract.Decomp.BinOp.Add,
+                new EggIncognito.Services.ProtoExtract.Decomp.Const(2.8),
+                new EggIncognito.Services.ProtoExtract.Decomp.Input("farmWidth")),
+            new EggIncognito.Services.ProtoExtract.Decomp.Const(1.5));
+        var mc = new EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Vec3Model(
+            true, "missionControlPos", x, null, null, 0, "ok");
+        var rec = new FarmLayout.SingletonPlacement(mc, null, null);
+
+        var placed = FarmLayout.StandardRecovered(rec, farmHalfWidth: 13.5f);
+        var mcPlaced = placed.First(p => p.Stem == "ei_mission_control_1");
+        Assert.Equal(2.8f + 13.5f + 1.5f, mcPlaced.Pos[0], 2); // recovered X
+        // Y/Z stay the authored fallback (the model's Y/Z are null/unresolved).
+        Assert.Equal(9f, mcPlaced.Pos[2], 2);
+    }
+
+    [Fact]
+    public void StandardRecovered_NoModel_UsesFallback()
+    {
+        var rec = new FarmLayout.SingletonPlacement(null, null, null);
+        var placed = FarmLayout.StandardRecovered(rec, 13.5f);
+        var mc = placed.First(p => p.Stem == "ei_mission_control_1");
+        Assert.Equal(16f, mc.Pos[0], 2); // the authored fallback X
+    }
+
+    [Fact]
     public void Family_FuelTank_HasFourVariants()
     {
         var fam = EnvCatalog.Family("ei_fuel_tank_2");

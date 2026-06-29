@@ -381,11 +381,13 @@ export async function addGroup(groupId, glbBase64, opts) {
   // this the group origin (where the placement gizmo renders + the position is measured) floats away from the
   // visible building. After the shift: root.position == the building's visible ground-center, the gizmo lands
   // dead-center at ground level, a spin pivots in place, and (0,0,0) places the center at the world origin.
-  // Pinned backdrop pieces are authored at exact inter-relative plot offsets and must stay where the game put
-  // them, so they are NOT re-centered. Free-placed elements ARE re-centered so the gizmo + placement match.
+  // opts.recenter (free-placed picker buildings only): shift the mesh so the GROUP ORIGIN sits at its
+  // ground-center, so the placement gizmo + the numeric position land ON the building, not at an off-origin
+  // authored corner. NOT applied to layout-derived (auto-arrange) or pinned backdrop pieces, whose authored
+  // plot offsets are the real game positions and must be preserved (re-centering them scatters the farm).
   const box = new THREE.Box3().setFromObject(gltf.scene);
   let center;
-  if (!opts.pinned && !box.isEmpty()) {
+  if (opts.recenter && !box.isEmpty()) {
     const c = box.getCenter(new THREE.Vector3());
     gltf.scene.position.set(-c.x, -box.min.y, -c.z);
     center = new THREE.Vector3(0, 0, 0);

@@ -50,6 +50,45 @@ public abstract record ExprNode
         return new Binary(op, a, b);
     }
 
+    // Evaluate the tree to a number given named inputs (e.g. {"farmWidth": 12.0}). Unresolved Input/Field/Opaque
+    // -> 0 (the same safe-default contract as the JS evaluator). For server-side placement recovery.
+    public static double Eval(ExprNode n, IReadOnlyDictionary<string, double> inputs) => n switch
+    {
+        Const c => c.V,
+        Input i => inputs.TryGetValue(i.Name, out var v) ? v : 0,
+        Unary u => EvalUnary(u.Op, Eval(u.X, inputs)),
+        Binary b => EvalBinary(b.Op, Eval(b.A, inputs), Eval(b.B, inputs)),
+        Select s => Eval(s.Cond, inputs) != 0 ? Eval(s.A, inputs) : Eval(s.B, inputs),
+        _ => 0,
+    };
+
+    // True when the tree has no unresolved Field/Opaque leaf (every input is a named Input or a Const), so
+    // Eval over the known inputs is exact. A residual Field/Opaque means the recovery is partial for that axis.
+    public static bool IsFullyResolved(ExprNode n) => n switch
+    {
+        Field => false,
+        Opaque => false,
+        Unary u => IsFullyResolved(u.X),
+        Binary b => IsFullyResolved(b.A) && IsFullyResolved(b.B),
+        Select s => IsFullyResolved(s.Cond) && IsFullyResolved(s.A) && IsFullyResolved(s.B),
+        Vec v => v.Lanes.All(IsFullyResolved),
+        Index ix => IsFullyResolved(ix.Vec),
+        MatrixBuild m => m.Cells.All(IsFullyResolved),
+        _ => true,
+    };
+
+    private static double EvalUnary(UnOp op, double x) => op switch
+    {
+        UnOp.Neg => -x, UnOp.Sin => Math.Sin(x), UnOp.Cos => Math.Cos(x),
+        UnOp.Sqrt => Math.Sqrt(x), UnOp.Abs => Math.Abs(x), UnOp.Floor => Math.Floor(x), _ => x,
+    };
+
+    private static double EvalBinary(BinOp op, double a, double b) => op switch
+    {
+        BinOp.Add => a + b, BinOp.Sub => a - b, BinOp.Mul => a * b, BinOp.Div => b == 0 ? 0 : a / b,
+        BinOp.Min => Math.Min(a, b), BinOp.Max => Math.Max(a, b), BinOp.Mod => b == 0 ? 0 : a % b, _ => 0,
+    };
+
     public static int CountOpaque(ExprNode n) => n switch
     {
         Opaque o => 1 + o.Args.Sum(CountOpaque),

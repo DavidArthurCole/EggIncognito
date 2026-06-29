@@ -12,7 +12,7 @@ namespace EggIncognito.Controllers;
 // route. Without a reachable device the glb pull returns 503 (the catalog still lists what is available).
 [ApiController]
 [Route("api/env")]
-public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser currentUser) : ControllerBase
+public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser currentUser, GameBinaryProvider binaries) : ControllerBase
 {
     // The placeable env catalog (buildings + habs), for the designer's Add-element picker. Public, names only.
     [HttpGet("catalog")]
@@ -33,13 +33,39 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     // A game-like default farm layout: the standard farm elements at approximate plot positions, for the
     // designer's one-click "Auto-arrange". ?hab= picks the hab used for the 4-plot row. Public (names + math).
     [HttpGet("farm-layout")]
-    public IActionResult FarmLayout([FromQuery] string hab = "hab_10k")
+    public async Task<IActionResult> FarmLayout([FromQuery] string hab = "hab_10k", [FromQuery] string? device = null, CancellationToken ct = default)
     {
         var stem = EnvCatalog.IsKnownPiece(hab) ? hab : "hab_10k";
-        var placed = EggIncognito.Services.ProtoExtract.FarmLayout.Standard(stem)
+        var layout = await RecoveredOrFallbackLayout(stem, device, ct);
+        var placed = layout
             .Where(p => EnvCatalog.IsKnownPiece(p.Stem))
             .Select(p => new { p.Stem, label = LabelFor(p.Stem), p.Pos, p.RotY, p.Scale });
         return Ok(new { elements = placed });
+    }
+
+    // Use the EXTRACTED singleton placement formulas (evaluated at the farm's half-width) when a symbolized
+    // binary is available; otherwise the hand-authored fallback layout. The binary source is best-effort + the
+    // recovery never throws, so a missing/stripped binary cleanly falls back. farmHalfWidth is approximated from
+    // the standard layout's X-extent (the game derives it from farm-bound state we do not have offline).
+    private async Task<IReadOnlyList<EggIncognito.Services.ProtoExtract.FarmLayout.Placed>> RecoveredOrFallbackLayout(
+        string stem, string? device, CancellationToken ct)
+    {
+        try
+        {
+            var (ok, bin, _) = await binaries.GetBinaryAsync(device, ct);
+            if (!ok || bin is null) return EggIncognito.Services.ProtoExtract.FarmLayout.Standard(stem);
+
+            var rec = new EggIncognito.Services.ProtoExtract.FarmLayout.SingletonPlacement(
+                EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover(bin, "FarmScene17missionControlPos"),
+                EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover(bin, "FarmScene11fuelTankPos"),
+                EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover(bin, "FarmScene6hoaPos"));
+            const float farmHalfWidth = 13.5f; // approx half the standard farm X-extent; tunable
+            return EggIncognito.Services.ProtoExtract.FarmLayout.StandardRecovered(rec, farmHalfWidth, stem);
+        }
+        catch
+        {
+            return EggIncognito.Services.ProtoExtract.FarmLayout.Standard(stem);
+        }
     }
 
     private static string LabelFor(string stem) =>

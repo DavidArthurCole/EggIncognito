@@ -13,7 +13,7 @@ public static class Arm64SymbolicExecutor
 {
     public readonly record struct ExecResult(
         IReadOnlyDictionary<string, ExprNode> Regs, IReadOnlyDictionary<long, ExprNode> Stack,
-        ExprNode? SinkArg, long? SinkStackPtr, int Opaque, string Diagnostics)
+        IReadOnlyDictionary<long, ExprNode> RetVec, ExprNode? SinkArg, long? SinkStackPtr, int Opaque, string Diagnostics)
     {
         // Read a register's recovered expression by any alias (s3/v3/q3/d3, x8/w8). Regs are stored under the
         // normalized SIMD/GP key; this resolves the alias the caller used.
@@ -38,8 +38,17 @@ public static class Arm64SymbolicExecutor
         byte[] code, MachoSymbols.FuncRange fn, ulong textVmAddr, int textFileOff,
         IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyDictionary<string, ExprNode> seedInputs,
         Func<string, ExprNode[], ExprNode?> resolveCall)
+        => Run(code, fn, textVmAddr, textFileOff, syms, seedInputs, null, resolveCall);
+
+    // seedBases: register -> a named base. "ret" makes that register the sret out-param pointer (its stores are
+    // captured in RetVec[off]); any other name (e.g. "gc") names struct-field loads off it Field(name, off).
+    public static ExecResult Run(
+        byte[] code, MachoSymbols.FuncRange fn, ulong textVmAddr, int textFileOff,
+        IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyDictionary<string, ExprNode> seedInputs,
+        IReadOnlyDictionary<string, string>? seedBases,
+        Func<string, ExprNode[], ExprNode?> resolveCall)
     {
-        var st = new State(seedInputs);
+        var st = new State(seedInputs, seedBases);
         int n = 0;
 
         try
@@ -161,22 +170,36 @@ public static class Arm64SymbolicExecutor
         private readonly Dictionary<string, ExprNode> _regs = new(); // s/d/x/w/v -> expr
         private readonly Dictionary<string, ExprNode[]> _vecs = new(); // vN -> 4 lane exprs
         private readonly Dictionary<string, long> _gp = new(); // x/w -> integer value (addresses, imms)
-        private readonly Dictionary<string, long> _ptr = new(); // reg -> sp-relative offset (stack ptr)
+        private readonly Dictionary<string, (string Space, long Off)> _ptr = new(); // reg -> (memory space, offset)
         private readonly Dictionary<long, ExprNode> _stack = new(); // sp-offset -> expr (per 4 bytes)
+        private readonly Dictionary<long, ExprNode> _retVec = new(); // sret out-param offset -> expr (per 4 bytes)
+        private readonly Dictionary<string, string> _named = new(); // reg -> a named base (e.g. "gc") for Field naming
         public int Opaque;
         public ExprNode? SinkArg;
         public long? SinkStackPtr;
 
-        public State(IReadOnlyDictionary<string, ExprNode> seed)
+        // seed: register -> expr. seedBases: register -> a named base. A base "ret" makes the register the sret
+        // out-param pointer (stores to it land in RetVec); any other name (e.g. "gc") names struct-field loads
+        // off that register Field(name, off) instead of an anonymous opaque.
+        public State(IReadOnlyDictionary<string, ExprNode> seed) : this(seed, null) { }
+        public State(IReadOnlyDictionary<string, ExprNode> seed, IReadOnlyDictionary<string, string>? seedBases)
         {
             foreach (var (k, v) in seed) _regs[Norm(k)] = v;
-            _ptr["sp"] = 0; // sp is the stack origin
+            _ptr["sp"] = ("sp", 0); // sp is the stack origin
             _regs["zr"] = new Const(0); // wzr/xzr read as 0
             _gp["zr"] = 0;
+            if (seedBases is not null)
+                foreach (var (reg, name) in seedBases)
+                {
+                    _named[Norm(reg)] = name;
+                    if (name == "ret") _ptr[Norm(reg)] = ("ret", 0);
+                }
         }
 
+        public IReadOnlyDictionary<long, ExprNode> RetVec => _retVec;
+
         public ExecResult Result(string diag) =>
-            new(_regs, _stack, SinkArg, SinkStackPtr, Opaque, diag);
+            new(_regs, _stack, _retVec, SinkArg, SinkStackPtr, Opaque, diag);
 
         public ExprNode Scalar(string name) => _regs.TryGetValue(Norm(name), out var e) ? e : new Opaque("unset", []);
         public ExprNode RegExpr(string name) => Scalar(name);
@@ -212,20 +235,21 @@ public static class Arm64SymbolicExecutor
             if (_regs.TryGetValue(s, out var e)) _regs[d] = e;
             if (_gp.TryGetValue(s, out var g)) _gp[d] = g;
             if (_ptr.TryGetValue(s, out var p)) _ptr[d] = p; else _ptr.Remove(d);
+            if (_named.TryGetValue(s, out var nb)) _named[d] = nb; else _named.Remove(d);
             if (_vecs.TryGetValue(s, out var v)) _vecs[d] = (ExprNode[])v.Clone();
         }
 
         public void AddImm(string d, string n, long imm)
         {
             d = Norm(d); n = Norm(n);
-            if (_ptr.TryGetValue(n, out var off)) _ptr[d] = off + imm;
+            if (_ptr.TryGetValue(n, out var p)) _ptr[d] = (p.Space, p.Off + imm);
             else { _ptr.Remove(d); if (_gp.TryGetValue(n, out var g)) _gp[d] = g + imm; }
         }
 
         public void OrrImm(string d, string n, long imm)
         {
             d = Norm(d); n = Norm(n);
-            if (_ptr.TryGetValue(n, out var off)) _ptr[d] = off | imm; // address bit-set on a stack ptr
+            if (_ptr.TryGetValue(n, out var p)) _ptr[d] = (p.Space, p.Off | imm); // address bit-set on a pointer
         }
 
         // --- vectors ---
@@ -268,52 +292,51 @@ public static class Arm64SymbolicExecutor
         public void Store(Arm64Operand[] ops, int srcCount)
         {
             if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory) return;
-            if (!StackOffset(ops[^1], out var off)) return;
+            if (!MemTarget(ops[^1], out var space, out var off)) return;
             var src = ops[0];
             if (src.Register is not { } r) return;
             if (IsVec(src) || r.Name.StartsWith('q'))
             {
                 var lanes = Lanes(r.Name);
-                for (int i = 0; i < 4; i++) _stack[off + i * 4] = lanes[i];
+                for (int i = 0; i < 4; i++) WriteSlot(space, off + i * 4, lanes[i]);
             }
             else if (r.Name.StartsWith('d'))
             {
                 var lanes = Lanes(r.Name);
-                _stack[off] = lanes[0]; _stack[off + 4] = lanes[1];
+                WriteSlot(space, off, lanes[0]); WriteSlot(space, off + 4, lanes[1]);
             }
             else // s / w / x scalar
             {
-                _stack[off] = Scalar(r.Name);
+                WriteSlot(space, off, Scalar(r.Name));
             }
         }
 
         public void StorePair(Arm64Operand[] ops)
         {
             if (ops.Length < 3 || ops[^1].Type != Arm64OperandType.Memory) return;
-            if (!StackOffset(ops[^1], out var off)) return;
-            if (ops[0].Register is { } a) _stack[off] = Scalar(a.Name);
-            if (ops[1].Register is { } b) _stack[off + LaneSize(ops[0])] = Scalar(b.Name);
+            if (!MemTarget(ops[^1], out var space, out var off)) return;
+            if (ops[0].Register is { } a) WriteSlot(space, off, Scalar(a.Name));
+            if (ops[1].Register is { } b) WriteSlot(space, off + LaneSize(ops[0]), Scalar(b.Name));
         }
 
         public void St1(Arm64Operand[] ops)
         {
-            // st1 {vN.s}[i], [xPtr] stores one lane to a pointer address. The pointer reg holds a stack offset.
+            // st1 {vN.s}[i], [xPtr] stores one lane to a pointer address (the pointer reg holds a tracked offset).
             if (ops.Length < 2) return;
             var memOp = ops[^1];
-            if (memOp.Type != Arm64OperandType.Memory || memOp.Memory?.Base is not { } b) return;
-            if (!_ptr.TryGetValue(Norm(b.Name), out var off)) return;
+            if (!MemTarget(memOp, out var space, out var off)) return;
             if (ops[0].Register is { } v)
             {
                 var lanes = Lanes(v.Name);
                 int li = ops[0].VectorIndex >= 0 ? ops[0].VectorIndex : 0;
-                _stack[off] = li < 4 ? lanes[li] : lanes[0];
+                WriteSlot(space, off, li < 4 ? lanes[li] : lanes[0]);
             }
         }
 
         public void Load(Arm64Operand[] ops)
         {
             if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory || ops[0].Register is not { } r) return;
-            if (StackOffset(ops[^1], out var off))
+            if (MemTarget(ops[^1], out var space, out var off) && space == "sp")
             {
                 if (IsVec(ops[0]) || r.Name.StartsWith('q'))
                     SetVec(r.Name, [Slot(off), Slot(off + 4), Slot(off + 8), Slot(off + 12)]);
@@ -322,15 +345,16 @@ public static class Arm64SymbolicExecutor
                 return;
             }
             // a non-stack load reads a struct/heap field; name it Field(base, offset) so it is honest +
-            // inspectable (the renderer can later resolve it from the spawn data) instead of an anonymous opaque.
+            // inspectable instead of an anonymous opaque. A named base (e.g. "gc") is used over the raw reg name.
             _ptr.Remove(Norm(r.Name));
             if (ops[^1].Memory?.Base is { } b)
             {
+                var baseName = _named.TryGetValue(Norm(b.Name), out var nb) ? nb : b.Name;
                 var disp = ops[^1].Memory.Displacement;
                 if (IsVec(ops[0]) || r.Name.StartsWith('q'))
-                    SetVec(r.Name, [new Field(b.Name, disp), new Field(b.Name, disp + 4), new Field(b.Name, disp + 8), new Field(b.Name, disp + 12)]);
+                    SetVec(r.Name, [new Field(baseName, disp), new Field(baseName, disp + 4), new Field(baseName, disp + 8), new Field(baseName, disp + 12)]);
                 else
-                    SetScalar(r.Name, new Field(b.Name, disp));
+                    SetScalar(r.Name, new Field(baseName, disp));
             }
             else _regs.Remove(Norm(r.Name));
         }
@@ -339,7 +363,7 @@ public static class Arm64SymbolicExecutor
         {
             if (ops.Length < 3 || ops[^1].Type != Arm64OperandType.Memory) return;
             var sz = LaneSize(ops[0]);
-            if (StackOffset(ops[^1], out var off))
+            if (MemTarget(ops[^1], out var space, out var off) && space == "sp")
             {
                 if (ops[0].Register is { } a) SetScalar(a.Name, Slot(off));
                 if (ops[1].Register is { } b) SetScalar(b.Name, Slot(off + sz));
@@ -347,21 +371,31 @@ public static class Arm64SymbolicExecutor
             }
             if (ops[^1].Memory?.Base is { } mb)
             {
+                var baseName = _named.TryGetValue(Norm(mb.Name), out var nb) ? nb : mb.Name;
                 var disp = ops[^1].Memory.Displacement;
-                if (ops[0].Register is { } a) SetScalar(a.Name, new Field(mb.Name, disp));
-                if (ops[1].Register is { } b) SetScalar(b.Name, new Field(mb.Name, disp + sz));
+                if (ops[0].Register is { } a) SetScalar(a.Name, new Field(baseName, disp));
+                if (ops[1].Register is { } b) SetScalar(b.Name, new Field(baseName, disp + sz));
             }
         }
 
         private ExprNode Slot(long off) => _stack.TryGetValue(off, out var e) ? e : new Field("stack", off);
 
-        private bool StackOffset(Arm64Operand mem, out long off)
+        // Resolve a memory operand to a (space, offset) target when its base register is a tracked pointer.
+        // space = "sp" (the stack) or "ret" (the sret out-param). Returns false for an untracked base (a heap
+        // or struct pointer), which the caller then names Field(base, disp).
+        private bool MemTarget(Arm64Operand mem, out string space, out long off)
         {
-            off = 0;
+            space = ""; off = 0;
             if (mem.Memory?.Base is not { } b) return false;
-            if (!_ptr.TryGetValue(Norm(b.Name), out var baseOff)) return false;
-            off = baseOff + mem.Memory.Displacement;
+            if (!_ptr.TryGetValue(Norm(b.Name), out var p)) return false;
+            space = p.Space; off = p.Off + mem.Memory.Displacement;
             return true;
+        }
+
+        // Write one 4-byte slot to the correct space (stack or sret out-param).
+        private void WriteSlot(string space, long off, ExprNode e)
+        {
+            if (space == "ret") _retVec[off] = e; else _stack[off] = e;
         }
 
         // --- calls ---
@@ -381,7 +415,7 @@ public static class Arm64SymbolicExecutor
         public void IndirectCall()
         {
             Opaque++;
-            if (_ptr.TryGetValue("x2", out var off)) SinkStackPtr = off;
+            if (_ptr.TryGetValue("x2", out var p) && p.Space == "sp") SinkStackPtr = p.Off;
         }
 
         private static string Nearest(IReadOnlyList<MachoSymbols.Symbol> syms, ulong target)

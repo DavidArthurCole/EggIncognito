@@ -1,3 +1,5 @@
+using EggIncognito.Services.ProtoExtract.Decomp;
+
 namespace EggIncognito.Services.ProtoExtract;
 
 // A game-like default farm layout: the standard set of farm elements at in-game plot positions, so the
@@ -46,7 +48,8 @@ public static class FarmLayout
             new("ei_hyperloop_stop", [0, 0, 0], 0), // across the road (z~19-27)
             new("ei_hyperloop_track", [0, 0, 0], 0), // the hyperloop tube
             new("ei_farm_mailbox_full", [0, 0, 0], 0), // self-places near (-3, 11)
-            // origin-authored: placed explicitly relative to the depot.
+            // origin-authored: placed explicitly relative to the depot. FALLBACK positions; the recovered
+            // overload (Standard with recovered placement) replaces the singleton X with the extracted formula.
             new("ei_mission_control_1", [16, 0, 9], 0), // RIGHT of the depot, near row
             new("ei_fuel_tank_2", [23, 0, 9], 0), // next to mission control
             new("ei_afx_construction_site", [16, 0, -3], 0), // artifact hall, BEHIND mission control
@@ -65,5 +68,45 @@ public static class FarmLayout
             p.Add(new Placed("ei_silo_0_large", SiloPos(i), 0));
 
         return p;
+    }
+
+    // The singleton stems whose X position is the recovered farm-width-dependent formula.
+    public sealed record SingletonPlacement(
+        FarmPlacementRecovery.Vec3Model? MissionControl,
+        FarmPlacementRecovery.Vec3Model? FuelTank,
+        FarmPlacementRecovery.Vec3Model? Hoa);
+
+    // The standard farm with the singleton X positions taken from the EXTRACTED placement formulas, evaluated at
+    // the farm's actual half-width (the dynamic, adjacency-dependent offset the game computes from its farm-bound
+    // state, approximated here from the placed buildings). Y/Z keep the authored fallback unless the recovered
+    // axis is fully resolved (no residual struct field). When a model is absent/unrecovered the authored
+    // fallback stands. defaultHab + the rest of the layout match Standard().
+    public static IReadOnlyList<Placed> StandardRecovered(SingletonPlacement rec, float farmHalfWidth, string defaultHab = "hab_10k")
+    {
+        var list = Standard(defaultHab).ToList();
+        var env = new Dictionary<string, double> { ["farmWidth"] = farmHalfWidth };
+
+        float[] Apply(float[] authored, FarmPlacementRecovery.Vec3Model? m)
+        {
+            if (m is not { Ok: true } model || model.X is null) return authored;
+            var x = ExprNode.IsFullyResolved(model.X) ? (float)ExprNode.Eval(model.X, env) : authored[0];
+            var y = model.Y is not null && ExprNode.IsFullyResolved(model.Y) ? (float)ExprNode.Eval(model.Y, env) : authored[1];
+            var z = model.Z is not null && ExprNode.IsFullyResolved(model.Z) ? (float)ExprNode.Eval(model.Z, env) : authored[2];
+            return [x, y, z];
+        }
+
+        for (var i = 0; i < list.Count; i++)
+        {
+            var pl = list[i];
+            float[]? np = pl.Stem switch
+            {
+                "ei_mission_control_1" => Apply(pl.Pos, rec.MissionControl),
+                "ei_fuel_tank_2" => Apply(pl.Pos, rec.FuelTank),
+                "ei_afx_construction_site" => Apply(pl.Pos, rec.Hoa),
+                _ => null,
+            };
+            if (np is not null) list[i] = pl with { Pos = np };
+        }
+        return list;
     }
 }

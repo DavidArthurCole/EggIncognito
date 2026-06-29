@@ -138,6 +138,33 @@ public sealed class DecompController(GameBinaryProvider binaries, ICurrentUser c
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
 
+    // Recovered farm singleton placement: the missionControl/fuelTank/hoa position formulas extracted from
+    // FarmScene::*Pos as expression trees over Input("farmWidth"). The dynamic, farm-size-dependent offset the
+    // game computes at runtime, now read from the binary instead of hand-authored. Admin-gated.
+    [HttpGet("farm-placement")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> FarmPlacement([FromQuery] string? device, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        try
+        {
+            var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
+            if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
+            var R = EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover;
+            var json = new System.Text.Json.Nodes.JsonObject
+            {
+                ["ok"] = true,
+                ["missionControl"] = R(bin, "FarmScene17missionControlPos").ToJson(),
+                ["fuelTank"] = R(bin, "FarmScene11fuelTankPos").ToJson(),
+                ["hoa"] = R(bin, "FarmScene6hoaPos").ToJson(),
+            };
+            return Content(json.ToJsonString(), "application/json");
+        }
+        catch (System.DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
     private async Task<IActionResult> ExtractAsync(string[] needles, string? device, CancellationToken ct)
     {
         try

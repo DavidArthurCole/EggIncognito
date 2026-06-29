@@ -836,7 +836,9 @@ else
         }
         else
         {
-            await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb), new { });
+            // free-placed env buildings re-center so the gizmo lands on them; layout-derived ones keep their
+            // authored plot offset (el.Recenter is false for auto-arranged + restored pieces).
+            await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb), new { recenter = el.Recenter });
         }
         await PushElementTransform(el);
         await ApplyElementAnimation(el);
@@ -910,7 +912,7 @@ else
 
     List<DesignElement> CloneElements() => _elements.Select(e => new DesignElement
     {
-        Id = e.Id, Kind = e.Kind, Ref = e.Ref, Label = e.Label, Hat = e.Hat, Shell = e.Shell,
+        Id = e.Id, Kind = e.Kind, Ref = e.Ref, Label = e.Label, Hat = e.Hat, Shell = e.Shell, Recenter = e.Recenter,
         Pos = [e.Pos[0], e.Pos[1], e.Pos[2]], RotDeg = [e.RotDeg[0], e.RotDeg[1], e.RotDeg[2]],
         Scale = e.Scale, Anim = e.Anim, Actor = e.Actor,
         Motion = e.Motion is null ? null : new MotionState
@@ -1008,7 +1010,7 @@ else
         live.Kind = snap.Kind; live.Ref = snap.Ref; live.Label = snap.Label; live.Hat = snap.Hat; live.Shell = snap.Shell;
         live.Pos = [snap.Pos[0], snap.Pos[1], snap.Pos[2]];
         live.RotDeg = [snap.RotDeg[0], snap.RotDeg[1], snap.RotDeg[2]];
-        live.Scale = snap.Scale; live.Anim = snap.Anim; live.Actor = snap.Actor; live.Motion = snap.Motion;
+        live.Scale = snap.Scale; live.Anim = snap.Anim; live.Actor = snap.Actor; live.Motion = snap.Motion; live.Recenter = snap.Recenter;
     }
 
 
@@ -1122,7 +1124,9 @@ else
             }
         }
         PushHistory();
-        var el = new DesignElement { Id = NextElementId(), Kind = kind, Ref = id, Label = label };
+        // free-placed env buildings re-center on their group origin so the gizmo lands on them. Actors +
+        // chickens ride their own anchored motion; they are not re-centered.
+        var el = new DesignElement { Id = NextElementId(), Kind = kind, Ref = id, Label = label, Recenter = kind == "env" };
         _elements.Add(el);
         await RenderElement(el);
         await SelectElement(el.Id);
@@ -1512,6 +1516,7 @@ else
         public string Anim { get; set; } = "none"; // none | SpinY | SpinZ | HoverSpin (per element)
         public string Actor { get; set; } = ""; // ""|chicken|vehicle|rocket (kind=="actor")
         public MotionState? Motion { get; set; }
+        public bool Recenter { get; set; } // free-placed: re-center the mesh on the group origin so the gizmo lands on it
     }
 
     public sealed class MotionState

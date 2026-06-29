@@ -50,6 +50,40 @@ public class Arm64SymbolicExecutorTests
         Assert.Equal(1, opaque);
     }
 
+    // mov xd, xn (alias of orr xd, xzr, xn) + str sT, [xN, #imm] (imm scaled by 4).
+    static uint MovReg(int d, int m) => 0xAA0003E0u | ((uint)(m & 31) << 16) | (uint)(d & 31);
+    static uint StrS(int t, int n, uint imm) => 0xBD000000u | (((imm / 4) & 0xFFF) << 10) | ((uint)(n & 31) << 5) | (uint)(t & 31);
+
+    [Fact]
+    public void SretOutParam_CapturesStoredVec3()
+    {
+        // mov x19, x8 (copy the sret pointer); s1 = 2.5 -> str [x19]; s2 = 1.0 -> str [x19,#4]; s3 = 5.5 -> [x19,#8]
+        var code = Words(MovReg(19, 8), FmovImm(1, 0x04), StrS(1, 19, 0), FmovImm(2, 0x70), StrS(2, 19, 4),
+            FmovImm(3, 0x16), StrS(3, 19, 8), Ret());
+        var syms = new List<MachoSymbols.Symbol>();
+        var fn = new MachoSymbols.FuncRange("f", 0, (ulong)code.Length);
+        var r = Arm64SymbolicExecutor.Run(code, fn, 0, 0, syms, new Dictionary<string, ExprNode>(),
+            new Dictionary<string, string> { ["x8"] = "ret" }, (_, _) => null);
+        Assert.Equal(2.5, Assert.IsType<Const>(ExprNode.Fold(r.RetVec[0])).V, 3);
+        Assert.Equal(1.0, Assert.IsType<Const>(ExprNode.Fold(r.RetVec[4])).V, 3);
+        Assert.Equal(5.5, Assert.IsType<Const>(ExprNode.Fold(r.RetVec[8])).V, 3);
+    }
+
+    [Fact]
+    public void GcField_NamesStructLoad()
+    {
+        // s0 = ldr [x0,#0x3d8] with x0 seeded as the "gc" base -> Field("gc", 0x3d8).
+        static uint LdrS(int t, int n, uint imm) => 0xBD400000u | (((imm / 4) & 0xFFF) << 10) | ((uint)(n & 31) << 5) | (uint)(t & 31);
+        var code = Words(LdrS(0, 0, 0x3d8), Ret());
+        var syms = new List<MachoSymbols.Symbol>();
+        var fn = new MachoSymbols.FuncRange("f", 0, (ulong)code.Length);
+        var r = Arm64SymbolicExecutor.Run(code, fn, 0, 0, syms, new Dictionary<string, ExprNode>(),
+            new Dictionary<string, string> { ["x0"] = "gc" }, (_, _) => null);
+        var f = Assert.IsType<Field>(r.Reg("s0"));
+        Assert.Equal("gc", f.Base);
+        Assert.Equal(0x3d8, f.Offset);
+    }
+
     [Fact]
     public void KnownCall_AppliesModel()
     {
