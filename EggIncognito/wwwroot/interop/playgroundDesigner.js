@@ -15,6 +15,7 @@ const THREE_URL = 'https://esm.sh/three@0.169.0';
 let THREE, TransformControls, gizmo, dotnet, selectedId = null, suppress = false;
 let raycaster, pointer, domEl, onPointerDown, onPointerUp, downXY = null, dragging = false;
 let onKeyDown;
+let proxy, centerOffset;
 
 export async function initDesigner(dotnetRef) {
   dotnet = dotnetRef;
@@ -27,6 +28,13 @@ export async function initDesigner(dotnetRef) {
   domEl = dom;
   gizmo = new TransformControls(cam, dom);
   gizmo.setMode('translate');
+
+  // The gizmo attaches to a PROXY object sitting at the selected element's visual center (not the group root,
+  // which is an off-origin authored corner for self-placing meshes). On a drag we map the proxy's motion back
+  // to the group's base. centerOffset = the mesh-center minus the placement point (= bbox center * scale).
+  proxy = new THREE.Object3D();
+  e.scene().add(proxy);
+  centerOffset = new THREE.Vector3(0, 0, 0);
 
   // Dragging the gizmo must not also orbit the camera. On the drag START edge, snapshot history once so a whole
   // drag is a single undo step (objectChange fires per frame; we do NOT push there).
@@ -83,8 +91,8 @@ export async function initDesigner(dotnetRef) {
   // revert it next frame), then notify .NET so the inspector fields follow.
   gizmo.addEventListener('objectChange', () => {
     if (suppress || !selectedId || !gizmo.object) return;
-    const o = gizmo.object;
-    const pos = [o.position.x, o.position.y, o.position.z];
+    const o = gizmo.object; // the proxy at the mesh center; map back to the group base by removing the offset.
+    const pos = [o.position.x - centerOffset.x, o.position.y - centerOffset.y, o.position.z - centerOffset.z];
     const rotDeg = [deg(o.rotation.x), deg(o.rotation.y), deg(o.rotation.z)];
     e.setGroupTransform(selectedId, pos, rotDeg, o.scale.x);
     dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, rotDeg, o.scale.x);
@@ -150,7 +158,15 @@ export function selectElement(id) {
   if (!root) { deselect(); return; }
   if (selectedId && selectedId !== id) e.setSelectionOutline(selectedId, false);
   selectedId = id;
-  gizmo.attach(root);
+  // Place the proxy at the element's visual center (so the gizmo lands on the building, not the group origin),
+  // mirroring its base rotation + scale. centerOffset = centerWorld - basePos, removed on drag to recover base.
+  const base = e.getGroupBase(id) || { pos: [0, 0, 0], rotDeg: [0, 0, 0], scale: 1 };
+  const cw = e.getGroupCenterWorld(id) || [base.pos[0], base.pos[1], base.pos[2]];
+  centerOffset.set(cw[0] - base.pos[0], cw[1] - base.pos[1], cw[2] - base.pos[2]);
+  proxy.position.set(cw[0], cw[1], cw[2]);
+  proxy.rotation.set(rad(base.rotDeg[0]), rad(base.rotDeg[1]), rad(base.rotDeg[2]));
+  proxy.scale.setScalar(base.scale || 1);
+  gizmo.attach(proxy);
   e.setSelectionOutline(id, true);
 }
 
@@ -171,6 +187,8 @@ export function applyTransform(id, pos, rotDeg, scale) {
   if (!e) return;
   suppress = true;
   e.setGroupTransform(id, pos, rotDeg, scale);
+  // re-sync the gizmo proxy to the new transform so it tracks the building after a numeric-field edit.
+  if (id === selectedId) selectElement(id);
   suppress = false;
 }
 
@@ -187,6 +205,7 @@ export function disposeDesigner() {
     gizmo.dispose?.();
     gizmo = null;
   }
+  if (proxy) { engine()?.scene()?.remove(proxy); proxy = null; }
   selectedId = null; domEl = null; dotnet = null;
   globalThis.__pgDesigner = null;
 }

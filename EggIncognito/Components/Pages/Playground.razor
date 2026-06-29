@@ -99,7 +99,7 @@ else
                 @foreach (var v in _versions)
                 {
                   <div class="flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-panel2 border border-border">
-                    <span class="truncate">v@v.VersionNo@(v.VersionNo == _currentVersion ? " (current)" : "")@(string.IsNullOrEmpty(v.Note) ? "" : $" — {v.Note}")</span>
+                    <span class="truncate">v@(v.VersionNo)@(v.VersionNo == _currentVersion ? " (current)" : "")@(string.IsNullOrEmpty(v.Note) ? "" : $" — {v.Note}")</span>
                     @if (v.VersionNo != _currentVersion)
                     {
                       <button class="element-del" title="Roll back to this version" @onclick="() => RollbackTo(v.VersionNo)">restore</button>
@@ -281,6 +281,13 @@ else
                     <option value="HoverSpin">Hover + spin</option>
                   </select>
                 </label>
+                @if (sel.Ref == "hab_chicken_universe")
+                {
+                  <label class="settings-check mt-1">
+                    <input type="checkbox" checked="@sel.Effect" @onchange="e => OnEffectToggled(sel, e.Value is true)" />
+                    <span class="ml-2">Galaxy particles (extracted)</span>
+                  </label>
+                }
               }
               @if (sel.Kind == "actor" && sel.Motion is { } mo)
               {
@@ -843,6 +850,7 @@ else
         await PushElementTransform(el);
         await ApplyElementAnimation(el);
         await PushElementMotion(el);
+        await ApplyEffect(el);
         Autosave();
     }
 
@@ -912,7 +920,7 @@ else
 
     List<DesignElement> CloneElements() => _elements.Select(e => new DesignElement
     {
-        Id = e.Id, Kind = e.Kind, Ref = e.Ref, Label = e.Label, Hat = e.Hat, Shell = e.Shell, Recenter = e.Recenter,
+        Id = e.Id, Kind = e.Kind, Ref = e.Ref, Label = e.Label, Hat = e.Hat, Shell = e.Shell, Recenter = e.Recenter, Effect = e.Effect,
         Pos = [e.Pos[0], e.Pos[1], e.Pos[2]], RotDeg = [e.RotDeg[0], e.RotDeg[1], e.RotDeg[2]],
         Scale = e.Scale, Anim = e.Anim, Actor = e.Actor,
         Motion = e.Motion is null ? null : new MotionState
@@ -1010,7 +1018,7 @@ else
         live.Kind = snap.Kind; live.Ref = snap.Ref; live.Label = snap.Label; live.Hat = snap.Hat; live.Shell = snap.Shell;
         live.Pos = [snap.Pos[0], snap.Pos[1], snap.Pos[2]];
         live.RotDeg = [snap.RotDeg[0], snap.RotDeg[1], snap.RotDeg[2]];
-        live.Scale = snap.Scale; live.Anim = snap.Anim; live.Actor = snap.Actor; live.Motion = snap.Motion; live.Recenter = snap.Recenter;
+        live.Scale = snap.Scale; live.Anim = snap.Anim; live.Actor = snap.Actor; live.Motion = snap.Motion; live.Recenter = snap.Recenter; live.Effect = snap.Effect;
     }
 
 
@@ -1143,6 +1151,32 @@ else
     // also called internally (e.g. RenderElement -> ApplyElementAnimation) where a push would be wrong, so the
     // push lives in the wrapper, not the inner method.
     async Task OnAnimChanged(DesignElement sel) { PushHistory(); await ApplyElementAnimation(sel); }
+
+    // Toggle the extracted decomp particle effect on a hab. Fetches the recovered EffectModel from the decomp
+    // endpoint + attaches it (or clears it). The galaxy orbit math comes from the binary (see the effect-recovery
+    // framework), so this turns the universe hab's floating particles on with the extracted motion.
+    async Task OnEffectToggled(DesignElement sel, bool on)
+    {
+        PushHistory();
+        sel.Effect = on;
+        await ApplyEffect(sel);
+        StateHasChanged();
+    }
+
+    async Task ApplyEffect(DesignElement el)
+    {
+        if (_mod is null) return;
+        if (el.Effect && el.Ref == "hab_chicken_universe")
+        {
+            try
+            {
+                var model = await Client().GetFromJsonAsync<System.Text.Json.JsonElement>("/api/decomp/effect?name=galaxy-particle");
+                await _mod.InvokeVoidAsync("attachEffect", el.Id, model);
+            }
+            catch (Exception ex) { Status($"effect unavailable: {ex.Message}"); }
+        }
+        else await _mod.InvokeVoidAsync("attachEffect", el.Id, null);
+    }
     async Task OnShellChanged() { PushHistory(); await ReshellSelected(); }
     async Task OnHatChanged(DesignElement sel) { PushHistory(); await RenderAndReselect(sel); }
 
@@ -1230,18 +1264,19 @@ else
     }
 
     // The transform numeric fields for the selected element; editing pushes the transform to the gizmo + group.
+    // Compact transform editor: one row per vector (Pos, Rot, Scale) with a short row label and the axis inputs
+    // sharing the row width via flex, so all three fit the narrow panel. A per-axis text label per box was too
+    // wide to use; the X/Y/Z order is implicit + each input carries a placeholder.
     RenderFragment TransformFields(DesignElement el) => builder =>
     {
         int seq = 0;
-        void Num(string label, Func<float> get, Action<float> set)
+        void Axis(string ph, Func<float> get, Action<float> set)
         {
-            builder.OpenElement(seq++, "label");
-            builder.AddAttribute(seq++, "class", "flex items-center gap-1");
-            builder.AddContent(seq++, label);
             builder.OpenElement(seq++, "input");
             builder.AddAttribute(seq++, "type", "number");
             builder.AddAttribute(seq++, "step", "0.1");
-            builder.AddAttribute(seq++, "class", "reg-filter-input w-[60px]");
+            builder.AddAttribute(seq++, "placeholder", ph);
+            builder.AddAttribute(seq++, "class", "reg-filter-input w-full min-w-0 px-1");
             builder.AddAttribute(seq++, "value", get());
             builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, async e =>
             {
@@ -1250,21 +1285,21 @@ else
                 await PushElementTransform(el);
             }));
             builder.CloseElement();
+        }
+        void Row(string label, params (string Ph, Func<float> Get, Action<float> Set)[] axes)
+        {
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "flex items-center gap-1 mt-1");
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "text-muted w-8 shrink-0");
+            builder.AddContent(seq++, label);
+            builder.CloseElement();
+            foreach (var (ph, get, set) in axes) Axis(ph, get, set);
             builder.CloseElement();
         }
-        builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "flex gap-2");
-        Num("X", () => el.Pos[0], v => el.Pos[0] = v);
-        Num("Y", () => el.Pos[1], v => el.Pos[1] = v);
-        Num("Z", () => el.Pos[2], v => el.Pos[2] = v);
-        builder.CloseElement();
-        builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "flex gap-2 mt-1");
-        Num("rX", () => el.RotDeg[0], v => el.RotDeg[0] = v);
-        Num("rY", () => el.RotDeg[1], v => el.RotDeg[1] = v);
-        Num("rZ", () => el.RotDeg[2], v => el.RotDeg[2] = v);
-        builder.CloseElement();
-        builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "flex gap-2 mt-1");
-        Num("scale", () => el.Scale, v => el.Scale = v <= 0 ? 1 : v);
-        builder.CloseElement();
+        Row("Pos", ("X", () => el.Pos[0], v => el.Pos[0] = v), ("Y", () => el.Pos[1], v => el.Pos[1] = v), ("Z", () => el.Pos[2], v => el.Pos[2] = v));
+        Row("Rot", ("X", () => el.RotDeg[0], v => el.RotDeg[0] = v), ("Y", () => el.RotDeg[1], v => el.RotDeg[1] = v), ("Z", () => el.RotDeg[2], v => el.RotDeg[2] = v));
+        Row("Scale", ("", () => el.Scale, v => el.Scale = v <= 0 ? 1 : v));
     };
 
     // Save appends a new version to the working design's history. For a brand-new design, the typed name becomes
@@ -1517,6 +1552,7 @@ else
         public string Actor { get; set; } = ""; // ""|chicken|vehicle|rocket (kind=="actor")
         public MotionState? Motion { get; set; }
         public bool Recenter { get; set; } // free-placed: re-center the mesh on the group origin so the gizmo lands on it
+        public bool Effect { get; set; } // hab: show its extracted decomp particle effect (e.g. universe galaxy)
     }
 
     public sealed class MotionState

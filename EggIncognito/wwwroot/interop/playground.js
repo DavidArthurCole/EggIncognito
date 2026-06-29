@@ -115,14 +115,13 @@ export async function init(canvas) {
   // cache-bust query (?v=) on the module URL would otherwise fork a second, uninitialized engine instance.
   window.__pgEngine = {
     scene: _scene, camera: _camera, renderer: _renderer, controls: _controls,
-    getGroupRoot, getGroupBase, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
+    getGroupRoot, getGroupBase, getGroupCenterWorld, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
     captureBegin, renderAtPhase, captureEnd, anyAnimated, sceneBackgroundHex, animPeriod, captureCleanOutline,
     attachEffect,
   };
   loop();
 }
 
-let _shadowTick = 0;
 function loop() {
   raf = requestAnimationFrame(loop);
   const dt = clock.getDelta();
@@ -133,9 +132,6 @@ function loop() {
     applyAnim(g);
   }
   updateEffects(animClock);
-  // Refit the shadow frustum to the (now positioned) groups a few times a second, so newly placed or moved
-  // elements get tight shadows without striping. Cheap: a bbox over ~30 groups. Skipped during a capture.
-  if (!capturing && (_shadowTick++ % 20) === 0) refitShadow();
   controls.update();
   renderer.render(scene, camera);
 }
@@ -380,19 +376,13 @@ export async function addGroup(groupId, glbBase64, opts) {
   // bbox center in X/Z and by its bbox MIN in Y. Env buildings are authored at their plot offset, so without
   // this the group origin (where the placement gizmo renders + the position is measured) floats away from the
   // visible building. After the shift: root.position == the building's visible ground-center, the gizmo lands
-  // dead-center at ground level, a spin pivots in place, and (0,0,0) places the center at the world origin.
-  // opts.recenter (free-placed picker buildings only): shift the mesh so the GROUP ORIGIN sits at its
-  // ground-center, so the placement gizmo + the numeric position land ON the building, not at an off-origin
-  // authored corner. NOT applied to layout-derived (auto-arrange) or pinned backdrop pieces, whose authored
-  // plot offsets are the real game positions and must be preserved (re-centering them scatters the farm).
+  // The mesh's bbox center, in the group's local space. The mesh KEEPS its authored vertex offset (so a
+  // self-placing piece sits at its real game plot + a layout-derived position stays exact). `center` drives the
+  // spin pivot (pivotCorrected) and the placement gizmo, which is attached to a proxy at the group's world
+  // mesh-center so it renders ON the building rather than at an off-origin group origin. The mesh is never
+  // shifted (an earlier re-center scattered the self-placing farm pieces).
   const box = new THREE.Box3().setFromObject(gltf.scene);
-  let center;
-  if (opts.recenter && !box.isEmpty()) {
-    const c = box.getCenter(new THREE.Vector3());
-    gltf.scene.position.set(-c.x, -box.min.y, -c.z);
-    center = new THREE.Vector3(0, 0, 0);
-  }
-  else center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());
+  const center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());
 
   const mixer = new THREE.AnimationMixer(root);
   for (const clip of gltf.animations) mixer.clipAction(clip).play();
@@ -440,6 +430,7 @@ export async function addGroup(groupId, glbBase64, opts) {
   });
   scene.add(root);
   relayoutGroups();
+  refitShadow(); // refit once on add (the per-frame timer is gone; static-only frustum is stable)
   return clipNames;
 }
 
@@ -452,6 +443,7 @@ export function removeGroup(groupId) {
   disposeObject(g.root);
   groups.delete(groupId);
   relayoutGroups();
+  refitShadow();
 }
 
 export function setGroupOffset(groupId, x, y, z) {
@@ -569,7 +561,10 @@ let _sunDir = [0.5, 0.8, 0.5];
 // shadows at any zoom. No groups -> a sane default box at the origin.
 function refitShadow() {
   if (!sun) return;
-  const all = [...groups.values()];
+  // Fit the shadow frustum to the STATIC groups only (no per-element spin, no path/launch motion). Including an
+  // animated actor or an orbiting effect made the bbox change every frame, so the frustum swam + the shadows
+  // stuttered, worst looking straight down. Static-only -> a stable frustum; refit only on add/remove.
+  const all = [...groups.values()].filter(g => !g.motion && (!g.anim || g.anim === 'none'));
   const box = new THREE.Box3();
   for (const g of all) box.expandByObject(g.root);
   const center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());
@@ -652,6 +647,18 @@ export function getGroupBase(id) {
 }
 
 export function listGroupIds() { return [...groups.keys()]; }
+
+// The group's mesh visual center in WORLD space (the placement point plus the mesh's authored bbox center), so
+// the designer can sit its gizmo on the building instead of at the off-origin group root. Returns [x,y,z] or
+// null. Used by playgroundDesigner to place the gizmo proxy.
+export function getGroupCenterWorld(id) {
+  const g = groups.get(id);
+  if (!g) return null;
+  const c = g.center || new THREE.Vector3(0, 0, 0);
+  const s = g.base?.scale || 1;
+  const p = g.root.position;
+  return [p.x + c.x * s, p.y + c.y * s, p.z + c.z * s];
+}
 
 // The group id whose root is an ancestor of a clicked object3d, or null. Lets a raycast hit on any child mesh
 // resolve back to the element it belongs to.
