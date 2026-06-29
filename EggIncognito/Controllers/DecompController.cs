@@ -118,6 +118,57 @@ public sealed class DecompController(
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
 
+    // Resolve a symbol's recovered VA on the stripped device target, for hooking it live with frida. Recovers the
+    // adjacent symbolized reference's symbols onto the target, then EXACT-matches the requested name (so a lambda
+    // closure whose mangled name embeds the real signature does not shadow the bare function). Returns the VA + the
+    // target's __text vmaddr/fileoff so the caller computes the runtime address: module.base + (VA - textVm).
+    // Admin-gated. The path for the data-driven effects that need a live hook (the universe hatchery sparkle).
+    [HttpGet("resolve-va")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> ResolveVa(
+        [FromQuery] string name, [FromQuery] string? refVersion, [FromQuery] string? targetPath, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
+        try
+        {
+            var (ok, refBytes, tgtBytes, diag) = await binaries.GetRecoveryInputsAsync(refVersion, targetPath, ct);
+            if (!ok || refBytes is null || tgtBytes is null) return Ok(new { ok = false, diagnostics = diag });
+
+            var report = SymbolRecovery.Recover(refBytes, tgtBytes, [name]);
+            // exact name first; fall back to the shortest Contains match (the bare function, not a lambda wrapper).
+            var exact = report.Symbols.Where(s => s.Name == name).ToList();
+            var candidates = exact.Count > 0
+                ? exact
+                : report.Symbols.Where(s => s.Name.Contains(name, StringComparison.Ordinal))
+                    .OrderBy(s => s.Name.Length).ToList();
+            if (candidates.Count == 0)
+                return Ok(new { ok = false, tier = report.Tier, recovered = report.Recovered, diagnostics = $"{name} not in recovered set" });
+
+            ulong textVm = 0, textOff = 0;
+            if (MachoText.TryFindText(tgtBytes, out var tfo, out _, out var tvm)) { textVm = tvm; textOff = (ulong)tfo; }
+
+            var pick = candidates[0];
+            return Ok(new
+            {
+                ok = true,
+                tier = report.Tier,
+                recovered = report.Recovered,
+                exactMatch = exact.Count > 0,
+                name = pick.Name,
+                va = "0x" + pick.Value.ToString("x"),
+                textVmAddr = "0x" + textVm.ToString("x"),
+                textFileOff = "0x" + textOff.ToString("x"),
+                // frida runtime address = module.base + (va - textVmAddr). The offset-from-text-base, precomputed:
+                textOffset = "0x" + (pick.Value - textVm).ToString("x"),
+                allCandidates = candidates.Take(8).Select(s => new { s.Name, va = "0x" + s.Value.ToString("x") }).ToList(),
+            });
+        }
+        catch (DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
     // Effect recovery framework: symbolically execute the effect's per-particle update and return the per-frame
     // placement math as an expression tree the renderer replays (not just constants). Admin-gated; the model's
     // opaqueCount is the honesty signal. Sources the symbolized binary like the other decomp endpoints.
