@@ -638,8 +638,8 @@ else
         if (_mod is null) return;
         object? motion = el.Kind == "actor" && el.Motion is not null
             ? new { kind = el.Motion.Kind, path = el.Motion.Path, speed = el.Motion.Speed,
-                    loop = el.Motion.Loop, facePath = el.Motion.FacePath, height = el.Motion.Height,
-                    period = el.Motion.Period }
+                    loop = el.Motion.Loop, facePath = el.Motion.FacePath, faceOffset = el.Motion.FaceOffset,
+                    height = el.Motion.Height, period = el.Motion.Period }
             : null;
         await _mod.InvokeVoidAsync("setGroupMotion", el.Id, motion);
         await RefreshAnimatedFlag();
@@ -662,7 +662,14 @@ else
             var xs = _elements.Where(e => e.Kind != "actor").Select(e => e.Pos[0]).ToList();
             var minX = xs.Count > 0 ? xs.Min() - 6f : -20f;
             var maxX = xs.Count > 0 ? xs.Max() + 6f : 20f;
-            return new MotionState { Kind = "path", Path = PlaygroundPaths.RoadPath(minX, maxX), Speed = 6f, Loop = "pingpong", FacePath = true };
+            // Drive one direction right -> left (from +X toward -X, looking at the farm from the front), wrapping
+            // pacman-style at the end (Loop=cycle, not pingpong). FaceOffset +90deg aligns the +X-forward vehicle
+            // mesh to the drive heading.
+            return new MotionState
+            {
+                Kind = "path", Path = PlaygroundPaths.RoadPath(maxX, minX), Speed = 6f,
+                Loop = "cycle", FacePath = true, FaceOffset = System.MathF.PI / 2f,
+            };
         }
         var hatch = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_hatchery"));
         var habs = _elements.Where(e => e.Kind == "env" && EnvCatalog.AssetTypeOf(e.Ref) is { } at && IsHab(at)).ToList();
@@ -1246,6 +1253,7 @@ else
         public float Speed { get; set; } = 3f;
         public string Loop { get; set; } = "cycle";        // cycle | pingpong
         public bool FacePath { get; set; } = true;
+        public float FaceOffset { get; set; } = 0f;         // radians added to the face-path heading (mesh forward fix)
         public float Height { get; set; } = 12f;            // launch rise
         public float Period { get; set; } = 6f;             // launch seconds/cycle
     }

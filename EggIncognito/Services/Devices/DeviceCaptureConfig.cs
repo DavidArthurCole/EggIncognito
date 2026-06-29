@@ -22,6 +22,11 @@ public sealed record DeviceCaptureConfig
     public string? IosSshKeyPath { get; init; }
     public string? IosSetCommand { get; init; }
     public string? IosClearCommand { get; init; }
+    // The active network-service GUID under NetworkServices in preferences.plist (the one device-specific value
+    // the built proxy command needs). PlutilPath/PrefsPlist override the on-device defaults when needed.
+    public string? IosNetworkServiceGuid { get; init; }
+    public string? IosPlutilPath { get; init; }
+    public string? IosPreferencesPlist { get; init; }
 
     // CA auto-install on rooted/jailbroken devices. Android: an su mount script with {hash}/{pem_path}
     // placeholders (built-in Android-14 default if unset). iOS: a sqlite3-insert command with
@@ -53,6 +58,9 @@ public sealed record DeviceCaptureConfig
             IosSshKeyPath = Nz(ios["SshKeyPath"]) ?? Nz(upd["SshKeyPath"]),
             IosSetCommand = Nz(ios["SetCommand"]),
             IosClearCommand = Nz(ios["ClearCommand"]),
+            IosNetworkServiceGuid = Nz(ios["NetworkServiceGuid"]),
+            IosPlutilPath = Nz(ios["PlutilPath"]),
+            IosPreferencesPlist = Nz(ios["PreferencesPlist"]),
             AndroidCaInstallScript = Nz(android["CaInstallScript"]),
             IosCaInstallCommand = Nz(ios["CaInstallCommand"]),
             IosTrustStorePath = Nz(ios["TrustStorePath"]),

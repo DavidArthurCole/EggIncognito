@@ -195,7 +195,9 @@ function applyMotion(g) {
   let ry = baseRy;
   if (m.facePath) {
     const t = tangentAt(m.path, d);
-    ry = Math.atan2(t[0], t[2]);
+    // atan2(x,z) aligns a +Z-forward mesh to the tangent; faceOffset corrects meshes whose forward axis is
+    // rotated (vehicles model +X-forward, so a +90deg offset turns them to face along the drive direction).
+    ry = Math.atan2(t[0], t[2]) + (m.faceOffset || 0);
   }
   g.root.rotation.set(0, ry, 0);
   g.root.position.set(p[0], p[1], p[2]);

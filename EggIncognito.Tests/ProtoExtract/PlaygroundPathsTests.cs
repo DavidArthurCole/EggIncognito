@@ -30,9 +30,18 @@ public class PlaygroundPathsTests
     [Fact]
     public void RoadPath_DefaultsSpan_WhenSparse()
     {
+        // too-close endpoints fall back to the default span, driving right -> left (+X to -X).
         var road = PlaygroundPaths.RoadPath(5, 5);
-        Assert.Equal(-20f, road[0][0], 3);
-        Assert.Equal(20f, road[1][0], 3);
+        Assert.Equal(20f, road[0][0], 3);
+        Assert.Equal(-20f, road[1][0], 3);
+    }
+
+    [Fact]
+    public void RoadPath_PreservesDirection_WhenReversed()
+    {
+        var road = PlaygroundPaths.RoadPath(20, -20);
+        Assert.Equal(20f, road[0][0], 3);
+        Assert.Equal(-20f, road[1][0], 3);
     }
 
     [Fact]

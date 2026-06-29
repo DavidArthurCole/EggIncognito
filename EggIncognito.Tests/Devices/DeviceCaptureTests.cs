@@ -178,8 +178,8 @@ public class DeviceCaptureTests
         var cfg = new IosProxyConfigurator(runner, ssh);
         var (ok, note) = await cfg.SetProxyAsync(new DeviceProxyTarget("i", "ios", "UDID"), "10.0.0.5", 9101, default);
         Assert.False(ok);
-        Assert.Empty(runner.Calls); // never shelled out
-        Assert.Contains("not configured", note);
+        Assert.Empty(runner.Calls); // never shelled out: no template AND no guid to build from
+        Assert.Contains("guid", note);
     }
 
     [Fact]
@@ -222,5 +222,38 @@ public class DeviceCaptureTests
         Assert.Equal("ios", new IosProxyConfigurator(
             new CapturingRunner(_ => new ProcessResult(0, "", "")),
             new IosProxyConfigurator.SshConfig(null, "2222", null, null, null)).Platform);
+    }
+
+    [Fact]
+    public void IosProxy_BuildsSetCommand_FromGuid_WhenNoTemplate()
+    {
+        var cfg = new IosProxyConfigurator.SshConfig(
+            "10.0.0.1", "2222", "/k", SetTemplate: null, ClearTemplate: null, Guid: "GUID-123");
+        var proxy = new IosProxyConfigurator(new CapturingRunner(_ => new ProcessResult(0, "", "")), cfg);
+
+        var set = proxy.BuildSet("192.168.1.5", 9100);
+        Assert.Contains("/cores/binpack/usr/bin/plutil", set);
+        Assert.Contains("-key NetworkServices -key GUID-123 -key Proxies", set);
+        Assert.Contains("-key HTTPProxy -value 192.168.1.5 -type string", set);
+        Assert.Contains("-key HTTPSPort -value 9100 -type int", set);
+        Assert.Equal(6, set.Split(';').Length); // HTTP + HTTPS enable/host/port
+
+        var clear = proxy.BuildClear();
+        Assert.Contains("-key HTTPEnable -value 0 -type int", clear);
+        Assert.Contains("-key HTTPSEnable -value 0 -type int", clear);
+    }
+
+    [Fact]
+    public async Task IosProxy_TemplateOverride_WinsOverBuilt()
+    {
+        string? seen = null;
+        var runner = new CapturingRunner(args => { seen = args.LastOrDefault(); return new ProcessResult(0, "", ""); });
+        var cfg = new IosProxyConfigurator.SshConfig(
+            "10.0.0.1", "2222", "/k", SetTemplate: "echo {host}:{port}", ClearTemplate: "echo clear", Guid: "GUID-123");
+        var proxy = new IosProxyConfigurator(runner, cfg);
+
+        var (ok, _) = await proxy.SetProxyAsync(new DeviceProxyTarget("d", "ios", "udid"), "1.2.3.4", 80, default);
+        Assert.True(ok);
+        Assert.Equal("echo 1.2.3.4:80", seen);
     }
 }

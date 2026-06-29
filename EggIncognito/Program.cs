@@ -486,7 +486,9 @@ builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceProxyCon
         sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),
         new EggIncognito.Core.Services.Devices.IosProxyConfigurator.SshConfig(
             deviceCaptureConfig.IosSshHost, deviceCaptureConfig.IosSshPort, deviceCaptureConfig.IosSshKeyPath,
-            deviceCaptureConfig.IosSetCommand, deviceCaptureConfig.IosClearCommand)));
+            deviceCaptureConfig.IosSetCommand, deviceCaptureConfig.IosClearCommand,
+            deviceCaptureConfig.IosNetworkServiceGuid, deviceCaptureConfig.IosPlutilPath,
+            deviceCaptureConfig.IosPreferencesPlist)));
 // CA auto-install on the rooted/jailbroken farm devices: the capture CA is pushed + trusted on-device so
 // the per-device proxy's MITM TLS decrypts. Android over adb (rooted system-store mount); iOS over ssh
 // (TrustStore.sqlite3 insert). Same control channels as the proxy configurators + probes.

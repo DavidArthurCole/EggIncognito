@@ -50,8 +50,11 @@ public sealed class DecompController(GameBinaryProvider binaries, ICurrentUser c
         return await ExtractAsync([name], device, ct);
     }
 
-    // The proven slice: the Chicken Universe hab's floating effect is a GalaxyParticle system; its orbit
-    // constants live in GalaxyParticle::onBirth + ::update. Returns both.
+    // The Chicken Universe hab floating effect = a GalaxyParticle system. The orbit math is NOT in onBirth's
+    // body (that just installs lambdas); it lives in the four onBirth lambda operator() bodies: $_0 builds the
+    // per-frame Matrix4f transform (the orbit), $_1 + $_3 the Vector3f axes/offsets, $_2 a float scalar
+    // (speed/phase). Each constant loads as a q-vector (Eigen) the disassembler now reads. Returns all four
+    // lambdas plus the outer onBirth/update for context.
     [HttpGet("galaxy-particle")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> GalaxyParticle([FromQuery] string? device, CancellationToken ct)
@@ -62,9 +65,20 @@ public sealed class DecompController(GameBinaryProvider binaries, ICurrentUser c
         {
             var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
             if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
-            var onBirth = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle7onBirth"]);
-            var update = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle6update"]);
-            return Ok(new { ok = true, onBirth = Shape(onBirth), update = Shape(update) });
+
+            object Lambda(string tag) =>
+                Shape(FunctionConstantExtractor.Extract(bin, [$"GalaxyParticle7onBirthEP14ParticleSystemE3$_{tag}", "clEv"]));
+
+            return Ok(new
+            {
+                ok = true,
+                transform = Lambda("0"),  // Matrix4f orbit transform
+                axisA = Lambda("1"),      // Vector3f
+                scalar = Lambda("2"),     // float
+                axisB = Lambda("3"),      // Vector3f
+                onBirth = Shape(FunctionConstantExtractor.Extract(bin, ["GalaxyParticle7onBirthEP14ParticleSystem"])),
+                update = Shape(FunctionConstantExtractor.Extract(bin, ["GalaxyParticle6updateEP14ParticleSystemf"])),
+            });
         }
         catch (DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
