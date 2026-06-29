@@ -37,7 +37,7 @@ public static class RpoMeshDecoder
     // re-parsing (the manifest bbox comes straight from here). HasEmission is true when a COLOR_0 attribute
     // survived, so a caller can detect the silent emission-drop regression.
     public sealed record DecodeResult(bool Ok, byte[]? Glb, string Diagnostics,
-        int VertexCount, int IndexCount, BBox? Bounds, bool HasEmission);
+        int VertexCount, int IndexCount, BBox? Bounds, bool HasEmission, long TrailingBytes = 0);
 
     private static DecodeResult Fail(string why) => new(false, null, why, 0, 0, null, false);
 
@@ -75,7 +75,11 @@ public static class RpoMeshDecoder
 
         var hasEmission = strides.Count >= 2 && strides[1] >= 3;
         var glb = BuildGlb(rpo, strides, vertexCount, indexCount, dataStart, vertexBytes, indexBytes, bounds, name);
-        return new DecodeResult(true, glb, "ok", vertexCount, indexCount, bounds, hasEmission);
+        // Bytes left after this single mesh's vertex+index block. Nonzero means the .rpo packs MORE than one
+        // mesh (e.g. a hab's floating-effect sub-objects), which this single-mesh decoder currently drops. A
+        // diagnostic toward the multi-mesh extraction (see CLAUDE.md "EXTRACT, don't author").
+        var trailing = rpo.Length - (dataStart + vertexBytes + indexBytes);
+        return new DecodeResult(true, glb, "ok", vertexCount, indexCount, bounds, hasEmission, trailing);
     }
 
     // .rpoz wraps the .rpo stream in a zlib container (0x78 0x9C). Inflate it; otherwise return as-is. A

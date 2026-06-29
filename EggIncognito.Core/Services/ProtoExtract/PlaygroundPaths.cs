@@ -1,8 +1,12 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 // Derives world-space waypoint paths for the playground's animated actors from the placed elements' positions,
-// so motion follows the user's layout. Pure: positions in, waypoints out. The game's real motion is hardcoded
-// C++ and not extractable, so these are authored approximations. A waypoint is float[]{x,y,z}.
+// so motion follows the user's layout. Pure: positions in, waypoints out. A waypoint is float[]{x,y,z}.
+//
+// STOPGAP (see CLAUDE.md "EXTRACT, don't author"): these are hand-authored approximations of the game's real
+// actor motion. The game defines the actual chicken-run / vehicle-drive / rocket-launch paths in its binary
+// (FarmScene + related compiled methods) or model data. Extract those and replace this. Tracked in
+// docs/superpowers/specs/2026-06-28-playground-building-animations-design.md.
 public static class PlaygroundPaths
 {
     // The road runs along X between the depot (z~7-12) and the hyperloop (z~19-27). Vehicles drive here. The

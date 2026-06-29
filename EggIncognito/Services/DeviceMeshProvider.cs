@@ -59,22 +59,8 @@ public sealed class DeviceMeshProvider(
         // 3) pull off the device.
         if (device is null) return Err(503, "mesh not cached and no asset-source device available");
 
-        byte[]? rpo;
-        if (device.Platform == PlatformIos)
-        {
-            if (IosSsh(device) is not { } ssh)
-                return Err(503, "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured");
-            rpo = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullOneRpoAsync(device.Package, stem, ct);
-        }
-        else if (device.Platform == PlatformAndroid)
-        {
-            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
-            if (apk is null) return Err(502, "could not pull base.apk from the device");
-            rpo = RpoAssetLister.ReadStem(apk, stem);
-        }
-        else return Err(501, $"no mesh pull for platform {device.Platform}");
-
-        if (rpo is null) return Err(404, "mesh not found on device");
+        var (rpo, pullErr) = await PullRpoAsync(device, stem, ct);
+        if (rpo is null) return pullErr!;
 
         var decode = RpoMeshDecoder.Decode(rpo, stem);
         if (!decode.Ok) return Err(500, decode.Diagnostics);
@@ -83,6 +69,42 @@ public sealed class DeviceMeshProvider(
         await PutDbAsync(device.Platform, stem, glb, ct);
         logger.LogInformation("device mesh: pulled {Stem} off {Id} ({Plat}), cached to db + disk", stem, device.Id, device.Platform);
         return new Result(true, glb, null, 200);
+    }
+
+    // Decode stats for a stem's raw .rpo, pulled fresh off the device (not the cached glb). Reports vertex /
+    // index counts, bbox, and TrailingBytes left after the single mesh: nonzero trailing means the .rpo packs
+    // more than one mesh (e.g. a hab's floating-effect sub-objects) the single-mesh decoder drops. Diagnostic
+    // toward multi-mesh extraction (see CLAUDE.md "EXTRACT, don't author"). Admin-gated at the controller.
+    public async Task<(bool Ok, RpoMeshDecoder.DecodeResult? Stats, string? Diagnostics)> GetDecodeStatsAsync(string stem, string? deviceId, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(stem) || stem.IndexOfAny(['/', '\\', '.']) >= 0) return (false, null, "invalid mesh name");
+        var device = await ResolveDeviceAsync(deviceId, ct);
+        if (device is null) return (false, null, "no asset-source device available");
+        var (rpo, _) = await PullRpoAsync(device, stem, ct);
+        if (rpo is null) return (false, null, "mesh not found on device");
+        return (true, RpoMeshDecoder.Decode(rpo, stem), null);
+    }
+
+    // Pulls the raw .rpo bytes for a stem off the device (android apk entry / ios ssh). Shared by the glb
+    // decode + the decode-stats diagnostic.
+    private async Task<(byte[]? Rpo, Result? Err)> PullRpoAsync(Device device, string stem, CancellationToken ct)
+    {
+        byte[]? rpo;
+        if (device.Platform == PlatformIos)
+        {
+            if (IosSsh(device) is not { } ssh)
+                return (null, Err(503, "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured"));
+            rpo = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullOneRpoAsync(device.Package, stem, ct);
+        }
+        else if (device.Platform == PlatformAndroid)
+        {
+            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+            if (apk is null) return (null, Err(502, "could not pull base.apk from the device"));
+            rpo = RpoAssetLister.ReadStem(apk, stem);
+        }
+        else return (null, Err(501, $"no mesh pull for platform {device.Platform}"));
+        if (rpo is null) return (null, Err(404, "mesh not found on device"));
+        return (rpo, null);
     }
 
     // Lists the .rpo/.rpoz mesh stems actually present on the asset-source device (Android: enumerate the apk;

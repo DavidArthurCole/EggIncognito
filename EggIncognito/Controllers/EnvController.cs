@@ -62,6 +62,34 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         return Ok(new { ok = true, count = filtered.Count, stems = filtered });
     }
 
+    // Decode stats for a stem's raw .rpo (admin). vertexCount/indexCount/bounds + trailingBytes: nonzero
+    // trailing means the file packs more than one mesh (e.g. a hab's floating-effect sub-objects) the
+    // single-mesh decoder currently drops. Diagnostic toward multi-mesh extraction.
+    [HttpGet("{stem}/decode-stats")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> DecodeStats(string stem, [FromQuery] string? device, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        var (ok, stats, diag) = await meshes.GetDecodeStatsAsync(stem, device, ct);
+        if (!ok || stats is null) return Ok(new { ok = false, diagnostics = diag });
+        return Ok(new
+        {
+            ok = stats.Ok,
+            stem,
+            vertexCount = stats.VertexCount,
+            indexCount = stats.IndexCount,
+            trailingBytes = stats.TrailingBytes,
+            multiMesh = stats.TrailingBytes > 0,
+            bounds = stats.Bounds is null ? null : new
+            {
+                min = new[] { stats.Bounds.Min.X, stats.Bounds.Min.Y, stats.Bounds.Min.Z },
+                max = new[] { stats.Bounds.Max.X, stats.Bounds.Max.Y, stats.Bounds.Max.Z },
+            },
+            diagnostics = stats.Diagnostics,
+        });
+    }
+
     // One env mesh decoded to glb, by stem (allowlisted). Pulled off the asset-source device, cache-first.
     // Admin-gated (device round-trip). ?device= picks a specific source device, else first reachable.
     [HttpGet("{stem}/glb")]
