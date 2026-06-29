@@ -117,7 +117,7 @@ export async function init(canvas) {
     scene: _scene, camera: _camera, renderer: _renderer, controls: _controls,
     getGroupRoot, getGroupBase, getGroupCenterWorld, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
     captureBegin, renderAtPhase, captureEnd, anyAnimated, sceneBackgroundHex, animPeriod, captureCleanOutline,
-    attachEffect,
+    attachEffects,
   };
   loop();
 }
@@ -271,34 +271,48 @@ function easeOut(x) { return 1 - (1 - x) * (1 - x); }
 
 function rad(d) { return (d || 0) * Math.PI / 180; }
 
-// Attach (or clear) a recovered decomp effect to a group. The EffectModel (from /api/decomp/effect) carries a
-// count + a per-particle placement expression tree extracted from the game binary. Builds an InstancedMesh of
-// `count` small emissive quads; updateEffects places each per frame by evaluating the tree. A null/!ok model
-// clears any existing effect. Safe only after init (uses THREE). Exposed on the engine handle for the UI hook.
-export function attachEffect(groupId, model) {
-  const existing = effects.get(groupId);
-  if (existing) { existing.mesh.parent?.remove(existing.mesh); existing.mesh.geometry.dispose(); existing.mesh.material.dispose(); effects.delete(groupId); }
+// Attach (or clear) a building's DISCOVERED decomp effects to a group. `models` is an array of EffectModels
+// (from /api/decomp/building-effects), each carrying a count + a per-particle placement expression tree
+// extracted from the binary by the building-effect resolver. One InstancedMesh per effect; updateEffects places
+// each particle per frame by evaluating the tree. null/empty clears. No hardcoded per-building logic: whatever
+// the resolver found for this mesh renders. Safe only after init (uses THREE).
+export function attachEffects(groupId, models) {
+  clearEffects(groupId);
   const g = groups.get(groupId);
-  if (!g || !model || !model.ok || !model.placement) return;
-  const count = Math.max(1, Math.min(2000, Math.round(evalExpr(model.count, { t: 0, particleIndex: 0, count: 0 })) || 1));
-  const geo = new THREE.PlaneGeometry(0.15, 0.15);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xfff2a8, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
-  const mesh = new THREE.InstancedMesh(geo, mat, count);
-  mesh.frustumCulled = false;
-  g.root.add(mesh);
-  effects.set(groupId, { model, mesh, count });
+  if (!g || !models || !models.length) return;
+  const built = [];
+  for (const model of models) {
+    if (!model || !model.ok || !model.placement) continue;
+    const count = Math.max(1, Math.min(4000, Math.round(evalExpr(model.count, { t: 0, particleIndex: 0, count: 0 })) || 1));
+    const geo = new THREE.PlaneGeometry(0.15, 0.15);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xfff2a8, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.InstancedMesh(geo, mat, count);
+    mesh.frustumCulled = false;
+    g.root.add(mesh);
+    built.push({ model, mesh, count });
+  }
+  if (built.length) effects.set(groupId, built);
+}
+
+function clearEffects(groupId) {
+  const list = effects.get(groupId);
+  if (!list) return;
+  for (const e of list) { e.mesh.parent?.remove(e.mesh); e.mesh.geometry.dispose(); e.mesh.material.dispose(); }
+  effects.delete(groupId);
 }
 
 let _effectMat;
 function updateEffects(tSeconds) {
   if (effects.size === 0) return;
   if (!_effectMat) _effectMat = new THREE.Matrix4();
-  for (const { model, mesh, count } of effects.values()) {
-    for (let i = 0; i < count; i++) {
-      _effectMat.fromArray(evalMatrix(model.placement, { t: tSeconds, particleIndex: i, count }));
-      mesh.setMatrixAt(i, _effectMat);
+  for (const list of effects.values()) {
+    for (const { model, mesh, count } of list) {
+      for (let i = 0; i < count; i++) {
+        _effectMat.fromArray(evalMatrix(model.placement, { t: tSeconds, particleIndex: i, count }));
+        mesh.setMatrixAt(i, _effectMat);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
     }
-    mesh.instanceMatrix.needsUpdate = true;
   }
 }
 

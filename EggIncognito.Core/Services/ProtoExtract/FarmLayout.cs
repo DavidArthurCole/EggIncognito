@@ -48,13 +48,12 @@ public static class FarmLayout
             new("ei_hyperloop_stop", [0, 0, 0], 0), // across the road (z~19-27)
             new("ei_hyperloop_track", [0, 0, 0], 0), // the hyperloop tube
             new("ei_farm_mailbox_full", [0, 0, 0], 0), // self-places near (-3, 11)
-            // origin-authored: placed explicitly relative to the depot. FALLBACK positions; the recovered
-            // overload (Standard with recovered placement) replaces the singleton X with the extracted formula.
-            new("ei_mission_control_1", [16, 0, 9], 0), // RIGHT of the depot, near row
-            new("ei_fuel_tank_2", [23, 0, 9], 0), // next to mission control
-            new("ei_afx_construction_site", [16, 0, -3], 0), // artifact hall, BEHIND mission control
             new("ei_trophy_case", [-7, 0, 11], 0), // LEFT of the mailbox
         };
+        // the core buildings (lab/hoa, hatchery/mission-control/fuel, depot) are laid out as three gravity-packed
+        // rows so a wider building pushes its row-neighbours right. Default tiers; the recovered overload swaps in
+        // the user's chosen tiers + keeps the packing.
+        p.AddRange(CoreRows("ei_lab_3", "ei_afx_construction_site", "ei_hatchery_edible", "ei_mission_control_1", "ei_fuel_tank_2", "ei_depot_3"));
 
         // hab row: 4 plots, evenly spaced (no game spacing constant; positions are model-baked).
         for (var i = 0; i < 4; i++)
@@ -70,43 +69,103 @@ public static class FarmLayout
         return p;
     }
 
+    // The farm "core" buildings laid out as the game does: three rows, each a left-to-right sequence, gravity-
+    // packed so a building further left pushes the ones to its right when it is wider (the variable-size buildings
+    // grow with tier). Row Z values place back/mid/front relative to the road. Footprint widths are per-stem (the
+    // STOPGAP approximation until extracted from the mesh bounds / FarmScene spacing; marked below).
+    //
+    // Row 1 (back):  Research Lab, Hall of Artifacts
+    // Row 2 (mid):   Hatchery, Mission Control, Fuel Tank
+    // Row 3 (front): Depot
+    public const float RowBackZ = -3f;   // research lab / hoa row
+    public const float RowMidZ = 4f;     // hatchery / mission control / fuel row
+    public const float RowFrontZ = 11f;  // depot row (closest to the road)
+    private const float RowGap = 1.5f;   // gap between adjacent buildings in a row
+    private const float CoreLeftX = 6f;  // the left edge the rows start packing from (right of the silo field)
+
+    // Approximate footprint half-widths per building (X half-extent). STOPGAP: hand-measured from the meshes; the
+    // real per-tier footprint is in the mesh bounds / FarmScene element-width table @0x10226a3c8 = [3.2,4.75,7.2,
+    // 1.1,2.2,1.0]. Replace with extracted widths.
+    private static float HalfWidth(string stem) => stem switch
+    {
+        var s when s.StartsWith("ei_lab") => 4.5f,
+        var s when s.StartsWith("ei_hoa") || s.StartsWith("ei_afx_construction") => 4.0f,
+        var s when s.StartsWith("ei_hatchery") => 4.0f,
+        var s when s.StartsWith("ei_mission_control") => 4.5f,
+        var s when s.StartsWith("ei_fuel_tank") => 2.5f,
+        var s when s.StartsWith("ei_depot") => 5.0f,
+        var s when s.StartsWith("ei_trophy") => 1.5f,
+        _ => 3.0f,
+    };
+
+    // Pack one row left-to-right from startX: each building's center = previous center + prevHalf + gap + thisHalf.
+    // Returns the placed positions (X only; Z + the stems come from the caller).
+    private static List<Placed> PackRow(float startX, float z, params string[] stems)
+    {
+        var outp = new List<Placed>();
+        float cursor = startX;
+        float prevHalf = 0;
+        bool first = true;
+        foreach (var stem in stems)
+        {
+            var half = HalfWidth(stem);
+            cursor += first ? half : prevHalf + RowGap + half;
+            outp.Add(new Placed(stem, [cursor, 0f, z], 0));
+            prevHalf = half;
+            first = false;
+        }
+        return outp;
+    }
+
+    // The farm core as the three gravity-packed rows. Variable building stems (tier-dependent) are passed in;
+    // widening one shifts everything to its right. Used by the recovered layout; the terrain/habs/silos come from
+    // Standard(). The Z rows + the per-stem widths are the stopgap approximation noted above.
+    public static IReadOnlyList<Placed> CoreRows(string lab, string hoa, string hatchery, string missionControl, string fuel, string depot)
+    {
+        var core = new List<Placed>();
+        core.AddRange(PackRow(CoreLeftX, RowBackZ, lab, hoa));
+        core.AddRange(PackRow(CoreLeftX, RowMidZ, hatchery, missionControl, fuel));
+        core.AddRange(PackRow(CoreLeftX, RowFrontZ, depot));
+        return core;
+    }
+
     // The singleton stems whose X position is the recovered farm-width-dependent formula.
     public sealed record SingletonPlacement(
         FarmPlacementRecovery.Vec3Model? MissionControl,
         FarmPlacementRecovery.Vec3Model? FuelTank,
         FarmPlacementRecovery.Vec3Model? Hoa);
 
-    // The standard farm with the singleton X positions taken from the EXTRACTED placement formulas, evaluated at
-    // the farm's actual half-width (the dynamic, adjacency-dependent offset the game computes from its farm-bound
-    // state, approximated here from the placed buildings). Y/Z keep the authored fallback unless the recovered
-    // axis is fully resolved (no residual struct field). When a model is absent/unrecovered the authored
-    // fallback stands. defaultHab + the rest of the layout match Standard().
+    // The standard farm using the recovered mission-control X formula to set the core rows' left start, so the
+    // gravity-packed core shifts with the farm width exactly as the game does (the extracted formula is
+    // X = perConst + farmWidth + offset). The rest (terrain, habs, silos) matches Standard(). When the formula is
+    // unavailable the fixed CoreLeftX stands. The chosen tiers swap into the rows + keep the packing.
     public static IReadOnlyList<Placed> StandardRecovered(SingletonPlacement rec, float farmHalfWidth, string defaultHab = "hab_10k")
     {
-        var list = Standard(defaultHab).ToList();
+        // derive the core-left start from the recovered mission-control X formula at the actual farm width, so the
+        // whole packed core tracks the dynamic farm size. Falls back to the fixed start if not fully resolved.
         var env = new Dictionary<string, double> { ["farmWidth"] = farmHalfWidth };
+        float leftStart = CoreLeftX;
+        if (rec.MissionControl is { Ok: true, X: { } mx } && ExprNode.IsFullyResolved(mx))
+            leftStart = (float)ExprNode.Eval(mx, env) - 10f; // mission-control is mid-row; back off to the row's left edge
 
-        float[] Apply(float[] authored, FarmPlacementRecovery.Vec3Model? m)
-        {
-            if (m is not { Ok: true } model || model.X is null) return authored;
-            var x = ExprNode.IsFullyResolved(model.X) ? (float)ExprNode.Eval(model.X, env) : authored[0];
-            var y = model.Y is not null && ExprNode.IsFullyResolved(model.Y) ? (float)ExprNode.Eval(model.Y, env) : authored[1];
-            var z = model.Z is not null && ExprNode.IsFullyResolved(model.Z) ? (float)ExprNode.Eval(model.Z, env) : authored[2];
-            return [x, y, z];
-        }
-
-        for (var i = 0; i < list.Count; i++)
-        {
-            var pl = list[i];
-            float[]? np = pl.Stem switch
-            {
-                "ei_mission_control_1" => Apply(pl.Pos, rec.MissionControl),
-                "ei_fuel_tank_2" => Apply(pl.Pos, rec.FuelTank),
-                "ei_afx_construction_site" => Apply(pl.Pos, rec.Hoa),
-                _ => null,
-            };
-            if (np is not null) list[i] = pl with { Pos = np };
-        }
+        var list = Standard(defaultHab).ToList();
+        // re-pack the core rows from the recovered left start (replace the fixed-start core entries).
+        list.RemoveAll(p => IsCoreStem(p.Stem));
+        list.AddRange(RepackCore(leftStart));
         return list;
+    }
+
+    private static bool IsCoreStem(string s) =>
+        s.StartsWith("ei_lab") || s.StartsWith("ei_afx_construction") || s.StartsWith("ei_hoa")
+        || s.StartsWith("ei_hatchery") || s.StartsWith("ei_mission_control") || s.StartsWith("ei_fuel_tank")
+        || s.StartsWith("ei_depot");
+
+    private static IReadOnlyList<Placed> RepackCore(float leftStart)
+    {
+        var core = new List<Placed>();
+        core.AddRange(PackRow(leftStart, RowBackZ, "ei_lab_3", "ei_afx_construction_site"));
+        core.AddRange(PackRow(leftStart, RowMidZ, "ei_hatchery_edible", "ei_mission_control_1", "ei_fuel_tank_2"));
+        core.AddRange(PackRow(leftStart, RowFrontZ, "ei_depot_3"));
+        return core;
     }
 }

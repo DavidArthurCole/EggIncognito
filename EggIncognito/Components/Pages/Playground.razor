@@ -281,11 +281,11 @@ else
                     <option value="HoverSpin">Hover + spin</option>
                   </select>
                 </label>
-                @if (sel.Ref == "hab_chicken_universe")
+                @if (sel.HasEffects)
                 {
                   <label class="settings-check mt-1">
                     <input type="checkbox" checked="@sel.Effect" @onchange="e => OnEffectToggled(sel, e.Value is true)" />
-                    <span class="ml-2">Galaxy particles (extracted)</span>
+                    <span class="ml-2">Extracted effects (@sel.EffectCount)</span>
                   </label>
                 }
               }
@@ -920,7 +920,7 @@ else
 
     List<DesignElement> CloneElements() => _elements.Select(e => new DesignElement
     {
-        Id = e.Id, Kind = e.Kind, Ref = e.Ref, Label = e.Label, Hat = e.Hat, Shell = e.Shell, Recenter = e.Recenter, Effect = e.Effect,
+        Id = e.Id, Kind = e.Kind, Ref = e.Ref, Label = e.Label, Hat = e.Hat, Shell = e.Shell, Recenter = e.Recenter, Effect = e.Effect, HasEffects = e.HasEffects, EffectCount = e.EffectCount,
         Pos = [e.Pos[0], e.Pos[1], e.Pos[2]], RotDeg = [e.RotDeg[0], e.RotDeg[1], e.RotDeg[2]],
         Scale = e.Scale, Anim = e.Anim, Actor = e.Actor,
         Motion = e.Motion is null ? null : new MotionState
@@ -1018,7 +1018,7 @@ else
         live.Kind = snap.Kind; live.Ref = snap.Ref; live.Label = snap.Label; live.Hat = snap.Hat; live.Shell = snap.Shell;
         live.Pos = [snap.Pos[0], snap.Pos[1], snap.Pos[2]];
         live.RotDeg = [snap.RotDeg[0], snap.RotDeg[1], snap.RotDeg[2]];
-        live.Scale = snap.Scale; live.Anim = snap.Anim; live.Actor = snap.Actor; live.Motion = snap.Motion; live.Recenter = snap.Recenter; live.Effect = snap.Effect;
+        live.Scale = snap.Scale; live.Anim = snap.Anim; live.Actor = snap.Actor; live.Motion = snap.Motion; live.Recenter = snap.Recenter; live.Effect = snap.Effect; live.HasEffects = snap.HasEffects; live.EffectCount = snap.EffectCount;
     }
 
 
@@ -1060,10 +1060,10 @@ else
     }
 
     // Per-farm placement limits. Families that allow exactly one instance regardless of tier (a farm has one
-    // research lab, one mission control, one artifact hall, one hatchery, one trophy case). Plus count caps on
-    // the multi-instance pieces: habs and silos.
+    // research lab, one mission control, one artifact hall, one hatchery, one trophy case, one depot, one fuel
+    // tank). Plus count caps on the multi-instance pieces: habs and silos.
     static readonly HashSet<string> SingleInstanceFamilies = new(StringComparer.Ordinal)
-        { "lab", "mission", "hoa", "hatchery", "trophy" };
+        { "lab", "mission", "hoa", "hatchery", "trophy", "depot", "fuel" };
     const int MaxHabs = 4;
     const int MaxSilos = 10;
 
@@ -1163,19 +1163,23 @@ else
         StateHasChanged();
     }
 
+    // Render (or clear) a building's extracted effects. The set of effects is DISCOVERED from the binary by the
+    // building-effect resolver (no hardcoded per-stem list); this fetches whatever was found for el.Ref + hands
+    // the models to the engine. HasEffects/EffectCount are populated so the toggle only shows when there is
+    // something to render.
     async Task ApplyEffect(DesignElement el)
     {
-        if (_mod is null) return;
-        if (el.Effect && el.Ref == "hab_chicken_universe")
+        if (_mod is null || el.Kind != "env") return;
+        try
         {
-            try
-            {
-                var model = await Client().GetFromJsonAsync<System.Text.Json.JsonElement>("/api/decomp/effect?name=galaxy-particle");
-                await _mod.InvokeVoidAsync("attachEffect", el.Id, model);
-            }
-            catch (Exception ex) { Status($"effect unavailable: {ex.Message}"); }
+            var res = await Client().GetFromJsonAsync<System.Text.Json.JsonElement>($"/api/decomp/building-effects?stem={Uri.EscapeDataString(el.Ref)}");
+            var hasEffects = res.TryGetProperty("effects", out var effects) && effects.ValueKind == System.Text.Json.JsonValueKind.Array && effects.GetArrayLength() > 0;
+            el.HasEffects = hasEffects;
+            el.EffectCount = hasEffects ? effects.GetArrayLength() : 0;
+            await _mod.InvokeVoidAsync("attachEffects", el.Id, el.Effect && hasEffects ? effects : (object?)null);
         }
-        else await _mod.InvokeVoidAsync("attachEffect", el.Id, null);
+        catch { el.HasEffects = false; el.EffectCount = 0; await _mod.InvokeVoidAsync("attachEffects", el.Id, null); }
+        StateHasChanged();
     }
     async Task OnShellChanged() { PushHistory(); await ReshellSelected(); }
     async Task OnHatChanged(DesignElement sel) { PushHistory(); await RenderAndReselect(sel); }
@@ -1552,7 +1556,9 @@ else
         public string Actor { get; set; } = ""; // ""|chicken|vehicle|rocket (kind=="actor")
         public MotionState? Motion { get; set; }
         public bool Recenter { get; set; } // free-placed: re-center the mesh on the group origin so the gizmo lands on it
-        public bool Effect { get; set; } // hab: show its extracted decomp particle effect (e.g. universe galaxy)
+        public bool Effect { get; set; } // render this building's extracted decomp effects
+        public bool HasEffects { get; set; } // the resolver found >=1 effect for this building's mesh
+        public int EffectCount { get; set; } // how many discovered effects
     }
 
     public sealed class MotionState

@@ -69,9 +69,39 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void StandardRecovered_AppliesRecoveredX_AtFarmWidth()
+    public void CoreRows_PacksThreeRows_LeftToRight_GravityPushesRight()
     {
-        // a recovered missionControl model: X = (2.8 + farmWidth) + 1.5, fully resolved (no residual field).
+        var core = FarmLayout.CoreRows("ei_lab_3", "ei_afx_construction_site", "ei_hatchery_edible",
+            "ei_mission_control_1", "ei_fuel_tank_2", "ei_depot_3");
+
+        // rows at the three Z bands.
+        Assert.Equal(FarmLayout.RowBackZ, core.First(p => p.Stem == "ei_lab_3").Pos[2], 2);
+        Assert.Equal(FarmLayout.RowMidZ, core.First(p => p.Stem == "ei_hatchery_edible").Pos[2], 2);
+        Assert.Equal(FarmLayout.RowFrontZ, core.First(p => p.Stem == "ei_depot_3").Pos[2], 2);
+
+        // gravity: in the mid row, mission control sits RIGHT of the hatchery, fuel tank RIGHT of mission control.
+        var hatch = core.First(p => p.Stem == "ei_hatchery_edible").Pos[0];
+        var mc = core.First(p => p.Stem == "ei_mission_control_1").Pos[0];
+        var fuel = core.First(p => p.Stem == "ei_fuel_tank_2").Pos[0];
+        Assert.True(mc > hatch, "mission control is right of hatchery");
+        Assert.True(fuel > mc, "fuel tank is right of mission control");
+    }
+
+    [Fact]
+    public void CoreRows_WiderLeftBuilding_PushesRightFurther()
+    {
+        // a wider mid-row first building shifts the ones to its right. The depot (half 5.0) vs fuel (half 2.5):
+        // packing a wide-then-narrow row spaces them more than narrow-then-narrow.
+        var wide = FarmLayout.CoreRows("ei_lab_3", "ei_afx_construction_site", "ei_depot_3", "ei_fuel_tank_2", "ei_fuel_tank_2", "ei_depot_3");
+        var narrow = FarmLayout.CoreRows("ei_lab_3", "ei_afx_construction_site", "ei_fuel_tank_2", "ei_fuel_tank_2", "ei_fuel_tank_2", "ei_depot_3");
+        var wideSecond = wide.Where(p => p.Pos[2] == FarmLayout.RowMidZ).ElementAt(1).Pos[0];
+        var narrowSecond = narrow.Where(p => p.Pos[2] == FarmLayout.RowMidZ).ElementAt(1).Pos[0];
+        Assert.True(wideSecond > narrowSecond, "a wider left building pushes the next one further right");
+    }
+
+    [Fact]
+    public void StandardRecovered_RecoveredFormula_ShiftsCoreLeftStart()
+    {
         var x = new EggIncognito.Services.ProtoExtract.Decomp.Binary(
             EggIncognito.Services.ProtoExtract.Decomp.BinOp.Add,
             new EggIncognito.Services.ProtoExtract.Decomp.Binary(
@@ -81,22 +111,13 @@ public class EnvCatalogTests
             new EggIncognito.Services.ProtoExtract.Decomp.Const(1.5));
         var mc = new EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Vec3Model(
             true, "missionControlPos", x, null, null, 0, "ok");
-        var rec = new FarmLayout.SingletonPlacement(mc, null, null);
 
-        var placed = FarmLayout.StandardRecovered(rec, farmHalfWidth: 13.5f);
-        var mcPlaced = placed.First(p => p.Stem == "ei_mission_control_1");
-        Assert.Equal(2.8f + 13.5f + 1.5f, mcPlaced.Pos[0], 2); // recovered X
-        // Y/Z stay the authored fallback (the model's Y/Z are null/unresolved).
-        Assert.Equal(9f, mcPlaced.Pos[2], 2);
-    }
-
-    [Fact]
-    public void StandardRecovered_NoModel_UsesFallback()
-    {
-        var rec = new FarmLayout.SingletonPlacement(null, null, null);
-        var placed = FarmLayout.StandardRecovered(rec, 13.5f);
-        var mc = placed.First(p => p.Stem == "ei_mission_control_1");
-        Assert.Equal(16f, mc.Pos[0], 2); // the authored fallback X
+        var wide = FarmLayout.StandardRecovered(new FarmLayout.SingletonPlacement(mc, null, null), farmHalfWidth: 20f);
+        var narrow = FarmLayout.StandardRecovered(new FarmLayout.SingletonPlacement(mc, null, null), farmHalfWidth: 5f);
+        var wideHatch = wide.First(p => p.Stem == "ei_hatchery_edible").Pos[0];
+        var narrowHatch = narrow.First(p => p.Stem == "ei_hatchery_edible").Pos[0];
+        // a bigger farm width pushes the whole packed core further right (the recovered formula drives the start).
+        Assert.True(wideHatch > narrowHatch, "wider farm shifts the core right");
     }
 
     [Fact]

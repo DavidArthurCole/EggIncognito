@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Services;
+using EggIncognito.Services.Devices;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Controllers;
@@ -11,7 +13,9 @@ namespace EggIncognito.Controllers;
 // binary or the disassembler is unavailable. Never throws to the client.
 [ApiController]
 [Route("api/decomp")]
-public sealed class DecompController(GameBinaryProvider binaries, ICurrentUser currentUser) : ControllerBase
+public sealed class DecompController(
+    GameBinaryProvider binaries, ICurrentUser currentUser, DeviceCaptureConfig capture,
+    IProcessRunner runner, IWebHostEnvironment env) : ControllerBase
 {
     // Diagnostic: how many symbols the parser sees + sample names matching an optional filter. Tells us whether
     // the live binary is symbolized + what the real mangled names look like (so needles can be tuned).
@@ -162,6 +166,60 @@ public sealed class DecompController(GameBinaryProvider binaries, ICurrentUser c
             return Content(json.ToJsonString(), "application/json");
         }
         catch (System.DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
+    // Dynamic building-effect discovery: returns every effect the resolver finds for a building mesh stem,
+    // extracted from the binary call graph (no hardcoded per-building list). Each effect = a recovered EffectModel
+    // the renderer drives. Empty array = no effects discovered (or no binary). Public-ish (read-gated like the
+    // env layout); the heavy lifting is cached binary analysis.
+    [HttpGet("building-effects")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> BuildingEffects([FromQuery] string stem, [FromQuery] string? device, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(stem)) return BadRequest(new { error = "stem required" });
+        try
+        {
+            var (ok, bin, _) = await binaries.GetBinaryAsync(device, ct);
+            if (!ok || bin is null) return Ok(new { stem, effects = Array.Empty<object>() });
+            var models = EggIncognito.Services.ProtoExtract.Decomp.BuildingEffectResolver.Resolve(bin, stem);
+            var arr = new System.Text.Json.Nodes.JsonArray(models.Select(m => (System.Text.Json.Nodes.JsonNode)m.ToJson()).ToArray());
+            return Content(new System.Text.Json.Nodes.JsonObject { ["stem"] = stem, ["effects"] = arr }.ToJsonString(), "application/json");
+        }
+        catch (System.DllNotFoundException) { return Ok(new { stem, effects = Array.Empty<object>() }); }
+        catch (Exception ex) { return Ok(new { stem, effects = Array.Empty<object>(), diagnostics = ex.Message }); }
+    }
+
+    // Live particle capture: hook ParticleBatchedMesh::addParticle on the running game via frida, log every
+    // particle's per-frame world transform, cluster by mesh pointer to isolate one effect. The path for the
+    // data-driven effects that are NOT statically extractable (the universe hatchery sparkle). Admin-gated; needs
+    // the iOS ssh creds (DeviceCapture:Ios / DeviceUpdate:Ios) + frida-server live on the phone. The caller
+    // triggers this while the target farm is on screen. Returns the clustered capture model; degrades cleanly.
+    [HttpPost("particle-capture")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> ParticleCapture(CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+
+        var host = capture.IosSshHost;
+        var key = capture.IosSshKeyPath;
+        if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(key))
+            return StatusCode(503, new { ok = false, diagnostics = "ios ssh not configured (DeviceCapture:Ios:SshHost + SshKeyPath)" });
+
+        var script = Path.Combine(env.ContentRootPath, "..", "tools", "ios-frida", "particle-capture.js");
+        if (!System.IO.File.Exists(script))
+            script = Path.Combine(env.ContentRootPath, "tools", "ios-frida", "particle-capture.js");
+        if (!System.IO.File.Exists(script))
+            return StatusCode(500, new { ok = false, diagnostics = "particle-capture.js not found under tools/ios-frida" });
+
+        try
+        {
+            var capturer = new IosParticleCapturer(runner, host, capture.IosSshPort, key, script);
+            var model = await capturer.CaptureAsync(ct);
+            if (model is null) return Ok(new { ok = false, diagnostics = "capture failed (scp/frida)" });
+            return Content(model.Value.ToJson().ToJsonString(), "application/json");
+        }
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
 
