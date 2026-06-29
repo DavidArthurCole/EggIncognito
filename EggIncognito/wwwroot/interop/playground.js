@@ -442,9 +442,10 @@ const TONE_MAPS = {
   cineon: () => THREE.CineonToneMapping,
 };
 
-// The current sun direction (unit vector from target toward the sun), kept so refitShadow can reposition the
-// sun relative to the scene center without re-reading the azimuth/elevation.
-let _sunDir = new THREE.Vector3(0.5, 0.8, 0.5).normalize();
+// The current sun direction (unit vector from target toward the sun) as a plain [x,y,z], kept so refitShadow
+// can reposition the sun relative to the scene center. Plain array (not a THREE.Vector3) so it is safe at
+// module load before THREE is imported in init().
+let _sunDir = [0.5, 0.8, 0.5];
 
 // Fit the directional light + its ortho shadow frustum to the elements actually in the scene. Targets the
 // scene center (not origin) and sizes the frustum to the content bbox, clamped so one far outlier (the ~100u
@@ -463,7 +464,7 @@ function refitShadow() {
   sun.target.position.copy(center);
   sun.target.updateMatrixWorld();
   const dist = Math.max(radius * 2.5, 60);
-  sun.position.copy(center).addScaledVector(_sunDir, dist);
+  sun.position.set(center.x + _sunDir[0] * dist, center.y + _sunDir[1] * dist, center.z + _sunDir[2] * dist);
 
   const cam = sun.shadow.camera;
   cam.left = -radius; cam.right = radius; cam.top = radius; cam.bottom = -radius;
@@ -493,7 +494,9 @@ export function setLighting(opts) {
   const el = (s.elevationDeg || 0) * Math.PI / 180;
   // Sun direction from azimuth (around Y) + elevation (up from horizon). refitShadow places the sun at
   // center + dir*dist so the shadow frustum stays tight around the content regardless of where it sits.
-  _sunDir.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)).normalize();
+  const dx = Math.cos(el) * Math.sin(az), dy = Math.sin(el), dz = Math.cos(el) * Math.cos(az);
+  const dl = Math.hypot(dx, dy, dz) || 1;
+  _sunDir = [dx / dl, dy / dl, dz / dl];
   if (s.color) sun.color.set(s.color);
   if (typeof s.intensity === 'number') sun.intensity = s.intensity;
 

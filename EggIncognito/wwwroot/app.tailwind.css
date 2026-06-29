@@ -366,6 +366,8 @@
   /* 3D playground canvas: fills its panel, fixed aspect-ish height, dark scene backdrop. */
   .canvas-wrap { @apply w-full rounded-md overflow-hidden bg-bg; height: min(80vh, 820px); }
   .canvas-wrap canvas { @apply w-full h-full block; }
+  .canvas-error-overlay { @apply absolute inset-0 flex items-center justify-center p-6; background: rgba(0,0,0,0.55); }
+  .canvas-error-box { @apply panel max-w-[420px] text-center border border-red-500/40; }
   .capture-controls { @apply overflow-visible; }
   .capture-controls .settings-menu { @apply left-0 right-auto; transform-origin: top left; }
   .capture-controls .settings-menu.open::before { left: 12px; right: auto; }

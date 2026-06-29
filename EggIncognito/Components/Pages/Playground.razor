@@ -31,8 +31,18 @@ else
 
   <div class="flex gap-4 flex-wrap">
     <section class="panel flex-1 min-w-[480px]" style="overflow: visible;">
-      <div class="canvas-wrap">
+      <div class="canvas-wrap relative">
         <canvas @ref="_canvas" id="playgroundCanvas"></canvas>
+        @if (!string.IsNullOrEmpty(_fatalError))
+        {
+          <div class="canvas-error-overlay">
+            <div class="canvas-error-box">
+              <div class="font-semibold mb-1">Playground error</div>
+              <div class="text-xs mb-3">@_fatalError</div>
+              <button class="btn-secondary" @onclick="DismissFatal">Dismiss</button>
+            </div>
+          </div>
+        }
       </div>
     </section>
 
@@ -394,6 +404,7 @@ else
     bool _busy;
     bool _error;
     string _status = "";
+    string _fatalError = "";
 
     string _baseAddress = "";
     string? _cookie;
@@ -431,7 +442,7 @@ else
             catch { _appVersion = ""; }
             await TryRestoreAutosave();
         }
-        catch (Exception ex) { Fail($"3D init failed: {ex.Message}"); }
+        catch (Exception ex) { FatalError($"3D init failed: {ex.Message}"); }
     }
 
     string InteropVersion()
@@ -1206,6 +1217,11 @@ else
     }
 
     void Fail(string s) { _statusCts?.Cancel(); _error = true; _status = s; StateHasChanged(); }
+
+    // A page-wide failure (3D init crash, engine dead): shown as a prominent overlay inside the canvas box, not
+    // buried in a side-widget status line. Persists until dismissed.
+    void FatalError(string s) { _fatalError = s; StateHasChanged(); }
+    void DismissFatal() { _fatalError = ""; StateHasChanged(); }
 
     public sealed class DesignElement
     {
