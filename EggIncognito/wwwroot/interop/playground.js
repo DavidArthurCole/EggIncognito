@@ -193,21 +193,91 @@ function applyMotion(g) {
   if (len <= 0) { g.root.position.set(bx, by, bz); return; }
   const count = Math.max(1, Math.round(m.count || 1));
 
-  // Single runner: drive the group root directly (the common case: one vehicle / one rocket / one chicken).
-  if (count <= 1) {
+  // Single runner: drive the group root directly (one rocket / one chicken). A single VEHICLE still uses the
+  // convoy path so it dwells at the depot (not the path end).
+  if (count <= 1 && !m.vehicle) {
     g.root.scale.set(baseScale, baseScale, baseScale);
     placeAlongPath(g.root, m, len, runnerDistance(m, len, 0, 1), baseRy);
     return;
   }
 
-  // Multiple runners (e.g. N chickens at once): the root holds N cloned children, each on a parallel lane at a
-  // staggered phase. The root itself stays at the origin; the lane offset is folded into each child's path.
   ensureRunners(g, count, baseScale);
+
+  // Vehicles: a CONVOY in ONE lane (the side nearest the depot), evenly spaced, each dwelling as it passes the
+  // depot, and braking so it never overruns the truck ahead. Chickens keep the symmetric parallel-lane spread.
+  if (m.vehicle) {
+    const laneM = laneShifted(m, vehicleLaneOffset(m));
+    const dists = vehicleConvoyDistances(m, len, count);
+    for (let i = 0; i < count; i++) placeAlongPath(g.runners[i], laneM, len, dists[i], baseRy);
+    return;
+  }
+
+  // Multiple runners (e.g. N chickens at once): each on a parallel lane at a staggered phase.
   for (let i = 0; i < count; i++) {
     const lane = (i - (count - 1) / 2) * 1.2; // parallel lanes centered on the original path
     const laneM = laneShifted(m, lane);
     placeAlongPath(g.runners[i], laneM, len, runnerDistance(m, len, i, count), baseRy);
   }
+}
+
+// The single lane offset (in Z) for the truck convoy: shift toward the depot side so all traffic hugs the depot.
+// The road runs along X; the depot sits at depotZ. Push the lane half a lane-width toward it.
+function vehicleLaneOffset(m) {
+  if (!isFinite(m.depotZ) || !m.path || m.path.length === 0) return 0;
+  const roadZ = m.path[0][2];
+  return Math.sign(m.depotZ - roadZ) * 1.0; // one near-lane offset toward the depot
+}
+
+// Per-truck along-path distance for a convoy: trucks are evenly spaced by distance (not phase), advance together
+// on the shared clock, dwell while passing the depot, and brake to keep a minimum gap to the truck ahead.
+function vehicleConvoyDistances(m, len, count) {
+  const speed = m.speed || 3;
+  const dwell = Math.max(0, m.stopSeconds || 0);
+  const gap = len / count;          // even convoy spacing
+  const minGap = Math.min(gap * 0.8, 4); // brake distance: never closer than this to the truck ahead
+
+  // depot distance along the path (where a truck dwells), from the nearest waypoint to the depot X.
+  const depotD = depotDistanceAlong(m, len);
+
+  // lead truck's free distance on the shared clock, with a dwell each time it passes the depot.
+  const base = ((animClock * speed) % (len + speed * dwell));
+  const lead = depotAdjustedDistance(base, depotD, speed, dwell, len);
+
+  const out = [];
+  let prev = Infinity;
+  for (let i = 0; i < count; i++) {
+    let d = ((lead - i * gap) % len + len) % len;
+    // brake: if this truck would be within minGap behind the one ahead (in path order), hold back.
+    if (prev - d < minGap && prev - d >= 0) d = prev - minGap;
+    if (d < 0) d += len;
+    out.push(d);
+    prev = d;
+  }
+  return out;
+}
+
+// The path distance closest to the depot's X (where trucks stop). NaN depot => no dwell point (returns -1).
+function depotDistanceAlong(m, len) {
+  if (!isFinite(m.depotX)) return -1;
+  const steps = 64;
+  let best = -1, bestDx = Infinity;
+  for (let s = 0; s <= steps; s++) {
+    const d = (s / steps) * len;
+    const p = sampleSpline(m.path, d);
+    const dx = Math.abs(p[0] - m.depotX);
+    if (dx < bestDx) { bestDx = dx; best = d; }
+  }
+  return best;
+}
+
+// Insert a dwell of `dwell` seconds when the lead truck reaches the depot distance: distances before the depot
+// pass through, at the depot the truck holds, after it resumes. Implemented by stretching the cycle clock.
+function depotAdjustedDistance(rawD, depotD, speed, dwell, len) {
+  if (depotD < 0 || dwell <= 0) return rawD % len;
+  const dwellDist = speed * dwell; // the raw-clock span consumed by the dwell
+  if (rawD <= depotD) return rawD;            // approaching the depot
+  if (rawD <= depotD + dwellDist) return depotD; // dwelling AT the depot
+  return rawD - dwellDist;                     // resumed past the depot
 }
 
 // Along-path distance for one runner this frame. A cycle = the drive time plus an optional dwell at the end
@@ -339,10 +409,17 @@ export async function attachHatcheryParts(groupId, model) {
   const g = groups.get(groupId);
   if (!g || !model || !Array.isArray(model.pieces)) return;
 
-  // Derive the orb from the BODY MESH's actual local bbox, measured live from g.root. This sidesteps any mismatch
-  // between the dump's .rpo bounds and the decoded glb's bbox (which desynced the C#-computed orb, parking the
-  // effects at a corner). orbY = a fraction up the body (the dome sits near the top); orbitRadius clears the dome.
-  const bodyBox = new THREE.Box3().setFromObject(g.root);
+  // Derive the orb from the BODY MESH's bbox in g.root's LOCAL space. The pieces are children of g.root and use
+  // LOCAL positions, so the body box MUST be local too: measuring g.root's WORLD box (it is placed at the
+  // element's world transform) then using it as a local position offset everything by the group's world pos. The
+  // body mesh is g.root's gltf child; setFromObject after a world-matrix update, then convert to root-local by
+  // subtracting g.root's world position (rotation/scale aside; the farm is axis-aligned + unit-scaled here).
+  g.root.updateWorldMatrix(true, true);
+  const worldBox = new THREE.Box3().setFromObject(g.root);
+  const rootWorld = new THREE.Vector3();
+  g.root.getWorldPosition(rootWorld);
+  const bodyBox = worldBox.isEmpty() ? worldBox : worldBox.clone().translate(rootWorld.clone().negate());
+
   const orb = new THREE.Vector3();
   let bodyHeight = 4;
   if (!bodyBox.isEmpty()) {
@@ -353,7 +430,7 @@ export async function attachHatcheryParts(groupId, model) {
     orb.set(model.orb[0], model.orb[1], model.orb[2]);
   }
 
-  // live body center + top, for placing world-placed / capstone pieces relative to the actual rendered body.
+  // live body center + top in root-local space, for world-placed / capstone pieces.
   const bodyCenter = new THREE.Vector3();
   if (!bodyBox.isEmpty()) bodyBox.getCenter(bodyCenter);
   const bodyTopY = bodyBox.isEmpty() ? 0 : bodyBox.max.y;
