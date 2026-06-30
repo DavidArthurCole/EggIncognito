@@ -21,7 +21,7 @@
 }
 else
 {
-<main class="px-8 pt-6 pb-8">
+<main class="px-8 pt-6 pb-8" @onclick="CloseMenus">
   <h1 class="text-[1.3rem] mt-0 mb-1">3D Playground</h1>
   <p class="text-muted text-xs mb-4">
     Free-place game elements: add habs, silos, chickens and shells, drag the gizmo to arrange them, light the
@@ -32,6 +32,172 @@ else
     <section class="panel flex-1 min-w-[480px]" style="overflow: visible;">
       <div class="canvas-wrap relative">
         <canvas @ref="_canvas" id="playgroundCanvas"></canvas>
+
+        @* File / Tools menubar over the top of the canvas (replaces the standalone Design widget). *@
+        <div class="pg-menubar" @onclick:stopPropagation="true">
+          <div class="relative">
+            <button class="pg-menu-btn @(_fileMenuOpen ? "active" : "")" @onclick="ToggleFileMenu">File ▾</button>
+            @if (_fileMenuOpen)
+            {
+              <div class="pg-menu">
+                <button class="pg-menu-item" @onclick="MenuNew">New</button>
+                <button class="pg-menu-item" @onclick="MenuSave" disabled="@SaveDisabled">Save</button>
+                <button class="pg-menu-item" @onclick="MenuSaveAs">Save As…</button>
+                <button class="pg-menu-item" @onclick="MenuReload" disabled="@(string.IsNullOrEmpty(_currentDesign))">Reload</button>
+                <div class="pg-menu-sep"></div>
+                <div class="pg-menu-label">Open</div>
+                @if (_savedDesigns.Count == 0) { <div class="pg-menu-item text-muted">No saved designs</div> }
+                @foreach (var n in _savedDesigns)
+                {
+                  <button class="pg-menu-item" @onclick="() => MenuOpen(n)">@n@(n == _currentDesign ? " ✓" : "")</button>
+                }
+                @if (!string.IsNullOrEmpty(_currentDesign) && _versions.Count > 0)
+                {
+                  <div class="pg-menu-sep"></div>
+                  <div class="pg-menu-label">History (v@_currentVersion)</div>
+                  @foreach (var v in _versions)
+                  {
+                    <button class="pg-menu-item" disabled="@(v.VersionNo == _currentVersion)" @onclick="() => MenuRollback(v.VersionNo)">
+                      v@(v.VersionNo)@(v.VersionNo == _currentVersion ? " (current)" : "")@(string.IsNullOrEmpty(v.Note) ? "" : $" — {v.Note}")
+                    </button>
+                  }
+                  <div class="pg-menu-sep"></div>
+                  <button class="pg-menu-item text-red-400" @onclick="MenuDelete">Delete this design</button>
+                }
+              </div>
+            }
+          </div>
+          <div class="relative">
+            <button class="pg-menu-btn @(_toolsMenuOpen ? "active" : "")" @onclick="ToggleToolsMenu">Tools ▾</button>
+            @if (_toolsMenuOpen)
+            {
+              <div class="pg-menu">
+                <button class="pg-menu-item" @onclick="OpenGifTool">Record loop GIF…</button>
+              </div>
+            }
+          </div>
+          <div class="ml-2 text-[11px] text-muted truncate">
+            @(string.IsNullOrEmpty(_currentDesign) ? "Untitled" : _currentDesign)@(_dirty ? " •" : "")
+          </div>
+        </div>
+
+        @* Save-As / name prompt, shown inline when a save needs a name. *@
+        @if (_namePromptOpen)
+        {
+          <div class="pg-popover" style="left: 50%; top: 60px; transform: translateX(-50%);" @onclick:stopPropagation="true">
+            <div class="pg-popover-head"><span>@(_namePromptIsSaveAs ? "Save As" : "Name design")</span>
+              <button class="element-del" @onclick="() => _namePromptOpen = false">×</button></div>
+            <div class="pg-popover-body">
+              <input class="reg-filter-input w-full" placeholder="Design name…" value="@_designName" @oninput="OnDesignNameInput" @ref="_nameInputRef" />
+              <input class="reg-filter-input w-full" placeholder="Version note (optional)…" value="@_versionNote" @oninput="e => _versionNote = e.Value?.ToString() ?? string.Empty" />
+              <button class="btn-primary" @onclick="ConfirmNamePrompt" disabled="@(string.IsNullOrWhiteSpace(_designName))">Save</button>
+            </div>
+          </div>
+        }
+
+        @* Bottom-right element palette: add buildings / chickens / actors, auto-arrange, undo/redo. *@
+        @if (_designMode)
+        {
+          <div class="pg-palette" @onclick:stopPropagation="true">
+            <div class="pg-palette-head">
+              <span>Add element</span>
+              <button class="element-del" @onclick="() => _paletteOpen = !_paletteOpen">@(_paletteOpen ? "▾" : "▸")</button>
+            </div>
+            @if (_paletteOpen)
+            {
+              <div class="pg-palette-body">
+                <div class="flex">
+                  <button class="picker-tab @(_pickerTab == "building" ? "active" : "")" @onclick='() => _pickerTab = "building"'>Buildings</button>
+                  <button class="picker-tab @(_pickerTab == "chicken" ? "active" : "")" @onclick='() => _pickerTab = "chicken"'>Chicken</button>
+                  <button class="picker-tab @(_pickerTab == "actor" ? "active" : "")" @onclick='() => _pickerTab = "actor"'>Actors</button>
+                </div>
+                <div class="picker-body">
+                  @if (_pickerTab == "building")
+                  {
+                    @if (_catalogPieces.Count == 0) { <div class="text-xs text-muted">Catalog empty.</div> }
+                    @foreach (var grp in _catalogPieces.Where(p => p.Group != "Vehicles" && p.Group != "Ships").GroupBy(p => p.Group))
+                    {
+                      <div class="picker-group-title">@grp.Key</div>
+                      @foreach (var entry in FamilyPickerEntries(grp))
+                      {
+                        var reason = PlacementBlockedReason(entry.Piece);
+                        <button class="picker-item" @onclick='() => AddElement("env", entry.Piece.Stem, entry.Piece.Label)' disabled="@(reason is not null)">@entry.Display@(reason is null ? "" : $" ({reason})")</button>
+                      }
+                    }
+                  }
+                  else if (_pickerTab == "actor")
+                  {
+                    <div class="picker-group-title">Chicken</div>
+                    @if (_chickens.Count > 0)
+                    {
+                      var firstChick = _chickens[0];
+                      <button class="picker-item" @onclick='() => AddActor("chicken", firstChick.Identifier, "Running chicken")'>Running chicken</button>
+                    }
+                    else { <div class="text-xs text-muted">No chickens (ingest a config in Admin).</div> }
+                    <div class="picker-group-title">Vehicles</div>
+                    @foreach (var v in _catalogPieces.Where(p => p.Group == "Vehicles"))
+                    {
+                      <button class="picker-item" @onclick='() => AddActor("vehicle", v.Stem, v.Label)'>@v.Label</button>
+                    }
+                    <div class="picker-group-title">Rocket</div>
+                    @foreach (var s in _catalogPieces.Where(p => p.Group == "Ships"))
+                    {
+                      <button class="picker-item" @onclick='() => AddActor("rocket", s.Stem, s.Label)'>@s.Label</button>
+                    }
+                  }
+                  else
+                  {
+                    @if (_chickens.Count == 0) { <div class="text-xs text-muted">No chickens (ingest a config in Admin).</div> }
+                    @foreach (var c in _chickens)
+                    {
+                      <button class="picker-item" @onclick='() => AddElement("chicken", c.Identifier, c.Name ?? c.Identifier)'>@(c.Name ?? c.Identifier)</button>
+                    }
+                  }
+                </div>
+                <button class="btn-secondary w-full" @onclick="AutoArrangeFarm" disabled="@_busy">Auto-arrange farm</button>
+                <div class="flex gap-2">
+                  <button class="btn-secondary flex-1" disabled="@(_undo.Count == 0)" @onclick="OnUndo" title="Undo (Ctrl+Z)">Undo</button>
+                  <button class="btn-secondary flex-1" disabled="@(_redo.Count == 0)" @onclick="OnRedo" title="Redo (Ctrl+Y)">Redo</button>
+                </div>
+                @if (!string.IsNullOrEmpty(_status))
+                {
+                  <div class="text-xs @(_error ? "err" : "text-muted")">@_status</div>
+                }
+                <div class="text-xs text-muted">
+                  @if (_elements.Count == 0) { <span>No elements yet.</span> }
+                  else { <span>@_elements.Count element(s). Click one to select.</span> }
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        @* Draggable GIF recorder pop-over (Tools → Record loop GIF). *@
+        @if (_gifOpen)
+        {
+          <div class="pg-popover" style="left: 50%; top: 40%; transform: translateX(-50%);" @ref="_gifPopoverRef" @onclick:stopPropagation="true">
+            <div class="pg-popover-head" @ref="_gifPopoverHeadRef"><span>Record loop GIF</span>
+              <button class="element-del" @onclick="CloseGifTool">×</button></div>
+            <div class="pg-popover-body">
+              <label class="light-field"><span>FPS</span>
+                <input type="number" min="5" max="30" class="reg-filter-input w-[70px]" @bind="_gifFps" />
+              </label>
+              <label class="light-field"><span>Size</span>
+                <select class="reg-filter-input w-full" @bind="_gifMaxWidth">
+                  <option value="0">Full</option>
+                  <option value="640">Medium (640)</option>
+                  <option value="400">Small (400)</option>
+                </select>
+              </label>
+              <button class="btn-secondary" @onclick="RecordGif" disabled="@(!_anyAnimated || _recording)">
+                @(_recording ? "Recording…" : "Record GIF")
+              </button>
+              @if (!_anyAnimated) { <div class="text-muted">Set an animation on an element to record.</div> }
+              @if (_recording) { <div class="text-muted">@_recordStage @($"{_recordFraction * 100:0}%")</div> }
+            </div>
+          </div>
+        }
+
         @if (!string.IsNullOrEmpty(_fatalError))
         {
           <div class="canvas-error-overlay">
@@ -73,65 +239,6 @@ else
       </div>
 
       <div class="designer-section">
-        <div class="designer-section-head flex items-center justify-between">
-          <span>Design</span>
-          @if (!string.IsNullOrEmpty(_currentDesign))
-          {
-            <span class="text-muted text-[11px]">@_currentDesign@(_dirty ? " •" : "")</span>
-          }
-        </div>
-        <div class="designer-section-body flex flex-col gap-2 text-xs">
-          @if (string.IsNullOrEmpty(_currentDesign))
-          {
-            <div class="text-muted">New design (unsaved). Name it + save to start its history.</div>
-            <input class="reg-filter-input w-full" placeholder="Design name…" value="@_designName" @oninput="OnDesignNameInput" />
-          }
-          else
-          {
-            <div class="text-muted">Editing <b>@_currentDesign</b> (v@_currentVersion). Saving adds a new version.</div>
-          }
-          <input class="reg-filter-input w-full" placeholder="Version note (optional)…" value="@_versionNote" @oninput="e => _versionNote = e.Value?.ToString() ?? string.Empty" />
-          <div class="flex gap-2">
-            <button class="btn-primary flex-1" @onclick="SaveDesign" disabled="@(SaveDisabled)">@(string.IsNullOrEmpty(_currentDesign) ? "Save design" : "Save new version")</button>
-            @if (!string.IsNullOrEmpty(_currentDesign))
-            {
-              <button class="btn-secondary" @onclick="NewDesign" title="Start a fresh design">New</button>
-            }
-          </div>
-
-          <div class="border-t border-border pt-2 mt-1 flex flex-col gap-2">
-            <select class="reg-filter-input w-full" @bind="_selectedDesign" @bind:after="LoadDesign">
-              <option value="">Open a saved design…</option>
-              @foreach (var n in _savedDesigns) { <option value="@n">@n</option> }
-            </select>
-            @if (!string.IsNullOrEmpty(_currentDesign))
-            {
-              <button class="btn-secondary w-full" @onclick="DeleteDesign">Delete this design</button>
-            }
-          </div>
-
-          @if (!string.IsNullOrEmpty(_currentDesign) && _versions.Count > 0)
-          {
-            <div class="border-t border-border pt-2 mt-1">
-              <div class="picker-group-title">History</div>
-              <div class="flex flex-col gap-1 max-h-48 overflow-auto">
-                @foreach (var v in _versions)
-                {
-                  <div class="flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-panel2 border border-border">
-                    <span class="truncate">v@(v.VersionNo)@(v.VersionNo == _currentVersion ? " (current)" : "")@(string.IsNullOrEmpty(v.Note) ? "" : $" — {v.Note}")</span>
-                    @if (v.VersionNo != _currentVersion)
-                    {
-                      <button class="element-del" title="Roll back to this version" @onclick="() => RollbackTo(v.VersionNo)">restore</button>
-                    }
-                  </div>
-                }
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-
-      <div class="designer-section">
         <div class="designer-section-head">Lighting + Colors</div>
         <div class="designer-section-body grid grid-cols-2 gap-3 text-xs">
           <label class="light-field"><span>Background</span>
@@ -163,115 +270,11 @@ else
         </div>
       </div>
 
-      @if (_designMode)
-      {
-        <div class="designer-section">
-          <div class="designer-section-head">Record loop GIF</div>
-          <div class="designer-section-body flex flex-col gap-2 text-xs">
-            <label class="light-field"><span>FPS</span>
-              <input type="number" min="5" max="30" class="reg-filter-input w-[70px]" @bind="_gifFps" />
-            </label>
-            <label class="light-field"><span>Size</span>
-              <select class="reg-filter-input w-full" @bind="_gifMaxWidth">
-                <option value="0">Full</option>
-                <option value="640">Medium (640)</option>
-                <option value="400">Small (400)</option>
-              </select>
-            </label>
-            <button class="btn-secondary" @onclick="RecordGif" disabled="@(!_anyAnimated || _recording)">
-              @(_recording ? "Recording…" : "Record GIF")
-            </button>
-            @if (!_anyAnimated)
-            {
-              <div class="text-muted">Set an animation on an element to record.</div>
-            }
-            @if (_recording)
-            {
-              <div class="text-muted">@_recordStage @($"{_recordFraction * 100:0}%")</div>
-            }
-          </div>
-        </div>
-      }
     </section>
 
     @if (_designMode)
     {
       <section class="w-[300px] flex flex-col gap-2 self-start max-h-[85vh] overflow-auto">
-        <div class="designer-section">
-          <div class="designer-section-head">Elements</div>
-          <div class="designer-section-body">
-            <button class="btn-primary w-full" @onclick="() => _pickerOpen = !_pickerOpen">@(_pickerOpen ? "Close picker" : "Add element")</button>
-            <button class="btn-secondary w-full mt-2" @onclick="AutoArrangeFarm" disabled="@_busy">Auto-arrange farm</button>
-            @if (!string.IsNullOrEmpty(_status))
-            {
-              <div class="text-xs mt-1 @(_error ? "err" : "text-muted")">@_status</div>
-            }
-            @if (_pickerOpen)
-            {
-              <div class="picker mt-2">
-                <div class="flex mb-1">
-                  <button class="picker-tab @(_pickerTab == "building" ? "active" : "")" @onclick='() => _pickerTab = "building"'>Buildings</button>
-                  <button class="picker-tab @(_pickerTab == "chicken" ? "active" : "")" @onclick='() => _pickerTab = "chicken"'>Chicken</button>
-                  <button class="picker-tab @(_pickerTab == "actor" ? "active" : "")" @onclick='() => _pickerTab = "actor"'>Actors</button>
-                </div>
-                <div class="picker-body">
-                  @if (_pickerTab == "building")
-                  {
-                    @if (_catalogPieces.Count == 0) { <div class="text-xs text-muted">Catalog empty.</div> }
-                    @foreach (var grp in _catalogPieces.Where(p => p.Group != "Vehicles" && p.Group != "Ships").GroupBy(p => p.Group))
-                    {
-                      <div class="picker-group-title">@grp.Key</div>
-                      @* one entry per family (placing the highest tier; tier is changed on the placed element);
-                         non-family pieces shown individually. *@
-                      @foreach (var entry in FamilyPickerEntries(grp))
-                      {
-                        var reason = PlacementBlockedReason(entry.Piece);
-                        <button class="picker-item" @onclick='() => AddElement("env", entry.Piece.Stem, entry.Piece.Label)' disabled="@(reason is not null)">@entry.Display@(reason is null ? "" : $" ({reason})")</button>
-                      }
-                    }
-                  }
-                  else if (_pickerTab == "actor")
-                  {
-                    <div class="picker-group-title">Chicken</div>
-                    @if (_chickens.Count > 0)
-                    {
-                      var firstChick = _chickens[0];
-                      <button class="picker-item" @onclick='() => AddActor("chicken", firstChick.Identifier, "Running chicken")'>Running chicken</button>
-                    }
-                    else { <div class="text-xs text-muted">No chickens (ingest a config in Admin).</div> }
-                    <div class="picker-group-title">Vehicles</div>
-                    @foreach (var v in _catalogPieces.Where(p => p.Group == "Vehicles"))
-                    {
-                      <button class="picker-item" @onclick='() => AddActor("vehicle", v.Stem, v.Label)'>@v.Label</button>
-                    }
-                    <div class="picker-group-title">Rocket</div>
-                    @foreach (var s in _catalogPieces.Where(p => p.Group == "Ships"))
-                    {
-                      <button class="picker-item" @onclick='() => AddActor("rocket", s.Stem, s.Label)'>@s.Label</button>
-                    }
-                  }
-                  else
-                  {
-                    @if (_chickens.Count == 0) { <div class="text-xs text-muted">No chickens (ingest a config in Admin).</div> }
-                    @foreach (var c in _chickens)
-                    {
-                      <button class="picker-item" @onclick='() => AddElement("chicken", c.Identifier, c.Name ?? c.Identifier)'>@(c.Name ?? c.Identifier)</button>
-                    }
-                  }
-                </div>
-              </div>
-            }
-            <div class="text-xs text-muted mt-2">
-              @if (_elements.Count == 0) { <span>No elements. Add one above.</span> }
-              else { <span>@_elements.Count element(s). Click one in the scene to select it.</span> }
-            </div>
-            <div class="flex gap-2 mt-2">
-              <button class="btn-secondary flex-1" disabled="@(_undo.Count == 0)" @onclick="OnUndo" title="Undo (Ctrl+Z)">Undo</button>
-              <button class="btn-secondary flex-1" disabled="@(_redo.Count == 0)" @onclick="OnRedo" title="Redo (Ctrl+Y)">Redo</button>
-            </div>
-          </div>
-        </div>
-
         @if (Selected is { } sel)
         {
           <div class="designer-section">
@@ -442,6 +445,20 @@ else
     IJSObjectReference? _designer;
     IJSObjectReference? _autosave;
     IJSObjectReference? _recorder;
+
+    // App-chrome state: the File/Tools menubar, the bottom-right element palette, the draggable GIF pop-over, and
+    // the inline name prompt used by Save / Save As. The Design widget is gone; its CRUD lives in the File menu.
+    bool _fileMenuOpen;
+    bool _toolsMenuOpen;
+    bool _paletteOpen = true;
+    bool _gifOpen;
+    bool _namePromptOpen;
+    bool _namePromptIsSaveAs;
+    ElementReference _gifPopoverRef;
+    ElementReference _gifPopoverHeadRef;
+    ElementReference _nameInputRef;
+    IJSObjectReference? _popoverDragMod;
+    IJSObjectReference? _gifDragHandle;
     int _gifFps = 20;
     int _gifMaxWidth = 0; // 0 = full
     bool _recording;
@@ -489,7 +506,6 @@ else
             ? _shellSets
             : _shellSets.Where(s => ((s.Name ?? s.Identifier) ?? "").Contains(_shellSetSearch, StringComparison.OrdinalIgnoreCase));
 
-    bool _pickerOpen;
     string _pickerTab = "building";
     List<FamilyOption> _familyOptions = [];
     string? _confirmDeleteId;
@@ -538,26 +554,43 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || !_isAdmin) return;
-        try
+        if (!_isAdmin) return;
+        if (firstRender)
         {
-            _mod = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playground.js?v={InteropVersion()}");
-            await _mod.InvokeVoidAsync("init", _canvas);
-            await EnsureDesigner();
-            await ApplyBackground();
-            await ApplyLighting();
-            await LoadShellObjects();
-            await LoadShells();
-            await LoadShellSets();
-            await LoadCatalog();
-            await RefreshDesigns();
-            _autosave = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundAutosave.js?v={InteropVersion()}");
-            _recorder = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundRecorder.js?v={InteropVersion()}");
-            try { _appVersion = (await Client().GetFromJsonAsync<AppVersionDto>("/api/app/version"))?.Version ?? ""; }
-            catch { _appVersion = ""; }
-            await TryRestoreAutosave();
+            try
+            {
+                _mod = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playground.js?v={InteropVersion()}");
+                await _mod.InvokeVoidAsync("init", _canvas);
+                await EnsureDesigner();
+                await ApplyBackground();
+                await ApplyLighting();
+                await LoadShellObjects();
+                await LoadShells();
+                await LoadShellSets();
+                await LoadCatalog();
+                await RefreshDesigns();
+                _autosave = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundAutosave.js?v={InteropVersion()}");
+                _recorder = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundRecorder.js?v={InteropVersion()}");
+                _popoverDragMod = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/popoverDrag.js?v={InteropVersion()}");
+                try { _appVersion = (await Client().GetFromJsonAsync<AppVersionDto>("/api/app/version"))?.Version ?? ""; }
+                catch { _appVersion = ""; }
+                await TryRestoreAutosave();
+            }
+            catch (Exception ex) { FatalError($"3D init failed: {ex.Message}"); }
+            return;
         }
-        catch (Exception ex) { FatalError($"3D init failed: {ex.Message}"); }
+
+        // make the GIF pop-over draggable by its header the first frame it is open; dispose when it closes.
+        if (_gifOpen && _gifDragHandle is null && _popoverDragMod is not null)
+        {
+            try { _gifDragHandle = await _popoverDragMod.InvokeAsync<IJSObjectReference>("makeDraggable", _gifPopoverRef, _gifPopoverHeadRef); }
+            catch { }
+        }
+        else if (!_gifOpen && _gifDragHandle is not null)
+        {
+            try { await _gifDragHandle.InvokeVoidAsync("dispose"); await _gifDragHandle.DisposeAsync(); } catch { }
+            _gifDragHandle = null;
+        }
     }
 
     string InteropVersion()
@@ -872,7 +905,7 @@ else
         if (actorType == "rocket")
         {
             var existing = _elements.FirstOrDefault(e => e.Kind == "actor" && e.Actor == "rocket");
-            if (existing is not null) { await SelectElement(existing.Id); _pickerOpen = false; StateHasChanged(); return; }
+            if (existing is not null) { await SelectElement(existing.Id); StateHasChanged(); return; }
         }
         PushHistory();
         var el = new DesignElement { Id = NextElementId(), Kind = "actor", Actor = actorType, Ref = meshRef, Label = label };
@@ -880,7 +913,6 @@ else
         _elements.Add(el);
         await RenderElement(el);
         await SelectElement(el.Id);
-        _pickerOpen = false;
         StateHasChanged();
     }
 
@@ -1246,7 +1278,7 @@ else
                 var dup = _elements.FirstOrDefault(e => e.Kind == "env"
                     && (e.Ref == id || (!string.IsNullOrEmpty(piece.Family) && _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family == piece.Family)));
                 if (dup is not null) await SelectElement(dup.Id);
-                _pickerOpen = false; StateHasChanged();
+                StateHasChanged();
                 return;
             }
         }
@@ -1257,7 +1289,6 @@ else
         _elements.Add(el);
         await RenderElement(el);
         await SelectElement(el.Id);
-        _pickerOpen = false;
         StateHasChanged();
     }
 
@@ -1454,26 +1485,20 @@ else
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyB))
             bodyShift = [-bodyB.MinX, -bodyB.MinY, -(bodyB.MinZ + bodyB.MaxZ) * 0.5f];
 
-        // the orb = the visible dome sphere on TOP of the body. Its X/Z come from the extracted anchor (in
-        // recentered coords: anchor + bodyShift); its HEIGHT is the dome center near the body top (the anchor Y is
-        // the assembly point, mid-body, which orbited the probes at the rim). The probes ring it at a radius that
-        // CLEARS the dome (else they orbit hidden inside the opaque sphere). domeRadius approximates the visible
-        // sphere from the body footprint. Both are DISPLAY values (the dome is baked into the body mesh, not a
-        // separately-extractable orb).
+        // the orb = the visible dome sphere on TOP of the body. Derive it from the BODY BOUNDS, not the extracted
+        // anchor: the anchor (11.319, 2.15, 2.997) is the building's farm-PLOT position, NOT the orb's mesh-local
+        // point, so using it placed the orb at a corner. The dome sits over the body's footprint center, near the
+        // top. All recentered coords (the body is recenter=min, so the local center = bounds center + bodyShift).
+        // domeRadius approximates the visible sphere; the probes ring OUTSIDE it. DISPLAY values (the dome is baked
+        // into the body mesh, not a separately-extractable orb).
         float domeRadius = 1.5f;
-        if (dump is { } dd && dd.TryGetProperty("assembly", out var ae)
-            && ae.TryGetProperty("anchor", out var an2) && an2.ValueKind == System.Text.Json.JsonValueKind.Array && an2.GetArrayLength() == 3)
+        if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bForOrb))
         {
-            float orbX = (float)an2[0].GetDouble() + bodyShift[0];
-            float orbZ = (float)an2[2].GetDouble() + bodyShift[2];
-            float orbY = (float)an2[1].GetDouble() + bodyShift[1];
-            if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bForOrb))
-            {
-                float h = bForOrb.MaxY - bForOrb.MinY;
-                orbY = h * 0.62f;                              // dome center, floor-snapped
-                domeRadius = Math.Clamp(h * 0.30f, 0.8f, 2.5f); // the visible sphere radius (approx from height)
-            }
-            orb = [orbX, orbY, orbZ];
+            float h = bForOrb.MaxY - bForOrb.MinY;
+            float cx = (bForOrb.MinX + bForOrb.MaxX) * 0.5f + bodyShift[0]; // footprint center X, recentered
+            float cz = (bForOrb.MinZ + bForOrb.MaxZ) * 0.5f + bodyShift[2]; // footprint center Z, recentered
+            orb = [cx, h * 0.62f, cz];                                      // dome center over the body top
+            domeRadius = Math.Clamp(h * 0.30f, 0.8f, 2.5f);
         }
 
         var pieces = new List<object>();
@@ -1753,6 +1778,76 @@ else
         _currentDesign = ""; _currentVersion = 0; _versions = []; _designName = ""; _versionNote = ""; _dirty = false;
         Status("New design.");
     }
+
+    // File / Tools menubar + palette + GIF pop-over wiring. The menus close on action; a click anywhere else also
+    // closes them (handled by the page-level close handler).
+
+    void ToggleFileMenu() { _fileMenuOpen = !_fileMenuOpen; _toolsMenuOpen = false; }
+    void ToggleToolsMenu() { _toolsMenuOpen = !_toolsMenuOpen; _fileMenuOpen = false; }
+    void CloseMenus() { _fileMenuOpen = false; _toolsMenuOpen = false; }
+
+    async Task MenuNew() { CloseMenus(); await NewDesign(); }
+
+    // Save: a named design saves a new version; an unnamed one opens the name prompt first.
+    async Task MenuSave()
+    {
+        CloseMenus();
+        if (string.IsNullOrEmpty(_currentDesign)) { OpenNamePrompt(saveAs: false); return; }
+        await SaveDesign();
+    }
+
+    void MenuSaveAs() { CloseMenus(); OpenNamePrompt(saveAs: true); }
+
+    void OpenNamePrompt(bool saveAs)
+    {
+        _namePromptIsSaveAs = saveAs;
+        _designName = saveAs ? "" : _designName;
+        _namePromptOpen = true;
+    }
+
+    // Confirm the inline name prompt. Save As forces a brand-new design under the typed name (clears the current
+    // binding so SaveDesign treats it as new); a plain named-save just runs with the typed name.
+    async Task ConfirmNamePrompt()
+    {
+        if (string.IsNullOrWhiteSpace(_designName)) return;
+        _namePromptOpen = false;
+        if (_namePromptIsSaveAs) { _currentDesign = ""; _currentVersion = 0; _versions = []; }
+        await SaveDesign();
+    }
+
+    async Task MenuOpen(string name)
+    {
+        CloseMenus();
+        _selectedDesign = name;
+        await LoadDesign();
+    }
+
+    // Reload the current design from disk, discarding unsaved edits.
+    async Task MenuReload()
+    {
+        CloseMenus();
+        if (string.IsNullOrEmpty(_currentDesign)) return;
+        var name = _currentDesign;
+        try
+        {
+            var json = await Client().GetStringAsync($"/api/env/designs/{Uri.EscapeDataString(name)}");
+            var payload = System.Text.Json.JsonSerializer.Deserialize<DesignPayload>(json);
+            if (payload is null) { Fail("design is corrupt"); return; }
+            await RestoreFromPayload(payload);
+            _currentDesign = name;
+            _dirty = false;
+            await LoadVersions();
+            _currentVersion = _versions.Count > 0 ? _versions[0].VersionNo : 0;
+            Status($"Reloaded \"{name}\".");
+        }
+        catch (Exception ex) { Fail(ex.Message); }
+    }
+
+    async Task MenuRollback(int versionNo) { CloseMenus(); await RollbackTo(versionNo); }
+    async Task MenuDelete() { CloseMenus(); await DeleteDesign(); }
+
+    void OpenGifTool() { CloseMenus(); _gifOpen = true; }
+    void CloseGifTool() { _gifOpen = false; }
 
     async Task LoadVersions()
     {
@@ -2034,6 +2129,8 @@ else
         }
         if (_autosave is not null) { try { await _autosave.DisposeAsync(); } catch { } }
         if (_recorder is not null) { try { await _recorder.DisposeAsync(); } catch { } }
+        if (_gifDragHandle is not null) { try { await _gifDragHandle.DisposeAsync(); } catch { } }
+        if (_popoverDragMod is not null) { try { await _popoverDragMod.DisposeAsync(); } catch { } }
         _autosaveCts?.Cancel();
         _selfRef?.Dispose();
     }

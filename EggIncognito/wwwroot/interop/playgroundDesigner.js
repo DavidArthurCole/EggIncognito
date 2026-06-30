@@ -183,8 +183,11 @@ function commitGridDrop() {
   if (!base) return;
   const snap = e.gridSnapBlock(selectedId, base.pos[0], base.pos[2]);
   let target;
-  if (snap.valid) target = [snap.centerX, base.pos[1], snap.centerZ];
-  else if (dragStartPos) target = [dragStartPos[0], base.pos[1], dragStartPos[2]];
+  if (snap.valid) {
+    // rest the element on the HIGHEST surface beneath the drop (a platform / building below), not the floor.
+    const y = e.surfaceYAt ? e.surfaceYAt(snap.centerX, snap.centerZ, selectedId) : 0;
+    target = [snap.centerX, y, snap.centerZ];
+  } else if (dragStartPos) target = [dragStartPos[0], base.pos[1], dragStartPos[2]];
   else target = base.pos;
   suppress = true;
   e.setGroupTransform(selectedId, target, base.rotDeg, base.scale);
@@ -210,7 +213,10 @@ async function solvePlacement() {
       base.pos, base.rotDeg, base.scale, foot, others);
   } catch { return; }
   if (!res || res.length < 3) return;
-  const pos = [res[0], res[1], res[2]];
+  // C# clamps Y to the floor (0); raise it to the highest surface under the solved spot so the building rests on
+  // a platform / another building instead of sinking into it. clampFloor=false pieces (pinned) keep their Y.
+  const surfaceY = (foot.clampFloor !== false && e.surfaceYAt) ? e.surfaceYAt(res[0], res[2], selectedId) : res[1];
+  const pos = [res[0], Math.max(res[1], surfaceY), res[2]];
   suppress = true;
   e.setGroupTransform(selectedId, pos, base.rotDeg, base.scale);
   if (selectedId) selectElement(selectedId); // re-sync the gizmo proxy to the corrected spot

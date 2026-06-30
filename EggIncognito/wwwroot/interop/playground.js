@@ -116,7 +116,7 @@ export async function init(canvas) {
   window.__pgEngine = {
     scene: _scene, camera: _camera, renderer: _renderer, controls: _controls,
     getGroupRoot, getGroupBase, getGroupCenterWorld, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
-    getGroupFootprint, getOtherFootprints, gridCellSize, gridSnapBlock, highlightCells, clearCellHighlight,
+    getGroupFootprint, getOtherFootprints, gridCellSize, gridSnapBlock, highlightCells, clearCellHighlight, surfaceYAt,
     captureBegin, renderAtPhase, captureEnd, anyAnimated, sceneBackgroundHex, animPeriod, captureCleanOutline,
     attachEffects, attachHatcheryParts, clearHatcheryParts,
   };
@@ -945,6 +945,33 @@ export function setGrid(cellSize) {
 }
 
 export function gridCellSize() { return gridCell; }
+
+// The highest surface Y at (x, z): cast a ray straight DOWN from high above and return the top hit among every
+// OTHER element's meshes, floored at 0 (the ground). Lets a dropped building rest on top of whatever is beneath
+// it (a platform, another building) instead of sinking to the floor. Pinned backdrops (terrain/road) are skipped
+// so a building does not try to perch on the flat ground plane mesh; the 0 floor covers that.
+let _downRay, _downOrigin, _downDir;
+export function surfaceYAt(x, z, excludeId) {
+  if (!scene) return 0;
+  if (!_downRay) {
+    _downRay = new THREE.Raycaster();
+    _downOrigin = new THREE.Vector3();
+    _downDir = new THREE.Vector3(0, -1, 0);
+  }
+  const targets = [];
+  for (const [gid, g] of groups) {
+    if (gid === excludeId || g.pinned) continue;
+    targets.push(g.root);
+  }
+  if (targets.length === 0) return 0;
+  _downOrigin.set(x, 1000, z);
+  _downRay.set(_downOrigin, _downDir);
+  const hits = _downRay.intersectObjects(targets, true);
+  // highest hit = smallest distance from the high origin = largest Y.
+  let topY = 0;
+  for (const h of hits) if (h.point.y > topY) topY = h.point.y;
+  return topY;
+}
 
 // The cells an element with this footprint + scale would occupy if its block center snapped nearest (x,z).
 // Mirror of PlacementSolver.SnapToGrid / CellsOf (the C# spec, unit-tested): block span = ceil(extent/cell),

@@ -35,7 +35,9 @@ public class UnifiedStyleTests : IClassFixture<WebApplicationFactory<Program>>
             ".reg-table", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
             ".reg-filter-input", ".reg-edit-btn", ".sub-form", ".sub-item",
             ".src-row", ".src-role",
-            ".legal-disclaimer", ".legal-section" })
+            ".legal-disclaimer", ".legal-section",
+            ".pg-menubar", ".pg-menu-btn", ".pg-menu", ".pg-menu-item", ".pg-popover",
+            ".pg-popover-head", ".pg-palette", ".pg-palette-head" })
         {
             Assert.Contains(cls, css);
         }

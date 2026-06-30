@@ -1259,4 +1259,20 @@
   .picker-group-title { @apply text-[11px] uppercase tracking-[0.05em] text-muted mt-2 first:mt-0 mb-0.5; }
   .light-field { @apply flex flex-col gap-1; }
   .light-field > span { @apply text-muted; }
+
+  .pg-menubar { @apply absolute top-0 left-0 right-0 z-20 flex items-center gap-1 px-2 py-1 bg-panel2 border-b border-border rounded-t-md; }
+  .pg-menu-btn { @apply text-xs px-3 py-1 rounded-md text-fg hover:bg-panel; }
+  .pg-menu-btn.active { @apply bg-panel; }
+  .pg-menu { @apply absolute top-full left-0 mt-1 min-w-[180px] flex flex-col bg-panel border border-border rounded-md shadow-lg py-1 z-30; }
+  .pg-menu-item { @apply text-left text-xs px-3 py-1.5 text-fg hover:bg-panel2 disabled:opacity-40 disabled:hover:bg-transparent; }
+  .pg-menu-sep { @apply my-1 border-t border-border; }
+  .pg-menu-label { @apply px-3 py-1 text-[11px] uppercase tracking-[0.05em] text-muted; }
+
+  .pg-popover { @apply fixed z-50 w-[260px] bg-panel border border-border rounded-md shadow-2xl; }
+  .pg-popover-head { @apply flex items-center justify-between px-3 py-2 bg-panel2 border-b border-border rounded-t-md cursor-grab select-none; }
+  .pg-popover-body { @apply p-3 flex flex-col gap-2 text-xs; }
+
+  .pg-palette { @apply absolute bottom-3 right-3 z-20 w-[280px] max-h-[60%] flex flex-col bg-panel border border-border rounded-md shadow-xl overflow-hidden; }
+  .pg-palette-head { @apply flex items-center justify-between px-3 py-2 bg-panel2 border-b border-border text-[12px] uppercase tracking-[0.05em] text-muted; }
+  .pg-palette-body { @apply p-2 flex flex-col gap-2 overflow-auto; }
 }
