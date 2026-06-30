@@ -1501,6 +1501,17 @@ else
             domeRadius = Math.Clamp(h * 0.30f, 0.8f, 2.5f);
         }
 
+        // body bounds-center, for positioning world-placed pieces RELATIVE to the body (the renderer adds these
+        // offsets to the LIVE body-mesh center, so the dump-vs-glb coordinate mismatch can't drift them).
+        float bodyCx = 0f, bodyCy = 0f, bodyCz = 0f, bodyTopY = 0f;
+        if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyForOff))
+        {
+            bodyCx = (bodyForOff.MinX + bodyForOff.MaxX) * 0.5f;
+            bodyCy = (bodyForOff.MinY + bodyForOff.MaxY) * 0.5f;
+            bodyCz = (bodyForOff.MinZ + bodyForOff.MaxZ) * 0.5f;
+            bodyTopY = bodyForOff.MaxY;
+        }
+
         var pieces = new List<object>();
         foreach (var stem in floating)
         {
@@ -1508,13 +1519,17 @@ else
             var role = HatcheryPieceClassifier.Classify(bb);
             var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
             if (glb is null) continue;
+            // a piece's authored center relative to the body center (X/Z), so the renderer places it at
+            // liveBodyCenter + offset and stays aligned regardless of the dump-vs-glb origin difference.
+            float[] offset = [(bb.MinX + bb.MaxX) * 0.5f - bodyCx, (bb.MinY + bb.MaxY) * 0.5f - bodyCy, (bb.MinZ + bb.MaxZ) * 0.5f - bodyCz];
             pieces.Add(new
             {
                 glb = Convert.ToBase64String(glb),
                 role = role.ToString(),
                 worldPlaced = role == HatcheryPieceClassifier.Role.WorldPlaced,
-                // the body recenter shift, applied to every piece so it stays aligned to the recentered body.
-                shift = bodyShift,
+                offset, // authored position relative to body center; renderer adds to the live body center
+                // capstone pieces (a single small orb that caps the body, e.g. enlightenment) sit ON TOP, centered.
+                capstone = role == HatcheryPieceClassifier.Role.Orb && floating.Count == 1,
                 // a centered ring/shell uses its own radius (its bounds half-extent) as the orbit/spin radius.
                 size = Math.Max(bb.ExtentX, bb.ExtentZ) * 0.5f,
             });
@@ -1532,7 +1547,7 @@ else
         return new
         {
             orb, // fallback only; the renderer derives the orb from the live body-mesh bbox (orbYFrac up the body)
-            orbYFrac = 0.62f,
+            orbYFrac = 0.78f,
             pieces,
             probeCount,
             orbitSpeed,

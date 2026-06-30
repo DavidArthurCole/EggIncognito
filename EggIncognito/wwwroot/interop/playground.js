@@ -348,16 +348,21 @@ export async function attachHatcheryParts(groupId, model) {
   if (!bodyBox.isEmpty()) {
     bodyBox.getCenter(orb);
     bodyHeight = bodyBox.max.y - bodyBox.min.y;
-    orb.y = bodyBox.min.y + bodyHeight * (model.orbYFrac || 0.62); // up the body to the dome
+    orb.y = bodyBox.min.y + bodyHeight * (model.orbYFrac || 0.78); // up near the dome on top of the body
   } else if (Array.isArray(model.orb)) {
     orb.set(model.orb[0], model.orb[1], model.orb[2]);
   }
+
+  // live body center + top, for placing world-placed / capstone pieces relative to the actual rendered body.
+  const bodyCenter = new THREE.Vector3();
+  if (!bodyBox.isEmpty()) bodyBox.getCenter(bodyCenter);
+  const bodyTopY = bodyBox.isEmpty() ? 0 : bodyBox.max.y;
 
   const state = { probes: [], beams: [], spinners: [], statics: [], orb };
   const probeCount = Math.max(1, model.probeCount || 1);
   const orbitSpeed = model.orbitSpeed || 0;
   // radius rings OUTSIDE the dome: max of the C# display radius and a dome-clearing fraction of the body height.
-  const orbitRadius = Math.max(model.orbitRadius || 0, bodyHeight * 0.28);
+  const orbitRadius = Math.max(model.orbitRadius || 0, bodyHeight * 0.42);
   const beam = model.beam || {};
 
   for (const piece of model.pieces) {
@@ -366,18 +371,22 @@ export async function attachHatcheryParts(groupId, model) {
     // the decoded glb carries only a COLOR_0 vertex-emission attribute (no material); without the engine's
     // emissive material fixup these sub-pieces render flat black. Apply the same material addGroup uses.
     applyHatcheryMaterial(pg.scene);
-    // the body is recentered (-bbox.center): every sub-piece shares the body's mesh coords, so shift it the same
-    // amount or it lands off the body (the ai roof tops were authored at world X 8..18, rendered across the road).
-    const shift = Array.isArray(piece.shift) ? piece.shift : [0, 0, 0];
+    // recenter the piece mesh on its OWN bbox center so the group's position is the sole placement authority
+    // (the mesh keeps its authored far-from-origin verts otherwise, double-placing it).
+    const pBox = new THREE.Box3().setFromObject(pg.scene);
+    if (!pBox.isEmpty()) { const pc = pBox.getCenter(new THREE.Vector3()); pg.scene.position.sub(pc); }
+    // place the piece RELATIVE to the LIVE body center using the C# offset (authored-center minus body-center).
+    // This avoids the dump-vs-glb origin drift that pushed the ai tops off the body.
+    const off = Array.isArray(piece.offset) ? piece.offset : [0, 0, 0];
+    const px = bodyCenter.x + off[0], py = bodyCenter.y + off[1], pz = bodyCenter.z + off[2];
 
     if (piece.role === 'WorldPlaced') {
-      // authored at its on-body position (shifted with the body). It FLOATS up and down (the ai roof tops bob);
-      // store its base Y + a staggered phase so the drive bobs each one out of sync.
+      // authored on the body (ai roof tops, graviton top): rendered at its body-relative spot. FLOATS up + down.
       const obj = new THREE.Group();
       obj.add(pg.scene);
-      obj.position.set(shift[0], shift[1], shift[2]);
+      obj.position.set(px, py, pz);
       g.root.add(obj);
-      state.statics.push({ obj, baseY: shift[1], phase: state.statics.length * 0.7, amp: 0.4, speed: 1.2 });
+      state.statics.push({ obj, baseY: py, phase: state.statics.length * 0.7, amp: 0.4, speed: 1.2 });
       continue;
     }
 
@@ -388,25 +397,27 @@ export async function attachHatcheryParts(groupId, model) {
     }
 
     if (piece.role === 'Ring') {
-      // darkmatter rings: each spins around the orb on its OWN tilted axis so the three gyrate (a gimbal look),
-      // not a coplanar stack. The ring mesh is authored in the XY plane (thin in Z), so a base Z-spin turns it in
-      // its own plane; a per-ring tilt of the whole group varies the axis. Centered at the orb.
+      // darkmatter: 3 concentric rings TUMBLING around the orb. The ring mesh is authored in the XY plane (a flat
+      // circle, thin in Z); spinning it about its OWN Z axis is invisible (rotational symmetry) and read as a
+      // vibrating stack. Instead each ring rotates about an axis IN its plane (tumbles), on its own tilted axis +
+      // speed, so the three gyrate visibly like a gyroscope. Centered exactly on the orb (concentric).
       const obj = new THREE.Group();
       obj.add(pg.scene);
       obj.position.copy(orb);
-      const ri = state.spinners.filter(s => s.kind === 'ring').length;
-      obj.rotation.x = ri * (Math.PI / 5); // stagger the ring planes
-      obj.rotation.y = ri * (Math.PI / 7);
       g.root.add(obj);
-      state.spinners.push({ obj, kind: 'ring', axis: 'z', speed: (orbitSpeed || 1) * (1 + ri * 0.3) });
+      const ri = state.spinners.filter(s => s.kind === 'ring').length;
+      // a distinct tumble axis per ring (unit vectors spread around the sphere), distinct speed.
+      const ax = new THREE.Vector3(Math.cos(ri * 2.4), 0.5, Math.sin(ri * 2.4)).normalize();
+      state.spinners.push({ obj, kind: 'ring', tumbleAxis: ax, speed: (orbitSpeed || 1) * (0.5 + ri * 0.35) });
       continue;
     }
 
     if (piece.role === 'Shell' || piece.role === 'Orb') {
-      // hovers at the orb, slow spin about Y (a nested shell / the core orb).
+      // a capstone orb (enlightenment) caps the body ON TOP, centered; other shells/orbs hover at the dome orb.
       const obj = new THREE.Group();
       obj.add(pg.scene);
-      obj.position.copy(orb);
+      if (piece.capstone) obj.position.set(bodyCenter.x, bodyTopY + (pBox.isEmpty() ? 0.2 : (pBox.max.y - pBox.min.y) * 0.5), bodyCenter.z);
+      else obj.position.copy(orb);
       g.root.add(obj);
       state.spinners.push({ obj, kind: 'shell', axis: 'y', speed: (orbitSpeed || 0.5) * 0.4 });
       continue;
@@ -480,9 +491,10 @@ function orbitHatcheryParts(tSeconds) {
     _beamQuat = new THREE.Quaternion(); _beamScale = new THREE.Vector3(1, 1, 1); _beamMat = new THREE.Matrix4();
   }
   for (const st of hatcheryParts.values()) {
-    // spinners: rings + nested shells rotate in place at the orb about their own axis (extracted rate).
+    // spinners: rings TUMBLE about an in-plane axis (visible 3D rotation); shells/orb spin slowly about Y.
     for (const s of st.spinners) {
-      if (s.axis === 'y') s.obj.rotation.y = tSeconds * s.speed;
+      if (s.tumbleAxis) s.obj.quaternion.setFromAxisAngle(s.tumbleAxis, tSeconds * s.speed);
+      else if (s.axis === 'y') s.obj.rotation.y = tSeconds * s.speed;
       else s.obj.rotation.z = tSeconds * s.speed;
     }
     // statics (ai roof tops): float up and down around their authored Y, staggered so they bob out of sync.
