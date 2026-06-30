@@ -116,7 +116,7 @@ export async function init(canvas) {
   window.__pgEngine = {
     scene: _scene, camera: _camera, renderer: _renderer, controls: _controls,
     getGroupRoot, getGroupBase, getGroupCenterWorld, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
-    getGroupFootprint, getOtherFootprints,
+    getGroupFootprint, getOtherFootprints, gridCellSize, gridSnapBlock, highlightCells, clearCellHighlight,
     captureBegin, renderAtPhase, captureEnd, anyAnimated, sceneBackgroundHex, animPeriod, captureCleanOutline,
     attachEffects, attachHatcheryParts, clearHatcheryParts,
   };
@@ -314,6 +314,25 @@ function clearEffects(groupId) {
 // model = { orb:[x,y,z], pieces:[{glb, role, worldPlaced, size}], probeCount, orbitSpeed, orbitRadius,
 //           beam:{fireInterval,fireDuration,fireRandom} }
 const hatcheryParts = new Map(); // groupId -> { probes, beams, spinners, statics, orb }
+
+// Deterministic [0,1) hash for per-probe randomness (no Math.random: keeps capture/playback stable + module load
+// side-effect free). The classic fract(sin*large) hash.
+function hash01(x) { const s = Math.sin(x * 12.9898) * 43758.5453; return s - Math.floor(s); }
+
+// An orthonormal (u, v) basis spanning a randomly-oriented plane through the orb, from two [0,1) hashes. The
+// probe orbits in this plane, so different probes ride differently-inclined great circles = a 3D swarm, not a
+// flat ring. n = a point on the unit sphere (the plane normal); u,v complete the basis.
+function orbitBasis(ha, hb) {
+  const phi = ha * Math.PI * 2;          // azimuth
+  const ct = hb * 2 - 1, st = Math.sqrt(Math.max(0, 1 - ct * ct)); // cos/sin of polar (uniform on sphere)
+  const n = new THREE.Vector3(st * Math.cos(phi), st * Math.sin(phi), ct);
+  // pick any axis not parallel to n, cross to get u, then v = n x u.
+  const ref = Math.abs(n.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+  const u = new THREE.Vector3().crossVectors(n, ref).normalize();
+  const v = new THREE.Vector3().crossVectors(n, u).normalize();
+  return { u, v };
+}
+
 export async function attachHatcheryParts(groupId, model) {
   await ensureLibs();
   clearHatcheryParts(groupId);
@@ -330,11 +349,18 @@ export async function attachHatcheryParts(groupId, model) {
   for (const piece of model.pieces) {
     let pg; try { pg = await parseGlb(piece.glb); } catch (e) { pg = null; }
     if (!pg) continue;
+    // the decoded glb carries only a COLOR_0 vertex-emission attribute (no material); without the engine's
+    // emissive material fixup these sub-pieces render flat black. Apply the same material addGroup uses.
+    applyHatcheryMaterial(pg.scene);
+    // the body is recentered (-bbox.center): every sub-piece shares the body's mesh coords, so shift it the same
+    // amount or it lands off the body (the ai roof tops were authored at world X 8..18, rendered across the road).
+    const shift = Array.isArray(piece.shift) ? piece.shift : [0, 0, 0];
 
     if (piece.role === 'WorldPlaced') {
-      // authored at its on-body position: drop it in as-is (slow spin would fight its placement). Static.
+      // authored at its on-body position: drop it at its authored spot (shifted with the body). Static.
       const obj = new THREE.Group();
       obj.add(pg.scene);
+      obj.position.set(shift[0], shift[1], shift[2]);
       g.root.add(obj);
       state.statics.push({ obj });
       continue;
@@ -347,12 +373,17 @@ export async function attachHatcheryParts(groupId, model) {
     }
 
     if (piece.role === 'Ring') {
-      // a ring spins around the orb in its own plane, in place at the orb. Each ring a touch faster than the last.
+      // darkmatter rings: each spins around the orb on its OWN tilted axis so the three gyrate (a gimbal look),
+      // not a coplanar stack. The ring mesh is authored in the XY plane (thin in Z), so a base Z-spin turns it in
+      // its own plane; a per-ring tilt of the whole group varies the axis. Centered at the orb.
       const obj = new THREE.Group();
       obj.add(pg.scene);
       obj.position.copy(orb);
+      const ri = state.spinners.filter(s => s.kind === 'ring').length;
+      obj.rotation.x = ri * (Math.PI / 5); // stagger the ring planes
+      obj.rotation.y = ri * (Math.PI / 7);
       g.root.add(obj);
-      state.spinners.push({ obj, axis: 'z', speed: (orbitSpeed || 0.5) * (1 + state.spinners.length * 0.25) });
+      state.spinners.push({ obj, kind: 'ring', axis: 'z', speed: (orbitSpeed || 1) * (1 + ri * 0.3) });
       continue;
     }
 
@@ -362,7 +393,7 @@ export async function attachHatcheryParts(groupId, model) {
       obj.add(pg.scene);
       obj.position.copy(orb);
       g.root.add(obj);
-      state.spinners.push({ obj, axis: 'y', speed: (orbitSpeed || 0.5) * 0.4 });
+      state.spinners.push({ obj, kind: 'shell', axis: 'y', speed: (orbitSpeed || 0.5) * 0.4 });
       continue;
     }
 
@@ -371,7 +402,18 @@ export async function attachHatcheryParts(groupId, model) {
       const obj = new THREE.Group();
       obj.add(k === 0 ? pg.scene : pg.scene.clone());
       g.root.add(obj);
-      state.probes.push({ obj, phase: (k / probeCount) * Math.PI * 2, radius: orbitRadius, speed: orbitSpeed, tilt: 0 });
+      // 3D orbit: each probe rides its OWN randomly-inclined great-circle around the orb (the game scatters them
+      // with frandom over the whole sphere, not a flat ring). Build an orthonormal (u,v) basis from a per-probe
+      // pseudo-random axis; the probe traces orb + (cos*u + sin*v)*radius. Deterministic per index so capture is
+      // stable. radius + speed get a per-probe jitter so they do not move in lockstep.
+      const h1 = hash01(k * 2.399963 + 0.11), h2 = hash01(k * 5.781 + 0.37), h3 = hash01(k * 9.13 + 0.71);
+      const { u, v } = orbitBasis(h1, h2);
+      state.probes.push({
+        obj, phase: h3 * Math.PI * 2,
+        radius: orbitRadius * (0.7 + h1 * 0.6),
+        speed: orbitSpeed * (0.6 + h2 * 0.8) * (h3 < 0.5 ? 1 : -1),
+        u, v,
+      });
     }
   }
 
@@ -427,10 +469,13 @@ function orbitHatcheryParts(tSeconds) {
       else s.obj.rotation.z = tSeconds * s.speed;
     }
     for (const p of st.probes) {
+      // 3D orbit in the probe's own plane: pos = orb + (cos*u + sin*v) * radius. u,v span a randomly-inclined
+      // great circle, so each probe flies around the orb on its own tilt = a spherical swarm, not a flat ring.
       const a = p.phase + tSeconds * p.speed;
-      const x = st.orb.x + Math.cos(a) * p.radius;
-      const z = st.orb.z + Math.sin(a) * p.radius;
-      const y = st.orb.y + Math.sin(a) * p.tilt; // orbit-plane tilt
+      const c = Math.cos(a) * p.radius, s = Math.sin(a) * p.radius;
+      const x = st.orb.x + p.u.x * c + p.v.x * s;
+      const y = st.orb.y + p.u.y * c + p.v.y * s;
+      const z = st.orb.z + p.u.z * c + p.v.z * s;
       p.obj.position.set(x, y, z);
       p.obj.current = p.obj.current || new THREE.Vector3();
       p.obj.current.set(x, y, z);
@@ -504,6 +549,19 @@ async function parseGlb(b64) {
 // reads at full saturation regardless of scene lights (the game look), with shadows still landing on it.
 // `emissiveBoost` is exposed live so the lighting panel can dial the flat-vs-lit balance.
 let _emissiveBoost = 0.85;
+// Apply the engine's emissive vertex material to every mesh in a hatchery sub-piece. The decoded glb carries
+// only a COLOR_0 emission attribute; the GLTFLoader default material ignores it and renders flat black (the ai
+// tops + darkmatter rings came out black). Same fixup addGroup runs on a building, factored out so the floating
+// pieces share it. Also enables shadows so the pieces read against the body.
+function applyHatcheryMaterial(root) {
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    o.material = emissiveVertexMaterial();
+  });
+}
+
 function emissiveVertexMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0, roughness: 1 });
   m.onBeforeCompile = shader => {
@@ -841,14 +899,122 @@ export function setDesignMode(on) { designMode = !!on; }
 // The floor grid overlay, sized to the shadow plane. Shown when grid-snap is on so the designer sees the cells
 // placements land on. setGrid(0) hides it; a positive size (re)builds it at that cell spacing.
 let gridHelper = null;
+let gridCell = 0; // the active cell size (0 = grid off); the block-grid snap reads this.
 export function setGrid(cellSize) {
   if (gridHelper) { scene.remove(gridHelper); gridHelper.geometry?.dispose(); gridHelper.material?.dispose(); gridHelper = null; }
-  if (!scene || !Number.isFinite(cellSize) || cellSize <= 0) return;
+  gridCell = Number.isFinite(cellSize) && cellSize > 0 ? cellSize : 0;
+  clearCellHighlight();
+  if (!scene || gridCell <= 0) return;
   const extent = 120; // covers the visible farm footprint
-  const divisions = Math.max(1, Math.round(extent / cellSize));
+  const divisions = Math.max(1, Math.round(extent / gridCell));
   gridHelper = new THREE.GridHelper(extent, divisions, 0x4a4a55, 0x2c2c33);
   gridHelper.position.y = 0.01; // just above the floor so it does not z-fight the shadow plane
   scene.add(gridHelper);
+}
+
+export function gridCellSize() { return gridCell; }
+
+// The cells an element with this footprint + scale would occupy if its block center snapped nearest (x,z).
+// Mirror of PlacementSolver.SnapToGrid / CellsOf (the C# spec, unit-tested): block span = ceil(extent/cell),
+// snapped so the block center is nearest the target. Returns { cells:[{c,r}], centerX, centerZ, spanC, spanR }.
+function blockCells(local, scale, x, z, cell) {
+  const w = (local.maxX - local.minX) * scale, d = (local.maxZ - local.minZ) * scale;
+  const spanC = Math.max(1, Math.ceil(w / cell - 1e-3));
+  const spanR = Math.max(1, Math.ceil(d / cell - 1e-3));
+  const col0 = Math.round(x / cell - spanC / 2);
+  const row0 = Math.round(z / cell - spanR / 2);
+  const cells = [];
+  for (let dc = 0; dc < spanC; dc++)
+    for (let dr = 0; dr < spanR; dr++) cells.push({ c: col0 + dc, r: row0 + dr });
+  return { cells, centerX: (col0 + spanC / 2) * cell, centerZ: (row0 + spanR / 2) * cell, spanC, spanR };
+}
+
+// The set of cells every OTHER (non-pinned) element occupies, as "c,r" keys, for the occupancy check.
+function occupiedCells(excludeId, cell) {
+  const taken = new Set();
+  for (const [gid, g] of groups) {
+    if (gid === excludeId || g.pinned || !g.localFootprint) continue;
+    const base = g.base || { pos: [g.root.position.x, 0, g.root.position.z], scale: 1 };
+    const b = blockCells(g.localFootprint, base.scale || 1, base.pos[0], base.pos[2], cell);
+    for (const cc of b.cells) taken.add(cc.c + ',' + cc.r);
+  }
+  return taken;
+}
+
+// Snap an element's block to the grid + check occupancy. Returns the snapped world CENTER (x,z), validity, and
+// the cells, for the designer's live highlight + drop decision. No fling: an occupied target is just flagged
+// invalid (the caller reverts), never relocated.
+export function gridSnapBlock(id, x, z) {
+  const g = groups.get(id);
+  if (!g || !g.localFootprint || gridCell <= 0) return { centerX: x, centerZ: z, valid: true, cells: [] };
+  const scale = g.base?.scale || 1;
+  const b = blockCells(g.localFootprint, scale, x, z, gridCell);
+  const taken = occupiedCells(id, gridCell);
+  const valid = b.cells.every(cc => !taken.has(cc.c + ',' + cc.r));
+  return { centerX: b.centerX, centerZ: b.centerZ, valid, cells: b.cells };
+}
+
+// A translucent quad per target cell, green when the whole block is free, red when any cell is occupied. Rebuilt
+// each drag frame; cleared on drop / grid-off.
+let cellHighlight = null;
+export function highlightCells(cells, valid) {
+  clearCellHighlight();
+  if (!scene || gridCell <= 0 || !cells || cells.length === 0) return;
+  const group = new THREE.Group();
+  const color = valid ? 0x3fbf5f : 0xc0392b;
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, depthWrite: false });
+  const geo = new THREE.PlaneGeometry(gridCell * 0.94, gridCell * 0.94);
+  for (const cc of cells) {
+    const q = new THREE.Mesh(geo, mat);
+    q.rotation.x = -Math.PI / 2;
+    q.position.set((cc.c + 0.5) * gridCell, 0.02, (cc.r + 0.5) * gridCell);
+    group.add(q);
+  }
+  group.userData.sharedGeo = geo;
+  group.userData.sharedMat = mat;
+  scene.add(group);
+  cellHighlight = group;
+}
+
+export function clearCellHighlight() {
+  if (!cellHighlight) return;
+  scene?.remove(cellHighlight);
+  cellHighlight.userData.sharedGeo?.dispose();
+  cellHighlight.userData.sharedMat?.dispose();
+  cellHighlight = null;
+}
+
+// The grid box (id + integer cell rect) of every non-pinned element, split into the changed element + the rest,
+// for the C# domino pass after a tier resize. Empty when the grid is off.
+export function gridBoxesForDomino(changedId) {
+  if (gridCell <= 0) return { changed: null, others: [] };
+  let changed = null;
+  const others = [];
+  for (const [gid, g] of groups) {
+    if (g.pinned || !g.localFootprint) continue;
+    const base = g.base || { pos: [g.root.position.x, 0, g.root.position.z], scale: 1 };
+    const b = blockCells(g.localFootprint, base.scale || 1, base.pos[0], base.pos[2], gridCell);
+    const col0 = Math.round(base.pos[0] / gridCell - b.spanC / 2);
+    const row0 = Math.round(base.pos[2] / gridCell - b.spanR / 2);
+    const box = { id: gid, col: col0, row: row0, spanC: b.spanC, spanR: b.spanR };
+    if (gid === changedId) changed = box; else others.push(box);
+  }
+  return { changed, others };
+}
+
+// Apply the domino moves (cell-delta per element) the C# pass returned: shift each moved element by delta*cell in
+// X/Z. Keeps Y + rotation. Returns the list of moved ids so .NET can sync its inspector + autosave.
+export function applyDominoMoves(moves) {
+  const out = [];
+  for (const m of moves || []) {
+    const g = groups.get(m.id);
+    if (!g) continue;
+    const base = g.base || { pos: [g.root.position.x, g.root.position.y, g.root.position.z], rotDeg: [0, 0, 0], scale: 1 };
+    const pos = [base.pos[0] + m.deltaCol * gridCell, base.pos[1], base.pos[2] + m.deltaRow * gridCell];
+    setGroupTransform(m.id, pos, base.rotDeg, base.scale);
+    out.push({ id: m.id, pos });
+  }
+  return out;
 }
 
 export function getGroupRoot(id) {

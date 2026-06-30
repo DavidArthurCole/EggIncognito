@@ -741,6 +741,15 @@ else
         return Task.FromResult(new double[] { r.Pos[0], r.Pos[1], r.Pos[2], r.Adjusted ? 1 : 0 });
     }
 
+    // The grid blocked a drop (target cells occupied / off-grid); the element reverted. Surface the same hint.
+    [JSInvokable]
+    public Task OnPlacementBlocked()
+    {
+        _lastAdjustReason = "blocked";
+        _ = ShowAdjustHint();
+        return Task.CompletedTask;
+    }
+
     // A transient "placement adjusted" hint after the solver moves a piece (floor / overlap), so the jump reads
     // as intentional. Cleared after a short delay.
     string? _lastAdjustReason;
@@ -957,8 +966,48 @@ else
         var opt = _familyOptions.FirstOrDefault(f => f.Stem == sel.Ref);
         if (opt is not null) sel.Label = opt.Label;
         await RenderElement(sel);
+        // a tier swap can change the building's cell footprint; on the grid, ripple neighbors out of the way.
+        await RunDomino(sel.Id);
         await SelectElement(sel.Id);
     }
+
+    // After an element resizes (tier swap), push grid neighbors it now overlaps out of the way, cascading. The
+    // cell math is the tested PlacementSolver.DominoNudge; the engine supplies the grid boxes + applies the moves.
+    async Task RunDomino(string changedId)
+    {
+        if (_mod is null || !_gridSnap) return;
+        var boxes = await _mod.InvokeAsync<DominoBoxes>("gridBoxesForDomino", changedId);
+        if (boxes?.Changed is null || boxes.Others is null || boxes.Others.Length == 0) return;
+
+        GridBoxOf(boxes.Changed, out var changed);
+        var others = boxes.Others.Select(b => { GridBoxOf(b, out var g); return g; }).ToList();
+        var moves = PlacementSolver.DominoNudge(changed, others);
+        if (moves.Count == 0) return;
+
+        var payload = moves.Select(m => new { id = m.Id, deltaCol = m.DeltaCol, deltaRow = m.DeltaRow }).ToArray();
+        var moved = await _mod.InvokeAsync<MovedElement[]>("applyDominoMoves", new object[] { payload });
+        foreach (var mv in moved ?? [])
+        {
+            var el = _elements.FirstOrDefault(e => e.Id == mv.Id);
+            if (el is not null && mv.Pos is { Length: 3 }) el.Pos = [mv.Pos[0], mv.Pos[1], mv.Pos[2]];
+        }
+        await RederiveActors();
+        Autosave();
+    }
+
+    static void GridBoxOf(DominoBox b, out PlacementSolver.GridBox g) =>
+        g = new PlacementSolver.GridBox(b.Id, b.Col, b.Row, b.SpanC, b.SpanR);
+
+    public sealed class DominoBoxes { public DominoBox? Changed { get; set; } public DominoBox[]? Others { get; set; } }
+    public sealed class DominoBox
+    {
+        public string Id { get; set; } = "";
+        public int Col { get; set; }
+        public int Row { get; set; }
+        public int SpanC { get; set; }
+        public int SpanR { get; set; }
+    }
+    public sealed class MovedElement { public string Id { get; set; } = ""; public float[]? Pos { get; set; } }
 
     // Delete after the inline confirm. Clears the confirm + selection, removes the group.
     async Task ConfirmDelete(DesignElement el)
@@ -1302,7 +1351,9 @@ else
         // orb position relative to the body group origin. The body mesh self-places at its plot; the anchor is the
         // orb's world pos, so orb-local = (0, anchorY, 0) approximated (anchor X/Z == body center). Default upper-body.
         float[] orb = [0f, 2.15f, 0f];
-        int probeCount = 3;        // rotate_pyramid float[1]
+        // ~10-12 probes observed in game, flying in 3D around the orb (runtime frandom, no static count). DISPLAY
+        // value, not extracted. The binary's rotate_pyramid `3` is the quarter-turn segment count, a red herring.
+        int probeCount = 12;
         float orbitRadius = 0f;    // from the frandom scatter; filled from extracted translation magnitude if present
         float orbitSpeed = 0.5f;   // rotate_pyramid easing/rate
         float beamInterval = 0f, beamDuration = 0.2f;
@@ -1310,15 +1361,16 @@ else
 
         if (dump is { } d && d.TryGetProperty("assembly", out var asmEl))
         {
-            if (asmEl.TryGetProperty("anchor", out var anc) && anc.ValueKind == System.Text.Json.JsonValueKind.Array && anc.GetArrayLength() == 3)
-                orb = [0f, (float)anc[1].GetDouble(), 0f];
+            // orb position is set below from anchor + bodyShift (needs the body bounds, resolved after this block).
             // timing recovered from rotate_pyramid's ActionBuilder tween call ARGS (waitFor/smooth), not from
             // unordered float constants: waitFor = the beam-fire delay, smoothDuration = the eased anim duration,
             // orbitSegments = the piece/segment count. These are the binary's own param bindings.
             if (asmEl.TryGetProperty("timing", out var tm) && tm.ValueKind == System.Text.Json.JsonValueKind.Object)
             {
-                if (tm.TryGetProperty("orbitSegments", out var seg) && seg.ValueKind == System.Text.Json.JsonValueKind.Number && seg.GetInt32() > 0)
-                    probeCount = Math.Clamp(seg.GetInt32(), 1, 12);
+                // NOTE: orbitSegments (rotate_pyramid's `3`) is the pyramid QUARTER-TURN segment count, NOT the
+                // probe count. In game the orb has ~10-12 probes flying in 3D all around it (observed), spawned by
+                // a runtime frandom loop with no static count in the binary. So probeCount is a DISPLAY value, like
+                // orbitRadius: see probeCount default below (not read from orbitSegments).
                 if (tm.TryGetProperty("smoothDuration", out var sd) && sd.ValueKind == System.Text.Json.JsonValueKind.Number)
                 {
                     var dur = (float)sd.GetDouble();
@@ -1358,6 +1410,23 @@ else
         // (beam fires probe->orb, probes orbit, rings spin, shells/orb hover). One generic piece list replaces
         // the universe-only probe/beam pair so every tier (ai tops, darkmatter rings, vision shells) renders.
         var fullBounds = HatcheryFullBounds(tier, dump);
+        // The body mesh is RECENTERED (recenter=true for an added env piece): addGroup shifts it by -bbox.center
+        // in X/Z and -bbox.min.y in Y so the group origin is the body's ground-center. Floating sub-pieces live
+        // in the SAME mesh coords, so the renderer must apply the SAME shift or they land off the body (the AI
+        // roof tops were authored at world X 8..18 and rendered across the road). bodyShift = that offset.
+        float[] bodyShift = [0f, 0f, 0f];
+        if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyB))
+            bodyShift = [-(bodyB.MinX + bodyB.MaxX) * 0.5f, -bodyB.MinY, -(bodyB.MinZ + bodyB.MaxZ) * 0.5f];
+
+        // the orb sits at the extracted anchor, in the SAME recentered mesh coords: anchor + bodyShift. (The
+        // earlier (0, anchorY, 0) only worked because anchorX ~ bodyCenterX; do it properly so off-center anchors
+        // and the Y snap are correct.) Centered pieces (rings/shells/probes/orb) orbit/sit at this point.
+        if (dump is { } dd && dd.TryGetProperty("assembly", out var ae)
+            && ae.TryGetProperty("anchor", out var an2) && an2.ValueKind == System.Text.Json.JsonValueKind.Array && an2.GetArrayLength() == 3)
+        {
+            orb = [(float)an2[0].GetDouble() + bodyShift[0], (float)an2[1].GetDouble() + bodyShift[1], (float)an2[2].GetDouble() + bodyShift[2]];
+        }
+
         var pieces = new List<object>();
         foreach (var stem in floating)
         {
@@ -1365,13 +1434,13 @@ else
             var role = HatcheryPieceClassifier.Classify(bb);
             var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
             if (glb is null) continue;
-            // world-placed pieces carry their authored position: the mesh self-places, so the renderer leaves
-            // them put. Centered pieces recenter onto the orb and take their motion from the role.
             pieces.Add(new
             {
                 glb = Convert.ToBase64String(glb),
                 role = role.ToString(),
                 worldPlaced = role == HatcheryPieceClassifier.Role.WorldPlaced,
+                // the body recenter shift, applied to every piece so it stays aligned to the recentered body.
+                shift = bodyShift,
                 // a centered ring/shell uses its own radius (its bounds half-extent) as the orbit/spin radius.
                 size = Math.Max(bb.ExtentX, bb.ExtentZ) * 0.5f,
             });

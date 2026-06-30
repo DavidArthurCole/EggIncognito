@@ -16,6 +16,7 @@ let THREE, TransformControls, gizmo, dotnet, selectedId = null, suppress = false
 let raycaster, pointer, domEl, onPointerDown, onPointerUp, downXY = null, dragging = false;
 let onKeyDown;
 let proxy, centerOffset;
+let dragStartPos = null; // the selected element's pos at drag start, to revert an invalid grid drop
 
 export async function initDesigner(dotnetRef) {
   dotnet = dotnetRef;
@@ -41,10 +42,18 @@ export async function initDesigner(dotnetRef) {
   gizmo.addEventListener('dragging-changed', ev => {
     controls.enabled = !ev.value;
     dragging = ev.value;
-    if (ev.value && dotnet) dotnet.invokeMethodAsync('OnGizmoDragStart');
-    // On drag END: run the authoritative placement solver (floor clamp + grid snap + overlap) and snap the
-    // element to the corrected spot. Per-frame objectChange only previews; the legal resolve happens on drop.
-    if (!ev.value) solvePlacement();
+    if (ev.value) {
+      if (dotnet) dotnet.invokeMethodAsync('OnGizmoDragStart');
+      // remember where the element was, so an invalid grid drop can revert to a known-good spot.
+      const base = e.getGroupBase(selectedId);
+      if (base) dragStartPos = [...base.pos];
+    } else {
+      // On drag END: grid mode = snap the block to the grid + commit only if the cells are free (else revert).
+      // No grid = the floor-clamp solver. Either way, clear the cell highlight.
+      e.clearCellHighlight?.();
+      if (e.gridCellSize && e.gridCellSize() > 0) commitGridDrop();
+      else solvePlacement();
+    }
   });
 
   // Click-to-select: raycast from a click that was NOT a drag (orbit) onto the element group roots. Hit ->
@@ -99,6 +108,11 @@ export async function initDesigner(dotnetRef) {
     const rotDeg = [deg(o.rotation.x), deg(o.rotation.y), deg(o.rotation.z)];
     e.setGroupTransform(selectedId, pos, rotDeg, o.scale.x);
     dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, rotDeg, o.scale.x);
+    // live grid feedback: highlight the cells the element's block would land on, green (free) or red (occupied).
+    if (e.gridCellSize && e.gridCellSize() > 0) {
+      const snap = e.gridSnapBlock(selectedId, pos[0], pos[2]);
+      e.highlightCells(snap.cells, snap.valid);
+    }
   });
 
   // r0.169: TransformControls is no longer an Object3D. Its rendered + interactive form is the helper; adding
@@ -153,8 +167,31 @@ function nudge(key, step) {
   e.setGroupTransform(selectedId, pos, base.rotDeg, base.scale);
   // the gizmo is attached to the group root, which the anim loop repositions from the new base, so it follows.
   dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, base.rotDeg, base.scale);
-  // re-solve so a nudge into a neighbor / the floor is corrected just like a drag.
-  solvePlacement();
+  // re-resolve: grid mode snaps to the cell block (commit if free), else the floor-clamp solver.
+  if (e.gridCellSize && e.gridCellSize() > 0) { dragStartPos = [...base.pos]; commitGridDrop(); }
+  else solvePlacement();
+}
+
+// Commit a grid-mode placement: snap the selected element's block to the grid and accept the drop only if every
+// target cell is free; otherwise revert to where the element was before the drag (dragStartPos). This is the
+// block-grid path that replaces the overlap-push solver for grid mode (which flung pieces off-screen). Floor Y
+// still rests on 0 (the element's base already sits on the floor; the block snap only moves X/Z).
+function commitGridDrop() {
+  const e = engine();
+  if (!e || !selectedId) return;
+  const base = e.getGroupBase(selectedId);
+  if (!base) return;
+  const snap = e.gridSnapBlock(selectedId, base.pos[0], base.pos[2]);
+  let target;
+  if (snap.valid) target = [snap.centerX, base.pos[1], snap.centerZ];
+  else if (dragStartPos) target = [dragStartPos[0], base.pos[1], dragStartPos[2]];
+  else target = base.pos;
+  suppress = true;
+  e.setGroupTransform(selectedId, target, base.rotDeg, base.scale);
+  if (selectedId) selectElement(selectedId);
+  suppress = false;
+  dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, target, base.rotDeg, base.scale);
+  if (!snap.valid) dotnet.invokeMethodAsync('OnPlacementBlocked');
 }
 
 // Run the C# placement solver on the selected element's current transform: gather its local footprint + every

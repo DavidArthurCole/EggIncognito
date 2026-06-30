@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using EggIncognito.Services.ProtoExtract;
 using Xunit;
 using static EggIncognito.Services.ProtoExtract.PlacementSolver;
@@ -65,43 +67,24 @@ public class PlacementSolverTests
     }
 
     [Fact]
-    public void Overlap_PushesOutAlongShallowAxis()
+    public void Solve_DoesNotPushOnOverlap_NoFling()
     {
-        // other occupies x[0..2], z[-1..1]. Our 2x2 at (1,0) overlaps; shallowest exit is -X (penetration 1).
+        // Solve no longer relocates an overlapping piece (that flung self-placing meshes across the scene). It
+        // leaves the position put and only flags the overlap; the block-grid path owns no-overlap now.
         var other = new Box2(0, 2, -1, 1);
         var r = Solve(Req([1, 0, 0], others: [other], localMinY: 0));
-        var foot = WorldFootprint(Unit2(), r.Pos[0], r.Pos[2], 0, 1);
-        Assert.False(foot.Intersects(other));
-        Assert.True(r.Adjusted);
+        Assert.Equal(1f, r.Pos[0], 3); // NOT pushed away
+        Assert.Equal(0f, r.Pos[2], 3);
+        Assert.Equal("overlap", r.Reason);
     }
 
     [Fact]
-    public void Overlap_None_LeavesPosition()
+    public void Overlap_None_NoOverlapReason()
     {
         var other = new Box2(10, 12, 10, 12);
         var r = Solve(Req([0, 0, 0], others: [other], localMinY: 0));
         Assert.Equal(0f, r.Pos[0], 3);
-        Assert.Equal(0f, r.Pos[2], 3);
-    }
-
-    [Fact]
-    public void Overlap_MultipleOthers_ResolvesAll()
-    {
-        // two neighbors hemming the element; the solver must iterate until clear of both.
-        var a = new Box2(0.5f, 2.5f, -1, 1);
-        var b = new Box2(-2.5f, -0.5f, -1, 1);
-        var r = Solve(Req([0, 0, 0], others: [a, b], localMinY: 0));
-        var foot = WorldFootprint(Unit2(), r.Pos[0], r.Pos[2], 0, 1);
-        Assert.False(foot.Intersects(a));
-        Assert.False(foot.Intersects(b));
-    }
-
-    [Fact]
-    public void Overlap_WithGrid_StaysOnGrid()
-    {
-        var other = new Box2(0, 2, -1, 1);
-        var r = Solve(Req([1, 0, 0], others: [other], grid: 1f, localMinY: 0));
-        Assert.Equal(r.Pos[0], MathF.Round(r.Pos[0]), 3); // landed on a grid multiple
+        Assert.Equal("ok", r.Reason);
     }
 
     [Fact]
@@ -131,5 +114,114 @@ public class PlacementSolverTests
         var r = Solve(new SolveRequest([0, 0], [0, 0, 0], 1, Unit2(), 0, [], 0));
         Assert.False(r.Adjusted);
         Assert.Equal("invalid request", r.Reason);
+    }
+
+    [Fact]
+    public void SnapToGrid_UnitElement_OccupiesOneCell()
+    {
+        // a sub-cell element (1 wide) at (0.4, 0.4) snaps into cell (0,0).
+        var r = SnapToGrid(new Box2(-0.4f, 0.4f, -0.4f, 0.4f), 1, 0.4f, 0.4f, 1f, new HashSet<Cell>());
+        Assert.Single(r.Cells);
+        Assert.Equal(new Cell(0, 0), r.Cells[0]);
+        Assert.True(r.Valid);
+        Assert.Equal(0.5f, r.CenterX, 3); // odd 1-span centers in the cell
+        Assert.Equal(0.5f, r.CenterZ, 3);
+    }
+
+    [Fact]
+    public void SnapToGrid_BigElement_SpansMultipleCells()
+    {
+        // a 3-wide x 1-deep element at cell size 1 occupies 3x1 cells.
+        var r = SnapToGrid(new Box2(-1.5f, 1.5f, -0.5f, 0.5f), 1, 5f, 5f, 1f, new HashSet<Cell>());
+        Assert.Equal(3, r.Cells.Count);
+        Assert.True(r.Valid);
+    }
+
+    [Fact]
+    public void SnapToGrid_OccupiedCell_IsInvalid()
+    {
+        var occupied = new HashSet<Cell> { new(0, 0) };
+        var r = SnapToGrid(new Box2(-0.4f, 0.4f, -0.4f, 0.4f), 1, 0.3f, 0.3f, 1f, occupied);
+        Assert.False(r.Valid);
+    }
+
+    [Fact]
+    public void SnapToGrid_FreeNeighborOfOccupied_IsValid()
+    {
+        var occupied = new HashSet<Cell> { new(0, 0) };
+        var r = SnapToGrid(new Box2(-0.4f, 0.4f, -0.4f, 0.4f), 1, 1.5f, 0.3f, 1f, occupied);
+        Assert.True(r.Valid);
+        Assert.Equal(new Cell(1, 0), r.Cells[0]);
+    }
+
+    [Fact]
+    public void SnapToGrid_NoFling_InvalidStaysAtTarget()
+    {
+        // the old solver flung an overlapping piece far away. The block grid leaves the center at the snapped
+        // target cell (just flags it invalid); the caller reverts, never relocates to the edge.
+        var occupied = new HashSet<Cell> { new(0, 0) };
+        var r = SnapToGrid(new Box2(-0.4f, 0.4f, -0.4f, 0.4f), 1, 0.1f, 0.1f, 1f, occupied);
+        Assert.Equal(0.5f, r.CenterX, 3); // snapped to cell (0,0) center, NOT pushed to some far cell
+        Assert.False(r.Valid);
+    }
+
+    [Fact]
+    public void CellsOf_RoundTripsWithSnap()
+    {
+        var foot = new Box2(-1.5f, 1.5f, -0.5f, 0.5f);
+        var snap = SnapToGrid(foot, 1, 5f, 5f, 1f, new HashSet<Cell>());
+        var cells = CellsOf(foot, 1, snap.CenterX, snap.CenterZ, 1f).ToHashSet();
+        Assert.Equal(snap.Cells.ToHashSet(), cells);
+    }
+
+    [Fact]
+    public void SnapToGrid_ZeroCell_NoOp()
+    {
+        var r = SnapToGrid(Unit2(), 1, 3.7f, 2.2f, 0f, new HashSet<Cell>());
+        Assert.True(r.Valid);
+        Assert.Empty(r.Cells);
+    }
+
+    [Fact]
+    public void Domino_GrownElement_PushesAdjacentNeighbor()
+    {
+        // changed grew to 2 wide at cols 0..1; a neighbor sits at col 1 (now overlapped). Push it to col 2.
+        var changed = new GridBox("a", 0, 0, 2, 1);
+        var nb = new GridBox("b", 1, 0, 1, 1);
+        var moves = DominoNudge(changed, [nb]);
+        var m = Assert.Single(moves);
+        Assert.Equal("b", m.Id);
+        Assert.Equal(1, m.DeltaCol); // shoved one cell right to clear
+        Assert.Equal(0, m.DeltaRow);
+    }
+
+    [Fact]
+    public void Domino_Cascades_ThroughAChain()
+    {
+        // changed at col 0..1 overlaps b at col1; b shoves into c at col2; the cascade moves both.
+        var changed = new GridBox("a", 0, 0, 2, 1);
+        var b = new GridBox("b", 1, 0, 1, 1);
+        var c = new GridBox("c", 2, 0, 1, 1);
+        var moves = DominoNudge(changed, [b, c]).ToDictionary(m => m.Id, m => m.DeltaCol);
+        Assert.Equal(1, moves["b"]); // b -> col2
+        Assert.Equal(1, moves["c"]); // c shoved -> col3
+    }
+
+    [Fact]
+    public void Domino_NoOverlap_NoMoves()
+    {
+        var changed = new GridBox("a", 0, 0, 1, 1);
+        var far = new GridBox("b", 5, 5, 1, 1);
+        Assert.Empty(DominoNudge(changed, [far]));
+    }
+
+    [Fact]
+    public void Domino_PushesLeftNeighborLeft()
+    {
+        // a neighbor whose center is LEFT of the grown element gets pushed left (away), not right through it.
+        var changed = new GridBox("a", 2, 0, 2, 1); // cols 2..3
+        var left = new GridBox("b", 1, 0, 2, 1);    // cols 1..2, center left of changed
+        var m = Assert.Single(DominoNudge(changed, [left]));
+        Assert.True(m.DeltaCol < 0); // shoved further left
     }
 }
