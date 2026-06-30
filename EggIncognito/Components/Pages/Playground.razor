@@ -875,8 +875,8 @@ else
                 Count = actor.Motion?.Count is > 0 ? actor.Motion.Count : 1,
                 StopSeconds = actor.Motion?.StopSeconds ?? 0f,
                 Vehicle = true,
-                DepotX = depot?.Pos[0] ?? float.NaN,
-                DepotZ = depot?.Pos[2] ?? float.NaN,
+                DepotX = depot?.Pos[0],
+                DepotZ = depot?.Pos[2],
             };
         }
         // chickens run UNI-DIRECTIONALLY hatchery-door -> hab (Loop=cycle, wrapping back to the door, never
@@ -2091,8 +2091,8 @@ else
         public int Count { get; set; } = 1; // instances running this path at once (chickens)
         public float StopSeconds { get; set; } = 0f; // dwell at the path end before wrapping (vehicle depot stop)
         public bool Vehicle { get; set; } = false; // trucks: single depot-side lane, dwell at the depot, convoy spacing
-        public float DepotX { get; set; } = float.NaN; // depot world X (where trucks dwell)
-        public float DepotZ { get; set; } = float.NaN; // depot world Z (picks the near lane side)
+        public float? DepotX { get; set; } // depot world X (where trucks dwell); null = no depot placed
+        public float? DepotZ { get; set; } // depot world Z (picks the near lane side); null = no depot placed
     }
 
     public sealed class LightingState

@@ -223,7 +223,7 @@ function applyMotion(g) {
 // The single lane offset (in Z) for the truck convoy: shift toward the depot side so all traffic hugs the depot.
 // The road runs along X; the depot sits at depotZ. Push the lane half a lane-width toward it.
 function vehicleLaneOffset(m) {
-  if (!isFinite(m.depotZ) || !m.path || m.path.length === 0) return 0;
+  if (m.depotZ == null || !isFinite(m.depotZ) || !m.path || m.path.length === 0) return 0;
   const roadZ = m.path[0][2];
   return Math.sign(m.depotZ - roadZ) * 1.0; // one near-lane offset toward the depot
 }
@@ -258,7 +258,7 @@ function vehicleConvoyDistances(m, len, count) {
 
 // The path distance closest to the depot's X (where trucks stop). NaN depot => no dwell point (returns -1).
 function depotDistanceAlong(m, len) {
-  if (!isFinite(m.depotX)) return -1;
+  if (m.depotX == null || !isFinite(m.depotX)) return -1;
   const steps = 64;
   let best = -1, bestDx = Infinity;
   for (let s = 0; s <= steps; s++) {
