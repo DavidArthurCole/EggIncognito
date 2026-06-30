@@ -12,8 +12,11 @@ namespace EggIncognito.Services.ProtoExtract;
 // into its RPO), so the hab row uses a derived even spacing, pushed back so the ramps clear the path.
 public static class FarmLayout
 {
-    // One placed element: the catalog stem + a world transform (position, Y rotation, scale).
-    public sealed record Placed(string Stem, float[] Pos, float RotY, float Scale = 1f);
+    // One placed element: the catalog stem + a world transform (position, Y rotation, scale). Recenter = the
+    // renderer must recenter the mesh on its origin so Pos is the SOLE placement authority (the gravity-packed
+    // core buildings, whose meshes carry a baked plot offset that would otherwise double-place them). Self-placing
+    // pieces (terrain, hyperloop, mailbox, silos, habs) keep Recenter=false: their authored offset IS the layout.
+    public sealed record Placed(string Stem, float[] Pos, float RotY, float Scale = 1f, bool Recenter = false);
 
     private const float HabSpacing = 13f; // X gap between the 4 hab plots (hab ~12 wide)
     private const float HabZ = -10f; // ramp front (hab z max ~0 local) meets the path edge
@@ -110,7 +113,9 @@ public static class FarmLayout
         {
             var half = HalfWidth(stem);
             cursor += first ? half : prevHalf + RowGap + half;
-            outp.Add(new Placed(stem, [cursor, 0f, z], 0));
+            // Recenter=true: a packed core building is positioned by THIS X/Z, so its mesh must center on its
+            // origin (else its baked plot offset double-places it, e.g. the depot across the road).
+            outp.Add(new Placed(stem, [cursor, 0f, z], 0, Recenter: true));
             prevHalf = half;
             first = false;
         }

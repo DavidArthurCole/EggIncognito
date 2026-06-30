@@ -39,7 +39,7 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         var layout = await RecoveredOrFallbackLayout(stem, device, ct);
         var placed = layout
             .Where(p => EnvCatalog.IsKnownPiece(p.Stem))
-            .Select(p => new { p.Stem, label = LabelFor(p.Stem), p.Pos, p.RotY, p.Scale });
+            .Select(p => new { p.Stem, label = LabelFor(p.Stem), p.Pos, p.RotY, p.Scale, p.Recenter });
         return Ok(new { elements = placed });
     }
 
@@ -70,6 +70,22 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
 
     private static string LabelFor(string stem) =>
         EnvCatalog.Pieces.FirstOrDefault(p => p.Stem == stem)?.Label ?? stem;
+
+    // A hatchery floating sub-piece stem (ei_hatchery_<tier>_<bolt|probe|ring*|top*|middle|orb>). Safe to fetch:
+    // no path traversal (allowed chars only) + must be a floating part per HatcheryEffectParts. These are real
+    // device meshes that compose the hatchery effect but are not standalone catalog pieces.
+    private static bool IsHatcheryFloatingPart(string stem)
+    {
+        if (string.IsNullOrEmpty(stem) || stem.Length > 64) return false;
+        foreach (var c in stem)
+            if (!(char.IsLetterOrDigit(c) || c == '_')) return false;
+        if (!stem.StartsWith("ei_hatchery_", StringComparison.Ordinal)) return false;
+        var tier = Services.ProtoExtract.HatcheryEffectParts.TierOf(stem);
+        if (tier is null) return false;
+        // it is a floating part (not the body) when stripping the tier leaves a recognized floating suffix.
+        var body = "ei_hatchery_" + tier;
+        return stem.Length > body.Length + 1 && stem.StartsWith(body + "_", StringComparison.Ordinal);
+    }
 
     // Lists the mesh stems actually present on the asset-source device (Android apk enumeration). Admin-gated
     // (device round-trip). Diagnostic tool to map the env catalog to real on-device asset names. ?filter= is a
@@ -148,7 +164,11 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     {
         if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
-        if (!EnvCatalog.IsKnownPiece(stem)) return NotFound(new { error = "unknown env mesh" });
+        // Allow catalog pieces + hatchery floating sub-pieces (bolt/probe/rings/tops). The sub-pieces are real
+        // device meshes that drive the hatchery effect but are not standalone catalog entries; gate them by the
+        // safe naming pattern (no traversal, ei_hatchery_<tier>_<floatingPart>) rather than the catalog allowlist.
+        if (!EnvCatalog.IsKnownPiece(stem) && !IsHatcheryFloatingPart(stem))
+            return NotFound(new { error = "unknown env mesh" });
 
         var res = await meshes.GetGlbAsync(stem, device, ct);
         if (!res.Ok) return StatusCode(res.Status, new { error = res.Diagnostics });

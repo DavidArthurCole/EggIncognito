@@ -458,11 +458,21 @@ export async function addGroup(groupId, glbBase64, opts) {
   const box = new THREE.Box3().setFromObject(gltf.scene);
   const center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());
 
+  // X/Z RECENTER (opts.recenter): shift the mesh so its horizontal center sits at the group origin, making the
+  // layout position the SOLE placement authority. Needed for buildings the layout positions EXPLICITLY (the
+  // gravity-packed core rows): their meshes carry a baked plot offset, so without recenter the authored offset
+  // ADDS to the layout position and double-places them (the depot landed across the road). Self-placing pieces
+  // (terrain, hyperloop, mailbox) pass recenter=false so they keep their authored plot offset.
+  if (opts.recenter && !box.isEmpty()) {
+    gltf.scene.position.x -= center.x;
+    gltf.scene.position.z -= center.z;
+    center.x = 0; center.z = 0;
+  }
+
   // Y-base snap: shift the mesh UP so its lowest point sits at the group origin (y=0). Env buildings are authored
   // with a baked vertical offset (the hatchery/habs origin is above the mesh base), so placing them at a layout
-  // y=0 sinks them under the floor. This is Y-ONLY: X/Z are untouched, so the self-placing pieces (which depend
-  // on their authored horizontal offset) do NOT move. Skipped for pinned backdrops (terrain/ground/road span the
-  // floor and must keep their authored Y) and when opts.snapBase === false.
+  // y=0 sinks them under the floor. This is Y-ONLY: X/Z handled above. Skipped for pinned backdrops (terrain/
+  // ground/road span the floor and must keep their authored Y) and when opts.snapBase === false.
   const snapBase = opts.snapBase !== false && !opts.pinned;
   if (snapBase && !box.isEmpty() && Number.isFinite(box.min.y)) {
     gltf.scene.position.y -= box.min.y;

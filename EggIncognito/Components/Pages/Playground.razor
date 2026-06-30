@@ -1048,6 +1048,7 @@ else
                 {
                     Id = NextElementId(), Kind = "env", Ref = pl.Stem, Label = pl.Label,
                     Pos = pl.Pos, RotDeg = [0, pl.RotY, 0], Scale = pl.Scale <= 0 ? 1 : pl.Scale,
+                    Recenter = pl.Recenter, // core buildings recenter so the layout Pos is authoritative
                 };
                 _elements.Add(el);
                 await RenderElement(el);
@@ -1670,7 +1671,7 @@ else
     record EnvCatalogResult(EnvPieceRow[]? Pieces, EnvPieceRow[]? Habs);
     record FamilyOption(string Stem, string Label);
     record FamilyResult(FamilyOption[]? Family);
-    record FarmPlaced(string Stem, string Label, float[] Pos, float RotY, float Scale);
+    record FarmPlaced(string Stem, string Label, float[] Pos, float RotY, float Scale, bool Recenter);
     record FarmLayoutResult(FarmPlaced[]? Elements);
     record DesignRow(string Name, DateTimeOffset UpdatedAt, string? Owner);
     record DesignListResult(DesignRow[]? Designs);
