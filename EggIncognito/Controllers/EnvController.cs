@@ -128,6 +128,88 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         return Ok(new { ok = true, count = effects.Count, effects });
     }
 
+    // MONOLITHIC hatchery dump: EVERYTHING needed to reproduce the hatchery floating effect for ALL tiers, in ONE
+    // call (so it can be tested with a single URL hit). Combines: every tier's body + floating parts (programmatic),
+    // each floating piece's decode-stats bounds (the beam/probe geometry), and the binary assembly recovery
+    // (FarmScene::updateHatchery anchor + matrix-lambda transforms + rotate_pyramid orbit/beam helper). The effect
+    // is a state machine: probes orbit the orb, beams (the spike) fire probe->orb intermittently. Admin-gated.
+    [HttpGet("hatchery-dump")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> HatcheryDump([FromQuery] string? device, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+
+        var (sok, stems, sdiag) = await meshes.ListStemsAsync(device, ct);
+        var tiersJson = new System.Text.Json.Nodes.JsonArray();
+        if (sok)
+        {
+            foreach (var tier in Services.ProtoExtract.HatcheryEffectParts.Tiers(stems))
+            {
+                var parts = Services.ProtoExtract.HatcheryEffectParts.ForTier(stems, tier);
+                if (parts.Body is null) continue;
+                var pieces = new System.Text.Json.Nodes.JsonArray();
+                foreach (var stem in new[] { parts.Body }.Concat(parts.Floating))
+                {
+                    var (bok, st, _) = await meshes.GetDecodeStatsAsync(stem, device, ct);
+                    pieces.Add(new System.Text.Json.Nodes.JsonObject
+                    {
+                        ["stem"] = stem,
+                        ["floating"] = stem != parts.Body,
+                        ["vertexCount"] = bok && st is not null ? st.VertexCount : 0,
+                        ["bounds"] = bok && st?.Bounds is { } b
+                            ? new System.Text.Json.Nodes.JsonObject
+                            {
+                                ["min"] = new System.Text.Json.Nodes.JsonArray(b.Min.X, b.Min.Y, b.Min.Z),
+                                ["max"] = new System.Text.Json.Nodes.JsonArray(b.Max.X, b.Max.Y, b.Max.Z),
+                            }
+                            : null,
+                    });
+                }
+                tiersJson.Add(new System.Text.Json.Nodes.JsonObject
+                {
+                    ["tier"] = tier, ["body"] = parts.Body,
+                    ["floating"] = new System.Text.Json.Nodes.JsonArray(parts.Floating.Select(f => (System.Text.Json.Nodes.JsonNode)f).ToArray()),
+                    ["pieces"] = pieces,
+                });
+            }
+        }
+
+        System.Text.Json.Nodes.JsonNode? assembly = null;
+        try
+        {
+            var (bok, bin, bdiag) = await binaries.GetBinaryAsync(device, ct);
+            if (bok && bin is not null)
+            {
+                var asm = Services.ProtoExtract.Decomp.HatcheryAssemblyRecovery.Recover(bin);
+                assembly = asm.ToJson();
+                ((System.Text.Json.Nodes.JsonObject)assembly)["rotate_pyramid"] = ShapeFn(bin, "FarmScene14rotate_pyramidEP14GameControlleri");
+            }
+            else assembly = new System.Text.Json.Nodes.JsonObject { ["ok"] = false, ["diagnostics"] = bdiag };
+        }
+        catch (Exception ex) { assembly = new System.Text.Json.Nodes.JsonObject { ["ok"] = false, ["diagnostics"] = ex.Message }; }
+
+        return Content(new System.Text.Json.Nodes.JsonObject
+        {
+            ["ok"] = true,
+            ["stemsDiagnostics"] = sok ? "ok" : sdiag,
+            ["tiers"] = tiersJson,
+            ["assembly"] = assembly,
+        }.ToJsonString(), "application/json");
+    }
+
+    private static System.Text.Json.Nodes.JsonObject ShapeFn(byte[] bin, string needle)
+    {
+        var r = Services.ProtoExtract.FunctionConstantExtractor.Extract(bin, [needle]);
+        return new System.Text.Json.Nodes.JsonObject
+        {
+            ["ok"] = r.Ok,
+            ["function"] = r.FunctionName,
+            ["floats"] = new System.Text.Json.Nodes.JsonArray(r.Floats.Select(f => System.Text.Json.Nodes.JsonValue.Create(f)).ToArray()),
+            ["calls"] = new System.Text.Json.Nodes.JsonArray(r.Calls.Select(c => System.Text.Json.Nodes.JsonValue.Create(c)).ToArray()),
+        };
+    }
+
     // Decode stats for a stem's raw .rpo (admin). vertexCount/indexCount/bounds + trailingBytes: nonzero
     // trailing means the file packs more than one mesh (e.g. a hab's floating-effect sub-objects) the
     // single-mesh decoder currently drops. Diagnostic toward multi-mesh extraction.

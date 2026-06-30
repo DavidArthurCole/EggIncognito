@@ -47,4 +47,32 @@ public class HatcheryAssemblyRecoveryTests
         Assert.Equal("$_2", (string)json["lambda"]!);
         Assert.NotNull(json["translation"]);
     }
+
+    [Fact]
+    public void Timing_ToJson_CarriesTweenArgs()
+    {
+        var json = new HatcheryAssemblyRecovery.Timing(0.5f, 30f, 3, "ok").ToJson();
+        Assert.Equal(0.5f, (float)json["waitFor"]!, 3);
+        Assert.Equal(30f, (float)json["smoothDuration"]!, 3);
+        Assert.Equal(3, (int)json["orbitSegments"]!);
+    }
+
+    [Fact]
+    public void Timing_ToJson_NullArgsSurviveSerialization()
+    {
+        var json = new HatcheryAssemblyRecovery.Timing(null, null, 0, "no tween args resolved").ToJson();
+        Assert.Null(json["waitFor"]);
+        Assert.Null(json["smoothDuration"]);
+        Assert.Equal(0, (int)json["orbitSegments"]!);
+    }
+
+    [Fact]
+    public void Assembly_ToJson_IncludesTimingObject()
+    {
+        var timing = new HatcheryAssemblyRecovery.Timing(0.5f, 30f, 3, "ok");
+        var asm = new HatcheryAssemblyRecovery.Assembly(true, [11.319f, 2.15f, 2.997f], [], timing, "ok");
+        var json = asm.ToJson();
+        Assert.NotNull(json["timing"]);
+        Assert.Equal(3, (int)json["timing"]!["orbitSegments"]!);
+    }
 }

@@ -11,9 +11,15 @@ namespace EggIncognito.Services.ProtoExtract.Decomp;
 // pointer arg (x2) targets the assembled stack matrix. Bounded (instr budget, no recursion). Never throws.
 public static class Arm64SymbolicExecutor
 {
+    // A captured direct-call site: the resolved callee name + its folded scalar FP args (s0,s1,s2 at the call).
+    // Lets a recovery read the actual argument fed to a known call (e.g. ActionBuilder::waitFor(delay)) instead
+    // of guessing which function-constant maps to which parameter.
+    public readonly record struct CallRecord(string Name, IReadOnlyList<ExprNode> FloatArgs);
+
     public readonly record struct ExecResult(
         IReadOnlyDictionary<string, ExprNode> Regs, IReadOnlyDictionary<long, ExprNode> Stack,
-        IReadOnlyDictionary<long, ExprNode> RetVec, ExprNode? SinkArg, long? SinkStackPtr, int Opaque, string Diagnostics)
+        IReadOnlyDictionary<long, ExprNode> RetVec, ExprNode? SinkArg, long? SinkStackPtr, int Opaque,
+        IReadOnlyList<CallRecord> Calls, string Diagnostics)
     {
         // Read a register's recovered expression by any alias (s3/v3/q3/d3, x8/w8). Regs are stored under the
         // normalized SIMD/GP key; this resolves the alias the caller used.
@@ -177,6 +183,7 @@ public static class Arm64SymbolicExecutor
         public int Opaque;
         public ExprNode? SinkArg;
         public long? SinkStackPtr;
+        private readonly List<CallRecord> _calls = new(); // every resolved direct-call site + its folded FP args
 
         // seed: register -> expr. seedBases: register -> a named base. A base "ret" makes the register the sret
         // out-param pointer (stores to it land in RetVec); any other name (e.g. "gc") names struct-field loads
@@ -199,7 +206,10 @@ public static class Arm64SymbolicExecutor
         public IReadOnlyDictionary<long, ExprNode> RetVec => _retVec;
 
         public ExecResult Result(string diag) =>
-            new(_regs, _stack, _retVec, SinkArg, SinkStackPtr, Opaque, diag);
+            new(_regs, _stack, _retVec, SinkArg, SinkStackPtr, Opaque, _calls, diag);
+
+        public void RecordCall(string name, ExprNode[] floatArgs) =>
+            _calls.Add(new CallRecord(name, floatArgs.Select(ExprNode.Fold).ToArray()));
 
         public ExprNode Scalar(string name) => _regs.TryGetValue(Norm(name), out var e) ? e : new Opaque("unset", []);
         public ExprNode RegExpr(string name) => Scalar(name);
@@ -404,6 +414,7 @@ public static class Arm64SymbolicExecutor
             var target = ops.Length == 1 && ops[0].Type == Arm64OperandType.Immediate ? (ulong)ops[0].Immediate : 0;
             var name = Nearest(syms, target);
             var args = new[] { Scalar("s0"), Scalar("s1"), Scalar("s2") };
+            RecordCall(name, args);
             var modeled = resolveCall(name, args);
             if (modeled is null) { SetScalar("s0", new Opaque(name, [])); SetScalar("x0", Scalar("s0")); Opaque++; return; }
             if (modeled is Opaque { Call: "@sink" } sink && sink.Args.Count > 0) SinkArg = sink.Args[0];

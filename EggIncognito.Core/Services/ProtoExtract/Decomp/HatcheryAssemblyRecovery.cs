@@ -36,13 +36,29 @@ public static class HatcheryAssemblyRecovery
         };
     }
 
-    public readonly record struct Assembly(bool Ok, float[]? Anchor, IReadOnlyList<Mat4> Transforms, string Diagnostics)
+    // The motion timing recovered from rotate_pyramid's ActionBuilder tween calls (not from unordered function
+    // constants). ActionBuilder::waitFor(delay) = the inter-fire / inter-step delay; ActionBuilder::smooth(dur,..)
+    // = the eased animation duration. Both read directly off the captured call args, so the float->parameter
+    // mapping is the binary's, not inferred from constant order. Null = the call wasn't present / arg unresolved.
+    public readonly record struct Timing(float? WaitFor, float? SmoothDuration, int OrbitSegments, string Diagnostics)
+    {
+        public JsonObject ToJson() => new()
+        {
+            ["waitFor"] = WaitFor,
+            ["smoothDuration"] = SmoothDuration,
+            ["orbitSegments"] = OrbitSegments,
+            ["diagnostics"] = Diagnostics,
+        };
+    }
+
+    public readonly record struct Assembly(bool Ok, float[]? Anchor, IReadOnlyList<Mat4> Transforms, Timing Timing, string Diagnostics)
     {
         public JsonObject ToJson() => new()
         {
             ["ok"] = Ok,
             ["anchor"] = Anchor is { } a ? new JsonArray(a[0], a[1], a[2]) : null,
             ["transforms"] = new JsonArray(Transforms.Select(t => (JsonNode)t.ToJson()).ToArray()),
+            ["timing"] = Timing.ToJson(),
             ["diagnostics"] = Diagnostics,
         };
     }
@@ -55,9 +71,9 @@ public static class HatcheryAssemblyRecovery
 
     public static Assembly Recover(byte[] bin)
     {
-        if (bin is null || bin.Length < 64) return new(false, null, [], "binary too short");
+        if (bin is null || bin.Length < 64) return new(false, null, [], default, "binary too short");
         if (!MachoText.TryFindText(bin, out var tfo, out _, out var tvm))
-            return new(false, null, [], "no __text");
+            return new(false, null, [], default, "no __text");
         var syms = MachoSymbols.Read(bin);
 
         var anchor = RecoverAnchor(bin, syms, tvm, tfo);
@@ -66,8 +82,10 @@ public static class HatcheryAssemblyRecovery
             .Select(tag => RecoverMatrix(bin, syms, tvm, tfo, tag))
             .ToList();
 
+        var timing = RecoverTiming(bin, syms, tvm, tfo);
+
         var ok = anchor is not null || transforms.Any(t => t.Ok);
-        return new(ok, anchor, transforms, ok ? "ok" : "nothing recovered");
+        return new(ok, anchor, transforms, timing, ok ? "ok" : "nothing recovered");
     }
 
     // The assembly anchor = the first Vec3 of literal float constants the main fn loads that looks like a plot
@@ -86,6 +104,52 @@ public static class HatcheryAssemblyRecovery
                 return [(float)x, (float)y, (float)z];
         }
         return null;
+    }
+
+    // The orbit/beam TIMING from FarmScene::rotate_pyramid: run it through the symbolic executor and read the
+    // ActionBuilder tween call args directly. waitFor(delay) = the inter-step / fire delay; smooth(dur,..) = the
+    // eased animation duration. orbitSegments = the count arg to the rotate loop (a small int constant the
+    // function loads). Reading the captured call arg binds float->parameter the binary's way, not by guessing
+    // which rotate_pyramid float constant is the delay.
+    private static Timing RecoverTiming(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, ulong tvm, int tfo)
+    {
+        if (!MachoSymbols.TryFindFunc(syms, ["FarmScene14rotate_pyramidEP14GameControlleri"], out var fn))
+            return new(null, null, 0, "rotate_pyramid symbol not found");
+        if (!Arm64Decode.SliceFunction(bin, fn.Start, fn.End, tvm, tfo, out var code, out _))
+            return new(null, null, 0, "rotate_pyramid range out of bounds");
+
+        var exec = Arm64SymbolicExecutor.Run(
+            code, fn, tvm, tfo, syms, new Dictionary<string, ExprNode>(), KnownCallModels.Resolve);
+
+        float? ArgOf(string method, int idx)
+        {
+            foreach (var c in exec.Calls)
+            {
+                if (!c.Name.Contains(method, StringComparison.Ordinal)) continue;
+                if (idx >= c.FloatArgs.Count) continue;
+                var a = c.FloatArgs[idx];
+                if (ExprNode.IsFullyResolved(a)) return (float)ExprNode.Eval(a, Empty);
+            }
+            return null;
+        }
+
+        var waitFor = ArgOf("waitFor", 0);
+        var smooth = ArgOf("smooth", 0);
+        var segments = RotateSegmentCount(bin, syms);
+        var ok = waitFor is not null || smooth is not null || segments > 0;
+        return new(waitFor, smooth, segments, ok ? "ok" : "no tween args resolved");
+    }
+
+    // rotate_pyramid loads a small integer = the number of orbit segments / pieces it instances (the loop bound).
+    // Pulled from its function constants: the first small positive integer in [1..16] that is not pi-ish.
+    private static int RotateSegmentCount(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms)
+    {
+        var ex = FunctionConstantExtractor.ExtractWith(bin, syms, ["FarmScene14rotate_pyramidEP14GameControlleri"]);
+        if (!ex.Ok) return 0;
+        foreach (var f in ex.Floats)
+            if (f is >= 2 and <= 16 && Math.Abs(f - Math.Round(f)) < 0.001 && Math.Abs(f - 3.14159) > 0.1)
+                return (int)Math.Round(f);
+        return 0;
     }
 
     private static Mat4 RecoverMatrix(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, ulong tvm, int tfo, string tag)

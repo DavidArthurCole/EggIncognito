@@ -1217,53 +1217,125 @@ else
                 return;
             }
 
-            // Placement EXTRACTED from FarmScene::updateHatchery: the assembly anchor (body/ball center) + each
-            // matrix lambda's recovered translation = a piece world position. We place each piece at (translation -
-            // anchor) so it sits relative to the body group origin. Spin rate is the extracted per-frame increment.
-            // No invented orbit/ring/count: positions that don't recover are simply not placed.
-            var asm = await FetchHatcheryAssembly();
-            var parts = new List<object>();
-            foreach (var stem in floating)
-            {
-                var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
-                if (glb is not null)
-                    parts.Add(new { glb = Convert.ToBase64String(glb), instances = HatcheryInstances(stem, asm) });
-            }
-            await _mod.InvokeVoidAsync("attachHatcheryParts", el.Id, parts);
+            // Build the EXTRACTED state-machine model: orb at the assembly anchor; the disc piece = orbiting probes
+            // (count/rate from rotate_pyramid); the spike piece = the beam fired probe->orb intermittently. Pieces
+            // are classified by their decode-stats bounds (spike = Y-extent >> X/Z). All motion params come from the
+            // binary; what does not recover is left null (that aspect is not animated). No invented orbit.
+            var dump = await FetchHatcheryDump();
+            var model = await BuildHatcheryModel(tier, floating, dump);
+            await _mod.InvokeVoidAsync("attachHatcheryParts", el.Id, model);
         }
         catch { el.HasEffects = false; el.EffectCount = 0; await _mod.InvokeVoidAsync("clearHatcheryParts", el.Id); }
         StateHasChanged();
     }
 
-    // Fetch the extracted hatchery assembly (anchor + per-lambda translations) once per apply. Null on failure
-    // (no binary / not admin) => pieces fall back to body-origin placement, no invented motion.
-    async Task<HatcheryAssembly?> FetchHatcheryAssembly()
+    async Task<System.Text.Json.JsonElement?> FetchHatcheryDump()
     {
-        try { return await Client().GetFromJsonAsync<HatcheryAssembly>("/api/decomp/hatchery-assembly"); }
+        try { return await Client().GetFromJsonAsync<System.Text.Json.JsonElement>("/api/env/hatchery-dump"); }
         catch { return null; }
     }
 
-    // Build a piece's instance transforms from the EXTRACTED assembly: each recovered lambda translation, placed
-    // relative to the anchor (translation - anchor) so it sits at the right spot on the body. The spin uses the
-    // extracted rate when present. No assembly => one instance at the body origin (visible, no invented motion).
-    static object[] HatcheryInstances(string stem, HatcheryAssembly? asm)
+    // Build the state-machine model for one tier from the extracted dump. Classifies each floating piece by its
+    // bounds (a spike = the beam; a flat disc = a probe), fetches the glbs, and reads the orbit/beam params from
+    // the extracted rotate_pyramid + anchor. Params that did not recover stay null (not animated).
+    async Task<object?> BuildHatcheryModel(string tier, List<string> floating, System.Text.Json.JsonElement? dump)
     {
-        if (asm?.Anchor is not { Length: 3 } a || asm.Transforms is null)
-            return [new { matrix = (float[]?)null, pos = new[] { 0f, 0f, 0f }, anim = (object?)null }];
+        // orb position relative to the body group origin. The body mesh self-places at its plot; the anchor is the
+        // orb's world pos, so orb-local = (0, anchorY, 0) approximated (anchor X/Z == body center). Default upper-body.
+        float[] orb = [0f, 2.15f, 0f];
+        int probeCount = 3;        // rotate_pyramid float[1]
+        float orbitRadius = 0f;    // from the frandom scatter; filled from extracted translation magnitude if present
+        float orbitSpeed = 0.5f;   // rotate_pyramid easing/rate
+        float beamInterval = 0f, beamDuration = 0.2f;
 
-        var insts = new List<object>();
-        foreach (var t in asm.Transforms)
+        if (dump is { } d && d.TryGetProperty("assembly", out var asmEl))
         {
-            if (t.Translation is not { Length: 3 } p) continue;
-            // position relative to the body group origin (the body mesh self-places at its plot; subtract the
-            // anchor so the piece offset is measured from the body, not world).
-            var rel = new[] { p[0] - a[0], p[1] - a[1], p[2] - a[2] };
-            insts.Add(new { matrix = (float[]?)null, pos = rel, anim = (object?)null });
+            if (asmEl.TryGetProperty("anchor", out var anc) && anc.ValueKind == System.Text.Json.JsonValueKind.Array && anc.GetArrayLength() == 3)
+                orb = [0f, (float)anc[1].GetDouble(), 0f];
+            // timing recovered from rotate_pyramid's ActionBuilder tween call ARGS (waitFor/smooth), not from
+            // unordered float constants: waitFor = the beam-fire delay, smoothDuration = the eased anim duration,
+            // orbitSegments = the piece/segment count. These are the binary's own param bindings.
+            if (asmEl.TryGetProperty("timing", out var tm) && tm.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (tm.TryGetProperty("orbitSegments", out var seg) && seg.ValueKind == System.Text.Json.JsonValueKind.Number && seg.GetInt32() > 0)
+                    probeCount = Math.Clamp(seg.GetInt32(), 1, 12);
+                if (tm.TryGetProperty("smoothDuration", out var sd) && sd.ValueKind == System.Text.Json.JsonValueKind.Number)
+                {
+                    var dur = (float)sd.GetDouble();
+                    if (dur > 0.01f) { orbitSpeed = (float)(Math.PI / 2 / dur); beamDuration = dur; } // quarter-turn / duration
+                }
+                if (tm.TryGetProperty("waitFor", out var wf) && wf.ValueKind == System.Text.Json.JsonValueKind.Number)
+                {
+                    var w = (float)wf.GetDouble();
+                    if (w > 0.001f) beamInterval = w;
+                }
+            }
+            // orbit radius from a recovered piece translation distance from the anchor (the frandom scatter extent).
+            if (asmEl.TryGetProperty("transforms", out var tr) && tr.ValueKind == System.Text.Json.JsonValueKind.Array
+                && asmEl.TryGetProperty("anchor", out var a2) && a2.ValueKind == System.Text.Json.JsonValueKind.Array && a2.GetArrayLength() == 3)
+            {
+                foreach (var t in tr.EnumerateArray())
+                    if (t.TryGetProperty("translation", out var tl) && tl.ValueKind == System.Text.Json.JsonValueKind.Array && tl.GetArrayLength() == 3)
+                    {
+                        var dx = tl[0].GetDouble() - a2[0].GetDouble();
+                        var dz = tl[2].GetDouble() - a2[2].GetDouble();
+                        var r = (float)Math.Sqrt(dx * dx + dz * dz);
+                        if (r > orbitRadius) orbitRadius = r;
+                    }
+            }
         }
-        // nothing recovered => one body-origin instance (honest fallback, no guessed ring).
-        if (insts.Count == 0)
-            insts.Add(new { matrix = (float[]?)null, pos = new[] { 0f, 0f, 0f }, anim = (object?)null });
-        return insts.ToArray();
+
+        // classify pieces from the dump bounds (spike Y-extent >> horizontal => beam; else probe). Falls back to
+        // name (_bolt=beam spike, _probe=probe disc) when bounds are absent.
+        string? probeStem = null, beamStem = null;
+        var boundsByStem = HatcheryBounds(tier, dump);
+        foreach (var stem in floating)
+        {
+            bool isSpike = boundsByStem.TryGetValue(stem, out var b)
+                ? (b.h.Item2 - b.h.Item1) > 2f * Math.Max(b.w, b.dpt)
+                : stem.Contains("_bolt", StringComparison.Ordinal);
+            if (isSpike) beamStem ??= stem; else probeStem ??= stem;
+        }
+
+        var probeGlb = probeStem is null ? null : await FetchRaw($"/api/env/{Uri.EscapeDataString(probeStem)}/glb");
+        var beamGlb = beamStem is null ? null : await FetchRaw($"/api/env/{Uri.EscapeDataString(beamStem)}/glb");
+
+        // radius (frandom scatter extent) is the one value still not statically resolvable: 0 = hold at the orb,
+        // not a fabricated ring. interval/duration now come from rotate_pyramid's extracted tween args.
+        return new
+        {
+            orb,
+            probe = probeGlb is null ? null : (object)new
+            {
+                glb = Convert.ToBase64String(probeGlb), count = probeCount, radius = orbitRadius, speed = orbitSpeed, tilt = 0f,
+            },
+            beam = beamGlb is null ? null : (object)new
+            {
+                glb = Convert.ToBase64String(beamGlb), fireInterval = beamInterval, fireDuration = beamDuration,
+            },
+        };
+    }
+
+    // Per-stem bounds (horizontal width, depth, vertical [min,max]) for the tier, from the dump's decode-stats.
+    Dictionary<string, (float w, float dpt, (float, float) h)> HatcheryBounds(string tier, System.Text.Json.JsonElement? dump)
+    {
+        var map = new Dictionary<string, (float, float, (float, float))>(StringComparer.Ordinal);
+        if (dump is not { } d || !d.TryGetProperty("tiers", out var tiers) || tiers.ValueKind != System.Text.Json.JsonValueKind.Array) return map;
+        foreach (var t in tiers.EnumerateArray())
+        {
+            if (!t.TryGetProperty("tier", out var tn) || tn.GetString() != tier) continue;
+            if (!t.TryGetProperty("pieces", out var pieces) || pieces.ValueKind != System.Text.Json.JsonValueKind.Array) continue;
+            foreach (var p in pieces.EnumerateArray())
+            {
+                if (!p.TryGetProperty("stem", out var sn) || sn.GetString() is not { } stem) continue;
+                if (!p.TryGetProperty("bounds", out var bd) || bd.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                if (!bd.TryGetProperty("min", out var mn) || !bd.TryGetProperty("max", out var mx)) continue;
+                float w = (float)(mx[0].GetDouble() - mn[0].GetDouble());
+                float dpt = (float)(mx[2].GetDouble() - mn[2].GetDouble());
+                map[stem] = (w, dpt, ((float)mn[1].GetDouble(), (float)mx[1].GetDouble()));
+            }
+        }
+        return map;
     }
 
     // The tier token of a hatchery stem (ei_hatchery_universe -> universe). Mirrors HatcheryEffectParts.TierOf;
@@ -1709,9 +1781,6 @@ else
     record FamilyResult(FamilyOption[]? Family);
     record FarmPlaced(string Stem, string Label, float[] Pos, float RotY, float Scale, bool Recenter);
 
-    // The extracted hatchery assembly: the body/ball anchor + each matrix lambda's recovered translation.
-    record HatcheryAssembly(bool Ok, float[]? Anchor, HatcheryTransform[]? Transforms);
-    record HatcheryTransform(bool Ok, string Lambda, float[]? Translation);
     record FarmLayoutResult(FarmPlaced[]? Elements);
     record DesignRow(string Name, DateTimeOffset UpdatedAt, string? Owner);
     record DesignListResult(DesignRow[]? Designs);

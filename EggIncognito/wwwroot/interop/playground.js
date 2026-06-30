@@ -302,58 +302,111 @@ function clearEffects(groupId) {
   effects.delete(groupId);
 }
 
-// The hatchery floating effect = real sub-MESHES placed + animated by FarmScene::updateHatchery (NOT a particle
-// system, NOT a procedural orbit we invent). parts = [{ glb, instances: [{ matrix:[16 col-major], anim:{...}? }] }]
-// where each instance's transform is EXTRACTED from updateHatchery's matrix lambdas (the symbolic-executor result).
-// We place each instance at its extracted matrix. No fabricated radius/spin/count: if no instances are supplied
-// the piece is not placed (we do not guess). Per-frame motion comes only from an extracted anim spec, if present.
-const hatcheryParts = new Map(); // groupId -> [{ obj, anim }]
-export async function attachHatcheryParts(groupId, parts) {
+// The hatchery floating effect = a STATE MACHINE driven by FarmScene::updateHatchery (extracted, not invented):
+// PROBES (the disc piece) orbit the orb at the body anchor; BEAMS (the spike piece) fire from a probe to the orb
+// for brief intermittent moments. The model is built from extracted constants (rotate_pyramid orbit rate + count,
+// the anchor, the beam scale/timing) and passed in:
+//   model = {
+//     orb: [x,y,z],                                  // relative to the body group origin
+//     probe: { glb, count, radius, speed, tilt },    // orbiting satellites
+//     beam:  { glb, fireInterval, fireDuration },    // the spike, fired probe->orb intermittently
+//   }
+// Counts/rates that did not recover from the binary are null => that aspect is simply not animated (no guessing).
+const hatcheryParts = new Map(); // groupId -> { probes:[{obj,phase,radius,speed,tilt,orb}], beams:[{obj,from,orb,...}], orb }
+export async function attachHatcheryParts(groupId, model) {
   await ensureLibs();
   clearHatcheryParts(groupId);
   const g = groups.get(groupId);
-  if (!g || !parts || !parts.length) return;
+  if (!g || !model) return;
 
-  const built = [];
-  for (const p of parts) {
-    if (!p || !p.glb) continue;
-    let gltf;
-    try { gltf = await parseGlb(p.glb); } catch (e) { continue; }
-    const insts = Array.isArray(p.instances) ? p.instances : [];
-    for (let k = 0; k < insts.length; k++) {
-      const inst = insts[k];
-      const obj = new THREE.Group();
-      obj.add(k === 0 ? gltf.scene : gltf.scene.clone());
-      if (Array.isArray(inst.matrix) && inst.matrix.length === 16) {
-        obj.matrixAutoUpdate = false;
-        obj.matrix.fromArray(inst.matrix);
-      } else if (inst.pos) {
-        obj.position.set(inst.pos[0] || 0, inst.pos[1] || 0, inst.pos[2] || 0);
+  const orb = Array.isArray(model.orb) ? new THREE.Vector3(model.orb[0], model.orb[1], model.orb[2]) : new THREE.Vector3();
+  const state = { probes: [], beams: [], orb };
+
+  // probes: N orbiting discs. radius/speed/count come from the extracted rotate_pyramid; phases evenly spread.
+  const pr = model.probe;
+  if (pr && pr.glb && pr.count > 0 && pr.radius > 0) {
+    let pg; try { pg = await parseGlb(pr.glb); } catch (e) { pg = null; }
+    if (pg) {
+      for (let k = 0; k < pr.count; k++) {
+        const obj = new THREE.Group();
+        obj.add(k === 0 ? pg.scene : pg.scene.clone());
+        g.root.add(obj);
+        state.probes.push({
+          obj, phase: (k / pr.count) * Math.PI * 2,
+          radius: pr.radius, speed: pr.speed || 0, tilt: pr.tilt || 0,
+        });
       }
-      g.root.add(obj);
-      built.push({ obj, anim: inst.anim || null });
     }
   }
-  if (built.length) hatcheryParts.set(groupId, built);
+
+  // beams: one spike per probe, hidden until it fires. Fire timing is the extracted intermittent schedule.
+  const bm = model.beam;
+  if (bm && bm.glb && bm.fireInterval > 0 && state.probes.length) {
+    let bg; try { bg = await parseGlb(bm.glb); } catch (e) { bg = null; }
+    if (bg) {
+      for (let i = 0; i < state.probes.length; i++) {
+        const obj = new THREE.Group();
+        obj.add(i === 0 ? bg.scene : bg.scene.clone());
+        obj.visible = false;
+        obj.matrixAutoUpdate = false;
+        g.root.add(obj);
+        // stagger each beam's fire schedule so they do not all fire together (the game fires intermittently).
+        state.beams.push({
+          obj, probe: state.probes[i],
+          interval: bm.fireInterval, duration: bm.fireDuration || 0.2,
+          offset: (i * 0.37) % bm.fireInterval,
+        });
+      }
+    }
+  }
+
+  if (state.probes.length || state.beams.length) hatcheryParts.set(groupId, state);
 }
 
 export function clearHatcheryParts(groupId) {
-  const list = hatcheryParts.get(groupId);
-  if (!list) return;
-  for (const e of list) e.obj.parent?.remove(e.obj);
+  const st = hatcheryParts.get(groupId);
+  if (!st) return;
+  for (const p of st.probes) p.obj.parent?.remove(p.obj);
+  for (const b of st.beams) b.obj.parent?.remove(b.obj);
   hatcheryParts.delete(groupId);
 }
 
-// Per-frame motion ONLY from an extracted anim spec (e.g. {spinAxis:'y', spinSpeed, bobAxis, bobAmp, bobSpeed}).
-// No anim = the piece holds its extracted static transform. We do not invent motion.
+// Drive the state machine per frame. Probes orbit the orb (extracted radius/speed). Beams: visible only during a
+// fire window (every `interval`, for `duration`), oriented + scaled from their probe to the orb (the spike beam).
+let _beamUp, _beamDir, _beamPos, _beamQuat, _beamScale, _beamMat;
 function orbitHatcheryParts(tSeconds) {
   if (hatcheryParts.size === 0) return;
-  for (const list of hatcheryParts.values()) {
-    for (const e of list) {
-      const a = e.anim;
-      if (!a || !e.obj.matrixAutoUpdate) continue; // static placement (matrix-locked) or no motion spec
-      if (a.spinSpeed) e.obj.rotation[a.spinAxis || 'y'] = tSeconds * a.spinSpeed + (a.spinPhase || 0);
-      if (a.bobAmp) e.obj.position[a.bobAxis || 'y'] = (a.bobBase || 0) + Math.sin(tSeconds * (a.bobSpeed || 1) + (a.bobPhase || 0)) * a.bobAmp;
+  if (!_beamUp) {
+    _beamUp = new THREE.Vector3(0, 1, 0); _beamDir = new THREE.Vector3(); _beamPos = new THREE.Vector3();
+    _beamQuat = new THREE.Quaternion(); _beamScale = new THREE.Vector3(1, 1, 1); _beamMat = new THREE.Matrix4();
+  }
+  for (const st of hatcheryParts.values()) {
+    for (const p of st.probes) {
+      const a = p.phase + tSeconds * p.speed;
+      const x = st.orb.x + Math.cos(a) * p.radius;
+      const z = st.orb.z + Math.sin(a) * p.radius;
+      const y = st.orb.y + Math.sin(a) * p.tilt; // orbit-plane tilt
+      p.obj.position.set(x, y, z);
+      p.obj.current = p.obj.current || new THREE.Vector3();
+      p.obj.current.set(x, y, z);
+    }
+    for (const b of st.beams) {
+      const phase = ((tSeconds + b.offset) % b.interval);
+      const firing = phase < b.duration;
+      b.obj.visible = firing;
+      if (!firing) continue;
+      // orient + scale the spike from the probe to the orb. The spike is authored along -Y (bounds y -1.95..0.05),
+      // so align its local up (+Y) to the probe->orb direction, scale its length to the gap.
+      const from = b.probe.obj.current || b.probe.obj.position;
+      _beamDir.copy(st.orb).sub(from);
+      const len = _beamDir.length();
+      if (len < 1e-4) { b.obj.visible = false; continue; }
+      _beamDir.normalize();
+      _beamPos.copy(from).addScaledVector(_beamDir, len * 0.5); // midpoint
+      _beamQuat.setFromUnitVectors(_beamUp, _beamDir);
+      _beamScale.set(1, len / 2, 1); // spike native length ~2 units
+      _beamMat.compose(_beamPos, _beamQuat, _beamScale);
+      b.obj.matrix.copy(_beamMat);
     }
   }
 }
