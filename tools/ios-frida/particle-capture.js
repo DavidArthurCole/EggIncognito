@@ -62,26 +62,59 @@ function readTransform12(ptrTransform) {
     return out;
 }
 
+// PROBE mode (set `const probe = true;` injected by the capturer, or default true on first run): on the first few
+// hits, dump the raw arg registers as pointers + their first floats + s0-s3, so the host can SEE where the
+// per-particle transform actually sits (addParticle takes it by pointer in x1; a lambda takes its closure in x0
+// with the transform at an unknown field offset). Once the layout is known, bulk mode reads it directly.
+const PROBE = (typeof probe !== 'undefined') ? probe : true;
+const PROBE_HITS = 5;
+
+// Defensive float-array read at a pointer; null on a bad read so a wrong guess never crashes the app.
+function floatsAt(p, n) {
+    if (!p || p.isNull()) return null;
+    const out = [];
+    try { for (let i = 0; i < n; i++) out.push(p.add(i * 4).readFloat()); } catch (e) { return null; }
+    return out;
+}
+
 const target = resolveAddParticle();
 if (!target) {
-    send({ kind: 'error', msg: 'addParticle symbol not resolved' });
+    send({ kind: 'error', msg: 'addParticle not resolved (set addrOffset)' });
 } else {
     const out = new File(OUT_PATH, 'w');
     let count = 0;
     let stopped = false;
-    send({ kind: 'ready', addr: target.toString(), symbol: SYMBOL });
+    send({ kind: 'ready', addr: target.toString(), probe: PROBE });
 
     const listener = Interceptor.attach(target, {
         onEnter(args) {
             if (stopped || count >= MAX_RECORDS) return;
-            const meshPtr = args[0]; // this = the ParticleBatchedMesh* = which effect
+
+            if (PROBE && count < PROBE_HITS) {
+                // dump the candidate locations so the host can identify the transform's home.
+                const ctx = this.context;
+                const rec = {
+                    probe: count,
+                    x0: args[0].toString(), x1: args[1].toString(),
+                    x2: args[2].toString(), x3: args[3].toString(),
+                    f_x0: floatsAt(args[0], 20), // closure/this candidate
+                    f_x1: floatsAt(args[1], 16), // transform-by-pointer candidate (12 used)
+                    f_x2: floatsAt(args[2], 16),
+                    s: [ctx.s0, ctx.s1, ctx.s2, ctx.s3].map(function (v) { return v === undefined ? null : v; }),
+                };
+                out.write(JSON.stringify(rec) + '\n');
+                count++;
+                return;
+            }
+
+            // bulk mode: the transform is by pointer in x1 (addParticle's signature). The host overrides this read
+            // offset once the probe confirms the real home; until then x1 is the documented contract.
+            const meshPtr = args[0];
             const xform = readTransform12(args[1]);
             if (!xform) return;
-            // s0 (the size float) is not in args[]; frida exposes integer regs via args, floats via context.
             let size = 0;
             try { size = this.context.s0 !== undefined ? this.context.s0 : 0; } catch (e) { size = 0; }
-            const rec = { t: count, mesh: meshPtr.toString(), x: xform, s: size };
-            out.write(JSON.stringify(rec) + '\n');
+            out.write(JSON.stringify({ t: count, mesh: meshPtr.toString(), x: xform, s: size }) + '\n');
             count++;
         },
     });

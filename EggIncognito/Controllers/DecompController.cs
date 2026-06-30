@@ -143,7 +143,7 @@ public sealed class DecompController(
             // 1) exact recovered match = the function's body was byte-stable across versions. Best.
             var exact = report.Symbols.Where(s => s.Name == name).ToList();
             if (exact.Count > 0)
-                return VaResult(report, exact[0].Name, exact[0].Value, textVm, textOff, "exact-recovered", null);
+                return VaResult(tgtBytes, report, exact[0].Name, exact[0].Value, textVm, textOff, "exact-recovered", null);
 
             // 2) the function's body changed (not recovered), but a closure/lambda whose mangled name EMBEDS the
             // requested signature did recover (closures often stay byte-stable). Its address is taken inside the
@@ -156,14 +156,14 @@ public sealed class DecompController(
             {
                 var referrers = Arm64AddrRefResolver.FindReferrers(tgtBytes, lam.Value);
                 if (referrers.Count > 0)
-                    return VaResult(report, name + " (via referrer of " + lam.Name + ")", referrers[0].FunctionVa,
+                    return VaResult(tgtBytes, report, name + " (via referrer of " + lam.Name + ")", referrers[0].FunctionVa,
                         textVm, textOff, "addr-referrer", referrers.Take(5)
                             .Select(r => new { fnVa = "0x" + r.FunctionVa.ToString("x"), r.HitCount }).ToList());
             }
 
             // 3) shortest Contains match as a last resort (may be the lambda itself, flagged so the caller knows).
             if (embedded.Count > 0)
-                return VaResult(report, embedded[0].Name, embedded[0].Value, textVm, textOff, "contains-fallback", null);
+                return VaResult(tgtBytes, report, embedded[0].Name, embedded[0].Value, textVm, textOff, "contains-fallback", null);
 
             return Ok(new { ok = false, tier = report.Tier, recovered = report.Recovered, diagnostics = $"{name} not recovered and no referrer found" });
         }
@@ -277,9 +277,18 @@ public sealed class DecompController(
     }
 
     // Shape a resolved-VA response. textOffset = va - textVmAddr = the frida runtime offset (module.base + this).
+    // Shape a resolved-VA response. A recovered/referrer VA can land MID-function (the content-hash match aligns
+    // on a byte-stable interior region, not always the prologue), and an inline frida hook on a non-entry address
+    // CRASHES the app (verified on-device: arm64e + mid-instruction). So snap the VA DOWN to its enclosing
+    // LC_FUNCTION_STARTS boundary and return THAT as the hook target (hookOffset). Raw VA kept for diagnostics.
     private IActionResult VaResult(
-        SymbolRecovery.RecoveryReport report, string name, ulong va, ulong textVm, ulong textOff, string method, object? detail)
-        => Ok(new
+        byte[] tgt, SymbolRecovery.RecoveryReport report, string name, ulong va, ulong textVm, ulong textOff,
+        string method, object? detail)
+    {
+        bool snapped = MachoFunctionStarts.TryEnclosingStart(tgt, va, out var startVa, out var endVa);
+        ulong hookVa = snapped ? startVa : va;
+        bool wasMidFunction = snapped && startVa != va;
+        return Ok(new
         {
             ok = true,
             tier = report.Tier,
@@ -289,9 +298,15 @@ public sealed class DecompController(
             va = "0x" + va.ToString("x"),
             textVmAddr = "0x" + textVm.ToString("x"),
             textFileOff = "0x" + textOff.ToString("x"),
-            textOffset = "0x" + (va - textVm).ToString("x"),
+            rawTextOffset = "0x" + (va - textVm).ToString("x"),
+            // snapped-to-prologue: THIS is the safe frida hook target (module.base + hookOffset).
+            functionStartVa = "0x" + hookVa.ToString("x"),
+            functionEndVa = snapped ? "0x" + endVa.ToString("x") : null,
+            hookOffset = "0x" + (hookVa - textVm).ToString("x"),
+            wasMidFunction,
             detail,
         });
+    }
 
     private async Task<IActionResult> ExtractAsync(string[] needles, string? device, CancellationToken ct)
     {

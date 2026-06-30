@@ -28,6 +28,33 @@ public class MachoFunctionStartsTests
         Assert.All(starts, s => Assert.InRange(s, 0, bin.Length - 1));
     }
 
+    [Fact]
+    public void TryEnclosingStart_NoTable_False()
+    {
+        var bin = SyntheticMacho.Build(new byte[64], []);
+        Assert.False(MachoFunctionStarts.TryEnclosingStart(bin, SyntheticMacho.TextVm, out _, out _));
+    }
+
+    [Fact]
+    public void TryEnclosingStart_SnapsMidFunctionVaToStart()
+    {
+        var bin = StrippedExec();
+        if (bin is null) return;
+        var starts = MachoFunctionStarts.Read(bin);
+        Assert.True(MachoText.TryFindText(bin, out var tfo, out _, out var tvm));
+        var slide = tvm - (ulong)tfo;
+
+        // take a real function start, add a mid-function offset, and confirm snapping returns that start.
+        var fnStartVa = (ulong)starts[1000] + slide;
+        var midVa = fnStartVa + 8; // a few bytes into the function
+        Assert.True(MachoFunctionStarts.TryEnclosingStart(bin, midVa, out var snapped, out var end));
+        Assert.Equal(fnStartVa, snapped);
+        Assert.True(end > snapped, "enclosing end is past the start");
+        // an exact start snaps to itself.
+        Assert.True(MachoFunctionStarts.TryEnclosingStart(bin, fnStartVa, out var exact, out _));
+        Assert.Equal(fnStartVa, exact);
+    }
+
     private static byte[]? StrippedExec()
     {
         string? dir = null;

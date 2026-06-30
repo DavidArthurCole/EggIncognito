@@ -57,9 +57,10 @@ public static class Arm64AddrRefResolver
         return outp;
     }
 
-    // Disassemble one function range, track adrp (+ following add) page math, and count how many times the body
-    // resolves an absolute address equal to targetVa (whether by adrp+add, or an adrp page that targetVa falls in
-    // and a later add/ldr lands exactly on it).
+    // Disassemble one function range and count references to targetVa. Two idioms:
+    //   adrp xN,#page ; add xM,xN,#off            -> xM = page+off   (direct address materialization)
+    //   adrp xN,#page ; ldr xM,[xN,#off]          -> xM = *(page+off) (a pointer literal/GOT slot); a hit if the
+    //                                                 8 bytes at (page+off) in the file == targetVa.
     private static int CountAddrRefs(CapstoneArm64Disassembler cs, byte[] bin, int fileStart, int len, ulong slide, ulong targetVa)
     {
         var code = new byte[len];
@@ -92,6 +93,28 @@ public static class Arm64AddrRefResolver
                     }
                     else if (ops.Length >= 1 && ops[0].Register is { } addClobber)
                         page.Remove(addClobber.Name);
+                    break;
+
+                case Arm64InstructionId.ARM64_INS_LDR:
+                    // adrp+ldr: the loaded VALUE (a pointer literal) may itself be targetVa. Read the 8 bytes at
+                    // the resolved slot from the file. Also clobbers the dest reg.
+                    if (ops.Length >= 2 && ops[0].Type == Arm64OperandType.Register
+                        && ops[^1].Type == Arm64OperandType.Memory && ops[0].Register is { } ldrRt
+                        && ops[^1].Memory?.Base is { } ldrBase && page.TryGetValue(ldrBase.Name, out var ldrPage))
+                    {
+                        var slotVa = ldrPage + (ulong)ops[^1].Memory!.Displacement;
+                        var slotFile = (long)slotVa - (long)slide;
+                        if (slotFile >= 0 && slotFile + 8 <= bin.Length)
+                        {
+                            ulong literal = BitConverter.ToUInt64(bin, (int)slotFile);
+                            // ptrauth: the top bits may be a PAC signature; compare the low 48 too.
+                            if (literal == targetVa || (literal & 0x0000_FFFF_FFFF_FFFFUL) == (targetVa & 0x0000_FFFF_FFFF_FFFFUL))
+                                hits++;
+                        }
+                        page.Remove(ldrRt.Name);
+                    }
+                    else if (ops.Length >= 1 && ops[0].Register is { } ldrClobber)
+                        page.Remove(ldrClobber.Name);
                     break;
             }
         }

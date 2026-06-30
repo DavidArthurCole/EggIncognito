@@ -75,6 +75,30 @@ public static class MachoFunctionStarts
         return outp;
     }
 
+    // The function-start VA at or immediately below targetVa, so a recovered symbol that landed mid-function is
+    // snapped to the real prologue (the only address safe to hook). Returns false if targetVa is below every
+    // start or the table is absent. Needs the __text slide (VA = fileOff + slide) to map starts (file offsets) to
+    // VAs. enclosingEnd = the next start's VA (or text end), so the caller can sanity-check the span.
+    public static bool TryEnclosingStart(byte[] bin, ulong targetVa, out ulong startVa, out ulong endVa)
+    {
+        startVa = 0; endVa = 0;
+        if (!MachoText.TryFindText(bin, out var textFileOff, out var textSize, out var textVm)) return false;
+        var starts = Read(bin);
+        if (starts.Count == 0) return false;
+        var slide = textVm - (ulong)textFileOff;
+        ulong textEndVa = textVm + (ulong)textSize;
+
+        ulong best = 0; bool have = false; ulong next = textEndVa;
+        for (int i = 0; i < starts.Count; i++)
+        {
+            ulong va = (ulong)starts[i] + slide;
+            if (va <= targetVa && va >= best) { best = va; have = true; next = i + 1 < starts.Count ? (ulong)starts[i + 1] + slide : textEndVa; }
+        }
+        if (!have) return false;
+        startVa = best; endVa = next;
+        return true;
+    }
+
     private static ulong ReadUleb(byte[] b, ref int p, int end)
     {
         ulong result = 0;
