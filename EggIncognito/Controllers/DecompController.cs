@@ -137,33 +137,35 @@ public sealed class DecompController(
             if (!ok || refBytes is null || tgtBytes is null) return Ok(new { ok = false, diagnostics = diag });
 
             var report = SymbolRecovery.Recover(refBytes, tgtBytes, [name]);
-            // exact name first; fall back to the shortest Contains match (the bare function, not a lambda wrapper).
-            var exact = report.Symbols.Where(s => s.Name == name).ToList();
-            var candidates = exact.Count > 0
-                ? exact
-                : report.Symbols.Where(s => s.Name.Contains(name, StringComparison.Ordinal))
-                    .OrderBy(s => s.Name.Length).ToList();
-            if (candidates.Count == 0)
-                return Ok(new { ok = false, tier = report.Tier, recovered = report.Recovered, diagnostics = $"{name} not in recovered set" });
-
             ulong textVm = 0, textOff = 0;
             if (MachoText.TryFindText(tgtBytes, out var tfo, out _, out var tvm)) { textVm = tvm; textOff = (ulong)tfo; }
 
-            var pick = candidates[0];
-            return Ok(new
+            // 1) exact recovered match = the function's body was byte-stable across versions. Best.
+            var exact = report.Symbols.Where(s => s.Name == name).ToList();
+            if (exact.Count > 0)
+                return VaResult(report, exact[0].Name, exact[0].Value, textVm, textOff, "exact-recovered", null);
+
+            // 2) the function's body changed (not recovered), but a closure/lambda whose mangled name EMBEDS the
+            // requested signature did recover (closures often stay byte-stable). Its address is taken inside the
+            // requested function to install it, so the function that REFERENCES the lambda VA = the target. Pin it
+            // via the address-referrer scan over the device function-starts.
+            var embedded = report.Symbols
+                .Where(s => s.Name != name && s.Name.Contains(name, StringComparison.Ordinal))
+                .OrderBy(s => s.Name.Length).ToList();
+            foreach (var lam in embedded)
             {
-                ok = true,
-                tier = report.Tier,
-                recovered = report.Recovered,
-                exactMatch = exact.Count > 0,
-                name = pick.Name,
-                va = "0x" + pick.Value.ToString("x"),
-                textVmAddr = "0x" + textVm.ToString("x"),
-                textFileOff = "0x" + textOff.ToString("x"),
-                // frida runtime address = module.base + (va - textVmAddr). The offset-from-text-base, precomputed:
-                textOffset = "0x" + (pick.Value - textVm).ToString("x"),
-                allCandidates = candidates.Take(8).Select(s => new { s.Name, va = "0x" + s.Value.ToString("x") }).ToList(),
-            });
+                var referrers = Arm64AddrRefResolver.FindReferrers(tgtBytes, lam.Value);
+                if (referrers.Count > 0)
+                    return VaResult(report, name + " (via referrer of " + lam.Name + ")", referrers[0].FunctionVa,
+                        textVm, textOff, "addr-referrer", referrers.Take(5)
+                            .Select(r => new { fnVa = "0x" + r.FunctionVa.ToString("x"), r.HitCount }).ToList());
+            }
+
+            // 3) shortest Contains match as a last resort (may be the lambda itself, flagged so the caller knows).
+            if (embedded.Count > 0)
+                return VaResult(report, embedded[0].Name, embedded[0].Value, textVm, textOff, "contains-fallback", null);
+
+            return Ok(new { ok = false, tier = report.Tier, recovered = report.Recovered, diagnostics = $"{name} not recovered and no referrer found" });
         }
         catch (DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
@@ -273,6 +275,23 @@ public sealed class DecompController(
         }
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
+
+    // Shape a resolved-VA response. textOffset = va - textVmAddr = the frida runtime offset (module.base + this).
+    private IActionResult VaResult(
+        SymbolRecovery.RecoveryReport report, string name, ulong va, ulong textVm, ulong textOff, string method, object? detail)
+        => Ok(new
+        {
+            ok = true,
+            tier = report.Tier,
+            recovered = report.Recovered,
+            method,
+            name,
+            va = "0x" + va.ToString("x"),
+            textVmAddr = "0x" + textVm.ToString("x"),
+            textFileOff = "0x" + textOff.ToString("x"),
+            textOffset = "0x" + (va - textVm).ToString("x"),
+            detail,
+        });
 
     private async Task<IActionResult> ExtractAsync(string[] needles, string? device, CancellationToken ct)
     {

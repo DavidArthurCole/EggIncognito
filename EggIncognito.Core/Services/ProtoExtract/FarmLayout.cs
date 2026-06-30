@@ -41,18 +41,15 @@ public static class FarmLayout
             new("ei_farm", [0, 0, 0], 0),
             new("ei_farm_hardscape", [0, 0, 0], 0),
             new("ei_farm_misc", [0, 0, 0], 0),
-            // self-placing: mesh carries the offset.
-            new("ei_depot_3", [0, 0, 0], 0), // right-near (z~7-12), in front of the road
-            new("ei_hatchery_edible", [0, 0, 0], 0), // egg hatchery, between depot + lab (z~0.5-5.5)
-            new("ei_lab_3", [0, 0, 0], 0), // research lab, BEHIND the depot (z~-6..0)
+            // genuinely self-placing: the mesh carries the real plot offset (hyperloop spans the road, mailbox).
             new("ei_hyperloop_stop", [0, 0, 0], 0), // across the road (z~19-27)
             new("ei_hyperloop_track", [0, 0, 0], 0), // the hyperloop tube
             new("ei_farm_mailbox_full", [0, 0, 0], 0), // self-places near (-3, 11)
             new("ei_trophy_case", [-7, 0, 11], 0), // LEFT of the mailbox
         };
-        // the core buildings (lab/hoa, hatchery/mission-control/fuel, depot) are laid out as three gravity-packed
-        // rows so a wider building pushes its row-neighbours right. Default tiers; the recovered overload swaps in
-        // the user's chosen tiers + keeps the packing.
+        // the core buildings (lab/hoa back, hatchery/mission-control/fuel mid, depot front) are the three gravity-
+        // packed rows, right of the silo field's path. They are placed ONLY here (not also self-placed) so there is
+        // no duplicate. Default tiers; the recovered overload swaps in the chosen tiers + keeps the packing.
         p.AddRange(CoreRows("ei_lab_3", "ei_afx_construction_site", "ei_hatchery_edible", "ei_mission_control_1", "ei_fuel_tank_2", "ei_depot_3"));
 
         // hab row: 4 plots, evenly spaced (no game spacing constant; positions are model-baked).
@@ -77,11 +74,14 @@ public static class FarmLayout
     // Row 1 (back):  Research Lab, Hall of Artifacts
     // Row 2 (mid):   Hatchery, Mission Control, Fuel Tank
     // Row 3 (front): Depot
-    public const float RowBackZ = -3f;   // research lab / hoa row
+    public const float RowBackZ = -3f;   // research lab / hoa row (furthest from road, nearest the habs)
     public const float RowMidZ = 4f;     // hatchery / mission control / fuel row
     public const float RowFrontZ = 11f;  // depot row (closest to the road)
-    private const float RowGap = 1.5f;   // gap between adjacent buildings in a row
-    private const float CoreLeftX = 6f;  // the left edge the rows start packing from (right of the silo field)
+    private const float RowGap = 2.5f;   // even gap between adjacent buildings in a row (in-game look)
+    // The rows pack rightward from the right edge of the silo field's connecting path ("path 2"). The silo field
+    // is all negative-X (rightmost column at X=-5, half ~2.5, so its right edge ~-2.5); path 2 + a gap puts the
+    // rows' left bound just past world origin. STOPGAP value; the real path X is in the FarmScene terrain layout.
+    private const float CoreLeftX = 2f;
 
     // Approximate footprint half-widths per building (X half-extent). STOPGAP: hand-measured from the meshes; the
     // real per-tier footprint is in the mesh bounds / FarmScene element-width table @0x10226a3c8 = [3.2,4.75,7.2,
@@ -141,15 +141,22 @@ public static class FarmLayout
     // unavailable the fixed CoreLeftX stands. The chosen tiers swap into the rows + keep the packing.
     public static IReadOnlyList<Placed> StandardRecovered(SingletonPlacement rec, float farmHalfWidth, string defaultHab = "hab_10k")
     {
-        // derive the core-left start from the recovered mission-control X formula at the actual farm width, so the
-        // whole packed core tracks the dynamic farm size. Falls back to the fixed start if not fully resolved.
+        // The recovered mission-control formula (X = perConst + farmWidth + offset) is in the GAME's coordinate
+        // frame, not this stopgap silo-anchored frame, so using it directly as the row left-start scatters the
+        // core. For now the rows pack from the fixed silo-edge start (CoreLeftX); the farm-width term only widens
+        // the start a touch so a bigger farm reads slightly more spread. Replace wholesale once the rows are laid
+        // out in the game's real frame (then the recovered formula drives them exactly).
         var env = new Dictionary<string, double> { ["farmWidth"] = farmHalfWidth };
         float leftStart = CoreLeftX;
         if (rec.MissionControl is { Ok: true, X: { } mx } && ExprNode.IsFullyResolved(mx))
-            leftStart = (float)ExprNode.Eval(mx, env) - 10f; // mission-control is mid-row; back off to the row's left edge
+        {
+            // nudge: scale the start gently with farm width, clamped, instead of taking the raw game-frame X.
+            var w = (float)ExprNode.Eval(mx, env);
+            leftStart = CoreLeftX + Math.Clamp((w - 16f) * 0.1f, -2f, 4f);
+        }
 
         var list = Standard(defaultHab).ToList();
-        // re-pack the core rows from the recovered left start (replace the fixed-start core entries).
+        // re-pack the core rows from the derived left start (replace the default-start core entries).
         list.RemoveAll(p => IsCoreStem(p.Stem));
         list.AddRange(RepackCore(leftStart));
         return list;
