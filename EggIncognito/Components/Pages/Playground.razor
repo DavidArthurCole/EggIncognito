@@ -106,10 +106,10 @@ else
             @if (_paletteOpen)
             {
               <div class="pg-palette-body">
-                <div class="flex">
-                  <button class="picker-tab @(_pickerTab == "building" ? "active" : "")" @onclick='() => _pickerTab = "building"'>Buildings</button>
-                  <button class="picker-tab @(_pickerTab == "chicken" ? "active" : "")" @onclick='() => _pickerTab = "chicken"'>Chicken</button>
-                  <button class="picker-tab @(_pickerTab == "actor" ? "active" : "")" @onclick='() => _pickerTab = "actor"'>Actors</button>
+                <div class="settings-seg">
+                  <button class="seg-btn @(_pickerTab == "building" ? "active" : "")" @onclick='() => _pickerTab = "building"'>Buildings</button>
+                  <button class="seg-btn @(_pickerTab == "chicken" ? "active" : "")" @onclick='() => _pickerTab = "chicken"'>Chicken</button>
+                  <button class="seg-btn @(_pickerTab == "actor" ? "active" : "")" @onclick='() => _pickerTab = "actor"'>Actors</button>
                 </div>
                 <div class="picker-body">
                   @if (_pickerTab == "building")
@@ -1531,7 +1531,8 @@ else
 
         return new
         {
-            orb,
+            orb, // fallback only; the renderer derives the orb from the live body-mesh bbox (orbYFrac up the body)
+            orbYFrac = 0.62f,
             pieces,
             probeCount,
             orbitSpeed,

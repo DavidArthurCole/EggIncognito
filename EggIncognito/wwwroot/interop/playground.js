@@ -335,15 +335,29 @@ function orbitBasis(ha, hb) {
 
 export async function attachHatcheryParts(groupId, model) {
   await ensureLibs();
-  clearHatcheryParts(groupId);
+  clearHatcheryParts(groupId); // pieces cleared first, so g.root is now JUST the body mesh
   const g = groups.get(groupId);
   if (!g || !model || !Array.isArray(model.pieces)) return;
 
-  const orb = Array.isArray(model.orb) ? new THREE.Vector3(model.orb[0], model.orb[1], model.orb[2]) : new THREE.Vector3();
+  // Derive the orb from the BODY MESH's actual local bbox, measured live from g.root. This sidesteps any mismatch
+  // between the dump's .rpo bounds and the decoded glb's bbox (which desynced the C#-computed orb, parking the
+  // effects at a corner). orbY = a fraction up the body (the dome sits near the top); orbitRadius clears the dome.
+  const bodyBox = new THREE.Box3().setFromObject(g.root);
+  const orb = new THREE.Vector3();
+  let bodyHeight = 4;
+  if (!bodyBox.isEmpty()) {
+    bodyBox.getCenter(orb);
+    bodyHeight = bodyBox.max.y - bodyBox.min.y;
+    orb.y = bodyBox.min.y + bodyHeight * (model.orbYFrac || 0.62); // up the body to the dome
+  } else if (Array.isArray(model.orb)) {
+    orb.set(model.orb[0], model.orb[1], model.orb[2]);
+  }
+
   const state = { probes: [], beams: [], spinners: [], statics: [], orb };
   const probeCount = Math.max(1, model.probeCount || 1);
   const orbitSpeed = model.orbitSpeed || 0;
-  const orbitRadius = model.orbitRadius || 0;
+  // radius rings OUTSIDE the dome: max of the C# display radius and a dome-clearing fraction of the body height.
+  const orbitRadius = Math.max(model.orbitRadius || 0, bodyHeight * 0.28);
   const beam = model.beam || {};
 
   for (const piece of model.pieces) {
