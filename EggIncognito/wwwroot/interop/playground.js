@@ -116,6 +116,7 @@ export async function init(canvas) {
   window.__pgEngine = {
     scene: _scene, camera: _camera, renderer: _renderer, controls: _controls,
     getGroupRoot, getGroupBase, getGroupCenterWorld, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
+    getGroupFootprint, getOtherFootprints,
     captureBegin, renderAtPhase, captureEnd, anyAnimated, sceneBackgroundHex, animPeriod, captureCleanOutline,
     attachEffects, attachHatcheryParts, clearHatcheryParts,
   };
@@ -355,6 +356,7 @@ export async function attachHatcheryParts(groupId, model) {
           obj, probe: state.probes[i],
           interval: bm.fireInterval, duration: bm.fireDuration || 0.2,
           offset: (i * 0.37) % bm.fireInterval,
+          random: !!bm.fireRandom, seed: (i + 1) * 1.6180339887, // golden-ratio seed for per-beam jitter
         });
       }
     }
@@ -391,7 +393,15 @@ function orbitHatcheryParts(tSeconds) {
       p.obj.current.set(x, y, z);
     }
     for (const b of st.beams) {
-      const phase = ((tSeconds + b.offset) % b.interval);
+      // random fire (waitForRandom): the game's delay is the frandom output, so jitter each cycle's interval
+      // around the mean instead of a fixed period. Deterministic per beam+cycle so capture/playback is stable.
+      let interval = b.interval;
+      if (b.random) {
+        const cycle = Math.floor((tSeconds + b.offset) / b.interval);
+        const r = (Math.sin((cycle + b.seed) * 12.9898) * 43758.5453) % 1; // hash -> [0,1)
+        interval = b.interval * (0.5 + Math.abs(r)); // 0.5x..1.5x mean
+      }
+      const phase = ((tSeconds + b.offset) % interval);
       const firing = phase < b.duration;
       b.obj.visible = firing;
       if (!firing) continue;
@@ -529,6 +539,14 @@ export async function addGroup(groupId, glbBase64, opts) {
     center.y -= box.min.y;
   }
 
+  // Local footprint for collision: the mesh ground rect + lowest point in the group's LOCAL space, measured
+  // AFTER the recenter / Y-snap shifts so it matches where the building actually sits relative to the group
+  // origin. Reused by the placement solver at any transform; never re-traverses the mesh per drag.
+  const localBox = new THREE.Box3().setFromObject(root);
+  const localFootprint = localBox.isEmpty()
+    ? { minX: -0.5, maxX: 0.5, minZ: -0.5, maxZ: 0.5, minY: 0 }
+    : { minX: localBox.min.x, maxX: localBox.max.x, minZ: localBox.min.z, maxZ: localBox.max.z, minY: localBox.min.y };
+
   const mixer = new THREE.AnimationMixer(root);
   for (const clip of gltf.animations) mixer.clipAction(clip).play();
   const clipNames = gltf.animations.map(c => c.name);
@@ -557,6 +575,8 @@ export async function addGroup(groupId, glbBase64, opts) {
     manual: opts.pinned ? { x: off[0] || 0, y: off[1] || 0, z: off[2] || 0 } : null,
     pinned: !!opts.pinned,
     center,
+    localFootprint,
+    snapBase, // whether this group rests on the floor (false for pinned backdrops)
     // preserve anim + placement across a re-render (reshell / hat change keeps spin + position).
     anim: carried?.anim || 'none',
     base: carried?.base || null,
@@ -775,6 +795,19 @@ export function setLighting(opts) {
 // In design mode, groups hold their own transform (no auto-offset layout on add/remove).
 export function setDesignMode(on) { designMode = !!on; }
 
+// The floor grid overlay, sized to the shadow plane. Shown when grid-snap is on so the designer sees the cells
+// placements land on. setGrid(0) hides it; a positive size (re)builds it at that cell spacing.
+let gridHelper = null;
+export function setGrid(cellSize) {
+  if (gridHelper) { scene.remove(gridHelper); gridHelper.geometry?.dispose(); gridHelper.material?.dispose(); gridHelper = null; }
+  if (!scene || !Number.isFinite(cellSize) || cellSize <= 0) return;
+  const extent = 120; // covers the visible farm footprint
+  const divisions = Math.max(1, Math.round(extent / cellSize));
+  gridHelper = new THREE.GridHelper(extent, divisions, 0x4a4a55, 0x2c2c33);
+  gridHelper.position.y = 0.01; // just above the floor so it does not z-fight the shadow plane
+  scene.add(gridHelper);
+}
+
 export function getGroupRoot(id) {
   const g = groups.get(id);
   return g ? g.root : null;
@@ -803,6 +836,42 @@ export function getGroupCenterWorld(id) {
   const s = g.base?.scale || 1;
   const p = g.root.position;
   return [p.x + c.x * s, p.y + c.y * s, p.z + c.z * s];
+}
+
+// The element's LOCAL footprint (ground rect + lowest point relative to the group origin) for the placement
+// solver. Null for a group with no cached footprint (should not happen for a placed mesh).
+export function getGroupFootprint(id) {
+  const g = groups.get(id);
+  return g?.localFootprint ? { ...g.localFootprint, clampFloor: g.snapBase !== false } : null;
+}
+
+// Every OTHER element's world-space ground rect (axis-aligned, yaw-widened), for the solver's overlap check.
+// Pinned backdrops (terrain/road) are excluded: they span the floor and are not obstacles. Returns an array of
+// {minX,maxX,minZ,maxZ}.
+export function getOtherFootprints(excludeId) {
+  const out = [];
+  for (const [gid, g] of groups) {
+    if (gid === excludeId || g.pinned || !g.localFootprint) continue;
+    const base = g.base || { pos: [g.root.position.x, g.root.position.y, g.root.position.z], rotDeg: [0, 0, 0], scale: 1 };
+    out.push(worldFootprintOf(g.localFootprint, base.pos[0], base.pos[2], base.rotDeg?.[1] || 0, base.scale || 1));
+  }
+  return out;
+}
+
+// Mirror of PlacementSolver.WorldFootprint (yaw-widened AABB) so the designer can report other elements' world
+// rects to the C# solver without a round-trip per element. The solver re-derives the dragged element's own rect.
+function worldFootprintOf(local, x, z, rotYDeg, scale) {
+  const hx = (local.maxX - local.minX) * 0.5 * scale;
+  const hz = (local.maxZ - local.minZ) * 0.5 * scale;
+  const cx = (local.minX + local.maxX) * 0.5 * scale;
+  const cz = (local.minZ + local.maxZ) * 0.5 * scale;
+  const a = rotYDeg * Math.PI / 180;
+  const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+  const rhx = c * hx + s * hz, rhz = s * hx + c * hz;
+  const rcx = cx * Math.cos(a) - cz * Math.sin(a);
+  const rcz = cx * Math.sin(a) + cz * Math.cos(a);
+  const ox = x + rcx, oz = z + rcz;
+  return { minX: ox - rhx, maxX: ox + rhx, minZ: oz - rhz, maxZ: oz + rhz };
 }
 
 // The group id whose root is an ancestor of a clicked object3d, or null. Lets a raycast hit on any child mesh
@@ -969,6 +1038,7 @@ export function dispose() {
   }
   groups.clear();
   if (shadowCatcher) { shadowCatcher.geometry?.dispose(); shadowCatcher.material?.dispose(); }
+  if (gridHelper) { gridHelper.geometry?.dispose(); gridHelper.material?.dispose(); gridHelper = null; }
   renderer?.dispose();
   renderer = scene = camera = controls = sun = ambient = hemi = shadowCatcher = null;
 }

@@ -42,6 +42,9 @@ export async function initDesigner(dotnetRef) {
     controls.enabled = !ev.value;
     dragging = ev.value;
     if (ev.value && dotnet) dotnet.invokeMethodAsync('OnGizmoDragStart');
+    // On drag END: run the authoritative placement solver (floor clamp + grid snap + overlap) and snap the
+    // element to the corrected spot. Per-frame objectChange only previews; the legal resolve happens on drop.
+    if (!ev.value) solvePlacement();
   });
 
   // Click-to-select: raycast from a click that was NOT a drag (orbit) onto the element group roots. Hit ->
@@ -150,6 +153,41 @@ function nudge(key, step) {
   e.setGroupTransform(selectedId, pos, base.rotDeg, base.scale);
   // the gizmo is attached to the group root, which the anim loop repositions from the new base, so it follows.
   dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, base.rotDeg, base.scale);
+  // re-solve so a nudge into a neighbor / the floor is corrected just like a drag.
+  solvePlacement();
+}
+
+// Run the C# placement solver on the selected element's current transform: gather its local footprint + every
+// other element's world rect, ask .NET to correct it (floor clamp + grid snap + overlap push), then snap the
+// element to the legal spot. .NET returns [x, y, z, adjusted]. No-op if the element has no footprint.
+async function solvePlacement() {
+  const e = engine();
+  if (!e || !selectedId || !dotnet) return;
+  const base = e.getGroupBase(selectedId);
+  const foot = e.getGroupFootprint(selectedId);
+  if (!base || !foot) return;
+  const others = e.getOtherFootprints(selectedId);
+  let res;
+  try {
+    res = await dotnet.invokeMethodAsync('OnPlaceSolve', selectedId,
+      base.pos, base.rotDeg, base.scale, foot, others);
+  } catch { return; }
+  if (!res || res.length < 3) return;
+  const pos = [res[0], res[1], res[2]];
+  suppress = true;
+  e.setGroupTransform(selectedId, pos, base.rotDeg, base.scale);
+  if (selectedId) selectElement(selectedId); // re-sync the gizmo proxy to the corrected spot
+  suppress = false;
+  // keep the inspector fields + autosave in step with the corrected transform.
+  dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, base.rotDeg, base.scale);
+}
+
+// Live gizmo snapping while dragging: translate snaps to the grid cell, rotate to 15deg. size 0 = free.
+export function setGridSnap(cellSize) {
+  if (!gizmo) return;
+  const s = Number(cellSize) > 0 ? Number(cellSize) : null;
+  gizmo.setTranslationSnap(s);
+  gizmo.setRotationSnap(s ? rad(15) : null);
 }
 
 export function selectElement(id) {

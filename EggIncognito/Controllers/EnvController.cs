@@ -140,7 +140,11 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
-        var (sok, stems, sdiag) = await meshes.ListStemsAsync(device, ct);
+        // ONE base.apk pull for the whole dump: list every stem, then decode all hatchery pieces from the same
+        // in-memory zip. The old loop re-pulled the multi-MB apk off the device once per piece (dozens of pulls,
+        // minutes of adb). selectStatsFor derives the pieces-to-decode from the listing itself: every tier's body
+        // + floating parts.
+        var (sok, stems, stats, sdiag) = await meshes.ListStemsWithStatsAsync(device, HatcheryPieceStems, ct);
         var tiersJson = new System.Text.Json.Nodes.JsonArray();
         if (sok)
         {
@@ -151,13 +155,13 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
                 var pieces = new System.Text.Json.Nodes.JsonArray();
                 foreach (var stem in new[] { parts.Body }.Concat(parts.Floating))
                 {
-                    var (bok, st, _) = await meshes.GetDecodeStatsAsync(stem, device, ct);
+                    var st = stats.TryGetValue(stem, out var s) && s.Ok ? s : null;
                     pieces.Add(new System.Text.Json.Nodes.JsonObject
                     {
                         ["stem"] = stem,
                         ["floating"] = stem != parts.Body,
-                        ["vertexCount"] = bok && st is not null ? st.VertexCount : 0,
-                        ["bounds"] = bok && st?.Bounds is { } b
+                        ["vertexCount"] = st?.VertexCount ?? 0,
+                        ["bounds"] = st?.Bounds is { } b
                             ? new System.Text.Json.Nodes.JsonObject
                             {
                                 ["min"] = new System.Text.Json.Nodes.JsonArray(b.Min.X, b.Min.Y, b.Min.Z),
@@ -196,6 +200,19 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
             ["tiers"] = tiersJson,
             ["assembly"] = assembly,
         }.ToJsonString(), "application/json");
+    }
+
+    // Every hatchery piece stem to decode for the dump: each tier's body + its floating parts, derived from the
+    // full apk stem listing so all decoding happens off one base.apk pull.
+    private static IEnumerable<string> HatcheryPieceStems(IReadOnlyList<string> stems)
+    {
+        foreach (var tier in Services.ProtoExtract.HatcheryEffectParts.Tiers(stems))
+        {
+            var parts = Services.ProtoExtract.HatcheryEffectParts.ForTier(stems, tier);
+            if (parts.Body is null) continue;
+            yield return parts.Body;
+            foreach (var f in parts.Floating) yield return f;
+        }
     }
 
     private static System.Text.Json.Nodes.JsonObject ShapeFn(byte[] bin, string needle)

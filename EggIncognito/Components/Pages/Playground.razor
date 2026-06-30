@@ -50,6 +50,25 @@ else
         <div class="designer-section-head">Scene</div>
         <div class="designer-section-body flex flex-col gap-3">
           <button class="btn-secondary w-full" @onclick="ResetView">Reset view</button>
+          <label class="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked="@_gridSnap" @onchange="e => ToggleGridSnap((bool)e.Value!)" />
+            Snap to grid
+          </label>
+          @if (_gridSnap)
+          {
+            <label class="block text-xs">Grid size
+              <select class="reg-filter-input w-full" @onchange="OnGridSizeChanged">
+                <option value="0.25" selected="@(_gridSize == 0.25f)">0.25</option>
+                <option value="0.5" selected="@(_gridSize == 0.5f)">0.5</option>
+                <option value="1" selected="@(_gridSize == 1f)">1</option>
+                <option value="2" selected="@(_gridSize == 2f)">2</option>
+              </select>
+            </label>
+          }
+          @if (_showAdjustHint)
+          {
+            <div class="text-xs text-amber-400">Placement adjusted@(_lastAdjustReason == "blocked" ? " (blocked: no free space)" : "").</div>
+          }
         </div>
       </div>
 
@@ -445,6 +464,11 @@ else
     const bool _designMode = true;
     readonly List<DesignElement> _elements = [];
     string? _selectedElementId;
+
+    // Grid snapping: when on, drags/nudges land on _gridSize multiples (gizmo live snap + the C# solver) and the
+    // floor grid overlay is shown. Off = free placement (floor clamp + overlap still apply).
+    bool _gridSnap;
+    float _gridSize = 1f;
     LightingState _lighting = new();
     int _elementSeq;
 
@@ -693,6 +717,41 @@ else
             await InvokeAsync(StateHasChanged);
             Autosave();
         }
+    }
+
+    // Authoritative placement solve (playgroundDesigner.js calls this on drag-end / nudge). Runs PlacementSolver
+    // with the current grid size: floor clamp (no building in the floor), grid snap, and footprint overlap push
+    // (no two buildings occupying the same ground). Returns the corrected [x, y, z, adjusted] for the JS side to
+    // snap to. The math is the tested C# core; JS only renders the result.
+    [JSInvokable]
+    public Task<double[]> OnPlaceSolve(string id, double[] pos, double[] rotDeg, double scale,
+        FootprintDto footprint, FootprintDto[] others)
+    {
+        var local = new PlacementSolver.Box2(footprint.MinX, footprint.MaxX, footprint.MinZ, footprint.MaxZ);
+        var otherRects = (others ?? [])
+            .Select(o => new PlacementSolver.Box2(o.MinX, o.MaxX, o.MinZ, o.MaxZ))
+            .ToArray();
+        var req = new PlacementSolver.SolveRequest(
+            [(float)pos[0], (float)pos[1], (float)pos[2]],
+            [(float)rotDeg[0], (float)rotDeg[1], (float)rotDeg[2]],
+            (float)scale, local, footprint.MinY, otherRects,
+            _gridSnap ? _gridSize : 0f, footprint.ClampFloor);
+        var r = PlacementSolver.Solve(req);
+        if (r.Adjusted) { _lastAdjustReason = r.Reason; _ = ShowAdjustHint(); }
+        return Task.FromResult(new double[] { r.Pos[0], r.Pos[1], r.Pos[2], r.Adjusted ? 1 : 0 });
+    }
+
+    // A transient "placement adjusted" hint after the solver moves a piece (floor / overlap), so the jump reads
+    // as intentional. Cleared after a short delay.
+    string? _lastAdjustReason;
+    bool _showAdjustHint;
+    async Task ShowAdjustHint()
+    {
+        _showAdjustHint = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(1600);
+        _showAdjustHint = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     // Called from the canvas raycast (playgroundDesigner.js) when the user clicks an element (or empty space).
@@ -1247,6 +1306,7 @@ else
         float orbitRadius = 0f;    // from the frandom scatter; filled from extracted translation magnitude if present
         float orbitSpeed = 0.5f;   // rotate_pyramid easing/rate
         float beamInterval = 0f, beamDuration = 0.2f;
+        bool beamRandom = false;   // true => fire delay is the frandom output, renderer jitters the interval
 
         if (dump is { } d && d.TryGetProperty("assembly", out var asmEl))
         {
@@ -1264,10 +1324,18 @@ else
                     var dur = (float)sd.GetDouble();
                     if (dur > 0.01f) { orbitSpeed = (float)(Math.PI / 2 / dur); beamDuration = dur; } // quarter-turn / duration
                 }
+                // waitFor = the beam fire delay. A constant value sets a fixed interval. waitForRandom = the delay
+                // is the frandom() output (random by design): fire on a random cadence, with smoothDuration as the
+                // mean. Either way the beam fires; only a missing-and-not-random case holds.
                 if (tm.TryGetProperty("waitFor", out var wf) && wf.ValueKind == System.Text.Json.JsonValueKind.Number)
                 {
                     var w = (float)wf.GetDouble();
-                    if (w > 0.001f) beamInterval = w;
+                    if (w > 0.001f) { beamInterval = w; beamRandom = false; }
+                }
+                else if (tm.TryGetProperty("waitForRandom", out var wr) && wr.ValueKind == System.Text.Json.JsonValueKind.True)
+                {
+                    beamRandom = true;
+                    if (beamInterval <= 0f) beamInterval = Math.Max(beamDuration, 1f); // mean cadence; renderer jitters it
                 }
             }
             // orbit radius from a recovered piece translation distance from the anchor (the frandom scatter extent).
@@ -1311,7 +1379,7 @@ else
             },
             beam = beamGlb is null ? null : (object)new
             {
-                glb = Convert.ToBase64String(beamGlb), fireInterval = beamInterval, fireDuration = beamDuration,
+                glb = Convert.ToBase64String(beamGlb), fireInterval = beamInterval, fireDuration = beamDuration, fireRandom = beamRandom,
             },
         };
     }
@@ -1430,6 +1498,28 @@ else
     async Task SetGizmoMode(string mode)
     {
         if (_designer is not null) await _designer.InvokeVoidAsync("setGizmoMode", mode);
+    }
+
+    // Toggle grid snapping: show/hide the floor grid + set the gizmo's live translate/rotate snap. The C# solver
+    // reads _gridSnap/_gridSize directly on the next solve.
+    async Task ToggleGridSnap(bool on)
+    {
+        _gridSnap = on;
+        await ApplyGridSettings();
+    }
+
+    async Task OnGridSizeChanged(ChangeEventArgs e)
+    {
+        var size = float.TryParse(e.Value?.ToString(), out var v) ? v : 1f;
+        _gridSize = size > 0 ? size : 1f;
+        if (_gridSnap) await ApplyGridSettings();
+    }
+
+    async Task ApplyGridSettings()
+    {
+        var cell = _gridSnap ? _gridSize : 0f;
+        if (_mod is not null) await _mod.InvokeVoidAsync("setGrid", cell);
+        if (_designer is not null) await _designer.InvokeVoidAsync("setGridSnap", cell);
     }
 
     // The transform numeric fields for the selected element; editing pushes the transform to the gizmo + group.
@@ -1724,6 +1814,18 @@ else
         public bool Effect { get; set; } // render this building's extracted decomp effects
         public bool HasEffects { get; set; } // the resolver found >=1 effect for this building's mesh
         public int EffectCount { get; set; } // how many discovered effects
+    }
+
+    // A ground footprint reported by the designer JS for the placement solver. Local (the dragged element) or
+    // world (other elements). MinY + ClampFloor only meaningful for the dragged element.
+    public sealed class FootprintDto
+    {
+        public float MinX { get; set; }
+        public float MaxX { get; set; }
+        public float MinZ { get; set; }
+        public float MaxZ { get; set; }
+        public float MinY { get; set; }
+        public bool ClampFloor { get; set; } = true;
     }
 
     public sealed class MotionState

@@ -121,6 +121,34 @@ public sealed class DeviceMeshProvider(
         return (true, RpoAssetLister.ListStems(apk), null);
     }
 
+    // Lists every mesh stem AND decodes the stats of each stem the selector picks, from a SINGLE base.apk pull.
+    // The per-piece GetDecodeStatsAsync re-pulls the whole apk every call (multi-MB over adb each time); a dump
+    // wanting bounds for every hatchery piece would pull the apk dozens of times. This pulls once, then reads the
+    // selected stems out of the in-memory zip. The selector runs on the full stem list so the caller can derive
+    // which stems to decode (e.g. all hatchery tiers + their parts) from the listing itself, no second pull.
+    // Android-only (iOS has no cheap listing). Returns (ok, allStems, stem->stats, diag).
+    public async Task<(bool Ok, IReadOnlyList<string> Stems, IReadOnlyDictionary<string, RpoMeshDecoder.DecodeResult> Stats, string? Diagnostics)>
+        ListStemsWithStatsAsync(string? deviceId, Func<IReadOnlyList<string>, IEnumerable<string>> selectStatsFor, CancellationToken ct)
+    {
+        var empty = (IReadOnlyDictionary<string, RpoMeshDecoder.DecodeResult>)new Dictionary<string, RpoMeshDecoder.DecodeResult>();
+        var device = await ResolveDeviceAsync(deviceId, ct);
+        if (device is null) return (false, [], empty, "no asset-source device available");
+        if (device.Platform != PlatformAndroid)
+            return (false, [], empty, $"stem listing is android-only (device is {device.Platform})");
+
+        var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+        if (apk is null) return (false, [], empty, "could not pull base.apk from the device");
+
+        var stems = RpoAssetLister.ListStems(apk);
+        var stats = new Dictionary<string, RpoMeshDecoder.DecodeResult>(StringComparer.Ordinal);
+        foreach (var stem in selectStatsFor(stems).Distinct(StringComparer.Ordinal))
+        {
+            var rpo = RpoAssetLister.ReadStem(apk, stem);
+            if (rpo is not null) stats[stem] = RpoMeshDecoder.Decode(rpo, stem);
+        }
+        return (true, stems, stats, null);
+    }
+
     // The cached glb for (platform, stem) from Postgres, or null (miss / no DB). When platform is null (no
     // device online) any platform's stored copy is accepted.
     private async Task<byte[]?> TryDbGetAsync(string? platform, string stem, CancellationToken ct)

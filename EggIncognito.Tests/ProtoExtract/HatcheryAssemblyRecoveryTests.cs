@@ -51,8 +51,9 @@ public class HatcheryAssemblyRecoveryTests
     [Fact]
     public void Timing_ToJson_CarriesTweenArgs()
     {
-        var json = new HatcheryAssemblyRecovery.Timing(0.5f, 30f, 3, "ok").ToJson();
+        var json = new HatcheryAssemblyRecovery.Timing(0.5f, false, 30f, 3, "ok").ToJson();
         Assert.Equal(0.5f, (float)json["waitFor"]!, 3);
+        Assert.False((bool)json["waitForRandom"]!);
         Assert.Equal(30f, (float)json["smoothDuration"]!, 3);
         Assert.Equal(3, (int)json["orbitSegments"]!);
     }
@@ -60,16 +61,25 @@ public class HatcheryAssemblyRecoveryTests
     [Fact]
     public void Timing_ToJson_NullArgsSurviveSerialization()
     {
-        var json = new HatcheryAssemblyRecovery.Timing(null, null, 0, "no tween args resolved").ToJson();
+        var json = new HatcheryAssemblyRecovery.Timing(null, false, null, 0, "no tween args resolved").ToJson();
         Assert.Null(json["waitFor"]);
         Assert.Null(json["smoothDuration"]);
         Assert.Equal(0, (int)json["orbitSegments"]!);
     }
 
     [Fact]
+    public void Timing_ToJson_FlagsRandomFireDelay()
+    {
+        // waitFor null but waitForRandom true = the fire delay is the frandom output (random by design).
+        var json = new HatcheryAssemblyRecovery.Timing(null, true, 0.5f, 3, "ok").ToJson();
+        Assert.Null(json["waitFor"]);
+        Assert.True((bool)json["waitForRandom"]!);
+    }
+
+    [Fact]
     public void Assembly_ToJson_IncludesTimingObject()
     {
-        var timing = new HatcheryAssemblyRecovery.Timing(0.5f, 30f, 3, "ok");
+        var timing = new HatcheryAssemblyRecovery.Timing(0.5f, false, 30f, 3, "ok");
         var asm = new HatcheryAssemblyRecovery.Assembly(true, [11.319f, 2.15f, 2.997f], [], timing, "ok");
         var json = asm.ToJson();
         Assert.NotNull(json["timing"]);

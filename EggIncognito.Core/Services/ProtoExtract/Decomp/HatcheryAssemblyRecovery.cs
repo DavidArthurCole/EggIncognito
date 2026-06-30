@@ -40,11 +40,12 @@ public static class HatcheryAssemblyRecovery
     // constants). ActionBuilder::waitFor(delay) = the inter-fire / inter-step delay; ActionBuilder::smooth(dur,..)
     // = the eased animation duration. Both read directly off the captured call args, so the float->parameter
     // mapping is the binary's, not inferred from constant order. Null = the call wasn't present / arg unresolved.
-    public readonly record struct Timing(float? WaitFor, float? SmoothDuration, int OrbitSegments, string Diagnostics)
+    public readonly record struct Timing(float? WaitFor, bool WaitForRandom, float? SmoothDuration, int OrbitSegments, string Diagnostics)
     {
         public JsonObject ToJson() => new()
         {
             ["waitFor"] = WaitFor,
+            ["waitForRandom"] = WaitForRandom,
             ["smoothDuration"] = SmoothDuration,
             ["orbitSegments"] = OrbitSegments,
             ["diagnostics"] = Diagnostics,
@@ -114,9 +115,9 @@ public static class HatcheryAssemblyRecovery
     private static Timing RecoverTiming(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, ulong tvm, int tfo)
     {
         if (!MachoSymbols.TryFindFunc(syms, ["FarmScene14rotate_pyramidEP14GameControlleri"], out var fn))
-            return new(null, null, 0, "rotate_pyramid symbol not found");
+            return new(null, false, null, 0, "rotate_pyramid symbol not found");
         if (!Arm64Decode.SliceFunction(bin, fn.Start, fn.End, tvm, tfo, out var code, out _))
-            return new(null, null, 0, "rotate_pyramid range out of bounds");
+            return new(null, false, null, 0, "rotate_pyramid range out of bounds");
 
         var exec = Arm64SymbolicExecutor.Run(
             code, fn, tvm, tfo, syms, new Dictionary<string, ExprNode>(), KnownCallModels.Resolve);
@@ -136,8 +137,29 @@ public static class HatcheryAssemblyRecovery
         var waitFor = ArgOf("waitFor", 0);
         var smooth = ArgOf("smooth", 0);
         var segments = RotateSegmentCount(bin, syms);
-        var ok = waitFor is not null || smooth is not null || segments > 0;
-        return new(waitFor, smooth, segments, ok ? "ok" : "no tween args resolved");
+
+        // waitFor's arg is the FIRE DELAY. If it didn't fold to a constant but frandom() was called before the
+        // waitFor site, the delay is the frandom output = random by design (not an extraction miss). The renderer
+        // should fire on a random interval, not hold.
+        bool waitForRandom = waitFor is null && CalledBefore(exec, "frandom", "waitFor");
+
+        var ok = waitFor is not null || waitForRandom || smooth is not null || segments > 0;
+        return new(waitFor, waitForRandom, smooth, segments, ok ? "ok" : "no tween args resolved");
+    }
+
+    // True if a call whose name contains `first` appears before the first call whose name contains `then` in the
+    // executor's recorded call order. Used to tell "waitFor's delay is the frandom output" (random by design)
+    // from "the arg just didn't resolve".
+    private static bool CalledBefore(Arm64SymbolicExecutor.ExecResult exec, string first, string then)
+    {
+        int firstIdx = -1;
+        for (int i = 0; i < exec.Calls.Count; i++)
+        {
+            var name = exec.Calls[i].Name;
+            if (firstIdx < 0 && name.Contains(first, StringComparison.Ordinal)) firstIdx = i;
+            if (name.Contains(then, StringComparison.Ordinal)) return firstIdx >= 0 && firstIdx < i;
+        }
+        return false;
     }
 
     // rotate_pyramid loads a small integer = the number of orbit segments / pieces it instances (the loop bound).
