@@ -277,6 +277,56 @@ public sealed class DecompController(
     }
 
     // Shape a resolved-VA response. textOffset = va - textVmAddr = the frida runtime offset (module.base + this).
+    // Byte-scan signature for a function whose BODY changed across versions (so content-hash recovery misses it)
+    // but whose PROLOGUE shape is stable. Slices the function from the SYMBOLIZED reference (which still has the
+    // symbol), masks pc-relative displacement bytes, returns a frida Memory.scan pattern. The caller scans the
+    // live stripped module for it. Admin-gated. Honest: a changed prologue won't match; widen `instructions` or
+    // get an exact-version symbolized build for a clean transplant. The reference is the stash's symbolized ref.
+    [HttpGet("signature")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Signature(
+        [FromQuery] string name, [FromQuery] string? refVersion, [FromQuery] int instructions, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
+        if (instructions <= 0) instructions = 8;
+        try
+        {
+            // reuse the recovery-inputs plumbing just to fetch the symbolized reference bytes (targetPath unused).
+            var (ok, refBytes, _, diag) = await binaries.GetRecoveryInputsAsync(refVersion, "/dev/null", ct);
+            // GetRecoveryInputsAsync fails when the target is missing; we only need the ref, so re-fetch ref-only.
+            if (refBytes is null)
+            {
+                var (rok, rb, rdiag) = await binaries.GetBinaryAsync(null, ct);
+                refBytes = rb;
+                if (refBytes is null) return Ok(new { ok = false, diagnostics = rdiag ?? diag });
+            }
+
+            if (!MachoText.TryFindText(refBytes, out var tfo, out _, out var tvm))
+                return Ok(new { ok = false, diagnostics = "reference has no __text" });
+            var syms = MachoSymbols.Read(refBytes);
+            if (!MachoSymbols.TryFindFunc(syms, [name], out var fn))
+                return Ok(new { ok = false, diagnostics = $"symbol not found in reference: {name}" });
+
+            var pat = Arm64Signature.Build(refBytes, fn.Start, fn.End, tvm, tfo, instructions);
+            return Ok(new
+            {
+                ok = pat.Ok,
+                name = fn.Name,
+                refFunctionVa = "0x" + fn.Start.ToString("x"),
+                refFunctionLen = (int)(fn.End - fn.Start),
+                instructions = pat.Instructions,
+                maskedWords = pat.MaskedWords,
+                pattern = pat.FridaPattern,
+                diagnostics = pat.Diagnostics,
+                hint = "frida: Memory.scan(module.base, module.size, pattern, {onMatch, onComplete}); fewer matches = better. Widen instructions if 0 matches, narrow if many.",
+            });
+        }
+        catch (DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
     // Shape a resolved-VA response. A recovered/referrer VA can land MID-function (the content-hash match aligns
     // on a byte-stable interior region, not always the prologue), and an inline frida hook on a non-entry address
     // CRASHES the app (verified on-device: arm64e + mid-instruction). So snap the VA DOWN to its enclosing

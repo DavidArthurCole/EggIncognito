@@ -88,6 +88,30 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         return Ok(new { ok = true, count = filtered.Count, stems = filtered });
     }
 
+    // The hatchery floating effect, resolved from the device mesh list: for each tier (or one requested tier),
+    // the body stem + its floating sub-piece stems (bolt/probe/rings/tops). The "floating effect" is these hover
+    // meshes, not a particle system (the static binding wall). The playground loads body + parts + orbits the
+    // parts. Programmatic via HatcheryEffectParts (no hardcoded per-tier list). Admin-gated (device round-trip).
+    [HttpGet("hatchery-effects")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> HatcheryEffects([FromQuery] string? tier, [FromQuery] string? device, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        var (ok, stems, diag) = await meshes.ListStemsAsync(device, ct);
+        if (!ok) return Ok(new { ok = false, diagnostics = diag });
+
+        var tiers = string.IsNullOrWhiteSpace(tier)
+            ? Services.ProtoExtract.HatcheryEffectParts.Tiers(stems)
+            : [tier];
+        var effects = tiers
+            .Select(t => Services.ProtoExtract.HatcheryEffectParts.ForTier(stems, t))
+            .Where(p => p.Body is not null)
+            .Select(p => new { tier = p.Tier, body = p.Body, floating = p.Floating })
+            .ToList();
+        return Ok(new { ok = true, count = effects.Count, effects });
+    }
+
     // Decode stats for a stem's raw .rpo (admin). vertexCount/indexCount/bounds + trailingBytes: nonzero
     // trailing means the file packs more than one mesh (e.g. a hab's floating-effect sub-objects) the
     // single-mesh decoder currently drops. Diagnostic toward multi-mesh extraction.

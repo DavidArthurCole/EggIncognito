@@ -117,7 +117,7 @@ export async function init(canvas) {
     scene: _scene, camera: _camera, renderer: _renderer, controls: _controls,
     getGroupRoot, getGroupBase, getGroupCenterWorld, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
     captureBegin, renderAtPhase, captureEnd, anyAnimated, sceneBackgroundHex, animPeriod, captureCleanOutline,
-    attachEffects,
+    attachEffects, attachHatcheryParts, clearHatcheryParts,
   };
   loop();
 }
@@ -132,6 +132,7 @@ function loop() {
     applyAnim(g);
   }
   updateEffects(animClock);
+  orbitHatcheryParts(animClock);
   controls.update();
   renderer.render(scene, camera);
 }
@@ -301,6 +302,60 @@ function clearEffects(groupId) {
   effects.delete(groupId);
 }
 
+// The hatchery "floating effect" is real sub-MESHES (bolt/probe/rings/tops) that hover + orbit the body, not a
+// particle system (see the binding-wall finding). parts = [{ glb: base64, motion: {...} }]. Each decoded glb is
+// added as a child of the body group and animated per frame by orbitHatcheryParts. The motion is a STOPGAP
+// procedural orbit+bob until the exact per-piece RPA1 curve / FarmScene constants are extracted; the model
+// carries radius/speed/bob so swapping in extracted values later is a data change, not a code change.
+const hatcheryParts = new Map(); // groupId -> [{ obj, m }]
+export async function attachHatcheryParts(groupId, parts) {
+  await ensureLibs();
+  clearHatcheryParts(groupId);
+  const g = groups.get(groupId);
+  if (!g || !parts || !parts.length) return;
+  const built = [];
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (!p || !p.glb) continue;
+    let gltf;
+    try { gltf = await parseGlb(p.glb); } catch (e) { continue; }
+    const obj = new THREE.Group();
+    obj.add(gltf.scene);
+    g.root.add(obj);
+    // default motion if none supplied: spread the pieces evenly on the orbit, gentle hover.
+    const m = p.motion || {};
+    built.push({
+      obj,
+      radius: m.radius != null ? m.radius : 0,
+      speed: m.speed != null ? m.speed : 0.6,
+      bob: m.bob != null ? m.bob : 0.15,
+      bobSpeed: m.bobSpeed != null ? m.bobSpeed : 1.0,
+      phase: m.phase != null ? m.phase : (i / parts.length) * Math.PI * 2,
+      baseY: m.height != null ? m.height : 0,
+      spin: m.spin != null ? m.spin : 0.5,
+    });
+  }
+  if (built.length) hatcheryParts.set(groupId, built);
+}
+
+export function clearHatcheryParts(groupId) {
+  const list = hatcheryParts.get(groupId);
+  if (!list) return;
+  for (const e of list) e.obj.parent?.remove(e.obj);
+  hatcheryParts.delete(groupId);
+}
+
+function orbitHatcheryParts(tSeconds) {
+  if (hatcheryParts.size === 0) return;
+  for (const list of hatcheryParts.values()) {
+    for (const e of list) {
+      const a = e.phase + tSeconds * e.speed;
+      e.obj.position.set(Math.cos(a) * e.radius, e.baseY + Math.sin(tSeconds * e.bobSpeed + e.phase) * e.bob, Math.sin(a) * e.radius);
+      e.obj.rotation.y = tSeconds * e.spin + e.phase;
+    }
+  }
+}
+
 let _effectMat;
 function updateEffects(tSeconds) {
   if (effects.size === 0) return;
@@ -397,6 +452,17 @@ export async function addGroup(groupId, glbBase64, opts) {
   // shifted (an earlier re-center scattered the self-placing farm pieces).
   const box = new THREE.Box3().setFromObject(gltf.scene);
   const center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());
+
+  // Y-base snap: shift the mesh UP so its lowest point sits at the group origin (y=0). Env buildings are authored
+  // with a baked vertical offset (the hatchery/habs origin is above the mesh base), so placing them at a layout
+  // y=0 sinks them under the floor. This is Y-ONLY: X/Z are untouched, so the self-placing pieces (which depend
+  // on their authored horizontal offset) do NOT move. Skipped for pinned backdrops (terrain/ground/road span the
+  // floor and must keep their authored Y) and when opts.snapBase === false.
+  const snapBase = opts.snapBase !== false && !opts.pinned;
+  if (snapBase && !box.isEmpty() && Number.isFinite(box.min.y)) {
+    gltf.scene.position.y -= box.min.y;
+    center.y -= box.min.y;
+  }
 
   const mixer = new THREE.AnimationMixer(root);
   for (const clip of gltf.animations) mixer.clipAction(clip).play();
