@@ -698,6 +698,8 @@ else
             _designer = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundDesigner.js?v={InteropVersion()}");
             await _designer.InvokeVoidAsync("initDesigner", _selfRef);
         }
+        // warm the hatchery dump in the background so the first effect toggle does not wait on the device pull.
+        _ = FetchHatcheryDump();
     }
 
     // Called from the gizmo (playgroundDesigner.js) whenever a drag moves the selected element, so the numeric
@@ -980,23 +982,27 @@ else
     async Task RunDomino(string changedId)
     {
         if (_mod is null || !_gridSnap) return;
-        var boxes = await _mod.InvokeAsync<DominoBoxes>("gridBoxesForDomino", changedId);
-        if (boxes?.Changed is null || boxes.Others is null || boxes.Others.Length == 0) return;
-
-        GridBoxOf(boxes.Changed, out var changed);
-        var others = boxes.Others.Select(b => { GridBoxOf(b, out var g); return g; }).ToList();
-        var moves = PlacementSolver.DominoNudge(changed, others);
-        if (moves.Count == 0) return;
-
-        var payload = moves.Select(m => new { id = m.Id, deltaCol = m.DeltaCol, deltaRow = m.DeltaRow }).ToArray();
-        var moved = await _mod.InvokeAsync<MovedElement[]>("applyDominoMoves", new object[] { payload });
-        foreach (var mv in moved ?? [])
+        try
         {
-            var el = _elements.FirstOrDefault(e => e.Id == mv.Id);
-            if (el is not null && mv.Pos is { Length: 3 }) el.Pos = [mv.Pos[0], mv.Pos[1], mv.Pos[2]];
+            var boxes = await _mod.InvokeAsync<DominoBoxes>("gridBoxesForDomino", changedId);
+            if (boxes?.Changed is null || boxes.Others is null || boxes.Others.Length == 0) return;
+
+            GridBoxOf(boxes.Changed, out var changed);
+            var others = boxes.Others.Select(b => { GridBoxOf(b, out var g); return g; }).ToList();
+            var moves = PlacementSolver.DominoNudge(changed, others);
+            if (moves.Count == 0) return;
+
+            var payload = moves.Select(m => new { id = m.Id, deltaCol = m.DeltaCol, deltaRow = m.DeltaRow }).ToArray();
+            var moved = await _mod.InvokeAsync<MovedElement[]>("applyDominoMoves", new object[] { payload });
+            foreach (var mv in moved ?? [])
+            {
+                var el = _elements.FirstOrDefault(e => e.Id == mv.Id);
+                if (el is not null && mv.Pos is { Length: 3 }) el.Pos = [mv.Pos[0], mv.Pos[1], mv.Pos[2]];
+            }
+            await RederiveActors();
+            Autosave();
         }
-        await RederiveActors();
-        Autosave();
+        catch { /* a domino failure must never break the swap or the scene */ }
     }
 
     static void GridBoxOf(DominoBox b, out PlacementSolver.GridBox g) =>
@@ -1333,18 +1339,42 @@ else
             // (count/rate from rotate_pyramid); the spike piece = the beam fired probe->orb intermittently. Pieces
             // are classified by their decode-stats bounds (spike = Y-extent >> X/Z). All motion params come from the
             // binary; what does not recover is left null (that aspect is not animated). No invented orbit.
-            var dump = await FetchHatcheryDump();
-            var model = await BuildHatcheryModel(tier, floating, dump);
+            // cache the built model per tier (it holds the piece glbs); a re-toggle or tier re-visit is instant.
+            if (!_hatcheryModelCache.TryGetValue(tier, out var model))
+            {
+                var dump = await FetchHatcheryDump();
+                model = await BuildHatcheryModel(tier, floating, dump);
+                _hatcheryModelCache[tier] = model;
+            }
             await _mod.InvokeVoidAsync("attachHatcheryParts", el.Id, model);
         }
         catch { el.HasEffects = false; el.EffectCount = 0; await _mod.InvokeVoidAsync("clearHatcheryParts", el.Id); }
         StateHasChanged();
     }
 
-    async Task<System.Text.Json.JsonElement?> FetchHatcheryDump()
+    // The hatchery dump (all tiers + bounds + assembly) is the SAME for every hatchery; fetching it pulls the
+    // device archive, which is slow. Cache it for the session + dedupe concurrent fetches so toggling effects /
+    // swapping tiers does not re-pull each time. Prefetched on init so the first toggle is instant.
+    System.Text.Json.JsonElement? _hatcheryDump;
+    Task<System.Text.Json.JsonElement?>? _hatcheryDumpTask;
+    readonly Dictionary<string, object?> _hatcheryModelCache = new(StringComparer.Ordinal);
+
+    Task<System.Text.Json.JsonElement?> FetchHatcheryDump()
     {
-        try { return await Client().GetFromJsonAsync<System.Text.Json.JsonElement>("/api/env/hatchery-dump"); }
+        if (_hatcheryDump is not null) return Task.FromResult(_hatcheryDump);
+        return _hatcheryDumpTask ??= FetchHatcheryDumpUncached();
+    }
+
+    async Task<System.Text.Json.JsonElement?> FetchHatcheryDumpUncached()
+    {
+        try
+        {
+            var d = await Client().GetFromJsonAsync<System.Text.Json.JsonElement>("/api/env/hatchery-dump");
+            _hatcheryDump = d;
+            return d;
+        }
         catch { return null; }
+        finally { _hatcheryDumpTask = null; }
     }
 
     // Build the state-machine model for one tier from the extracted dump. Classifies each floating piece by its
@@ -1424,10 +1454,13 @@ else
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyB))
             bodyShift = [-bodyB.MinX, -bodyB.MinY, -(bodyB.MinZ + bodyB.MaxZ) * 0.5f];
 
-        // the orb sits at the extracted anchor's X/Z (in recentered coords: anchor + bodyShift), but its HEIGHT is
-        // the visible floating orb on TOP of the body, not the anchor's mid-body Y (the probes were orbiting at
-        // the rim). Use the body's upper region: floor-snapped body max-Y minus a margin so the orb hovers just
-        // above the dome. DISPLAY height (the anchor Y is the assembly point, not the visual orb center).
+        // the orb = the visible dome sphere on TOP of the body. Its X/Z come from the extracted anchor (in
+        // recentered coords: anchor + bodyShift); its HEIGHT is the dome center near the body top (the anchor Y is
+        // the assembly point, mid-body, which orbited the probes at the rim). The probes ring it at a radius that
+        // CLEARS the dome (else they orbit hidden inside the opaque sphere). domeRadius approximates the visible
+        // sphere from the body footprint. Both are DISPLAY values (the dome is baked into the body mesh, not a
+        // separately-extractable orb).
+        float domeRadius = 1.5f;
         if (dump is { } dd && dd.TryGetProperty("assembly", out var ae)
             && ae.TryGetProperty("anchor", out var an2) && an2.ValueKind == System.Text.Json.JsonValueKind.Array && an2.GetArrayLength() == 3)
         {
@@ -1435,7 +1468,11 @@ else
             float orbZ = (float)an2[2].GetDouble() + bodyShift[2];
             float orbY = (float)an2[1].GetDouble() + bodyShift[1];
             if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bForOrb))
-                orbY = (bForOrb.MaxY - bForOrb.MinY) * 0.75f; // floor-snapped upper body = where the dome orb sits
+            {
+                float h = bForOrb.MaxY - bForOrb.MinY;
+                orbY = h * 0.62f;                              // dome center, floor-snapped
+                domeRadius = Math.Clamp(h * 0.30f, 0.8f, 2.5f); // the visible sphere radius (approx from height)
+            }
             orb = [orbX, orbY, orbZ];
         }
 
@@ -1463,8 +1500,9 @@ else
         // derived from the body's footprint so the probes visibly orbit instead of stacking on the orb. This is
         // a render approximation, NOT an extracted value (marked so per CLAUDE.md): the true scatter is runtime
         // random. The orbit rate/count/beam-timing ARE extracted (rotate_pyramid).
-        if (orbitRadius <= 0f && fullBounds.TryGetValue($"ei_hatchery_{tier}", out var body))
-            orbitRadius = Math.Clamp(Math.Max(body.ExtentX, body.ExtentZ) * 0.08f, 0.6f, 1.6f);
+        // radius must CLEAR the dome so probes ring it visibly outside, not hidden inside the opaque sphere.
+        if (orbitRadius <= 0f)
+            orbitRadius = domeRadius + 0.8f;
 
         return new
         {

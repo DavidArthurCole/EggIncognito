@@ -357,12 +357,13 @@ export async function attachHatcheryParts(groupId, model) {
     const shift = Array.isArray(piece.shift) ? piece.shift : [0, 0, 0];
 
     if (piece.role === 'WorldPlaced') {
-      // authored at its on-body position: drop it at its authored spot (shifted with the body). Static.
+      // authored at its on-body position (shifted with the body). It FLOATS up and down (the ai roof tops bob);
+      // store its base Y + a staggered phase so the drive bobs each one out of sync.
       const obj = new THREE.Group();
       obj.add(pg.scene);
       obj.position.set(shift[0], shift[1], shift[2]);
       g.root.add(obj);
-      state.statics.push({ obj });
+      state.statics.push({ obj, baseY: shift[1], phase: state.statics.length * 0.7, amp: 0.4, speed: 1.2 });
       continue;
     }
 
@@ -469,6 +470,11 @@ function orbitHatcheryParts(tSeconds) {
     for (const s of st.spinners) {
       if (s.axis === 'y') s.obj.rotation.y = tSeconds * s.speed;
       else s.obj.rotation.z = tSeconds * s.speed;
+    }
+    // statics (ai roof tops): float up and down around their authored Y, staggered so they bob out of sync.
+    for (const s of st.statics) {
+      if (s.baseY === undefined) continue;
+      s.obj.position.y = s.baseY + Math.sin(tSeconds * s.speed + s.phase) * s.amp;
     }
     for (const p of st.probes) {
       // 3D orbit in the probe's own plane: pos = orb + (cos*u + sin*v) * radius. u,v span a randomly-inclined
@@ -695,6 +701,7 @@ export async function addGroup(groupId, glbBase64, opts) {
     center,
     localFootprint,
     snapBase, // whether this group rests on the floor (false for pinned backdrops)
+    recenter: !!opts.recenter, // recentered = grid-placed (footprint is origin-relative); self-placing if false
     // preserve anim + placement across a re-render (reshell / hat change keeps spin + position).
     anim: carried?.anim || 'none',
     base: carried?.base || null,
@@ -954,11 +961,12 @@ function blockCells(local, scale, x, z, cell) {
   return { cells, centerX: (col0 + spanC / 2) * cell, centerZ: (row0 + spanR / 2) * cell, spanC, spanR };
 }
 
-// The set of cells every OTHER (non-pinned) element occupies, as "c,r" keys, for the occupancy check.
+// The set of cells every OTHER grid-placed element occupies, as "c,r" keys, for the occupancy check. Only
+// recentered (grid) elements count: a self-placing piece's footprint is in mesh coords, not grid cells.
 function occupiedCells(excludeId, cell) {
   const taken = new Set();
   for (const [gid, g] of groups) {
-    if (gid === excludeId || g.pinned || !g.localFootprint) continue;
+    if (gid === excludeId || g.pinned || !g.recenter || !g.localFootprint) continue;
     const base = g.base || { pos: [g.root.position.x, 0, g.root.position.z], scale: 1 };
     const b = blockCells(g.localFootprint, base.scale || 1, base.pos[0], base.pos[2], cell);
     for (const cc of b.cells) taken.add(cc.c + ',' + cc.r);
@@ -971,7 +979,8 @@ function occupiedCells(excludeId, cell) {
 // invalid (the caller reverts), never relocated.
 export function gridSnapBlock(id, x, z) {
   const g = groups.get(id);
-  if (!g || !g.localFootprint || gridCell <= 0) return { centerX: x, centerZ: z, valid: true, cells: [] };
+  // a self-placing piece (recenter=false) has a mesh-coord footprint, not grid cells: leave it free-placed.
+  if (!g || !g.localFootprint || !g.recenter || gridCell <= 0) return { centerX: x, centerZ: z, valid: true, cells: [] };
   const scale = g.base?.scale || 1;
   const b = blockCells(g.localFootprint, scale, x, z, gridCell);
   const taken = occupiedCells(id, gridCell);
@@ -1016,7 +1025,9 @@ export function gridBoxesForDomino(changedId) {
   let changed = null;
   const others = [];
   for (const [gid, g] of groups) {
-    if (g.pinned || !g.localFootprint) continue;
+    // ONLY grid-placed (recentered) elements: a self-placing piece keeps its mesh-coord footprint (X far from
+    // origin), which would produce a giant garbage cell span + fling the whole scene on a domino pass.
+    if (g.pinned || !g.recenter || !g.localFootprint) continue;
     const base = g.base || { pos: [g.root.position.x, 0, g.root.position.z], scale: 1 };
     const b = blockCells(g.localFootprint, base.scale || 1, base.pos[0], base.pos[2], gridCell);
     const col0 = Math.round(base.pos[0] / gridCell - b.spanC / 2);
@@ -1033,7 +1044,7 @@ export function applyDominoMoves(moves) {
   const out = [];
   for (const m of moves || []) {
     const g = groups.get(m.id);
-    if (!g) continue;
+    if (!g || g.pinned || !g.recenter) continue; // never move a pinned backdrop / self-placing piece
     const base = g.base || { pos: [g.root.position.x, g.root.position.y, g.root.position.z], rotDeg: [0, 0, 0], scale: 1 };
     const pos = [base.pos[0] + m.deltaCol * gridCell, base.pos[1], base.pos[2] + m.deltaRow * gridCell];
     setGroupTransform(m.id, pos, base.rotDeg, base.scale);
