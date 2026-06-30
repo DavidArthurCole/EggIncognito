@@ -1170,6 +1170,12 @@ else
     async Task ApplyEffect(DesignElement el)
     {
         if (_mod is null || el.Kind != "env") return;
+        // hatchery floating effect = real sub-meshes (bolt/probe/rings/tops) hovering the body, NOT particles.
+        if (el.Ref.StartsWith("ei_hatchery", StringComparison.Ordinal))
+        {
+            await ApplyHatcheryParts(el);
+            return;
+        }
         try
         {
             var res = await Client().GetFromJsonAsync<System.Text.Json.JsonElement>($"/api/decomp/building-effects?stem={Uri.EscapeDataString(el.Ref)}");
@@ -1180,6 +1186,56 @@ else
         }
         catch { el.HasEffects = false; el.EffectCount = 0; await _mod.InvokeVoidAsync("attachEffects", el.Id, null); }
         StateHasChanged();
+    }
+
+    // Load a hatchery's floating sub-pieces + orbit them around the body. Resolves the tier's parts via
+    // /api/env/hatchery-effects, fetches each part's glb, and hands them to attachHatcheryParts. The orbit radius
+    // is a STOPGAP (scaled from the body, see attachHatcheryParts) until the exact RPA1 curve / FarmScene hab
+    // constants are extracted. el.Effect toggles it; HasEffects/EffectCount drive the UI badge.
+    async Task ApplyHatcheryParts(DesignElement el)
+    {
+        if (_mod is null) return;
+        try
+        {
+            var tier = HatcheryTierOf(el.Ref);
+            var res = await Client().GetFromJsonAsync<System.Text.Json.JsonElement>($"/api/env/hatchery-effects?tier={Uri.EscapeDataString(tier)}");
+            var floating = new List<string>();
+            if (res.TryGetProperty("effects", out var effects) && effects.ValueKind == System.Text.Json.JsonValueKind.Array)
+                foreach (var e in effects.EnumerateArray())
+                    if (e.TryGetProperty("floating", out var fl) && fl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                        foreach (var f in fl.EnumerateArray())
+                            if (f.GetString() is { } s) floating.Add(s);
+
+            el.HasEffects = floating.Count > 0;
+            el.EffectCount = floating.Count;
+
+            if (!el.Effect || floating.Count == 0)
+            {
+                await _mod.InvokeVoidAsync("clearHatcheryParts", el.Id);
+                StateHasChanged();
+                return;
+            }
+
+            var parts = new List<object>();
+            foreach (var stem in floating)
+            {
+                var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
+                if (glb is not null)
+                    parts.Add(new { glb = Convert.ToBase64String(glb), motion = (object?)null });
+            }
+            await _mod.InvokeVoidAsync("attachHatcheryParts", el.Id, parts);
+        }
+        catch { el.HasEffects = false; el.EffectCount = 0; await _mod.InvokeVoidAsync("clearHatcheryParts", el.Id); }
+        StateHasChanged();
+    }
+
+    // The tier token of a hatchery stem (ei_hatchery_universe -> universe). Mirrors HatcheryEffectParts.TierOf;
+    // kept simple here since the UI only needs the body tier, which is the remainder after the prefix with any
+    // trailing floating-part suffix stripped server-side anyway (we pass the body stem's tier).
+    static string HatcheryTierOf(string stem)
+    {
+        const string prefix = "ei_hatchery_";
+        return stem.StartsWith(prefix, StringComparison.Ordinal) ? stem[prefix.Length..] : stem;
     }
     async Task OnShellChanged() { PushHistory(); await ReshellSelected(); }
     async Task OnHatChanged(DesignElement sel) { PushHistory(); await RenderAndReselect(sel); }

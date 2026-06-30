@@ -322,16 +322,21 @@ export async function attachHatcheryParts(groupId, parts) {
     const obj = new THREE.Group();
     obj.add(gltf.scene);
     g.root.add(obj);
-    // default motion if none supplied: spread the pieces evenly on the orbit, gentle hover.
+    // default motion (STOPGAP until the RPA1 curve / FarmScene hab constants are extracted): orbit the pieces at
+    // a radius scaled to the BODY size so they ring it instead of stacking at the center, hover gently, each
+    // offset in phase. The body's bbox sets the default radius + height.
+    const bodyBox = new THREE.Box3().setFromObject(g.root);
+    const bodyR = bodyBox.isEmpty() ? 1.5 : Math.max(bodyBox.max.x - bodyBox.min.x, bodyBox.max.z - bodyBox.min.z) * 0.5;
+    const bodyTop = bodyBox.isEmpty() ? 1.0 : bodyBox.max.y;
     const m = p.motion || {};
     built.push({
       obj,
-      radius: m.radius != null ? m.radius : 0,
+      radius: m.radius != null ? m.radius : bodyR * 0.9,
       speed: m.speed != null ? m.speed : 0.6,
       bob: m.bob != null ? m.bob : 0.15,
       bobSpeed: m.bobSpeed != null ? m.bobSpeed : 1.0,
       phase: m.phase != null ? m.phase : (i / parts.length) * Math.PI * 2,
-      baseY: m.height != null ? m.height : 0,
+      baseY: m.height != null ? m.height : bodyTop * 0.6,
       spin: m.spin != null ? m.spin : 0.5,
     });
   }
