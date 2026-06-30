@@ -1217,16 +1217,17 @@ else
                 return;
             }
 
-            // Placement is EXTRACTED from FarmScene::updateHatchery (the assembly fn), not invented. The renderer
-            // places each piece by its extracted instance transform; no transforms => the piece is not placed (we
-            // do not guess a ring/orbit). The assembly binding is filled in once /api/decomp/hatchery-assembly is
-            // decoded into per-piece instance matrices; until then pieces load but hold identity (visible, honest).
+            // Placement EXTRACTED from FarmScene::updateHatchery: the assembly anchor (body/ball center) + each
+            // matrix lambda's recovered translation = a piece world position. We place each piece at (translation -
+            // anchor) so it sits relative to the body group origin. Spin rate is the extracted per-frame increment.
+            // No invented orbit/ring/count: positions that don't recover are simply not placed.
+            var asm = await FetchHatcheryAssembly();
             var parts = new List<object>();
             foreach (var stem in floating)
             {
                 var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
                 if (glb is not null)
-                    parts.Add(new { glb = Convert.ToBase64String(glb), instances = HatcheryInstances(stem) });
+                    parts.Add(new { glb = Convert.ToBase64String(glb), instances = HatcheryInstances(stem, asm) });
             }
             await _mod.InvokeVoidAsync("attachHatcheryParts", el.Id, parts);
         }
@@ -1234,11 +1235,36 @@ else
         StateHasChanged();
     }
 
-    // The extracted per-piece instance transforms (from FarmScene::updateHatchery). EMPTY until the assembly is
-    // decoded into instance matrices (the /api/decomp/hatchery-assembly output is being reverse-engineered). One
-    // identity instance so the piece is visible at the body origin for now, with NO invented motion/count/orbit.
-    static object[] HatcheryInstances(string stem) =>
-        [new { matrix = (float[]?)null, pos = new[] { 0f, 0f, 0f }, anim = (object?)null }];
+    // Fetch the extracted hatchery assembly (anchor + per-lambda translations) once per apply. Null on failure
+    // (no binary / not admin) => pieces fall back to body-origin placement, no invented motion.
+    async Task<HatcheryAssembly?> FetchHatcheryAssembly()
+    {
+        try { return await Client().GetFromJsonAsync<HatcheryAssembly>("/api/decomp/hatchery-assembly"); }
+        catch { return null; }
+    }
+
+    // Build a piece's instance transforms from the EXTRACTED assembly: each recovered lambda translation, placed
+    // relative to the anchor (translation - anchor) so it sits at the right spot on the body. The spin uses the
+    // extracted rate when present. No assembly => one instance at the body origin (visible, no invented motion).
+    static object[] HatcheryInstances(string stem, HatcheryAssembly? asm)
+    {
+        if (asm?.Anchor is not { Length: 3 } a || asm.Transforms is null)
+            return [new { matrix = (float[]?)null, pos = new[] { 0f, 0f, 0f }, anim = (object?)null }];
+
+        var insts = new List<object>();
+        foreach (var t in asm.Transforms)
+        {
+            if (t.Translation is not { Length: 3 } p) continue;
+            // position relative to the body group origin (the body mesh self-places at its plot; subtract the
+            // anchor so the piece offset is measured from the body, not world).
+            var rel = new[] { p[0] - a[0], p[1] - a[1], p[2] - a[2] };
+            insts.Add(new { matrix = (float[]?)null, pos = rel, anim = (object?)null });
+        }
+        // nothing recovered => one body-origin instance (honest fallback, no guessed ring).
+        if (insts.Count == 0)
+            insts.Add(new { matrix = (float[]?)null, pos = new[] { 0f, 0f, 0f }, anim = (object?)null });
+        return insts.ToArray();
+    }
 
     // The tier token of a hatchery stem (ei_hatchery_universe -> universe). Mirrors HatcheryEffectParts.TierOf;
     // kept simple here since the UI only needs the body tier, which is the remainder after the prefix with any
@@ -1682,6 +1708,10 @@ else
     record FamilyOption(string Stem, string Label);
     record FamilyResult(FamilyOption[]? Family);
     record FarmPlaced(string Stem, string Label, float[] Pos, float RotY, float Scale, bool Recenter);
+
+    // The extracted hatchery assembly: the body/ball anchor + each matrix lambda's recovered translation.
+    record HatcheryAssembly(bool Ok, float[]? Anchor, HatcheryTransform[]? Transforms);
+    record HatcheryTransform(bool Ok, string Lambda, float[]? Translation);
     record FarmLayoutResult(FarmPlaced[]? Elements);
     record DesignRow(string Name, DateTimeOffset UpdatedAt, string? Owner);
     record DesignListResult(DesignRow[]? Designs);

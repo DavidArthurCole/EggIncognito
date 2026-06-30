@@ -261,38 +261,17 @@ public sealed class DecompController(
             var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
             if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
 
-            // the assembly function itself: constants + which shells/helpers it calls.
+            // structured recovery: the assembly anchor + each matrix lambda's returned 4x4 (sret out-param).
+            var asm = EggIncognito.Services.ProtoExtract.Decomp.HatcheryAssemblyRecovery.Recover(bin);
+            // also surface the raw main fn constants + calls (the assembly method: loadShell/frandom/rotate_pyramid).
             var main = FunctionConstantExtractor.Extract(bin, ["FarmScene14updateHatcheryEP14GameControllerb"]);
 
-            // each matrix-returning lambda's BODY (the clEv invoke, not the destructor): recover its transform math.
-            // the mangled tail for lambda N's call operator returning Eigen::Matrix<f,4,4>.
-            var matrixLambdas = new[] { "$_2", "$_3", "$_5" };
-            var lambdas = matrixLambdas.Select(tag =>
+            var json = asm.ToJson();
+            json["main"] = new System.Text.Json.Nodes.JsonObject
             {
-                var needle = $"updateHatcheryEP14GameControllerbE3{tag}FN5Eigen6MatrixIfLi4ELi4ELi0ELi4ELi4EEEvEEclEv";
-                var model = EggIncognito.Services.ProtoExtract.Decomp.EffectRecovery.Recover(bin, needle, needle, null);
-                var consts = FunctionConstantExtractor.Extract(bin, [needle]);
-                return new
-                {
-                    lambda = tag,
-                    transform = model.Placement is null ? null : EggIncognito.Services.ProtoExtract.Decomp.ExprNode.ToJson(model.Placement),
-                    opaqueCount = model.OpaqueCount,
-                    floats = consts.Ok ? consts.Floats : [],
-                    calls = consts.Ok ? consts.Calls : [],
-                    diagnostics = model.Diagnostics,
-                };
-            }).ToList();
-
-            var json = new System.Text.Json.Nodes.JsonObject
-            {
-                ["ok"] = true,
-                ["main"] = new System.Text.Json.Nodes.JsonObject
-                {
-                    ["function"] = main.FunctionName,
-                    ["floats"] = new System.Text.Json.Nodes.JsonArray(main.Floats.Select(f => System.Text.Json.Nodes.JsonValue.Create(f)).ToArray()),
-                    ["calls"] = new System.Text.Json.Nodes.JsonArray(main.Calls.Select(c => System.Text.Json.Nodes.JsonValue.Create(c)).ToArray()),
-                },
-                ["lambdas"] = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(lambdas)),
+                ["function"] = main.FunctionName,
+                ["floats"] = new System.Text.Json.Nodes.JsonArray(main.Floats.Select(f => System.Text.Json.Nodes.JsonValue.Create(f)).ToArray()),
+                ["calls"] = new System.Text.Json.Nodes.JsonArray(main.Calls.Select(c => System.Text.Json.Nodes.JsonValue.Create(c)).ToArray()),
             };
             return Content(json.ToJsonString(), "application/json");
         }
