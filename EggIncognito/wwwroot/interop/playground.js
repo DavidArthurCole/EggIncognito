@@ -303,66 +303,102 @@ function clearEffects(groupId) {
   effects.delete(groupId);
 }
 
-// The hatchery floating effect = a STATE MACHINE driven by FarmScene::updateHatchery (extracted, not invented):
-// PROBES (the disc piece) orbit the orb at the body anchor; BEAMS (the spike piece) fire from a probe to the orb
-// for brief intermittent moments. The model is built from extracted constants (rotate_pyramid orbit rate + count,
-// the anchor, the beam scale/timing) and passed in:
-//   model = {
-//     orb: [x,y,z],                                  // relative to the body group origin
-//     probe: { glb, count, radius, speed, tilt },    // orbiting satellites
-//     beam:  { glb, fireInterval, fireDuration },    // the spike, fired probe->orb intermittently
-//   }
-// Counts/rates that did not recover from the binary are null => that aspect is simply not animated (no guessing).
-const hatcheryParts = new Map(); // groupId -> { probes:[{obj,phase,radius,speed,tilt,orb}], beams:[{obj,from,orb,...}], orb }
+// The hatchery floating effect = a STATE MACHINE driven by FarmScene::updateHatchery (extracted, not invented).
+// Each floating sub-mesh is classified (in C#, from its authored .rpo bounds) into the role the game animates it
+// as, and the renderer drives it accordingly:
+//   - Probe:       a disc orbiting the orb at the body anchor (universe probe). count/speed from rotate_pyramid.
+//   - Beam:        a spike fired probe->orb for brief intermittent moments (universe bolt). timing extracted.
+//   - Ring:        a flat ring spinning around the orb in place (darkmatter ring_1/2/3).
+//   - Shell / Orb: a piece hovering at the orb, slowly spinning (vision middle/top, enlightenment orb).
+//   - WorldPlaced: a piece authored AT its spot on the body (ai roof tops, graviton top): rendered static.
+// model = { orb:[x,y,z], pieces:[{glb, role, worldPlaced, size}], probeCount, orbitSpeed, orbitRadius,
+//           beam:{fireInterval,fireDuration,fireRandom} }
+const hatcheryParts = new Map(); // groupId -> { probes, beams, spinners, statics, orb }
 export async function attachHatcheryParts(groupId, model) {
   await ensureLibs();
   clearHatcheryParts(groupId);
   const g = groups.get(groupId);
-  if (!g || !model) return;
+  if (!g || !model || !Array.isArray(model.pieces)) return;
 
   const orb = Array.isArray(model.orb) ? new THREE.Vector3(model.orb[0], model.orb[1], model.orb[2]) : new THREE.Vector3();
-  const state = { probes: [], beams: [], orb };
+  const state = { probes: [], beams: [], spinners: [], statics: [], orb };
+  const probeCount = Math.max(1, model.probeCount || 1);
+  const orbitSpeed = model.orbitSpeed || 0;
+  const orbitRadius = model.orbitRadius || 0;
+  const beam = model.beam || {};
 
-  // probes: N orbiting discs. radius/speed/count come from the extracted rotate_pyramid; phases evenly spread.
-  const pr = model.probe;
-  if (pr && pr.glb && pr.count > 0 && pr.radius > 0) {
-    let pg; try { pg = await parseGlb(pr.glb); } catch (e) { pg = null; }
-    if (pg) {
-      for (let k = 0; k < pr.count; k++) {
-        const obj = new THREE.Group();
-        obj.add(k === 0 ? pg.scene : pg.scene.clone());
-        g.root.add(obj);
-        state.probes.push({
-          obj, phase: (k / pr.count) * Math.PI * 2,
-          radius: pr.radius, speed: pr.speed || 0, tilt: pr.tilt || 0,
-        });
-      }
+  for (const piece of model.pieces) {
+    let pg; try { pg = await parseGlb(piece.glb); } catch (e) { pg = null; }
+    if (!pg) continue;
+
+    if (piece.role === 'WorldPlaced') {
+      // authored at its on-body position: drop it in as-is (slow spin would fight its placement). Static.
+      const obj = new THREE.Group();
+      obj.add(pg.scene);
+      g.root.add(obj);
+      state.statics.push({ obj });
+      continue;
+    }
+
+    if (piece.role === 'Beam') {
+      // one spike per probe, hidden until it fires. Needs probes to fire FROM; created after probes below.
+      state._beamGlb = piece.glb;
+      continue;
+    }
+
+    if (piece.role === 'Ring') {
+      // a ring spins around the orb in its own plane, in place at the orb. Each ring a touch faster than the last.
+      const obj = new THREE.Group();
+      obj.add(pg.scene);
+      obj.position.copy(orb);
+      g.root.add(obj);
+      state.spinners.push({ obj, axis: 'z', speed: (orbitSpeed || 0.5) * (1 + state.spinners.length * 0.25) });
+      continue;
+    }
+
+    if (piece.role === 'Shell' || piece.role === 'Orb') {
+      // hovers at the orb, slow spin about Y (a nested shell / the core orb).
+      const obj = new THREE.Group();
+      obj.add(pg.scene);
+      obj.position.copy(orb);
+      g.root.add(obj);
+      state.spinners.push({ obj, axis: 'y', speed: (orbitSpeed || 0.5) * 0.4 });
+      continue;
+    }
+
+    // Probe: N orbiting discs, evenly phase-spread. Reuse this piece's glb for all N.
+    for (let k = 0; k < probeCount; k++) {
+      const obj = new THREE.Group();
+      obj.add(k === 0 ? pg.scene : pg.scene.clone());
+      g.root.add(obj);
+      state.probes.push({ obj, phase: (k / probeCount) * Math.PI * 2, radius: orbitRadius, speed: orbitSpeed, tilt: 0 });
     }
   }
 
-  // beams: one spike per probe, hidden until it fires. Fire timing is the extracted intermittent schedule.
-  const bm = model.beam;
-  if (bm && bm.glb && bm.fireInterval > 0 && state.probes.length) {
-    let bg; try { bg = await parseGlb(bm.glb); } catch (e) { bg = null; }
-    if (bg) {
-      for (let i = 0; i < state.probes.length; i++) {
-        const obj = new THREE.Group();
-        obj.add(i === 0 ? bg.scene : bg.scene.clone());
-        obj.visible = false;
-        obj.matrixAutoUpdate = false;
-        g.root.add(obj);
-        // stagger each beam's fire schedule so they do not all fire together (the game fires intermittently).
-        state.beams.push({
-          obj, probe: state.probes[i],
-          interval: bm.fireInterval, duration: bm.fireDuration || 0.2,
-          offset: (i * 0.37) % bm.fireInterval,
-          random: !!bm.fireRandom, seed: (i + 1) * 1.6180339887, // golden-ratio seed for per-beam jitter
-        });
-      }
+  // beams: one per probe, fired probe->orb on the extracted intermittent schedule. Built after probes so each
+  // beam has a probe to originate from.
+  if (state._beamGlb && state.probes.length) {
+    for (let i = 0; i < state.probes.length; i++) {
+      let bg; try { bg = await parseGlb(state._beamGlb); } catch (e) { bg = null; }
+      if (!bg) break;
+      const obj = new THREE.Group();
+      obj.add(bg.scene);
+      obj.visible = false;
+      obj.matrixAutoUpdate = false;
+      g.root.add(obj);
+      const interval = beam.fireInterval > 0 ? beam.fireInterval : 1.5;
+      state.beams.push({
+        obj, probe: state.probes[i],
+        interval, duration: beam.fireDuration || 0.2,
+        offset: (i * 0.37) % interval,
+        random: !!beam.fireRandom, seed: (i + 1) * 1.6180339887,
+      });
     }
   }
+  delete state._beamGlb;
 
-  if (state.probes.length || state.beams.length) hatcheryParts.set(groupId, state);
+  if (state.probes.length || state.beams.length || state.spinners.length || state.statics.length)
+    hatcheryParts.set(groupId, state);
 }
 
 export function clearHatcheryParts(groupId) {
@@ -370,6 +406,8 @@ export function clearHatcheryParts(groupId) {
   if (!st) return;
   for (const p of st.probes) p.obj.parent?.remove(p.obj);
   for (const b of st.beams) b.obj.parent?.remove(b.obj);
+  for (const s of st.spinners) s.obj.parent?.remove(s.obj);
+  for (const s of st.statics) s.obj.parent?.remove(s.obj);
   hatcheryParts.delete(groupId);
 }
 
@@ -383,6 +421,11 @@ function orbitHatcheryParts(tSeconds) {
     _beamQuat = new THREE.Quaternion(); _beamScale = new THREE.Vector3(1, 1, 1); _beamMat = new THREE.Matrix4();
   }
   for (const st of hatcheryParts.values()) {
+    // spinners: rings + nested shells rotate in place at the orb about their own axis (extracted rate).
+    for (const s of st.spinners) {
+      if (s.axis === 'y') s.obj.rotation.y = tSeconds * s.speed;
+      else s.obj.rotation.z = tSeconds * s.speed;
+    }
     for (const p of st.probes) {
       const a = p.phase + tSeconds * p.speed;
       const x = st.orb.x + Math.cos(a) * p.radius;

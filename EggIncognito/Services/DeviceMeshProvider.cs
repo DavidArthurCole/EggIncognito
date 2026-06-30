@@ -107,46 +107,94 @@ public sealed class DeviceMeshProvider(
         return (rpo, null);
     }
 
-    // Lists the .rpo/.rpoz mesh stems actually present on the asset-source device (Android: enumerate the apk;
-    // iOS has no cheap listing so it returns empty + a diagnostic). Used to map the env catalog to the real
-    // on-device asset names (hab tiers, the completed artifact hall) instead of guessing stems.
+    // Lists the .rpo/.rpoz mesh stems actually present on the asset-source device. Android: enumerate the base.apk
+    // zip. iOS: ssh `find` over the jailbroken .app bundle (names only, no byte pull). Used to map the env catalog
+    // to the real on-device asset names (hab tiers, the completed artifact hall) instead of guessing stems.
     public async Task<(bool Ok, IReadOnlyList<string> Stems, string? Diagnostics)> ListStemsAsync(string? deviceId, CancellationToken ct)
     {
         var device = await ResolveDeviceAsync(deviceId, ct);
         if (device is null) return (false, [], "no asset-source device available");
+        if (device.Platform == PlatformIos)
+        {
+            if (IosSsh(device) is not { } ssh)
+                return (false, [], "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured");
+            var names = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).ListRposAsync(device.Package, ct);
+            return names.Count > 0 ? (true, names, null) : (false, [], "no meshes found on the device bundle");
+        }
         if (device.Platform != PlatformAndroid)
-            return (false, [], $"stem listing is android-only (device is {device.Platform})");
+            return (false, [], $"no mesh listing for platform {device.Platform}");
         var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
         if (apk is null) return (false, [], "could not pull base.apk from the device");
         return (true, RpoAssetLister.ListStems(apk), null);
     }
 
-    // Lists every mesh stem AND decodes the stats of each stem the selector picks, from a SINGLE base.apk pull.
-    // The per-piece GetDecodeStatsAsync re-pulls the whole apk every call (multi-MB over adb each time); a dump
-    // wanting bounds for every hatchery piece would pull the apk dozens of times. This pulls once, then reads the
-    // selected stems out of the in-memory zip. The selector runs on the full stem list so the caller can derive
-    // which stems to decode (e.g. all hatchery tiers + their parts) from the listing itself, no second pull.
-    // Android-only (iOS has no cheap listing). Returns (ok, allStems, stem->stats, diag).
+    // Lists every mesh stem AND decodes the stats of each stem the selector picks, from a SINGLE device pull. The
+    // per-piece GetDecodeStatsAsync re-pulls the whole archive every call (multi-MB over adb/ssh each time); a
+    // dump wanting bounds for every hatchery piece would pull dozens of times. This pulls once (Android: base.apk
+    // zip; iOS: a tarball of every .rpo/.rpoz off the jailbroken bundle), then reads the selected stems out of
+    // the in-memory archive. The selector runs on the full stem list so the caller derives which stems to decode
+    // (e.g. all hatchery tiers + parts) from the listing itself, no second pull. Returns (ok, allStems, stem->
+    // stats, diag).
     public async Task<(bool Ok, IReadOnlyList<string> Stems, IReadOnlyDictionary<string, RpoMeshDecoder.DecodeResult> Stats, string? Diagnostics)>
         ListStemsWithStatsAsync(string? deviceId, Func<IReadOnlyList<string>, IEnumerable<string>> selectStatsFor, CancellationToken ct)
     {
         var empty = (IReadOnlyDictionary<string, RpoMeshDecoder.DecodeResult>)new Dictionary<string, RpoMeshDecoder.DecodeResult>();
         var device = await ResolveDeviceAsync(deviceId, ct);
         if (device is null) return (false, [], empty, "no asset-source device available");
-        if (device.Platform != PlatformAndroid)
-            return (false, [], empty, $"stem listing is android-only (device is {device.Platform})");
 
-        var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
-        if (apk is null) return (false, [], empty, "could not pull base.apk from the device");
+        // a single pull, returned as (stem -> raw .rpo/.rpoz bytes); both platforms then share the decode loop.
+        var (rpos, diag) = device.Platform switch
+        {
+            PlatformAndroid => await PullAndroidRposAsync(device, ct),
+            PlatformIos => await PullIosRposAsync(device, ct),
+            _ => (null, $"no mesh listing for platform {device.Platform}"),
+        };
+        if (rpos is null) return (false, [], empty, diag);
 
-        var stems = RpoAssetLister.ListStems(apk);
+        var stems = rpos.Keys.OrderBy(s => s, StringComparer.Ordinal).ToList();
         var stats = new Dictionary<string, RpoMeshDecoder.DecodeResult>(StringComparer.Ordinal);
         foreach (var stem in selectStatsFor(stems).Distinct(StringComparer.Ordinal))
-        {
-            var rpo = RpoAssetLister.ReadStem(apk, stem);
-            if (rpo is not null) stats[stem] = RpoMeshDecoder.Decode(rpo, stem);
-        }
+            if (rpos.TryGetValue(stem, out var rpo)) stats[stem] = RpoMeshDecoder.Decode(rpo, stem);
         return (true, stems, stats, null);
+    }
+
+    // Android: one base.apk pull, every .rpo/.rpoz entry read out of the zip into (stem -> bytes).
+    private async Task<(IReadOnlyDictionary<string, byte[]>?, string?)> PullAndroidRposAsync(Device device, CancellationToken ct)
+    {
+        var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+        if (apk is null) return (null, "could not pull base.apk from the device");
+        var map = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        foreach (var stem in RpoAssetLister.ListStems(apk))
+            if (RpoAssetLister.ReadStem(apk, stem) is { } b) map[stem] = b;
+        return (map, null);
+    }
+
+    // iOS: one tarball pull of every mesh off the jailbroken .app bundle, each tar entry mapped (stem -> bytes).
+    // The puller already has this; only the listing path never used it. Needs DeviceUpdate:Ios:SshKeyPath set.
+    private async Task<(IReadOnlyDictionary<string, byte[]>?, string?)> PullIosRposAsync(Device device, CancellationToken ct)
+    {
+        if (IosSsh(device) is not { } ssh)
+            return (null, "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured");
+        var tar = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullRposTarAsync(device.Package, ct);
+        if (tar is null) return (null, "could not pull the rpos tarball off the device");
+        var map = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        foreach (var (name, bytes) in TarReader.Read(tar))
+        {
+            if (bytes.Length == 0) continue;
+            if (!name.EndsWith(".rpo", StringComparison.OrdinalIgnoreCase)
+                && !name.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase)) continue;
+            map[StemOf(name)] = bytes; // last write wins on a dup stem; fine, identical meshes
+        }
+        return (map, null);
+    }
+
+    // The bare file stem of an archive entry path: basename with the .rpo/.rpoz extension stripped.
+    private static string StemOf(string path)
+    {
+        var slash = path.LastIndexOfAny(['/', '\\']);
+        var name = slash >= 0 ? path[(slash + 1)..] : path;
+        var dot = name.LastIndexOf('.');
+        return dot > 0 ? name[..dot] : name;
     }
 
     // The cached glb for (platform, stem) from Postgres, or null (miss / no DB). When platform is null (no

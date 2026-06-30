@@ -1353,54 +1353,68 @@ else
             }
         }
 
-        // classify pieces from the dump bounds (spike Y-extent >> horizontal => beam; else probe). Falls back to
-        // name (_bolt=beam spike, _probe=probe disc) when bounds are absent.
-        string? probeStem = null, beamStem = null;
-        var boundsByStem = HatcheryBounds(tier, dump);
+        // Classify EACH floating piece from its authored .rpo bounds (the geometry IS the data): a world-placed
+        // roof spike renders static at its spot; a centered piece is driven by the extracted state machine
+        // (beam fires probe->orb, probes orbit, rings spin, shells/orb hover). One generic piece list replaces
+        // the universe-only probe/beam pair so every tier (ai tops, darkmatter rings, vision shells) renders.
+        var fullBounds = HatcheryFullBounds(tier, dump);
+        var pieces = new List<object>();
         foreach (var stem in floating)
         {
-            bool isSpike = boundsByStem.TryGetValue(stem, out var b)
-                ? (b.h.Item2 - b.h.Item1) > 2f * Math.Max(b.w, b.dpt)
-                : stem.Contains("_bolt", StringComparison.Ordinal);
-            if (isSpike) beamStem ??= stem; else probeStem ??= stem;
+            if (!fullBounds.TryGetValue(stem, out var bb)) continue;
+            var role = HatcheryPieceClassifier.Classify(bb);
+            var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
+            if (glb is null) continue;
+            // world-placed pieces carry their authored position: the mesh self-places, so the renderer leaves
+            // them put. Centered pieces recenter onto the orb and take their motion from the role.
+            pieces.Add(new
+            {
+                glb = Convert.ToBase64String(glb),
+                role = role.ToString(),
+                worldPlaced = role == HatcheryPieceClassifier.Role.WorldPlaced,
+                // a centered ring/shell uses its own radius (its bounds half-extent) as the orbit/spin radius.
+                size = Math.Max(bb.ExtentX, bb.ExtentZ) * 0.5f,
+            });
         }
 
-        var probeGlb = probeStem is null ? null : await FetchRaw($"/api/env/{Uri.EscapeDataString(probeStem)}/glb");
-        var beamGlb = beamStem is null ? null : await FetchRaw($"/api/env/{Uri.EscapeDataString(beamStem)}/glb");
+        // The probe orbit RADIUS is the one value not statically resolvable (the game scatters probes with
+        // frandom at runtime, no literal in the binary). When unrecovered, fall back to a small DISPLAY radius
+        // derived from the body's footprint so the probes visibly orbit instead of stacking on the orb. This is
+        // a render approximation, NOT an extracted value (marked so per CLAUDE.md): the true scatter is runtime
+        // random. The orbit rate/count/beam-timing ARE extracted (rotate_pyramid).
+        if (orbitRadius <= 0f && fullBounds.TryGetValue($"ei_hatchery_{tier}", out var body))
+            orbitRadius = Math.Clamp(Math.Max(body.ExtentX, body.ExtentZ) * 0.12f, 0.6f, 3f);
 
-        // radius (frandom scatter extent) is the one value still not statically resolvable: 0 = hold at the orb,
-        // not a fabricated ring. interval/duration now come from rotate_pyramid's extracted tween args.
         return new
         {
             orb,
-            probe = probeGlb is null ? null : (object)new
-            {
-                glb = Convert.ToBase64String(probeGlb), count = probeCount, radius = orbitRadius, speed = orbitSpeed, tilt = 0f,
-            },
-            beam = beamGlb is null ? null : (object)new
-            {
-                glb = Convert.ToBase64String(beamGlb), fireInterval = beamInterval, fireDuration = beamDuration, fireRandom = beamRandom,
-            },
+            pieces,
+            probeCount,
+            orbitSpeed,
+            orbitRadius,
+            orbitRadiusApprox = true, // the radius is a display fallback, not an extracted scatter value
+            beam = new { fireInterval = beamInterval, fireDuration = beamDuration, fireRandom = beamRandom },
         };
     }
 
-    // Per-stem bounds (horizontal width, depth, vertical [min,max]) for the tier, from the dump's decode-stats.
-    Dictionary<string, (float w, float dpt, (float, float) h)> HatcheryBounds(string tier, System.Text.Json.JsonElement? dump)
+    // Full per-stem bounds (HatcheryPieceClassifier.Bounds) for the tier, from the dump's decode-stats. Carries
+    // the whole min/max so the classifier can read center + per-axis extents (the role depends on both).
+    Dictionary<string, HatcheryPieceClassifier.Bounds> HatcheryFullBounds(string tier, System.Text.Json.JsonElement? dump)
     {
-        var map = new Dictionary<string, (float, float, (float, float))>(StringComparer.Ordinal);
+        var map = new Dictionary<string, HatcheryPieceClassifier.Bounds>(StringComparer.Ordinal);
         if (dump is not { } d || !d.TryGetProperty("tiers", out var tiers) || tiers.ValueKind != System.Text.Json.JsonValueKind.Array) return map;
         foreach (var t in tiers.EnumerateArray())
         {
             if (!t.TryGetProperty("tier", out var tn) || tn.GetString() != tier) continue;
-            if (!t.TryGetProperty("pieces", out var pieces) || pieces.ValueKind != System.Text.Json.JsonValueKind.Array) continue;
-            foreach (var p in pieces.EnumerateArray())
+            if (!t.TryGetProperty("pieces", out var pcs) || pcs.ValueKind != System.Text.Json.JsonValueKind.Array) continue;
+            foreach (var p in pcs.EnumerateArray())
             {
                 if (!p.TryGetProperty("stem", out var sn) || sn.GetString() is not { } stem) continue;
                 if (!p.TryGetProperty("bounds", out var bd) || bd.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
                 if (!bd.TryGetProperty("min", out var mn) || !bd.TryGetProperty("max", out var mx)) continue;
-                float w = (float)(mx[0].GetDouble() - mn[0].GetDouble());
-                float dpt = (float)(mx[2].GetDouble() - mn[2].GetDouble());
-                map[stem] = (w, dpt, ((float)mn[1].GetDouble(), (float)mx[1].GetDouble()));
+                map[stem] = new HatcheryPieceClassifier.Bounds(
+                    (float)mn[0].GetDouble(), (float)mn[1].GetDouble(), (float)mn[2].GetDouble(),
+                    (float)mx[0].GetDouble(), (float)mx[1].GetDouble(), (float)mx[2].GetDouble());
             }
         }
         return map;
