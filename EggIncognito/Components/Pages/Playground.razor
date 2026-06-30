@@ -912,8 +912,12 @@ else
         else
         {
             // free-placed env buildings re-center so the gizmo lands on them; layout-derived ones keep their
-            // authored plot offset (el.Recenter is false for auto-arranged + restored pieces).
-            await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb), new { recenter = el.Recenter });
+            // authored plot offset (el.Recenter is false for auto-arranged + restored pieces). The hatchery pins
+            // its LEFT edge (recenterX=min) so a tier swap grows the body to the RIGHT (every tier shares the same
+            // left/dock edge near the road), not leftward as a center-recenter would.
+            var isHatchery = (el.Shell ?? el.Ref).StartsWith("ei_hatchery_", StringComparison.Ordinal);
+            await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb),
+                new { recenter = el.Recenter, recenterX = isHatchery ? "min" : "center" });
         }
         await PushElementTransform(el);
         await ApplyElementAnimation(el);
@@ -1414,17 +1418,25 @@ else
         // in X/Z and -bbox.min.y in Y so the group origin is the body's ground-center. Floating sub-pieces live
         // in the SAME mesh coords, so the renderer must apply the SAME shift or they land off the body (the AI
         // roof tops were authored at world X 8..18 and rendered across the road). bodyShift = that offset.
+        // bodyShift MUST match the body's recenter (recenterX="min" for the hatchery): pin the LEFT edge (-minX)
+        // in X, center in Z, base-snap in Y. A center shift here would desync the floating pieces from the body.
         float[] bodyShift = [0f, 0f, 0f];
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyB))
-            bodyShift = [-(bodyB.MinX + bodyB.MaxX) * 0.5f, -bodyB.MinY, -(bodyB.MinZ + bodyB.MaxZ) * 0.5f];
+            bodyShift = [-bodyB.MinX, -bodyB.MinY, -(bodyB.MinZ + bodyB.MaxZ) * 0.5f];
 
-        // the orb sits at the extracted anchor, in the SAME recentered mesh coords: anchor + bodyShift. (The
-        // earlier (0, anchorY, 0) only worked because anchorX ~ bodyCenterX; do it properly so off-center anchors
-        // and the Y snap are correct.) Centered pieces (rings/shells/probes/orb) orbit/sit at this point.
+        // the orb sits at the extracted anchor's X/Z (in recentered coords: anchor + bodyShift), but its HEIGHT is
+        // the visible floating orb on TOP of the body, not the anchor's mid-body Y (the probes were orbiting at
+        // the rim). Use the body's upper region: floor-snapped body max-Y minus a margin so the orb hovers just
+        // above the dome. DISPLAY height (the anchor Y is the assembly point, not the visual orb center).
         if (dump is { } dd && dd.TryGetProperty("assembly", out var ae)
             && ae.TryGetProperty("anchor", out var an2) && an2.ValueKind == System.Text.Json.JsonValueKind.Array && an2.GetArrayLength() == 3)
         {
-            orb = [(float)an2[0].GetDouble() + bodyShift[0], (float)an2[1].GetDouble() + bodyShift[1], (float)an2[2].GetDouble() + bodyShift[2]];
+            float orbX = (float)an2[0].GetDouble() + bodyShift[0];
+            float orbZ = (float)an2[2].GetDouble() + bodyShift[2];
+            float orbY = (float)an2[1].GetDouble() + bodyShift[1];
+            if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bForOrb))
+                orbY = (bForOrb.MaxY - bForOrb.MinY) * 0.75f; // floor-snapped upper body = where the dome orb sits
+            orb = [orbX, orbY, orbZ];
         }
 
         var pieces = new List<object>();
@@ -1452,7 +1464,7 @@ else
         // a render approximation, NOT an extracted value (marked so per CLAUDE.md): the true scatter is runtime
         // random. The orbit rate/count/beam-timing ARE extracted (rotate_pyramid).
         if (orbitRadius <= 0f && fullBounds.TryGetValue($"ei_hatchery_{tier}", out var body))
-            orbitRadius = Math.Clamp(Math.Max(body.ExtentX, body.ExtentZ) * 0.12f, 0.6f, 3f);
+            orbitRadius = Math.Clamp(Math.Max(body.ExtentX, body.ExtentZ) * 0.08f, 0.6f, 1.6f);
 
         return new
         {

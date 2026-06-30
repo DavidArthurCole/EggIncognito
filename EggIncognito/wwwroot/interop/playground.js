@@ -417,22 +417,24 @@ export async function attachHatcheryParts(groupId, model) {
     }
   }
 
-  // beams: one per probe, fired probe->orb on the extracted intermittent schedule. Built after probes so each
-  // beam has a probe to originate from.
+  // beams: a FEW spikes fired probe->orb on the extracted intermittent schedule (not one per probe: the game
+  // fires the white bolt only occasionally from a random probe). Hidden until firing. White, glowing.
   if (state._beamGlb && state.probes.length) {
-    for (let i = 0; i < state.probes.length; i++) {
+    const beamCount = Math.min(3, state.probes.length);
+    for (let i = 0; i < beamCount; i++) {
       let bg; try { bg = await parseGlb(state._beamGlb); } catch (e) { bg = null; }
       if (!bg) break;
+      whiteBeamMaterial(bg.scene); // the bolt is a white energy beam, not the mesh's dark vertex color
       const obj = new THREE.Group();
       obj.add(bg.scene);
       obj.visible = false;
       obj.matrixAutoUpdate = false;
       g.root.add(obj);
-      const interval = beam.fireInterval > 0 ? beam.fireInterval : 1.5;
+      const interval = beam.fireInterval > 0 ? beam.fireInterval : 2.5;
       state.beams.push({
-        obj, probe: state.probes[i],
-        interval, duration: beam.fireDuration || 0.2,
-        offset: (i * 0.37) % interval,
+        obj, probe: state.probes[i * Math.floor(state.probes.length / beamCount)],
+        interval, duration: beam.fireDuration || 0.25,
+        offset: (i / beamCount) * interval, // stagger so they fire at different times
         random: !!beam.fireRandom, seed: (i + 1) * 1.6180339887,
       });
     }
@@ -477,6 +479,7 @@ function orbitHatcheryParts(tSeconds) {
       const y = st.orb.y + p.u.y * c + p.v.y * s;
       const z = st.orb.z + p.u.z * c + p.v.z * s;
       p.obj.position.set(x, y, z);
+      p.obj.lookAt(st.orb); // the disc constantly faces the orb as it orbits (the in-game probe behavior)
       p.obj.current = p.obj.current || new THREE.Vector3();
       p.obj.current.set(x, y, z);
     }
@@ -562,6 +565,16 @@ function applyHatcheryMaterial(root) {
   });
 }
 
+// A glowing white material for the universe bolt (the beam): a white energy spike, not the mesh's dark vertex
+// color. emissive white so it reads bright regardless of scene light.
+function whiteBeamMaterial(root) {
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = false;
+    o.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  });
+}
+
 function emissiveVertexMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0, roughness: 1 });
   m.onBeforeCompile = shader => {
@@ -625,9 +638,13 @@ export async function addGroup(groupId, glbBase64, opts) {
   // ADDS to the layout position and double-places them (the depot landed across the road). Self-placing pieces
   // (terrain, hyperloop, mailbox) pass recenter=false so they keep their authored plot offset.
   if (opts.recenter && !box.isEmpty()) {
-    gltf.scene.position.x -= center.x;
+    // recenterX: 'min' pins the mesh's LEFT edge (min X) to the group origin instead of its center, so a building
+    // that grows along +X (the hatchery: every tier shares the same left/dock edge, only the right side extends)
+    // stays anchored on its left and grows RIGHT. Default 'center' keeps the bbox center at the origin.
+    const anchorX = opts.recenterX === 'min' ? box.min.x : center.x;
+    gltf.scene.position.x -= anchorX;
     gltf.scene.position.z -= center.z;
-    center.x = 0; center.z = 0;
+    center.x -= anchorX; center.z = 0;
   }
 
   // Y-base snap: shift the mesh UP so its lowest point sits at the group origin (y=0). Env buildings are authored
@@ -896,18 +913,26 @@ export function setLighting(opts) {
 // In design mode, groups hold their own transform (no auto-offset layout on add/remove).
 export function setDesignMode(on) { designMode = !!on; }
 
-// The floor grid overlay, sized to the shadow plane. Shown when grid-snap is on so the designer sees the cells
-// placements land on. setGrid(0) hides it; a positive size (re)builds it at that cell spacing.
+// The floor grid overlay over the farm core. Shown when grid-snap is on so the designer sees the cells placements
+// land on. setGrid(0) hides it; a positive size (re)builds it. The extent is BOUNDED (not the whole 120-unit
+// plane) and the division count is CAPPED: a small cell over a huge plane produced a dense moire that read as
+// screen corruption. The grid covers a sensible work area around the origin; the drag-time green/red cell
+// highlight handles the precise drop feedback.
 let gridHelper = null;
 let gridCell = 0; // the active cell size (0 = grid off); the block-grid snap reads this.
+const GRID_MAX_DIVISIONS = 48; // cap lines so a tiny cell does not turn the floor into a moire
 export function setGrid(cellSize) {
   if (gridHelper) { scene.remove(gridHelper); gridHelper.geometry?.dispose(); gridHelper.material?.dispose(); gridHelper = null; }
   gridCell = Number.isFinite(cellSize) && cellSize > 0 ? cellSize : 0;
   clearCellHighlight();
   if (!scene || gridCell <= 0) return;
-  const extent = 120; // covers the visible farm footprint
-  const divisions = Math.max(1, Math.round(extent / gridCell));
-  gridHelper = new THREE.GridHelper(extent, divisions, 0x4a4a55, 0x2c2c33);
+  // extent = cell * capped-divisions, so the grid is at most GRID_MAX_DIVISIONS cells across (a readable work
+  // area), never the full plane. Snapping still works anywhere; this is only the visual guide.
+  const divisions = GRID_MAX_DIVISIONS;
+  const extent = gridCell * divisions;
+  gridHelper = new THREE.GridHelper(extent, divisions, 0x5a5a66, 0x3a3a42);
+  gridHelper.material.transparent = true;
+  gridHelper.material.opacity = 0.5;
   gridHelper.position.y = 0.01; // just above the floor so it does not z-fight the shadow plane
   scene.add(gridHelper);
 }

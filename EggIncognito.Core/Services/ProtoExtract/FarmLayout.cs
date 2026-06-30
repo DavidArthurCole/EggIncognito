@@ -102,7 +102,9 @@ public static class FarmLayout
     };
 
     // Pack one row left-to-right from startX: each building's center = previous center + prevHalf + gap + thisHalf.
-    // Returns the placed positions (X only; Z + the stems come from the caller).
+    // Returns the placed positions (X only; Z + the stems come from the caller). The hatchery is placed by its
+    // LEFT EDGE, not its center: it renders pin-left (recenterX=min) so a tier swap grows it to the right, so its
+    // layout Pos.X must be the left edge to stay aligned with how it renders.
     private static List<Placed> PackRow(float startX, float z, params string[] stems)
     {
         var outp = new List<Placed>();
@@ -113,14 +115,19 @@ public static class FarmLayout
         {
             var half = HalfWidth(stem);
             cursor += first ? half : prevHalf + RowGap + half;
-            // Recenter=true: a packed core building is positioned by THIS X/Z, so its mesh must center on its
-            // origin (else its baked plot offset double-places it, e.g. the depot across the road).
-            outp.Add(new Placed(stem, [cursor, 0f, z], 0, Recenter: true));
+            // Recenter=true: a packed core building is positioned by THIS X/Z, so its mesh centers on its origin
+            // (else its baked plot offset double-places it, e.g. the depot across the road). The hatchery is the
+            // exception: it pins its LEFT edge, so its Pos.X = the left edge (cursor - half).
+            float posX = IsLeftPinned(stem) ? cursor - half : cursor;
+            outp.Add(new Placed(stem, [posX, 0f, z], 0, Recenter: true));
             prevHalf = half;
             first = false;
         }
         return outp;
     }
+
+    // The hatchery renders pinned to its left edge (recenterX=min), so the layout places it by left edge too.
+    private static bool IsLeftPinned(string stem) => stem.StartsWith("ei_hatchery", StringComparison.Ordinal);
 
     // The farm core as the three gravity-packed rows. Variable building stems (tier-dependent) are passed in;
     // widening one shifts everything to its right. Used by the recovered layout; the terrain/habs/silos come from
