@@ -243,6 +243,63 @@ public sealed class DecompController(
         catch (Exception ex) { return Ok(new { stem, effects = Array.Empty<object>(), diagnostics = ex.Message }); }
     }
 
+    // Full hatchery-assembly extraction in ONE call: FarmScene::updateHatchery is the function that loads + places
+    // the hatchery's floating sub-pieces (bolt/probe/rings). Returns its float constants + bl call targets (which
+    // reveal the assembly: FAM::loadShell loads the pieces, GameController::frandom randomizes placement,
+    // FarmScene::rotate_pyramid rotates), PLUS the recovered transform math of each matrix-returning lambda
+    // ($_2/$_3/$_5 build the per-piece 4x4 transforms). The lambda bodies are run through the symbolic executor so
+    // the placement/rotation is recovered as an expression tree, not guessed. Admin-gated. This is the SOURCE of
+    // the hatchery floating effect (replaces the procedural stopgap in the playground renderer).
+    [HttpGet("hatchery-assembly")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> HatcheryAssembly([FromQuery] string? device, CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        try
+        {
+            var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
+            if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
+
+            // the assembly function itself: constants + which shells/helpers it calls.
+            var main = FunctionConstantExtractor.Extract(bin, ["FarmScene14updateHatcheryEP14GameControllerb"]);
+
+            // each matrix-returning lambda's BODY (the clEv invoke, not the destructor): recover its transform math.
+            // the mangled tail for lambda N's call operator returning Eigen::Matrix<f,4,4>.
+            var matrixLambdas = new[] { "$_2", "$_3", "$_5" };
+            var lambdas = matrixLambdas.Select(tag =>
+            {
+                var needle = $"updateHatcheryEP14GameControllerbE3{tag}FN5Eigen6MatrixIfLi4ELi4ELi0ELi4ELi4EEEvEEclEv";
+                var model = EggIncognito.Services.ProtoExtract.Decomp.EffectRecovery.Recover(bin, needle, needle, null);
+                var consts = FunctionConstantExtractor.Extract(bin, [needle]);
+                return new
+                {
+                    lambda = tag,
+                    transform = model.Placement is null ? null : EggIncognito.Services.ProtoExtract.Decomp.ExprNode.ToJson(model.Placement),
+                    opaqueCount = model.OpaqueCount,
+                    floats = consts.Ok ? consts.Floats : [],
+                    calls = consts.Ok ? consts.Calls : [],
+                    diagnostics = model.Diagnostics,
+                };
+            }).ToList();
+
+            var json = new System.Text.Json.Nodes.JsonObject
+            {
+                ["ok"] = true,
+                ["main"] = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["function"] = main.FunctionName,
+                    ["floats"] = new System.Text.Json.Nodes.JsonArray(main.Floats.Select(f => System.Text.Json.Nodes.JsonValue.Create(f)).ToArray()),
+                    ["calls"] = new System.Text.Json.Nodes.JsonArray(main.Calls.Select(c => System.Text.Json.Nodes.JsonValue.Create(c)).ToArray()),
+                },
+                ["lambdas"] = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(lambdas)),
+            };
+            return Content(json.ToJsonString(), "application/json");
+        }
+        catch (System.DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
+        catch (System.Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
     // Live particle capture: hook ParticleBatchedMesh::addParticle on the running game via frida, log every
     // particle's per-frame world transform, cluster by mesh pointer to isolate one effect. The path for the
     // data-driven effects that are NOT statically extractable (the universe hatchery sparkle). Admin-gated; needs

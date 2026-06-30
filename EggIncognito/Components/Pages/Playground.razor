@@ -1217,18 +1217,28 @@ else
                 return;
             }
 
+            // Placement is EXTRACTED from FarmScene::updateHatchery (the assembly fn), not invented. The renderer
+            // places each piece by its extracted instance transform; no transforms => the piece is not placed (we
+            // do not guess a ring/orbit). The assembly binding is filled in once /api/decomp/hatchery-assembly is
+            // decoded into per-piece instance matrices; until then pieces load but hold identity (visible, honest).
             var parts = new List<object>();
             foreach (var stem in floating)
             {
                 var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
                 if (glb is not null)
-                    parts.Add(new { glb = Convert.ToBase64String(glb), motion = (object?)null });
+                    parts.Add(new { glb = Convert.ToBase64String(glb), instances = HatcheryInstances(stem) });
             }
             await _mod.InvokeVoidAsync("attachHatcheryParts", el.Id, parts);
         }
         catch { el.HasEffects = false; el.EffectCount = 0; await _mod.InvokeVoidAsync("clearHatcheryParts", el.Id); }
         StateHasChanged();
     }
+
+    // The extracted per-piece instance transforms (from FarmScene::updateHatchery). EMPTY until the assembly is
+    // decoded into instance matrices (the /api/decomp/hatchery-assembly output is being reverse-engineered). One
+    // identity instance so the piece is visible at the body origin for now, with NO invented motion/count/orbit.
+    static object[] HatcheryInstances(string stem) =>
+        [new { matrix = (float[]?)null, pos = new[] { 0f, 0f, 0f }, anim = (object?)null }];
 
     // The tier token of a hatchery stem (ei_hatchery_universe -> universe). Mirrors HatcheryEffectParts.TierOf;
     // kept simple here since the UI only needs the body tier, which is the remainder after the prefix with any

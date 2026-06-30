@@ -302,43 +302,37 @@ function clearEffects(groupId) {
   effects.delete(groupId);
 }
 
-// The hatchery "floating effect" is real sub-MESHES (bolt/probe/rings/tops) that hover + orbit the body, not a
-// particle system (see the binding-wall finding). parts = [{ glb: base64, motion: {...} }]. Each decoded glb is
-// added as a child of the body group and animated per frame by orbitHatcheryParts. The motion is a STOPGAP
-// procedural orbit+bob until the exact per-piece RPA1 curve / FarmScene constants are extracted; the model
-// carries radius/speed/bob so swapping in extracted values later is a data change, not a code change.
-const hatcheryParts = new Map(); // groupId -> [{ obj, m }]
+// The hatchery floating effect = real sub-MESHES placed + animated by FarmScene::updateHatchery (NOT a particle
+// system, NOT a procedural orbit we invent). parts = [{ glb, instances: [{ matrix:[16 col-major], anim:{...}? }] }]
+// where each instance's transform is EXTRACTED from updateHatchery's matrix lambdas (the symbolic-executor result).
+// We place each instance at its extracted matrix. No fabricated radius/spin/count: if no instances are supplied
+// the piece is not placed (we do not guess). Per-frame motion comes only from an extracted anim spec, if present.
+const hatcheryParts = new Map(); // groupId -> [{ obj, anim }]
 export async function attachHatcheryParts(groupId, parts) {
   await ensureLibs();
   clearHatcheryParts(groupId);
   const g = groups.get(groupId);
   if (!g || !parts || !parts.length) return;
+
   const built = [];
-  for (let i = 0; i < parts.length; i++) {
-    const p = parts[i];
+  for (const p of parts) {
     if (!p || !p.glb) continue;
     let gltf;
     try { gltf = await parseGlb(p.glb); } catch (e) { continue; }
-    const obj = new THREE.Group();
-    obj.add(gltf.scene);
-    g.root.add(obj);
-    // default motion (STOPGAP until the RPA1 curve / FarmScene hab constants are extracted): orbit the pieces at
-    // a radius scaled to the BODY size so they ring it instead of stacking at the center, hover gently, each
-    // offset in phase. The body's bbox sets the default radius + height.
-    const bodyBox = new THREE.Box3().setFromObject(g.root);
-    const bodyR = bodyBox.isEmpty() ? 1.5 : Math.max(bodyBox.max.x - bodyBox.min.x, bodyBox.max.z - bodyBox.min.z) * 0.5;
-    const bodyTop = bodyBox.isEmpty() ? 1.0 : bodyBox.max.y;
-    const m = p.motion || {};
-    built.push({
-      obj,
-      radius: m.radius != null ? m.radius : bodyR * 0.9,
-      speed: m.speed != null ? m.speed : 0.6,
-      bob: m.bob != null ? m.bob : 0.15,
-      bobSpeed: m.bobSpeed != null ? m.bobSpeed : 1.0,
-      phase: m.phase != null ? m.phase : (i / parts.length) * Math.PI * 2,
-      baseY: m.height != null ? m.height : bodyTop * 0.6,
-      spin: m.spin != null ? m.spin : 0.5,
-    });
+    const insts = Array.isArray(p.instances) ? p.instances : [];
+    for (let k = 0; k < insts.length; k++) {
+      const inst = insts[k];
+      const obj = new THREE.Group();
+      obj.add(k === 0 ? gltf.scene : gltf.scene.clone());
+      if (Array.isArray(inst.matrix) && inst.matrix.length === 16) {
+        obj.matrixAutoUpdate = false;
+        obj.matrix.fromArray(inst.matrix);
+      } else if (inst.pos) {
+        obj.position.set(inst.pos[0] || 0, inst.pos[1] || 0, inst.pos[2] || 0);
+      }
+      g.root.add(obj);
+      built.push({ obj, anim: inst.anim || null });
+    }
   }
   if (built.length) hatcheryParts.set(groupId, built);
 }
@@ -350,13 +344,16 @@ export function clearHatcheryParts(groupId) {
   hatcheryParts.delete(groupId);
 }
 
+// Per-frame motion ONLY from an extracted anim spec (e.g. {spinAxis:'y', spinSpeed, bobAxis, bobAmp, bobSpeed}).
+// No anim = the piece holds its extracted static transform. We do not invent motion.
 function orbitHatcheryParts(tSeconds) {
   if (hatcheryParts.size === 0) return;
   for (const list of hatcheryParts.values()) {
     for (const e of list) {
-      const a = e.phase + tSeconds * e.speed;
-      e.obj.position.set(Math.cos(a) * e.radius, e.baseY + Math.sin(tSeconds * e.bobSpeed + e.phase) * e.bob, Math.sin(a) * e.radius);
-      e.obj.rotation.y = tSeconds * e.spin + e.phase;
+      const a = e.anim;
+      if (!a || !e.obj.matrixAutoUpdate) continue; // static placement (matrix-locked) or no motion spec
+      if (a.spinSpeed) e.obj.rotation[a.spinAxis || 'y'] = tSeconds * a.spinSpeed + (a.spinPhase || 0);
+      if (a.bobAmp) e.obj.position[a.bobAxis || 'y'] = (a.bobBase || 0) + Math.sin(tSeconds * (a.bobSpeed || 1) + (a.bobPhase || 0)) * a.bobAmp;
     }
   }
 }
