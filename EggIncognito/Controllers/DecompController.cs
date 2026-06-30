@@ -273,6 +273,28 @@ public sealed class DecompController(
                 ["floats"] = new System.Text.Json.Nodes.JsonArray(main.Floats.Select(f => System.Text.Json.Nodes.JsonValue.Create(f)).ToArray()),
                 ["calls"] = new System.Text.Json.Nodes.JsonArray(main.Calls.Select(c => System.Text.Json.Nodes.JsonValue.Create(c)).ToArray()),
             };
+
+            // The behavior is a state machine: probes orbit the orb, beams (the spike) fire probe->orb briefly.
+            // Surface the helpers that drive it so the renderer can reproduce the real motion, not a guessed orbit:
+            //   rotate_pyramid = the probe orbit rotation; the $_*FbvE boolean lambda = the "fire beam" predicate.
+            EggIncognito.Services.ProtoExtract.FunctionConstantExtractor.ExtractResult Ex(string n) =>
+                FunctionConstantExtractor.Extract(bin, [n]);
+            System.Text.Json.Nodes.JsonObject Shaped(string label, string needle)
+            {
+                var r = Ex(needle);
+                return new System.Text.Json.Nodes.JsonObject
+                {
+                    ["label"] = label,
+                    ["ok"] = r.Ok,
+                    ["function"] = r.FunctionName,
+                    ["floats"] = new System.Text.Json.Nodes.JsonArray(r.Floats.Select(f => System.Text.Json.Nodes.JsonValue.Create(f)).ToArray()),
+                    ["calls"] = new System.Text.Json.Nodes.JsonArray(r.Calls.Select(c => System.Text.Json.Nodes.JsonValue.Create(c)).ToArray()),
+                };
+            }
+            json["helpers"] = new System.Text.Json.Nodes.JsonArray(
+                Shaped("rotate_pyramid", "FarmScene14rotate_pyramidEP14GameControlleri"),
+                Shaped("fire_predicate", "updateHatcheryEP14GameControllerbE3$_6FbvEclEv"),
+                Shaped("beam_lambda_$_5_body", "updateHatcheryEP14GameControllerbE3$_5FN5Eigen6MatrixIfLi4ELi4ELi0ELi4ELi4EEEvEEclEv"));
             return Content(json.ToJsonString(), "application/json");
         }
         catch (System.DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }

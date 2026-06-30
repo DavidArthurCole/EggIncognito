@@ -79,7 +79,7 @@ public static class FarmLayout
     // Row 3 (front): Depot
     public const float RowBackZ = -3f;   // research lab / hoa row (furthest from road, nearest the habs)
     public const float RowMidZ = 4f;     // hatchery / mission control / fuel row
-    public const float RowFrontZ = 11f;  // depot row (closest to the road)
+    public const float RowFrontZ = 8f;   // depot row: pulled back from the road so the depot's road-facing dock clears it
     private const float RowGap = 2.5f;   // even gap between adjacent buildings in a row (in-game look)
     // The rows pack rightward from the right edge of the silo field's connecting path ("path 2"). The silo field
     // is all negative-X (rightmost column at X=-5, half ~2.5, so its right edge ~-2.5); path 2 + a gap puts the
