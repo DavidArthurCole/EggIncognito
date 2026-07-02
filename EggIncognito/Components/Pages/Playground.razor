@@ -612,11 +612,13 @@ else
         return c;
     }
 
-    async Task<byte[]?> FetchRaw(string url)
+    async Task<byte[]?> FetchRaw(string url) => await FetchRaw(url, System.Threading.CancellationToken.None);
+
+    async Task<byte[]?> FetchRaw(string url, System.Threading.CancellationToken ct)
     {
-        var res = await Client().GetAsync(url);
+        var res = await Client().GetAsync(url, ct);
         if (!res.IsSuccessStatusCode) { Fail($"load failed: HTTP {(int)res.StatusCode}"); return null; }
-        return await res.Content.ReadAsByteArrayAsync();
+        return await res.Content.ReadAsByteArrayAsync(ct);
     }
 
     async Task ApplyBackground()
@@ -1192,14 +1194,22 @@ else
     // Builds a game-like farm in one click: clears the scene, fetches the standard layout, adds each element
     // at its plot position. Honors singletons (ground/hardscape added once). A starting point to tweak, not a
     // pixel-exact game farm (positions are derived, not extracted from the binary).
+    System.Threading.CancellationTokenSource? _arrangeCts;
+
     async Task AutoArrangeFarm()
     {
         if (_mod is null) return;
+        _arrangeCts?.Cancel();
+        var cts = new System.Threading.CancellationTokenSource();
+        _arrangeCts = cts;
+        var ct = cts.Token;
         _busy = true; Status("Arranging farm…");
+        _suppressAutosave = true; // one autosave at the end, not per element
         try
         {
             FarmLayoutResult? layout;
-            try { layout = await Client().GetFromJsonAsync<FarmLayoutResult>("/api/env/farm-layout"); }
+            try { layout = await Client().GetFromJsonAsync<FarmLayoutResult>("/api/env/farm-layout", ct); }
+            catch (OperationCanceledException) { return; }
             catch (Exception ex) { Fail($"layout fetch failed: {ex.Message}"); return; }
             var placed = layout?.Elements ?? [];
             if (placed.Length == 0) { Fail("no layout returned"); return; }
@@ -1209,27 +1219,65 @@ else
             _selectedElementId = null;
             if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
 
-            foreach (var pl in placed)
+            // build the element list first (no interop yet).
+            var newEls = placed.Select(pl => new DesignElement
             {
-                var el = new DesignElement
-                {
-                    Id = NextElementId(), Kind = "env", Ref = pl.Stem, Label = pl.Label,
-                    Pos = pl.Pos, RotDeg = [0, pl.RotY, 0], Scale = pl.Scale <= 0 ? 1 : pl.Scale,
-                    Recenter = pl.Recenter, // core buildings recenter so the layout Pos is authoritative
-                };
+                Id = NextElementId(), Kind = "env", Ref = pl.Stem, Label = pl.Label,
+                Pos = pl.Pos, RotDeg = [0, pl.RotY, 0], Scale = pl.Scale <= 0 ? 1 : pl.Scale,
+                Recenter = pl.Recenter, // core buildings recenter so the layout Pos is authoritative
+            }).ToList();
+
+            // PARALLEL-fetch every glb (the serial HTTP round-trips were the ~20s cost), then add them all in ONE
+            // interop batch. Each item carries its add opts + initial transform so the engine positions it inline.
+            var fetches = newEls.Select(async el =>
+            {
+                var url = ElementGlbUrl(el);
+                var glb = url is null ? null : await FetchRaw(url, ct);
+                return (el, glb);
+            }).ToList();
+            var fetched = await Task.WhenAll(fetches);
+            if (ct.IsCancellationRequested) return;
+
+            var items = new List<object>();
+            foreach (var (el, glb) in fetched)
+            {
+                if (glb is null) continue;
                 _elements.Add(el);
-                await RenderElement(el);
+                var stem = el.Shell ?? el.Ref;
+                var leftPin = stem.StartsWith("ei_hatchery_", StringComparison.Ordinal) || stem.StartsWith("ei_depot", StringComparison.Ordinal);
+                items.Add(new
+                {
+                    id = el.Id,
+                    glbBase64 = Convert.ToBase64String(glb),
+                    opts = new { recenter = el.Recenter, recenterX = leftPin ? "min" : "center", snapBase = !IsTerrain(stem), terrain = IsTerrain(stem) },
+                    transform = new { pos = el.Pos, rotDeg = el.RotDeg, scale = el.Scale },
+                });
             }
+            await _mod.InvokeVoidAsync("addGroupsBatch", ct, new object[] { items });
+            if (ct.IsCancellationRequested) return;
+
             // Gravity-pack the core rows by REAL mesh footprint width (the layout's stopgap widths were far off for
             // big tiers, so the packed centers overlapped + a per-building domino could shove the leftmost off the
             // terrain). repackCoreRow pins each row's LEFT edge and packs right, so gravity pushes only rightward.
             await RepackCoreRows();
             await RespaceHabs();
+            // apply per-element effects (hatchery orbits etc) after placement, once.
+            foreach (var el in _elements.ToList())
+            {
+                if (ct.IsCancellationRequested) return;
+                await ApplyEffect(el);
+            }
             await ResetView();
-            Status($"Arranged {placed.Length} elements.");
+            Status($"Arranged {_elements.Count} elements.");
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex) { Fail(ex.Message); }
-        finally { _busy = false; StateHasChanged(); }
+        finally
+        {
+            _suppressAutosave = false;
+            if (!ct.IsCancellationRequested) Autosave();
+            _busy = false; StateHasChanged();
+        }
     }
 
     // Gravity-pack the three core rows by REAL mesh footprint width. Each row's LEFT edge pins at CoreLeftX and
@@ -1240,10 +1288,11 @@ else
     static readonly string[] MidRowFamilies = ["hatchery", "mission", "fuel"];
     static readonly string[] FrontRowFamilies = ["depot"];
 
-    // The back row's BACK edge (min Z), pinned just south of the hab row so the research lab / artifact hall hug the
-    // top path instead of floating away from it. Rows then chain forward in Z by REAL mesh depth + a gap, so a deep
-    // building (universe hatchery, mission control disc) pushes the next row forward instead of overlapping it.
-    const float BackRowBackZ = -13f;   // habs sit at HabRowZ=-10.5; the back row starts a touch behind them
+    // The back row's BACK edge (min Z), pinned just SOUTH of the top path (which runs between the hab row at
+    // HabRowZ=-10.5 and the core). At -4 the research lab / artifact hall sit below the path, not on it. Rows then
+    // chain forward in Z by REAL mesh depth + a gap, so a deep building (universe hatchery, mission control disc)
+    // pushes the next row forward instead of overlapping it.
+    const float BackRowBackZ = -4f;    // just south of the top path; habs + path are further back (more negative)
     const float RowZGap = 2.5f;        // depth gap between rows
 
     async Task RepackCoreRows()
@@ -1258,6 +1307,12 @@ else
         var backCenterZ = BackRowBackZ + backDepth / 2f;
         var midCenterZ = backCenterZ + backDepth / 2f + RowZGap + midDepth / 2f;
         var frontCenterZ = midCenterZ + midDepth / 2f + RowZGap + frontDepth / 2f;
+
+        // keep the front row (depot) south of the road: clamp its front edge to RoadZ - margin. The depot faces the
+        // road in-game, so hugging it is correct; it must not land ON it.
+        const float roadMargin = 1.5f;
+        var maxFrontCenterZ = EggIncognito.Services.ProtoExtract.PlaygroundPaths.RoadZ - roadMargin - frontDepth / 2f;
+        if (frontCenterZ > maxFrontCenterZ) frontCenterZ = maxFrontCenterZ;
 
         await RepackRow(BackRowFamilies, backCenterZ);
         await RepackRow(MidRowFamilies, midCenterZ);
@@ -1902,6 +1957,12 @@ else
     // Start a fresh, unsaved design: clear the scene + the working-design state.
     async Task NewDesign()
     {
+        // stop any ongoing procedure first: an in-flight auto-arrange (its token aborts, and the batched interop is
+        // suppressed), the animation playback, and a running GIF capture. Then clear the scene.
+        _arrangeCts?.Cancel();
+        _suppressAutosave = false;
+        _busy = false;
+        if (_mod is not null) { try { await _mod.InvokeVoidAsync("setPlaying", false); } catch { } }
         await ClearScene();
         _currentDesign = ""; _currentVersion = 0; _versions = []; _designName = ""; _versionNote = ""; _dirty = false;
         Status("New design.");
@@ -2047,9 +2108,12 @@ else
     }
 
     // Debounced autosave of the current scene to the localStorage slot. Called on every meaningful change.
+    bool _suppressAutosave; // set during batch ops (auto-arrange) so one save runs at the end, not per element
+
     void Autosave()
     {
         _dirty = true; // any scene change makes the working design dirty until the next explicit save
+        if (_suppressAutosave) return;
         _autosaveCts?.Cancel();
         var cts = new System.Threading.CancellationTokenSource();
         _autosaveCts = cts;

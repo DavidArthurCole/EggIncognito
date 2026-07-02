@@ -734,6 +734,30 @@ export function setEmissiveBoost(v) {
   }
 }
 
+let _batching = false;
+
+// Add many groups in ONE interop call, then optionally apply each one's base transform, so auto-arrange does not
+// pay a .NET<->JS round-trip per element (25 elements x ~6 calls each was ~20s). items: [{id, glbBase64, opts,
+// transform:{pos,rotDeg,scale}}]. Parses/decodes sequentially (three.js is single-threaded) but with no interop
+// latency between pieces. Refits the shadow + relayout ONCE at the end, not per add.
+export async function addGroupsBatch(items) {
+  await ensureLibs();
+  _batching = true;
+  try {
+    for (const it of items || []) {
+      await addGroup(it.id, it.glbBase64, it.opts || {});
+      if (it.transform) {
+        const t = it.transform;
+        setGroupTransform(it.id, t.pos || [0, 0, 0], t.rotDeg || [0, 0, 0], t.scale || 1);
+      }
+    }
+  } finally {
+    _batching = false;
+  }
+  relayoutGroups();
+  refitShadow();
+}
+
 export async function addGroup(groupId, glbBase64, opts) {
   await ensureLibs();
   opts = opts || {};
@@ -843,8 +867,11 @@ export async function addGroup(groupId, glbBase64, opts) {
     o.material = emissiveVertexMaterial();
   });
   scene.add(root);
-  relayoutGroups();
-  refitShadow(); // refit once on add (the per-frame timer is gone; static-only frustum is stable)
+  // In a batch add, skip the per-element relayout/shadow refit (addGroupsBatch does both ONCE at the end).
+  if (!_batching) {
+    relayoutGroups();
+    refitShadow(); // refit once on add (the per-frame timer is gone; static-only frustum is stable)
+  }
   return clipNames;
 }
 
