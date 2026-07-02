@@ -39,9 +39,9 @@ public static class FarmLayout
     {
         var p = new List<Placed>
         {
-            // terrain (world origin)
+            // terrain (world origin). ei_farm_ground already bakes the paths, so ei_farm (Farm paths) is NOT
+            // auto-placed: adding both overlaps the same path geometry. It stays in the palette for manual use.
             new("ei_farm_ground", [0, 0, 0], 0),
-            new("ei_farm", [0, 0, 0], 0),
             new("ei_farm_hardscape", [0, 0, 0], 0),
             new("ei_farm_misc", [0, 0, 0], 0),
             // genuinely self-placing: the mesh carries the real plot offset (hyperloop spans the road, mailbox).
@@ -77,9 +77,9 @@ public static class FarmLayout
     // Row 1 (back):  Research Lab, Hall of Artifacts
     // Row 2 (mid):   Hatchery, Mission Control, Fuel Tank
     // Row 3 (front): Depot
-    public const float RowBackZ = -3f;   // research lab / hoa row (furthest from road, nearest the habs)
-    public const float RowMidZ = 4f;     // hatchery / mission control / fuel row
-    public const float RowFrontZ = 8f;   // depot row: pulled back from the road so the depot's road-facing dock clears it
+    public const float RowBackZ = -6f;   // research lab / hoa row (furthest from road, nearest the habs)
+    public const float RowMidZ = 4f;     // hatchery / mission control / fuel row (bodies are ~5 deep: ±2.5)
+    public const float RowFrontZ = 13f;  // depot row: clears the mid row's deep bodies (z up to ~6.5) + the depot's own depth so it never lands inside the hatchery
     private const float RowGap = 2.5f;   // even gap between adjacent buildings in a row (in-game look)
     // The rows pack rightward from the right edge of the silo field's connecting path ("path 2"). The silo field
     // is all negative-X (rightmost column at X=-5, half ~2.5, so its right edge ~-2.5); path 2 + a gap puts the

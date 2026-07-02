@@ -1048,17 +1048,19 @@ export function setDesignMode(on) { designMode = !!on; }
 // highlight handles the precise drop feedback.
 let gridHelper = null;
 let gridCell = 0; // the active cell size (0 = grid off); the block-grid snap reads this.
-const GRID_MAX_DIVISIONS = 48; // cap lines so a tiny cell does not turn the floor into a moire
+const GRID_EXTENT = 80;       // world span the grid covers (the whole farm work area), always
+const GRID_MAX_LINES = 80;    // cap the drawn lines so a tiny snap cell does not moire when zoomed out
 export function setGrid(cellSize) {
   if (gridHelper) { scene.remove(gridHelper); gridHelper.geometry?.dispose(); gridHelper.material?.dispose(); gridHelper = null; }
   gridCell = Number.isFinite(cellSize) && cellSize > 0 ? cellSize : 0;
   clearCellHighlight();
   if (!scene || gridCell <= 0) return;
-  // extent = cell * capped-divisions, so the grid is at most GRID_MAX_DIVISIONS cells across (a readable work
-  // area), never the full plane. Snapping still works anywhere; this is only the visual guide.
-  const divisions = GRID_MAX_DIVISIONS;
-  const extent = gridCell * divisions;
-  gridHelper = new THREE.GridHelper(extent, divisions, 0x5a5a66, 0x3a3a42);
+  // The grid covers the FULL work area (GRID_EXTENT), not a tiny patch. Its VISUAL line spacing is the snap cell,
+  // but capped to GRID_MAX_LINES lines so a fine cell (0.25) shows a coarser readable grid (snapping is still
+  // fine). This is only a guide; the green/red drag highlight shows the exact target cells at the surface.
+  const rawDiv = Math.round(GRID_EXTENT / gridCell);
+  const divisions = Math.min(GRID_MAX_LINES, rawDiv);
+  gridHelper = new THREE.GridHelper(GRID_EXTENT, divisions, 0x5a5a66, 0x3a3a42);
   gridHelper.material.transparent = true;
   gridHelper.material.opacity = 0.5;
   gridHelper.position.y = 0.01; // just above the floor so it does not z-fight the shadow plane
@@ -1147,9 +1149,13 @@ export function highlightCells(cells, valid) {
   const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, depthWrite: false });
   const geo = new THREE.PlaneGeometry(gridCell * 0.94, gridCell * 0.94);
   for (const cc of cells) {
+    const cx = (cc.c + 0.5) * gridCell, cz = (cc.r + 0.5) * gridCell;
+    // lift the cell quad to the SURFACE under it (a platform / building top), so the highlight reads on top of
+    // what you are dropping onto, not buried at the floor. + a hair so it does not z-fight the surface.
+    const y = (surfaceYAt(cx, cz, null) || 0) + 0.03;
     const q = new THREE.Mesh(geo, mat);
     q.rotation.x = -Math.PI / 2;
-    q.position.set((cc.c + 0.5) * gridCell, 0.02, (cc.r + 0.5) * gridCell);
+    q.position.set(cx, y, cz);
     group.add(q);
   }
   group.userData.sharedGeo = geo;
