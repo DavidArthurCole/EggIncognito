@@ -898,6 +898,20 @@ export function respaceHabRow(ids, gap, halfStep, z) {
   return out;
 }
 
+// The deepest (Z-extent) footprint in a set of groups, in world units, for chaining rows in Z so a deep building
+// row does not overlap the next. Returns the max depth; 0 for an empty/unknown set.
+export function rowFootprintDepth(ids) {
+  let depth = 0;
+  for (const id of ids) {
+    const g = groups.get(id);
+    const f = g?.localFootprint;
+    if (!f) continue;
+    const d = (f.maxZ - f.minZ) * (g.base?.scale || 1);
+    if (Number.isFinite(d)) depth = Math.max(depth, d);
+  }
+  return depth;
+}
+
 // Gravity-pack a core row by REAL mesh footprint width, left edge pinned at leftEdgeX, each building placed to
 // the RIGHT of the previous with `gap` between. This is the true "gravity + edge enforcement": the leftmost never
 // moves, a wider tier only pushes the ones to its right (never left, never off the terrain). Sets each group's
@@ -915,12 +929,16 @@ export function repackCoreRow(ids, leftEdgeX, gap, z) {
     const w = maxX - minX;
     // place so the footprint's left edge (base.x + minX) == cursor -> base.x = cursor - minX.
     const baseX = cursor - minX;
+    // center the mesh's Z footprint on the row line: a deep mesh whose footprint is off-center in Z (minZ != -maxZ)
+    // must be shifted so its middle sits at rowZ, else the row-chaining depth math is off by the footprint offset.
+    const zCenter = f ? (f.minZ + f.maxZ) / 2 * scale : 0;
     const rowZ = z == null ? (g.base?.pos?.[2] ?? 0) : +z;
+    const baseZ = rowZ - zCenter;
     g.base = g.base || { pos: [0, 0, 0], rotDeg: [0, 0, 0], scale: 1 };
-    g.base.pos = [baseX, g.base.pos[1] || 0, rowZ];
-    g.root.position.set(baseX, g.base.pos[1] || 0, rowZ);
+    g.base.pos = [baseX, g.base.pos[1] || 0, baseZ];
+    g.root.position.set(baseX, g.base.pos[1] || 0, baseZ);
     g.root.visible = true;
-    out.push([baseX, rowZ]);
+    out.push([baseX, baseZ]);
     cursor += w + g0; // advance past this building + the gap
   }
   return out;

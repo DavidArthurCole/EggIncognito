@@ -1240,18 +1240,34 @@ else
     static readonly string[] MidRowFamilies = ["hatchery", "mission", "fuel"];
     static readonly string[] FrontRowFamilies = ["depot"];
 
+    // The back row's BACK edge (min Z), pinned just south of the hab row so the research lab / artifact hall hug the
+    // top path instead of floating away from it. Rows then chain forward in Z by REAL mesh depth + a gap, so a deep
+    // building (universe hatchery, mission control disc) pushes the next row forward instead of overlapping it.
+    const float BackRowBackZ = -13f;   // habs sit at HabRowZ=-10.5; the back row starts a touch behind them
+    const float RowZGap = 2.5f;        // depth gap between rows
+
     async Task RepackCoreRows()
     {
         if (_mod is null) return;
-        await RepackRow(BackRowFamilies, EggIncognito.Services.ProtoExtract.FarmLayout.RowBackZ);
-        await RepackRow(MidRowFamilies, EggIncognito.Services.ProtoExtract.FarmLayout.RowMidZ);
-        await RepackRow(FrontRowFamilies, EggIncognito.Services.ProtoExtract.FarmLayout.RowFrontZ);
+        // chain the three rows front-ward by real depth: back-edge anchored, each next row starts a gap past the
+        // previous row's front edge.
+        var backDepth = await RowDepth(BackRowFamilies);
+        var midDepth = await RowDepth(MidRowFamilies);
+        var frontDepth = await RowDepth(FrontRowFamilies);
+
+        var backCenterZ = BackRowBackZ + backDepth / 2f;
+        var midCenterZ = backCenterZ + backDepth / 2f + RowZGap + midDepth / 2f;
+        var frontCenterZ = midCenterZ + midDepth / 2f + RowZGap + frontDepth / 2f;
+
+        await RepackRow(BackRowFamilies, backCenterZ);
+        await RepackRow(MidRowFamilies, midCenterZ);
+        await RepackRow(FrontRowFamilies, frontCenterZ);
     }
 
-    async Task RepackRow(string[] families, float rowZ)
+    List<DesignElement> RowElements(string[] families)
     {
         var famSet = new HashSet<string>(families, StringComparer.Ordinal);
-        var row = _elements
+        return _elements
             .Where(e => e.Kind == "env")
             .Select(e => (el: e, fam: _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family ?? ""))
             .Where(t => famSet.Contains(t.fam))
@@ -1260,6 +1276,20 @@ else
             .ThenBy(t => t.el.Pos[0])
             .Select(t => t.el)
             .ToList();
+    }
+
+    async Task<float> RowDepth(string[] families)
+    {
+        if (_mod is null) return 0f;
+        var ids = RowElements(families).Select(e => e.Id).ToArray();
+        if (ids.Length == 0) return 0f;
+        return await _mod.InvokeAsync<float>("rowFootprintDepth", new object[] { ids });
+    }
+
+    async Task RepackRow(string[] families, float rowZ)
+    {
+        if (_mod is null) return;
+        var row = RowElements(families);
         if (row.Count == 0) return;
         var ids = row.Select(e => e.Id).ToArray();
         var positions = await _mod.InvokeAsync<float[][]>(
