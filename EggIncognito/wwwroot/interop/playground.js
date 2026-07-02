@@ -92,12 +92,14 @@ export async function init(canvas) {
   scene.add(ambient);
 
   // An invisible ground plane that only receives shadow, so cast shadows land even when no farm-ground mesh is
-  // placed. Sits at y=0 under everything.
+  // placed. Sits just BELOW y=0 so a real farm-ground mesh (also at y=0, also receiveShadow) always wins the depth
+  // test: two coplanar shadow receivers z-fight and stripe the shadow behind buildings (worst behind the habs).
+  // At -0.02 the catcher only shows through where no ground mesh covers (scene edges).
   shadowCatcher = new THREE.Mesh(
-    new THREE.PlaneGeometry(200, 200),
+    new THREE.PlaneGeometry(400, 400),
     new THREE.ShadowMaterial({ opacity: 0.35 }));
   shadowCatcher.rotation.x = -Math.PI / 2;
-  shadowCatcher.position.y = 0;
+  shadowCatcher.position.y = -0.02;
   shadowCatcher.receiveShadow = true;
   scene.add(shadowCatcher);
 
@@ -822,6 +824,7 @@ export async function addGroup(groupId, glbBase64, opts) {
     center,
     localFootprint,
     snapBase, // whether this group rests on the floor (false for pinned backdrops)
+    terrain: !!opts.terrain, // ground/path/hardscape/detail: a flat shadow RECEIVER, excluded from the shadow-frustum fit
     recenter: !!opts.recenter, // recentered = grid-placed (footprint is origin-relative); self-placing if false
     // preserve anim + placement across a re-render (reshell / hat change keeps spin + position).
     anim: carried?.anim || 'none',
@@ -862,6 +865,37 @@ export function setGroupOffset(groupId, x, y, z) {
   if (!g) return;
   g.manual = { x: +x || 0, y: +y || 0, z: +z || 0 };
   applyOffset(g);
+}
+
+// Lay the hab row out by the game's rule (EXTRACTED from GameController::getHabPosition): each hab i sits at a
+// fixed row Z, X = the running sum of the earlier habs' widths plus `gap` between them, centered by width*halfStep
+// (getHabPosition's fmul #0.5 + fadd #3.0). Width = the hab's own mesh bbox X-extent, so a wider hab (variable
+// bounding box) pushes the rest right, exactly as the game does. Returns [[x,z],...] so the caller syncs el.Pos.
+export function respaceHabRow(ids, gap, halfStep, z) {
+  const g0 = gap == null ? 3 : +gap;
+  const hs = halfStep == null ? 0.5 : +halfStep;
+  const rowZ = z == null ? -10.5 : +z;
+  const rowGroups = ids.map(id => groups.get(id)).filter(Boolean);
+  // total row width so we can center the whole row on X=0 (the game centers on the farm midline).
+  const widths = rowGroups.map(g => {
+    const f = g.localFootprint;
+    const w = f ? (f.maxX - f.minX) * (g.base?.scale || 1) : 1;
+    return Number.isFinite(w) && w > 0 ? w : 1;
+  });
+  const totalW = widths.reduce((a, w) => a + w, 0) + g0 * Math.max(0, widths.length - 1);
+  let cursor = -totalW / 2;
+  const out = [];
+  rowGroups.forEach((g, i) => {
+    const w = widths[i];
+    const centerX = cursor + w * hs; // width*0.5 centering, per getHabPosition
+    g.base = g.base || { pos: [0, 0, 0], rotDeg: [0, 0, 0], scale: 1 };
+    g.base.pos = [centerX, g.base.pos[1] || 0, rowZ];
+    g.root.position.set(centerX, g.base.pos[1] || 0, rowZ);
+    g.root.visible = true;
+    out.push([centerX, rowZ]);
+    cursor += w + g0; // advance a full width + the extracted gap
+  });
+  return out;
 }
 
 // Space the model groups along X by the widest group's bbox so they do not overlap. Pinned env groups stay
@@ -975,7 +1009,10 @@ function refitShadow() {
   // Fit the shadow frustum to the STATIC groups only (no per-element spin, no path/launch motion). Including an
   // animated actor or an orbiting effect made the bbox change every frame, so the frustum swam + the shadows
   // stuttered, worst looking straight down. Static-only -> a stable frustum; refit only on add/remove.
-  const all = [...groups.values()].filter(g => !g.motion && (!g.anim || g.anim === 'none'));
+  // Exclude terrain (flat ground/path receivers) too: a 200u ground mesh blew the shadow bbox up, so the 4096 map
+  // stretched thin over the whole plane and the flat ground self-shadowed (acne/striping behind the habs). Fit to
+  // the buildings; terrain still receives the shadows, it just does not size the frustum.
+  const all = [...groups.values()].filter(g => !g.motion && !g.terrain && (!g.anim || g.anim === 'none'));
   const box = new THREE.Box3();
   for (const g of all) box.expandByObject(g.root);
   const center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());

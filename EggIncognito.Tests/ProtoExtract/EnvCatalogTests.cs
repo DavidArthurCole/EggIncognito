@@ -114,8 +114,9 @@ public class EnvCatalogTests
 
         var wide = FarmLayout.StandardRecovered(new FarmLayout.SingletonPlacement(mc, null, null), farmHalfWidth: 20f);
         var narrow = FarmLayout.StandardRecovered(new FarmLayout.SingletonPlacement(mc, null, null), farmHalfWidth: 5f);
-        var wideHatch = wide.First(p => p.Stem == "ei_hatchery_edible").Pos[0];
-        var narrowHatch = narrow.First(p => p.Stem == "ei_hatchery_edible").Pos[0];
+        // the recovered layout repacks with the default core variants; the hatchery is the default (Universe).
+        var wideHatch = wide.First(p => p.Stem == "ei_hatchery_universe").Pos[0];
+        var narrowHatch = narrow.First(p => p.Stem == "ei_hatchery_universe").Pos[0];
         // a bigger farm width pushes the whole packed core further right (the recovered formula drives the start).
         Assert.True(wideHatch > narrowHatch, "wider farm shifts the core right");
     }
@@ -129,6 +130,45 @@ public class EnvCatalogTests
         Assert.Contains(fam, p => p.Stem == "ei_fuel_tank_1");
         Assert.Contains(fam, p => p.Stem == "ei_fuel_tank_4");
         Assert.All(fam, p => Assert.True(EnvCatalog.IsKnownPiece(p.Stem)));
+    }
+
+    [Fact]
+    public void Family_Silo_SwapsBaseAndAlt()
+    {
+        var fam = EnvCatalog.Family("ei_silo_0_large");
+        Assert.Equal(2, fam.Count);
+        Assert.All(fam, p => Assert.Equal("silo", p.Family));
+        Assert.Contains(fam, p => p.Stem == "ei_silo");
+        Assert.Contains(fam, p => p.Stem == "ei_silo_0_large");
+    }
+
+    [Fact]
+    public void Standard_DefaultHabRow_IsMixedTopTiers_And_DefaultVariants()
+    {
+        var placed = FarmLayout.Standard(); // no ?hab= -> the mixed default row
+        var habs = placed.Where(p => p.Stem.StartsWith("hab_")).OrderBy(p => p.Pos[0]).ToList();
+        Assert.Equal(4, habs.Count);
+        // left -> right: Chicken Universe x2, Planet Portal, Monolith
+        Assert.Equal(new[] { "hab_chicken_universe", "hab_chicken_universe", "hab_portal", "hab_monolith" },
+            habs.Select(h => h.Stem).ToArray());
+        // all habs share the extracted fixed row Z.
+        Assert.All(habs, h => Assert.Equal(FarmLayout.HabRowZ, h.Pos[2], 2));
+
+        // default core variants.
+        Assert.Contains(placed, p => p.Stem == "ei_lab_6");
+        Assert.Contains(placed, p => p.Stem == "ei_hoa_3");
+        Assert.Contains(placed, p => p.Stem == "ei_hatchery_universe");
+        Assert.Contains(placed, p => p.Stem == "ei_mission_control_3");
+        Assert.Contains(placed, p => p.Stem == "ei_fuel_tank_4");
+        Assert.Contains(placed, p => p.Stem == "ei_depot_7");
+        Assert.Contains(placed, p => p.Stem == "ei_trophy_case2");
+    }
+
+    [Fact]
+    public void Standard_ExplicitHab_FillsAllFourPlots()
+    {
+        var placed = FarmLayout.Standard("hab_10k");
+        Assert.Equal(4, placed.Count(p => p.Stem == "hab_10k"));
     }
 
     [Fact]

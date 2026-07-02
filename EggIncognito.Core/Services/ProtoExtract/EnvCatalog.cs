@@ -46,8 +46,8 @@ public static class EnvCatalog
         new EnvPiece("hab_portal", "Planet Portal", "Habs", Family: "hab"),
         new EnvPiece("hab_chicken_universe", "Chicken Universe", "Habs", Family: "hab"),
 
-        new EnvPiece("ei_silo_0_large", "Silo", "Storage"),
-        new EnvPiece("ei_silo", "Silo (alt)", "Storage"),
+        new EnvPiece("ei_silo_0_large", "Silo", "Storage", Family: "silo"),
+        new EnvPiece("ei_silo", "Silo (alt)", "Storage", Family: "silo"),
         new EnvPiece("ei_depot_1", "Depot (1)", "Storage", Singleton: true, Family: "depot"),
         new EnvPiece("ei_depot_2", "Depot (2)", "Storage", Singleton: true, Family: "depot"),
         new EnvPiece("ei_depot_3", "Depot (3)", "Storage", Singleton: true, Family: "depot"),

@@ -965,7 +965,7 @@ else
             var stem = el.Shell ?? el.Ref;
             var leftPin = stem.StartsWith("ei_hatchery_", StringComparison.Ordinal) || stem.StartsWith("ei_depot", StringComparison.Ordinal);
             await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb),
-                new { recenter = el.Recenter, recenterX = leftPin ? "min" : "center", snapBase = !IsTerrain(stem) });
+                new { recenter = el.Recenter, recenterX = leftPin ? "min" : "center", snapBase = !IsTerrain(stem), terrain = IsTerrain(stem) });
         }
         await PushElementTransform(el);
         await ApplyElementAnimation(el);
@@ -1224,11 +1224,33 @@ else
             // domino resolve per core building (left-to-right) to push any real-footprint overlap out, cascading.
             foreach (var el in _elements.Where(e => e.Recenter).OrderBy(e => e.Pos[0]).ToList())
                 await RunDomino(el.Id);
+            await RespaceHabs();
             await ResetView();
             Status($"Arranged {placed.Length} elements.");
         }
         catch (Exception ex) { Fail(ex.Message); }
         finally { _busy = false; StateHasChanged(); }
+    }
+
+    // Re-space the placed habs by the game's rule (GameController::getHabPosition, extracted): fixed row Z, X by
+    // cumulative mesh-bbox width + the extracted gap. The renderer holds the meshes so it does the bbox walk; we
+    // pass the extracted constants and sync each hab's el.Pos from the returned positions.
+    async Task RespaceHabs()
+    {
+        if (_mod is null) return;
+        var habs = _elements
+            .Where(e => e.Kind == "env" && _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family == "hab")
+            .OrderBy(e => e.Pos[0])
+            .ToList();
+        if (habs.Count == 0) return;
+        var ids = habs.Select(h => h.Id).ToArray();
+        var positions = await _mod.InvokeAsync<float[][]>(
+            "respaceHabRow", ids,
+            EggIncognito.Services.ProtoExtract.FarmLayout.HabGap,
+            EggIncognito.Services.ProtoExtract.FarmLayout.HabHalfStep,
+            EggIncognito.Services.ProtoExtract.FarmLayout.HabRowZ);
+        for (var i = 0; i < habs.Count && i < positions.Length; i++)
+            habs[i].Pos = [positions[i][0], habs[i].Pos[1], positions[i][1]];
     }
 
     // Per-farm placement limits. Families that allow exactly one instance regardless of tier (a farm has one

@@ -33,9 +33,9 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     // A game-like default farm layout: the standard farm elements at approximate plot positions, for the
     // designer's one-click "Auto-arrange". ?hab= picks the hab used for the 4-plot row. Public (names + math).
     [HttpGet("farm-layout")]
-    public async Task<IActionResult> FarmLayout([FromQuery] string hab = "hab_10k", [FromQuery] string? device = null, CancellationToken ct = default)
+    public async Task<IActionResult> FarmLayout([FromQuery] string? hab = null, [FromQuery] string? device = null, CancellationToken ct = default)
     {
-        var stem = EnvCatalog.IsKnownPiece(hab) ? hab : "hab_10k";
+        var stem = hab is not null && EnvCatalog.IsKnownPiece(hab) ? hab : EggIncognito.Services.ProtoExtract.FarmLayout.DefaultHabPlaceholder;
         var layout = await RecoveredOrFallbackLayout(stem, device, ct);
         var placed = layout
             .Where(p => EnvCatalog.IsKnownPiece(p.Stem))
