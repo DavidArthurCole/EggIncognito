@@ -126,8 +126,10 @@ public static class FarmLayout
         return outp;
     }
 
-    // The hatchery renders pinned to its left edge (recenterX=min), so the layout places it by left edge too.
-    private static bool IsLeftPinned(string stem) => stem.StartsWith("ei_hatchery", StringComparison.Ordinal);
+    // The hatchery + depot render pinned to their left edge (recenterX=min), so the layout places them by left
+    // edge too. Both share a fixed left/dock edge near the road and grow rightward with tier/size.
+    private static bool IsLeftPinned(string stem) =>
+        stem.StartsWith("ei_hatchery", StringComparison.Ordinal) || stem.StartsWith("ei_depot", StringComparison.Ordinal);
 
     // The farm core as the three gravity-packed rows. Variable building stems (tier-dependent) are passed in;
     // widening one shifts everything to its right. Used by the recovered layout; the terrain/habs/silos come from

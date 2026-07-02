@@ -270,15 +270,33 @@ function depotDistanceAlong(m, len) {
   return best;
 }
 
-// Insert a dwell of `dwell` seconds when the lead truck reaches the depot distance: distances before the depot
-// pass through, at the depot the truck holds, after it resumes. Implemented by stretching the cycle clock.
+// Map the raw (constant-speed) distance to an eased distance that DECELERATES over ~0.5s of travel into the
+// depot, HOLDS for the dwell, then ACCELERATES back to speed over ~0.5s. rawD passes through unchanged outside
+// the ramp+dwell window; inside, a smoothstep ramps the speed 1->0 (approach) and 0->1 (leave) so the truck
+// brakes and pulls away smoothly rather than snapping to a stop.
 function depotAdjustedDistance(rawD, depotD, speed, dwell, len) {
   if (depotD < 0 || dwell <= 0) return rawD % len;
-  const dwellDist = speed * dwell; // the raw-clock span consumed by the dwell
-  if (rawD <= depotD) return rawD;            // approaching the depot
-  if (rawD <= depotD + dwellDist) return depotD; // dwelling AT the depot
-  return rawD - dwellDist;                     // resumed past the depot
+  const ramp = speed * 0.5;        // ~0.5s of travel to brake / accelerate
+  const dwellDist = speed * dwell; // raw-clock span consumed by the full stop
+  const decelStart = depotD - ramp;
+  if (rawD <= decelStart) return rawD;                       // full speed, approaching
+  if (rawD <= depotD) {                                      // braking: smoothstep to a halt at depotD
+    const t = (rawD - decelStart) / ramp;
+    return decelStart + ramp * smoothArrive(t);
+  }
+  if (rawD <= depotD + dwellDist) return depotD;             // stopped at the depot
+  const after = rawD - dwellDist;                            // resume clock past the dwell
+  if (after <= depotD + ramp) {                              // accelerating away: smoothstep from a halt
+    const t = (after - depotD) / ramp;
+    return depotD + ramp * smoothLeave(t);
+  }
+  return after;                                              // back to full speed
 }
+
+// smoothstep-based ramps: arrive eases 0..1 -> 0..1 slowing to 0 velocity at t=1; leave mirrors it (0 velocity
+// at t=0, full by t=1). Both are the standard 3t^2-2t^3 integral shapes for a symmetric brake/accelerate.
+function smoothArrive(t) { const s = Math.max(0, Math.min(1, t)); return 1 - (1 - s) * (1 - s) * (1 - s); }
+function smoothLeave(t) { const s = Math.max(0, Math.min(1, t)); return s * s * s; }
 
 // Along-path distance for one runner this frame. A cycle = the drive time plus an optional dwell at the end
 // (the vehicle's depot stop). pingpong reflects; cycle wraps pacman-style. Runners are evenly phase-staggered.
@@ -660,7 +678,7 @@ async function parseGlb(b64) {
 // shadow. vertexColors feeds the base color; onBeforeCompile adds that same color to emissive so the mesh
 // reads at full saturation regardless of scene lights (the game look), with shadows still landing on it.
 // `emissiveBoost` is exposed live so the lighting panel can dial the flat-vs-lit balance.
-let _emissiveBoost = 0.85;
+let _emissiveBoost = 0.25;
 // Apply the engine's emissive vertex material to every mesh in a hatchery sub-piece. The decoded glb carries
 // only a COLOR_0 emission attribute; the GLTFLoader default material ignores it and renders flat black (the ai
 // tops + darkmatter rings came out black). Same fixup addGroup runs on a building, factored out so the floating
@@ -704,7 +722,7 @@ function emissiveVertexMaterial() {
 // Live tweak of how strongly the per-vertex emission shows (0 = fully lit/dull, 1 = flat vibrant). Walks every
 // loaded mesh's material and updates its shader uniform without a rebuild.
 export function setEmissiveBoost(v) {
-  _emissiveBoost = typeof v === 'number' ? v : 0.85;
+  _emissiveBoost = typeof v === 'number' ? v : 0.25;
   for (const g of groups.values()) {
     g.root.traverse(o => {
       const mat = o.isMesh ? o.material : null;
@@ -1150,8 +1168,11 @@ export function clearCellHighlight() {
 
 // The grid box (id + integer cell rect) of every non-pinned element, split into the changed element + the rest,
 // for the C# domino pass after a tier resize. Empty when the grid is off.
-export function gridBoxesForDomino(changedId) {
-  if (gridCell <= 0) return { changed: null, others: [] };
+export function gridBoxesForDomino(changedId, cellOverride) {
+  // domino runs even when grid-snap is OFF (neighbor nudge on a tier/size grow is a layout concern, not a snap
+  // one): use the passed cell (or the active grid cell) as the cell resolution for the cascade math.
+  const cell = (cellOverride > 0) ? cellOverride : gridCell;
+  if (cell <= 0) return { changed: null, others: [] };
   let changed = null;
   const others = [];
   for (const [gid, g] of groups) {
@@ -1159,9 +1180,9 @@ export function gridBoxesForDomino(changedId) {
     // origin), which would produce a giant garbage cell span + fling the whole scene on a domino pass.
     if (g.pinned || !g.recenter || !g.localFootprint) continue;
     const base = g.base || { pos: [g.root.position.x, 0, g.root.position.z], scale: 1 };
-    const b = blockCells(g.localFootprint, base.scale || 1, base.pos[0], base.pos[2], gridCell);
-    const col0 = Math.round(base.pos[0] / gridCell - b.spanC / 2);
-    const row0 = Math.round(base.pos[2] / gridCell - b.spanR / 2);
+    const b = blockCells(g.localFootprint, base.scale || 1, base.pos[0], base.pos[2], cell);
+    const col0 = Math.round(base.pos[0] / cell - b.spanC / 2);
+    const row0 = Math.round(base.pos[2] / cell - b.spanR / 2);
     const box = { id: gid, col: col0, row: row0, spanC: b.spanC, spanR: b.spanR };
     if (gid === changedId) changed = box; else others.push(box);
   }
@@ -1170,13 +1191,14 @@ export function gridBoxesForDomino(changedId) {
 
 // Apply the domino moves (cell-delta per element) the C# pass returned: shift each moved element by delta*cell in
 // X/Z. Keeps Y + rotation. Returns the list of moved ids so .NET can sync its inspector + autosave.
-export function applyDominoMoves(moves) {
+export function applyDominoMoves(moves, cellOverride) {
+  const cell = (cellOverride > 0) ? cellOverride : gridCell;
   const out = [];
   for (const m of moves || []) {
     const g = groups.get(m.id);
     if (!g || g.pinned || !g.recenter) continue; // never move a pinned backdrop / self-placing piece
     const base = g.base || { pos: [g.root.position.x, g.root.position.y, g.root.position.z], rotDeg: [0, 0, 0], scale: 1 };
-    const pos = [base.pos[0] + m.deltaCol * gridCell, base.pos[1], base.pos[2] + m.deltaRow * gridCell];
+    const pos = [base.pos[0] + m.deltaCol * cell, base.pos[1], base.pos[2] + m.deltaRow * cell];
     setGroupTransform(m.id, pos, base.rotDeg, base.scale);
     out.push({ id: m.id, pos });
   }

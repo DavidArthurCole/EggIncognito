@@ -898,6 +898,12 @@ else
         or "TheStandard" or "LongHouse" or "DoubleDecker" or "Warehouse" or "Center" or "Bunker" or "Eggkea"
         or "Hab1K" or "Hangar" or "Tower" or "Hab10K" or "Eggtopia" or "Monolith" or "PlanetPortal" or "ChickenUniverse";
 
+    // Terrain layers (ground / paths / hardscape / ground detail / display ground): flat sheets that overlay the
+    // floor. They keep their authored Y (no base-snap) so they sit INSIDE each other rather than stacking, and
+    // stay out of collision/grid (they are not obstacles).
+    static bool IsTerrain(string stem) => stem is "ei_farm_ground" or "ei_farm" or "ei_farm_hardscape"
+        or "ei_farm_misc" or "ei_chicken_display_ground";
+
     static float Dist2(float[] a, float[] b)
     {
         var dx = a[0] - b[0]; var dz = a[2] - b[2];
@@ -952,12 +958,14 @@ else
         else
         {
             // free-placed env buildings re-center so the gizmo lands on them; layout-derived ones keep their
-            // authored plot offset (el.Recenter is false for auto-arranged + restored pieces). The hatchery pins
-            // its LEFT edge (recenterX=min) so a tier swap grows the body to the RIGHT (every tier shares the same
-            // left/dock edge near the road), not leftward as a center-recenter would.
-            var isHatchery = (el.Shell ?? el.Ref).StartsWith("ei_hatchery_", StringComparison.Ordinal);
+            // authored plot offset (el.Recenter is false for auto-arranged + restored pieces). The hatchery + depot
+            // pin their LEFT edge (recenterX=min) so a tier/size swap grows to the RIGHT (they share a fixed left/
+            // dock edge near the road), not leftward. Terrain layers (ground/paths/hardscape/detail) keep their
+            // authored Y (snapBase=false) so they sit INSIDE each other flat on the floor, not stacked/elevated.
+            var stem = el.Shell ?? el.Ref;
+            var leftPin = stem.StartsWith("ei_hatchery_", StringComparison.Ordinal) || stem.StartsWith("ei_depot", StringComparison.Ordinal);
             await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb),
-                new { recenter = el.Recenter, recenterX = isHatchery ? "min" : "center" });
+                new { recenter = el.Recenter, recenterX = leftPin ? "min" : "center", snapBase = !IsTerrain(stem) });
         }
         await PushElementTransform(el);
         await ApplyElementAnimation(el);
@@ -1019,10 +1027,13 @@ else
     // cell math is the tested PlacementSolver.DominoNudge; the engine supplies the grid boxes + applies the moves.
     async Task RunDomino(string changedId)
     {
-        if (_mod is null || !_gridSnap) return;
+        if (_mod is null) return;
+        // domino runs even with grid-snap OFF: a tier/size grow should always ripple neighbors. Use the grid cell
+        // when snapping, else a small default resolution for the cascade math.
+        var cell = _gridSnap ? _gridSize : 0.5f;
         try
         {
-            var boxes = await _mod.InvokeAsync<DominoBoxes>("gridBoxesForDomino", changedId);
+            var boxes = await _mod.InvokeAsync<DominoBoxes>("gridBoxesForDomino", changedId, cell);
             if (boxes?.Changed is null || boxes.Others is null || boxes.Others.Length == 0) return;
 
             GridBoxOf(boxes.Changed, out var changed);
@@ -1031,7 +1042,7 @@ else
             if (moves.Count == 0) return;
 
             var payload = moves.Select(m => new { id = m.Id, deltaCol = m.DeltaCol, deltaRow = m.DeltaRow }).ToArray();
-            var moved = await _mod.InvokeAsync<MovedElement[]>("applyDominoMoves", new object[] { payload });
+            var moved = await _mod.InvokeAsync<MovedElement[]>("applyDominoMoves", new object[] { payload, cell });
             foreach (var mv in moved ?? [])
             {
                 var el = _elements.FirstOrDefault(e => e.Id == mv.Id);
@@ -1209,6 +1220,10 @@ else
                 _elements.Add(el);
                 await RenderElement(el);
             }
+            // the layout uses approximate per-building widths, so tiers wider than the stopgap can overlap. Run a
+            // domino resolve per core building (left-to-right) to push any real-footprint overlap out, cascading.
+            foreach (var el in _elements.Where(e => e.Recenter).OrderBy(e => e.Pos[0]).ToList())
+                await RunDomino(el.Id);
             await ResetView();
             Status($"Arranged {placed.Length} elements.");
         }
@@ -2105,7 +2120,7 @@ else
         public float Exposure { get; set; } = 1.0f;
         public float AmbientIntensity { get; set; } = 0.55f;
         public float HemiIntensity { get; set; } = 0.5f;
-        public float Emission { get; set; } = 0.85f; // 0 = fully lit/dull, 1 = flat vibrant (game look)
+        public float Emission { get; set; } = 0.25f; // 0 = fully lit/dull, 1 = flat vibrant; 0.25 = subtle (default)
         public string FogColor { get; set; } = "#1a1a1f";
         public float FogDensity { get; set; } = 0f;
     }
