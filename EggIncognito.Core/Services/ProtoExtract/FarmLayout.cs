@@ -107,11 +107,11 @@ public static class FarmLayout
     public const float RowBackZ = -2f;   // research lab / hoa row: pulled forward off the back path (was -6, overhung it), still ~2 clear of the mid row
     public const float RowMidZ = 5f;     // hatchery / mission control / fuel row (bodies are ~5 deep: ±2.5)
     public const float RowFrontZ = 10f;  // depot row: sits between the mid row's back edge (z~6.5) and the road (PlaygroundPaths.RoadZ=15), so it never lands inside the hatchery nor on the road
-    private const float RowGap = 2.5f;   // even gap between adjacent buildings in a row (in-game look)
+    public const float RowGap = 2.5f;   // even gap between adjacent buildings in a row (in-game look)
     // The rows pack rightward from the right edge of the silo field's connecting path ("path 2"). The silo field
     // is all negative-X (rightmost column at X=-5, half ~2.5, so its right edge ~-2.5); path 2 + a gap puts the
     // rows' left bound just past world origin. STOPGAP value; the real path X is in the FarmScene terrain layout.
-    private const float CoreLeftX = 2f;
+    public const float CoreLeftX = 2f;
 
     // Approximate footprint half-widths per building (X half-extent). STOPGAP: hand-measured from the meshes; the
     // real per-tier footprint is in the mesh bounds / FarmScene element-width table @0x10226a3c8 = [3.2,4.75,7.2,

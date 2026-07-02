@@ -1220,16 +1220,55 @@ else
                 _elements.Add(el);
                 await RenderElement(el);
             }
-            // the layout uses approximate per-building widths, so tiers wider than the stopgap can overlap. Run a
-            // domino resolve per core building (left-to-right) to push any real-footprint overlap out, cascading.
-            foreach (var el in _elements.Where(e => e.Recenter).OrderBy(e => e.Pos[0]).ToList())
-                await RunDomino(el.Id);
+            // Gravity-pack the core rows by REAL mesh footprint width (the layout's stopgap widths were far off for
+            // big tiers, so the packed centers overlapped + a per-building domino could shove the leftmost off the
+            // terrain). repackCoreRow pins each row's LEFT edge and packs right, so gravity pushes only rightward.
+            await RepackCoreRows();
             await RespaceHabs();
             await ResetView();
             Status($"Arranged {placed.Length} elements.");
         }
         catch (Exception ex) { Fail(ex.Message); }
         finally { _busy = false; StateHasChanged(); }
+    }
+
+    // Gravity-pack the three core rows by REAL mesh footprint width. Each row's LEFT edge pins at CoreLeftX and
+    // buildings pack rightward, so a wide tier only pushes the ones to its right (never off the terrain). Family ->
+    // row: {lab, hoa} back, {hatchery, mission, fuel} mid, {depot} front. The renderer does the width walk (it
+    // holds the meshes); we sync each el.Pos from the returned positions.
+    static readonly string[] BackRowFamilies = ["lab", "hoa"];
+    static readonly string[] MidRowFamilies = ["hatchery", "mission", "fuel"];
+    static readonly string[] FrontRowFamilies = ["depot"];
+
+    async Task RepackCoreRows()
+    {
+        if (_mod is null) return;
+        await RepackRow(BackRowFamilies, EggIncognito.Services.ProtoExtract.FarmLayout.RowBackZ);
+        await RepackRow(MidRowFamilies, EggIncognito.Services.ProtoExtract.FarmLayout.RowMidZ);
+        await RepackRow(FrontRowFamilies, EggIncognito.Services.ProtoExtract.FarmLayout.RowFrontZ);
+    }
+
+    async Task RepackRow(string[] families, float rowZ)
+    {
+        var famSet = new HashSet<string>(families, StringComparer.Ordinal);
+        var row = _elements
+            .Where(e => e.Kind == "env")
+            .Select(e => (el: e, fam: _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family ?? ""))
+            .Where(t => famSet.Contains(t.fam))
+            // keep the intended left-to-right order: lab before hoa; hatchery, mission, fuel.
+            .OrderBy(t => Array.IndexOf(families, t.fam))
+            .ThenBy(t => t.el.Pos[0])
+            .Select(t => t.el)
+            .ToList();
+        if (row.Count == 0) return;
+        var ids = row.Select(e => e.Id).ToArray();
+        var positions = await _mod.InvokeAsync<float[][]>(
+            "repackCoreRow", ids,
+            EggIncognito.Services.ProtoExtract.FarmLayout.CoreLeftX,
+            EggIncognito.Services.ProtoExtract.FarmLayout.RowGap,
+            rowZ);
+        for (var i = 0; i < row.Count && i < positions.Length; i++)
+            row[i].Pos = [positions[i][0], row[i].Pos[1], positions[i][1]];
     }
 
     // Re-space the placed habs by the game's rule (GameController::getHabPosition, extracted): fixed row Z, X by

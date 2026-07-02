@@ -898,6 +898,34 @@ export function respaceHabRow(ids, gap, halfStep, z) {
   return out;
 }
 
+// Gravity-pack a core row by REAL mesh footprint width, left edge pinned at leftEdgeX, each building placed to
+// the RIGHT of the previous with `gap` between. This is the true "gravity + edge enforcement": the leftmost never
+// moves, a wider tier only pushes the ones to its right (never left, never off the terrain). Sets each group's
+// base.pos.x so its own footprint left edge lands at the running cursor (handles both center-recentered meshes
+// (minX~-half) and left-pinned meshes (minX~0)). Keeps each element's row Z. Returns [[x,z],...] to sync el.Pos.
+export function repackCoreRow(ids, leftEdgeX, gap, z) {
+  const g0 = gap == null ? 2.5 : +gap;
+  const rowGroups = ids.map(id => groups.get(id)).filter(Boolean);
+  let cursor = leftEdgeX == null ? 2 : +leftEdgeX; // world X of the next building's LEFT edge
+  const out = [];
+  for (const g of rowGroups) {
+    const f = g.localFootprint;
+    const scale = g.base?.scale || 1;
+    const minX = f ? f.minX * scale : -0.5, maxX = f ? f.maxX * scale : 0.5;
+    const w = maxX - minX;
+    // place so the footprint's left edge (base.x + minX) == cursor -> base.x = cursor - minX.
+    const baseX = cursor - minX;
+    const rowZ = z == null ? (g.base?.pos?.[2] ?? 0) : +z;
+    g.base = g.base || { pos: [0, 0, 0], rotDeg: [0, 0, 0], scale: 1 };
+    g.base.pos = [baseX, g.base.pos[1] || 0, rowZ];
+    g.root.position.set(baseX, g.base.pos[1] || 0, rowZ);
+    g.root.visible = true;
+    out.push([baseX, rowZ]);
+    cursor += w + g0; // advance past this building + the gap
+  }
+  return out;
+}
+
 // Space the model groups along X by the widest group's bbox so they do not overlap. Pinned env groups stay
 // at world origin and are excluded from the layout. Groups with a manual offset keep it. Then frame.
 // Recomputes group positions. Does NOT move the camera: re-framing on every add/reshell/transform yanked the
@@ -1137,15 +1165,19 @@ export function surfaceYAt(x, z, excludeId) {
 // Mirror of PlacementSolver.SnapToGrid / CellsOf (the C# spec, unit-tested): block span = ceil(extent/cell),
 // snapped so the block center is nearest the target. Returns { cells:[{c,r}], centerX, centerZ, spanC, spanR }.
 function blockCells(local, scale, x, z, cell) {
-  const w = (local.maxX - local.minX) * scale, d = (local.maxZ - local.minZ) * scale;
-  const spanC = Math.max(1, Math.ceil(w / cell - 1e-3));
-  const spanR = Math.max(1, Math.ceil(d / cell - 1e-3));
-  const col0 = Math.round(x / cell - spanC / 2);
-  const row0 = Math.round(z / cell - spanR / 2);
+  // World extent of the footprint. Use the actual min/max (NOT width around x): a left-pinned building
+  // (recenterX=min) has an off-center footprint (minX~0, maxX~width), so assuming it is centered on x put its
+  // occupancy box half a width off, and its neighbors never registered as overlapping (gravity push missed them).
+  const minWX = x + local.minX * scale, maxWX = x + local.maxX * scale;
+  const minWZ = z + local.minZ * scale, maxWZ = z + local.maxZ * scale;
+  const col0 = Math.round(minWX / cell);
+  const row0 = Math.round(minWZ / cell);
+  const spanC = Math.max(1, Math.ceil((maxWX - minWX) / cell - 1e-3));
+  const spanR = Math.max(1, Math.ceil((maxWZ - minWZ) / cell - 1e-3));
   const cells = [];
   for (let dc = 0; dc < spanC; dc++)
     for (let dr = 0; dr < spanR; dr++) cells.push({ c: col0 + dc, r: row0 + dr });
-  return { cells, centerX: (col0 + spanC / 2) * cell, centerZ: (row0 + spanR / 2) * cell, spanC, spanR };
+  return { cells, col0, row0, centerX: (col0 + spanC / 2) * cell, centerZ: (row0 + spanR / 2) * cell, spanC, spanR };
 }
 
 // The set of cells every OTHER grid-placed element occupies, as "c,r" keys, for the occupancy check. Only
@@ -1224,9 +1256,7 @@ export function gridBoxesForDomino(changedId, cellOverride) {
     if (g.pinned || !g.recenter || !g.localFootprint) continue;
     const base = g.base || { pos: [g.root.position.x, 0, g.root.position.z], scale: 1 };
     const b = blockCells(g.localFootprint, base.scale || 1, base.pos[0], base.pos[2], cell);
-    const col0 = Math.round(base.pos[0] / cell - b.spanC / 2);
-    const row0 = Math.round(base.pos[2] / cell - b.spanR / 2);
-    const box = { id: gid, col: col0, row: row0, spanC: b.spanC, spanR: b.spanR };
+    const box = { id: gid, col: b.col0, row: b.row0, spanC: b.spanC, spanR: b.spanR };
     if (gid === changedId) changed = box; else others.push(box);
   }
   return { changed, others };
