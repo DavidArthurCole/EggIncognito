@@ -1266,12 +1266,19 @@ else
         public float NextBackEdgeZ { get; set; }
     }
 
+    // The road's Z (PlaygroundPaths.RoadZ) minus a clearance margin: the front row's real front edge must never
+    // reach or cross this, or the depot visually lands on/past the road. Real per-tier depth is unknown offline
+    // (see ZoneLayout's stopgap note), so this is a hard safety clamp, not a tuning nicety: without it, a big
+    // enough mid-row (e.g. a wide mission-control disc) chains the front row straight onto the road.
+    const float RoadClearZ = EggIncognito.Services.ProtoExtract.PlaygroundPaths.RoadZ - 1.5f;
+
     async Task RepackCoreZones()
     {
         if (_mod is null) return;
         var backEdgeZ = EggIncognito.Services.ProtoExtract.ZoneLayout.BackRowZ;
-        foreach (var families in ZoneRowFamilies)
+        for (var rowIndex = 0; rowIndex < ZoneRowFamilies.Length; rowIndex++)
         {
+            var families = ZoneRowFamilies[rowIndex];
             var famSet = new HashSet<string>(families, StringComparer.Ordinal);
             var row = _elements
                 .Where(e => e.Kind == "env")
@@ -1286,6 +1293,21 @@ else
                 "repackZoneRow", ids, EggIncognito.Services.ProtoExtract.ZoneLayout.CoreLeftX,
                 backEdgeZ, EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX,
                 EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX);
+
+            // the LAST row (depot) must clear the road: if its real front edge would cross RoadClearZ, re-pack
+            // it pinned to a back edge pulled back by the overflow, so it compresses toward the road limit
+            // instead of driving through it.
+            var isLastRow = rowIndex == ZoneRowFamilies.Length - 1;
+            if (isLastRow && result.NextBackEdgeZ - EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX > RoadClearZ)
+            {
+                var realFrontZ = result.NextBackEdgeZ - EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX;
+                var overflow = realFrontZ - RoadClearZ;
+                result = await _mod.InvokeAsync<ZoneRowPackResult>(
+                    "repackZoneRow", ids, EggIncognito.Services.ProtoExtract.ZoneLayout.CoreLeftX,
+                    backEdgeZ - overflow, EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX,
+                    EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX);
+            }
+
             for (var i = 0; i < row.Count && i < result.Positions.Length; i++)
                 row[i].Pos = [result.Positions[i][0], row[i].Pos[1], result.Positions[i][1]];
             backEdgeZ = result.NextBackEdgeZ;
@@ -1459,11 +1481,16 @@ else
         try
         {
             var tier = HatcheryTierOf(el.Ref);
-            var res = await Client().GetFromJsonAsync<System.Text.Json.JsonElement>($"/api/env/hatchery-effects?tier={Uri.EscapeDataString(tier)}");
+            // hatchery-dump already carries every tier's floating parts (fetched once, memoized in
+            // _hatcheryDumpTask); reading it here instead of the separate /api/env/hatchery-effects endpoint
+            // avoids a SECOND uncached device pull (that endpoint also calls ListStemsAsync, which re-pulls the
+            // whole base.apk/tarball every call) on every hatchery placement.
+            var dump = await FetchHatcheryDump();
             var floating = new List<string>();
-            if (res.TryGetProperty("effects", out var effects) && effects.ValueKind == System.Text.Json.JsonValueKind.Array)
-                foreach (var e in effects.EnumerateArray())
-                    if (e.TryGetProperty("floating", out var fl) && fl.ValueKind == System.Text.Json.JsonValueKind.Array)
+            if (dump is { } d && d.TryGetProperty("tiers", out var tiers) && tiers.ValueKind == System.Text.Json.JsonValueKind.Array)
+                foreach (var t in tiers.EnumerateArray())
+                    if (t.TryGetProperty("tier", out var tn) && tn.GetString() == tier
+                        && t.TryGetProperty("floating", out var fl) && fl.ValueKind == System.Text.Json.JsonValueKind.Array)
                         foreach (var f in fl.EnumerateArray())
                             if (f.GetString() is { } s) floating.Add(s);
 
@@ -1484,7 +1511,6 @@ else
             // cache the built model per tier (it holds the piece glbs); a re-toggle or tier re-visit is instant.
             if (!_hatcheryModelCache.TryGetValue(tier, out var model))
             {
-                var dump = await FetchHatcheryDump();
                 model = await BuildHatcheryModel(tier, floating, dump);
                 _hatcheryModelCache[tier] = model;
             }
