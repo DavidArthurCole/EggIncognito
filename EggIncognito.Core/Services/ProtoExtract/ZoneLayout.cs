@@ -55,17 +55,19 @@ public static class ZoneLayout
         };
     }
 
-    // Places each Single-content zone's building at its zone's CENTER (anchor + half width/depth), Recenter=true
-    // so the layout position is authoritative (matches PackRow's existing Recenter contract). This is the
-    // auto-arrange INITIAL pass; RunDomino (Playground.razor) still handles post-swap growth pushing via the
-    // existing PlacementSolver.DominoNudge path, unchanged by this method.
+    // Places each Single-content zone's building at its zone's back-left ANCHOR, Recenter=true so the layout
+    // position is authoritative (matches PackRow's existing Recenter contract). All 6 core buildings render
+    // left-pinned (recenterX="min" in playground.js's addGroup), so Pos = the zone's anchor corner, not its
+    // center: pinning every zone the same way removes the center-vs-min mismatch that shifted buildings by half
+    // their width. This is the auto-arrange INITIAL pass; RunDomino (Playground.razor) still handles post-swap
+    // growth pushing via the existing PlacementSolver.DominoNudge path, unchanged by this method.
     public static IReadOnlyList<FarmLayout.Placed> Resolve(string lab, string hoa, string hatchery,
         string missionControl, string fuel, string depot)
     {
         FarmLayout.Placed At(ZoneId id, string stem)
         {
             var z = Zones[id];
-            return new FarmLayout.Placed(stem, [z.AnchorX + z.Width / 2f, 0f, z.AnchorZ + z.Depth / 2f], 0, Recenter: true);
+            return new FarmLayout.Placed(stem, [z.AnchorX, 0f, z.AnchorZ], 0, Recenter: true);
         }
 
         return

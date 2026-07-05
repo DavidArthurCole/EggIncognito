@@ -940,12 +940,12 @@ else
         else
         {
             // free-placed env buildings re-center so the gizmo lands on them; layout-derived ones keep their
-            // authored plot offset (el.Recenter is false for auto-arranged + restored pieces). The hatchery + depot
-            // pin their LEFT edge (recenterX=min) so a tier/size swap grows to the RIGHT (they share a fixed left/
-            // dock edge near the road), not leftward. Terrain layers (ground/paths/hardscape/detail) keep their
-            // authored Y (snapBase=false) so they sit INSIDE each other flat on the floor, not stacked/elevated.
+            // authored plot offset (el.Recenter is false for auto-arranged + restored pieces). The 6 zone-grid
+            // core buildings pin their LEFT edge (recenterX=min) so a tier/size swap grows to the RIGHT from the
+            // zone anchor, not leftward. Terrain layers (ground/paths/hardscape/detail) keep their authored Y
+            // (snapBase=false) so they sit INSIDE each other flat on the floor, not stacked/elevated.
             var stem = el.Shell ?? el.Ref;
-            var leftPin = stem.StartsWith("ei_hatchery_", StringComparison.Ordinal) || stem.StartsWith("ei_depot", StringComparison.Ordinal);
+            var leftPin = IsZoneCorePinned(stem);
             await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb),
                 new { recenter = el.Recenter, recenterX = leftPin ? "min" : "center", snapBase = !IsTerrain(stem), terrain = IsTerrain(stem) });
         }
@@ -1222,7 +1222,7 @@ else
                 if (glb is null) continue;
                 _elements.Add(el);
                 var stem = el.Shell ?? el.Ref;
-                var leftPin = stem.StartsWith("ei_hatchery_", StringComparison.Ordinal) || stem.StartsWith("ei_depot", StringComparison.Ordinal);
+                var leftPin = IsZoneCorePinned(stem);
                 items.Add(new
                 {
                     id = el.Id,
@@ -1287,6 +1287,14 @@ else
     const int MaxSilos = 10;
 
     static bool IsSilo(string stem) => stem.StartsWith("ei_silo", StringComparison.Ordinal);
+
+    // The 6 zone-grid core buildings all pin their LEFT edge (recenterX="min" in addGroup) so their Pos is the
+    // zone's back-left anchor, unambiguous with every other zone (ZoneLayout.Resolve places all 6 the same way).
+    static bool IsZoneCorePinned(string stem) =>
+        stem.StartsWith("ei_lab", StringComparison.Ordinal) || stem.StartsWith("ei_hoa", StringComparison.Ordinal)
+        || stem.StartsWith("ei_afx_construction", StringComparison.Ordinal) || stem.StartsWith("ei_hatchery_", StringComparison.Ordinal)
+        || stem.StartsWith("ei_mission_control", StringComparison.Ordinal) || stem.StartsWith("ei_fuel_tank", StringComparison.Ordinal)
+        || stem.StartsWith("ei_depot", StringComparison.Ordinal);
 
     int CountFamily(string family) => _elements.Count(e =>
         e.Kind == "env" && _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family == family);

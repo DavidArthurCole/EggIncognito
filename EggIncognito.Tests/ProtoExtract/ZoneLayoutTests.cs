@@ -26,8 +26,8 @@ public class ZoneLayoutTests
         var fuel = Assert.Single(placed, p => p.Stem == "ei_fuel_tank_2");
         var depot = Assert.Single(placed, p => p.Stem == "ei_depot_3");
 
-        Assert.Equal(ZoneLayout.Zones[ZoneLayout.ZoneId.Lab].AnchorZ, lab.Pos[2] - ZoneLayout.Zones[ZoneLayout.ZoneId.Lab].Depth / 2f, 2);
-        Assert.Equal(ZoneLayout.Zones[ZoneLayout.ZoneId.Depot].AnchorZ, depot.Pos[2] - ZoneLayout.Zones[ZoneLayout.ZoneId.Depot].Depth / 2f, 2);
+        Assert.Equal(ZoneLayout.Zones[ZoneLayout.ZoneId.Lab].AnchorZ, lab.Pos[2], 2);
+        Assert.Equal(ZoneLayout.Zones[ZoneLayout.ZoneId.Depot].AnchorZ, depot.Pos[2], 2);
         Assert.True(hoa.Pos[0] > lab.Pos[0], "hoa sits right of lab");
         Assert.True(mc.Pos[0] > hatchery.Pos[0], "mission control sits right of hatchery");
         Assert.True(fuel.Pos[0] > mc.Pos[0], "fuel sits right of mission control");
