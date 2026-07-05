@@ -222,12 +222,14 @@ function applyMotion(g) {
   }
 }
 
-// The single lane offset (in Z) for the truck convoy: shift toward the depot side so all traffic hugs the depot.
-// The road runs along X; the depot sits at depotZ. Push the lane half a lane-width toward it.
+// The single lane offset (in Z) for the truck convoy: shift toward the depot side so all traffic hugs the near
+// lane (the one closest to the depot's dock), centered within it rather than sitting on the road's midline.
+// depotZ is the depot's real FRONT (dock, road-facing) edge; 2.5 puts the truck about a lane-width off the
+// road's centerline, close to the dock without overlapping the building.
 function vehicleLaneOffset(m) {
   if (m.depotZ == null || !isFinite(m.depotZ) || !m.path || m.path.length === 0) return 0;
   const roadZ = m.path[0][2];
-  return Math.sign(m.depotZ - roadZ) * 1.0; // one near-lane offset toward the depot
+  return Math.sign(m.depotZ - roadZ) * 2.5;
 }
 
 // Per-truck along-path distance for a convoy: trucks are evenly spaced by distance (not phase), advance together
@@ -295,10 +297,12 @@ function depotAdjustedDistance(rawD, depotD, speed, dwell, len) {
   return after;                                              // back to full speed
 }
 
-// smoothstep-based ramps: arrive eases 0..1 -> 0..1 slowing to 0 velocity at t=1; leave mirrors it (0 velocity
-// at t=0, full by t=1). Both are the standard 3t^2-2t^3 integral shapes for a symmetric brake/accelerate.
-function smoothArrive(t) { const s = Math.max(0, Math.min(1, t)); return 1 - (1 - s) * (1 - s) * (1 - s); }
-function smoothLeave(t) { const s = Math.max(0, Math.min(1, t)); return s * s * s; }
+// Quadratic (not cubic) ease ramps: arrive's velocity MONOTONICALLY DECREASES from cruise speed to a full stop
+// (no hump); leave's velocity monotonically INCREASES from a stop back to cruise speed (no overshoot). The
+// earlier cubic (1-(1-t)^3 / t^3) had a velocity DISCONTINUITY at the cruise-speed seam that overshot to 3x
+// cruise before decaying, which read as the truck visibly speeding up right before it braked.
+function smoothArrive(t) { const s = Math.max(0, Math.min(1, t)); return 2 * s - s * s; }
+function smoothLeave(t) { const s = Math.max(0, Math.min(1, t)); return s * s; }
 
 // Along-path distance for one runner this frame. A cycle = the drive time plus an optional dwell at the end
 // (the vehicle's depot stop). pingpong reflects; cycle wraps pacman-style. Runners are evenly phase-staggered.
@@ -925,33 +929,41 @@ export function respaceHabRow(ids, gap, halfStep, z) {
   return out;
 }
 
-// Gravity-pack a zone-grid row by REAL mesh footprint width, left edge pinned at leftEdgeX, each building placed
-// to the RIGHT of the previous with `gap` between. The zone grid's static reserved widths (ZoneLayout.cs) are
-// STOPGAP guesses only good enough for the initial pre-measurement placement; this pass corrects to the real
-// mesh size so adjacent zones never overlap regardless of how wrong the guess was. Sets each group's base.pos.x
-// so its own footprint LEFT edge lands at the running cursor (every core building renders left-pinned,
-// recenterX="min"). Keeps each element's row Z. Returns [[x, z, rightEdgeX],...] so the caller syncs el.Pos AND
-// can cache the real occupied rect per zone for the manual-drag zone-lock check.
-export function repackZoneRow(ids, leftEdgeX, gap, z) {
+// Gravity-pack a zone-grid row by REAL mesh footprint width AND depth, left/back edge pinned at (leftEdgeX,
+// backEdgeZ), each building placed to the RIGHT of the previous with `gap` between. The zone grid's static row
+// bands (ZoneLayout.cs) are STOPGAP guesses only good enough for the initial pre-measurement placement; this
+// pass corrects X (real width) and Z (real depth, back edge pinned so a deep building grows FORWARD, never into
+// the row behind it) so adjacent zones never overlap regardless of how wrong the guess was. Sets each group's
+// base.pos so its footprint's LEFT+BACK corner lands at (cursor, backEdgeZ) (every core building renders
+// left-pinned, recenterX="min"; Z is NOT similarly pinned by addGroup, so this function centers each mesh's Z
+// footprint itself). Returns [[x, z, rightEdgeX, frontEdgeZ],...] so the caller syncs el.Pos and can chain the
+// NEXT row's backEdgeZ from this row's max frontEdgeZ + a gap.
+export function repackZoneRow(ids, leftEdgeX, backEdgeZ, gap, rowGap) {
   const g0 = gap == null ? 2.5 : +gap;
+  const rg = rowGap == null ? 2.5 : +rowGap;
   const rowGroups = ids.map(id => groups.get(id)).filter(Boolean);
   let cursor = leftEdgeX == null ? 2 : +leftEdgeX; // world X of the next building's LEFT edge
+  const backZ = backEdgeZ == null ? 0 : +backEdgeZ;
   const out = [];
+  let maxFrontZ = backZ;
   for (const g of rowGroups) {
     const f = g.localFootprint;
     const scale = g.base?.scale || 1;
     const minX = f ? f.minX * scale : -0.5, maxX = f ? f.maxX * scale : 0.5;
+    const minZ = f ? f.minZ * scale : -0.5, maxZ = f ? f.maxZ * scale : 0.5;
     const w = maxX - minX;
     const baseX = cursor - minX; // footprint left edge (base.x + minX) == cursor
-    const rowZ = z == null ? (g.base?.pos?.[2] ?? 0) : +z;
+    const baseZ = backZ - minZ; // footprint BACK edge (base.z + minZ) == backZ, so it grows forward (+Z)
     g.base = g.base || { pos: [0, 0, 0], rotDeg: [0, 0, 0], scale: 1 };
-    g.base.pos = [baseX, g.base.pos[1] || 0, rowZ];
-    g.root.position.set(baseX, g.base.pos[1] || 0, rowZ);
+    g.base.pos = [baseX, g.base.pos[1] || 0, baseZ];
+    g.root.position.set(baseX, g.base.pos[1] || 0, baseZ);
     g.root.visible = true;
-    out.push([baseX, rowZ, cursor + w]);
+    const frontZ = baseZ + maxZ;
+    out.push([baseX, baseZ, cursor + w, frontZ]);
+    maxFrontZ = Math.max(maxFrontZ, frontZ);
     cursor += w + g0; // advance past this building + the gap
   }
-  return out;
+  return { positions: out, nextBackEdgeZ: maxFrontZ + rg };
 }
 
 // Space the model groups along X by the widest group's bbox so they do not overlap. Pinned env groups stay

@@ -825,7 +825,7 @@ else
     // Derives an actor's motion from the placed buildings. Chicken: hatchery -> nearest hab. Vehicle: the road
     // line across the farm X bounds. Rocket: vertical from the mission control pad. Falls back to a sane local
     // path + a status note when the source building is absent.
-    MotionState DeriveMotion(DesignElement actor)
+    async Task<MotionState> DeriveMotion(DesignElement actor)
     {
         if (actor.Actor == "rocket")
         {
@@ -846,7 +846,25 @@ else
             var minX = xs.Count > 0 ? xs.Min() - 6f : -20f;
             var maxX = xs.Count > 0 ? xs.Max() + 6f : 20f;
             // the depot: all truck traffic uses the single lane closest to it, and trucks dwell as they pass it.
+            // Depot renders left-pinned (recenterX="min"), so el.Pos is its LEFT EDGE, not its dock face; fetch
+            // its real footprint so the truck dwells at the real CENTER X and the FRONT (road-facing, +Z) edge,
+            // not the building's authored corner.
             var depot = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_depot"));
+            float? depotX = depot?.Pos[0];
+            float? depotZ = depot?.Pos[2];
+            if (depot is not null && _mod is not null)
+            {
+                try
+                {
+                    var foot = await _mod.InvokeAsync<GroupFootprintDto?>("getGroupFootprint", depot.Id);
+                    if (foot is not null)
+                    {
+                        depotX = depot.Pos[0] + (foot.MinX + foot.MaxX) / 2f;
+                        depotZ = depot.Pos[2] + foot.MaxZ; // front (road-facing) edge, not the building's back corner
+                    }
+                }
+                catch { /* fall back to the authored corner if the group is not yet rendered */ }
+            }
             // Drive one direction right -> left (from +X toward -X, looking at the farm from the front), wrapping
             // pacman-style at the end (Loop=cycle, not pingpong). FaceOffset +90deg aligns the +X-forward vehicle
             // mesh to the drive heading.
@@ -857,8 +875,8 @@ else
                 Count = actor.Motion?.Count is > 0 ? actor.Motion.Count : 1,
                 StopSeconds = actor.Motion?.StopSeconds ?? 0f,
                 Vehicle = true,
-                DepotX = depot?.Pos[0],
-                DepotZ = depot?.Pos[2],
+                DepotX = depotX,
+                DepotZ = depotZ,
             };
         }
         // chickens run UNI-DIRECTIONALLY hatchery-door -> hab (Loop=cycle, wrapping back to the door, never
@@ -903,7 +921,7 @@ else
         }
         PushHistory();
         var el = new DesignElement { Id = NextElementId(), Kind = "actor", Actor = actorType, Ref = meshRef, Label = label };
-        el.Motion = DeriveMotion(el);
+        el.Motion = await DeriveMotion(el);
         _elements.Add(el);
         await RenderElement(el);
         await SelectElement(el.Id);
@@ -915,7 +933,7 @@ else
     {
         foreach (var a in _elements.Where(e => e.Kind == "actor").ToList())
         {
-            a.Motion = DeriveMotion(a); // may realign the rocket onto the mission control
+            a.Motion = await DeriveMotion(a); // may realign the rocket onto the mission control
             if (a.Actor == "rocket") await PushElementTransform(a);
             await PushElementMotion(a);
         }
@@ -1261,21 +1279,24 @@ else
     }
 
     // Repack the 3 zone-grid rows (back: Lab/Hoa, mid: Hatchery/MissionControl/Fuel, front: Depot) left-to-right
-    // by REAL mesh footprint width, one interop call per row. The zone grid's reserved widths (ZoneLayout.cs)
-    // only place the INITIAL guess; this corrects every building to sit exactly where the previous one's real
-    // edge + gap puts it, so a wrong guess only affects the (invisible, pre-batch) initial frame, never the
-    // final layout. Also refreshes _zoneRects so the manual-drag zone-lock check uses the real occupied rect.
-    static readonly (string[] Families, float RowZ)[] ZoneRows =
-    [
-        (["lab", "hoa"], EggIncognito.Services.ProtoExtract.ZoneLayout.BackRowZ),
-        (["hatchery", "mission", "fuel"], EggIncognito.Services.ProtoExtract.ZoneLayout.MidRowZ),
-        (["depot"], EggIncognito.Services.ProtoExtract.ZoneLayout.FrontRowZ),
-    ];
+    // + front-to-back by REAL mesh footprint width AND depth, one interop call per row. The zone grid's static
+    // row Z bands (ZoneLayout.cs) only seed the FIRST row's back edge; each subsequent row's back edge CHAINS
+    // from the previous row's real front edge + a gap, so a deep building (e.g. a big hatchery disc) pushes the
+    // row behind it back instead of the two overlapping. A wrong initial guess only affects the (invisible,
+    // pre-batch) first frame, never the final layout.
+    static readonly string[][] ZoneRowFamilies = [["lab", "hoa"], ["hatchery", "mission", "fuel"], ["depot"]];
+
+    public sealed class ZoneRowPackResult
+    {
+        public float[][] Positions { get; set; } = [];
+        public float NextBackEdgeZ { get; set; }
+    }
 
     async Task RepackCoreZones()
     {
         if (_mod is null) return;
-        foreach (var (families, rowZ) in ZoneRows)
+        var backEdgeZ = EggIncognito.Services.ProtoExtract.ZoneLayout.BackRowZ;
+        foreach (var families in ZoneRowFamilies)
         {
             var famSet = new HashSet<string>(families, StringComparer.Ordinal);
             var row = _elements
@@ -1287,11 +1308,13 @@ else
                 .ToList();
             if (row.Count == 0) continue;
             var ids = row.Select(e => e.Id).ToArray();
-            var packed = await _mod.InvokeAsync<float[][]>(
+            var result = await _mod.InvokeAsync<ZoneRowPackResult>(
                 "repackZoneRow", ids, EggIncognito.Services.ProtoExtract.ZoneLayout.CoreLeftX,
-                EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX, rowZ);
-            for (var i = 0; i < row.Count && i < packed.Length; i++)
-                row[i].Pos = [packed[i][0], row[i].Pos[1], packed[i][1]];
+                backEdgeZ, EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX,
+                EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX);
+            for (var i = 0; i < row.Count && i < result.Positions.Length; i++)
+                row[i].Pos = [result.Positions[i][0], row[i].Pos[1], result.Positions[i][1]];
+            backEdgeZ = result.NextBackEdgeZ;
         }
     }
 
@@ -2193,6 +2216,16 @@ else
         public bool Vehicle { get; set; } = false; // trucks: single depot-side lane, dwell at the depot, convoy spacing
         public float? DepotX { get; set; } // depot world X (where trucks dwell); null = no depot placed
         public float? DepotZ { get; set; } // depot world Z (picks the near lane side); null = no depot placed
+    }
+
+    // The real local footprint reported by the engine (playground.js's getGroupFootprint), used to find a
+    // building's real center/dock edge instead of guessing from its (possibly left-pinned) placement Pos.
+    public sealed class GroupFootprintDto
+    {
+        public float MinX { get; set; }
+        public float MaxX { get; set; }
+        public float MinZ { get; set; }
+        public float MaxZ { get; set; }
     }
 
     public sealed class LightingState
