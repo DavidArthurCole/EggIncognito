@@ -224,12 +224,12 @@ function applyMotion(g) {
 
 // The single lane offset (in Z) for the truck convoy: shift toward the depot side so all traffic hugs the near
 // lane (the one closest to the depot's dock), centered within it rather than sitting on the road's midline.
-// depotZ is the depot's real FRONT (dock, road-facing) edge; 2.5 puts the truck about a lane-width off the
-// road's centerline, close to the dock without overlapping the building.
+// depotZ is the depot's real FRONT (dock, road-facing) edge, already close to the road; 1.5 nudges the truck
+// into the near lane without crossing toward the dock face itself.
 function vehicleLaneOffset(m) {
   if (m.depotZ == null || !isFinite(m.depotZ) || !m.path || m.path.length === 0) return 0;
   const roadZ = m.path[0][2];
-  return Math.sign(m.depotZ - roadZ) * 2.5;
+  return Math.sign(m.depotZ - roadZ) * 1.5;
 }
 
 // Per-truck along-path distance for a convoy: trucks are evenly spaced by distance (not phase), advance together
@@ -274,35 +274,40 @@ function depotDistanceAlong(m, len) {
   return best;
 }
 
-// Map the raw (constant-speed) distance to an eased distance that DECELERATES over ~0.5s of travel into the
-// depot, HOLDS for the dwell, then ACCELERATES back to speed over ~0.5s. rawD passes through unchanged outside
-// the ramp+dwell window; inside, a smoothstep ramps the speed 1->0 (approach) and 0->1 (leave) so the truck
-// brakes and pulls away smoothly rather than snapping to a stop.
+// Map the raw (constant-speed) distance to an eased distance that DECELERATES into the depot, HOLDS for the
+// dwell, then ACCELERATES back to speed. Uses genuine constant-deceleration kinematics (velocity ramps
+// LINEARLY 1->0 approaching, 0->1 leaving), parametrized by BRAKE-PHASE CLOCK TIME, not by raw-distance
+// fraction: parametrizing by rawD fraction (the previous approach) forced the eased velocity to start ABOVE
+// cruise speed at the instant braking began (a visible "speeds up, then slows down" jump/hump), because rawD
+// keeps advancing at full speed while the truck's real position falls behind once it starts slowing - by the
+// time rawD has advanced by a fixed "ramp" distance, more clock time has passed than a speed-1-at-the-seam
+// curve could cover in that same window. A pure time-parametrized linear decel has NO such discontinuity:
+// velocity is exactly `speed` at the seam and falls linearly to 0.
 function depotAdjustedDistance(rawD, depotD, speed, dwell, len) {
   if (depotD < 0 || dwell <= 0) return rawD % len;
-  const ramp = speed * 0.5;        // ~0.5s of travel to brake / accelerate
-  const dwellDist = speed * dwell; // raw-clock span consumed by the full stop
-  const decelStart = depotD - ramp;
+  const rampTime = 0.5;                        // seconds to brake / accelerate
+  const brakeDist = speed * rampTime / 2;       // distance covered under constant deceleration over rampTime
+  const dwellDist = speed * dwell;              // raw-clock span consumed by the full stop
+  const decelStart = depotD - brakeDist;
   if (rawD <= decelStart) return rawD;                       // full speed, approaching
-  if (rawD <= depotD) {                                      // braking: smoothstep to a halt at depotD
-    const t = (rawD - decelStart) / ramp;
-    return decelStart + ramp * smoothArrive(t);
+  if (rawD <= depotD) {                                      // braking: linear decel to a halt at depotD
+    // clockElapsed solves speed*ce - speed*ce^2/(2*rampTime) = (rawD - decelStart), the constant-decel
+    // kinematics equation; the quadratic's smaller root is the physical (forward-time) one.
+    const target = rawD - decelStart;
+    const a = speed / (2 * rampTime);
+    const disc = Math.max(0, speed * speed - 4 * a * target);
+    const ce = (speed - Math.sqrt(disc)) / (2 * a);
+    return decelStart + speed * ce - a * ce * ce;
   }
   if (rawD <= depotD + dwellDist) return depotD;             // stopped at the depot
   const after = rawD - dwellDist;                            // resume clock past the dwell
-  if (after <= depotD + ramp) {                              // accelerating away: smoothstep from a halt
-    const t = (after - depotD) / ramp;
-    return depotD + ramp * smoothLeave(t);
+  if (after <= depotD + brakeDist) {                          // accelerating away: mirrors the brake curve
+    const ce = Math.sqrt(Math.max(0, (after - depotD) * 2 * rampTime / speed));
+    const a = speed / (2 * rampTime);
+    return depotD + a * ce * ce;
   }
   return after;                                              // back to full speed
 }
-
-// Quadratic (not cubic) ease ramps: arrive's velocity MONOTONICALLY DECREASES from cruise speed to a full stop
-// (no hump); leave's velocity monotonically INCREASES from a stop back to cruise speed (no overshoot). The
-// earlier cubic (1-(1-t)^3 / t^3) had a velocity DISCONTINUITY at the cruise-speed seam that overshot to 3x
-// cruise before decaying, which read as the truck visibly speeding up right before it braked.
-function smoothArrive(t) { const s = Math.max(0, Math.min(1, t)); return 2 * s - s * s; }
-function smoothLeave(t) { const s = Math.max(0, Math.min(1, t)); return s * s; }
 
 // Along-path distance for one runner this frame. A cycle = the drive time plus an optional dwell at the end
 // (the vehicle's depot stop). pingpong reflects; cycle wraps pacman-style. Runners are evenly phase-staggered.
