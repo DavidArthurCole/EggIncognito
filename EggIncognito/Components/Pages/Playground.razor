@@ -1234,9 +1234,12 @@ else
             await _mod.InvokeVoidAsync("addGroupsBatch", ct, new object[] { items });
             if (ct.IsCancellationRequested) return;
 
-            // Core buildings are already at their final zone-anchor positions (ZoneLayout.Resolve). Habs still
-            // need a real-mesh-width respace pass: the game's hab spacing formula depends on live mesh bbox,
-            // which only the renderer holds.
+            // Core buildings start at their zone-anchor positions (ZoneLayout.Resolve), but the zone grid's
+            // reserved widths are STOPGAP guesses (real per-tier mesh size is unknown offline); repack each row
+            // left-to-right by REAL mesh width so adjacent zones never overlap regardless of how wrong the guess
+            // was. Habs need the same real-width respace (the game's hab spacing formula depends on live mesh
+            // bbox, which only the renderer holds).
+            await RepackCoreZones();
             await RespaceHabs();
             // apply per-element effects (hatchery orbits etc) after placement, once.
             foreach (var el in _elements.ToList())
@@ -1254,6 +1257,41 @@ else
             _suppressAutosave = false;
             if (!ct.IsCancellationRequested) Autosave();
             _busy = false; StateHasChanged();
+        }
+    }
+
+    // Repack the 3 zone-grid rows (back: Lab/Hoa, mid: Hatchery/MissionControl/Fuel, front: Depot) left-to-right
+    // by REAL mesh footprint width, one interop call per row. The zone grid's reserved widths (ZoneLayout.cs)
+    // only place the INITIAL guess; this corrects every building to sit exactly where the previous one's real
+    // edge + gap puts it, so a wrong guess only affects the (invisible, pre-batch) initial frame, never the
+    // final layout. Also refreshes _zoneRects so the manual-drag zone-lock check uses the real occupied rect.
+    static readonly (string[] Families, float RowZ)[] ZoneRows =
+    [
+        (["lab", "hoa"], EggIncognito.Services.ProtoExtract.ZoneLayout.BackRowZ),
+        (["hatchery", "mission", "fuel"], EggIncognito.Services.ProtoExtract.ZoneLayout.MidRowZ),
+        (["depot"], EggIncognito.Services.ProtoExtract.ZoneLayout.FrontRowZ),
+    ];
+
+    async Task RepackCoreZones()
+    {
+        if (_mod is null) return;
+        foreach (var (families, rowZ) in ZoneRows)
+        {
+            var famSet = new HashSet<string>(families, StringComparer.Ordinal);
+            var row = _elements
+                .Where(e => e.Kind == "env")
+                .Select(e => (el: e, fam: _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family ?? ""))
+                .Where(t => famSet.Contains(t.fam))
+                .OrderBy(t => Array.IndexOf(families, t.fam))
+                .Select(t => t.el)
+                .ToList();
+            if (row.Count == 0) continue;
+            var ids = row.Select(e => e.Id).ToArray();
+            var packed = await _mod.InvokeAsync<float[][]>(
+                "repackZoneRow", ids, EggIncognito.Services.ProtoExtract.ZoneLayout.CoreLeftX,
+                EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX, rowZ);
+            for (var i = 0; i < row.Count && i < packed.Length; i++)
+                row[i].Pos = [packed[i][0], row[i].Pos[1], packed[i][1]];
         }
     }
 

@@ -1,92 +1,79 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Fixed 2D zone grid for the farm's buildable core, replacing the row-packing stopgap (FarmLayout.PackRow/
-// CoreRows). Each zone is an addressable slot with a fixed resting anchor + a reserved footprint, matching the
-// user's reference layout: silo field + hab row on the left/back, then Lab/Hoa (back row), Chicken Run Outflow/
-// Hatchery/Mission Control/Fuel (mid row), Depot (front row), bounded by the top path and the road.
+// Fixed zone grid for the farm's buildable core, replacing the row-packing stopgap (FarmLayout.PackRow/
+// CoreRows). Matches the user's reference layout: silo field + hab row on the left/back, then Lab/Hoa (back
+// row), Hatchery/Mission Control/Fuel (mid row), Depot (front row), bounded by the top path and the road.
 //
-// STOPGAP (CLAUDE.md "EXTRACT, don't author"): zone anchors/sizes below are hand-tuned, same convention as the
-// row Z constants they replace. The real per-zone bounds live in the game's FarmScene terrain layout, not yet
+// Zone GRANULARITY is deliberately coarse: a zone is a wide Z-band (back/mid/front row) spanning the whole
+// buildable core width, not a tight per-building box. Per-slot ordering within a row comes from left-to-right
+// packing by REAL mesh width (repackZoneRow in playground.js, called after every add) + the existing
+// PlacementSolver.DominoNudge push, not from the zone rect itself. A tight per-building rect would need to be
+// re-synced after every repack/tier-swap to stay accurate; a row band never goes stale.
+//
+// STOPGAP (CLAUDE.md "EXTRACT, don't author"): row Z bands + gap are hand-tuned, same convention as the row Z
+// constants they replace. The real per-row bounds live in the game's FarmScene terrain layout, not yet
 // disassembled. Silos (FarmLayout.SiloPos) and the hab row (FarmLayout.HabRowZ etc) already use EXTRACTED
-// formulas and are wrapped as Fixed-content zones for addressability only, not replaced.
+// formulas and are wrapped as Fixed zones for addressability only, not replaced.
 public static class ZoneLayout
 {
-    public enum ZoneId { Silos, Habs, Lab, Hoa, ChickenOutflow, Hatchery, MissionControl, Fuel, Depot }
+    public enum ZoneId { Silos, Habs, BackRow, MidRow, FrontRow }
 
-    public enum ZoneContent { Fixed, Single }
-
-    // AnchorX/AnchorZ = the zone's back-left corner (local origin), so a zone's own coordinates start at ~0,0
-    // as the user specified for the depot. Width/Depth = the reserved footprint (building + grow margin).
-    public sealed record Zone(ZoneId Id, ZoneContent Content, float AnchorX, float AnchorZ, float Width, float Depth);
+    // AnchorX/AnchorZ = the zone's back-left corner. Width/Depth = the zone's extent. A row zone spans the
+    // whole buildable core width (not a single building's box); Silos/Habs keep their own reserved rect.
+    public sealed record Zone(ZoneId Id, float AnchorX, float AnchorZ, float Width, float Depth);
 
     // Row bands (Z), matching the existing extracted/tuned constants they replace.
     public const float BackRowZ = -4f; // was FarmLayout.RowBackZ / Playground.razor's BackRowBackZ
     public const float MidRowZ = 5f; // was FarmLayout.RowMidZ
     public const float FrontRowZ = 10f; // was FarmLayout.RowFrontZ
-    public const float ZoneGapX = 2.5f; // horizontal gap between adjacent zones in a row, same as RowGap
+    public const float RowDepthBand = 6f; // generous Z-thickness of each row's drop band (covers any real tier depth)
+    public const float ZoneGapX = 2.5f; // horizontal gap between adjacent buildings in a row
     public const float CoreLeftX = 2f; // left bound of the buildable core, past the silo field's path
+    public const float CoreWidth = 60f; // generous right bound so the row band covers the whole packed core
 
     public static readonly IReadOnlyDictionary<ZoneId, Zone> Zones = BuildZones();
 
     private static IReadOnlyDictionary<ZoneId, Zone> BuildZones()
     {
-        // silo field: rows 0-2, col 0, negative-X (FarmLayout.SiloPos already places it there). Reserved
-        // footprint is informational only (Fixed content is not domino-pushed).
-        var silos = new Zone(ZoneId.Silos, ZoneContent.Fixed, AnchorX: -20f, AnchorZ: -1f, Width: 14f, Depth: 7f);
-        var habs = new Zone(ZoneId.Habs, ZoneContent.Fixed, AnchorX: -20f, AnchorZ: FarmLayout.HabRowZ - 1f, Width: 40f, Depth: 3f);
+        // silo field: negative-X (FarmLayout.SiloPos already places it there). Reserved rect is informational.
+        var silos = new Zone(ZoneId.Silos, AnchorX: -35f, AnchorZ: -2f, Width: 30f, Depth: 9f);
+        var habs = new Zone(ZoneId.Habs, AnchorX: -35f, AnchorZ: FarmLayout.HabRowZ - 2f, Width: 70f, Depth: 4f);
 
-        var lab = new Zone(ZoneId.Lab, ZoneContent.Single, AnchorX: CoreLeftX, AnchorZ: BackRowZ, Width: 9f, Depth: 4f);
-        var hoa = new Zone(ZoneId.Hoa, ZoneContent.Single, AnchorX: lab.AnchorX + lab.Width + ZoneGapX, AnchorZ: BackRowZ, Width: 8f, Depth: 4f);
-
-        var chickenOutflow = new Zone(ZoneId.ChickenOutflow, ZoneContent.Single, AnchorX: CoreLeftX, AnchorZ: MidRowZ, Width: 3f, Depth: 3f);
-        var hatchery = new Zone(ZoneId.Hatchery, ZoneContent.Single, AnchorX: chickenOutflow.AnchorX + chickenOutflow.Width + ZoneGapX, AnchorZ: MidRowZ, Width: 8f, Depth: 5f);
-        var missionControl = new Zone(ZoneId.MissionControl, ZoneContent.Single, AnchorX: hatchery.AnchorX + hatchery.Width + ZoneGapX, AnchorZ: MidRowZ, Width: 9f, Depth: 5f);
-        var fuel = new Zone(ZoneId.Fuel, ZoneContent.Single, AnchorX: missionControl.AnchorX + missionControl.Width + ZoneGapX, AnchorZ: MidRowZ, Width: 5f, Depth: 5f);
-
-        var depot = new Zone(ZoneId.Depot, ZoneContent.Single, AnchorX: CoreLeftX, AnchorZ: FrontRowZ, Width: 10f, Depth: 5f);
+        var backRow = new Zone(ZoneId.BackRow, AnchorX: CoreLeftX, AnchorZ: BackRowZ, Width: CoreWidth, Depth: RowDepthBand);
+        var midRow = new Zone(ZoneId.MidRow, AnchorX: CoreLeftX, AnchorZ: MidRowZ, Width: CoreWidth, Depth: RowDepthBand);
+        var frontRow = new Zone(ZoneId.FrontRow, AnchorX: CoreLeftX, AnchorZ: FrontRowZ, Width: CoreWidth, Depth: RowDepthBand);
 
         return new Dictionary<ZoneId, Zone>
         {
             [ZoneId.Silos] = silos, [ZoneId.Habs] = habs,
-            [ZoneId.Lab] = lab, [ZoneId.Hoa] = hoa,
-            [ZoneId.ChickenOutflow] = chickenOutflow, [ZoneId.Hatchery] = hatchery,
-            [ZoneId.MissionControl] = missionControl, [ZoneId.Fuel] = fuel,
-            [ZoneId.Depot] = depot,
+            [ZoneId.BackRow] = backRow, [ZoneId.MidRow] = midRow, [ZoneId.FrontRow] = frontRow,
         };
     }
 
-    // Places each Single-content zone's building at its zone's back-left ANCHOR, Recenter=true so the layout
-    // position is authoritative (matches PackRow's existing Recenter contract). All 6 core buildings render
-    // left-pinned (recenterX="min" in playground.js's addGroup), so Pos = the zone's anchor corner, not its
-    // center: pinning every zone the same way removes the center-vs-min mismatch that shifted buildings by half
-    // their width. This is the auto-arrange INITIAL pass; RunDomino (Playground.razor) still handles post-swap
-    // growth pushing via the existing PlacementSolver.DominoNudge path, unchanged by this method.
+    // Places each core building at its row's back-left ANCHOR (initial guess; repackZoneRow corrects X to the
+    // real mesh width immediately after the batch add). Recenter=true so the layout position is authoritative.
+    // All 6 core buildings render left-pinned (recenterX="min" in playground.js's addGroup), so Pos = the row's
+    // anchor corner, not its center.
     public static IReadOnlyList<FarmLayout.Placed> Resolve(string lab, string hoa, string hatchery,
         string missionControl, string fuel, string depot)
     {
-        FarmLayout.Placed At(ZoneId id, string stem)
-        {
-            var z = Zones[id];
-            return new FarmLayout.Placed(stem, [z.AnchorX, 0f, z.AnchorZ], 0, Recenter: true);
-        }
+        FarmLayout.Placed At(ZoneId row, string stem) => new(stem, [Zones[row].AnchorX, 0f, Zones[row].AnchorZ], 0, Recenter: true);
 
         return
         [
-            At(ZoneId.Lab, lab),
-            At(ZoneId.Hoa, hoa),
-            At(ZoneId.Hatchery, hatchery),
-            At(ZoneId.MissionControl, missionControl),
-            At(ZoneId.Fuel, fuel),
-            At(ZoneId.Depot, depot),
+            At(ZoneId.BackRow, lab),
+            At(ZoneId.BackRow, hoa),
+            At(ZoneId.MidRow, hatchery),
+            At(ZoneId.MidRow, missionControl),
+            At(ZoneId.MidRow, fuel),
+            At(ZoneId.FrontRow, depot),
         ];
     }
 
-    // The zone (if any) whose current rect contains (x, z). `current` overrides a zone's reserved rect with its
-    // post-domino-push live rect (wider tiers grow their zone); pass an empty dict to use the reserved bounds.
-    public static bool IsInsideAnyZone(float x, float z, IReadOnlyDictionary<ZoneId, Zone>? current = null)
+    // Whether (x, z) lands inside any zone's rect.
+    public static bool IsInsideAnyZone(float x, float z)
     {
-        var zones = current ?? Zones;
-        foreach (var zone in zones.Values)
+        foreach (var zone in Zones.Values)
         {
             if (x >= zone.AnchorX && x <= zone.AnchorX + zone.Width && z >= zone.AnchorZ && z <= zone.AnchorZ + zone.Depth)
                 return true;

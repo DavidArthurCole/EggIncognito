@@ -925,6 +925,34 @@ export function respaceHabRow(ids, gap, halfStep, z) {
   return out;
 }
 
+// Gravity-pack a zone-grid row by REAL mesh footprint width, left edge pinned at leftEdgeX, each building placed
+// to the RIGHT of the previous with `gap` between. The zone grid's static reserved widths (ZoneLayout.cs) are
+// STOPGAP guesses only good enough for the initial pre-measurement placement; this pass corrects to the real
+// mesh size so adjacent zones never overlap regardless of how wrong the guess was. Sets each group's base.pos.x
+// so its own footprint LEFT edge lands at the running cursor (every core building renders left-pinned,
+// recenterX="min"). Keeps each element's row Z. Returns [[x, z, rightEdgeX],...] so the caller syncs el.Pos AND
+// can cache the real occupied rect per zone for the manual-drag zone-lock check.
+export function repackZoneRow(ids, leftEdgeX, gap, z) {
+  const g0 = gap == null ? 2.5 : +gap;
+  const rowGroups = ids.map(id => groups.get(id)).filter(Boolean);
+  let cursor = leftEdgeX == null ? 2 : +leftEdgeX; // world X of the next building's LEFT edge
+  const out = [];
+  for (const g of rowGroups) {
+    const f = g.localFootprint;
+    const scale = g.base?.scale || 1;
+    const minX = f ? f.minX * scale : -0.5, maxX = f ? f.maxX * scale : 0.5;
+    const w = maxX - minX;
+    const baseX = cursor - minX; // footprint left edge (base.x + minX) == cursor
+    const rowZ = z == null ? (g.base?.pos?.[2] ?? 0) : +z;
+    g.base = g.base || { pos: [0, 0, 0], rotDeg: [0, 0, 0], scale: 1 };
+    g.base.pos = [baseX, g.base.pos[1] || 0, rowZ];
+    g.root.position.set(baseX, g.base.pos[1] || 0, rowZ);
+    g.root.visible = true;
+    out.push([baseX, rowZ, cursor + w]);
+    cursor += w + g0; // advance past this building + the gap
+  }
+  return out;
+}
 
 // Space the model groups along X by the widest group's bbox so they do not overlap. Pinned env groups stay
 // at world origin and are excluded from the layout. Groups with a manual offset keep it. Then frame.
@@ -1193,19 +1221,16 @@ function occupiedCells(excludeId, cell) {
   return taken;
 }
 
-// Mirror of ZoneLayout.Zones (EggIncognito.Core/Services/ProtoExtract/ZoneLayout.cs): the fixed core-building
-// zone grid, anchor (back-left corner) + reserved width/depth. Kept in sync by hand (small, rarely-changed
-// table); the C# side is authoritative for auto-arrange placement, this copy only gates manual drops.
+// Mirror of ZoneLayout.Zones (EggIncognito.Core/Services/ProtoExtract/ZoneLayout.cs): wide row bands (back/mid/
+// front) spanning the whole buildable core width, plus the silo field + hab row. Deliberately coarse - per-slot
+// ordering within a row comes from repackZoneRow's real-width packing + domino push, not from this rect. Kept
+// in sync by hand (small, rarely-changed table); this copy only gates manual drops.
 const ZONES = [
-  { anchorX: -20, anchorZ: -1, width: 14, depth: 7 },      // Silos
-  { anchorX: -20, anchorZ: -11.5, width: 40, depth: 3 },   // Habs (HabRowZ - 1)
-  { anchorX: 2, anchorZ: -4, width: 9, depth: 4 },         // Lab
-  { anchorX: 13.5, anchorZ: -4, width: 8, depth: 4 },      // Hoa
-  { anchorX: 2, anchorZ: 5, width: 3, depth: 3 },          // ChickenOutflow
-  { anchorX: 7.5, anchorZ: 5, width: 8, depth: 5 },        // Hatchery
-  { anchorX: 18, anchorZ: 5, width: 9, depth: 5 },         // MissionControl
-  { anchorX: 29.5, anchorZ: 5, width: 5, depth: 5 },       // Fuel
-  { anchorX: 2, anchorZ: 10, width: 10, depth: 5 },        // Depot
+  { anchorX: -35, anchorZ: -2, width: 30, depth: 9 },    // Silos
+  { anchorX: -35, anchorZ: -12.5, width: 70, depth: 4 }, // Habs (HabRowZ - 2)
+  { anchorX: 2, anchorZ: -4, width: 60, depth: 6 },      // BackRow (Lab, Hoa)
+  { anchorX: 2, anchorZ: 5, width: 60, depth: 6 },       // MidRow (Hatchery, MissionControl, Fuel)
+  { anchorX: 2, anchorZ: 10, width: 60, depth: 6 },      // FrontRow (Depot)
 ];
 
 function insideAnyZone(x, z) {

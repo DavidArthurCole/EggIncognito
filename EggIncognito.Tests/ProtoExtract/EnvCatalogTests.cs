@@ -69,8 +69,10 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void Standard_PlacesCoreZonesAtZoneAnchors()
+    public void Standard_PlacesCoreZonesAtRowAnchors()
     {
+        // FarmLayout.Standard gives each core building its ROW's initial anchor (real left-to-right spacing
+        // is applied afterward by playground.js's repackZoneRow, using real mesh width the C# side cannot see).
         var placed = FarmLayout.Standard("hab_10k");
         var lab = placed.First(p => p.Stem == "ei_lab_6");
         var hoa = placed.First(p => p.Stem == "ei_hoa_3");
@@ -80,9 +82,10 @@ public class EnvCatalogTests
         var depot = placed.First(p => p.Stem == "ei_depot_7");
 
         Assert.Equal(ZoneLayout.BackRowZ, lab.Pos[2], 2);
-        Assert.True(hoa.Pos[0] > lab.Pos[0], "hoa sits right of lab");
-        Assert.True(mc.Pos[0] > hatchery.Pos[0], "mission control sits right of hatchery");
-        Assert.True(fuel.Pos[0] > mc.Pos[0], "fuel sits right of mission control");
+        Assert.Equal(ZoneLayout.BackRowZ, hoa.Pos[2], 2);
+        Assert.Equal(ZoneLayout.MidRowZ, hatchery.Pos[2], 2);
+        Assert.Equal(ZoneLayout.MidRowZ, mc.Pos[2], 2);
+        Assert.Equal(ZoneLayout.MidRowZ, fuel.Pos[2], 2);
         Assert.Equal(ZoneLayout.FrontRowZ, depot.Pos[2], 2);
     }
 

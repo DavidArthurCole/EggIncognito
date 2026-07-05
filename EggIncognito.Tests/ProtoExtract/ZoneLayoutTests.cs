@@ -6,15 +6,15 @@ namespace EggIncognito.Tests.ProtoExtract;
 public class ZoneLayoutTests
 {
     [Fact]
-    public void Zones_CoversAllNineSlots()
+    public void Zones_CoversAllFiveSlots()
     {
-        Assert.Equal(9, ZoneLayout.Zones.Count);
+        Assert.Equal(5, ZoneLayout.Zones.Count);
         foreach (ZoneLayout.ZoneId id in Enum.GetValues<ZoneLayout.ZoneId>())
             Assert.True(ZoneLayout.Zones.ContainsKey(id), $"missing zone {id}");
     }
 
     [Fact]
-    public void Resolve_PlacesEachSingleZoneAtItsAnchor()
+    public void Resolve_PlacesEachBuildingAtItsRowAnchor()
     {
         var placed = ZoneLayout.Resolve("ei_lab_3", "ei_afx_construction_site", "ei_hatchery_edible",
             "ei_mission_control_1", "ei_fuel_tank_2", "ei_depot_3");
@@ -26,11 +26,15 @@ public class ZoneLayoutTests
         var fuel = Assert.Single(placed, p => p.Stem == "ei_fuel_tank_2");
         var depot = Assert.Single(placed, p => p.Stem == "ei_depot_3");
 
-        Assert.Equal(ZoneLayout.Zones[ZoneLayout.ZoneId.Lab].AnchorZ, lab.Pos[2], 2);
-        Assert.Equal(ZoneLayout.Zones[ZoneLayout.ZoneId.Depot].AnchorZ, depot.Pos[2], 2);
-        Assert.True(hoa.Pos[0] > lab.Pos[0], "hoa sits right of lab");
-        Assert.True(mc.Pos[0] > hatchery.Pos[0], "mission control sits right of hatchery");
-        Assert.True(fuel.Pos[0] > mc.Pos[0], "fuel sits right of mission control");
+        // the initial pass places every same-row building at the SAME back-left anchor; repackZoneRow (JS,
+        // real mesh width) is what spaces them apart left-to-right after the batch add.
+        Assert.Equal(ZoneLayout.BackRowZ, lab.Pos[2], 2);
+        Assert.Equal(ZoneLayout.BackRowZ, hoa.Pos[2], 2);
+        Assert.Equal(lab.Pos[0], hoa.Pos[0], 2);
+        Assert.Equal(ZoneLayout.MidRowZ, hatchery.Pos[2], 2);
+        Assert.Equal(ZoneLayout.MidRowZ, mc.Pos[2], 2);
+        Assert.Equal(ZoneLayout.MidRowZ, fuel.Pos[2], 2);
+        Assert.Equal(ZoneLayout.FrontRowZ, depot.Pos[2], 2);
     }
 
     [Fact]
@@ -39,5 +43,17 @@ public class ZoneLayoutTests
         var placed = ZoneLayout.Resolve("ei_lab_3", "ei_afx_construction_site", "ei_hatchery_edible",
             "ei_mission_control_1", "ei_fuel_tank_2", "ei_depot_3");
         Assert.All(placed, p => Assert.True(p.Recenter));
+    }
+
+    [Fact]
+    public void IsInsideAnyZone_CoreRowPoint_IsInside()
+    {
+        Assert.True(ZoneLayout.IsInsideAnyZone(10f, ZoneLayout.MidRowZ + 1f));
+    }
+
+    [Fact]
+    public void IsInsideAnyZone_FarAway_IsOutside()
+    {
+        Assert.False(ZoneLayout.IsInsideAnyZone(500f, 500f));
     }
 }
