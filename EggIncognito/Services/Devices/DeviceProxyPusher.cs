@@ -130,11 +130,11 @@ public sealed class DeviceProxyPusher(
              "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
     }
 
-    // --- iOS unlock primitives (server is the brain; the backboardd EggHomePress dylib is a dumb one-shot
-    // executor). The dylib NEVER reads lock state and NEVER retries - that stale in-dylib read caused an
+    // iOS unlock primitives. Server is the brain; the backboardd EggHomePress dylib is a dumb one-shot
+    // executor. The dylib NEVER reads lock state and NEVER retries - that stale in-dylib read caused an
     // over-press spam loop. Instead: the server reads the headless `lockstate` CLI (exit 10=locked, 0=unlocked),
     // decides, and writes ONE cmd to /tmp/ehp.cmd (chmod 666 so the mobile-uid dylib can truncate it after
-    // consuming). All retry lives here, against the accurate oracle. ---
+    // consuming). All retry lives here, against the accurate oracle.
 
     // Read the device lock state via the `lockstate` CLI. Returns true=locked, false=unlocked, null=unknown.
     private async Task<bool?> IosLockstateAsync(CancellationToken ct)

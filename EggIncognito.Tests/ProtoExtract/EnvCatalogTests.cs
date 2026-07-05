@@ -69,56 +69,29 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void CoreRows_PacksThreeRows_LeftToRight_GravityPushesRight()
+    public void Standard_PlacesCoreZonesAtZoneAnchors()
     {
-        var core = FarmLayout.CoreRows("ei_lab_3", "ei_afx_construction_site", "ei_hatchery_edible",
-            "ei_mission_control_1", "ei_fuel_tank_2", "ei_depot_3");
+        var placed = FarmLayout.Standard("hab_10k");
+        var lab = placed.First(p => p.Stem == "ei_lab_6");
+        var hoa = placed.First(p => p.Stem == "ei_hoa_3");
+        var hatchery = placed.First(p => p.Stem == "ei_hatchery_universe");
+        var mc = placed.First(p => p.Stem == "ei_mission_control_3");
+        var fuel = placed.First(p => p.Stem == "ei_fuel_tank_4");
+        var depot = placed.First(p => p.Stem == "ei_depot_7");
 
-        // rows at the three Z bands.
-        Assert.Equal(FarmLayout.RowBackZ, core.First(p => p.Stem == "ei_lab_3").Pos[2], 2);
-        Assert.Equal(FarmLayout.RowMidZ, core.First(p => p.Stem == "ei_hatchery_edible").Pos[2], 2);
-        Assert.Equal(FarmLayout.RowFrontZ, core.First(p => p.Stem == "ei_depot_3").Pos[2], 2);
-
-        // gravity: in the mid row, mission control sits RIGHT of the hatchery, fuel tank RIGHT of mission control.
-        var hatch = core.First(p => p.Stem == "ei_hatchery_edible").Pos[0];
-        var mc = core.First(p => p.Stem == "ei_mission_control_1").Pos[0];
-        var fuel = core.First(p => p.Stem == "ei_fuel_tank_2").Pos[0];
-        Assert.True(mc > hatch, "mission control is right of hatchery");
-        Assert.True(fuel > mc, "fuel tank is right of mission control");
+        Assert.Equal(ZoneLayout.BackRowZ, lab.Pos[2] - ZoneLayout.Zones[ZoneLayout.ZoneId.Lab].Depth / 2f, 2);
+        Assert.True(hoa.Pos[0] > lab.Pos[0], "hoa sits right of lab");
+        Assert.True(mc.Pos[0] > hatchery.Pos[0], "mission control sits right of hatchery");
+        Assert.True(fuel.Pos[0] > mc.Pos[0], "fuel sits right of mission control");
+        Assert.Equal(ZoneLayout.FrontRowZ, depot.Pos[2] - ZoneLayout.Zones[ZoneLayout.ZoneId.Depot].Depth / 2f, 2);
     }
 
     [Fact]
-    public void CoreRows_WiderLeftBuilding_PushesRightFurther()
+    public void StandardRecovered_FallsBackToZoneLayout_WhenNoFormula()
     {
-        // a wider mid-row first building shifts the ones to its right. The depot (half 5.0) vs fuel (half 2.5):
-        // packing a wide-then-narrow row spaces them more than narrow-then-narrow.
-        var wide = FarmLayout.CoreRows("ei_lab_3", "ei_afx_construction_site", "ei_depot_3", "ei_fuel_tank_2", "ei_fuel_tank_2", "ei_depot_3");
-        var narrow = FarmLayout.CoreRows("ei_lab_3", "ei_afx_construction_site", "ei_fuel_tank_2", "ei_fuel_tank_2", "ei_fuel_tank_2", "ei_depot_3");
-        var wideSecond = wide.Where(p => p.Pos[2] == FarmLayout.RowMidZ).ElementAt(1).Pos[0];
-        var narrowSecond = narrow.Where(p => p.Pos[2] == FarmLayout.RowMidZ).ElementAt(1).Pos[0];
-        Assert.True(wideSecond > narrowSecond, "a wider left building pushes the next one further right");
-    }
-
-    [Fact]
-    public void StandardRecovered_RecoveredFormula_ShiftsCoreLeftStart()
-    {
-        var x = new EggIncognito.Services.ProtoExtract.Decomp.Binary(
-            EggIncognito.Services.ProtoExtract.Decomp.BinOp.Add,
-            new EggIncognito.Services.ProtoExtract.Decomp.Binary(
-                EggIncognito.Services.ProtoExtract.Decomp.BinOp.Add,
-                new EggIncognito.Services.ProtoExtract.Decomp.Const(2.8),
-                new EggIncognito.Services.ProtoExtract.Decomp.Input("farmWidth")),
-            new EggIncognito.Services.ProtoExtract.Decomp.Const(1.5));
-        var mc = new EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Vec3Model(
-            true, "missionControlPos", x, null, null, 0, "ok");
-
-        var wide = FarmLayout.StandardRecovered(new FarmLayout.SingletonPlacement(mc, null, null), farmHalfWidth: 20f);
-        var narrow = FarmLayout.StandardRecovered(new FarmLayout.SingletonPlacement(mc, null, null), farmHalfWidth: 5f);
-        // the recovered layout repacks with the default core variants; the hatchery is the default (Universe).
-        var wideHatch = wide.First(p => p.Stem == "ei_hatchery_universe").Pos[0];
-        var narrowHatch = narrow.First(p => p.Stem == "ei_hatchery_universe").Pos[0];
-        // a bigger farm width pushes the whole packed core further right (the recovered formula drives the start).
-        Assert.True(wideHatch > narrowHatch, "wider farm shifts the core right");
+        var placed = FarmLayout.StandardRecovered(new FarmLayout.SingletonPlacement(null, null, null), farmHalfWidth: 20f);
+        Assert.Contains(placed, p => p.Stem == "ei_hatchery_universe");
+        Assert.Contains(placed, p => p.Stem == "ei_depot_7");
     }
 
     [Fact]

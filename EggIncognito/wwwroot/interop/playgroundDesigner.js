@@ -48,11 +48,10 @@ export async function initDesigner(dotnetRef) {
       const base = e.getGroupBase(selectedId);
       if (base) dragStartPos = [...base.pos];
     } else {
-      // On drag END: grid mode = snap the block to the grid + commit only if the cells are free (else revert).
-      // No grid = the floor-clamp solver. Either way, clear the cell highlight.
+      // On drag END: snap the block to the grid + commit only if the cells are free (else revert). Grid-snap
+      // is always active (forced on), so this is the only commit path.
       e.clearCellHighlight?.();
-      if (e.gridCellSize && e.gridCellSize() > 0) commitGridDrop();
-      else solvePlacement();
+      commitGridDrop();
     }
   });
 
@@ -167,9 +166,9 @@ function nudge(key, step) {
   e.setGroupTransform(selectedId, pos, base.rotDeg, base.scale);
   // the gizmo is attached to the group root, which the anim loop repositions from the new base, so it follows.
   dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, base.rotDeg, base.scale);
-  // re-resolve: grid mode snaps to the cell block (commit if free), else the floor-clamp solver.
-  if (e.gridCellSize && e.gridCellSize() > 0) { dragStartPos = [...base.pos]; commitGridDrop(); }
-  else solvePlacement();
+  // re-resolve: snap to the cell block, commit if free (grid-snap is always active).
+  dragStartPos = [...base.pos];
+  commitGridDrop();
 }
 
 // Commit a grid-mode placement: snap the selected element's block to the grid and accept the drop only if every
@@ -194,35 +193,7 @@ function commitGridDrop() {
   if (selectedId) selectElement(selectedId);
   suppress = false;
   dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, target, base.rotDeg, base.scale);
-  if (!snap.valid) dotnet.invokeMethodAsync('OnPlacementBlocked');
-}
-
-// Run the C# placement solver on the selected element's current transform: gather its local footprint + every
-// other element's world rect, ask .NET to correct it (floor clamp + grid snap + overlap push), then snap the
-// element to the legal spot. .NET returns [x, y, z, adjusted]. No-op if the element has no footprint.
-async function solvePlacement() {
-  const e = engine();
-  if (!e || !selectedId || !dotnet) return;
-  const base = e.getGroupBase(selectedId);
-  const foot = e.getGroupFootprint(selectedId);
-  if (!base || !foot) return;
-  const others = e.getOtherFootprints(selectedId);
-  let res;
-  try {
-    res = await dotnet.invokeMethodAsync('OnPlaceSolve', selectedId,
-      base.pos, base.rotDeg, base.scale, foot, others);
-  } catch { return; }
-  if (!res || res.length < 3) return;
-  // C# clamps Y to the floor (0); raise it to the highest surface under the solved spot so the building rests on
-  // a platform / another building instead of sinking into it. clampFloor=false pieces (pinned) keep their Y.
-  const surfaceY = (foot.clampFloor !== false && e.surfaceYAt) ? e.surfaceYAt(res[0], res[2], selectedId) : res[1];
-  const pos = [res[0], Math.max(res[1], surfaceY), res[2]];
-  suppress = true;
-  e.setGroupTransform(selectedId, pos, base.rotDeg, base.scale);
-  if (selectedId) selectElement(selectedId); // re-sync the gizmo proxy to the corrected spot
-  suppress = false;
-  // keep the inspector fields + autosave in step with the corrected transform.
-  dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, pos, base.rotDeg, base.scale);
+  if (!snap.valid) dotnet.invokeMethodAsync('OnPlacementBlocked', snap.reason || 'blocked');
 }
 
 // Live gizmo snapping while dragging: translate snaps to the grid cell, rotate to 15deg. size 0 = free.

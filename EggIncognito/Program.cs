@@ -10,12 +10,6 @@ using Microsoft.Extensions.Logging;
 
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("EggIncognito.Tests")]
 
-// Build-time hook, not a user command. The EmitDashboardTypes MSBuild target runs
-// `dotnet run -- __emit-types <outPath>` to regenerate wwwroot/capture/types.d.ts from the C#
-// records, then exits without booting the web host. The old CLI subcommands are now web UI.
-if (args.Length >= 2 && args[0] == "__emit-types")
-    return EggIncognito.Build.TypeEmitter.Run(args[1]);
-
 // Offline command (not a user feature): carve the .proto from a decrypted iOS Mach-O, Android APK, or a
 // bare native .so (auto-detected) and exit. `dotnet run -- __extract-proto <binaryPath> <outPath>`.
 // The legacy `__extract-ios-proto` alias is kept so existing scripts keep working.

@@ -25,7 +25,8 @@ public static class PlacementSolver
         float LocalMinY, // the element's untransformed lowest point (negative = below its origin)
         Box2[] Others, // every OTHER element's world ground rect
         float GridSize, // grid cell size; 0 = no snapping
-        bool ClampFloor = true); // ground buildings rest on y=0; false for pinned/backdrop pieces
+        bool ClampFloor = true, // ground buildings rest on y=0; false for pinned/backdrop pieces
+        bool ZoneLocked = false); // true for buildings/habs/silos: resolved (x,z) must land inside a zone
 
     public sealed record SolveResult(float[] Pos, bool Adjusted, string Reason);
 
@@ -65,6 +66,9 @@ public static class PlacementSolver
             var foot = WorldFootprint(req.LocalFootprint, x, z, req.RotDeg[1], req.Scale);
             if (UnionOfOverlaps(foot, req.Others) is not null) reason = "overlap";
         }
+
+        if (req.ZoneLocked && !ZoneLayout.IsInsideAnyZone(x, z))
+            reason = "outside-zone";
 
         return new SolveResult([x, y, z], adjusted, reason);
     }
@@ -170,8 +174,8 @@ public static class PlacementSolver
     // An element on the grid for the domino pass: its id + the integer cell rectangle it occupies.
     public readonly record struct GridBox(string Id, int Col, int Row, int SpanC, int SpanR)
     {
-        public int Right => Col + SpanC;   // exclusive
-        public int Bottom => Row + SpanR;  // exclusive
+        public int Right => Col + SpanC; // exclusive
+        public int Bottom => Row + SpanR; // exclusive
         public bool Overlaps(GridBox o) => Col < o.Right && Right > o.Col && Row < o.Bottom && Bottom > o.Row;
         public GridBox Shift(int dc, int dr) => this with { Col = Col + dc, Row = Row + dr };
     }

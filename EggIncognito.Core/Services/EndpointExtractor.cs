@@ -321,15 +321,9 @@ public sealed class EndpointExtractor
                 return new(ProtoJson.PrettyPrint(JsonFormatter.Default.Format(msg)), null, _dirs.RequestWrapped.Contains(path), null);
             }
 
-            // Unknown type: auto-discover both the inner type and the framing. Try raw and, if it looks
-            // like an AuthenticatedMessage, unwrapped; keep whichever framing's best candidate
-            // round-trips exactly. The framing is part of the answer, not an input.
-            var raw = AutoDetect(reqBytes);
-            var unwrappedBytes = ProtoFraming.TryUnwrap(reqBytes);
-            var unw = unwrappedBytes is null ? default : AutoDetect(unwrappedBytes);
-
-            bool useUnwrapped = unwrappedBytes is not null && unw.bestScore > raw.bestScore;
-            var chosen = useUnwrapped ? unw : raw;
+            // Unknown type: auto-discover both the inner type and the framing via the shared
+            // raw-vs-unwrapped AutoDetect comparison.
+            var (chosen, useUnwrapped) = BestFraming(reqBytes);
             if (chosen.typeName is null || chosen.json is null) return new(null, null, false, null);
 
             var verdict = ExtractorConfig.ClassifyAutoWrite(chosen.bestScore, chosen.secondBestScore);
@@ -641,15 +635,25 @@ public sealed class EndpointExtractor
                     return (ProtoJson.PrettyPrint(JsonFormatter.Default.Format(best)), knownType);
             }
 
-            var raw = AutoDetect(bytes);
-            var unw2 = ProtoFraming.TryUnwrap(bytes) is { } u ? AutoDetect(u) : default;
-            var chosen = unw2.bestScore > raw.bestScore ? unw2 : raw;
+            var (chosen, _) = BestFraming(bytes);
             return chosen.json is null ? (null, null) : (chosen.json, chosen.typeName);
         }
         catch
         {
             return (null, null);
         }
+    }
+
+    // Auto-detects the inner proto type against both the raw bytes and, if unwrappable, the
+    // AuthenticatedMessage-unwrapped bytes, keeping whichever AutoDetect result scores higher. The
+    // framing is part of the answer, not an input - shared by the live capture decoder and the
+    // unattended self-repair path so the heuristic can never drift between them.
+    private static ((string? typeName, string? json, int confidence, int bestScore, int secondBestScore) result, bool unwrapped) BestFraming(byte[] bytes)
+    {
+        var raw = AutoDetect(bytes);
+        var unwrappedBytes = ProtoFraming.TryUnwrap(bytes);
+        var unw = unwrappedBytes is null ? default : AutoDetect(unwrappedBytes);
+        return unwrappedBytes is not null && unw.bestScore > raw.bestScore ? (unw, true) : (raw, false);
     }
 
     public static (string? typeName, string? json, int confidence, int bestScore, int secondBestScore) AutoDetect(byte[] data)

@@ -79,7 +79,7 @@ export async function init(canvas) {
   // so emissive meshes never go fully black. Fog optional (density 0 = off). A default keeps a fresh scene lit.
   sun = new THREE.DirectionalLight(0xffffff, 1.0);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(4096, 4096);
+  sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0002;
   sun.shadow.normalBias = 0.08;
   // Near-neutral sky/ground so the fill does not tint the scene (a brown ground bounce read as "faded"). The
@@ -925,51 +925,6 @@ export function respaceHabRow(ids, gap, halfStep, z) {
   return out;
 }
 
-// The deepest (Z-extent) footprint in a set of groups, in world units, for chaining rows in Z so a deep building
-// row does not overlap the next. Returns the max depth; 0 for an empty/unknown set.
-export function rowFootprintDepth(ids) {
-  let depth = 0;
-  for (const id of ids) {
-    const g = groups.get(id);
-    const f = g?.localFootprint;
-    if (!f) continue;
-    const d = (f.maxZ - f.minZ) * (g.base?.scale || 1);
-    if (Number.isFinite(d)) depth = Math.max(depth, d);
-  }
-  return depth;
-}
-
-// Gravity-pack a core row by REAL mesh footprint width, left edge pinned at leftEdgeX, each building placed to
-// the RIGHT of the previous with `gap` between. This is the true "gravity + edge enforcement": the leftmost never
-// moves, a wider tier only pushes the ones to its right (never left, never off the terrain). Sets each group's
-// base.pos.x so its own footprint left edge lands at the running cursor (handles both center-recentered meshes
-// (minX~-half) and left-pinned meshes (minX~0)). Keeps each element's row Z. Returns [[x,z],...] to sync el.Pos.
-export function repackCoreRow(ids, leftEdgeX, gap, z) {
-  const g0 = gap == null ? 2.5 : +gap;
-  const rowGroups = ids.map(id => groups.get(id)).filter(Boolean);
-  let cursor = leftEdgeX == null ? 2 : +leftEdgeX; // world X of the next building's LEFT edge
-  const out = [];
-  for (const g of rowGroups) {
-    const f = g.localFootprint;
-    const scale = g.base?.scale || 1;
-    const minX = f ? f.minX * scale : -0.5, maxX = f ? f.maxX * scale : 0.5;
-    const w = maxX - minX;
-    // place so the footprint's left edge (base.x + minX) == cursor -> base.x = cursor - minX.
-    const baseX = cursor - minX;
-    // center the mesh's Z footprint on the row line: a deep mesh whose footprint is off-center in Z (minZ != -maxZ)
-    // must be shifted so its middle sits at rowZ, else the row-chaining depth math is off by the footprint offset.
-    const zCenter = f ? (f.minZ + f.maxZ) / 2 * scale : 0;
-    const rowZ = z == null ? (g.base?.pos?.[2] ?? 0) : +z;
-    const baseZ = rowZ - zCenter;
-    g.base = g.base || { pos: [0, 0, 0], rotDeg: [0, 0, 0], scale: 1 };
-    g.base.pos = [baseX, g.base.pos[1] || 0, baseZ];
-    g.root.position.set(baseX, g.base.pos[1] || 0, baseZ);
-    g.root.visible = true;
-    out.push([baseX, baseZ]);
-    cursor += w + g0; // advance past this building + the gap
-  }
-  return out;
-}
 
 // Space the model groups along X by the widest group's bbox so they do not overlap. Pinned env groups stay
 // at world origin and are excluded from the layout. Groups with a manual offset keep it. Then frame.
@@ -1238,18 +1193,40 @@ function occupiedCells(excludeId, cell) {
   return taken;
 }
 
-// Snap an element's block to the grid + check occupancy. Returns the snapped world CENTER (x,z), validity, and
-// the cells, for the designer's live highlight + drop decision. No fling: an occupied target is just flagged
-// invalid (the caller reverts), never relocated.
+// Mirror of ZoneLayout.Zones (EggIncognito.Core/Services/ProtoExtract/ZoneLayout.cs): the fixed core-building
+// zone grid, anchor (back-left corner) + reserved width/depth. Kept in sync by hand (small, rarely-changed
+// table); the C# side is authoritative for auto-arrange placement, this copy only gates manual drops.
+const ZONES = [
+  { anchorX: -20, anchorZ: -1, width: 14, depth: 7 },      // Silos
+  { anchorX: -20, anchorZ: -11.5, width: 40, depth: 3 },   // Habs (HabRowZ - 1)
+  { anchorX: 2, anchorZ: -4, width: 9, depth: 4 },         // Lab
+  { anchorX: 13.5, anchorZ: -4, width: 8, depth: 4 },      // Hoa
+  { anchorX: 2, anchorZ: 5, width: 3, depth: 3 },          // ChickenOutflow
+  { anchorX: 7.5, anchorZ: 5, width: 8, depth: 5 },        // Hatchery
+  { anchorX: 18, anchorZ: 5, width: 9, depth: 5 },         // MissionControl
+  { anchorX: 29.5, anchorZ: 5, width: 5, depth: 5 },       // Fuel
+  { anchorX: 2, anchorZ: 10, width: 10, depth: 5 },        // Depot
+];
+
+function insideAnyZone(x, z) {
+  return ZONES.some(z0 => x >= z0.anchorX && x <= z0.anchorX + z0.width && z >= z0.anchorZ && z <= z0.anchorZ + z0.depth);
+}
+
+// Snap an element's block to the grid + check occupancy + zone containment. Returns the snapped world CENTER
+// (x,z), validity, the cells, and a reason ("ok" | "occupied" | "outside-zone") for the designer's live
+// highlight + drop decision. No fling: an invalid target is just flagged invalid (the caller reverts).
 export function gridSnapBlock(id, x, z) {
   const g = groups.get(id);
-  // a self-placing piece (recenter=false) has a mesh-coord footprint, not grid cells: leave it free-placed.
-  if (!g || !g.localFootprint || !g.recenter || gridCell <= 0) return { centerX: x, centerZ: z, valid: true, cells: [] };
+  // a self-placing piece (recenter=false) has a mesh-coord footprint, not grid cells: leave it free-placed, and
+  // unrestricted by zones (chickens/actors/terrain are not zone-locked).
+  if (!g || !g.localFootprint || !g.recenter || gridCell <= 0) return { centerX: x, centerZ: z, valid: true, cells: [], reason: 'ok' };
   const scale = g.base?.scale || 1;
   const b = blockCells(g.localFootprint, scale, x, z, gridCell);
   const taken = occupiedCells(id, gridCell);
-  const valid = b.cells.every(cc => !taken.has(cc.c + ',' + cc.r));
-  return { centerX: b.centerX, centerZ: b.centerZ, valid, cells: b.cells };
+  const occupied = !b.cells.every(cc => !taken.has(cc.c + ',' + cc.r));
+  const outsideZone = !insideAnyZone(b.centerX, b.centerZ);
+  const reason = occupied ? 'occupied' : outsideZone ? 'outside-zone' : 'ok';
+  return { centerX: b.centerX, centerZ: b.centerZ, valid: reason === 'ok', cells: b.cells, reason };
 }
 
 // A translucent quad per target cell, green when the whole block is free, red when any cell is occupied. Rebuilt

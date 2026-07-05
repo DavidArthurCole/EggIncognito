@@ -262,7 +262,6 @@ public static class Arm64SymbolicExecutor
             if (_ptr.TryGetValue(n, out var p)) _ptr[d] = (p.Space, p.Off | imm); // address bit-set on a pointer
         }
 
-        // --- vectors ---
         public ExprNode[] Lanes(string name)
         {
             name = Norm(name);
@@ -298,7 +297,6 @@ public static class Arm64SymbolicExecutor
             SetVec(d, [combined[sh], combined[sh + 1], combined[sh + 2], combined[sh + 3]]);
         }
 
-        // --- stack ---
         public void Store(Arm64Operand[] ops, int srcCount)
         {
             if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory) return;
@@ -408,7 +406,6 @@ public static class Arm64SymbolicExecutor
             if (space == "ret") _retVec[off] = e; else _stack[off] = e;
         }
 
-        // --- calls ---
         public void DirectCall(Arm64Operand[] ops, IReadOnlyList<MachoSymbols.Symbol> syms, Func<string, ExprNode[], ExprNode?> resolveCall)
         {
             var target = ops.Length == 1 && ops[0].Type == Arm64OperandType.Immediate ? (ulong)ops[0].Immediate : 0;

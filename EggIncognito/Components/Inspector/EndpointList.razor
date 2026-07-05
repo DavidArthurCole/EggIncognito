@@ -74,7 +74,6 @@ else
     // Endpoint-status popover state, owned by the parent Inspector page (the status fetch + persistence
     // live there); this component only renders the button + popover in its header.
     [Parameter] public bool StatusLoading { get; set; }
-    [Parameter] public bool StatusOpen { get; set; }
     [Parameter] public string StatusCounts { get; set; } = "";
     [Parameter] public string StatusOut { get; set; } = "";
     [Parameter] public EventCallback OnToggleStatus { get; set; }

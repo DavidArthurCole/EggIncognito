@@ -76,6 +76,15 @@ else
               </div>
             }
           </div>
+          <div class="relative">
+            <button class="pg-menu-btn @(_viewMenuOpen ? "active" : "")" @onclick="ToggleViewMenu">View ▾</button>
+            @if (_viewMenuOpen)
+            {
+              <div class="pg-menu">
+                <button class="pg-menu-item" @onclick="MenuResetView">Reset view</button>
+              </div>
+            }
+          </div>
           <div class="ml-2 text-[11px] text-muted truncate">
             @(string.IsNullOrEmpty(_currentDesign) ? "Untitled" : _currentDesign)@(_dirty ? " •" : "")
           </div>
@@ -215,25 +224,17 @@ else
       <div class="designer-section">
         <div class="designer-section-head">Scene</div>
         <div class="designer-section-body flex flex-col gap-3">
-          <button class="btn-secondary w-full" @onclick="ResetView">Reset view</button>
-          <label class="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked="@_gridSnap" @onchange="e => ToggleGridSnap((bool)e.Value!)" />
-            Snap to grid
+          <label class="block text-xs">Grid size
+            <select class="reg-filter-input w-full" @onchange="OnGridSizeChanged">
+              <option value="0.25" selected="@(_gridSize == 0.25f)">0.25</option>
+              <option value="0.5" selected="@(_gridSize == 0.5f)">0.5</option>
+              <option value="1" selected="@(_gridSize == 1f)">1</option>
+              <option value="2" selected="@(_gridSize == 2f)">2</option>
+            </select>
           </label>
-          @if (_gridSnap)
-          {
-            <label class="block text-xs">Grid size
-              <select class="reg-filter-input w-full" @onchange="OnGridSizeChanged">
-                <option value="0.25" selected="@(_gridSize == 0.25f)">0.25</option>
-                <option value="0.5" selected="@(_gridSize == 0.5f)">0.5</option>
-                <option value="1" selected="@(_gridSize == 1f)">1</option>
-                <option value="2" selected="@(_gridSize == 2f)">2</option>
-              </select>
-            </label>
-          }
           @if (_showAdjustHint)
           {
-            <div class="text-xs text-amber-400">Placement adjusted@(_lastAdjustReason == "blocked" ? " (blocked: no free space)" : "").</div>
+            <div class="text-xs text-amber-400">Placement adjusted@(_lastAdjustReason switch { "blocked" or "occupied" => " (blocked: no free space)", "outside-zone" => " (reverted: outside any zone)", _ => "" }).</div>
           }
         </div>
       </div>
@@ -450,6 +451,7 @@ else
     // the inline name prompt used by Save / Save As. The Design widget is gone; its CRUD lives in the File menu.
     bool _fileMenuOpen;
     bool _toolsMenuOpen;
+    bool _viewMenuOpen;
     bool _paletteOpen = true;
     bool _gifOpen;
     bool _namePromptOpen;
@@ -482,9 +484,8 @@ else
     readonly List<DesignElement> _elements = [];
     string? _selectedElementId;
 
-    // Grid snapping: when on, drags/nudges land on _gridSize multiples (gizmo live snap + the C# solver) and the
-    // floor grid overlay is shown. Off = free placement (floor clamp + overlap still apply).
-    bool _gridSnap;
+    // Grid snapping is always active: drags/nudges land on _gridSize multiples (gizmo live snap + the C#
+    // solver) and the floor grid overlay is always shown.
     float _gridSize = 1f;
     LightingState _lighting = new();
     int _elementSeq;
@@ -756,33 +757,12 @@ else
         }
     }
 
-    // Authoritative placement solve (playgroundDesigner.js calls this on drag-end / nudge). Runs PlacementSolver
-    // with the current grid size: floor clamp (no building in the floor), grid snap, and footprint overlap push
-    // (no two buildings occupying the same ground). Returns the corrected [x, y, z, adjusted] for the JS side to
-    // snap to. The math is the tested C# core; JS only renders the result.
+    // The grid blocked a drop (target cells occupied, off-grid, or outside every zone); the element reverted.
+    // reason distinguishes the hint text ("blocked" = occupied, "outside-zone" = no zone contains the drop).
     [JSInvokable]
-    public Task<double[]> OnPlaceSolve(string id, double[] pos, double[] rotDeg, double scale,
-        FootprintDto footprint, FootprintDto[] others)
+    public Task OnPlacementBlocked(string reason = "blocked")
     {
-        var local = new PlacementSolver.Box2(footprint.MinX, footprint.MaxX, footprint.MinZ, footprint.MaxZ);
-        var otherRects = (others ?? [])
-            .Select(o => new PlacementSolver.Box2(o.MinX, o.MaxX, o.MinZ, o.MaxZ))
-            .ToArray();
-        var req = new PlacementSolver.SolveRequest(
-            [(float)pos[0], (float)pos[1], (float)pos[2]],
-            [(float)rotDeg[0], (float)rotDeg[1], (float)rotDeg[2]],
-            (float)scale, local, footprint.MinY, otherRects,
-            _gridSnap ? _gridSize : 0f, footprint.ClampFloor);
-        var r = PlacementSolver.Solve(req);
-        if (r.Adjusted) { _lastAdjustReason = r.Reason; _ = ShowAdjustHint(); }
-        return Task.FromResult(new double[] { r.Pos[0], r.Pos[1], r.Pos[2], r.Adjusted ? 1 : 0 });
-    }
-
-    // The grid blocked a drop (target cells occupied / off-grid); the element reverted. Surface the same hint.
-    [JSInvokable]
-    public Task OnPlacementBlocked()
-    {
-        _lastAdjustReason = "blocked";
+        _lastAdjustReason = reason;
         _ = ShowAdjustHint();
         return Task.CompletedTask;
     }
@@ -1030,9 +1010,7 @@ else
     async Task RunDomino(string changedId)
     {
         if (_mod is null) return;
-        // domino runs even with grid-snap OFF: a tier/size grow should always ripple neighbors. Use the grid cell
-        // when snapping, else a small default resolution for the cascade math.
-        var cell = _gridSnap ? _gridSize : 0.5f;
+        var cell = _gridSize;
         try
         {
             var boxes = await _mod.InvokeAsync<DominoBoxes>("gridBoxesForDomino", changedId, cell);
@@ -1256,10 +1234,9 @@ else
             await _mod.InvokeVoidAsync("addGroupsBatch", ct, new object[] { items });
             if (ct.IsCancellationRequested) return;
 
-            // Gravity-pack the core rows by REAL mesh footprint width (the layout's stopgap widths were far off for
-            // big tiers, so the packed centers overlapped + a per-building domino could shove the leftmost off the
-            // terrain). repackCoreRow pins each row's LEFT edge and packs right, so gravity pushes only rightward.
-            await RepackCoreRows();
+            // Core buildings are already at their final zone-anchor positions (ZoneLayout.Resolve). Habs still
+            // need a real-mesh-width respace pass: the game's hab spacing formula depends on live mesh bbox,
+            // which only the renderer holds.
             await RespaceHabs();
             // apply per-element effects (hatchery orbits etc) after placement, once.
             foreach (var el in _elements.ToList())
@@ -1278,82 +1255,6 @@ else
             if (!ct.IsCancellationRequested) Autosave();
             _busy = false; StateHasChanged();
         }
-    }
-
-    // Gravity-pack the three core rows by REAL mesh footprint width. Each row's LEFT edge pins at CoreLeftX and
-    // buildings pack rightward, so a wide tier only pushes the ones to its right (never off the terrain). Family ->
-    // row: {lab, hoa} back, {hatchery, mission, fuel} mid, {depot} front. The renderer does the width walk (it
-    // holds the meshes); we sync each el.Pos from the returned positions.
-    static readonly string[] BackRowFamilies = ["lab", "hoa"];
-    static readonly string[] MidRowFamilies = ["hatchery", "mission", "fuel"];
-    static readonly string[] FrontRowFamilies = ["depot"];
-
-    // The back row's BACK edge (min Z), pinned just SOUTH of the top path (which runs between the hab row at
-    // HabRowZ=-10.5 and the core). At -4 the research lab / artifact hall sit below the path, not on it. Rows then
-    // chain forward in Z by REAL mesh depth + a gap, so a deep building (universe hatchery, mission control disc)
-    // pushes the next row forward instead of overlapping it.
-    const float BackRowBackZ = -4f;    // just south of the top path; habs + path are further back (more negative)
-    const float RowZGap = 2.5f;        // depth gap between rows
-
-    async Task RepackCoreRows()
-    {
-        if (_mod is null) return;
-        // chain the three rows front-ward by real depth: back-edge anchored, each next row starts a gap past the
-        // previous row's front edge.
-        var backDepth = await RowDepth(BackRowFamilies);
-        var midDepth = await RowDepth(MidRowFamilies);
-        var frontDepth = await RowDepth(FrontRowFamilies);
-
-        var backCenterZ = BackRowBackZ + backDepth / 2f;
-        var midCenterZ = backCenterZ + backDepth / 2f + RowZGap + midDepth / 2f;
-        var frontCenterZ = midCenterZ + midDepth / 2f + RowZGap + frontDepth / 2f;
-
-        // keep the front row (depot) south of the road: clamp its front edge to RoadZ - margin. The depot faces the
-        // road in-game, so hugging it is correct; it must not land ON it.
-        const float roadMargin = 1.5f;
-        var maxFrontCenterZ = EggIncognito.Services.ProtoExtract.PlaygroundPaths.RoadZ - roadMargin - frontDepth / 2f;
-        if (frontCenterZ > maxFrontCenterZ) frontCenterZ = maxFrontCenterZ;
-
-        await RepackRow(BackRowFamilies, backCenterZ);
-        await RepackRow(MidRowFamilies, midCenterZ);
-        await RepackRow(FrontRowFamilies, frontCenterZ);
-    }
-
-    List<DesignElement> RowElements(string[] families)
-    {
-        var famSet = new HashSet<string>(families, StringComparer.Ordinal);
-        return _elements
-            .Where(e => e.Kind == "env")
-            .Select(e => (el: e, fam: _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family ?? ""))
-            .Where(t => famSet.Contains(t.fam))
-            // keep the intended left-to-right order: lab before hoa; hatchery, mission, fuel.
-            .OrderBy(t => Array.IndexOf(families, t.fam))
-            .ThenBy(t => t.el.Pos[0])
-            .Select(t => t.el)
-            .ToList();
-    }
-
-    async Task<float> RowDepth(string[] families)
-    {
-        if (_mod is null) return 0f;
-        var ids = RowElements(families).Select(e => e.Id).ToArray();
-        if (ids.Length == 0) return 0f;
-        return await _mod.InvokeAsync<float>("rowFootprintDepth", new object[] { ids });
-    }
-
-    async Task RepackRow(string[] families, float rowZ)
-    {
-        if (_mod is null) return;
-        var row = RowElements(families);
-        if (row.Count == 0) return;
-        var ids = row.Select(e => e.Id).ToArray();
-        var positions = await _mod.InvokeAsync<float[][]>(
-            "repackCoreRow", ids,
-            EggIncognito.Services.ProtoExtract.FarmLayout.CoreLeftX,
-            EggIncognito.Services.ProtoExtract.FarmLayout.RowGap,
-            rowZ);
-        for (var i = 0; i < row.Count && i < positions.Length; i++)
-            row[i].Pos = [positions[i][0], row[i].Pos[1], positions[i][1]];
     }
 
     // Re-space the placed habs by the game's rule (GameController::getHabPosition, extracted): fixed row Z, X by
@@ -1841,24 +1742,17 @@ else
         if (_designer is not null) await _designer.InvokeVoidAsync("setGizmoMode", mode);
     }
 
-    // Toggle grid snapping: show/hide the floor grid + set the gizmo's live translate/rotate snap. The C# solver
-    // reads _gridSnap/_gridSize directly on the next solve.
-    async Task ToggleGridSnap(bool on)
-    {
-        _gridSnap = on;
-        await ApplyGridSettings();
-    }
-
     async Task OnGridSizeChanged(ChangeEventArgs e)
     {
         var size = float.TryParse(e.Value?.ToString(), out var v) ? v : 1f;
         _gridSize = size > 0 ? size : 1f;
-        if (_gridSnap) await ApplyGridSettings();
+        await ApplyGridSettings();
     }
 
+    // Grid snapping is always on: show the floor grid + set the gizmo's live translate/rotate snap at _gridSize.
     async Task ApplyGridSettings()
     {
-        var cell = _gridSnap ? _gridSize : 0f;
+        var cell = _gridSize;
         if (_mod is not null) await _mod.InvokeVoidAsync("setGrid", cell);
         if (_designer is not null) await _designer.InvokeVoidAsync("setGridSnap", cell);
     }
@@ -1971,9 +1865,11 @@ else
     // File / Tools menubar + palette + GIF pop-over wiring. The menus close on action; a click anywhere else also
     // closes them (handled by the page-level close handler).
 
-    void ToggleFileMenu() { _fileMenuOpen = !_fileMenuOpen; _toolsMenuOpen = false; }
-    void ToggleToolsMenu() { _toolsMenuOpen = !_toolsMenuOpen; _fileMenuOpen = false; }
-    void CloseMenus() { _fileMenuOpen = false; _toolsMenuOpen = false; }
+    void ToggleFileMenu() { _fileMenuOpen = !_fileMenuOpen; _toolsMenuOpen = false; _viewMenuOpen = false; }
+    void ToggleToolsMenu() { _toolsMenuOpen = !_toolsMenuOpen; _fileMenuOpen = false; _viewMenuOpen = false; }
+    void ToggleViewMenu() { _viewMenuOpen = !_viewMenuOpen; _fileMenuOpen = false; _toolsMenuOpen = false; }
+    void CloseMenus() { _fileMenuOpen = false; _toolsMenuOpen = false; _viewMenuOpen = false; }
+    async Task MenuResetView() { CloseMenus(); await ResetView(); }
 
     async Task MenuNew() { CloseMenus(); await NewDesign(); }
 
@@ -2234,18 +2130,6 @@ else
         public bool Effect { get; set; } // render this building's extracted decomp effects
         public bool HasEffects { get; set; } // the resolver found >=1 effect for this building's mesh
         public int EffectCount { get; set; } // how many discovered effects
-    }
-
-    // A ground footprint reported by the designer JS for the placement solver. Local (the dragged element) or
-    // world (other elements). MinY + ClampFloor only meaningful for the dragged element.
-    public sealed class FootprintDto
-    {
-        public float MinX { get; set; }
-        public float MaxX { get; set; }
-        public float MinZ { get; set; }
-        public float MaxZ { get; set; }
-        public float MinY { get; set; }
-        public bool ClampFloor { get; set; } = true;
     }
 
     public sealed class MotionState

@@ -224,4 +224,26 @@ public class PlacementSolverTests
         var m = Assert.Single(DominoNudge(changed, [left]));
         Assert.True(m.DeltaCol < 0); // shoved further left
     }
+
+    [Fact]
+    public void ZoneLocked_InsideAZone_NoReasonChange()
+    {
+        // Depot zone anchor (2,10) width 10 depth 5 -> center (7,12.5) is inside it.
+        var r = Solve(new SolveRequest([7f, 0, 12.5f], [0, 0, 0], 1, Unit2(), 0, [], 0, ZoneLocked: true));
+        Assert.Equal("ok", r.Reason);
+    }
+
+    [Fact]
+    public void ZoneLocked_OutsideAllZones_FlagsOutsideZone()
+    {
+        var r = Solve(new SolveRequest([500f, 0, 500f], [0, 0, 0], 1, Unit2(), 0, [], 0, ZoneLocked: true));
+        Assert.Equal("outside-zone", r.Reason);
+    }
+
+    [Fact]
+    public void ZoneLocked_False_IgnoresZones()
+    {
+        var r = Solve(new SolveRequest([500f, 0, 500f], [0, 0, 0], 1, Unit2(), 0, [], 0, ZoneLocked: false));
+        Assert.Equal("ok", r.Reason);
+    }
 }

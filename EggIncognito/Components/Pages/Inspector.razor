@@ -42,7 +42,7 @@
       <EndpointList Mode="@_listMode" ModeChanged="SetListMode"
                     Selected="@_selected" SelectedObject="@_selectedObject"
                     OnSelectEndpoint="SelectEndpoint" OnSelectObject="SelectObject"
-                    StatusLoading="@_statusLoading" StatusOpen="@_statusOpen"
+                    StatusLoading="@_statusLoading"
                     StatusCounts="@_statusCounts" StatusOut="@_statusOut"
                     OnToggleStatus="ToggleStatus" OnRefreshStatus="RefreshStatus" />
     </aside>
@@ -378,7 +378,6 @@
     string[] _recentEids = [];
     RinfoDefaults _rinfo = new();
 
-    bool _statusOpen;
     bool _statusLoading;
     string _statusOut = "";
     string _statusCounts = "";
