@@ -1252,13 +1252,14 @@ else
         }
     }
 
-    // Repack the 3 zone-grid rows (back: Lab/Hoa, mid: Hatchery/MissionControl/Fuel, front: Depot) left-to-right
-    // + front-to-back by REAL mesh footprint width AND depth, one interop call per row. The zone grid's static
-    // row Z bands (ZoneLayout.cs) only seed the FIRST row's back edge; each subsequent row's back edge CHAINS
-    // from the previous row's real front edge + a gap, so a deep building (e.g. a big hatchery disc) pushes the
-    // row behind it back instead of the two overlapping. A wrong initial guess only affects the (invisible,
-    // pre-batch) first frame, never the final layout.
-    static readonly string[][] ZoneRowFamilies = [["lab", "hoa"], ["hatchery", "mission", "fuel"], ["depot"]];
+    // Repack the 2 gravity-packed zone-grid rows (mid: Hoa/Hatchery/MissionControl/Fuel, front: Depot alone)
+    // left-to-right + front-to-back by REAL mesh footprint width AND depth, one interop call per row. Lab and
+    // the hab row live in the back strip above the top path and are NOT gravity-packed (own fixed anchors, per
+    // ZoneLayout.Lab/Habs) - only these 2 rows below the path repack. The zone grid's static row Z bands
+    // (ZoneLayout.cs) only seed the FIRST row's back edge; the front row's back edge CHAINS from the mid row's
+    // real front edge + a gap, so a deep building (e.g. a big mission-control disc) pushes the depot back
+    // instead of the two overlapping. A wrong initial guess only affects the (invisible, pre-batch) first frame.
+    static readonly string[][] ZoneRowFamilies = [["hoa", "hatchery", "mission", "fuel"], ["depot"]];
 
     public sealed class ZoneRowPackResult
     {
@@ -1275,7 +1276,7 @@ else
     async Task RepackCoreZones()
     {
         if (_mod is null) return;
-        var backEdgeZ = EggIncognito.Services.ProtoExtract.ZoneLayout.BackRowZ;
+        var backEdgeZ = EggIncognito.Services.ProtoExtract.ZoneLayout.MidRowZ;
         for (var rowIndex = 0; rowIndex < ZoneRowFamilies.Length; rowIndex++)
         {
             var families = ZoneRowFamilies[rowIndex];

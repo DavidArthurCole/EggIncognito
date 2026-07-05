@@ -81,8 +81,8 @@ public class EnvCatalogTests
         var fuel = placed.First(p => p.Stem == "ei_fuel_tank_4");
         var depot = placed.First(p => p.Stem == "ei_depot_7");
 
-        Assert.Equal(ZoneLayout.BackRowZ, lab.Pos[2], 2);
-        Assert.Equal(ZoneLayout.BackRowZ, hoa.Pos[2], 2);
+        Assert.Equal(ZoneLayout.Zones[ZoneLayout.ZoneId.Lab].AnchorZ, lab.Pos[2], 2);
+        Assert.Equal(ZoneLayout.MidRowZ, hoa.Pos[2], 2);
         Assert.Equal(ZoneLayout.MidRowZ, hatchery.Pos[2], 2);
         Assert.Equal(ZoneLayout.MidRowZ, mc.Pos[2], 2);
         Assert.Equal(ZoneLayout.MidRowZ, fuel.Pos[2], 2);

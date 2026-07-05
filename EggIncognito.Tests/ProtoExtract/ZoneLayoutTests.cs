@@ -26,12 +26,13 @@ public class ZoneLayoutTests
         var fuel = Assert.Single(placed, p => p.Stem == "ei_fuel_tank_2");
         var depot = Assert.Single(placed, p => p.Stem == "ei_depot_3");
 
-        // the initial pass places every same-row building at the SAME back-left anchor; repackZoneRow (JS,
-        // real mesh width) is what spaces them apart left-to-right after the batch add.
-        Assert.Equal(ZoneLayout.BackRowZ, lab.Pos[2], 2);
-        Assert.Equal(ZoneLayout.BackRowZ, hoa.Pos[2], 2);
-        Assert.Equal(lab.Pos[0], hoa.Pos[0], 2);
+        // Lab lives in its own back-strip zone (not gravity-packed); Hoa joins the MidRow with
+        // Hatchery/MissionControl/Fuel (all at the SAME initial anchor - repackZoneRow spaces them apart by
+        // real mesh width after the batch add); Depot is alone in FrontRow.
+        Assert.Equal(ZoneLayout.Zones[ZoneLayout.ZoneId.Lab].AnchorZ, lab.Pos[2], 2);
+        Assert.Equal(ZoneLayout.MidRowZ, hoa.Pos[2], 2);
         Assert.Equal(ZoneLayout.MidRowZ, hatchery.Pos[2], 2);
+        Assert.Equal(hoa.Pos[0], hatchery.Pos[0], 2);
         Assert.Equal(ZoneLayout.MidRowZ, mc.Pos[2], 2);
         Assert.Equal(ZoneLayout.MidRowZ, fuel.Pos[2], 2);
         Assert.Equal(ZoneLayout.FrontRowZ, depot.Pos[2], 2);
