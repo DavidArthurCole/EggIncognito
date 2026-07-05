@@ -1223,33 +1223,7 @@ else
                 Recenter = pl.Recenter, // core buildings recenter so the layout Pos is authoritative
             }).ToList();
 
-            // PARALLEL-fetch every glb (the serial HTTP round-trips were the ~20s cost), then add them all in ONE
-            // interop batch. Each item carries its add opts + initial transform so the engine positions it inline.
-            var fetches = newEls.Select(async el =>
-            {
-                var url = ElementGlbUrl(el);
-                var glb = url is null ? null : await FetchRaw(url, ct);
-                return (el, glb);
-            }).ToList();
-            var fetched = await Task.WhenAll(fetches);
-            if (ct.IsCancellationRequested) return;
-
-            var items = new List<object>();
-            foreach (var (el, glb) in fetched)
-            {
-                if (glb is null) continue;
-                _elements.Add(el);
-                var stem = el.Shell ?? el.Ref;
-                var leftPin = IsZoneCorePinned(stem);
-                items.Add(new
-                {
-                    id = el.Id,
-                    glbBase64 = Convert.ToBase64String(glb),
-                    opts = new { recenter = el.Recenter, recenterX = leftPin ? "min" : "center", snapBase = !IsTerrain(stem), terrain = IsTerrain(stem) },
-                    transform = new { pos = el.Pos, rotDeg = el.RotDeg, scale = el.Scale },
-                });
-            }
-            await _mod.InvokeVoidAsync("addGroupsBatch", ct, new object[] { items });
+            await RenderElementsBatch(newEls, ct);
             if (ct.IsCancellationRequested) return;
 
             // Core buildings start at their zone-anchor positions (ZoneLayout.Resolve), but the zone grid's
@@ -2106,7 +2080,7 @@ else
     record AppVersionDto(string Version, string Sha);
 
     // Rebuilds the scene from a design payload: clears the current groups, restores background + lighting, then
-    // re-renders every element. Shared by Load-design and the autosave restore.
+    // batch-renders every element. Shared by Load-design and the autosave restore.
     async Task RestoreFromPayload(DesignPayload payload)
     {
         if (_mod is null) return;
@@ -2123,13 +2097,70 @@ else
         await ApplyLighting();
 
         foreach (var el in payload.Elements)
-        {
-            _elements.Add(el);
             _elementSeq = Math.Max(_elementSeq, ParseSeq(el.Id));
-            await RenderElement(el);
+        var added = await RenderElementsBatch(payload.Elements);
+        foreach (var el in added)
+        {
+            await ApplyElementAnimation(el);
+            await PushElementMotion(el);
+            await ApplyEffect(el);
         }
+
         await ResetView();
         await RefreshAnimatedFlag();
+    }
+
+    // Parallel-fetches every element's glb (+ hat glb for a chicken wearing one), then adds them all in ONE
+    // interop batch instead of one fetch+addGroup round-trip per element (the serial path was the ~20s cost
+    // AutoArrangeFarm already fixed for its own layout; Load-design/autosave-restore hit the same cost since
+    // they went through the same per-element RenderElement loop). Adds each successfully-fetched element to
+    // _elements as it goes (mirrors AutoArrangeFarm's prior inline behavior); the caller runs whatever per-
+    // element post-steps it needs (anim/motion/effects), since those differ by call site.
+    async Task<List<DesignElement>> RenderElementsBatch(IReadOnlyList<DesignElement> elements, CancellationToken ct = default)
+    {
+        if (_mod is null || elements.Count == 0) return [];
+
+        var fetches = elements.Select(async el =>
+        {
+            var url = ElementGlbUrl(el);
+            var glb = url is null ? null : await FetchRaw(url, ct);
+            byte[]? hat = null;
+            if (el.Kind == "chicken" && !string.IsNullOrEmpty(el.Hat))
+                hat = await FetchRaw($"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(el.Hat)}/glb", ct);
+            return (el, glb, hat);
+        }).ToList();
+        var fetched = await Task.WhenAll(fetches);
+        if (ct.IsCancellationRequested) return [];
+
+        var items = new List<object>();
+        var added = new List<DesignElement>();
+        foreach (var (el, glb, hat) in fetched)
+        {
+            if (glb is null) continue;
+            _elements.Add(el);
+            added.Add(el);
+            object opts;
+            if (el.Kind == "chicken" && !string.IsNullOrEmpty(el.Hat))
+            {
+                var anchor = _chickens.FirstOrDefault(c => c.Identifier == el.Ref)?.Anchor ?? [];
+                opts = new { hatBase64 = hat is null ? null : Convert.ToBase64String(hat), anchor };
+            }
+            else
+            {
+                var stem = el.Shell ?? el.Ref;
+                var leftPin = IsZoneCorePinned(stem);
+                opts = new { recenter = el.Recenter, recenterX = leftPin ? "min" : "center", snapBase = !IsTerrain(stem), terrain = IsTerrain(stem) };
+            }
+            items.Add(new
+            {
+                id = el.Id,
+                glbBase64 = Convert.ToBase64String(glb),
+                opts,
+                transform = new { pos = el.Pos, rotDeg = el.RotDeg, scale = el.Scale },
+            });
+        }
+        await _mod.InvokeVoidAsync("addGroupsBatch", ct, new object[] { items });
+        return added;
     }
 
     static int ParseSeq(string id) => int.TryParse(id.TrimStart('e', 'l'), out var n) ? n : 0;
