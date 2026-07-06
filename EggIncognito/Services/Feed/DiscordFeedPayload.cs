@@ -4,12 +4,20 @@ namespace EggIncognito.Services.Feed;
 
 public static class DiscordFeedPayload
 {
-    // The Discord webhook body for a proto event. One embed: title (app version + build + platform) +
-    // fields + a link to the registry page. clientVersion rides along as a field when known.
+    // The Discord webhook body for a proto event. A subscriber's own messageTemplate (if set) replaces the
+    // built-in embed with a plain-content message, {{variable}} tokens substituted (see FeedTemplate).
+    // Otherwise: one embed - title (app version + build + platform) + fields + a link to the registry page.
+    // clientVersion rides along as a field when known.
     public static string Build(
         string platform, string appVersion, string build, string? clientVersion, string protoSha,
-        bool protoChanged, string pageUrl)
+        bool protoChanged, string pageUrl, string? messageTemplate = null)
     {
+        if (!string.IsNullOrWhiteSpace(messageTemplate))
+        {
+            var vars = FeedTemplate.BuildVars(platform, appVersion, build, clientVersion, protoSha, protoChanged, pageUrl);
+            return JsonSerializer.Serialize(new { content = FeedTemplate.Render(messageTemplate, vars) });
+        }
+
         var fields = new List<object>
         {
             new { name = "Proto", value = protoChanged ? "changed" : "unchanged", inline = true },

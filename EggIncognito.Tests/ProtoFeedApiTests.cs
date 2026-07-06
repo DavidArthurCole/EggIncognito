@@ -48,7 +48,7 @@ public class ProtoFeedApiTests
     {
         var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
         var r = await c.Create(new ProtoFeedController.CreateReq(
-            "https://discord.com/api/webhooks/1/abc", null, null, null), CancellationToken.None);
+            "https://discord.com/api/webhooks/1/abc", null, null, null, null), CancellationToken.None);
         Assert.Equal(503, Status(r));
     }
 
@@ -58,7 +58,7 @@ public class ProtoFeedApiTests
         var services = new MapServices(new() { [typeof(FeedSubscriptionStore)] = UnconnectedStore() });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
         var r = await c.Create(new ProtoFeedController.CreateReq(
-            "https://evil.example.com/hook", null, null, null), CancellationToken.None);
+            "https://evil.example.com/hook", null, null, null, null), CancellationToken.None);
         Assert.IsType<BadRequestObjectResult>(r);
         Assert.Equal(400, Status(r));
     }
@@ -68,7 +68,7 @@ public class ProtoFeedApiTests
     {
         var services = new MapServices(new() { [typeof(FeedSubscriptionStore)] = UnconnectedStore() });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
-        var r = await c.Create(new ProtoFeedController.CreateReq("", null, null, null), CancellationToken.None);
+        var r = await c.Create(new ProtoFeedController.CreateReq("", null, null, null, null), CancellationToken.None);
         Assert.IsType<BadRequestObjectResult>(r);
     }
 
@@ -127,7 +127,7 @@ public class ProtoFeedApiTests
     public async Task Update_Anon_Returns401()
     {
         var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
-        var r = await c.Update(1, new ProtoFeedController.UpdateReq(["android"], "new_version", true), CancellationToken.None);
+        var r = await c.Update(1, new ProtoFeedController.UpdateReq(["android"], "new_version", true, null), CancellationToken.None);
         Assert.Equal(401, Status(r));
     }
 
@@ -139,7 +139,7 @@ public class ProtoFeedApiTests
             [typeof(EggIncognito.Services.ICurrentUser)] = new StubUser("42"),
         });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
-        var r = await c.Update(1, new ProtoFeedController.UpdateReq(null, null, null), CancellationToken.None);
+        var r = await c.Update(1, new ProtoFeedController.UpdateReq(null, null, null, null), CancellationToken.None);
         Assert.Equal(503, Status(r));
     }
 

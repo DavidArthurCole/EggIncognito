@@ -34,7 +34,7 @@ public sealed class FeedDispatcher(
             try
             {
                 var body = DiscordFeedPayload.Build(
-                    platform, appVersion, build, clientVersion, protoSha, protoChanged, pageUrl);
+                    platform, appVersion, build, clientVersion, protoSha, protoChanged, pageUrl, sub.MessageTemplate);
                 var res = await http.PostAsync(sub.TargetUrl,
                     new StringContent(body, System.Text.Encoding.UTF8, "application/json"), ct);
                 code = (int)res.StatusCode;

@@ -16,7 +16,7 @@ public interface IFeedSubscriptionStore
     Task<List<FeedSubscription>> ByOwnerAsync(string ownerUserId, CancellationToken ct = default);
     Task<bool> DeleteAsync(int id, string ownerUserId, CancellationToken ct = default);
     Task<bool> UpdateAsync(int id, string ownerUserId, string[] platforms, string trigger, bool active,
-        CancellationToken ct = default);
+        string? messageTemplate, CancellationToken ct = default);
 }
 
 public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubscriptionStore
@@ -81,13 +81,15 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
     // here: changing it would need a re-validation round-trip, so a different URL = a new subscription.
     // Returns false when no such row belongs to the caller.
     public async Task<bool> UpdateAsync(
-        int id, string ownerUserId, string[] platforms, string trigger, bool active, CancellationToken ct = default)
+        int id, string ownerUserId, string[] platforms, string trigger, bool active, string? messageTemplate,
+        CancellationToken ct = default)
     {
         var row = await db.FeedSubscriptions.FirstOrDefaultAsync(s => s.Id == id && s.OwnerUserId == ownerUserId, ct);
         if (row is null) return false;
         row.Platforms = platforms is { Length: > 0 } ? platforms : ["android", "ios"];
         row.Trigger = trigger == "new_version" ? "new_version" : "proto_changed";
         row.Active = active;
+        row.MessageTemplate = string.IsNullOrWhiteSpace(messageTemplate) ? null : messageTemplate;
         await db.SaveChangesAsync(ct);
         return true;
     }

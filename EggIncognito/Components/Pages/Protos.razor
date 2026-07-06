@@ -208,15 +208,17 @@
     }
   </section>
 
-  @* Side column: device farm + missing-versions (everyone), then the Notifications + Sources widgets
-     (formerly modals). Sources carries the admin-only backfill trigger buttons; each panel gates its own
-     write actions, the server ACL is the real gate. *@
+  @* Side column: device farm + missing-versions (everyone), then the Notifications + Sources widgets.
+     Notifications opens in a modal (the create form + subscription manager need more room than a side-column
+     card). Sources carries the admin-only backfill trigger buttons; each panel gates its own write actions,
+     the server ACL is the real gate. *@
   <div class="flex flex-col gap-6">
     <DeviceStatusPanel OnSaved="OnMutated" />
     <MissingVersionsPanel />
     <section class="panel">
       <h3 class="text-sm font-semibold mt-0 mb-2">Notifications</h3>
-      <ProtoSubscribePanel />
+      <p class="text-muted text-xs m-0 mb-3">Get a Discord message when the registry sees a new game build.</p>
+      <button type="button" class="btn-primary" @onclick="@(() => _subscribeModal?.Open())">Manage subscriptions</button>
     </section>
     <section class="panel">
       <h3 class="text-sm font-semibold mt-0 mb-2">Sources</h3>
@@ -225,6 +227,8 @@
   </div>
   </div>
 </main>
+
+<ProtoSubscribeModal @ref="_subscribeModal" />
 
 
 @code {
@@ -252,6 +256,7 @@
     int? _editingKey; // release key whose inline editor row is open (null = none)
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
+    ProtoSubscribeModal? _subscribeModal;
 
     string _baseAddress = "";
     string? _cookie;

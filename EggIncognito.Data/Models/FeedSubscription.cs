@@ -14,6 +14,9 @@ public sealed class FeedSubscription
     [Column("trigger")] public string Trigger { get; set; } = "proto_changed"; // proto_changed | new_version
     [Column("secret")] public string? Secret { get; set; } // HMAC key for http kind
     [Column("label")] public string? Label { get; set; }
+    // Optional user-authored message, {{variable}} tokens (see FeedTemplate.Render). Null/empty falls back
+    // to the built-in Discord embed.
+    [Column("message_template")] public string? MessageTemplate { get; set; }
     [Column("owner_user_id")] public string? OwnerUserId { get; set; }
     [Column("created_at")] public DateTimeOffset CreatedAt { get; set; }
     [Column("active")] public bool Active { get; set; } = true;

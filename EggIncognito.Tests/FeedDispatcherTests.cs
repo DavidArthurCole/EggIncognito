@@ -83,13 +83,14 @@ public class FeedDispatcherTests
         }
 
         public Task<bool> UpdateAsync(int id, string ownerUserId, string[] platforms, string trigger,
-            bool active, CancellationToken ct = default)
+            bool active, string? messageTemplate, CancellationToken ct = default)
         {
             var s = Subs.FirstOrDefault(x => x.Id == id && x.OwnerUserId == ownerUserId);
             if (s is null) return Task.FromResult(false);
             s.Platforms = platforms;
             s.Trigger = trigger;
             s.Active = active;
+            s.MessageTemplate = messageTemplate;
             return Task.FromResult(true);
         }
     }
@@ -151,5 +152,20 @@ public class FeedDispatcherTests
 
         Assert.Equal(1, handler.Posts);
         Assert.Single(store.Deliveries);
+    }
+
+    [Fact]
+    public async Task CustomTemplate_SendsRenderedContent_NotEmbed()
+    {
+        var sub = Sub(1, "proto_changed", "android");
+        sub.MessageTemplate = "New build {{appVersion}} ({{build}}) on {{platform}}: {{protoChanged}}";
+        var store = new FakeStore(sub);
+        string? sentBody = null;
+        var handler = new StubHandler(req => { sentBody = req.Content!.ReadAsStringAsync().Result; return new HttpResponseMessage(HttpStatusCode.NoContent); });
+        await Dispatcher(store, handler).DispatchAsync(
+            7, "android", "1.0", "111343", "72", "sha", created: true, protoChanged: true, "https://x/y");
+
+        Assert.Contains("New build 1.0 (111343) on android: changed", sentBody);
+        Assert.DoesNotContain("embeds", sentBody);
     }
 }

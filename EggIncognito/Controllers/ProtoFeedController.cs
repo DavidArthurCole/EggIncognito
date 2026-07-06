@@ -10,7 +10,8 @@ namespace EggIncognito.Controllers;
 public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFactory httpFactory)
     : ControllerBase
 {
-    public sealed record CreateReq(string WebhookUrl, string[]? Platforms, string? Trigger, string? Label);
+    public sealed record CreateReq(string WebhookUrl, string[]? Platforms, string? Trigger, string? Label,
+        string? MessageTemplate);
 
     private FeedSubscriptionStore? Store =>
         services.GetService(typeof(FeedSubscriptionStore)) as FeedSubscriptionStore;
@@ -39,6 +40,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             Platforms = req.Platforms is { Length: > 0 } ? req.Platforms : ["android", "ios"],
             Trigger = req.Trigger == "new_version" ? "new_version" : "proto_changed",
             Label = req.Label,
+            MessageTemplate = string.IsNullOrWhiteSpace(req.MessageTemplate) ? null : req.MessageTemplate,
             OwnerUserId = (services.GetService(typeof(EggIncognito.Services.ICurrentUser))
                 as EggIncognito.Services.ICurrentUser)?.DiscordId,
         }, ct);
@@ -67,6 +69,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             s.CreatedAt,
             s.LastDeliveryAt,
             s.FailCount,
+            s.MessageTemplate,
             UrlMasked = MaskWebhook(s.TargetUrl),
         }));
     }
@@ -97,16 +100,24 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         var sub = (await Store.ByOwnerAsync(owner, ct)).FirstOrDefault(s => s.Id == id);
         if (sub is null) return NotFound(new { error = "subscription not found" });
 
+        // No real proto event exists for a manual test, so render the subscriber's own template (if any)
+        // against sample data - this is what a real dispatch will actually send, not a generic placeholder.
+        var body = string.IsNullOrWhiteSpace(sub.MessageTemplate)
+            ? """{"content":"EggIncognito proto feed test."}"""
+            : EggIncognito.Services.Feed.DiscordFeedPayload.Build(
+                "android", "1.0.0", "1", "1", "0000000000000000000000000000000000000000",
+                true, EggIncognito.Services.Feed.FeedDispatcher.BuildPageUrl(null, "android", "1"),
+                sub.MessageTemplate);
+
         var http = httpFactory.CreateClient("discord-api");
         var res = await http.PostAsync(sub.TargetUrl,
-            new StringContent("""{"content":"EggIncognito proto feed test."}""",
-                System.Text.Encoding.UTF8, "application/json"), ct);
+            new StringContent(body, System.Text.Encoding.UTF8, "application/json"), ct);
         if (!res.IsSuccessStatusCode)
             return BadRequest(new { error = "webhook rejected the test message" });
         return Ok(new { tested = true });
     }
 
-    public sealed record UpdateReq(string[]? Platforms, string? Trigger, bool? Active);
+    public sealed record UpdateReq(string[]? Platforms, string? Trigger, bool? Active, string? MessageTemplate);
 
     // Owner-gated edit of a subscription's platforms / trigger / active state (not the webhook URL). Mirrors
     // Delete's owner scoping. 404 when the subscription is not the caller's.
@@ -122,7 +133,8 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             id, owner,
             req.Platforms ?? ["android", "ios"],
             req.Trigger ?? "proto_changed",
-            req.Active ?? true, ct);
+            req.Active ?? true,
+            req.MessageTemplate, ct);
         if (!ok) return NotFound(new { error = "subscription not found" });
         return Ok(new { updated = true });
     }

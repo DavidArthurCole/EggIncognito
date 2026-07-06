@@ -135,13 +135,21 @@ public class ProxyFrontDoorTests
         public async Task UnknownDestAddr_ConnectionClosed()
         {
             await using var door = (await NewDoorAsync(addrToUser: _ => Task.FromResult<string?>(null))).Door;
-            using var client = new TcpClient();
+            using var client = new TcpClient(AddressFamily.InterNetworkV6);
             await client.ConnectAsync(IPAddress.IPv6Loopback, door.Port);
             var s = client.GetStream();
             await s.WriteAsync("CONNECT www.auxbrain.com:443 HTTP/1.1\r\n\r\n"u8.ToArray());
             var buf = new byte[16];
-            var n = await s.ReadAsync(buf);
-            Assert.Equal(0, n);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            // The server closes immediately with no bytes written. Depending on OS/timing that surfaces
+            // either as a clean EOF (n == 0) or as a reset on the read (the FIN and our write race), so
+            // both outcomes assert "no bytes, no response" rather than only the EOF case.
+            try
+            {
+                var n = await s.ReadAsync(buf, cts.Token);
+                Assert.Equal(0, n);
+            }
+            catch (IOException) { /* connection reset before any bytes: also a valid "closed" outcome */ }
         }
 
         // The VPS relay path is dual-stack: an iOS device resolving the AAAA record reaches the front

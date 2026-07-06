@@ -1,0 +1,27 @@
+@* Modal wrapper around ProtoSubscribePanel. The trigger lives wherever the caller places <ProtoSubscribeModal />;
+   Open()/Close() are exposed for the caller's button via @ref. *@
+@rendermode @(RenderMode.InteractiveServer)
+
+@if (_open)
+{
+  <div class="modal-backdrop" @onclick="Close">
+    <div class="modal-card" @onclick:stopPropagation="true">
+      <div class="modal-head">
+        <h3 class="modal-title">Notifications</h3>
+        <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
+          <Icon Name="x" />
+        </button>
+      </div>
+      <div class="modal-body">
+        <ProtoSubscribePanel />
+      </div>
+    </div>
+  </div>
+}
+
+@code {
+    bool _open;
+
+    public void Open() { _open = true; StateHasChanged(); }
+    public void Close() { _open = false; StateHasChanged(); }
+}

@@ -67,6 +67,18 @@ else
       </fieldset>
     </div>
 
+    <label class="sub-field">
+      <span class="sub-field-label">Custom message (optional)</span>
+      <textarea class="field-input w-full font-mono text-xs" rows="3"
+                placeholder="New build {{appVersion}} ({{build}}) is up on {{platform}}!"
+                @bind="_messageTemplate" @bind:event="oninput"></textarea>
+      <span class="text-muted text-xs">Leave blank for the default embed. Variables:
+        <span class="code-chip">{{platform}}</span> <span class="code-chip">{{appVersion}}</span>
+        <span class="code-chip">{{build}}</span> <span class="code-chip">{{clientVersion}}</span>
+        <span class="code-chip">{{protoSha}}</span> <span class="code-chip">{{protoChanged}}</span>
+        <span class="code-chip">{{pageUrl}}</span></span>
+    </label>
+
     <div class="flex items-center gap-3">
       <button type="button" class="btn-primary" disabled="@_busy" @onclick="Submit">
         @(_busy ? "Sending test..." : "Subscribe")
@@ -116,6 +128,9 @@ else
                 <option value="proto_changed">proto changed</option>
                 <option value="new_version">any new version</option>
               </select>
+              <textarea class="field-input w-full font-mono text-xs mt-2" rows="3"
+                        placeholder="Custom message (blank = default embed)"
+                        @bind="_editMessageTemplate" @bind:event="oninput"></textarea>
               <div class="sub-item-actions">
                 <button type="button" class="btn-mini" disabled="@_saving" @onclick="() => SaveEdit(s.Id)">Save</button>
                 <button type="button" class="btn-mini" disabled="@_saving" @onclick="CancelEdit">Cancel</button>
@@ -150,6 +165,7 @@ else
     bool _android = true;
     bool _ios = true;
     string _trigger = "proto_changed";
+    string _messageTemplate = "";
     bool _busy;
     string? _error;
     Confirmation? _done;
@@ -171,6 +187,7 @@ else
     bool _editIos;
     string _editTrigger = "proto_changed";
     bool _editActive = true;
+    string _editMessageTemplate = "";
     bool _saving;
 
     protected override void OnInitialized()
@@ -208,6 +225,7 @@ else
         _editIos = s.Platforms.Contains("ios");
         _editTrigger = s.Trigger == "new_version" ? "new_version" : "proto_changed";
         _editActive = s.Active;
+        _editMessageTemplate = s.MessageTemplate ?? "";
         _deleted = false;
     }
 
@@ -221,7 +239,11 @@ else
             var platforms = new List<string>();
             if (_editAndroid) platforms.Add("android");
             if (_editIos) platforms.Add("ios");
-            var body = new { platforms = platforms.ToArray(), trigger = _editTrigger, active = _editActive };
+            var body = new
+            {
+                platforms = platforms.ToArray(), trigger = _editTrigger, active = _editActive,
+                messageTemplate = string.IsNullOrWhiteSpace(_editMessageTemplate) ? null : _editMessageTemplate,
+            };
             var res = await Client().PatchAsJsonAsync($"/api/protos/feed/{id}", body, JsonOpts);
             if (res.IsSuccessStatusCode) { _editId = null; await LoadSubs(); }
         }
@@ -272,6 +294,7 @@ else
         _android = true;
         _ios = true;
         _trigger = "proto_changed";
+        _messageTemplate = "";
     }
 
     async Task Submit()
@@ -283,7 +306,11 @@ else
             var platforms = new List<string>();
             if (_android) platforms.Add("android");
             if (_ios) platforms.Add("ios");
-            var body = new { webhookUrl = _url, platforms = platforms.ToArray(), trigger = _trigger, label = (string?)null };
+            var body = new
+            {
+                webhookUrl = _url, platforms = platforms.ToArray(), trigger = _trigger, label = (string?)null,
+                messageTemplate = string.IsNullOrWhiteSpace(_messageTemplate) ? null : _messageTemplate,
+            };
             var res = await Client().PostAsJsonAsync("/api/protos/feed", body, JsonOpts);
             if (res.IsSuccessStatusCode)
             {
@@ -306,5 +333,6 @@ else
     record Confirmation(string Platforms, string Trigger);
     record ErrorBody(string? Error);
     record Sub(int Id, string? Label, string[] Platforms, string Trigger, bool Active,
-        DateTimeOffset CreatedAt, DateTimeOffset? LastDeliveryAt, int FailCount, string UrlMasked);
+        DateTimeOffset CreatedAt, DateTimeOffset? LastDeliveryAt, int FailCount, string? MessageTemplate,
+        string UrlMasked);
 }
