@@ -1,5 +1,10 @@
+# syntax=docker/dockerfile:1
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+# NuGet package cache persists across builds via BuildKit cache mount (id keyed so it doesn't
+# collide with other images on the same runner). Without this every build re-downloads the
+# full package set from scratch, even with GHA layer caching.
+ENV NUGET_PACKAGES=/root/.nuget/packages
 
 # Copy csprojs first so the restore layer caches independently of source.
 # nuget.config defines the GitHub Packages source for SyncKit.Contract (consumed by the Bot).
@@ -15,6 +20,7 @@ COPY EggIncognito/EggIncognito.csproj EggIncognito/
 # authenticated. CI passes it as the github_token build secret; locally:
 #   docker build --secret id=github_token,env=GITHUB_PACKAGES_PAT ...
 RUN --mount=type=secret,id=github_token \
+    --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
     dotnet nuget update source github \
       --username DavidArthurCole \
       --password "$(cat /run/secrets/github_token)" \
@@ -59,7 +65,8 @@ RUN set -eux; \
 # Publish WITH restore: --no-restore against the csproj-only restore leaves the static-web-assets
 # manifest stale and drops wwwroot/_framework (blazor.web.js). Re-restore is cheap (cached above).
 # EmitTypes=false skips typedef regen. BuildTailwindCss=false skips the hook (sheet compiled above).
-RUN dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
+RUN --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
+    dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
         -p:EmitTypes=false -p:BuildTailwindCss=false; \
     test -s /app/publish/wwwroot/tailwind.css; \
     test -s /app/publish/wwwroot/_framework/blazor.web.js

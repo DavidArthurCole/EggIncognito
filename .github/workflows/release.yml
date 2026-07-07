@@ -10,9 +10,15 @@ permissions:
 
 jobs:
   # Self-contained, single-file builds of the EggIncognito app per runtime, with the Endpoints/
-  # response set bundled alongside the executable.
+  # response set bundled alongside the executable. One job per RID (matrix) instead of a
+  # sequential loop, so all four publish in parallel.
   binaries:
+    name: Binary (${{ matrix.rid }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [linux-x64, linux-arm64, osx-arm64, win-x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -26,40 +32,36 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: ${{ runner.os }}-nuget-
 
-      - name: Build self-contained binaries
+      - name: Build self-contained binary
         run: |
           TAG="${GITHUB_REF_NAME}"
-          for rid in linux-x64 linux-arm64 osx-arm64 win-x64; do
-            OUT="publish-${rid}"
-            dotnet publish EggIncognito/EggIncognito.csproj \
-              --configuration Release \
-              --runtime "$rid" \
-              --self-contained true \
-              -p:PublishSingleFile=true \
-              -p:NoBrowser=true \
-              -p:EmitTypes=false \
-              --output "$OUT"
-            # Bundle the endpoint response set next to the executable (the app reads ./Endpoints,
-            # overridable with EndpointsPath).
-            cp -r EggIncognito/Endpoints "$OUT/Endpoints"
-            ARCHIVE="eggincognito-${TAG}-${rid}.tar.gz"
-            [[ "$rid" == win-* ]] && ARCHIVE="eggincognito-${TAG}-${rid}.zip"
-            if [[ "$rid" == win-* ]]; then
-              (cd "$OUT" && zip -r "../$ARCHIVE" .)
-            else
-              tar -czf "$ARCHIVE" -C "$OUT" .
-            fi
-            rm -rf "$OUT"
-          done
+          RID="${{ matrix.rid }}"
+          OUT="publish-${RID}"
+          dotnet publish EggIncognito/EggIncognito.csproj \
+            --configuration Release \
+            --runtime "$RID" \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:NoBrowser=true \
+            -p:EmitTypes=false \
+            --output "$OUT"
+          # Bundle the endpoint response set next to the executable (the app reads ./Endpoints,
+          # overridable with EndpointsPath).
+          cp -r EggIncognito/Endpoints "$OUT/Endpoints"
+          ARCHIVE="eggincognito-${TAG}-${RID}.tar.gz"
+          [[ "$RID" == win-* ]] && ARCHIVE="eggincognito-${TAG}-${RID}.zip"
+          if [[ "$RID" == win-* ]]; then
+            (cd "$OUT" && zip -r "../$ARCHIVE" .)
+          else
+            tar -czf "$ARCHIVE" -C "$OUT" .
+          fi
+          rm -rf "$OUT"
 
-      - name: Attach binaries to release
+      - name: Attach binary to release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: |
-            eggincognito-*-linux-*.tar.gz
-            eggincognito-*-osx-*.tar.gz
-            eggincognito-*-win-*.zip
+          files: eggincognito-*-${{ matrix.rid }}.*
 
   # Publish the container image to GHCR, tagged with the release tag and `latest`.
   docker:
