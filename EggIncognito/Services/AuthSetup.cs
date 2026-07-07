@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using AspNet.Security.OAuth.Discord;
 using EggIncognito.Data.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Http;
@@ -14,6 +15,24 @@ namespace EggIncognito.Services;
 // When false the app runs fully anonymous: login 404s, /api/app/mode reports authEnabled:false.
 public static class AuthSetup
 {
+    // Shared by both cookie registrations below. Only Authentik-originated tickets carry a sid claim
+    // (stamped in OnTicketReceived), so a Discord-only session has nothing to look up and is a no-op
+    // here; this is what makes back-channel logout (SessionRevocationStore) take effect immediately
+    // instead of waiting for the 30-day cookie to expire on its own.
+    private static async Task ValidateNotRevoked(CookieValidatePrincipalContext ctx)
+    {
+        var sid = ctx.Principal?.FindFirstValue("sid");
+        if (string.IsNullOrEmpty(sid)) return;
+        var store = ctx.HttpContext.RequestServices.GetService<SessionRevocationStore>();
+        if (store is null) return;
+        if (await store.IsRevokedAsync(sid, ctx.HttpContext.RequestAborted))
+        {
+            ctx.RejectPrincipal();
+            await ctx.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
+    }
+
+
     public static bool AddDiscordAuthIfConfigured(this WebApplicationBuilder builder, bool dbEnabled)
     {
         var clientId = builder.Configuration["Discord:ClientId"];
@@ -36,6 +55,7 @@ public static class AuthSetup
                 o.Cookie.HttpOnly = true;
                 o.Cookie.SameSite = SameSiteMode.Lax;
                 o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                o.Events.OnValidatePrincipal = ValidateNotRevoked;
             })
             .AddDiscord(o =>
             {
@@ -106,6 +126,7 @@ public static class AuthSetup
                 o.Cookie.HttpOnly = true;
                 o.Cookie.SameSite = SameSiteMode.Lax;
                 o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                o.Events.OnValidatePrincipal = ValidateNotRevoked;
             });
         }
         authBuilder.AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, o =>
@@ -133,7 +154,9 @@ public static class AuthSetup
             o.Scope.Add("profile");
             o.Scope.Add("email");
             o.Scope.Add("discord_id");
-            o.SaveTokens = false;
+            // Needed so /logout can pass id_token_hint to Authentik's RP-initiated end-session
+            // endpoint; without it Authentik leaves the IdP-side session alive after a local logout.
+            o.SaveTokens = true;
             o.GetClaimsFromUserInfoEndpoint = true;
             o.Events.OnTicketReceived = async ctx =>
             {
@@ -171,6 +194,11 @@ public static class AuthSetup
                 var identity = (ClaimsIdentity)principal.Identity!;
                 identity.AddClaim(new Claim(AuthClaims.UserIdClaim, userId.ToString()));
                 UserUpsert.StampRoleClaim(identity, user.Role);
+                // sid identifies this OIDC session; carried into the app cookie so a later Authentik
+                // back-channel logout (which only knows the sid, not our cookie) can be matched to it.
+                var sid = principal.FindFirstValue("sid");
+                if (!string.IsNullOrEmpty(sid))
+                    identity.AddClaim(new Claim("sid", sid));
                 if (!string.IsNullOrEmpty(discordId))
                 {
                     var existingNameId = identity.FindFirst(ClaimTypes.NameIdentifier);

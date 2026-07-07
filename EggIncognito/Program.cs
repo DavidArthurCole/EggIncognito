@@ -194,8 +194,22 @@ if (dbEnabled)
 // middleware ran, so those consumers construct in both modes.
 var discordAuthEnabled = builder.AddDiscordAuthIfConfigured(dbEnabled);
 if (dbEnabled)
+{
     builder.Services.AddScoped<EggIncognito.Data.Services.AuthentikIdentityResolver>();
+    builder.Services.AddScoped<EggIncognito.Data.Services.SessionRevocationStore>();
+}
 var authentikAuthEnabled = builder.AddAuthentikAuthIfConfigured(dbEnabled);
+if (authentikAuthEnabled)
+{
+    // Backs AuthController.BackchannelLogout's logout_token signature check: fetches + caches
+    // Authentik's discovery doc/JWKS independently of the OIDC handler's own internal manager (that
+    // one isn't exposed as a DI service), refreshing on its own schedule if Authentik rotates keys.
+    var authority = builder.Configuration["Authentik:Authority"]!;
+    builder.Services.AddSingleton(new Microsoft.IdentityModel.Protocols.ConfigurationManager<
+        Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfiguration>(
+        $"{authority.TrimEnd('/')}/.well-known/openid-configuration",
+        new Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfigurationRetriever()));
+}
 var authEnabled = discordAuthEnabled || authentikAuthEnabled;
 builder.Services.AddSingleton(new AuthState(discordAuthEnabled, authentikAuthEnabled));
 builder.Services.AddHttpContextAccessor();
