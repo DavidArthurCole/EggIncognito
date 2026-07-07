@@ -133,6 +133,7 @@ public class ProtosPageTests
     private sealed class FakeUser(UserRole role) : ICurrentUser
     {
         public bool IsAuthenticated => role != UserRole.Viewer;
+        public Guid? UserId => null;
         public string? DiscordId => IsAuthenticated ? "fake" : null;
         public string? Username => IsAuthenticated ? "fake" : null;
         public string? Avatar => null;

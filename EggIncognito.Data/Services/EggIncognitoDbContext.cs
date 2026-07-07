@@ -11,6 +11,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<StoredEndpoint> StoredEndpoints => Set<StoredEndpoint>();
     public DbSet<StoredRoute> StoredRoutes => Set<StoredRoute>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<Identity> Identities => Set<Identity>();
     public DbSet<Doc> Docs => Set<Doc>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<SubjectTag> SubjectTags => Set<SubjectTag>();
@@ -52,6 +53,13 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         {
             u.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
             u.Property(x => x.Role).HasDefaultValue("viewer");
+            u.HasIndex(x => x.DiscordId).IsUnique().HasFilter("discord_id IS NOT NULL");
+        });
+        b.Entity<Identity>(i =>
+        {
+            i.HasKey(x => new { x.Provider, x.Subject });
+            i.HasIndex(x => x.UserId);
+            i.Property(x => x.LinkedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
         b.Entity<Doc>(d =>
         {

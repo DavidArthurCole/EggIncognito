@@ -187,11 +187,17 @@ if (dbEnabled)
         new EggIncognito.Data.Services.ScopedDbRouteProvider(sp.GetRequiredService<IServiceScopeFactory>()));
 }
 
-// Discord auth wires only when a DB + Discord creds are present. AuthState records the result so the
-// always-present AuthController + mode endpoint can branch. CurrentUser is always registered and
-// reports anonymous when no auth middleware ran, so those consumers construct in both modes.
-var authEnabled = builder.AddDiscordAuthIfConfigured(dbEnabled);
-builder.Services.AddSingleton(new AuthState(authEnabled));
+// Discord auth wires only when a DB + Discord creds are present. Authentik wires as a second,
+// additive OIDC scheme when its own config keys are present; either can run standalone or both
+// together. AuthState records whether either wired so the always-present AuthController + mode
+// endpoint can branch. CurrentUser is always registered and reports anonymous when no auth
+// middleware ran, so those consumers construct in both modes.
+var discordAuthEnabled = builder.AddDiscordAuthIfConfigured(dbEnabled);
+if (dbEnabled)
+    builder.Services.AddScoped<EggIncognito.Data.Services.AuthentikIdentityResolver>();
+var authentikAuthEnabled = builder.AddAuthentikAuthIfConfigured(dbEnabled);
+var authEnabled = discordAuthEnabled || authentikAuthEnabled;
+builder.Services.AddSingleton(new AuthState(discordAuthEnabled, authentikAuthEnabled));
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<EggIncognito.Services.Metrics.ApiMetrics>();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();

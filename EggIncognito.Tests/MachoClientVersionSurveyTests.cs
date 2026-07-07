@@ -8,7 +8,8 @@ namespace EggIncognito.Tests;
 // historical iOS binary. Skips cleanly when the machine-local binary tree is absent.
 public class MachoClientVersionSurveyTests(ITestOutputHelper output)
 {
-    private const string Root = @"C:\Users\david\egginc-ios-extract\historical";
+    private static readonly string Root =
+        Environment.GetEnvironmentVariable("EGGINC_IOS_HISTORICAL_ROOT") ?? @"C:\Users\david\egginc-ios-extract\historical";
 
     // app version (major.minor.patch) -> known/assumed clientVersion anchor for that era, used to test
     // whether prev-anchoring picks a self-consistent monotonic value. Android oracle: ~1.35.x = 72.

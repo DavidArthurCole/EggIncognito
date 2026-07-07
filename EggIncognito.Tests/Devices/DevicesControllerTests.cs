@@ -13,6 +13,7 @@ public class DevicesControllerTests
     sealed class FakeUser(UserRole role) : ICurrentUser
     {
         public bool IsAuthenticated => true;
+        public Guid? UserId => null;
         public string? DiscordId => "123";
         public string? Username => "tester";
         public string? Avatar => null;

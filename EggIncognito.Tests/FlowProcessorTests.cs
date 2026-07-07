@@ -24,14 +24,7 @@ needs_capture:
   request_unknown:
 """;
 
-    private static string MakeRepo()
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"ei-flowproc-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
-        File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
-        File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), Yaml);
-        return root;
-    }
+    private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-flowproc");
 
     private static string WrappedResponseB64()
     {

@@ -4,14 +4,7 @@ namespace EggIncognito.Tests;
 
 public class RoutesYamlEditorTests
 {
-    // Writes a temp routes.yaml under a fake repo root and returns the root.
-    private static string MakeRepo(string yaml)
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"ei-edit-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
-        File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), yaml);
-        return root;
-    }
+    private static string MakeRepo(string yaml) => TestRepoFixture.MakeRepo(yaml, "ei-edit", withSlnxMarker: false);
 
     private static string Read(string root) =>
         File.ReadAllText(Path.Combine(root, "RouteMap", "routes.yaml"));

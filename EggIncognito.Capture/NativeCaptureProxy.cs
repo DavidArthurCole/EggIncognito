@@ -88,11 +88,10 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var token = _cts.Token;
 
-        // The proxy listens on loopback at port+1; the LanForwarder bridges the LAN-facing `port` to it,
-        // mirroring the old topology (and giving us the real device IP at the forwarder edge). When the
-        // forwarder is disabled (hosted front-door path) we bind the given port directly on loopback,
-        // because the front door tunnels to base+1 itself.
-        var bindPort = LanForwarderEnabled ? port + 1 : port + 1;
+        // The proxy always listens on loopback at port+1, forwarder or not: LanForwarder bridges the
+        // LAN-facing `port` to it when enabled, and the hosted front door (ProxyFrontDoor.TunnelAsync)
+        // dials session.Port + 1 directly when it's not.
+        var bindPort = port + 1;
         _listener = new TcpListener(IPAddress.Loopback, bindPort);
         _listener.Start();
         _acceptLoop = AcceptLoopAsync(token);

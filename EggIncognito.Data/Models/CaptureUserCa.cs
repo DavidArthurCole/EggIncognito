@@ -12,6 +12,9 @@ public class CaptureUserCa
     [Column("discord_id")]
     public string DiscordId { get; set; } = "";
 
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
     [Column("pfx")]
     public byte[] Pfx { get; set; } = [];
 

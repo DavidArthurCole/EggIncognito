@@ -34,4 +34,22 @@ public class CurrentUserTests
         Assert.Equal("alice", u.Username);
         Assert.Equal("abc", u.Avatar);
     }
+
+    [Fact]
+    public void Authenticated_ExposesUserId()
+    {
+        var guid = Guid.NewGuid();
+        var id = new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(EggIncognito.Data.Services.AuthClaims.UserIdClaim, guid.ToString())], "Discord");
+        var u = Make(new ClaimsPrincipal(id));
+        Assert.Equal(guid, u.UserId);
+    }
+
+    [Fact]
+    public void Authenticated_NoUserIdClaim_UserIdIsNull()
+    {
+        var id = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "123")], "Discord");
+        var u = Make(new ClaimsPrincipal(id));
+        Assert.Null(u.UserId);
+    }
 }

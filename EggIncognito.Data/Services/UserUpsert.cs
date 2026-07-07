@@ -65,6 +65,10 @@ public static class UserUpsert
     public static void StampRoleClaim(ClaimsIdentity? identity, string role)
         => identity?.AddClaim(new Claim(UserRoles.ClaimType, role));
 
+    // Bake the provider-neutral user_id into the issued cookie so CurrentUser.UserId needs no DB hit.
+    public static void StampUserIdClaim(ClaimsIdentity? identity, Guid userId)
+        => identity?.AddClaim(new Claim(AuthClaims.UserIdClaim, userId.ToString()));
+
     public static async Task OnLoginAsync(OAuthCreatingTicketContext ctx)
     {
         var info = Extract(ctx.Principal!);
@@ -76,9 +80,21 @@ public static class UserUpsert
 
         var existing = await db.Users.FirstOrDefaultAsync(u => u.DiscordId == info.DiscordId);
         var (row, isNew) = Upsert(existing, info, allow, DateTimeOffset.UtcNow);
-        if (isNew) db.Users.Add(row);
+        if (isNew)
+        {
+            row.UserId = Guid.NewGuid();
+            db.Users.Add(row);
+        }
         await db.SaveChangesAsync();
 
+        var hasIdentity = await db.Identities.AnyAsync(i => i.Provider == "discord" && i.Subject == info.DiscordId);
+        if (!hasIdentity)
+        {
+            db.Identities.Add(new Identity { UserId = row.UserId, Provider = "discord", Subject = info.DiscordId });
+            await db.SaveChangesAsync();
+        }
+
         StampRoleClaim(ctx.Identity as ClaimsIdentity, row.Role);
+        StampUserIdClaim(ctx.Identity as ClaimsIdentity, row.UserId);
     }
 }

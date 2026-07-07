@@ -11,7 +11,7 @@ public static class Program
         var secret = Environment.GetEnvironmentVariable("RELAY_AGENT_SECRET") ?? "";
         var listen = Environment.GetEnvironmentVariable("RELAY_AGENT_LISTEN") ?? "http://[fd00:8::1]:7779";
         var iface = Environment.GetEnvironmentVariable("RELAY_IFACE") ?? "eth0";
-        var prefix = Environment.GetEnvironmentVariable("RELAY_PREFIX") ?? "2a01:4f8:c012:e15b::/64";
+        var prefix = Environment.GetEnvironmentVariable("RELAY_PREFIX") ?? "2001:db8::/64";
 
         var builder = WebApplication.CreateBuilder(args);
         builder.WebHost.UseUrls(listen);
@@ -19,6 +19,7 @@ public static class Program
 
         bool Authed(HttpRequest r)
         {
+            if (string.IsNullOrEmpty(secret)) return false;
             var h = r.Headers.Authorization.ToString();
             const string p = "Bearer ";
             if (!h.StartsWith(p)) return false;
@@ -37,8 +38,12 @@ public static class Program
                 var psi = new ProcessStartInfo(c.File) { RedirectStandardError = true, RedirectStandardOutput = true };
                 foreach (var a in c.Args) psi.ArgumentList.Add(a);
                 using var proc = Process.Start(psi)!;
-                tail.Append(await proc.StandardError.ReadToEndAsync());
+                var stdout = proc.StandardOutput.ReadToEndAsync();
+                var stderr = proc.StandardError.ReadToEndAsync();
                 await proc.WaitForExitAsync();
+                tail.Append(await stdout);
+                tail.Append(await stderr);
+                if (proc.ExitCode != 0) return Results.Problem(tail.ToString(), statusCode: 500);
             }
             return Results.Ok(new { ok = true, tail = tail.ToString() });
         });

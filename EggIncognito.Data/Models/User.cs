@@ -3,14 +3,17 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A Discord-authenticated user. discord_id, the OAuth NameIdentifier, is the PK; role gates shared-DB
-// writes.
+// A user account. user_id is the provider-neutral PK; discord_id is nullable so an
+// Authentik-only signup with no linked Discord account works. role gates shared-DB writes.
 [Table("users")]
 public class User
 {
     [Key]
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
     [Column("discord_id")]
-    public string DiscordId { get; set; } = "";
+    public string? DiscordId { get; set; }
 
     [Column("username")]
     public string Username { get; set; } = "";

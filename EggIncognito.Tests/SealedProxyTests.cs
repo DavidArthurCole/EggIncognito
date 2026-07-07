@@ -11,6 +11,7 @@ public class SealedProxyTests
     private sealed class FakeUser(bool authed, bool supporter, string? id = "tester") : ICurrentUser
     {
         public bool IsAuthenticated => authed;
+        public Guid? UserId => null;
         public string? DiscordId => authed ? id : null;
         public string? Username => authed ? "tester" : null;
         public string? Avatar => null;

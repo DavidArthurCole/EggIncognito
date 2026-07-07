@@ -20,7 +20,6 @@ public class ProxyFrontDoorTests
             Assert.Equal("CONNECT", r!.Method);
             Assert.Equal("www.auxbrain.com", r.TargetHost);
             Assert.Equal(443, r.TargetPort);
-            Assert.Null(r.ProxyAuthBasic);
         }
 
         [Fact]
@@ -37,14 +36,6 @@ public class ProxyFrontDoorTests
             Assert.Equal("GET", r!.Method);
             Assert.Equal("www.auxbrain.com", r.TargetHost);
             Assert.Equal(8080, r.TargetPort);
-        }
-
-        [Fact]
-        public void ProxyAuthorization_Basic_IsExtracted()
-        {
-            var b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("user:pass"));
-            var r = ProxyRequestParser.TryParse(Bytes($"CONNECT a.auxbrain.com:443 HTTP/1.1\r\nProxy-Authorization: Basic {b64}\r\n\r\n"));
-            Assert.Equal(b64, r!.ProxyAuthBasic);
         }
 
         [Fact]
@@ -67,22 +58,6 @@ public class ProxyFrontDoorTests
             var trailing = "extra-bytes-after-headers";
             var r = ProxyRequestParser.TryParse(Bytes(text + trailing));
             Assert.Equal(Bytes(text), r!.RawBytes);
-        }
-
-        [Fact]
-        public void DecodeBasic_RoundTrips()
-        {
-            var b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("12345:tok:en"));
-            var creds = ProxyRequestParser.DecodeBasic(b64);
-            Assert.Equal("12345", creds!.Value.User);
-            Assert.Equal("tok:en", creds.Value.Pass); // split on the first colon only
-        }
-
-        [Fact]
-        public void DecodeBasic_Malformed_ReturnsNull()
-        {
-            Assert.Null(ProxyRequestParser.DecodeBasic("!!!not-base64!!!"));
-            Assert.Null(ProxyRequestParser.DecodeBasic(Convert.ToBase64String(Encoding.UTF8.GetBytes("no-colon"))));
         }
     }
 

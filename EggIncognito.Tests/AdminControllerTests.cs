@@ -11,6 +11,7 @@ public class AdminControllerTests
     private sealed class FakeUser(UserRole role, string id = "me") : ICurrentUser
     {
         public bool IsAuthenticated => true;
+        public Guid? UserId => null;
         public string? DiscordId => id;
         public string? Username => "u";
         public string? Avatar => null;

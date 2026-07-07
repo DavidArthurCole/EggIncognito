@@ -27,15 +27,7 @@ needs_capture:
   request_unknown:
 """;
 
-    private static string MakeRepo()
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"ei-extract-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
-        // A .slnx marker so any repo-root walk lands here.
-        File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
-        File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), Yaml);
-        return root;
-    }
+    private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-extract");
 
     // Base64 of an AuthenticatedMessage wrapping an inner PeriodicalsResponse - exactly the wire
     // framing the real API returns and both extraction paths decode.

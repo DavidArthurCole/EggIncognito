@@ -161,14 +161,7 @@ routes:
     rawResponse: "SUCCESS"
 """;
 
-    private static string MakeRepo()
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"ei-dash-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
-        File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
-        File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), Yaml);
-        return root;
-    }
+    private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-dash");
 
     private static string WrappedResponseB64()
     {

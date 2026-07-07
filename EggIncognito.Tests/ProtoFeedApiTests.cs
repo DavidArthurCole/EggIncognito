@@ -75,6 +75,7 @@ public class ProtoFeedApiTests
     private sealed class StubUser(string? discordId) : EggIncognito.Services.ICurrentUser
     {
         public bool IsAuthenticated => discordId is not null;
+        public Guid? UserId => null;
         public string? DiscordId => discordId;
         public string? Username => null;
         public string? Avatar => null;

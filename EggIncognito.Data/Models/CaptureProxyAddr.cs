@@ -11,6 +11,9 @@ public class CaptureProxyAddr
     [Column("discord_id")]
     public string DiscordId { get; set; } = "";
 
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
     [Column("addr")]
     public string Addr { get; set; } = "";
 

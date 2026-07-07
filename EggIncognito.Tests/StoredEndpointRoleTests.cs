@@ -11,6 +11,7 @@ public class StoredEndpointRoleTests
     private sealed class FakeUser(UserRole role) : ICurrentUser
     {
         public bool IsAuthenticated => true;
+        public Guid? UserId => null;
         public string? DiscordId => "tester";
         public string? Username => "tester";
         public string? Avatar => null;

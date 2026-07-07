@@ -96,4 +96,19 @@ public class UserUpsertTests
     {
         UserUpsert.StampRoleClaim(null, "viewer");
     }
+
+    [Fact]
+    public void StampUserIdClaim_AddsUserIdClaim()
+    {
+        var identity = new ClaimsIdentity();
+        var guid = Guid.NewGuid();
+        UserUpsert.StampUserIdClaim(identity, guid);
+        Assert.Equal(guid.ToString(), identity.FindFirst(EggIncognito.Data.Services.AuthClaims.UserIdClaim)?.Value);
+    }
+
+    [Fact]
+    public void StampUserIdClaim_NullIdentity_NoThrow()
+    {
+        UserUpsert.StampUserIdClaim(null, Guid.NewGuid());
+    }
 }

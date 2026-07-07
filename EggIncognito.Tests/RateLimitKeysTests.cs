@@ -152,6 +152,7 @@ public class RateLimitKeysTests
     private sealed class FakeUser(bool authenticated, string? id, UserRole role, bool supporter = false) : ICurrentUser
     {
         public bool IsAuthenticated => authenticated;
+        public Guid? UserId => null;
         public string? DiscordId => id;
         public string? Username => null;
         public string? Avatar => null;

@@ -13,6 +13,7 @@ public class BackfillApiTests
     private sealed class FakeUser(UserRole role) : ICurrentUser
     {
         public bool IsAuthenticated => true;
+        public Guid? UserId => null;
         public string? DiscordId => "me";
         public string? Username => "u";
         public string? Avatar => null;

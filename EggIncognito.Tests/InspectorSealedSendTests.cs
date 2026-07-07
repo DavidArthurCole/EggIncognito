@@ -22,6 +22,7 @@ public class InspectorSealedSendTests
     private sealed class FakeUser(bool authed, bool supporter) : ICurrentUser
     {
         public bool IsAuthenticated => authed;
+        public Guid? UserId => null;
         public string? DiscordId => authed ? "tester" : null;
         public string? Username => authed ? "tester" : null;
         public string? Avatar => null;

@@ -25,3 +25,5 @@ tools/tailwind/tailwindcss*
 # Game assets are never committed; pulled from a device + cached at runtime.
 *.rpo
 *.rpoz
+
+.worktrees/

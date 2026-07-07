@@ -71,8 +71,6 @@ public static class EnvCatalog
         new EnvPiece("ei_mission_control_1", "Mission control (1)", "Buildings", Singleton: true, Family: "mission"),
         new EnvPiece("ei_mission_control_2", "Mission control (2)", "Buildings", Singleton: true, Family: "mission"),
         new EnvPiece("ei_mission_control_3", "Mission control (3)", "Buildings", Singleton: true, Family: "mission"),
-        // The artifact hall (HOA = Hall Of Artifacts): the construction site (in progress) plus the 3 completed
-        // tiers. All share the "hoa" family so the variation dropdown swaps construction <-> completed tiers.
         new EnvPiece("ei_hoa_1", "Artifact hall (1)", "Buildings", Singleton: true, Family: "hoa"),
         new EnvPiece("ei_hoa_2", "Artifact hall (2)", "Buildings", Singleton: true, Family: "hoa"),
         new EnvPiece("ei_hoa_3", "Artifact hall (3)", "Buildings", Singleton: true, Family: "hoa"),

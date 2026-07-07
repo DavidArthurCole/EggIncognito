@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace EggIncognito.Runner.State;
 
 // VersionState persists the last-seen game version so the loop is restart-safe.

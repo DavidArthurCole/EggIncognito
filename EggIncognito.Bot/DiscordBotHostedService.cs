@@ -102,7 +102,7 @@ public sealed class DiscordBotHostedService(
             var desired = CommandSignature.Compute(commands.Select(CommandSignature.FromProperties));
 
             // Skip the rate-limited bulk overwrite when Discord already holds this exact catalog.
-            if (await GlobalCommandsMatchAsync(client, desired))
+            if (await CommandsMatchAsync(() => client.GetGlobalApplicationCommandsAsync(), desired, "global"))
                 logger.LogInformation("bot: global commands unchanged - skipping overwrite");
             else
                 await client.BulkOverwriteGlobalApplicationCommandsAsync(commands);
@@ -118,16 +118,17 @@ public sealed class DiscordBotHostedService(
     }
 
     // Best-effort comparison: any fetch failure logs + returns false, falling back to the overwrite.
-    private async Task<bool> GlobalCommandsMatchAsync(DiscordSocketClient client, string desired)
+    private async Task<bool> CommandsMatchAsync<T>(Func<Task<IReadOnlyCollection<T>>> fetch, string desired, string context)
+        where T : IApplicationCommand
     {
         try
         {
-            var existing = await client.GetGlobalApplicationCommandsAsync();
+            var existing = await fetch();
             return CommandSignature.Compute(existing.Select(c => CommandSignature.FromCommand(c))) == desired;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "bot: could not fetch global commands - overwriting");
+            logger.LogWarning(ex, "bot: could not fetch {Context} commands - overwriting", context);
             return false;
         }
     }
@@ -142,7 +143,7 @@ public sealed class DiscordBotHostedService(
         if (guild is null) return;
         if (options.RegisterGuildCommands)
         {
-            if (!await GuildCommandsMatchAsync(guild, desired))
+            if (!await CommandsMatchAsync(() => guild.GetApplicationCommandsAsync(), desired, "guild"))
                 await guild.BulkOverwriteApplicationCommandsAsync(commands);
             return;
         }
@@ -156,20 +157,6 @@ public sealed class DiscordBotHostedService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "bot: guild command purge failed");
-        }
-    }
-
-    private async Task<bool> GuildCommandsMatchAsync(IGuild guild, string desired)
-    {
-        try
-        {
-            var existing = await guild.GetApplicationCommandsAsync();
-            return CommandSignature.Compute(existing.Select(c => CommandSignature.FromCommand(c))) == desired;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "bot: could not fetch guild commands - overwriting");
-            return false;
         }
     }
 
