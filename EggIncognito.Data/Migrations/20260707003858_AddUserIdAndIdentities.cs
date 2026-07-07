@@ -11,147 +11,86 @@ namespace EggIncognito.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // `users` and `identities` are shared with EggLedger on the same Postgres instance.
+            // EggLedger's own migration (8_identities.up.sql) does this exact repoint with raw,
+            // idempotent SQL; whichever app boots first performs it for real, the other must see
+            // a no-op. Every step below is therefore guarded (IF EXISTS / IF NOT EXISTS) instead
+            // of using EF's DropPrimaryKey/AddColumn helpers, which assume a fixed starting state
+            // and blow up (or duplicate work) if the other app already got there.
             migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS pgcrypto;");
 
-            // Add user_id to users, backfill one UUID per row, before touching the PK.
-            migrationBuilder.AddColumn<Guid>(
-                name: "user_id",
-                table: "users",
-                type: "uuid",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()");
+            migrationBuilder.Sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS user_id UUID NOT NULL DEFAULT gen_random_uuid();");
 
-            // New identities table.
-            migrationBuilder.CreateTable(
-                name: "identities",
-                columns: table => new
-                {
-                    provider = table.Column<string>(type: "text", nullable: false),
-                    subject = table.Column<string>(type: "text", nullable: false),
-                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    linked_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()")
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_identities", x => new { x.provider, x.subject });
-                });
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS identities (
+                    user_id    UUID NOT NULL,
+                    provider   TEXT NOT NULL,
+                    subject    TEXT NOT NULL,
+                    linked_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    PRIMARY KEY (provider, subject)
+                );");
+            migrationBuilder.Sql("CREATE INDEX IF NOT EXISTS ix_identities_user_id ON identities(user_id);");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_identities_user_id",
-                table: "identities",
-                column: "user_id");
+            migrationBuilder.Sql(@"
+                INSERT INTO identities (user_id, provider, subject)
+                SELECT user_id, 'discord', discord_id FROM users
+                WHERE discord_id IS NOT NULL AND discord_id <> ''
+                ON CONFLICT (provider, subject) DO NOTHING;");
 
-            // Backfill identities from existing discord_id rows.
-            migrationBuilder.Sql(
-                "INSERT INTO identities (user_id, provider, subject) " +
-                "SELECT user_id, 'discord', discord_id FROM users WHERE discord_id IS NOT NULL " +
-                "ON CONFLICT (provider, subject) DO NOTHING;");
+            migrationBuilder.Sql("ALTER TABLE capture_proxy_addrs ADD COLUMN IF NOT EXISTS user_id UUID;");
+            migrationBuilder.Sql(@"
+                UPDATE capture_proxy_addrs SET user_id = u.user_id FROM users u
+                WHERE capture_proxy_addrs.discord_id = u.discord_id AND capture_proxy_addrs.user_id IS NULL;");
+            migrationBuilder.Sql("ALTER TABLE capture_proxy_addrs ALTER COLUMN user_id SET NOT NULL;");
 
-            // Add user_id to the two discord_id-keyed tables, backfill by matching discord_id.
-            migrationBuilder.AddColumn<Guid>(
-                name: "user_id",
-                table: "capture_proxy_addrs",
-                type: "uuid",
-                nullable: true);
-            migrationBuilder.Sql(
-                "UPDATE capture_proxy_addrs SET user_id = u.user_id FROM users u " +
-                "WHERE capture_proxy_addrs.discord_id = u.discord_id AND capture_proxy_addrs.user_id IS NULL;");
-            migrationBuilder.AlterColumn<Guid>(
-                name: "user_id",
-                table: "capture_proxy_addrs",
-                type: "uuid",
-                nullable: false,
-                oldClrType: typeof(Guid),
-                oldType: "uuid",
-                oldNullable: true);
+            migrationBuilder.Sql("ALTER TABLE capture_user_cas ADD COLUMN IF NOT EXISTS user_id UUID;");
+            migrationBuilder.Sql(@"
+                UPDATE capture_user_cas SET user_id = u.user_id FROM users u
+                WHERE capture_user_cas.discord_id = u.discord_id AND capture_user_cas.user_id IS NULL;");
+            migrationBuilder.Sql("ALTER TABLE capture_user_cas ALTER COLUMN user_id SET NOT NULL;");
 
-            migrationBuilder.AddColumn<Guid>(
-                name: "user_id",
-                table: "capture_user_cas",
-                type: "uuid",
-                nullable: true);
-            migrationBuilder.Sql(
-                "UPDATE capture_user_cas SET user_id = u.user_id FROM users u " +
-                "WHERE capture_user_cas.discord_id = u.discord_id AND capture_user_cas.user_id IS NULL;");
-            migrationBuilder.AlterColumn<Guid>(
-                name: "user_id",
-                table: "capture_user_cas",
-                type: "uuid",
-                nullable: false,
-                oldClrType: typeof(Guid),
-                oldType: "uuid",
-                oldNullable: true);
+            // EggLedger's sessions/blobs tables FK discord_id -> users(discord_id); Postgres
+            // refuses to drop the old PK while either still references it. Drop defensively:
+            // if EggLedger already repointed them to user_id, these are already gone.
+            migrationBuilder.Sql("ALTER TABLE IF EXISTS sessions DROP CONSTRAINT IF EXISTS sessions_discord_id_fkey;");
+            migrationBuilder.Sql("ALTER TABLE IF EXISTS blobs DROP CONSTRAINT IF EXISTS blobs_discord_id_fkey;");
 
-            // Repoint users' PK to user_id, make discord_id nullable with a partial unique index.
-            migrationBuilder.DropPrimaryKey(
-                name: "PK_users",
-                table: "users");
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint con
+                        JOIN pg_class rel ON rel.oid = con.conrelid
+                        WHERE rel.relname = 'users' AND con.contype = 'p'
+                          AND con.conname IN ('PK_users', 'users_pkey')
+                    ) AND NOT EXISTS (
+                        SELECT 1 FROM pg_constraint con
+                        JOIN pg_class rel ON rel.oid = con.conrelid
+                        JOIN pg_attribute attr ON attr.attrelid = rel.oid AND attr.attnum = ANY(con.conkey)
+                        WHERE rel.relname = 'users' AND con.contype = 'p' AND attr.attname = 'user_id'
+                    ) THEN
+                        EXECUTE (
+                            SELECT format('ALTER TABLE users DROP CONSTRAINT %I', con.conname)
+                            FROM pg_constraint con
+                            JOIN pg_class rel ON rel.oid = con.conrelid
+                            WHERE rel.relname = 'users' AND con.contype = 'p'
+                        );
+                        ALTER TABLE users ADD PRIMARY KEY (user_id);
+                    END IF;
+                END $$;");
 
-            migrationBuilder.AddPrimaryKey(
-                name: "PK_users",
-                table: "users",
-                column: "user_id");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "discord_id",
-                table: "users",
-                type: "text",
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_users_discord_id",
-                table: "users",
-                column: "discord_id",
-                unique: true,
-                filter: "discord_id IS NOT NULL");
+            migrationBuilder.Sql("ALTER TABLE users ALTER COLUMN discord_id DROP NOT NULL;");
+            migrationBuilder.Sql("UPDATE users SET discord_id = NULL WHERE discord_id = '';");
+            migrationBuilder.Sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_discord_id ON users(discord_id) WHERE discord_id IS NOT NULL;");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_users_discord_id",
-                table: "users");
-
-            migrationBuilder.DropPrimaryKey(
-                name: "PK_users",
-                table: "users");
-
-            // Per-row placeholder, not a constant '': two or more Authentik-only users (no
-            // Discord identity) rolling back together would otherwise collide on the same blank
-            // string once discord_id becomes the sole PK again.
-            migrationBuilder.Sql("UPDATE users SET discord_id = 'authentik-only:' || user_id WHERE discord_id IS NULL;");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "discord_id",
-                table: "users",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldNullable: true);
-
-            migrationBuilder.AddPrimaryKey(
-                name: "PK_users",
-                table: "users",
-                column: "discord_id");
-
-            migrationBuilder.DropColumn(
-                name: "user_id",
-                table: "capture_user_cas");
-
-            migrationBuilder.DropColumn(
-                name: "user_id",
-                table: "capture_proxy_addrs");
-
-            migrationBuilder.DropTable(
-                name: "identities");
-
-            migrationBuilder.DropColumn(
-                name: "user_id",
-                table: "users");
+            // No-op: `users`/`identities` are shared with EggLedger, which owns the same repoint
+            // via its own migration and has no down path either. Reversing the PK/FK swap here
+            // would fight whichever app performed it and risk dropping data (sessions/blobs/
+            // el_* rows) that only EggLedger's Down (if any) should ever touch.
         }
     }
 }
