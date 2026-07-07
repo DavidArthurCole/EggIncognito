@@ -33,8 +33,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
         }
         catch
         {
-            // If the log file cannot be opened (permissions, read-only fs), degrade to a
-            // no-op file sink rather than crashing the app. Console + in-memory still work.
+            // Degrade to a no-op file sink rather than crashing the app; console + in-memory still work.
             _writer = null;
         }
         _writerTask = Task.Run(DrainAsync);

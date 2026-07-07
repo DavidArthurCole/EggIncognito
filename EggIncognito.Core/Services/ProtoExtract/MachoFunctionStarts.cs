@@ -48,7 +48,7 @@ public static class MachoFunctionStarts
                 else if (cmd == LcSegment64 && Cstr16(bin, lc + 8) == "__TEXT")
                 {
                     textVm = U64(bin, lc + 24);
-                    textFileOff = U32(bin, lc + 40); // segment fileoff
+                    textFileOff = U32(bin, lc + 40);
                     haveText = true;
                 }
                 lc += (int)cmdsize;
@@ -70,7 +70,6 @@ public static class MachoFunctionStarts
         }
         catch
         {
-            // defensive: return whatever was read.
         }
         return outp;
     }

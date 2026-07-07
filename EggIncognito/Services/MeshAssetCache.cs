@@ -33,7 +33,6 @@ public sealed class MeshAssetCache(IConfiguration config)
         await File.WriteAllBytesAsync(path, glb, ct);
     }
 
-    // Count of cached glbs for a platform, for admin reporting.
     public int Count(string platform)
     {
         var root = CacheRoot;
@@ -59,7 +58,6 @@ public sealed class MeshAssetCache(IConfiguration config)
             .ToList();
     }
 
-    // Deletes one cached mesh. Returns true if a file was removed.
     public bool Delete(string platform, string stem)
     {
         var path = PathFor(platform, stem);
@@ -67,7 +65,6 @@ public sealed class MeshAssetCache(IConfiguration config)
         try { File.Delete(path); return true; } catch { return false; }
     }
 
-    // Clears every cached mesh for a platform. Returns the count removed.
     public int Clear(string platform)
     {
         var root = CacheRoot;

@@ -52,7 +52,7 @@ public static class MachoArm64Disassembler
                         && ops[2].Type == Arm64OperandType.Immediate && page.TryGetValue(addRn.Name, out var addBase))
                         page[addRd.Name] = addBase + (ulong)ops[2].Immediate;
                     else if (ops.Length >= 1 && ops[0].Register is { } addClobber)
-                        page.Remove(addClobber.Name); // add with an untracked base clobbers the dest page
+                        page.Remove(addClobber.Name);
                     break;
 
                 case Arm64InstructionId.ARM64_INS_LDR:
@@ -73,7 +73,6 @@ public static class MachoArm64Disassembler
                         else if (name.StartsWith('s') && fileOff >= 0 && fileOff + 4 <= bin.Length)
                             floats.Add(new FloatConst(va, BitConverter.ToSingle(bin, (int)fileOff), false));
                     }
-                    // a load into a GP register from a non-tracked source clobbers any stale page for that reg.
                     else if (ops.Length >= 1 && ops[0].Register is { } ldDst && page.ContainsKey(ldDst.Name))
                         page.Remove(ldDst.Name);
                     break;

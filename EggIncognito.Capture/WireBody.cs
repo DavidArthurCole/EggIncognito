@@ -66,8 +66,8 @@ public static class WireBody
             bool ok = c is (>= (byte)'A' and <= (byte)'Z')
                 or (>= (byte)'a' and <= (byte)'z')
                 or (>= (byte)'0' and <= (byte)'9')
-                or (byte)'+' or (byte)'/' or (byte)'=' // base64
-                or (byte)'\r' or (byte)'\n' or (byte)' '; // whitespace
+                or (byte)'+' or (byte)'/' or (byte)'='
+                or (byte)'\r' or (byte)'\n' or (byte)' ';
             if (!ok) return false;
         }
         return true;

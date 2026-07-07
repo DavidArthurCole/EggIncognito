@@ -63,7 +63,7 @@ public sealed class PlayStoreImporter(
         var store = scope.ServiceProvider.GetService<IProtoBackfillStore>();
         if (store is null) { logger.LogWarning("backfill: no store (no DB), playstore skipped"); return false; }
 
-        var c = httpFactory.CreateClient("github"); // reuse the plain client; no auth needed
+        var c = httpFactory.CreateClient("github");
         var res = await c.GetAsync(Url, ct);
         if (!res.IsSuccessStatusCode) { logger.LogWarning("backfill: play store fetch {Status}", (int)res.StatusCode); return false; }
         var version = StoreParse.PlayVersion(await res.Content.ReadAsStringAsync(ct));

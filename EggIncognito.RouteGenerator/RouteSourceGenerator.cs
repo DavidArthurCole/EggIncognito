@@ -54,7 +54,6 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator
 
     private static string GenerateController(string className, RouteModel route)
     {
-        // FormatLiteral escapes yaml-sourced strings for C# literals.
         var pathLiteral = SymbolDisplay.FormatLiteral(route.Path, quote: true);
 
         var handler = route.RawResponse is not null

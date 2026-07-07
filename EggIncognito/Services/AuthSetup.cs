@@ -154,6 +154,12 @@ public static class AuthSetup
             o.Scope.Add("profile");
             o.Scope.Add("email");
             o.Scope.Add("discord_id");
+            // Without this, the handler's default inbound claim map silently renames "sub" to
+            // ClaimTypes.NameIdentifier (an XML-schema URI) before OnTicketReceived ever sees the
+            // principal, so every FindFirstValue("sub") below returns null. All the raw claim-name
+            // lookups elsewhere in this file (sid, discord_id, preferred_username) only work
+            // unmapped, so keep every claim under its original JWT/userinfo name.
+            o.MapInboundClaims = false;
             // Needed so /logout can pass id_token_hint to Authentik's RP-initiated end-session
             // endpoint; without it Authentik leaves the IdP-side session alive after a local logout.
             o.SaveTokens = true;

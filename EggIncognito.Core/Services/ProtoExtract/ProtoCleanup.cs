@@ -21,12 +21,10 @@ public static class ProtoCleanup
         // Drop the import line (matched on the trimmed text).
         lines = lines.Where(l => !l.TrimStart().StartsWith("import \"common.proto\";", StringComparison.Ordinal)).ToList();
 
-        // Insert the common body right after the `package ei;` line.
         var packageIndex = lines.FindIndex(l => l.TrimStart().StartsWith("package ei;", StringComparison.Ordinal));
         if (packageIndex >= 0 && commonLines.Count > 0)
             lines.InsertRange(packageIndex + 1, commonLines);
 
-        // Strip aux. everywhere.
         lines = lines.Select(l => l.Replace("aux.", "")).ToList();
 
         return string.Concat(lines);

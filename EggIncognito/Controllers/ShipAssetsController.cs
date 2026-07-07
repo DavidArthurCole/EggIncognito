@@ -6,15 +6,14 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Controllers;
 
 // Serves the exported ship .glb set (ShipAssets:OutputDir/ships) for the 3D playground. The 7 bundled ships
-// are produced by the device export path; this just lists + serves them, optionally animated. (The old
+// are produced by the device export path; this just lists + serves them, optionally animated. The old
 // "resolve the 4 CDN-only orbital ships from a DLCCatalog" path was removed: those ships have no published
-// mesh, only 2D icons, so it was a dead end. Shells now flow through ShellsController instead.)
+// mesh, only 2D icons, so it was a dead end. Shells now flow through ShellsController instead.
 [ApiController]
 [Route("api/ship-assets")]
 [EnableRateLimiting("read")]
 public sealed class ShipAssetsController(IConfiguration config) : ControllerBase
 {
-    // Lists the exported ship .glb files in ShipAssets:OutputDir/ships, for the playground source picker.
     [HttpGet("list")]
     public IActionResult List()
     {
@@ -30,8 +29,7 @@ public sealed class ShipAssetsController(IConfiguration config) : ControllerBase
         return Ok(new { ships });
     }
 
-    // Serves one exported ship .glb by enum name, optionally animated (?animate=spin). The enum-name allowlist
-    // blocks path traversal. Read-only, public.
+    // The enum-name allowlist blocks path traversal.
     [HttpGet("glb/{name}")]
     public IActionResult Glb(string name, [FromQuery] string? animate, [FromQuery] float seconds)
     {

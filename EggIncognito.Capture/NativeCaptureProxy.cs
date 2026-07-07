@@ -270,8 +270,6 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         finally { ArrayPool<byte>.Shared.Return(buf); }
     }
 
-    // CA + leaf minting
-
     private static X509Certificate2 LoadOrCreateRoot(string pfxPath)
     {
         if (File.Exists(pfxPath))
@@ -370,8 +368,6 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         catch (Exception ex) { Log($"TRUST-ERR {ex.Message}"); }
     }
 
-    // trust inference (mirrors UnobtaniumCaptureProxy)
-
     private void ArmTrustInference(string host)
     {
         lock (_trustGate)
@@ -405,8 +401,6 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         Log($"TRUST infer: no decrypted traffic from {host} within grace - CA likely untrusted");
         DecryptError?.Invoke($"No decrypted traffic after connecting to {host} - is the CA installed and trusted on the device?");
     }
-
-    // request-head parsing
 
     private static async Task<string?> ReadHeadAsync(NetworkStream net, CancellationToken ct)
     {

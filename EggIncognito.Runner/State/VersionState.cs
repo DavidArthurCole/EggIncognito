@@ -7,10 +7,9 @@ public sealed class VersionState
 
     public VersionState(string path) => _path = path;
 
-    // LastSeen returns the stored version, or empty if the file is absent.
     public string LastSeen() =>
         File.Exists(_path) ? File.ReadAllText(_path).Trim() : "";
 
-    // Save writes the new last-seen version. Single writer, no locking needed.
+    // Single writer, no locking needed.
     public void Save(string version) => File.WriteAllText(_path, version);
 }

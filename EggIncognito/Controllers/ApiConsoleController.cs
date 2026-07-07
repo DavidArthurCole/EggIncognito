@@ -24,13 +24,11 @@ public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider 
         var endpoints = explorer.ApiDescriptionGroups.Items
             .SelectMany(g => g.Items)
             .Where(d => d.RelativePath is not null && d.RelativePath.StartsWith("api/", StringComparison.OrdinalIgnoreCase))
-            // skip the console's own listing + the openapi/catalog surface to keep the list to actionable calls.
             .Where(d => !d.RelativePath!.StartsWith("api/console", StringComparison.OrdinalIgnoreCase))
             .Select(d => new
             {
                 method = d.HttpMethod ?? "GET",
                 route = "/" + d.RelativePath,
-                // Body params (the request DTO) vs route/query params; file uploads flagged for a file input.
                 query = d.ParameterDescriptions
                     .Where(p => p.Source.Id is "Query" or "Path")
                     .Select(p => new { name = p.Name, source = p.Source.Id, type = TypeName(p.Type), required = p.IsRequired })

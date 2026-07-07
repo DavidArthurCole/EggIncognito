@@ -98,7 +98,6 @@ public sealed class DocRegistry : IDocRegistry
         return list;
     }
 
-    // Adds a child pointing at a known message type, if the proto reflection resolves it.
     private static void LinkMessage(List<DocSubject> into, string role, string? typeName, IProtoReflection proto)
     {
         if (string.IsNullOrEmpty(typeName)) return;

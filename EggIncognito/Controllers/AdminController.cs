@@ -32,8 +32,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(rows);
     }
 
-    // API-rate metrics: the last 60 one-minute buckets (total requests + 429s per minute). In-process
-    // ring, no DB. Drives the admin charts.
+    // Last 60 one-minute buckets (total requests + 429s per minute). In-process ring, no DB.
     [HttpGet("metrics")]
     [EnableRateLimiting("read")]
     public IActionResult Metrics()
@@ -46,9 +45,8 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(pts);
     }
 
-    // Active capture sessions across all users (admin oversight): key, state, port, flow + connection
-    // counts, decrypt tally. Reads the in-process CaptureSessionManager; no DB. Empty list when capture
-    // is not wired (e.g. a hosted instance with capture off).
+    // Reads the in-process CaptureSessionManager; no DB. Empty list when capture is not wired
+    // (e.g. a hosted instance with capture off).
     [HttpGet("sessions")]
     [EnableRateLimiting("read")]
     public IActionResult Sessions()
@@ -75,8 +73,8 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(rows);
     }
 
-    // Stop + drop a capture session by key (admin kill). The local key stops but is not removed (it is
-    // the shared anonymous session); per-user keys are removed entirely so the slot frees.
+    // The local key stops but is not removed (it is the shared anonymous session); per-user keys
+    // are removed entirely so the slot frees.
     [HttpDelete("sessions/{key}")]
     public async Task<IActionResult> KillSession(string key)
     {

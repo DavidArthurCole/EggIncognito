@@ -45,7 +45,7 @@ public sealed class ApkPureExtractHandler(
             }
             finally
             {
-                try { File.Delete(tmp); } catch { /* best-effort temp cleanup */ }
+                try { File.Delete(tmp); } catch { }
             }
             if (cv is not null && int.TryParse(cv, out var cvNum)) cvState.Save(cvNum);
 

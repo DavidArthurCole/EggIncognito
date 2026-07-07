@@ -15,10 +15,8 @@ public static class HatcheryEffectParts
 
     private const string Prefix = "ei_hatchery_";
 
-    // Suffix roots that denote a floating sub-piece (matched against the part after the tier, ignoring a trailing
-    // _<n> index). Extracted from the observed rpos naming, not hand-curated per tier.
-    // suffix roots that denote a floating sub-piece. "vision" is a TIER not a part, so it is not here; its parts
-    // are ei_hatchery_vision_middle / _top, caught by middle/top.
+    // Extracted from the observed rpos naming, not hand-curated per tier. "vision" is a TIER not a part, so it is
+    // not here; its parts are ei_hatchery_vision_middle / _top, caught by middle/top.
     private static readonly string[] FloatingRoots =
     [
         "bolt", "probe", "ring", "top", "middle", "orb",
@@ -32,7 +30,6 @@ public static class HatcheryEffectParts
         if (!stem.StartsWith(Prefix, StringComparison.Ordinal)) return null;
         var rest = stem[Prefix.Length..];
         if (rest.Length == 0) return null;
-        // strip a trailing known floating suffix if present, else the whole remainder is the tier.
         foreach (var root in FloatingRoots)
         {
             var marker = "_" + root;

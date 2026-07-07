@@ -95,7 +95,7 @@ public static class Program
                 // instead of waiting for an in-flight tick to finish.
                 var tick = Task.Run(() => runner.RunOnce(force: false));
                 var done = await Task.WhenAny(tick, Task.Delay(Timeout.Infinite, ct));
-                if (done != tick) break; // cancelled mid-tick; abandon the worker and exit
+                if (done != tick) break;
                 var outcome = await tick;
                 if (outcome.Emitted) Console.WriteLine($"emitted build {outcome.Build}");
             }

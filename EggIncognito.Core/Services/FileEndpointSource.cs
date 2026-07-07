@@ -21,7 +21,7 @@ public sealed class FileEndpointSource : IEndpointSource
         {
             var relative = Path.GetRelativePath(endpointsPath, file).Replace('\\', '/').Replace(".json", "");
             try { _endpoints[relative] = File.ReadAllBytes(file); }
-            catch { /* skip unreadable file */ }
+            catch { }
         }
     }
 

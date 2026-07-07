@@ -23,8 +23,8 @@ public interface ICaptureProxy : IAsyncDisposable
     // Connection + health signals that drive the device toast, stats, and cert pill.
     event Action<int, string?>? ClientConnected; // activeCount, realDeviceIp
     event Action<int, string?>? ClientDisconnected; // activeCount, realDeviceIp
-    event Action? AuxbrainConnect; // an auxbrain CONNECT was decrypted
-    event Action<string>? DecryptError; // a TLS/decrypt error message
+    event Action? AuxbrainConnect;
+    event Action<string>? DecryptError;
     event Action<string, bool>? ConnectSeen; // every CONNECT target seen (host, willDecrypt) - diagnostics
 
     // Per-flow diagnostic trace (request/response/decrypt-decision lines), emitted only when Verbose is on.

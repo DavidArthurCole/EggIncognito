@@ -112,7 +112,7 @@ public static class GltfAnimator
         var center = MeshCenter(node.Mesh);
         if (center is null) return node;
         var c = center.Value;
-        if (c.Length() < 1e-6f) return node; // already centered on origin
+        if (c.Length() < 1e-6f) return node;
 
         var mesh = node.Mesh;
         var keepTranslation = node.LocalTransform.Translation;

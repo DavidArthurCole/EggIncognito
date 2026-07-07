@@ -41,7 +41,7 @@ public sealed class DeviceMeshProvider(
         var device = await ResolveDeviceAsync(deviceId, ct);
         var platform = device?.Platform;
 
-        // 1) Postgres cache. Try the resolved platform first; if no device is online, try any platform's copy
+        // Postgres cache. Try the resolved platform first; if no device is online, try any platform's copy
         // (a previously-cached mesh serves even with every device offline).
         if (await TryDbGetAsync(platform, stem, ct) is { } dbGlb)
         {
@@ -49,14 +49,12 @@ public sealed class DeviceMeshProvider(
             return new Result(true, dbGlb, null, 200);
         }
 
-        // 2) on-disk cache (only meaningful once we know the platform).
         if (platform is not null && cache.TryGet(platform, stem) is { } diskGlb)
         {
             await PutDbAsync(platform, stem, diskGlb, ct); // backfill the DB cache from a pre-DB on-disk entry
             return new Result(true, diskGlb, null, 200);
         }
 
-        // 3) pull off the device.
         if (device is null) return Err(503, "mesh not cached and no asset-source device available");
 
         var (rpo, pullErr) = await PullRpoAsync(device, stem, ct);

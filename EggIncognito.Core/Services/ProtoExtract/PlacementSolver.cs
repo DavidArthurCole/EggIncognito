@@ -39,7 +39,6 @@ public static class PlacementSolver
         bool adjusted = false;
         string reason = "ok";
 
-        // 1) grid snap on the ground plane.
         if (req.GridSize > 0)
         {
             var sx = SnapTo(x, req.GridSize);
@@ -48,9 +47,9 @@ public static class PlacementSolver
             x = sx; z = sz;
         }
 
-        // 2) floor clamp: raise Y so the element's lowest point sits exactly on y=0. For a ground building this
-        //    both lifts it out of the floor AND drops it down onto the floor (no floating), so a placed building
-        //    always rests on the ground. Pinned pieces (ClampFloor=false) keep their authored Y.
+        // floor clamp: raise Y so the element's lowest point sits exactly on y=0. For a ground building this
+        // both lifts it out of the floor AND drops it down onto the floor (no floating), so a placed building
+        // always rests on the ground. Pinned pieces (ClampFloor=false) keep their authored Y.
         if (req.ClampFloor)
         {
             var worldMinY = y + req.LocalMinY * req.Scale;
@@ -194,7 +193,6 @@ public static class PlacementSolver
         var boxes = others.ToDictionary(b => b.Id, b => b);
         var delta = new Dictionary<string, (int dc, int dr)>();
 
-        // a queue of "movers": boxes whose new position must be re-checked against everyone else.
         var queue = new Queue<GridBox>();
         queue.Enqueue(changed);
 

@@ -170,7 +170,6 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
     // so auxbrain traffic is decrypted whether or not the port is present.
     internal static bool ShouldDecrypt(string connectAuthority) => AuxbrainHosts.IsAuxbrain(connectAuthority);
 
-    // Per-CONNECT decrypt decision: decrypt only auxbrain; tunnel everything else untouched.
     private void WireConnectDecision()
     {
         _events.ShouldDecryptNewConnection = (host, client, cts) =>

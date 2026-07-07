@@ -215,8 +215,6 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    // snapshots
-
     public IReadOnlyList<DashboardFlow> Snapshot()
     {
         lock (_gate) return _buffer.ToArray();

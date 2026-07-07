@@ -8,7 +8,6 @@ public interface IAdbClient
 {
     string DumpsysPackage(string package);
 
-    // PullArmApk resolves the arm split via `pm path` and pulls it to destPath.
     // The arm split carries the proto descriptors the carver needs.
     string PullArmApk(string package, string destPath);
 }
@@ -25,22 +24,19 @@ public sealed class AdbClient : IAdbClient
     private static readonly Regex VersionCodeRe =
         new(@"versionCode=(\d+)", RegexOptions.Compiled);
 
-    // ParseVersionName extracts versionName (e.g. 1.35.7) from dumpsys output.
     public static string ParseVersionName(string dumpsys)
     {
         var m = VersionRe.Match(dumpsys);
         return m.Success ? m.Groups[1].Value : "";
     }
 
-    // ParseVersionCode extracts versionCode (monotonic build number, e.g. 111343) from dumpsys output.
     public static string ParseVersionCode(string dumpsys)
     {
         var m = VersionCodeRe.Match(dumpsys);
         return m.Success ? m.Groups[1].Value : "";
     }
 
-    // ParseApkPaths returns on-device APK paths from `pm path` output.
-    // Hashed split dirs mean these cannot be guessed, only resolved.
+    // Hashed split dirs mean paths cannot be guessed, only resolved via `pm path`.
     public static IReadOnlyList<string> ParseApkPaths(string pmPathOutput)
     {
         var paths = new List<string>();
@@ -55,7 +51,7 @@ public sealed class AdbClient : IAdbClient
         return paths;
     }
 
-    // SelectArmApk picks the arm split, which carries the native + descriptor payload the carver needs.
+    // The arm split carries the native + descriptor payload the carver needs.
     public static string SelectArmApk(IReadOnlyList<string> apkPaths)
     {
         foreach (var p in apkPaths)

@@ -13,11 +13,9 @@ internal sealed class HttpMessage
     public required List<HttpHeader> Headers { get; init; }
     public byte[]? Body { get; init; }
 
-    // Request view.
     public string Method => StartLine.Split(' ') is { Length: > 0 } p ? p[0] : "";
     public string Path => StartLine.Split(' ') is { Length: > 1 } p ? p[1] : "/";
 
-    // Response view.
     public int StatusCode
     {
         get
@@ -94,7 +92,7 @@ internal sealed class HttpMessage
     {
         var buf = new List<byte>(1024);
         var one = new byte[1];
-        int matched = 0; // \r \n \r \n
+        int matched = 0;
         while (true)
         {
             int n = await s.ReadAsync(one, ct);

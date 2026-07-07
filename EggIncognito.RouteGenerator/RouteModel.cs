@@ -26,7 +26,6 @@ public sealed class RouteModel : IEquatable<RouteModel>
 
     public bool PathParam { get; set; }
 
-    /// <summary>No request body; identity (EID) is carried in the URL path parameter.</summary>
     public bool PathParamOnly { get; set; }
 
     /// <summary>The proto type the MOCK serializes for its response. Falls back to
@@ -173,7 +172,7 @@ public static class RouteParser
     private static string After(string line, string key)
     {
         var v = line.Substring(key.Length);
-        var hash = v.IndexOf('#'); // strip inline comments
+        var hash = v.IndexOf('#');
         if (hash >= 0) v = v.Substring(0, hash);
         return v.Trim();
     }

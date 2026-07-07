@@ -31,8 +31,8 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
         return Ok(surface.Entries.Select(ToWire));
     }
 
-    // Bare-namespace JSON indexes. The real API never GETs a bare namespace, so these cannot
-    // shadow real client traffic; the mock's POST routes are untouched (different method).
+    // The real API never GETs a bare namespace, so these cannot shadow real client traffic;
+    // the mock's POST routes are untouched (different method).
     [HttpGet("/ei")]
     [HttpGet("/ei_afx")]
     [HttpGet("/ei_ctx")]

@@ -31,8 +31,8 @@ public sealed class CaptureController(
     private CaptureCredentialStore? Credentials =>
         services.GetService(typeof(CaptureCredentialStore)) as CaptureCredentialStore;
 
-    // Resolve the caller's session. Local: the anonymous local session when CanCapture, else the old
-    // 403. Hosted+enabled: own session only; 401 anonymous, 404 when none exists yet.
+    // Local: the anonymous local session when CanCapture, else the old 403. Hosted+enabled: own
+    // session only; 401 anonymous, 404 when none exists yet.
     private (CaptureSession? Session, IActionResult? Error) Resolve()
     {
         if (appMode.CanCapture)
@@ -47,7 +47,6 @@ public sealed class CaptureController(
             : (session, null);
     }
 
-    // Hosted-capture write surface gate (token mint, CA download): supporter claim required.
     private IActionResult? RequireHostedSupporter()
     {
         if (!appMode.HostedCaptureEnabled)

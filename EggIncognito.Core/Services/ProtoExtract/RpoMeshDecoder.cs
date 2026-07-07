@@ -216,7 +216,6 @@ public static class RpoMeshDecoder
             attrByteOffset += s * 4;
         }
 
-        // Index bufferView + accessor.
         var indexView = bufferViews.Count;
         bufferViews.Add(new Dictionary<string, object>
         {

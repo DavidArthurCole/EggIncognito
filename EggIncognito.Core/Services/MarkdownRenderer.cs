@@ -80,7 +80,6 @@ public static class MarkdownRenderer
         {
             var line = lines[i];
 
-            // Fenced code block ```
             if (Fence.IsMatch(line.Trim()))
             {
                 CloseList();
@@ -92,10 +91,8 @@ public static class MarkdownRenderer
                 continue;
             }
 
-            // Horizontal rule
             if (Rule.IsMatch(line)) { CloseList(); outLines.Add("<hr class=\"md-rule\" />"); i++; continue; }
 
-            // Headings
             var h = Heading.Match(line);
             if (h.Success)
             {
@@ -116,7 +113,6 @@ public static class MarkdownRenderer
                 continue;
             }
 
-            // Unordered list
             if (Ul.IsMatch(line))
             {
                 if (listType != "ul") { CloseList(); outLines.Add("<ul class=\"md-list\">"); listType = "ul"; }
@@ -124,7 +120,6 @@ public static class MarkdownRenderer
                 i++;
                 continue;
             }
-            // Ordered list
             if (Ol.IsMatch(line))
             {
                 if (listType != "ol") { CloseList(); outLines.Add("<ol class=\"md-list\">"); listType = "ol"; }
@@ -133,10 +128,8 @@ public static class MarkdownRenderer
                 continue;
             }
 
-            // Blank line
             if (line.Trim() == "") { CloseList(); i++; continue; }
 
-            // Paragraph (merge consecutive non-empty, non-special lines).
             {
                 CloseList();
                 var body = new List<string> { line };

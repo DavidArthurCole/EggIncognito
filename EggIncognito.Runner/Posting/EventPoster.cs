@@ -6,7 +6,6 @@ using EggIncognito.Core.Models;
 
 namespace EggIncognito.Runner.Posting;
 
-// EventPoster sends a NewVersionEvent to the sync server, bearer-authed.
 public sealed class EventPoster
 {
     private readonly HttpClient _http;

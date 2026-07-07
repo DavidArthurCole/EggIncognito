@@ -112,7 +112,6 @@ public sealed class TransportPipeline : ITransportPipeline
         }
         else
         {
-            // The request is the proto bytes, posted as-is.
             stages.Add(Stage("passthrough",
                 "Posted as-is - this endpoint does not wrap the request in an AuthenticatedMessage",
                 innerProtoBytes, role: RolePayload));

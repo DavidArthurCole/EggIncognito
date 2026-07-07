@@ -1,8 +1,6 @@
 namespace EggIncognito.Components.Inspector;
 
-// One saved Inspector request, persisted client-side (browser localStorage via inspectorStore.js). Holds
-// enough to restore the builder: the endpoint path, the env (BasicRequestInfo) overrides, the body fields
-// JSON, the path param, and the chosen target. Summary is a short human label for the history list.
+// Persisted client-side (browser localStorage via inspectorStore.js), not server-side.
 public sealed record InspectorHistoryEntry(
     string Id,
     string Path,

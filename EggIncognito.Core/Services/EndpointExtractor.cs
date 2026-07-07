@@ -106,7 +106,6 @@ public sealed class EndpointExtractor
         return decoded.Path;
     }
 
-    // HAR driver.
     public void RunFromHar(string harPath)
     {
         using var doc = JsonDocument.Parse(File.ReadAllBytes(harPath));
@@ -115,7 +114,6 @@ public sealed class EndpointExtractor
             ProcessHarEntry(entry);
     }
 
-    // .mitm driver.
     public void RunFromMitm(string mitmPath)
     {
         foreach (var f in MitmFlowReader.Read(File.ReadAllBytes(mitmPath)))
@@ -554,7 +552,6 @@ public sealed class EndpointExtractor
         return count;
     }
 
-    // --decode diagnostic.
     public static void RunDecode(string base64)
     {
         byte[] data;
@@ -597,7 +594,7 @@ public sealed class EndpointExtractor
                 Report($"unwrapped AuthenticatedMessage.message (compressed={outer.Compressed})", inner);
             }
         }
-        catch (InvalidProtocolBufferException) { /* not wrapped */ }
+        catch (InvalidProtocolBufferException) { }
     }
 
     // Shared request-body decode: live capture + dashboard decoder, so framing heuristic can never drift.

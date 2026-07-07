@@ -33,7 +33,6 @@ public sealed class AndroidPlayStoreChecker(
             return new StoreCheckResult(false, null, null, false, false, "unreachable", "device unreachable or no version read");
         }
 
-        // Drive Play's UI to install the pending update. The phone's store does the download/install.
         progress?.Invoke($"installed {before}; waking device + opening Play…");
         logger.LogInformation("device check-update: {Id} android driving Play UI for {Pkg}", device.Id, device.Package);
         var drive = await DrivePlayUpdateAsync(device, progress, ct);
@@ -153,7 +152,6 @@ public sealed class AndroidPlayStoreChecker(
         return new DriveOutcome(false, true, "Update button not found (page may not have loaded an update)");
     }
 
-    // uiautomator dump writes to a device file; cat it back. Returns the XML or null on failure.
     private async Task<string?> DumpUiAsync(DeviceStoreTarget device, CancellationToken ct)
     {
         var dump = await Shell(device, "uiautomator dump /sdcard/egi-ui.xml", ct);
@@ -189,7 +187,6 @@ public sealed class AndroidPlayStoreChecker(
     private static bool HasButton(string xml, string label) =>
         xml.Contains($"text=\"{label}\"", StringComparison.Ordinal);
 
-    // Parse "[l,t][r,b]" into ints.
     private static bool TryParseBounds(string s, out int l, out int t, out int r, out int b)
     {
         l = t = r = b = 0;

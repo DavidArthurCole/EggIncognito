@@ -64,7 +64,6 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
         return Accepted(new { status = "appstore import started" });
     }
 
-    // Runs one version-list adapter (fandom|uptodown|apkpure|itunes|ipa4fun) into known_versions.
     [HttpPost("list/{source}")]
     public IActionResult List(string source)
     {
@@ -82,8 +81,8 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
 
     public sealed record ApkExtractRequest(string AppVersion);
 
-    // The heavy per-APK extract. Local extract if configured; else forward to the runner agent
-    // (RUNNER_AGENT_URL/SECRET, like runner-resync); else 501.
+    // Local extract if configured; else forward to the runner agent (RUNNER_AGENT_URL/SECRET,
+    // like runner-resync); else 501.
     [HttpPost("apk-extract")]
     public async Task<IActionResult> ApkExtract([FromBody] ApkExtractRequest req, CancellationToken ct)
     {

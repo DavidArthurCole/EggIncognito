@@ -5,9 +5,9 @@ namespace EggIncognito.Services.ProtoExtract;
 // slice. Pure header parse, defensive: any malformed read returns false, never throws. Binary not executed.
 public static class MachoText
 {
-    private const uint MhMagic64 = 0xFEEDFACF; // 64-bit, host-endian (little on our targets)
-    private const uint FatMagic = 0xCAFEBABE; // FAT, big-endian fields
-    private const uint FatMagicLe = 0xBEBAFECA; // same bytes read little-endian
+    private const uint MhMagic64 = 0xFEEDFACF;
+    private const uint FatMagic = 0xCAFEBABE;
+    private const uint FatMagicLe = 0xBEBAFECA;
     private const uint CpuArm64 = 0x0100000C;
     private const uint LcSegment64 = 0x19;
 

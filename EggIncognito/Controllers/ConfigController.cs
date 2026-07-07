@@ -17,7 +17,6 @@ public sealed class ConfigController(
 {
     private const string GetConfigUrl = "https://www.auxbrain.com/ei/get_config";
 
-    // What platforms have a stored config + when. Public read.
     [HttpGet]
     public IActionResult List()
     {
@@ -26,7 +25,7 @@ public sealed class ConfigController(
         return Ok(new { enabled = true, configs });
     }
 
-    // The stored ConfigResponse JSON for a platform. Public read; large (multi-MB) so streamed as a file.
+    // Large (multi-MB) so streamed as a file.
     [HttpGet("{platform}")]
     public IActionResult Get(string platform)
     {

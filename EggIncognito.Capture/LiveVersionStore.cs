@@ -62,7 +62,6 @@ public sealed class LiveVersionStore(string capturePath)
             }
             catch
             {
-                // best-effort: a failed write must never break the capture.
             }
         }
     }

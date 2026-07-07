@@ -56,7 +56,6 @@ public static class MachoSymbols
         }
         catch
         {
-            // defensive: return whatever was read so far.
         }
         return outp;
     }
@@ -67,7 +66,6 @@ public static class MachoSymbols
     public static bool TryFindFunc(IReadOnlyList<Symbol> syms, string[] needles, out FuncRange range)
     {
         range = default;
-        // candidate = a symbol whose name contains all needles and has a nonzero text address.
         Symbol? hit = null;
         foreach (var s in syms)
         {

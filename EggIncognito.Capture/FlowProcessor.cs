@@ -38,7 +38,6 @@ public sealed class FlowProcessor
         var displayPath = path ?? EndpointExtractor.NormalizePath(flow.Url);
         var req = _decoder.DecodeRequest(displayPath, flow.RequestDataB64);
         var resp = _decoder.DecodeResponse(displayPath, flow.ResponseBodyB64);
-        // Known = both sides yaml-mapped, or request has no body.
         var known = resp.Known && (req.Known || flow.RequestDataB64 is null);
 
         // For a diff outcome, compute git-style +/- line counts, existing endpoint vs the staged new

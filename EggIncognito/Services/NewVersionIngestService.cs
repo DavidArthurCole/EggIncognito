@@ -54,7 +54,6 @@ public sealed class NewVersionIngestService
 
     public async Task<IngestOutcome> HandleAsync(NewVersionEvent evt, CancellationToken ct = default)
     {
-        // Registry capture runs on every build the farm sees, independent of the regen/refresh split.
         await _registry(evt, ct);
 
         if (!string.Equals(evt.ProtoSha, _expectedProtoSha, StringComparison.OrdinalIgnoreCase))
