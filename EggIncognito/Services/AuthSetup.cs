@@ -115,7 +115,11 @@ public static class AuthSetup
             o.ClientSecret = clientSecret!;
             o.ResponseType = OpenIdConnectResponseType.Code;
             o.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-            o.CallbackPath = "/auth";
+            // Distinct from the /auth login-start route (AuthController.AuthentikLogin): the OIDC
+            // middleware intercepts every request to CallbackPath before MVC routing runs, so
+            // reusing /auth made the initial "start login" hit get treated as an invalid callback
+            // (no code/state) and redirected via OnRemoteFailure before the controller ever ran.
+            o.CallbackPath = "/auth-callback";
             o.Scope.Clear();
             o.Scope.Add("openid");
             o.Scope.Add("profile");
