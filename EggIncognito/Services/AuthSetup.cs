@@ -120,6 +120,14 @@ public static class AuthSetup
             // reusing /auth made the initial "start login" hit get treated as an invalid callback
             // (no code/state) and redirected via OnRemoteFailure before the controller ever ran.
             o.CallbackPath = "/auth-callback";
+            // Authentik's default response_mode is form_post: the browser POSTs the code/state back
+            // cross-site from the Authentik origin. A Lax-default correlation/nonce cookie is not
+            // sent on a cross-site POST (only top-level GET navigation), so state/PKCE validation
+            // fails before OnTicketReceived ever runs - the exact silent OnRemoteFailure this app saw.
+            o.CorrelationCookie.SameSite = SameSiteMode.None;
+            o.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+            o.NonceCookie.SameSite = SameSiteMode.None;
+            o.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
             o.Scope.Clear();
             o.Scope.Add("openid");
             o.Scope.Add("profile");
@@ -133,6 +141,10 @@ public static class AuthSetup
                 var sub = principal.FindFirstValue("sub");
                 if (string.IsNullOrEmpty(sub))
                 {
+                    var logger = ctx.HttpContext.RequestServices
+                        .GetRequiredService<ILoggerFactory>().CreateLogger("AuthSetup");
+                    logger.LogWarning("Authentik ticket missing sub claim; claims: {Claims}",
+                        string.Join(", ", principal.Claims.Select(c => c.Type)));
                     ctx.Response.Redirect("/?login=failed");
                     ctx.HandleResponse();
                     return;
@@ -174,6 +186,9 @@ public static class AuthSetup
             };
             o.Events.OnRemoteFailure = ctx =>
             {
+                var logger = ctx.HttpContext.RequestServices
+                    .GetRequiredService<ILoggerFactory>().CreateLogger("AuthSetup");
+                logger.LogWarning(ctx.Failure, "Authentik remote auth failure");
                 ctx.Response.Redirect("/?login=failed");
                 ctx.HandleResponse();
                 return Task.CompletedTask;
