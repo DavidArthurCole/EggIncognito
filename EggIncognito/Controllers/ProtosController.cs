@@ -5,14 +5,11 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EggIncognito.Controllers;
 
-// Read-only public registry surface over proto_versions + proto_protos. Proto definitions are not
-// secret, so reads are public under the shared read limiter. Writes happen only via the authed farm
-// event. No DB configured => empty list / 404, mirroring ToolsController's DB-free tolerance.
+// Read-only public registry surface over proto_versions + proto_protos. Writes happen only via the
+// authed farm event. No DB configured means empty list / 404.
 [ApiController]
 [Route("api/protos")]
-// Public registry GETs the /protos UI polls (versions list, version detail, diff). "fetch" = flat,
-// not tier-capped, so an anon visitor polling several panels never trips the Anon 30/min and sees a
-// 429 surface as "Version not found".
+// "fetch" is flat, not tier-capped, so an anon visitor polling several panels never trips Anon 30/min.
 [EnableRateLimiting("fetch")]
 public sealed class ProtosController(IServiceProvider services) : ControllerBase
 {
@@ -24,9 +21,8 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
     {
         if (Store is null) return Ok(Array.Empty<object>());
         var rows = await Store.ListAsync(platform, ct);
-        // Id + CanonicalId let the UI group a cross-platform release (canonical + its aliases) into one row.
-        // buildFlag is COMPUTED (no DB column): flags rows whose build doesn't match their platform, e.g. an
-        // iOS row carrying an Android-style integer versionCode (the shared wire build leaking in).
+        // Id + CanonicalId let the UI group a cross-platform release into one row. buildFlag is computed
+        // (no DB column) and flags rows whose build doesn't match their platform's format.
         return Ok(rows.Select(r => new
         {
             r.Id, r.CanonicalId, r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.Package,
@@ -72,9 +68,8 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
     {
         if (Store is null) return NotFound();
         var rows = await Store.ListAsync(platform, ct);
-        // "Latest" = newest release, NOT the most-recently-inserted row (backfill ingests history in arbitrary
-        // order, so CreatedAt is not a recency proxy). Platform-aware: Android orders by integer versionCode;
-        // iOS orders by dotted CFBundleVersion and refuses to let a bad Android-style integer build win.
+        // "Latest" = newest release, not the most-recently-inserted row: backfill ingests history in
+        // arbitrary order, so CreatedAt alone is not a recency proxy.
         var r = rows
             .OrderByDescending(p => ProtoVersionQuality.LatestSortKey(p.Platform, p.Build, p.AppVersion))
             .ThenByDescending(p => p.CreatedAt)

@@ -4,13 +4,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Services.Backfill;
 
-// Runs one IVersionListSource adapter, upserting its rows into known_versions, job-tracked. The admin
-// endpoint picks which adapter. Background-triggered, so it opens its own DI scope for the scoped job
-// store rather than capturing a request-scoped one the response disposes.
+// Runs one IVersionListSource adapter, upserting its rows into known_versions, job-tracked.
 public sealed class VersionListImporter(
     IServiceScopeFactory scopeFactory, ILogger<VersionListImporter> logger)
 {
-    // The source is resolved inside the fresh scope by name so the importer holds no scoped state.
     public async Task<int> RunAsync(IVersionListSource source, string? startedBy = null, CancellationToken ct = default)
     {
         using var scope = scopeFactory.CreateScope();

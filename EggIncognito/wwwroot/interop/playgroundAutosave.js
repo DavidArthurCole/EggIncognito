@@ -1,6 +1,5 @@
-// A single localStorage slot for the playground's in-progress design, so a redeploy reload (or a crash) can
-// restore unsaved work. SEPARATE from the named DB designs (those are explicit Save/Load). The record carries
-// the design JSON, the app version it was saved under, and a savedAt timestamp; the C# side decides recency.
+// A single localStorage slot for the playground's in-progress design, so a redeploy reload (or crash) can
+// restore unsaved work. Separate from the named DB designs (explicit Save/Load).
 
 const KEY = 'playground.autosave';
 

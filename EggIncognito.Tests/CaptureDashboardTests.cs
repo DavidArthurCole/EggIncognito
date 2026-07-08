@@ -3,12 +3,8 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// Unit tests for the live-capture dashboard backend (CaptureHub broker + FlowDecoder).
-// CaptureHub is an in-memory ring-buffered broker with per-subscriber channels; FlowDecoder
-// reuses the endpoint pipeline primitives to turn raw base64 into readable JSON.
 public class CaptureDashboardTests
 {
-    // Quick factory for a placeholder DashboardFlow. Id/Timestamp are owned by the hub.
     private static DashboardFlow F(string path = "ei/x") =>
         new(0, "", path, "POST", 200, null, null, "AAEC", null);
 
@@ -60,7 +56,6 @@ public class CaptureDashboardTests
 
         hub.MarkSaved(stored.Id);
 
-        // The buffered copy (what a refresh replays) now reports Saved.
         var replayed = Assert.Single(hub.Snapshot(), f => f.Id == stored.Id);
         Assert.True(replayed.Saved);
     }
@@ -113,18 +108,15 @@ public class CaptureDashboardTests
         var (reader, subscription) = hub.Subscribe();
 
         hub.Publish(F("ei/live"), "t1");
-        // The stream carries flow + (first time) certTrusted notice + stats; drain all, collect flows.
         var flowsBefore = DrainFlowPaths(reader);
         Assert.Contains("ei/live", flowsBefore);
 
         subscription.Dispose();
         hub.Publish(F("ei/after"), "t2");
-        // After dispose no further flow is delivered to this (now detached) reader.
         var flowsAfter = DrainFlowPaths(reader);
         Assert.DoesNotContain("ei/after", flowsAfter);
     }
 
-    // Drain all currently-queued envelopes; return the Paths of the "flow" ones.
     private static List<string> DrainFlowPaths(System.Threading.Channels.ChannelReader<CaptureEnvelope> reader)
     {
         var paths = new List<string>();
@@ -143,12 +135,9 @@ public class CaptureDashboardTests
 
         var snap = hub.Snapshot();
         Assert.Equal(500, snap.Count);
-        // Ids 1..100 were dropped; oldest retained is the 101st published (Id 101).
         Assert.Equal(101, snap[0].Id);
         Assert.Equal(600, snap[^1].Id);
     }
-
-    // FlowDecoder
 
     private const string Yaml = """
 routes:
@@ -179,7 +168,7 @@ routes:
         var r = decoder.DecodeResponse("ei/get_periodicals", WrappedResponseB64());
 
         Assert.NotNull(r.Json);
-        Assert.Equal("PeriodicalsResponse", r.Type); // from routes.yaml
+        Assert.Equal("PeriodicalsResponse", r.Type);
         Assert.True(r.Known);
     }
 
@@ -189,9 +178,6 @@ routes:
         var repo = MakeRepo();
         var decoder = new FlowDecoder(repo);
 
-        // The real log endpoints reply with the literal text "SUCCESS" (not protobuf). The capture
-        // pipeline base64-encodes the raw bytes, so the decoder must round-trip them to the literal
-        // text and flag the rawResponse endpoint as an acknowledgement - NOT show a hex dump.
         var r = decoder.DecodeResponse(
             "ei_data/log_contract_action",
             Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes("SUCCESS")));
@@ -221,8 +207,6 @@ routes:
         Assert.Null(decoder.DecodeRequest("ei/get_periodicals", null).Json);
     }
 
-    // stats + cert-state inference
-
     [Fact]
     public void StatsSnapshot_FreshHub_CertWaiting_AllZero()
     {
@@ -251,8 +235,6 @@ routes:
         hub.RecordConnection(1, "192.168.1.5", "t");
 
         var s = hub.StatsSnapshot();
-        // A TCP connect does not prove cert trust either way - state stays Waiting until a flow
-        // decrypts (Trusted) or a decrypt error fires (Untrusted).
         Assert.Equal("Waiting", s.CertState);
         Assert.Equal(1, s.DeviceCount);
         Assert.Equal(1, s.ActiveConnections);
@@ -265,7 +247,6 @@ routes:
         var hub = new CaptureHub();
         hub.RecordAuxbrainConnect();
 
-        // Seeing an auxbrain CONNECT alone is not proof of (un)trust - decrypt may still succeed.
         Assert.Equal("Waiting", hub.StatsSnapshot().CertState);
     }
 
@@ -336,7 +317,6 @@ routes:
     public void Bytes_TrackedPerEndpoint_BiggestReflectsPath()
     {
         var hub = new CaptureHub();
-        // F's ResponseB64 is "AAEC" (length 4), so this flow contributes bytes.
         hub.Publish(F("ei/big"), "t", isAuxbrain: true);
 
         var s = hub.StatsSnapshot();
@@ -368,7 +348,6 @@ routes:
         Assert.Equal(2, d.ActiveConnections);
     }
 
-    // A flow whose decoded request carries an rinfo with platform + version (the OS/version source).
     private static DashboardFlow FlowWithRInfo(string platform, string version) =>
         F("ei/x") with
         {
@@ -395,7 +374,6 @@ routes:
         hub.RecordConnection(2, "192.168.1.6", "t");
         hub.Publish(FlowWithRInfo("DROID", "1.35.6"), "t");
 
-        // With >1 device we cannot attribute the rinfo to one of them, so none is shown.
         Assert.All(hub.StatsSnapshot().Devices, d => { Assert.Null(d.Os); Assert.Null(d.GameVersion); });
     }
 }

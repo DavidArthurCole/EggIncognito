@@ -13,8 +13,6 @@ public class CaptureAddressStoreTests
     [Fact]
     public void RandomInPrefix_IsRandom_NotDeterministic()
     {
-        // Addresses are random + rotatable, so two mints must differ (a leaked address tells an
-        // attacker nothing about the next one).
         var a = CaptureAddressStore.RandomInPrefix(Prefix);
         var b = CaptureAddressStore.RandomInPrefix(Prefix);
         Assert.NotEqual(a, b);
@@ -23,15 +21,13 @@ public class CaptureAddressStoreTests
     [Fact]
     public void RandomInPrefix_HonorsSubPrefixUpperHalf()
     {
-        // A /65 upper-half sub-prefix: the first host bit (bit 64) must stay 1, and the first 64
-        // prefix bits must be preserved, for many random draws.
         const string sub = "2a01:4f8:c012:e15b:8000::/65";
         var prefixBytes = IPAddress.Parse("2a01:4f8:c012:e15b::").GetAddressBytes();
         for (var n = 0; n < 50; n++)
         {
             var bytes = CaptureAddressStore.RandomInPrefix(sub).GetAddressBytes();
-            for (var i = 0; i < 8; i++) Assert.Equal(prefixBytes[i], bytes[i]); // /64 prefix intact
-            Assert.Equal(0x80, bytes[8] & 0x80); // bit 64 set (upper half)
+            for (var i = 0; i < 8; i++) Assert.Equal(prefixBytes[i], bytes[i]);
+            Assert.Equal(0x80, bytes[8] & 0x80);
         }
     }
 
@@ -58,9 +54,6 @@ public class CaptureAddressStoreTests
         }
     }
 
-    // Persistence round-trip. The test project carries no EF test provider (tests-DB-free repo rule:
-    // no InMemory/Testcontainers/SkippableFact deps), so a real Postgres round-trip cannot run here.
-    // Run manually against a live DB if AddrForUserAsync/UserForAddrAsync change.
     [Fact(Skip = "requires Postgres; no EF test provider per tests-DB-free repo rule")]
     public async Task AddrForUser_PersistsAndReverseMaps()
     {

@@ -3,9 +3,8 @@ using System.Text.Json.Nodes;
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
 // Recovers an effect's per-frame placement math from the symbolized binary as an EffectModel. Resolves the
-// per-particle update function, symbolically executes it (time t in s0, the particle index seeded), models the
-// known math + particle sink, and returns the captured placement ExprTree + an opaque-node count (the fidelity
-// signal). The spawn function name is accepted for context. Never throws.
+// per-particle update function, symbolically executes it (time t in s0, the particle index seeded), and returns
+// the captured placement ExprTree + an opaque-node count (the fidelity signal). Never throws.
 public static class EffectRecovery
 {
     public readonly record struct EffectModel(
@@ -40,8 +39,8 @@ public static class EffectRecovery
         var seed = new Dictionary<string, ExprNode> { ["s0"] = new Input("t"), ["x1"] = new Input("particleIndex") };
         var exec = Arm64SymbolicExecutor.Run(code, fn, tvm, tfo, syms, seed, KnownCallModels.Resolve);
 
-        // The per-particle placement is the affine transform the update assembles on the stack and hands to the
-        // (indirect) addParticle call. Read the 16 floats at the sink's stack pointer as a column-major 4x4.
+        // The per-particle placement is the affine transform assembled on the stack and handed to addParticle:
+        // read the 16 floats at the sink's stack pointer as a column-major 4x4.
         ExprNode? placement = null;
         if (exec.SinkStackPtr is { } baseOff)
         {

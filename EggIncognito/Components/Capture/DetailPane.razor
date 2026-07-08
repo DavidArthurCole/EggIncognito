@@ -1,7 +1,5 @@
-@* The detail pane, ported from wwwroot/capture/detail.js: header (path + status), the known-endpoint
-   card or the save-as-endpoint bar + type lines, then Request/Response tabs each carrying the body
-   (FormatView), URL params for the request, and optional headers. Save-as-endpoint POSTs through the
-   controller (CanCapture gate). *@
+@* The detail pane: header (path + status), the known-endpoint card or save-as-endpoint bar + type
+   lines, then Request/Response tabs carrying the body (FormatView), URL params, and optional headers. *@
 @using System.Net.Http.Json
 @using System.Text.Json
 @using EggIncognito.Capture
@@ -64,25 +62,21 @@ else
 @code {
     [Parameter] public DashboardFlow? Flow { get; set; }
     [Parameter] public CaptureViewState View { get; set; } = new();
-    // Self-call client factory forwarding the auth cookie, supplied by the page.
     [Parameter] public Func<HttpClient> ClientFactory { get; set; } = default!;
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    // Remembered format per section label, kept across flow selections (mirrors detail.js formatChoice).
     readonly Dictionary<string, string> _formatChoice = new();
-    int _tab; // remembered tab across flows, like lastDetailTab
+    int _tab;
     string _saveMsg = "";
     string _saveCls = "";
 
-    // Blurred URL/header values revealed by click, keyed by a stable value identity (not render index)
-    // so the state survives re-renders. Reset when the selected flow changes.
+    // Keyed by a stable value identity, not render index, so reveal state survives re-renders.
     readonly HashSet<string> _revealed = new(StringComparer.Ordinal);
 
     long _renderedFlowId = -1;
     protected override void OnParametersSet()
     {
-        // Clear the save result + reveals when the selected flow changes.
         if (Flow is not null && Flow.Id != _renderedFlowId)
         {
             _renderedFlowId = Flow.Id;
@@ -92,7 +86,6 @@ else
         }
     }
 
-    // Click toggles a blurred value's reveal (mirrors TreeNodeView.OnLeafClick).
     void ToggleReveal(string key)
     {
         if (!_revealed.Remove(key)) _revealed.Add(key);
@@ -162,7 +155,7 @@ else
         <span class="known-card-val @(unknown ? "unknown" : "")">@value</span>
       </div>;
 
-    // Git-style +N (green) / -N (red) spans for diff outcomes. Ported from appendDiffCounts.
+    // Git-style +N (green) / -N (red) spans for diff outcomes.
     RenderFragment DiffCounts(int added, int removed) =>@<text>@if (added > 0)
         {<span class="diff-add">@("+" + added)</span>}@if (removed > 0)
         {<span class="diff-del">@("-" + removed)</span>}</text>;
@@ -309,7 +302,7 @@ else
         n >= 1024 ? $"{n / 1024.0:0.#} KB" : $"{n} B";
 
     // "URL" section: the request path plus any path/query params, EID-bearing values blurred/redacted.
-    // Returns null when there is nothing to show. Ported from buildParamsSection + parseFlowUrl.
+    // Returns null when there is nothing to show.
     RenderFragment? BuildParams(DashboardFlow flow)
     {
         var parsed = ParseFlowUrl(flow);
@@ -361,7 +354,6 @@ else
           @text
         }</text>;
 
-    // Split a flow URL into (path, query, pathParams). Ported from parseFlowUrl.
     (string Path, List<(string, string)> Query, List<string> PathParams)? ParseFlowUrl(DashboardFlow flow)
     {
         var raw = flow.Url ?? "";
@@ -409,9 +401,8 @@ else
         return (path, query, pathParams);
     }
 
-    // A side's headers: a name/value table + a copy button. In blur mode a sensitive value blurs
-    // (reveal on hover/click), matching body blur. Returns null when there are no headers. Ported from
-    // buildHeadersSection + headersForDisplay.
+    // A side's headers: a name/value table. In blur mode a sensitive value blurs (reveal on click).
+    // Returns null when there are no headers.
     RenderFragment? BuildHeaders(string label, IReadOnlyList<DashboardHeader>? redacted, IReadOnlyList<DashboardHeader>? raw)
     {
         var headers = View.IsBlurMode || View.ShowRawHeaders ? raw ?? redacted ?? [] : redacted ?? [];

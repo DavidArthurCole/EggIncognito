@@ -55,7 +55,7 @@ public class EventsControllerTests : IClassFixture<WebApplicationFactory<Program
     [Fact]
     public async Task Hosted_RightBearer_Is202()
     {
-        // Hosted is no longer gated: a correctly-authed event is accepted regardless of AppMode.
+        // A correctly-authed event is accepted regardless of AppMode.
         var c = Client("Hosted", withSecret: true);
         var req = new HttpRequestMessage(HttpMethod.Post, "/events/new-version") { Content = Json() };
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Secret);

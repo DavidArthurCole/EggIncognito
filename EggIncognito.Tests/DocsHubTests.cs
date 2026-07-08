@@ -7,20 +7,16 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-// Phase 3C: the docs hub page + shared Markdown components. The registry is DB-free (proto reflection +
-// curated lists), so the hub renders with no Postgres. ValidKind was widened for the new subject kinds.
+// The registry is DB-free (proto reflection + curated lists), so the hub renders with no Postgres.
 public class DocsHubTests
 {
-    // Page-level: the prerendered /docs returns 200 and renders the hub shell with the 4 group titles.
     public class Integration : IClassFixture<WebApplicationFactory<Program>>
     {
         private readonly WebApplicationFactory<Program> _f;
         public Integration(WebApplicationFactory<Program> f) =>
             _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
 
-        // Docs folded into the Inspector; the legacy /docs route now redirects there. It must still
-        // respond 200 (client-side NavigateTo), not 404. The proto doc API + DocHelp affordance (asserted
-        // below) carry the actual docs surface now.
+        // Legacy /docs route now redirects into the Inspector; must still respond 200, not 404.
         [Fact]
         public async Task DocsRoute_StillResponds()
         {
@@ -29,7 +25,6 @@ public class DocsHubTests
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
         }
 
-        // The widened ValidKind now accepts "config". With no DB the controller returns 200 + [], not 400.
         [Fact]
         public async Task SubjectTags_ConfigKind_Accepted()
         {
@@ -41,7 +36,6 @@ public class DocsHubTests
         }
     }
 
-    // Component-level (bUnit): the Markdown render component wires MarkdownRenderer (markdown -> safe HTML).
     public class MarkdownComponent : BunitContext
     {
         [Fact]
@@ -52,15 +46,11 @@ public class DocsHubTests
         }
     }
 
-    // Component-level: DocHelp renders the registry summary for a known config key, and nothing for an
-    // unknown subject.
     public class DocHelpComponent : BunitContext
     {
         private void Wire()
         {
             Services.AddSingleton<IProtoReflection, ProtoReflection>();
-            // Config subjects (what these tests assert on) are curated and need no routes, so an empty
-            // catalog (non-existent yaml path) is enough. proto reflection drives the message subtree.
             Services.AddSingleton<IRouteCatalog>(new RouteCatalog("__no_routes_yaml__"));
             Services.AddSingleton<IDocRegistry, DocRegistry>();
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());

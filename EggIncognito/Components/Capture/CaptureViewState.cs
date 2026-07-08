@@ -2,9 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Components.Capture;
 
-// View preferences + redaction logic for the capture detail pane, ported from redaction.js + the
-// outcome/format helpers of helpers.js. A plain mutable holder fanned down to the detail components by
-// parameter; the page loads/persists it through the captureStore.js interop. Three redaction modes:
+// View preferences + redaction logic for the capture detail pane. Three redaction modes:
 //   off    - raw json, nothing blurred
 //   blur   - raw json, sensitive values blurred (CSS .blurred), revealed on click
 //   redact - pre-redacted json with "redacted-xxxx" tokens
@@ -13,8 +11,8 @@ public sealed class CaptureViewState
     // Matches an EID anywhere in a string: path params, query values, etc.
     public static readonly Regex EidRe = new("EI\\d{10,}", RegexOptions.Compiled);
 
-    // Field names whose values are blurred in blur mode, at any depth. Seeded with the EID fields; the
-    // rest are added from /api/capture/sensitive-keys.
+    // Field names whose values are blurred in blur mode. Seeded with EID fields; rest added from
+    // /api/capture/sensitive-keys.
     public HashSet<string> SensitiveKeys { get; } = new(StringComparer.Ordinal) { "eiUserId", "userId" };
 
     public string RedactionMode { get; set; } = "blur";
@@ -26,32 +24,27 @@ public sealed class CaptureViewState
     public bool IsBlurMode => RedactionMode == "blur";
     public bool IsRedactMode => RedactionMode == "redact";
 
-    // Whether to render the unredacted header value: only in Off mode (mirrors body raw behavior).
     public bool ShowRawHeaders => RedactionMode == "off";
 
-    // Pick which JSON string to render for a flow side. redact uses pre-redacted; off/blur use raw,
-    // falling back to redacted if null. The per-value blur happens later in the tree.
+    // redact uses pre-redacted json; off/blur use raw, falling back to redacted if null.
     public string? PickJson(string? redacted, string? raw) =>
         RedactionMode == "redact" ? redacted : raw ?? redacted;
 
-    // True when a value under keyName should be blurred: blur mode active and the field is sensitive.
     public bool IsSensitiveKey(string? keyName) =>
         RedactionMode == "blur" && keyName is not null && SensitiveKeys.Contains(keyName);
 
     public bool LooksLikeEid(string s) => EidRe.IsMatch(s);
 
-    // Apply blur/redact to a single path/query param value. EID-looking values are redacted to
-    // "redacted-eid" or blurred; others pass through. Returns (text, blur) - blur true means wrap the
-    // span in a click-to-reveal blur. Ported from redactParamValue.
+    // EID-looking values are redacted to "redacted-eid" or blurred; others pass through. Blur true means
+    // wrap the span in a click-to-reveal blur.
     public (string Text, bool Blur) RedactParamValue(string value)
     {
         if (RedactionMode == "redact" && EidRe.IsMatch(value)) return ("redacted-eid", false);
         return (value, RedactionMode == "blur" && EidRe.IsMatch(value));
     }
 
-    // Tokenize a path on '/', so any EID-looking segment respects the current mode while the rest stays
-    // raw. Returns the parts in order; Blur true means render that segment blurred. Ported from
-    // renderRedactedPath.
+    // Tokenizes a path on '/' so any EID-looking segment respects the current mode while the rest stays
+    // raw. Blur true means render that segment blurred.
     public IEnumerable<(string Text, bool Blur)> RenderRedactedPath(string path)
     {
         // Keep separators so the path renders exactly as-is.
@@ -71,8 +64,8 @@ public sealed class CaptureViewState
         }
     }
 
-    // Collect the exact string values that should be blurred in text views: any value under a sensitive
-    // key, plus any string that looks like an EID anywhere. Ported from collectSensitiveValues.
+    // Collects the exact string values that should be blurred in text views: any value under a sensitive
+    // key, plus any string that looks like an EID anywhere.
     public HashSet<string> CollectSensitiveValues(System.Text.Json.Nodes.JsonNode? value)
     {
         var outSet = new HashSet<string>(StringComparer.Ordinal);
@@ -102,7 +95,6 @@ public sealed class CaptureViewState
     }
 }
 
-// Small shared formatting helpers, ported from helpers.js. Pure, used across the flow list + detail.
 public static class CaptureHelpers
 {
     public static string StatusClass(int status) => status switch
@@ -122,7 +114,6 @@ public static class CaptureHelpers
 
     public sealed record OutcomeMeta(string Label, string Kind, string Desc);
 
-    // Map an endpoint-write outcome string to a label/kind/desc. Null for empty/unknown.
     public static OutcomeMeta? Outcome(string? outcome) => outcome switch
     {
         "wrote" => new("wrote", "good", "New endpoint written to disk (none existed before)."),

@@ -5,11 +5,10 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Controllers;
 
-// Serves the farm-environment meshes + the presets that compose them into a playground backdrop. The meshes
-// are NOT shipped: they are pulled off a connected device's bundle on demand and cached (DeviceMeshProvider),
-// the same way every other game mesh is sourced. The env catalog is just names + layout (no asset bytes).
-// Presets read is public; the glb pull does a device round-trip so it is admin-gated like the device-mesh
-// route. Without a reachable device the glb pull returns 503 (the catalog still lists what is available).
+// Serves the farm-environment meshes + the presets that compose them into a playground backdrop. Meshes are
+// pulled off a connected device's bundle on demand and cached (DeviceMeshProvider); the catalog itself is just
+// names and layout, no asset bytes. Catalog read is public; the glb pull does a device round-trip so it is
+// admin-gated, and returns 503 without a reachable device.
 [ApiController]
 [Route("api/env")]
 public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser currentUser, GameBinaryProvider binaries) : ControllerBase
@@ -43,10 +42,9 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         return Ok(new { elements = placed });
     }
 
-    // Use the EXTRACTED singleton placement formulas (evaluated at the farm's half-width) when a symbolized
-    // binary is available; otherwise the hand-authored fallback layout. The binary source is best-effort + the
-    // recovery never throws, so a missing/stripped binary cleanly falls back. farmHalfWidth is approximated from
-    // the standard layout's X-extent (the game derives it from farm-bound state we do not have offline).
+    // Uses the extracted singleton placement formulas (evaluated at the farm's half-width) when a symbolized
+    // binary is available, otherwise the hand-authored fallback layout; recovery never throws, so a missing or
+    // stripped binary cleanly falls back.
     private async Task<IReadOnlyList<EggIncognito.Services.ProtoExtract.FarmLayout.Placed>> RecoveredOrFallbackLayout(
         string stem, string? device, CancellationToken ct)
     {
@@ -59,7 +57,7 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
                 EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover(bin, "FarmScene17missionControlPos"),
                 EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover(bin, "FarmScene11fuelTankPos"),
                 EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover(bin, "FarmScene6hoaPos"));
-            const float farmHalfWidth = 13.5f; // approx half the standard farm X-extent; tunable
+            const float farmHalfWidth = 13.5f; // approx half the standard farm X-extent
             return EggIncognito.Services.ProtoExtract.FarmLayout.StandardRecovered(rec, farmHalfWidth, stem);
         }
         catch
@@ -71,9 +69,8 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     private static string LabelFor(string stem) =>
         EnvCatalog.Pieces.FirstOrDefault(p => p.Stem == stem)?.Label ?? stem;
 
-    // A hatchery floating sub-piece stem (ei_hatchery_<tier>_<bolt|probe|ring*|top*|middle|orb>). Safe to fetch:
-    // no path traversal (allowed chars only) + must be a floating part per HatcheryEffectParts. These are real
-    // device meshes that compose the hatchery effect but are not standalone catalog pieces.
+    // A hatchery floating sub-piece stem (ei_hatchery_<tier>_<bolt|probe|ring*|top*|middle|orb>). Safe to
+    // fetch: allowed chars only, and must be a floating part per HatcheryEffectParts.
     private static bool IsHatcheryFloatingPart(string stem)
     {
         if (string.IsNullOrEmpty(stem) || stem.Length > 64) return false;
@@ -87,9 +84,8 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         return stem.Length > body.Length + 1 && stem.StartsWith(body + "_", StringComparison.Ordinal);
     }
 
-    // Lists the mesh stems actually present on the asset-source device (Android apk enumeration). Admin-gated
-    // (device round-trip). Diagnostic tool to map the env catalog to real on-device asset names. ?filter= is a
-    // case-insensitive substring (e.g. ?filter=hab to see every hab mesh the device ships).
+    // Lists the mesh stems actually present on the asset-source device (Android apk enumeration), to map the
+    // env catalog to real on-device asset names. ?filter= is a case-insensitive substring match.
     [HttpGet("device-stems")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> DeviceStems([FromQuery] string? device, [FromQuery] string? filter, CancellationToken ct)
@@ -105,9 +101,8 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     }
 
     // The hatchery floating effect, resolved from the device mesh list: for each tier (or one requested tier),
-    // the body stem + its floating sub-piece stems (bolt/probe/rings/tops). The "floating effect" is these hover
-    // meshes, not a particle system (the static binding wall). The playground loads body + parts + orbits the
-    // parts. Programmatic via HatcheryEffectParts (no hardcoded per-tier list). Admin-gated (device round-trip).
+    // the body stem plus its floating sub-piece stems (bolt/probe/rings/tops). Resolved via HatcheryEffectParts,
+    // no hardcoded per-tier list.
     [HttpGet("hatchery-effects")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> HatcheryEffects([FromQuery] string? tier, [FromQuery] string? device, CancellationToken ct)
@@ -128,11 +123,9 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         return Ok(new { ok = true, count = effects.Count, effects });
     }
 
-    // MONOLITHIC hatchery dump: EVERYTHING needed to reproduce the hatchery floating effect for ALL tiers, in ONE
-    // call (so it can be tested with a single URL hit). Combines: every tier's body + floating parts (programmatic),
-    // each floating piece's decode-stats bounds (the beam/probe geometry), and the binary assembly recovery
-    // (FarmScene::updateHatchery anchor + matrix-lambda transforms + rotate_pyramid orbit/beam helper). The effect
-    // is a state machine: probes orbit the orb, beams (the spike) fire probe->orb intermittently. Admin-gated.
+    // Monolithic hatchery dump: everything needed to reproduce the hatchery floating effect for all tiers in
+    // one call. Combines every tier's body and floating parts, each piece's decode-stats bounds, and the binary
+    // assembly recovery (FarmScene::updateHatchery anchor, matrix-lambda transforms, rotate_pyramid helper).
     [HttpGet("hatchery-dump")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> HatcheryDump([FromQuery] string? device, CancellationToken ct)
@@ -140,10 +133,8 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
-        // ONE base.apk pull for the whole dump: list every stem, then decode all hatchery pieces from the same
-        // in-memory zip. The old loop re-pulled the multi-MB apk off the device once per piece (dozens of pulls,
-        // minutes of adb). selectStatsFor derives the pieces-to-decode from the listing itself: every tier's body
-        // + floating parts.
+        // One base.apk pull for the whole dump: list every stem, then decode all hatchery pieces from the same
+        // in-memory zip, instead of re-pulling the apk once per piece.
         var (sok, stems, stats, sdiag) = await meshes.ListStemsWithStatsAsync(device, HatcheryPieceStems, ct);
         var tiersJson = new System.Text.Json.Nodes.JsonArray();
         if (sok)
@@ -227,9 +218,8 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         };
     }
 
-    // Decode stats for a stem's raw .rpo (admin). vertexCount/indexCount/bounds + trailingBytes: nonzero
-    // trailing means the file packs more than one mesh (e.g. a hab's floating-effect sub-objects) the
-    // single-mesh decoder currently drops. Diagnostic toward multi-mesh extraction.
+    // Decode stats for a stem's raw .rpo: vertexCount/indexCount/bounds plus trailingBytes, where nonzero
+    // trailing means the file packs more than one mesh that the single-mesh decoder currently drops.
     [HttpGet("{stem}/decode-stats")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> DecodeStats(string stem, [FromQuery] string? device, CancellationToken ct)
@@ -255,17 +245,16 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
         });
     }
 
-    // One env mesh decoded to glb, by stem (allowlisted). Pulled off the asset-source device, cache-first.
-    // Admin-gated (device round-trip). ?device= picks a specific source device, else first reachable.
+    // One env mesh decoded to glb, by stem (allowlisted), pulled off the asset-source device, cache-first.
+    // ?device= picks a specific source device, else first reachable.
     [HttpGet("{stem}/glb")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Glb(string stem, [FromQuery] string? device, CancellationToken ct)
     {
         if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
-        // Allow catalog pieces + hatchery floating sub-pieces (bolt/probe/rings/tops). The sub-pieces are real
-        // device meshes that drive the hatchery effect but are not standalone catalog entries; gate them by the
-        // safe naming pattern (no traversal, ei_hatchery_<tier>_<floatingPart>) rather than the catalog allowlist.
+        // Allow catalog pieces plus hatchery floating sub-pieces, gated by the safe naming pattern
+        // (ei_hatchery_<tier>_<floatingPart>) since they are not standalone catalog entries.
         if (!EnvCatalog.IsKnownPiece(stem) && !IsHatcheryFloatingPart(stem))
             return NotFound(new { error = "unknown env mesh" });
 

@@ -4,15 +4,12 @@ using Xunit.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// Throwaway survey (not a CI gate): runs the clientVersion heuristic across every locally-collected
-// historical iOS binary. Skips cleanly when the machine-local binary tree is absent.
+// Not a CI gate: runs the clientVersion heuristic across every locally-collected historical iOS binary.
 public class MachoClientVersionSurveyTests(ITestOutputHelper output)
 {
     private static readonly string Root =
         Environment.GetEnvironmentVariable("EGGINC_IOS_HISTORICAL_ROOT") ?? @"C:\Users\david\egginc-ios-extract\historical";
 
-    // app version (major.minor.patch) -> known/assumed clientVersion anchor for that era, used to test
-    // whether prev-anchoring picks a self-consistent monotonic value. Android oracle: ~1.35.x = 72.
     [Fact]
     public void Survey_AllHistoricalBinaries()
     {
@@ -42,8 +39,6 @@ public class MachoClientVersionSurveyTests(ITestOutputHelper output)
 
             var insns = Arm64Decoder.Decode(bytes.AsSpan(off, size), vm);
             var ranked = RankBySites(insns, 2, 255);
-            // Full small-int candidate map (>=3 sites), so we can see whether a plausible clientVersion
-            // value exists and how the prev-anchored window would select.
             string band = string.Join(", ", ranked
                 .Where(kv => kv.Value >= 3)
                 .OrderBy(kv => kv.Key)

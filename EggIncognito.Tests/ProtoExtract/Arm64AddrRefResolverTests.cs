@@ -4,9 +4,8 @@ using Xunit;
 namespace EggIncognito.Tests.ProtoExtract;
 
 // Arm64AddrRefResolver finds which function references a target VA (adrp+add), to pin a function whose own body
-// changed across versions but whose closure recovered. The real resolution is proven on the device binary; here
-// we cover the defensive contract (junk / too-short / no function-starts -> empty, never throws). The adrp+add
-// page math itself is shared with MachoArm64Disassembler, which is unit-tested against real encodings.
+// changed across versions but whose closure recovered. Covers the defensive contract here (junk / too-short /
+// no function-starts -> empty, never throws); real resolution is proven on the device binary.
 public class Arm64AddrRefResolverTests
 {
     [Fact]

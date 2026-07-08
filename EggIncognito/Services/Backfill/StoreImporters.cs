@@ -5,15 +5,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Services.Backfill;
 
-// Current-version-only, proto-less, source-tagged metadata importers for the Play + App stores. They
-// confirm the latest published version per platform; they never set proto text (SourcePrecedence keeps
-// store sources out of the proto column). Both run in the background, so each opens its own DI scope.
-
-// Pure parsers, tested over canned responses.
+// Current-version-only, proto-less, source-tagged metadata importers for the Play + App stores.
 public static partial class StoreParse
 {
-    // The Play store page embeds the current version near a "Current Version" / softwareVersion marker.
-    // A small regex over that block is enough; we only want the version string, not full HTML parsing.
     [GeneratedRegex(@"Current Version.*?>([\d][\d.]*)<", RegexOptions.Singleline)]
     private static partial Regex PlayCurrentVersionRe();
 
@@ -29,7 +23,6 @@ public static partial class StoreParse
         return m.Success ? m.Groups[1].Value : null;
     }
 
-    // iTunes lookup returns a results array; the first result's "version" is the current iOS version.
     public static string? AppStoreVersion(string json)
     {
         if (string.IsNullOrEmpty(json)) return null;
@@ -76,8 +69,7 @@ public sealed class PlayStoreImporter(
     }
 }
 
-// Fetches the current iOS version via the iTunes lookup API and upserts a metadata-only row. The iOS
-// bundle id is config (AppStore:BundleId); unset = skip cleanly, never guess a bundle id.
+// Fetches the current iOS version via the iTunes lookup API and upserts a metadata-only row.
 public sealed class AppStoreImporter(
     IHttpClientFactory httpFactory, IConfiguration config, IServiceScopeFactory scopeFactory,
     ILogger<AppStoreImporter> logger)

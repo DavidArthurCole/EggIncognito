@@ -1,6 +1,4 @@
-@* Admin oversight of active capture sessions: list (user/state/port/flows/connections/decrypt) + a
-   kill button per row. Reads /api/admin/sessions (in-process CaptureSessionManager), polls every few
-   seconds. Server ACL gates; this panel only renders for an admin (parent gate). *@
+@* Admin oversight of active capture sessions: list + a kill button per row, polling /api/admin/sessions. *@
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Net.Http.Json
 @using EggIncognito.Components.Shared
@@ -68,7 +66,7 @@
     {
         if (ClientFactory is null) return;
         try { _rows = await ClientFactory().GetFromJsonAsync<List<Row>>("/api/admin/sessions", JsonOpts) ?? []; }
-        catch { /* keep last good */ }
+        catch { }
     }
 
     async Task Kill(string key)

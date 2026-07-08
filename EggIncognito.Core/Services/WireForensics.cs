@@ -3,19 +3,15 @@ using Google.Protobuf.Reflection;
 namespace EggIncognito.Services;
 
 // Schema-less + schema-aware protobuf wire-format diagnosis for corrupt blobs. Walks raw bytes by wire
-// type (does NOT depend on a successful parse), records the exact byte offset where the structure first
-// breaks, resolves numeric field paths to names when a root type + reflection are supplied, flags
-// wire-type-vs-schema mismatches, and salvages printable-ASCII runs from the broken span. Ported in
-// concept (not code) from EggIncAPITools' walkProtoWire / traceFailingField / resolveFieldPath; C#-native
-// because CodedInputStream is sealed and cannot be hooked the jspb way.
+// type (does not depend on a successful parse), recording the exact byte offset where structure first
+// breaks and salvaging printable-ASCII runs from the broken span.
 public static class WireForensics
 {
     public sealed record WireError(int Offset, string Path, string? ResolvedPath, string Message);
     public sealed record HexWindow(int From, int To, int ErrorIndexInWindow, string Hex);
     public sealed record SalvagedString(int Offset, string Text);
 
-    // DataStart/DataEnd = the exact LEN payload byte range [DataStart, DataEnd); null for non-LEN
-    // fields and for LEN fields whose declared length overruns the region.
+    // DataStart/DataEnd: the LEN payload byte range [DataStart, DataEnd), null for non-LEN fields.
     public sealed record WireNode(
         string Path,
         string? ResolvedName,
@@ -28,12 +24,10 @@ public static class WireForensics
         bool SchemaMismatch,
         IReadOnlyList<WireNode> Children);
 
-    // One field recovered by the tolerant re-parse (v2). Value is best-effort: scalar text/number, a
-    // decoded string, or "<N bytes>" for non-printable blobs. Bad = the field did not decode cleanly.
+    // Value is best-effort: scalar text/number, a decoded string, or "<N bytes>" for non-printable blobs.
     public sealed record RecoveredField(int Field, string? ResolvedName, string Wire, string Value, bool Bad);
 
-    // Result of recovering one corrupt record's fields. AlignedAt is the byte offset the re-parse locked
-    // onto; SkippedBytes is how many bytes it had to step over to resync.
+    // AlignedAt is the byte offset the re-parse locked onto; SkippedBytes is how many bytes it skipped to resync.
     public sealed record Recovery(
         int AlignedAt,
         int SkippedBytes,
@@ -68,7 +62,6 @@ public static class WireForensics
         public int Offset { get; } = offset;
     }
 
-    // Read a base-128 varint at pos. Returns (value, next). Throws on truncation/overlong.
     static (ulong Value, int Next) ReadVarint(ReadOnlySpan<byte> buf, int pos)
     {
         ulong result = 0;
@@ -85,14 +78,11 @@ public static class WireForensics
         throw new WireException("truncated varint (hit end of buffer)", start);
     }
 
-    // Guard for LEN payload lengths: true when the declared length fits in [pos, end). Checked as ulong
-    // BEFORE narrowing to int so an oversized varint cannot wrap negative and defeat the bounds check
-    // (out-of-bounds slices / backward re-parse loops).
+    // Checked as ulong before narrowing to int so an oversized varint cannot wrap negative and defeat the bounds check.
     static bool LenFits(ulong declaredLen, int pos, int end) =>
         pos <= end && declaredLen <= (ulong)(end - pos);
 
-    // Heuristic: does a LEN payload [start,end) parse cleanly as a nested message (descend) or is it a
-    // leaf string/bytes/packed (don't descend)? Clean = every field reads to exactly end.
+    // True when [start,end) parses cleanly as a nested message (every field reads to exactly end).
     static bool LooksLikeMessage(ReadOnlySpan<byte> buf, int start, int end)
     {
         if (start == end) return false;
@@ -244,8 +234,7 @@ public static class WireForensics
             }
         }
 
-        // v2: re-parse the region around the break, skipping corrupt fields, so intact fields past the
-        // corruption are still readable. Resolve numbers to names if a schema path led there.
+        // Re-parse the region around the break, skipping corrupt fields, so intact fields past the corruption are still readable.
         Recovery? recovered = null;
         if (first is not null)
         {
@@ -352,10 +341,8 @@ public static class WireForensics
         return (fields, cleanPrefix, skip);
     }
 
-    // Tolerant recovery of a message region. The caller's start may sit on a tag, a length varint, or a
-    // byte or two into a wrapper; try a few candidate offsets and keep the one whose fields parse cleanly
-    // from the very first byte (longest clean prefix), not the one that racks up the most fields after
-    // wandering through garbage. Ported from traceFailingField.js recoverMessageFields.
+    // The caller's start may sit mid-tag or mid-wrapper; try a few candidate offsets and keep the one
+    // with the longest clean prefix, not the one that racks up the most fields after wandering through garbage.
     static (IReadOnlyList<RecoveredField> Fields, int AlignedAt, int Skipped) RecoverFields(ReadOnlySpan<byte> buf, int start, int end, int maxProbe = 8)
     {
         (List<RecoveredField> f, int prefix, int skip, int off)? best = null;

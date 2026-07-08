@@ -282,18 +282,16 @@
         finally { _configBusy = false; }
     }
 
-    // Fetch the live config through the Inspector ecosystem: build+sign a ConfigRequest (browser salt) via
+    // Fetch the live config through the Inspector pipeline: build+sign a ConfigRequest (browser salt) via
     // /api/inspector/build, send it to get_config via /api/inspector/send, then ingest the decoded response.
-    // Reuses the exact pipeline the Inspector page uses, no bespoke server path.
     async Task FetchConfigViaInspector()
     {
         if (string.IsNullOrWhiteSpace(_configEid)) { ConfigStatus("EID is required", true); return; }
         _configBusy = true; ConfigStatus("Building request…", false);
         try
         {
-            // Pull the salt + the Inspector's BasicRequestInfo defaults from the same browser store the
-            // Inspector page uses. rinfo is mandatory: clone the defaults, set the EID, and pass them as the
-            // build env (MergeEnv injects env onto the request's rinfo, exactly like the Inspector does).
+            // Pull the salt + the Inspector's BasicRequestInfo defaults from the same browser store.
+            // rinfo is mandatory: clone the defaults, set the EID, and pass them as the build env.
             string salt = "";
             System.Text.Json.JsonElement env = default;
             try

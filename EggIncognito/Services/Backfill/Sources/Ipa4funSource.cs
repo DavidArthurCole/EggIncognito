@@ -1,8 +1,6 @@
 namespace EggIncognito.Services.Backfill.Sources;
 
-// ipa4fun iOS history (https://www.ipa4fun.com/history/74815/) DEFERRED: naive fetches 403 (needs a
-// real browser session, not just a UA). Stubbed behind IVersionListSource so it slots in later with no
-// importer change. The real iOS history path is the jailbroken iPhone 8 farm. Returns empty + logs once.
+// ipa4fun iOS history DEFERRED: naive fetches 403 (needs a real browser session, not just a UA).
 public sealed class Ipa4funSource(ILogger<Ipa4funSource> logger) : IVersionListSource
 {
     public string Name => "ipa4fun";

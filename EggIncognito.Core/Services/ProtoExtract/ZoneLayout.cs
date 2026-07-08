@@ -1,20 +1,15 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Fixed zone grid for the farm's buildable core, replacing the row-packing stopgap (FarmLayout.PackRow/
-// CoreRows). Matches the user's reference layout exactly: a horizontal path separates the hab row (above) from
-// the core area (below). Below the path, left to right: the silo field (its OWN area, exempt from gravity/
-// domino - never touched by repacking), then 3 gravity-packed rows: BackRow (Research Lab, HOA), MidRow
-// (Chicken Run Outflow, Hatchery, Mission Control, Fuel Tank), FrontRow (Depot alone, across the road).
+// Fixed zone grid for the farm's buildable core. A horizontal path separates the hab row (above) from the core
+// area (below). Below the path, left to right: the silo field (its own area, exempt from gravity/domino), then
+// 3 gravity-packed rows: BackRow (Research Lab, HOA), MidRow (Chicken Run Outflow, Hatchery, Mission Control,
+// Fuel Tank), FrontRow (Depot alone, across the road). Zone granularity is deliberately coarse, a wide Z-band
+// per row; per-slot ordering comes from left-to-right packing by real mesh width (repackZoneRow in
+// playground.js) plus PlacementSolver.DominoNudge.
 //
-// Zone GRANULARITY is deliberately coarse: each row is a wide Z-band spanning the whole packed-core width, not
-// a tight per-building box. Per-slot ordering within a row comes from left-to-right packing by REAL mesh width
-// (repackZoneRow in playground.js, called after every add) + the existing PlacementSolver.DominoNudge push, not
-// from the zone rect itself.
-//
-// STOPGAP (CLAUDE.md "EXTRACT, don't author"): row Z bands + gap are hand-tuned, same convention as the row Z
-// constants they replace. The real per-row bounds live in the game's FarmScene terrain layout, not yet
-// disassembled. Silos (FarmLayout.SiloPos) and the hab row (FarmLayout.HabRowZ etc) already use EXTRACTED
-// formulas and are wrapped as Fixed zones for addressability only, not replaced.
+// STOPGAP (CLAUDE.md "EXTRACT, don't author"): row Z bands + gap are hand-tuned. The real per-row bounds live
+// in the game's FarmScene terrain layout, not yet disassembled. Silos and the hab row already use extracted
+// formulas and are wrapped as Fixed zones for addressability only.
 public static class ZoneLayout
 {
     public enum ZoneId { Silos, Habs, BackRow, MidRow, FrontRow }
@@ -52,10 +47,8 @@ public static class ZoneLayout
         };
     }
 
-    // Places Lab+Hoa at BackRow, Hatchery/MissionControl/Fuel at MidRow (initial guess; repackZoneRow corrects
-    // X to real mesh width right after the batch add), Depot at FrontRow. Recenter=true so the layout position
-    // is authoritative. All 6 core buildings render left-pinned (recenterX="min" in playground.js's addGroup),
-    // so Pos = the zone's anchor corner, not center.
+    // Places Lab+Hoa at BackRow, Hatchery/MissionControl/Fuel at MidRow, Depot at FrontRow. All 6 core buildings
+    // render left-pinned, so Pos is the zone's anchor corner, not center.
     public static IReadOnlyList<FarmLayout.Placed> Resolve(string lab, string hoa, string hatchery,
         string missionControl, string fuel, string depot)
     {

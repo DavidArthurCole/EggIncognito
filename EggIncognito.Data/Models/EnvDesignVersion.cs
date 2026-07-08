@@ -3,10 +3,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// One saved version of an environment design. Every save appends a row (monotonic VersionNo per design), so a
-// design carries its full edit history and the user can roll back to any prior version. The parent EnvDesign
-// holds the head payload (the latest) for fast load + listing; this table is the timeline behind it. Payload is
-// opaque app JSON, same contract + size cap as EnvDesign. Rollback appends a new version copying an old one.
+// One saved version of an environment design; every save appends a row with a monotonic VersionNo per design.
+// The parent EnvDesign holds the head (latest) payload for fast load; this table is the timeline behind it.
 [Table("env_design_versions")]
 public class EnvDesignVersion
 {
@@ -26,11 +24,10 @@ public class EnvDesignVersion
     [Column("author_user_id")]
     public string? AuthorUserId { get; set; }
 
-    // A short user-facing note for the version (e.g. "added second hatchery"), optional.
     [Column("note")]
     public string? Note { get; set; }
 
-    // When a version was created by rolling back, the version it restored (for an audit trail). Null otherwise.
+    // The version restored by rollback, if this version was created by one. Null otherwise.
     [Column("rolled_back_from")]
     public int? RolledBackFrom { get; set; }
 

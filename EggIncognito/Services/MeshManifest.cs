@@ -3,10 +3,8 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
 
-// Shapes a decoded mesh set into the consumer manifest both mesh endpoints return (POST /api/tools/
-// extract-meshes from an uploaded archive, POST /api/devices/{id}/pull-meshes from a live device). One
-// place so the contract EggLedger consumes never drifts between the two paths: per-ship key, bbox, vertex/
-// index counts, emission flag, sha256 over the glb, and the glb bytes base64-encoded.
+// Shapes a decoded mesh set into the consumer manifest both mesh endpoints return. One place so the
+// contract EggLedger consumes never drifts between the two paths.
 public static class MeshManifest
 {
     public static object From(RpoAssetExtractor.ExtractResult r)
@@ -34,9 +32,8 @@ public static class MeshManifest
         return new { ok = r.Ok, diagnostics = r.Diagnostics, count = ships.Count, ships, failed };
     }
 
-    // Ship-export shape: filters the decoded set to Spaceship enum ships (via ShipNameMap), renames to
-    // <EnumName>.glb, and returns the manifest + per-ship glb base64 + the enum ships still missing a mesh
-    // (the CDN-only ships). Used by the /export-ships path so EggLedger gets enum-keyed assets directly.
+    // Filters the decoded set to Spaceship enum ships, renames to <EnumName>.glb, and returns the manifest
+    // plus the enum ships still missing a mesh.
     public static object Ships(RpoAssetExtractor.ExtractResult r, string? build, bool wroteToDisk, string? outputDir,
         EggIncognito.Services.Assets.GltfAnimator.Options? animate = null)
     {

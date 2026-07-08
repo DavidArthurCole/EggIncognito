@@ -30,11 +30,6 @@ public class MachoClientVersionReaderTests
     [Fact]
     public void Pick_SameDistance_TieBreaksByDescendingSiteCount()
     {
-        // prev=71 -> range {71,72,73}. 71 absent; 72 and 73 both present, 72 nearer so it wins by distance.
-        // To exercise the site-count tiebreak we need equal distance: prev=72 gives 73 (d1) vs 74 (d2),
-        // not a tie. Equal-distance ties only occur around prev itself, which is degenerate. Instead verify
-        // the tiebreak path directly: two candidates same distance via prev between them is impossible
-        // (range is one-sided), so assert the documented ordering holds for the nearest pick.
         var cands = new Dictionary<int, int> { [72] = 2, [73] = 99 };
         Assert.Equal(72, MachoClientVersionReader.Pick(cands, 72)); // 72 nearest, chosen over higher-count 73
     }

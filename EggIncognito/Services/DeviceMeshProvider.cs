@@ -9,12 +9,7 @@ namespace EggIncognito.Services;
 
 // Resolves a mesh (.rpo/.rpoz) stem to a decoded .glb by pulling it off a connected device and caching the
 // result, so no game asset is ever shipped in the repo. Shared by the device-mesh route and the playground
-// environment: both want "give me stem X as glb", cache-first, pulled live from a device bundle. Game assets
-// stay the property of Auxbrain; this only reformats what a device already has.
-//
-// Asset-source device: an explicit id, else the first reachable enabled device (env meshes have no device of
-// their own, so they borrow whichever device is online). Cache key = (platform, stem), shared with the
-// device-mesh cache so a mesh pulled by either path is reused by the other.
+// environment. Cache key = (platform, stem).
 public sealed class DeviceMeshProvider(
     IServiceProvider services, MeshAssetCache cache, IProcessRunner runner,
     IConfiguration config, ILogger<DeviceMeshProvider> logger)
@@ -29,10 +24,8 @@ public sealed class DeviceMeshProvider(
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
-    // The decoded glb for a stem. Lookup order: Postgres cache (durable, shared) -> on-disk cache (fast local
-    // mirror) -> pull off the device + decode (only for a stem not yet stored anywhere). A device pull writes
-    // through to BOTH caches so the next request (any instance) skips the device. deviceId null = first
-    // reachable enabled device. Stem must be a bare file stem (no path separators / traversal).
+    // Lookup order: Postgres cache -> on-disk cache -> pull off the device + decode, writing through to both
+    // caches. deviceId null = first reachable enabled device.
     public async Task<Result> GetGlbAsync(string stem, string? deviceId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(stem) || stem.IndexOfAny(['/', '\\', '.']) >= 0)
@@ -41,8 +34,6 @@ public sealed class DeviceMeshProvider(
         var device = await ResolveDeviceAsync(deviceId, ct);
         var platform = device?.Platform;
 
-        // Postgres cache. Try the resolved platform first; if no device is online, try any platform's copy
-        // (a previously-cached mesh serves even with every device offline).
         if (await TryDbGetAsync(platform, stem, ct) is { } dbGlb)
         {
             if (cache.TryGet(platform ?? "db", stem) is null) await cache.PutAsync(platform ?? "db", stem, dbGlb, ct);
@@ -51,7 +42,7 @@ public sealed class DeviceMeshProvider(
 
         if (platform is not null && cache.TryGet(platform, stem) is { } diskGlb)
         {
-            await PutDbAsync(platform, stem, diskGlb, ct); // backfill the DB cache from a pre-DB on-disk entry
+            await PutDbAsync(platform, stem, diskGlb, ct);
             return new Result(true, diskGlb, null, 200);
         }
 
@@ -69,10 +60,8 @@ public sealed class DeviceMeshProvider(
         return new Result(true, glb, null, 200);
     }
 
-    // Decode stats for a stem's raw .rpo, pulled fresh off the device (not the cached glb). Reports vertex /
-    // index counts, bbox, and TrailingBytes left after the single mesh: nonzero trailing means the .rpo packs
-    // more than one mesh (e.g. a hab's floating-effect sub-objects) the single-mesh decoder drops. Diagnostic
-    // toward multi-mesh extraction (see CLAUDE.md "EXTRACT, don't author"). Admin-gated at the controller.
+    // Decode stats for a stem's raw .rpo, pulled fresh off the device. Nonzero TrailingBytes means the .rpo
+    // packs more than one mesh the single-mesh decoder drops.
     public async Task<(bool Ok, RpoMeshDecoder.DecodeResult? Stats, string? Diagnostics)> GetDecodeStatsAsync(string stem, string? deviceId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(stem) || stem.IndexOfAny(['/', '\\', '.']) >= 0) return (false, null, "invalid mesh name");
@@ -83,8 +72,6 @@ public sealed class DeviceMeshProvider(
         return (true, RpoMeshDecoder.Decode(rpo, stem), null);
     }
 
-    // Pulls the raw .rpo bytes for a stem off the device (android apk entry / ios ssh). Shared by the glb
-    // decode + the decode-stats diagnostic.
     private async Task<(byte[]? Rpo, Result? Err)> PullRpoAsync(Device device, string stem, CancellationToken ct)
     {
         byte[]? rpo;
@@ -105,9 +92,8 @@ public sealed class DeviceMeshProvider(
         return (rpo, null);
     }
 
-    // Lists the .rpo/.rpoz mesh stems actually present on the asset-source device. Android: enumerate the base.apk
-    // zip. iOS: ssh `find` over the jailbroken .app bundle (names only, no byte pull). Used to map the env catalog
-    // to the real on-device asset names (hab tiers, the completed artifact hall) instead of guessing stems.
+    // Lists the .rpo/.rpoz mesh stems present on the asset-source device: base.apk zip (android) or ssh
+    // `find` over the .app bundle (ios).
     public async Task<(bool Ok, IReadOnlyList<string> Stems, string? Diagnostics)> ListStemsAsync(string? deviceId, CancellationToken ct)
     {
         var device = await ResolveDeviceAsync(deviceId, ct);
@@ -126,13 +112,9 @@ public sealed class DeviceMeshProvider(
         return (true, RpoAssetLister.ListStems(apk), null);
     }
 
-    // Lists every mesh stem AND decodes the stats of each stem the selector picks, from a SINGLE device pull. The
-    // per-piece GetDecodeStatsAsync re-pulls the whole archive every call (multi-MB over adb/ssh each time); a
-    // dump wanting bounds for every hatchery piece would pull dozens of times. This pulls once (Android: base.apk
-    // zip; iOS: a tarball of every .rpo/.rpoz off the jailbroken bundle), then reads the selected stems out of
-    // the in-memory archive. The selector runs on the full stem list so the caller derives which stems to decode
-    // (e.g. all hatchery tiers + parts) from the listing itself, no second pull. Returns (ok, allStems, stem->
-    // stats, diag).
+    // Lists every mesh stem AND decodes the stats of each stem the selector picks, from a single device pull
+    // (avoids re-pulling the whole multi-MB archive per stem). The selector runs on the full stem list to
+    // derive which stems to decode.
     public async Task<(bool Ok, IReadOnlyList<string> Stems, IReadOnlyDictionary<string, RpoMeshDecoder.DecodeResult> Stats, string? Diagnostics)>
         ListStemsWithStatsAsync(string? deviceId, Func<IReadOnlyList<string>, IEnumerable<string>> selectStatsFor, CancellationToken ct)
     {
@@ -140,7 +122,6 @@ public sealed class DeviceMeshProvider(
         var device = await ResolveDeviceAsync(deviceId, ct);
         if (device is null) return (false, [], empty, "no asset-source device available");
 
-        // a single pull, returned as (stem -> raw .rpo/.rpoz bytes); both platforms then share the decode loop.
         var (rpos, diag) = device.Platform switch
         {
             PlatformAndroid => await PullAndroidRposAsync(device, ct),
@@ -156,7 +137,6 @@ public sealed class DeviceMeshProvider(
         return (true, stems, stats, null);
     }
 
-    // Android: one base.apk pull, every .rpo/.rpoz entry read out of the zip into (stem -> bytes).
     private async Task<(IReadOnlyDictionary<string, byte[]>?, string?)> PullAndroidRposAsync(Device device, CancellationToken ct)
     {
         var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
@@ -167,8 +147,7 @@ public sealed class DeviceMeshProvider(
         return (map, null);
     }
 
-    // iOS: one tarball pull of every mesh off the jailbroken .app bundle, each tar entry mapped (stem -> bytes).
-    // The puller already has this; only the listing path never used it. Needs DeviceUpdate:Ios:SshKeyPath set.
+    // Needs DeviceUpdate:Ios:SshKeyPath set.
     private async Task<(IReadOnlyDictionary<string, byte[]>?, string?)> PullIosRposAsync(Device device, CancellationToken ct)
     {
         if (IosSsh(device) is not { } ssh)
@@ -181,12 +160,11 @@ public sealed class DeviceMeshProvider(
             if (bytes.Length == 0) continue;
             if (!name.EndsWith(".rpo", StringComparison.OrdinalIgnoreCase)
                 && !name.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase)) continue;
-            map[StemOf(name)] = bytes; // last write wins on a dup stem; fine, identical meshes
+            map[StemOf(name)] = bytes;
         }
         return (map, null);
     }
 
-    // The bare file stem of an archive entry path: basename with the .rpo/.rpoz extension stripped.
     private static string StemOf(string path)
     {
         var slash = path.LastIndexOfAny(['/', '\\']);
@@ -195,8 +173,7 @@ public sealed class DeviceMeshProvider(
         return dot > 0 ? name[..dot] : name;
     }
 
-    // The cached glb for (platform, stem) from Postgres, or null (miss / no DB). When platform is null (no
-    // device online) any platform's stored copy is accepted.
+    // When platform is null (no device online) any platform's stored copy is accepted.
     private async Task<byte[]?> TryDbGetAsync(string? platform, string stem, CancellationToken ct)
     {
         var db = Db;
@@ -211,7 +188,6 @@ public sealed class DeviceMeshProvider(
         catch (Exception ex) { logger.LogWarning(ex, "mesh db cache read failed {Stem}", stem); return null; }
     }
 
-    // Upserts the glb into the Postgres cache (no-op without a DB). Idempotent on (platform, stem).
     private async Task PutDbAsync(string platform, string stem, byte[] glb, CancellationToken ct)
     {
         var db = Db;
@@ -227,8 +203,7 @@ public sealed class DeviceMeshProvider(
         catch (Exception ex) { logger.LogWarning(ex, "mesh db cache write failed {Stem}", stem); }
     }
 
-    // The named device, or (when null) the first reachable enabled device. Reachability comes from the latest
-    // probe row; falls back to the first enabled device if no probe data exists yet.
+    // The named device, or (when null) the first reachable enabled device.
     private async Task<Device?> ResolveDeviceAsync(string? deviceId, CancellationToken ct)
     {
         var store = Store;

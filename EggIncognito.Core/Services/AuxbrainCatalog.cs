@@ -1,8 +1,7 @@
 // Merged view of the mock surface (routes.yaml via RouteCatalog) and the canonical real-API path
-// registry (RouteMap/auxbrain-paths.json). One entry per path in the union. Mocked paths keep the
-// route's shape (the mock's contract) and carry their EndpointStatus bucket; canonical-only paths
-// are real-but-unmocked and take their shape from the registry. Pure: parsed inputs in, entries
-// out, so tests need no disk. Backs the drop-in /api catalog + OpenAPI endpoints.
+// registry (RouteMap/auxbrain-paths.json). One entry per path in the union: mocked paths keep the
+// route's shape and carry their EndpointStatus bucket; canonical-only paths are real-but-unmocked and
+// take their shape from the registry. Pure: parsed inputs in, entries out, so tests need no disk.
 
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
@@ -113,9 +112,7 @@ public static class AuxbrainCatalog
     private static bool Flag(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
 
-    // Same resolution as RouteCatalog's routes.yaml: config override, then search up from the app
-    // base dir. auxbrain-paths.json lives next to routes.yaml in RouteMap/, which the Dockerfile
-    // already ships as a whole directory, so any deploy that can find routes.yaml can find this too.
+    // Same resolution as RouteCatalog's routes.yaml: config override, then search up from the app base dir.
     public static string ResolveJsonPath(IConfiguration config) =>
         ContentRoot.ResolveRouteMapFile(config["AuxbrainPathsPath"], "auxbrain-paths.json");
 }

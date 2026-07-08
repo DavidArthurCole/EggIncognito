@@ -4,11 +4,9 @@ using Google.Protobuf.Reflection;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// The fixture (egginc-1.35.8-descriptors.bin) is the carved ei/common/abb FileDescriptorProto blobs from
-// Egg Inc iOS 1.35.8, concatenated with 16-byte zero gaps so the wire-walk stops between them (a 0x00 =
-// field 0 = invalid top-level tag). 1.35.8 has zero schema drift vs the frozen ei.proto, so the carver's
-// output must match the compiled descriptors. The full real Mach-O is env-gated (EGGINC_IOS_BINARY), not
-// checked in (50MB+).
+// The fixture (egginc-1.35.8-descriptors.bin) is the carved ei/common/abb FileDescriptorProto blobs from Egg Inc
+// iOS 1.35.8, concatenated with 16-byte zero gaps so the wire-walk stops between them. 1.35.8 has zero schema
+// drift vs the frozen ei.proto, so the carver's output must match the compiled descriptors.
 public class MachoProtoExtractorTests
 {
     [Fact]

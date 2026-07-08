@@ -5,8 +5,7 @@ namespace EggIncognito.Tests.ProtoExtract;
 // Builds a minimal valid synthetic .rpo for the decoder + tar tests: magic, vertexCount, faceBytes, a
 // stride-descriptor header (one 8-byte descriptor per attribute with the 06 14 00 00 marker), a terminator
 // window == indexCount, interleaved f32 vertices, then u16 indices. Strides [3,4,3] = POSITION, COLOR_0
-// (emission), NORMAL. 6 indices so indexCount (6) never collides with a stride component count (2/3/4),
-// which would otherwise false-trigger the decoder's "u32 window == indexCount" header terminator.
+// (emission), NORMAL.
 public static class SampleRpo
 {
     public static readonly int[] Strides = [3, 4, 3];
@@ -40,7 +39,7 @@ public static class SampleRpo
         void W32(uint v) { BinaryPrimitives.WriteUInt32LittleEndian(u32, v); ms.Write(u32); }
         void WF(float v) { BinaryPrimitives.WriteSingleLittleEndian(u32, v); ms.Write(u32); }
 
-        W32(0x314F5052); // magic: writes bytes "RPO1" (52 50 4F 31) on disk, like real files
+        W32(0x314F5052); // magic: "RPO1" little-endian
         W32((uint)Positions.Length); // vertex count
         W32((uint)(indexCount * 2)); // face bytes
 

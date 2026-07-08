@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// Per-user random IPv6 proxy address. Stable across sessions; rotatable to kill a leaked one. Front door reverse-maps it to a user.
+// Per-user random IPv6 proxy address. Stable across sessions, rotatable to kill a leaked one.
 [Table("capture_proxy_addrs")]
 public class CaptureProxyAddr
 {

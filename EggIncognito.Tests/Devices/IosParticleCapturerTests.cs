@@ -4,9 +4,6 @@ using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 
-// The capturer scp's the frida hook to the phone, runs it over ssh against the egginc process, and scp's the
-// NDJSON log back. These cover the wiring (script staged, frida run, log pulled + parsed) + the clean-degrade
-// failure paths via a fake runner. The real frida run is device-only.
 public class IosParticleCapturerTests
 {
     sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner
@@ -40,7 +37,6 @@ public class IosParticleCapturerTests
         var script = TempScript();
         try
         {
-            // first scp (push) fails.
             var runner = new FakeRunner((exe, _) => exe == "scp"
                 ? new ProcessResult(1, "", "scp: permission denied")
                 : new ProcessResult(0, "", ""));
@@ -62,10 +58,9 @@ public class IosParticleCapturerTests
                 if (exe == "scp")
                 {
                     scpCount++;
-                    // push ok (1st scp), pull fails (2nd scp).
                     return scpCount == 1 ? new ProcessResult(0, "", "") : new ProcessResult(1, "", "scp: no such file");
                 }
-                return new ProcessResult(0, "addParticle symbol not resolved", ""); // frida ssh
+                return new ProcessResult(0, "addParticle symbol not resolved", "");
             });
             var cap = new IosParticleCapturer(runner, "h", "2222", "/key", script);
             var m = await cap.CaptureAsync(default);
@@ -89,7 +84,7 @@ public class IosParticleCapturerTests
                 if (exe == "scp")
                 {
                     scpCount++;
-                    if (scpCount == 1) pushedContent = File.ReadAllText(args[^2]); // push: local staged path is 2nd-last arg
+                    if (scpCount == 1) pushedContent = File.ReadAllText(args[^2]);
                     return new ProcessResult(0, "", "");
                 }
                 return new ProcessResult(0, "", "");
@@ -99,7 +94,7 @@ public class IosParticleCapturerTests
 
             Assert.NotNull(pushedContent);
             Assert.Contains("const addrOffset = '0x1234abc';", pushedContent);
-            Assert.Contains("// fake hook", pushedContent); // original body preserved
+            Assert.Contains("// fake hook", pushedContent);
         }
         finally { File.Delete(script); }
     }
@@ -117,7 +112,7 @@ public class IosParticleCapturerTests
                 if (exe == "scp")
                 {
                     scpCount++;
-                    if (scpCount == 2) File.WriteAllText(args[^1], ndjson); // pull writes the local log
+                    if (scpCount == 2) File.WriteAllText(args[^1], ndjson);
                     return new ProcessResult(0, "", "");
                 }
                 return new ProcessResult(0, "__frida_exit_0", "");
@@ -130,10 +125,9 @@ public class IosParticleCapturerTests
             Assert.Equal(1, m.Value.TotalSamples);
             Assert.Equal("0xA", m.Value.Dominant!.Value.Mesh);
             Assert.Equal(4f, m.Value.Dominant!.Value.Centroid[0], 3);
-            // the push scp stages a temp copy of the script to the configured host's remote path.
             var push = runner.Calls.First(c => c.exe == "scp");
             Assert.Contains(push.args, a => a.StartsWith("root@phone:"));
-            Assert.EndsWith(".js", push.args[^2]); // a staged .js source
+            Assert.EndsWith(".js", push.args[^2]);
         }
         finally { File.Delete(script); }
     }

@@ -2,9 +2,6 @@ using System.IO;
 
 namespace EggIncognito.Tests;
 
-// Guards the chosen Discord OAuth callback path. A drift back to /signin-discord (or any other path)
-// breaks the registered portal redirect URI, so pin it here. Reads the source rather than booting the
-// auth middleware (which needs live Discord config).
 public class AuthCallbackPathTests
 {
     [Fact]
@@ -16,7 +13,6 @@ public class AuthCallbackPathTests
         Assert.DoesNotContain("/signin-discord", text);
     }
 
-    // Walk up from the test bin dir to the repo root (the dir holding EggIncognito.slnx).
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(System.AppContext.BaseDirectory);

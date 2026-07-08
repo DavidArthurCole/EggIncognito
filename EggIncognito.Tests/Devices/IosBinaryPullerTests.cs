@@ -4,10 +4,6 @@ using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 
-// The iOS extract leg ssh-locates the egginc .app binary, scp's it back, and hands it to MachoProtoExtractor.
-// On a jailbroken phone only the first __TEXT page is FairPlay-encrypted, so the on-disk binary carves with
-// no runtime decrypt (verified on egginc 1.36.0.2). These cover the puller's pull/locate/failure wiring via
-// a fake runner; the carve itself is covered by MachoProtoExtractorTests + the env-gated real-binary test.
 public class IosBinaryPullerTests
 {
     sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner
@@ -36,7 +32,6 @@ public class IosBinaryPullerTests
     [Fact]
     public async Task Pull_LocateEmpty_ReturnsNull()
     {
-        // ssh succeeded but found no matching bundle (empty stdout).
         var runner = new FakeRunner((exe, _) => new ProcessResult(0, "", ""));
         var puller = new IosBinaryPuller(runner, "1.2.3.4", "2222", "/key");
         Assert.Null(await puller.PullBinaryAsync(BundleId, default));
@@ -59,7 +54,6 @@ public class IosBinaryPullerTests
         var runner = new FakeRunner((exe, args) =>
         {
             if (exe == "ssh") return new ProcessResult(0, BinPath + "\n", "");
-            // scp: write the payload to the local dest (last arg) so the puller reads it back.
             File.WriteAllBytes(args[^1], payload);
             return new ProcessResult(0, "", "");
         });
@@ -69,7 +63,6 @@ public class IosBinaryPullerTests
 
         Assert.NotNull(bytes);
         Assert.Equal(payload, bytes);
-        // the scp call must reference the located remote path with the configured host.
         var scp = runner.Calls.Single(c => c.exe == "scp");
         Assert.Contains(scp.args, a => a == $"root@phone.local:{BinPath}");
         Assert.Contains(scp.args, a => a == "2222");

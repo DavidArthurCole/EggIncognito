@@ -1,8 +1,7 @@
 namespace EggIncognito.Services;
 
 // The directory that holds RouteMap/routes.yaml + Endpoints/ + writable captures/. Resolved
-// app-relative so it works hosted next to the published payload and locally, with a config override.
-// No dev-tree assumption.
+// app-relative, with a config override, so it works hosted next to the published payload and locally.
 public static class ContentRoot
 {
     // configured = the ContentRoot config value, or null. Returns the first plausible directory: the
@@ -32,9 +31,8 @@ public static class ContentRoot
         Path.Combine(contentRoot, "RouteMap", "routes.yaml");
 
     /// <summary>Resolve a RouteMap/ file with no known content root: an explicit configured path
-    /// wins, else search up from the app base dir, plain or under an EggIncognito/ subdir, else
-    /// fall back to the base-dir-relative path. Shared by RouteCatalog (routes.yaml) and
-    /// AuxbrainCatalog (auxbrain-paths.json).</summary>
+    /// wins, else search up from the app base dir (plain or under an EggIncognito/ subdir), else
+    /// fall back to the base-dir-relative path.</summary>
     public static string ResolveRouteMapFile(string? configured, string fileName)
     {
         if (!string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;

@@ -69,8 +69,7 @@ public class PlacementSolverTests
     [Fact]
     public void Solve_DoesNotPushOnOverlap_NoFling()
     {
-        // Solve no longer relocates an overlapping piece (that flung self-placing meshes across the scene). It
-        // leaves the position put and only flags the overlap; the block-grid path owns no-overlap now.
+        // Solve leaves the position put and only flags the overlap; the block-grid path owns no-overlap.
         var other = new Box2(0, 2, -1, 1);
         var r = Solve(Req([1, 0, 0], others: [other], localMinY: 0));
         Assert.Equal(1f, r.Pos[0], 3); // NOT pushed away
@@ -157,8 +156,7 @@ public class PlacementSolverTests
     [Fact]
     public void SnapToGrid_NoFling_InvalidStaysAtTarget()
     {
-        // the old solver flung an overlapping piece far away. The block grid leaves the center at the snapped
-        // target cell (just flags it invalid); the caller reverts, never relocates to the edge.
+        // The block grid leaves the center at the snapped target cell and just flags it invalid.
         var occupied = new HashSet<Cell> { new(0, 0) };
         var r = SnapToGrid(new Box2(-0.4f, 0.4f, -0.4f, 0.4f), 1, 0.1f, 0.1f, 1f, occupied);
         Assert.Equal(0.5f, r.CenterX, 3); // snapped to cell (0,0) center, NOT pushed to some far cell

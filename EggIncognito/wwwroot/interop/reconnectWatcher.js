@@ -1,10 +1,6 @@
-// Survives a server redeploy: when the SignalR circuit drops and the server returns at a DIFFERENT build
-// version, reload the page so a fresh circuit attaches to the new build (the old circuit is gone and cannot
-// be rejoined). A same-version return is a transient blip, so we do nothing and let Blazor's normal reconnect
-// resume the existing circuit. Loaded once from App.razor after blazor.web.js.
-//
-// Pages that want to survive the reload (the playground) persist their own state to localStorage and restore
-// it on load; this watcher only decides WHEN to reload.
+// Survives a server redeploy: when the SignalR circuit drops and the server returns at a different build
+// version, reload the page so a fresh circuit attaches to the new build. A same-version return is a
+// transient blip, left to Blazor's normal reconnect. Loaded once from App.razor after blazor.web.js.
 
 (function () {
   const VERSION_URL = '/api/app/version';
@@ -45,8 +41,7 @@
     polls += 1;
     const current = await fetchVersion();
     if (current) {
-      // Server is reachable again. A different build => reload onto it. Same build => a blip; let Blazor's
-      // own reconnect resume the circuit (stop polling, do not reload).
+      // A different build reloads onto it; same build is a blip, let Blazor's own reconnect resume.
       if (loadedVersion && current !== loadedVersion) {
         location.reload();
         return;
@@ -58,9 +53,7 @@
     setTimeout(tick, POLL_MS);
   }
 
-  // Hook the Blazor reconnection lifecycle. Blazor.start lets us provide a reconnectionHandler; we start
-  // polling on the first reconnect attempt. autostart="false" on the blazor.web.js script makes this the
-  // primary start path.
+  // Blazor.start provides a reconnectionHandler; polling starts on the first reconnect attempt.
   function hookBlazor() {
     if (!window.Blazor || !window.Blazor.start) { setTimeout(hookBlazor, 50); return; }
     window.Blazor.start({
@@ -73,8 +66,7 @@
     }).catch(() => { /* Blazor may have auto-started; the observer below is the fallback */ });
   }
 
-  // Fallback: if Blazor auto-started (so our start() is a no-op), observe the reconnect dialog's visibility,
-  // which Blazor toggles via the components-reconnect-*-visible classes on #components-reconnect-modal.
+  // Fallback for an already-auto-started Blazor: observe the reconnect dialog's visibility classes.
   function observeDialog() {
     const modal = document.getElementById('components-reconnect-modal');
     if (!modal) { setTimeout(observeDialog, 200); return; }

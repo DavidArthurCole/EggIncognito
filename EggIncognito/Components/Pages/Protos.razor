@@ -27,8 +27,7 @@
   </section>
 
   @* Registry beside the side column on wide screens; stacked on smaller ones. The registry (the data-rich
-     table) gets the larger share. The side column always shows the device farm (everyone can see it); the
-     backfill/discovery panel is added there for admins only. *@
+     table) gets the larger share; the side column always shows the device farm. *@
   <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start">
   @* Registry table + management. *@
   <section class="reg-wrap">
@@ -208,10 +207,8 @@
     }
   </section>
 
-  @* Side column: device farm + missing-versions (everyone), then the Notifications + Sources widgets.
-     Notifications opens in a modal (the create form + subscription manager need more room than a side-column
-     card). Sources carries the admin-only backfill trigger buttons; each panel gates its own write actions,
-     the server ACL is the real gate. *@
+  @* Side column: device farm + missing-versions, then the Notifications + Sources widgets. Each panel gates
+     its own write actions; the server ACL is the real gate. *@
   <div class="flex flex-col gap-6">
     <DeviceStatusPanel OnSaved="OnMutated" />
     <MissingVersionsPanel />
@@ -375,10 +372,9 @@
     protected override async Task OnInitializedAsync()
     {
         await Load();
-        // Hyper-reactive: poll every few seconds so changes from ANY source (other reviewers, the heartbeat,
-        // a device save, a staged approve in another tab) surface here promptly - the registry table, the
+        // Poll every few seconds so changes from any source surface here promptly: the registry table, the
         // merge suggestions, and the staged queue all reload together. Local mutations still refresh instantly
-        // via OnMutated; this is the background safety net. Runs on the circuit thread via InvokeAsync.
+        // via OnMutated; this is the background safety net.
         _refresh = new Timer(async _ => await InvokeAsync(RefreshAll), null,
             TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(6));
     }
@@ -420,9 +416,8 @@
         try { await Client().PostAsync(url, null); } catch { }
     }
 
-    // background = the 6s poll. A background refresh must not flash the "Loading..." state, and a transient
-    // fetch failure must not wipe the already-rendered rows (that was the empty<->full flicker). Foreground
-    // (initial + post-mutation) keeps the old behavior: show the spinner, surface a real empty on failure.
+    // background = the 6s poll: it must not flash the "Loading..." state or wipe already-rendered rows on a
+    // transient fetch failure. Foreground keeps the old behavior: show the spinner, surface a real empty on failure.
     async Task Load(bool background = false)
     {
         if (!background) _loading = true;
@@ -446,7 +441,7 @@
         catch { if (!background) _suggestions = []; } // keep last-good on a background poll failure
     }
 
-    // One-click: merge a suggested group, keeping the FIRST member (alphabetical by platform = android) as the
+    // One-click: merge a suggested group, keeping the first member (alphabetical by platform = android) as the
     // canonical, the rest as aliases. Admin-gated server-side.
     async Task AcceptSuggestion(MergeSuggestion s)
     {

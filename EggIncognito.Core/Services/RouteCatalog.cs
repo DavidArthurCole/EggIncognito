@@ -1,10 +1,7 @@
-// Runtime view of routes.yaml for the Inspector UI. The source generator parses the same file at
-// compile time to emit controllers; this is the runtime equivalent so the UI knows each route's
-// request/response type and the transport framing.
-// Normalization rules are kept identical by convention with the RouteGenerator's RouteParser: new
-// `request`/`response` keys win at the block level (a present new key, even empty, beats legacy);
-// legacy `requestType`/`responseType` are aliases; the literal "AuthenticatedMessage" in a legacy
-// field means wrapped with inner type not yet known, so null inner plus wrapped.
+// Runtime view of routes.yaml for the Inspector UI: the source generator parses the same file at
+// compile time to emit controllers, this is the runtime equivalent. Normalization must match
+// RouteGenerator's RouteParser: new `request`/`response` keys win over legacy `requestType`/`responseType`,
+// and literal "AuthenticatedMessage" means wrapped with inner type not yet known.
 
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
@@ -21,9 +18,8 @@ public sealed record RouteInfo(
     bool PathParam,
     bool PathParamOnly)
 {
-    /// <summary>Alternate request paths that resolve to this route (old names kept after a
-    /// rename to the canonical auxbrain path). Runtime-only: the generator ignores aliases,
-    /// so no controller is emitted for them; resolution happens via the catch-all.</summary>
+    /// <summary>Alternate request paths that resolve to this route. Runtime-only: the generator ignores
+    /// aliases, so resolution happens via the catch-all, not a dedicated controller.</summary>
     public IReadOnlyList<string> Aliases { get; init; } = [];
 }
 
@@ -82,7 +78,6 @@ public sealed class RouteCatalog : IRouteCatalog
         {
             var line = rawLine.TrimEnd('\r');
 
-            // Top-level key: no leading whitespace, ends with ':'.
             var topKey = Regex.Match(line, @"^(\w[\w_]*):\s*$");
             if (topKey.Success)
             {
@@ -97,7 +92,6 @@ public sealed class RouteCatalog : IRouteCatalog
             {
                 Flush();
                 var path = pathMatch.Groups[1].Value.Trim().TrimEnd('/');
-                // Empty path starts a dead block: its keys are absorbed but never emitted.
                 b = new Block { Path = path.Length == 0 ? null : path };
                 continue;
             }
@@ -113,13 +107,10 @@ public sealed class RouteCatalog : IRouteCatalog
     {
         string? V(string key)
         {
-            // Value is everything up to an optional inline comment, trimmed.
             var m = Regex.Match(line, @"^\s+" + Regex.Escape(key) + @":\s*([^#]*?)\s*(?:#.*)?$");
             return m.Success ? m.Groups[1].Value : null;
         }
 
-        // Block-sequence items under an `aliases:` key. Any non-item line ends the list
-        // and is processed normally.
         if (b.InAliases)
         {
             var item = Regex.Match(line, @"^\s+-\s*([^#]*?)\s*(?:#.*)?$");
@@ -148,8 +139,6 @@ public sealed class RouteCatalog : IRouteCatalog
 
     private static RouteInfo Emit(Block b)
     {
-        // New keys win at the block level: a present `request`/`response` (even empty)
-        // overrides any legacy `requestType`/`responseType` in the same block.
         var (reqType, reqWrapDefault) = Normalize(b.HasRequest ? b.Request : b.LegacyReq);
         var (resType, resWrapDefault) = Normalize(b.HasResponse ? b.Response : b.LegacyRes);
         return new RouteInfo(

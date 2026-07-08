@@ -9,9 +9,8 @@ namespace EggIncognito.Services;
 
 public static class ProtoFraming
 {
-    // Tolerant base64 decode: form-decoding can turn '+' into ' ' and strip padding. Restore both so a
-    // valid proto blob is not silently dropped. Strictly more permissive than Convert.FromBase64String -
-    // any input that decoded before still decodes identically.
+    // Tolerant base64 decode: form-decoding can turn '+' into ' ' and strip padding. Restore both so a valid
+    // proto blob is not silently dropped.
     public static byte[] FromBase64Loose(string s)
     {
         s = s.Trim().Replace(' ', '+');

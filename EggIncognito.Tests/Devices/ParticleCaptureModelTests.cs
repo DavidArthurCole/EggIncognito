@@ -3,13 +3,8 @@ using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 
-// The frida hook writes NDJSON: one { t, mesh, x:[12 column-major affine floats], s } per addParticle call.
-// ParticleCaptureModel parses it, clusters by mesh pointer (separating co-occurring particle streams), and
-// summarizes each stream's world-space geometry. These cover parse, clustering, the dominant-pick, and the
-// bad-record filtering without any device.
 public class ParticleCaptureModelTests
 {
-    // Build one NDJSON line with the translation in the affine's 4th column (cells 9,10,11) and identity basis.
     static string Line(int t, string mesh, float x, float y, float z, float s)
     {
         var m = new[] { 1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, x, y, z };
@@ -29,7 +24,6 @@ public class ParticleCaptureModelTests
     [Fact]
     public void Parse_ClustersByMesh_DominantIsBiggest()
     {
-        // mesh A: 3 particles; mesh B: 1. A is dominant.
         var log = string.Join("\n",
             Line(0, "0xA", 1, 2, 3, 0.5f),
             Line(1, "0xA", 1, 2, 3, 0.5f),
@@ -59,7 +53,6 @@ public class ParticleCaptureModelTests
     [Fact]
     public void Summarize_RadiusIsMeanHorizontalDistanceFromCentroid()
     {
-        // 4 particles on a unit-radius ring in XZ around (0,0,0): radius ~ 1, vertical bob 0.
         var log = string.Join("\n",
             Line(0, "0xR", 1, 0, 0, 1f),
             Line(1, "0xR", -1, 0, 0, 1f),
@@ -67,8 +60,8 @@ public class ParticleCaptureModelTests
             Line(3, "0xR", 0, 0, -1, 1f));
         var c = ParticleCaptureModel.Parse(log).Dominant!.Value;
         Assert.Equal(1f, c.Radius, 2);
-        Assert.Equal(0f, c.BobSpan[1], 3); // no vertical spread
-        Assert.Equal(2f, c.BobSpan[0], 3); // x spans -1..1
+        Assert.Equal(0f, c.BobSpan[1], 3);
+        Assert.Equal(2f, c.BobSpan[0], 3);
     }
 
     [Fact]
@@ -80,7 +73,7 @@ public class ParticleCaptureModelTests
         var good = Line(2, "0xA", 1, 1, 1, 1f);
         var m = ParticleCaptureModel.Parse(string.Join("\n", nan, short_, junk, good));
         Assert.True(m.Ok);
-        Assert.Equal(1, m.TotalSamples); // only the good line survived
+        Assert.Equal(1, m.TotalSamples);
     }
 
     [Fact]

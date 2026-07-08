@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// No Discord creds + no DB in the test host, so auth is NOT wired: the app stays fully anonymous and
-// the mode endpoint reports authEnabled:false. Proves the no-regression anonymous path.
 public class AuthModeTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;

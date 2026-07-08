@@ -9,12 +9,10 @@ public static class SyntheticMacho
 
     public readonly record struct Sym(string Name, ulong Value);
 
-    // text = the __text section bytes (placed at vmaddr TextVm). syms = (name, absolute VA) pairs for LC_SYMTAB.
     public static byte[] Build(byte[] text, IEnumerable<Sym> syms)
     {
         var symList = syms.ToList();
 
-        // string table: leading NUL, then each name NUL-terminated. Record each name's strx.
         var strtab = new List<byte> { 0 };
         var strx = new Dictionary<string, uint>();
         foreach (var s in symList)
@@ -30,7 +28,6 @@ public static class SyntheticMacho
         const int symtabCmdSize = 24;
         int loadCmdsSize = segCmdSize + symtabCmdSize;
         int textFileOff = headerSize + loadCmdsSize;
-        // align text file offset to 16.
         textFileOff = (textFileOff + 15) & ~15;
 
         int symoff = textFileOff + text.Length;
@@ -42,7 +39,6 @@ public static class SyntheticMacho
 
         var bin = new byte[total];
 
-        // mach_header_64
         WU32(bin, 0, 0xFEEDFACF); // magic
         WU32(bin, 4, 0x0100000C); // cputype ARM64
         WU32(bin, 8, 0); // cpusubtype
@@ -52,7 +48,6 @@ public static class SyntheticMacho
         WU32(bin, 24, 0); // flags
         WU32(bin, 28, 0); // reserved
 
-        // LC_SEGMENT_64 __TEXT
         int lc = headerSize;
         WU32(bin, lc, 0x19); // cmd LC_SEGMENT_64
         WU32(bin, lc + 4, (uint)segCmdSize); // cmdsize
@@ -66,7 +61,6 @@ public static class SyntheticMacho
         WU32(bin, lc + 64, 1); // nsects
         WU32(bin, lc + 68, 0); // flags
 
-        // section_64 __text
         int sec = lc + 72;
         WStr16(bin, sec, "__text"); // sectname
         WStr16(bin, sec + 16, "__TEXT"); // segname
@@ -75,7 +69,6 @@ public static class SyntheticMacho
         WU32(bin, sec + 48, (uint)textFileOff); // offset
         WU32(bin, sec + 52, 4); // align (2^4)
 
-        // LC_SYMTAB
         lc = headerSize + segCmdSize;
         WU32(bin, lc, 0x02); // cmd LC_SYMTAB
         WU32(bin, lc + 4, (uint)symtabCmdSize);
@@ -84,10 +77,8 @@ public static class SyntheticMacho
         WU32(bin, lc + 16, (uint)stroff);
         WU32(bin, lc + 20, (uint)strsize);
 
-        // text bytes
         Array.Copy(text, 0, bin, textFileOff, text.Length);
 
-        // nlist_64 entries
         for (int i = 0; i < nsyms; i++)
         {
             int e = symoff + i * 16;
@@ -98,7 +89,6 @@ public static class SyntheticMacho
             WU64(bin, e + 8, symList[i].Value); // n_value
         }
 
-        // string table
         for (int i = 0; i < strtab.Count; i++) bin[stroff + i] = strtab[i];
 
         return bin;

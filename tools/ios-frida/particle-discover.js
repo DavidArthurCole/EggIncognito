@@ -1,15 +1,9 @@
-// particle-discover.js - one-shot runtime discovery of the per-particle function on the STRIPPED device build.
+// One-shot runtime discovery of the per-particle function on the stripped device build: Stalker.follows the
+// main thread for a short window, counts BLOCK entry hits per function-start in the egginc module, and dumps
+// the top hits as module-relative offsets for the host to disassemble.
 //
-// The static path stalled: addParticle's body changed 1.35.6->1.36 so its symbol didn't recover, and the
-// recovered "lambda" was a 72-byte std::function dispatch thunk that never fired. Rather than keep guessing
-// addresses, OBSERVE what actually executes while the universe farm (with its hatchery particles) renders.
-//
-// Strategy: Stalker.follow the main thread for a short window, collect every BLOCK entry that lands in the egginc
-// module, count hits per function-start. The hottest particle-region functions are the per-frame/per-particle
-// work. Dump the top hits as module-relative offsets so the host can disassemble them + pick the transform sink.
-//
-// Run on frame (frida-server live, universe farm ON SCREEN, NO --runtime=v8):
-//   frida -H 192.168.1.175 -p <PID> -l particle-discover.js
+// Run with frida-server live, universe farm on screen, no --runtime=v8:
+//   frida -H <device-ip> -p <PID> -l particle-discover.js
 // Hold ~3s on the hatchery view, then Ctrl-C. Reads the top offsets back over the frida channel.
 
 const WINDOW_MS = 2500;
@@ -20,10 +14,10 @@ const lo = m.base;
 const hi = m.base.add(m.size);
 send({ kind: 'start', base: m.base.toString(), size: m.size });
 
-const counts = new Map(); // module-relative block-start offset -> hit count
+const counts = new Map();
 let total = 0;
 
-const mainThread = Process.enumerateThreads()[0]; // the app's main/render thread is thread 0 on iOS
+const mainThread = Process.enumerateThreads()[0]; // main/render thread is thread 0 on iOS
 send({ kind: 'thread', id: mainThread.id });
 
 Stalker.follow(mainThread.id, {
@@ -31,7 +25,6 @@ Stalker.follow(mainThread.id, {
     onReceive(events) {
         const parsed = Stalker.parse(events, { annotate: false, stringify: false });
         for (const ev of parsed) {
-            // block event = [start, end]; start is a NativePointer.
             const start = ev[0];
             if (start.compare(lo) < 0 || start.compare(hi) >= 0) continue;
             const off = start.sub(m.base).toString();

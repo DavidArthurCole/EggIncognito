@@ -32,7 +32,7 @@ public class AdminControllerTests
     }
 
     [Fact]
-    public async Task Admin_PassesGate_Then503NoDb()
+    public async Task Admin_PassesGate_Then503NoIdentityApi()
     {
         var r = await Controller(UserRole.Admin).Users();
         Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
@@ -45,8 +45,7 @@ public class AdminControllerTests
         Assert.Equal(400, ((IStatusCodeActionResult)r).StatusCode);
     }
 
-    // Unknown roles must 400, never coerce to viewer: a typo'd role would otherwise silently demote
-    // (200) and a malformed role aimed at yourself would slip past the self-lockout guard.
+    // Unknown roles must 400, never coerce to viewer.
     [Theory]
     [InlineData("superuser")]
     [InlineData("")]

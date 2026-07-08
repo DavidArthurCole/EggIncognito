@@ -5,7 +5,6 @@ namespace EggIncognito.Tests.Devices;
 
 public class DeviceParsingTests
 {
-    // Real dumpsys excerpt captured from frame's A15 on 2026-06-17.
     const string Dumpsys = "    versionCode=111344 minSdk=24 targetSdk=36\n    versionName=1.35.7\n";
 
     [Fact]
@@ -24,8 +23,6 @@ public class DeviceParsingTests
         Assert.Null(build);
     }
 
-    // The runtime image's `ideviceinstaller -u <udid> -l -o xml` emits a plist array (captured from the
-    // running eggincognito container on frame). CFBundleShortVersionString is the app version we want.
     const string Plist = """
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0">
@@ -43,7 +40,6 @@ public class DeviceParsingTests
         </plist>
         """;
 
-    // Some ideviceinstaller builds emit CSV instead; IosAppVersion falls back to it.
     const string ListCsv = "com.auxbrain.egginc, \"1.35.8\", \"Egg, Inc.\"\n";
 
     [Fact]
@@ -63,7 +59,7 @@ public class DeviceParsingTests
     {
         var (app, build) = DeviceParsing.IosVersion(Plist, "com.auxbrain.egginc");
         Assert.Equal("1.35.8", app);
-        Assert.Equal("1.35.8.0", build); // CFBundleVersion = the iOS build number
+        Assert.Equal("1.35.8.0", build);
     }
 
     [Fact]
@@ -71,7 +67,7 @@ public class DeviceParsingTests
     {
         var (app, build) = DeviceParsing.IosVersion(ListCsv, "com.auxbrain.egginc");
         Assert.Equal("1.35.8", app);
-        Assert.Null(build); // CSV form carries no CFBundleVersion
+        Assert.Null(build);
     }
 
     [Fact]

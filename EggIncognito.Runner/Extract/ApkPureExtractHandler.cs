@@ -7,8 +7,6 @@ namespace EggIncognito.Runner.Extract;
 
 public sealed record ExtractResult(int Status, string? Build, string? ProtoSha, string? Error, string? Detail);
 
-// On-demand extract from APKPure: download XAPK, pull arm split, extract+clean proto, emit event.
-// Bearer + single-flight gate mirrors ResyncHandler.
 public sealed class ApkPureExtractHandler(
     string secret, ApkPureDownloader downloader, IProtoExtractor extractor,
     IClientVersionReader clientVersion, State.ClientVersionState cvState,

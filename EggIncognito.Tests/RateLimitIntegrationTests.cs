@@ -8,10 +8,7 @@ namespace EggIncognito.Tests;
 
 // Proves the limiter blocks active actions: override the Write policy + Anon tier to a tiny permit
 // count, fire more than that many POSTs at a write endpoint from one anonymous partition, and assert
-// the overflow gets 429 + a Retry-After header. The limiter runs before the action, so the action's
-// own 403/503 does not matter - only that the request is counted. Config override keeps the production
-// defaults generous so the rest of the suite is never throttled. Read endpoints + page loads have no
-// limiter, so they are not tested here.
+// the overflow gets 429 + a Retry-After header.
 public class RateLimitIntegrationTests : IClassFixture<RateLimitIntegrationTests.TinyLimitFactory>
 {
     private readonly TinyLimitFactory _f;

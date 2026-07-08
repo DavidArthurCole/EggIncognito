@@ -4,8 +4,6 @@ using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Data.Services;
 
-// Surfaces source = "db" stored_routes as RouteInfo for the merged catalog, new paths only; yaml
-// routes are served by the generated controllers and never come from here. Scoped on the DbContext.
 public sealed class DbRouteProvider(EggIncognitoDbContext db, ILogger<DbRouteProvider> logger) : IDbRouteProvider
 {
     public RouteInfo? GetDbRoute(string path)
@@ -17,7 +15,6 @@ public sealed class DbRouteProvider(EggIncognitoDbContext db, ILogger<DbRoutePro
         }
         catch (Exception ex)
         {
-            // A transient DB error must not fail the request - fall back to yaml-only routing.
             logger.LogWarning(ex, "DB route lookup failed for {Path}; using yaml-only routing", path);
             return null;
         }
@@ -31,7 +28,6 @@ public sealed class DbRouteProvider(EggIncognitoDbContext db, ILogger<DbRoutePro
         }
         catch (Exception ex)
         {
-            // A transient DB error must not fail the request - fall back to yaml-only routing.
             logger.LogWarning(ex, "DB route listing failed; using yaml-only routing");
             return [];
         }

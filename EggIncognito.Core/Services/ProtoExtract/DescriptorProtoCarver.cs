@@ -4,28 +4,23 @@ using Google.Protobuf.Reflection;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Carves Egg Inc's .proto schema out of any binary that embeds serialized FileDescriptorProto blobs
-// (the app links protobuf with descriptor support on both platforms). Locates each descriptor by its
-// name-field framing (`0A <len> <name>`), wire-walks the top-level fields to recover the exact byte
-// length (the descriptor is not length-prefixed in place), parses with Google.Protobuf, emits proto2
-// text, and merges via ProtoCleanup. Format-agnostic: the same anchor search works on a Mach-O
-// (iOS) and an ELF .so (Android). Pure + defensive: malformed input yields a failed result, never a
-// throw. The binary is scanned as bytes, never executed.
+// Carves Egg Inc's .proto schema out of any binary that embeds serialized FileDescriptorProto blobs.
+// Locates each descriptor by its name-field framing (`0A <len> <name>`), wire-walks the top-level fields to
+// recover the exact byte length, parses with Google.Protobuf, emits proto2 text, and merges via ProtoCleanup.
+// Format-agnostic: the same anchor search works on Mach-O (iOS) and ELF .so (Android). Defensive: malformed
+// input yields a failed result, never a throw.
 public static class DescriptorProtoCarver
 {
     public sealed record CarvedDescriptor(string Name, int FileOffset, byte[] Bytes);
-    // AppVersion/Build come from the archive's own metadata (APK manifest, iOS Info.plist) when the input
-    // was an archive; null for a bare binary. They pre-fill the registry-save form so the version keys are
-    // the app's real values, not a guess from the filename.
+    // AppVersion/Build come from the archive's own metadata (APK manifest, iOS Info.plist); null for a bare binary.
     public sealed record ExtractResult(bool Ok, string? Proto, string Diagnostics, string? ProtoSha,
         IReadOnlyList<string> Messages, string? AppVersion = null, string? Build = null);
 
-    // The descriptor files the app compiles in. ei.proto is the schema; common.proto holds the
-    // aux-package enums; abb is a small ad-config proto.
+    // The descriptor files the app compiles in: ei.proto is the schema, common.proto the aux-package enums,
+    // abb.proto a small ad-config proto.
     private static readonly string[] DescriptorFiles = ["ei.proto", "common.proto", "abb.proto"];
 
-    // Finds every embedded FileDescriptorProto and returns its raw bytes. Missing files are absent from
-    // the result (older/foreign binaries may lack some). Never throws.
+    // Finds every embedded FileDescriptorProto and returns its raw bytes. Missing files are absent from the result.
     public static IReadOnlyList<CarvedDescriptor> CarveAll(byte[] binary)
     {
         var found = new List<CarvedDescriptor>();

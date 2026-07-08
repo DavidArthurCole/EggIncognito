@@ -2,9 +2,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// The landing page (/) is the first tab ported to Blazor Server (Razor Components). This proves the
-// Blazor shell renders: the server-gated nav, the GitHub bubble, the tailwind sheet link, and the
-// blazor.web.js framework script. A regression in App.razor / MainLayout / TopNav / Home is caught here.
 public class BlazorShellTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _f;

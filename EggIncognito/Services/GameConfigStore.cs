@@ -2,11 +2,9 @@ using System.Text.Json;
 
 namespace EggIncognito.Services;
 
-// Locally hosts the game's *Config (the ei/get_config ConfigResponse, which carries LiveConfig + the
-// DLCCatalog of shells/shell-objects/decorators) per platform, so EGI has an offline copy of the latest
-// Android + iOS config without hitting the live API every time. The shell viewer + asset pipeline read the
-// DLCCatalog from here. Stored as the proto's JSON form (Google.Protobuf JsonFormatter) under
-// <ConfigStore:Dir>/<platform>.json. Disabled (reads null, writes no-op) when no dir is configured.
+// Locally hosts the game's *Config (ei/get_config ConfigResponse) per platform, so EGI has an offline copy
+// without hitting the live API every time. Stored as JSON under <ConfigStore:Dir>/<platform>.json. Disabled
+// (reads null, writes no-op) when no dir is configured.
 public sealed class GameConfigStore(IConfiguration config)
 {
     // Dir precedence: explicit ConfigStore:Dir, else <ShipAssets:OutputDir>/config. Null disables the store.
@@ -25,8 +23,6 @@ public sealed class GameConfigStore(IConfiguration config)
 
     public sealed record StoredConfig(string Platform, string Json, DateTimeOffset SavedAt, long Bytes);
 
-    // Persists a ConfigResponse JSON for a platform (android/ios). The caller decodes the live/captured
-    // ConfigResponse to JSON first (JsonFormatter) so this stays a plain file write.
     public async Task SaveAsync(string platform, string json, CancellationToken ct)
     {
         var dir = Dir;

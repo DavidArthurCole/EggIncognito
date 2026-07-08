@@ -5,8 +5,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// Regression: a transient Postgres error must degrade to yaml-only routing, not throw out of route
-// lookup. The context targets an unreachable host (closed local port) so every query throws fast.
 public class DbRouteProviderDegradationTests
 {
     private static DbContextOptions<EggIncognitoDbContext> UnreachableOptions()

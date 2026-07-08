@@ -3,15 +3,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Review queue between proto sources and the live registry. Offers (public) + crawl imports (admin) land
-// here as pending rows; ApproveAsync promotes to proto_versions via ProtoRegistryStore. Dedup keeps a sha
-// from re-staging once it is pending, rejected, or already in the registry.
 public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStore registry)
 {
     public enum OfferResult { Staged, AlreadyPending, AlreadyInRegistry }
-    // Ok = created/overwrote a registry row. Merged = the build already existed, so the staged data was filled
-    // into the gaps of that row (no clobber) and the staged row cleared from the queue. MissingBuild/NotFound
-    // are the only non-success outcomes.
+    // Merged = the build already existed, so staged data was filled into the gaps of that row.
     public enum ApproveResult { Ok, Merged, NotFound, MissingBuild }
 
     private async Task<bool> ShaInRegistryAsync(string sha, CancellationToken ct) =>
@@ -20,17 +15,12 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     private async Task<bool> ShaPendingAsync(string sha, CancellationToken ct) =>
         await db.StagedProtos.AnyAsync(s => s.ProtoSha == sha && s.Status == "pending", ct);
 
-    // How many of the three version fields a candidate would carry. Used to decide whether incoming data is
-    // RICHER than a previously-rejected row (reject = "not enough data yet", not "never again").
+    // How many of the three version fields a candidate carries, used to compare against a rejected row.
     private static int FieldScore(string? appVersion, string? build, string? clientVersion) =>
         (string.IsNullOrWhiteSpace(appVersion) ? 0 : 1)
         + (string.IsNullOrWhiteSpace(build) ? 0 : 1)
         + (string.IsNullOrWhiteSpace(clientVersion) ? 0 : 1);
 
-    // Stage a proto, or REVIVE a previously-rejected row of the same sha when the incoming data is richer
-    // (more version fields filled). Dedup: a sha already pending or already in the registry is left alone.
-    // A rejected sha re-surfaces to review only when it brings more data than it was rejected with; equal-or-
-    // poorer data stays rejected (no churn). Returns the outcome; caller maps to its own result type.
     private enum StageOutcome { Staged, Revived, AlreadyPending, AlreadyInRegistry, StaleRejected }
 
     private async Task<StageOutcome> StageOrReviveAsync(
@@ -45,15 +35,13 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         var now = DateTimeOffset.UtcNow;
         var incomingScore = FieldScore(appVersion, build, clientVersion);
 
-        // A previously-rejected row for this sha (most recent). Revive it iff the new data is strictly richer.
         var rejected = await db.StagedProtos
             .Where(s => s.ProtoSha == protoSha && s.Status == "rejected")
             .OrderByDescending(s => s.ReviewedAt).FirstOrDefaultAsync(ct);
         if (rejected is not null)
         {
             if (incomingScore <= FieldScore(rejected.AppVersion, rejected.Build, rejected.ClientVersion))
-                return StageOutcome.StaleRejected; // not richer -> leave it rejected
-            // Richer -> revive: fill gaps (don't clobber existing values), back to pending.
+                return StageOutcome.StaleRejected;
             rejected.AppVersion = string.IsNullOrWhiteSpace(rejected.AppVersion) ? appVersion : rejected.AppVersion;
             rejected.Build = string.IsNullOrWhiteSpace(rejected.Build) ? build : rejected.Build;
             rejected.ClientVersion = string.IsNullOrWhiteSpace(rejected.ClientVersion) ? clientVersion : rejected.ClientVersion;
@@ -89,9 +77,8 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         return outcome switch
         {
             StageOutcome.AlreadyInRegistry => OfferResult.AlreadyInRegistry,
-            // pending OR a stale (not-richer) rejected sha both read as "already submitted" to the offerer.
             StageOutcome.AlreadyPending or StageOutcome.StaleRejected => OfferResult.AlreadyPending,
-            _ => OfferResult.Staged, // Staged or Revived
+            _ => OfferResult.Staged,
         };
     }
 
@@ -137,13 +124,11 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         var cv = string.IsNullOrWhiteSpace(clientVersion) ? row.ClientVersion : clientVersion;
         if (string.IsNullOrWhiteSpace(bld) || string.IsNullOrWhiteSpace(appV)) return ApproveResult.MissingBuild;
 
-        // Does the registry already hold this build for the platform?
         var existing = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == plat && p.Build == bld, ct);
         var result = existing is null ? ApproveResult.Ok : ApproveResult.Merged;
 
         if (existing is null)
         {
-            // New build -> full upsert.
             await registry.UpsertAsync(plat, appV!, bld!, cv, package: row.Package ?? "",
                 protoSha: row.ProtoSha, apkRef: $"staged:{row.Id}", detectedAt: DateTimeOffset.UtcNow,
                 detectedBy: $"staged-approve:{reviewedBy}", protoText: row.ProtoText, source: row.Source,
@@ -151,10 +136,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         }
         else
         {
-            // Build already exists -> MERGE, do not clash. BackfillUpsertAsync fills only the existing row's
-            // empty fields (appVersion when blank, clientVersion when null, apkRef/detectedAt when unset) and
-            // writes the proto only if the existing row has none. So a staged contribution enriches an
-            // incomplete row instead of being rejected back into the queue, and never clobbers good data.
+            // Fills only the existing row's empty fields; writes the proto only if it has none.
             var hasProto = await db.ProtoProtos.AnyAsync(x => x.ProtoVersionId == existing.Id, ct);
             await registry.BackfillUpsertAsync(plat, appV!, bld!, cv, package: row.Package ?? "",
                 protoText: row.ProtoText, protoSha: row.ProtoSha, messageIndex: row.MessageIndex,
@@ -177,12 +159,9 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         return true;
     }
 
-    // One item of a bulk approve: the staged id + the (possibly edited) metadata to promote with.
     public readonly record struct ApproveItem(int Id, string? Platform, string? AppVersion, string? Build, string? ClientVersion);
     public readonly record struct BulkApproveResult(int Approved, int Skipped, int Failed);
 
-    // Bulk-approve: approve each item with its edits. Rows that cannot be approved (missing build, collision,
-    // already gone) are counted as skipped/failed, never abort the batch. Returns per-outcome counts.
     public async Task<BulkApproveResult> BulkApproveAsync(
         IReadOnlyList<ApproveItem> items, string reviewedBy, CancellationToken ct)
     {
@@ -192,15 +171,14 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
             var r = await ApproveAsync(it.Id, it.Platform, it.AppVersion, it.Build, it.ClientVersion, reviewedBy, ct);
             switch (r)
             {
-                case ApproveResult.Ok or ApproveResult.Merged: ok++; break; // both promote + clear the queue
-                case ApproveResult.MissingBuild: skipped++; break; // no build -> needs a manual fill
-                default: failed++; break; // NotFound
+                case ApproveResult.Ok or ApproveResult.Merged: ok++; break;
+                case ApproveResult.MissingBuild: skipped++; break;
+                default: failed++; break;
             }
         }
         return new BulkApproveResult(ok, skipped, failed);
     }
 
-    // Bulk-reject: reject each pending id (hidden + sha blocked from re-offer). Returns the count rejected.
     public async Task<int> BulkRejectAsync(IReadOnlyList<int> ids, string? note, string reviewedBy, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;

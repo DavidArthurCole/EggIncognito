@@ -2,9 +2,7 @@ namespace EggIncognito.Services.ProtoExtract;
 
 // Minimal ARM64 instruction decoder. Decodes ONLY the three encodings the clientVersion heuristic
 // needs: MOVZ / MOVK (move-wide-immediate, 32-bit W-reg) and STR (immediate, unsigned offset, 32-bit).
-// Everything else is skipped (capstone skipdata parity). Pure: bytes in, instruction records out, no
-// value tracking and no execution. The consumer (MachoClientVersionReader) does the MOVK-overlay /
-// lookback, mirroring the Android client_version.py heuristic.
+// Pure: bytes in, instruction records out, no value tracking and no execution.
 public enum Arm64Op { Movz, Movk, Str }
 
 // For Movz/Movk: Rd = dest reg, Imm = imm16, Rn = hw shift index (shift = Rn*16).

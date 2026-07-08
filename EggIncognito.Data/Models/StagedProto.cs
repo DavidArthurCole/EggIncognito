@@ -3,9 +3,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// One proto awaiting review before it enters the live registry. Two producers: public "offer" (a user
-// analyzed a binary whose proto is not yet stored) and an admin "crawl" import of the GitHub backfill
-// dataset. status pending|approved|rejected; approval promotes to proto_versions via ProtoRegistryStore.
+// One proto awaiting review before it enters the live registry, from a public "offer" or an admin "crawl" import.
+// Approval promotes it to proto_versions via ProtoRegistryStore.
 [Table("staged_protos")]
 public sealed class StagedProto
 {

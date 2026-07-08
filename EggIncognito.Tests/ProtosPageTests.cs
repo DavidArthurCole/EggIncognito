@@ -10,9 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace EggIncognito.Tests;
 
 // The redesigned /protos page: a toolbar projected into the nav, a real registry table, and an
-// admin-only backfill panel below it. The admin gate is snapshotted from ICurrentUser during the
-// request (the controller ACL is the real gate; this is courtesy UX). DB-free: with no HttpContext
-// the self-calls fail and degrade to an empty table, which is what the empty-state assertions cover.
+// admin-only backfill panel below it. The controller ACL is the real admin gate; this is courtesy UX.
 public class ProtosPageTests
 {
     // Page-level: the prerendered /protos returns 200 with the registry shell. Anonymous, so no

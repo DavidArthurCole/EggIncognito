@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Persistence surface the dispatcher depends on. Extracted so the dispatcher can be faked without EF.
 public interface IFeedSubscriptionStore
 {
     Task<FeedSubscription> AddAsync(FeedSubscription sub, CancellationToken ct = default);
@@ -71,15 +70,12 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(ct);
 
-    // Owner-gated at the store: predicate scopes the delete to the caller's rows.
     public async Task<bool> DeleteAsync(int id, string ownerUserId, CancellationToken ct = default) =>
         await db.FeedSubscriptions
             .Where(s => s.Id == id && s.OwnerUserId == ownerUserId)
             .ExecuteDeleteAsync(ct) > 0;
 
-    // Owner-gated edit of the mutable fields (platforms, trigger, active). The webhook URL is NOT editable
-    // here: changing it would need a re-validation round-trip, so a different URL = a new subscription.
-    // Returns false when no such row belongs to the caller.
+    // The webhook URL is not editable here: a different URL is a new subscription.
     public async Task<bool> UpdateAsync(
         int id, string ownerUserId, string[] platforms, string trigger, bool active, string? messageTemplate,
         CancellationToken ct = default)

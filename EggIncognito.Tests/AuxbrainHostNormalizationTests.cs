@@ -2,9 +2,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-// AuxbrainHosts is the single place host:port handling lives. Callers pass uri.Host or a raw
-// CONNECT authority ("www.auxbrain.com:443"); before NormalizeHost existed, the port made auxbrain
-// traffic tunnel undecrypted. These guard the normalization and the GAE service-label rules.
 public class AuxbrainHostNormalizationTests
 {
     [Theory]
@@ -26,7 +23,6 @@ public class AuxbrainHostNormalizationTests
     public void NormalizeHost_RejectsNonHosts(string authority) =>
         Assert.Equal("", AuxbrainHosts.NormalizeHost(authority));
 
-    // The CONNECT-authority regression: auxbrain with a port must still be auxbrain.
     [Theory]
     [InlineData("www.auxbrain.com:443")]
     [InlineData("auxbrain.com:443")]
@@ -44,16 +40,15 @@ public class AuxbrainHostNormalizationTests
     public void IsAuxbrain_RejectsBadAuthorities(string authority) =>
         Assert.False(AuxbrainHosts.IsAuxbrain(authority));
 
-    // GAE service labels must be a real DNS label: no leading or trailing hyphen.
     [Theory]
     [InlineData("-svc-dot-auxbrainhome.appspot.com")]
-    [InlineData("svc--dot-auxbrainhome.appspot.com")] // service "svc-" ends with a hyphen
+    [InlineData("svc--dot-auxbrainhome.appspot.com")]
     public void IsAuxbrain_RejectsEdgeHyphenServiceLabels(string host) =>
         Assert.False(AuxbrainHosts.IsAuxbrain(host));
 
     [Theory]
     [InlineData("svc-dot-auxbrainhome.appspot.com")]
-    [InlineData("my-service-dot-auxbrainhome.appspot.com")] // interior hyphen stays legal
+    [InlineData("my-service-dot-auxbrainhome.appspot.com")]
     public void IsAuxbrain_AcceptsLegalServiceLabels(string host) =>
         Assert.True(AuxbrainHosts.IsAuxbrain(host));
 }

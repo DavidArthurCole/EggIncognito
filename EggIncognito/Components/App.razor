@@ -7,9 +7,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="/brand/icon-trimmed.png" />
 
-    @* Link unfurl (Discord, Slack, social) via Open Graph + Twitter Card. Copy is per-route (PageMeta):
-       a shared /protos link unfurls differently from /inspector. Absolute URLs are required; the brand
-       logo is the preview image. The HeadOutlet below can still override <title> per page. *@
+    @* Link unfurl (Discord, Slack, social) via Open Graph + Twitter Card. Copy is per-route (PageMeta). *@
     <meta name="description" content="@_meta.Description" />
     <meta name="theme-color" content="#ef7559" />
     <meta property="og:type" content="website" />
@@ -24,9 +22,7 @@
     <meta name="twitter:description" content="@_meta.Description" />
     <meta name="twitter:image" content="https://eggincognito.davidarthurcole.me/brand/logo.png" />
 
-    @* Cache-bust on the build token. tailwind.css/nav.css keep a fixed filename and are rebuilt every
-       image build, so without a changing query string the browser serves a stale sheet against new
-       markup (the "page looks wrong until Ctrl+F5" bug). The token changes per build, forcing a refetch. *@
+    @* Cache-bust on the build token so a fixed-filename sheet doesn't serve stale against new markup. *@
     <link rel="stylesheet" href="@($"/nav.css?v={_assetVersion}")" />
     <link rel="stylesheet" href="@($"/tailwind.css?v={_assetVersion}")" />
     <HeadOutlet />
@@ -34,10 +30,8 @@
 <body class="m-0 bg-bg text-fg font-sans">
     <Routes />
 
-    @* Custom Blazor reconnect UI (.NET 10 contract). Providing this dialog suppresses the default
-       modal. Blazor toggles the components-reconnect-*-visible classes on the dialog per state and
-       drives the #components-reconnect-button / #components-resume-button / countdown. nav.css themes
-       it to the app palette + gates each message by the active state class so it never flashes white. *@
+    @* Custom Blazor reconnect UI (.NET 10 contract): providing this dialog suppresses the default modal.
+       Blazor toggles components-reconnect-*-visible classes on it per connection state. *@
     <dialog id="components-reconnect-modal" class="reconnect-modal">
       <div class="reconnect-card">
         <div class="components-rejoining-animation reconnect-spinner" aria-hidden="true"></div>
@@ -60,11 +54,9 @@
 </html>
 
 @code {
-    // Per-build cache-bust token: the short commit sha (changes every image build). Computed once.
     static readonly string _assetVersion =
         EggIncognito.Services.BuildInfo.FromAssembly("https://github.com/davidarthurcole/EggIncognito").ShortSha;
 
-    // Per-route unfurl copy + canonical URL, resolved per request from the requested path.
     EggIncognito.Services.PageMeta.Meta _meta;
     string _canonicalUrl = "https://eggincognito.davidarthurcole.me/";
 
@@ -73,7 +65,6 @@
         var req = HttpContextAccessor.HttpContext?.Request;
         var path = req?.Path.Value;
         _meta = EggIncognito.Services.PageMeta.For(path);
-        // Canonical URL = the public host + the requested path (the link being shared).
         if (req is not null)
             _canonicalUrl = $"https://eggincognito.davidarthurcole.me{(string.IsNullOrEmpty(path) ? "/" : path)}";
     }

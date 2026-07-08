@@ -1,10 +1,6 @@
-// Writes every log event to one file per process start: {LogsPath}/eggincognito-{startup}.log.
-// Writes happen off the request thread via a bounded Channel drained by a background task,
-// so logging never blocks request handling. Flushed and closed on provider dispose
-// (wired to ApplicationStopping in Program.cs).
-//
-// This is a deliberately small, dependency-free sink. To ship logs elsewhere later
-// (Papertrail, Seq, OTel), add that provider alongside this one - call sites do not change.
+// Writes every log event to one file per process start: {LogsPath}/eggincognito-{startup}.log. Writes
+// happen off the request thread via a bounded Channel drained by a background task, so logging never
+// blocks request handling.
 
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;

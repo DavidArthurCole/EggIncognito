@@ -1,9 +1,8 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 // Reads the float/double constants + call targets out of a named function in an arm64 Mach-O. Resolves the
-// function's VA range by symbol name (MachoSymbols.TryFindFunc, the proven n_value path; raw symbol addresses
-// are unreliable for the C++ mangled set), locates __text for the slide, disassembles the range, and maps each
-// bl target back to its nearest symbol. The reusable extraction primitive behind /api/decomp/*.
+// function's VA range by symbol name, locates __text for the slide, disassembles the range, and maps each bl
+// target back to its nearest symbol.
 public static class FunctionConstantExtractor
 {
     public readonly record struct ExtractResult(bool Ok, string FunctionName, IReadOnlyList<double> Floats,
@@ -15,10 +14,9 @@ public static class FunctionConstantExtractor
         return ExtractWith(bin, MachoSymbols.Read(bin), nameNeedles);
     }
 
-    // Extract using an EXPLICIT symbol list instead of the binary's own table. The recovery path (v2) hands a
-    // stripped target binary plus the (name, target-VA) symbols recovered from a symbolized reference, so the
-    // extractor can resolve functions the stripped binary lost. Pass the full recovered set so a function's end
-    // VA can be inferred from the next symbol.
+    // Extracts using an explicit symbol list instead of the binary's own table, so a stripped binary can resolve
+    // functions via symbols recovered from a symbolized reference. Pass the full recovered set so a function's
+    // end VA can be inferred from the next symbol.
     public static ExtractResult ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string[] nameNeedles)
     {
         if (bin is null || bin.Length < 64) return new(false, "", [], [], "binary too short");

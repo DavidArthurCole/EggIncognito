@@ -1,8 +1,6 @@
-@* The nav-tools toolbar, ported from the Capture.cshtml header + notifications.js + the app.js toolbar
-   wiring: the notification center, the capture start/stop toggle, the clear-confirm popover, the HAR
-   export menu, and the settings popover (redaction modes + view toggles + default format). Only one
-   popover is open at a time. Actions are raised to the page; view settings mutate the shared
-   CaptureViewState and call OnViewChanged so the page persists + re-renders. *@
+@* The nav-tools toolbar: notification center, capture start/stop toggle, clear-confirm popover, HAR
+   export menu, and settings popover (redaction modes + view toggles + default format). Only one popover
+   is open at a time; view settings mutate the shared CaptureViewState and call OnViewChanged. *@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
 
@@ -125,8 +123,7 @@
 
     string? _open;
 
-    // Only one popover open at a time. Opening the notif popover marks notices read right away (the
-    // unread badge clears as soon as the list is visible); closing marks again to catch any notice
+    // Opening the notif popover marks notices read right away; closing marks again to catch any notice
     // that arrived while it was open.
     async Task Toggle(string which)
     {
@@ -161,6 +158,6 @@
     Task DismissNotice(int id) => OnDismissNotice.InvokeAsync(id);
     Task ClearAllNotices() => OnClearNotices.InvokeAsync();
 
-    // A permanent notification-center entry. Severity is "info" | "ok" | "warn" | "error".
+    // Severity is "info" | "ok" | "warn" | "error".
     public sealed record NoticeItem(int Id, string Severity, string Message, string Timestamp);
 }

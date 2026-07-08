@@ -3,9 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.Backfill.Sources;
 
-// Uptodown android versions page. HTML scrape via the "scrape" client (bare clients 403). Each version
-// entry carries a version label + a release date; no build/versionCode. Parse is pure + resilient: a
-// markup change yields fewer/zero rows + a logged warning, never an exception into the importer.
+// Uptodown android versions page. HTML scrape via the "scrape" client (bare clients 403).
 public sealed partial class UptodownSource(IHttpClientFactory httpFactory, ILogger<UptodownSource> logger)
     : IVersionListSource
 {
@@ -34,8 +32,7 @@ public sealed partial class UptodownSource(IHttpClientFactory httpFactory, ILogg
         }
     }
 
-    // Uptodown renders each version inside a div.version (the version string) with a sibling span.date.
-    // Match per list item: the version label then the nearest date span. Tolerant of attribute reorder.
+    // Matches per list item: the div.version label then the nearest date span.
     [GeneratedRegex(
         @"<div[^>]*\bclass=""[^""]*\bversion\b[^""]*""[^>]*>\s*([\d][\d.]*)\s*</div>.*?<(?:span|td)[^>]*\bclass=""[^""]*\bdate\b[^""]*""[^>]*>\s*([^<]+?)\s*</",
         RegexOptions.Singleline)]
@@ -60,7 +57,6 @@ public sealed partial class UptodownSource(IHttpClientFactory httpFactory, ILogg
 
     private static bool TryParseDate(string raw, out DateTimeOffset date)
     {
-        // Uptodown dates look like "Jan 5, 2024" or "5 Jan 2024"; fall back to generic parse.
         string[] formats = ["MMM d, yyyy", "MMM d yyyy", "d MMM yyyy", "MMMM d, yyyy", "yyyy-MM-dd"];
         if (DateTimeOffset.TryParseExact(raw, formats, CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal, out date))

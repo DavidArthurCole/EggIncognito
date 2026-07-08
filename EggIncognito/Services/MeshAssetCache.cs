@@ -1,9 +1,8 @@
 namespace EggIncognito.Services;
 
 // On-disk cache of decoded mesh .glb files, so the playground + API serve a pre-computed glb instead of
-// re-pulling the archive off a device and re-decoding on every request. Keyed by (platform, stem). Lives
-// under ShipAssets:OutputDir/cache when configured; a null/empty config disables the cache (every read is a
-// miss, every write a no-op) so nothing breaks without an output dir.
+// re-pulling the archive off a device and re-decoding on every request. Keyed by (platform, stem), under
+// ShipAssets:OutputDir/cache; a null/empty config disables the cache (every read a miss, every write a no-op).
 public sealed class MeshAssetCache(IConfiguration config)
 {
     private string? CacheRoot

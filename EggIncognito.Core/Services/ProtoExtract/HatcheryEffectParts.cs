@@ -1,30 +1,23 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 // Groups the hatchery mesh pieces of one tier into a body + its floating sub-pieces, from the bundle's `.rpo`
-// stem list. The universe hatchery's "floating effect" is NOT a particle system: it is separate sub-meshes
-// (ei_hatchery_universe_bolt, ei_hatchery_universe_probe, the darkmatter rings, the ai/vision tops) that hover
-// and orbit around the body, animated by RPA1 curves. Every tier follows the same `ei_hatchery_<tier>[_<part>]`
-// naming, so the binding is programmatic: no hardcoded per-tier list.
-//
-// Body = the bare `ei_hatchery_<tier>` stem. Floating parts = `ei_hatchery_<tier>_<suffix>` whose suffix names a
-// known floating component (bolt/probe/ring*/top*/middle/orb/...). Other suffixes (rebuild/calm/icons) are not
-// meshes in the rpos set, so they never appear here. Pure string grouping; the caller decodes + animates.
+// stem list. A hatchery's "floating effect" is not a particle system: it is separate sub-meshes that hover and
+// orbit the body, animated by RPA1 curves. Every tier follows `ei_hatchery_<tier>[_<part>]` naming, so the
+// binding is programmatic, no hardcoded per-tier list. Pure string grouping; the caller decodes + animates.
 public static class HatcheryEffectParts
 {
     public sealed record Parts(string Tier, string? Body, IReadOnlyList<string> Floating);
 
     private const string Prefix = "ei_hatchery_";
 
-    // Extracted from the observed rpos naming, not hand-curated per tier. "vision" is a TIER not a part, so it is
-    // not here; its parts are ei_hatchery_vision_middle / _top, caught by middle/top.
+    // Extracted from the observed rpos naming, not hand-curated per tier.
     private static readonly string[] FloatingRoots =
     [
         "bolt", "probe", "ring", "top", "middle", "orb",
     ];
 
-    // The tier of a hatchery stem. We can only know the tier authoritatively when a body stem exists, so Tiers()
-    // derives tiers from the BODIES present (a stem is a body when no other-stem prefix explains it). For a lone
-    // stem: ei_hatchery_<x> -> <x>, and ei_hatchery_<x>_<floatingSuffix> -> <x>. Returns null for non-hatchery.
+    // The tier of a hatchery stem: ei_hatchery_<x> -> <x>, and ei_hatchery_<x>_<floatingSuffix> -> <x>. Returns
+    // null for non-hatchery.
     public static string? TierOf(string stem)
     {
         if (!stem.StartsWith(Prefix, StringComparison.Ordinal)) return null;
@@ -40,8 +33,7 @@ public static class HatcheryEffectParts
         return rest;
     }
 
-    // Group all hatchery stems by tier. For a requested tier, body + its floating parts; the floating list is the
-    // stems whose remainder (after the tier) names a floating component.
+    // For a requested tier, body + its floating parts: stems whose remainder names a floating component.
     public static Parts ForTier(IEnumerable<string> stems, string tier)
     {
         string body = Prefix + tier;
@@ -58,7 +50,7 @@ public static class HatcheryEffectParts
         return new Parts(tier, have.Contains(body) ? body : null, floating);
     }
 
-    // Every distinct hatchery tier present in the stem list (universe, darkmatter, ai, vision, ...).
+    // Every distinct hatchery tier present in the stem list.
     public static IReadOnlyList<string> Tiers(IEnumerable<string> stems)
     {
         var tiers = new SortedSet<string>(StringComparer.Ordinal);

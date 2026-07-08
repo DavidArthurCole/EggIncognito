@@ -1,7 +1,6 @@
 // The outgoing-request transform pipeline for the Egg, Inc. API, plus the inverse response decode.
 // Owns the AuthenticatedMessage hash so the salt secret stays server-side and the browser never
-// reimplements it. The single home of the hash/wrap logic: the Inspector and any non-DI caller both
-// call Build(). Signing parity is locked by Build_WrappedWithSalt_CodeMatchesSeederAlgorithm.
+// reimplements it. Signing parity is locked by Build_WrappedWithSalt_CodeMatchesSeederAlgorithm.
 
 using System.Security.Cryptography;
 using System.Text;
@@ -10,10 +9,8 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Services;
 
-/// <summary>A single visible step in the request-build or response-decode pipeline.
-/// Role lets the UI style/label deterministically instead of parsing the description:
-/// "payload" = the raw proto bytes, "envelope" = the AuthenticatedMessage wrapper,
-/// "encoding" = a transport encoding step. Skipped marks a no-op stage.</summary>
+/// <summary>A single visible step in the request-build or response-decode pipeline. Role lets the UI
+/// style/label deterministically: "payload", "envelope", or "encoding".</summary>
 public sealed record TransportStage(
     string Name,
     string Description,
@@ -64,7 +61,6 @@ public sealed class TransportPipeline : ITransportPipeline
     public TransportPipeline(IConfiguration config)
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"]) { }
 
-    // For non-DI callers:
     public TransportPipeline()
         : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT")) { }
 
@@ -98,7 +94,6 @@ public sealed class TransportPipeline : ITransportPipeline
             }
             else
             {
-                // Build the wrapper with an empty code so the shape stays visible.
                 wrapped = new Ei.AuthenticatedMessage
                 {
                     Message = ByteString.CopyFrom(innerProtoBytes),
@@ -148,10 +143,9 @@ public sealed class TransportPipeline : ITransportPipeline
         if (responseParser is null)
             return new DecodeResult(stages, null, "no parser for this endpoint's response type");
 
-        // The real auxbrain API wraps responses in an AuthenticatedMessage, optionally compressed. The
-        // EggIncognito mock returns the raw response message directly. Try the wrapped path first (gated
-        // on the bytes matching the envelope wire shape, see LooksLikeAuthEnvelope); if the inner payload
-        // doesn't parse as the response type, fall back to the response bytes directly.
+        // Real auxbrain wraps responses in an AuthenticatedMessage; the EggIncognito mock returns the raw
+        // response directly. Try the wrapped path first (see LooksLikeAuthEnvelope), falling back to a
+        // direct parse if the inner payload doesn't match.
         var wrapped = TryDecodeWrapped(respBytes, responseParser);
         if (wrapped is not null)
         {
@@ -174,14 +168,12 @@ public sealed class TransportPipeline : ITransportPipeline
         }
     }
 
-    // Returns null if the bytes are not a usable AuthenticatedMessage-wrapped response.
     private (IReadOnlyList<TransportStage> Stages, string Json)? TryDecodeWrapped(
         byte[] respBytes, MessageParser responseParser)
     {
         // Protobuf parsing is permissive: an unwrapped response whose field 1 is length-delimited can
-        // also "parse" as an AuthenticatedMessage, mislabeling a mock response as wrapped and silently
-        // dropping its other fields. The envelope schema is frozen, so require every top-level field to
-        // match it before committing to the wrapped path.
+        // also "parse" as an AuthenticatedMessage. Require every top-level field to match the frozen
+        // envelope schema before committing to the wrapped path.
         if (!LooksLikeAuthEnvelope(respBytes)) return null;
         try
         {
@@ -207,17 +199,13 @@ public sealed class TransportPipeline : ITransportPipeline
         }
         catch (Exception ex) when (ex is InvalidProtocolBufferException or InvalidDataException)
         {
-            // The expected "not actually wrapped" signals: malformed envelope/inner proto or a corrupt
-            // compressed payload. The caller falls back to the direct parse. Anything else propagates
-            // instead of masquerading as a direct-parse failure.
+            // Malformed envelope/inner proto or a corrupt compressed payload: not actually wrapped.
             return null;
         }
     }
 
-    // True when every top-level field of the bytes matches the AuthenticatedMessage wire shape
-    // (message=1/code=2/user_id=6 length-delimited; version=3/compressed=4/original_size=5 varint).
-    // Any field outside that frozen envelope schema means the bytes are an unwrapped response, even
-    // though a lenient ParseFrom would tolerate it as an unknown field.
+    // True when every top-level field matches the AuthenticatedMessage wire shape (message=1/code=2/
+    // user_id=6 length-delimited; version=3/compressed=4/original_size=5 varint).
     private static bool LooksLikeAuthEnvelope(byte[] bytes)
     {
         try
@@ -263,8 +251,7 @@ public sealed class TransportPipeline : ITransportPipeline
 
         const uint magic = 0x3b9af419;
         var mutated = (byte[])messageBytes.Clone();
-        // A zero-length message has no byte to mutate, and `magic % 0` divides by zero. An all-default
-        // proto serializes to 0 bytes, which the Inspector can send; sign it as-is without the flip.
+        // A zero-length message (all-default proto) has no byte to mutate and `magic % 0` divides by zero.
         if (mutated.Length > 0)
             mutated[magic % (uint)mutated.Length] = 0x1b;
 

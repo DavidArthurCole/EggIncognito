@@ -4,9 +4,6 @@ using EggIncognito.Services.Backfill.Sources;
 
 namespace EggIncognito.Tests;
 
-// Pure byte-level tests for ApkPureSource.ExtractArmSplit: feed in-memory XAPK (zip-of-apks) blobs and
-// assert the arm64 split is found by name, with both the APKPure and adb-device spellings, and that
-// non-bundles (garbage, base-only) return null. No network.
 public class ApkPureArmSplitTests
 {
     private static readonly byte[] ArmSplitBody = Encoding.ASCII.GetBytes("ARM64-SPLIT-PAYLOAD");

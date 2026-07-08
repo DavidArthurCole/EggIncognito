@@ -1,8 +1,6 @@
-@* Contributor+ review queue for staged proto submissions (public offers + admin crawl imports). A real
-   table: select rows (checkbox + select-all), bulk approve/reject, and an optional filter. Each row's
-   version fields are inline-editable so a reviewer can fix a crawled null before approving. Approve promotes
-   to the live registry; Reject hides + blocks re-offer of that sha. Self-fetches the auth-cookie'd
-   /api/protos/staged endpoint; hidden when the queue is empty (admins always see the import button). *@
+@* Contributor+ review queue for staged proto submissions (public offers + admin crawl imports). Select rows,
+   bulk approve/reject, and inline-edit version fields to fix a crawled null before approving. Approve promotes
+   to the live registry; reject hides + blocks re-offer of that sha. *@
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpFactory
@@ -10,8 +8,7 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-@* Only render when there is something to review (was: always for admins, to show the import button -
-   that button is gone). *@
+@* Only render when there is something to review. *@
 @if (_rows.Count > 0)
 {
   <section class="panel mb-3">
@@ -260,9 +257,8 @@
 
     IJSObjectReference? _copy;
 
-    // Build a structured, paste-back audit report for rows with missing version fields. One block per row:
-    // identity (id/sha/source), what is known, what is MISSING, and the crawl provenance (repo/commit/date/
-    // confidence) so the missing fields can be chased in that exact commit.
+    // Build a structured, paste-back audit report for rows with missing version fields: one block per row
+    // with identity, what is known, what is missing, and the crawl provenance.
     static string MissingReport(IEnumerable<StagedRow> rows)
     {
         var sb = new System.Text.StringBuilder();
@@ -281,10 +277,9 @@
         static string Or(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s;
     }
 
-    // Copy the report to the clipboard, then REJECT those rows so they leave the review queue. Reject now means
-    // "not enough data yet" (revivable): if the same proto re-surfaces from a richer crawl/offer, it comes back
-    // to review automatically. Copy must succeed before we reject, so a clipboard failure never silently drops
-    // rows from the queue.
+    // Copy the report to the clipboard, then reject those rows so they leave the review queue; reject here
+    // means "not enough data yet" and is revivable if the same proto re-surfaces with more data. Copy must
+    // succeed before we reject, so a clipboard failure never silently drops rows from the queue.
     async Task CopyAndClear(IReadOnlyList<StagedRow> rows)
     {
         if (rows.Count == 0) return;

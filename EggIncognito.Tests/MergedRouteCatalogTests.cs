@@ -30,7 +30,7 @@ routes:
     {
         var dbRoute = new RouteInfo("ei/known", "X", "Y", false, false, null, false, false);
         var merged = new MergedRouteCatalog(Yaml(YamlText), new FakeDb(dbRoute));
-        Assert.Equal("PeriodicalsResponse", merged.Get("ei/known")!.Response); // yaml, not "Y"
+        Assert.Equal("PeriodicalsResponse", merged.Get("ei/known")!.Response);
     }
 
     [Fact]

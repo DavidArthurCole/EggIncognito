@@ -1,27 +1,23 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 // Derives world-space waypoint paths for the playground's animated actors from the placed elements' positions,
-// so motion follows the user's layout. Pure: positions in, waypoints out. A waypoint is float[]{x,y,z}.
+// so motion follows the user's layout. A waypoint is float[]{x,y,z}.
 //
-// STOPGAP (see CLAUDE.md "EXTRACT, don't author"): these are hand-authored approximations of the game's real
-// actor motion. The game defines the actual chicken-run / vehicle-drive / rocket-launch paths in its binary
-// (FarmScene + related compiled methods) or model data. Extract those and replace this. Tracked in
+// STOPGAP (see CLAUDE.md "EXTRACT, don't author"): hand-authored approximations of the game's real actor
+// motion. Extract the real paths from FarmScene / model data and replace this. Tracked in
 // docs/superpowers/specs/2026-06-28-playground-building-animations-design.md.
 public static class PlaygroundPaths
 {
-    // The road runs along X between the depot (z~7-12) and the hyperloop (z~19-27). Vehicles drive here. The
-    // hyperloop itself is NOT the road and its cars do not drive.
+    // The road runs along X between the depot and the hyperloop. Vehicles drive here; the hyperloop itself is
+    // not the road.
     public const float RoadZ = 15f;
 
-    // The hatchery has a small fenced area in front of it that chickens flow into; its right-most point is the
-    // "door" the chickens emerge from. Approximated as an offset from the hatchery placement toward +X (the
-    // fenced area's right edge). STOPGAP: the exact door point is in the hatchery model node graph; extract it.
+    // Approximated offset from the hatchery placement toward +X for the chicken-emergence "door".
+    // STOPGAP: the exact door point is in the hatchery model node graph; extract it.
     public const float HatcheryDoorOffsetX = 2.5f;
 
-    // A chicken's run: from the hatchery DOOR (right-most fenced point, not the hatchery center) out to the hab
-    // ramp, with a gentle midpoint bow so it curves rather than sliding straight. Catmull-Rom smooths it client
-    // side. laneOffsetZ shifts the whole run sideways so several chickens run in parallel lanes, not on top of
-    // each other.
+    // A chicken's run: from the hatchery door out to the hab ramp, with a gentle midpoint bow. laneOffsetZ
+    // shifts the whole run sideways so several chickens run in parallel lanes.
     public static float[][] ChickenRun(float[] hatcheryPos, float[] habPos, float laneOffsetZ = 0f)
     {
         var start = new[] { hatcheryPos[0] + HatcheryDoorOffsetX, 0f, hatcheryPos[2] + laneOffsetZ };
@@ -31,8 +27,7 @@ public static class PlaygroundPaths
     }
 
     // The road as a straight drive line along X at the road Z, from the first arg to the second (pass them
-    // reversed to drive the other way). The endpoints come from the placed elements' X bounds, or a default
-    // span when they are too close together.
+    // reversed to drive the other way).
     public static float[][] RoadPath(float fromX, float toX)
     {
         if (System.MathF.Abs(toX - fromX) < 1f) { fromX = 20f; toX = -20f; }

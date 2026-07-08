@@ -1,8 +1,5 @@
-@* Collapsible, searchable JSON tree viewer, ported from wwwroot/capture/tree.js. The whole value is
-   parsed once into TreeNode; expand/collapse toggles per-node state, search forces-expands ancestor
-   chains and dims non-matches. Sensitive leaf values blur (CSS .blurred) and reveal on click. The
-   format select + copy button injected by the parent are passed via the Tools render fragment so all
-   controls share one in-box toolbar, mirroring the JS that prepended them into .jtree-tools. *@
+@* Collapsible, searchable JSON tree viewer. The whole value is parsed once into TreeNode; expand/collapse
+   toggles per-node state, search force-expands ancestor chains and dims non-matches. *@
 @using EggIncognito.Components.Capture
 
 <div class="jtree-viewer">

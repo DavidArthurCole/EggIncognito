@@ -2,7 +2,6 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// Arg parsing for capture mode (--capture). Lives in the CaptureOptions record so it is unit-testable.
 public class CaptureOptionsTests
 {
     [Fact]

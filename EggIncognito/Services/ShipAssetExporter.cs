@@ -5,14 +5,11 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
 
-// Turns a decoded mesh set (RpoAssetExtractor output) into the public asset-repo layout EggLedger consumes:
-// ships/<EnumName>.glb (one per Spaceship enum ship, renamed from the rpos/ stem via ShipNameMap) plus a
-// manifest.json keyed by enum name with bbox + sha256 per ship. Non-ship assets (habs, pipes, props) and
-// CDN-only ships are dropped. This is the permanent export stage; the web endpoints drive it against a
-// device-pulled or uploaded archive, and CI hits those endpoints. No throwaway scripting.
+// Turns a decoded mesh set into the public asset-repo layout EggLedger consumes: ships/<EnumName>.glb
+// (renamed from the rpos/ stem via ShipNameMap) plus a manifest.json keyed by enum name with bbox +
+// sha256 per ship. Non-ship assets and CDN-only ships are dropped.
 public static class ShipAssetExporter
 {
-    // The manifest contract (matches docs/handoff + the asset-repo README). version is the contract version,
     // generatedFromBuild is the game build the meshes came from (caller supplies; null when unknown).
     public sealed record Manifest(
         [property: JsonPropertyName("version")] string Version,
@@ -28,17 +25,12 @@ public static class ShipAssetExporter
         [property: JsonPropertyName("min")] float[] Min,
         [property: JsonPropertyName("max")] float[] Max);
 
-    // One exported ship: enum name, the .glb bytes (renamed), and its manifest entry. Bytes are kept so the
-    // caller can write them to disk OR return them base64 over HTTP without re-decoding.
     public sealed record Exported(string EnumName, byte[] Glb, ShipEntry Entry);
 
     public sealed record Result(Manifest Manifest, IReadOnlyList<Exported> Ships, IReadOnlyList<string> SkippedShips);
 
-    // Filters the decoded assets to bundled ships, renames to <EnumName>.glb, builds the manifest. SkippedShips
-    // = enum ships with no bundled mesh in this archive (the 4 CDN ships, or anything missing), so the caller
-    // can report coverage instead of silently shipping a partial set.
-    // animate, when set, bakes a glTF animation (e.g. SpinY) into each ship .glb before hashing/export, so
-    // consumers get a self-playing spin without client-side animation code. null = static geometry only.
+    // SkippedShips = enum ships with no bundled mesh in this archive, so the caller can report coverage.
+    // animate, when set, bakes a glTF animation into each ship .glb before hashing/export; null = static geometry.
     public static Result Build(RpoAssetExtractor.ExtractResult extract, string? generatedFromBuild,
         EggIncognito.Services.Assets.GltfAnimator.Options? animate = null)
     {
@@ -49,11 +41,10 @@ public static class ShipAssetExporter
         {
             if (!asset.Decode.Ok) continue;
             var enumName = ShipNameMap.EnumNameForStem(asset.Key);
-            if (enumName is null) continue; // not a ship (or a CDN-only ship): drop
+            if (enumName is null) continue;
 
             var glb = asset.Decode.Glb!;
-            // Optionally bake the animation in. A failed animate keeps the static glb rather than dropping
-            // the ship, so a toolkit hiccup never silently loses a mesh.
+            // A failed animate keeps the static glb rather than dropping the ship.
             if (animate is not null)
             {
                 var anim = EggIncognito.Services.Assets.GltfAnimator.Animate(glb, animate);
@@ -76,8 +67,7 @@ public static class ShipAssetExporter
         return new Result(manifest, exported, skipped);
     }
 
-    // Writes the export to disk in the asset-repo layout: <outputDir>/ships/<EnumName>.glb + manifest.json.
-    // Used by the export endpoint when an output directory is configured (the CI artifact path). Overwrites.
+    // Writes the export to disk: <outputDir>/ships/<EnumName>.glb + manifest.json. Overwrites.
     public static async Task WriteToAsync(Result result, string outputDir, CancellationToken ct)
     {
         var shipsDir = Path.Combine(outputDir, "ships");

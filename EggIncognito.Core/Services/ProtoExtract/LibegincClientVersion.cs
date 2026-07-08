@@ -2,10 +2,9 @@ using System.IO.Compression;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Entry point for the C# clientVersion extraction. Pulls lib/arm64-v8a/libegginc.so out of an arm-split
-// APK (or accepts a bare .so), parses its .text via Elf64, and runs the Arm64ClientVersionScanner with
-// the previous known clientVersion as the anchor. Replaces the python client_version.py shell-out.
-// Defensive: any structural surprise returns null, never a throw.
+// Pulls lib/arm64-v8a/libegginc.so out of an arm-split APK (or accepts a bare .so), parses its .text via Elf64,
+// and runs the Arm64ClientVersionScanner with the previous known clientVersion as the anchor. Defensive: any
+// structural surprise returns null, never a throw.
 public static class LibegincClientVersion
 {
     private const long MaxSoBytes = 300_000_000L;

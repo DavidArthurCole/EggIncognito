@@ -605,7 +605,7 @@
         row.Value = value ?? "";
         SyncRinfoFromRow(row);
         ApplyEnvLock();
-        // Env edits ARE the request defaults; persist them browser-side so they survive a reload.
+        // Env edits are the request defaults; persist them browser-side so they survive a reload.
         await InvokeVoid("setRinfoDefaults", _rinfo);
     }
 
@@ -637,8 +637,8 @@
 
     void OnTreeChanged() { /* re-render; raw JSON is re-derived on toggle */ }
 
-    // True when the request type has fields but they are ALL env-locked (covered by BasicRequestInfo
-    // overrides) - i.e. nothing left for the user to fill in. Drives the curated "no extra fields" note.
+    // True when the request type has fields but they are all env-locked (covered by BasicRequestInfo
+    // overrides), so nothing is left for the user to fill in.
     bool NoFillableFields =>
         _fieldNodes is { Count: > 0 } && _fieldNodes.All(n => n.Locked);
 

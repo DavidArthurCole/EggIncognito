@@ -49,8 +49,7 @@ public class LanForwarderTests
     [Fact]
     public void CleanConnectHead_AbsoluteUriGet_HostIsUrlAuthorityNotWholeUrl()
     {
-        // trustd sends absolute-URI proxy GETs for OCSP. The old code set Host to the whole URL, which
-        // Kestrel 400'd -> OCSP failed -> cert validation broke -> the device could not connect at all.
+        // trustd sends absolute-URI proxy GETs for OCSP; Host must be the URL's authority, not the whole URL.
         var head = "GET http://ocsp.digicert.com/MFAwTjBM HTTP/1.1\r\n" +
                    "Host: ocsp.digicert.com\r\n" +
                    "Proxy-Connection: keep-alive";

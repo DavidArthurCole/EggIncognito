@@ -3,14 +3,10 @@ using System.Text;
 namespace EggIncognito.Services;
 
 // Decoder for the tnetstring serialization mitmproxy uses in its .mitm flow files. One value is
-// LENGTH:PAYLOAD<tag>, where tag selects the type. Containers (list, dict) hold concatenated
-// tnetstrings inside their payload. Only the read path is implemented; the importer never writes
-// .mitm. Bytes/str both decode to byte[] (the caller knows which fields are text).
-//
-// Tags: ',' bytes  ';' str  '#' int  '^' float  '!' bool  '~' null  ']' list  '}' dict.
+// LENGTH:PAYLOAD<tag>, where tag selects the type; only the read path is implemented.
+// Tags: ',' bytes ';' str '#' int '^' float '!' bool '~' null ']' list '}' dict.
 public static class TnetString
 {
-    // Decode the single tnetstring at offset. Returns the value and the offset just past its tag.
     public static (object? value, int next) Decode(byte[] data, int offset)
     {
         var colon = Array.IndexOf(data, (byte)':', offset);

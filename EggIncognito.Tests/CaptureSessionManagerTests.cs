@@ -2,8 +2,6 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// Per-user session manager: key isolation, port pool reuse, capacity cap with the local key exempt.
-// Sessions are never started here; construction is cheap and binds nothing.
 public class CaptureSessionManagerTests
 {
     internal static string RealContentRoot()
@@ -41,7 +39,7 @@ public class CaptureSessionManagerTests
         Assert.NotSame(a, b);
         Assert.NotEqual(a.Port, b.Port);
         Assert.Equal(24000, a.Port);
-        Assert.Equal(24003, b.Port); // pool steps by 3: base, base+1 proxy, base+2 tls-forward
+        Assert.Equal(24003, b.Port);
     }
 
     [Fact]

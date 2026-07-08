@@ -4,9 +4,8 @@ using System.Text;
 namespace EggIncognito.Capture;
 
 // A minimal HTTP/1.1 message (request or response) read off a decrypted SslStream by NativeCaptureProxy.
-// Just enough to relay auxbrain's protobuf POSTs faithfully and re-serialize them byte-for-byte: a start
-// line, ordered headers, and a fully-buffered body (Content-Length or chunked). auxbrain bodies are small
-// (a base64 form param up; an AuthenticatedMessage down), so buffering is fine and lets us emit a flow.
+// Just enough to relay auxbrain's protobuf POSTs faithfully and re-serialize them byte-for-byte: a
+// start line, ordered headers, and a fully-buffered body (Content-Length or chunked).
 internal sealed class HttpMessage
 {
     public required string StartLine { get; init; }
@@ -54,9 +53,8 @@ internal sealed class HttpMessage
         return new HttpMessage { StartLine = startLine, Headers = headers, Body = body };
     }
 
-    // Re-serialize exactly: start line, headers (order preserved), CRLF, then the buffered body framed by
-    // Content-Length. Any original Transfer-Encoding: chunked is dropped in favor of Content-Length since
-    // we have the whole body in hand - simpler and equivalent for the peer.
+    // Re-serialize exactly: start line, headers (order preserved), CRLF, then the buffered body framed
+    // by Content-Length. Any original Transfer-Encoding: chunked is dropped in favor of Content-Length.
     public async Task WriteAsync(Stream s, CancellationToken ct)
     {
         var sb = new StringBuilder();
@@ -122,7 +120,6 @@ internal sealed class HttpMessage
         if (clRaw is not null && long.TryParse(clRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cl) && cl > 0)
             return await ReadExactAsync(s, (int)cl, ct);
 
-        // No length + no chunked: a request has no body; a response (non-204/304) would read to EOF, but
         // auxbrain always sends Content-Length, so treat as empty to avoid blocking the keep-alive loop.
         return [];
     }

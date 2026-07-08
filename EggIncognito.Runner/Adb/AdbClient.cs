@@ -76,8 +76,6 @@ public sealed class AdbClient : IAdbClient
             throw new InvalidOperationException(
                 $"no arm split found for {package}; pm path returned {paths.Count} entries");
         }
-        // `adb pull` writes the file itself. The earlier `cat > dest` form failed:
-        // Run passed `> dest` as a literal adb arg, so nothing was ever written.
         var r = RunText("-s", _target, "pull", arm, destPath);
         if (!File.Exists(destPath))
         {

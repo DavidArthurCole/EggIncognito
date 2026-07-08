@@ -37,7 +37,6 @@ public class DeviceProbeTests
         Assert.NotNull(r.Note);
     }
 
-    // The runtime image's ideviceinstaller emits a plist for `-l -o xml`.
     const string Plist = """
         <?xml version="1.0"?><plist version="1.0"><array>
         <dict><key>CFBundleIdentifier</key><string>com.auxbrain.egginc</string>
@@ -65,7 +64,6 @@ public class DeviceProbeTests
     [Fact]
     public async Task Ios_CsvFallback_AlsoParses()
     {
-        // Some ideviceinstaller builds emit CSV instead of a plist; the parser handles both.
         const string csv = "com.auxbrain.egginc, \"1.35.8\", \"Egg, Inc.\"\n";
         var runner = new FakeRunner((_, _) => new ProcessResult(0, csv, ""));
         var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
@@ -80,9 +78,9 @@ public class DeviceProbeTests
         var runner = new FakeRunner((_, _) => new ProcessResult(0, empty, ""));
         var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
         var r = await probe.ProbeAsync(default);
-        Assert.True(r.Reachable); // device answered
+        Assert.True(r.Reachable);
         Assert.Null(r.InstalledAppVersion);
-        Assert.NotNull(r.Note); // "app not installed"
+        Assert.NotNull(r.Note);
     }
 
     [Fact]

@@ -4,10 +4,8 @@ namespace EggIncognito.Capture;
 public sealed class CaptureCapacityException()
     : Exception("capture session capacity reached");
 
-// Per-user capture sessions. Local mode uses the single anonymous key so behavior is identical to
-// the old singleton. Hosted keys by Discord id. The port pool hands each session a private loopback
-// base port; Unobtanium derives +1/+2 internally. The factory receives (key, basePort) so the local
-// key keeps its configured port and hosted keys get per-user paths.
+// Per-user capture sessions. Local mode uses a single anonymous key; Hosted keys by Discord id. The
+// port pool hands each session a private loopback base port (Unobtanium derives +1/+2 internally).
 public sealed class CaptureSessionManager(HostedCaptureOptions opts, Func<string, int, CaptureSession> factory)
 {
     public const string LocalKey = "__local";

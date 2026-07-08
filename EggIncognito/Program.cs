@@ -10,9 +10,8 @@ using Microsoft.Extensions.Logging;
 
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("EggIncognito.Tests")]
 
-// Offline command (not a user feature): carve the .proto from a decrypted iOS Mach-O, Android APK, or a
-// bare native .so (auto-detected) and exit. `dotnet run -- __extract-proto <binaryPath> <outPath>`.
-// The legacy `__extract-ios-proto` alias is kept so existing scripts keep working.
+// Offline command: carve the .proto from a decrypted iOS Mach-O, Android APK, or a bare native .so
+// (auto-detected) and exit. `dotnet run -- __extract-proto <binaryPath> <outPath>`.
 if (args.Length >= 3 && args[0] is "__extract-proto" or "__extract-ios-proto")
     return EggIncognito.Build.IosProtoExtractor.Run(args[1], args[2]);
 
@@ -58,8 +57,7 @@ builder.WebHost.ConfigureKestrel((context, opts) =>
     var keyFile = Path.Combine(certsPath, "server.key");
     if (!File.Exists(certFile) || !File.Exists(keyFile))
     {
-        // No custom cert pair: Kestrel keeps its default endpoints. Say so instead of silently
-        // skipping, so a misplaced certs dir is diagnosable from the log.
+        // No custom cert pair: Kestrel keeps its default endpoints, logged so a misplaced certs dir is diagnosable.
         opts.ApplicationServices.GetRequiredService<ILoggerFactory>()
             .CreateLogger("Startup")
             .LogWarning("No TLS cert pair at {CertsPath} (server.crt + server.key) - custom HTTP/HTTPS ports not bound, using default endpoints.", certsPath);
@@ -77,12 +75,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
-// Behind the reverse proxy (Cloudflare -> origin nginx) TLS is terminated at the edge, so the origin
-// sees plain HTTP. Without this, the OAuth challenge builds an http:// redirect_uri that does not match
-// the https one registered in the Discord portal ("Invalid OAuth2 redirect_uri"), and generated links
-// are http. Honor X-Forwarded-Proto/-Host/-For so the app reconstructs the original https request.
-// KnownProxies/KnownNetworks are cleared because the proxy is the sole ingress (the container is only
-// reachable over the proxy docker network) - the same trust model as the CF-Connecting-IP rate limiter.
+// Behind the reverse proxy (Cloudflare -> origin nginx), TLS terminates at the edge, so the origin sees
+// plain HTTP; honor X-Forwarded-Proto/-Host/-For so the app reconstructs the original https request.
+// KnownProxies/KnownNetworks are cleared because the proxy is the sole ingress.
 builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
@@ -104,21 +99,18 @@ builder.Services.AddHttpClient("inspector", c =>
 {
     AutomaticDecompression = System.Net.DecompressionMethods.GZip,
 });
-// Orbital-ship mesh downloader: fetches the 4 CDN-only ship shells (resolved from a DLCCatalog) over the
-// inspector egress client + decodes them. Egress-gated at the controller like Inspector send.
+// Orbital-ship mesh downloader: fetches ship shells resolved from a DLCCatalog over the inspector egress client.
 builder.Services.AddScoped<EggIncognito.Services.ShipShellDownloader>();
 // On-disk decoded-mesh cache so device mesh requests serve a precomputed glb instead of re-pulling.
 builder.Services.AddSingleton<EggIncognito.Services.MeshAssetCache>();
-// Resolves a mesh stem to a glb by pulling it off a device + caching it (no shipped assets). Used by the
-// playground environment + device-mesh paths.
+// Resolves a mesh stem to a glb by pulling it off a device and caching it (no shipped assets).
 builder.Services.AddScoped<EggIncognito.Services.DeviceMeshProvider>();
 // decomp constant extraction: pulls the egginc binary off the device for /api/decomp/*.
 builder.Services.AddScoped<EggIncognito.Services.GameBinaryProvider>();
 // Local copy of the game's per-platform *Config (ConfigResponse + DLCCatalog), feeds the shell viewer.
 builder.Services.AddSingleton<EggIncognito.Services.GameConfigStore>();
-// The "Sealed API proxy" supporter perk: a second inspector egress routed through a configured
-// upstream proxy so the downstream API cannot tie the request to this server. Same headers as the
-// plain inspector client; only the egress path differs. Unconfigured upstream = direct connection.
+// The "Sealed API proxy" supporter perk: a second inspector egress routed through a configured upstream
+// so the downstream API cannot tie the request to this server. Unconfigured upstream = direct connection.
 var sealedProxyOptions = EggIncognito.Services.SealedProxyOptions.FromConfig(builder.Configuration);
 builder.Services.AddSingleton(sealedProxyOptions);
 builder.Services.AddSingleton<EggIncognito.Services.ISealedProxy, EggIncognito.Services.SealedProxy>();
@@ -187,23 +179,26 @@ if (dbEnabled)
         new EggIncognito.Data.Services.ScopedDbRouteProvider(sp.GetRequiredService<IServiceScopeFactory>()));
 }
 
-// Discord auth wires only when a DB + Discord creds are present. Authentik wires as a second,
-// additive OIDC scheme when its own config keys are present; either can run standalone or both
-// together. AuthState records whether either wired so the always-present AuthController + mode
-// endpoint can branch. CurrentUser is always registered and reports anonymous when no auth
-// middleware ran, so those consumers construct in both modes.
-var discordAuthEnabled = builder.AddDiscordAuthIfConfigured(dbEnabled);
-if (dbEnabled)
+// Discord auth wires only when SyncKit.Identity is configured plus Discord creds are present. Authentik
+// wires as a second, additive OIDC scheme when its own config keys are present; either can run standalone
+// or both together. CurrentUser is always registered and reports anonymous when no auth middleware ran.
+var identityApiUrl = builder.Configuration["Identity:ApiUrl"];
+var identityApiSecret = builder.Configuration["Identity:ApiSecret"];
+var identityApiEnabled = !string.IsNullOrWhiteSpace(identityApiUrl) && !string.IsNullOrWhiteSpace(identityApiSecret);
+if (identityApiEnabled)
 {
-    builder.Services.AddScoped<EggIncognito.Data.Services.AuthentikIdentityResolver>();
-    builder.Services.AddScoped<EggIncognito.Data.Services.SessionRevocationStore>();
+    builder.Services.AddHttpClient<SyncKit.Identity.Client.IdentityApiClient>(c =>
+    {
+        c.BaseAddress = new Uri(identityApiUrl!);
+        c.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", identityApiSecret);
+    });
 }
-var authentikAuthEnabled = builder.AddAuthentikAuthIfConfigured(dbEnabled);
+var discordAuthEnabled = builder.AddDiscordAuthIfConfigured(identityApiEnabled);
+var authentikAuthEnabled = builder.AddAuthentikAuthIfConfigured(identityApiEnabled);
 if (authentikAuthEnabled)
 {
-    // Backs AuthController.BackchannelLogout's logout_token signature check: fetches + caches
-    // Authentik's discovery doc/JWKS independently of the OIDC handler's own internal manager (that
-    // one isn't exposed as a DI service), refreshing on its own schedule if Authentik rotates keys.
+    // Backs AuthController.BackchannelLogout's logout_token signature check: fetches and caches
+    // Authentik's discovery doc/JWKS independently of the OIDC handler's own internal manager.
     var authority = builder.Configuration["Authentik:Authority"]!;
     builder.Services.AddSingleton(new Microsoft.IdentityModel.Protocols.ConfigurationManager<
         Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfiguration>(
@@ -217,25 +212,19 @@ builder.Services.AddSingleton<EggIncognito.Services.Metrics.ApiMetrics>();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
 // Supporter role check (login stamp + refresh-benefits). Always registered; without
 // Discord:GuildId + Discord:SupporterRoleId + Discord:BotToken it short-circuits to false.
-// Short timeout: a slow/rate-limited Discord must not hang login or the refresh-benefits POST for
-// the default 100s. Fail-closed past this, the supporter check treats a timeout as "not a supporter".
+// Short timeout so a slow/rate-limited Discord cannot hang login; a timeout fails closed as "not a supporter".
 builder.Services.AddHttpClient("discord-api", c => c.Timeout = TimeSpan.FromSeconds(8));
 builder.Services.AddSingleton<SupporterStatus>();
 builder.Services.AddSingleton<ISupporterStatus>(sp => sp.GetRequiredService<SupporterStatus>());
 // Capture-CA Discord DM: the real REST notifier only when a bot token is configured, else a no-op so
-// the web app carries no hard bot dependency. Same gate style as the bot/SupporterStatus wiring.
+// the web app carries no hard bot dependency.
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Discord:BotToken"]))
     builder.Services.AddSingleton<ICaptureCaNotifier, DiscordCaptureCaNotifier>();
 else
     builder.Services.AddSingleton<ICaptureCaNotifier, NoopCaptureCaNotifier>();
-// The Discord:AdminIds allowlist bootstraps the first admin. Always registered, harmless when empty,
-// so UserUpsert can resolve it during login.
-builder.Services.AddSingleton(
-    EggIncognito.Data.Services.AdminAllowlist.FromConfig(builder.Configuration["Discord:AdminIds"]));
 
-// Discord bot: gateway presence + slash commands. Opt-in, only when Discord:BotToken is set; nothing
-// is registered otherwise. Reuses Discord:ClientId as the application id. Optional Discord:GuildId
-// also registers commands to one guild for instant testing.
+// Discord bot: gateway presence + slash commands. Opt-in, only when Discord:BotToken is set. Reuses
+// Discord:ClientId as the application id; optional Discord:GuildId also registers commands to one guild.
 var botToken = builder.Configuration["Discord:BotToken"];
 if (!string.IsNullOrWhiteSpace(botToken))
 {
@@ -245,22 +234,18 @@ if (!string.IsNullOrWhiteSpace(botToken))
         GuildId: builder.Configuration["Discord:GuildId"],
         RepoUrl: "https://github.com/DavidArthurCole/EggIncognito",
         // Shared with EggLedger in the same Portainer stack via the flat SHARED_ROLE_ID env var.
-        // Falls back to the Discord:SharedRoleId config key for standalone runs.
         SharedRoleId: builder.Configuration["SHARED_ROLE_ID"] ?? builder.Configuration["Discord:SharedRoleId"],
-        // /updateserver target: the host-side synckit-agent. Flat env vars in the Portainer stack,
-        // Discord:* config keys for standalone runs. Either missing = command answers "not configured".
+        // /updateserver target: the host-side synckit-agent. Either missing means "not configured".
         DeployAgentUrl: builder.Configuration["DEPLOY_AGENT_URL"] ?? builder.Configuration["Discord:DeployAgentUrl"],
         DeployAgentSecret: builder.Configuration["DEPLOY_AGENT_SECRET"] ?? builder.Configuration["Discord:DeployAgentSecret"],
-        // Dev only. Guild-mirrored commands duplicate the global catalog in the Discord UI.
+        // Dev only: guild-mirrored commands duplicate the global catalog in the Discord UI.
         RegisterGuildCommands: string.Equals(builder.Configuration["Discord:RegisterGuildCommands"], "true", StringComparison.OrdinalIgnoreCase)));
     builder.Services.AddSingleton<EggIncognito.Bot.IStatusProvider, EggIncognito.Services.StatusSnapshotFactory>();
     builder.Services.AddHostedService<EggIncognito.Bot.DiscordBotHostedService>();
 }
 
-// Inbound device-farm sync endpoint. Opt-in, only when SyncEvent:EventSecret is set, matching the
-// bot (Discord:BotToken) and DB (ConnectionStrings:Postgres) patterns. When absent, EventsController
-// 404s and nothing below is registered. The ingest service is also gated at runtime by IAppMode, so
-// hosted rejects it even if a secret leaks into a public deploy.
+// Inbound device-farm sync endpoint. Opt-in, only when SyncEvent:EventSecret is set; when absent,
+// EventsController 404s and nothing below is registered. Also gated at runtime by IAppMode.
 var eventSecret = builder.Configuration["SyncEvent:EventSecret"];
 if (!string.IsNullOrWhiteSpace(eventSecret))
 {
@@ -274,36 +259,31 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
     builder.Services.AddSingleton<EggIncognito.Bot.ISyncNotifier, DiscordSyncNotifier>();
     builder.Services.AddSingleton(sp =>
     {
-        // Expected proto identity, computed once from the frozen ei.proto. Compared against each
+        // Expected proto identity, computed once from the frozen ei.proto, compared against each
         // event's protoSha to split regen-into-staged from flag-for-manual-refresh.
         var expectedProtoSha = EggIncognito.Core.ProtoHash.Current(syncContentRoot);
         var notifier = sp.GetRequiredService<EggIncognito.Bot.ISyncNotifier>();
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("sync.ingest");
 
         // Registry: upsert a proto_versions row for every build the farm reports, storing the .proto
-        // text + parsed message index when present. Runs independently of the regen/refresh split, so
-        // the registry captures even builds whose proto changed and still await a manual ei.proto refresh.
-        // No DB configured => no-op. A later phase appends a feed dispatch off the returned tuple here.
+        // text and parsed message index when present. No DB configured means no-op.
         async Task Registry(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
         {
             using var scope = sp.CreateScope();
             var store = scope.ServiceProvider.GetService<EggIncognito.Data.Services.ProtoRegistryStore>();
-            if (store is null) return; // no DB configured
+            if (store is null) return;
             string? protoText = string.IsNullOrEmpty(evt.ProtoTextB64) ? null
                 : System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(evt.ProtoTextB64));
-            // appVersion falls back to the legacy single version when old emitters omit it; build
-            // falls back to version too so a legacy event still keys some row (build is the row key).
+            // appVersion and build fall back to the legacy single version when old emitters omit them.
             var appVersion = string.IsNullOrEmpty(evt.AppVersion) ? evt.Version : evt.AppVersion;
             var build = string.IsNullOrEmpty(evt.Build) ? evt.Version : evt.Build;
-            // A keyless event (no build/appVersion at all) must not write a stub registry row.
             if (string.IsNullOrEmpty(build) || string.IsNullOrEmpty(appVersion)) return;
             var (row, created, protoChanged) = await store.UpsertAsync(
                 evt.Platform, appVersion, build, evt.ClientVersion, evt.Package, evt.ProtoSha, evt.ApkRef,
                 DateTimeOffset.TryParse(evt.DetectedAt, out var dt) ? dt : DateTimeOffset.UtcNow,
                 detectedBy: null, protoText, source: "farm", ct: ct);
 
-            // Fan the event out to matching active subscriptions. Created/ProtoChanged are the trigger
-            // signal; the dispatcher is best-effort and DB-gated, so no DB or no subs is a no-op.
+            // Fan the event out to matching active subscriptions; best-effort and DB-gated.
             var dispatcher = scope.ServiceProvider.GetService<EggIncognito.Services.Feed.FeedDispatcher>();
             if (dispatcher is not null)
             {
@@ -315,7 +295,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             }
         }
 
-        // Fetch apkRef under ApkFetchRoot. URL fetch is a future add; missing artifact is tolerated.
+        // Fetch apkRef under ApkFetchRoot; missing artifact is tolerated.
         Task Fetch(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
         {
             if (string.IsNullOrEmpty(syncOptions.ApkFetchRoot) || string.IsNullOrEmpty(evt.ApkRef))
@@ -330,8 +310,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
         }
 
         // Regen: ensure the staged/ output area exists via the same EndpointExtractor.ForRepo path the
-        // HAR + capture routes use, never touching default/. APK-driven endpoint extraction has no
-        // decoder yet, so this stages the area and logs; promotion stays a human step.
+        // HAR + capture routes use, never touching default/. Promotion stays a human step.
         Task Regen(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
         {
             EndpointExtractor.ForRepo(syncContentRoot, eid: null, "EI0000000000000000", overwrite: true);
@@ -339,8 +318,8 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             return Task.CompletedTask;
         }
 
-        // Stash: a changed proto is flagged, never auto-applied. Write a small manifest under
-        // Endpoints/staged/proto-refresh/ recording the version and the sha delta for the human gate.
+        // Stash: a changed proto is flagged, never auto-applied. Writes a small manifest recording
+        // the version and the sha delta for the human gate.
         Task Stash(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
         {
             var stashDir = Path.Combine(syncContentRoot, "Endpoints", "staged", "proto-refresh");
@@ -362,16 +341,14 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
     });
 }
 
-// Per-user capture sessions. Local resolves the single anonymous LocalKey session through the
-// manager, so DI consumers of CaptureSession (capture-mode autostart, the local controller path)
-// behave exactly as the old singleton did.
+// Per-user capture sessions. Local resolves the single anonymous LocalKey session through the manager.
 var hostedCaptureOpts = EggIncognito.Capture.HostedCaptureOptions.Bind(builder.Configuration);
 builder.Services.AddSingleton(hostedCaptureOpts);
 builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     // Content root = the directory that directly holds RouteMap/ + Endpoints/: the project dir in dev,
-    // the exe dir when published. CaptureSession + EndpointExtractor both resolve their files under it.
+    // the exe dir when published.
     var contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
     return new EggIncognito.Capture.CaptureSessionManager(hostedCaptureOpts, (key, basePort) =>
     {
@@ -390,7 +367,7 @@ builder.Services.AddSingleton(sp =>
             return new EggIncognito.Capture.CaptureSession(contentRoot, opts);
         }
         // Hosted per-user session: pooled loopback base port, private temp dirs, no endpoint-file
-        // writes, no LAN forwarder and no OS trust-store install; the front door is the only way in.
+        // writes, no LAN forwarder and no OS trust-store install.
         var dir = Path.Combine(Path.GetTempPath(), "eggincognito-hosted-capture", key);
         var hostedOpts = new EggIncognito.Capture.CaptureSessionOptions(
             Port: basePort, Eid: null, Label: null, Overwrite: false,
@@ -426,9 +403,8 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Data.Services.IFeedSubscriptionStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.FeedSubscriptionStore>());
     builder.Services.AddScoped<EggIncognito.Services.Feed.FeedDispatcher>();
-    // Proto backfill importers (admin-triggered, on-demand). The store seam is scoped, so each importer
-    // opens its own DI scope inside RunAsync. The "github" named client carries the optional GITHUB_TOKEN
-    // and is reused by the plain store fetches too. Only when a DB is configured (no store otherwise).
+    // Proto backfill importers (admin-triggered, on-demand); each importer opens its own DI scope inside
+    // RunAsync. The "github" named client carries the optional GITHUB_TOKEN.
     builder.Services.AddScoped<EggIncognito.Data.Services.IProtoBackfillStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.ProtoRegistryStore>());
     builder.Services.AddHttpClient("github");
@@ -437,9 +413,8 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Services.Backfill.PlayStoreImporter>();
     builder.Services.AddScoped<EggIncognito.Services.Backfill.AppStoreImporter>();
 
-    // Backfill job tracking + the pluggable version-list adapters. The job store is the seam the
-    // importers update; the adapters are keyed by Name so the list endpoint resolves one by route value.
-    // The "scrape" client carries a real-browser UA (bare clients 403 on some sources).
+    // Backfill job tracking + the pluggable version-list adapters, keyed by Name so the list endpoint
+    // resolves one by route value. The "scrape" client carries a real-browser UA since bare clients 403.
     builder.Services.AddScoped<EggIncognito.Data.Services.BackfillJobStore>();
     builder.Services.AddScoped<EggIncognito.Data.Services.IBackfillJobStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.BackfillJobStore>());
@@ -469,7 +444,7 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Services.Backfill.ApkExtractService>();
 
     // Proactive store poller: a background timer that discovers new App Store / Play versions and queues
-    // extraction. DB-gated (registered only here) + self-disables via VersionPoller:Enabled=false.
+    // extraction. Self-disables via VersionPoller:Enabled=false.
     var pollerOptions = EggIncognito.Services.Backfill.VersionPollerOptions.Bind(builder.Configuration);
     builder.Services.AddSingleton(pollerOptions);
     if (pollerOptions.Enabled)
@@ -477,9 +452,8 @@ if (dbEnabled)
 }
 
 // Device polling: config-declared devices (adb serial / iOS UDID) probed on a schedule for the installed
-// Egg Inc version. Empty config => the hosted service no-ops. Registered outside the DB block so the
-// status panel + no-DB path work; the service itself DB-gates per-tick (no store => skip). ProcessRunner
-// + TimeProvider are process-wide. TimeProvider may already be added by hosted capture below, so TryAdd.
+// Egg Inc version. Empty config means the hosted service no-ops. Registered outside the DB block so the
+// status panel and no-DB path work; the service itself DB-gates per-tick.
 var deviceConfig = EggIncognito.Services.Devices.DeviceConfig.Bind(builder.Configuration);
 builder.Services.AddSingleton(deviceConfig);
 builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IProcessRunner, EggIncognito.Core.Services.Devices.ProcessRunner>();
@@ -488,9 +462,8 @@ if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService<EggIncognito.Services.Devices.DeviceProbeService>();
 
 // Persistent per-device capture: one long-lived listener per device, the device's proxy pointed at it, its
-// rinfo (authoritative iOS build) harvested onto disk. Gated by DeviceCapture:Enabled (default off); a
-// device-farm-host capability independent of the public Hosted/Local gate. Registered always so the Save
-// path + status panel can read the rinfo store even when disabled (it returns no listeners).
+// rinfo (authoritative iOS build) harvested onto disk. Gated by DeviceCapture:Enabled (default off), but
+// registered always so the Save path and status panel can read the rinfo store even when disabled.
 var deviceCaptureConfig = EggIncognito.Services.Devices.DeviceCaptureConfig.Bind(builder.Configuration);
 builder.Services.AddSingleton(deviceCaptureConfig);
 builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceProxyConfigurator,
@@ -503,9 +476,8 @@ builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceProxyCon
             deviceCaptureConfig.IosSetCommand, deviceCaptureConfig.IosClearCommand,
             deviceCaptureConfig.IosNetworkServiceGuid, deviceCaptureConfig.IosPlutilPath,
             deviceCaptureConfig.IosPreferencesPlist)));
-// CA auto-install on the rooted/jailbroken farm devices: the capture CA is pushed + trusted on-device so
-// the per-device proxy's MITM TLS decrypts. Android over adb (rooted system-store mount); iOS over ssh
-// (TrustStore.sqlite3 insert). Same control channels as the proxy configurators + probes.
+// CA auto-install on the rooted/jailbroken farm devices: the capture CA is pushed and trusted on-device
+// so the per-device proxy's MITM TLS decrypts. Android over adb, iOS over ssh (TrustStore.sqlite3 insert).
 builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceCaInstaller>(sp =>
     new EggIncognito.Core.Services.Devices.AdbCaInstaller(
         sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),
@@ -531,10 +503,9 @@ builder.Services.AddSingleton<EggIncognito.Services.Devices.DeviceProxyPusher>()
 if (deviceCaptureConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService(sp => sp.GetRequiredService<EggIncognito.Services.Devices.DeviceCaptureManager>());
 
-// Per-device "check your own store for an update" (the manual Check button). Android drives the on-device
-// Play Store via adb (drive command config-templated, default opens the store page); iOS fires the eggupdate
-// tweak over ssh. Both re-read the installed version to report a verdict. The Android drive command + poll
-// window come from DeviceCheck:Android:*; iOS reuses DeviceUpdate:Ios:* ssh config.
+// Per-device "check your own store for an update" (the manual Check button). Android drives the
+// on-device Play Store via adb; iOS fires the eggupdate tweak over ssh. Both re-read the installed
+// version to report a verdict.
 var androidDrive = builder.Configuration["DeviceCheck:Android:DriveCommand"]
     ?? "am start -a android.intent.action.VIEW -d market://details?id={package}";
 var androidPollSeconds = builder.Configuration.GetValue("DeviceCheck:Android:PollSeconds", 15);
@@ -544,8 +515,8 @@ builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceStoreChe
         sp.GetRequiredService<EggIncognito.Core.Services.Devices.IProcessRunner>(),
         new EggIncognito.Services.Devices.AndroidPlayStoreChecker.Options(androidDrive, androidPollSeconds, androidPollAttempts),
         sp.GetRequiredService<ILogger<EggIncognito.Services.Devices.AndroidPlayStoreChecker>>()));
-// Tracks one in-flight check-update per device (in-memory). check-update runs the ~6-min store poll in the
-// background and returns 202 at once; the UI polls GET check-status against this tracker. Singleton.
+// Tracks one in-flight check-update per device (in-memory). check-update runs the ~6-min store poll in
+// the background and returns 202 at once; the UI polls GET check-status against this tracker.
 builder.Services.AddSingleton<EggIncognito.Services.Devices.IDeviceJobTracker,
     EggIncognito.Services.Devices.DeviceJobTracker>();
 builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceStoreChecker>(sp =>
@@ -581,8 +552,8 @@ if (hostedCaptureOn)
 
 var app = builder.Build();
 
-// Apply migrations + mirror yaml routes into stored_routes when a DB is configured. Fail fast on a
-// broken DB in any mode: a hosted deploy must not silently serve files when its DB is misconfigured.
+// Apply migrations and mirror yaml routes into stored_routes when a DB is configured. Fails fast on a
+// broken DB so a hosted deploy never silently serves files when its DB is misconfigured.
 if (dbEnabled)
 {
     using var scope = app.Services.CreateScope();
@@ -591,8 +562,8 @@ if (dbEnabled)
     await EggIncognito.Data.Services.RouteSeeder.SeedAsync(
         db, scope.ServiceProvider.GetRequiredService<RouteCatalog>());
     await EggIncognito.Data.Services.TagSeeder.SeedAsync(db);
-    // Mirror config devices into the DB so the roster + probe history survive restarts. Config is
-    // authoritative; a device dropped from config is disabled (not deleted), keeping probe-history FKs valid.
+    // Mirror config devices into the DB so the roster and probe history survive restarts. Config is
+    // authoritative; a device dropped from config is disabled, not deleted, keeping probe-history FKs valid.
     {
         var deviceStore = scope.ServiceProvider.GetService<EggIncognito.Data.Services.IDeviceStatusStore>();
         if (deviceStore is not null)
@@ -609,18 +580,16 @@ else
     app.Logger.LogInformation("No ConnectionStrings:Postgres - running file-only (no DB overlay).");
 }
 
-// Apply the proxy's forwarded headers FIRST so every downstream middleware (auth, routing, the OAuth
-// challenge, link generation) sees the original https scheme + host, not the proxy's plain-http hop.
+// Apply the proxy's forwarded headers first so every downstream middleware sees the original https
+// scheme and host, not the proxy's plain-http hop.
 app.UseForwardedHeaders();
 
-// App-wide structured error handling. Turns ApiException into {error, resolution, status} and any
-// unhandled exception into a 500 that points at the logs.
+// Turns ApiException into {error, resolution, status} and any unhandled exception into a 500 that
+// points at the logs.
 app.UseExceptionHandler();
 
 // protos.* host roots to the registry landing page: rewrite only the bare "/" path so the proto
-// surface is the default there. Every other path (assets, /protos*, /api/protos*, the rest of the
-// app) stays reachable from this host too; the main host is untouched. Runs before routing so the
-// endpoint match sees the rewritten path.
+// surface is the default there. Runs before routing so the endpoint match sees the rewritten path.
 app.Use(async (ctx, next) =>
 {
     if (ctx.Request.Host.Host.StartsWith("protos.", StringComparison.OrdinalIgnoreCase)
@@ -641,14 +610,13 @@ if (authEnabled)
     app.UseAuthentication();
     app.UseAuthorization();
 }
-// Required by interactive Razor Components (the Blazor shell). Must sit after UseRouting + the auth
-// middleware and before the endpoint maps. Static GETs are unaffected; only form-posting components
-// validate the token.
+// Required by interactive Razor Components. Must sit after UseRouting + the auth middleware and before
+// the endpoint maps; only form-posting components validate the token.
 app.UseAntiforgery();
 app.UseRateLimiter();
 
-// API-rate metrics: count every /api request + flag 429s, into the in-process ring (admin metrics panel).
-// After UseRateLimiter so a rejected request's 429 status is observable here. Cheap; skips non-API paths.
+// API-rate metrics: counts every /api request and flags 429s into the in-process ring. After UseRateLimiter
+// so a rejected request's 429 status is observable here.
 {
     var metrics = app.Services.GetRequiredService<EggIncognito.Services.Metrics.ApiMetrics>();
     app.Use(async (ctx, next) =>
@@ -663,9 +631,8 @@ app.MapControllers();
 app.MapRazorComponents<EggIncognito.Components.App>()
    .AddInteractiveServerRenderMode();
 app.MapGet("/health", () => Results.Ok());
-// The UI fetches this on load to gate features. Capture/Import nav links + save/update buttons are
-// hidden when the matching capability is off. Also carries auth state + current user so the SPA
-// renders login state in one fetch.
+// The UI fetches this on load to gate features. Capture/Import nav links and save/update buttons are
+// hidden when the matching capability is off; also carries auth state and current user.
 app.MapGet("/api/app/mode", (IAppMode m, AuthState auth, ICurrentUser user) =>
     Results.Ok(new
     {
@@ -681,8 +648,8 @@ app.MapGet("/api/app/mode", (IAppMode m, AuthState auth, ICurrentUser user) =>
             : null,
     }));
 
-// Re-checks the Supporter role and reissues the cookie with a fresh egi:supporter claim. Form-POST
-// friendly: the /support page button posts here and the redirect lands back with the new cookie.
+// Re-checks the Supporter role and reissues the cookie with a fresh egi:supporter claim; the /support
+// page button posts here and the redirect lands back with the new cookie.
 if (authEnabled)
 {
     app.MapPost("/api/account/refresh-benefits",
@@ -709,7 +676,7 @@ app.Logger.LogInformation("Request signing: {State} (EGG_INC_API_SALT {SaltState
     signing ? "ready" : "DISABLED", signing ? "set" : "not set");
 app.Logger.LogInformation("Log file: {LogFile}", fileLogProvider.FilePath ?? "(file logging disabled)");
 
-// In capture mode, start the proxy once the host is listening. Otherwise it is toggled at runtime
+// In capture mode, start the proxy once the host is listening; otherwise it is toggled at runtime
 // via POST /api/capture/start.
 if (captureMode)
 {
@@ -721,10 +688,9 @@ if (captureMode)
 }
 
 // Auto-open the browser on startup: the Capture tab in capture mode, otherwise the Inspector. Plain
-// `dotnet run` ignores launchSettings' launchBrowser, so open it ourselves. Development only,
-// skippable with NoBrowser=true which Docker sets. Skipped under the test host too:
-// WebApplicationFactory boots Program in Development but serves via TestServer, not Kestrel, so we
-// must never spawn a real browser there.
+// `dotnet run` ignores launchSettings' launchBrowser, so open it ourselves. Development only, skippable
+// with NoBrowser=true (Docker sets it), and skipped under the test host since WebApplicationFactory
+// serves via TestServer, not Kestrel.
 var servesOverKestrel = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()
     .GetType().Name == "KestrelServer";
 if (servesOverKestrel &&
@@ -740,8 +706,8 @@ if (servesOverKestrel &&
                 ?.Addresses.FirstOrDefault(a => a.StartsWith("http://"))
                 ?? "http://localhost:5032";
 
-            // Don't spawn a duplicate tab. A dashboard left open from a prior run reconnects over SSE
-            // within ~1s of this process binding. Wait briefly; skip opening if a client already attached.
+            // Don't spawn a duplicate tab: a dashboard left open from a prior run reconnects over SSE
+            // within ~1s of this process binding, so wait briefly and skip if a client already attached.
             if (captureMode)
             {
                 await Task.Delay(TimeSpan.FromSeconds(1.5));

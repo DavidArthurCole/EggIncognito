@@ -3,9 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Per-user capture CAs for hosted capture. User identity on the wire is the per-user proxy address, so
-// no token is stored. Scoped like the other DB services; the front door reaches it through an injected
-// lookup that opens a scope per call.
 public sealed class CaptureCredentialStore(EggIncognitoDbContext db)
 {
     public async Task SaveCaAsync(string discordId, byte[] pfx, string thumbprint, CancellationToken ct = default)

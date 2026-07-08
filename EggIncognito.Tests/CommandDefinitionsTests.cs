@@ -21,7 +21,6 @@ public class CommandDefinitionsTests
     [Fact]
     public void ReadOnlyCommands_AreUserInstallable_AndRunInDms()
     {
-        // updateserver is deliberately guild-only (admin-gated); every other command is universal.
         foreach (var c in CommandDefinitions.BuildAll().Where(c => c.Name.Value != "updateserver"))
         {
             Assert.True(c.IntegrationTypes.IsSpecified);

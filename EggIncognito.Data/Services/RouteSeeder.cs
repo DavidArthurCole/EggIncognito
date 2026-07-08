@@ -4,9 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Mirrors the compiled yaml route catalog into stored_routes (source = "yaml") on boot: insert
-// missing, update drifted type/flag columns, never touch source = "db" rows. Idempotent. The pure
-// helpers are unit-tested; SeedAsync does the DB pass.
 public static class RouteSeeder
 {
     public static StoredRoute ToYamlRow(RouteInfo r) => new()
@@ -42,8 +39,6 @@ public static class RouteSeeder
         row.PathParamOnly = r.PathParamOnly;
     }
 
-    // Pure seed pass over preloaded rows: drifted yaml rows are mutated in place, missing routes are
-    // returned as new rows to insert, and rows whose source is not "yaml" are never touched.
     public static List<StoredRoute> Plan(IEnumerable<StoredRoute> existingRows, IEnumerable<RouteInfo> catalog)
     {
         var yaml = existingRows.Where(r => r.Source == "yaml").ToDictionary(r => r.Path);

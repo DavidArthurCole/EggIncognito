@@ -3,14 +3,12 @@ using System.IO.Compression;
 namespace EggIncognito.Services.ProtoExtract;
 
 // Pulls the Egg Inc native binary out of a mobile app archive (Android APK or iOS IPA, both zips) and
-// carves the embedded FileDescriptorProto from it. The descriptor lives in the native binary, which is a
-// COMPRESSED zip entry, so a raw scan of the archive bytes will not find it - we must locate + decompress
-// the binary entry first. Candidate entries, in priority order:
+// carves the embedded FileDescriptorProto from it. The binary is a COMPRESSED zip entry, so it must be
+// located + decompressed before scanning. Candidate entries, in priority order:
 //   APK: lib/<abi>/libegginc.so  (prefer arm64), then any lib .so
 //   IPA: Payload/<App>.app/<exec> Mach-O (the executable + frameworks)
-// Each candidate is decompressed (size-capped against zip bombs - this runs on a public endpoint over
-// attacker-supplied bytes) and run through DescriptorProtoCarver; the first that yields a descriptor wins.
-// Pure + defensive: the archive is read as bytes, never executed.
+// Each candidate is decompressed (size-capped against zip bombs) and run through DescriptorProtoCarver;
+// the first that yields a descriptor wins. Pure + defensive: the archive is read as bytes, never executed.
 public static class ArchiveProtoExtractor
 {
     // Cap on a single decompressed entry (real binaries: libegginc.so ~10-40MB, iOS Mach-O ~50-90MB).

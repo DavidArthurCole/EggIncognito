@@ -7,17 +7,14 @@ namespace EggIncognito.Capture;
 // UnobtaniumCaptureProxy so the three-shape normalization can be unit-tested without a live proxy.
 public static class WireBody
 {
-    // Normalize a decrypted response body to the canonical responseB64 the endpoint pipeline and
-    // decoder expect: base64 of the AuthenticatedMessage bytes. The wire body arrives in three shapes
-    // depending on the endpoint and the client's Accept-Encoding:
-    //   1. base64 text, the API's normal framing            -> use the text as-is
-    //   2. gzip of the AuthenticatedMessage, real device    -> gunzip, then text-or-base64
-    //   3. raw AuthenticatedMessage bytes                   -> base64 directly
+    // Normalize a decrypted response body to the canonical responseB64: base64 of the AuthenticatedMessage
+    // bytes. The wire body arrives in three shapes depending on the endpoint and Accept-Encoding:
+    //   1. base64 text, the API's normal framing         -> use the text as-is
+    //   2. gzip of the AuthenticatedMessage, real device -> gunzip, then text-or-base64
+    //   3. raw AuthenticatedMessage bytes                -> base64 directly
     // `shape` is a short human label for the trace log.
     public static (string responseB64, string shape) Normalize(byte[] respBytes)
     {
-        // Unwrap transport gzip first; the real device gets gzip-compressed responses, body starts
-        // 1f 8b. The decompressed payload is what the API actually framed.
         string shape;
         if (respBytes.Length >= 2 && respBytes[0] == 0x1f && respBytes[1] == 0x8b)
         {
@@ -26,11 +23,8 @@ public static class WireBody
         }
         else shape = "";
 
-        // The API's normal framing is base64 text of an AuthenticatedMessage. But a plain-text ack body
-        // like "SUCCESS" is also all-base64-alphabet, so the cheap alphabet check alone false-positives
-        // and we would pass it through as if it were base64, which downstream decodes into garbage. So
-        // only treat it as base64 text when it actually decodes to a parseable AuthenticatedMessage;
-        // otherwise it is a raw body and we base64-encode the real bytes so they round-trip intact.
+        // A plain-text ack body like "SUCCESS" is also all-base64-alphabet, so only treat it as base64
+        // text when it actually decodes to a parseable AuthenticatedMessage.
         if (LooksLikeBase64Text(respBytes))
         {
             var text = Encoding.ASCII.GetString(respBytes).Trim();
@@ -40,8 +34,7 @@ public static class WireBody
         return (Convert.ToBase64String(respBytes), shape + "raw");
     }
 
-    // True if `text` base64-decodes to bytes that parse as an AuthenticatedMessage: it really is the
-    // API's base64 framing, not a plaintext body that merely uses base64-alphabet letters.
+    // True if `text` base64-decodes to bytes that parse as an AuthenticatedMessage.
     private static bool DecodesToAuthMessage(string text)
     {
         try
@@ -56,8 +49,7 @@ public static class WireBody
         }
     }
 
-    // True if the bytes are entirely the base64 alphabet plus whitespace/padding: the body is base64
-    // text, not raw binary. A raw gzip/proto body contains bytes outside this set.
+    // True if the bytes are entirely the base64 alphabet plus whitespace/padding.
     public static bool LooksLikeBase64Text(byte[] b)
     {
         if (b.Length == 0) return false;

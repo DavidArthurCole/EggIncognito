@@ -5,8 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace EggIncognito.Tests;
 
 // Anonymous requests (no auth wired in the test host) are role viewer, so the shared-DB write gate
-// (contributor+) 403s them. Reads stay public. (Post-Phase-3 the gate is the role check, not the
-// AppMode CanWrite gate; the 403 outcome for an unauthenticated caller is the same.)
+// (contributor+) 403s them. Reads stay public.
 public class StoredEndpointGateTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;

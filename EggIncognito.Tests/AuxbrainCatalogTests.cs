@@ -3,9 +3,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Tests;
 
-// AuxbrainCatalog merges RouteCatalog routes with the canonical auxbrain-paths.json registry:
-// mocked paths keep the route's shape + EndpointStatus bucket, canonical-only paths surface as
-// not-mocked. All pure-input tests; the loader tests hit the real repo files.
 public sealed class AuxbrainCatalogTests
 {
     private static RouteInfo Route(
@@ -70,7 +67,6 @@ public sealed class AuxbrainCatalogTests
     [Fact]
     public void Build_RouteNotInStatusResult_CountsAsOk()
     {
-        // Classify skips raw-response routes entirely; they serve literals, so they read as ok.
         var entries = AuxbrainCatalog.Build(
             [Route("ei/raw")], new Dictionary<string, CanonicalPath>(), Status());
         Assert.Equal(AuxbrainStatus.Ok, entries.Single().Status);
@@ -79,8 +75,6 @@ public sealed class AuxbrainCatalogTests
     [Fact]
     public void Build_MatchedPath_UsesRouteShapeNotCanonical()
     {
-        // ei/coop_status case: the real API wraps the response, the mock does not. The catalog
-        // documents the mock's contract, so the route shape wins for mocked paths.
         var routes = new[] { Route("ei/coop_status", responseWrapped: false) };
         var canonical = new Dictionary<string, CanonicalPath>
         {

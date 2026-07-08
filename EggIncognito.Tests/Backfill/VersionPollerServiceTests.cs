@@ -7,16 +7,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests.Backfill;
 
-// The poller's per-tick logic is testable without a store or network by injecting fakes through a real
-// DI scope (the service resolves IBackfillJobStore + keyed IVersionListSource per tick). Asserts that
-// known versions are upserted and only genuinely new ones queue an extract.
 public class VersionPollerServiceTests
 {
     [Fact]
     public async Task PollOnce_UpsertsAll_QueuesExtractForNewOnly()
     {
         var jobs = new FakeJobStore();
-        // "1.0" is already known; "1.1" is new this tick.
         jobs.Known.Add(new KnownVersion { Platform = "android", AppVersion = "1.0", Source = "apkpure" });
 
         var sp = BuildProvider(jobs,
@@ -30,11 +26,9 @@ public class VersionPollerServiceTests
 
         await poller.PollOnceAsync(CancellationToken.None);
 
-        // All three upserted (idempotent on the already-known one).
         Assert.Contains(("android", "1.0"), jobs.Upserts);
         Assert.Contains(("android", "1.1"), jobs.Upserts);
         Assert.Contains(("ios", "1.5"), jobs.Upserts);
-        // Only the genuinely new ones queued an extract.
         Assert.Contains(("android", "1.1"), jobs.Extracts);
         Assert.Contains(("ios", "1.5"), jobs.Extracts);
         Assert.DoesNotContain(("android", "1.0"), jobs.Extracts);
@@ -50,7 +44,7 @@ public class VersionPollerServiceTests
 
         var poller = new VersionPollerService(
             sp.GetRequiredService<IServiceScopeFactory>(),
-            new VersionPollerOptions { Platforms = ["ios"] }, // android excluded
+            new VersionPollerOptions { Platforms = ["ios"] },
             TimeProvider.System, NullLogger<VersionPollerService>.Instance);
 
         await poller.PollOnceAsync(CancellationToken.None);
@@ -81,7 +75,6 @@ public class VersionPollerServiceTests
     {
         var services = new ServiceCollection();
         services.AddScoped<IBackfillJobStore>(_ => jobs);
-        // Android list source is Fandom (apkpure 403s its versions page; it stays the APK-download source).
         services.AddKeyedScoped<IVersionListSource>("fandom", (_, _) => new FakeSource("fandom", "android", android));
         services.AddKeyedScoped<IVersionListSource>("itunes", (_, _) => new FakeSource("itunes", "ios", ios));
         return services.BuildServiceProvider();
@@ -115,7 +108,6 @@ public class VersionPollerServiceTests
 
         public Task<List<KnownVersion>> KnownAsync(CancellationToken ct = default) => Task.FromResult(Known);
 
-        // Unused by the poller.
         public Task<BackfillJob> StartAsync(string source, string? startedBy, CancellationToken ct = default) => throw new NotSupportedException();
         public Task BumpAsync(int jobId, int imported, string? note = null, CancellationToken ct = default) => Task.CompletedTask;
         public Task FinishAsync(int jobId, string status, string? note = null, CancellationToken ct = default) => Task.CompletedTask;

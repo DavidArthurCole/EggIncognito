@@ -1,21 +1,13 @@
 // Pure evaluator for the decomp EffectModel expression tree (see EffectRecovery / ExprNode). Walks the JSON
-// node given an env {t, particleIndex, count} and returns a number; evalMatrix assembles a 16-float column-
-// major matrix from a MatrixBuild root. No eval() of strings: it interprets the data. An Opaque or unresolved
-// Field returns a safe default and warns once, so an incomplete recovery degrades, never crashes.
-//
-// Field resolution: the recovered math reads per-particle/system struct fields (e.g. the system clock at
-// Field("x8", 0x50)). The renderer cannot read live game memory, so a small map binds the known fields the
-// galaxy effect needs to the render env; everything else defaults to 0 with a one-time warning. This is the
-// documented follow-up seam (resolve fields from spawn data) made explicit, not a silent gap.
+// node given an env {t, particleIndex, count} and returns a number; no eval() of strings, it interprets data.
+// An Opaque or unresolved Field returns a safe default and warns once instead of crashing.
 const warned = new Set();
 function warnOnce(key, msg) { if (!warned.has(key)) { warned.add(key); console.warn('effectEval:', msg); } }
 
-// Known struct fields -> a function of the render env. Bind the system time field to the animation clock so the
-// orbit advances. particleIndex-derived fields map to the instance index. Extend as fields are identified.
+// Known struct fields (renderer has no live game memory) mapped to the render env. Extend as fields are identified.
 const FIELD_BINDINGS = {
-  // the per-particle phase reads the system elapsed-time field; drive it from the clock.
-  'x8@80': (env) => env.t, // ldr s0,[x8,#0x50] = 0x50 = 80, the time accumulator
-  'x19@36': (env) => env.particleIndex, // ldr w,[x19,#0x24] = the particle index
+  'x8@80': (env) => env.t, // ldr s0,[x8,#0x50]: system elapsed-time field
+  'x19@36': (env) => env.particleIndex, // ldr w,[x19,#0x24]: particle index
 };
 
 function fieldKey(node) { return (node.base || '') + '@' + (node.offset || 0); }

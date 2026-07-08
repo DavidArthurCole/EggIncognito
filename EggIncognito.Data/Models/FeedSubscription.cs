@@ -2,8 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// One feed subscriber: a Discord webhook (or, later, a generic HTTP target) that wants proto-update
-// notifications for chosen platforms + trigger. The webhook URL is the capability; never echo it back.
+// One feed subscriber: a Discord webhook (or generic HTTP target) wanting proto-update notifications for chosen platforms + trigger. The webhook URL is the capability; never echo it back.
 [Table("feed_subscriptions")]
 public sealed class FeedSubscription
 {
@@ -14,8 +13,7 @@ public sealed class FeedSubscription
     [Column("trigger")] public string Trigger { get; set; } = "proto_changed"; // proto_changed | new_version
     [Column("secret")] public string? Secret { get; set; } // HMAC key for http kind
     [Column("label")] public string? Label { get; set; }
-    // Optional user-authored message, {{variable}} tokens (see FeedTemplate.Render). Null/empty falls back
-    // to the built-in Discord embed.
+    // Optional user-authored message with {{variable}} tokens (see FeedTemplate.Render); null/empty falls back to the built-in Discord embed.
     [Column("message_template")] public string? MessageTemplate { get; set; }
     [Column("owner_user_id")] public string? OwnerUserId { get; set; }
     [Column("created_at")] public DateTimeOffset CreatedAt { get; set; }

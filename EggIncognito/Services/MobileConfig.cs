@@ -4,17 +4,12 @@ using System.Text;
 namespace EggIncognito.Services;
 
 // Builds an Apple .mobileconfig (configuration profile) that installs the capture root CA in one tap
-// on iOS. The CA profile is cert only: the proxy host/port are delivered as text instead, since the
-// per-user IPv6 address identifies the user at the front door (no proxy credentials needed).
-//
-// UUIDs are derived from the seed bytes so the same input always yields the same profile identity, a
-// reinstall replaces cleanly rather than stacking duplicate profiles.
+// on iOS. UUIDs are derived from the seed bytes so the same input always yields the same profile
+// identity, a reinstall replaces cleanly rather than stacking duplicate profiles.
 public static class MobileConfig
 {
-    // stableId (the user's Discord id) anchors the profile + cert payload UUIDs and the PayloadIdentifier
-    // so a given user always gets the SAME profile identity. iOS then REPLACES the installed profile when
-    // the cert is reinstalled, instead of stacking a new "EggIncognito Capture" each session. The cert
-    // bytes still update inside that one profile. Per-user identifiers also keep distinct users separate.
+    // stableId anchors the profile UUIDs so a given user always gets the same profile identity, letting
+    // iOS replace the installed profile on reinstall instead of stacking a new one.
     public static byte[] BuildCaProfile(byte[] cerDer, string stableId)
     {
         var idSeed = Encoding.UTF8.GetBytes(stableId);
@@ -74,8 +69,7 @@ public static class MobileConfig
         return Encoding.UTF8.GetBytes(xml);
     }
 
-    // A stable RFC-4122-shaped UUID derived from a seed (cert bytes or other input) + a role tag. Not a
-    // real v5 UUID, just a deterministic 16-byte hash formatted as a UUID, which is all the profile needs.
+    // A stable RFC-4122-shaped UUID derived from a seed + a role tag: a deterministic hash formatted as a UUID.
     internal static string DeterministicUuid(byte[] seed, string role)
     {
         var hash = SHA256.HashData([.. seed, .. Encoding.UTF8.GetBytes(role)]);

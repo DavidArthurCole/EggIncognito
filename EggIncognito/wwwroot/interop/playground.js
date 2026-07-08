@@ -1,12 +1,10 @@
 // 3D playground: a three.js scene that composes several named groups (device meshes, a chicken wearing a
-// hat, shells, static models) into one view at once. three.js + GLTFLoader + OrbitControls are pulled as ES
-// modules from a CDN at runtime (the app has no JS bundler). The Blazor page owns the canvas + the widget UI;
-// this owns the WebGL scene and the group registry. One scene per page instance; dispose() tears it down.
+// hat, shells, static models) into one view at once. three.js + GLTFLoader + OrbitControls load as ES
+// modules from a CDN at runtime. The Blazor page owns the canvas + widget UI; this owns the WebGL scene
+// and the group registry.
 //
-// A "group" is one rendered source, keyed by a string id (the widget name). Each group is a THREE.Group with
-// its own mixer for embedded clips, an auto-offset (laid out so groups do not overlap), and an optional
-// manual offset (user X/Y/Z, overrides the auto-offset once set). A chicken group may carry a hat parented at
-// the game anchor so the two move + animate as one.
+// A "group" is one rendered source keyed by a string id, a THREE.Group with its own mixer for embedded
+// clips, an auto-offset, and an optional manual offset that overrides the auto-offset once set.
 //
 // API (called from Playground.razor via JS interop):
 //   init(canvas)
@@ -28,14 +26,13 @@ let renderer, scene, camera, controls, clock, raf;
 let sun, ambient, hemi, shadowCatcher, resizeObserver;
 let designMode = false;
 
-// procedural animation clock + global play/pause. Each group carries its OWN anim kind (per-element spin),
-// composed on top of that element's placed transform. Distinct from a group's mixer (baked mesh clips).
+// Procedural animation clock + global play/pause. Each group carries its own anim kind (per-element spin),
+// composed on top of that element's placed transform, distinct from a group's mixer (baked mesh clips).
 let animClock = 0;
 let animPlaying = true;
 
-// Recovered decomp effects attached to groups: groupId -> { model, mesh, count }. Driven each frame from the
-// model's placement expression tree (see effectEval.js). The math is extracted from the game binary, not
-// authored here (CLAUDE.md "EXTRACT, don't author"); the EffectModel comes from /api/decomp/effect.
+// Recovered decomp effects attached to groups: groupId -> { model, mesh, count }. Driven each frame from
+// the model's placement expression tree (see effectEval.js); the EffectModel comes from /api/decomp/effect.
 const effects = new Map();
 let capturing = false;
 const ANIM_PERIOD = 6;
@@ -59,8 +56,7 @@ export async function init(canvas) {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  // Tone mapping is OFF by default (punchy, un-faded colors that match the game's flat-shaded meshes). The
-  // lighting panel can switch it on (ACES / Reinhard / ...) live via setLighting.
+  // Tone mapping off by default matches the game's flat-shaded meshes; the lighting panel can switch it on live.
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
@@ -75,15 +71,14 @@ export async function init(canvas) {
 
   resize();
 
-  // Adjustable shadow-casting sun + a hemisphere sky/ground fill for a natural gradient + a tiny ambient floor
-  // so emissive meshes never go fully black. Fog optional (density 0 = off). A default keeps a fresh scene lit.
+  // Shadow-casting sun + hemisphere sky/ground fill + a tiny ambient floor so emissive meshes never go
+  // fully black. Fog is optional (density 0 = off).
   sun = new THREE.DirectionalLight(0xffffff, 1.0);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0002;
   sun.shadow.normalBias = 0.08;
-  // Near-neutral sky/ground so the fill does not tint the scene (a brown ground bounce read as "faded"). The
-  // panel drives the intensities; ambient default is a strong-ish fill so flat meshes stay bright.
+  // Near-neutral sky/ground so the fill does not tint the scene (a brown ground bounce read as "faded").
   hemi = new THREE.HemisphereLight(0xeaf0ff, 0xddd7cc, 0.5);
   ambient = new THREE.AmbientLight(0xffffff, 0.55);
   scene.add(sun);
@@ -91,10 +86,8 @@ export async function init(canvas) {
   scene.add(hemi);
   scene.add(ambient);
 
-  // An invisible ground plane that only receives shadow, so cast shadows land even when no farm-ground mesh is
-  // placed. Sits just BELOW y=0 so a real farm-ground mesh (also at y=0, also receiveShadow) always wins the depth
-  // test: two coplanar shadow receivers z-fight and stripe the shadow behind buildings (worst behind the habs).
-  // At -0.02 the catcher only shows through where no ground mesh covers (scene edges).
+  // An invisible ground plane that only receives shadow, sitting just below y=0 so a real farm-ground mesh
+  // (also at y=0) always wins the depth test instead of z-fighting it.
   shadowCatcher = new THREE.Mesh(
     new THREE.PlaneGeometry(400, 400),
     new THREE.ShadowMaterial({ opacity: 0.35 }));
@@ -108,13 +101,10 @@ export async function init(canvas) {
 
   clock = new THREE.Clock();
   window.addEventListener('resize', resize);
-  // Track the canvas element's actual size, not just window resize: a layout change (e.g. a control column
-  // appearing) resizes the canvas without a window event, which otherwise leaves the camera aspect stale and
-  // stretches the render.
+  // Tracks the canvas element's actual size, since a layout change can resize it without a window event.
   resizeObserver = new ResizeObserver(() => resize());
   resizeObserver.observe(canvas);
-  // Publish the live engine accessors on a single global so the designer module reaches THIS instance. A
-  // cache-bust query (?v=) on the module URL would otherwise fork a second, uninitialized engine instance.
+  // Publishes the live engine accessors on a single global so the designer module reaches this instance.
   window.__pgEngine = {
     scene: _scene, camera: _camera, renderer: _renderer, controls: _controls,
     getGroupRoot, getGroupBase, getGroupCenterWorld, setGroupTransform, groupIdOf, groupRoots, setSelectionOutline,
@@ -140,9 +130,8 @@ function loop() {
   renderer.render(scene, camera);
 }
 
-// Per-element procedural animation (spin / hover), composed on top of that element's base transform. Only the
-// animated element moves; everything else holds still. The chicken + its hat share the group root, so they
-// ride as one rigid unit.
+// Per-element procedural animation (spin / hover), composed on top of that element's base transform. The
+// chicken + its hat share the group root, so they ride as one rigid unit.
 function applyAnim(g) {
   if (g.motion) { applyMotion(g); return; }
   const phase = (animClock / ANIM_PERIOD) * Math.PI * 2;
@@ -152,7 +141,7 @@ function applyAnim(g) {
     case 'SpinZ': addRz = phase; break;
     case 'HoverSpin': addRy = phase; bob = Math.sin(phase) * 0.15; break;
   }
-  // base: an explicit placed transform (design mode) takes precedence; else the offset (view mode).
+  // An explicit placed transform (design mode) takes precedence; else the offset (view mode).
   if (g.base) {
     const b = g.base;
     const s = b.scale || 1;
@@ -160,7 +149,7 @@ function applyAnim(g) {
     g.root.rotation.set(rad(b.rotDeg[0]), rad(b.rotDeg[1]) + addRy, rad(b.rotDeg[2]) + addRz);
     const p = pivotCorrected(g, b.pos[0], b.pos[1] + bob, b.pos[2], s);
     g.root.position.copy(p);
-    g.root.visible = true; // positioned this frame: safe to show (was hidden on add to avoid the origin flash)
+    g.root.visible = true;
     return;
   }
   const o = g.manual || g.autoOffset;
@@ -170,10 +159,10 @@ function applyAnim(g) {
   g.root.visible = true;
 }
 
-// Path-follow or launch motion, composed on the group's base transform. Deterministic on animClock so the GIF
-// recorder captures it. Path points are world-space, so the sampled point is used directly as the position.
+// Path-follow or launch motion, composed on the group's base transform. Deterministic on animClock so the
+// GIF recorder captures it.
 function applyMotion(g) {
-  g.root.visible = true; // an actor is positioned each frame by its motion; reveal it (hidden on add)
+  g.root.visible = true;
   const m = g.motion;
   const b = g.base;
   const baseScale = b && b.scale ? b.scale : 1;
@@ -195,8 +184,8 @@ function applyMotion(g) {
   if (len <= 0) { g.root.position.set(bx, by, bz); return; }
   const count = Math.max(1, Math.round(m.count || 1));
 
-  // Single runner: drive the group root directly (one rocket / one chicken). A single VEHICLE still uses the
-  // convoy path so it dwells at the depot (not the path end).
+  // Single runner: drive the group root directly. A single vehicle still uses the convoy path so it
+  // dwells at the depot, not the path end.
   if (count <= 1 && !m.vehicle) {
     g.root.scale.set(baseScale, baseScale, baseScale);
     placeAlongPath(g.root, m, len, runnerDistance(m, len, 0, 1), baseRy);
@@ -205,8 +194,8 @@ function applyMotion(g) {
 
   ensureRunners(g, count, baseScale);
 
-  // Vehicles: a CONVOY in ONE lane (the side nearest the depot), evenly spaced, each dwelling as it passes the
-  // depot, and braking so it never overruns the truck ahead. Chickens keep the symmetric parallel-lane spread.
+  // Vehicles form a convoy in one lane (nearest the depot), evenly spaced, dwelling as each passes the
+  // depot, braking to never overrun the truck ahead.
   if (m.vehicle) {
     const laneM = laneShifted(m, vehicleLaneOffset(m));
     const dists = vehicleConvoyDistances(m, len, count);
@@ -216,34 +205,30 @@ function applyMotion(g) {
 
   // Multiple runners (e.g. N chickens at once): each on a parallel lane at a staggered phase.
   for (let i = 0; i < count; i++) {
-    const lane = (i - (count - 1) / 2) * 1.2; // parallel lanes centered on the original path
+    const lane = (i - (count - 1) / 2) * 1.2;
     const laneM = laneShifted(m, lane);
     placeAlongPath(g.runners[i], laneM, len, runnerDistance(m, len, i, count), baseRy);
   }
 }
 
-// The single lane offset (in Z) for the truck convoy: shift toward the depot side so all traffic hugs the near
-// lane (the one closest to the depot's dock), centered within it rather than sitting on the road's midline.
-// depotZ is the depot's real FRONT (dock, road-facing) edge, already close to the road; 1.5 nudges the truck
-// into the near lane without crossing toward the dock face itself.
+// The lane offset (in Z) for the truck convoy: shift toward the depot's dock side so traffic hugs the near
+// lane instead of the road's midline.
 function vehicleLaneOffset(m) {
   if (m.depotZ == null || !isFinite(m.depotZ) || !m.path || m.path.length === 0) return 0;
   const roadZ = m.path[0][2];
   return Math.sign(m.depotZ - roadZ) * 1.5;
 }
 
-// Per-truck along-path distance for a convoy: trucks are evenly spaced by distance (not phase), advance together
-// on the shared clock, dwell while passing the depot, and brake to keep a minimum gap to the truck ahead.
+// Per-truck along-path distance for a convoy: trucks are evenly spaced by distance, advance together on the
+// shared clock, dwell while passing the depot, and brake to keep a minimum gap to the truck ahead.
 function vehicleConvoyDistances(m, len, count) {
   const speed = m.speed || 3;
   const dwell = Math.max(0, m.stopSeconds || 0);
-  const gap = len / count;          // even convoy spacing
-  const minGap = Math.min(gap * 0.8, 4); // brake distance: never closer than this to the truck ahead
+  const gap = len / count;
+  const minGap = Math.min(gap * 0.8, 4);
 
-  // depot distance along the path (where a truck dwells), from the nearest waypoint to the depot X.
   const depotD = depotDistanceAlong(m, len);
 
-  // lead truck's free distance on the shared clock, with a dwell each time it passes the depot.
   const base = ((animClock * speed) % (len + speed * dwell));
   const lead = depotAdjustedDistance(base, depotD, speed, dwell, len);
 
@@ -251,7 +236,6 @@ function vehicleConvoyDistances(m, len, count) {
   let prev = Infinity;
   for (let i = 0; i < count; i++) {
     let d = ((lead - i * gap) % len + len) % len;
-    // brake: if this truck would be within minGap behind the one ahead (in path order), hold back.
     if (prev - d < minGap && prev - d >= 0) d = prev - minGap;
     if (d < 0) d += len;
     out.push(d);
@@ -260,7 +244,7 @@ function vehicleConvoyDistances(m, len, count) {
   return out;
 }
 
-// The path distance closest to the depot's X (where trucks stop). NaN depot => no dwell point (returns -1).
+// The path distance closest to the depot's X (where trucks stop). Returns -1 when there is no depot.
 function depotDistanceAlong(m, len) {
   if (m.depotX == null || !isFinite(m.depotX)) return -1;
   const steps = 64;
@@ -274,43 +258,37 @@ function depotDistanceAlong(m, len) {
   return best;
 }
 
-// Map the raw (constant-speed) distance to an eased distance that DECELERATES into the depot, HOLDS for the
-// dwell, then ACCELERATES back to speed. Uses genuine constant-deceleration kinematics (velocity ramps
-// LINEARLY 1->0 approaching, 0->1 leaving), parametrized by BRAKE-PHASE CLOCK TIME, not by raw-distance
-// fraction: parametrizing by rawD fraction (the previous approach) forced the eased velocity to start ABOVE
-// cruise speed at the instant braking began (a visible "speeds up, then slows down" jump/hump), because rawD
-// keeps advancing at full speed while the truck's real position falls behind once it starts slowing - by the
-// time rawD has advanced by a fixed "ramp" distance, more clock time has passed than a speed-1-at-the-seam
-// curve could cover in that same window. A pure time-parametrized linear decel has NO such discontinuity:
-// velocity is exactly `speed` at the seam and falls linearly to 0.
+// Maps the raw constant-speed distance to an eased distance that decelerates into the depot, holds for the
+// dwell, then accelerates back to speed, using constant-deceleration kinematics parametrized by clock time
+// (not raw-distance fraction, which produced a visible speed-up-then-slow-down jump at the brake seam).
 function depotAdjustedDistance(rawD, depotD, speed, dwell, len) {
   if (depotD < 0 || dwell <= 0) return rawD % len;
-  const rampTime = 0.5;                        // seconds to brake / accelerate
-  const brakeDist = speed * rampTime / 2;       // distance covered under constant deceleration over rampTime
-  const dwellDist = speed * dwell;              // raw-clock span consumed by the full stop
+  const rampTime = 0.5;
+  const brakeDist = speed * rampTime / 2;
+  const dwellDist = speed * dwell;
   const decelStart = depotD - brakeDist;
-  if (rawD <= decelStart) return rawD;                       // full speed, approaching
-  if (rawD <= depotD) {                                      // braking: linear decel to a halt at depotD
-    // clockElapsed solves speed*ce - speed*ce^2/(2*rampTime) = (rawD - decelStart), the constant-decel
-    // kinematics equation; the quadratic's smaller root is the physical (forward-time) one.
+  if (rawD <= decelStart) return rawD;
+  if (rawD <= depotD) {
+    // Solves speed*ce - speed*ce^2/(2*rampTime) = (rawD - decelStart); the quadratic's smaller root is
+    // the physical (forward-time) one.
     const target = rawD - decelStart;
     const a = speed / (2 * rampTime);
     const disc = Math.max(0, speed * speed - 4 * a * target);
     const ce = (speed - Math.sqrt(disc)) / (2 * a);
     return decelStart + speed * ce - a * ce * ce;
   }
-  if (rawD <= depotD + dwellDist) return depotD;             // stopped at the depot
-  const after = rawD - dwellDist;                            // resume clock past the dwell
-  if (after <= depotD + brakeDist) {                          // accelerating away: mirrors the brake curve
+  if (rawD <= depotD + dwellDist) return depotD;
+  const after = rawD - dwellDist;
+  if (after <= depotD + brakeDist) {
     const ce = Math.sqrt(Math.max(0, (after - depotD) * 2 * rampTime / speed));
     const a = speed / (2 * rampTime);
     return depotD + a * ce * ce;
   }
-  return after;                                              // back to full speed
+  return after;
 }
 
-// Along-path distance for one runner this frame. A cycle = the drive time plus an optional dwell at the end
-// (the vehicle's depot stop). pingpong reflects; cycle wraps pacman-style. Runners are evenly phase-staggered.
+// Along-path distance for one runner this frame. A cycle is the drive time plus an optional dwell at the
+// end. pingpong reflects; cycle wraps pacman-style. Runners are evenly phase-staggered.
 function runnerDistance(m, len, index, count) {
   const speed = m.speed || 3;
   const driveTime = len / speed;
@@ -321,11 +299,11 @@ function runnerDistance(m, len, index, count) {
   if (m.loop === 'pingpong') {
     const full = 2 * cycleTime;
     let ph = ((tt % full) + full) % full;
-    if (ph > cycleTime) ph = full - ph; // reflect
-    return Math.min(1, ph / driveTime) * len; // dwell once past driveTime
+    if (ph > cycleTime) ph = full - ph;
+    return Math.min(1, ph / driveTime) * len;
   }
   let ph = ((tt % cycleTime) + cycleTime) % cycleTime;
-  return Math.min(1, ph / driveTime) * len; // clamp at the end during the dwell, then wrap
+  return Math.min(1, ph / driveTime) * len;
 }
 
 // Position + orient an object3D at distance d along the motion path, applying the per-element base scale +
@@ -372,11 +350,9 @@ function easeOut(x) { return 1 - (1 - x) * (1 - x); }
 
 function rad(d) { return (d || 0) * Math.PI / 180; }
 
-// Attach (or clear) a building's DISCOVERED decomp effects to a group. `models` is an array of EffectModels
-// (from /api/decomp/building-effects), each carrying a count + a per-particle placement expression tree
-// extracted from the binary by the building-effect resolver. One InstancedMesh per effect; updateEffects places
-// each particle per frame by evaluating the tree. null/empty clears. No hardcoded per-building logic: whatever
-// the resolver found for this mesh renders. Safe only after init (uses THREE).
+// Attaches (or clears) a building's discovered decomp effects to a group. `models` is an array of
+// EffectModels (from /api/decomp/building-effects), each with a count + per-particle placement expression
+// tree. One InstancedMesh per effect; updateEffects places each particle per frame by evaluating the tree.
 export function attachEffects(groupId, models) {
   clearEffects(groupId);
   const g = groups.get(groupId);
@@ -402,30 +378,26 @@ function clearEffects(groupId) {
   effects.delete(groupId);
 }
 
-// The hatchery floating effect = a STATE MACHINE driven by FarmScene::updateHatchery (extracted, not invented).
-// Each floating sub-mesh is classified (in C#, from its authored .rpo bounds) into the role the game animates it
-// as, and the renderer drives it accordingly:
-//   - Probe:       a disc orbiting the orb at the body anchor (universe probe). count/speed from rotate_pyramid.
-//   - Beam:        a spike fired probe->orb for brief intermittent moments (universe bolt). timing extracted.
-//   - Ring:        a flat ring spinning around the orb in place (darkmatter ring_1/2/3).
-//   - Shell / Orb: a piece hovering at the orb, slowly spinning (vision middle/top, enlightenment orb).
-//   - WorldPlaced: a piece authored AT its spot on the body (ai roof tops, graviton top): rendered static.
+// The hatchery floating effect is a state machine driven by FarmScene::updateHatchery. Each floating
+// sub-mesh is classified (in C#, from its authored .rpo bounds) into the role the game animates it as:
+//   - Probe: a disc orbiting the orb at the body anchor. count/speed from rotate_pyramid.
+//   - Beam: a spike fired probe->orb for brief intermittent moments.
+//   - Ring: a flat ring spinning around the orb in place.
+//   - Shell / Orb: a piece hovering at the orb, slowly spinning.
+//   - WorldPlaced: a piece authored at its spot on the body, rendered static.
 // model = { orb:[x,y,z], pieces:[{glb, role, worldPlaced, size}], probeCount, orbitSpeed, orbitRadius,
 //           beam:{fireInterval,fireDuration,fireRandom} }
 const hatcheryParts = new Map(); // groupId -> { probes, beams, spinners, statics, orb }
 
-// Deterministic [0,1) hash for per-probe randomness (no Math.random: keeps capture/playback stable + module load
-// side-effect free). The classic fract(sin*large) hash.
+// Deterministic [0,1) hash for per-probe randomness, so capture/playback stays stable (no Math.random).
 function hash01(x) { const s = Math.sin(x * 12.9898) * 43758.5453; return s - Math.floor(s); }
 
-// An orthonormal (u, v) basis spanning a randomly-oriented plane through the orb, from two [0,1) hashes. The
-// probe orbits in this plane, so different probes ride differently-inclined great circles = a 3D swarm, not a
-// flat ring. n = a point on the unit sphere (the plane normal); u,v complete the basis.
+// An orthonormal (u, v) basis spanning a randomly-oriented plane through the orb, so different probes ride
+// differently-inclined great circles: a 3D swarm, not a flat ring.
 function orbitBasis(ha, hb) {
-  const phi = ha * Math.PI * 2;          // azimuth
-  const ct = hb * 2 - 1, st = Math.sqrt(Math.max(0, 1 - ct * ct)); // cos/sin of polar (uniform on sphere)
+  const phi = ha * Math.PI * 2;
+  const ct = hb * 2 - 1, st = Math.sqrt(Math.max(0, 1 - ct * ct));
   const n = new THREE.Vector3(st * Math.cos(phi), st * Math.sin(phi), ct);
-  // pick any axis not parallel to n, cross to get u, then v = n x u.
   const ref = Math.abs(n.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
   const u = new THREE.Vector3().crossVectors(n, ref).normalize();
   const v = new THREE.Vector3().crossVectors(n, u).normalize();
@@ -434,15 +406,13 @@ function orbitBasis(ha, hb) {
 
 export async function attachHatcheryParts(groupId, model) {
   await ensureLibs();
-  clearHatcheryParts(groupId); // pieces cleared first, so g.root is now JUST the body mesh
+  clearHatcheryParts(groupId);
   const g = groups.get(groupId);
   if (!g || !model || !Array.isArray(model.pieces)) return;
 
-  // Derive the orb from the BODY MESH's bbox in g.root's LOCAL space. The pieces are children of g.root and use
-  // LOCAL positions, so the body box MUST be local too: measuring g.root's WORLD box (it is placed at the
-  // element's world transform) then using it as a local position offset everything by the group's world pos. The
-  // body mesh is g.root's gltf child; setFromObject after a world-matrix update, then convert to root-local by
-  // subtracting g.root's world position (rotation/scale aside; the farm is axis-aligned + unit-scaled here).
+  // The orb derives from the body mesh's bbox in g.root's local space: the pieces are children of g.root
+  // and use local positions, so measure g.root's world box and convert to root-local by subtracting its
+  // world position.
   g.root.updateWorldMatrix(true, true);
   const worldBox = new THREE.Box3().setFromObject(g.root);
   const rootWorld = new THREE.Vector3();
@@ -459,7 +429,6 @@ export async function attachHatcheryParts(groupId, model) {
     orb.set(model.orb[0], model.orb[1], model.orb[2]);
   }
 
-  // live body center + top in root-local space, for world-placed / capstone pieces.
   const bodyCenter = new THREE.Vector3();
   if (!bodyBox.isEmpty()) bodyBox.getCenter(bodyCenter);
   const bodyTopY = bodyBox.isEmpty() ? 0 : bodyBox.max.y;
@@ -467,27 +436,23 @@ export async function attachHatcheryParts(groupId, model) {
   const state = { probes: [], beams: [], spinners: [], statics: [], orb };
   const probeCount = Math.max(1, model.probeCount || 1);
   const orbitSpeed = model.orbitSpeed || 0;
-  // radius rings OUTSIDE the dome: max of the C# display radius and a dome-clearing fraction of the body height.
   const orbitRadius = Math.max(model.orbitRadius || 0, bodyHeight * 0.42);
   const beam = model.beam || {};
 
   for (const piece of model.pieces) {
     let pg; try { pg = await parseGlb(piece.glb); } catch (e) { pg = null; }
     if (!pg) continue;
-    // the decoded glb carries only a COLOR_0 vertex-emission attribute (no material); without the engine's
-    // emissive material fixup these sub-pieces render flat black. Apply the same material addGroup uses.
+    // The decoded glb carries only a COLOR_0 vertex-emission attribute; apply the same material addGroup uses.
     applyHatcheryMaterial(pg.scene);
-    // recenter the piece mesh on its OWN bbox center so the group's position is the sole placement authority
-    // (the mesh keeps its authored far-from-origin verts otherwise, double-placing it).
+    // Recenter the piece mesh on its own bbox center so the group's position is the sole placement authority.
     const pBox = new THREE.Box3().setFromObject(pg.scene);
     if (!pBox.isEmpty()) { const pc = pBox.getCenter(new THREE.Vector3()); pg.scene.position.sub(pc); }
-    // place the piece RELATIVE to the LIVE body center using the C# offset (authored-center minus body-center).
-    // This avoids the dump-vs-glb origin drift that pushed the ai tops off the body.
+    // Place the piece relative to the live body center using the C# offset (authored-center minus body-center).
     const off = Array.isArray(piece.offset) ? piece.offset : [0, 0, 0];
     const px = bodyCenter.x + off[0], py = bodyCenter.y + off[1], pz = bodyCenter.z + off[2];
 
     if (piece.role === 'WorldPlaced') {
-      // authored on the body (ai roof tops, graviton top): rendered at its body-relative spot. FLOATS up + down.
+      // Authored on the body, rendered at its body-relative spot and floats up and down.
       const obj = new THREE.Group();
       obj.add(pg.scene);
       obj.position.set(px, py, pz);
@@ -497,29 +462,26 @@ export async function attachHatcheryParts(groupId, model) {
     }
 
     if (piece.role === 'Beam') {
-      // one spike per probe, hidden until it fires. Needs probes to fire FROM; created after probes below.
+      // One spike per probe, hidden until it fires; created after probes below.
       state._beamGlb = piece.glb;
       continue;
     }
 
     if (piece.role === 'Ring') {
-      // darkmatter: 3 concentric rings TUMBLING around the orb. The ring mesh is authored in the XY plane (a flat
-      // circle, thin in Z); spinning it about its OWN Z axis is invisible (rotational symmetry) and read as a
-      // vibrating stack. Instead each ring rotates about an axis IN its plane (tumbles), on its own tilted axis +
-      // speed, so the three gyrate visibly like a gyroscope. Centered exactly on the orb (concentric).
+      // Spinning the ring mesh about its own Z axis is invisible (rotational symmetry), so each ring instead
+      // tumbles about an axis in its plane, on its own tilted axis and speed, centered on the orb.
       const obj = new THREE.Group();
       obj.add(pg.scene);
       obj.position.copy(orb);
       g.root.add(obj);
       const ri = state.spinners.filter(s => s.kind === 'ring').length;
-      // a distinct tumble axis per ring (unit vectors spread around the sphere), distinct speed.
       const ax = new THREE.Vector3(Math.cos(ri * 2.4), 0.5, Math.sin(ri * 2.4)).normalize();
       state.spinners.push({ obj, kind: 'ring', tumbleAxis: ax, speed: (orbitSpeed || 1) * (0.5 + ri * 0.35) });
       continue;
     }
 
     if (piece.role === 'Shell' || piece.role === 'Orb') {
-      // a capstone orb (enlightenment) caps the body ON TOP, centered; other shells/orbs hover at the dome orb.
+      // A capstone orb caps the body on top, centered; other shells/orbs hover at the dome orb.
       const obj = new THREE.Group();
       obj.add(pg.scene);
       if (piece.capstone) obj.position.set(bodyCenter.x, bodyTopY + (pBox.isEmpty() ? 0.2 : (pBox.max.y - pBox.min.y) * 0.5), bodyCenter.z);
@@ -534,10 +496,8 @@ export async function attachHatcheryParts(groupId, model) {
       const obj = new THREE.Group();
       obj.add(k === 0 ? pg.scene : pg.scene.clone());
       g.root.add(obj);
-      // 3D orbit: each probe rides its OWN randomly-inclined great-circle around the orb (the game scatters them
-      // with frandom over the whole sphere, not a flat ring). Build an orthonormal (u,v) basis from a per-probe
-      // pseudo-random axis; the probe traces orb + (cos*u + sin*v)*radius. Deterministic per index so capture is
-      // stable. radius + speed get a per-probe jitter so they do not move in lockstep.
+      // Each probe rides its own randomly-inclined great circle: orb + (cos*u + sin*v)*radius. Deterministic
+      // per index so capture is stable; radius and speed get a per-probe jitter.
       const h1 = hash01(k * 2.399963 + 0.11), h2 = hash01(k * 5.781 + 0.37), h3 = hash01(k * 9.13 + 0.71);
       const { u, v } = orbitBasis(h1, h2);
       state.probes.push({
@@ -549,14 +509,13 @@ export async function attachHatcheryParts(groupId, model) {
     }
   }
 
-  // beams: a FEW spikes fired probe->orb on the extracted intermittent schedule (not one per probe: the game
-  // fires the white bolt only occasionally from a random probe). Hidden until firing. White, glowing.
+  // A few beams fire probe->orb on the extracted intermittent schedule, not one per probe. Hidden until firing.
   if (state._beamGlb && state.probes.length) {
     const beamCount = Math.min(3, state.probes.length);
     for (let i = 0; i < beamCount; i++) {
       let bg; try { bg = await parseGlb(state._beamGlb); } catch (e) { bg = null; }
       if (!bg) break;
-      whiteBeamMaterial(bg.scene); // the bolt is a white energy beam, not the mesh's dark vertex color
+      whiteBeamMaterial(bg.scene);
       const obj = new THREE.Group();
       obj.add(bg.scene);
       obj.visible = false;
@@ -587,8 +546,8 @@ export function clearHatcheryParts(groupId) {
   hatcheryParts.delete(groupId);
 }
 
-// Drive the state machine per frame. Probes orbit the orb (extracted radius/speed). Beams: visible only during a
-// fire window (every `interval`, for `duration`), oriented + scaled from their probe to the orb (the spike beam).
+// Drives the state machine per frame. Probes orbit the orb; beams are visible only during their fire window,
+// oriented and scaled from their probe to the orb.
 let _beamUp, _beamDir, _beamPos, _beamQuat, _beamScale, _beamMat;
 function orbitHatcheryParts(tSeconds) {
   if (hatcheryParts.size === 0) return;
@@ -597,45 +556,39 @@ function orbitHatcheryParts(tSeconds) {
     _beamQuat = new THREE.Quaternion(); _beamScale = new THREE.Vector3(1, 1, 1); _beamMat = new THREE.Matrix4();
   }
   for (const st of hatcheryParts.values()) {
-    // spinners: rings TUMBLE about an in-plane axis (visible 3D rotation); shells/orb spin slowly about Y.
     for (const s of st.spinners) {
       if (s.tumbleAxis) s.obj.quaternion.setFromAxisAngle(s.tumbleAxis, tSeconds * s.speed);
       else if (s.axis === 'y') s.obj.rotation.y = tSeconds * s.speed;
       else s.obj.rotation.z = tSeconds * s.speed;
     }
-    // statics (ai roof tops): float up and down around their authored Y, staggered so they bob out of sync.
     for (const s of st.statics) {
       if (s.baseY === undefined) continue;
       s.obj.position.y = s.baseY + Math.sin(tSeconds * s.speed + s.phase) * s.amp;
     }
     for (const p of st.probes) {
-      // 3D orbit in the probe's own plane: pos = orb + (cos*u + sin*v) * radius. u,v span a randomly-inclined
-      // great circle, so each probe flies around the orb on its own tilt = a spherical swarm, not a flat ring.
       const a = p.phase + tSeconds * p.speed;
       const c = Math.cos(a) * p.radius, s = Math.sin(a) * p.radius;
       const x = st.orb.x + p.u.x * c + p.v.x * s;
       const y = st.orb.y + p.u.y * c + p.v.y * s;
       const z = st.orb.z + p.u.z * c + p.v.z * s;
       p.obj.position.set(x, y, z);
-      p.obj.lookAt(st.orb); // the disc constantly faces the orb as it orbits (the in-game probe behavior)
+      p.obj.lookAt(st.orb);
       p.obj.current = p.obj.current || new THREE.Vector3();
       p.obj.current.set(x, y, z);
     }
     for (const b of st.beams) {
-      // random fire (waitForRandom): the game's delay is the frandom output, so jitter each cycle's interval
-      // around the mean instead of a fixed period. Deterministic per beam+cycle so capture/playback is stable.
+      // The game's fire delay is a frandom output, so jitter each cycle's interval around the mean.
       let interval = b.interval;
       if (b.random) {
         const cycle = Math.floor((tSeconds + b.offset) / b.interval);
-        const r = (Math.sin((cycle + b.seed) * 12.9898) * 43758.5453) % 1; // hash -> [0,1)
-        interval = b.interval * (0.5 + Math.abs(r)); // 0.5x..1.5x mean
+        const r = (Math.sin((cycle + b.seed) * 12.9898) * 43758.5453) % 1;
+        interval = b.interval * (0.5 + Math.abs(r));
       }
       const phase = ((tSeconds + b.offset) % interval);
       const firing = phase < b.duration;
       b.obj.visible = firing;
       if (!firing) continue;
-      // orient + scale the spike from the probe to the orb. The spike is authored along -Y (bounds y -1.95..0.05),
-      // so align its local up (+Y) to the probe->orb direction, scale its length to the gap.
+      // The spike mesh is authored along -Y, so align its local up (+Y) to the probe->orb direction.
       const from = b.probe.obj.current || b.probe.obj.position;
       _beamDir.copy(st.orb).sub(from);
       const len = _beamDir.length();
@@ -665,16 +618,14 @@ function updateEffects(tSeconds) {
   }
 }
 
-// The root position that keeps the mesh's center fixed under the current root rotation, so a spin pivots about
-// the visual center instead of the (possibly off-origin) placement point. With no rotation it equals (x,y,z).
-// Reuses scratch vectors to avoid per-frame allocation.
+// The root position that keeps the mesh's center fixed under the current root rotation, so a spin pivots
+// about the visual center instead of the placement point. Reuses scratch vectors to avoid allocation.
 let _pivotVec, _scaledC, _rotatedC;
 function pivotCorrected(g, x, y, z, scale) {
   if (!_pivotVec) { _pivotVec = new THREE.Vector3(); _scaledC = new THREE.Vector3(); _rotatedC = new THREE.Vector3(); }
   const c = g.center;
   if (!c) return _pivotVec.set(x, y, z);
-  // root applies rotation then translation: worldCenter = pos + R*(c*scale). We want worldCenter == pos + c
-  // (the unrotated placed center stays put), so pos = (x,y,z) + c - R*(c*scale).
+  // worldCenter = pos + R*(c*scale); solved for pos so the unrotated placed center stays put.
   _scaledC.set(c.x * scale, c.y * scale, c.z * scale);
   _rotatedC.copy(_scaledC).applyEuler(g.root.rotation);
   return _pivotVec.set(x + c.x - _rotatedC.x, y + c.y - _rotatedC.y, z + c.z - _rotatedC.z);
@@ -685,15 +636,10 @@ async function parseGlb(b64) {
   return new GLTFLoader().parseAsync(buf, '');
 }
 
-// A material that renders EI's per-vertex COLOR_0 emission as vibrant flat color while still casting/receiving
-// shadow. vertexColors feeds the base color; onBeforeCompile adds that same color to emissive so the mesh
-// reads at full saturation regardless of scene lights (the game look), with shadows still landing on it.
-// `emissiveBoost` is exposed live so the lighting panel can dial the flat-vs-lit balance.
+// A material that renders EI's per-vertex COLOR_0 emission as vibrant flat color while still casting/
+// receiving shadow. `emissiveBoost` is exposed live so the lighting panel can dial the flat-vs-lit balance.
 let _emissiveBoost = 0.25;
-// Apply the engine's emissive vertex material to every mesh in a hatchery sub-piece. The decoded glb carries
-// only a COLOR_0 emission attribute; the GLTFLoader default material ignores it and renders flat black (the ai
-// tops + darkmatter rings came out black). Same fixup addGroup runs on a building, factored out so the floating
-// pieces share it. Also enables shadows so the pieces read against the body.
+// Same emissive fixup addGroup runs on a building, factored out so hatchery sub-pieces share it.
 function applyHatcheryMaterial(root) {
   root.traverse(o => {
     if (!o.isMesh) return;
@@ -703,8 +649,7 @@ function applyHatcheryMaterial(root) {
   });
 }
 
-// A glowing white material for the universe bolt (the beam): a white energy spike, not the mesh's dark vertex
-// color. emissive white so it reads bright regardless of scene light.
+// A glowing white material for the beam: a white energy spike, not the mesh's dark vertex color.
 function whiteBeamMaterial(root) {
   root.traverse(o => {
     if (!o.isMesh) return;
@@ -745,10 +690,8 @@ export function setEmissiveBoost(v) {
 
 let _batching = false;
 
-// Add many groups in ONE interop call, then optionally apply each one's base transform, so auto-arrange does not
-// pay a .NET<->JS round-trip per element (25 elements x ~6 calls each was ~20s). items: [{id, glbBase64, opts,
-// transform:{pos,rotDeg,scale}}]. Parses/decodes sequentially (three.js is single-threaded) but with no interop
-// latency between pieces. Refits the shadow + relayout ONCE at the end, not per add.
+// Adds many groups in one interop call, then optionally applies each one's base transform, avoiding a
+// .NET<->JS round-trip per element. items: [{id, glbBase64, opts, transform:{pos,rotDeg,scale}}].
 export async function addGroupsBatch(items) {
   await ensureLibs();
   _batching = true;
@@ -770,58 +713,46 @@ export async function addGroupsBatch(items) {
 export async function addGroup(groupId, glbBase64, opts) {
   await ensureLibs();
   opts = opts || {};
-  // remember anim + placement before removeGroup wipes the entry, so a re-render keeps them.
+  // Anim + placement carried across a re-render (reshell / hat change keeps spin + position).
   const carried = groups.get(groupId);
   removeGroup(groupId);
 
   const gltf = await parseGlb(glbBase64);
   const root = new THREE.Group();
   root.add(gltf.scene);
-  // Hidden until its placement lands: a freshly added group would otherwise flash at the origin for a frame
-  // before setGroupTransform moves it ("snap into existence at 0,0 then jump"). setGroupTransform / the layout
-  // reveal it once positioned. Pinned (backdrop) groups carry their offset immediately, so they stay visible.
+  // Hidden until its placement lands, else a freshly added group flashes at the origin for a frame.
+  // Pinned (backdrop) groups carry their offset immediately, so they stay visible.
   root.visible = !!opts.pinned;
 
-  // Re-center the mesh so the GROUP ORIGIN sits at the model's ground-center: shift the inner scene by its
-  // bbox center in X/Z and by its bbox MIN in Y. Env buildings are authored at their plot offset, so without
-  // this the group origin (where the placement gizmo renders + the position is measured) floats away from the
-  // visible building. After the shift: root.position == the building's visible ground-center, the gizmo lands
-  // The mesh's bbox center, in the group's local space. The mesh KEEPS its authored vertex offset (so a
-  // self-placing piece sits at its real game plot + a layout-derived position stays exact). `center` drives the
-  // spin pivot (pivotCorrected) and the placement gizmo, which is attached to a proxy at the group's world
-  // mesh-center so it renders ON the building rather than at an off-origin group origin. The mesh is never
-  // shifted (an earlier re-center scattered the self-placing farm pieces).
+  // Re-centers the mesh so the group origin sits at the model's ground-center: env buildings are authored
+  // at their plot offset, so without this the placement gizmo floats away from the visible building. `center`
+  // (the mesh's bbox center in local space) drives the spin pivot and gizmo proxy; the mesh vertices are
+  // never shifted by this measurement alone.
   const box = new THREE.Box3().setFromObject(gltf.scene);
   const center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());
 
-  // X/Z RECENTER (opts.recenter): shift the mesh so its horizontal center sits at the group origin, making the
-  // layout position the SOLE placement authority. Needed for buildings the layout positions EXPLICITLY (the
-  // gravity-packed core rows): their meshes carry a baked plot offset, so without recenter the authored offset
-  // ADDS to the layout position and double-places them (the depot landed across the road). Self-placing pieces
-  // (terrain, hyperloop, mailbox) pass recenter=false so they keep their authored plot offset.
+  // opts.recenter shifts the mesh so its horizontal center sits at the group origin, making the layout
+  // position the sole placement authority. Self-placing pieces (terrain, hyperloop, mailbox) pass
+  // recenter=false to keep their authored plot offset.
   if (opts.recenter && !box.isEmpty()) {
-    // recenterX: 'min' pins the mesh's LEFT edge (min X) to the group origin instead of its center, so a building
-    // that grows along +X (the hatchery: every tier shares the same left/dock edge, only the right side extends)
-    // stays anchored on its left and grows RIGHT. Default 'center' keeps the bbox center at the origin.
+    // recenterX='min' pins the mesh's left edge to the group origin instead of its center, so a building
+    // that grows along +X (e.g. the hatchery) stays anchored on its left.
     const anchorX = opts.recenterX === 'min' ? box.min.x : center.x;
     gltf.scene.position.x -= anchorX;
     gltf.scene.position.z -= center.z;
     center.x -= anchorX; center.z = 0;
   }
 
-  // Y-base snap: shift the mesh UP so its lowest point sits at the group origin (y=0). Env buildings are authored
-  // with a baked vertical offset (the hatchery/habs origin is above the mesh base), so placing them at a layout
-  // y=0 sinks them under the floor. This is Y-ONLY: X/Z handled above. Skipped for pinned backdrops (terrain/
-  // ground/road span the floor and must keep their authored Y) and when opts.snapBase === false.
+  // Shifts the mesh up so its lowest point sits at the group origin (y=0); Y-only, skipped for pinned
+  // backdrops (which must keep their authored Y) and when opts.snapBase === false.
   const snapBase = opts.snapBase !== false && !opts.pinned;
   if (snapBase && !box.isEmpty() && Number.isFinite(box.min.y)) {
     gltf.scene.position.y -= box.min.y;
     center.y -= box.min.y;
   }
 
-  // Local footprint for collision: the mesh ground rect + lowest point in the group's LOCAL space, measured
-  // AFTER the recenter / Y-snap shifts so it matches where the building actually sits relative to the group
-  // origin. Reused by the placement solver at any transform; never re-traverses the mesh per drag.
+  // Local footprint for collision, measured after the recenter/Y-snap shifts. Reused by the placement
+  // solver at any transform; never re-traverses the mesh per drag.
   const localBox = new THREE.Box3().setFromObject(root);
   const localFootprint = localBox.isEmpty()
     ? { minX: -0.5, maxX: 0.5, minZ: -0.5, maxZ: 0.5, minY: 0 }
@@ -832,7 +763,7 @@ export async function addGroup(groupId, glbBase64, opts) {
   const clipNames = gltf.animations.map(c => c.name);
 
   let hatMixer = null;
-  // chicken + hat: parent the hat under a node at the anchor, scaled, so it rides the chicken.
+  // Parent the hat under a node at the anchor, scaled, so it rides the chicken.
   if (opts.hatBase64) {
     const hat = await parseGlb(opts.hatBase64);
     const a = opts.anchor || [0, 0, 0, 1];
@@ -846,8 +777,7 @@ export async function addGroup(groupId, glbBase64, opts) {
     for (const clip of hat.animations) hatMixer.clipAction(clip).play();
   }
 
-  // pinned groups (the env backdrop) hold a fixed placement offset (default origin): no auto-layout, no
-  // procedural spin, not framed. opts.offset = [x,y,z].
+  // Pinned groups (the env backdrop) hold a fixed placement offset: no auto-layout, no procedural spin, not framed.
   const off = opts.offset || [0, 0, 0];
   groups.set(groupId, {
     root, mixer, hatMixer,
@@ -856,19 +786,15 @@ export async function addGroup(groupId, glbBase64, opts) {
     pinned: !!opts.pinned,
     center,
     localFootprint,
-    snapBase, // whether this group rests on the floor (false for pinned backdrops)
-    terrain: !!opts.terrain, // ground/path/hardscape/detail: a flat shadow RECEIVER, excluded from the shadow-frustum fit
-    recenter: !!opts.recenter, // recentered = grid-placed (footprint is origin-relative); self-placing if false
-    // preserve anim + placement across a re-render (reshell / hat change keeps spin + position).
+    snapBase,
+    terrain: !!opts.terrain,
+    recenter: !!opts.recenter,
     anim: carried?.anim || 'none',
     base: carried?.base || null,
     motion: carried?.motion || null,
   });
-  // Fix up materials + shadow flags. The decoded glb carries NO material, only a COLOR_0 attribute that is
-  // EI's per-vertex EMISSION. GLTFLoader's default material is MeshStandardMaterial(metal=1, rough=1) which
-  // ignores that color and renders dark/desaturated ("faded"). Rebuild each mesh's material so the vertex
-  // emission shows as vibrant flat color (matches the in-game unlit look) while the surface still takes a
-  // little shading + casts/receives shadow.
+  // The decoded glb carries only a COLOR_0 per-vertex emission attribute, so GLTFLoader's default material
+  // renders it dark/desaturated; rebuild it as vibrant flat color while still casting/receiving shadow.
   root.traverse(o => {
     if (!o.isMesh) return;
     o.castShadow = true;
@@ -876,10 +802,10 @@ export async function addGroup(groupId, glbBase64, opts) {
     o.material = emissiveVertexMaterial();
   });
   scene.add(root);
-  // In a batch add, skip the per-element relayout/shadow refit (addGroupsBatch does both ONCE at the end).
+  // addGroupsBatch does both once at the end, so skip the per-element relayout/shadow refit here.
   if (!_batching) {
     relayoutGroups();
-    refitShadow(); // refit once on add (the per-frame timer is gone; static-only frustum is stable)
+    refitShadow();
   }
   return clipNames;
 }
@@ -903,10 +829,8 @@ export function setGroupOffset(groupId, x, y, z) {
   applyOffset(g);
 }
 
-// Lay the hab row out by the game's rule (EXTRACTED from GameController::getHabPosition): each hab i sits at a
-// fixed row Z, X = the running sum of the earlier habs' widths plus `gap` between them, centered by width*halfStep
-// (getHabPosition's fmul #0.5 + fadd #3.0). Width = the hab's own mesh bbox X-extent, so a wider hab (variable
-// bounding box) pushes the rest right, exactly as the game does. Returns [[x,z],...] so the caller syncs el.Pos.
+// Lays the hab row out by the game's rule (extracted from GameController::getHabPosition): each hab sits
+// at a fixed row Z, X the running sum of earlier habs' mesh widths plus `gap`. Returns [[x,z],...].
 export function respaceHabRow(ids, gap, halfStep, z) {
   const g0 = gap == null ? 3 : +gap;
   const hs = halfStep == null ? 0.5 : +halfStep;
@@ -934,15 +858,10 @@ export function respaceHabRow(ids, gap, halfStep, z) {
   return out;
 }
 
-// Gravity-pack a zone-grid row by REAL mesh footprint width AND depth, left/back edge pinned at (leftEdgeX,
-// backEdgeZ), each building placed to the RIGHT of the previous with `gap` between. The zone grid's static row
-// bands (ZoneLayout.cs) are STOPGAP guesses only good enough for the initial pre-measurement placement; this
-// pass corrects X (real width) and Z (real depth, back edge pinned so a deep building grows FORWARD, never into
-// the row behind it) so adjacent zones never overlap regardless of how wrong the guess was. Sets each group's
-// base.pos so its footprint's LEFT+BACK corner lands at (cursor, backEdgeZ) (every core building renders
-// left-pinned, recenterX="min"; Z is NOT similarly pinned by addGroup, so this function centers each mesh's Z
-// footprint itself). Returns [[x, z, rightEdgeX, frontEdgeZ],...] so the caller syncs el.Pos and can chain the
-// NEXT row's backEdgeZ from this row's max frontEdgeZ + a gap.
+// Gravity-packs a zone-grid row by real mesh footprint width and depth, left/back edge pinned at
+// (leftEdgeX, backEdgeZ), each building placed to the right of the previous with `gap` between. Corrects
+// the ZoneLayout.cs static row bands (pre-measurement guesses) so adjacent zones never overlap.
+// Returns [[x, z, rightEdgeX, frontEdgeZ],...]; the caller chains the next row's backEdgeZ from frontEdgeZ.
 export function repackZoneRow(ids, leftEdgeX, backEdgeZ, gap, rowGap) {
   const g0 = gap == null ? 2.5 : +gap;
   const rg = rowGap == null ? 2.5 : +rowGap;
@@ -971,23 +890,19 @@ export function repackZoneRow(ids, leftEdgeX, backEdgeZ, gap, rowGap) {
   return { positions: out, nextBackEdgeZ: maxFrontZ + rg };
 }
 
-// Space the model groups along X by the widest group's bbox so they do not overlap. Pinned env groups stay
-// at world origin and are excluded from the layout. Groups with a manual offset keep it. Then frame.
-// Recomputes group positions. Does NOT move the camera: re-framing on every add/reshell/transform yanked the
-// view. The camera is framed only on explicit resetView() (and the first load, via frameOnce).
+// Spaces the model groups along X by the widest group's bbox so they do not overlap; pinned env groups
+// stay at world origin. Does not move the camera: resetView() frames on demand.
 export function relayoutGroups() {
   const all = [...groups.values()];
   if (all.length === 0) return;
-  // design mode: every group holds its own transform; no auto-offset layout AND no auto-framing. The user
-  // owns the camera; framing on each add yanked the view (a far-offset env piece zoomed the camera way out).
-  // The explicit "Reset view" button (resetView) frames on demand.
+  // Design mode: every group holds its own transform, no auto-offset layout and no auto-framing.
   if (designMode) return;
   for (const g of all.filter(g => g.pinned)) applyOffset(g);
 
   const list = all.filter(g => !g.pinned);
   let maxW = 0;
   for (const g of list) {
-    g.root.position.set(0, 0, 0); // measure unoffset
+    g.root.position.set(0, 0, 0);
     const box = new THREE.Box3().setFromObject(g.root);
     const w = box.max.x - box.min.x;
     if (Number.isFinite(w)) maxW = Math.max(maxW, w);
@@ -1057,9 +972,7 @@ export function setBackground(hex) {
   else { scene.background = null; }
 }
 
-// Positions the sun on a unit dome from azimuth (around Y) + elevation (up from the horizon), and sets the
-// Sun (positioned on a dome from azimuth+elevation, color, intensity) + scene fog (color + density). Ambient
-// stays a fixed soft fill so emissive meshes never go fully black. Live; safe before any element loads.
+// Sets the sun (positioned on a dome from azimuth+elevation, color, intensity) + scene fog (color, density).
 const TONE_MAPS = {
   none: () => THREE.NoToneMapping,
   linear: () => THREE.LinearToneMapping,
@@ -1068,29 +981,21 @@ const TONE_MAPS = {
   cineon: () => THREE.CineonToneMapping,
 };
 
-// The current sun direction (unit vector from target toward the sun) as a plain [x,y,z], kept so refitShadow
-// can reposition the sun relative to the scene center. Plain array (not a THREE.Vector3) so it is safe at
-// module load before THREE is imported in init().
+// Plain [x,y,z] (not a THREE.Vector3, safe before THREE loads) sun direction so refitShadow can
+// reposition the sun relative to the scene center.
 let _sunDir = [0.5, 0.8, 0.5];
 
-// Fit the directional light + its ortho shadow frustum to the elements actually in the scene. Targets the
-// scene center (not origin) and sizes the frustum to the content bbox, clamped so one far outlier (the ~100u
-// hyperloop track) does not blow the frustum up and stripe the shadow map. Keeps texel density high -> crisp
-// shadows at any zoom. No groups -> a sane default box at the origin.
+// Fits the directional light + its ortho shadow frustum to the elements actually in the scene, clamped so
+// one far outlier does not blow the frustum up and stripe the shadow map.
 function refitShadow() {
   if (!sun) return;
-  // Fit the shadow frustum to the STATIC groups only (no per-element spin, no path/launch motion). Including an
-  // animated actor or an orbiting effect made the bbox change every frame, so the frustum swam + the shadows
-  // stuttered, worst looking straight down. Static-only -> a stable frustum; refit only on add/remove.
-  // Exclude terrain (flat ground/path receivers) too: a 200u ground mesh blew the shadow bbox up, so the 4096 map
-  // stretched thin over the whole plane and the flat ground self-shadowed (acne/striping behind the habs). Fit to
-  // the buildings; terrain still receives the shadows, it just does not size the frustum.
+  // Fits to static groups only (no per-element spin, no path/launch motion, no terrain): an animated bbox
+  // made the frustum swim and the shadows stutter; a huge flat ground mesh blew the bbox up and striped it.
   const all = [...groups.values()].filter(g => !g.motion && !g.terrain && (!g.anim || g.anim === 'none'));
   const box = new THREE.Box3();
   for (const g of all) box.expandByObject(g.root);
   const center = box.isEmpty() ? new THREE.Vector3(0, 0, 0) : box.getCenter(new THREE.Vector3());
   const sphere = box.isEmpty() ? null : box.getBoundingSphere(new THREE.Sphere());
-  // Clamp the covered radius: the farm core is ~30u; cap so the hyperloop outlier does not stretch the map.
   const radius = Math.min(sphere ? sphere.radius : 30, 45);
 
   sun.target.position.copy(center);
@@ -1113,7 +1018,6 @@ export function setLighting(opts) {
   const s = (opts && opts.sun) || {};
   const f = (opts && opts.fog) || {};
 
-  // Renderer tone mapping + exposure (default none = punchy, un-faded). Fill intensities for the flat meshes.
   if (renderer) {
     const tm = TONE_MAPS[opts && opts.toneMapping] || TONE_MAPS.none;
     renderer.toneMapping = tm();
@@ -1124,17 +1028,13 @@ export function setLighting(opts) {
   if (typeof (opts && opts.emissive) === 'number') setEmissiveBoost(opts.emissive);
   const az = (s.azimuthDeg || 0) * Math.PI / 180;
   const el = (s.elevationDeg || 0) * Math.PI / 180;
-  // Sun direction from azimuth (around Y) + elevation (up from horizon). refitShadow places the sun at
-  // center + dir*dist so the shadow frustum stays tight around the content regardless of where it sits.
+  // Sun direction from azimuth (around Y) + elevation (up from horizon).
   const dx = Math.cos(el) * Math.sin(az), dy = Math.sin(el), dz = Math.cos(el) * Math.cos(az);
   const dl = Math.hypot(dx, dy, dz) || 1;
   _sunDir = [dx / dl, dy / dl, dz / dl];
   if (s.color) sun.color.set(s.color);
   if (typeof s.intensity === 'number') sun.intensity = s.intensity;
 
-  // Fit the shadow frustum to where the elements actually are (refit on lighting + element change). A fixed
-  // frustum either clipped shadows or, when sized for the worst case, stretched the 4096 map across a huge area
-  // so it striped/acned when zoomed out.
   refitShadow();
 
   // Fog: exponential, density 0 = off. Color defaults to white.
@@ -1151,38 +1051,31 @@ export function setLighting(opts) {
 // In design mode, groups hold their own transform (no auto-offset layout on add/remove).
 export function setDesignMode(on) { designMode = !!on; }
 
-// The floor grid overlay over the farm core. Shown when grid-snap is on so the designer sees the cells placements
-// land on. setGrid(0) hides it; a positive size (re)builds it. The extent is BOUNDED (not the whole 120-unit
-// plane) and the division count is CAPPED: a small cell over a huge plane produced a dense moire that read as
-// screen corruption. The grid covers a sensible work area around the origin; the drag-time green/red cell
-// highlight handles the precise drop feedback.
+// The floor grid overlay over the farm core, shown when grid-snap is on. setGrid(0) hides it; a positive
+// size (re)builds it. Division count is capped since a small cell over the full extent moires.
 let gridHelper = null;
-let gridCell = 0; // the active cell size (0 = grid off); the block-grid snap reads this.
-const GRID_EXTENT = 80;       // world span the grid covers (the whole farm work area), always
-const GRID_MAX_LINES = 80;    // cap the drawn lines so a tiny snap cell does not moire when zoomed out
+let gridCell = 0;
+const GRID_EXTENT = 80;
+const GRID_MAX_LINES = 80;
 export function setGrid(cellSize) {
   if (gridHelper) { scene.remove(gridHelper); gridHelper.geometry?.dispose(); gridHelper.material?.dispose(); gridHelper = null; }
   gridCell = Number.isFinite(cellSize) && cellSize > 0 ? cellSize : 0;
   clearCellHighlight();
   if (!scene || gridCell <= 0) return;
-  // The grid covers the FULL work area (GRID_EXTENT), not a tiny patch. Its VISUAL line spacing is the snap cell,
-  // but capped to GRID_MAX_LINES lines so a fine cell (0.25) shows a coarser readable grid (snapping is still
-  // fine). This is only a guide; the green/red drag highlight shows the exact target cells at the surface.
+  // Visual line spacing is the snap cell, capped to GRID_MAX_LINES so a fine cell still shows a readable grid.
   const rawDiv = Math.round(GRID_EXTENT / gridCell);
   const divisions = Math.min(GRID_MAX_LINES, rawDiv);
   gridHelper = new THREE.GridHelper(GRID_EXTENT, divisions, 0x5a5a66, 0x3a3a42);
   gridHelper.material.transparent = true;
   gridHelper.material.opacity = 0.5;
-  gridHelper.position.y = 0.01; // just above the floor so it does not z-fight the shadow plane
+  gridHelper.position.y = 0.01;
   scene.add(gridHelper);
 }
 
 export function gridCellSize() { return gridCell; }
 
-// The highest surface Y at (x, z): cast a ray straight DOWN from high above and return the top hit among every
-// OTHER element's meshes, floored at 0 (the ground). Lets a dropped building rest on top of whatever is beneath
-// it (a platform, another building) instead of sinking to the floor. Pinned backdrops (terrain/road) are skipped
-// so a building does not try to perch on the flat ground plane mesh; the 0 floor covers that.
+// The highest surface Y at (x, z): casts a ray straight down and returns the top hit among every other
+// element's meshes, floored at 0. Lets a dropped building rest on whatever is beneath it.
 let _downRay, _downOrigin, _downDir;
 export function surfaceYAt(x, z, excludeId) {
   if (!scene) return 0;
@@ -1200,19 +1093,15 @@ export function surfaceYAt(x, z, excludeId) {
   _downOrigin.set(x, 1000, z);
   _downRay.set(_downOrigin, _downDir);
   const hits = _downRay.intersectObjects(targets, true);
-  // highest hit = smallest distance from the high origin = largest Y.
   let topY = 0;
   for (const h of hits) if (h.point.y > topY) topY = h.point.y;
   return topY;
 }
 
 // The cells an element with this footprint + scale would occupy if its block center snapped nearest (x,z).
-// Mirror of PlacementSolver.SnapToGrid / CellsOf (the C# spec, unit-tested): block span = ceil(extent/cell),
-// snapped so the block center is nearest the target. Returns { cells:[{c,r}], centerX, centerZ, spanC, spanR }.
+// Mirror of PlacementSolver.SnapToGrid / CellsOf. Returns { cells:[{c,r}], centerX, centerZ, spanC, spanR }.
 function blockCells(local, scale, x, z, cell) {
-  // World extent of the footprint. Use the actual min/max (NOT width around x): a left-pinned building
-  // (recenterX=min) has an off-center footprint (minX~0, maxX~width), so assuming it is centered on x put its
-  // occupancy box half a width off, and its neighbors never registered as overlapping (gravity push missed them).
+  // Uses the actual min/max, not width around x: a left-pinned building has an off-center footprint.
   const minWX = x + local.minX * scale, maxWX = x + local.maxX * scale;
   const minWZ = z + local.minZ * scale, maxWZ = z + local.maxZ * scale;
   const col0 = Math.round(minWX / cell);
@@ -1225,8 +1114,8 @@ function blockCells(local, scale, x, z, cell) {
   return { cells, col0, row0, centerX: (col0 + spanC / 2) * cell, centerZ: (row0 + spanR / 2) * cell, spanC, spanR };
 }
 
-// The set of cells every OTHER grid-placed element occupies, as "c,r" keys, for the occupancy check. Only
-// recentered (grid) elements count: a self-placing piece's footprint is in mesh coords, not grid cells.
+// The set of cells every other grid-placed element occupies, as "c,r" keys. Only recentered elements count:
+// a self-placing piece's footprint is in mesh coords, not grid cells.
 function occupiedCells(excludeId, cell) {
   const taken = new Set();
   for (const [gid, g] of groups) {
@@ -1238,29 +1127,25 @@ function occupiedCells(excludeId, cell) {
   return taken;
 }
 
-// Mirror of ZoneLayout.Zones (EggIncognito.Core/Services/ProtoExtract/ZoneLayout.cs): wide row bands (back/mid/
-// front) spanning the whole buildable core width, plus the silo field + hab row. Deliberately coarse - per-slot
-// ordering within a row comes from repackZoneRow's real-width packing + domino push, not from this rect. Kept
-// in sync by hand (small, rarely-changed table); this copy only gates manual drops.
+// Mirror of ZoneLayout.Zones (EggIncognito.Core/Services/ProtoExtract/ZoneLayout.cs). Deliberately coarse:
+// per-slot ordering comes from repackZoneRow's real-width packing, not this rect. Kept in sync by hand.
 const ZONES = [
-  { anchorX: -35, anchorZ: -2, width: 30, depth: 9 },    // Silos
-  { anchorX: -35, anchorZ: -12.5, width: 70, depth: 4 }, // Habs (HabRowZ - 2)
-  { anchorX: 2, anchorZ: -4, width: 60, depth: 6 },      // BackRow (Lab, Hoa)
-  { anchorX: 2, anchorZ: 5, width: 60, depth: 6 },       // MidRow (Hatchery, MissionControl, Fuel)
-  { anchorX: 2, anchorZ: 10, width: 60, depth: 6 },      // FrontRow (Depot)
+  { anchorX: -35, anchorZ: -2, width: 30, depth: 9 }, // Silos
+  { anchorX: -35, anchorZ: -12.5, width: 70, depth: 4 }, // Habs
+  { anchorX: 2, anchorZ: -4, width: 60, depth: 6 }, // BackRow (Lab, Hoa)
+  { anchorX: 2, anchorZ: 5, width: 60, depth: 6 }, // MidRow (Hatchery, MissionControl, Fuel)
+  { anchorX: 2, anchorZ: 10, width: 60, depth: 6 }, // FrontRow (Depot)
 ];
 
 function insideAnyZone(x, z) {
   return ZONES.some(z0 => x >= z0.anchorX && x <= z0.anchorX + z0.width && z >= z0.anchorZ && z <= z0.anchorZ + z0.depth);
 }
 
-// Snap an element's block to the grid + check occupancy + zone containment. Returns the snapped world CENTER
-// (x,z), validity, the cells, and a reason ("ok" | "occupied" | "outside-zone") for the designer's live
-// highlight + drop decision. No fling: an invalid target is just flagged invalid (the caller reverts).
+// Snaps an element's block to the grid, checks occupancy + zone containment, and returns the snapped world
+// center, validity, cells, and a reason ("ok" | "occupied" | "outside-zone") for the designer's live highlight.
 export function gridSnapBlock(id, x, z) {
   const g = groups.get(id);
-  // a self-placing piece (recenter=false) has a mesh-coord footprint, not grid cells: leave it free-placed, and
-  // unrestricted by zones (chickens/actors/terrain are not zone-locked).
+  // A self-placing piece has a mesh-coord footprint, not grid cells: leave it free-placed and zone-unrestricted.
   if (!g || !g.localFootprint || !g.recenter || gridCell <= 0) return { centerX: x, centerZ: z, valid: true, cells: [], reason: 'ok' };
   const scale = g.base?.scale || 1;
   const b = blockCells(g.localFootprint, scale, x, z, gridCell);
@@ -1271,8 +1156,7 @@ export function gridSnapBlock(id, x, z) {
   return { centerX: b.centerX, centerZ: b.centerZ, valid: reason === 'ok', cells: b.cells, reason };
 }
 
-// A translucent quad per target cell, green when the whole block is free, red when any cell is occupied. Rebuilt
-// each drag frame; cleared on drop / grid-off.
+// A translucent quad per target cell, green when the whole block is free, red when any cell is occupied.
 let cellHighlight = null;
 export function highlightCells(cells, valid) {
   clearCellHighlight();
@@ -1283,8 +1167,7 @@ export function highlightCells(cells, valid) {
   const geo = new THREE.PlaneGeometry(gridCell * 0.94, gridCell * 0.94);
   for (const cc of cells) {
     const cx = (cc.c + 0.5) * gridCell, cz = (cc.r + 0.5) * gridCell;
-    // lift the cell quad to the SURFACE under it (a platform / building top), so the highlight reads on top of
-    // what you are dropping onto, not buried at the floor. + a hair so it does not z-fight the surface.
+    // Lifted to the surface under it (a platform/building top), not buried at the floor.
     const y = (surfaceYAt(cx, cz, null) || 0) + 0.03;
     const q = new THREE.Mesh(geo, mat);
     q.rotation.x = -Math.PI / 2;
@@ -1305,18 +1188,15 @@ export function clearCellHighlight() {
   cellHighlight = null;
 }
 
-// The grid box (id + integer cell rect) of every non-pinned element, split into the changed element + the rest,
-// for the C# domino pass after a tier resize. Empty when the grid is off.
+// The grid box (id + integer cell rect) of every non-pinned element, split into the changed element + the
+// rest, for the C# domino pass after a tier resize. Empty when the grid is off.
 export function gridBoxesForDomino(changedId, cellOverride) {
-  // domino runs even when grid-snap is OFF (neighbor nudge on a tier/size grow is a layout concern, not a snap
-  // one): use the passed cell (or the active grid cell) as the cell resolution for the cascade math.
   const cell = (cellOverride > 0) ? cellOverride : gridCell;
   if (cell <= 0) return { changed: null, others: [] };
   let changed = null;
   const others = [];
   for (const [gid, g] of groups) {
-    // ONLY grid-placed (recentered) elements: a self-placing piece keeps its mesh-coord footprint (X far from
-    // origin), which would produce a giant garbage cell span + fling the whole scene on a domino pass.
+    // Only grid-placed elements: a self-placing piece's mesh-coord footprint would fling the whole scene.
     if (g.pinned || !g.recenter || !g.localFootprint) continue;
     const base = g.base || { pos: [g.root.position.x, 0, g.root.position.z], scale: 1 };
     const b = blockCells(g.localFootprint, base.scale || 1, base.pos[0], base.pos[2], cell);
@@ -1326,14 +1206,14 @@ export function gridBoxesForDomino(changedId, cellOverride) {
   return { changed, others };
 }
 
-// Apply the domino moves (cell-delta per element) the C# pass returned: shift each moved element by delta*cell in
-// X/Z. Keeps Y + rotation. Returns the list of moved ids so .NET can sync its inspector + autosave.
+// Applies the domino moves (cell-delta per element) the C# pass returned, keeping Y + rotation. Returns the
+// list of moved ids so .NET can sync its inspector + autosave.
 export function applyDominoMoves(moves, cellOverride) {
   const cell = (cellOverride > 0) ? cellOverride : gridCell;
   const out = [];
   for (const m of moves || []) {
     const g = groups.get(m.id);
-    if (!g || g.pinned || !g.recenter) continue; // never move a pinned backdrop / self-placing piece
+    if (!g || g.pinned || !g.recenter) continue;
     const base = g.base || { pos: [g.root.position.x, g.root.position.y, g.root.position.z], rotDeg: [0, 0, 0], scale: 1 };
     const pos = [base.pos[0] + m.deltaCol * cell, base.pos[1], base.pos[2] + m.deltaRow * cell];
     setGroupTransform(m.id, pos, base.rotDeg, base.scale);
@@ -1347,9 +1227,8 @@ export function getGroupRoot(id) {
   return g ? g.root : null;
 }
 
-// The group's placed base transform (pos/rotDeg/scale), or null. Reads the stored base (not the live root,
-// which a per-element spin animates), so a nudge composes correctly. Defaults to the root position if no base
-// was set yet (an element placed without a design transform).
+// The group's placed base transform (pos/rotDeg/scale), or null. Reads the stored base, not the live root
+// which a per-element spin animates, so a nudge composes correctly.
 export function getGroupBase(id) {
   const g = groups.get(id);
   if (!g) return null;
@@ -1360,9 +1239,8 @@ export function getGroupBase(id) {
 
 export function listGroupIds() { return [...groups.keys()]; }
 
-// The group's mesh visual center in WORLD space (the placement point plus the mesh's authored bbox center), so
-// the designer can sit its gizmo on the building instead of at the off-origin group root. Returns [x,y,z] or
-// null. Used by playgroundDesigner to place the gizmo proxy.
+// The group's mesh visual center in world space, so the designer can sit its gizmo on the building instead
+// of at the off-origin group root. Returns [x,y,z] or null.
 export function getGroupCenterWorld(id) {
   const g = groups.get(id);
   if (!g) return null;
@@ -1372,16 +1250,14 @@ export function getGroupCenterWorld(id) {
   return [p.x + c.x * s, p.y + c.y * s, p.z + c.z * s];
 }
 
-// The element's LOCAL footprint (ground rect + lowest point relative to the group origin) for the placement
-// solver. Null for a group with no cached footprint (should not happen for a placed mesh).
+// The element's local footprint (ground rect + lowest point relative to the group origin) for the placement solver.
 export function getGroupFootprint(id) {
   const g = groups.get(id);
   return g?.localFootprint ? { ...g.localFootprint, clampFloor: g.snapBase !== false } : null;
 }
 
-// Every OTHER element's world-space ground rect (axis-aligned, yaw-widened), for the solver's overlap check.
-// Pinned backdrops (terrain/road) are excluded: they span the floor and are not obstacles. Returns an array of
-// {minX,maxX,minZ,maxZ}.
+// Every other element's world-space ground rect (axis-aligned, yaw-widened), for the solver's overlap check.
+// Pinned backdrops are excluded since they span the floor and are not obstacles.
 export function getOtherFootprints(excludeId) {
   const out = [];
   for (const [gid, g] of groups) {
@@ -1392,8 +1268,8 @@ export function getOtherFootprints(excludeId) {
   return out;
 }
 
-// Mirror of PlacementSolver.WorldFootprint (yaw-widened AABB) so the designer can report other elements' world
-// rects to the C# solver without a round-trip per element. The solver re-derives the dragged element's own rect.
+// Mirror of PlacementSolver.WorldFootprint (yaw-widened AABB) so the designer can report other elements'
+// world rects to the C# solver without a round-trip per element.
 function worldFootprintOf(local, x, z, rotYDeg, scale) {
   const hx = (local.maxX - local.minX) * 0.5 * scale;
   const hz = (local.maxZ - local.minZ) * 0.5 * scale;
@@ -1453,9 +1329,8 @@ function removeOutline(root, added) {
   }
 }
 
-// Deterministic capture for the GIF recorder. captureBegin freezes the live clock; renderAtPhase sets the
-// absolute animation time + renders one frame; captureEnd restores. The recorder steps phases 0..period to
-// grab one perfect loop without depending on wall-clock timing.
+// Deterministic capture for the GIF recorder: captureBegin freezes the live clock, renderAtPhase sets the
+// absolute animation time and renders one frame, captureEnd restores it.
 let _savedClock = 0;
 export function captureBegin() {
   _savedClock = animClock;
@@ -1465,7 +1340,7 @@ export function captureBegin() {
 export function renderAtPhase(t) {
   if (!renderer) return;
   animClock = t;
-  // step every mixer to absolute time t (setTime gives a deterministic pose, unlike incremental update).
+  // setTime gives a deterministic pose, unlike incremental update.
   for (const g of groups.values()) {
     if (g.mixer) g.mixer.setTime(t);
     if (g.hatMixer) g.hatMixer.setTime(t);
@@ -1479,7 +1354,7 @@ export function captureEnd() {
   animClock = _savedClock;
 }
 
-// True if any element has a procedural animation set (the Record gate).
+// True if any element has a procedural animation set.
 export function anyAnimated() {
   for (const g of groups.values()) if ((g.anim && g.anim !== 'none') || g.motion) return true;
   return false;
@@ -1491,7 +1366,7 @@ export function sceneBackgroundHex() {
   return '#' + scene.background.getHexString();
 }
 
-// One full loop period in seconds (the procedural animation period).
+// One full loop period in seconds.
 export function animPeriod() { return ANIM_PERIOD; }
 
 // Around a capture, remove the selection outline so the recorded frames are clean. Restores it after.
@@ -1514,15 +1389,14 @@ export function _controls() { return controls; }
 
 function frameScene() {
   if (groups.size === 0) return;
-  // frame on the model groups; fall back to everything (env-only scene) so the camera still has a target.
+  // Frames on the model groups; falls back to everything so an env-only scene still has a camera target.
   const models = [...groups.values()].filter(g => !g.pinned);
   const framed = models.length > 0 ? models : [...groups.values()];
   const box = new THREE.Box3();
   for (const g of framed) box.expandByObject(g.root);
   if (box.isEmpty()) return;
   const sphere = box.getBoundingSphere(new THREE.Sphere());
-  // Clamp the framing radius so one giant outlier (the hyperloop track spans ~100u) does not yank the camera
-  // miles back. The farm core is ~25u; cap there so reset/load lands close to the buildings.
+  // Clamp so one giant outlier does not yank the camera miles back.
   const r = Math.min(sphere.radius || 1, 28);
   controls.target.copy(sphere.center);
   const dist = r / Math.sin((camera.fov * Math.PI / 180) / 2) * 0.9;

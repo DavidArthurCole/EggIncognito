@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// The version endpoint backs the client reconnect watcher: it polls this while disconnected and reloads when
-// the version differs from the one it loaded with. Public, no auth.
 public class AppVersionTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;

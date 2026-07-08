@@ -5,14 +5,12 @@ using System.Text.Json;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Decodes Egg Inc's .rpo / .rpoz 3D mesh format to a web-loadable glTF 2.0 binary (.glb). Reimplemented
-// in C# from rpotool (https://github.com/tylertms/rpotool, MIT) so the asset pipeline carries no Rust /
-// Python / Blender runtime dependency. The meshes remain property of Auxbrain Inc.; this only reformats
-// them. Pure + defensive: malformed input yields a failed result, never a throw. Bytes are parsed, never
-// executed.
+// Decodes Egg Inc's .rpo / .rpoz 3D mesh format to a web-loadable glTF 2.0 binary (.glb). Reimplemented in C#
+// from rpotool (https://github.com/tylertms/rpotool, MIT). The meshes remain property of Auxbrain Inc.; this
+// only reformats them. Defensive: malformed input yields a failed result, never a throw.
 //
 // .rpo layout (all little-endian):
-//   0..4   magic bytes "RPO1" (0x52 50 4F 31 on disk; 0x314F5052 as a LE u32)
+//   0..4   magic bytes "RPO1" (0x314F5052 as a LE u32)
 //   4..8   vertex count (u32)
 //   8..12  face bytes (u32); index count = face_bytes / 2 (u16 indices)
 //   then   a header of 8-byte stride descriptors; each descriptor whose bytes [4..8] == 06 14 00 00
@@ -21,21 +19,18 @@ namespace EggIncognito.Services.ProtoExtract;
 //   then   interleaved f32 vertex data (sum(strides) floats per vertex)
 //   then   u16 indices (face_bytes/2 of them)
 //
-// rpotool assigns semantics positionally, not from the file: accessor[0]=POSITION always;
-// accessor[1]=COLOR_0 when its stride>=3 (this is EI's per-vertex EMISSION, must survive into the .glb);
-// accessor[2]=NORMAL when its stride==3. We match that mapping exactly. .rpoz = the same stream wrapped
-// in a zlib container (0x78 0x9C); inflate first, then parse as .rpo.
+// rpotool assigns semantics positionally: accessor[0]=POSITION always, accessor[1]=COLOR_0 when its
+// stride>=3 (per-vertex emission), accessor[2]=NORMAL when its stride==3. .rpoz wraps the same stream in a
+// zlib container (0x78 0x9C); inflate first, then parse as .rpo.
 public static class RpoMeshDecoder
 {
-    private const uint Rpo1Magic = 0x314F5052; // bytes 'R','P','O','1' (0x52 50 4F 31) read as a LE u32
-    private const long MaxDecompressedBytes = 200_000_000L; // shell meshes are tiny; guard zip bombs on the public path
+    private const uint Rpo1Magic = 0x314F5052;
+    private const long MaxDecompressedBytes = 200_000_000L; // guard zip bombs on the public path
 
     public sealed record Vec3(float X, float Y, float Z);
     public sealed record BBox(Vec3 Min, Vec3 Max);
 
-    // Glb = the assembled .glb bytes. VertexCount / IndexCount + BBox mirror what a consumer needs without
-    // re-parsing (the manifest bbox comes straight from here). HasEmission is true when a COLOR_0 attribute
-    // survived, so a caller can detect the silent emission-drop regression.
+    // HasEmission is true when a COLOR_0 attribute survived, so a caller can detect the silent emission-drop regression.
     public sealed record DecodeResult(bool Ok, byte[]? Glb, string Diagnostics,
         int VertexCount, int IndexCount, BBox? Bounds, bool HasEmission, long TrailingBytes = 0);
 
@@ -70,20 +65,18 @@ public static class RpoMeshDecoder
         if (dataStart + vertexBytes + indexBytes > rpo.Length)
             return Fail("vertex/index data runs past end of buffer");
 
-        // Bounds: read the first stride (always POSITION per rpotool) to compute the bbox for the manifest.
         var bounds = ComputeBounds(rpo, dataStart, vertexCount, floatsPerVertex);
 
         var hasEmission = strides.Count >= 2 && strides[1] >= 3;
         var glb = BuildGlb(rpo, strides, vertexCount, indexCount, dataStart, vertexBytes, indexBytes, bounds, name);
-        // Bytes left after this single mesh's vertex+index block. Nonzero means the .rpo packs MORE than one
-        // mesh (e.g. a hab's floating-effect sub-objects), which this single-mesh decoder currently drops. A
-        // diagnostic toward the multi-mesh extraction (see CLAUDE.md "EXTRACT, don't author").
+        // Nonzero trailing means the .rpo packs more than one mesh, which this single-mesh decoder drops.
+        // STOPGAP toward multi-mesh extraction (see CLAUDE.md "EXTRACT, don't author").
         var trailing = rpo.Length - (dataStart + vertexBytes + indexBytes);
         return new DecodeResult(true, glb, "ok", vertexCount, indexCount, bounds, hasEmission, trailing);
     }
 
-    // .rpoz wraps the .rpo stream in a zlib container (0x78 0x9C). Inflate it; otherwise return as-is. A
-    // gzip-wrapped variant is tolerated too. Caps the output so a crafted stream cannot exhaust memory.
+    // Inflates a zlib or gzip wrapped .rpo stream; otherwise returns as-is. Caps output so a crafted stream
+    // cannot exhaust memory.
     private static byte[] Inflate(byte[] data)
     {
         bool zlib = data.Length >= 2 && data[0] == 0x78 && (data[1] == 0x9C || data[1] == 0x01 || data[1] == 0xDA);
@@ -109,10 +102,9 @@ public static class RpoMeshDecoder
         catch (InvalidDataException) { return data; }
     }
 
-    // Walks the 8-byte-descriptor header from offset 12. A 4-byte window whose u32 == indexCount marks the
-    // end of the header (rpotool's terminator). Along the way, every descriptor whose bytes [4..8] are
-    // 06 14 00 00 contributes one attribute with component count = byte[0]. The scan steps 4 bytes at a
-    // time exactly as rpotool does (it split_off(4) each iteration). dataStart lands on the first vertex.
+    // Walks the 8-byte-descriptor header from offset 12. A 4-byte window whose u32 == indexCount marks the end
+    // of the header; every descriptor whose bytes [4..8] are 06 14 00 00 contributes one attribute with
+    // component count = byte[0].
     private static bool ScanStrides(byte[] rpo, int indexCount, out List<int> strides, out int dataStart)
     {
         strides = [];
@@ -153,9 +145,7 @@ public static class RpoMeshDecoder
     }
 
     // Assembles a single-mesh GLB. One interleaved BIN region holds the vertex block followed by the index
-    // block. Each attribute is one accessor over the shared interleaved vertex bufferView (byteStride =
-    // floatsPerVertex*4, byteOffset = cumulative stride*4), matching rpotool's deinterleaved-accessor view
-    // over interleaved data. Semantics assigned positionally per rpotool.
+    // block; each attribute is one accessor over the shared interleaved vertex bufferView.
     private static byte[] BuildGlb(byte[] rpo, List<int> strides, int vertexCount, int indexCount,
         int dataStart, long vertexBytes, long indexBytes, BBox bounds, string? name)
     {

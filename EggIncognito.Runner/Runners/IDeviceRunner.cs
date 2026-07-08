@@ -1,8 +1,6 @@
 namespace EggIncognito.Runner.Runners;
 
-// One platform's detect+pull+extract+emit cycle. force=true ignores saved state and always emits
-// (the re-sync path); force=false emits only on a build the state has not seen. Returns the outcome so
-// the trigger listener and the loop can report it.
+// force=true ignores saved state and always emits; force=false emits only on an unseen build.
 public interface IDeviceRunner
 {
     string Platform { get; }

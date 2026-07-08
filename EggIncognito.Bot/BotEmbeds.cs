@@ -3,9 +3,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Bot;
 
-// Pure embed builders for each command (no Discord client / no live service reads). Take a snapshot
-// (or simple inputs) and return a built Embed, so they are unit-testable. The accent color matches
-// the app's orange (#ef7559).
+// Pure embed builders for each command (no Discord client / no live service reads).
 public static class BotEmbeds
 {
     private const uint Accent = 0xEF7559;
@@ -64,9 +62,7 @@ public static class BotEmbeds
     public static Embed Error(string message) =>
         new EmbedBuilder().WithTitle("Something went wrong").WithDescription(message).WithColor(0xED4245).Build();
 
-    // /updateserver embeds use the synckit/ledger colors (blurple/green/red), not the app accent,
-    // so deploy results look identical across both bots. The agent supplies commit URLs when the
-    // image carries a revision label; without one the hash renders as a plain code chip.
+    // /updateserver embeds use the synckit/ledger colors (blurple/green/red), not the app accent.
     private static string Chip(string? hash, string? url)
     {
         var h = string.IsNullOrEmpty(hash) ? "unknown" : hash;

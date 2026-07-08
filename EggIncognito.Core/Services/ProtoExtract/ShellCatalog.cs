@@ -15,9 +15,8 @@ public static class ShellCatalog
     // only the shells valid for the loaded model.
     public sealed record Shell(string Identifier, string? Name, string AssetType, string Url, string? Checksum, bool ModifiedGeometry, string? SetIdentifier = null);
 
-    // One shellObject: a chicken or hat (or other interactive shell object). Carries the hat anchor
-    // (metadata = [x, hatY, hatZ, scale] on chickens) and the noHats flag so the compositor can place a hat
-    // on the chicken at the game-accurate transform, or know a chicken takes no hat.
+    // A chicken, hat, or other interactive shell object. Carries the hat anchor (metadata = [x, hatY, hatZ,
+    // scale] on chickens) and the noHats flag.
     public sealed record ShellObject(
         string Identifier, string? Name, string AssetType, string Url, string? Checksum,
         IReadOnlyList<double> Anchor, bool NoHats);
@@ -61,13 +60,9 @@ public static class ShellCatalog
     public static Shell? ById(DLCCatalog catalog, string identifier) =>
         FromCatalog(catalog).FirstOrDefault(s => string.Equals(s.Identifier, identifier, StringComparison.Ordinal));
 
-    // The standard chicken head anchor [x, hatY, hatZ, scale]. Only ~29 of 105 chickens carry their own
-    // metadata (an override for an off-shape head); the rest wear a hat at this default. It is the modal
-    // metadata value across the catalog. Used when a hat-wearing chicken has no explicit metadata.
+    // The standard chicken head anchor [x, hatY, hatZ, scale], used when a hat-wearing chicken has no explicit metadata.
     public static readonly IReadOnlyList<double> DefaultChickenAnchor = new[] { 0.0, 0.428, -0.11, 1.06 };
 
-    // Every shellObject with a resolvable mesh url. Same lowest-LOD piece rule as the shells path. Chickens
-    // that wear a hat but ship no metadata fall back to the default head anchor so the hat sits on the head.
     public static IReadOnlyList<ShellObject> Objects(DLCCatalog catalog)
     {
         var objs = new List<ShellObject>();
@@ -98,7 +93,6 @@ public static class ShellCatalog
         Objects(catalog).FirstOrDefault(o => string.Equals(o.Identifier, identifier, StringComparison.Ordinal));
 
     // A shell set (a coordinated reskin across asset types) or a decorator (a farm-wide cosmetic overlay).
-    // Members are the shells whose SetIdentifier ties them to this set; Name comes from the set spec.
     // Decorator=true marks a decorator (DLCCatalog.decorators) vs a set (DLCCatalog.shell_sets).
     public sealed record ShellSet(string Identifier, string? Name, bool Decorator, IReadOnlyList<Shell> Members);
 

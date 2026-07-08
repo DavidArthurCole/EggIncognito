@@ -6,19 +6,14 @@ using Google.Protobuf;
 namespace EggIncognito.Tests;
 
 // Proves the in-process per-flow path (ProcessFlow) and the HAR-file path (RunFromHar) produce
-// byte-identical endpoints + identical yaml/self-repair effects for the same flow. This is the
-// guard that the capture proxy (which feeds ProcessFlow) cannot diverge from the HAR-import
-// (RunFromHar) behavior.
+// byte-identical endpoints + identical yaml/self-repair effects for the same flow.
 public class EndpointExtractorParityTests
 {
-    // A real type-mapped endpoint: ei/get_periodicals -> PeriodicalsResponse (known response).
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
     private const string Slug = "ei/get_periodicals";
 
-    // Minimal routes.yaml carrying just the endpoint under test, in canonical form.
     private const string Yaml = """
 routes:
-  # ei/
   - path: ei/get_periodicals
     request: GetPeriodicalsRequest
     response: PeriodicalsResponse
@@ -29,8 +24,6 @@ needs_capture:
 
     private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-extract");
 
-    // Base64 of an AuthenticatedMessage wrapping an inner PeriodicalsResponse - exactly the wire
-    // framing the real API returns and both extraction paths decode.
     private static string WrappedResponseB64()
     {
         var inner = new Ei.PeriodicalsResponse();
@@ -46,7 +39,6 @@ needs_capture:
     {
         var responseB64 = WrappedResponseB64();
 
-        // in-process path
         var inProcRoot = MakeRepo();
         var inProc = EndpointExtractor.ForRepo(inProcRoot, eid: null, eidPlaceholder: "EI0000000000000000", overwrite: false);
         var path = inProc.ProcessFlow(Url, "POST", 200, requestDataB64: null, responseBodyB64: responseB64);
@@ -56,7 +48,6 @@ needs_capture:
         Assert.True(File.Exists(EndpointPath(inProcRoot)));
         var inProcEndpoint = File.ReadAllText(EndpointPath(inProcRoot));
 
-        // HAR-file path: synthesize a HAR carrying the identical flow
         var harRoot = MakeRepo();
         var harFile = Path.Combine(harRoot, "session.har");
         File.WriteAllText(harFile, BuildHar(Url, responseB64), new UTF8Encoding(false));
@@ -68,7 +59,6 @@ needs_capture:
         Assert.True(File.Exists(EndpointPath(harRoot)));
         var harEndpoint = File.ReadAllText(EndpointPath(harRoot));
 
-        // Byte-for-byte endpoint parity + identical write tally.
         Assert.Equal(harEndpoint, inProcEndpoint);
         Assert.Equal(1, inProc.Counts.Wrote);
         Assert.Equal(inProc.Counts.Wrote, harExtractor.Counts.Wrote);
@@ -94,40 +84,30 @@ needs_capture:
         var ex = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", false);
 
         Assert.Equal(Slug, ex.ProcessFlow(Url, "POST", 200, null, responseB64));
-        Assert.Null(ex.ProcessFlow(Url, "POST", 200, null, responseB64)); // second time deduped
+        Assert.Null(ex.ProcessFlow(Url, "POST", 200, null, responseB64));
         Assert.Equal(1, ex.Counts.Wrote);
     }
 
-    // The dashboard "Save as endpoint" button: the live capture already processed (and deduped) the
-    // flow, so ProcessFlow would skip it. ForceWriteEndpoint must bypass dedup AND force-overwrite.
     [Fact]
     public void ForceWriteEndpoint_BypassesDedupAndOverwrites()
     {
         var responseB64 = WrappedResponseB64();
         var root = MakeRepo();
-        // overwrite:false (the live default) - the force path must override this.
         var ex = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", overwrite: false);
 
-        // Live capture processed it once (added to dedup set).
         Assert.Equal(Slug, ex.ProcessFlow(Url, "POST", 200, null, responseB64));
-        // ProcessFlow now skips it (deduped) - this is the bug the button hit.
         Assert.Null(ex.ProcessFlow(Url, "POST", 200, null, responseB64));
 
-        // ForceWriteEndpoint writes it anyway.
         Assert.Equal(Slug, ex.ForceWriteEndpoint(Url, "POST", 200, null, responseB64));
         Assert.True(File.Exists(EndpointPath(root)));
     }
 
-    // Coherent self-registration: an explicit "Save as endpoint" backfills an unmapped request type
-    // in routes.yaml (the user's click confirms the detected type), so the endpoint becomes
-    // permanently known - not just saved for this session.
     [Fact]
     public void ForceWriteEndpoint_RegistersUnmappedRequestType()
     {
         var root = Path.Combine(Path.GetTempPath(), $"ei-reg-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
         File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
-        // Route exists with a response but an empty (TODO) request slot - the bot_first_contact case.
         File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), """
 routes:
   - path: ei/get_periodicals
@@ -136,8 +116,6 @@ routes:
 """);
         var ex = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", overwrite: false);
 
-        // A richly-populated GetPeriodicalsRequest (distinctive fields so auto-detect resolves it
-        // confidently) + the wrapped PeriodicalsResponse.
         var reqMsg = new Ei.GetPeriodicalsRequest
         {
             UserId = "EI123", CurrentClientVersion = 72, Debug = false,
@@ -164,7 +142,6 @@ routes:
         Assert.Null(ex.ForceWriteEndpoint(Url, "POST", 500, null, responseB64));
     }
 
-    // Build a one-entry HAR whose request/response mirror the in-process flow inputs.
     private static string BuildHar(string url, string responseBodyB64)
     {
         var har = new

@@ -46,7 +46,7 @@ public class DocsGateTests : IClassFixture<WebApplicationFactory<Program>>
     {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/docs/doc/message/Contract");
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode); // { bodyMd: null } with no DB
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         Assert.Contains("bodyMd", await r.Content.ReadAsStringAsync());
     }
 
@@ -55,7 +55,7 @@ public class DocsGateTests : IClassFixture<WebApplicationFactory<Program>>
     {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/docs/tags");
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode); // [] with no DB
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class DocsGateTests : IClassFixture<WebApplicationFactory<Program>>
         part.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
         content.Add(part, "file", "x.png");
         var r = await c.PostAsync("/api/docs/image", content);
-        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode); // gate runs before DB resolve
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
     [Fact]

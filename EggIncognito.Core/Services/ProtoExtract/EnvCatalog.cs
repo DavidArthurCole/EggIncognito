@@ -1,13 +1,10 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 // The farm-environment mesh catalog (names only, no asset bytes): the buildings, habs, and ground pieces a
-// designer can place. The meshes themselves are pulled off a device + cached (DeviceMeshProvider); this is
-// just the allowlist of known stems + their display labels. Layouts are authored in the designer (EnvDesign),
-// not hardcoded here.
-//
-// Most building meshes are authored at their real in-game plot position in their own vertex coords (depot
-// z~7-12, hyperloop z~19-27, lab x~4-10, ...), so placing them at world origin self-positions them. Only the
-// repeated rows (habs, silos) are centered-at-origin single plots that the layout instances at multiple spots.
+// designer can place. Meshes are pulled off a device + cached (DeviceMeshProvider); this is just the allowlist
+// of known stems + their display labels. Most building meshes are authored at their real in-game plot position
+// in their own vertex coords, so placing them at world origin self-positions them; only repeated rows (habs,
+// silos) are centered-at-origin single plots the layout instances at multiple spots.
 public static class EnvCatalog
 {
     // Singleton = the scene holds at most one (terrain layers + the self-placing single-slot buildings).
@@ -23,9 +20,7 @@ public static class EnvCatalog
         new EnvPiece("ei_farm_misc", "Ground detail", "Terrain", Singleton: true),
         new EnvPiece("ei_chicken_display_ground", "Display ground", "Terrain", Singleton: true),
 
-        // The 19 hab tiers, in capacity order. Each has its own mesh on device (verified via device-stems). Stem
-        // naming is inconsistent: most are bare (coop, shack, the_standard, hanger [game spelling], tower), but
-        // five carry a hab_ prefix (hab_1k, hab_10k, hab_eggtopia, hab_monolith, hab_portal, hab_chicken_universe).
+        // The 19 hab tiers, in capacity order. Stem naming is inconsistent: most are bare, five carry a hab_ prefix.
         new EnvPiece("coop", "Coop", "Habs", Family: "hab"),
         new EnvPiece("shack", "Shack", "Habs", Family: "hab"),
         new EnvPiece("super_shack", "Super Shack", "Habs", Family: "hab"),
@@ -76,13 +71,11 @@ public static class EnvCatalog
         new EnvPiece("ei_hoa_3", "Artifact hall (3)", "Buildings", Singleton: true, Family: "hoa"),
         new EnvPiece("ei_trophy_case", "Trophy case", "Buildings", Singleton: true, Family: "trophy"),
         new EnvPiece("ei_trophy_case2", "Trophy case (2)", "Buildings", Singleton: true, Family: "trophy"),
-        // Artifact hall (HOA = Hall Of Artifacts): the construction site (in progress) shares the "hoa" family
-        // with the 3 completed tiers (ei_hoa_1/2/3) so the variation dropdown swaps construction <-> completed.
+        // Construction site shares the "hoa" family with the 3 completed tiers so the variation dropdown swaps construction <-> completed.
         new EnvPiece("ei_afx_construction_site", "Artifact hall (construction)", "Buildings", Singleton: true, Family: "hoa"),
 
-        // The egg hatchery (between the depot + research lab). One per farm; the variation dropdown swaps the
-        // egg type. Self-places (the mesh sits at the real plot). Sub-part meshes (_top/_ring/_orb/...) are
-        // excluded; they are pieces of specific hatcheries, not standalone.
+        // The egg hatchery. Sub-part meshes (_top/_ring/_orb/...) are excluded; they are pieces of a
+        // specific hatchery, not standalone.
         new EnvPiece("ei_hatchery_edible", "Hatchery (Edible)", "Buildings", Singleton: true, Family: "hatchery"),
         new EnvPiece("ei_hatchery_superfood", "Hatchery (Superfood)", "Buildings", Singleton: true, Family: "hatchery"),
         new EnvPiece("ei_hatchery_medical", "Hatchery (Medical)", "Buildings", Singleton: true, Family: "hatchery"),
@@ -104,8 +97,7 @@ public static class EnvCatalog
 
         new EnvPiece("ei_farm_mailbox_full", "Mailbox", "Structures", Singleton: true),
 
-        // Road vehicles (device-verified ei_vehicle_* base meshes). Non-singleton: place several. Placed as
-        // actors + animated driving the road; the _aux/_light sub-meshes are not placed standalone.
+        // Road vehicles. Non-singleton: place several. The _aux/_light sub-meshes are not placed standalone.
         new EnvPiece("ei_vehicle_semi", "Semi", "Vehicles"),
         new EnvPiece("ei_vehicle_pickup", "Pickup", "Vehicles"),
         new EnvPiece("ei_vehicle_trike", "Trike", "Vehicles"),
@@ -117,7 +109,7 @@ public static class EnvCatalog
         new EnvPiece("ei_vehicle_hover_semi", "Hover semi", "Vehicles"),
         new EnvPiece("ei_vehicle_mega_semi", "Mega semi", "Vehicles"),
 
-        // Ships (device-verified ei_ship_* meshes), used for the rocket-launch actor from mission control.
+        // Ships, used for the rocket-launch actor from mission control.
         new EnvPiece("ei_ship_egg_shuttle", "Egg shuttle", "Ships"),
         new EnvPiece("ei_ship_rooster", "Rooster", "Ships"),
         new EnvPiece("ei_ship_bcr", "BCR", "Ships"),
@@ -145,10 +137,9 @@ public static class EnvCatalog
     public static bool IsKnownPiece(string stem) =>
         Pieces.Any(p => string.Equals(p.Stem, stem, StringComparison.Ordinal));
 
-    // Maps an env stem to its ShellSpec.AssetType enum name (the C# PascalCase form), so a placed element can be
-    // matched to the shell-set member that reskins that asset type. Returns null for terrain + pieces with no
-    // shellable asset type. A table, not reflection: stem naming and enum names do not align 1:1 (hab_1k ->
-    // Hab1K, hanger -> Hangar, hab_portal -> PlanetPortal). All 19 hab tier meshes exist on device.
+    // Maps an env stem to its ShellSpec.AssetType enum name, so a placed element can be matched to the shell-set
+    // member that reskins that asset type. A table, not reflection: stem naming and enum names do not align 1:1
+    // (hab_1k -> Hab1K, hanger -> Hangar, hab_portal -> PlanetPortal).
     private static readonly Dictionary<string, string?> _assetTypeByStem = new(StringComparer.Ordinal)
     {
         ["coop"] = "Coop", ["shack"] = "Shack", ["super_shack"] = "SuperShack",

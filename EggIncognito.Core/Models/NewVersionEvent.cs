@@ -2,17 +2,14 @@ using System.Text.Json.Serialization;
 
 namespace EggIncognito.Core.Models;
 
-// Shared frozen contract. Mirrors synckit/contract.NewVersionEvent and the device farm's emitter;
-// the superset source of truth shared by the runner (producer) and EventsController (consumer).
-// Field names are frozen to the wire contract. This is plain transport, so System.Text.Json is
-// allowed here, unlike endpoint JSON which uses JsonParser.Default.
+// Shared frozen contract. Mirrors synckit/contract.NewVersionEvent and the device farm's emitter.
+// Field names are frozen to the wire contract. Plain transport, so System.Text.Json is allowed here, unlike endpoint JSON.
 public sealed class NewVersionEvent
 {
     [JsonPropertyName("package")]
     public string Package { get; set; } = "";
 
-    // Legacy single version, kept for back-compat with old farm emitters. Treated as the appVersion
-    // fallback: when AppVersion is absent the ingest uses this. New emitters send the three below.
+    // Legacy single version; treated as the appVersion fallback when AppVersion is absent.
     [JsonPropertyName("version")]
     public string Version { get; set; } = "";
 

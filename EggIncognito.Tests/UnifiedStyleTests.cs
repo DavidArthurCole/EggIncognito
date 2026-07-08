@@ -2,10 +2,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// Guards the Phase 3 unification: neither Inspector nor Capture links a bespoke per-tab sheet anymore;
-// the single compiled Tailwind sheet defines the canonical component classes BOTH tabs depend on; and
-// .btn-primary resolves to the accent (orange) color - proving Inspector's old blue primary converged
-// to the canonical orange. A regression (re-added sheet, missing component, drifted primary) fails here.
+// Neither Inspector nor Capture links a bespoke per-tab sheet: the single compiled Tailwind sheet
+// defines the canonical component classes both tabs depend on, and .btn-primary resolves to the
+// accent (orange) color.
 public class UnifiedStyleTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _f;

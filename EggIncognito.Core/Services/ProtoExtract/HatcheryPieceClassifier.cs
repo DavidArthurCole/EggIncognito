@@ -1,18 +1,10 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Classifies a hatchery floating sub-mesh into the role the game animates it as, READ FROM ITS AUTHORED BOUNDS
-// (the .rpo geometry), not guessed. Two families decide everything:
-//
-//   * origin-centered piece (bbox center ~ 0): authored at the local origin, so the game POSITIONS it at runtime
-//     (orbit / spin / beam around the body anchor). Sub-roles by shape:
-//       - Beam:  a thin vertical spike (Y-extent >> X/Z) = the beam fired probe->orb (universe bolt).
-//       - Ring:  flat + wide (X/Y wide, Z thin) = a spinning ring (darkmatter ring_1/2/3).
-//       - Orb:   tiny near-cube (enlightenment orb) = a small floating core.
-//       - Probe/Shell: a disc or sphere = an orbiting satellite (universe probe) or a nested shell (vision).
-//   * world-placed piece (bbox center far from origin, inside the body's X span): authored AT its spot on the
-//     body (ai top_0..3 across the roof, graviton top). Rendered static at its authored position, no orbit.
-//
-// The role drives the renderer: world-placed -> draw as-is; centered -> drive with the extracted state machine.
+// Classifies a hatchery floating sub-mesh into the role the game animates it as, read from its authored bounds
+// (the .rpo geometry), not guessed. An origin-centered piece (bbox center ~0) is positioned at runtime by shape
+// (Beam/Ring/Orb/Probe/Shell); a world-placed piece (bbox center far from origin) is authored at its spot on the
+// body and rendered static. The role drives the renderer: world-placed draws as-is, centered drives the
+// extracted state machine.
 public static class HatcheryPieceClassifier
 {
     public enum Role { WorldPlaced, Beam, Ring, Orb, Probe, Shell }
@@ -27,9 +19,8 @@ public static class HatcheryPieceClassifier
         public float ExtentZ => MaxZ - MinZ;
     }
 
-    // A piece is "world-placed" when its bbox center sits well away from the local origin on the ground plane:
-    // the mesh carries its real on-body position (ai roof spikes at x 8..18). Centered pieces sit at ~0.
-    private const float CenteredRadius = 2.5f; // ground-plane distance from origin below which a piece is "centered"
+    // A piece is "world-placed" when its bbox center sits well away from the local origin on the ground plane.
+    private const float CenteredRadius = 2.5f;
 
     public static Role Classify(Bounds b)
     {
@@ -39,19 +30,18 @@ public static class HatcheryPieceClassifier
         float ex = MathF.Abs(b.ExtentX), ey = MathF.Abs(b.ExtentY), ez = MathF.Abs(b.ExtentZ);
         float horiz = MathF.Max(ex, ez);
 
-        // a thin vertical spike: tall, narrow on both ground axes (universe bolt: Y ~2, X/Z ~0.06).
+        // a thin vertical spike: tall, narrow on both ground axes.
         if (ey > 2f * horiz && ey > 0.5f) return Role.Beam;
 
-        // a flat wide ring: broad on two axes, thin on the third (darkmatter ring: XY ~5, Z ~0.6).
+        // a flat wide ring: broad on two axes, thin on the third.
         float min3 = MathF.Min(ex, MathF.Min(ey, ez));
         float max3 = MathF.Max(ex, MathF.Max(ey, ez));
         if (max3 > 1.5f && min3 < 0.5f * max3 && min3 < 1f) return Role.Ring;
 
-        // a tiny core orb (enlightenment orb: ~0.15-0.2 across). Kept tighter than a probe disc so the universe
-        // probe (~0.29 wide) does not fall in here.
+        // a tiny core orb, kept tighter than a probe disc.
         if (max3 < 0.22f) return Role.Orb;
 
-        // wide-ish, roughly equal extents = a nested shell (vision middle/top, ~1.6/0.8). Smaller discs = probes.
+        // wide-ish, roughly equal extents = a nested shell; smaller discs = probes.
         if (max3 > 1.2f) return Role.Shell;
         return Role.Probe;
     }

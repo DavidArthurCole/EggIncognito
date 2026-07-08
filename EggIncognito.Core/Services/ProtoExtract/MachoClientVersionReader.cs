@@ -1,11 +1,9 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Reads the Egg Inc clientVersion (BasicRequestInfo.client_version, a compiled-in uint32) out of a
-// decrypted iOS Mach-O. Direct port of the Android client_version.py heuristic: a small int written by
-// MOVZ/MOVK then STR to the same (baseReg, structOffset) from >=3 distinct sites is a candidate; the real
-// clientVersion is disambiguated with the previous known value (it increments 0-2 per build), so the pick
-// sits in {prev, prev+1, prev+2}, nearest to prev, tie-broken by site count. Null when prev is unknown or
-// no in-range candidate exists. Pure + static binary read; never executes the binary.
+// Reads the Egg Inc clientVersion (BasicRequestInfo.client_version, a compiled-in uint32) out of a decrypted
+// iOS Mach-O. A small int written by MOVZ/MOVK then STR to the same (baseReg, structOffset) from >=3 distinct
+// sites is a candidate; the real clientVersion is disambiguated against the previous known value, since it
+// increments 0-2 per build. Null when prev is unknown or no in-range candidate exists.
 public static class MachoClientVersionReader
 {
     public sealed record ClientVersionResult(int? ClientVersion, IReadOnlyList<int> Candidates);
@@ -48,9 +46,8 @@ public static class MachoClientVersionReader
         return outp;
     }
 
-    // Look back up to 4 instructions for MOVZ/MOVK targeting reg; resolve the 32-bit constant. MOVK
-    // overlays the 16-bit lane at (hw*16) onto the value seeded by the nearest preceding MOVZ. Returns null
-    // when no MOVZ seeds the reg within the window (mirrors python _prev_imm's same-reg, <=4-back scan).
+    // Looks back up to 4 instructions for MOVZ/MOVK targeting reg and resolves the 32-bit constant. MOVK
+    // overlays the 16-bit lane at (hw*16) onto the value seeded by the nearest preceding MOVZ.
     private static int? ResolveReg(IReadOnlyList<Arm64Insn> insns, int strIndex, int reg)
     {
         int value = 0;

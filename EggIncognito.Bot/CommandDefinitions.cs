@@ -3,7 +3,7 @@ using Discord;
 namespace EggIncognito.Bot;
 
 // The slash-command catalog. Every command is global + user-installable + usable in guilds, bot DMs,
-// and private channels, so it runs anywhere the bot or user has it installed.
+// and private channels.
 public static class CommandDefinitions
 {
     private static readonly ApplicationIntegrationType[] Integrations =
@@ -37,8 +37,7 @@ public static class CommandDefinitions
                     .WithRequired(true)
                     .WithAutocomplete(true)))
             .Build(),
-        // Deploy trigger. Deliberately NOT user-installable and guild-only: the gate is the guild
-        // Administrator permission, which only exists in a guild context.
+        // Deliberately NOT user-installable and guild-only: the Administrator gate only exists in a guild context.
         new SlashCommandBuilder()
             .WithName("updateserver").WithDescription("Pull latest and redeploy (admin only).")
             .WithIntegrationTypes(ApplicationIntegrationType.GuildInstall)

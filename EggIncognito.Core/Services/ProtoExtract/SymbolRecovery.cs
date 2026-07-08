@@ -1,17 +1,11 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Recovers a symbol -> target-VA map onto a STRIPPED egginc Mach-O using a SYMBOLIZED binary as reference, so
+// Recovers a symbol -> target-VA map onto a stripped egginc Mach-O using a symbolized binary as reference, so
 // the decomp extractor can resolve functions when no symbolized binary of the device's exact version exists.
-// Two tiers, both byte-verified (never fabricates a mapping):
-//   Tier 0 exact-transplant: if the two __text sections are byte-equal (same build), the reference symbol table
-//     applies to the target as-is. 100% coverage. This is the real payoff when a same-version symbolized twin
-//     of the device binary becomes available.
-//   Tier 1 content-hash: for an adjacent version, recover the functions that are byte-identical after masking
-//     pc-relative displacements (relocated-but-unchanged code). Anchors the target scan on its LC_FUNCTION_STARTS
-//     (survives stripping). Measured 1.35.6 -> 1.35.8: ~27k functions recovered including the real
-//     GalaxyParticle::update; functions whose body actually changed (updateSilo's main body) are not matched and
-//     land in RequestedMissing. Honest: every match is byte-verified, the report names found vs missing needles.
-// Pure + deterministic, no I/O. See spec docs/superpowers/specs/2026-06-29-symbol-recovery-v2-design.md.
+// Two tiers, both byte-verified (never fabricates a mapping): Tier 0 exact-transplant applies the reference
+// symbol table as-is when the two __text sections are byte-equal; Tier 1 content-hash recovers functions that
+// are byte-identical after masking pc-relative displacements, anchored on the target's LC_FUNCTION_STARTS. See
+// spec docs/superpowers/specs/2026-06-29-symbol-recovery-v2-design.md.
 public static class SymbolRecovery
 {
     public readonly record struct RecoveryReport(
@@ -52,16 +46,13 @@ public static class SymbolRecovery
         return new RecoveryReport("content-hash", recovered.Count, recovered, found, missing, diag);
     }
 
-    // 8 instructions; skips tiny shared stubs + thunks that pile into hot prefix buckets without being useful.
-    private const int MinFuncLen = 32;
+    private const int MinFuncLen = 32; // skips tiny shared stubs/thunks that pile into hot prefix buckets
     private const int MaxFuncLen = 0x20000;
-    // normalized 32-byte prefix = the cheap candidate filter; longer than 16 to break up hot prologue buckets.
     private const int PrefixLen = 32;
 
-    // Recover function symbols whose normalized body is byte-identical between ref and target. A naive scan of
-    // every target offset at every reference length is O(textSize x lengths) and takes ~100s on a 34MB text.
-    // Instead: index reference functions by a cheap normalized 32-byte-prefix hash, scan the target only at its
-    // real function starts, and run the expensive byte-exact compare ONLY on prefix-bucket hits. ~1-2s.
+    // Recovers function symbols whose normalized body is byte-identical between ref and target: index reference
+    // functions by a cheap normalized 32-byte-prefix hash, scan the target only at its real function starts, and
+    // run the expensive byte-exact compare only on prefix-bucket hits.
     private static List<MachoSymbols.Symbol> ContentHashRecover(
         byte[] refBin, int rOff, ulong rVm, IReadOnlyList<MachoSymbols.Symbol> refSyms,
         byte[] tgtBin, int tOff, int tSize, ulong tVm)
@@ -89,9 +80,7 @@ public static class SymbolRecovery
         var usedNames = new HashSet<string>(StringComparer.Ordinal);
         var usedFullHashes = new HashSet<ulong>();
 
-        // Scan only the target's real function starts (LC_FUNCTION_STARTS survives symbol stripping): far fewer
-        // candidates than a dense 4-byte sweep and aligned to true boundaries, so fewer false prefix collisions.
-        // Fall back to a dense sweep only if the table is absent.
+        // Scan only the target's real function starts when available; fall back to a dense 4-byte sweep.
         var starts = MachoFunctionStarts.Read(tgtBin);
         IEnumerable<int> Offsets()
         {
@@ -142,8 +131,7 @@ public static class SymbolRecovery
         return h;
     }
 
-    // FNV-1a over the normalized first PrefixLen bytes starting at off in a RAW target buffer, allocation-free:
-    // each 4-byte word is normalized on the fly. This is the hot path scanned at every target function start.
+    // FNV-1a over the normalized first PrefixLen bytes at off in a raw target buffer, allocation-free.
     private static ulong FnvNormalizedPrefixAt(byte[] bin, int off)
     {
         ulong h = 1469598103934665603UL;
@@ -158,8 +146,7 @@ public static class SymbolRecovery
         return h;
     }
 
-    // Compare a target window at off against an already-normalized reference body, normalizing target words on
-    // the fly. Allocation-free; only runs on prefix collisions.
+    // Compares a target window at off against an already-normalized reference body. Allocation-free.
     private static bool NormalizedEquals(byte[] tgt, int off, byte[] norm)
     {
         for (int i = 0; i + 4 <= norm.Length; i += 4)
@@ -190,8 +177,7 @@ public static class SymbolRecovery
     private static int CountTextFuncs(IReadOnlyList<MachoSymbols.Symbol> syms, ulong textVm, int textSize)
         => FunctionRanges(syms, textVm, textVm + (ulong)textSize).Count;
 
-    // Mask the immediate bytes of pc-relative instructions so a relocated-but-unchanged function still matches.
-    // arm64 is fixed 4-byte. Keeps the opcode byte; zeroes the displacement-bearing low bytes.
+    // Masks the immediate bytes of pc-relative instructions so a relocated-but-unchanged function still matches.
     private static byte[] NormalizeRange(byte[] bin, int off, int len)
     {
         var c = new byte[len];
@@ -205,7 +191,7 @@ public static class SymbolRecovery
         return c;
     }
 
-    // Zero the displacement bytes of a pc-relative instruction word, keep the opcode byte. Identity otherwise.
+    // Zeroes the displacement bytes of a pc-relative instruction word, keeps the opcode byte.
     private static uint NormalizeWord(uint w)
     {
         uint top6 = w >> 26;

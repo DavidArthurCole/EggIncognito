@@ -2,8 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A physical device this host can probe. Seeded from config on boot (config is authoritative); a device
-// dropped from config is marked Enabled=false rather than deleted, keeping probe-history FKs valid.
+// A physical device this host can probe, seeded from config on boot. A device dropped from config is marked Enabled=false rather than deleted, keeping probe-history FKs valid.
 [Table("devices")]
 public sealed class Device
 {

@@ -33,8 +33,7 @@ public sealed class DiscordBotHostedService(
             var client = new DiscordSocketClient(new DiscordSocketConfig
             {
                 // Guilds (unprivileged) is required to cache guilds; without it guild interactions
-                // can't resolve the invoker as a SocketGuildUser, so /updateserver's permission
-                // check would fail closed for everyone.
+                // can't resolve the invoker as a SocketGuildUser.
                 GatewayIntents = GatewayIntents.Guilds,
                 LogLevel = LogSeverity.Info,
             });
@@ -134,8 +133,7 @@ public sealed class DiscordBotHostedService(
     }
 
     // With RegisterGuildCommands the catalog is mirrored to the guild for instant testing.
-    // Otherwise guild-scoped commands are purged: a guild copy next to the global catalog shows
-    // every command twice in the Discord UI.
+    // Otherwise guild-scoped commands are purged, since a guild copy next to the global catalog shows every command twice.
     private async Task EnsureGuildCommandsAsync(DiscordSocketClient client, string desired, ApplicationCommandProperties[] commands)
     {
         if (string.IsNullOrWhiteSpace(options.GuildId) || !ulong.TryParse(options.GuildId, out var gid)) return;

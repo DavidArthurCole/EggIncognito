@@ -3,8 +3,7 @@ using System.IO.Compression;
 namespace EggIncognito.Services.ProtoExtract;
 
 // Lists / reads individual .rpo/.rpoz meshes inside an APK/IPA zip by file stem, without decoding the whole
-// archive. The device playground uses this to enumerate Android meshes (pull base.apk once, list entries)
-// and fetch one on demand. Defensive: malformed zip yields empty / null, never throws.
+// archive. Defensive: malformed zip yields empty/null, never throws.
 public static class RpoAssetLister
 {
     private const long MaxEntryBytes = 50_000_000L;

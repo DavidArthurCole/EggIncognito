@@ -82,7 +82,7 @@ public class MitmFlowReaderTests
     {
         var good = Flow("http", "POST", "https", "www.auxbrain.com", 443, "/ei/a", "data=AA", 200, "A");
         var bytes = Encoding.UTF8.GetBytes(good + "999:incomplete");
-        Assert.Single(MitmFlowReader.Read(bytes)); // the good flow survives, the partial tail is dropped
+        Assert.Single(MitmFlowReader.Read(bytes));
     }
 
     [Fact]

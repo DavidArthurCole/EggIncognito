@@ -25,10 +25,8 @@ public sealed class EndpointExtractor
 
     public HarCounts Counts { get; } = new();
 
-    // When true, suppress the per-flow console chatter. The in-app capture path sets this: it derives
-    // the per-flow outcome from the Counts delta and shows it on the dashboard, so console output is
-    // redundant. The HAR import path leaves it false to keep its server-side log. End-of-run summaries
-    // are not gated.
+    // When true, suppress the per-flow console chatter (the in-app capture path derives its own
+    // per-flow outcome from the Counts delta). End-of-run summaries are not gated.
     public bool Quiet { get; set; }
 
     private void Out(string line) { if (!Quiet) Console.WriteLine(line); }

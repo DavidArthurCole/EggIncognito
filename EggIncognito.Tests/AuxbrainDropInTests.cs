@@ -6,9 +6,6 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EggIncognito.Tests;
 
-// The drop-in surface: every POST under a known auxbrain namespace answers deterministically
-// (canned route, alias, typed empty proto, or a 200 not-mocked marker; never a hard 404), and the
-// read-only /api layer (landing, openapi, reference, catalog, namespace indexes) describes it.
 public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
 {
     private readonly HttpClient _client;
@@ -44,8 +41,6 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
     [Fact]
     public async Task UnmockedButTypedCanonicalPath_ReturnsEmptyProto()
     {
-        // ei/coop_status_bot is in auxbrain-paths.json with a known response type, but has no
-        // routes.yaml entry, so no generated controller exists. It must encode like a mock route.
         var resp = await _client.PostAsync("/ei/coop_status_bot", EmptyForm());
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.False(resp.Headers.Contains("x-eggincognito"));
@@ -68,7 +63,6 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
         var aliasBody = await alias.Content.ReadAsStringAsync();
         Assert.Equal(canonicalBody, aliasBody);
 
-        // The fixture endpoint has data, so the comparison is between real payloads.
         var msg = Ei.ContractCoopStatusUpdateResponse.Parser.ParseFrom(Convert.FromBase64String(aliasBody));
         Assert.True(msg.Finalized);
         Assert.True(msg.Exists);

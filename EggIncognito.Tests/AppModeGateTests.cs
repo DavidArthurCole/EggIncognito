@@ -4,16 +4,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// Boots the real web host in-process with AppMode=Hosted and proves the capability gate holds at the
-// HTTP boundary: capture start is forbidden, read-only tools still work, and the mode endpoint
-// reports Hosted. Local-mode behavior is covered by the AppModeService unit tests.
 public class AppModeGateTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
 
     public AppModeGateTests(WebApplicationFactory<Program> f) =>
-        // NoBrowser=true so the test host never tries to launch a real browser (the auto-open is also
-        // guarded against the non-Kestrel TestServer in Program, but be explicit here too).
         _factory = f.WithWebHostBuilder(b => b
             .UseSetting("AppMode", "Hosted")
             .UseSetting("NoBrowser", "true"));
@@ -26,7 +21,6 @@ public class AppModeGateTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
-    // The capture reads are gated too: a consistent 403 instead of 200-but-empty in hosted mode.
     [Theory]
     [InlineData("/api/capture/stream")]
     [InlineData("/api/capture/flows")]

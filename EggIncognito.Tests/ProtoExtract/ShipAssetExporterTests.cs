@@ -4,14 +4,10 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// ShipNameMap + ShipAssetExporter: the ei_ship_* -> Spaceship enum mapping and the ship-only export. The
-// map is asserted complete against the 11 known enum ships so a future enum change (new ship) fails here
-// loudly. The exporter is exercised against the real device rpos tarball when it is present (327 assets ->
-// the 7 bundled ships), and a synthetic archive otherwise.
+// ShipNameMap + ShipAssetExporter: the ei_ship_* -> Spaceship enum mapping and the ship-only export.
 public class ShipAssetExporterTests
 {
-    // The 11 MissionInfo.Spaceship enum names, value order. Mirrors EggLedger's enum; if it grows, update
-    // both here and ShipNameMap.All (this test guards the map against drift).
+    // The 11 MissionInfo.Spaceship enum names, value order. Mirrors EggLedger's enum.
     private static readonly string[] EnumShips =
     [
         "ChickenOne", "ChickenNine", "ChickenHeavy", "Bcr", "MilleniumChicken",
@@ -43,9 +39,7 @@ public class ShipAssetExporterTests
         Assert.Equal("ChickenOne", ShipNameMap.EnumNameForStem("ei_ship_chicken_one"));
         Assert.Equal("Atreggies", ShipNameMap.EnumNameForStem("ei_ship_atreggies_shuttle"));
         Assert.True(ShipNameMap.IsBundledShip("ei_ship_bcr"));
-        // CDN-only ships have no bundle stem: not resolvable from a stem, not a bundled ship.
         Assert.False(ShipNameMap.IsBundledShip("afx_ship_galeggtica"));
-        // non-ship assets are dropped.
         Assert.Null(ShipNameMap.EnumNameForStem("ei_silo_3_large"));
         Assert.Null(ShipNameMap.EnumNameForStem("ei_ship_rooster")); // launch prop, not an enum ship
     }
@@ -53,8 +47,6 @@ public class ShipAssetExporterTests
     [Fact]
     public void Export_Synthetic_RenamesShipsAndSkipsCdnOnly()
     {
-        // An archive with one ship mesh + one non-ship asset: only the ship exports, renamed to <EnumName>.glb,
-        // and the 10 ships absent from this archive (incl. the 4 CDN ships) are reported as skipped.
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -70,7 +62,7 @@ public class ShipAssetExporterTests
         Assert.Contains("ChickenOne", export.Manifest.Ships.Keys);
         Assert.Equal("111344", export.Manifest.GeneratedFromBuild);
         Assert.DoesNotContain("ChickenOne", export.SkippedShips);
-        Assert.Contains("Henerprise", export.SkippedShips); // CDN-only, absent here
+        Assert.Contains("Henerprise", export.SkippedShips);
         Assert.Equal(10, export.SkippedShips.Count);
     }
 
@@ -78,14 +70,12 @@ public class ShipAssetExporterTests
     public void Export_RealDeviceTarball_YieldsSevenBundledShips()
     {
         var tgz = DeviceTarball();
-        if (tgz is null) return; // fixture absent (CI): skip, covered by the synthetic test above
+        if (tgz is null) return;
 
         var entries = ReadGzippedTar(tgz);
         var extract = RpoAssetExtractor.FromEntries(entries);
         var export = ShipAssetExporter.Build(extract, generatedFromBuild: "device");
 
-        // The 7 bundled ships (tiers 0-5 + Atreggies) decode + export; the 4 CDN ships (Galeggtica,
-        // Chickfiant, Voyegger, Henerprise) have no bundled mesh and land in skipped.
         var exported = export.Ships.Select(s => s.EnumName).OrderBy(x => x).ToArray();
         Assert.Equal(
             new[] { "Atreggies", "Bcr", "ChickenHeavy", "ChickenNine", "ChickenOne", "CorellihenCorvette", "MilleniumChicken" }.OrderBy(x => x),
@@ -93,7 +83,6 @@ public class ShipAssetExporterTests
         Assert.Equal(
             new[] { "Chickfiant", "Galeggtica", "Henerprise", "Voyegger" }.OrderBy(x => x),
             export.SkippedShips.OrderBy(x => x));
-        // every exported ship has a non-empty glb + emission preserved.
         foreach (var s in export.Ships)
             Assert.True(s.Glb.Length > 12, $"{s.EnumName} glb empty");
     }
@@ -104,10 +93,8 @@ public class ShipAssetExporterTests
         es.Write(data);
     }
 
-    // The real device rpos tarball, if a developer dropped it in the repo's captures/ dir. Gzip tar of rpos/.
     private static byte[]? DeviceTarball()
     {
-        // tests bin -> repo root is ../../../../.. ; captures/ sits beside the projects.
         var candidates = new[]
         {
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "captures", "egi-repos.tgz"),

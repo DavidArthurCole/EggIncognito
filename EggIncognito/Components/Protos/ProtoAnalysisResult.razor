@@ -116,10 +116,9 @@
         }
     }
 
-    // Pre-fill the save form from the archive's own metadata (real app version + build) and the inferred
-    // platform, so the contributor does not retype values the binary already carries. Then backfill build
-    // + clientVersion the binary cannot give (iOS especially) from the live capture store, falling back to
-    // a registry row with the same app version. Re-seed when a new result arrives.
+    // Pre-fill the save form from the archive's own metadata (app version + build) and inferred platform.
+    // Then backfill build + clientVersion the binary cannot give from the live capture store, falling back
+    // to a registry row with the same app version.
     protected override async Task OnParametersSetAsync()
     {
         if (Result is null || ReferenceEquals(Result, _seededFor)) return;

@@ -3,15 +3,13 @@ using SharpGLTF.Schema2;
 
 namespace EggIncognito.Services.Assets;
 
-// Injects animation channels into a decoded ship .glb. The bundled ship meshes are static (RpoMeshDecoder
-// emits geometry only); the game's "spinning ship" viewer animates them at runtime, and that animation does
-// not exist as an asset. This generates it: a glTF rotation animation baked into the .glb so any glTF
-// viewer (three.js, EggLedger) plays it without bespoke client code.
+// Injects animation channels into a decoded ship .glb. The bundled ship meshes are static
+// (RpoMeshDecoder emits geometry only), so this generates the runtime spin as a baked glTF rotation
+// animation any glTF viewer can play without bespoke client code.
 //
-// Built on SharpGLTF (MIT). Toolkit, not a one-off: animations are a registry of named generators
-// (AnimationKind), each producing keyframes for the target node. Add a kind by adding a generator; the
-// endpoint + tests pick them up by name. Rotation keyframes are quaternions; a full turn is split into
-// quarter steps so SLERP takes the intended direction (a single >180 deg step would reverse).
+// Animations are a registry of named generators (AnimationKind), each producing keyframes for the
+// target node; add a kind by adding a generator. Rotation keyframes are quaternions split into quarter
+// steps so SLERP takes the intended direction.
 public static class GltfAnimator
 {
     public enum AnimationKind
@@ -31,8 +29,8 @@ public static class GltfAnimator
 
     public sealed record Result(bool Ok, byte[]? Glb, string Diagnostics, string AnimationName, float DurationSeconds);
 
-    // Reads a .glb, adds the requested animation to its first mesh node, writes a new .glb. Returns a failed
-    // result (never throws) on malformed input or a model with no animatable node.
+    // Reads a .glb, adds the requested animation to its first mesh node, writes a new .glb. Returns a
+    // failed result (never throws) on malformed input or a model with no animatable node.
     public static Result Animate(byte[] glb, Options? options = null)
     {
         var opts = options ?? new Options();
@@ -62,8 +60,8 @@ public static class GltfAnimator
         return new Result(true, outGlb, "ok", name, opts.DurationSeconds);
     }
 
-    // The node carrying the mesh, preferring the first scene's first mesh node. Falls back to the first node
-    // that has a mesh, then the first node. Animating the mesh node spins the geometry in place.
+    // The node carrying the mesh, preferring the first scene's first mesh node, falling back to the
+    // first node with a mesh, then the first node.
     private static Node? TargetNode(ModelRoot model)
     {
         var scene = model.DefaultScene ?? model.LogicalScenes.FirstOrDefault();
@@ -78,10 +76,8 @@ public static class GltfAnimator
     {
         var d = opts.DurationSeconds <= 0 ? 6f : opts.DurationSeconds;
 
-        // Spin about the geometry's CENTER, not the node origin. EI ship meshes are authored offset from
-        // their origin (placed on the farm plane), so rotating the node directly swings them around an
-        // off-center pivot. Re-pivot: move the mesh into a child offset by -center and put the animated node
-        // at +center, so the node's rotation axis passes through the centroid. A no-op when already centered.
+        // Spin about the geometry's CENTER, not the node origin: EI ship meshes are authored offset from
+        // their origin, so rotating the node directly would swing them around an off-center pivot.
         var pivot = RepivotToCenter(node);
 
         switch (opts.Kind)
@@ -102,10 +98,9 @@ public static class GltfAnimator
         }
     }
 
-    // Restructures so the animated (returned) node's origin sits at the mesh centroid: the mesh moves to a
-    // child translated by -center, the node is translated by its old translation + center. World placement is
-    // unchanged; only the rotation pivot moves to the center. Returns the node to animate. If the mesh has no
-    // position data or is already centered, returns the node unchanged.
+    // Restructures so the animated (returned) node's origin sits at the mesh centroid: the mesh moves to
+    // a child translated by -center, the node keeps its old translation + center. World placement is
+    // unchanged; only the rotation pivot moves.
     private static Node RepivotToCenter(Node node)
     {
         if (node.Mesh is null) return node;
@@ -146,9 +141,8 @@ public static class GltfAnimator
         return any ? (min + max) * 0.5f : null;
     }
 
-    // A full 360 deg turn as 5 quaternion keys (0, 90, 180, 270, 360). Each step is 90 deg so SLERP between
-    // adjacent keys rotates the short way in the intended direction; the 0==360 endpoints make it loop seam-
-    // lessly. The 270->360 closing key is required, else the last quarter would not be authored.
+    // A full 360 deg turn as 5 quaternion keys (0, 90, 180, 270, 360), so SLERP between adjacent keys
+    // rotates the short way and the 0==360 endpoints loop seamlessly.
     private static (float, Quaternion)[] SpinKeys(Vector3 axis, float duration)
     {
         var a = Vector3.Normalize(axis);
@@ -163,9 +157,8 @@ public static class GltfAnimator
         return keys;
     }
 
-    // A vertical bob: up to +amplitude and back over the duration, sine-like via 3 keys (0, peak, 0). Offsets
-    // are relative to baseTranslation (the node's resting position after re-pivoting), so the bob does not
-    // snap the model back to the origin.
+    // A vertical bob: up to +amplitude and back over the duration, via 3 keys (0, peak, 0), relative to
+    // baseTranslation so the bob does not snap the model back to the origin.
     private static (float, Vector3)[] BobKeys(float amplitude, float duration, Vector3 baseTranslation)
     {
         var half = duration / 2f;

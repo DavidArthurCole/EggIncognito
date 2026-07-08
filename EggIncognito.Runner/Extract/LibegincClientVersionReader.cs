@@ -2,9 +2,7 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Runner.Extract;
 
-// Reads the Egg Inc clientVersion from an arm-split APK in-process (pure C#), replacing the old
-// client_version.py capstone shell-out. Returns null when prev is unknown or no in-range candidate is
-// found. The arm split bytes are read from the path the caller already staged.
+// Returns null when prev is unknown or no in-range candidate is found.
 public sealed class LibegincClientVersionReader : IClientVersionReader
 {
     public string? Read(string apkPath, int? previousClientVersion)

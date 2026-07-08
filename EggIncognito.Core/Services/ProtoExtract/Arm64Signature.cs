@@ -3,13 +3,10 @@ using System.Text;
 namespace EggIncognito.Services.ProtoExtract;
 
 // Builds a frida-style byte-scan pattern from a recovered function's prologue, with pc-relative displacement
-// bytes wildcarded (so a relocated-but-shaped-the-same prologue still matches across an adjacent build). The use
-// case: a function whose body CHANGED across versions (so content-hash recovery missed it) but whose PROLOGUE
-// instruction shape is stable; scan the live stripped module for the masked prologue to locate it at runtime.
-//
-// Honest about its limits: a prologue that actually changed will not match, and a too-short/too-generic prologue
-// may match many sites. The endpoint returns the instruction count + a uniqueness hint so the caller can widen.
-// Same displacement-masking as SymbolRecovery.NormalizeWord (kept consistent on purpose). Pure.
+// bytes wildcarded, so a relocated-but-shaped-the-same prologue still matches across an adjacent build (for
+// a function whose body changed but whose prologue instruction shape is stable).
+// Limits: a prologue that actually changed will not match, and a too-short/too-generic prologue may match
+// many sites; the caller widens using the returned instruction count + uniqueness hint. Pure.
 public static class Arm64Signature
 {
     public readonly record struct Pattern(bool Ok, string FridaPattern, int Instructions, int MaskedWords, string Diagnostics);

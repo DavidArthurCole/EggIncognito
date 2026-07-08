@@ -3,8 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Persistence the backfill importers depend on: a job-progress row per run plus the known-versions
-// discovery list. Extracted as an interface so importers can be unit-tested against a fake, DB-free.
 public interface IBackfillJobStore
 {
     Task<BackfillJob> StartAsync(string source, string? startedBy, CancellationToken ct = default);
@@ -59,7 +57,6 @@ public sealed class BackfillJobStore(EggIncognitoDbContext db) : IBackfillJobSto
         await db.SaveChangesAsync(ct);
     }
 
-    // The most recent run per source, newest start first. The UI polls this for live status.
     public async Task<List<BackfillJob>> LatestPerSourceAsync(CancellationToken ct = default)
     {
         var rows = await db.BackfillJobs.AsNoTracking()
@@ -86,7 +83,6 @@ public sealed class BackfillJobStore(EggIncognitoDbContext db) : IBackfillJobSto
             };
             db.KnownVersions.Add(row);
         }
-        // Refresh metadata when the source re-reports it; first_seen stays at the original sighting.
         if (releaseDate is not null) row.ReleaseDate = releaseDate;
         if (!string.IsNullOrEmpty(changelog)) row.Changelog = changelog;
         await db.SaveChangesAsync(ct);
@@ -97,7 +93,6 @@ public sealed class BackfillJobStore(EggIncognitoDbContext db) : IBackfillJobSto
             .OrderByDescending(k => k.FirstSeen)
             .ToListAsync(ct);
 
-    // One job per (platform, appVersion); a re-extract resets the existing row rather than stacking.
     public async Task StartExtractAsync(string platform, string appVersion, CancellationToken ct = default)
     {
         var row = await db.ExtractJobs.FirstOrDefaultAsync(

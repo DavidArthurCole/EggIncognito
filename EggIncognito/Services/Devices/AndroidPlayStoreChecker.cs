@@ -3,21 +3,13 @@ using EggIncognito.Core.Services.Devices;
 namespace EggIncognito.Services.Devices;
 
 // Drives the on-device Google Play Store to update Egg Inc, then re-reads the installed version to see
-// whether it climbed. The PHONE's Play account does the download/install (the device asks its own store);
-// we only drive Play's UI over adb and then poll the version. No server-side APK push, no version list.
-//
-// A bare `am start market://...` page-open does NOT install on a device that is not set to auto-update: it
-// just surfaces the page. The PROVEN headless drive (2026-06-18, A15) is a UI sequence: wake the screen,
-// dismiss the (non-secure) keyguard, open the package's Play page, then locate the "Update" button in the
-// uiautomator hierarchy and tap its center. Play then downloads + installs. Requires the device lock be
-// None/Swipe (a secure PIN keyguard cannot be dismissed headlessly). We poll dumpsys until the version
-// climbs or the window elapses. Never throws.
+// whether it climbed. The phone's Play account does the download/install; this only drives Play's UI over
+// adb (wake, dismiss keyguard, open the Play page, tap Update) and polls for a version climb. Requires the
+// device lock be None/Swipe. Never throws.
 public sealed class AndroidPlayStoreChecker(
     IProcessRunner runner, AndroidPlayStoreChecker.Options opts, ILogger<AndroidPlayStoreChecker> logger)
     : IDeviceStoreChecker
 {
-    // DeepLinkTemplate: the `am start` line that opens the Play page, {package} substituted. PollSeconds/
-    // PollAttempts bound the wait for the version to climb after the Update tap.
     public sealed record Options(string DriveTemplate, int PollSeconds, int PollAttempts);
 
     public string Platform => "android";
@@ -38,10 +30,7 @@ public sealed class AndroidPlayStoreChecker(
         var drive = await DrivePlayUpdateAsync(device, progress, ct);
         if (!drive.Ok)
         {
-            // The drive woke the screen + opened Play; put it back to sleep before returning (power-save).
             await SleepDeviceAsync(device, CancellationToken.None);
-            // Could not find/tap an Update button. Most likely already current (no Update button on the page)
-            // or the page did not render. Distinguish below via the version poll; surface the reason as a note.
             if (drive.NoUpdateButton)
             {
                 logger.LogInformation("device check-update: {Id} android no Update button (likely current)", device.Id);
@@ -53,8 +42,6 @@ public sealed class AndroidPlayStoreChecker(
             return new StoreCheckResult(true, before, before, false, false, "error", note);
         }
 
-        // Poll the installed version: Play's download/install is async, so wait for it to climb. The progress
-        // line reports elapsed time + what we are waiting on, not the unchanged version (already on the row).
         progress?.Invoke($"Update tapped; waiting for Play to install (up to {opts.PollAttempts * opts.PollSeconds}s)…");
         try
         {
@@ -78,9 +65,7 @@ public sealed class AndroidPlayStoreChecker(
                 progress?.Invoke($"waiting for Play install… {elapsed}s elapsed (no change yet)");
             }
 
-            // No climb within the window. Either already current, or the update is still downloading. We cannot
-            // distinguish "no update" from "still in flight" without a Play status read (none reliable over adb),
-            // so report up_to_date with a note; a later check re-confirms.
+            // Cannot distinguish "no update" from "still in flight" without a reliable Play status read over adb.
             var last = await ReadInstalledAsync(device, ct);
             logger.LogInformation("device check-update: {Id} android up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
                 device.Id, last ?? "?", opts.PollAttempts, opts.PollSeconds);
@@ -89,15 +74,11 @@ public sealed class AndroidPlayStoreChecker(
         }
         finally
         {
-            // Power-save: we woke the screen + opened Play to drive the update. Leave the device as we found
-            // it - close Play (back to home) and put the screen to sleep - so a never-auto-lock farm phone is
-            // not left burning its display. Best-effort; failures here never affect the result.
             await SleepDeviceAsync(device, CancellationToken.None);
         }
     }
 
-    // Close the foreground app (Play) back to the launcher and turn the screen off. KEYCODE_HOME backgrounds
-    // Play; KEYCODE_SLEEP turns the display off (idempotent - no-op if already off). Best-effort, never throws.
+    // Best-effort, never throws.
     private async Task SleepDeviceAsync(DeviceStoreTarget device, CancellationToken ct)
     {
         try
@@ -110,13 +91,11 @@ public sealed class AndroidPlayStoreChecker(
 
     private readonly record struct DriveOutcome(bool Ok, bool NoUpdateButton, string? Note);
 
-    // The proven A15 sequence: wake -> dismiss keyguard -> open the Play page (deep-link template) -> dump the
-    // UI hierarchy -> find the "Update" button bounds -> tap its center. Returns NoUpdateButton when the page
-    // has no Update button (already current / not offered), distinct from a hard adb failure.
+    // Wake -> dismiss keyguard -> open the Play page -> find the "Update" button -> tap its center. Returns
+    // NoUpdateButton when the page has no Update button, distinct from a hard adb failure.
     private async Task<DriveOutcome> DrivePlayUpdateAsync(
         DeviceStoreTarget device, Action<string>? progress, CancellationToken ct)
     {
-        // Wake + dismiss the (non-secure) keyguard so the Play page can come to the foreground.
         await Shell(device, "input keyevent KEYCODE_WAKEUP", ct);
         await Shell(device, "wm dismiss-keyguard", ct);
 
@@ -125,7 +104,6 @@ public sealed class AndroidPlayStoreChecker(
         if (open.ExitCode != 0)
             return new DriveOutcome(false, false, $"open page: {DeviceParsing.TrimNote(open.Stderr + open.Stdout)}");
 
-        // Let the page render, then read the UI tree. Retry the dump a few times: the page can be mid-load.
         progress?.Invoke("Play page open; locating Update button…");
         for (var tries = 0; tries < 4; tries++)
         {
@@ -145,7 +123,6 @@ public sealed class AndroidPlayStoreChecker(
                 logger.LogInformation("device check-update: {Id} android tapped Update at {X},{Y}", device.Id, c.X, c.Y);
                 return new DriveOutcome(true, false, null);
             }
-            // If an Open/Uninstall button is present but no Update, the app is current -> no update offered.
             if (HasButton(xml, "Open") || HasButton(xml, "Uninstall"))
                 return new DriveOutcome(false, true, "no Update button (current)");
         }
@@ -160,11 +137,9 @@ public sealed class AndroidPlayStoreChecker(
         return cat.ExitCode == 0 && !string.IsNullOrWhiteSpace(cat.Stdout) ? cat.Stdout : null;
     }
 
-    // Find the "Update" node and return the center of its bounds="[l,t][r,b]". The label is a TextView whose
-    // clickable parent wraps it; tapping the label center hits the parent button (proven on the A15).
+    // Finds the "Update" node and returns the center of its bounds="[l,t][r,b]".
     internal static (int X, int Y)? FindUpdateButtonCenter(string xml)
     {
-        // Locate a node with text="Update" then the nearest bounds="..." on the same element.
         var idx = xml.IndexOf("text=\"Update\"", StringComparison.Ordinal);
         while (idx >= 0)
         {
@@ -174,7 +149,7 @@ public sealed class AndroidPlayStoreChecker(
                 var end = xml.IndexOf('"', b + 8);
                 if (end > b)
                 {
-                    var raw = xml[(b + 8)..end]; // [l,t][r,b]
+                    var raw = xml[(b + 8)..end];
                     if (TryParseBounds(raw, out var l, out var t, out var r, out var bot))
                         return ((l + r) / 2, (t + bot) / 2);
                 }

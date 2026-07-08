@@ -62,8 +62,7 @@
     bool _caDmFailed;
     bool _rotated;
 
-    // The page pushes a freshly-rotated host here (rotation now lives in the Controls widget), so the card
-    // updates the displayed Server without re-fetching.
+    // The page pushes a freshly-rotated host here so the card updates the displayed Server without re-fetching.
     [Parameter] public string? HostOverride { get; set; }
 
     protected override void OnParametersSet()

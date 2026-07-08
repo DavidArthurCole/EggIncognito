@@ -149,8 +149,7 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task EnvGlb_RequiresAdmin()
     {
-        // env meshes are pulled off a device (round-trip), so the glb route is admin-gated. Anonymous = 403,
-        // never 200 with data. (No shipped assets: a 200 would mean a committed mesh, which must not exist.)
+        // Env meshes are pulled off a device, so the glb route is admin-gated: anonymous is always 403.
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/env/ei_farm_ground/glb");
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
@@ -175,8 +174,7 @@ public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task InspectorBuild_ConfigRequest_WithClonedRinfo_Is200()
     {
-        // The Admin "Fetch live via Inspector" path builds a ConfigRequest with the Inspector's rinfo defaults
-        // as env (minus the UI-only "debug"). This must build, not 400 (the bug the thin/empty rinfo caused).
+        // Builds a ConfigRequest with the Inspector's rinfo defaults as env (minus the UI-only "debug").
         var c = _factory.CreateClient();
         var body = new
         {

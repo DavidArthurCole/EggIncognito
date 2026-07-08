@@ -4,9 +4,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-// routes.yaml uses the real auxbrain path for every route, so the mock can serve as a drop-in.
-// auxbrain-paths.json is the canonical path registry (client-derived shapes are authoritative
-// for the real API; capture-derived mock routes were merged in). Every yaml path must be a key.
 public sealed class AuxbrainPathParityTests
 {
     private static string RepoRoot()
@@ -66,13 +63,10 @@ public sealed class AuxbrainPathParityTests
         var cat = RouteCatalog.Parse(yaml);
         var gen = RouteParser.Parse(yaml);
 
-        // Catalog exposes the alias on its route; aliases never become routes.
         Assert.Equal(["ei/update_coop_status", "ei/other"], cat.Select(r => r.Path));
         Assert.Equal(["ei/update_coop_status_secure"], cat[0].Aliases);
         Assert.Empty(cat[1].Aliases);
 
-        // Generator ignores the key and its list items without corrupting the block:
-        // same route set, same shape for the aliased route.
         Assert.Equal(cat.Select(r => r.Path), gen.Select(r => r.Path));
         Assert.Equal("ContractCoopStatusUpdateRequest", gen[0].Request);
         Assert.Equal("ContractCoopStatusUpdateResponse", gen[0].Response);
@@ -98,7 +92,7 @@ public sealed class AuxbrainPathParityTests
         var cat = RouteCatalog.Parse(yaml);
         Assert.Equal(2, cat.Count);
         Assert.Equal(["ei/old_a", "ei/older_a"], cat[0].Aliases);
-        Assert.True(cat[0].PathParam); // key after the list still applies
+        Assert.True(cat[0].PathParam);
         Assert.Empty(cat[1].Aliases);
         Assert.Equal("BarResponse", cat[1].Response);
 

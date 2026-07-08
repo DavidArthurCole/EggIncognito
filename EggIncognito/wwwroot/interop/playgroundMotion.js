@@ -1,8 +1,7 @@
 // Pure motion math for the playground: a Catmull-Rom curve through a list of [x,y,z] waypoints, sampled by
-// arc length so movement speed is uniform. No three.js dependency (plain arrays + Math) so it unit-tests in
-// node and stays reusable. The engine (playground.js) feeds these into a group's per-frame transform.
+// arc length so movement speed is uniform. No three.js dependency, so it unit-tests in node.
 
-const SUBDIVISIONS = 16; // per segment, for the arc-length table
+const SUBDIVISIONS = 16;
 
 function catmull(p0, p1, p2, p3, t) {
   const t2 = t * t, t3 = t2 * t;
@@ -27,8 +26,8 @@ function dist(a, b) {
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
-// A flat list of {d, p} samples along the whole curve, d = cumulative arc length, p = point. Cached per path
-// identity so repeated sampleSpline calls in the render loop do not rebuild it.
+// A flat list of {d, p} samples along the whole curve. Cached per path identity so repeated sampleSpline
+// calls in the render loop do not rebuild it.
 let _cachePath = null, _cacheTable = null;
 function table(path) {
   if (path === _cachePath && _cacheTable) return _cacheTable;
@@ -60,7 +59,7 @@ export function sampleSpline(path, dQuery) {
   const t = table(path);
   const total = t[t.length - 1].d;
   const d = Math.max(0, Math.min(total, dQuery));
-  // linear scan (tables are small) for the bracketing samples, lerp between them.
+  // Linear scan (tables are small) for the bracketing samples, lerp between them.
   for (let i = 1; i < t.length; i++) {
     if (t[i].d >= d) {
       const a = t[i - 1], b = t[i];

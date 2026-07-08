@@ -4,11 +4,9 @@ using EggIncognito.Services;
 namespace EggIncognito.Capture;
 
 // Persists the latest live app version observed on the wire, per platform, to
-// <capturePath>/live-versions.json. Source = BasicRequestInfo (rinfo) harvested from captured requests
-// off the slaved device. This is the authoritative iOS clientVersion + build (the static binary cannot
-// give them). Best-effort like DeviceStore: missing/corrupt reads empty, write failures swallowed so they
-// never break a capture. Upsert keeps prior non-null fields when a newer observation omits them (some
-// request types send a thinner rinfo).
+// <capturePath>/live-versions.json. Source = BasicRequestInfo (rinfo) harvested from captured requests;
+// this is the authoritative iOS clientVersion + build, since the static binary cannot give them.
+// Best-effort like DeviceStore: missing/corrupt reads empty, write failures swallowed.
 public sealed class LiveVersionStore(string capturePath)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -37,11 +35,10 @@ public sealed class LiveVersionStore(string capturePath)
         return null;
     }
 
-    // Upsert the observation for its platform. nowIso is stamped by the caller (no clock in the store).
     // Newer non-null fields win; a prior clientVersion/build/version is kept when the new one is null.
     public void Observe(RinfoHarvester.ObservedVersion v, string nowIso)
     {
-        if (string.IsNullOrEmpty(v.Platform)) return; // platform is the key; skip anonymous observations
+        if (string.IsNullOrEmpty(v.Platform)) return;
         var key = NormalizePlatform(v.Platform);
         lock (_gate)
         {
@@ -70,6 +67,5 @@ public sealed class LiveVersionStore(string capturePath)
     private static string NormalizePlatform(string p) => (p ?? "").Trim().ToLowerInvariant();
 }
 
-// Latest live version seen for a platform. Build is the auxbrain build the client reports on the wire,
-// NOT the iOS bundle build. LastSeen is an ISO-8601 timestamp.
+// Latest live version seen for a platform. Build is the auxbrain build the client reports on the wire, not the iOS bundle build.
 public sealed record LiveVersion(string Platform, string? Version, string? Build, int? ClientVersion, string LastSeen);

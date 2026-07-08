@@ -1,8 +1,6 @@
-// Process-lifetime view of the drop-in API surface: the merged AuxbrainCatalog entries, the
-// canonical real-API path registry, the known auxbrain namespaces, and the OpenAPI document.
-// Every input (routes.yaml, auxbrain-paths.json, Endpoints/default status) is static per process,
-// so each piece is built lazily once and cached. Backs ApiSurfaceController and the
-// DynamicMockController namespace fallback.
+// Process-lifetime view of the drop-in API surface: the merged AuxbrainCatalog entries, the canonical
+// real-API path registry, the known auxbrain namespaces, and the OpenAPI document. Every input is
+// static per process, so each piece is built lazily once and cached.
 
 namespace EggIncognito.Services;
 

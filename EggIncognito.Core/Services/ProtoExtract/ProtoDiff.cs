@@ -2,10 +2,9 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Port of protodiff.py. Parses two ei.proto texts into an ordered map of message-path -> content lines
-// (only `message` blocks open a path; enum/oneof/extend/service are content of the enclosing message),
-// normalizes away ei./aux. prefixes, then emits a per-message `@@ path @@` +/- diff via an LCS opcode
-// walk equivalent to difflib.SequenceMatcher.get_opcodes. Pure. Joins sections with \n.
+// Parses two ei.proto texts into an ordered map of message-path -> content lines (only `message` blocks open a
+// path; enum/oneof/extend/service are content of the enclosing message), normalizes away ei./aux. prefixes,
+// then emits a per-message `@@ path @@` +/- diff via an LCS opcode walk. Joins sections with \n.
 public static partial class ProtoDiff
 {
     [GeneratedRegex(@"\b(ei|aux)\.")]
@@ -73,9 +72,8 @@ public static partial class ProtoDiff
         return string.Join("\n", sections);
     }
 
-    // Parses a proto into an ordered (insertion-order) map of message-path -> content lines (with their
-    // original newline). Mirrors parse_proto: only `message` opens a path; enum/oneof/extend/service add
-    // their open + close braces as content of the enclosing message.
+    // Parses a proto into an ordered map of message-path -> content lines. Only `message` opens a path;
+    // enum/oneof/extend/service add their open + close braces as content of the enclosing message.
     private static Dictionary<string, List<string>> Parse(string protoText)
     {
         var messages = new Dictionary<string, List<string>>();
@@ -171,10 +169,8 @@ public static partial class ProtoDiff
         return result;
     }
 
-    // LCS-based opcode walk equivalent to difflib.SequenceMatcher.get_opcodes: a list of
-    // (tag, i1, i2, j1, j2) tuples partitioning both sequences, tags equal/insert/delete/replace, the
-    // intervals contiguous and non-overlapping. Built from the longest common subsequence; matched
-    // blocks become `equal`, gaps become insert/delete/replace.
+    // LCS-based opcode walk: a list of (tag, i1, i2, j1, j2) tuples partitioning both sequences. Matched blocks
+    // become `equal`, gaps become insert/delete/replace.
     private static List<(string Tag, int I1, int I2, int J1, int J2)> GetOpcodes(
         IReadOnlyList<string> a, IReadOnlyList<string> b)
     {
@@ -198,8 +194,7 @@ public static partial class ProtoDiff
         return opcodes;
     }
 
-    // Returns matching blocks (aStart, bStart, length) of an LCS in increasing position order. DP table
-    // over the two line sequences, then a backtrack collapsing consecutive matched cells into blocks.
+    // Returns matching blocks (aStart, bStart, length) of an LCS in increasing position order.
     private static List<(int A, int B, int Size)> LongestCommonSubsequence(
         IReadOnlyList<string> a, IReadOnlyList<string> b)
     {

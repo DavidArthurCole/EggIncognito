@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A user-contributed endpoint response stored in Postgres, overlaying the file default for its
-// (path, eid) key. eid null means global. response_type is the proto type name for the dynamic
-// controller; it must match the route's response type.
+// A user-contributed endpoint response stored in Postgres, overlaying the file default for its (path, eid) key. Eid null means global.
 [Table("stored_endpoints")]
 public class StoredEndpoint
 {

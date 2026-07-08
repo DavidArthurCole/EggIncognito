@@ -12,10 +12,8 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
-// Backend for the capture dashboard + the runtime start/stop control. Routes under /api/capture.
-// Local resolves the single anonymous session (old singleton behavior, gated by CanCapture). Hosted
-// with HostedCaptureEnabled resolves the caller's own per-user session via the manager; everything
-// else stays a consistent 403.
+// Backend for the capture dashboard + the runtime start/stop control. Local resolves the single
+// anonymous session gated by CanCapture; Hosted resolves the caller's own per-user session.
 [ApiController]
 [Route("api/capture")]
 public sealed class CaptureController(
@@ -31,8 +29,8 @@ public sealed class CaptureController(
     private CaptureCredentialStore? Credentials =>
         services.GetService(typeof(CaptureCredentialStore)) as CaptureCredentialStore;
 
-    // Local: the anonymous local session when CanCapture, else the old 403. Hosted+enabled: own
-    // session only; 401 anonymous, 404 when none exists yet.
+    // Local: the anonymous local session when CanCapture. Hosted+enabled: own session only,
+    // 401 anonymous, 404 when none exists yet.
     private (CaptureSession? Session, IActionResult? Error) Resolve()
     {
         if (appMode.CanCapture)
@@ -162,16 +160,13 @@ public sealed class CaptureController(
         var result = await session.StartAsync(ct);
         if (result.FreshCa && store is not null)
             await PersistFreshCaAsync(session, store, currentUser.DiscordId, result.RootThumbprint, ct);
-        // DM the setup (CA profile + freshly-minted token) on every start, not just the first session:
-        // the token rotates per session and the user needs the install profile each time they set up a
-        // device. Best-effort; never fails the start.
+        // DM the setup (CA profile + token) on every start: the token rotates per session.
         await DeliverSetupAsync(session, currentUser.DiscordId, store, ct);
         return Ok(result);
     }
 
-    // Re-send the setup DM (CA profile + proxy address) on demand, without restarting the session. Hosted
-    // + authenticated + supporter only; mirrors Start's gates. 200 {sent:true} when delivered, else a
-    // notice is flagged on the session and {sent:false} is returned.
+    // Re-send the setup DM (CA profile + proxy address) on demand, without restarting the session.
+    // 200 {sent:true} when delivered, else a notice is flagged on the session and {sent:false}.
     [HttpPost("send-config")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> SendConfig(CancellationToken ct)
@@ -187,10 +182,8 @@ public sealed class CaptureController(
         return Ok(new { sent = !session.CaDmFailed });
     }
 
-    // DM the install profile + the user's per-user proxy address so the user never hunts for a download
-    // or copies a long token by hand. The front door identifies the user by destination address, so no
-    // token is minted; the proxy needs no credentials. Runs on every session start. Best-effort: a
-    // closed-DM or bot failure sets a session notice and never fails the start.
+    // DM the install profile + the user's per-user proxy address. Best-effort: a closed-DM or bot
+    // failure sets a session notice and never fails the start.
     private async Task DeliverSetupAsync(
         CaptureSession session, string discordId, CaptureCredentialStore? store, CancellationToken ct)
     {
@@ -217,8 +210,8 @@ public sealed class CaptureController(
             "caDmFailed", "Could not DM your setup; use the card below.", DateTime.Now.ToString("HH:mm:ss")));
     }
 
-    // Unobtanium reuses the root CA at {caDir}/.ca/root.pfx; restoring the stored pfx there before
-    // start means the user's device keeps trusting the same cert across sessions and hosts.
+    // Restoring the stored pfx to {caDir}/.ca/root.pfx keeps the device trusting the same cert
+    // across sessions and hosts.
     private static async Task RestoreCaAsync(
         CaptureSession session, CaptureCredentialStore? store, string discordId, CancellationToken ct)
     {
@@ -231,8 +224,7 @@ public sealed class CaptureController(
         await System.IO.File.WriteAllBytesAsync(pfxPath, ca.Pfx, ct);
     }
 
-    // A fresh mint means no stored CA matched; persist the pfx Unobtanium just wrote so the user
-    // installs the cert once, ever.
+    // A fresh mint means no stored CA matched; persist it so the user installs the cert once, ever.
     private static async Task PersistFreshCaAsync(
         CaptureSession session, CaptureCredentialStore store, string discordId,
         string? thumbprint, CancellationToken ct)
@@ -297,12 +289,11 @@ public sealed class CaptureController(
         {
             var path = session.SaveEndpoint(flow.Path, flow.Method, flow.Status, flow.RequestDataB64, flow.ResponseB64);
             if (path is null) return StatusCode(409, new { error = "capture not running or flow could not be decoded" });
-            session.Hub.MarkSaved(body.Id); // so a refresh does not re-prompt to save the same capture
+            session.Hub.MarkSaved(body.Id);
             return Ok(new { saved = path });
         }
 
-        // Hosted: supporters + contributors save to the shared DB store; file writes stay off
-        // (CanWrite remains false in Hosted).
+        // Hosted: supporters + contributors save to the shared DB store instead of a file.
         if (!currentUser.IsSupporter && !currentUser.IsAtLeast(UserRole.Contributor))
             return StatusCode(403, new { error = "supporter or contributor role required to save endpoints" });
         var db = services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
@@ -352,9 +343,7 @@ public sealed class CaptureController(
         return Ok(new { responseJson = r.Json, responseType = r.Type, known = r.Known });
     }
 
-    // The caller's per-user IPv6 proxy address. The front door identifies the user by destination
-    // address, so the proxy needs no username or password. Derived deterministically and persisted on
-    // first use.
+    // The caller's per-user IPv6 proxy address, derived deterministically and persisted on first use.
     [HttpGet("proxy-address")]
     public async Task<IActionResult> ProxyAddress(CancellationToken ct)
     {
@@ -366,8 +355,7 @@ public sealed class CaptureController(
         return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
 
-    // Mint a fresh random address, killing the old (possibly leaked) one. The old address immediately
-    // resolves to nobody, so the front door rejects it; the device must be reconfigured with the new one.
+    // Mint a fresh random address, killing the old (possibly leaked) one.
     [HttpPost("proxy-address/rotate")]
     public async Task<IActionResult> RotateProxyAddress(CancellationToken ct)
     {
@@ -379,7 +367,7 @@ public sealed class CaptureController(
     }
 
     // The caller's capture CA as a device-installable .cer. Prefers the live session's exported
-    // cert; falls back to the public half of the stored pfx.
+    // cert, falls back to the stored pfx.
     [HttpGet("ca.cer")]
     public async Task<IActionResult> DownloadCa(CancellationToken ct)
     {

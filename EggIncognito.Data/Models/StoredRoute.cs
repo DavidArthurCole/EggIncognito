@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A route definition mirrored into Postgres. source = "yaml" rows are seeded from the compiled route
-// catalog on boot, yaml staying authoritative; source = "db" rows are user-added new paths the dynamic
-// controller serves at runtime.
+// A route definition mirrored into Postgres. source="yaml" rows are seeded from the compiled route catalog on boot; source="db" rows are user-added paths the dynamic controller serves at runtime.
 [Table("stored_routes")]
 public class StoredRoute
 {

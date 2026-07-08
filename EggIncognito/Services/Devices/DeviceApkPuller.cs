@@ -2,10 +2,8 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-// Pulls the Egg Inc arm split APK off a plugged-in Android device, in-process via the IProcessRunner
-// seam (no dependency on EggIncognito.Runner). `pm path` lists the installed split paths; the arm split
-// carries the proto descriptors (the others are language/density resources). `adb pull` writes the file,
-// we read the bytes. Returns null on any failure so the caller can degrade rather than throw.
+// Pulls Egg Inc APK splits off a plugged-in Android device via adb. Returns null on any failure so the
+// caller can degrade rather than throw.
 public sealed class DeviceApkPuller(IProcessRunner runner)
 {
     public async Task<byte[]?> PullArmSplitAsync(string serial, string package, CancellationToken ct)
@@ -29,9 +27,7 @@ public sealed class DeviceApkPuller(IProcessRunner runner)
         }
     }
 
-    // Pulls the BASE split apk off the device. The arm split carries the proto descriptors; the 3D ship
-    // meshes (`assets/rpos/*.rpoz`) live in the base split instead, so mesh extraction needs this one, not
-    // PullArmSplitAsync's arm split. Returns the full base.apk zip bytes, or null on any failure.
+    // The 3D ship meshes (`assets/rpos/*.rpoz`) live in the base split, not the arm split.
     public async Task<byte[]?> PullBaseSplitAsync(string serial, string package, CancellationToken ct)
     {
         var pm = await runner.RunAsync("adb", ["-s", serial, "shell", "pm", "path", package], ct);
@@ -53,8 +49,7 @@ public sealed class DeviceApkPuller(IProcessRunner runner)
         }
     }
 
-    // `pm path` prints one `package:/data/app/.../split.apk` per line. Pick the split whose path contains
-    // "arm" (the native + descriptor payload); the proto carve needs that one, not base/resource splits.
+    // Picks the split whose path contains "arm" (the native + proto-descriptor payload).
     internal static string? SelectArmSplit(string pmPathOutput)
     {
         foreach (var raw in pmPathOutput.Split('\n'))
@@ -67,9 +62,7 @@ public sealed class DeviceApkPuller(IProcessRunner runner)
         return null;
     }
 
-    // Pick the base split: the apk named `base.apk`, or (single-apk installs) the only path when there is
-    // no split layout. The base split holds the app's `assets/` (where the ship meshes are), unlike the
-    // arm/config splits which carry only native libs / locale resources.
+    // Picks the apk named `base.apk`, or the only path when there is no split layout.
     internal static string? SelectBaseSplit(string pmPathOutput)
     {
         string? only = null;
@@ -82,6 +75,6 @@ public sealed class DeviceApkPuller(IProcessRunner runner)
             if (path.EndsWith("/base.apk", StringComparison.OrdinalIgnoreCase)) return path;
             only = path; count++;
         }
-        return count == 1 ? only : null; // single-apk install: that one is the base
+        return count == 1 ? only : null;
     }
 }

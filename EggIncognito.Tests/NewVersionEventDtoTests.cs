@@ -48,8 +48,7 @@ public class NewVersionEventDtoTests
     [Fact]
     public void Deserialize_OldEmitter_OmitsNewFields()
     {
-        // Old farm emitters send only the legacy single version; the new fields stay absent (null/empty)
-        // and appVersion falls back to version at ingest time.
+        // Legacy emitters send only the single version field; the new fields stay null/empty.
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"version":"1.34","build":"","clientVersion":null}""");
         Assert.Equal("1.34", e!.Version);

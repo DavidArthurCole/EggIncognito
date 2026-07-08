@@ -2,16 +2,13 @@ using System.Threading.Channels;
 
 namespace EggIncognito.Capture;
 
-// In-memory broker between the capture proxy and the dashboard browsers.
-// The proxy raises flows + connection/error events on its own threads; SSE subscribers are served on
-// request threads. So all mutable state is guarded by a lock, and each subscriber gets its own bounded
-// Channel of CaptureEnvelope - a slow or stalled browser drops its oldest queued messages instead of
-// blocking the proxy.
-// One SSE stream carries three message kinds via CaptureEnvelope: "flow", "stats", and "notice".
-// Designed to live behind a DI singleton so the controller and the capture loop share one hub.
+// In-memory broker between the capture proxy and the dashboard browsers. The proxy raises flows +
+// connection/error events on its own threads; all mutable state is guarded by a lock, and each
+// subscriber gets its own bounded Channel of CaptureEnvelope so a stalled browser drops oldest queued
+// messages instead of blocking the proxy.
 public sealed class CaptureHub
 {
-    private const int BufferCap = 500; // recent flows kept for snapshot/reconnect
+    private const int BufferCap = 500;
     private const int SubscriberQueueCap = 256;
     private const string KindFlow = "flow";
     private const string KindStats = "stats";
@@ -46,9 +43,8 @@ public sealed class CaptureHub
     private bool _sawAuxbrainConnect;
     private CertState _certState = CertState.Waiting;
 
-    // When paused, Publish records nothing and broadcasts no flow - dashboard view only; the proxy
-    // keeps tunneling and the endpoint/HAR pipeline is governed separately. Stats/connection events
-    // still update so the cert pill and device info stay accurate while paused.
+    // When paused, Publish records nothing and broadcasts no flow. Stats/connection events still
+    // update so the cert pill and device info stay accurate while paused.
     public bool Paused { get; set; }
 
     // Stamp Id/Timestamp, buffer, update stats, broadcast. Returns stored flow or null if paused.
@@ -108,8 +104,6 @@ public sealed class CaptureHub
             if (stored is not null) ch.Writer.TryWrite(new CaptureEnvelope(KindFlow, stored, null, null));
             if (trustNotice is not null) ch.Writer.TryWrite(new CaptureEnvelope(KindNotice, null, null, trustNotice));
         }
-        // A published flow changes the stats (count, bytes, endpoints, decrypt tally), so always rebroadcast
-        // them, not just on the first-trust notice. Without this the stats panel froze after the first flow.
         if (isAuxbrain || trustNotice is not null) BroadcastStats();
 
         return stored;
@@ -123,9 +117,6 @@ public sealed class CaptureHub
         lock (_gate)
         {
             _activeConnections = activeCount;
-            // A TCP device connect does not tell us whether the cert is trusted - the TLS handshake has
-            // not been attempted yet. Leave cert state as Waiting until a flow actually decrypts, going
-            // Trusted, or a decrypt error fires, going Untrusted.
             if (!string.IsNullOrEmpty(ip))
             {
                 if (!_devices.TryGetValue(ip, out var dev))
@@ -171,9 +162,7 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    // Best-effort reverse-DNS for a device IP, off the hot path. Fills the device's Hostname if it
-    // resolves and is not just the IP echoed back. Failures are silently ignored - RDNS on a LAN is
-    // unreliable and a missing hostname is fine.
+    // Best-effort reverse-DNS for a device IP, off the hot path. Failures are silently ignored.
     private async Task ResolveHostnameAsync(string ip)
     {
         string? host = null;
@@ -182,7 +171,7 @@ public sealed class CaptureHub
             var entry = await System.Net.Dns.GetHostEntryAsync(ip);
             if (!string.IsNullOrEmpty(entry.HostName) && entry.HostName != ip) host = entry.HostName;
         }
-        catch { /* no PTR record or lookup failed - leave hostname null */ }
+        catch { /* no PTR record or lookup failed */ }
 
         if (host is null) return;
         lock (_gate) { if (_devices.TryGetValue(ip, out var dev)) dev.Hostname = host; }
@@ -190,9 +179,7 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    // An auxbrain CONNECT was seen; the device is trying to reach the API. This alone does not prove
-    // the cert is untrusted - the decrypt may still succeed. We only record that we saw it; a later
-    // decrypt error with no successful flow is what flips the state to Untrusted.
+    // Seeing a CONNECT alone does not prove the cert is untrusted; a later decrypt error is what flips state.
     public void RecordAuxbrainConnect()
     {
         lock (_gate) _sawAuxbrainConnect = true;
@@ -206,7 +193,6 @@ public sealed class CaptureHub
         {
             _decryptErrors++;
             _lastError = message;
-            // Only downgrade to Untrusted if we have not already proven trust this session.
             if (_certState != CertState.Trusted && (_sawAuxbrainConnect || _activeConnections > 0))
                 _certState = CertState.Untrusted;
         }
@@ -232,8 +218,6 @@ public sealed class CaptureHub
         foreach (var (k, v) in _bytesByEndpoint)
             if (v > biggestBytes) { biggest = k; biggestBytes = v; }
 
-        // Attribute the session OS/version only when a single device is connected; otherwise we cannot
-        // tell which device it came from, since the flow path sees loopback not the device IP.
         var single = _devices.Count == 1;
         var live = _devices.Values
             .OrderBy(d => d.FirstSeen, StringComparer.Ordinal)
@@ -362,8 +346,7 @@ public sealed class CaptureHub
         }
     }
 
-    // Mark a buffered flow as saved-as-endpoint and re-broadcast it, so the dashboard and any other
-    // open tab shows it as saved and a refresh, which replays the buffer, does not re-prompt.
+    // Mark a buffered flow as saved-as-endpoint and re-broadcast it so open tabs stay in sync.
     public void MarkSaved(long id)
     {
         DashboardFlow? updated = null;
@@ -379,8 +362,6 @@ public sealed class CaptureHub
         if (updated is not null) Broadcast(new CaptureEnvelope(KindFlow, updated, null, null));
     }
 
-    // True if at least one dashboard SSE client is currently connected. Used by the launcher to avoid
-    // opening a duplicate browser tab when a page from a prior run is already attached.
     public bool HasSubscribers { get { lock (_gate) return _subscribers.Count > 0; } }
 
     // Set by CaptureSession on start/stop; pushed on stats so the running pill stays live.
@@ -392,8 +373,7 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    // Push a one-off notice to every dashboard (toast + notification center). Used for out-of-band
-    // events the proxy itself does not raise, e.g. a failed CA Discord DM at session start.
+    // Push a one-off notice to every dashboard, e.g. a failed CA Discord DM at session start.
     public void PostNotice(CaptureEvent notice) =>
         Broadcast(new CaptureEnvelope(KindNotice, null, null, notice));
 

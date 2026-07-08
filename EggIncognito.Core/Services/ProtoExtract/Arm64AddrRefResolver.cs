@@ -3,17 +3,11 @@ using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Resolves a function's VA on a STRIPPED binary by finding the function that materializes a known target address.
-//
-// The case: content-hash recovery (SymbolRecovery v2) recovers functions whose BODY is byte-stable across the
-// adjacent versions. When addParticle's body changed but an associated closure/lambda inside it did NOT (the
-// lambda recovered with a VA), we can still pin addParticle: it is the function that takes the lambda's address
-// (adrp+add -> the lambda VA, to install it into a std::function). So scan every device function (boundaries from
-// LC_FUNCTION_STARTS, which survives stripping), disassemble it, track adrp+add page math, and return the
-// function-start whose body resolves the target VA. That start = the referencing function = addParticle.
-//
-// More generally this finds "who references address X", the inverse of a call-target lookup. Pure, over capstone,
-// defensive (DllNotFound / malformed -> empty). Binary not executed.
+// Resolves a function's VA on a STRIPPED binary by finding the function that materializes a known target
+// address: scans every device function (boundaries from LC_FUNCTION_STARTS, which survives stripping),
+// disassembles it, tracks adrp+add page math, and returns the function-start whose body resolves the
+// target VA. Generally: finds "who references address X", the inverse of a call-target lookup.
+// Pure, over capstone, defensive (DllNotFound / malformed -> empty). Binary not executed.
 public static class Arm64AddrRefResolver
 {
     public readonly record struct Ref(ulong FunctionVa, ulong ReferencedVa, int HitCount);

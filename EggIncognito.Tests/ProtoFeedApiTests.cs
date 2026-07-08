@@ -8,9 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EggIncognito.Tests;
 
 // Unit-level coverage of the create endpoint over a stub IServiceProvider + IHttpClientFactory, so the
-// shape is asserted without a live DB. The 503 path runs with no FeedSubscriptionStore in the provider.
-// The bad/empty-URL 400 paths short-circuit before any store query, so a never-connected store stands in;
-// they hold whether or not a DB is configured.
+// shape is asserted without a live DB.
 public class ProtoFeedApiTests
 {
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler

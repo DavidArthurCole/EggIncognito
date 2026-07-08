@@ -3,10 +3,8 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Components.Capture;
 
-// Parsed model behind JsonTree.razor, ported from tree.js. The JS lazy-built children on first expand;
-// here the whole value is parsed once into TreeNode records and the component renders only expanded
-// branches, which gives the same responsiveness without DOM-mutation bookkeeping. Expansion + search
-// dim/match flags are mutable per node.
+// Parsed model behind JsonTree.razor: the whole value is parsed once into TreeNode records and the
+// component renders only expanded branches. Expansion + search dim/match flags are mutable per node.
 public sealed class TreeNode
 {
     public const int DefaultDepth = 1;

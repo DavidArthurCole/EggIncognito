@@ -1,7 +1,6 @@
 /** @type {import('tailwindcss').Config} */
-// Design tokens for EggIncognito, mirroring the current CSS-var palette so a later markup migration to
-// utility classes produces the SAME colors. `content` is scanned for class names; unused utilities are
-// dropped from the output (the compile-time "did you use it" win).
+// Design tokens mirror the existing CSS-var palette. `content` is scanned for class names;
+// unused utilities are dropped from the output.
 module.exports = {
   content: [
     "./Components/**/*.razor",
@@ -11,9 +10,7 @@ module.exports = {
   // The API console builds method-chip classes dynamically (console-@(verb)), so the scanner never sees the
   // literal names; safelist them so the @layer-components rules survive the purge.
   safelist: ["console-get", "console-post", "console-put", "console-patch", "console-delete"],
-  // Preflight (Tailwind's CSS reset) is OFF for Phase 1: the compiled sheet is ADDITIVE alongside the
-  // legacy per-tab CSS, and a reset would restyle existing elements (a visual regression). Re-enable in
-  // a later phase once the legacy CSS is being removed.
+  // Preflight (Tailwind's CSS reset) is off: the compiled sheet is additive alongside legacy per-tab CSS.
   corePlugins: { preflight: false },
   theme: {
     extend: {

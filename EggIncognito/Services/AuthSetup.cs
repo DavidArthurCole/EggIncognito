@@ -1,31 +1,31 @@
 using System.Security.Claims;
 using AspNet.Security.OAuth.Discord;
+using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using SyncKit.Identity.Client;
 
 namespace EggIncognito.Services;
 
-// Wires cookie + Discord OAuth, but only when a DB is configured and both Discord credentials are
-// present. Returns whether auth was wired so Program.cs can guard the auth middleware + endpoints.
-// When false the app runs fully anonymous: login 404s, /api/app/mode reports authEnabled:false.
+// Wires cookie + Discord OAuth, but only when the SyncKit.Identity API is configured and both Discord
+// credentials are present. Returns whether auth was wired so Program.cs can guard the auth middleware
+// and endpoints. When false the app runs fully anonymous.
 public static class AuthSetup
 {
-    // Shared by both cookie registrations below. Only Authentik-originated tickets carry a sid claim
-    // (stamped in OnTicketReceived), so a Discord-only session has nothing to look up and is a no-op
-    // here; this is what makes back-channel logout (SessionRevocationStore) take effect immediately
-    // instead of waiting for the 30-day cookie to expire on its own.
+    // Shared by both cookie registrations below. Only Authentik-originated tickets carry a sid claim,
+    // so a Discord-only session is a no-op here; this makes back-channel logout take effect immediately
+    // instead of waiting for the 30-day cookie to expire.
     private static async Task ValidateNotRevoked(CookieValidatePrincipalContext ctx)
     {
         var sid = ctx.Principal?.FindFirstValue("sid");
         if (string.IsNullOrEmpty(sid)) return;
-        var store = ctx.HttpContext.RequestServices.GetService<SessionRevocationStore>();
-        if (store is null) return;
-        if (await store.IsRevokedAsync(sid, ctx.HttpContext.RequestAborted))
+        var identity = ctx.HttpContext.RequestServices.GetService<IdentityApiClient>();
+        if (identity is null) return;
+        if (await identity.IsRevokedAsync(sid, ctx.HttpContext.RequestAborted))
         {
             ctx.RejectPrincipal();
             await ctx.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -33,11 +33,11 @@ public static class AuthSetup
     }
 
 
-    public static bool AddDiscordAuthIfConfigured(this WebApplicationBuilder builder, bool dbEnabled)
+    public static bool AddDiscordAuthIfConfigured(this WebApplicationBuilder builder, bool identityApiEnabled)
     {
         var clientId = builder.Configuration["Discord:ClientId"];
         var clientSecret = builder.Configuration["Discord:ClientSecret"];
-        if (!dbEnabled || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
+        if (!identityApiEnabled || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
             return false;
 
         // IHttpContextAccessor is registered unconditionally in Program.cs; not repeated here.
@@ -67,10 +67,22 @@ public static class AuthSetup
                 o.Events.OnCreatingTicket = async ctx =>
                 {
                     if (ctx.Properties is not null) ctx.Properties.IsPersistent = true;
-                    await UserUpsert.OnLoginAsync(ctx);
+
+                    var discordId = ctx.Principal?.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+                    var username = ctx.Principal?.FindFirstValue(ClaimTypes.Name) ?? "";
+                    var avatar = ctx.Principal?.FindFirstValue("urn:discord:avatar:hash");
+                    if (!string.IsNullOrEmpty(discordId))
+                    {
+                        var identityClient = ctx.HttpContext.RequestServices.GetRequiredService<IdentityApiClient>();
+                        var result = await identityClient.ResolveAsync(
+                            "discord", discordId, discordId, username, avatar, ctx.HttpContext.RequestAborted);
+                        var claimsIdentity = ctx.Identity;
+                        claimsIdentity?.AddClaim(new Claim(UserRoles.ClaimType, result.Role));
+                        claimsIdentity?.AddClaim(new Claim(AuthClaims.UserIdClaim, result.UserId.ToString()));
+                    }
+
                     // Fail-closed: stamp false on any check failure; login still succeeds.
                     var checker = ctx.HttpContext.RequestServices.GetRequiredService<SupporterStatus>();
-                    var discordId = ctx.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
                     var isSupporter = !string.IsNullOrEmpty(discordId)
                         && await checker.CheckAsync(discordId, ctx.HttpContext.RequestAborted);
                     SupporterClaims.Stamp(ctx.Identity, isSupporter);
@@ -88,25 +100,20 @@ public static class AuthSetup
     }
 
     // Adds Authentik as a second, additive OIDC challenge scheme signing into the same cookie as
-    // Discord. No-op (returns false, wires nothing) when Authentik:Authority/ClientId/ClientSecret
-    // are unset, so a deploy with no Authentik app/provider configured yet behaves exactly as
-    // before. Independently safe to run whether or not AddDiscordAuthIfConfigured ran first: if
-    // Discord didn't register the cookie scheme (unconfigured, or this runs standalone in a test),
-    // this method registers it itself so Authentik's SignInScheme has somewhere to land. If Discord
-    // DID already register "Cookies", this must NOT call AddCookie again (ASP.NET Core throws on
-    // duplicate scheme names), so the registration is gated on the same two config keys
-    // AddDiscordAuthIfConfigured itself gates on.
-    public static bool AddAuthentikAuthIfConfigured(this WebApplicationBuilder builder, bool dbEnabled)
+    // Discord. No-op when Authentik:Authority/ClientId/ClientSecret are unset. Safe to run whether or
+    // not AddDiscordAuthIfConfigured ran first: registers the cookie scheme itself only if Discord
+    // didn't already (ASP.NET Core throws on duplicate scheme names).
+    public static bool AddAuthentikAuthIfConfigured(this WebApplicationBuilder builder, bool identityApiEnabled)
     {
         var authority = builder.Configuration["Authentik:Authority"];
         var clientId = builder.Configuration["Authentik:ClientId"];
         var clientSecret = builder.Configuration["Authentik:ClientSecret"];
-        if (!dbEnabled || string.IsNullOrWhiteSpace(authority) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
+        if (!identityApiEnabled || string.IsNullOrWhiteSpace(authority) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
             return false;
 
         var discordClientId = builder.Configuration["Discord:ClientId"];
         var discordClientSecret = builder.Configuration["Discord:ClientSecret"];
-        var discordRegisteredCookie = dbEnabled && !string.IsNullOrWhiteSpace(discordClientId) && !string.IsNullOrWhiteSpace(discordClientSecret);
+        var discordRegisteredCookie = identityApiEnabled && !string.IsNullOrWhiteSpace(discordClientId) && !string.IsNullOrWhiteSpace(discordClientSecret);
 
         var authBuilder = builder.Services.AddAuthentication(o =>
         {
@@ -116,8 +123,7 @@ public static class AuthSetup
         });
         if (!discordRegisteredCookie)
         {
-            // Discord didn't register the cookie scheme (either unconfigured or this method ran
-            // standalone in a test): register it here so Authentik has somewhere to sign in to.
+            // Discord didn't register the cookie scheme, so register it here for Authentik to sign in to.
             authBuilder.AddCookie(o =>
             {
                 o.ExpireTimeSpan = TimeSpan.FromDays(30);
@@ -136,15 +142,11 @@ public static class AuthSetup
             o.ClientSecret = clientSecret!;
             o.ResponseType = OpenIdConnectResponseType.Code;
             o.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-            // Distinct from the /auth login-start route (AuthController.AuthentikLogin): the OIDC
-            // middleware intercepts every request to CallbackPath before MVC routing runs, so
-            // reusing /auth made the initial "start login" hit get treated as an invalid callback
-            // (no code/state) and redirected via OnRemoteFailure before the controller ever ran.
+            // Distinct from the /auth login-start route: the OIDC middleware intercepts every request
+            // to CallbackPath before MVC routing runs, so reusing /auth breaks the initial login hit.
             o.CallbackPath = "/auth-callback";
-            // Authentik's default response_mode is form_post: the browser POSTs the code/state back
-            // cross-site from the Authentik origin. A Lax-default correlation/nonce cookie is not
-            // sent on a cross-site POST (only top-level GET navigation), so state/PKCE validation
-            // fails before OnTicketReceived ever runs - the exact silent OnRemoteFailure this app saw.
+            // Authentik's default response_mode is form_post (cross-site POST), and a Lax-default
+            // correlation/nonce cookie is not sent on that, so state/PKCE validation fails without None.
             o.CorrelationCookie.SameSite = SameSiteMode.None;
             o.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
             o.NonceCookie.SameSite = SameSiteMode.None;
@@ -155,13 +157,10 @@ public static class AuthSetup
             o.Scope.Add("email");
             o.Scope.Add("discord_id");
             // Without this, the handler's default inbound claim map silently renames "sub" to
-            // ClaimTypes.NameIdentifier (an XML-schema URI) before OnTicketReceived ever sees the
-            // principal, so every FindFirstValue("sub") below returns null. All the raw claim-name
-            // lookups elsewhere in this file (sid, discord_id, preferred_username) only work
-            // unmapped, so keep every claim under its original JWT/userinfo name.
+            // ClaimTypes.NameIdentifier before OnTicketReceived sees the principal, breaking the raw
+            // claim-name lookups elsewhere in this file (sid, discord_id, preferred_username).
             o.MapInboundClaims = false;
-            // Needed so /logout can pass id_token_hint to Authentik's RP-initiated end-session
-            // endpoint; without it Authentik leaves the IdP-side session alive after a local logout.
+            // Needed so /logout can pass id_token_hint to Authentik's RP-initiated end-session endpoint.
             o.SaveTokens = true;
             o.GetClaimsFromUserInfoEndpoint = true;
             o.Events.OnTicketReceived = async ctx =>
@@ -179,29 +178,19 @@ public static class AuthSetup
                     return;
                 }
                 var discordId = principal.FindFirstValue("discord_id");
-                var sp = ctx.HttpContext.RequestServices;
-                var resolver = sp.GetRequiredService<AuthentikIdentityResolver>();
-                var userId = await resolver.ResolveAsync(sub, discordId, ctx.HttpContext.RequestAborted);
-
-                // Stamp the resolved user's stored role/username so an Authentik login carries the
-                // same authority + display name a Discord login would, instead of reverting to a
-                // rightless, nameless viewer. The default inbound claim mapping already puts sub
-                // under NameIdentifier, so an auto-linked discordId must replace it, not add
-                // alongside it, or FindFirstValue(NameIdentifier) keeps returning sub.
-                var db = sp.GetRequiredService<EggIncognitoDbContext>();
-                var user = await db.Users.FirstAsync(u => u.UserId == userId, ctx.HttpContext.RequestAborted);
                 var preferredUsername = principal.FindFirstValue("preferred_username") ?? principal.FindFirstValue(ClaimTypes.Name);
-                if (string.IsNullOrEmpty(user.Username) && !string.IsNullOrEmpty(preferredUsername))
-                {
-                    user.Username = preferredUsername;
-                    await db.SaveChangesAsync(ctx.HttpContext.RequestAborted);
-                }
+                var sp = ctx.HttpContext.RequestServices;
+                var identityClient = sp.GetRequiredService<IdentityApiClient>();
+                var result = await identityClient.ResolveAsync(
+                    "authentik", sub, discordId, preferredUsername, avatar: null, ctx.HttpContext.RequestAborted);
 
+                // The default inbound claim mapping already puts sub under NameIdentifier, so an
+                // auto-linked discordId must replace it, not add alongside it.
                 var identity = (ClaimsIdentity)principal.Identity!;
-                identity.AddClaim(new Claim(AuthClaims.UserIdClaim, userId.ToString()));
-                UserUpsert.StampRoleClaim(identity, user.Role);
-                // sid identifies this OIDC session; carried into the app cookie so a later Authentik
-                // back-channel logout (which only knows the sid, not our cookie) can be matched to it.
+                identity.AddClaim(new Claim(AuthClaims.UserIdClaim, result.UserId.ToString()));
+                identity.AddClaim(new Claim(UserRoles.ClaimType, result.Role));
+                // sid identifies this OIDC session, carried into the app cookie so a later Authentik
+                // back-channel logout (which only knows the sid) can be matched to it.
                 var sid = principal.FindFirstValue("sid");
                 if (!string.IsNullOrEmpty(sid))
                     identity.AddClaim(new Claim("sid", sid));
@@ -228,9 +217,7 @@ public static class AuthSetup
                 return Task.CompletedTask;
             };
         });
-        // Safe to call alongside Discord's own AddAuthorization(): ASP.NET Core's authorization
-        // service registration is add-if-missing, not additive, so this is a no-op when Discord
-        // already registered it and the only registration when Authentik runs standalone.
+        // Safe alongside Discord's own AddAuthorization(): registration is add-if-missing, not additive.
         builder.Services.AddAuthorization();
         return true;
     }

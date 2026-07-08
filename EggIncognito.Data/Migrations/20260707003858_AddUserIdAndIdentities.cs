@@ -11,12 +11,8 @@ namespace EggIncognito.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // `users` and `identities` are shared with EggLedger on the same Postgres instance.
-            // EggLedger's own migration (8_identities.up.sql) does this exact repoint with raw,
-            // idempotent SQL; whichever app boots first performs it for real, the other must see
-            // a no-op. Every step below is therefore guarded (IF EXISTS / IF NOT EXISTS) instead
-            // of using EF's DropPrimaryKey/AddColumn helpers, which assume a fixed starting state
-            // and blow up (or duplicate work) if the other app already got there.
+            // `users`/`identities` are shared with EggLedger on the same Postgres instance and its
+            // migration does this same repoint: every step is guarded (IF EXISTS/IF NOT EXISTS) so whichever app boots first wins and the other no-ops.
             migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS pgcrypto;");
 
             migrationBuilder.Sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS user_id UUID NOT NULL DEFAULT gen_random_uuid();");
@@ -49,9 +45,7 @@ namespace EggIncognito.Data.Migrations
                 WHERE capture_user_cas.discord_id = u.discord_id AND capture_user_cas.user_id IS NULL;");
             migrationBuilder.Sql("ALTER TABLE capture_user_cas ALTER COLUMN user_id SET NOT NULL;");
 
-            // EggLedger's sessions/blobs tables FK discord_id -> users(discord_id); Postgres
-            // refuses to drop the old PK while either still references it. Drop defensively:
-            // if EggLedger already repointed them to user_id, these are already gone.
+            // EggLedger's sessions/blobs tables FK discord_id -> users(discord_id); drop defensively since Postgres refuses to drop the old PK while either still references it.
             migrationBuilder.Sql("ALTER TABLE IF EXISTS sessions DROP CONSTRAINT IF EXISTS sessions_discord_id_fkey;");
             migrationBuilder.Sql("ALTER TABLE IF EXISTS blobs DROP CONSTRAINT IF EXISTS blobs_discord_id_fkey;");
 
@@ -87,10 +81,7 @@ namespace EggIncognito.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // No-op: `users`/`identities` are shared with EggLedger, which owns the same repoint
-            // via its own migration and has no down path either. Reversing the PK/FK swap here
-            // would fight whichever app performed it and risk dropping data (sessions/blobs/
-            // el_* rows) that only EggLedger's Down (if any) should ever touch.
+            // No-op: `users`/`identities` are shared with EggLedger, which owns the same repoint and has no down path either.
         }
     }
 }

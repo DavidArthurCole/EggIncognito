@@ -4,14 +4,11 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Components.Capture;
 
-// Format converters for the request/response data sections, ported from wwwroot/capture/format.js. The
-// decoded proto arrives as a JSON string; these render it in alternate shapes. Hex/Bin operate on the
-// raw on-the-wire bytes (base64-decoded), the only meaningful binary view.
+// Format converters for the request/response data sections. The decoded proto arrives as a JSON string;
+// these render it in alternate shapes. Hex/Bin operate on the raw on-the-wire bytes (base64-decoded).
 public static class CaptureFormat
 {
-    // Formats that render the decoded JSON value.
     public static readonly string[] JsonFormats = ["json-tree", "json", "yaml", "xml", "js"];
-    // Formats that render the raw wire bytes (base64-decoded).
     public static readonly string[] ByteFormats = ["hex", "bin"];
 
     public static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>
@@ -31,8 +28,8 @@ public static class CaptureFormat
 
     static bool IsContainer(JsonNode? v) => v is JsonObject or JsonArray;
 
-    // Render the decoded-JSON string into the chosen text format. Returns the text, or the input on a
-    // parse failure; json-tree is rendered by the tree component, not here.
+    // Renders the decoded-JSON string into the chosen text format. json-tree is rendered by the tree
+    // component, not here.
     public static string JsonToText(string? jsonStr, string fmt)
     {
         if (string.IsNullOrEmpty(jsonStr)) return "";
@@ -50,8 +47,6 @@ public static class CaptureFormat
 
     static string Reserialize(JsonNode? value) =>
         value?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "null";
-
-    // JSON -> YAML
 
     public static string ToYaml(JsonNode? value, int indent)
     {
@@ -100,8 +95,6 @@ public static class CaptureFormat
         return v.ToJsonString();
     }
 
-    // JSON -> XML
-
     public static string ToXml(JsonNode? value, string root) => $"<{root}>{XmlBody(value)}</{root}>";
 
     static string XmlBody(JsonNode? value)
@@ -133,7 +126,6 @@ public static class CaptureFormat
     static string XmlEscape(string s) =>
         s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 
-    // Pretty-print the compact XML produced above with indentation.
     public static string PrettyXml(string xml)
     {
         var sb = new StringBuilder();
@@ -149,8 +141,6 @@ public static class CaptureFormat
         }
         return sb.ToString().Trim();
     }
-
-    // JSON -> JS object literal
 
     public static string ToJsLiteral(JsonNode? value, int indent)
     {
@@ -181,8 +171,6 @@ public static class CaptureFormat
         v.TryGetValue(out string? s) && s is not null ? s : v.ToJsonString();
 
     static string JsonString(string s) => JsonSerializer.Serialize(s);
-
-    // bytes -> hex / binary
 
     // Tolerant base64 -> bytes: handles form-mangled '+' (space) and missing padding.
     public static byte[] BytesFromBase64(string? b64)
@@ -226,7 +214,6 @@ public static class CaptureFormat
         return string.Join("\n", lines);
     }
 
-    // Render the raw wire bytes (from base64) into the chosen byte format.
     public static string BytesToText(string? b64, string fmt)
     {
         var bytes = BytesFromBase64(b64);

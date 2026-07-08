@@ -61,10 +61,8 @@ public sealed class ProtoReflection : IProtoReflection
         return (descriptor, parser);
     }
 
-    // Cached: every top-level concrete IMessage type in the Ei assembly, by short name, sorted. Only
-    // top-level types are included (DeclaringType == null) so every listed name resolves through
-    // ClrType("Ei." + name). Nested message types are not resolvable by that path and are covered by
-    // documenting their parent.
+    // Cached: every top-level concrete IMessage type in the Ei assembly, by short name, sorted. Only top-level
+    // types are included so every listed name resolves through ClrType("Ei." + name).
     private static readonly Lazy<IReadOnlyList<string>> AllNames = new(() =>
         EiAssembly.GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false, DeclaringType: null }

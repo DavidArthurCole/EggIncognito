@@ -30,8 +30,7 @@ public static class Program
 
         Directory.CreateDirectory(apkStash);
 
-        // Graceful shutdown: SIGTERM (systemctl stop/restart) and Ctrl+C cancel the poll loop so the
-        // process exits promptly instead of waiting for systemd's 90s kill timeout.
+        // SIGTERM/Ctrl+C cancel the poll loop so the process exits promptly instead of waiting for systemd's kill timeout.
         using var shutdown = new CancellationTokenSource();
         using var sigterm = System.Runtime.InteropServices.PosixSignalRegistration.Create(
             System.Runtime.InteropServices.PosixSignal.SIGTERM, ctx => { ctx.Cancel = true; shutdown.Cancel(); });
@@ -77,10 +76,7 @@ public static class Program
                 new CSharpProtoExtractor(), clientVersion, cvState,
                 evt => poster.PostAsync(evt));
             trigger = TriggerListener.Build(triggerUrls, handler, extractHandler);
-            // Start without handing SIGTERM to the web host's lifetime. StartAsync (not RunAsync) means we
-            // own shutdown: the host won't install its own ConsoleLifetime signal handler to race ours, and
-            // we explicitly stop it below. RunAsync left the host un-awaited and competing for SIGTERM,
-            // which is why shutdown stalled to systemd's kill timeout.
+            // StartAsync (not RunAsync) keeps the host from installing its own SIGTERM handler to race ours.
             await trigger.StartAsync(ct);
             Console.WriteLine($"resync trigger listening on {triggerUrls}");
         }
@@ -90,9 +86,7 @@ public static class Program
         {
             try
             {
-                // RunOnce is synchronous and ct-blind (adb poll / APK download / proto extract). Run it on a
-                // worker and race it against cancellation so SIGTERM returns control to the loop immediately
-                // instead of waiting for an in-flight tick to finish.
+                // RunOnce is synchronous and ct-blind; race it against cancellation so SIGTERM returns control immediately.
                 var tick = Task.Run(() => runner.RunOnce(force: false));
                 var done = await Task.WhenAny(tick, Task.Delay(Timeout.Infinite, ct));
                 if (done != tick) break;
@@ -110,11 +104,9 @@ public static class Program
         Console.WriteLine("runner shutting down");
         if (trigger is not null)
         {
-            // Stop the listener with a bounded timeout so a hung in-flight request can't outlive the unit's
-            // TimeoutStopSec. The cgroup SIGKILL backstops anything still stuck after this.
             using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             try { await trigger.StopAsync(stopCts.Token); }
-            catch (OperationCanceledException) { /* forced kill backstops a stuck host */ }
+            catch (OperationCanceledException) { }
         }
         return 0;
     }

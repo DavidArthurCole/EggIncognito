@@ -213,8 +213,7 @@ else
     }
 
     // Subscribe to the hub and consume its channel on a background loop. Hub events fire on the proxy's
-    // threads, NOT the circuit's sync context, so every UI mutation is marshaled via InvokeAsync; we
-    // never call StateHasChanged directly from this loop.
+    // threads, not the circuit's sync context, so every UI mutation is marshaled via InvokeAsync.
     void StartSubscription()
     {
         if (_session is null) return;

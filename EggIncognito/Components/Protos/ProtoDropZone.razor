@@ -1,7 +1,6 @@
 @* Drag/drop or pick an .ipa/.apk and extract its proto on the spot (ephemeral, nothing persisted).
-   Mirrors the Import dropzone: native InputFile + multipart self-call streaming the file to the public
-   /api/tools/extract-proto read tool, so large (50-90MB) binaries do not cross the SignalR circuit.
-   Emits the result up to the page. *@
+   Multipart self-call streams the file to the public /api/tools/extract-proto read tool, so large
+   binaries do not cross the SignalR circuit. *@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @using System.Net.Http.Json

@@ -16,9 +16,8 @@ public static class AuxbrainHosts
 
     /// <summary>True for *.auxbrain.com, auxbrainhome.appspot.com, and its Google App Engine
     /// "&lt;service&gt;-dot-auxbrainhome.appspot.com" subdomains. Rejects look-alikes such as
-    /// "auxbrainhome.appspot.com.evil.com" and "evil.com-dot-auxbrainhome.appspot.com".
-    /// Accepts an authority too: a ":port" suffix or IPv6 brackets are normalized away, so callers
-    /// can pass uri.Host or a CONNECT target ("www.auxbrain.com:443") without stripping it first.</summary>
+    /// "auxbrainhome.appspot.com.evil.com". Accepts an authority too (a ":port" suffix or IPv6 brackets
+    /// are normalized away), so callers can pass uri.Host or a CONNECT target directly.</summary>
     public static bool IsAuxbrain(string host)
     {
         host = NormalizeHost(host);
@@ -46,9 +45,8 @@ public static class AuxbrainHosts
     }
 
     /// <summary>Reduce an authority to its bare host: "host:port" -> "host", "[v6]" / "[v6]:port" ->
-    /// "v6". Anything with a '/' is a URL fragment, not a host, and normalizes to "" (never matches),
-    /// as does anything malformed (unclosed bracket, multiple unbracketed colons). The single place
-    /// host:port handling lives; callers must not pre-strip.</summary>
+    /// "v6". Anything with a '/' or malformed (unclosed bracket, multiple unbracketed colons) normalizes
+    /// to "" (never matches).</summary>
     public static string NormalizeHost(string authority)
     {
         if (string.IsNullOrEmpty(authority) || authority.Contains('/')) return "";

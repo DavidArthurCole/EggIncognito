@@ -3,16 +3,12 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.Backfill.Sources;
 
-// The APK-download seam, so the auto-updater can be unit-tested against a fake without a real HTTP fetch.
 public interface IApkDownloader
 {
     Task<byte[]?> DownloadApkAsync(string appVersion, CancellationToken ct = default);
 }
 
-// APKPure versions page (android). Two roles: the list source (appVersion + release date) and the
-// APK-download source feeding the on-demand extract path. Base URL is a ctor-overridable default so the
-// .net mirror reuses the same parser. Parse is pure + resilient. DownloadApkAsync is a thin real GET,
-// integration-only (not unit-tested).
+// APKPure versions page (android): list source (appVersion + release date) plus APK-download source.
 public sealed partial class ApkPureSource(IHttpClientFactory httpFactory, ILogger<ApkPureSource> logger)
     : IVersionListSource, IApkDownloader
 {
@@ -45,14 +41,13 @@ public sealed partial class ApkPureSource(IHttpClientFactory httpFactory, ILogge
         }
     }
 
-    // Each version list item carries a data-dt-version attribute (the appVersion) and a date cell.
-    // Match the version attribute then the nearest following date span. Tolerant of attribute order.
+    // Matches a list item's data-dt-version attribute (appVersion) then the nearest following date span.
     [GeneratedRegex(
         @"data-dt-version=""([\d][\d.]*)"".*?<span[^>]*\bclass=""[^""]*\bupdate-on\b[^""]*""[^>]*>\s*([^<]+?)\s*</span>",
         RegexOptions.Singleline)]
     private static partial Regex EntryRe();
 
-    // Fallback: a plainer markup with <a class="version-info"> blocks holding version + date text.
+    // Fallback markup: <a class="version-info"> blocks holding version + date text.
     [GeneratedRegex(
         @"<div[^>]*\bclass=""[^""]*\bver-item\b[^""]*""[^>]*>.*?>\s*([\d][\d.]*)\s*<.*?<span[^>]*>\s*([A-Za-z0-9, \-]+?)\s*</span>",
         RegexOptions.Singleline)]
@@ -90,24 +85,17 @@ public sealed partial class ApkPureSource(IHttpClientFactory httpFactory, ILogge
         return DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out date);
     }
 
-    // Downloads the ARM split (config.arm64_v8a.apk) for a version, the input the proto extract actually
-    // needs: the Egg Inc proto lives in lib/arm64-v8a/libegginc.so, present only in the arm split, NOT
-    // base.apk (base yields only ad-network SDK protos). APKPure's /download serves an XAPK (a zip-of-apks:
-    // base + per-arch + per-density + locale splits) for split-APK apps; we unzip and pull the arm split
-    // out. Returns null when the download is a single base APK (no arm split inside) or not a bundle.
+    // The Egg Inc proto lives in lib/arm64-v8a/libegginc.so, present only in the arm split (not base.apk).
+    // Returns null when the download is a single base APK or not a bundle.
     public async Task<byte[]?> DownloadArmSplitAsync(string appVersion, CancellationToken ct = default)
     {
         var bytes = await DownloadApkAsync(appVersion, ct);
         return bytes is null ? null : ExtractArmSplit(bytes);
     }
 
-    // Delegates to the Core extractor (single source of truth). Kept as a wrapper so existing callers +
-    // tests stay stable.
     public static byte[]? ExtractArmSplit(byte[] downloaded) =>
         EggIncognito.Services.ProtoExtract.ApkPureDownloader.ExtractArmSplit(downloaded);
 
-    // Downloads the APK bytes for a given appVersion from APKPure's download endpoint. Real, thin, and
-    // integration-only (the extract path uses it host-side; not unit-tested). Returns null on failure.
     public async Task<byte[]?> DownloadApkAsync(string appVersion, CancellationToken ct = default)
     {
         try

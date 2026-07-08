@@ -6,9 +6,8 @@ using EggIncognito.Services;
 namespace EggIncognito.Controllers;
 
 // Locally hosts the game's per-platform *Config (the ei/get_config ConfigResponse + its DLCCatalog of
-// shells). Reads are public; writes (ingest a captured config, refresh from live) are admin-gated. The
-// stored config feeds the shell viewer + asset pipeline so EGI has an offline copy of the latest Android +
-// iOS config. Stored as proto JSON (JsonFormatter), the project's only sanctioned proto<->JSON codec.
+// shells). Reads are public; writes are admin-gated. Stored as proto JSON via JsonFormatter, the
+// project's only sanctioned proto<->JSON codec.
 [ApiController]
 [Route("api/config")]
 public sealed class ConfigController(
@@ -36,9 +35,8 @@ public sealed class ConfigController(
 
     public sealed record IngestRequest(string ConfigResponseBase64);
 
-    // Ingest a captured ConfigResponse (raw or AuthenticatedMessage-wrapped, base64). The reliable source:
-    // the live API gates the full DLCCatalog behind a real client context, so a capture is the surest way to
-    // get a complete config. Admin-gated. Stores the decoded proto as JSON.
+    // Ingest a captured ConfigResponse (raw or AuthenticatedMessage-wrapped, base64): a capture is the
+    // surest way to get a complete DLCCatalog, since the live API gates it behind a real client context.
     [HttpPost("{platform}/ingest")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Ingest(string platform, [FromBody] IngestRequest body, CancellationToken ct)
@@ -48,17 +46,14 @@ public sealed class ConfigController(
         try { bytes = ProtoFraming.FromBase64Loose(body.ConfigResponseBase64 ?? ""); }
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = $"not valid base64: {ex.Message}" }); }
 
-        // The pasted bytes can be: a wrapped (+compressed) AuthenticatedMessage capture, OR the already-inner
-        // ConfigResponse proto (e.g. the Inspector's inflate-step base64). Proto parsing is lenient, so a raw
-        // ConfigResponse can also "parse" as an AuthenticatedMessage into a husk (the 0-shells bug). Try every
-        // interpretation and keep the one with the richest DLCCatalog.
+        // The pasted bytes can be a wrapped AuthenticatedMessage capture or the already-inner ConfigResponse.
+        // Proto parsing is lenient, so try every interpretation and keep the one with the richest DLCCatalog.
         var cfg = BestConfig(bytes);
         if (cfg is null) return Ok(new { ok = false, diagnostics = "could not parse as a ConfigResponse (wrapped or direct)" });
         return await StoreAsync(platform, cfg, ct);
     }
 
     // Returns the ConfigResponse interpretation with the most shells across {direct parse, unwrapped parse}.
-    // null when neither parses. Logs which won so the deploy log shows the path taken.
     private Ei.ConfigResponse? BestConfig(byte[] bytes)
     {
         Ei.ConfigResponse? Try(byte[] b)
@@ -82,10 +77,8 @@ public sealed class ConfigController(
 
     public sealed record IngestJsonRequest(string Json);
 
-    // Ingest an already-DECODED ConfigResponse JSON (what /api/inspector/send returns in its `json` field,
-    // fully unwrapped + decompressed by the Inspector pipeline). This is the reliable Admin path: it reuses
-    // the Inspector's decode rather than re-implementing unwrap here (raw get_config bytes are wrapped +
-    // compressed in a way a naive parse misreads as an empty config). Admin-gated.
+    // Ingest an already-decoded ConfigResponse JSON, as returned by /api/inspector/send's `json` field.
+    // Reuses the Inspector's decode rather than re-implementing unwrap here.
     [HttpPost("{platform}/ingest-json")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> IngestJson(string platform, [FromBody] IngestJsonRequest body, CancellationToken ct)
@@ -105,9 +98,8 @@ public sealed class ConfigController(
         return await StoreAsync(platform, cfg, ct);
     }
 
-    // Refresh from the live API: server signs a get_config and stores the response. Best-effort; the live
-    // config can be thin (no DLCCatalog) without a full client context, so ingest-from-capture is preferred.
-    // Egress-gated like Inspector send. Needs a signing salt (body Salt, or EGG_INC_API_SALT).
+    // Refresh from the live API: server signs a get_config and stores the response. The live config can
+    // be thin without a full client context, so ingest-from-capture is preferred.
     public sealed record RefreshRequest(string? Salt);
 
     [HttpPost("{platform}/refresh-live")]
@@ -146,7 +138,6 @@ public sealed class ConfigController(
         return await StoreAsync(platform, cfg, ct);
     }
 
-    // Decodes the ConfigResponse to JSON (the sanctioned proto codec), stores it, and reports what it carries.
     private async Task<IActionResult> StoreAsync(string platform, Ei.ConfigResponse cfg, CancellationToken ct)
     {
         if (!store.Enabled) return StatusCode(503, new { error = "config store needs ConfigStore:Dir or ShipAssets:OutputDir configured" });

@@ -2,9 +2,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A version "seen in the wild" by a list source (fandom/uptodown/apkpure/itunes). Metadata only: no
-// build/versionCode, no proto. The discovery list the admin UI shows; promoting one to a real registry
-// row needs an APK extract. Dedup on (platform, app_version, source).
+// A version "seen in the wild" by a list source (fandom/uptodown/apkpure/itunes), metadata only, no build/proto.
+// Promoting one to a real registry row needs an APK extract; dedup on (platform, app_version, source).
 [Table("known_versions")]
 public sealed class KnownVersion
 {

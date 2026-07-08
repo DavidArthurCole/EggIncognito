@@ -5,9 +5,7 @@ using Xunit;
 namespace EggIncognito.Tests.ProtoExtract;
 
 // Real-binary go/no-go. Set EGI_TEST_ARMSPLIT to a local config.arm64_v8a.apk (or libegginc.so) to run.
-// Absent on CI: the test early-returns (passes vacuously) with no fixture, the repo convention for
-// optional-binary tests. Never commit the fixture (no-game-assets rule). Proves the C# carve replaces
-// pbtk byte-for-structure.
+// Absent on CI, the test early-returns (passes vacuously); never commit the fixture (no-game-assets rule).
 public class AndroidExtractIntegrationTests
 {
     private static string? Fixture => Environment.GetEnvironmentVariable("EGI_TEST_ARMSPLIT");

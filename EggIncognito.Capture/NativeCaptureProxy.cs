@@ -9,25 +9,17 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-// A small, native-C# MITM capture proxy. Replaces UnobtaniumCaptureProxy for the device path.
+// A small, native-C# MITM capture proxy. Replaces UnobtaniumCaptureProxy for the device path: Unobtanium
+// 0.9.x hijacks the connection transport after a CONNECT while Kestrel's HTTP/1.1 loop keeps reading the
+// same pipe, tearing down the connection before the decrypted auxbrain request is relayed (flows:0 on
+// iOS). This proxy owns the socket end to end so there is no second reader to fight.
 //
-// WHY this exists: Unobtanium 0.9.x runs its decrypt endpoint on Kestrel and, after answering a CONNECT,
-// hijacks the connection transport while Kestrel's HTTP/1.1 loop keeps reading the same pipe - throwing
-// "Reading is not allowed after reader was completed" and tearing down the connection BEFORE the decrypted
-// auxbrain request is relayed. That killed every iOS auxbrain flow (flows:0). There is no newer release and
-// no config fix; the bug is architectural. This proxy owns the socket end to end, so there is no second
-// reader to fight.
+// Per accepted connection: read the CONNECT head, reply 200, then either MITM the auxbrain host
+// (SslStream-authenticate with a per-host leaf minted from our persistent root CA, relay to the real
+// host, raise FlowCaptured) or raw-tunnel any other host with no decrypt.
 //
-// WHAT it does, per accepted connection:
-//   1. Read the proxy request head. Only CONNECT is handled (the device is configured as an HTTPS proxy).
-//   2. Reply "200 Connection Established".
-//   3. auxbrain host  -> MITM: SslStream-authenticate as the host with a per-host leaf minted from our
-//      persistent root CA, read the decrypted HTTP request, relay it to the REAL host over a fresh TLS
-//      client, read the response, raise FlowCaptured, write the response back. Keep-alive loops.
-//   4. other host     -> raw TCP tunnel (no decrypt), so the device's other apps keep working.
-//
-// CA: a persistent root (root.pfx in the CA cache dir) reused across runs - the device installs it once.
-// Per-host leafs are minted in memory and cached for the session.
+// CA: a persistent root (root.pfx in the CA cache dir) reused across runs. Per-host leafs are minted in
+// memory and cached for the session.
 public sealed class NativeCaptureProxy : ICaptureProxy
 {
     private const string RootCaName = "EggIncognito Capture Root";
@@ -37,14 +29,13 @@ public sealed class NativeCaptureProxy : ICaptureProxy
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
-    private X509Certificate2? _rootCa; // root with private key, for signing leafs + (optionally) OS trust
-    private X509Certificate2? _rootCaPublic; // public-only copy exported to the device + OS store
+    private X509Certificate2? _rootCa;
+    private X509Certificate2? _rootCaPublic;
     private bool _trustAdded;
     private bool _freshCa;
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, X509Certificate2> _leafCache = new();
 
-    // Reuse the trust-inference + active-count machinery the dashboard expects.
     private static readonly TimeSpan TrustGrace = TimeSpan.FromSeconds(8);
     private readonly object _trustGate = new();
     private bool _trustProven;
@@ -63,7 +54,6 @@ public sealed class NativeCaptureProxy : ICaptureProxy
     public event Action<string>? Trace;
     public bool Verbose { get; set; }
 
-    // Match UnobtaniumCaptureProxy's deployment knobs so the two are drop-in interchangeable.
     public bool LanForwarderEnabled { get; init; } = true;
     public bool TrustCaInOsStore { get; init; } = true;
 
@@ -88,9 +78,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var token = _cts.Token;
 
-        // The proxy always listens on loopback at port+1, forwarder or not: LanForwarder bridges the
-        // LAN-facing `port` to it when enabled, and the hosted front door (ProxyFrontDoor.TunnelAsync)
-        // dials session.Port + 1 directly when it's not.
+        // Always listens on loopback at port+1; LanForwarder bridges the LAN-facing `port` when enabled.
         var bindPort = port + 1;
         _listener = new TcpListener(IPAddress.Loopback, bindPort);
         _listener.Start();
@@ -137,8 +125,6 @@ public sealed class NativeCaptureProxy : ICaptureProxy
             var (method, target) = ParseRequestLine(head);
             if (!method.Equals("CONNECT", StringComparison.OrdinalIgnoreCase))
             {
-                // The device is configured as an HTTPS proxy; only CONNECT is expected. Anything else
-                // (a bare absolute-URI GET, e.g. OCSP when no forwarder rewrote it) we cannot serve here.
                 await WriteAsciiAsync(net, "HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\n\r\n", ct);
                 return;
             }
@@ -147,7 +133,6 @@ public sealed class NativeCaptureProxy : ICaptureProxy
             var portNum = PortOf(target);
             ConnectSeen?.Invoke(target, AuxbrainHosts.IsAuxbrain(target));
 
-            // Establish the upstream first; if it fails, tell the client cleanly.
             await WriteAsciiAsync(net, "HTTP/1.1 200 Connection Established\r\n\r\n", ct);
 
             if (AuxbrainHosts.IsAuxbrain(target))
@@ -178,23 +163,19 @@ public sealed class NativeCaptureProxy : ICaptureProxy
             {
                 ServerCertificate = leaf,
                 ClientCertificateRequired = false,
-                // Offer HTTP/1.1 only. The game speaks HTTP/1.1 to auxbrain; not advertising h2 keeps the
-                // request parser simple and avoids ALPN-driven h2 we would have to frame-decode.
+                // Offer HTTP/1.1 only, avoiding ALPN-driven h2 we would have to frame-decode.
                 ApplicationProtocols = [SslApplicationProtocol.Http11],
                 EnabledSslProtocols = System.Security.Authentication.SslProtocols.None,
             }, ct);
         }
         catch (Exception ex)
         {
-            // The device rejected our leaf (CA not trusted) or the handshake failed. The trust-inference
-            // timer will surface "CA untrusted" if no flow ever decrypts. Log the inner exception too:
             // "Authentication failed" server-side is usually an unusable leaf key, not device trust.
             var inner = ex.InnerException is { } ie ? $" | inner: {ie.GetType().Name}: {ie.Message}" : "";
             Log($"MITM handshake failed for {host}: {ex.Message}{inner} | leaf hasKey={leaf.HasPrivateKey}");
             return;
         }
 
-        // Upstream TLS to the real host, validating its real chain normally.
         using var upstream = new TcpClient { NoDelay = true };
         try { await upstream.ConnectAsync(host, port, ct); }
         catch (Exception ex) { Log($"upstream connect {host}:{port} failed: {ex.Message}"); return; }
@@ -209,7 +190,6 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         }
         catch (Exception ex) { Log($"upstream TLS {host} failed: {ex.Message}"); return; }
 
-        // HTTP/1.1 keep-alive: relay request/response pairs until either side closes.
         while (!ct.IsCancellationRequested)
         {
             var req = await HttpMessage.ReadAsync(deviceTls, ct);
@@ -232,8 +212,6 @@ public sealed class NativeCaptureProxy : ICaptureProxy
     {
         try
         {
-            // Request body for auxbrain is a form-encoded `data=<base64>`; surface the raw base64 like the
-            // old proxy did so the endpoint pipeline sees identical input.
             var reqText = req.Body is { Length: > 0 } ? Encoding.UTF8.GetString(req.Body) : "";
             var data = WireBody.ExtractDataParam(reqText);
             var (responseB64, _) = WireBody.Normalize(resp.Body ?? []);
@@ -291,7 +269,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
 
     private X509Certificate2 GetLeaf(string host) => _leafCache.GetOrAdd(host, MintLeaf);
 
-    // Test seam: mint a leaf against a freshly created root, exercising the exact cert path SslStream uses.
+    // Mint a leaf against a freshly created root, exercising the exact cert path SslStream uses.
     internal static X509Certificate2 MintLeafForTest(string host, out X509Certificate2 root)
     {
         var p = new NativeCaptureProxy();
@@ -309,27 +287,22 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         var req = new CertificateRequest($"CN={host}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         req.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, critical: false));
         req.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, critical: false));
-        req.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], critical: false)); // serverAuth
+        req.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], critical: false));
         var san = new SubjectAlternativeNameBuilder();
         san.AddDnsName(host);
         req.CertificateExtensions.Add(san.Build());
         req.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(req.PublicKey, false));
 
         var notBefore = DateTimeOffset.UtcNow.AddDays(-1);
-        // A leaf must not outlive its issuer or .NET refuses to sign it. Clamp to just under the root's
-        // expiry (the persisted root may have been minted by an earlier build with a fixed lifetime).
+        // A leaf must not outlive its issuer or .NET refuses to sign it.
         var notAfter = DateTimeOffset.UtcNow.AddDays(300);
         var rootExpiry = new DateTimeOffset(_rootCa!.NotAfter).AddMinutes(-5);
         if (notAfter > rootExpiry) notAfter = rootExpiry;
         if (notAfter <= notBefore) notBefore = notAfter.AddDays(-1);
-        // Random serial so re-mints across runs are distinct.
         var serial = new byte[8];
         RandomNumberGenerator.Fill(serial);
         using var signed = req.Create(_rootCa!, notBefore, notAfter, serial);
-        // Attach the leaf's private key so SslStream can use it as a server cert. Round-trip through a pfx so
-        // the cert+key handle is the form SslStream needs. NOTE: do NOT use EphemeralKeySet here - on Windows
-        // SChannel cannot use an ephemeral server key (handshake fails with an unexpected EOF). Default key
-        // storage works for SslStream server on both Windows and Linux.
+        // Do NOT use EphemeralKeySet: on Windows SChannel cannot use an ephemeral server key (handshake fails with an unexpected EOF).
         using var withKey = signed.CopyWithPrivateKey(rsa);
         return X509CertificateLoader.LoadPkcs12(
             withKey.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.Exportable);

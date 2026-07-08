@@ -6,8 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// ApkExtractService gate + config binding, DB-free. The heavy extract (APKPure download + C# carve) is
-// integration-only; here only the disabled-throws gate and the ProtoExtract:Enabled binding are asserted.
+// The heavy extract (APKPure download + C# carve) is integration-only; here only the gate + binding are asserted.
 public class ApkExtractGateTests
 {
     private static IConfiguration Config(Dictionary<string, string?> values) =>

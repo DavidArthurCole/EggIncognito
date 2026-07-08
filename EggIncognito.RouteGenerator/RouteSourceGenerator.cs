@@ -22,7 +22,6 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // Compare parsed routes (not raw text) so the cache only invalidates on real changes.
         var routes = context.AdditionalTextsProvider
             .Where(static f => f.Path.EndsWith("routes.yaml", System.StringComparison.OrdinalIgnoreCase))
             .Select(static (f, ct) => f.GetText(ct)?.ToString())

@@ -7,8 +7,7 @@ namespace EggIncognito.Components.Inspector;
 // The editable request-body tree, built from proto schema (IProtoReflection). One node per proto field;
 // message fields expand to child nodes by resolving their sub-schema, repeated fields hold a list of
 // scalar item values, scalars/enums/bools hold a single string value. Collect() walks the tree into the
-// Google.Protobuf JSON object the /build call expects (the same shape the old app.js collectFields
-// produced). Mirrors the recursion in wwwroot/inspector/app.js fieldRow.
+// Google.Protobuf JSON object the /build call expects.
 public sealed class FieldNode
 {
     public required SchemaField Field { get; init; }
@@ -107,9 +106,8 @@ public static class FieldTreeBuilder
         return obj;
     }
 
-    // Map a protojson object back onto the field tree (the inverse of Collect), so raw-mode edits
-    // survive the switch back to the tree. Fields absent from the object are cleared (a raw deletion
-    // is a deletion); unknown keys in the object are ignored.
+    // Map a protojson object back onto the field tree (the inverse of Collect). Fields absent from the
+    // object are cleared; unknown keys in the object are ignored.
     public static void Apply(IReadOnlyList<FieldNode> nodes, JsonObject obj)
     {
         foreach (var n in nodes)
@@ -139,8 +137,7 @@ public static class FieldTreeBuilder
     };
 
     // Apply the env panel's BasicRequestInfo overrides onto the matching rinfo.<key> tree input, locking
-    // each set one. An empty env value releases the lock. Env keys with no matching input are skipped.
-    // Mirrors app.js applyEnvLock.
+    // each set one. An empty env value releases the lock; keys with no matching input are skipped.
     public static void ApplyEnvLock(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env)
     {
         var rinfo = nodes.FirstOrDefault(n => n.Field.JsonName == "rinfo" && n.IsMessage);
@@ -159,11 +156,8 @@ public static class FieldTreeBuilder
         }
     }
 
-    // Default top-level request fields from the Environment constants when the user has not set them.
-    // Top-level fields that share a name with an Environment key (e.g. a request's own clientVersion,
-    // eiUserId, platform) prefill to the matching env value so the operator does not retype the same
-    // constants. Unlike the rinfo env-lock this is a soft default: it only fills empty nodes and never
-    // locks, so the user can override. Skips the rinfo subtree (the lock owns that).
+    // Prefill top-level fields that share a name with an Environment key (e.g. clientVersion, eiUserId,
+    // platform). Unlike the rinfo env-lock this only fills empty nodes and never locks. Skips the rinfo subtree.
     public static void ApplyEnvDefaults(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env)
     {
         foreach (var n in nodes)

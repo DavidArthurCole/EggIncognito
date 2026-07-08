@@ -6,22 +6,17 @@ namespace EggIncognito.Services.Devices;
 
 // Resolves the LAN IPv4 address devices dial back to reach the per-device capture listeners. The operator
 // can pin it via config (DeviceCapture:HostIp); otherwise it auto-detects the host's primary routable IPv4.
-// Auto-detect is best-effort: enumerate up, non-loopback, non-virtual interfaces and pick the first private
-// IPv4. The pure Pick(...) overload takes candidates so it is unit-testable without real NICs.
 public static class HostAddress
 {
-    // A network interface candidate, reduced to what selection needs.
     public sealed record Nic(string Name, bool IsUp, bool IsLoopback, IReadOnlyList<string> IPv4Addresses);
 
-    // config override wins; else auto-detect; else null (caller logs + the device push is skipped).
     public static string? Resolve(string? configured, IReadOnlyList<Nic>? nics = null)
     {
         if (!string.IsNullOrWhiteSpace(configured)) return configured.Trim();
         return Pick(nics ?? Enumerate());
     }
 
-    // Pure selection over candidates. Prefers a private LAN IPv4 (192.168/10/172.16-31), then any non-
-    // loopback IPv4. Skips down/loopback NICs and obvious virtual adapters (docker/veth/vmnet/lo).
+    // Prefers a private LAN IPv4 (192.168/10/172.16-31), then any non-loopback IPv4.
     public static string? Pick(IReadOnlyList<Nic> nics)
     {
         var usable = nics
@@ -44,7 +39,7 @@ public static class HostAddress
         IPAddress.TryParse(ip, out var a)
         && a.AddressFamily == AddressFamily.InterNetwork
         && !IPAddress.IsLoopback(a)
-        && !ip.StartsWith("169.254."); // link-local APIPA
+        && !ip.StartsWith("169.254.");
 
     private static bool IsPrivate(string ip)
     {

@@ -3,8 +3,7 @@ using Microsoft.Extensions.Configuration;
 namespace EggIncognito.Services.Devices;
 
 // Declares the physical devices this host can probe, bound from the "Devices" + "DevicePolling" config.
-// Empty/unset => no devices => the probe service no-ops. Mirrors VersionPollerOptions.Bind. Target is the
-// platform-natural address: adb serial (android) or UDID (ios). Package defaults to the Egg Inc bundle.
+// Target is the platform-natural address: adb serial (android) or UDID (ios).
 public sealed record DeviceConfig
 {
     public bool Enabled { get; init; } = true;

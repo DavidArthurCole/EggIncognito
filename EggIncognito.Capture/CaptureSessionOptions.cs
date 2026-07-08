@@ -1,8 +1,7 @@
 namespace EggIncognito.Capture;
 
-// Options for a single capture session. CapturePath is the dir for HAR output; CaPath is the
-// persisted root CA file. WriteEndpoints=false (hosted) skips the endpoint extractor entirely, so
-// flows never touch the shared Endpoints/ tree.
+// Options for a single capture session. WriteEndpoints=false (hosted) skips the endpoint extractor
+// entirely, so flows never touch the shared Endpoints/ tree.
 public sealed record CaptureSessionOptions(
     int Port,
     string? Eid,

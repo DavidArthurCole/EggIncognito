@@ -1,7 +1,6 @@
-@* Discovered app versions that exist but have no stored proto, shown to EVERYONE on /protos. The chips are
+@* Discovered app versions that exist but have no stored proto, shown to everyone on /protos. The chips are
    full-width under a platform icon+name header. A dismissable note asks the public to contribute binaries
-   for these gaps (open-source the datafill). Reads are public (ProtosController), so no role needed to view;
-   the note is the only role-aware bit (admins get the "drop a binary" hint, everyone gets the ask). *@
+   for these gaps. *@
 @rendermode @(RenderMode.InteractiveServer)
 @implements IDisposable
 @using System.Net.Http.Json
@@ -122,10 +121,8 @@
         return c;
     }
 
-    // background = the 10s poll. A transient fetch failure (e.g. a 429) must not wipe the already-rendered
-    // chips to "No discovered versions yet" until the next tick. Background keeps last-good on failure;
-    // foreground (initial load) clears so a real empty registry shows. Both endpoints fetch into temps so a
-    // partial failure never leaves _known and _stored inconsistent.
+    // background = the 10s poll: keeps last-good on a transient fetch failure instead of wiping the chips.
+    // Both endpoints fetch into temps so a partial failure never leaves _known and _stored inconsistent.
     async Task Load(bool background)
     {
         try

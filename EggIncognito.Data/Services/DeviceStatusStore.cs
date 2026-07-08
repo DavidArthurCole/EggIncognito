@@ -3,8 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Persists the device roster + append-only probe history. Latest-per-device drives the /protos indicator;
-// history backs the activity log. Keyed on the config-supplied device id. DB-gated like every Data store.
 public interface IDeviceStatusStore
 {
     Task UpsertDeviceAsync(string id, string platform, string label, string target, string package, CancellationToken ct = default);
@@ -48,8 +46,7 @@ public sealed class DeviceStatusStore(EggIncognitoDbContext db) : IDeviceStatusS
 
     public async Task<List<DeviceProbe>> LatestPerDeviceAsync(CancellationToken ct = default)
     {
-        // Per device, the row with the greatest probed_at. Correlated subquery so Postgres uses the
-        // (device_id, probed_at) index instead of scanning the whole append-only history into memory.
+        // Correlated subquery so Postgres uses the (device_id, probed_at) index instead of a full scan.
         return await db.DeviceProbes.AsNoTracking()
             .Where(p => p.ProbedAt == db.DeviceProbes
                 .Where(x => x.DeviceId == p.DeviceId)

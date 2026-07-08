@@ -27,9 +27,7 @@ public class ImportTabStyleTests : IClassFixture<WebApplicationFactory<Program>>
     {
         var c = _f.CreateClient();
         var r = await c.GetAsync("/import/styles.css");
-        // The file is deleted, so static-file middleware does not serve it. A missing path then falls
-        // through to SimulationController's POST/OPTIONS catch-all, which rejects the GET with 405 (not
-        // 404). Either way it is NOT served (200) - that is what "gone" means here.
+        // Deleted: falls through to SimulationController's catch-all, so 405 or 404, never 200.
         Assert.NotEqual(System.Net.HttpStatusCode.OK, r.StatusCode);
     }
 

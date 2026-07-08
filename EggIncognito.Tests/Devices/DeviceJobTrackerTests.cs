@@ -6,7 +6,6 @@ namespace EggIncognito.Tests.Devices;
 
 public class DeviceJobTrackerTests
 {
-    // Manual TimeProvider: advanceable clock, no test package needed.
     sealed class FakeTime : TimeProvider
     {
         private DateTimeOffset _now = new(2026, 6, 18, 0, 0, 0, TimeSpan.Zero);
@@ -74,7 +73,6 @@ public class DeviceJobTrackerTests
         var t = new DeviceJobTracker(new FakeTime());
         t.TryStart("dev", "checking...");
         t.Finish("dev", UpToDate);
-        // A terminal entry is replaceable: a new check may start.
         Assert.True(t.TryStart("dev", "checking again..."));
     }
 
@@ -85,9 +83,9 @@ public class DeviceJobTrackerTests
         var t = new DeviceJobTracker(time);
         t.TryStart("dev", "checking...");
         t.Finish("dev", UpToDate);
-        Assert.NotNull(t.Get("dev")); // fresh: still visible
-        time.Advance(TimeSpan.FromMinutes(3)); // past the 2-min TTL
-        Assert.Null(t.Get("dev")); // expired -> idle
+        Assert.NotNull(t.Get("dev"));
+        time.Advance(TimeSpan.FromMinutes(3));
+        Assert.Null(t.Get("dev"));
     }
 
     [Fact]

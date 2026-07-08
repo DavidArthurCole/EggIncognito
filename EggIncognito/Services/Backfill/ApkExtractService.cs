@@ -24,11 +24,9 @@ public sealed record ProtoExtractOptions
     public bool IsConfigured => Enabled;
 }
 
-// On-demand per-APK proto extraction (the heavy path). Downloads the version's APK from APKPure,
-// carves the .proto + the real versionCode in-process (pure C#), then upserts a real (platform, build)
-// registry row source "apkpure" with proto. Config-gated: disabled hosts throw
-// ExtractNotConfiguredException. The real extract is integration-only (needs a network download);
-// unit tests cover only the gate + config binding.
+// On-demand per-APK proto extraction. Downloads the version's APK from APKPure, carves the .proto and
+// real versionCode in-process, then upserts a real (platform, build) registry row source "apkpure".
+// Config-gated: disabled hosts throw ExtractNotConfiguredException.
 public sealed class ApkExtractService(
     IConfiguration config, ApkPureSource apkPure, IServiceScopeFactory scopeFactory,
     ILogger<ApkExtractService> logger)
@@ -50,19 +48,17 @@ public sealed class ApkExtractService(
         if (string.IsNullOrWhiteSpace(appVersion))
             throw new ArgumentException("appVersion required", nameof(appVersion));
 
-        // The proto lives in the ARM split's lib/arm64-v8a/libegginc.so, NOT base.apk. APKPure serves an
-        // XAPK (a zip-of-apks); DownloadArmSplitAsync unzips it and returns the arm64_v8a split bytes, or
-        // null when the download is a single base APK with no arm split. The device-pull path (farm)
-        // feeds the same arm split directly via ExtractFromArmSplitAsync.
+        // The proto lives in the ARM split's lib/arm64-v8a/libegginc.so, not base.apk. APKPure serves an
+        // XAPK (zip-of-apks); DownloadArmSplitAsync unzips it and returns the arm64_v8a split, or null
+        // when the download is a single base APK with no arm split.
         var armSplit = await apkPure.DownloadArmSplitAsync(appVersion, ct)
             ?? throw new InvalidOperationException($"arm-split download failed for {appVersion}");
 
         await ExtractFromArmSplitAsync(armSplit, appVersion, "apkpure", ct);
     }
 
-    // Shared pipeline tail over the arm split bytes: carve the proto + real versionCode in-process,
-    // upsert the registry row. Both the APKPure XAPK-unzip path and the device-farm pull feed this
-    // with their own source label. Gated like ExtractAsync; callable directly for the farm.
+    // Shared pipeline tail over the arm split bytes: carve the proto and real versionCode in-process,
+    // upsert the registry row. Gated like ExtractAsync; callable directly for the farm.
     public async Task ExtractFromArmSplitAsync(
         byte[] armSplitBytes, string appVersion, string source, CancellationToken ct = default)
     {
@@ -78,17 +74,16 @@ public sealed class ApkExtractService(
 
         var proto = AndroidProtoExtractor.ExtractProtoText(armSplitBytes);
 
-        // versionCode parsed from the binary AndroidManifest; null means we could not learn the real
-        // build. Do NOT forge build = appVersion (that would mint a fake (platform, build) key).
+        // versionCode parsed from the binary AndroidManifest; null means the real build could not be
+        // learned. Never forge build = appVersion, that would mint a fake (platform, build) key.
         var build = ApkVersionCode.Read(armSplitBytes);
 
         using var scope = scopeFactory.CreateScope();
 
         if (build is null)
         {
-            // Unknown build: record the sighting in known_versions so the discovery list reflects it,
-            // and skip the build-keyed registry write rather than minting a fabricated key. Promote to
-            // a real registry row once the build is learned (a later farm/device extract).
+            // Unknown build: record the sighting in known_versions and skip the build-keyed registry
+            // write rather than minting a fabricated key.
             var jobs = scope.ServiceProvider.GetService<IBackfillJobStore>();
             if (jobs is not null)
                 await jobs.UpsertKnownAsync("android", appVersion, null, null, source, ct);

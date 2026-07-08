@@ -2,8 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// One per-version APK extract run, so the admin UI can show per-row state without tailing logs. Unique
-// on (platform, app_version): one job per version, a re-extract resets the existing row to running.
+// One per-version APK extract run. Unique on (platform, app_version): a re-extract resets the existing row to running.
 [Table("extract_jobs")]
 public sealed class ExtractJob
 {

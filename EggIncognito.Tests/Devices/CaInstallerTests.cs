@@ -16,7 +16,6 @@ public class CaInstallerTests
         }
     }
 
-    // A self-signed CA written to a temp DER file, mirroring what the proxy exports at caPath.
     static (string path, X509Certificate2 cert) MakeCa()
     {
         using var rsa = RSA.Create(2048);
@@ -26,7 +25,6 @@ public class CaInstallerTests
         var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
         var path = Path.Combine(Path.GetTempPath(), $"egi-ca-test-{Guid.NewGuid():N}.cer");
         File.WriteAllBytes(path, cert.Export(X509ContentType.Cert));
-        // Re-load from the exported DER so the test exercises the same load path the installer uses.
         return (path, X509CertificateLoader.LoadCertificateFromFile(path));
     }
 
@@ -38,7 +36,7 @@ public class CaInstallerTests
         {
             var h = CaCertPrep.AndroidSubjectHashOld(cert);
             Assert.Matches("^[0-9a-f]{8}$", h);
-            Assert.Equal(h, CaCertPrep.AndroidSubjectHashOld(cert)); // deterministic
+            Assert.Equal(h, CaCertPrep.AndroidSubjectHashOld(cert));
         }
         finally { File.Delete(path); }
     }
@@ -79,18 +77,14 @@ public class CaInstallerTests
         var (path, cert) = MakeCa();
         try
         {
-            // "live: mounted" is the real success signal (live cacerts copy works now, no reboot).
             var runner = new FakeRunner((_, _) => new ProcessResult(0, "diag module: written\ndiag live: mounted into running cacerts\ndiag done", ""));
             var inst = new AdbCaInstaller(runner);
             var (ok, note) = await inst.InstallAsync(new DeviceCaTarget("d", "android", "SERIAL"), path, default);
 
             Assert.True(ok);
-            // Only the Magisk-install script is pushed (the cert travels inline as base64, no separate PEM push).
             var pushes = runner.Calls.Where(c => c.args.Contains("push")).ToList();
             Assert.Single(pushes);
             Assert.Contains("SERIAL", pushes[0].args);
-            // The script runs by PATH in the GLOBAL mount ns via `su -mm -c "sh <path> 2>&1"` (so the live
-            // cacerts copy is visible to app processes), as root.
             var run = runner.Calls.Single(c => c.args.Contains("su"));
             Assert.Contains("-mm", run.args);
             Assert.Contains(run.args, a => a.Contains("/data/local/tmp/eggincognito-ca-magisk.sh"));
@@ -114,7 +108,7 @@ public class CaInstallerTests
 
             Assert.False(ok);
             Assert.Contains("push", note!);
-            Assert.DoesNotContain(runner.Calls, c => c.args.Contains("su")); // never ran the root script
+            Assert.DoesNotContain(runner.Calls, c => c.args.Contains("su"));
         }
         finally { File.Delete(path); }
     }
@@ -125,8 +119,6 @@ public class CaInstallerTests
         var (path, cert) = MakeCa();
         try
         {
-            // The corrected iOS-16 installer SELECTs the row back; success requires "row-present" in stdout
-            // (the old `; echo ok` masked failures). Simulate a verified install.
             var runner = new FakeRunner((_, _) => new ProcessResult(0, "row-present", ""));
             var ssh = new IosCaInstaller.SshConfig("1.2.3.4", "2222", "/k", null, null);
             var inst = new IosCaInstaller(runner, ssh);
@@ -135,10 +127,9 @@ public class CaInstallerTests
             Assert.True(ok);
             var call = runner.Calls.Single(c => c.exe == "ssh");
             var remote = call.args[^1];
-            // iOS 16 tsettings keys on sha256, not sha1; default store moved under /var/protected/trustd.
             Assert.Contains(CaCertPrep.IosCertSha256Hex(cert), remote);
             Assert.Contains(CaCertPrep.DerHex(cert), remote);
-            Assert.Contains("/private/var/protected/trustd/private/TrustStore.sqlite3", remote); // default store
+            Assert.Contains("/private/var/protected/trustd/private/TrustStore.sqlite3", remote);
             Assert.Contains("sha256", remote);
             Assert.Contains("killall -9 trustd", remote);
             Assert.DoesNotContain("{sha256}", remote);

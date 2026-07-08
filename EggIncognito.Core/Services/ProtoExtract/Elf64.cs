@@ -3,9 +3,7 @@ using System.Text;
 namespace EggIncognito.Services.ProtoExtract;
 
 // Minimal ELF64 little-endian section reader. Locates a section by name and returns its virtual address,
-// file offset, and size. Just enough to pull .text out of a stripped aarch64 libegginc.so for the
-// clientVersion scan. Defensive: a non-ELF / truncated / big-endian input yields null, never a throw.
-// Mirrors the python text_section() in the old client_version.py.
+// file offset, and size. Defensive: a non-ELF/truncated/big-endian input yields null, never a throw.
 public static class Elf64
 {
     public sealed record Section(ulong VAddr, long FileOffset, long Size);

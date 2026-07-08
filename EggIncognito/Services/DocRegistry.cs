@@ -1,8 +1,6 @@
-// Layer A of the docs hub: the typed registry of documentable subjects. It enumerates the four
-// subject kinds (proto messages, mock endpoints, config options, UI controls) into a tree of
-// DocSubject and exposes O(1) lookup by (kind, key). Singleton; the tree is built once in the ctor.
-// The message + endpoint subtrees are derived from the live proto reflection + route catalog, so they
-// stay in sync with the real surface. Config + control subjects are curated static lists.
+// Typed registry of documentable subjects: proto messages, mock endpoints, config options, UI controls,
+// as a tree of DocSubject with O(1) lookup by (kind, key). Message + endpoint subtrees derive from live
+// proto reflection + the route catalog; config + control subjects are curated static lists.
 
 namespace EggIncognito.Services;
 
@@ -16,14 +14,14 @@ public sealed record DocSubject(
 
 public interface IDocRegistry
 {
-    IReadOnlyList<DocSubject> Roots(); // the 4 group nodes: Messages, Endpoints, Config, Controls
+    IReadOnlyList<DocSubject> Roots();
     DocSubject? Find(string kind, string key);
 }
 
 public sealed class DocRegistry : IDocRegistry
 {
     private readonly IReadOnlyList<DocSubject> _roots;
-    private readonly Dictionary<string, DocSubject> _byKey; // "{kind}:{key}" -> subject
+    private readonly Dictionary<string, DocSubject> _byKey;
 
     public DocRegistry(IProtoReflection proto, IRouteCatalog routes)
     {
@@ -40,7 +38,6 @@ public sealed class DocRegistry : IDocRegistry
             new DocSubject("group", "controls", "Controls", "UI controls", controls),
         ];
 
-        // Flat index for Find; group nodes + field children are indexed too for direct addressing.
         _byKey = new Dictionary<string, DocSubject>(StringComparer.Ordinal);
         foreach (var root in _roots)
         {
@@ -73,7 +70,6 @@ public sealed class DocRegistry : IDocRegistry
 
     private static DocSubject FieldSubject(SchemaField f)
     {
-        // Type summary, e.g. "repeated Contract", "uint32", "enum". Messages show the inner type name.
         var typeText = f.Type == "message" && f.MessageType is not null ? f.MessageType : f.Type;
         var summary = f.Repeated ? $"repeated {typeText}" : typeText;
         return new DocSubject("field", f.Name, f.Name, summary, []);

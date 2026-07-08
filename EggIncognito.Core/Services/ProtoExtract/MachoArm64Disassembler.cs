@@ -4,11 +4,8 @@ using Gee.External.Capstone.Arm64;
 namespace EggIncognito.Services.ProtoExtract;
 
 // Disassembles an arm64 function byte range and recovers the float/double constants it uses + the functions
-// it calls. Two constant idioms: a memory-pool load (`adrp`+`add`+`ldr s0,[xN,#off]` resolves to an absolute
-// VA and the f32/f64 is read from the binary via the __text slide) and an inline FP immediate (`fmov s0, #5.5`,
-// the value baked into the instruction). Both reach FarmScene::updateSilo's 5.5/-0.5 silo offsets; the game
-// emits the small representable constants as fmov immediates, larger/odd ones as pool loads. Reimplements in
-// C# (over capstone) the logic the throwaway /tmp/disas.py harness used to recover the silo formula. No Python.
+// it calls. Two constant idioms: a memory-pool load (`adrp`+`add`+`ldr s0,[xN,#off]`, resolved via the __text
+// slide) and an inline FP immediate (`fmov s0, #5.5`, baked into the instruction).
 //
 // capstone-net note: Arm64Operand is a tagged union; reading .Immediate/.Register/.Memory on the wrong .Type
 // throws, so every access is guarded by op.Type. adrp's immediate is already the resolved absolute page.
@@ -78,10 +75,8 @@ public static class MachoArm64Disassembler
                     break;
 
                 case Arm64InstructionId.ARM64_INS_FMOV:
-                    // fmov bakes the constant into the instruction; capstone surfaces it as a FloatingPoint
-                    // operand. Covers scalar (fmov s0/d0, #imm) and the vector-broadcast form (fmov v0.4s, #imm,
-                    // which splats one immediate across the lanes). The dest register name gives the width:
-                    // d = f64, s / v = f32. The broadcast records the single distinct value (lanes are equal).
+                    // Covers scalar (fmov s0/d0, #imm) and vector-broadcast (fmov v0.4s, #imm) forms. The dest
+                    // register name gives the width: d = f64, s/v = f32.
                     if (ops.Length == 2 && ops[0].Type == Arm64OperandType.Register
                         && ops[1].Type == Arm64OperandType.FloatingPoint && ops[0].Register is { } fmovRd)
                     {
@@ -91,10 +86,8 @@ public static class MachoArm64Disassembler
                     break;
 
                 case Arm64InstructionId.ARM64_INS_MOVI:
-                    // movi vN.T, #imm builds a vector immediate. The general 8-bit-replicated encoding is not a
-                    // clean float, but the overwhelmingly common case in this codebase is the zero vector
-                    // (movi v0.2d/4s, #0), which initializes a position/velocity/color accumulator. Record only
-                    // the unambiguous #0 as 0.0; non-zero bit-pattern immediates are left out (would be junk).
+                    // movi vN.T, #imm builds a vector immediate; only the unambiguous zero vector is recorded,
+                    // non-zero bit-pattern immediates are not a clean float and are left out.
                     if (ops.Length == 2 && ops[1].Type == Arm64OperandType.Immediate && ops[1].Immediate == 0)
                         floats.Add(new FloatConst((ulong)insn.Address, 0.0, false));
                     break;

@@ -3,11 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A decoded game mesh (.glb bytes) cached in Postgres, keyed by (platform, stem). Pulling a mesh off a
-// device is slow + needs the device online; caching the decoded glb here means every instance reuses one
-// pull and a device is only touched for a stem not yet stored. The DB cache is the durable shared layer;
-// the on-disk MeshAssetCache stays as a fast local mirror. Assets remain Auxbrain's property; this only
-// stores a reformatted copy already present on a device the operator controls.
+// A decoded game mesh (.glb bytes) cached in Postgres, keyed by (platform, stem), so every instance reuses one device pull.
 [Table("stored_meshes")]
 public class StoredMesh
 {

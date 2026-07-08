@@ -7,15 +7,14 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
-// Named environment designs for the playground designer, stored in Postgres. Reads are public; save + delete
-// need a contributor+ (the shared-store ACL, same authority as StoredEndpointController). Delete also allows
-// the owner or an admin. The payload is opaque app JSON (the client owns its shape): validated as well-formed
-// + size-capped, never parsed as proto. Without a DB, reads return empty and writes 503.
+// Named environment designs for the playground designer, stored in Postgres. Reads are public; save and
+// delete need contributor+ (delete also allows the owner or an admin). The payload is opaque app JSON,
+// validated as well-formed and size-capped, never parsed as proto.
 [ApiController]
 [Route("api/env/designs")]
 public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
 {
-    private const int MaxPayloadBytes = 2_000_000; // a design is small JSON; cap protects the column.
+    private const int MaxPayloadBytes = 2_000_000;
 
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
@@ -49,9 +48,8 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
 
     public sealed record SaveDesign(string Payload, string? Note);
 
-    // Save appends a new VERSION to the design's history (and updates the head payload), instead of silently
-    // overwriting. The design carries its full timeline; the user can list versions + roll back to any. Creating
-    // the design seeds version 1.
+    // Save appends a new version to the design's history and updates the head payload, instead of silently
+    // overwriting. Creating the design seeds version 1.
     [HttpPut("{name}")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Save(string name, [FromBody] SaveDesign body)
@@ -72,7 +70,7 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         {
             existing = new EnvDesign { Name = name, Payload = payload, OwnerUserId = currentUser.DiscordId };
             db.EnvDesigns.Add(existing);
-            await db.SaveChangesAsync(HttpContext.RequestAborted); // get the id for the version row
+            await db.SaveChangesAsync(HttpContext.RequestAborted);
         }
         else
         {
@@ -123,8 +121,8 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
 
     public sealed record RollbackBody(int VersionNo);
 
-    // Roll back: append a NEW version whose payload is copied from an older one (non-destructive; history is
-    // preserved + the restore is itself auditable via RolledBackFrom). Updates the head payload to match.
+    // Roll back: append a new version whose payload is copied from an older one, so history is preserved
+    // and the restore is auditable via RolledBackFrom. Updates the head payload to match.
     [HttpPost("{name}/rollback")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Rollback(string name, [FromBody] RollbackBody body)
@@ -169,7 +167,6 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         if (db is null) return StatusCode(503, new { error = "no database configured" });
         var row = await db.EnvDesigns.FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
         if (row is null) return NotFound(new { error = "unknown design" });
-        // owner or admin only (a contributor cannot delete another's design).
         if (row.OwnerUserId != currentUser.DiscordId && !currentUser.IsAtLeast(UserRole.Admin))
             return StatusCode(403, new { error = "only the owner or an admin can delete this design" });
         db.EnvDesigns.Remove(row);

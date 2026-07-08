@@ -3,24 +3,15 @@ using EggIncognito.Services.Backfill.Sources;
 
 namespace EggIncognito.Services.Backfill;
 
-// Proactive store poller: on a schedule, fetches the iOS App Store (iTunes Lookup API) + Google Play
-// (via the APKPure mirror, which exposes Play version numbers) and records newly seen versions in the
-// known-versions discovery list. Newly discovered versions optionally queue an extract job (Android runs
-// end-to-end via the APK toolchain; iOS records intent until a binary is supplied). DB-gated: a no-DB or
-// disabled host no-ops. Modeled on CaptureSweeper's PeriodicTimer loop.
-//
-// Feed notification is intentionally NOT fired here: the Discord feed dedups on a real proto_version id,
-// and discovery has no proto yet. The feed fires when the queued extract produces a ProtoVersion (the
-// existing sync path), so subscribers learn of a version once its proto is actually available.
+// Proactive store poller: on a schedule, fetches the iOS App Store and Google Play version and records
+// newly seen versions in the known-versions discovery list. DB-gated: a no-DB or disabled host no-ops.
 public sealed class VersionPollerService(
     IServiceScopeFactory scopeFactory,
     VersionPollerOptions options,
     TimeProvider time,
     ILogger<VersionPollerService> logger) : BackgroundService
 {
-    // The poll source per platform. Android = Fandom's Version_History (MediaWiki JSON API): structured,
-    // changelog-bearing, and not bot-blocked. APKPure's versions page Cloudflare-403s the scrape client, so
-    // it is the APK-DOWNLOAD source only, never the list source. iOS = iTunes App Store lookup.
+    // APKPure's versions page Cloudflare-403s the scrape client, so it's the APK-download source only.
     private static readonly (string Platform, string Source)[] PlatformSources =
         [("android", "fandom"), ("ios", "itunes")];
 
@@ -32,7 +23,6 @@ public sealed class VersionPollerService(
             return;
         }
 
-        // First poll shortly after boot, then on the configured interval.
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, options.PollIntervalMinutes)), time);
         try
         {
@@ -48,9 +38,8 @@ public sealed class VersionPollerService(
         using var scope = scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
         if (sp.GetService(typeof(IBackfillJobStore)) is not IBackfillJobStore jobs)
-            return; // no DB on this host
+            return;
 
-        // Snapshot known versions up front so we can tell which are genuinely new this tick.
         var before = (await jobs.KnownAsync(ct))
             .Select(k => (k.Platform, k.AppVersion)).ToHashSet();
 

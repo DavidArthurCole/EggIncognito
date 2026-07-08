@@ -1,8 +1,5 @@
-@* Recursive proto field editor. One row per FieldNode: message fields render their label and recurse
-   into a child FieldTree; repeated fields render an add/remove item list; enums render a select of the
-   enum values; bools a true/false/unset select; scalars a typed input. Emits the same class names the
-   old app.js field tree used (.field-row, .field-name, .field-input, .repeated-items, ...) so the
-   compiled CSS applies. OnChanged bubbles so the parent can re-run the env lock + raw-JSON sync. *@
+@* Recursive proto field editor. One row per FieldNode: message fields recurse into a child FieldTree;
+   repeated fields render an add/remove item list; enums/bools render a select; scalars a typed input. *@
 
 @foreach (var node in Nodes)
 {

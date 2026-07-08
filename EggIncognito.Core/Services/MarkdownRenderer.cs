@@ -24,9 +24,7 @@ public static class MarkdownRenderer
     static readonly Regex Rule = new(@"^\s*---+\s*$", RegexOptions.Compiled);
     static readonly Regex Heading = new(@"^(#{1,3})\s+(.*)$", RegexOptions.Compiled);
     // Quote marker is matched as the escaped entity, since EscapeHtml runs before the line scan and
-    // turns a leading `>` into `&gt;`. The md.js original tested for a raw `>` here, which never
-    // survived its escape-first pass, so its blockquote branch was effectively dead. Matching `&gt;`
-    // makes blockquotes actually render.
+    // turns a leading `>` into `&gt;`.
     static readonly Regex Quote = new(@"^\s*&gt;\s?", RegexOptions.Compiled);
     static readonly Regex Ul = new(@"^\s*[-*]\s+", RegexOptions.Compiled);
     static readonly Regex Ol = new(@"^\s*\d+\.\s+", RegexOptions.Compiled);

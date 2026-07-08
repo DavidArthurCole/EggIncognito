@@ -5,10 +5,8 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Controllers;
 
-// Serves the exported ship .glb set (ShipAssets:OutputDir/ships) for the 3D playground. The 7 bundled ships
-// are produced by the device export path; this just lists + serves them, optionally animated. The old
-// "resolve the 4 CDN-only orbital ships from a DLCCatalog" path was removed: those ships have no published
-// mesh, only 2D icons, so it was a dead end. Shells now flow through ShellsController instead.
+// Serves the exported ship .glb set (ShipAssets:OutputDir/ships) for the 3D playground. The 7 bundled
+// ships are produced by the device export path; this just lists and serves them, optionally animated.
 [ApiController]
 [Route("api/ship-assets")]
 [EnableRateLimiting("read")]

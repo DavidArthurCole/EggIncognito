@@ -3,12 +3,9 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-// In-memory status for one in-flight device check-update per device. The check-update poll runs ~6 minutes,
-// far past the reverse-proxy timeout, so the controller fires it as a background task and the UI polls this
-// tracker via GET check-status. No DB table, no SignalR: a singleton ConcurrentDictionary keyed by device id.
-//
-// TryStart doubles as the overlap guard: a device cannot run two checks at once. Done/Error entries self-expire
-// on read after a TTL so a stale verdict clears and the row returns to idle.
+// In-memory status for one in-flight device check-update per device. The controller fires the check as a
+// background task and the UI polls this tracker via GET check-status. TryStart doubles as the overlap
+// guard: a device cannot run two checks at once. Done/Error entries self-expire on read after a TTL.
 public enum JobState { Running, Done, Error }
 
 public sealed record JobStatus(
@@ -18,16 +15,15 @@ public sealed record JobStatus(
 
 public interface IDeviceJobTracker
 {
-    bool TryStart(string deviceId, string message); // false if one is already Running
+    bool TryStart(string deviceId, string message);
     void Progress(string deviceId, string message);
     void Finish(string deviceId, StoreCheckResult result);
     void Fail(string deviceId, string note);
-    JobStatus? Get(string deviceId); // null => idle/expired
+    JobStatus? Get(string deviceId);
 }
 
 public sealed class DeviceJobTracker(TimeProvider time) : IDeviceJobTracker
 {
-    // How long a terminal (Done/Error) verdict lingers before a read clears it back to idle.
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(2);
 
     private readonly ConcurrentDictionary<string, JobStatus> _jobs =
@@ -38,10 +34,7 @@ public sealed class DeviceJobTracker(TimeProvider time) : IDeviceJobTracker
         var now = time.GetUtcNow();
         var running = new JobStatus(JobState.Running, message, "running", null, null, now, now);
 
-        // Atomic: add if absent, else only replace a non-Running (terminal) entry. AddOrUpdate's update
-        // delegate can run more than once under contention, so it must be side-effect-free; we compute the
-        // winner purely from the existing value. A concurrent second caller seeing Running keeps Running, and
-        // we detect that by comparing the stored value to the running one we tried to insert.
+        // AddOrUpdate's delegate can run more than once under contention, so it stays side-effect-free.
         var stored = _jobs.AddOrUpdate(
             deviceId,
             running,
@@ -54,7 +47,6 @@ public sealed class DeviceJobTracker(TimeProvider time) : IDeviceJobTracker
         var now = time.GetUtcNow();
         _jobs.AddOrUpdate(
             deviceId,
-            // No live job (expired/cleared): create a Running row so progress is still visible.
             new JobStatus(JobState.Running, message, "running", null, null, now, now),
             (_, e) => e with { Message = message, UpdatedAt = now });
     }
@@ -78,8 +70,6 @@ public sealed class DeviceJobTracker(TimeProvider time) : IDeviceJobTracker
     public JobStatus? Get(string deviceId)
     {
         if (!_jobs.TryGetValue(deviceId, out var s)) return null;
-        // Terminal verdicts expire on read so the row returns to idle. Running never expires here (the
-        // background task always reaches Finish/Fail; a crash would leave it stuck, accepted tradeoff).
         if (s.State != JobState.Running && time.GetUtcNow() - s.UpdatedAt > Ttl)
         {
             _jobs.TryRemove(deviceId, out _);

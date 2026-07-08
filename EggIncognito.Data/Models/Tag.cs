@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A broad API bucket, e.g. Coops, Backups, Shells. Seeded from a known list on boot; admins can add
-// more. `slug` is the stable key, `label` the display text, `color` an optional hex accent for the
-// chip. Applied to subjects via SubjectTag. Public reads; admin manages the catalog.
+// A broad API bucket, e.g. Coops, Backups, Shells. `slug` is the stable key, `label` the display text, `color` an optional hex accent chip.
 [Table("tags")]
 public class Tag
 {

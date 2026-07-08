@@ -24,7 +24,7 @@ public class SymbolRecoveryTests
             new SyntheticMacho.Sym("__ZN3Foo4quuxEv", vm + 12),
         };
         var refb = SyntheticMacho.Build(text, syms);
-        var tgt = SyntheticMacho.Build(text, []); // same text, no symbols (stripped)
+        var tgt = SyntheticMacho.Build(text, []);
 
         var r = SymbolRecovery.Recover(refb, tgt, ["Foo3bar", "Foo4quux"]);
         Assert.Equal("exact-transplant", r.Tier);
@@ -39,8 +39,7 @@ public class SymbolRecoveryTests
     {
         var vm = SyntheticMacho.TextVm;
 
-        // Reference: funcA (32 bytes, >= MinFuncLen) = [bl ->0x500, then 6 nops, ret] at vm+0;
-        // funcB (32 bytes) = [movz #7, then 6 nops, ret] at vm+32.
+        // funcA (32 bytes) = [bl ->0x500, 6 nops, ret] at vm+0; funcB (32 bytes) = [movz #7, 6 nops, ret] at vm+32.
         var refFuncA = Words(Bl((long)vm, (long)vm + 0x500), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         var refFuncB = Words(MovZ(0, 7), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         var refText = refFuncA.Concat(refFuncB).ToArray();
@@ -50,9 +49,8 @@ public class SymbolRecoveryTests
             new SyntheticMacho.Sym("__ZN6FuncB2goEv", vm + (ulong)refFuncA.Length),
         });
 
-        // Target (stripped, different layout): a leading nop pad, then funcA reappears with a DIFFERENT bl
-        // displacement (same opcode, different target) so it matches only after displacement masking; funcB's
-        // body is CHANGED (movz #9 not #7) so it must NOT be recovered.
+        // Target: leading nop pad, funcA reappears with a different bl displacement (matches only after
+        // displacement masking), funcB's body is changed (movz #9 not #7) so it must not be recovered.
         var pad = Words(Nop(), Nop());
         var tgtFuncA = Words(Bl((long)vm + 8, (long)vm + 0x900), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         var tgtFuncBChanged = Words(MovZ(0, 9), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
@@ -66,7 +64,6 @@ public class SymbolRecoveryTests
         Assert.Contains("FuncA2go", r.RequestedFound);
         Assert.Contains("FuncB2go", r.RequestedMissing);
 
-        // recovered VA must point at funcA's real location in the target (after the 8-byte pad).
         var rec = r.Symbols.First(s => s.Name == "__ZN6FuncA2goEv");
         Assert.Equal(vm + 8, rec.Value);
     }
@@ -92,10 +89,8 @@ public class SymbolRecoveryTests
         Assert.Empty(r.RequestedMissing);
     }
 
-    // Adjacent-version recovery (symbolized 1.35.6 -> stripped 1.35.8). Measured 2026-06-29: content-hash
-    // recovers ~27k functions byte-identical across the two minor versions, INCLUDING the real
-    // GalaxyParticle::update. updateSilo's main body changed (only its inner lambdas match), so it stays
-    // unrecovered: honest, no false silo formula. Scans the target's LC_FUNCTION_STARTS, ~2s on the real fixture.
+    // Adjacent-version recovery (symbolized 1.35.6 -> stripped 1.35.8): content-hash recovers functions
+    // byte-identical across the two minor versions, including the real GalaxyParticle::update.
     [Fact]
     public void Recover_Real_AdjacentVersion_RecoversManyIncludingRealTargets()
     {
@@ -107,16 +102,13 @@ public class SymbolRecoveryTests
         Assert.Equal("content-hash", r.Tier);
         Assert.True(r.Recovered > 10_000, $"recovered={r.Recovered}");
 
-        // the real GalaxyParticle::update IS recovered (byte-identical across the two versions).
         Assert.Contains(r.Symbols, s => s.Name == "__ZN14GalaxyParticle6updateEP14ParticleSystemf");
-        // updateSilo's main body changed between versions; its exact symbol must NOT be recovered (no false
-        // positive). Lambda thunks named after it may match, which is why RequestedFound can still list it.
+        // updateSilo's body changed between versions; lambda thunks named after it may still match, so
+        // RequestedFound can list it even though the exact symbol below is not recovered.
         Assert.DoesNotContain(r.Symbols, s => s.Name == "__ZN9FarmScene10updateSiloEP14GameControlleri");
     }
 
-    // Full v2 payoff: recover symbols onto the stripped 1.35.8 binary, then extract GalaxyParticle::update's
-    // constants directly FROM the stripped binary using the recovered (name, VA) map. This is the device path
-    // when only an adjacent symbolized reference exists.
+    // Recovers symbols onto the stripped binary, then extracts constants directly from it using the recovered map.
     [Fact]
     public void ExtractWith_RecoveredSymbols_PullsConstantsFromStrippedBinary()
     {
@@ -131,8 +123,6 @@ public class SymbolRecoveryTests
         var ex = FunctionConstantExtractor.ExtractWith(tgt, r.Symbols, ["GalaxyParticle6update"]);
         Assert.True(ex.Ok, ex.Diagnostics);
         Assert.Equal("__ZN14GalaxyParticle6updateEP14ParticleSystemf", ex.FunctionName);
-        // the recovered function disassembles into real code (floats and/or calls) at the recovered VA, proving
-        // the recovered address lands on the right bytes in the stripped binary, not just a name match.
         Assert.True(ex.Floats.Count + ex.Calls.Count > 0, "recovered function disassembled to nothing");
     }
 

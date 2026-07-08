@@ -6,8 +6,7 @@ using SyncKit.Contract;
 namespace EggIncognito.Bot;
 
 // Result of a deploy-agent call. Wire shape is SyncKit.Contract.DeployResponse; this is the
-// router's domain view, which adds failure mapping (HTTP errors, timeouts, bad JSON -> Ok=false
-// with a human Tail) so the router only ever renders three shapes: up-to-date, deployed, failed.
+// router's domain view, mapping failures (HTTP errors, timeouts, bad JSON) to Ok=false with a human Tail.
 public sealed record DeployResult(
     bool Ok, bool AlreadyUpToDate, string? Tail, string? FromHash, string? ToHash,
     string? FromUrl = null, string? ToUrl = null)
@@ -43,8 +42,7 @@ public sealed class DeployAgentClient(string url, string secret)
         catch (HttpRequestException ex) { return DeployResult.Failure($"Could not reach deploy agent: {ex.Message}"); }
     }
 
-    // Pure JSON-to-result mapping, unit-tested without HTTP. Decodes the shared
-    // SyncKit.Contract.DeployResponse wire type, then projects to the router's DeployResult.
+    // Decodes the shared SyncKit.Contract.DeployResponse wire type, then projects to the router's DeployResult.
     public static DeployResult Parse(string json)
     {
         try

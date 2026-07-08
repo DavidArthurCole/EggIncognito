@@ -3,12 +3,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Services.Devices;
 
-// iOS device-driven store check = drive the on-device App Store via the eggupdate tweak (ssh-touch the
-// watched trigger file), then re-read the installed version to see whether it climbed. The device's App
-// Store + its logged-in account do the work; the server only fires the trigger + polls. No version list:
-// the App Store itself decides the target, so we detect ANY climb rather than matching a known version.
-//
-// Reuses the iOS ssh config the updater/puller use (DeviceUpdate:Ios:*). Never throws.
+// iOS device-driven store check: drives the on-device App Store via the eggupdate tweak (ssh-touch the
+// watched trigger file), then re-reads the installed version to see whether it climbed. No version list:
+// the App Store decides the target, so this detects any climb rather than matching a known version.
 public sealed class IosStoreChecker(
     IProcessRunner runner, IConfiguration config, ILogger<IosStoreChecker> logger) : IDeviceStoreChecker
 {
@@ -40,19 +37,10 @@ public sealed class IosStoreChecker(
                 "ios ssh not configured (DeviceUpdate:Ios:SshHost/SshKeyPath)");
         }
 
-        // Fire the eggupdate tweak. The proven path (2026-06-18): the tweak builds an SSPurchase standard-
-        // redownload for egginc (adam-id 993492744) and starts an SSPurchaseRequest; storedownloadd then
-        // downloads + installs the latest store version headlessly. No injection, no tap, no entitlement.
-        // The SSPurchase needs the App Store app's authenticated account session live, so launch it first
-        // (uiopen) to prime the session, then touch the kqueue-watched trigger file. The tweak's %ctor also
-        // runs the flow on launch if /var/mobile/eggupdate.armed exists; touching the trigger covers the case
-        // where the app is already alive.
+        // SSPurchase needs the App Store app's authenticated session live: kill any stale (possibly zombied)
+        // process, launch it to prime the session, then touch the kqueue-watched trigger file.
         progress?.Invoke($"installed {before}; launching App Store to prime session…");
         logger.LogInformation("device check-update: {Id} ios launching App Store + firing trigger", device.Id);
-        // Kill any stale App Store process FIRST. A headless uiopen leaves the app SIGKILLed-but-unreaped
-        // (state `?s`); a later uiopen sees it "already running" and does NOT spawn a fresh process, so the
-        // armed eggupdate dylib never loads + the trigger no-ops. killall forces a clean relaunch that loads
-        // the dylib. (Proven failure mode 2026-06-18: prod fire no-op'd against a 06:28 zombie.)
         await runner.RunAsync("ssh",
             ["-p", port, "-i", key, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
              $"root@{host}", "killall -9 AppStore 2>/dev/null || true"], ct);
@@ -60,7 +48,6 @@ public sealed class IosStoreChecker(
         await runner.RunAsync("ssh",
             ["-p", port, "-i", key, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
              $"root@{host}", "uiopen itms-apps://itunes.apple.com/app/id993492744 || true"], ct);
-        // settle so the App Store session authenticates + the dylib loads before we trigger the purchase
         try { await Task.Delay(TimeSpan.FromSeconds(3), ct); } catch (OperationCanceledException) { }
 
         var fire = await runner.RunAsync("ssh",
@@ -73,9 +60,6 @@ public sealed class IosStoreChecker(
             return new StoreCheckResult(true, before, before, false, false, "error", note);
         }
 
-        // Poll for ANY version climb (the App Store chose the target). The progress line reports WHAT the
-        // server is doing + elapsed time, not the unchanged installed version (which the UI already shows on
-        // the row). A climb is announced the instant it is seen.
         progress?.Invoke($"trigger fired; waiting for App Store to install (up to {pollAttempts * pollSeconds}s)…");
         try
         {
@@ -107,17 +91,12 @@ public sealed class IosStoreChecker(
         }
         finally
         {
-            // Power-save: we launched the App Store to drive the update. Close it + sleep the display so a
-            // never-auto-lock farm phone is not left burning its screen. Best-effort; never affects the result.
             await SleepDeviceAsync(host!, port, key!, CancellationToken.None);
         }
     }
 
-    // Close the App Store over ssh. killall AppStore drops the driven foreground app (the power win: no more
-    // lit App Store UI churning). The SCREEN LOCK itself is done inside the eggupdate tweak via SBSLockDevice()
-    // right after it fires the purchase (the only place with in-process SpringBoardServices access; the phone
-    // has no shell lock tool). Locking does not interrupt storedownloadd's background install. Best-effort here;
-    // never throws.
+    // Screen lock itself happens inside the eggupdate tweak via SBSLockDevice(); this just kills the
+    // foreground App Store app. Best-effort, never throws.
     private async Task SleepDeviceAsync(string host, string port, string key, CancellationToken ct)
     {
         try

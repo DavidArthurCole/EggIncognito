@@ -1,7 +1,5 @@
 @* Left pane: the Endpoints | Objects switch, a filter box, and the matching list. Endpoints are grouped
-   by namespace (collapsible); Objects is the proto message-type list (the Documentation surface).
-   Selecting an endpoint drives the builder; selecting an object drives the object/docs view. Reads come
-   straight from the injected IRouteCatalog / IProtoReflection (server-side, no API round-trip). *@
+   by namespace (collapsible); Objects is the proto message-type list (the Documentation surface). *@
 @inject IRouteCatalog Catalog
 @inject IProtoReflection Reflection
 

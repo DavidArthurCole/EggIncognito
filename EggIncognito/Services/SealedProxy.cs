@@ -3,11 +3,8 @@ using System.Net;
 namespace EggIncognito.Services;
 
 // The "Sealed API proxy" supporter perk: an authenticated egress that hides the caller's identity
-// from the downstream API. The Inspector's Live-API send opts in per request; this service decides
-// whether a given caller may use it and hands back the egress HttpClient.
-//
-// Availability is config-gated (SealedProxy:UpstreamUrl). Access is supporter-gated and fail-closed:
-// an anonymous caller, a non-supporter, or a failed live re-check never gets the sealed egress.
+// from the downstream API. Availability is config-gated (SealedProxy:UpstreamUrl); access is
+// supporter-gated and fail-closed.
 public interface ISealedProxy
 {
     bool IsConfigured { get; }

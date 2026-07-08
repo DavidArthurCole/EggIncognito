@@ -1,18 +1,15 @@
 namespace EggIncognito.Capture;
 
-// Inferred state of the capture cert's trust on the connected device. We cannot query the device's
-// trust store, so this is derived from observed traffic:
+// Inferred state of the capture cert's trust on the connected device, derived from observed traffic
+// since the device's trust store cannot be queried directly.
 //   Waiting   - no client/device has connected to the proxy yet
-//   Untrusted - a device connected and we saw auxbrain CONNECTs, but no auxbrain flow decrypted and a
-//               decrypt/TLS error fired - the CA is not trusted
-//   Trusted   - at least one auxbrain flow decrypted successfully - the CA is trusted
+//   Untrusted - a device connected and we saw auxbrain CONNECTs, but a decrypt/TLS error fired with no successful flow
+//   Trusted   - at least one auxbrain flow decrypted successfully
 public enum CertState { Waiting, Untrusted, Trusted }
 
-// Per-connected-device info for the dashboard's device cards. Ip + connection-derived fields are
-// always known; Hostname is a best-effort reverse-DNS lookup, null until it resolves. Os and
-// GameVersion are derived from the session's most-recently-seen decrypted request's rinfo, and since
-// the flow path sees loopback not the device IP, they are only surfaced when a single device is
-// connected. Os is a human OS name; GameVersion is the Egg, Inc. client version string.
+// Per-connected-device info for the dashboard's device cards. Hostname is a best-effort reverse-DNS
+// lookup, null until it resolves. Os/GameVersion are only surfaced when a single device is connected,
+// since the flow path sees loopback not the device IP.
 public sealed record DeviceInfo(
     string Ip,
     string? Hostname,
@@ -46,9 +43,8 @@ public sealed record CaptureStats(
     bool Running = false,
     int Port = 0);
 
-// A device remembered across capture runs, persisted to captures/devices.json. Mirrors the live
-// DeviceInfo fields that survive a restart - an IP's identity, last-known OS/version/hostname, and
-// when it was seen - so a fresh session can show previously-seen devices as offline cards.
+// A device remembered across capture runs, persisted to captures/devices.json, so a fresh session
+// can show previously-seen devices as offline cards.
 public sealed record RememberedDevice(
     string Ip,
     string? Hostname,

@@ -1,8 +1,8 @@
 namespace EggIncognito.Services;
 
-// Pure loop-frame math for the playground GIF export. A perfect loop captures N frames evenly over one
-// animation period: N = round(fps*period), each frame delayed period/N. The recorder JS uses the same rule;
-// this is the tested contract. Guards keep N + delay at least 1 so a degenerate input never divides by zero.
+// Pure loop-frame math for the playground GIF export, matching the recorder JS's rule: a perfect loop
+// captures N = round(fps*period) frames evenly over one animation period, each delayed period/N.
+// Guards keep N and delay at least 1 so a degenerate input never divides by zero.
 public static class LoopFrames
 {
     public static int Count(int fps, double periodSeconds)

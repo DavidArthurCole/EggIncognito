@@ -40,8 +40,6 @@ public sealed class FlowProcessor
         var resp = _decoder.DecodeResponse(displayPath, flow.ResponseBodyB64);
         var known = resp.Known && (req.Known || flow.RequestDataB64 is null);
 
-        // For a diff outcome, compute git-style +/- line counts, existing endpoint vs the staged new
-        // one, so the UI can show how big the change is.
         var (added, removed) = outcome == "diff" ? DiffCounts(_contentRoot, displayPath) : (0, 0);
 
         var (reqHeaders, reqHeadersRaw) = HeaderRedactor.Build(flow.RequestHeaders);
@@ -79,9 +77,7 @@ public sealed class FlowProcessor
         return "";
     }
 
-    // Git-style +/- line counts for a staged endpoint diff: lines present in the new staged file but
-    // not the existing one are "added"; lines in the existing but not the new are "removed". Multiset
-    // comparison, so duplicate lines count correctly.
+    // Git-style +/- line counts for a staged endpoint diff. Multiset comparison, so duplicate lines count correctly.
     internal static (int added, int removed) DiffCounts(string contentRoot, string path)
     {
         try

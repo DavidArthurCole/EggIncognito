@@ -6,10 +6,8 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// The native proxy's MITM only works if its minted leaf is usable as an SslStream SERVER certificate and
-// chains to the root. "Authentication failed" server-side on the device meant the leaf key was unusable, so
-// guard the cert path directly: mint a leaf, run a loopback SslStream server with it, connect a client that
-// trusts the root, and require the handshake to complete with the right CN.
+// Mints a leaf, runs a loopback SslStream server with it, and requires a client that trusts the
+// root to complete the handshake, proving the leaf works as an SslStream server certificate.
 public class NativeCaptureProxyCertTests
 {
     [Fact]

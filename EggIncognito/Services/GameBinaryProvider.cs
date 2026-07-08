@@ -4,10 +4,9 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
 
-// Supplies a SYMBOLIZED egginc Mach-O to the decomp extractor, version-matched to what the device runs. The
-// device build is STRIPPED, so the binary is sourced from the local symbolized-IPA store (mirror/older builds
-// carry the ~450k symbols), NOT pulled off the device. The device is only the version oracle. A configured
-// Decomp:BinaryPath short-circuits to one explicit symbolized binary. No game binary ever lands in the repo.
+// Supplies a symbolized egginc Mach-O to the decomp extractor, version-matched to what the device runs. The
+// device build is stripped, so the binary is sourced from the local symbolized-IPA store; the device is only
+// the version oracle. A configured Decomp:BinaryPath short-circuits to one explicit symbolized binary.
 public sealed class GameBinaryProvider(
     IServiceProvider services, IConfiguration config, ILogger<GameBinaryProvider> logger)
 {
@@ -35,10 +34,8 @@ public sealed class GameBinaryProvider(
         return (true, r.Bytes, r.ExactVersion ? null : $"version mismatch: device {version ?? "?"}, using symbolized {r.Version}");
     }
 
-    // Inputs for v2 symbol recovery: a SYMBOLIZED reference (from the store) + a STRIPPED target. The target is
-    // an explicit Decomp:StrippedTargetPath (e.g. the decrypted device binary saved to disk); when unset the
-    // recovery has nothing to project onto and returns a diagnostic. Reference defaults to the store's newest
-    // symbolized build unless refVersion is given.
+    // Inputs for v2 symbol recovery: a symbolized reference (from the store) + a stripped target from
+    // Decomp:StrippedTargetPath. Reference defaults to the store's newest symbolized build unless refVersion is given.
     public async Task<(bool Ok, byte[]? RefBytes, byte[]? TargetBytes, string? Diagnostics)> GetRecoveryInputsAsync(
         string? refVersion, string? targetPathOverride, CancellationToken ct)
     {

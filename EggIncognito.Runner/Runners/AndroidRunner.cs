@@ -6,9 +6,7 @@ using EggIncognito.Runner.State;
 
 namespace EggIncognito.Runner.Runners;
 
-// The proven android path: dumpsys for appVersion+build, pull the arm split, extract+clean the proto,
-// hash it, emit a NewVersionEvent. State is keyed on build (versionCode), the unique row key. force
-// ignores state. Timing and posting are the caller's concern, so this stays testable without a device.
+// State is keyed on build (versionCode); force ignores state.
 public sealed class AndroidRunner(
     IAdbClient adb, IProtoExtractor proto, VersionState state, IClientVersionReader clientVersion,
     ClientVersionState cvState, string package, string apkStashDir,

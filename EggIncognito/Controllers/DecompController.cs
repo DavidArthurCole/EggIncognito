@@ -8,17 +8,16 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Controllers;
 
 // Admin decomp-extraction endpoints. Reads float/double constants + call targets out of named functions in the
-// egginc binary (pulled from the device, cached). The reusable primitive for extracting game behavior instead
-// of hand-authoring it (see CLAUDE.md "EXTRACT, don't author"). Admin-only; degrades with a diagnostic when no
-// binary or the disassembler is unavailable. Never throws to the client.
+// egginc binary (pulled from the device, cached). Admin-only; degrades with a diagnostic instead of throwing
+// when no binary or the disassembler is unavailable.
 [ApiController]
 [Route("api/decomp")]
 public sealed class DecompController(
     GameBinaryProvider binaries, ICurrentUser currentUser, DeviceCaptureConfig capture,
     IProcessRunner runner, IWebHostEnvironment env) : ControllerBase
 {
-    // Diagnostic: how many symbols the parser sees + sample names matching an optional filter. Tells us whether
-    // the live binary is symbolized + what the real mangled names look like (so needles can be tuned).
+    // Diagnostic: symbol count + sample names matching an optional filter, to check whether the live
+    // binary is symbolized and see what the real mangled names look like.
     [HttpGet("symbols")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Symbols([FromQuery] string? filter, [FromQuery] string? device, CancellationToken ct)
@@ -54,10 +53,9 @@ public sealed class DecompController(
         return await ExtractAsync([name], device, ct);
     }
 
-    // The Chicken Universe hab floating effect = a GalaxyParticle system. The per-particle motion (count +
-    // orbit/transform) lives in DrawableGalaxyParticle::update; the spawn placement in GalaxyParticle::onBirth.
-    // These two carry the substantive constants (the system-level GalaxyParticle::update is a thin dispatcher).
-    // Needles are exact-mangled so DrawableGalaxyParticle does not shadow GalaxyParticle and vice versa.
+    // The Chicken Universe hab floating effect = a GalaxyParticle system: per-particle motion lives in
+    // DrawableGalaxyParticle::update, spawn placement in GalaxyParticle::onBirth. Needles are exact-mangled
+    // so neither symbol shadows the other.
     [HttpGet("galaxy-particle")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> GalaxyParticle([FromQuery] string? device, CancellationToken ct)
@@ -77,9 +75,9 @@ public sealed class DecompController(
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
 
-    // v2 cross/adjacent-version symbol recovery: project a symbolized reference's symbols onto a stripped target
+    // Cross/adjacent-version symbol recovery: project a symbolized reference's symbols onto a stripped target
     // (LC_FUNCTION_STARTS-anchored, byte-verified), then extract the requested functions' constants from the
-    // STRIPPED target using the recovered VAs. For the device path when only an adjacent symbolized build exists.
+    // stripped target using the recovered VAs.
     [HttpGet("recover")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Recover(
@@ -118,11 +116,10 @@ public sealed class DecompController(
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
 
-    // Resolve a symbol's recovered VA on the stripped device target, for hooking it live with frida. Recovers the
-    // adjacent symbolized reference's symbols onto the target, then EXACT-matches the requested name (so a lambda
-    // closure whose mangled name embeds the real signature does not shadow the bare function). Returns the VA + the
-    // target's __text vmaddr/fileoff so the caller computes the runtime address: module.base + (VA - textVm).
-    // Admin-gated. The path for the data-driven effects that need a live hook (the universe hatchery sparkle).
+    // Resolve a symbol's recovered VA on the stripped device target, for hooking it live with frida. Exact-matches
+    // the requested name so a lambda closure whose mangled name embeds the real signature does not shadow the bare
+    // function. Returns the VA plus the target's __text vmaddr/fileoff so the caller computes the runtime address
+    // as module.base + (VA - textVm).
     [HttpGet("resolve-va")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> ResolveVa(
@@ -140,15 +137,13 @@ public sealed class DecompController(
             ulong textVm = 0, textOff = 0;
             if (MachoText.TryFindText(tgtBytes, out var tfo, out _, out var tvm)) { textVm = tvm; textOff = (ulong)tfo; }
 
-            // 1) exact recovered match = the function's body was byte-stable across versions. Best.
+            // 1) exact recovered match: the function's body was byte-stable across versions. Best case.
             var exact = report.Symbols.Where(s => s.Name == name).ToList();
             if (exact.Count > 0)
                 return VaResult(tgtBytes, report, exact[0].Name, exact[0].Value, textVm, textOff, "exact-recovered", null);
 
-            // 2) the function's body changed (not recovered), but a closure/lambda whose mangled name EMBEDS the
-            // requested signature did recover (closures often stay byte-stable). Its address is taken inside the
-            // requested function to install it, so the function that REFERENCES the lambda VA = the target. Pin it
-            // via the address-referrer scan over the device function-starts.
+            // 2) body changed (not recovered), but a closure/lambda embedding the requested signature did.
+            // Its address is taken inside the requested function, so scan for the referrer to pin the target.
             var embedded = report.Symbols
                 .Where(s => s.Name != name && s.Name.Contains(name, StringComparison.Ordinal))
                 .OrderBy(s => s.Name.Length).ToList();
@@ -161,7 +156,7 @@ public sealed class DecompController(
                             .Select(r => new { fnVa = "0x" + r.FunctionVa.ToString("x"), r.HitCount }).ToList());
             }
 
-            // 3) shortest Contains match as a last resort (may be the lambda itself, flagged so the caller knows).
+            // 3) shortest Contains match as a last resort, flagged so the caller knows it may be the lambda itself.
             if (embedded.Count > 0)
                 return VaResult(tgtBytes, report, embedded[0].Name, embedded[0].Value, textVm, textOff, "contains-fallback", null);
 
@@ -171,9 +166,8 @@ public sealed class DecompController(
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
 
-    // Effect recovery framework: symbolically execute the effect's per-particle update and return the per-frame
-    // placement math as an expression tree the renderer replays (not just constants). Admin-gated; the model's
-    // opaqueCount is the honesty signal. Sources the symbolized binary like the other decomp endpoints.
+    // Symbolically executes the effect's per-particle update and returns the per-frame placement math as an
+    // expression tree the renderer replays, not just constants. The model's opaqueCount is the honesty signal.
     [HttpGet("effect")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Effect([FromQuery] string? name, [FromQuery] string? device, CancellationToken ct)
@@ -196,8 +190,7 @@ public sealed class DecompController(
     }
 
     // Recovered farm singleton placement: the missionControl/fuelTank/hoa position formulas extracted from
-    // FarmScene::*Pos as expression trees over Input("farmWidth"). The dynamic, farm-size-dependent offset the
-    // game computes at runtime, now read from the binary instead of hand-authored. Admin-gated.
+    // FarmScene::*Pos as expression trees over Input("farmWidth").
     [HttpGet("farm-placement")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> FarmPlacement([FromQuery] string? device, CancellationToken ct)
@@ -223,9 +216,8 @@ public sealed class DecompController(
     }
 
     // Dynamic building-effect discovery: returns every effect the resolver finds for a building mesh stem,
-    // extracted from the binary call graph (no hardcoded per-building list). Each effect = a recovered EffectModel
-    // the renderer drives. Empty array = no effects discovered (or no binary). Public-ish (read-gated like the
-    // env layout); the heavy lifting is cached binary analysis.
+    // extracted from the binary call graph (no hardcoded per-building list). Empty array means no effects
+    // discovered, or no binary.
     [HttpGet("building-effects")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> BuildingEffects([FromQuery] string stem, [FromQuery] string? device, CancellationToken ct)
@@ -243,13 +235,10 @@ public sealed class DecompController(
         catch (Exception ex) { return Ok(new { stem, effects = Array.Empty<object>(), diagnostics = ex.Message }); }
     }
 
-    // Full hatchery-assembly extraction in ONE call: FarmScene::updateHatchery is the function that loads + places
-    // the hatchery's floating sub-pieces (bolt/probe/rings). Returns its float constants + bl call targets (which
-    // reveal the assembly: FAM::loadShell loads the pieces, GameController::frandom randomizes placement,
-    // FarmScene::rotate_pyramid rotates), PLUS the recovered transform math of each matrix-returning lambda
-    // ($_2/$_3/$_5 build the per-piece 4x4 transforms). The lambda bodies are run through the symbolic executor so
-    // the placement/rotation is recovered as an expression tree, not guessed. Admin-gated. This is the SOURCE of
-    // the hatchery floating effect (replaces the procedural stopgap in the playground renderer).
+    // Full hatchery-assembly extraction in one call: FarmScene::updateHatchery loads + places the hatchery's
+    // floating sub-pieces (bolt/probe/rings). Returns its float constants and bl call targets plus the recovered
+    // transform math of each matrix-returning lambda ($_2/$_3/$_5 build the per-piece 4x4 transforms), run through
+    // the symbolic executor so placement/rotation is recovered as an expression tree, not guessed.
     [HttpGet("hatchery-assembly")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> HatcheryAssembly([FromQuery] string? device, CancellationToken ct)
@@ -261,9 +250,7 @@ public sealed class DecompController(
             var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
             if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
 
-            // structured recovery: the assembly anchor + each matrix lambda's returned 4x4 (sret out-param).
             var asm = EggIncognito.Services.ProtoExtract.Decomp.HatcheryAssemblyRecovery.Recover(bin);
-            // also surface the raw main fn constants + calls (the assembly method: loadShell/frandom/rotate_pyramid).
             var main = FunctionConstantExtractor.Extract(bin, ["FarmScene14updateHatcheryEP14GameControllerb"]);
 
             var json = asm.ToJson();
@@ -274,9 +261,8 @@ public sealed class DecompController(
                 ["calls"] = new System.Text.Json.Nodes.JsonArray(main.Calls.Select(c => System.Text.Json.Nodes.JsonValue.Create(c)).ToArray()),
             };
 
-            // The behavior is a state machine: probes orbit the orb, beams (the spike) fire probe->orb briefly.
-            // Surface the helpers that drive it so the renderer can reproduce the real motion, not a guessed orbit:
-            //   rotate_pyramid = the probe orbit rotation; the $_*FbvE boolean lambda = the "fire beam" predicate.
+            // The behavior is a state machine: probes orbit the orb, beams fire probe->orb briefly.
+            // rotate_pyramid drives the orbit rotation; the $_*FbvE boolean lambda is the fire-beam predicate.
             EggIncognito.Services.ProtoExtract.FunctionConstantExtractor.ExtractResult Ex(string n) =>
                 FunctionConstantExtractor.Extract(bin, [n]);
             System.Text.Json.Nodes.JsonObject Shaped(string label, string needle)
@@ -302,10 +288,9 @@ public sealed class DecompController(
     }
 
     // Live particle capture: hook ParticleBatchedMesh::addParticle on the running game via frida, log every
-    // particle's per-frame world transform, cluster by mesh pointer to isolate one effect. The path for the
-    // data-driven effects that are NOT statically extractable (the universe hatchery sparkle). Admin-gated; needs
-    // the iOS ssh creds (DeviceCapture:Ios / DeviceUpdate:Ios) + frida-server live on the phone. The caller
-    // triggers this while the target farm is on screen. Returns the clustered capture model; degrades cleanly.
+    // particle's per-frame world transform, cluster by mesh pointer to isolate one effect. Needs the iOS ssh
+    // creds (DeviceCapture:Ios / DeviceUpdate:Ios) and frida-server live on the phone; trigger while the target
+    // farm is on screen.
     [HttpPost("particle-capture")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> ParticleCapture([FromQuery] string? addrOffset, CancellationToken ct)
@@ -334,12 +319,10 @@ public sealed class DecompController(
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
 
-    // Shape a resolved-VA response. textOffset = va - textVmAddr = the frida runtime offset (module.base + this).
-    // Byte-scan signature for a function whose BODY changed across versions (so content-hash recovery misses it)
-    // but whose PROLOGUE shape is stable. Slices the function from the SYMBOLIZED reference (which still has the
-    // symbol), masks pc-relative displacement bytes, returns a frida Memory.scan pattern. The caller scans the
-    // live stripped module for it. Admin-gated. Honest: a changed prologue won't match; widen `instructions` or
-    // get an exact-version symbolized build for a clean transplant. The reference is the stash's symbolized ref.
+    // Byte-scan signature for a function whose body changed across versions (content-hash recovery misses it)
+    // but whose prologue shape is stable. Slices the function from the symbolized reference, masks pc-relative
+    // displacement bytes, and returns a frida Memory.scan pattern for the caller to scan the live stripped module.
+    // A changed prologue won't match; widen `instructions` or use an exact-version symbolized build instead.
     [HttpGet("signature")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Signature(
@@ -351,9 +334,8 @@ public sealed class DecompController(
         if (instructions <= 0) instructions = 8;
         try
         {
-            // reuse the recovery-inputs plumbing just to fetch the symbolized reference bytes (targetPath unused).
             var (ok, refBytes, _, diag) = await binaries.GetRecoveryInputsAsync(refVersion, "/dev/null", ct);
-            // GetRecoveryInputsAsync fails when the target is missing; we only need the ref, so re-fetch ref-only.
+            // GetRecoveryInputsAsync fails when the target is missing; re-fetch ref-only in that case.
             if (refBytes is null)
             {
                 var (rok, rb, rdiag) = await binaries.GetBinaryAsync(null, ct);
@@ -385,10 +367,9 @@ public sealed class DecompController(
         catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
     }
 
-    // Shape a resolved-VA response. A recovered/referrer VA can land MID-function (the content-hash match aligns
-    // on a byte-stable interior region, not always the prologue), and an inline frida hook on a non-entry address
-    // CRASHES the app (verified on-device: arm64e + mid-instruction). So snap the VA DOWN to its enclosing
-    // LC_FUNCTION_STARTS boundary and return THAT as the hook target (hookOffset). Raw VA kept for diagnostics.
+    // A recovered/referrer VA can land mid-function, and a frida hook on a non-entry address crashes the app.
+    // Snap the VA down to its enclosing LC_FUNCTION_STARTS boundary and return that as the hook target
+    // (hookOffset); the raw VA is kept for diagnostics.
     private IActionResult VaResult(
         byte[] tgt, SymbolRecovery.RecoveryReport report, string name, ulong va, ulong textVm, ulong textOff,
         string method, object? detail)
@@ -407,7 +388,6 @@ public sealed class DecompController(
             textVmAddr = "0x" + textVm.ToString("x"),
             textFileOff = "0x" + textOff.ToString("x"),
             rawTextOffset = "0x" + (va - textVm).ToString("x"),
-            // snapped-to-prologue: THIS is the safe frida hook target (module.base + hookOffset).
             functionStartVa = "0x" + hookVa.ToString("x"),
             functionEndVa = snapped ? "0x" + endVa.ToString("x") : null,
             hookOffset = "0x" + (hookVa - textVm).ToString("x"),

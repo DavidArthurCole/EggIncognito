@@ -1,9 +1,8 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Reads the LC_FUNCTION_STARTS table from a Mach-O. It survives symbol stripping (the App Store build keeps it
-// even with no symbol names), so it gives the function boundary offsets of a stripped binary. The table is a
-// ULEB128 stream of deltas from the __TEXT base; running sums are absolute file offsets of each function start.
-// Pure header parse, thin + FAT ARM64, defensive (malformed -> empty). Binary not executed.
+// Reads the LC_FUNCTION_STARTS table from a Mach-O. It survives symbol stripping, giving function boundary
+// offsets of a stripped binary. The table is a ULEB128 stream of deltas from the __TEXT base; running sums are
+// absolute file offsets of each function start.
 public static class MachoFunctionStarts
 {
     private const uint MhMagic64 = 0xFEEDFACF;
@@ -75,9 +74,7 @@ public static class MachoFunctionStarts
     }
 
     // The function-start VA at or immediately below targetVa, so a recovered symbol that landed mid-function is
-    // snapped to the real prologue (the only address safe to hook). Returns false if targetVa is below every
-    // start or the table is absent. Needs the __text slide (VA = fileOff + slide) to map starts (file offsets) to
-    // VAs. enclosingEnd = the next start's VA (or text end), so the caller can sanity-check the span.
+    // snapped to the real prologue. Returns false if targetVa is below every start or the table is absent.
     public static bool TryEnclosingStart(byte[] bin, ulong targetVa, out ulong startVa, out ulong endVa)
     {
         startVa = 0; endVa = 0;

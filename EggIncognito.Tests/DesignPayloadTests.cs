@@ -2,9 +2,8 @@ using System.Text.Json;
 
 namespace EggIncognito.Tests;
 
-// The design payload is opaque app JSON saved to env_designs.payload. This pins the contract the client
-// serializes + the server stores verbatim: an element carries id/kind/ref/transform, lighting carries sun +
-// ambient. A round-trip through System.Text.Json must preserve every field.
+// The design payload is opaque app JSON saved to env_designs.payload; a round-trip through
+// System.Text.Json must preserve every field.
 public class DesignPayloadTests
 {
     private sealed record Element(string Id, string Kind, string Ref, string? Hat, string? Shell,

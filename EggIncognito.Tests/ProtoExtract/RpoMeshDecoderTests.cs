@@ -7,9 +7,7 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Tests.ProtoExtract;
 
 // Exercises the .rpo / .rpoz -> .glb decoder against a synthetic mesh built to the documented format
-// (RpoMeshDecoder header notes). A real rpotool golden diff is deferred until a sample .rpo + its
-// rpotool .glb are dropped into this folder; this proves the byte parsing, GLB assembly, emission
-// preservation, and zlib path round-trip without one.
+// (RpoMeshDecoder header notes).
 public class RpoMeshDecoderTests
 {
     private static byte[] BuildRpo() => SampleRpo.Build();
@@ -107,10 +105,9 @@ public class RpoMeshDecoderTests
     private static byte[] ZlibWrap(byte[] data)
     {
         using var ms = new MemoryStream();
-        ms.WriteByte(0x78); // zlib header so the decoder's sniff matches
+        ms.WriteByte(0x78);
         ms.WriteByte(0x9C);
-        // ZLibStream writes its own header; build raw deflate and prepend a header + adler instead by using
-        // ZLibStream directly (it emits 78 9C ...), so just use it for the whole stream.
+        // ZLibStream emits its own 78 9C header, so use it for the whole stream instead of prepending one.
         ms.SetLength(0);
         using (var zl = new ZLibStream(ms, CompressionLevel.Optimal, leaveOpen: true))
             zl.Write(data);

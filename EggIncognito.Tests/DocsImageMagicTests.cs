@@ -45,6 +45,6 @@ public class DocsImageMagicTests
         Assert.False(DocsController.MagicMatches(html, "image/gif"));
         Assert.False(DocsController.MagicMatches(html, "image/webp"));
         Assert.False(DocsController.MagicMatches([], "image/png"));
-        Assert.False(DocsController.MagicMatches(Png, "image/svg+xml")); // never allowed
+        Assert.False(DocsController.MagicMatches(Png, "image/svg+xml"));
     }
 }

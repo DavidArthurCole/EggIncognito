@@ -48,7 +48,6 @@ routes:
         var contract = messages.SingleOrDefault(m => m.Key == "Contract");
         Assert.NotNull(contract);
         Assert.Equal("message", contract!.Kind);
-        // Children are the proto fields (display-only).
         Assert.NotEmpty(contract.Children);
         Assert.All(contract.Children, c => Assert.Equal("field", c.Kind));
     }
@@ -64,7 +63,6 @@ routes:
         Assert.Equal("endpoint", route!.Kind);
         Assert.Contains("EggIncFirstContactRequest", route.Summary);
         Assert.Contains("EggIncFirstContactResponse", route.Summary);
-        // Request + response link to their message subjects.
         Assert.Contains(route.Children, c => c.Kind == "message" && c.Key == "EggIncFirstContactRequest");
         Assert.Contains(route.Children, c => c.Kind == "message" && c.Key == "EggIncFirstContactResponse");
     }

@@ -28,13 +28,11 @@ public sealed class RouteModel : IEquatable<RouteModel>
 
     public bool PathParamOnly { get; set; }
 
-    /// <summary>The proto type the MOCK serializes for its response. Falls back to
-    /// AuthenticatedMessage when the inner type is not yet known, preserving the
-    /// pre-migration behavior (an empty envelope) until the type is captured.</summary>
+    /// <summary>The proto type the mock serializes for its response. Falls back to
+    /// AuthenticatedMessage when the inner type is not yet known.</summary>
     public string MockResponseType => Response ?? "AuthenticatedMessage";
 
-    // Value equality so the incremental generator pipeline can cache on parse output:
-    // identical yaml must compare equal, or every text change regenerates all controllers.
+    // Value equality lets the incremental generator pipeline cache on parse output.
     public bool Equals(RouteModel? other) =>
         other is not null
         && Path == other.Path
@@ -63,8 +61,7 @@ public sealed class RouteModel : IEquatable<RouteModel>
     }
 }
 
-/// <summary>Sequence equality over the parsed route list. Used as the incremental
-/// pipeline comparer so an unchanged parse keeps the generator output cache warm.</summary>
+/// <summary>Sequence equality over the parsed route list, used as the incremental pipeline comparer.</summary>
 public sealed class RouteListComparer : IEqualityComparer<List<RouteModel>>
 {
     public static readonly RouteListComparer Instance = new RouteListComparer();
@@ -116,9 +113,7 @@ public static class RouteParser
         {
             var trimmed = rawLine.TrimStart().TrimEnd();
 
-            // Top-level key (no leading whitespace, bare "key:") switches section. Only
-            // `routes:` entries become routes; `excluded:`/`endpoint_status:` etc. are skipped.
-            // Mirrors RouteCatalog's section handling.
+            // Only `routes:` entries become routes; `excluded:`/`endpoint_status:` etc. are skipped.
             if (IsTopLevelKey(rawLine, trimmed))
             {
                 Flush();
@@ -131,7 +126,6 @@ public static class RouteParser
             {
                 Flush();
                 var path = trimmed.Substring("- path:".Length).Trim().TrimEnd('/');
-                // Empty path starts a dead block: its keys are absorbed but never emitted.
                 b = new Block { Path = path.Length == 0 ? null : path };
             }
             else if (b != null)
@@ -178,8 +172,7 @@ public static class RouteParser
     }
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
 
-    // Normalization shared (by convention) with RouteCatalog.
-    // New keys beat legacy; "AuthenticatedMessage" in legacy -> null inner + wrapped flag.
+    // New keys beat legacy; "AuthenticatedMessage" in legacy becomes null inner + wrapped flag.
     private static RouteModel Emit(Block b)
     {
         var (reqType, reqWrapDefault) = Normalize(b.HasRequest ? b.Request : b.LegacyReq);

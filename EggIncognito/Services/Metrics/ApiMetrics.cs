@@ -4,11 +4,7 @@ namespace EggIncognito.Services.Metrics;
 
 // Lightweight in-process API-rate metrics: a 60-slot ring of per-minute buckets (last hour). Each request
 // increments the current minute's total + its 429 count if rate-limited. Singleton; thread-safe via
-// Interlocked on the bucket fields. No DB (a DB-persisted rollup is a planned upgrade; the read shape here
-// is the contract so that swap is drop-in). Resets on restart.
-//
-// NOTE: chosen over the DB-backed design for now to avoid landing an EF migration on the shared prod DB at
-// the tail of a large batch. Same API surface; upgrade to a persisted rollup table in a focused pass.
+// Interlocked on the bucket fields. Resets on restart.
 public sealed class ApiMetrics(TimeProvider time)
 {
     public const int Minutes = 60;
@@ -28,8 +24,6 @@ public sealed class ApiMetrics(TimeProvider time)
     {
         var minute = NowMinute();
         var b = _ring[(int)(minute % Minutes)];
-        // If this slot belongs to an older minute, reset it for the new minute (single-writer-per-slot is
-        // not guaranteed across the wrap boundary, but a rare lost count at the seam is acceptable here).
         if (Interlocked.Read(ref b.Epoch) != minute)
         {
             lock (b)
@@ -41,8 +35,7 @@ public sealed class ApiMetrics(TimeProvider time)
         if (limited) Interlocked.Increment(ref b.Limited);
     }
 
-    // The last `Minutes` buckets oldest-first, zero-filled for minutes with no traffic. Each point carries
-    // the minute's UTC start, total requests, and 429 count.
+    // The last `Minutes` buckets oldest-first, zero-filled for minutes with no traffic.
     public IReadOnlyList<Point> Snapshot()
     {
         var now = NowMinute();

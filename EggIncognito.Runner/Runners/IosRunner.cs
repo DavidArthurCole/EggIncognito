@@ -5,9 +5,7 @@ using EggIncognito.Runner.State;
 
 namespace EggIncognito.Runner.Runners;
 
-// iOS path: decrypted Mach-O embeds the FileDescriptorProto; MachoProtoExtractor carves it.
-// No automated device pull (no adb/bagbak equivalent), so binaryPath must be pre-staged on disk.
-// State keyed on content hash: iOS has no versionCode. Point binaryPath at any decrypted Mach-O to test.
+// binaryPath must be pre-staged on disk; no automated device pull. State is keyed on content hash since iOS has no versionCode.
 public sealed class IosRunner(
     string binaryPath, VersionState state, string package,
     Action<NewVersionEvent> onNewVersion) : IDeviceRunner

@@ -12,13 +12,12 @@ using System.Net.Http.Json;
 
 namespace EggIncognito.Controllers;
 
-// Admin-only proto-backfill triggers + status. Each mirrors AdminController's gating: the role check
-// runs before the DB resolve, so a non-admin 403s and a no-DB caller 503s regardless of state. The
-// importers run in the background (each opens its own DI scope), so the request returns immediately.
+// Admin-only proto-backfill triggers + status. Importers run in the background (each opens its own
+// DI scope), so the request returns immediately.
 //
-// GET /api/protos/backfill/status response shape (STABLE; the UI agent depends on this):
+// GET /api/protos/backfill/status response shape:
 //   {
-//     "jobs":  [ { "source", "status", "startedAt", "finishedAt", "imported", "total", "note" } ],
+//     "jobs": [ { "source", "status", "startedAt", "finishedAt", "imported", "total", "note" } ],
 //     "known": [ { "platform", "appVersion", "releaseDate", "changelog", "source" } ]
 //   }
 // jobs = latest run per source (newest first); known = the known_versions discovery list (newest first).
@@ -81,8 +80,7 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
 
     public sealed record ApkExtractRequest(string AppVersion);
 
-    // Local extract if configured; else forward to the runner agent (RUNNER_AGENT_URL/SECRET,
-    // like runner-resync); else 501.
+    // Local extract if configured; else forward to the runner agent; else 501.
     [HttpPost("apk-extract")]
     public async Task<IActionResult> ApkExtract([FromBody] ApkExtractRequest req, CancellationToken ct)
     {
@@ -91,13 +89,11 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
             return StatusCode(400, new { error = "appVersion required" });
         var version = req.AppVersion;
 
-        // Job tracking is DB-gated; null on no-DB hosts, in which case the lifecycle calls are skipped.
         var scopeFactory = services.GetService(typeof(IServiceScopeFactory)) as IServiceScopeFactory;
 
         if (services.GetService(typeof(ApkExtractService)) is ApkExtractService extract && extract.Options.IsConfigured)
         {
             await StartExtractJob(scopeFactory, version, ct);
-            // The store is scoped; open a fresh scope inside the background task (the request scope is gone).
             _ = Task.Run(async () =>
             {
                 try
@@ -160,8 +156,7 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
             await jobs.FinishExtractAsync("android", version, status, note, CancellationToken.None);
     }
 
-    // Deletes keyless/stub registry rows (empty build or appVersion). The admin UI fires this once on
-    // load so a malformed row never lingers. No DB => 0 pruned.
+    // Deletes keyless/stub registry rows (empty build or appVersion). No DB => 0 pruned.
     [HttpPost("prune")]
     public async Task<IActionResult> Prune(CancellationToken ct)
     {
@@ -174,10 +169,8 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
 
     public sealed record ResyncRequest(string? Platform);
 
-    // Forwards a force re-sync to the host-side runner agent (the device farm). Admin-gated. The agent URL
-    // and secret are host config (RUNNER_AGENT_URL/RUNNER_AGENT_SECRET), mirroring the deploy-agent. Unset
-    // (or no config/http in the no-DB unit-test path) returns 501 not-configured, like apk-extract, since
-    // most hosts have no runner.
+    // Forwards a force re-sync to the host-side runner agent (the device farm). Unset returns
+    // 501 not-configured, since most hosts have no runner.
     [HttpPost("runner-resync")]
     public async Task<IActionResult> RunnerResync([FromBody] ResyncRequest? req, CancellationToken ct)
     {
@@ -252,12 +245,10 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
         });
     }
 
-    // PUBLIC discovery list: app versions known to exist (with release date + source), no job internals.
-    // The /protos "Missing versions" panel shows this to everyone, including anon, so the open-data ask
-    // (contribute binaries for the gaps) reaches all visitors. Reads only the known-versions list; the
-    // admin-only Status endpoint keeps the job/extract detail. Empty [] without a DB.
+    // Public discovery list: app versions known to exist, with release date + source, no job internals.
+    // Empty [] without a DB.
     [HttpGet("known")]
-    [EnableRateLimiting("fetch")] // public + polled by the Missing-versions panel; not the class "write" limiter
+    [EnableRateLimiting("fetch")]
     public async Task<IActionResult> Known(CancellationToken ct)
     {
         if (services.GetService(typeof(IBackfillJobStore)) is not IBackfillJobStore jobs)

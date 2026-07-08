@@ -4,9 +4,8 @@ using Google.Protobuf;
 namespace EggIncognito.Capture;
 
 // Decodes a captured flow's raw base64 into readable JSON for the dashboard, in both a redacted
-// safe-display form and a raw form. The actual proto-framing heuristic lives in
-// EndpointExtractor.DecodeRequestBody so the dashboard view can never drift from what the endpoint
-// pipeline writes. This class is a thin wrapper: load the type maps, call the shared decoder, redact.
+// safe-display form and a raw form. Proto-framing lives in EndpointExtractor.DecodeRequestBody so
+// the dashboard view can never drift from what the endpoint pipeline writes.
 public sealed class FlowDecoder
 {
     private readonly IReadOnlyDictionary<string, string> _responseTypes;
@@ -43,9 +42,8 @@ public sealed class FlowDecoder
             ? new(null, null, type, known)
             : new(Redactor.Redact(rawJson), rawJson, type, known);
 
-    // Decode the response body to JSON + type. The body is base64 of the response bytes; for the
-    // protobuf endpoints those bytes are an AuthenticatedMessage, but the log/data endpoints reply with
-    // a short plain-text ack, which we surface as text not a hex dump.
+    // Protobuf endpoints wrap the response bytes as an AuthenticatedMessage; log/data endpoints reply
+    // with a short plain-text ack, surfaced as text instead of a hex dump.
     public DecodeResult DecodeResponse(string path, string responseB64)
     {
         byte[] respBytes;
@@ -72,10 +70,8 @@ public sealed class FlowDecoder
             if (det.json is not null)
                 return Result(det.json, det.typeName, known: false);
         }
-        catch { /* not an AuthenticatedMessage - fall through to the text/ack handling below */ }
+        catch { /* not an AuthenticatedMessage, fall through to the text/ack handling below */ }
 
-        // Not protobuf. If the body is printable text, show it verbatim. rawResponse endpoints are
-        // additionally flagged as acks.
         var text = AsPrintableText(respBytes);
         var isAck = _rawResponsePaths.Contains(path);
         if (text is not null)

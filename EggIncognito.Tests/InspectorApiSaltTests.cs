@@ -63,9 +63,7 @@ public class InspectorApiSaltTests : IClassFixture<WebApplicationFactory<Program
     [Fact]
     public async Task EnvDefaults_EndpointIsGone()
     {
-        // The GET action was removed (defaults are now client-owned). No GET handler remains, so the
-        // path no longer succeeds - it resolves to NotFound (no route) or MethodNotAllowed (a
-        // catch-all claims the path for a different verb). Either proves the endpoint is gone.
+        // No GET handler remains: resolves to NotFound (no route) or MethodNotAllowed (verb claimed by a catch-all).
         var resp = await _factory.CreateClient().GetAsync("/api/inspector/env-defaults");
         Assert.False(resp.IsSuccessStatusCode);
         Assert.Contains(resp.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });

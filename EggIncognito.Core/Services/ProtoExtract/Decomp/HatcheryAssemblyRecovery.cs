@@ -2,16 +2,11 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
-// Recovers the hatchery floating-piece assembly from FarmScene::updateHatchery: the body/ball ANCHOR + each
-// matrix-lambda's returned 4x4 transform (the per-piece placement + rotation the game builds). updateHatchery
-// loads the pieces (FAM::loadShell), randomizes with GameController::frandom, rotates with rotate_pyramid, and
-// instances them (BatchedMeshNode). Its matrix lambdas ($_2/$_3/$_5) return Eigen::Matrix<f,4,4> via the arm64
-// sret out-param (pointer in x8). We seed x8=ret + read RetVec[0..15] as a column-major 4x4, exactly like
-// FarmPlacementRecovery reads a Vec3. The translation column (cells 12,13,14) = the piece's position relative to
-// the assembly; the rotation block + the rate constants (e.g. 1/128 spin step) = the motion.
-//
-// Honest: when a lambda body branches or computes via opaque calls, the recovery may capture only the literal
-// translation (the common case here: the positions are baked constants). opaqueCount flags residual unknowns.
+// Recovers the hatchery floating-piece assembly from FarmScene::updateHatchery: the body/ball anchor + each
+// matrix-lambda's returned 4x4 transform (the per-piece placement + rotation). Its matrix lambdas ($_2/$_3/$_5)
+// return Eigen::Matrix<f,4,4> via the arm64 sret out-param; we seed x8=ret and read RetVec[0..15] as a
+// column-major 4x4, same as FarmPlacementRecovery reads a Vec3. opaqueCount flags residual unknowns when a
+// lambda branches or computes via unmodeled calls.
 public static class HatcheryAssemblyRecovery
 {
     public readonly record struct Mat4(bool Ok, string Lambda, ExprNode?[] Cells, int OpaqueCount, string Diagnostics)
@@ -36,10 +31,8 @@ public static class HatcheryAssemblyRecovery
         };
     }
 
-    // The motion timing recovered from rotate_pyramid's ActionBuilder tween calls (not from unordered function
-    // constants). ActionBuilder::waitFor(delay) = the inter-fire / inter-step delay; ActionBuilder::smooth(dur,..)
-    // = the eased animation duration. Both read directly off the captured call args, so the float->parameter
-    // mapping is the binary's, not inferred from constant order. Null = the call wasn't present / arg unresolved.
+    // Motion timing recovered from rotate_pyramid's ActionBuilder tween calls: waitFor(delay) is the inter-step
+    // delay, smooth(dur,..) is the eased animation duration. Null means the call wasn't present or its arg didn't resolve.
     public readonly record struct Timing(float? WaitFor, bool WaitForRandom, float? SmoothDuration, int OrbitSegments, string Diagnostics)
     {
         public JsonObject ToJson() => new()
@@ -89,14 +82,12 @@ public static class HatcheryAssemblyRecovery
         return new(ok, anchor, transforms, timing, ok ? "ok" : "nothing recovered");
     }
 
-    // The assembly anchor = the first Vec3 of literal float constants the main fn loads that looks like a plot
-    // position (X in the farm's plot range). updateHatchery's constants start with (anchorX, anchorY, anchorZ).
+    // The assembly anchor is the first Vec3 of literal float constants the main fn loads that looks like a plot
+    // position (X in the farm's plot range).
     private static float[]? RecoverAnchor(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, ulong tvm, int tfo)
     {
         var ex = FunctionConstantExtractor.ExtractWith(bin, syms, ["FarmScene14updateHatcheryEP14GameControllerb"]);
         if (!ex.Ok) return null;
-        // the first three constants in plot range (X ~ 5..30) = the anchor (x,y,z). Scan for the first triple where
-        // the first value is a plausible plot X and the next two are small offsets.
         var f = ex.Floats;
         for (int i = 0; i + 2 < f.Count; i++)
         {
@@ -107,11 +98,8 @@ public static class HatcheryAssemblyRecovery
         return null;
     }
 
-    // The orbit/beam TIMING from FarmScene::rotate_pyramid: run it through the symbolic executor and read the
-    // ActionBuilder tween call args directly. waitFor(delay) = the inter-step / fire delay; smooth(dur,..) = the
-    // eased animation duration. orbitSegments = the count arg to the rotate loop (a small int constant the
-    // function loads). Reading the captured call arg binds float->parameter the binary's way, not by guessing
-    // which rotate_pyramid float constant is the delay.
+    // The orbit/beam timing from FarmScene::rotate_pyramid: runs it through the symbolic executor and reads the
+    // ActionBuilder tween call args directly, rather than guessing which float constant is the delay.
     private static Timing RecoverTiming(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, ulong tvm, int tfo)
     {
         if (!MachoSymbols.TryFindFunc(syms, ["FarmScene14rotate_pyramidEP14GameControlleri"], out var fn))
@@ -138,18 +126,15 @@ public static class HatcheryAssemblyRecovery
         var smooth = ArgOf("smooth", 0);
         var segments = RotateSegmentCount(bin, syms);
 
-        // waitFor's arg is the FIRE DELAY. If it didn't fold to a constant but frandom() was called before the
-        // waitFor site, the delay is the frandom output = random by design (not an extraction miss). The renderer
-        // should fire on a random interval, not hold.
+        // If waitFor's arg didn't fold to a constant but frandom() was called first, the delay is random by
+        // design, not an extraction miss.
         bool waitForRandom = waitFor is null && CalledBefore(exec, "frandom", "waitFor");
 
         var ok = waitFor is not null || waitForRandom || smooth is not null || segments > 0;
         return new(waitFor, waitForRandom, smooth, segments, ok ? "ok" : "no tween args resolved");
     }
 
-    // True if a call whose name contains `first` appears before the first call whose name contains `then` in the
-    // executor's recorded call order. Used to tell "waitFor's delay is the frandom output" (random by design)
-    // from "the arg just didn't resolve".
+    // True if a call whose name contains `first` appears before the first call whose name contains `then`.
     private static bool CalledBefore(Arm64SymbolicExecutor.ExecResult exec, string first, string then)
     {
         int firstIdx = -1;
@@ -162,8 +147,8 @@ public static class HatcheryAssemblyRecovery
         return false;
     }
 
-    // rotate_pyramid loads a small integer = the number of orbit segments / pieces it instances (the loop bound).
-    // Pulled from its function constants: the first small positive integer in [1..16] that is not pi-ish.
+    // rotate_pyramid's orbit segment count: the first small positive integer in [1..16] in its function constants
+    // that isn't pi-ish.
     private static int RotateSegmentCount(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms)
     {
         var ex = FunctionConstantExtractor.ExtractWith(bin, syms, ["FarmScene14rotate_pyramidEP14GameControlleri"]);
@@ -182,7 +167,7 @@ public static class HatcheryAssemblyRecovery
         if (!Arm64Decode.SliceFunction(bin, fn.Start, fn.End, tvm, tfo, out var code, out _))
             return new(false, tag, new ExprNode?[16], 0, "function range out of bounds");
 
-        // x8 = the sret out-param (the returned matrix's storage); its stores land in RetVec keyed by byte offset.
+        // x8 = the sret out-param; its stores land in RetVec keyed by byte offset.
         var bases = new Dictionary<string, string> { ["x0"] = "self", ["x8"] = "ret" };
         var exec = Arm64SymbolicExecutor.Run(code, fn, tvm, tfo, syms, new Dictionary<string, ExprNode>(), bases, KnownCallModels.Resolve);
 

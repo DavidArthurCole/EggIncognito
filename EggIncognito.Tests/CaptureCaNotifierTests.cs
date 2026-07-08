@@ -10,11 +10,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// CA-over-Discord-DM wiring: notifier selection by config, the REST notifier's fail-closed behavior,
-// and that a failed DM never breaks session start.
 public class CaptureCaNotifierTests
 {
-    // Always reports a failure delivery, so Start's best-effort path is exercised without Discord.
     private sealed class FailingNotifier : ICaptureCaNotifier
     {
         public int Calls { get; private set; }
@@ -25,8 +22,6 @@ public class CaptureCaNotifierTests
         }
     }
 
-    // Resolves only the types DeliverFreshSetupAsync asks for: the notifier, and the credential store
-    // (null here, the DB-free test exercises the no-store fail path).
     private sealed class StubServices(ICaptureCaNotifier notifier) : IServiceProvider
     {
         public object? GetService(Type serviceType) =>
@@ -58,8 +53,6 @@ public class CaptureCaNotifierTests
         public Task<bool> CheckAsync(string discordId, CancellationToken ct = default) => Task.FromResult(result);
     }
 
-    // Fresh-CA proxy: writes a dummy .cer to caPath at start and reports FreshCa, so the controller's
-    // DM path engages.
     private sealed class FreshCaProxy : ICaptureProxy
     {
 #pragma warning disable CS0067 // events required by ICaptureProxy; not fired in this stub
@@ -99,7 +92,6 @@ public class CaptureCaNotifierTests
     private static CaptureSessionManager FreshCaManager() =>
         new(HostedCaptureOptions.Defaults(), (_, _) => FreshCaSession());
 
-    // Returns a canned response for every request, so the notifier's REST calls are deterministic.
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
@@ -117,8 +109,6 @@ public class CaptureCaNotifierTests
     [Fact]
     public async Task Start_FreshCa_NoStore_Still200_AndFlagsCaDmFailed()
     {
-        // No DB configured (the DB-free test path): the setup DM cannot mint a token, so delivery
-        // fails fast and the session is flagged, but Start must still return 200.
         var manager = FreshCaManager();
         var notifier = new FailingNotifier();
         var controller = new CaptureController(
@@ -171,10 +161,9 @@ public class CaptureCaNotifierTests
         var msg = DiscordCaptureCaNotifier.BuildMessage(
             new CaptureSetupDm("123", [0x30, 0x82, 0x01], "2a01:4f8:c012:e15b::5", 8443));
 
-        Assert.Contains("2a01:4f8:c012:e15b::5", msg); // bare address, no brackets
+        Assert.Contains("2a01:4f8:c012:e15b::5", msg);
         Assert.Contains("8443", msg);
         Assert.Contains("Auth off", msg);
-        // No credential lines remain.
         Assert.DoesNotContain("Token", msg, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Username", msg);
         Assert.DoesNotContain("password", msg, StringComparison.OrdinalIgnoreCase);
@@ -191,16 +180,14 @@ public class CaptureCaNotifierTests
         Assert.Contains(Convert.ToBase64String(cer), a);
     }
 
-    // The profile identity is anchored to the user, not the cert, so a regenerated cert reinstalls into
-    // the SAME profile (iOS replaces) instead of stacking a new one. The new cert bytes still embed.
     [Fact]
     public void MobileConfig_SameUser_DifferentCert_KeepsProfileIdentity()
     {
         var newCert = Convert.ToBase64String([(byte)0x30, 0x99]);
         var a = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x82, 0x01], "user-1"));
         var b = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x99], "user-1"));
-        Assert.Equal(ProfileUuid(a), ProfileUuid(b)); // same user -> same profile UUID (replace, not stack)
-        Assert.Contains(newCert, b); // the new cert bytes are embedded
+        Assert.Equal(ProfileUuid(a), ProfileUuid(b));
+        Assert.Contains(newCert, b);
     }
 
     [Fact]
@@ -212,11 +199,9 @@ public class CaptureCaNotifierTests
         Assert.NotEqual(ProfileUuid(a), ProfileUuid(b));
     }
 
-    // The top-level profile PayloadUUID is the last PayloadUUID in the plist (after the cert payload's).
     private static string ProfileUuid(string plist) =>
         plist.Split("<key>PayloadUUID</key>")[^1].Split("<string>")[1].Split("</string>")[0];
 
-    // Mirrors the Program.cs gate without booting the full host (which would try to log the bot in).
     private static ICaptureCaNotifier ResolveNotifier(string? botToken)
     {
         var services = new ServiceCollection();

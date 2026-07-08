@@ -30,9 +30,9 @@ public class CaptureHubKnownDevicesTests
 
         var d = Assert.Single(hub.StatsSnapshot().Devices);
         Assert.True(d.Online);
-        Assert.Equal(6, d.TotalConnections); // 5 remembered + 1 new
-        Assert.Equal("09:00:00", d.FirstSeen); // adopted the remembered first-seen
-        Assert.Equal("iOS", d.Os); // adopted the remembered OS
+        Assert.Equal(6, d.TotalConnections);
+        Assert.Equal("09:00:00", d.FirstSeen);
+        Assert.Equal("iOS", d.Os);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class CaptureHubKnownDevicesTests
     {
         var hub = new CaptureHub();
         hub.SeedKnownDevices([Known("192.168.1.5"), Known("192.168.1.6")]);
-        hub.RecordConnection(1, "192.168.1.5", "10:00:00"); // 5 goes live; 6 stays remembered-only
+        hub.RecordConnection(1, "192.168.1.5", "10:00:00");
 
         var snap = hub.SnapshotRememberedDevices();
         Assert.Equal(2, snap.Count);

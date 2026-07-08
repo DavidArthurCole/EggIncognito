@@ -45,8 +45,9 @@ public class RateLimitKeysTests
     public void PartitionKey_UsesUser_WhenAuthenticated()
     {
         var ctx = CtxWith(cfIp: "1.2.3.4");
-        var user = new FakeUser(authenticated: true, id: "disc123", role: UserRole.Viewer);
-        Assert.Equal("user:disc123", RateLimitKeys.PartitionKey(ctx, user, hosted: false));
+        var userId = Guid.NewGuid();
+        var user = new FakeUser(authenticated: true, id: "disc123", role: UserRole.Viewer, userId: userId);
+        Assert.Equal($"user:{userId}", RateLimitKeys.PartitionKey(ctx, user, hosted: false));
     }
 
     [Fact]
@@ -149,10 +150,10 @@ public class RateLimitKeysTests
         Assert.Equal(60, RateLimiterSetup.FallbackRetryAfterSeconds(ctx, opts));
     }
 
-    private sealed class FakeUser(bool authenticated, string? id, UserRole role, bool supporter = false) : ICurrentUser
+    private sealed class FakeUser(bool authenticated, string? id, UserRole role, bool supporter = false, Guid? userId = null) : ICurrentUser
     {
         public bool IsAuthenticated => authenticated;
-        public Guid? UserId => null;
+        public Guid? UserId => userId;
         public string? DiscordId => id;
         public string? Username => null;
         public string? Avatar => null;

@@ -14,9 +14,8 @@
   <NavLink href="capture" ActiveClass="active">Capture</NavLink>
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
-  @* Right-aligned cluster. The per-page toolbar (Inspector salt/Postman, Capture controls) projects
-     into the interactive NavToolbarOutlet via SectionContent, so its click handlers survive. The auth
-     slot follows it; one margin-left:auto pins the whole cluster right. *@
+  @* Right-aligned cluster. The per-page toolbar projects into the interactive NavToolbarOutlet via
+     SectionContent, so its click handlers survive; the auth slot follows it. *@
   <div class="nav-right">
     <NavToolbarOutlet />
     @if (Auth.Enabled)

@@ -6,8 +6,6 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 
 namespace EggIncognito.Tests;
 
-// BackfillController gating, DB-free. The admin check runs before the importer resolve, so a non-admin
-// 403s and an admin with no DB (no importer registered) 503s, regardless of state.
 public class BackfillApiTests
 {
     private sealed class FakeUser(UserRole role) : ICurrentUser
@@ -22,7 +20,6 @@ public class BackfillApiTests
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(role, need);
     }
 
-    // No importers registered (the no-DB path).
     private sealed class EmptyServices : IServiceProvider { public object? GetService(Type t) => null; }
 
     private static BackfillController Controller(UserRole role)
@@ -61,7 +58,6 @@ public class BackfillApiTests
         Assert.Equal(403, ((IStatusCodeActionResult)await Controller(UserRole.Contributor)
             .ApkExtract(new BackfillController.ApkExtractRequest("1.0.0"), CancellationToken.None)).StatusCode);
 
-    // No local extract + no runner agent configured -> 501 not-configured.
     [Fact]
     public async Task ApkExtract_Admin_NotConfigured_Is501() =>
         Assert.Equal(501, ((IStatusCodeActionResult)await Controller(UserRole.Admin)
@@ -77,7 +73,6 @@ public class BackfillApiTests
         Assert.Equal(403, ((IStatusCodeActionResult)await Controller(UserRole.Viewer)
             .Status(CancellationToken.None)).StatusCode);
 
-    // Admin with no DB: status degrades to an empty 200 (no job store), never 503.
     [Fact]
     public async Task Status_Admin_NoDb_Is200_Empty()
     {
@@ -86,7 +81,6 @@ public class BackfillApiTests
         Assert.Equal(200, ok.StatusCode);
     }
 
-    // Known-versions discovery list is PUBLIC: anon/viewer gets 200 (empty without a DB), never 403.
     [Fact]
     public async Task Known_Anon_Is200_Empty()
     {

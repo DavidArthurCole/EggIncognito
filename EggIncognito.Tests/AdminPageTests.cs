@@ -8,13 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-// The Admin tab is the first interactive Blazor tab (role selects + delete buttons need handlers). The
-// denied/panel split is gated server-side by ICurrentUser (courtesy UX; the controller ACL is the real
-// gate). These confirm the page renders and an anonymous caller sees the denied state, not the panel.
+// The denied/panel split is gated server-side by ICurrentUser (courtesy UX; the controller ACL is the real gate).
 public class AdminPageTests
 {
-    // Page-level: the prerendered /admin returns 200 and renders the denied login link for an anonymous
-    // (non-admin) caller. Mirrors LayoutRenderTests / BlazorShellTests.
     public class Integration : IClassFixture<WebApplicationFactory<Program>>
     {
         private readonly WebApplicationFactory<Program> _f;
@@ -31,14 +27,11 @@ public class AdminPageTests
             Assert.Contains("adminMain", html);
             Assert.Contains("id=\"denied\"", html);
             Assert.Contains("/login?returnUrl=/admin", html);
-            // The panel's Users heading must not render for a non-admin.
             Assert.DoesNotContain("<h2>Users</h2>", html);
         }
     }
 
-    // Component-level (bUnit): a faked ICurrentUser drives the gate. Anonymous shows denied; admin shows
-    // the panel. The HttpContextAccessor has no HttpContext in the test, so the panel's list loads no-op
-    // to empty tables (the graceful no-DB path), which is exactly what we assert degrades cleanly.
+    // No HttpContext in the test, so the panel's list loads no-op to empty tables.
     public class Component : BunitContext
     {
         private void Wire(UserRole role)

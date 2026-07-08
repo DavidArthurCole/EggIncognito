@@ -161,10 +161,9 @@ public class MarkdownRendererTests
     [Fact]
     public void Link_QuoteInUrl_CannotBreakOutOfHrefAttribute()
     {
-        // A stray quote in the URL must never close the href attribute and smuggle in a handler.
         var html = MarkdownRenderer.Render("[x](https://example.com/\" onmouseover=\"alert(1))");
-        Assert.DoesNotContain("onmouseover=\"", html); // no raw quote reaches the attribute
-        Assert.Contains("&quot;", html); // it arrives entity-escaped instead
+        Assert.DoesNotContain("onmouseover=\"", html);
+        Assert.Contains("&quot;", html);
     }
 
     [Fact]

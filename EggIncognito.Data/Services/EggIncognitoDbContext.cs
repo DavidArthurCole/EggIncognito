@@ -4,14 +4,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-// Stores the key ring in Postgres so auth cookies survive restarts (ephemeral keys log out every user on restart).
+// Stores the key ring in Postgres so auth cookies survive restarts.
 public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> options)
     : DbContext(options), IDataProtectionKeyContext
 {
     public DbSet<StoredEndpoint> StoredEndpoints => Set<StoredEndpoint>();
     public DbSet<StoredRoute> StoredRoutes => Set<StoredRoute>();
-    public DbSet<User> Users => Set<User>();
-    public DbSet<Identity> Identities => Set<Identity>();
     public DbSet<Doc> Docs => Set<Doc>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<SubjectTag> SubjectTags => Set<SubjectTag>();
@@ -33,7 +31,6 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<EnvDesign> EnvDesigns => Set<EnvDesign>();
     public DbSet<EnvDesignVersion> EnvDesignVersions => Set<EnvDesignVersion>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
-    public DbSet<RevokedSession> RevokedSessions => Set<RevokedSession>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -49,18 +46,6 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             // DbRouteProvider.AllDbRoutes filters on source alone; without this it full-scans.
             r.HasIndex(x => x.Source);
             r.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
-        });
-        b.Entity<User>(u =>
-        {
-            u.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
-            u.Property(x => x.Role).HasDefaultValue("viewer");
-            u.HasIndex(x => x.DiscordId).IsUnique().HasFilter("discord_id IS NOT NULL");
-        });
-        b.Entity<Identity>(i =>
-        {
-            i.HasKey(x => new { x.Provider, x.Subject });
-            i.HasIndex(x => x.UserId);
-            i.Property(x => x.LinkedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
         b.Entity<Doc>(d =>
         {
@@ -168,10 +153,6 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.DesignId, x.VersionNo }).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
-        });
-        b.Entity<RevokedSession>(e =>
-        {
-            e.Property(x => x.RevokedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
     }
 }

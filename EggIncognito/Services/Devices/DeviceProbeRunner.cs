@@ -23,22 +23,20 @@ public static class DeviceProbeRunner
     public static string Classify(DeviceProbeResult r, string platform, string? extractedLatestBuild, string? extractedLatestAppVersion)
     {
         if (!r.Reachable) return "unreachable";
-        if (string.IsNullOrEmpty(r.InstalledAppVersion)) return "error"; // answered but no version read
+        if (string.IsNullOrEmpty(r.InstalledAppVersion)) return "error";
 
         if (platform == "ios")
         {
             if (extractedLatestAppVersion is null) return "new_version";
             return SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion) > 0 ? "new_version" : "no_change";
         }
-        // android: numeric build is authoritative
         if (extractedLatestBuild is null) return "new_version";
         if (long.TryParse(r.InstalledBuild, out var inst) && long.TryParse(extractedLatestBuild, out var ext))
             return inst > ext ? "new_version" : "no_change";
-        // build unparseable -> fall back to semver appVersion
         return SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion ?? "") > 0 ? "new_version" : "no_change";
     }
 
-    // Dotted-numeric compare (1.35.10 > 1.35.9). Mirrors the /protos table's CompareNumeric intent.
+    // Dotted-numeric compare (1.35.10 > 1.35.9).
     public static int SemverCompare(string a, string b)
     {
         var pa = a.Split('.'); var pb = b.Split('.');
@@ -51,19 +49,15 @@ public static class DeviceProbeRunner
         return 0;
     }
 
-    // One full probe: run it, look up extracted + available latest, classify vs the registry, record. This is
-    // a PURE status read + registry classification (the NEW badge); it never drives a device update. The
-    // store-sync (telling a device to update itself) lives in DeviceProbeService's heartbeat + the check-update
-    // endpoint, both of which call IDeviceStoreChecker.
+    // A pure status read + registry classification; it never drives a device update. Store-sync lives in
+    // DeviceProbeService.
     public static async Task<DeviceProbe> ProbeOneAsync(
         Device d, string triggeredBy, IProcessRunner runner, IDeviceStatusStore store,
         EggIncognitoDbContext db, ILogger logger, TimeProvider time, CancellationToken ct)
     {
         var result = await ProbeFor(d, runner).ProbeAsync(ct);
 
-        // Highest extracted build/appVersion for this platform (drives classification). Pick the true
-        // maximum, NOT the most-recently-created row: backfills insert old versions later, so ordering by
-        // CreatedAt would name a lower build "latest" and false-flag an installed device as new_version.
+        // The true maximum, not the most-recently-created row: backfills insert old versions later.
         var extracted = await db.ProtoVersions.AsNoTracking()
             .Where(p => p.Platform == d.Platform && p.DeletedAt == null)
             .Select(p => new { p.Build, p.AppVersion })
@@ -73,7 +67,6 @@ public static class DeviceProbeRunner
             : null;
         var latestAppVersion = extracted.Select(e => e.AppVersion)
             .OrderByDescending(v => v, Comparer<string>.Create(SemverCompare)).FirstOrDefault();
-        // newest store-known appVersion for this platform (display only)
         var latestAvailable = await db.KnownVersions.AsNoTracking()
             .Where(k => k.Platform == d.Platform)
             .OrderByDescending(k => k.FirstSeen).Select(k => k.AppVersion).FirstOrDefaultAsync(ct);

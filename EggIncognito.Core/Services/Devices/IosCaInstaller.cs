@@ -4,27 +4,22 @@ namespace EggIncognito.Core.Services.Devices;
 
 // Installs the capture CA into a JAILBROKEN iOS device's system trust store over ssh, so the proxy's MITM
 // TLS is accepted and auxbrain flows decrypt. iOS keeps trusted roots in TrustStore.sqlite3 (`tsettings`
-// table: sha1 = SHA-1 of the cert DER [primary key], subj = DER subject, tset = trust-settings plist [NULL
-// => trust as a root], data = full DER cert). We INSERT OR REPLACE one row with all blobs baked in as hex
-// literals (no file push needed), then restart trustd so the new root takes effect.
-//
-// The sqlite path + the install/reload commands are config-templated (DeviceCapture:Ios:CaInstallCommand)
-// with a working jailbroken default. ssh creds reuse the proxy/updater SshConfig. device.Target is the UDID
-// (unused for ssh; the ssh host is the LAN address). Idempotent (REPLACE on the same sha1). Never throws.
+// table, tset NULL = trust as a root); we INSERT OR REPLACE one row with all blobs baked in as hex
+// literals, then restart trustd so the new root takes effect.
+// The sqlite path + install/reload commands are config-templated (DeviceCapture:Ios:CaInstallCommand).
+// device.Target is the UDID (unused for ssh; the ssh host is the LAN address). Idempotent, never throws.
 public sealed class IosCaInstaller(IProcessRunner runner, IosCaInstaller.SshConfig ssh) : IDeviceCaInstaller
 {
     public sealed record SshConfig(string? Host, string Port, string? KeyPath, string? CommandTemplate, string? StorePath);
 
     public string Platform => "ios";
 
-    // Default TrustStore path. iOS 16+ (and the palera1n-rootful iPhone 8 here) keeps it under
-    // /private/var/protected/trustd/private/; older iOS used /private/var/Keychains/. Overridable via StorePath.
+    // Default TrustStore path (iOS 16+). Older iOS used /private/var/Keychains/. Overridable via StorePath.
     private const string DefaultStore = "/private/var/protected/trustd/private/TrustStore.sqlite3";
 
-    // {store}/{sha256}/{subj}/{data} placeholders. iOS 16's `tsettings` schema keys on a `sha256` column
-    // (legacy iOS used `sha1`). INSERT OR REPLACE the trust row (tset NULL = trusted root), then kill trustd so
-    // it reloads on next use. sqlite3 is NOT on a bare jailbreak by default, so install it first (apt, Procursus)
-    // - and chain with && so a failure propagates to the ssh exit code (the old `; echo ok` masked failures).
+    // {store}/{sha256}/{subj}/{data} placeholders. INSERT OR REPLACE the trust row (tset NULL = trusted
+    // root), then kill trustd so it reloads. sqlite3 is installed on demand (apt) since a bare jailbreak
+    // lacks it; chained with && so a failure propagates to the ssh exit code.
     private const string DefaultCommand =
         "{ command -v sqlite3 >/dev/null 2>&1 || apt-get install -y sqlite3 >/dev/null 2>&1; } && " +
         "sqlite3 {store} \"INSERT OR REPLACE INTO tsettings (sha256, subj, tset, data) " +
@@ -51,8 +46,7 @@ public sealed class IosCaInstaller(IProcessRunner runner, IosCaInstaller.SshConf
         var r = await runner.RunAsync("ssh",
             ["-p", ssh.Port, "-i", ssh.KeyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
              $"root@{ssh.Host}", cmd], ct);
-        // The default command ends by SELECTing the row back, so a real success prints "row-present". This
-        // catches the failure the old `; echo ok` masked (e.g. sqlite3 missing, wrong schema/path).
+        // The default command ends by SELECTing the row back, so a real success prints "row-present".
         var verified = r.Stdout.Contains("row-present");
         if (r.ExitCode == 0 && verified) return (true, "trust store updated (row verified)");
         return (false, DeviceParsing.TrimNote(r.Stderr + r.Stdout));

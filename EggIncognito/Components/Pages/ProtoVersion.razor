@@ -208,9 +208,8 @@
     }
 
     // Find the immediately-prior version on this platform and diff its message-name set against this one.
-    // Order by (app-version semver, then numeric build) so it works for BOTH platforms - iOS builds like
-    // "1.35.7.1" are NOT numeric, so the old long-parse-the-build approach returned early for every iOS
-    // row ("nothing to compare"). Ranking by app version first fixes that.
+    // Order by (app-version semver, then numeric build) so it works for both platforms, since iOS builds
+    // like "1.35.7.1" are not numeric.
     async Task LoadComparison()
     {
         try

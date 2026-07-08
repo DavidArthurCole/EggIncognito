@@ -9,8 +9,7 @@ namespace EggIncognito.Tests;
 
 // VersionListImporter lifecycle over a fake source + fake job store, DB-free. A good source upserts each
 // version and drives the job running -> done with the right imported count; a throwing source marks the
-// job failed with the error note. ElgranjeroImporter is covered separately for gating; here the focus is
-// the job-tracking + known-versions upsert path the list importer owns.
+// job failed with the error note.
 public class VersionListImporterTests
 {
     private sealed class FakeSource(string name, string platform, IReadOnlyList<ListedVersion> versions)

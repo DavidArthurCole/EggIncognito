@@ -4,10 +4,8 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.Backfill.Sources;
 
-// Fandom wiki Version_History via the MediaWiki parse API (JSON, no HTML scrape). Primary list source:
-// it carries a changelog. Platform tagged "android": the wiki is cross-platform but appVersion is the
-// shared identity, and android is the dominant platform there. Parse is pure + resilient; a layout
-// change yields fewer/zero rows, never an exception.
+// Fandom wiki Version_History via the MediaWiki parse API (JSON, no HTML scrape). Primary list source
+// since it carries a changelog.
 public sealed partial class FandomSource(IHttpClientFactory httpFactory, ILogger<FandomSource> logger)
     : IVersionListSource
 {
@@ -39,7 +37,7 @@ public sealed partial class FandomSource(IHttpClientFactory httpFactory, ILogger
         }
     }
 
-    // The parse API wraps the wikitext at .parse.wikitext["*"]. Resilient: missing path returns null.
+    // The parse API wraps the wikitext at .parse.wikitext["*"].
     private static string? ExtractWikitext(string json)
     {
         try
@@ -54,26 +52,20 @@ public sealed partial class FandomSource(IHttpClientFactory httpFactory, ILogger
         catch (JsonException) { return null; }
     }
 
-    // Matches a wiki table row's leading version cell, e.g. "| 1.35.7 ||" or "|1.35.7\n". A version is
-    // two-or-more dot-separated numeric groups; the first such cell on a row is the appVersion.
+    // Matches a wiki table row's leading version cell, e.g. "| 1.35.7 ||" or "|1.35.7\n".
     [GeneratedRegex(@"^\s*\|+\s*'*\[*\s*(\d+\.\d+(?:\.\d+)*)\b", RegexOptions.Multiline)]
     private static partial Regex VersionCellRe();
 
-    // A date cell anywhere on the same row, formats like "January 5, 2024" or "2024-01-05".
     [GeneratedRegex(
         @"\b((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}|\d{4}-\d{2}-\d{2})\b")]
     private static partial Regex DateRe();
 
-    // Parses MediaWiki table rows into ListedVersions. Each physical line that opens with a version cell
-    // starts a row; subsequent cells on that row (split on "||" and the newline-delimited "|" form) feed
-    // the date + changelog. Resilient: anything unparseable on a row is skipped, not thrown.
     public static IReadOnlyList<ListedVersion> ParseWikitext(string wikitext)
     {
         var result = new List<ListedVersion>();
         var seen = new HashSet<string>();
         if (string.IsNullOrEmpty(wikitext)) return result;
 
-        // Split into table rows on the wiki row separator "|-"; fall back to whole text as one block.
         var rows = Regex.Split(wikitext, @"^\s*\|-.*$", RegexOptions.Multiline);
         foreach (var row in rows)
         {
@@ -92,19 +84,16 @@ public sealed partial class FandomSource(IHttpClientFactory httpFactory, ILogger
         return result;
     }
 
-    // Everything after the version cell on the row, cleaned of wiki markup, as the changelog blob. The
-    // first table cell (the version) is dropped; the rest is the human notes. Null when empty.
+    // Everything after the version cell on the row, cleaned of wiki markup, as the changelog blob.
     private static string? ExtractChangelog(string row, int afterVersion)
     {
         var tail = row[Math.Min(afterVersion, row.Length)..];
-        // Drop the date token so it does not pollute the changelog.
         tail = DateRe().Replace(tail, "");
-        // Strip wiki cell separators, links, bold/italic, list bullets, templates.
-        tail = Regex.Replace(tail, @"\[\[([^\]|]*\|)?([^\]]*)\]\]", "$2"); // [[a|b]] -> b
-        tail = Regex.Replace(tail, @"\{\{[^}]*\}\}", ""); // {{templates}}
+        tail = Regex.Replace(tail, @"\[\[([^\]|]*\|)?([^\]]*)\]\]", "$2");
+        tail = Regex.Replace(tail, @"\{\{[^}]*\}\}", "");
         tail = tail.Replace("||", " ").Replace("'''", "").Replace("''", "");
         tail = Regex.Replace(tail, @"[|*#]+", " ");
-        tail = Regex.Replace(tail, @"<[^>]+>", " "); // stray html
+        tail = Regex.Replace(tail, @"<[^>]+>", " ");
         tail = Regex.Replace(tail, @"\s+", " ").Trim();
         return string.IsNullOrWhiteSpace(tail) ? null : tail;
     }

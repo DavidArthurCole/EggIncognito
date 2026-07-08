@@ -1,7 +1,6 @@
 namespace EggIncognito.Runner.State;
 
-// Persists the last extracted clientVersion so the disasm reader has an anchor across runs. Seeded once
-// from PREV_CLIENT_VERSION env (bootstrap), then self-advances after each successful extract.
+// Seeded once from PREV_CLIENT_VERSION env, then self-advances after each successful extract.
 public sealed class ClientVersionState(string path, int? seed)
 {
     public int? Last()

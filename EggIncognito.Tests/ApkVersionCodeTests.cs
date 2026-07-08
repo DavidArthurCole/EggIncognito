@@ -3,9 +3,7 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
 
-// Null/garbage paths and the real arm-split AndroidManifest fixture are unit-tested here. The fixture
-// (arm_split_AndroidManifest.bin) is the binary AXML lifted out of Egg Inc 1.35.7's config.arm64_v8a.apk;
-// its versionCode is 111344. The dumpsys cross-check on the live A15 is a manual frame step, not run here.
+// Fixture arm_split_AndroidManifest.bin is the binary AXML from Egg Inc 1.35.7's config.arm64_v8a.apk, versionCode 111344.
 public class ApkVersionCodeTests
 {
     private const string ExpectedVersionCode = "111344";

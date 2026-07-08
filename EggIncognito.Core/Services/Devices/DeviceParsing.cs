@@ -19,14 +19,11 @@ public static partial class DeviceParsing
     }
 
     // The runtime image's `ideviceinstaller -u <udid> -l -o xml` prints a plist <array> of <dict> app
-    // entries; find the one whose CFBundleIdentifier matches and return its CFBundleShortVersionString
-    // (display version, e.g. 1.36). CSV fallback exposes no build, so build is null there.
-    // ideviceinstaller's CLI varies by package build (the aspnet base uses -l/-o xml; some Debian builds
-    // use a `list` subcommand with CSV output), so fall back to CSV parse if the output is not a plist.
+    // entries; find the one whose CFBundleIdentifier matches and return its CFBundleShortVersionString.
+    // ideviceinstaller's CLI varies by package build, so fall back to CSV parse if the output is not a plist.
     public static string? IosAppVersion(string output, string bundleId) => IosVersion(output, bundleId).AppVersion;
 
-    // AppVersion = CFBundleShortVersionString (1.36); Build = CFBundleVersion (1.36.0.2). iOS DOES carry a
-    // build number (CFBundleVersion); it is shown alongside the version, mirroring Android's versionName/Code.
+    // AppVersion = CFBundleShortVersionString (1.36); Build = CFBundleVersion (1.36.0.2).
     public static (string? AppVersion, string? Build) IosVersion(string output, string bundleId)
     {
         var fromPlist = IosFromPlist(output, bundleId);

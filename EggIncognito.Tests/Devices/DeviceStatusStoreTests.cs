@@ -7,10 +7,6 @@ namespace EggIncognito.Tests.Devices;
 
 public class DeviceStatusStoreTests
 {
-    // Persistence round-trip. The test project carries no EF test provider (tests-DB-free repo rule:
-    // no InMemory/Testcontainers/SkippableFact deps), so a real Postgres round-trip cannot run here.
-    // Run manually against a live DB if DeviceStatusStore logic changes.
-
     [Fact(Skip = "requires Postgres; no EF test provider per tests-DB-free repo rule")]
     public async Task Upsert_ThenEnabledDevices_ReturnsRow()
     {
@@ -50,6 +46,6 @@ public class DeviceStatusStoreTests
 
         var hist = await store.HistoryAsync("d1", 10, default);
         Assert.Equal(2, hist.Count);
-        Assert.Equal("1.35.7", hist[0].InstalledAppVersion); // newest first
+        Assert.Equal("1.35.7", hist[0].InstalledAppVersion);
     }
 }

@@ -32,8 +32,7 @@ public sealed class CaptureSweeper(
 
             if (session.State != CaptureState.Running)
             {
-                // A user-stopped session still holds a pool slot; release it once the idle window
-                // passes so abandoned sessions cannot pin capacity.
+                // A stopped session still holds a pool slot until released here.
                 if (session.State == CaptureState.Stopped && idle)
                 {
                     manager.Remove(key);
@@ -43,8 +42,7 @@ public sealed class CaptureSweeper(
             }
 
             if (!idle && !capped) continue;
-            // Remove from the manager BEFORE stopping, so a concurrent GetOrCreate (e.g. the user clicking
-            // Start mid-sweep) gets a fresh session instead of this one being torn down.
+            // Remove before stopping so a concurrent GetOrCreate gets a fresh session, not this one.
             manager.Remove(key);
             try { await session.StopAsync(); }
             catch (Exception ex) { logger.LogWarning(ex, "capture sweep: stop failed for {Key}", key); }

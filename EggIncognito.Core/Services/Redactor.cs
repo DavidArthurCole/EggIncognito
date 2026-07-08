@@ -1,8 +1,6 @@
 // Redacts personally-identifying values from decoded endpoint and request JSON before it is written to
-// disk and ultimately committed to a public repo. The EID is scrubbed separately by the caller; this
-// handles everything else. Each sensitive value is replaced by a short SHA256-derived token. Redaction
-// is stable, so the same input always yields the same token and endpoints diff cleanly across
-// re-seeds, and one-way, so the original cannot be recovered from the token.
+// disk. The EID is scrubbed separately by the caller; this handles everything else, replacing each
+// sensitive value with a stable, one-way SHA256-derived token.
 
 using System.Security.Cryptography;
 using System.Text;
@@ -12,27 +10,18 @@ namespace EggIncognito.Services;
 
 public static class Redactor
 {
-    // camelCase JSON field names, as emitted by Google.Protobuf JsonFormatter, whose string values are
-    // sensitive. Grouped only for readability; all are treated the same way.
+    // camelCase JSON field names, as emitted by Google.Protobuf JsonFormatter, whose string values are sensitive.
     private static readonly string[] SensitiveFields =
     [
-        // transaction / receipt identifiers
         "transactionId", "originalTransactionId", "linkedTransactionId",
-        // device identifiers
         "deviceId", "deviceName", "pushUserId",
-        // account / platform auth identifiers + signatures and purchase receipts
         "gameServicesId", "gameServicesIdScoped", "code", "signature", "receipt",
-        // advertising / push identifiers
         "advertisingId", "deviceAdId", "pushId",
-        // coop identity
         "coopIdentifier",
-        // player-visible names / handles
         "userName", "requestingUserName", "username", "alias",
     ];
 
-    // Value pattern is escape-aware: a JSON string is any run of non-quote/non-backslash chars or
-    // backslash escapes, so values containing \" are consumed whole instead of stopping early and
-    // leaking the tail.
+    // Escape-aware: a JSON string value with an embedded \" is consumed whole instead of stopping early.
     private static readonly Regex FieldRegex = new(
         "\"(" + string.Join('|', SensitiveFields) + ")\":\\s*\"((?:[^\"\\\\]|\\\\.)+)\"",
         RegexOptions.Compiled);
@@ -46,8 +35,7 @@ public static class Redactor
     public static string Redact(string json) =>
         FieldRegex.Replace(json, m => $"\"{m.Groups[1].Value}\": \"{Token(m.Groups[2].Value)}\"");
 
-    // 12 hex chars of SHA256: collision-free in practice, short enough to read as an obviously-fake
-    // placeholder.
+    // 12 hex chars of SHA256: collision-free in practice, reads as an obviously-fake placeholder.
     private static string Token(string value) =>
         "redacted-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..12].ToLowerInvariant();
 }

@@ -1,11 +1,10 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 // Recovers Egg Inc's hardcoded clientVersion (BasicRequestInfo.client_version) from the disassembled
-// .text of libegginc.so, pure C#. The value is a compiled-in small int the request-builder functions
-// write to a struct field; it is not in the .proto. Heuristic ported line-for-line from the old python
-// client_version.py: find small ints (2..255) MOVZ'd into a Wn then STR'd to the SAME struct offset from
-// >= 3 distinct call sites, then disambiguate with the previous known clientVersion (it increments by
-// 0-1, rarely 2, per build). Only two ARM64 instruction forms are decoded; everything else is skipped.
+// .text of libegginc.so: a compiled-in small int the request-builder functions write to a struct field,
+// not present in the .proto. Heuristic: find small ints (2..255) MOVZ'd into a Wn then STR'd to the same
+// struct offset from >= 3 distinct call sites, then disambiguate with the previous known clientVersion
+// (it increments by 0-1, rarely 2, per build). Only two ARM64 instruction forms are decoded.
 public static class Arm64ClientVersionScanner
 {
     public sealed record ScanResult(int? ClientVersion, IReadOnlyList<int> Candidates);
@@ -23,7 +22,7 @@ public static class Arm64ClientVersionScanner
             words[i] = (uint)(textBytes[i * 4] | (textBytes[i * 4 + 1] << 8)
                             | (textBytes[i * 4 + 2] << 16) | (textBytes[i * 4 + 3] << 24));
 
-        // (offset, value) -> distinct instruction-index set (stand-in for the python's address set).
+        // (offset, value) -> distinct instruction-index set.
         var pair = new Dictionary<(int Off, int Val), HashSet<int>>();
         for (int i = 0; i < n; i++)
         {
@@ -49,7 +48,7 @@ public static class Arm64ClientVersionScanner
         return new ScanResult(chosen, cands);
     }
 
-    // Looks back up to 4 instructions for a MOVZ writing Wt; returns its imm16. Mirrors _prev_imm.
+    // Looks back up to 4 instructions for a MOVZ writing Wt; returns its imm16.
     private static int? PrevMovzImm(uint[] words, int i, int rt)
     {
         for (int j = i - 1; j >= Math.Max(i - 4, 0); j--)

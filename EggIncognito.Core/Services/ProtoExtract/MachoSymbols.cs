@@ -1,10 +1,8 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Parses a Mach-O LC_SYMTAB into (name, vmAddress) pairs. The iOS egginc binary is NOT fully stripped:
-// its C++ method symbols (e.g. HttpHelper::makeFirstContact, HttpHelper::rpc_auth<ei::BasicRequestInfo>)
-// survive in the symbol table. Those functions build the BasicRequestInfo and set client_version, so
-// resolving their address lets a disassembler scope the search to one function instead of the whole
-// noise-flooded .text. Pure header parse, thin + FAT ARM64, defensive (malformed -> empty). Not executed.
+// Parses a Mach-O LC_SYMTAB into (name, vmAddress) pairs. The iOS egginc binary is not fully stripped: its C++
+// method symbols survive, letting a disassembler scope the search to one function instead of the whole
+// noise-flooded .text.
 public static class MachoSymbols
 {
     private const uint MhMagic64 = 0xFEEDFACF;

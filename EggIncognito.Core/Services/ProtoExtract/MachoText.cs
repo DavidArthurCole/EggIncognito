@@ -1,8 +1,7 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 // Locates the __TEXT,__text section of a Mach-O so a disassembler can read the code bytes. Handles thin
-// 64-bit Mach-O (0xFEEDFACF) and FAT archives (0xCAFEBABE / 0xBEBAFECA big-endian), selecting the ARM64
-// slice. Pure header parse, defensive: any malformed read returns false, never throws. Binary not executed.
+// 64-bit Mach-O and FAT archives, selecting the ARM64 slice. Defensive: any malformed read returns false.
 public static class MachoText
 {
     private const uint MhMagic64 = 0xFEEDFACF;

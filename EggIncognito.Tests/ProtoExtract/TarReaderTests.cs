@@ -31,7 +31,6 @@ public class TarReaderTests
     [Fact]
     public void Read_FeedsAssetExtractor()
     {
-        // A tar of one valid synthetic .rpo flows through FromEntries to a decoded glb.
         var rpo = SampleRpo.Build();
         var tar = BuildTar(("rpos/Atlas.rpo", rpo));
         var entries = TarReader.Read(tar).Select(e => (e.Name, e.Bytes));
@@ -54,7 +53,6 @@ public class TarReaderTests
             WriteOctal(header, 124, 12, data.Length); // size
             header[156] = (byte)'0'; // typeflag: regular file
             Encoding.ASCII.GetBytes("ustar\0").CopyTo(header, 257);
-            // checksum: spaces while summing, then the octal sum written back.
             for (var i = 148; i < 156; i++) header[i] = (byte)' ';
             var sum = 0; foreach (var x in header) sum += x;
             WriteOctal(header, 148, 7, sum); header[155] = (byte)' ';
@@ -70,7 +68,6 @@ public class TarReaderTests
 
     private static void WriteOctal(byte[] buf, int offset, int len, long value)
     {
-        // octal digits, right-aligned in (len-1) chars, NUL-terminated.
         var s = Convert.ToString(value, 8).PadLeft(len - 1, '0');
         Encoding.ASCII.GetBytes(s).CopyTo(buf, offset);
         buf[offset + len - 1] = 0;

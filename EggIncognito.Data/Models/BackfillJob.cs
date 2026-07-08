@@ -2,8 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// One backfill run's progress, so the admin UI can show status without tailing logs. The importer
-// creates a row at start (status running), bumps imported as it goes, then finishes done/failed.
+// One backfill run's progress, so the admin UI can show status without tailing logs.
 [Table("backfill_jobs")]
 public sealed class BackfillJob
 {

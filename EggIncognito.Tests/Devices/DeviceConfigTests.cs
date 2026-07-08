@@ -34,13 +34,12 @@ public class DeviceConfigTests
             ["Devices:1:Platform"] = "ios",
             ["Devices:1:Label"] = "iPhone 8",
             ["Devices:1:Target"] = "3489c6b0",
-            // Package omitted -> default
         }));
         Assert.Equal(15, c.IntervalMinutes);
         Assert.Equal(2, c.Devices.Count);
         Assert.Equal("frame-android", c.Devices[0].Id);
         Assert.Equal("RF8X20GLYDY", c.Devices[0].Target);
-        Assert.Equal("com.auxbrain.egginc", c.Devices[1].Package); // default applied
+        Assert.Equal("com.auxbrain.egginc", c.Devices[1].Package);
     }
 
     [Fact]
@@ -48,7 +47,7 @@ public class DeviceConfigTests
     {
         var c = DeviceConfig.Bind(Cfg(new()
         {
-            ["Devices:0:Platform"] = "android", // no Id, no Target
+            ["Devices:0:Platform"] = "android",
             ["Devices:1:Id"] = "ok",
             ["Devices:1:Platform"] = "ios",
             ["Devices:1:Target"] = "udid",

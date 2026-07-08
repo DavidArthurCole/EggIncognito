@@ -38,7 +38,7 @@ public class Arm64DecoderTests
         Assert.Equal(0x1000u, movz.Address);
         Assert.Equal(0, movz.Rd);
         Assert.Equal(72, movz.Imm);
-        Assert.Equal(0, movz.Rn); // hw shift, 0 here
+        Assert.Equal(0, movz.Rn);
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class Arm64DecoderTests
         var movk = Assert.Single(insns, i => i.Op == Arm64Op.Movk);
         Assert.Equal(3, movk.Rd);
         Assert.Equal(0xABCD, movk.Imm);
-        Assert.Equal(1, movk.Rn); // hw = 1
+        Assert.Equal(1, movk.Rn);
     }
 
     [Fact]
@@ -57,17 +57,16 @@ public class Arm64DecoderTests
         var insns = Arm64Decoder.Decode(Words(Str(0, 1, 0x110)), 0x2000);
         var str = Assert.Single(insns, i => i.Op == Arm64Op.Str);
         Assert.Equal(0x2000u, str.Address);
-        Assert.Equal(0, str.Rd); // Rt
-        Assert.Equal(1, str.Rn); // base
-        Assert.Equal(0x110, str.Imm); // byte offset
+        Assert.Equal(0, str.Rd);
+        Assert.Equal(1, str.Rn);
+        Assert.Equal(0x110, str.Imm);
     }
 
     [Fact]
     public void Decode_UnknownWord_SkippedNotEmitted()
     {
-        // NOP = 0xD503201F, not one of our three ops.
         var insns = Arm64Decoder.Decode(Words(0xD503201F, Movz(2, 5)), 0);
-        Assert.Single(insns); // only the MOVZ
+        Assert.Single(insns);
         Assert.Equal(Arm64Op.Movz, insns[0].Op);
     }
 

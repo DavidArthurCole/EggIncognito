@@ -1,8 +1,6 @@
-// Records one perfect loop of the playground's procedural animation and exports a looping GIF, in the browser.
-// Drives the engine's deterministic capture (engine.renderAtPhase) over one period, reads each frame off the
-// canvas onto an offscreen 2D canvas (compositing onto a solid bg + optional downscale), and encodes with
-// gif.js in a worker. Talks to the engine via window.__pgEngine (the same bridge the designer uses); reaches
-// the designer's gizmo toggle via globalThis.__pgDesigner (a ?v=-busted import would fork a second instance).
+// Records one perfect loop of the playground's procedural animation and exports a looping GIF in the browser.
+// Drives the engine's deterministic capture over one period, composites each frame onto an offscreen 2D
+// canvas, and encodes with gif.js in a worker.
 
 function engine() { return globalThis.__pgEngine; }
 function designer() { return globalThis.__pgDesigner; }
@@ -15,7 +13,7 @@ let workerBlobUrl = null;
 
 async function ensureGif() {
   if (GIFClass) return GIFClass;
-  // gif.js is a UMD bundle that sets window.GIF. Load it via a script tag (it is not an ES module).
+  // gif.js is a UMD bundle that sets window.GIF, not an ES module, so load it via a script tag.
   await new Promise((resolve, reject) => {
     if (globalThis.GIF) { resolve(); return; }
     const s = document.createElement('script');
@@ -29,9 +27,8 @@ async function ensureGif() {
   return GIFClass;
 }
 
-// A Web Worker cannot be created from a cross-origin URL (the CDN worker is blocked: "may not load data from
-// cdn.jsdelivr.net"). Fetch the worker source as text and wrap it in a same-origin blob URL, which a Worker is
-// allowed to load. Cached after the first fetch.
+// A Web Worker cannot be created from a cross-origin URL, so fetch the worker source as text and wrap it in
+// a same-origin blob URL instead. Cached after the first fetch.
 async function ensureWorkerUrl() {
   if (workerBlobUrl) return workerBlobUrl;
   const resp = await fetch(GIF_WORKER_URL);
@@ -41,7 +38,7 @@ async function ensureWorkerUrl() {
   return workerBlobUrl;
 }
 
-// round half away from zero, matching the C# LoopFrames contract.
+// Rounds half away from zero, matching the C# LoopFrames contract.
 function rnd(x) { return Math.sign(x) * Math.round(Math.abs(x)); }
 
 export async function record(dotnetRef, opts) {
@@ -50,7 +47,7 @@ export async function record(dotnetRef, opts) {
   if (!e.anyAnimated()) throw new Error('nothing is animated');
 
   const fps = Math.min(30, Math.max(5, (opts && opts.fps) || 20));
-  const maxWidth = (opts && opts.maxWidth) || 0; // 0 = full canvas width
+  const maxWidth = (opts && opts.maxWidth) || 0;
   const fallback = (opts && opts.fallbackColor) || '#1a1a1f';
 
   const period = e.animPeriod();
@@ -62,8 +59,8 @@ export async function record(dotnetRef, opts) {
   const outW = maxWidth && maxWidth < srcW ? maxWidth : srcW;
   const outH = Math.max(1, Math.round(srcH * (outW / srcW)));
 
-  // offscreen 2D canvas: pre-fill the fallback bg, then draw the (possibly downscaled) frame onto it. This
-  // both flattens a transparent scene onto a solid color and applies the size cap.
+  // Pre-fills the fallback bg, then draws the (possibly downscaled) frame onto it, flattening a transparent
+  // scene onto a solid color.
   const off = document.createElement('canvas');
   off.width = outW; off.height = outH;
   const ctx = off.getContext('2d');
@@ -72,7 +69,7 @@ export async function record(dotnetRef, opts) {
   const workerScript = await ensureWorkerUrl();
   const gif = new GIF({ workers: 2, quality: 10, width: outW, height: outH, workerScript, repeat: 0 });
 
-  // clean frames: drop the selection outline + hide the gizmo for the duration of the capture.
+  // Drops the selection outline + hides the gizmo for the duration of the capture.
   e.captureCleanOutline(true);
   if (designer()) designer().setGizmoVisible(false);
   e.captureBegin();

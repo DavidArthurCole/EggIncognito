@@ -1,7 +1,6 @@
-// Browser-side memory for the Inspector Blazor tab. The one place a little JS is allowed (like
-// resize.js): the signing salt, remembered EIDs, the custom proxy URL, and the BasicRequestInfo
-// defaults all live in this browser's localStorage, never server-side. The salt is client-owned: it is
-// read here and handed to the build call only; it is never persisted or encrypted on the server.
+// Browser-side memory for the Inspector Blazor tab: signing salt, remembered EIDs, custom proxy URL,
+// and BasicRequestInfo defaults, all in localStorage. The salt is client-owned and only ever handed to
+// the build call, never persisted or encrypted server-side.
 
 const SALT_KEY = "inspector.salt";
 const RINFO_KEY = "inspector.rinfoDefaults";
@@ -95,8 +94,8 @@ export function recentEids() {
 }
 export function forgetEids() { setRaw(EIDS_KEY, "[]"); return []; }
 
-// --- Inspector request history (client-side "quick swap"). Default ON. Each entry is the builder state
-// needed to restore a request: { id, path, summary, env, fieldsJson, pathParam, target, order }. ---
+// Inspector request history (client-side "quick swap"), default ON. Each entry is the builder state
+// needed to restore a request: { id, path, summary, env, fieldsJson, pathParam, target, order }.
 
 export function getHistoryEnabled() {
   const raw = getRaw(HISTORY_ENABLED_KEY);
@@ -142,9 +141,8 @@ export function deleteHistory(id) {
 }
 export function clearHistory() { setRaw(HISTORY_KEY, "[]"); return []; }
 
-// Browser-direct POST to the user's own proxy in Custom send mode. This server is bypassed: the request
-// goes straight from the browser to the proxy, which relays the same form body to auxbrain. Returns the
-// trimmed response text or throws on a network/CORS failure.
+// Browser-direct POST to the user's own proxy in Custom send mode, bypassing this server entirely.
+// Returns the trimmed response text or throws on a network/CORS failure.
 export async function postForm(url, formBody) {
   const resp = await fetch(url, {
     method: "POST",

@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A named environment design authored in the playground designer: the JSON payload holds the placed elements,
-// lighting, and background. Stored opaque (the client owns its shape); the server only validates well-formed
-// JSON + a size cap. Shared via the DB so designs survive redeploys + are visible across instances. No asset
-// bytes here (meshes are pulled + cached separately); a design only references stems/identifiers.
+// A named environment design authored in the playground designer. Payload is opaque client-owned JSON (elements, lighting, background); server only validates well-formedness and a size cap.
 [Table("env_designs")]
 public class EnvDesign
 {

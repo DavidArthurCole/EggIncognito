@@ -42,7 +42,6 @@ public class DeviceStoreTests
     public void Save_CapsAtMostRecentByLastSeen()
     {
         var dir = TempDir();
-        // 60 devices with increasing LastSeen; only the 50 most recent should persist.
         var devices = Enumerable.Range(1, 60)
             .Select(i => new RememberedDevice($"10.0.0.{i}", null, null, null, "t", $"{i:D4}", 1))
             .ToArray();
@@ -50,7 +49,6 @@ public class DeviceStoreTests
 
         var loaded = new DeviceStore(dir).Load();
         Assert.Equal(50, loaded.Count);
-        // The oldest (LastSeen "0001".."0010") were dropped; the newest "0060" is kept.
         Assert.Contains(loaded, d => d.LastSeen == "0060");
         Assert.DoesNotContain(loaded, d => d.LastSeen == "0001");
     }

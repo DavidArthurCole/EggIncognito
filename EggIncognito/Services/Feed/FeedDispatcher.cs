@@ -12,7 +12,7 @@ public sealed class FeedDispatcher(
     private const int DeadAfterFailures = 5;
 
     // Default public host for the proto page links in feed payloads. Overridable via Feed:PageBaseUrl (no
-    // trailing slash). The old protos.* subdomain was abandoned; proto pages live at /protos/* on the main host.
+    // trailing slash). Proto pages live at /protos/* on the main host.
     public const string DefaultPageBaseUrl = "https://eggincognito.davidarthurcole.me";
 
     public static string BuildPageUrl(string? baseUrl, string platform, string build) =>

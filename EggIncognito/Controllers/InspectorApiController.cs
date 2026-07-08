@@ -101,8 +101,7 @@ public sealed class InspectorApiController(
         }
 
         var inner = message.ToByteArray();
-        // The salt is client-owned: it rides in this request and is used only for this build. The
-        // server never reads EGG_INC_API_SALT for the Inspector path and never persists it.
+        // The salt is client-owned: it rides in this request and is used only for this build.
         var result = pipeline.Build(inner, body.Wrap, body.Salt);
 
         return Ok(new
@@ -120,18 +119,16 @@ public sealed class InspectorApiController(
     [EnableRateLimiting("egress")]
     public async Task<IActionResult> Send([FromBody] SendRequest body)
     {
-        // The /send egress makes an outbound auxbrain call from this server. When hosted, only do that
-        // for an authenticated user. /build is never gated since it encodes + signs with the user's own
-        // salt and does no egress.
+        // The /send egress makes an outbound auxbrain call from this server; when hosted, only for an
+        // authenticated user.
         if (appMode.Mode == AppMode.Hosted && !currentUser.IsAuthenticated)
             throw new ApiException(
                 "log in to use Live API from the hosted site",
                 "Sign in with Discord, then retry. Local runs are never gated.",
                 StatusCodes.Status403Forbidden);
 
-        // Sealed API proxy (supporter perk): route egress through the configured upstream so the
-        // downstream API cannot tie the request to this server. Fail-closed: a non-supporter or
-        // unconfigured upstream that asked for sealed mode is rejected rather than silently sent direct.
+        // Sealed API proxy (supporter perk): fail-closed, a non-supporter or unconfigured upstream
+        // asking for sealed mode is rejected rather than silently sent direct.
         var useSealed = body.Sealed;
         if (useSealed && !await sealedProxy.CanUseAsync(currentUser, HttpContext.RequestAborted))
             throw new ApiException(
@@ -242,11 +239,9 @@ public sealed class InspectorApiController(
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    // Validates the send target against the host allowlist and returns the parsed Uri,
-    // or throws ApiException with a resolution. Prevents /send from being an open proxy.
-    // selfHost = this instance's own request host, always allowed so the "Mock (this instance)"
-    // target works on a public deploy (where the host is e.g. eggincognito.davidarthurcole.me, not
-    // localhost). Falls back to the auxbrain + localhost rule for every other target.
+    // Validates the send target against the host allowlist and returns the parsed Uri, or throws
+    // ApiException with a resolution. selfHost is always allowed so "Mock (this instance)" works on a
+    // public deploy; every other target falls back to the auxbrain + localhost rule.
     private static Uri ResolveAllowedUrl(string url, string selfHost)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
@@ -264,9 +259,8 @@ public sealed class InspectorApiController(
             StatusCodes.Status400BadRequest);
     }
 
-    // The /send target allowlist = auxbrain hosts (shared rule) + localhost + this instance's own host
-    // (so "Mock (this instance)" works on a public deploy, not just on localhost). selfHost is compared
-    // case-insensitively; an empty selfHost (no request host) just falls through to the static rules.
+    // The /send target allowlist = auxbrain hosts + localhost + this instance's own host. selfHost is
+    // compared case-insensitively; empty selfHost falls through to the static rules.
     internal static bool IsAllowedHost(string host, string? selfHost = null) =>
         host is "localhost" or "127.0.0.1"
         || (!string.IsNullOrEmpty(selfHost) && string.Equals(host, selfHost, StringComparison.OrdinalIgnoreCase))

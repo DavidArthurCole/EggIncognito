@@ -7,9 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace EggIncognito.Services.Backfill;
 
 // Walks elgranjero/EggIncProtos history, upserting one registry row per version commit with its
-// ei.proto. Idempotent (keyed on build), precedence-aware (never clobbers farm proto). On-demand and
-// admin-triggered: it runs in a background task, so it opens its own DI scope to get a valid scoped
-// store + DbContext rather than capturing a request-scoped one that the response would dispose.
+// ei.proto. Idempotent (keyed on build), precedence-aware (never clobbers farm proto). Runs in a
+// background task, so it opens its own DI scope rather than capturing a request-scoped one.
 public sealed class ElgranjeroImporter(
     IGitHubClient github, IServiceScopeFactory scopeFactory, ILogger<ElgranjeroImporter> logger)
 {

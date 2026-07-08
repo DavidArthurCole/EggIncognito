@@ -10,7 +10,7 @@ public class MachoTextTests
         textBytes = new byte[textSize];
         for (int i = 0; i < textSize; i++) textBytes[i] = (byte)(i & 0xFF);
 
-        int headerEnd = 32 + 72 + 80; // header + LC_SEGMENT_64 cmd hdr + 1 section
+        int headerEnd = 32 + 72 + 80;
         int total = (int)Math.Max(headerEnd, textFileOff + textSize);
         var b = new byte[total];
 
@@ -18,33 +18,33 @@ public class MachoTextTests
         void U64(int off, ulong v) { for (int k = 0; k < 8; k++) b[off + k] = (byte)(v >> (k * 8)); }
         void Str16(int off, string s) { var sb = System.Text.Encoding.ASCII.GetBytes(s); Array.Copy(sb, 0, b, off, sb.Length); }
 
-        U32(0, 0xFEEDFACF); // magic 64-bit
-        U32(4, 0x0100000C); // cputype ARM64
-        U32(8, 0); // cpusubtype
-        U32(12, 2); // filetype MH_EXECUTE
-        U32(16, 1); // ncmds
-        U32(20, 72 + 80); // sizeofcmds
-        U32(24, 0); // flags
-        U32(28, 0); // reserved
+        U32(0, 0xFEEDFACF);
+        U32(4, 0x0100000C);
+        U32(8, 0);
+        U32(12, 2);
+        U32(16, 1);
+        U32(20, 72 + 80);
+        U32(24, 0);
+        U32(28, 0);
 
         int lc = 32;
-        U32(lc, 0x19); // LC_SEGMENT_64
-        U32(lc + 4, 72 + 80); // cmdsize
-        Str16(lc + 8, "__TEXT"); // segname (16 bytes)
-        U64(lc + 24, 0); // vmaddr (seg)
-        U64(lc + 32, 0); // vmsize
-        U64(lc + 40, 0); // fileoff
-        U64(lc + 48, 0); // filesize
-        U32(lc + 56, 0); U32(lc + 60, 0); // maxprot/initprot
-        U32(lc + 64, 1); // nsects
-        U32(lc + 68, 0); // flags
+        U32(lc, 0x19);
+        U32(lc + 4, 72 + 80);
+        Str16(lc + 8, "__TEXT");
+        U64(lc + 24, 0);
+        U64(lc + 32, 0);
+        U64(lc + 40, 0);
+        U64(lc + 48, 0);
+        U32(lc + 56, 0); U32(lc + 60, 0);
+        U32(lc + 64, 1);
+        U32(lc + 68, 0);
 
         int sec = lc + 72;
-        Str16(sec, "__text"); // sectname (16)
-        Str16(sec + 16, "__TEXT"); // segname (16)
-        U64(sec + 32, textVmAddr); // addr
-        U64(sec + 40, textSize); // size
-        U32(sec + 48, textFileOff); // offset
+        Str16(sec, "__text");
+        Str16(sec + 16, "__TEXT");
+        U64(sec + 32, textVmAddr);
+        U64(sec + 40, textSize);
+        U32(sec + 48, textFileOff);
 
         Array.Copy(textBytes, 0, b, (int)textFileOff, (int)textSize);
         return b;

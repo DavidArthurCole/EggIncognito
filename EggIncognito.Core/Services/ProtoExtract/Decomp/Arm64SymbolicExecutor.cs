@@ -3,17 +3,12 @@ using Gee.External.Capstone.Arm64;
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
 // Symbolically executes an arm64 function: instead of computing values it builds an ExprNode per register +
-// stack slot, so the function's MATH comes back as a portable tree. Models the idioms a real Eigen-heavy
-// particle update uses: scalar + vector FP arithmetic, per-lane vector tracking (ins/zip1/ext/dup/st1),
-// stack stores/loads (the affine transform is assembled on the stack and passed by pointer), movz/movk GP
-// immediates reinterpreted as floats, and fmadd/fmaxnm/fminnm/fcvt. Calls are modeled via the injected
-// delegate (KnownCallModels) for direct bl; indirect blr is opaque but flagged as the placement SINK when its
-// pointer arg (x2) targets the assembled stack matrix. Bounded (instr budget, no recursion). Never throws.
+// stack slot, so the function's MATH comes back as a portable tree. Calls are modeled via the injected delegate
+// (KnownCallModels) for direct bl; indirect blr is flagged as the placement SINK when its pointer arg (x2)
+// targets the assembled stack matrix. Bounded (instr budget, no recursion), never throws.
 public static class Arm64SymbolicExecutor
 {
     // A captured direct-call site: the resolved callee name + its folded scalar FP args (s0,s1,s2 at the call).
-    // Lets a recovery read the actual argument fed to a known call (e.g. ActionBuilder::waitFor(delay)) instead
-    // of guessing which function-constant maps to which parameter.
     public readonly record struct CallRecord(string Name, IReadOnlyList<ExprNode> FloatArgs);
 
     public readonly record struct ExecResult(
@@ -21,8 +16,7 @@ public static class Arm64SymbolicExecutor
         IReadOnlyDictionary<long, ExprNode> RetVec, ExprNode? SinkArg, long? SinkStackPtr, int Opaque,
         IReadOnlyList<CallRecord> Calls, string Diagnostics)
     {
-        // Read a register's recovered expression by any alias (s3/v3/q3/d3, x8/w8). Regs are stored under the
-        // normalized SIMD/GP key; this resolves the alias the caller used.
+        // Reads a register's recovered expression by any alias (s3/v3/q3/d3, x8/w8).
         public ExprNode? Reg(string name) => Regs.TryGetValue(NormKey(name), out var e) ? e : null;
     }
 
@@ -46,8 +40,8 @@ public static class Arm64SymbolicExecutor
         Func<string, ExprNode[], ExprNode?> resolveCall)
         => Run(code, fn, textVmAddr, textFileOff, syms, seedInputs, null, resolveCall);
 
-    // seedBases: register -> a named base. "ret" makes that register the sret out-param pointer (its stores are
-    // captured in RetVec[off]); any other name (e.g. "gc") names struct-field loads off it Field(name, off).
+    // seedBases: register -> a named base. "ret" makes that register the sret out-param pointer (stores captured
+    // in RetVec[off]); any other name (e.g. "gc") names struct-field loads off it Field(name, off).
     public static ExecResult Run(
         byte[] code, MachoSymbols.FuncRange fn, ulong textVmAddr, int textFileOff,
         IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyDictionary<string, ExprNode> seedInputs,
@@ -158,8 +152,7 @@ public static class Arm64SymbolicExecutor
     private static long ShiftImm(Arm64Operand[] ops)
     {
         long v = ops[1].Immediate;
-        // a movz/movk may carry a shift in the operand text; capstone folds lsl into the immediate for movz on
-        // most builds, but when a shifter is exposed apply it. ShiftValue is 0 when absent.
+        // capstone folds lsl into the immediate for movz on most builds; apply the shifter when it's exposed.
         if (ops.Length >= 2)
         {
             try { if (ops[1].ShiftOperation != Arm64ShiftOperation.Invalid) v <<= ops[1].ShiftValue; } catch { }
@@ -169,8 +162,7 @@ public static class Arm64SymbolicExecutor
 
     private static string RegName(Arm64Operand[] ops, int i) => i < ops.Length && ops[i].Register is { } r ? r.Name : "";
 
-    // Mutable execution state: GP/vector registers as ExprNodes, integer GP values for address + immediate
-    // tracking, and a stack model keyed by absolute sp-offset (one ExprNode per 4-byte lane).
+    // Mutable execution state: GP/vector registers as ExprNodes, plus a stack model keyed by sp-offset.
     private sealed class State
     {
         private readonly Dictionary<string, ExprNode> _regs = new(); // s/d/x/w/v -> expr
@@ -185,9 +177,6 @@ public static class Arm64SymbolicExecutor
         public long? SinkStackPtr;
         private readonly List<CallRecord> _calls = new(); // every resolved direct-call site + its folded FP args
 
-        // seed: register -> expr. seedBases: register -> a named base. A base "ret" makes the register the sret
-        // out-param pointer (stores to it land in RetVec); any other name (e.g. "gc") names struct-field loads
-        // off that register Field(name, off) instead of an anonymous opaque.
         public State(IReadOnlyDictionary<string, ExprNode> seed) : this(seed, null) { }
         public State(IReadOnlyDictionary<string, ExprNode> seed, IReadOnlyDictionary<string, string>? seedBases)
         {
@@ -290,8 +279,7 @@ public static class Arm64SymbolicExecutor
         }
         public void VecExt(string d, string a, string b, int byteIdx)
         {
-            // ext takes a window across [a:b] starting byteIdx; model the common 4-byte-lane shifts (#8 -> 2
-            // lanes, #0xc -> 3 lanes). Lanes are 4 bytes; shift = byteIdx/4.
+            // ext takes a window across [a:b] starting byteIdx; lanes are 4 bytes, so shift = byteIdx/4.
             var al = Lanes(a); var bl = Lanes(b); int sh = byteIdx / 4;
             var combined = new[] { al[0], al[1], al[2], al[3], bl[0], bl[1], bl[2], bl[3] };
             SetVec(d, [combined[sh], combined[sh + 1], combined[sh + 2], combined[sh + 3]]);
@@ -352,8 +340,7 @@ public static class Arm64SymbolicExecutor
                     SetScalar(r.Name, Slot(off));
                 return;
             }
-            // a non-stack load reads a struct/heap field; name it Field(base, offset) so it is honest +
-            // inspectable instead of an anonymous opaque. A named base (e.g. "gc") is used over the raw reg name.
+            // a non-stack load reads a struct/heap field; name it Field(base, offset) instead of an anonymous opaque.
             _ptr.Remove(Norm(r.Name));
             if (ops[^1].Memory?.Base is { } b)
             {
@@ -388,9 +375,8 @@ public static class Arm64SymbolicExecutor
 
         private ExprNode Slot(long off) => _stack.TryGetValue(off, out var e) ? e : new Field("stack", off);
 
-        // Resolve a memory operand to a (space, offset) target when its base register is a tracked pointer.
-        // space = "sp" (the stack) or "ret" (the sret out-param). Returns false for an untracked base (a heap
-        // or struct pointer), which the caller then names Field(base, disp).
+        // Resolves a memory operand to a (space, offset) target when its base register is a tracked pointer.
+        // Returns false for an untracked base (a heap/struct pointer), which the caller then names as a Field.
         private bool MemTarget(Arm64Operand mem, out string space, out long off)
         {
             space = ""; off = 0;
@@ -447,9 +433,8 @@ public static class Arm64SymbolicExecutor
             return r is null ? 8 : r.Name.StartsWith('d') ? 8 : r.Name.StartsWith('s') || r.Name.StartsWith('w') ? 4 : 8;
         }
 
-        // Normalize a register alias to the value key. v/q/d/s share the SIMD register file (v0==q0==d0==s0);
-        // x/w share the GP file (x0==w0). Canonical = leading-letter family + the numeric id (digits up to a
-        // '.' arrangement suffix). "v10.4s"->"v10", "q3"->"v3", "s0"->"v0", "x8"->"x8", "w9"->"x9".
+        // Normalizes a register alias to its value key: v/q/d/s share the SIMD file (v0==q0==d0==s0), x/w share
+        // the GP file (x0==w0). "v10.4s"->"v10", "q3"->"v3", "s0"->"v0".
         private static string Norm(string name)
         {
             if (name is "sp" or "wsp") return "sp";

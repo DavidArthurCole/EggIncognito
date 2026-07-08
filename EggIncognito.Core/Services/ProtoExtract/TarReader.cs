@@ -2,11 +2,9 @@ using System.Text;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Minimal read-only POSIX ustar parser. The iOS asset puller tars a directory of .rpo/.rpoz files on the
-// device and scps one tarball back; this walks that tarball into (name, bytes) entries without a third-
-// party dependency or shelling to tar host-side. Handles the regular-file + directory typeflags and the
-// GNU/ustar long-name cases the BSD tar on a jailbroken iOS emits. Defensive: malformed input yields the
-// entries parsed so far, never a throw.
+// Minimal read-only POSIX ustar parser: walks a tarball into (name, bytes) entries without a third-party
+// dependency. Handles the regular-file + directory typeflags and GNU/ustar long-name cases. Defensive:
+// malformed input yields the entries parsed so far, never a throw.
 public static class TarReader
 {
     private const int BlockSize = 512;

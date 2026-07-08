@@ -30,7 +30,7 @@ public class DevicesControllerTests
     [Fact]
     public async Task Refresh_NonAdmin_403()
     {
-        var sp = new ServiceCollection().BuildServiceProvider(); // no DB registered
+        var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Contributor, sp);
         var r = await c.Refresh("frame-android");
         var sc = Assert.IsType<ObjectResult>(r);
@@ -40,7 +40,7 @@ public class DevicesControllerTests
     [Fact]
     public async Task Refresh_Admin_NoDb_503()
     {
-        var sp = new ServiceCollection().BuildServiceProvider(); // no IDeviceStatusStore
+        var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Admin, sp);
         var r = await c.Refresh("frame-android");
         var sc = Assert.IsType<ObjectResult>(r);

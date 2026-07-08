@@ -6,10 +6,9 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EggIncognito.Controllers;
 
-// Write surface over the proto registry, split from the public read-only ProtosController. Gating
-// mirrors BackfillController: the role check runs before the DB resolve, so insufficient role 403s and a
-// no-DB host 503s regardless of state. Save + edit are additive (contributor+); delete + merge are
-// destructive (admin). Deletes are soft (DeletedAt) so the auto-importers cannot resurrect them.
+// Write surface over the proto registry, split from the public read-only ProtosController. Save and edit
+// are additive (contributor+); delete and merge are destructive (admin). Deletes are soft (DeletedAt)
+// so the auto-importers cannot resurrect them.
 [ApiController]
 [Route("api/protos/versions")]
 [EnableRateLimiting("write")]
@@ -149,7 +148,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         if (StagedStore is not { } s) return StatusCode(503, new { error = NoDb });
         if (string.IsNullOrEmpty(req.ProtoSha) || string.IsNullOrEmpty(req.ProtoText))
             return BadRequest(new { error = "protoSha + protoText required" });
-        var by = user.DiscordId; // null when anonymous
+        var by = user.DiscordId;
         var r = await s.OfferAsync(req.Platform, req.AppVersion, req.Build, req.ClientVersion, req.Package,
             req.ProtoSha, req.ProtoText, req.MessageIndex, by, ct);
         return Ok(new { result = r.ToString().ToLowerInvariant() });

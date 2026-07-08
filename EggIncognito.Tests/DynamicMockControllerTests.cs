@@ -23,8 +23,6 @@ public class DynamicMockControllerTests : IClassFixture<WebApplicationFactory<Pr
             b.UseSetting("NoBrowser", "true");
             b.ConfigureServices(s =>
             {
-                // Register a DB route provider so MergedRouteCatalog sees ei/dbonly, then rebuild the
-                // IRouteCatalog to include it (the default no-DB registration leaves it yaml-only).
                 s.AddSingleton<IDbRouteProvider, FakeRoutes>();
                 s.AddSingleton<IRouteCatalog>(sp =>
                     new MergedRouteCatalog(sp.GetRequiredService<RouteCatalog>(),

@@ -478,7 +478,7 @@ else
     List<ShellRow> _allShells = [];
     List<EnvPieceRow> _catalogPieces = [];
 
-    // The playground is ALWAYS in design mode now (no view-only state). Kept as a const-true field so the many
+    // The playground is always in design mode now (no view-only state). Kept as a const-true field so the many
     // `@if (_designMode)` blocks + the JS setDesignMode call still read naturally.
     const bool _designMode = true;
     readonly List<DesignElement> _elements = [];
@@ -822,9 +822,9 @@ else
         await RefreshAnimatedFlag();
     }
 
-    // Derives an actor's motion from the placed buildings. Chicken: hatchery -> nearest hab. Vehicle: the road
-    // line across the farm X bounds. Rocket: vertical from the mission control pad. Falls back to a sane local
-    // path + a status note when the source building is absent.
+    // Derives an actor's motion from the placed buildings: chicken hatchery->nearest hab, vehicle the road line
+    // across the farm X bounds, rocket vertical from the mission control pad. Falls back to a sane local path
+    // + a status note when the source building is absent.
     async Task<MotionState> DeriveMotion(DesignElement actor)
     {
         if (actor.Actor == "rocket")
@@ -845,10 +845,9 @@ else
             var xs = _elements.Where(e => e.Kind != "actor").Select(e => e.Pos[0]).ToList();
             var minX = xs.Count > 0 ? xs.Min() - 6f : -20f;
             var maxX = xs.Count > 0 ? xs.Max() + 6f : 20f;
-            // the depot: all truck traffic uses the single lane closest to it, and trucks dwell as they pass it.
-            // Depot renders left-pinned (recenterX="min"), so el.Pos is its LEFT EDGE, not its dock face; fetch
-            // its real footprint so the truck dwells at the real CENTER X and the FRONT (road-facing, +Z) edge,
-            // not the building's authored corner.
+            // The depot: all truck traffic uses the single lane closest to it, and trucks dwell as they pass it.
+            // Depot renders left-pinned (recenterX="min"), so el.Pos is its left edge, not its dock face: fetch
+            // its real footprint so the truck dwells at the real center X and front (road-facing) edge.
             var depot = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_depot"));
             float? depotX = depot?.Pos[0];
             float? depotZ = depot?.Pos[2];
@@ -879,9 +878,8 @@ else
                 DepotZ = depotZ,
             };
         }
-        // chickens run UNI-DIRECTIONALLY hatchery-door -> hab (Loop=cycle, wrapping back to the door, never
-        // pingponging back). Count > 1 runs several chickens at once, staggered in phase + offset into parallel
-        // lanes by the engine.
+        // Chickens run one-directionally hatchery-door -> hab (Loop=cycle, wrapping back to the door, never
+        // pingponging). Count > 1 runs several chickens at once, staggered by the engine.
         var count = actor.Motion?.Count is > 0 ? actor.Motion.Count : 1;
         var hatch = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_hatchery"));
         var habs = _elements.Where(e => e.Kind == "env" && EnvCatalog.AssetTypeOf(e.Ref) is { } at && IsHab(at)).ToList();
@@ -898,9 +896,8 @@ else
         or "TheStandard" or "LongHouse" or "DoubleDecker" or "Warehouse" or "Center" or "Bunker" or "Eggkea"
         or "Hab1K" or "Hangar" or "Tower" or "Hab10K" or "Eggtopia" or "Monolith" or "PlanetPortal" or "ChickenUniverse";
 
-    // Terrain layers (ground / paths / hardscape / ground detail / display ground): flat sheets that overlay the
-    // floor. They keep their authored Y (no base-snap) so they sit INSIDE each other rather than stacking, and
-    // stay out of collision/grid (they are not obstacles).
+    // Terrain layers (ground / paths / hardscape / ground detail / display ground) keep their authored Y (no
+    // base-snap) so they sit inside each other rather than stacking, and stay out of collision/grid.
     static bool IsTerrain(string stem) => stem is "ei_farm_ground" or "ei_farm" or "ei_farm_hardscape"
         or "ei_farm_misc" or "ei_chicken_display_ground";
 
@@ -957,11 +954,9 @@ else
         }
         else
         {
-            // free-placed env buildings re-center so the gizmo lands on them; layout-derived ones keep their
-            // authored plot offset (el.Recenter is false for auto-arranged + restored pieces). The 6 zone-grid
-            // core buildings pin their LEFT edge (recenterX=min) so a tier/size swap grows to the RIGHT from the
-            // zone anchor, not leftward. Terrain layers (ground/paths/hardscape/detail) keep their authored Y
-            // (snapBase=false) so they sit INSIDE each other flat on the floor, not stacked/elevated.
+            // Free-placed env buildings re-center so the gizmo lands on them; layout-derived and zone-grid-core
+            // pieces keep their authored plot offset (core pins its left edge so a tier swap grows right).
+            // Terrain layers keep their authored Y (snapBase=false).
             var stem = el.Shell ?? el.Ref;
             var leftPin = IsZoneCorePinned(stem);
             await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb),
@@ -1096,7 +1091,7 @@ else
         },
     }).ToList();
 
-    // Snapshot the element list BEFORE a mutating action so it can be undone. Clears the redo branch. Skipped
+    // Snapshot the element list before a mutating action so it can be undone; clears the redo branch. Skipped
     // while a history restore is in flight, so undo/redo do not push their own result.
     void PushHistory()
     {
@@ -1130,10 +1125,9 @@ else
         await ApplyHistorySnapshot(_redo.Pop());
     }
 
-    // Restore a history snapshot by DIFFING it against the live scene and touching only what changed: remove
+    // Restore a history snapshot by diffing it against the live scene and touching only what changed: remove
     // elements gone from the snapshot, add ones new to it, re-render ones whose mesh-affecting fields differ,
-    // and just re-place (no mesh rebuild) ones where only the transform moved. A typical undo (one element
-    // dragged) re-places a single group instead of tearing down + reloading the whole farm.
+    // and just re-place ones where only the transform moved.
     async Task ApplyHistorySnapshot(List<DesignElement> snapshot)
     {
         if (_mod is null) return;
@@ -1188,8 +1182,8 @@ else
 
 
     // Builds a game-like farm in one click: clears the scene, fetches the standard layout, adds each element
-    // at its plot position. Honors singletons (ground/hardscape added once). A starting point to tweak, not a
-    // pixel-exact game farm (positions are derived, not extracted from the binary).
+    // at its plot position. A starting point to tweak, not a pixel-exact farm (positions are derived, not
+    // extracted from the binary).
     System.Threading.CancellationTokenSource? _arrangeCts;
 
     async Task AutoArrangeFarm()
@@ -1227,10 +1221,8 @@ else
             if (ct.IsCancellationRequested) return;
 
             // Core buildings start at their zone-anchor positions (ZoneLayout.Resolve), but the zone grid's
-            // reserved widths are STOPGAP guesses (real per-tier mesh size is unknown offline); repack each row
-            // left-to-right by REAL mesh width so adjacent zones never overlap regardless of how wrong the guess
-            // was. Habs need the same real-width respace (the game's hab spacing formula depends on live mesh
-            // bbox, which only the renderer holds).
+            // reserved widths are stopgap guesses, so repack each row by real mesh width so adjacent zones
+            // never overlap. Habs need the same real-width respace (the renderer holds the live mesh bbox).
             await RepackCoreZones();
             await RespaceHabs();
             // apply per-element effects (hatchery orbits etc) after placement, once.
@@ -1253,11 +1245,9 @@ else
     }
 
     // Repack the 3 gravity-packed zone-grid rows (back: Lab/Hoa, mid: Hatchery/MissionControl/Fuel, front:
-    // Depot alone) left-to-right + front-to-back by REAL mesh footprint width AND depth, one interop call per
-    // row. The zone grid's static row Z bands (ZoneLayout.cs) only seed the FIRST row's back edge; each next
-    // row's back edge CHAINS from the previous row's real front edge + a gap, so a deep building (e.g. a big
-    // mission-control disc) pushes the row behind it back instead of the two overlapping. A wrong initial guess
-    // only affects the (invisible, pre-batch) first frame.
+    // Depot alone) by real mesh footprint width and depth, one interop call per row. ZoneLayout.cs only seeds
+    // the first row's back edge; each next row's back edge chains from the previous row's real front edge + a
+    // gap, so a deep building pushes the row behind it back instead of overlapping.
     static readonly string[][] ZoneRowFamilies = [["lab", "hoa"], ["hatchery", "mission", "fuel"], ["depot"]];
 
     public sealed class ZoneRowPackResult
@@ -1267,9 +1257,8 @@ else
     }
 
     // The road's Z (PlaygroundPaths.RoadZ) minus a clearance margin: the front row's real front edge must never
-    // reach or cross this, or the depot visually lands on/past the road. Real per-tier depth is unknown offline
-    // (see ZoneLayout's stopgap note), so this is a hard safety clamp, not a tuning nicety: without it, a big
-    // enough mid-row (e.g. a wide mission-control disc) chains the front row straight onto the road.
+    // reach or cross this, or the depot visually lands on/past the road. A hard safety clamp, since real
+    // per-tier depth is unknown offline (see ZoneLayout's stopgap note).
     const float RoadClearZ = EggIncognito.Services.ProtoExtract.PlaygroundPaths.RoadZ - 1.5f;
 
     async Task RepackCoreZones()
@@ -1294,9 +1283,8 @@ else
                 backEdgeZ, EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX,
                 EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX);
 
-            // the LAST row (depot) must clear the road: if its real front edge would cross RoadClearZ, re-pack
-            // it pinned to a back edge pulled back by the overflow, so it compresses toward the road limit
-            // instead of driving through it.
+            // The last row (depot) must clear the road: if its real front edge would cross RoadClearZ, re-pack
+            // it pinned to a back edge pulled back by the overflow.
             var isLastRow = rowIndex == ZoneRowFamilies.Length - 1;
             if (isLastRow && result.NextBackEdgeZ - EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX > RoadClearZ)
             {
@@ -1345,8 +1333,8 @@ else
 
     static bool IsSilo(string stem) => stem.StartsWith("ei_silo", StringComparison.Ordinal);
 
-    // The 6 zone-grid core buildings all pin their LEFT edge (recenterX="min" in addGroup) so their Pos is the
-    // zone's back-left anchor, unambiguous with every other zone (ZoneLayout.Resolve places all 6 the same way).
+    // The 6 zone-grid core buildings all pin their left edge (recenterX="min" in addGroup) so their Pos is the
+    // zone's back-left anchor, unambiguous with every other zone.
     static bool IsZoneCorePinned(string stem) =>
         stem.StartsWith("ei_lab", StringComparison.Ordinal) || stem.StartsWith("ei_hoa", StringComparison.Ordinal)
         || stem.StartsWith("ei_afx_construction", StringComparison.Ordinal) || stem.StartsWith("ei_hatchery_", StringComparison.Ordinal)
@@ -1436,8 +1424,7 @@ else
     async Task OnAnimChanged(DesignElement sel) { PushHistory(); await ApplyElementAnimation(sel); }
 
     // Toggle the extracted decomp particle effect on a hab. Fetches the recovered EffectModel from the decomp
-    // endpoint + attaches it (or clears it). The galaxy orbit math comes from the binary (see the effect-recovery
-    // framework), so this turns the universe hab's floating particles on with the extracted motion.
+    // endpoint and attaches or clears it, using orbit math extracted from the binary.
     async Task OnEffectToggled(DesignElement sel, bool on)
     {
         PushHistory();
@@ -1446,14 +1433,12 @@ else
         StateHasChanged();
     }
 
-    // Render (or clear) a building's extracted effects. The set of effects is DISCOVERED from the binary by the
-    // building-effect resolver (no hardcoded per-stem list); this fetches whatever was found for el.Ref + hands
-    // the models to the engine. HasEffects/EffectCount are populated so the toggle only shows when there is
-    // something to render.
+    // Render (or clear) a building's extracted effects. The set of effects is discovered from the binary by the
+    // building-effect resolver (no hardcoded per-stem list), fetched for el.Ref and handed to the engine.
     async Task ApplyEffect(DesignElement el)
     {
         if (_mod is null || el.Kind != "env") return;
-        // hatchery floating effect = real sub-meshes (bolt/probe/rings/tops) hovering the body, NOT particles.
+        // hatchery floating effect = real sub-meshes (bolt/probe/rings/tops) hovering the body, not particles.
         if (el.Ref.StartsWith("ei_hatchery", StringComparison.Ordinal))
         {
             await ApplyHatcheryParts(el);
@@ -1471,10 +1456,9 @@ else
         StateHasChanged();
     }
 
-    // Load a hatchery's floating sub-pieces + orbit them around the body. Resolves the tier's parts via
-    // /api/env/hatchery-effects, fetches each part's glb, and hands them to attachHatcheryParts. The orbit radius
-    // is a STOPGAP (scaled from the body, see attachHatcheryParts) until the exact RPA1 curve / FarmScene hab
-    // constants are extracted. el.Effect toggles it; HasEffects/EffectCount drive the UI badge.
+    // Load a hatchery's floating sub-pieces + orbit them around the body. Resolves the tier's parts, fetches
+    // each part's glb, and hands them to attachHatcheryParts. Orbit radius is a stopgap (scaled from the body)
+    // until the exact RPA1 curve / FarmScene hab constants are extracted.
     async Task ApplyHatcheryParts(DesignElement el)
     {
         if (_mod is null) return;
@@ -1482,9 +1466,7 @@ else
         {
             var tier = HatcheryTierOf(el.Ref);
             // hatchery-dump already carries every tier's floating parts (fetched once, memoized in
-            // _hatcheryDumpTask); reading it here instead of the separate /api/env/hatchery-effects endpoint
-            // avoids a SECOND uncached device pull (that endpoint also calls ListStemsAsync, which re-pulls the
-            // whole base.apk/tarball every call) on every hatchery placement.
+            // _hatcheryDumpTask), avoiding a second uncached device pull on every hatchery placement.
             var dump = await FetchHatcheryDump();
             var floating = new List<string>();
             if (dump is { } d && d.TryGetProperty("tiers", out var tiers) && tiers.ValueKind == System.Text.Json.JsonValueKind.Array)
@@ -1504,11 +1486,10 @@ else
                 return;
             }
 
-            // Build the EXTRACTED state-machine model: orb at the assembly anchor; the disc piece = orbiting probes
-            // (count/rate from rotate_pyramid); the spike piece = the beam fired probe->orb intermittently. Pieces
-            // are classified by their decode-stats bounds (spike = Y-extent >> X/Z). All motion params come from the
-            // binary; what does not recover is left null (that aspect is not animated). No invented orbit.
-            // cache the built model per tier (it holds the piece glbs); a re-toggle or tier re-visit is instant.
+            // Build the extracted state-machine model: orb at the assembly anchor; disc piece = orbiting probes
+            // (count/rate from rotate_pyramid); spike piece = the beam fired probe->orb intermittently. Pieces
+            // are classified by decode-stats bounds; params that do not recover stay null (not animated).
+            // Cache the built model per tier (it holds the piece glbs); a re-toggle or tier re-visit is instant.
             if (!_hatcheryModelCache.TryGetValue(tier, out var model))
             {
                 model = await BuildHatcheryModel(tier, floating, dump);
@@ -1520,9 +1501,8 @@ else
         StateHasChanged();
     }
 
-    // The hatchery dump (all tiers + bounds + assembly) is the SAME for every hatchery; fetching it pulls the
-    // device archive, which is slow. Cache it for the session + dedupe concurrent fetches so toggling effects /
-    // swapping tiers does not re-pull each time. Prefetched on init so the first toggle is instant.
+    // The hatchery dump (all tiers + bounds + assembly) is the same for every hatchery; fetching it pulls the
+    // slow device archive. Cache it for the session and dedupe concurrent fetches; prefetched on init.
     System.Text.Json.JsonElement? _hatcheryDump;
     Task<System.Text.Json.JsonElement?>? _hatcheryDumpTask;
     readonly Dictionary<string, object?> _hatcheryModelCache = new(StringComparer.Ordinal);
@@ -1546,15 +1526,13 @@ else
     }
 
     // Build the state-machine model for one tier from the extracted dump. Classifies each floating piece by its
-    // bounds (a spike = the beam; a flat disc = a probe), fetches the glbs, and reads the orbit/beam params from
-    // the extracted rotate_pyramid + anchor. Params that did not recover stay null (not animated).
+    // bounds (a spike = the beam; a flat disc = a probe), fetches the glbs, and reads orbit/beam params from
+    // the extracted rotate_pyramid + anchor.
     async Task<object?> BuildHatcheryModel(string tier, List<string> floating, System.Text.Json.JsonElement? dump)
     {
-        // orb position relative to the body group origin. The body mesh self-places at its plot; the anchor is the
-        // orb's world pos, so orb-local = (0, anchorY, 0) approximated (anchor X/Z == body center). Default upper-body.
+        // orb position relative to the body group origin, approximated as (0, anchorY, 0) since anchor X/Z == body center.
         float[] orb = [0f, 2.15f, 0f];
-        // ~10-12 probes observed in game, flying in 3D around the orb (runtime frandom, no static count). DISPLAY
-        // value, not extracted. The binary's rotate_pyramid `3` is the quarter-turn segment count, a red herring.
+        // ~10-12 probes observed in game (runtime frandom, no static count): a display value, not extracted.
         int probeCount = 12;
         float orbitRadius = 0f;    // from the frandom scatter; filled from extracted translation magnitude if present
         float orbitSpeed = 0.5f;   // rotate_pyramid easing/rate
@@ -1563,24 +1541,19 @@ else
 
         if (dump is { } d && d.TryGetProperty("assembly", out var asmEl))
         {
-            // orb position is set below from anchor + bodyShift (needs the body bounds, resolved after this block).
-            // timing recovered from rotate_pyramid's ActionBuilder tween call ARGS (waitFor/smooth), not from
-            // unordered float constants: waitFor = the beam-fire delay, smoothDuration = the eased anim duration,
-            // orbitSegments = the piece/segment count. These are the binary's own param bindings.
+            // timing recovered from rotate_pyramid's ActionBuilder tween call args: waitFor = beam-fire delay,
+            // smoothDuration = eased anim duration, orbitSegments = piece/segment count.
             if (asmEl.TryGetProperty("timing", out var tm) && tm.ValueKind == System.Text.Json.JsonValueKind.Object)
             {
-                // NOTE: orbitSegments (rotate_pyramid's `3`) is the pyramid QUARTER-TURN segment count, NOT the
-                // probe count. In game the orb has ~10-12 probes flying in 3D all around it (observed), spawned by
-                // a runtime frandom loop with no static count in the binary. So probeCount is a DISPLAY value, like
-                // orbitRadius: see probeCount default below (not read from orbitSegments).
+                // orbitSegments (rotate_pyramid's `3`) is the pyramid quarter-turn segment count, not the probe
+                // count; probeCount is a display value spawned by a runtime frandom loop with no static count.
                 if (tm.TryGetProperty("smoothDuration", out var sd) && sd.ValueKind == System.Text.Json.JsonValueKind.Number)
                 {
                     var dur = (float)sd.GetDouble();
                     if (dur > 0.01f) { orbitSpeed = (float)(Math.PI / 2 / dur); beamDuration = dur; } // quarter-turn / duration
                 }
-                // waitFor = the beam fire delay. A constant value sets a fixed interval. waitForRandom = the delay
-                // is the frandom() output (random by design): fire on a random cadence, with smoothDuration as the
-                // mean. Either way the beam fires; only a missing-and-not-random case holds.
+                // waitFor = a fixed beam-fire delay; waitForRandom = the delay is frandom() output, random by
+                // design, with smoothDuration as the mean cadence.
                 if (tm.TryGetProperty("waitFor", out var wf) && wf.ValueKind == System.Text.Json.JsonValueKind.Number)
                 {
                     var w = (float)wf.GetDouble();
@@ -1607,39 +1580,32 @@ else
             }
         }
 
-        // Classify EACH floating piece from its authored .rpo bounds (the geometry IS the data): a world-placed
-        // roof spike renders static at its spot; a centered piece is driven by the extracted state machine
-        // (beam fires probe->orb, probes orbit, rings spin, shells/orb hover). One generic piece list replaces
-        // the universe-only probe/beam pair so every tier (ai tops, darkmatter rings, vision shells) renders.
+        // Classify each floating piece from its authored .rpo bounds: a world-placed roof spike renders static
+        // at its spot, a centered piece is driven by the extracted state machine (beam, orbit, spin, hover).
         var fullBounds = HatcheryFullBounds(tier, dump);
-        // The body mesh is RECENTERED (recenter=true for an added env piece): addGroup shifts it by -bbox.center
-        // in X/Z and -bbox.min.y in Y so the group origin is the body's ground-center. Floating sub-pieces live
-        // in the SAME mesh coords, so the renderer must apply the SAME shift or they land off the body (the AI
-        // roof tops were authored at world X 8..18 and rendered across the road). bodyShift = that offset.
-        // bodyShift MUST match the body's recenter (recenterX="min" for the hatchery): pin the LEFT edge (-minX)
-        // in X, center in Z, base-snap in Y. A center shift here would desync the floating pieces from the body.
+        // The body mesh is recentered (addGroup shifts it by -bbox.center in X/Z and -bbox.min.y in Y), and
+        // floating sub-pieces live in the same mesh coords, so the renderer must apply the same shift.
+        // bodyShift must match the body's recenter: pin the left edge (-minX) in X, center in Z, base-snap in Y.
         float[] bodyShift = [0f, 0f, 0f];
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyB))
             bodyShift = [-bodyB.MinX, -bodyB.MinY, -(bodyB.MinZ + bodyB.MaxZ) * 0.5f];
 
-        // the orb = the visible dome sphere on TOP of the body. Derive it from the BODY BOUNDS, not the extracted
-        // anchor: the anchor (11.319, 2.15, 2.997) is the building's farm-PLOT position, NOT the orb's mesh-local
-        // point, so using it placed the orb at a corner. The dome sits over the body's footprint center, near the
-        // top. All recentered coords (the body is recenter=min, so the local center = bounds center + bodyShift).
-        // domeRadius approximates the visible sphere; the probes ring OUTSIDE it. DISPLAY values (the dome is baked
-        // into the body mesh, not a separately-extractable orb).
+        // The orb is the visible dome sphere on top of the body: derived from the body bounds, not the extracted
+        // anchor (which is the building's farm-plot position, not the orb's mesh-local point). domeRadius
+        // approximates the visible sphere; probes ring outside it as a display value (the dome is baked into
+        // the body mesh, not a separately-extractable orb).
         float domeRadius = 1.5f;
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bForOrb))
         {
             float h = bForOrb.MaxY - bForOrb.MinY;
             float cx = (bForOrb.MinX + bForOrb.MaxX) * 0.5f + bodyShift[0]; // footprint center X, recentered
             float cz = (bForOrb.MinZ + bForOrb.MaxZ) * 0.5f + bodyShift[2]; // footprint center Z, recentered
-            orb = [cx, h * 0.62f, cz];                                      // dome center over the body top
+            orb = [cx, h * 0.62f, cz]; // dome center over the body top
             domeRadius = Math.Clamp(h * 0.30f, 0.8f, 2.5f);
         }
 
-        // body bounds-center, for positioning world-placed pieces RELATIVE to the body (the renderer adds these
-        // offsets to the LIVE body-mesh center, so the dump-vs-glb coordinate mismatch can't drift them).
+        // body bounds-center, for positioning world-placed pieces relative to the body (the renderer adds these
+        // offsets to the live body-mesh center, so the dump-vs-glb coordinate mismatch can't drift them).
         float bodyCx = 0f, bodyCy = 0f, bodyCz = 0f, bodyTopY = 0f;
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyForOff))
         {
@@ -1665,19 +1631,16 @@ else
                 role = role.ToString(),
                 worldPlaced = role == HatcheryPieceClassifier.Role.WorldPlaced,
                 offset, // authored position relative to body center; renderer adds to the live body center
-                // capstone pieces (a single small orb that caps the body, e.g. enlightenment) sit ON TOP, centered.
+                // capstone pieces (a single small orb that caps the body, e.g. enlightenment) sit on top, centered.
                 capstone = role == HatcheryPieceClassifier.Role.Orb && floating.Count == 1,
                 // a centered ring/shell uses its own radius (its bounds half-extent) as the orbit/spin radius.
                 size = Math.Max(bb.ExtentX, bb.ExtentZ) * 0.5f,
             });
         }
 
-        // The probe orbit RADIUS is the one value not statically resolvable (the game scatters probes with
-        // frandom at runtime, no literal in the binary). When unrecovered, fall back to a small DISPLAY radius
-        // derived from the body's footprint so the probes visibly orbit instead of stacking on the orb. This is
-        // a render approximation, NOT an extracted value (marked so per CLAUDE.md): the true scatter is runtime
-        // random. The orbit rate/count/beam-timing ARE extracted (rotate_pyramid).
-        // radius must CLEAR the dome so probes ring it visibly outside, not hidden inside the opaque sphere.
+        // The probe orbit radius is not statically resolvable (runtime frandom scatter, no literal in the
+        // binary): fall back to a display radius derived from the body's footprint, large enough to clear the
+        // dome so probes ring visibly outside it.
         if (orbitRadius <= 0f)
             orbitRadius = domeRadius + 0.8f;
 
@@ -1827,9 +1790,7 @@ else
     }
 
     // The transform numeric fields for the selected element; editing pushes the transform to the gizmo + group.
-    // Compact transform editor: one row per vector (Pos, Rot, Scale) with a short row label and the axis inputs
-    // sharing the row width via flex, so all three fit the narrow panel. A per-axis text label per box was too
-    // wide to use; the X/Y/Z order is implicit + each input carries a placeholder.
+    // One row per vector (Pos, Rot, Scale); the X/Y/Z order is implicit and each input carries a placeholder.
     RenderFragment TransformFields(DesignElement el) => builder =>
     {
         int seq = 0;
@@ -2136,12 +2097,9 @@ else
         await RefreshAnimatedFlag();
     }
 
-    // Parallel-fetches every element's glb (+ hat glb for a chicken wearing one), then adds them all in ONE
-    // interop batch instead of one fetch+addGroup round-trip per element (the serial path was the ~20s cost
-    // AutoArrangeFarm already fixed for its own layout; Load-design/autosave-restore hit the same cost since
-    // they went through the same per-element RenderElement loop). Adds each successfully-fetched element to
-    // _elements as it goes (mirrors AutoArrangeFarm's prior inline behavior); the caller runs whatever per-
-    // element post-steps it needs (anim/motion/effects), since those differ by call site.
+    // Parallel-fetches every element's glb (+ hat glb for a chicken wearing one), then adds them all in one
+    // interop batch instead of one fetch+addGroup round-trip per element. Adds each successfully-fetched
+    // element to _elements as it goes; the caller runs whatever per-element post-steps it needs.
     async Task<List<DesignElement>> RenderElementsBatch(IReadOnlyList<DesignElement> elements, CancellationToken ct = default)
     {
         if (_mod is null || elements.Count == 0) return [];

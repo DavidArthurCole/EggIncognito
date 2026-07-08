@@ -6,10 +6,8 @@ using EggIncognito.Services;
 namespace EggIncognito.Controllers;
 
 // Backs the generic API console (/console): a machine list of every internal /api/* endpoint, reflected
-// from MVC's API explorer, so the UI can invoke ANY endpoint (this is a toolkit, not a black box). Lists
-// HTTP method, route template, parameters (name/source/type), and whether the body is a file upload. The
-// console page renders a form per endpoint from this. Read-only + admin-gated (the console can reach
-// admin/egress endpoints, so listing is admin-only too).
+// from MVC's API explorer, so the UI can invoke any endpoint. Admin-gated since the console can reach
+// admin/egress endpoints.
 [ApiController]
 [Route("api/console")]
 [EnableRateLimiting("read")]

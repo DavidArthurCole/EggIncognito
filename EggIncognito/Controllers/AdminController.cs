@@ -4,18 +4,19 @@ using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using SyncKit.Identity.Client;
 
 namespace EggIncognito.Controllers;
 
-// Admin-only management API. Every action requires the admin role. The role check and self-lockout
-// guard run before the DB resolve, so a non-admin 403s and a self-demote 400s regardless of DB state.
-// When no DB is configured, DB-touching actions return 503.
+// Admin-only management API. User list/role-mutation goes through SyncKit.Identity;
+// everything else is local Postgres. DB-touching actions return 503 when no DB is configured.
 [ApiController]
 [Route("api/admin")]
 [EnableRateLimiting("write")]
 public sealed class AdminController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
 {
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
+    private IdentityApiClient? Identity => services.GetService(typeof(IdentityApiClient)) as IdentityApiClient;
 
     private IActionResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
@@ -26,13 +27,13 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     public async Task<IActionResult> Users()
     {
         if (RequireAdmin() is { } no) return no;
-        var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
-        var rows = await db.Users.AsNoTracking()
-            .Select(u => new { u.DiscordId, u.Username, u.Role, u.LastLoginAt }).ToListAsync();
+        var identity = Identity; if (identity is null) return StatusCode(503, new { error = "identity api not configured" });
+        var users = await identity.ListAdminUsersAsync(HttpContext.RequestAborted);
+        var rows = users.Select(u => new { u.DiscordId, u.Username, u.Role, u.LastLoginAt });
         return Ok(rows);
     }
 
-    // Last 60 one-minute buckets (total requests + 429s per minute). In-process ring, no DB.
+    // Last 60 one-minute buckets (total requests + 429s per minute), in-process ring.
     [HttpGet("metrics")]
     [EnableRateLimiting("read")]
     public IActionResult Metrics()
@@ -45,8 +46,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(pts);
     }
 
-    // Reads the in-process CaptureSessionManager; no DB. Empty list when capture is not wired
-    // (e.g. a hosted instance with capture off).
+    // Empty list when capture is not wired (e.g. a hosted instance with capture off).
     [HttpGet("sessions")]
     [EnableRateLimiting("read")]
     public IActionResult Sessions()
@@ -73,8 +73,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(rows);
     }
 
-    // The local key stops but is not removed (it is the shared anonymous session); per-user keys
-    // are removed entirely so the slot frees.
+    // The local key stops but is not removed: it is the shared anonymous session.
     [HttpDelete("sessions/{key}")]
     public async Task<IActionResult> KillSession(string key)
     {
@@ -93,20 +92,18 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     public async Task<IActionResult> SetUserRole(string discordId, [FromBody] SetRole body)
     {
         if (RequireAdmin() is { } no) return no;
-        // Reject unknown names explicitly; UserRoles.Parse coerces them to viewer, hiding typos.
         var role = (body.Role ?? "").Trim().ToLowerInvariant();
         if (role is not ("viewer" or "contributor" or "admin"))
             return BadRequest(new { error = $"unknown role '{body.Role}'" });
-        // Self-lockout guard runs before the DB resolve so it is testable without a live DB.
         if (discordId == currentUser.DiscordId && role != "admin")
             return BadRequest(new { error = "cannot remove your own admin role" });
 
-        var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
-        var user = await db.Users.FirstOrDefaultAsync(u => u.DiscordId == discordId);
+        var identity = Identity; if (identity is null) return StatusCode(503, new { error = "identity api not configured" });
+        var users = await identity.ListAdminUsersAsync(HttpContext.RequestAborted);
+        var user = users.FirstOrDefault(u => u.DiscordId == discordId);
         if (user is null) return NotFound(new { error = "user not found" });
-        user.Role = role; // already normalized + validated above
-        await db.SaveChangesAsync();
-        return Ok(new { discordId, role = user.Role });
+        await identity.SetRoleAsync(user.UserId, role, HttpContext.RequestAborted);
+        return Ok(new { discordId, role });
     }
 
     [HttpDelete("endpoint/{id:long}")]
@@ -136,8 +133,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
     public sealed record AddTag(string Slug, string Label, string? Color);
 
-    // Tag definitions are catalog-level data, so creating/removing them is admin-only; contributors
-    // only assign existing tags to subjects via DocsController. Slug is normalized + must be unique.
+    // Tag definitions are catalog-level data, admin-only; contributors only assign existing tags.
     [HttpPost("tag")]
     public async Task<IActionResult> AddTagAsync([FromBody] AddTag body)
     {
@@ -155,7 +151,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { tag.Id, tag.Slug, tag.Label, tag.Color });
     }
 
-    // Deleting a tag definition also clears its subject_tags join rows (no hard FK, so do it in app).
+    // Deleting a tag also clears its subject_tags join rows: no hard FK, so it's done in app.
     [HttpDelete("tag/{id:long}")]
     public async Task<IActionResult> DeleteTag(long id)
     {

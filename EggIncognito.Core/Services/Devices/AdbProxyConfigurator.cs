@@ -1,12 +1,9 @@
 namespace EggIncognito.Core.Services.Devices;
 
-// Points a rooted Android device's global HTTP proxy at the capture listener via adb. The device dials
-// the capture host back over the LAN, so its auxbrain traffic is decrypted + harvested. Rooted, so the
-// global proxy setting + CA trust are settable without a tap.
-//
-// adb reaches the device through the host's adb server (ADB_SERVER_SOCKET), same as the probes. device.Target
-// is the adb serial. Idempotent: `settings put` overwrites; re-setting the same value is harmless. Never
-// throws: a non-zero adb exit returns (false, note).
+// Points a rooted Android device's global HTTP proxy at the capture listener via adb, so the device dials
+// the capture host back over the LAN and its auxbrain traffic is decrypted + harvested.
+// device.Target is the adb serial. Idempotent: `settings put` overwrites. Never throws: a non-zero adb
+// exit returns (false, note).
 public sealed class AdbProxyConfigurator(IProcessRunner runner) : IDeviceProxyConfigurator
 {
     public string Platform => "android";

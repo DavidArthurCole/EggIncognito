@@ -1,10 +1,6 @@
-// Load-once / save-once editor for routes.yaml. Consolidates every yaml mutation the extractor
-// performs. All edits operate on an in-memory line list and are flushed by a single Save().
-// Hard rules, enforced here so callers cannot violate them:
-//   - Never overwrite a concrete existing value. Only empty, "# NEEDS CAPTURE" placeholder, or literal
-//     "AuthenticatedMessage" slots may be filled.
-//   - Only ever emit line forms the two yaml consumers already accept, RouteGenerator and
-//     RouteCatalog. A `- path:` line is only ever written inside `routes:`.
+// Load-once / save-once editor for routes.yaml. All edits operate on an in-memory line list and are
+// flushed by a single Save(). Never overwrites a concrete existing value: only empty, placeholder, or
+// literal "AuthenticatedMessage" slots may be filled.
 
 using System.Text;
 using System.Text.RegularExpressions;
@@ -23,7 +19,6 @@ public sealed class RoutesYamlEditor
     public RoutesYamlEditor(string contentRoot)
     {
         _path = ContentRoot.RoutesYamlPath(contentRoot);
-        // Split on \n; we re-join with \n on Save to preserve LF endings.
         _lines = File.ReadAllText(_path).Replace("\r\n", "\n").Split('\n').ToList();
         _loadedStampUtc = File.GetLastWriteTimeUtc(_path);
     }
@@ -31,8 +26,7 @@ public sealed class RoutesYamlEditor
     public void Save()
     {
         if (!_dirty) return;
-        // Another writer touched the file after our load; saving would silently overwrite their
-        // edits with this stale view. Abort - the caller reloads and re-applies.
+        // Another writer touched the file since load; abort instead of silently overwriting their edits.
         if (File.GetLastWriteTimeUtc(_path) != _loadedStampUtc)
             throw new IOException($"routes.yaml changed on disk since load; aborting save to avoid clobbering concurrent edits: {_path}");
         File.WriteAllText(_path, string.Join('\n', _lines), new UTF8Encoding(false));
@@ -52,19 +46,17 @@ public sealed class RoutesYamlEditor
         var legacy = LegacyAlias(key);
         for (int k = start + 1; k < end; k++)
         {
-            // Match either the new key or its legacy alias on this line.
             var m = Regex.Match(_lines[k], @"^(\s*)(" + Regex.Escape(key) + "|" + Regex.Escape(legacy) + @"):\s*([^#]*?)\s*(?:#.*)?$");
             if (!m.Success) continue;
 
             var existing = m.Groups[3].Value.Trim();
             if (existing.Length > 0 && existing != "AuthenticatedMessage")
-                return false; // concrete value present - never clobber
+                return false;
             _lines[k] = $"{m.Groups[1].Value}{key}: {value}";
             _dirty = true;
             return true;
         }
 
-        // Key absent entirely: insert in canonical order after the path line.
         Insert(start + 1, $"{FieldIndent(start, end)}{key}: {value}");
         _dirty = true;
         return true;

@@ -1,7 +1,5 @@
-@* The middle flow list, ported from wwwroot/capture/flowlist.js: row construction (time, path, known
-   dot, outcome tag, status badge, type chips), the filters (group/path/type), select, and the
-   device-aware empty state. The list lives in the page's Flows ordered list; this component renders +
-   filters it and raises OnSelect. *@
+@* The middle flow list: row construction (time, path, known dot, outcome tag, status badge, type
+   chips), filters (group/path/type), select, and device-aware empty state. *@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
 @implements IAsyncDisposable
@@ -70,8 +68,6 @@
     string _pathFilter = "";
     string _typeFilter = "";
 
-    // Auto-scroll to newest: when the AutoScroll view setting is on and a flow arrived, scroll the
-    // list container to its bottom after render (newest flows append at the end).
     ElementReference _listRef;
     IJSObjectReference? _scroll;
     int _lastFlowCount;
@@ -168,7 +164,6 @@
     }
 
     // The endpoint-outcome pill. For diff outcomes with line changes it shows compact +N/-N counts.
-    // Ported from buildOutcomeTag.
     RenderFragment OutcomeTag(DashboardFlow flow, CaptureHelpers.OutcomeMeta meta) => builder =>
     {
         var seq = 0;

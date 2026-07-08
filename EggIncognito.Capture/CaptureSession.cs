@@ -11,8 +11,7 @@ public sealed record CaptureSessionStatus(
     bool Running, int Port, int ActiveClients, string? RootThumbprint, bool CaDmFailed = false);
 
 // Thread-safe, idempotent owner of the capture proxy lifecycle. Owns the flow queue and consumer pump.
-// The Hub persists across start/stop so the SPA stays connected; only the proxy + consumer are created
-// on Start and torn down on Stop.
+// The Hub persists across start/stop so the SPA stays connected.
 public sealed class CaptureSession
 {
     private const string EidPlaceholder = "EI0000000000000000";
@@ -28,25 +27,21 @@ public sealed class CaptureSession
     private HarWriter? _har;
     private EndpointExtractor? _extractor;
     private string? _harPath;
-    // Written from proxy event threads, read by Status without taking _gate; volatile keeps the
-    // cross-thread read coherent.
+    // Written from proxy event threads, read by Status without taking _gate; volatile keeps the cross-thread read coherent.
     private volatile int _activeClients;
 
     public CaptureHub Hub { get; } = new();
     public CaptureState State { get; private set; } = CaptureState.Stopped;
 
-    // Base port + CA file for this session, surfaced for the manager's port pool and the hosted
-    // front door / CA persistence. The proxy's loopback listener sits at Port + 1.
+    // The proxy's loopback listener sits at Port + 1.
     public int Port => _opts.Port;
     public string CaPath => _opts.CaPath;
 
-    // Lifecycle timestamps for the hosted sweeper. Set on a successful start; LastFlowUtc bumps on
-    // each captured flow so idle sessions can be reaped. Internal setters are test seams.
+    // LastFlowUtc bumps on each captured flow so idle sessions can be reaped. Internal setters are test seams.
     public DateTimeOffset StartedUtc { get; internal set; }
     public DateTimeOffset LastFlowUtc { get; internal set; }
 
-    // Set when a fresh CA was minted this session but the Discord DM could not be delivered, so the
-    // /capture setup card can point the user at the download fallback. Surfaced on Status.
+    // Set when a fresh CA was minted this session but the Discord DM could not be delivered.
     public bool CaDmFailed { get; set; }
 
     public CaptureSession(string contentRoot, CaptureSessionOptions opts, Func<bool, ICaptureProxy>? proxyFactory = null)
@@ -73,12 +68,10 @@ public sealed class CaptureSession
             Directory.CreateDirectory(_opts.CapturePath);
             _harPath = UniquePath(Path.Combine(_opts.CapturePath, _opts.HarFileName()));
 
-            // Seed devices remembered from prior runs, and persist the merged set whenever it changes.
             var deviceStore = new DeviceStore(_opts.CapturePath);
             Hub.SeedKnownDevices(deviceStore.Load());
             Hub.DevicesChanged = () => deviceStore.Save(Hub.SnapshotRememberedDevices());
 
-            // Live clientVersion+build from captured rinfo, persisted per platform (authoritative for iOS).
             var liveVersions = new LiveVersionStore(_opts.CapturePath);
 
             // Hosted: no endpoint file writes; saves go to the DB store.

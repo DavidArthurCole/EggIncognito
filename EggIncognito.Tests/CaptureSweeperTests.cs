@@ -4,15 +4,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// Hosted session lifecycle: idle and hard-cap reaping, local session exempt. SweepOnceAsync is
-// driven directly with a chosen "now", so no fake clock package is needed.
 public class CaptureSweeperTests
 {
     private static readonly DateTimeOffset Now = new(2026, 6, 12, 12, 0, 0, TimeSpan.Zero);
 
     private static (CaptureSweeper Sweeper, CaptureSessionManager Manager) New()
     {
-        var opts = HostedCaptureOptions.Defaults(); // 30 min idle, 4 h cap
+        var opts = HostedCaptureOptions.Defaults();
         var manager = new CaptureSessionManager(opts,
             (key, basePort) => CaptureSessionManagerTests.NewSession(
                 key == CaptureSessionManager.LocalKey ? 18080 : basePort));

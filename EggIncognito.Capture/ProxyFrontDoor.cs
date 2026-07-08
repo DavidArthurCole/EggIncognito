@@ -6,12 +6,11 @@ using Microsoft.Extensions.Hosting;
 namespace EggIncognito.Capture;
 
 // Public entry for hosted capture. One TCP port for every user, but identity is the DESTINATION
-// address the device connected to: each supporter is issued a unique IPv6 from a routed /64. The /64
-// is routed (not DNAT'd) and the proxy runs host-network, so the accepted socket's LocalEndPoint is
-// the original per-user destination. addrToUser maps that address to the owning user; a null result
-// closes the connection. Then enforce the auxbrain allowlist and raw-tunnel to the caller's own
-// running CaptureSession. Local mode never starts this. addrToUser bridges to the scoped address
-// registry through IServiceScopeFactory, the EndpointStore -> DbEndpointSource pattern.
+// address the device connected to: each supporter is issued a unique IPv6 from a routed /64, routed
+// (not DNAT'd) with the proxy running host-network so the accepted socket's LocalEndPoint is the
+// original per-user destination. addrToUser maps that address to the owning user (null closes the
+// connection), then the auxbrain allowlist is enforced and traffic is raw-tunneled to the caller's own
+// running CaptureSession. Local mode never starts this.
 public sealed class ProxyFrontDoor(
     HostedCaptureOptions opts,
     CaptureSessionManager sessions,
@@ -30,9 +29,7 @@ public sealed class ProxyFrontDoor(
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        // Bind IPv6-any dual-stack so both IPv4 and IPv6 clients are accepted. IPAddress.Any is
-        // IPv4-only: the VPS relay path is dual-stack and a device resolving the AAAA record reaches
-        // the front door over IPv6, which a v4-only bind silently refuses ("no network connection").
+        // IPAddress.Any is IPv4-only; a device resolving the AAAA record needs the IPv6-any dual-stack bind.
         var listener = new TcpListener(IPAddress.IPv6Any, opts.FrontDoorPort);
         listener.Server.DualMode = true;
         listener.Start();
@@ -55,8 +52,7 @@ public sealed class ProxyFrontDoor(
         return Task.CompletedTask;
     }
 
-    // Idempotent: the host stops the hosted service, then DI disposes the singleton, so this runs
-    // twice on shutdown.
+    // Idempotent: the host stops the hosted service, then DI disposes the singleton, running this twice.
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         try { _cts?.Cancel(); } catch (ObjectDisposedException) { /* already torn down */ }
@@ -80,12 +76,9 @@ public sealed class ProxyFrontDoor(
         var stream = c.GetStream();
         try
         {
-            // Identity = the destination address the device connected to. The /64 is routed (not
-            // DNAT'd) and the proxy runs host-network, so LocalEndPoint is the original per-user addr.
-            // Reject the wildcard defensively: a misconfigured route could leave it unresolved.
-            // A dual-stack socket can surface an IPv4-mapped IPv6 form (::ffff:a.b.c.d) whose ToString
-            // differs from a native IPv6, breaking the lookup. Issued addresses are always native IPv6
-            // in the /64, so an IPv4-mapped dest is never a valid user: close it.
+            // Identity = the destination address the device connected to (LocalEndPoint, since the /64
+            // is routed not DNAT'd). Issued addresses are always native IPv6, so a dual-stack IPv4-mapped
+            // form or the wildcard is never a valid user: close it.
             var destAddr = (c.Client.LocalEndPoint as IPEndPoint)?.Address;
             if (destAddr is null || destAddr.Equals(IPAddress.IPv6Any) || destAddr.Equals(IPAddress.Any) || destAddr.IsIPv4MappedToIPv6)
             {
@@ -93,7 +86,7 @@ public sealed class ProxyFrontDoor(
                 return;
             }
             var user = await addrToUser(destAddr);
-            if (user is null) // unknown/unissued address: close cleanly so the peer reads EOF, not RST
+            if (user is null)
             {
                 GracefulClose(c);
                 return;
@@ -102,8 +95,7 @@ public sealed class ProxyFrontDoor(
             var (first, raw, rawLen) = await ReadFirstRequestAsync(stream, ct);
             if (first is null) return;
 
-            // Open-relay guard: only auxbrain (plus the configured extras) may be tunneled. Rejected
-            // hosts are logged as the discovery mechanism for what the game actually needs.
+            // Open-relay guard: only auxbrain (plus the configured extras) may be tunneled.
             if (!AuxbrainHosts.IsAuxbrain(first.TargetHost) && !opts.IsExtraAllowed(first.TargetHost))
             {
                 log?.Invoke($"capture-frontdoor: {user} rejected host {first.TargetHost}");
@@ -128,14 +120,9 @@ public sealed class ProxyFrontDoor(
         catch (SocketException) { /* peer reset */ }
     }
 
-    // Connect to the session's inner Unobtanium proxy and bridge the device through it.
-    //
-    // Do NOT replay the device's raw CONNECT headers to the inner proxy. iOS sends headers the inner
-    // proxy's Kestrel-based listener rejects: a Host header, `Proxy-Connection: keep-alive`, and a
-    // `Connection: keep-alive` (plus, on a retried request that gets buffered together, a second
-    // `Connection: close`). Duplicate or disallowed Connection headers make Kestrel answer 400 Bad
-    // Request, so capture silently failed for every device. Send a clean minimal CONNECT (what a normal
-    // proxy client sends), relay the inner proxy's response, then pass through only the tunnel bytes.
+    // Connect to the session's inner Unobtanium proxy and bridge the device through it. Do NOT replay the
+    // device's raw CONNECT headers: iOS sends Connection/Proxy-Connection headers Kestrel 400s on. Send a
+    // clean minimal CONNECT instead, relay the inner proxy's response, then pass through only the tunnel bytes.
     private async Task TunnelAsync(
         NetworkStream stream, CaptureSession session, ProxyFirstRequest first,
         byte[] raw, int rawLen, string user, CancellationToken ct)
@@ -144,15 +131,12 @@ public sealed class ProxyFrontDoor(
         await inner.ConnectAsync(IPAddress.Loopback, session.Port + 1, ct);
         var innerStream = inner.GetStream();
 
-        // The inner proxy's Kestrel listener requires a Host header that includes the port
-        // (`host:port`); iOS sends `Host: host` without it, which Kestrel 400s. Synthesize the form the
-        // inner proxy accepts.
+        // The inner proxy's Kestrel listener requires a Host header including the port; iOS omits it.
         var cleanConnect = System.Text.Encoding.ASCII.GetBytes(
             $"CONNECT {first.TargetHost}:{first.TargetPort} HTTP/1.1\r\nHost: {first.TargetHost}:{first.TargetPort}\r\n\r\n");
         await innerStream.WriteAsync(cleanConnect, ct);
 
-        // Relay the inner proxy's CONNECT response (e.g. 200) to the device, stopping at the header
-        // terminator so any tunnel bytes that follow are left for the pump.
+        // Stop at the header terminator so any tunnel bytes that follow are left for the pump.
         var respBuf = new byte[8 * 1024];
         var respLen = 0;
         while (respLen < respBuf.Length)
@@ -167,8 +151,7 @@ public sealed class ProxyFrontDoor(
 
         long up = cleanConnect.Length, down = respLen;
 
-        // The device may have pipelined its TLS ClientHello right after the CONNECT headers; those bytes
-        // are already in `raw` past the parsed request. Forward them before pumping.
+        // The device may have pipelined its TLS ClientHello right after the CONNECT headers.
         var connectHeaderLen = first.RawBytes.Length;
         var leftover = rawLen - connectHeaderLen;
         if (leftover > 0)
@@ -177,10 +160,8 @@ public sealed class ProxyFrontDoor(
             up += leftover;
         }
 
-        // Pump both directions to completion. On a half-close, the finished pump shuts down the peer's
-        // send side so the other direction sees EOF and ends cleanly; tearing down on the first
-        // half-close (WhenAny) would abort a still-live direction and truncate the flow. Mirrors
-        // LanForwarder, which had the same fix.
+        // On a half-close, the finished pump shuts down the peer's send side so the other direction ends
+        // cleanly; tearing down on the first half-close would truncate the flow.
         var pumpUp = PumpAsync(stream, innerStream, inner.Client, n => Interlocked.Add(ref up, n), ct);
         var pumpDown = PumpAsync(innerStream, stream, stream.Socket, n => Interlocked.Add(ref down, n), ct);
         await Task.WhenAll(pumpUp, pumpDown);
@@ -195,8 +176,7 @@ public sealed class ProxyFrontDoor(
         return -1;
     }
 
-    // Accumulate the first request until the headers are complete, the 16KB cap is hit, or the 10s
-    // window elapses. Returns the parse plus the full raw buffer so trailing body bytes replay too.
+    // Accumulate the first request until the headers are complete, the 16KB cap is hit, or the 10s window elapses.
     private static async Task<(ProxyFirstRequest? First, byte[] Buffer, int Length)> ReadFirstRequestAsync(
         NetworkStream stream, CancellationToken ct)
     {
@@ -222,8 +202,7 @@ public sealed class ProxyFrontDoor(
         return (null, buffer, total);
     }
 
-    // Copies from -> to until EOF, then half-closes the destination's send side so the opposite-direction
-    // pump reading from `to`'s peer sees EOF and finishes. dstSocket is the socket behind `to`.
+    // Copies from -> to until EOF, then half-closes dst's send side so the opposite-direction pump finishes.
     private static async Task PumpAsync(Stream from, Stream to, System.Net.Sockets.Socket dstSocket, Action<long> count, CancellationToken ct)
     {
         var buf = new byte[8 * 1024];
@@ -249,9 +228,7 @@ public sealed class ProxyFrontDoor(
     private static Task WriteAsciiAsync(Stream stream, string text, CancellationToken ct) =>
         stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(text), ct).AsTask();
 
-    // Send a FIN instead of letting the socket dispose abortively. Disposing a socket that still has
-    // unread inbound bytes triggers an RST on Windows, which the peer sees as a connection-aborted
-    // error rather than a clean EOF. Shutting the send side down first guarantees a graceful close.
+    // Disposing a socket with unread inbound bytes triggers an RST on Windows; shut the send side down first.
     private static void GracefulClose(TcpClient c)
     {
         try { c.Client.Shutdown(SocketShutdown.Send); }

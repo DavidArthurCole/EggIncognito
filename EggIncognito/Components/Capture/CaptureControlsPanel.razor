@@ -1,6 +1,5 @@
-@* Capture controls as a side-column widget (was the nav toolbar): start/stop, clear, HAR export, and the
-   view/redaction settings. Actions raise to the page; view settings mutate the shared CaptureViewState and
-   call OnViewChanged so the page persists + re-renders. One popover open at a time. *@
+@* Capture controls side-column widget: start/stop, clear, HAR export, and view/redaction settings.
+   View settings mutate the shared CaptureViewState and call OnViewChanged. One popover open at a time. *@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Shared
 
@@ -92,8 +91,6 @@
     [Parameter] public EventCallback OnToggleCapture { get; set; }
     [Parameter] public EventCallback OnClear { get; set; }
     [Parameter] public EventCallback OnViewChanged { get; set; }
-    // Hosted-only: the DM-config + rotate-address controls (moved here from the setup card). ClientFactory
-    // forwards the auth cookie; OnAddressRotated lets the page refresh the displayed server address.
     [Parameter] public bool Hosted { get; set; }
     [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
     [Parameter] public EventCallback<string> OnAddressRotated { get; set; }

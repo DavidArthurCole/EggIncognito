@@ -6,8 +6,7 @@ public static class DiscordFeedPayload
 {
     // The Discord webhook body for a proto event. A subscriber's own messageTemplate (if set) replaces the
     // built-in embed with a plain-content message, {{variable}} tokens substituted (see FeedTemplate).
-    // Otherwise: one embed - title (app version + build + platform) + fields + a link to the registry page.
-    // clientVersion rides along as a field when known.
+    // Otherwise: one embed with title (app version + build + platform), fields, and a link to the registry page.
     public static string Build(
         string platform, string appVersion, string build, string? clientVersion, string protoSha,
         bool protoChanged, string pageUrl, string? messageTemplate = null)

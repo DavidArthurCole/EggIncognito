@@ -2,11 +2,9 @@ using System.IO.Compression;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Pulls the ship meshes out of a game archive (Android APK or iOS IPA, both zips). The .rpo / .rpoz mesh
-// files live in an `rpos/` directory inside the archive (Android: in base.apk's assets, NOT the arm
-// split; iOS: under Payload/<App>.app/). Each is decoded to a .glb via RpoMeshDecoder. Mirrors
-// ArchiveProtoExtractor's defensive zip handling: size-capped, never executes, degrades on malformed
-// entries instead of throwing. Runs over device-pulled or user-supplied bytes.
+// Pulls the ship meshes out of a game archive (Android APK or iOS IPA, both zips). The .rpo/.rpoz mesh files
+// live in an `rpos/` directory inside the archive. Each is decoded to a .glb via RpoMeshDecoder. Size-capped,
+// degrades on malformed entries instead of throwing.
 public static class RpoAssetExtractor
 {
     private const long MaxEntryBytes = 50_000_000L; // a single mesh is small; reject oversized entries
@@ -56,9 +54,8 @@ public static class RpoAssetExtractor
         return DecodeEntries(entries);
     }
 
-    // Decodes a flat list of (path, bytes) mesh entries (already pulled from a zip, tar, or directory).
-    // The iOS asset puller untars the device's rpos dir and feeds the entries here; the APK/IPA zip path
-    // reaches the same place. Filters to .rpo/.rpoz, decodes each, keys by base filename.
+    // Decodes a flat list of (path, bytes) mesh entries already pulled from a zip, tar, or directory. Filters
+    // to .rpo/.rpoz, decodes each, keys by base filename.
     public static ExtractResult FromEntries(IEnumerable<(string Name, byte[] Bytes)> entries) =>
         DecodeEntries(entries.Where(e => IsRpoEntry(e.Name) && e.Bytes.LongLength is > 0 and <= MaxEntryBytes));
 

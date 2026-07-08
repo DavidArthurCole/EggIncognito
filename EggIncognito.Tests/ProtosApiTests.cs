@@ -4,8 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace EggIncognito.Tests;
 
 // Public proto registry API surface. Robust to both run environments: no Postgres (store absent) and a
-// dev box with a real DB. versions always returns a JSON array; an unknown (platform, version) is
-// always 404 whether or not a DB is present. DB-backed content is covered by ingest + store tests.
+// dev box with a real DB.
 public class ProtosApiTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;

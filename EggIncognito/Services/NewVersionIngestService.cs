@@ -12,14 +12,11 @@ public enum IngestOutcome
     ProtoRefreshNeeded
 }
 
-// NewVersionIngestService is the sync handler body. It classifies an inbound event by protoSha
-// against the build's frozen ei.proto identity, then either regenerates affected endpoints into
-// staged/ (proto unchanged, the common path) or stashes the artifacts and flags a manual proto
-// refresh (proto changed). It never edits ei.proto and never writes default/.
+// Classifies an inbound event by protoSha against the build's frozen ei.proto identity, then either
+// regenerates affected endpoints into staged/ (proto unchanged) or stashes the artifacts and flags a
+// manual proto refresh (proto changed). Never edits ei.proto and never writes default/.
 //
-// Side effects run behind delegate seams (fetch, regen, stash) so production drives EndpointExtractor
-// + the ApkFetchRoot while tests bypass disk and Discord entirely. The notifier is the same
-// ISyncNotifier seam in both paths.
+// Side effects run behind delegate seams (fetch, regen, stash) so tests can bypass disk and Discord.
 public sealed class NewVersionIngestService
 {
     private readonly string _expectedProtoSha;
@@ -45,7 +42,6 @@ public sealed class NewVersionIngestService
         _stash = stash;
     }
 
-    // No-op seams for unit tests; skips disk + Discord.
     public static NewVersionIngestService ForTest(string expectedProtoSha, ISyncNotifier notifier)
     {
         static Task NoOp(NewVersionEvent _, CancellationToken __) => Task.CompletedTask;

@@ -37,7 +37,7 @@ public class ShellCatalogTests
         cat.Shells.Add(Shell("a", ShellSpec.Types.AssetType.Chicken));
         cat.Shells.Add(Shell("b", ShellSpec.Types.AssetType.Depot1));
         Assert.Single(ShellCatalog.ForAssetType(cat, "CHICKEN"));
-        Assert.Single(ShellCatalog.ForAssetType(cat, "chicken")); // case-insensitive
+        Assert.Single(ShellCatalog.ForAssetType(cat, "chicken"));
         Assert.Empty(ShellCatalog.ForAssetType(cat, "HABITAT"));
     }
 
@@ -53,8 +53,6 @@ public class ShellCatalogTests
     [Fact]
     public void ConfigJson_RoundTrip_PreservesDlcCatalog()
     {
-        // The ingest-json + StoreAsync path: ParseJson(decoded json) -> JsonFormatter.Format -> ParseJson.
-        // Proves the catalog survives the round-trip (not the 0-shells regression where a husk was stored).
         var json = ConfigJson();
         if (json is null) return;
 
@@ -62,18 +60,16 @@ public class ShellCatalogTests
         var shells = cfg.DlcCatalog?.Shells.Count ?? 0;
         Assert.True(shells > 1000, $"parse lost shells: {shells}");
 
-        var reformatted = Google.Protobuf.JsonFormatter.Default.Format(cfg); // what StoreAsync writes
-        var reparsed = ConfigResponse.Parser.ParseJson(reformatted); // what a later read does
+        var reformatted = Google.Protobuf.JsonFormatter.Default.Format(cfg);
+        var reparsed = ConfigResponse.Parser.ParseJson(reformatted);
         Assert.Equal(shells, reparsed.DlcCatalog?.Shells.Count ?? 0);
     }
 
     [Fact]
     public void InnerConfigProto_DirectParse_KeepsShells_WrappedAsAuthMsgIsHusk()
     {
-        // Models the two ingest inputs. (1) The inflate-step base64 = the inner ConfigResponse proto: a
-        // DIRECT ParseFrom must keep the shells. (2) The same bytes wrapped in an AuthenticatedMessage:
-        // a direct ParseFrom-as-ConfigResponse yields a husk (lenient proto), so the ingest must prefer the
-        // unwrapped parse. This is the 0-shells bug the best-parse ingest fixes.
+        // A direct ParseFrom of the inner ConfigResponse keeps the shells; the same bytes wrapped in an
+        // AuthenticatedMessage and parsed as ConfigResponse yields a husk, so ingest must prefer the unwrapped parse.
         var json = ConfigJson();
         if (json is null) return;
         var full = ConfigResponse.Parser.ParseJson(json);
@@ -81,11 +77,9 @@ public class ShellCatalogTests
         Assert.True(fullShells > 1000);
 
         var innerBytes = full.ToByteArray();
-        // (1) direct parse of the inner proto: shells survive.
         var direct = ConfigResponse.Parser.ParseFrom(innerBytes);
         Assert.Equal(fullShells, direct.DlcCatalog?.Shells.Count ?? 0);
 
-        // (2) wrap it; a naive ParseFrom-as-ConfigResponse of the WRAPPED bytes loses the catalog.
         var wrapped = new Ei.AuthenticatedMessage { Message = Google.Protobuf.ByteString.CopyFrom(innerBytes) }.ToByteArray();
         ConfigResponse husk;
         try { husk = ConfigResponse.Parser.ParseFrom(wrapped); }
@@ -103,9 +97,7 @@ public class ShellCatalogTests
         Assert.NotNull(cfg.DlcCatalog);
         var shells = ShellCatalog.FromCatalog(cfg.DlcCatalog);
         Assert.True(shells.Count > 1000, $"expected thousands of shells, got {shells.Count}");
-        // every shell resolves to an auxbrain CDN url.
         Assert.All(shells, s => Assert.Contains("auxbrain.com/dlc", s.Url));
-        // chickens are a known asset type with shells.
         Assert.NotEmpty(ShellCatalog.ForAssetType(cfg.DlcCatalog, "CHICKEN"));
     }
 

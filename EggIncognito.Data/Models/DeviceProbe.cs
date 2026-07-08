@@ -2,9 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// One probe of one device, append-only. result is no_change / new_version / unreachable / error.
-// installed_build is null for iOS (no auxbrain build from the binary). latest_available mirrors what
-// known_versions held for the platform at probe time (display only). triggered_by = poll / admin:<id>.
+// One probe of one device, append-only. Result is no_change/new_version/unreachable/error; installed_build is null for iOS.
 [Table("device_probes")]
 public sealed class DeviceProbe
 {

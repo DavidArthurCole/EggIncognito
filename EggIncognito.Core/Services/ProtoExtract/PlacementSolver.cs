@@ -1,13 +1,10 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 // Corrects a proposed element placement so it (1) snaps to the design grid, (2) never sits below the floor, and
-// (3) does not overlap another element's ground footprint. Pure + deterministic so the playground designer can
-// hand it a dragged transform and get back a legal one, fully unit-tested without any renderer. The designer JS
-// mirrors the cheap parts (grid + floor) for a live preview; this is the authoritative resolve on drop.
-//
-// Footprints are axis-aligned ground rectangles (the farm is effectively top-down). A yawed element widens its
-// rect to the rotated corners' extent: an approximation, not an exact oriented box, which is enough to keep
-// buildings from visibly interpenetrating. Vertical collision is floor-only (no stacking).
+// (3) does not overlap another element's ground footprint. Pure + deterministic; the designer JS mirrors the
+// cheap parts (grid + floor) for a live preview, this is the authoritative resolve on drop. Footprints are
+// axis-aligned ground rectangles; a yawed element widens its rect to the rotated corners' extent as an
+// approximation, not an exact oriented box.
 public static class PlacementSolver
 {
     // An element's untransformed ground rectangle, centered on its local origin: half-extents along X/Z. The
@@ -47,19 +44,16 @@ public static class PlacementSolver
             x = sx; z = sz;
         }
 
-        // floor clamp: raise Y so the element's lowest point sits exactly on y=0. For a ground building this
-        // both lifts it out of the floor AND drops it down onto the floor (no floating), so a placed building
-        // always rests on the ground. Pinned pieces (ClampFloor=false) keep their authored Y.
+        // floor clamp: raise Y so the element's lowest point sits exactly on y=0, so a placed building always
+        // rests on the ground. Pinned pieces (ClampFloor=false) keep their authored Y.
         if (req.ClampFloor)
         {
             var worldMinY = y + req.LocalMinY * req.Scale;
             if (Math.Abs(worldMinY) > 1e-4f) { y -= worldMinY; adjusted = true; }
         }
 
-        // No overlap PUSH here: overlap is owned by the block-grid path (SnapToGrid + the designer, which blocks an
-        // occupied drop instead of relocating it). The old union-push flung pieces across the scene when a
-        // self-placing mesh reported a large off-origin footprint. Solve now only snaps to grid + clamps the floor.
-        // Others is kept on the request for callers that still want an informational overlap flag.
+        // Overlap push is owned by the block-grid path (SnapToGrid + the designer), which blocks an occupied
+        // drop instead of relocating it. Others is kept on the request only for an informational overlap flag.
         if (req.Others.Length > 0)
         {
             var foot = WorldFootprint(req.LocalFootprint, x, z, req.RotDeg[1], req.Scale);
@@ -80,7 +74,7 @@ public static class PlacementSolver
     {
         float hx = local.Width * 0.5f * scale;
         float hz = local.Depth * 0.5f * scale;
-        // local box may be off-center (origin not at its middle); carry its center offset through the rotation.
+        // local box may be off-center; carry its center offset through the rotation.
         float cx = (local.MinX + local.MaxX) * 0.5f * scale;
         float cz = (local.MinZ + local.MaxZ) * 0.5f * scale;
 
@@ -123,10 +117,9 @@ public static class PlacementSolver
     // green when Valid, red otherwise, and only commits the drop when Valid.
     public sealed record GridResult(IReadOnlyList<Cell> Cells, float CenterX, float CenterZ, bool Valid);
 
-    // Snap an element to the block grid. The element occupies ceil(width/cell) x ceil(depth/cell) cells (auto from
-    // its footprint). Its block is centered on the proposed (x,z) by snapping the block's CENTER to the nearest
-    // cell-boundary that keeps an integer cell span centered, then the occupied cells are listed and checked
-    // against `occupied`. No pushing: an invalid drop is reported invalid (the caller reverts), never flung.
+    // Snap an element to the block grid. The element occupies ceil(width/cell) x ceil(depth/cell) cells, centered
+    // on the proposed (x,z); occupied cells are checked against `occupied`. No pushing: an invalid drop is
+    // reported invalid, never flung.
     public static GridResult SnapToGrid(Box2 localFootprint, float scale, float x, float z, float cell,
         IReadOnlySet<Cell> occupied)
     {
@@ -182,14 +175,11 @@ public static class PlacementSolver
     // The cell offset to apply to one element after a domino pass.
     public readonly record struct Move(string Id, int DeltaCol, int DeltaRow);
 
-    // When `changed` grows (e.g. a tier swap to a bigger building) and now overlaps neighbors, push each
-    // overlapping neighbor directly AWAY from `changed` along the axis of least overlap, by just enough cells to
-    // clear, and CASCADE: a pushed neighbor that now hits a further element pushes that one too (the domino).
-    // Pure integer-cell logic. `changed` stays put; everything else may move. Returns the net per-element offset
-    // (only elements that actually moved). Deterministic + bounded (no infinite cascade).
+    // When `changed` grows and now overlaps neighbors, pushes each overlapping neighbor directly away along the
+    // axis of least overlap, cascading to further elements it then hits. `changed` stays put; returns the net
+    // per-element offset for elements that moved. Bounded (no infinite cascade).
     public static IReadOnlyList<Move> DominoNudge(GridBox changed, IReadOnlyList<GridBox> others)
     {
-        // work on a mutable copy keyed by id; track net deltas.
         var boxes = others.ToDictionary(b => b.Id, b => b);
         var delta = new Dictionary<string, (int dc, int dr)>();
 
@@ -218,8 +208,7 @@ public static class PlacementSolver
         return delta.Select(kv => new Move(kv.Key, kv.Value.dc, kv.Value.dr)).ToList();
     }
 
-    // The minimal whole-cell shift that moves `b` out of `mover`, directly away along the shallower overlap axis
-    // (so a wider building shoves its neighbor straight aside, the domino direction).
+    // The minimal whole-cell shift that moves `b` out of `mover`, directly away along the shallower overlap axis.
     private static (int dc, int dr) PushAway(GridBox mover, GridBox b)
     {
         int overlapX = Math.Min(mover.Right, b.Right) - Math.Max(mover.Col, b.Col);

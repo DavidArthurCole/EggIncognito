@@ -7,7 +7,6 @@ namespace EggIncognito.Runner.Trigger;
 
 public sealed record ResyncResult(int Status, RunOutcome? Outcome, string? Error);
 
-// Bearer check, single-flight lock, and outcome shaping for the resync route.
 // Separate from Kestrel so it is unit-testable without a port.
 public sealed class ResyncHandler(string secret, Func<bool, RunOutcome> run)
 {
@@ -86,7 +85,7 @@ public static class TriggerListener
                 return body?.Force ?? true;
             }
         }
-        catch { /* malformed body defaults to force */ }
+        catch { }
         return true;
     }
 
@@ -97,7 +96,7 @@ public static class TriggerListener
             if (ctx.Request.ContentLength is > 0)
                 return await ctx.Request.ReadFromJsonAsync<ExtractBody>();
         }
-        catch { /* malformed body -> null appVersion -> 400 */ }
+        catch { }
         return null;
     }
 

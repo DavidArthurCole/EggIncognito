@@ -5,10 +5,8 @@ using SharpGLTF.Schema2;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// GltfAnimator bakes a rotation/hover animation into a decoded ship .glb. Tests run against a synthetic
-// .glb (from the sample rpo) and, when present, a real device ship mesh, asserting the output is a valid
-// glb that a glTF reader sees an animation in. The bundled ships are static; this generates the spin the
-// game does at runtime but never shipped as an asset.
+// GltfAnimator bakes a rotation/hover animation into a decoded ship .glb, since the bundled ships are static
+// meshes. Tests run against a synthetic .glb and, when present, a real device ship mesh.
 public class GltfAnimatorTests
 {
     private static byte[] SampleGlb()

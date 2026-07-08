@@ -12,12 +12,11 @@ public class ClassifyAutoWriteTests
 
     [Fact]
     public void SoleExact_Written() =>
-        Assert.Equal(Svc.AutoWriteVerdict.Write, Classify(1053, 3)); // runner-up not exact
+        Assert.Equal(Svc.AutoWriteVerdict.Write, Classify(1053, 3));
 
     [Fact]
     public void ExactWithFieldLead_Written()
     {
-        // VerifyPurchaseRequest 1053 vs 1003 and ConsumeArtifactRequest 1018 vs 1005 both Write.
         Assert.Equal(Svc.AutoWriteVerdict.Write, Classify(1053, 1003));
         Assert.Equal(Svc.AutoWriteVerdict.Write, Classify(1018, 1005));
     }

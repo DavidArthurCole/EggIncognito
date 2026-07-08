@@ -165,9 +165,8 @@
             _cookie = req.Headers.Cookie;
         }
         await LoadAsync();
-        // Poll every 8s so a device coming back online surfaces quickly (was 15s). A device mid-reboot reads
-        // unreachable; without a prod, the card stayed "?" until the next 3-min server probe. ReprobeStaleAsync
-        // (admin only) fires an immediate probe for any unreachable device so recovery shows within a poll.
+        // Poll every 8s so a device coming back online surfaces quickly. ReprobeStaleAsync (admin only) fires
+        // an immediate probe for any unreachable device so recovery shows within a poll.
         _timer = new Timer(async _ => await InvokeAsync(LoadAsync), null, 8_000, 8_000);
     }
 
@@ -212,10 +211,8 @@
 
     bool _reprobing;
 
-    // Immediately re-probe any device that reads unreachable, so a device that just came back online (e.g.
-    // mid-reboot when the page loaded) self-heals within a poll instead of waiting for the 3-min server probe.
-    // Admin-gated (the refresh endpoint requires admin); a no-op for everyone else. Single-flight so a slow
-    // probe never stacks across the 8s polls. Best-effort: a still-offline device just stays unreachable.
+    // Immediately re-probe any device that reads unreachable, so it self-heals within a poll instead of
+    // waiting for the 3-min server probe. Admin-gated; single-flight so a slow probe never stacks across polls.
     async Task ReprobeStaleAsync()
     {
         if (!_isAdmin || _reprobing) return;
@@ -237,8 +234,7 @@
     }
 
     // Per-device capture-boundary counters. Separate best-effort fetch so a slow/absent capture endpoint
-    // never blocks the status rows. Only meaningful on the device-farm host (capture enabled); elsewhere
-    // it returns found=false with no capture block and the chip stays hidden.
+    // never blocks the status rows; elsewhere it returns found=false and the chip stays hidden.
     async Task LoadCaptureAsync()
     {
         foreach (var d in _devices.ToList())
@@ -286,9 +282,8 @@
         finally { s.Busy = false; StateHasChanged(); _ = ClearLater(id); }
     }
 
-    // Tell the device to check its OWN store for an update. The server runs the ~6-min store poll in the
-    // background and returns 202 at once; we then poll GET check-status every ~3s, rendering its live message
-    // on the row, until a terminal state. 409 = a check is already running for this device.
+    // Tell the device to check its own store for an update. The server runs the ~6-min store poll in the
+    // background and returns 202 at once; we then poll check-status every ~3s until a terminal state.
     async Task CheckUpdate(string id)
     {
         var s = _actions[id] = new ActionState { Busy = true, Message = "checking store..." };

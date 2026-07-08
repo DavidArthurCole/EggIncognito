@@ -1,11 +1,7 @@
-@* Contributor edit surface for a subject's Markdown doc. Ports makeMarkdownEditor from md.js: a source
-   textarea, a live preview, and a formatting toolbar. Saves through POST /api/docs/doc (never direct
-   DB) and uploads images through POST /api/docs/image. Contributor-gated UX; the server ACL is the real
-   gate.
-
-   SIMPLIFICATION vs md.js: the JS toolbar wrapped/prefixed the real textarea selection. Blazor cannot
-   read a textarea's selection without JS interop, so the buttons append their markdown token to the
-   value instead (e.g. "**bold**", "## ", "[text](https://)"). The live preview reflects the result. *@
+@* Contributor edit surface for a subject's Markdown doc: a source textarea, a live preview, and a
+   formatting toolbar. Saves through POST /api/docs/doc and uploads images through POST /api/docs/image.
+   Blazor cannot read a textarea's selection without JS interop, so toolbar buttons append their markdown
+   token to the value instead of wrapping the selection. *@
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
@@ -87,8 +83,7 @@
     }
 
     // Seed from Initial when it changes (e.g. the parent's async doc load arrives after first render), but
-    // only while the user has not typed. Once dirty we leave _value alone so edits are never clobbered.
-    // The parent keys this component on the subject, so a new subject is a fresh instance (dirty reset).
+    // only while the user has not typed; once dirty we leave _value alone so edits are never clobbered.
     protected override void OnParametersSet()
     {
         if (!_dirty && Initial != _seeded)

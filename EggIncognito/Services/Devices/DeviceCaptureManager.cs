@@ -6,17 +6,10 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Services.Devices;
 
-// Persistent per-device capture. Each declared device gets its OWN long-lived capture proxy on a dedicated
-// loopback+LAN port, so a harvested flow maps to exactly one device (attribution by listener identity). The
-// device's system HTTP proxy is pointed at that port (by the probe loop + on start) so its auxbrain traffic
-// flows through and its rinfo (build/clientVersion/version) is harvested onto disk (DeviceRinfoStore).
-//
-// Rolling-rinfo-only: no HAR, no endpoint extract, no flow history. Just decode the request enough to read
-// rinfo, store the latest per device. This is the authoritative iOS auxbrain build (the static binary cannot
-// give it). Gated by DeviceCapture:Enabled (default off); off => this service no-ops entirely.
-//
-// Failure isolation: one device's proxy failing to bind/start is logged + recorded, never kills the others
-// or the host. Idempotent: EnsureAsync reconciles the live listener set to the declared device set.
+// Persistent per-device capture. Each declared device gets its own long-lived capture proxy on a dedicated
+// loopback+LAN port, so a harvested flow maps to exactly one device: rolling-rinfo-only, no HAR, no
+// endpoint extract, no flow history. Gated by DeviceCapture:Enabled; one device's proxy failing to
+// bind/start is logged and recorded, never kills the others or the host.
 public sealed class DeviceCaptureManager(
     DeviceCaptureConfig config,
     DeviceConfig devices,
@@ -31,24 +24,18 @@ public sealed class DeviceCaptureManager(
     private readonly ConcurrentDictionary<string, DeviceCapture> _captures = new();
     private readonly ConcurrentDictionary<string, DeviceCaptureDiag> _diag = new();
     private readonly DeviceRinfoStore _rinfo = new(capturePath);
-    // CA installer per platform. Rooted/jailbroken devices: the capture CA is installed + trusted on the
-    // device automatically (no tap) so the proxy's MITM decrypts. Empty when none registered (tests).
     private readonly IReadOnlyDictionary<string, EggIncognito.Core.Services.Devices.IDeviceCaInstaller> _caInstallers =
         (caInstallers ?? []).GroupBy(c => c.Platform, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _cts;
 
-    // Per-device listener: its proxy, dedicated port, and the harvest pump.
     private sealed record DeviceCapture(ICaptureProxy Proxy, int Port, Channel<CapturedFlow> Queue, Task Pump);
 
     public int PortFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Port : 0;
     public DeviceRinfoStore Rinfo => _rinfo;
 
-    // Live per-device capture diagnostics. When rinfo never harvests, these tell WHICH boundary fails:
-    // clientConnects=0 -> device not routing through the proxy (proxy not applied / app bypassing it);
-    // connects>0 but auxbrainConnects=0 -> reaching the proxy but not auxbrain (DNS/host filter);
-    // auxbrainConnects>0 but flows=0 -> CA not trusted (TLS handshake fails; lastDecryptError set);
-    // flows>0 but rinfoHarvests=0 -> requests decode but carry no rinfo (type/field mismatch).
+    // clientConnects=0: device not routing through the proxy. auxbrainConnects=0: DNS/host filter.
+    // flows=0: CA not trusted. rinfoHarvests=0: request decodes but carries no rinfo.
     public DeviceCaptureDiag DiagFor(string deviceId) =>
         _diag.TryGetValue(deviceId, out var d) ? d.Snapshot() : DeviceCaptureDiag.Empty;
 
@@ -74,19 +61,12 @@ public sealed class DeviceCaptureManager(
         foreach (var id in _captures.Keys.ToList()) await TeardownAsync(id);
     }
 
-    // Each device proxy consumes THREE consecutive ports: the LAN-facing port the device points at, plus
-    // port+1 (internal loopback proxy) and port+2 (internal TLS-forward) that UnobtaniumCaptureProxy binds.
-    // So devices must be spaced >= 3 apart or device N's LAN port collides with device N-1's internal loopback
-    // (the bug: BasePort+index spacing of 1 left the iOS LAN port == the Android internal port, so the iOS
-    // forwarder never bound and iOS traffic was silently dropped). Stride of 3 gives each device its own block.
+    // Each device proxy consumes 3 consecutive ports: the LAN-facing port plus two internal ports
+    // UnobtaniumCaptureProxy binds. Devices must be spaced >= 3 apart or blocks collide.
     public const int PortsPerDevice = 3;
 
-    // The LAN-facing port for the device at declaration index `i`. Each device owns a 3-port block so the
-    // blocks never overlap (see PortsPerDevice). Pure + public so the spacing is unit-tested.
     public static int PortForIndex(int basePort, int index) => basePort + index * PortsPerDevice;
 
-    // Reconcile the live listener set to the declared devices: start one per declared device that has none,
-    // assigning a dedicated 3-port block (BasePort + index*3). Safe to call repeatedly.
     public async Task EnsureAsync(CancellationToken ct)
     {
         if (!config.Enabled) return;
@@ -109,8 +89,6 @@ public sealed class DeviceCaptureManager(
             var diag = _diag.GetOrAdd(d.Id, _ => new DeviceCaptureDiag());
 
             var proxy = _proxyFactory(config.Verbose);
-            // Verbose forwarder trace (raw CONNECT heads + byte previews) is debug-grade: gated behind both the
-            // Verbose flag AND the Debug log level so it never floods the default Information log.
             if (config.Verbose)
                 proxy.Trace += line => logger.LogDebug("device capture: {Id} trace: {Line}", d.Id, line);
             proxy.FlowCaptured += flow =>
@@ -118,8 +96,6 @@ public sealed class DeviceCaptureManager(
                 diag.Bump(ref diag.Flows);
                 queue.Writer.TryWrite(flow);
             };
-            // Boundary signals: which stage the device's traffic reaches. Logged + counted so a single
-            // game launch after deploy reveals where capture breaks (see DiagFor).
             proxy.ClientConnected += (count, ip) =>
             {
                 diag.Bump(ref diag.ClientConnects);
@@ -128,7 +104,6 @@ public sealed class DeviceCaptureManager(
             proxy.AuxbrainConnect += () =>
             {
                 diag.Bump(ref diag.AuxbrainConnects);
-                // per-CONNECT, so debug-level; the running count is on the diag (DiagFor) for the status panel.
                 logger.LogDebug("device capture: {Id} auxbrain CONNECT decrypted", d.Id);
             };
             proxy.DecryptError += msg =>
@@ -136,9 +111,6 @@ public sealed class DeviceCaptureManager(
                 diag.LastDecryptError = msg;
                 logger.LogWarning("device capture: {Id} decrypt error: {Msg}", d.Id, msg);
             };
-            // Record every CONNECT target so "not reaching auxbrain" is diagnosable: if www.auxbrain.com
-            // never appears here while the phone connects, the game is bypassing the proxy for auxbrain
-            // (e.g. QUIC/UDP 443); if it appears with decrypt=false, the host filter is wrong.
             proxy.ConnectSeen += (host, willDecrypt) => diag.NoteConnect(host, willDecrypt);
             await proxy.StartAsync(port, caPath, ct);
 
@@ -146,19 +118,12 @@ public sealed class DeviceCaptureManager(
             logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca}, freshCa={Fresh})",
                 d.Id, port, caPath, proxy.FreshCa);
 
-            // A FRESH CA means the persisted root was missing this boot, so every cert already installed on a
-            // device is now for the OLD CA and will NOT match. In a container this happens on every recreate
-            // unless the captures dir is a persistent volume. Warn loudly: without persistence the per-device
-            // CA install is futile (install -> redeploy -> new CA -> stale cert -> "CA untrusted" forever).
+            // A fresh CA means every cert previously installed on a device is now stale.
             if (proxy.FreshCa)
                 logger.LogWarning(
                     "device capture: {Id} FRESH CA minted ({Ca}). Any cert installed on a device last run is now " +
-                    "STALE. Persist the captures dir across restarts (mount a volume at the CA's directory) or " +
-                    "the device trust resets on every deploy.", d.Id, caPath);
+                    "STALE. Persist the captures dir across restarts or device trust resets on every deploy.", d.Id, caPath);
 
-            // Auto-install + trust the capture CA on the (rooted/jailbroken) device, so the proxy's MITM TLS
-            // is accepted and flows decrypt. Best-effort: a failure leaves the device untrusted (the chip will
-            // show "CA untrusted"), never blocks the listener. Idempotent, so running it every start is safe.
             await InstallCaAsync(d, ct);
         }
         catch (Exception ex)
@@ -167,9 +132,7 @@ public sealed class DeviceCaptureManager(
         }
     }
 
-    // Install + trust the capture CA on one device via its platform installer. Best-effort + logged; a miss
-    // never breaks capture (the device just stays untrusted until the next attempt). Public so the device
-    // status panel / a manual button can re-trigger after a cert change without restarting the host.
+    // Best-effort: a failure leaves the device untrusted until the next attempt, never breaks capture.
     public async Task<(bool Ok, string? Note)> InstallCaAsync(DeviceEntry d, CancellationToken ct)
     {
         if (!_caInstallers.TryGetValue(d.Platform, out var installer))
@@ -189,8 +152,6 @@ public sealed class DeviceCaptureManager(
         }
     }
 
-    // Harvest pump: decode each flow's request enough to read rinfo, persist the latest for this device.
-    // A single bad flow must never kill the pump (rolling capture).
     private async Task PumpAsync(string deviceId, Channel<CapturedFlow> queue, FlowDecoder decoder)
     {
         await foreach (var flow in queue.Reader.ReadAllAsync())
@@ -205,7 +166,7 @@ public sealed class DeviceCaptureManager(
                     if (_diag.TryGetValue(deviceId, out var dg)) dg.Bump(ref dg.RinfoHarvests);
                 }
             }
-            catch { /* one bad flow must not break rolling capture */ }
+            catch { }
         }
     }
 
@@ -221,8 +182,7 @@ public sealed class DeviceCaptureManager(
 }
 
 // Live per-device capture counters, incremented from proxy event threads + the harvest pump (hence
-// Interlocked). A snapshot is exposed read-only so the device status surface can show which capture
-// boundary the device's traffic last reached.
+// Interlocked).
 public sealed class DeviceCaptureDiag
 {
     public long ClientConnects;
@@ -230,8 +190,7 @@ public sealed class DeviceCaptureDiag
     public long Flows;
     public long RinfoHarvests;
     public string? LastDecryptError;
-    // Last few distinct CONNECT targets seen, most-recent-first, each "host (decrypt=true|false)". Lets the
-    // status surface show WHAT the phone is CONNECTing to when auxbrain is "not reached".
+    // Most-recent-first, each "host (decrypt=true|false)".
     public IReadOnlyList<string> RecentConnects { get; private set; } = [];
 
     private const int MaxRecent = 12;
@@ -242,13 +201,12 @@ public sealed class DeviceCaptureDiag
 
     public void Bump(ref long counter) => System.Threading.Interlocked.Increment(ref counter);
 
-    // Record a CONNECT target, de-duplicated and capped most-recent-first. Cheap: one lock, bounded list.
     public void NoteConnect(string host, bool willDecrypt)
     {
         var entry = $"{host} (decrypt={willDecrypt.ToString().ToLowerInvariant()})";
         lock (_connectLock)
         {
-            _recent.Remove(entry); // move-to-front on repeat
+            _recent.Remove(entry);
             _recent.AddFirst(entry);
             while (_recent.Count > MaxRecent) _recent.RemoveLast();
             RecentConnects = _recent.ToList();

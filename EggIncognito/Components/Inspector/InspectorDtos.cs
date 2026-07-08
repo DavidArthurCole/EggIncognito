@@ -4,8 +4,7 @@ using EggIncognito.Services;
 namespace EggIncognito.Components.Inspector;
 
 // Deserialization shapes for the Inspector controller responses. The build/send/decode calls go through
-// the controllers (they own the salt build, egress, and host allowlist); these record the JSON they
-// return so the components can render the pipeline + response without re-deriving the transport.
+// the controllers, which own the salt build, egress, and host allowlist.
 
 // POST /api/inspector/build
 public sealed record BuildResponse(
