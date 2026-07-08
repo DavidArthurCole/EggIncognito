@@ -32,6 +32,17 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: ${{ runner.os }}-nuget-
 
+      # SyncKit.Contract lives on GitHub Packages; the feed requires auth even when public,
+      # and the per-run GITHUB_TOKEN can't read another repo's packages. Use the account-level
+      # PACKAGES_PAT secret (read:packages).
+      - name: Authenticate GitHub Packages
+        run: |
+          dotnet nuget update source github \
+            --username DavidArthurCole \
+            --password ${{ secrets.PACKAGES_PAT }} \
+            --store-password-in-clear-text \
+            --configfile nuget.config
+
       - name: Build self-contained binary
         run: |
           TAG="${GITHUB_REF_NAME}"
