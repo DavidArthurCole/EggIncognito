@@ -1,0 +1,53 @@
+@* The interactive half of LoginButton: drives the SyncKit popup widget, falls back to the
+   full-page redirect on any failure (popup blocked/closed, script load failure, redeem failure). *@
+@rendermode @(RenderMode.InteractiveServer)
+@inject AuthState Auth
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<button type="button" class="@CssClass" disabled="@_busy" @onclick="WidgetLogin">
+  @(_busy ? "Signing in..." : ChildContent)
+</button>
+
+@code {
+    [Parameter] public string ReturnPath { get; set; } = "/";
+    [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private IJSObjectReference? _widgetMod;
+    private bool _busy;
+
+    private string FallbackPath => Auth.DiscordEnabled ? "/login" : "/auth";
+
+    async Task WidgetLogin()
+    {
+        _busy = true;
+        StateHasChanged();
+        try
+        {
+            _widgetMod ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/synckitLogin.js");
+            await _widgetMod.InvokeAsync<bool>("login", Auth.IdentityHostUrl);
+            Nav.NavigateTo(ReturnPath, forceLoad: true);
+            return;
+        }
+        catch (JSException)
+        {
+            Nav.NavigateTo($"{FallbackPath}?returnUrl={Uri.EscapeDataString(ReturnPath)}", forceLoad: true);
+            return;
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_widgetMod is not null)
+        {
+            try { await _widgetMod.DisposeAsync(); } catch (JSDisconnectedException) { }
+        }
+    }
+}

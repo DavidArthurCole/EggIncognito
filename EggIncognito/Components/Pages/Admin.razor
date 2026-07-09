@@ -7,13 +7,14 @@
 @using System.Net.Http.Json
 @using System.Text.Json
 @using Microsoft.JSInterop
+@using EggIncognito.Components.Shared
 
 <PageTitle>EggIncognito - Admin</PageTitle>
 <main id="adminMain" class="px-8 pt-6 pb-8 max-w-[1100px]">
   <h1 class="text-[1.3rem] mt-0 mb-4">Admin</h1>
   @if (!_isAdmin)
   {
-    <div class="panel" id="denied">Admin access required. <a class="auth-btn" href="/login?returnUrl=/admin">Log in</a></div>
+    <div class="panel" id="denied">Admin access required. <LoginButton CssClass="auth-btn" ReturnPath="/admin">Log in</LoginButton></div>
   }
   else
   {

@@ -5,6 +5,7 @@
 @using Microsoft.JSInterop
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
+@using EggIncognito.Components.Shared
 @inject CaptureSessionManager Manager
 @inject IAppMode AppMode
 @inject ICurrentUser User
@@ -73,7 +74,7 @@ else if (AppMode.HostedCaptureEnabled)
       <div class="panel" id="hostedLogin">
         <p class="text-muted text-sm mt-0 mb-3">Hosted capture runs a private proxy session tied to
           your Discord account. Log in to get started.</p>
-        <a class="btn-primary inline-block no-underline" href="/login?returnUrl=/capture">Log in with Discord</a>
+        <LoginButton ReturnPath="/capture">Log in with Discord</LoginButton>
       </div>
     }
     else if (!_isSupporter)

@@ -26,7 +26,9 @@ public class AdminPageTests
             var html = await r.Content.ReadAsStringAsync();
             Assert.Contains("adminMain", html);
             Assert.Contains("id=\"denied\"", html);
-            Assert.Contains("/login?returnUrl=/admin", html);
+            // Neither provider is configured in this test host; LoginButton's fallback picks /auth
+            // when Discord isn't wired (Auth.DiscordEnabled false), same as TopNav's own fallback.
+            Assert.Contains("/auth?returnUrl=%2Fadmin", html);
             Assert.DoesNotContain("<h2>Users</h2>", html);
         }
     }
@@ -38,6 +40,7 @@ public class AdminPageTests
         {
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
+            Services.AddSingleton(new AuthState(DiscordEnabled: false, AuthentikEnabled: false));
             Services.AddHttpClient();
         }
 

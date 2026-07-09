@@ -1,6 +1,7 @@
 @page "/console"
 @rendermode @(RenderMode.InteractiveServer)
 @using Microsoft.JSInterop
+@using EggIncognito.Components.Shared
 @inject ICurrentUser User
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
@@ -11,7 +12,7 @@
 {
   <main class="px-8 pt-6 pb-8 max-w-[1100px]">
     <h1 class="text-[1.3rem] mt-0 mb-4">API Console</h1>
-    <div class="panel">Admin access required. <a class="auth-btn" href="/login?returnUrl=/console">Log in</a></div>
+    <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" ReturnPath="/console">Log in</LoginButton></div>
   </main>
 }
 else

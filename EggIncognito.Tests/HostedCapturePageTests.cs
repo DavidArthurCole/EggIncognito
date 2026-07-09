@@ -96,7 +96,9 @@ public class HostedCapturePageTests
             var c = Hosted(enabled: true).CreateClient();
             var html = await c.GetStringAsync("/capture");
             Assert.Contains("id=\"hostedLogin\"", html);
-            Assert.Contains("/login?returnUrl=/capture", html);
+            // Neither provider is configured in this test host; LoginButton's fallback picks /auth
+            // when Discord isn't wired (Auth.DiscordEnabled false).
+            Assert.Contains("/auth?returnUrl=%2Fcapture", html);
             Assert.DoesNotContain("id=\"statsPanel\"", html);
         }
 
@@ -121,6 +123,7 @@ public class HostedCapturePageTests
             Services.AddSingleton(NewManager());
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+            Services.AddSingleton(new AuthState(DiscordEnabled: false, AuthentikEnabled: false));
             Services.AddHttpClient();
         }
 

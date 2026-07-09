@@ -1,9 +1,8 @@
+@using EggIncognito.Components.Shared
 @inject IAppMode AppMode
 @inject ICurrentUser User
 @inject AuthState Auth
 @inject NavigationManager Nav
-@inject IJSRuntime JS
-@implements IAsyncDisposable
 <nav class="app-nav">
   <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
   @* Docs folded into Inspector; Support + About moved to the float bubble + homepage footer. *@
@@ -38,9 +37,7 @@
         {
           @if (Auth.WidgetEnabled)
           {
-            <button type="button" class="auth-btn" disabled="@_widgetBusy" @onclick="WidgetLogin">
-              @(_widgetBusy ? "Signing in..." : "Log in")
-            </button>
+            <LoginButton CssClass="auth-btn" ReturnPath="@CurrentPath()">Log in</LoginButton>
           }
           else
           {
@@ -63,47 +60,10 @@
 </nav>
 
 @code {
-    private IJSObjectReference? _widgetMod;
-    private bool _widgetBusy;
-
     // The path the Discord callback returns to. Relative so it never becomes an open redirect.
     string CurrentPath()
     {
         var rel = Nav.ToBaseRelativePath(Nav.Uri);
         return "/" + rel.TrimStart('/');
-    }
-
-    async Task WidgetLogin()
-    {
-        _widgetBusy = true;
-        StateHasChanged();
-        try
-        {
-            _widgetMod ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/synckitLogin.js");
-            await _widgetMod.InvokeAsync<bool>("login", Auth.IdentityHostUrl);
-            Nav.NavigateTo(CurrentPath(), forceLoad: true);
-            return;
-        }
-        catch (JSException)
-        {
-            // popup_blocked / popup_closed / script_load_failed / redeem_failed: fall back to the
-            // existing full-page redirect login (whichever provider is actually wired).
-            var fallback = Auth.DiscordEnabled ? "/login" : "/auth";
-            Nav.NavigateTo($"{fallback}?returnUrl={Uri.EscapeDataString(CurrentPath())}", forceLoad: true);
-            return;
-        }
-        finally
-        {
-            _widgetBusy = false;
-            StateHasChanged();
-        }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_widgetMod is not null)
-        {
-            try { await _widgetMod.DisposeAsync(); } catch (JSDisconnectedException) { }
-        }
     }
 }

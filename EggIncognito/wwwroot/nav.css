@@ -101,7 +101,8 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 .auth-nav .auth-name { color: #c7c7cf; font-size: 13px; }
 .auth-nav .auth-btn {
   color: #1b1b1f; background: #ef7559; border: none; border-radius: 6px;
-  padding: 0.25rem 0.6rem; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none;
+  padding: 0.25rem 0.6rem; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  text-decoration: none;
 }
 .auth-nav a.auth-btn:hover, .auth-nav button.auth-btn:hover { filter: brightness(1.07); }
 /* Discord login: accent2 blue + white logo/label. */

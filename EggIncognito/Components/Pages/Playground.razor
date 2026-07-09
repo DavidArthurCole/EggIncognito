@@ -4,6 +4,7 @@
 @using Microsoft.JSInterop
 @using System.Net.Http.Json
 @using EggIncognito.Services.ProtoExtract
+@using EggIncognito.Components.Shared
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
@@ -16,7 +17,7 @@
 {
   <main class="px-8 pt-6 pb-8 max-w-[1100px]">
     <h1 class="text-[1.3rem] mt-0 mb-4">3D Playground</h1>
-    <div class="panel">Admin access required. <a class="auth-btn" href="/login?returnUrl=/playground">Log in</a></div>
+    <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" ReturnPath="/playground">Log in</LoginButton></div>
   </main>
 }
 else

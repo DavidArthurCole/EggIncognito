@@ -1,0 +1,24 @@
+@* Login CTA used everywhere a page offers to log in. Statically renders the existing full-page
+   Discord/Authentik redirect link when the embedded widget isn't wired, so server-rendered HTML
+   (and its returnUrl) is present before any circuit connects. Delegates to the interactive
+   LoginWidgetButton only when Auth.WidgetEnabled. *@
+@inject AuthState Auth
+
+@if (Auth.WidgetEnabled)
+{
+  <LoginWidgetButton CssClass="@CssClass" ReturnPath="@ReturnPath">@ChildContent</LoginWidgetButton>
+}
+else
+{
+  <a class="@CssClass" href="@($"{FallbackPath}?returnUrl={Uri.EscapeDataString(ReturnPath)}")">
+    @ChildContent
+  </a>
+}
+
+@code {
+    [Parameter] public string ReturnPath { get; set; } = "/";
+    [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string FallbackPath => Auth.DiscordEnabled ? "/login" : "/auth";
+}

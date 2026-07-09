@@ -1,4 +1,5 @@
 @page "/support"
+@using EggIncognito.Components.Shared
 @inject ICurrentUser User
 @inject AuthState Auth
 @inject ISealedProxy SealedProxy
@@ -108,7 +109,7 @@
       {
         <div class="connect-card">
           <p class="connect-prompt">Connect Discord to tie this browser session to your supporter benefits.</p>
-          <a class="btn-primary inline-block no-underline" href="/login?returnUrl=%2Fsupport">Log in with Discord</a>
+          <LoginButton ReturnPath="/support">Log in with Discord</LoginButton>
         </div>
       }
     </section>
