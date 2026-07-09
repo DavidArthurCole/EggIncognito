@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
@@ -32,5 +33,13 @@ public class AuthModeTests : IClassFixture<WebApplicationFactory<Program>>
         var c = _factory.CreateClient();
         var json = await c.GetStringAsync("/api/auth/me");
         Assert.Contains("\"authenticated\":false", json);
+    }
+
+    [Fact]
+    public async Task RedeemCode_404s_WhenWidgetOff()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.PostAsJsonAsync("/auth/redeem-code", new { code = "abc" });
+        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 }

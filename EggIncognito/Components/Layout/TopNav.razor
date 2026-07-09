@@ -2,6 +2,8 @@
 @inject ICurrentUser User
 @inject AuthState Auth
 @inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 <nav class="app-nav">
   <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
   @* Docs folded into Inspector; Support + About moved to the float bubble + homepage footer. *@
@@ -34,16 +36,25 @@
         }
         else
         {
-          @* SVG width/height so the mark stays sized before CSS loads (cf. the GitHub bubble). *@
-          <a class="auth-btn auth-btn-discord" href="@($"/login?returnUrl={Uri.EscapeDataString(CurrentPath())}")">
-            <svg class="auth-btn-logo" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.32 4.37A19.8 19.8 0 0 0 15.45 3a13.6 13.6 0 0 0-.62 1.27 18.3 18.3 0 0 0-5.66 0A13.6 13.6 0 0 0 8.55 3a19.8 19.8 0 0 0-4.88 1.37C.57 9 .05 13.49.31 17.92a19.9 19.9 0 0 0 6 3.04c.48-.66.91-1.36 1.28-2.1-.7-.26-1.37-.59-2-.97.17-.13.33-.26.49-.39a14.2 14.2 0 0 0 12.16 0c.16.14.32.27.49.39-.64.38-1.31.71-2.01.97.37.74.8 1.44 1.28 2.1a19.9 19.9 0 0 0 6-3.04c.31-5.13-.53-9.58-3.46-13.55ZM8.02 15.2c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.2 0 2.17 1.09 2.15 2.42 0 1.33-.95 2.41-2.15 2.41Zm7.96 0c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.2 0 2.17 1.09 2.15 2.42 0 1.33-.95 2.41-2.15 2.41Z"/></svg>
-            Log in
-          </a>
-          @if (Auth.AuthentikEnabled)
+          @if (Auth.WidgetEnabled)
           {
-            <a class="auth-btn" href="@($"/auth?returnUrl={Uri.EscapeDataString(CurrentPath())}")">
-              Log in with SSO
+            <button type="button" class="auth-btn" disabled="@_widgetBusy" @onclick="WidgetLogin">
+              @(_widgetBusy ? "Signing in..." : "Log in")
+            </button>
+          }
+          else
+          {
+            @* SVG width/height so the mark stays sized before CSS loads (cf. the GitHub bubble). *@
+            <a class="auth-btn auth-btn-discord" href="@($"/login?returnUrl={Uri.EscapeDataString(CurrentPath())}")">
+              <svg class="auth-btn-logo" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.32 4.37A19.8 19.8 0 0 0 15.45 3a13.6 13.6 0 0 0-.62 1.27 18.3 18.3 0 0 0-5.66 0A13.6 13.6 0 0 0 8.55 3a19.8 19.8 0 0 0-4.88 1.37C.57 9 .05 13.49.31 17.92a19.9 19.9 0 0 0 6 3.04c.48-.66.91-1.36 1.28-2.1-.7-.26-1.37-.59-2-.97.17-.13.33-.26.49-.39a14.2 14.2 0 0 0 12.16 0c.16.14.32.27.49.39-.64.38-1.31.71-2.01.97.37.74.8 1.44 1.28 2.1a19.9 19.9 0 0 0 6-3.04c.31-5.13-.53-9.58-3.46-13.55ZM8.02 15.2c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.2 0 2.17 1.09 2.15 2.42 0 1.33-.95 2.41-2.15 2.41Zm7.96 0c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.2 0 2.17 1.09 2.15 2.42 0 1.33-.95 2.41-2.15 2.41Z"/></svg>
+              Log in
             </a>
+            @if (Auth.AuthentikEnabled)
+            {
+              <a class="auth-btn" href="@($"/auth?returnUrl={Uri.EscapeDataString(CurrentPath())}")">
+                Log in with SSO
+              </a>
+            }
           }
         }
       </span>
@@ -52,10 +63,47 @@
 </nav>
 
 @code {
+    private IJSObjectReference? _widgetMod;
+    private bool _widgetBusy;
+
     // The path the Discord callback returns to. Relative so it never becomes an open redirect.
     string CurrentPath()
     {
         var rel = Nav.ToBaseRelativePath(Nav.Uri);
         return "/" + rel.TrimStart('/');
+    }
+
+    async Task WidgetLogin()
+    {
+        _widgetBusy = true;
+        StateHasChanged();
+        try
+        {
+            _widgetMod ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/synckitLogin.js");
+            await _widgetMod.InvokeAsync<bool>("login", Auth.IdentityHostUrl);
+            Nav.NavigateTo(CurrentPath(), forceLoad: true);
+            return;
+        }
+        catch (JSException)
+        {
+            // popup_blocked / popup_closed / script_load_failed / redeem_failed: fall back to the
+            // existing full-page redirect login (whichever provider is actually wired).
+            var fallback = Auth.DiscordEnabled ? "/login" : "/auth";
+            Nav.NavigateTo($"{fallback}?returnUrl={Uri.EscapeDataString(CurrentPath())}", forceLoad: true);
+            return;
+        }
+        finally
+        {
+            _widgetBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_widgetMod is not null)
+        {
+            try { await _widgetMod.DisposeAsync(); } catch (JSDisconnectedException) { }
+        }
     }
 }

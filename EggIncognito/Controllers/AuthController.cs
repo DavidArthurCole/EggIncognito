@@ -1,4 +1,6 @@
 using AspNet.Security.OAuth.Discord;
+using EggIncognito.Data.Services;
+using EggIncognito.Data.Models;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -9,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
+using SyncKit.Contract;
 using SyncKit.Identity.Client;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -47,6 +50,57 @@ public sealed class AuthController(
             new AuthenticationProperties { RedirectUri = returnUrl },
             OpenIdConnectDefaults.AuthenticationScheme);
     }
+
+    // Embedded popup widget: exchanges a short-lived SyncKit login code for this app's own cookie,
+    // minting the exact same claim shape AuthSetup's Discord/Authentik OnCreatingTicket/OnTicketReceived
+    // handlers do. No "sid" claim: this session did not come through an OIDC ticket, so back-channel
+    // logout (which matches on sid) does not apply to it.
+    [HttpPost("/auth/redeem-code")]
+    public async Task<IActionResult> RedeemCode([FromBody] RedeemCodeBody body)
+    {
+        var identity = services.GetService<IdentityApiClient>();
+        if (!authState.WidgetEnabled || identity is null) return NotFound();
+        if (string.IsNullOrWhiteSpace(body.Code)) return BadRequest();
+
+        RedeemLoginCodeResponse result;
+        try
+        {
+            result = await identity.RedeemAsync(body.Code, HttpContext.RequestAborted);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "redeem-code: code redemption failed");
+            return BadRequest();
+        }
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, result.DiscordId ?? result.UserId.ToString()),
+            new(ClaimTypes.Name, result.Username),
+            new(UserRoles.ClaimType, result.Role),
+            new(AuthClaims.UserIdClaim, result.UserId.ToString()),
+        };
+        if (!string.IsNullOrEmpty(result.Avatar))
+            claims.Add(new Claim("urn:discord:avatar:hash", result.Avatar));
+        var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new ClaimsPrincipal(claimsIdentity);
+
+        var isSupporter = false;
+        if (!string.IsNullOrEmpty(result.DiscordId))
+        {
+            var checker = services.GetRequiredService<SupporterStatus>();
+            isSupporter = await checker.CheckAsync(result.DiscordId, HttpContext.RequestAborted);
+        }
+        SupporterClaims.Stamp(claimsIdentity, isSupporter);
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme, principal,
+            new AuthenticationProperties { IsPersistent = true });
+
+        return Ok(new { discordId = result.DiscordId, username = result.Username, avatar = result.Avatar });
+    }
+
+    public sealed record RedeemCodeBody(string Code);
 
     [HttpPost("/logout")]
     public async Task<IActionResult> Logout()

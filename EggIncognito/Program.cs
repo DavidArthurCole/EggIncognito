@@ -206,7 +206,7 @@ if (authentikAuthEnabled)
         new Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfigurationRetriever()));
 }
 var authEnabled = discordAuthEnabled || authentikAuthEnabled;
-builder.Services.AddSingleton(new AuthState(discordAuthEnabled, authentikAuthEnabled));
+builder.Services.AddSingleton(new AuthState(discordAuthEnabled, authentikAuthEnabled, identityApiUrl));
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<EggIncognito.Services.Metrics.ApiMetrics>();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
