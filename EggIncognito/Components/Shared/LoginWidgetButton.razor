@@ -7,13 +7,13 @@
 @implements IAsyncDisposable
 
 <button type="button" class="@CssClass" disabled="@_busy" @onclick="WidgetLogin">
-  @(_busy ? "Signing in..." : ChildContent)
+  @(_busy ? "Signing in..." : Label)
 </button>
 
 @code {
     [Parameter] public string ReturnPath { get; set; } = "/";
     [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
-    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string Label { get; set; } = "Log in";
 
     private IJSObjectReference? _widgetMod;
     private bool _busy;

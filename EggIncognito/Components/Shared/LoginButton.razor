@@ -6,19 +6,19 @@
 
 @if (Auth.WidgetEnabled)
 {
-  <LoginWidgetButton CssClass="@CssClass" ReturnPath="@ReturnPath">@ChildContent</LoginWidgetButton>
+  <LoginWidgetButton CssClass="@CssClass" ReturnPath="@ReturnPath" Label="@Label" />
 }
 else
 {
   <a class="@CssClass" href="@($"{FallbackPath}?returnUrl={Uri.EscapeDataString(ReturnPath)}")">
-    @ChildContent
+    @Label
   </a>
 }
 
 @code {
     [Parameter] public string ReturnPath { get; set; } = "/";
     [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
-    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string Label { get; set; } = "Log in";
 
     private string FallbackPath => Auth.DiscordEnabled ? "/login" : "/auth";
 }

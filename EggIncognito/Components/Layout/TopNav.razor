@@ -37,7 +37,7 @@
         {
           @if (Auth.WidgetEnabled)
           {
-            <LoginButton CssClass="auth-btn" ReturnPath="@CurrentPath()">Log in</LoginButton>
+            <LoginButton CssClass="auth-btn" ReturnPath="@CurrentPath()" Label="Log in" />
           }
           else
           {
@@ -49,7 +49,7 @@
             @if (Auth.AuthentikEnabled)
             {
               <a class="auth-btn" href="@($"/auth?returnUrl={Uri.EscapeDataString(CurrentPath())}")">
-                Log in with SSO
+                Log in
               </a>
             }
           }
