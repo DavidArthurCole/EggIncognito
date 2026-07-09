@@ -410,6 +410,15 @@ public sealed class DevicesController(
             return (null, StatusCode(502, new { error = "could not pull the egginc binary from the device over ssh" }));
         }
         logger.LogInformation("device save: {Id} pulled ios binary ({Bytes} bytes), carving proto", device.Id, bin.Length);
+
+        // Stash the pulled binary where the eggincognito-runner-ios sidecar's IOS_BINARY_PATH reads it, so its
+        // next poll tick emits a NewVersionEvent without needing its own device/ssh access. No-op if unset.
+        var stashPath = (services.GetService(typeof(IConfiguration)) as IConfiguration)?["Runner:IosBinaryStashPath"];
+        if (!string.IsNullOrEmpty(stashPath))
+        {
+            try { await System.IO.File.WriteAllBytesAsync(stashPath, bin, HttpContext.RequestAborted); }
+            catch (Exception ex) { logger.LogWarning(ex, "device save: {Id} could not stash ios binary to {Path}", device.Id, stashPath); }
+        }
         var iosCarve = EggIncognito.Services.ProtoExtract.MachoProtoExtractor.Extract(bin);
         if (!iosCarve.Ok || string.IsNullOrEmpty(iosCarve.Proto))
         {
