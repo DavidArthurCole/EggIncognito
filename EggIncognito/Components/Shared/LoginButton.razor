@@ -20,5 +20,5 @@ else
     [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
     [Parameter] public string Label { get; set; } = "Log in";
 
-    private string FallbackPath => Auth.DiscordEnabled ? "/login" : "/auth";
+    private string FallbackPath => Auth.AuthentikEnabled ? "/auth" : "/login";
 }
