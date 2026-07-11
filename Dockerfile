@@ -17,12 +17,13 @@ COPY EggIncognito.RouteGenerator/EggIncognito.RouteGenerator.csproj EggIncognito
 COPY EggIncognito/EggIncognito.csproj EggIncognito/
 # Bake the GitHub Packages PAT into the copied nuget.config (the GitHub NuGet feed needs auth
 # even for public packages). Persists in this layer so the later publish re-restore is also
-# authenticated. CI passes it as the github_token build secret; locally:
-#   docker build --secret id=github_token,env=GITHUB_PACKAGES_PAT ...
+# authenticated. CI passes both as build args/secrets; locally:
+#   docker build --build-arg GITHUB_PACKAGES_USER=<you> --secret id=github_token,env=GITHUB_PACKAGES_PAT ...
+ARG GITHUB_PACKAGES_USER
 RUN --mount=type=secret,id=github_token \
     --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
     dotnet nuget update source github \
-      --username DavidArthurCole \
+      --username "$GITHUB_PACKAGES_USER" \
       --password "$(cat /run/secrets/github_token)" \
       --store-password-in-clear-text \
       --configfile nuget.config \

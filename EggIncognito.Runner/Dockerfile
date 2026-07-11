@@ -3,10 +3,19 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 ENV NUGET_PACKAGES=/root/.nuget/packages
 
+COPY nuget.config ./
 COPY EggIncognito.Core/EggIncognito.Core.csproj EggIncognito.Core/
 COPY EggIncognito.Runner/EggIncognito.Runner.csproj EggIncognito.Runner/
-RUN --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
-    dotnet restore EggIncognito.Runner/EggIncognito.Runner.csproj
+# EggIncognito.Core depends on SyncKit.Contract from GitHub Packages; needs auth even for public packages.
+ARG GITHUB_PACKAGES_USER
+RUN --mount=type=secret,id=github_token \
+    --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
+    dotnet nuget update source github \
+      --username "$GITHUB_PACKAGES_USER" \
+      --password "$(cat /run/secrets/github_token)" \
+      --store-password-in-clear-text \
+      --configfile nuget.config \
+    && dotnet restore EggIncognito.Runner/EggIncognito.Runner.csproj
 
 COPY EggIncognito.Core/ EggIncognito.Core/
 COPY EggIncognito.Runner/ EggIncognito.Runner/

@@ -101,6 +101,8 @@ jobs:
           # SyncKit.Contract restore inside the image needs the GitHub Packages PAT.
           secrets: |
             github_token=${{ secrets.PACKAGES_PAT }}
+          build-args: |
+            GITHUB_PACKAGES_USER=${{ github.actor }}
           tags: |
             ${{ steps.img.outputs.name }}:${{ github.ref_name }}
             ${{ steps.img.outputs.name }}:latest
@@ -136,6 +138,11 @@ jobs:
           context: .
           file: EggIncognito.Runner/Dockerfile
           push: true
+          # EggIncognito.Core restore inside the image needs the GitHub Packages PAT (SyncKit.Contract).
+          secrets: |
+            github_token=${{ secrets.PACKAGES_PAT }}
+          build-args: |
+            GITHUB_PACKAGES_USER=${{ github.actor }}
           tags: |
             ${{ steps.img.outputs.name }}:${{ github.ref_name }}
             ${{ steps.img.outputs.name }}:latest
