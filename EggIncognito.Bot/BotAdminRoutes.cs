@@ -45,29 +45,52 @@ public static class BotAdminRoutes
         <head>
         <meta charset="utf-8">
         <title>EggIncognito Bot Config</title>
+        <link rel="stylesheet" href="/tailwind.css">
         <style>
-        body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
-        label { display: block; margin-top: 1rem; font-weight: 600; }
-        input, textarea { width: 100%; box-sizing: border-box; padding: 0.5rem; font-family: inherit; }
-        textarea { min-height: 5rem; font-family: ui-monospace, monospace; }
-        button { margin-top: 1.5rem; padding: 0.6rem 1.2rem; }
-        #status { margin-left: 1rem; }
+        /* Raw token values (see tailwind.config.js): this page's markup lives in EggIncognito.Bot,
+           outside the paths Tailwind's content scanner reads, so only .panel/.btn-primary (compiled
+           via @layer components, immune to purge) are safe to reference by class here. Everything
+           else uses the literal hex values instead of utility classes that could be purged. */
+        body { margin: 0; background: #1b1b1f; color: #e7e7ea; font-family: system-ui, sans-serif; }
+        .bot-admin-page { max-width: 42rem; margin: 2rem auto; }
+        .bot-admin-field { display: block; margin-top: 1rem; }
+        .bot-admin-field label { display: block; margin-bottom: 0.35rem; font-weight: 600; }
+        .bot-admin-field input, .bot-admin-field textarea {
+          width: 100%; box-sizing: border-box; padding: 0.5rem; font-family: inherit;
+          background: #2e2e36; color: #e7e7ea; border: 1px solid #3a3a44; border-radius: 0.375rem;
+        }
+        .bot-admin-field textarea { min-height: 5rem; font-family: ui-monospace, monospace; }
+        .bot-admin-actions { margin-top: 1.5rem; display: flex; align-items: center; gap: 0.75rem; }
         </style>
         </head>
         <body>
-        <h1>Deploy Notification Config</h1>
-        <label for="channel">Dashboard channel ID</label>
-        <input id="channel" type="text">
-        <label for="threads">Enabled threads (CSV: GithubFeed, DeployNotifications)</label>
-        <input id="threads" type="text">
-        <label for="success">Success template (Scriban)</label>
-        <textarea id="success"></textarea>
-        <label for="failure">Failure template (Scriban)</label>
-        <textarea id="failure"></textarea>
-        <label for="uptodate">Already-up-to-date template (Scriban)</label>
-        <textarea id="uptodate"></textarea>
-        <button id="save">Save</button>
-        <span id="status"></span>
+        <div class="panel bot-admin-page">
+        <h2>Deploy Notification Config</h2>
+        <div class="bot-admin-field">
+          <label for="channel">Dashboard channel ID</label>
+          <input id="channel" type="text">
+        </div>
+        <div class="bot-admin-field">
+          <label for="threads">Enabled threads (CSV: GithubFeed, DeployNotifications)</label>
+          <input id="threads" type="text">
+        </div>
+        <div class="bot-admin-field">
+          <label for="success">Success template (Scriban)</label>
+          <textarea id="success"></textarea>
+        </div>
+        <div class="bot-admin-field">
+          <label for="failure">Failure template (Scriban)</label>
+          <textarea id="failure"></textarea>
+        </div>
+        <div class="bot-admin-field">
+          <label for="uptodate">Already-up-to-date template (Scriban)</label>
+          <textarea id="uptodate"></textarea>
+        </div>
+        <div class="bot-admin-actions">
+          <button id="save" class="btn-primary">Save</button>
+          <span id="status"></span>
+        </div>
+        </div>
         <script>
         async function load() {
           const r = await fetch('/bot-admin/api/config');
