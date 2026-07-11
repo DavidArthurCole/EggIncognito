@@ -2,43 +2,59 @@
 
 The optional Discord bot (net10.0, Discord.Net). References [EggIncognito.Core](../EggIncognito.Core/README.md) + [EggIncognito.Capture](../EggIncognito.Capture/README.md).
 
-Part of [EggIncognito](../README.md). A gateway bot wired as `DiscordBotHostedService : IHostedService`. Opt-in.
+Part of [EggIncognito](../README.md). Opt-in Discord bot backed by SyncKit.Bot.
 
 ## How it works
 
 - Opt-in via `Discord:BotToken`. With no token the bot never starts.
-- It reuses `Discord:ClientId` as the app id. Optional `Discord:GuildId` enables instant guild command registration.
-- Static "Playing EggIncognito" presence.
+- `Program.cs` builds one `SyncKit.Bot.BotConfig` (global commands, `Extra` = health/status/endpoints/proto)
+  and hands it to `SyncKitBot.StartAsync`, wrapped by `EggIncognitoBotHostedService : IHostedService`.
+- Gateway lifecycle, command registration/diffing, presence, shared-role assignment, and the
+  `/verify`+`/updateserver` builtins all live in `SyncKit.Bot`. This project only supplies domain
+  commands and their embeds.
 - A bot failure never crashes the host.
 
 ## Slash commands
 
-Five global, user-installable, read-only commands plus one guild-admin command:
+Six global, user-installable commands (four domain, two builtins) plus one guild-admin builtin:
 
-| Command | Scope | Purpose |
+| Command | Source | Purpose |
 |---|---|---|
-| `/health` | read-only | Liveness. |
-| `/status` | read-only | App status snapshot. |
-| `/verify` | read-only | Surfaces the running git SHA. |
-| `/endpoints` | read-only | Endpoint listing. |
-| `/proto` | read-only | Proto type list + lookup with autocomplete. |
-| `/updateserver` | guild admin | Pull latest and redeploy. |
-
-### `/updateserver`
-
-- Registered with `GuildPermission.Administrator`, so it only appears in a guild context.
-- `InteractionRouter` re-checks `GuildPermissions.Administrator` at runtime (defense-in-depth against rebound permissions); a non-admin gets an ephemeral "Not authorized."
-- On a real run it POSTs to a host-side deploy agent via `DeployAgentClient`, configured by `Discord:DeployAgentUrl` + `Discord:DeployAgentSecret`. Either missing means the command replies "Deploy agent not configured."
-- Result embeds cover already-up-to-date, success (from/to hash), and failure (log tail).
+| `/health` | domain | Liveness. |
+| `/status` | domain | App status snapshot. |
+| `/verify` | builtin | Surfaces the running git SHA. |
+| `/endpoints` | domain | Endpoint listing. |
+| `/proto` | domain | Proto type list + lookup with autocomplete. |
+| `/updateserver` | builtin | Pull latest and redeploy (guild-admin only). |
 
 ## Structure
 
-- Pure, unit-tested logic (`BotEmbeds`, `ProtoQuery`, `CommandDefinitions`, `CommandParsing`, `CommandSignature`) sits behind thin Discord glue (`InteractionRouter`, `DiscordBotHostedService`).
-- `IStatusProvider` (Bot) is implemented by `StatusSnapshotFactory` in the web project, so the Bot library stays decoupled from `IAppMode`.
-- `/verify` surfaces the git SHA stamped into the assembly `InformationalVersion` by the `SourceRevisionId` target in the repo-root `Directory.Build.props`, parsed by `BuildInfo` in Core.
+- `ExtraCommands.cs`: the four domain `SyncKit.Bot.BotCommand` factories (definitions + handlers), including `/proto`'s autocomplete.
+- `EggIncognitoBotHostedService.cs`: thin `IHostedService` wrapper around `SyncKitBot.StartAsync`/`DisposeAsync`; also populates `BotInstanceHolder.Bot` on successful start.
+- `BotInstanceHolder.cs`: singleton holding the live `SyncKitBot` instance (or null), read by `/bot-admin` route handlers at request time since routes are mapped before hosted services start.
+- `BotAdminRoutes.cs`: vendored from `SyncKit.Bot.AdminRoutes`, paths remapped `/admin` -> `/bot-admin` (the bare path collides with this app's own Blazor admin console).
+- `CommandParsing.cs`, `ProtoQuery.cs`, `BotEmbeds.cs`, `IStatusProvider.cs`, `StatusSnapshot.cs`: unchanged pure/domain logic.
+- `IStatusProvider` is implemented by `StatusSnapshotFactory` in the web project, so this library stays decoupled from `IAppMode`.
 
 ## Operator setup
 
 - Register the bot token as `Discord:BotToken` (env / appsettings / user-secrets).
 - Optionally set `Discord:GuildId` for instant guild command registration during development. Global commands propagate more slowly.
 - `Discord:ClientId` doubles as the bot's app id.
+- `/verify` is a `SyncKitBot` builtin. `/updateserver` is also a builtin (guild-admin only, POSTs to host-side deploy agent via `DEPLOY_AGENT_URL`/`DEPLOY_AGENT_SECRET`).
+
+## Bot admin dashboard (`/bot-admin`)
+
+Discord-OAuth-gated web UI for editing the deploy-notification config (dashboard channel, enabled
+threads, message templates) that `SyncKit.Bot` uses to post to Discord on new-version events.
+
+- Opt-in: needs `ConnectionStrings:Postgres` set plus all three `Discord:BotAdminClientId` /
+  `Discord:BotAdminClientSecret` / `Discord:BotAdminCallbackUrl`. Missing any of these (or no bot
+  token) leaves `/bot-admin` unmapped, 404.
+- Login is guild-admin only, checked against `BotConfig.GuildId` via the live `SyncKitBot.Client`
+  (through `BotInstanceHolder`), so it 503s until the bot has finished starting.
+- `BotConfig.PostgresConnectionString`/`DashboardChannelId`/`EnabledThreads` (set from `pgConn` and
+  `Discord:DashboardChannelId`/`Discord:EnabledThreads`) feed `SyncKit.Bot`'s own dashboard notifier;
+  the `/bot-admin` UI is how an operator edits those last two without a redeploy.
+- `Migrations/*.up.sql`: vendored SQL applied via `SyncKit.Db.Migrator.MigrateAsync` at startup,
+  copied to output so the runtime path resolves without a source checkout.

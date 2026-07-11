@@ -1,6 +1,6 @@
 using EggIncognito.Bot;
-using EggIncognito.Core.Models;
 using EggIncognito.Services;
+using SyncKit.Contract;
 
 namespace EggIncognito.Tests;
 
@@ -56,5 +56,25 @@ public class NewVersionIngestServiceTests
         await svc.HandleAsync(new NewVersionEvent { Version = "v", ProtoSha = "expected-sha" });
         await svc.HandleAsync(new NewVersionEvent { Version = "v2", ProtoSha = "different" });
         Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task LegacyEvent_PlatformFallsBackToAndroid()
+    {
+        // NewVersionIngestService itself passes the event through untouched; the Program.cs
+        // Registry closure applies `evt.Platform ?? "android"` before the DB-key sink. This
+        // mirrors that exact expression to keep the fallback under test.
+        string? seenPlatform = null;
+        static Task NoOp(NewVersionEvent _, CancellationToken __) => Task.CompletedTask;
+        var svc = new NewVersionIngestService("expected-sha",
+            new FakeNotifier(),
+            registry: (evt, __) => { seenPlatform = evt.Platform ?? "android"; return Task.CompletedTask; },
+            fetch: NoOp,
+            regen: NoOp,
+            stash: NoOp);
+
+        await svc.HandleAsync(new NewVersionEvent { Version = "1.34", ProtoSha = "expected-sha" });
+
+        Assert.Equal("android", seenPlatform);
     }
 }

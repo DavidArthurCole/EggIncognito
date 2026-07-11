@@ -223,29 +223,73 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["Discord:BotToken"]))
 else
     builder.Services.AddSingleton<ICaptureCaNotifier, NoopCaptureCaNotifier>();
 
-// Discord bot: gateway presence + slash commands. Opt-in, only when Discord:BotToken is set. Reuses
-// Discord:ClientId as the application id; optional Discord:GuildId also registers commands to one guild.
+// Discord bot: gateway presence + slash commands via SyncKit.Bot. Opt-in, only when Discord:BotToken
+// is set. Reuses Discord:ClientId as the application id; optional Discord:GuildId scopes registration.
 var botToken = builder.Configuration["Discord:BotToken"];
 if (!string.IsNullOrWhiteSpace(botToken))
 {
-    builder.Services.AddSingleton(new EggIncognito.Bot.BotOptions(
-        Token: botToken,
-        ApplicationId: builder.Configuration["Discord:ClientId"] ?? "",
-        GuildId: builder.Configuration["Discord:GuildId"],
-        RepoUrl: "https://github.com/DavidArthurCole/EggIncognito",
-        // Shared with EggLedger in the same Portainer stack via the flat SHARED_ROLE_ID env var.
-        SharedRoleId: builder.Configuration["SHARED_ROLE_ID"] ?? builder.Configuration["Discord:SharedRoleId"],
-        // /updateserver target: the host-side synckit-agent. Either missing means "not configured".
-        DeployAgentUrl: builder.Configuration["DEPLOY_AGENT_URL"] ?? builder.Configuration["Discord:DeployAgentUrl"],
-        DeployAgentSecret: builder.Configuration["DEPLOY_AGENT_SECRET"] ?? builder.Configuration["Discord:DeployAgentSecret"],
-        // Dev only: guild-mirrored commands duplicate the global catalog in the Discord UI.
-        RegisterGuildCommands: string.Equals(builder.Configuration["Discord:RegisterGuildCommands"], "true", StringComparison.OrdinalIgnoreCase)));
+    const string repoUrl = "https://github.com/DavidArthurCole/EggIncognito";
+    var buildInfo = EggIncognito.Services.BuildInfo.FromAssembly(repoUrl);
+    var startedAt = DateTimeOffset.UtcNow;
+
+    builder.Services.AddSingleton(repoUrl);
     builder.Services.AddSingleton<EggIncognito.Bot.IStatusProvider, EggIncognito.Services.StatusSnapshotFactory>();
-    builder.Services.AddHostedService<EggIncognito.Bot.DiscordBotHostedService>();
+    builder.Services.AddSingleton<EggIncognito.Bot.BotInstanceHolder>();
+
+    // IStatusProvider/IProtoReflection aren't resolvable until the service provider is built, so the
+    // BotConfig singleton factory below resolves them lazily instead of capturing them directly.
+    builder.Services.AddSingleton(sp =>
+    {
+        var status = sp.GetRequiredService<EggIncognito.Bot.IStatusProvider>();
+        var proto = sp.GetRequiredService<EggIncognito.Services.IProtoReflection>();
+        return new SyncKit.Bot.BotConfig
+        {
+            Name = "EggIncognito",
+            Token = botToken,
+            AppId = builder.Configuration["Discord:ClientId"] ?? "",
+            GuildId = builder.Configuration["Discord:GuildId"] ?? "",
+            RepoUrl = repoUrl,
+            Build = new SyncKit.Contract.VerifyInfo
+            {
+                Name = "EggIncognito", Sha256 = buildInfo.Sha, Version = buildInfo.Version, Date = buildInfo.BuildDate,
+            },
+            // Shared with EggLedger in the same Portainer stack via the flat SHARED_ROLE_ID env var.
+            SharedRoleId = builder.Configuration["SHARED_ROLE_ID"] ?? builder.Configuration["Discord:SharedRoleId"] ?? "",
+            // /updateserver target: the host-side synckit-agent. Either missing means "not configured".
+            DeployAgentUrl = builder.Configuration["DEPLOY_AGENT_URL"] ?? builder.Configuration["Discord:DeployAgentUrl"] ?? "",
+            DeployAgentSecret = builder.Configuration["DEPLOY_AGENT_SECRET"] ?? builder.Configuration["Discord:DeployAgentSecret"] ?? "",
+            PostgresConnectionString = dbEnabled ? pgConn! : "",
+            DashboardChannelId = builder.Configuration["Discord:DashboardChannelId"] ?? "",
+            EnabledThreads = builder.Configuration["Discord:EnabledThreads"] ?? "",
+            GlobalCommands = true,
+            Extra = new[]
+            {
+                EggIncognito.Bot.ExtraCommands.HealthCommand(startedAt),
+                EggIncognito.Bot.ExtraCommands.StatusCommand(status),
+                EggIncognito.Bot.ExtraCommands.EndpointsCommand(status),
+                EggIncognito.Bot.ExtraCommands.ProtoCommand(proto),
+            },
+        };
+    });
+    builder.Services.AddSingleton<EggIncognito.Bot.EggIncognitoBotHostedService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<EggIncognito.Bot.EggIncognitoBotHostedService>());
 }
 
+// Bot admin dashboard: Discord-OAuth-gated /bot-admin config UI (SyncKit.Bot.AdminRoutes, vendored
+// as BotAdminRoutes with paths remapped). Opt-in, needs Postgres plus all three BotAdminClientId/
+// BotAdminClientSecret/BotAdminCallbackUrl keys; also depends on BotInstanceHolder, so it only ever
+// applies once the bot block above has registered it.
+var botAdminClientId = builder.Configuration["Discord:BotAdminClientId"];
+var botAdminClientSecret = builder.Configuration["Discord:BotAdminClientSecret"];
+var botAdminCallbackUrl = builder.Configuration["Discord:BotAdminCallbackUrl"];
+var botAdminEnabled = !string.IsNullOrWhiteSpace(botToken)
+    && dbEnabled
+    && !string.IsNullOrWhiteSpace(botAdminClientId)
+    && !string.IsNullOrWhiteSpace(botAdminClientSecret)
+    && !string.IsNullOrWhiteSpace(botAdminCallbackUrl);
+
 // Inbound device-farm sync endpoint. Opt-in, only when SyncEvent:EventSecret is set; when absent,
-// EventsController 404s and nothing below is registered. Also gated at runtime by IAppMode.
+// the route below is never mapped and requests 404. Also gated at runtime by IAppMode.
 var eventSecret = builder.Configuration["SyncEvent:EventSecret"];
 if (!string.IsNullOrWhiteSpace(eventSecret))
 {
@@ -267,7 +311,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
 
         // Registry: upsert a proto_versions row for every build the farm reports, storing the .proto
         // text and parsed message index when present. No DB configured means no-op.
-        async Task Registry(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
+        async Task Registry(SyncKit.Contract.NewVersionEvent evt, CancellationToken ct)
         {
             using var scope = sp.CreateScope();
             var store = scope.ServiceProvider.GetService<EggIncognito.Data.Services.ProtoRegistryStore>();
@@ -278,8 +322,10 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             var appVersion = string.IsNullOrEmpty(evt.AppVersion) ? evt.Version : evt.AppVersion;
             var build = string.IsNullOrEmpty(evt.Build) ? evt.Version : evt.Build;
             if (string.IsNullOrEmpty(build) || string.IsNullOrEmpty(appVersion)) return;
+            // SyncKit.Contract.NewVersionEvent.Platform has no "android" default like the old local DTO did.
+            var platform = evt.Platform ?? "android";
             var (row, created, protoChanged) = await store.UpsertAsync(
-                evt.Platform, appVersion, build, evt.ClientVersion, evt.Package, evt.ProtoSha, evt.ApkRef,
+                platform, appVersion, build, evt.ClientVersion, evt.Package, evt.ProtoSha, evt.ApkRef,
                 DateTimeOffset.TryParse(evt.DetectedAt, out var dt) ? dt : DateTimeOffset.UtcNow,
                 detectedBy: null, protoText, source: "farm", ct: ct);
 
@@ -289,14 +335,14 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
             {
                 var cfg = scope.ServiceProvider.GetService<IConfiguration>();
                 var pageUrl = EggIncognito.Services.Feed.FeedDispatcher.BuildPageUrl(
-                    cfg?["Feed:PageBaseUrl"], evt.Platform, build);
-                await dispatcher.DispatchAsync(row.Id, evt.Platform, appVersion, build, evt.ClientVersion,
+                    cfg?["Feed:PageBaseUrl"], platform, build);
+                await dispatcher.DispatchAsync(row.Id, platform, appVersion, build, evt.ClientVersion,
                     evt.ProtoSha, created, protoChanged, pageUrl, ct);
             }
         }
 
         // Fetch apkRef under ApkFetchRoot; missing artifact is tolerated.
-        Task Fetch(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
+        Task Fetch(SyncKit.Contract.NewVersionEvent evt, CancellationToken ct)
         {
             if (string.IsNullOrEmpty(syncOptions.ApkFetchRoot) || string.IsNullOrEmpty(evt.ApkRef))
             {
@@ -311,7 +357,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
 
         // Regen: ensure the staged/ output area exists via the same EndpointExtractor.ForRepo path the
         // HAR + capture routes use, never touching default/. Promotion stays a human step.
-        Task Regen(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
+        Task Regen(SyncKit.Contract.NewVersionEvent evt, CancellationToken ct)
         {
             EndpointExtractor.ForRepo(syncContentRoot, eid: null, "EI0000000000000000", overwrite: true);
             logger.LogInformation("sync: staged area ready for {Version}; apk-driven regen not yet wired", evt.Version);
@@ -320,7 +366,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
 
         // Stash: a changed proto is flagged, never auto-applied. Writes a small manifest recording
         // the version and the sha delta for the human gate.
-        Task Stash(EggIncognito.Core.Models.NewVersionEvent evt, CancellationToken ct)
+        Task Stash(SyncKit.Contract.NewVersionEvent evt, CancellationToken ct)
         {
             var stashDir = Path.Combine(syncContentRoot, "Endpoints", "staged", "proto-refresh");
             Directory.CreateDirectory(stashDir);
@@ -628,6 +674,25 @@ app.UseRateLimiter();
 }
 
 app.MapControllers();
+if (!string.IsNullOrWhiteSpace(eventSecret))
+{
+    var ingest = app.Services.GetRequiredService<EggIncognito.Services.NewVersionIngestService>();
+    app.MapPost("/events/new-version", SyncKit.Bot.NewVersionHandler.Build(eventSecret, evt => ingest.HandleAsync(evt)))
+        .RequireRateLimiting("write");
+}
+if (botAdminEnabled)
+{
+    await using (var adminConn = await Npgsql.NpgsqlDataSource.Create(pgConn!).OpenConnectionAsync())
+        await SyncKit.Db.Migrator.MigrateAsync(adminConn,
+            Path.Combine(AppContext.BaseDirectory, "Migrations"));
+    var adminDataSource = Npgsql.NpgsqlDataSource.Create(pgConn!);
+    var configStore = new SyncKit.Bot.ChannelConfigStore(adminDataSource);
+    var sessionStore = new SyncKit.Bot.AdminSessionStore(adminDataSource);
+    SyncKit.Auth.DiscordOAuth.Init(botAdminClientId!, botAdminClientSecret!, botAdminCallbackUrl!);
+    var botHolder = app.Services.GetRequiredService<EggIncognito.Bot.BotInstanceHolder>();
+    var botCfg = app.Services.GetRequiredService<SyncKit.Bot.BotConfig>();
+    EggIncognito.Bot.BotAdminRoutes.Map(app, botCfg, configStore, sessionStore, botHolder);
+}
 app.MapRazorComponents<EggIncognito.Components.App>()
    .AddInteractiveServerRenderMode();
 app.MapGet("/health", () => Results.Ok());

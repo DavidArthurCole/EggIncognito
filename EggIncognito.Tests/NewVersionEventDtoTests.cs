@@ -1,5 +1,5 @@
 using System.Text.Json;
-using EggIncognito.Core.Models;
+using SyncKit.Contract;
 
 namespace EggIncognito.Tests;
 
@@ -18,11 +18,13 @@ public class NewVersionEventDtoTests
     }
 
     [Fact]
-    public void Deserialize_DefaultsPlatformToAndroid_WhenAbsent()
+    public void Deserialize_PlatformIsNull_WhenAbsent()
     {
+        // SyncKit.Contract.NewVersionEvent has no "android" default; the fallback lives at the
+        // Program.cs Registry call site (see NewVersionIngestServiceTests.LegacyEvent_PlatformFallsBackToAndroid).
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"package":"com.auxbrain.egginc","version":"1.0","apkRef":"a","protoSha":"s","detectedAt":"t"}""");
-        Assert.Equal("android", e!.Platform);
+        Assert.Null(e!.Platform);
         Assert.Null(e.ProtoTextB64);
     }
 

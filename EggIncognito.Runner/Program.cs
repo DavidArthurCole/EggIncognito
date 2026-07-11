@@ -1,4 +1,3 @@
-using EggIncognito.Core.Models;
 using EggIncognito.Runner.Adb;
 using EggIncognito.Runner.Extract;
 using EggIncognito.Runner.Posting;

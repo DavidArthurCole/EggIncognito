@@ -1,6 +1,6 @@
-using EggIncognito.Core.Models;
 using EggIncognito.Runner.Extract;
 using EggIncognito.Services.ProtoExtract;
+using SyncKit.Contract;
 using Xunit;
 
 namespace EggIncognito.Runner.Tests;

@@ -1,5 +1,5 @@
 using EggIncognito.Bot;
-using EggIncognito.Core.Models;
+using SyncKit.Contract;
 
 namespace EggIncognito.Services;
 

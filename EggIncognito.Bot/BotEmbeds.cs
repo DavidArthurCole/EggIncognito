@@ -31,18 +31,6 @@ public static class BotEmbeds
         return b.Build();
     }
 
-    public static Embed Verify(StatusSnapshot s)
-    {
-        var url = s.Build.CommitUrl;
-        return new EmbedBuilder()
-            .WithTitle("EggIncognito")
-            .WithColor(new Color(Accent))
-            .AddField("SHA", $"[{s.Build.ShortSha}]({url})", inline: true)
-            .AddField("Version", $"[{s.Build.Version}]({url})", inline: true)
-            .AddField("Built", s.Build.BuildDate, inline: true)
-            .Build();
-    }
-
     public static Embed Endpoints(StatusSnapshot s) =>
         new EmbedBuilder()
             .WithTitle("Endpoint coverage")
@@ -61,33 +49,4 @@ public static class BotEmbeds
 
     public static Embed Error(string message) =>
         new EmbedBuilder().WithTitle("Something went wrong").WithDescription(message).WithColor(0xED4245).Build();
-
-    // /updateserver embeds use the synckit/ledger colors (blurple/green/red), not the app accent.
-    private static string Chip(string? hash, string? url)
-    {
-        var h = string.IsNullOrEmpty(hash) ? "unknown" : hash;
-        return string.IsNullOrEmpty(url) ? $"`{h}`" : $"[`{h}`]({url})";
-    }
-
-    public static Embed UpdateAlreadyCurrent(string? hash, string? url = null) =>
-        new EmbedBuilder()
-            .WithTitle("Already up to date.")
-            .WithColor(new Color(0x5865F2))
-            .AddField("Current", Chip(hash, url), inline: true)
-            .Build();
-
-    public static Embed UpdateSuccess(string? fromHash, string? toHash, string? fromUrl = null, string? toUrl = null) =>
-        new EmbedBuilder()
-            .WithTitle("Updated")
-            .WithColor(new Color(0x57F287))
-            .AddField("From", Chip(fromHash, fromUrl), inline: true)
-            .AddField("To", Chip(toHash, toUrl), inline: true)
-            .Build();
-
-    public static Embed UpdateFailure(string? tail) =>
-        new EmbedBuilder()
-            .WithTitle("Update failed.")
-            .WithDescription($"```\n{(string.IsNullOrEmpty(tail) ? "(no output)" : tail)}\n```")
-            .WithColor(new Color(0xED4245))
-            .Build();
 }

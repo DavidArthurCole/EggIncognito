@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
-using EggIncognito.Core.Models;
 using EggIncognito.Runner.Adb;
 using EggIncognito.Runner.Extract;
 using EggIncognito.Runner.State;
+using SyncKit.Contract;
 
 namespace EggIncognito.Runner.Runners;
 

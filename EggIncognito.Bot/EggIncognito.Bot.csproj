@@ -6,11 +6,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Discord.Net" Version="3.17.4" />
-    <PackageReference Include="SyncKit.Contract" Version="0.3.0-preview.6" />
+    <PackageReference Include="SyncKit.Contract" Version="0.4.0-preview.2" />
+    <PackageReference Include="SyncKit.Bot" Version="0.4.0-preview.2" />
+    <PackageReference Include="SyncKit.Auth" Version="0.4.0-preview.2" />
+    <PackageReference Include="SyncKit.Db" Version="0.4.0-preview.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
     <ProjectReference Include="..\EggIncognito.Capture\EggIncognito.Capture.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Migrations\*.up.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

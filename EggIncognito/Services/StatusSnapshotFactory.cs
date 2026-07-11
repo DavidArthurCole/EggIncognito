@@ -12,7 +12,7 @@ public sealed class StatusSnapshotFactory(
     CaptureSession capture,
     ITransportPipeline pipeline,
     IConfiguration config,
-    BotOptions options) : IStatusProvider
+    string repoUrl) : IStatusProvider
 {
     // Process start, not construction time: the factory is resolved lazily (first bot status call),
     // so a field initializer here would undercount uptime by however long that took.
@@ -36,7 +36,7 @@ public sealed class StatusSnapshotFactory(
             DbEnabled: _dbEnabled,
             SigningReady: pipeline.CanSign,
             Uptime: DateTimeOffset.UtcNow - ProcessStart,
-            Build: BuildInfo.FromAssembly(options.RepoUrl),
+            Build: BuildInfo.FromAssembly(repoUrl),
             EndpointsOk: ok, EndpointsEmpty: empty, EndpointsMissing: missing);
     }
 
