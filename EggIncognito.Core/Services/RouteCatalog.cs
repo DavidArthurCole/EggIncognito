@@ -37,7 +37,7 @@ public sealed class RouteCatalog : IRouteCatalog
     public RouteCatalog(IConfiguration config)
         : this(ResolveYamlPath(config)) { }
 
-    public RouteCatalog(string yamlPath)
+    internal RouteCatalog(string yamlPath)
     {
         var list = File.Exists(yamlPath) ? Parse(File.ReadAllText(yamlPath)) : [];
         _routes = list;
