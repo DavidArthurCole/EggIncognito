@@ -73,11 +73,7 @@ builder.WebHost.ConfigureKestrel((context, opts) =>
 builder.Services.AddControllers();
 // API explorer powers the generic API console (/console): reflects every controller endpoint into a list.
 builder.Services.AddEndpointsApiExplorer();
-// DetailedErrors temporarily forced on in Hosted too: a StartCircuit failure was reported with zero
-// matching server-side exception, need the real error surfaced client + server side to diagnose.
-// TODO revert once diagnosed - this leaks exception details/stack traces to the browser in prod.
-builder.Services.AddRazorComponents().AddInteractiveServerComponents()
-    .AddCircuitOptions(o => o.DetailedErrors = true);
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 // Behind the reverse proxy (Cloudflare -> origin nginx), TLS terminates at the edge, so the origin sees
 // plain HTTP; honor X-Forwarded-Proto/-Host/-For so the app reconstructs the original https request.
