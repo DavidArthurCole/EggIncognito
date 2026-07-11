@@ -1,91 +1,24 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using SyncKit.Auth;
 using SyncKit.Bot;
 
 namespace EggIncognito.Bot;
 
 // Vendored from SyncKit.Bot.AdminRoutes with paths remapped /admin -> /bot-admin (the bare /admin
-// path collides with this app's own pre-existing Blazor admin console) and the client resolved
-// through BotInstanceHolder since routes are mapped before the bot hosted service has started.
+// path collides with this app's own pre-existing Blazor admin console). Auth rides the app's own
+// centralized login (SyncKit.Identity) instead of a second Discord OAuth flow: EggIncognito.Bot
+// can't reference the web project's ICurrentUser directly (would be circular), so Program.cs passes
+// in a per-request admin check delegate built against the real ICurrentUser/UserRole.Admin gate.
 public static class BotAdminRoutes
 {
-    private static readonly Dictionary<string, byte> PendingStates = [];
-
-    public static void Map(WebApplication app, BotConfig cfg, ChannelConfigStore configStore, AdminSessionStore sessionStore, BotInstanceHolder botHolder)
+    public static void Map(WebApplication app, BotConfig cfg, ChannelConfigStore configStore, Func<HttpContext, bool> isAdmin)
     {
-        app.MapGet("/bot-admin/login", () =>
-        {
-            var (url, state) = DiscordOAuth.AuthUrl();
-            lock (PendingStates) PendingStates[state] = 0;
-            return Results.Redirect(url);
-        });
-
-        app.MapGet("/bot-admin/callback", async (HttpContext ctx, string code, string state) =>
-        {
-            lock (PendingStates)
-            {
-                if (!PendingStates.Remove(state))
-                    return Results.Text("invalid or expired login attempt", "text/plain", null, StatusCodes.Status400BadRequest);
-            }
-
-            string? sessionToken = null;
-            DiscordUser? discordUser = null;
-            await DiscordOAuth.HandleCallbackAsync(code, state, (_, token, user) =>
-            {
-                sessionToken = token;
-                discordUser = user;
-                return Task.CompletedTask;
-            }, ctx.RequestAborted);
-
-            if (sessionToken is null || discordUser is null)
-                return Results.Text("login failed", "text/plain", null, StatusCodes.Status400BadRequest);
-
-            var bot = botHolder.Bot;
-            if (bot is null) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-
-            if (!IsGuildAdmin(bot.Client, cfg.GuildId, discordUser.Id))
-                return Results.Text("not a guild administrator", "text/plain", null, StatusCodes.Status403Forbidden);
-
-            var expiresAt = DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds();
-            await sessionStore.CreateAsync(sessionToken, discordUser.Id, expiresAt, ctx.RequestAborted);
-
-            ctx.Response.Cookies.Append("egi_bot_admin_session", sessionToken, new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, MaxAge = TimeSpan.FromDays(30) });
-            return Results.Redirect("/bot-admin");
-        });
-
-        app.MapPost("/bot-admin/logout", async (HttpContext ctx) =>
-        {
-            if (ctx.Request.Cookies.TryGetValue("egi_bot_admin_session", out var token) && !string.IsNullOrEmpty(token))
-                await sessionStore.DeleteAsync(token, ctx.RequestAborted);
-            ctx.Response.Cookies.Delete("egi_bot_admin_session");
-            return Results.Redirect("/bot-admin/login");
-        });
-
-        var admin = app.MapGroup("/bot-admin").AddEndpointFilter(async (efiContext, next) =>
+        var admin = app.MapGroup("/bot-admin").AddEndpointFilter((efiContext, next) =>
         {
             var httpCtx = efiContext.HttpContext;
-            if (httpCtx.Request.Path.Value is "/bot-admin/login" or "/bot-admin/callback") return await next(efiContext);
-
-            if (!httpCtx.Request.Cookies.TryGetValue("egi_bot_admin_session", out var token) || string.IsNullOrEmpty(token))
-                return (object?)Results.Redirect("/bot-admin/login");
-
-            var (found, discordId, expiresAt) = await sessionStore.LookupAsync(token, httpCtx.RequestAborted);
-            var nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            if (!found || nowUnix > expiresAt)
-                return (object?)Results.Redirect("/bot-admin/login");
-
-            var bot = botHolder.Bot;
-            if (bot is null) return (object?)Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-
-            if (!IsGuildAdmin(bot.Client, cfg.GuildId, discordId))
-                return (object?)Results.Text("not authorized", "text/plain", null, StatusCodes.Status403Forbidden);
-
-            var slid = DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds();
-            await sessionStore.TouchAsync(token, slid, httpCtx.RequestAborted);
-            httpCtx.Items["DiscordId"] = discordId;
-            return await next(efiContext);
+            if (!isAdmin(httpCtx)) return ValueTask.FromResult((object?)Results.StatusCode(StatusCodes.Status403Forbidden));
+            return next(efiContext);
         });
 
         admin.MapGet("/", () => Results.Content(PageHtml, "text/html"));
@@ -104,14 +37,6 @@ public static class BotAdminRoutes
                 ctx.RequestAborted);
             return Results.Ok();
         });
-    }
-
-    private static bool IsGuildAdmin(Discord.WebSocket.DiscordSocketClient client, string guildIdStr, string discordId)
-    {
-        if (!ulong.TryParse(guildIdStr, out var guildId) || !ulong.TryParse(discordId, out var userId)) return false;
-        var guild = client.GetGuild(guildId);
-        var member = guild?.GetUser(userId);
-        return member is not null && member.GuildPermissions.Administrator;
     }
 
     private const string PageHtml = """

@@ -8,17 +8,13 @@ namespace EggIncognito.Bot;
 // this class only owns the instance's lifetime, deliberately bypassing SyncKitBotBuilder.RunAsync()
 // (which owns its own WebApplication) since EggIncognito already hosts one and cannot run two.
 public sealed class EggIncognitoBotHostedService(
-    BotConfig cfg, ILogger<EggIncognitoBotHostedService> logger, BotInstanceHolder holder) : IHostedService
+    BotConfig cfg, ILogger<EggIncognitoBotHostedService> logger) : IHostedService
 {
     private SyncKitBot? _bot;
 
     public async Task StartAsync(CancellationToken ct)
     {
-        try
-        {
-            _bot = await SyncKitBot.StartAsync(cfg);
-            if (_bot is not null) holder.Bot = _bot;
-        }
+        try { _bot = await SyncKitBot.StartAsync(cfg); }
         catch (Exception ex) { logger.LogError(ex, "bot: failed to start - continuing without the bot"); }
     }
 

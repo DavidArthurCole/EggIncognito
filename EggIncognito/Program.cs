@@ -234,7 +234,6 @@ if (!string.IsNullOrWhiteSpace(botToken))
 
     builder.Services.AddSingleton(repoUrl);
     builder.Services.AddSingleton<EggIncognito.Bot.IStatusProvider, EggIncognito.Services.StatusSnapshotFactory>();
-    builder.Services.AddSingleton<EggIncognito.Bot.BotInstanceHolder>();
 
     // IStatusProvider/IProtoReflection aren't resolvable until the service provider is built, so the
     // BotConfig singleton factory below resolves them lazily instead of capturing them directly.
@@ -275,18 +274,10 @@ if (!string.IsNullOrWhiteSpace(botToken))
     builder.Services.AddHostedService(sp => sp.GetRequiredService<EggIncognito.Bot.EggIncognitoBotHostedService>());
 }
 
-// Bot admin dashboard: Discord-OAuth-gated /bot-admin config UI (SyncKit.Bot.AdminRoutes, vendored
-// as BotAdminRoutes with paths remapped). Opt-in, needs Postgres plus all three BotAdminClientId/
-// BotAdminClientSecret/BotAdminCallbackUrl keys; also depends on BotInstanceHolder, so it only ever
-// applies once the bot block above has registered it.
-var botAdminClientId = builder.Configuration["Discord:BotAdminClientId"];
-var botAdminClientSecret = builder.Configuration["Discord:BotAdminClientSecret"];
-var botAdminCallbackUrl = builder.Configuration["Discord:BotAdminCallbackUrl"];
-var botAdminEnabled = !string.IsNullOrWhiteSpace(botToken)
-    && dbEnabled
-    && !string.IsNullOrWhiteSpace(botAdminClientId)
-    && !string.IsNullOrWhiteSpace(botAdminClientSecret)
-    && !string.IsNullOrWhiteSpace(botAdminCallbackUrl);
+// Bot admin dashboard: /bot-admin config UI (SyncKit.Bot.AdminRoutes, vendored as BotAdminRoutes
+// with paths remapped). Auth rides this app's own centralized login (ICurrentUser/UserRole.Admin),
+// not a separate Discord OAuth flow - opt-in whenever Postgres + a bot token are configured.
+var botAdminEnabled = !string.IsNullOrWhiteSpace(botToken) && dbEnabled;
 
 // Inbound device-farm sync endpoint. Opt-in, only when SyncEvent:EventSecret is set; when absent,
 // the route below is never mapped and requests 404. Also gated at runtime by IAppMode.
@@ -680,18 +671,23 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
     app.MapPost("/events/new-version", SyncKit.Bot.NewVersionHandler.Build(eventSecret, evt => ingest.HandleAsync(evt)))
         .RequireRateLimiting("write");
 }
+// Migrations run whenever BotConfig.PostgresConnectionString is set (i.e. bot token + Postgres both
+// configured), independent of the admin-UI OAuth gate below: SyncKitBot's channel hub touches
+// bot_channel_config/bot_channel_state as soon as a Postgres connection string is present, whether
+// or not the /bot-admin page itself is enabled.
+if (!string.IsNullOrWhiteSpace(botToken) && dbEnabled)
+{
+    await using var adminConn = await Npgsql.NpgsqlDataSource.Create(pgConn!).OpenConnectionAsync();
+    await SyncKit.Db.Migrator.MigrateAsync(adminConn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
+}
 if (botAdminEnabled)
 {
-    await using (var adminConn = await Npgsql.NpgsqlDataSource.Create(pgConn!).OpenConnectionAsync())
-        await SyncKit.Db.Migrator.MigrateAsync(adminConn,
-            Path.Combine(AppContext.BaseDirectory, "Migrations"));
     var adminDataSource = Npgsql.NpgsqlDataSource.Create(pgConn!);
     var configStore = new SyncKit.Bot.ChannelConfigStore(adminDataSource);
-    var sessionStore = new SyncKit.Bot.AdminSessionStore(adminDataSource);
-    SyncKit.Auth.DiscordOAuth.Init(botAdminClientId!, botAdminClientSecret!, botAdminCallbackUrl!);
-    var botHolder = app.Services.GetRequiredService<EggIncognito.Bot.BotInstanceHolder>();
     var botCfg = app.Services.GetRequiredService<SyncKit.Bot.BotConfig>();
-    EggIncognito.Bot.BotAdminRoutes.Map(app, botCfg, configStore, sessionStore, botHolder);
+    bool IsAdmin(HttpContext ctx) =>
+        ctx.RequestServices.GetRequiredService<ICurrentUser>().IsAtLeast(EggIncognito.Data.Models.UserRole.Admin);
+    EggIncognito.Bot.BotAdminRoutes.Map(app, botCfg, configStore, IsAdmin);
 }
 app.MapRazorComponents<EggIncognito.Components.App>()
    .AddInteractiveServerRenderMode();

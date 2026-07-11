@@ -30,9 +30,8 @@ Six global, user-installable commands (four domain, two builtins) plus one guild
 ## Structure
 
 - `ExtraCommands.cs`: the four domain `SyncKit.Bot.BotCommand` factories (definitions + handlers), including `/proto`'s autocomplete.
-- `EggIncognitoBotHostedService.cs`: thin `IHostedService` wrapper around `SyncKitBot.StartAsync`/`DisposeAsync`; also populates `BotInstanceHolder.Bot` on successful start.
-- `BotInstanceHolder.cs`: singleton holding the live `SyncKitBot` instance (or null), read by `/bot-admin` route handlers at request time since routes are mapped before hosted services start.
-- `BotAdminRoutes.cs`: vendored from `SyncKit.Bot.AdminRoutes`, paths remapped `/admin` -> `/bot-admin` (the bare path collides with this app's own Blazor admin console).
+- `EggIncognitoBotHostedService.cs`: thin `IHostedService` wrapper around `SyncKitBot.StartAsync`/`DisposeAsync`.
+- `BotAdminRoutes.cs`: vendored from `SyncKit.Bot.AdminRoutes`, paths remapped `/admin` -> `/bot-admin` (the bare path collides with this app's own Blazor admin console). Takes an `isAdmin` delegate instead of running its own Discord OAuth flow, since this project can't reference the web project's `ICurrentUser` directly.
 - `CommandParsing.cs`, `ProtoQuery.cs`, `BotEmbeds.cs`, `IStatusProvider.cs`, `StatusSnapshot.cs`: unchanged pure/domain logic.
 - `IStatusProvider` is implemented by `StatusSnapshotFactory` in the web project, so this library stays decoupled from `IAppMode`.
 
@@ -45,16 +44,18 @@ Six global, user-installable commands (four domain, two builtins) plus one guild
 
 ## Bot admin dashboard (`/bot-admin`)
 
-Discord-OAuth-gated web UI for editing the deploy-notification config (dashboard channel, enabled
-threads, message templates) that `SyncKit.Bot` uses to post to Discord on new-version events.
+Web UI for editing the deploy-notification config (dashboard channel, enabled threads, message
+templates) that `SyncKit.Bot` uses to post to Discord on new-version events.
 
-- Opt-in: needs `ConnectionStrings:Postgres` set plus all three `Discord:BotAdminClientId` /
-  `Discord:BotAdminClientSecret` / `Discord:BotAdminCallbackUrl`. Missing any of these (or no bot
-  token) leaves `/bot-admin` unmapped, 404.
-- Login is guild-admin only, checked against `BotConfig.GuildId` via the live `SyncKitBot.Client`
-  (through `BotInstanceHolder`), so it 503s until the bot has finished starting.
+- Opt-in: needs `ConnectionStrings:Postgres` set plus a bot token. Missing either leaves
+  `/bot-admin` unmapped, 404.
+- Auth rides this app's own centralized login (`ICurrentUser`/`UserRole.Admin`, the same gate as
+  the app's existing `/admin` console), not a separate Discord OAuth flow. Program.cs passes the
+  check in as a delegate since `EggIncognito.Bot` can't reference `ICurrentUser` (would be circular).
 - `BotConfig.PostgresConnectionString`/`DashboardChannelId`/`EnabledThreads` (set from `pgConn` and
   `Discord:DashboardChannelId`/`Discord:EnabledThreads`) feed `SyncKit.Bot`'s own dashboard notifier;
   the `/bot-admin` UI is how an operator edits those last two without a redeploy.
 - `Migrations/*.up.sql`: vendored SQL applied via `SyncKit.Db.Migrator.MigrateAsync` at startup,
-  copied to output so the runtime path resolves without a source checkout.
+  copied to output so the runtime path resolves without a source checkout. Runs whenever Postgres +
+  a bot token are configured, independent of the `/bot-admin` UI's own gate (`SyncKitBot`'s channel
+  hub touches these tables regardless of whether the config UI is enabled).
