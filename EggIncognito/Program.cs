@@ -74,6 +74,8 @@ builder.Services.AddControllers();
 // API explorer powers the generic API console (/console): reflects every controller endpoint into a list.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+// TEMP diagnostic for silent StartCircuit failures - revert once real error is captured.
+builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(o => o.EnableDetailedErrors = true);
 
 // Behind the reverse proxy (Cloudflare -> origin nginx), TLS terminates at the edge, so the origin sees
 // plain HTTP; honor X-Forwarded-Proto/-Host/-For so the app reconstructs the original https request.
