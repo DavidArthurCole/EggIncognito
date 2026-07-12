@@ -98,6 +98,9 @@ jobs:
         with:
           context: .
           push: true
+          # Always re-pull FROM base images: a cached stale SDK image (publish-time) paired with a
+          # freshly-pulled runtime image caused a real StartCircuit version-skew outage (2026-07-11).
+          pull: true
           # SyncKit.Contract restore inside the image needs the GitHub Packages PAT.
           secrets: |
             github_token=${{ secrets.PACKAGES_PAT }}
@@ -138,6 +141,8 @@ jobs:
           context: .
           file: EggIncognito.Runner/Dockerfile
           push: true
+          # Always re-pull FROM base images; see docker job above for why (SDK/runtime version skew).
+          pull: true
           # EggIncognito.Core restore inside the image needs the GitHub Packages PAT (SyncKit.Contract).
           secrets: |
             github_token=${{ secrets.PACKAGES_PAT }}
