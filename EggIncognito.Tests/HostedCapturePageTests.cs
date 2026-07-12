@@ -27,7 +27,7 @@ public class HostedCapturePageTests
     private sealed class FakeUser(bool authed, bool supporter, UserRole role = UserRole.Viewer) : ICurrentUser
     {
         public bool IsAuthenticated => authed;
-        public Guid? UserId => null;
+        public Guid? UserId => authed ? Guid.Parse("00000000-0000-0000-0000-000000000001") : null;
         public string? DiscordId => authed ? "tester" : null;
         public string? Username => authed ? "tester" : null;
         public string? Avatar => null;
