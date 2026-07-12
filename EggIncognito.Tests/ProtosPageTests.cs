@@ -135,6 +135,7 @@ public class ProtosPageTests
         public string? DiscordId => IsAuthenticated ? "fake" : null;
         public string? Username => IsAuthenticated ? "fake" : null;
         public string? Avatar => null;
+        public string? AvatarUrl => null;
         public UserRole Role => role;
         public bool IsSupporter => false;
         public bool IsAtLeast(UserRole need) => role >= need;

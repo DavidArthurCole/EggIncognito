@@ -77,6 +77,7 @@ public class ProtoFeedApiTests
         public string? DiscordId => discordId;
         public string? Username => null;
         public string? Avatar => null;
+        public string? AvatarUrl => null;
         public EggIncognito.Data.Models.UserRole Role => EggIncognito.Data.Models.UserRole.Viewer;
         public bool IsSupporter => false;
         public bool IsAtLeast(EggIncognito.Data.Models.UserRole need) => false;

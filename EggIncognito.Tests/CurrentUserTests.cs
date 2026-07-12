@@ -33,6 +33,17 @@ public class CurrentUserTests
         Assert.Equal("123", u.DiscordId);
         Assert.Equal("alice", u.Username);
         Assert.Equal("abc", u.Avatar);
+        Assert.Equal("https://cdn.discordapp.com/avatars/123/abc.png", u.AvatarUrl);
+    }
+
+    [Fact]
+    public void AvatarUrl_AlreadyFullUrl_PassedThroughUnwrapped()
+    {
+        var id = new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(ClaimTypes.Name, "alice"),
+             new Claim("urn:discord:avatar:hash", "https://cdn.discordapp.com/avatars/123/abc.png")], "Discord");
+        var u = Make(new ClaimsPrincipal(id));
+        Assert.Equal("https://cdn.discordapp.com/avatars/123/abc.png", u.AvatarUrl);
     }
 
     [Fact]

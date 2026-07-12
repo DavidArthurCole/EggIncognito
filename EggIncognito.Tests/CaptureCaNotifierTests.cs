@@ -43,6 +43,7 @@ public class CaptureCaNotifierTests
         public string? DiscordId => authed ? "tester" : null;
         public string? Username => authed ? "tester" : null;
         public string? Avatar => null;
+        public string? AvatarUrl => null;
         public UserRole Role => UserRole.Viewer;
         public bool IsSupporter => supporter;
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(UserRole.Viewer, need);

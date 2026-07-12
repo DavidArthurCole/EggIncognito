@@ -157,6 +157,7 @@ public class RateLimitKeysTests
         public string? DiscordId => id;
         public string? Username => null;
         public string? Avatar => null;
+        public string? AvatarUrl => null;
         public UserRole Role => role;
         public bool IsSupporter => supporter;
         public bool IsAtLeast(UserRole need) => role >= need;

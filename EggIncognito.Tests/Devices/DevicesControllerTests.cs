@@ -17,6 +17,7 @@ public class DevicesControllerTests
         public string? DiscordId => "123";
         public string? Username => "tester";
         public string? Avatar => null;
+        public string? AvatarUrl => null;
         public UserRole Role => role;
         public bool IsSupporter => false;
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(Role, need);

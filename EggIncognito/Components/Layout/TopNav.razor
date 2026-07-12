@@ -24,9 +24,9 @@
       <span class="auth-nav">
         @if (User.IsAuthenticated)
         {
-          @if (!string.IsNullOrEmpty(User.Avatar))
+          @if (!string.IsNullOrEmpty(User.AvatarUrl))
           {
-            <img class="auth-avatar" src="@($"https://cdn.discordapp.com/avatars/{User.DiscordId}/{User.Avatar}.png")" alt="" />
+            <img class="auth-avatar" src="@User.AvatarUrl" alt="" />
           }
           <span class="auth-name">@User.Username</span>
           <form method="post" action="/logout" style="margin:0;">

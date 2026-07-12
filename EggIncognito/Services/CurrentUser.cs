@@ -14,6 +14,16 @@ public sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
     public string? DiscordId => IsAuthenticated ? Principal!.FindFirstValue(ClaimTypes.NameIdentifier) : null;
     public string? Username => IsAuthenticated ? Principal!.FindFirstValue(ClaimTypes.Name) : null;
     public string? Avatar => IsAuthenticated ? Principal!.FindFirstValue("urn:discord:avatar:hash") : null;
+
+    // Avatar claim is meant to hold a bare Discord hash, but the SyncKit identity widget flow has been
+    // observed sending the full CDN URL instead - detect that so we don't wrap an already-complete URL.
+    public string? AvatarUrl => Avatar switch
+    {
+        null or "" => null,
+        var a when a.StartsWith("http://") || a.StartsWith("https://") => a,
+        var a => $"https://cdn.discordapp.com/avatars/{DiscordId}/{a}.png",
+    };
+
     public UserRole Role => UserRoles.Parse(IsAuthenticated ? Principal!.FindFirstValue(UserRoles.ClaimType) : null);
     public bool IsSupporter =>
         IsAuthenticated && Principal!.FindFirstValue(SupporterClaims.ClaimType) == "true";

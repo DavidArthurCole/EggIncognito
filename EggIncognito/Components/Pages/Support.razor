@@ -76,9 +76,9 @@
       {
         <div class="connect-card">
           <div class="connect-id">
-            @if (!string.IsNullOrEmpty(User.Avatar))
+            @if (!string.IsNullOrEmpty(User.AvatarUrl))
             {
-              <img class="connect-avatar" src="@($"https://cdn.discordapp.com/avatars/{User.DiscordId}/{User.Avatar}.png")" alt="" />
+              <img class="connect-avatar" src="@User.AvatarUrl" alt="" />
             }
             else
             {

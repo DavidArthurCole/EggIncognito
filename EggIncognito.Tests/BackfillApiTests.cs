@@ -15,6 +15,7 @@ public class BackfillApiTests
         public string? DiscordId => "me";
         public string? Username => "u";
         public string? Avatar => null;
+        public string? AvatarUrl => null;
         public UserRole Role => role;
         public bool IsSupporter => false;
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(role, need);

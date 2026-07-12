@@ -11,6 +11,7 @@ public interface ICurrentUser
     string? DiscordId { get; }
     string? Username { get; }
     string? Avatar { get; }
+    string? AvatarUrl { get; }
     UserRole Role { get; }
     bool IsSupporter { get; }
     bool IsAtLeast(UserRole need);
