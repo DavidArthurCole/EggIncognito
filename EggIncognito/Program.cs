@@ -184,6 +184,10 @@ if (dbEnabled)
 // or both together. CurrentUser is always registered and reports anonymous when no auth middleware ran.
 var identityApiUrl = builder.Configuration["Identity:ApiUrl"];
 var identityApiSecret = builder.Configuration["Identity:ApiSecret"];
+// Public, browser-reachable address of SyncKit.Identity.Host, serving /synckit-login.js. Distinct
+// from Identity:ApiUrl, which is the internal server-to-server address (e.g. 127.0.0.1 in
+// network_mode: host) and is never valid as a <script src> loaded by the browser.
+var identityWidgetUrl = builder.Configuration["Identity:WidgetUrl"];
 var identityApiEnabled = !string.IsNullOrWhiteSpace(identityApiUrl) && !string.IsNullOrWhiteSpace(identityApiSecret);
 if (identityApiEnabled)
 {
@@ -206,7 +210,7 @@ if (authentikAuthEnabled)
         new Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfigurationRetriever()));
 }
 var authEnabled = discordAuthEnabled || authentikAuthEnabled;
-builder.Services.AddSingleton(new AuthState(discordAuthEnabled, authentikAuthEnabled, identityApiUrl));
+builder.Services.AddSingleton(new AuthState(discordAuthEnabled, authentikAuthEnabled, identityWidgetUrl));
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<EggIncognito.Services.Metrics.ApiMetrics>();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
