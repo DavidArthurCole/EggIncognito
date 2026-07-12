@@ -232,7 +232,7 @@ if (!string.IsNullOrWhiteSpace(botToken))
     var buildInfo = EggIncognito.Services.BuildInfo.FromAssembly(repoUrl);
     var startedAt = DateTimeOffset.UtcNow;
 
-    builder.Services.AddSingleton(repoUrl);
+    builder.Services.AddSingleton(new EggIncognito.Services.RepoUrl(repoUrl));
     builder.Services.AddSingleton<EggIncognito.Bot.IStatusProvider, EggIncognito.Services.StatusSnapshotFactory>();
 
     // IStatusProvider/IProtoReflection aren't resolvable until the service provider is built, so the

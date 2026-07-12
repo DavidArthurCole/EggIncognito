@@ -25,10 +25,4 @@
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
   </ItemGroup>
-
-  <!-- Exposes the ASP.NET OAuth types (OAuthCreatingTicketContext) to the login upsert handler. Data
-       only ever runs inside the web host; this does not make it a web SDK project. -->
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
 </Project>

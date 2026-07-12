@@ -4,6 +4,11 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Services;
 
+// Wraps the repo URL so it isn't a bare string in DI: a raw string singleton makes SignalR's hub
+// dispatcher treat every string-typed hub method parameter as DI-resolved instead of client-bound,
+// collapsing ComponentHub.StartCircuit's 4 args to 0 (the 2026-07-11 outage).
+public sealed record RepoUrl(string Value);
+
 // Reads the live in-process services to build a StatusSnapshot for the bot's embeds. The only impure
 // status reader; kept tiny so the Bot library's embed builders stay pure + testable. Lives in the web
 // project because it depends on the web-only IAppMode.
@@ -12,7 +17,7 @@ public sealed class StatusSnapshotFactory(
     CaptureSession capture,
     ITransportPipeline pipeline,
     IConfiguration config,
-    string repoUrl) : IStatusProvider
+    RepoUrl repoUrl) : IStatusProvider
 {
     // Process start, not construction time: the factory is resolved lazily (first bot status call),
     // so a field initializer here would undercount uptime by however long that took.
@@ -36,7 +41,7 @@ public sealed class StatusSnapshotFactory(
             DbEnabled: _dbEnabled,
             SigningReady: pipeline.CanSign,
             Uptime: DateTimeOffset.UtcNow - ProcessStart,
-            Build: BuildInfo.FromAssembly(repoUrl),
+            Build: BuildInfo.FromAssembly(repoUrl.Value),
             EndpointsOk: ok, EndpointsEmpty: empty, EndpointsMissing: missing);
     }
 
