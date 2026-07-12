@@ -621,6 +621,15 @@ else
 // scheme and host, not the proxy's plain-http hop.
 app.UseForwardedHeaders();
 
+// Strip the client's permessage-deflate offer before the WebSocket upgrade: negotiating it here
+// corrupted the SignalR/Blazor circuit handshake in production (StartCircuit arg-count mismatch,
+// 2026-07-11 outage) - HAR evidence showed the extension accepted on both sides of the upgrade.
+app.Use(async (ctx, next) =>
+{
+    ctx.Request.Headers.Remove("Sec-WebSocket-Extensions");
+    await next();
+});
+
 // Turns ApiException into {error, resolution, status} and any unhandled exception into a 500 that
 // points at the logs.
 app.UseExceptionHandler();
