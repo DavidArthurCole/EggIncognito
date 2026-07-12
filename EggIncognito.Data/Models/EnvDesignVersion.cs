@@ -22,7 +22,7 @@ public class EnvDesignVersion
     public string Payload { get; set; } = "{}";
 
     [Column("author_user_id")]
-    public string? AuthorUserId { get; set; }
+    public Guid? AuthorUserId { get; set; }
 
     [Column("note")]
     public string? Note { get; set; }

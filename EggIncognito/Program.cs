@@ -570,11 +570,19 @@ if (hostedCaptureOn)
     {
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("capture.frontdoor");
         var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+        // ProxyFrontDoor keys sessions by Discord id (CaptureSessionManager's key), so a resolved
+        // user id is mapped back to its Discord id via the identity API.
         Func<System.Net.IPAddress, Task<string?>> addrToUser = async addr =>
         {
             using var scope = scopeFactory.CreateScope();
             var store = scope.ServiceProvider.GetService<EggIncognito.Data.Services.CaptureAddressStore>();
-            return store is null ? null : await store.UserForAddrAsync(addr);
+            if (store is null) return null;
+            var userId = await store.UserForAddrAsync(addr);
+            if (userId is null) return null;
+            var identity = scope.ServiceProvider.GetService<SyncKit.Identity.Client.IdentityApiClient>();
+            if (identity is null) return null;
+            var user = await identity.GetAsync(userId.Value, CancellationToken.None);
+            return user?.DiscordId;
         };
         return new EggIncognito.Capture.ProxyFrontDoor(
             hostedCaptureOpts,

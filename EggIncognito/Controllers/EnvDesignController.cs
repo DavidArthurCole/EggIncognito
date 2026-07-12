@@ -68,7 +68,7 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         var existing = await db.EnvDesigns.FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
         if (existing is null)
         {
-            existing = new EnvDesign { Name = name, Payload = payload, OwnerUserId = currentUser.DiscordId };
+            existing = new EnvDesign { Name = name, Payload = payload, OwnerUserId = currentUser.UserId };
             db.EnvDesigns.Add(existing);
             await db.SaveChangesAsync(HttpContext.RequestAborted);
         }
@@ -81,7 +81,7 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         db.EnvDesignVersions.Add(new EnvDesignVersion
         {
             DesignId = existing.Id, VersionNo = next, Payload = payload,
-            AuthorUserId = currentUser.DiscordId, Note = Trim(body?.Note),
+            AuthorUserId = currentUser.UserId, Note = Trim(body?.Note),
         });
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         return Ok(new { saved = name, version = next });
@@ -142,7 +142,7 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         db.EnvDesignVersions.Add(new EnvDesignVersion
         {
             DesignId = design.Id, VersionNo = next, Payload = src.Payload,
-            AuthorUserId = currentUser.DiscordId, RolledBackFrom = src.VersionNo,
+            AuthorUserId = currentUser.UserId, RolledBackFrom = src.VersionNo,
             Note = $"rolled back to v{src.VersionNo}",
         });
         await db.SaveChangesAsync(HttpContext.RequestAborted);
@@ -167,7 +167,7 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         if (db is null) return StatusCode(503, new { error = "no database configured" });
         var row = await db.EnvDesigns.FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
         if (row is null) return NotFound(new { error = "unknown design" });
-        if (row.OwnerUserId != currentUser.DiscordId && !currentUser.IsAtLeast(UserRole.Admin))
+        if (row.OwnerUserId != currentUser.UserId && !currentUser.IsAtLeast(UserRole.Admin))
             return StatusCode(403, new { error = "only the owner or an admin can delete this design" });
         db.EnvDesigns.Remove(row);
         await db.SaveChangesAsync(HttpContext.RequestAborted);

@@ -3,6 +3,7 @@ using System;
 using EggIncognito.Data.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EggIncognito.Data.Migrations
 {
     [DbContext(typeof(EggIncognitoDbContext))]
-    partial class EggIncognitoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260712015357_RepointCaptureTablesToUserId")]
+    partial class RepointCaptureTablesToUserId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -297,8 +300,8 @@ namespace EggIncognito.Data.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid?>("OwnerUserId")
-                        .HasColumnType("uuid")
+                    b.Property<string>("OwnerUserId")
+                        .HasColumnType("text")
                         .HasColumnName("owner_user_id");
 
                     b.Property<string>("SubjectKey")
@@ -354,8 +357,8 @@ namespace EggIncognito.Data.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid?>("OwnerUserId")
-                        .HasColumnType("uuid")
+                    b.Property<string>("OwnerUserId")
+                        .HasColumnType("text")
                         .HasColumnName("owner_user_id");
 
                     b.HasKey("Id");
@@ -383,8 +386,8 @@ namespace EggIncognito.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
-                    b.Property<Guid?>("OwnerUserId")
-                        .HasColumnType("uuid")
+                    b.Property<string>("OwnerUserId")
+                        .HasColumnType("text")
                         .HasColumnName("owner_user_id");
 
                     b.Property<string>("Payload")
@@ -415,8 +418,8 @@ namespace EggIncognito.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<Guid?>("AuthorUserId")
-                        .HasColumnType("uuid")
+                    b.Property<string>("AuthorUserId")
+                        .HasColumnType("text")
                         .HasColumnName("author_user_id");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -580,8 +583,8 @@ namespace EggIncognito.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("message_template");
 
-                    b.Property<Guid?>("OwnerUserId")
-                        .HasColumnType("uuid")
+                    b.Property<string>("OwnerUserId")
+                        .HasColumnType("text")
                         .HasColumnName("owner_user_id");
 
                     b.PrimitiveCollection<string[]>("Platforms")
@@ -874,8 +877,8 @@ namespace EggIncognito.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("eid");
 
-                    b.Property<Guid?>("OwnerUserId")
-                        .HasColumnType("uuid")
+                    b.Property<string>("OwnerUserId")
+                        .HasColumnType("text")
                         .HasColumnName("owner_user_id");
 
                     b.Property<string>("Path")
@@ -964,8 +967,8 @@ namespace EggIncognito.Data.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid?>("OwnerUserId")
-                        .HasColumnType("uuid")
+                    b.Property<string>("OwnerUserId")
+                        .HasColumnType("text")
                         .HasColumnName("owner_user_id");
 
                     b.Property<string>("Path")

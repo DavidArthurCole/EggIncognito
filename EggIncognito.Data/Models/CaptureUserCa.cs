@@ -8,11 +8,11 @@ namespace EggIncognito.Data.Models;
 public class CaptureUserCa
 {
     [Key]
-    [Column("discord_id")]
-    public string DiscordId { get; set; } = "";
-
     [Column("user_id")]
     public Guid UserId { get; set; }
+
+    [Column("discord_id")]
+    public string? DiscordId { get; set; }
 
     [Column("pfx")]
     public byte[] Pfx { get; set; } = [];

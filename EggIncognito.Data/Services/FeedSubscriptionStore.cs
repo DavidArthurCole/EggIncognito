@@ -12,9 +12,9 @@ public interface IFeedSubscriptionStore
     Task SetActiveAsync(int subId, bool active, CancellationToken ct = default);
     Task BumpFailAsync(int subId, CancellationToken ct = default);
     Task MarkDeliveredAsync(int subId, DateTimeOffset at, CancellationToken ct = default);
-    Task<List<FeedSubscription>> ByOwnerAsync(string ownerUserId, CancellationToken ct = default);
-    Task<bool> DeleteAsync(int id, string ownerUserId, CancellationToken ct = default);
-    Task<bool> UpdateAsync(int id, string ownerUserId, string[] platforms, string trigger, bool active,
+    Task<List<FeedSubscription>> ByOwnerAsync(Guid ownerUserId, CancellationToken ct = default);
+    Task<bool> DeleteAsync(int id, Guid ownerUserId, CancellationToken ct = default);
+    Task<bool> UpdateAsync(int id, Guid ownerUserId, string[] platforms, string trigger, bool active,
         string? messageTemplate, CancellationToken ct = default);
 }
 
@@ -64,20 +64,20 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
         await db.SaveChangesAsync(ct);
     }
 
-    public Task<List<FeedSubscription>> ByOwnerAsync(string ownerUserId, CancellationToken ct = default) =>
+    public Task<List<FeedSubscription>> ByOwnerAsync(Guid ownerUserId, CancellationToken ct = default) =>
         db.FeedSubscriptions.AsNoTracking()
             .Where(s => s.OwnerUserId == ownerUserId)
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(ct);
 
-    public async Task<bool> DeleteAsync(int id, string ownerUserId, CancellationToken ct = default) =>
+    public async Task<bool> DeleteAsync(int id, Guid ownerUserId, CancellationToken ct = default) =>
         await db.FeedSubscriptions
             .Where(s => s.Id == id && s.OwnerUserId == ownerUserId)
             .ExecuteDeleteAsync(ct) > 0;
 
     // The webhook URL is not editable here: a different URL is a new subscription.
     public async Task<bool> UpdateAsync(
-        int id, string ownerUserId, string[] platforms, string trigger, bool active, string? messageTemplate,
+        int id, Guid ownerUserId, string[] platforms, string trigger, bool active, string? messageTemplate,
         CancellationToken ct = default)
     {
         var row = await db.FeedSubscriptions.FirstOrDefaultAsync(s => s.Id == id && s.OwnerUserId == ownerUserId, ct);

@@ -52,7 +52,7 @@ public class FeedDispatcherTests
         public Task SetActiveAsync(int subId, bool active, CancellationToken ct = default)
         {
             var s = Subs.FirstOrDefault(x => x.Id == subId);
-            if (s is not null) s.Active = active;
+            s?.Active = active;
             return Task.CompletedTask;
         }
 
@@ -70,11 +70,11 @@ public class FeedDispatcherTests
             return Task.CompletedTask;
         }
 
-        public Task<List<FeedSubscription>> ByOwnerAsync(string ownerUserId, CancellationToken ct = default) =>
+        public Task<List<FeedSubscription>> ByOwnerAsync(Guid ownerUserId, CancellationToken ct = default) =>
             Task.FromResult(Subs.Where(s => s.OwnerUserId == ownerUserId)
                 .OrderByDescending(s => s.CreatedAt).ToList());
 
-        public Task<bool> DeleteAsync(int id, string ownerUserId, CancellationToken ct = default)
+        public Task<bool> DeleteAsync(int id, Guid ownerUserId, CancellationToken ct = default)
         {
             var s = Subs.FirstOrDefault(x => x.Id == id && x.OwnerUserId == ownerUserId);
             if (s is null) return Task.FromResult(false);
@@ -82,7 +82,7 @@ public class FeedDispatcherTests
             return Task.FromResult(true);
         }
 
-        public Task<bool> UpdateAsync(int id, string ownerUserId, string[] platforms, string trigger,
+        public Task<bool> UpdateAsync(int id, Guid ownerUserId, string[] platforms, string trigger,
             bool active, string? messageTemplate, CancellationToken ct = default)
         {
             var s = Subs.FirstOrDefault(x => x.Id == id && x.OwnerUserId == ownerUserId);

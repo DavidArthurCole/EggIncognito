@@ -51,6 +51,8 @@ public sealed class CaptureController(
             return StatusCode(403, new { error = "hosted capture is not enabled" });
         if (!currentUser.IsAuthenticated || string.IsNullOrEmpty(currentUser.DiscordId))
             return StatusCode(401, new { error = "log in to use hosted capture" });
+        if (!currentUser.UserId.HasValue)
+            return StatusCode(401, new { error = "log in to use hosted capture" });
         if (!currentUser.IsSupporter)
             return StatusCode(403, new { error = "supporter_required" });
         return null;
@@ -144,6 +146,8 @@ public sealed class CaptureController(
             return StatusCode(403, new { error = "capture is disabled in hosted mode" });
         if (!currentUser.IsAuthenticated || string.IsNullOrEmpty(currentUser.DiscordId))
             return StatusCode(401, new { error = "log in to use hosted capture" });
+        if (!currentUser.UserId.HasValue)
+            return StatusCode(401, new { error = "log in to use hosted capture" });
         // Live role re-check; the cookie claim alone must not spin up server resources.
         if (!await supporters.CheckAsync(currentUser.DiscordId, ct))
             return StatusCode(403, new { error = "supporter_required" });
@@ -156,12 +160,12 @@ public sealed class CaptureController(
         }
 
         var store = Credentials;
-        await RestoreCaAsync(session, store, currentUser.DiscordId, ct);
+        await RestoreCaAsync(session, store, currentUser.UserId!.Value, ct);
         var result = await session.StartAsync(ct);
         if (result.FreshCa && store is not null)
-            await PersistFreshCaAsync(session, store, currentUser.DiscordId, result.RootThumbprint, ct);
+            await PersistFreshCaAsync(session, store, currentUser.UserId!.Value, result.RootThumbprint, ct);
         // DM the setup (CA profile + token) on every start: the token rotates per session.
-        await DeliverSetupAsync(session, currentUser.DiscordId, store, ct);
+        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId!.Value, store, ct);
         return Ok(result);
     }
 
@@ -175,17 +179,19 @@ public sealed class CaptureController(
             return StatusCode(403, new { error = "hosted capture disabled" });
         if (!currentUser.IsAuthenticated || string.IsNullOrEmpty(currentUser.DiscordId))
             return StatusCode(401, new { error = "log in to use hosted capture" });
+        if (!currentUser.UserId.HasValue)
+            return StatusCode(401, new { error = "log in to use hosted capture" });
         var session = manager.Get(currentUser.DiscordId);
         if (session is null) return StatusCode(409, new { error = "start a capture session first" });
         session.CaDmFailed = false;
-        await DeliverSetupAsync(session, currentUser.DiscordId, Credentials, ct);
+        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId!.Value, Credentials, ct);
         return Ok(new { sent = !session.CaDmFailed });
     }
 
     // DM the install profile + the user's per-user proxy address. Best-effort: a closed-DM or bot
     // failure sets a session notice and never fails the start.
     private async Task DeliverSetupAsync(
-        CaptureSession session, string discordId, CaptureCredentialStore? store, CancellationToken ct)
+        CaptureSession session, string discordId, Guid userId, CaptureCredentialStore? store, CancellationToken ct)
     {
         var notifier = services.GetService(typeof(ICaptureCaNotifier)) as ICaptureCaNotifier;
         var addrStore = services.GetService(typeof(CaptureAddressStore)) as CaptureAddressStore;
@@ -197,7 +203,7 @@ public sealed class CaptureController(
         if (cer.Length == 0) { FlagDmFailed(session); return; }
 
         var addr = await addrStore.AddrForUserAsync(
-            hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, discordId, ct);
+            hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, userId, ct);
         var dm = new CaptureSetupDm(discordId, cer, addr.ToString(), hostedOptions.FrontDoorPort);
         if (await notifier.SendSetupAsync(dm, ct)) return;
         FlagDmFailed(session);
@@ -213,12 +219,12 @@ public sealed class CaptureController(
     // Restoring the stored pfx to {caDir}/.ca/root.pfx keeps the device trusting the same cert
     // across sessions and hosts.
     private static async Task RestoreCaAsync(
-        CaptureSession session, CaptureCredentialStore? store, string discordId, CancellationToken ct)
+        CaptureSession session, CaptureCredentialStore? store, Guid userId, CancellationToken ct)
     {
         if (store is null) return;
         var pfxPath = SessionPfxPath(session);
         if (System.IO.File.Exists(pfxPath)) return;
-        var ca = await store.GetCaAsync(discordId, ct);
+        var ca = await store.GetCaAsync(userId, ct);
         if (ca is null || ca.Pfx.Length == 0) return;
         Directory.CreateDirectory(Path.GetDirectoryName(pfxPath)!);
         await System.IO.File.WriteAllBytesAsync(pfxPath, ca.Pfx, ct);
@@ -226,13 +232,13 @@ public sealed class CaptureController(
 
     // A fresh mint means no stored CA matched; persist it so the user installs the cert once, ever.
     private static async Task PersistFreshCaAsync(
-        CaptureSession session, CaptureCredentialStore store, string discordId,
+        CaptureSession session, CaptureCredentialStore store, Guid userId,
         string? thumbprint, CancellationToken ct)
     {
         var pfxPath = SessionPfxPath(session);
         if (!System.IO.File.Exists(pfxPath)) return;
         var pfx = await System.IO.File.ReadAllBytesAsync(pfxPath, ct);
-        await store.SaveCaAsync(discordId, pfx, thumbprint ?? "", ct);
+        await store.SaveCaAsync(userId, pfx, thumbprint ?? "", ct);
     }
 
     private static string SessionPfxPath(CaptureSession session) =>
@@ -311,7 +317,7 @@ public sealed class CaptureController(
             {
                 Path = flow.Path, Eid = null,
                 ResponseJson = decoded.Json, ResponseType = decoded.Type,
-                OwnerUserId = currentUser.DiscordId,
+                OwnerUserId = currentUser.UserId,
             });
         }
         else
@@ -351,7 +357,7 @@ public sealed class CaptureController(
         var store = services.GetService(typeof(CaptureAddressStore)) as CaptureAddressStore;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
         var addr = await store.AddrForUserAsync(
-            hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, currentUser.DiscordId!, ct);
+            hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, currentUser.UserId!.Value, ct);
         return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
 
@@ -362,7 +368,7 @@ public sealed class CaptureController(
         if (RequireHostedSupporter() is { } no) return no;
         var store = services.GetService(typeof(CaptureAddressStore)) as CaptureAddressStore;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
-        var addr = await store.RotateAsync(hostedOptions.Ipv6Prefix, currentUser.DiscordId!, ct);
+        var addr = await store.RotateAsync(hostedOptions.Ipv6Prefix, currentUser.UserId!.Value, ct);
         return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
 
@@ -380,7 +386,7 @@ public sealed class CaptureController(
         }
         var store = Credentials;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
-        var ca = await store.GetCaAsync(currentUser.DiscordId!, ct);
+        var ca = await store.GetCaAsync(currentUser.UserId!.Value, ct);
         if (ca is null || ca.Pfx.Length == 0)
             return NotFound(new { error = "no CA yet; start a capture session first" });
         try

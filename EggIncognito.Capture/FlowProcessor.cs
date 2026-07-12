@@ -16,7 +16,7 @@ public sealed class FlowProcessor
     {
         _extractor = extractor;
         // The extractor's per-flow console chatter belongs in the dashboard, not stdout.
-        if (_extractor is not null) _extractor.Quiet = true;
+        _extractor?.Quiet = true;
         _decoder = decoder;
         _har = har;
         _contentRoot = contentRoot;

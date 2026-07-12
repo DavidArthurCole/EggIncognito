@@ -44,7 +44,7 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
             {
                 Path = body.Path, Eid = body.Eid,
                 ResponseJson = body.ResponseJson, ResponseType = body.ResponseType,
-                OwnerUserId = currentUser.DiscordId,
+                OwnerUserId = currentUser.UserId,
             });
         }
         else
@@ -71,7 +71,7 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
             Path = body.Path, RequestType = body.RequestType, ResponseType = body.ResponseType,
             RequestWrapped = body.RequestWrapped, ResponseWrapped = body.ResponseWrapped,
             RawResponse = body.RawResponse, PathParam = body.PathParam, PathParamOnly = body.PathParamOnly,
-            Source = "db", OwnerUserId = currentUser.DiscordId,
+            Source = "db", OwnerUserId = currentUser.UserId,
         });
         await db.SaveChangesAsync();
         return Ok(new { added = body.Path });

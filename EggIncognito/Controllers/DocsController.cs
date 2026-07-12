@@ -69,7 +69,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             db.Docs.Add(new Doc
             {
                 SubjectKind = body.SubjectKind, SubjectKey = body.SubjectKey,
-                BodyMd = body.BodyMd, OwnerUserId = currentUser.DiscordId,
+                BodyMd = body.BodyMd, OwnerUserId = currentUser.UserId,
             });
         }
         else if (empty)
@@ -214,7 +214,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         var img = new DocImage
         {
             ContentType = ct, Bytes = bytes, ByteSize = bytes.Length,
-            OwnerUserId = currentUser.DiscordId,
+            OwnerUserId = currentUser.UserId,
         };
         db.DocImages.Add(img);
         await db.SaveChangesAsync();

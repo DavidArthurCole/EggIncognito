@@ -26,9 +26,8 @@ public class AdminPageTests
             var html = await r.Content.ReadAsStringAsync();
             Assert.Contains("adminMain", html);
             Assert.Contains("id=\"denied\"", html);
-            // Neither provider is configured in this test host; LoginButton's fallback picks /login
-            // when Authentik isn't wired (Auth.AuthentikEnabled false).
-            Assert.Contains("/login?returnUrl=%2Fadmin", html);
+            // Neither provider is configured; LoginButton renders disabled "Login unavailable".
+            Assert.Contains("Login unavailable", html);
             Assert.DoesNotContain("<h2>Users</h2>", html);
         }
     }

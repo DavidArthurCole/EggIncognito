@@ -42,23 +42,23 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             Label = req.Label,
             MessageTemplate = string.IsNullOrWhiteSpace(req.MessageTemplate) ? null : req.MessageTemplate,
             OwnerUserId = (services.GetService(typeof(EggIncognito.Services.ICurrentUser))
-                as EggIncognito.Services.ICurrentUser)?.DiscordId,
+                as EggIncognito.Services.ICurrentUser)?.UserId,
         }, ct);
         return Ok(new { sub.Id, sub.Platforms, sub.Trigger });
     }
 
-    private string? DiscordId =>
+    private Guid? OwnerUserId =>
         (services.GetService(typeof(EggIncognito.Services.ICurrentUser))
-            as EggIncognito.Services.ICurrentUser)?.DiscordId;
+            as EggIncognito.Services.ICurrentUser)?.UserId;
 
     [HttpGet("mine")]
     public async Task<IActionResult> Mine(CancellationToken ct)
     {
-        var owner = DiscordId;
+        var owner = OwnerUserId;
         if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
 
-        var subs = await Store.ByOwnerAsync(owner, ct);
+        var subs = await Store.ByOwnerAsync(owner.Value, ct);
         return Ok(subs.Select(s => new
         {
             s.Id,
@@ -78,11 +78,11 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        var owner = DiscordId;
+        var owner = OwnerUserId;
         if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
 
-        var ok = await Store.DeleteAsync(id, owner, ct);
+        var ok = await Store.DeleteAsync(id, owner.Value, ct);
         if (!ok) return NotFound(new { error = "subscription not found" });
         return Ok(new { deleted = true });
     }
@@ -93,11 +93,11 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Test(int id, CancellationToken ct)
     {
-        var owner = DiscordId;
+        var owner = OwnerUserId;
         if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
 
-        var sub = (await Store.ByOwnerAsync(owner, ct)).FirstOrDefault(s => s.Id == id);
+        var sub = (await Store.ByOwnerAsync(owner.Value, ct)).FirstOrDefault(s => s.Id == id);
         if (sub is null) return NotFound(new { error = "subscription not found" });
 
         // No real proto event exists for a manual test, so render the subscriber's own template (if any)
@@ -125,12 +125,12 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateReq req, CancellationToken ct)
     {
-        var owner = DiscordId;
+        var owner = OwnerUserId;
         if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
 
         var ok = await Store.UpdateAsync(
-            id, owner,
+            id, owner.Value,
             req.Platforms ?? ["android", "ios"],
             req.Trigger ?? "proto_changed",
             req.Active ?? true,

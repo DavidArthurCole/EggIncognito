@@ -1,6 +1,7 @@
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Tools;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -104,6 +105,31 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         if (user is null) return NotFound(new { error = "user not found" });
         await identity.SetRoleAsync(user.UserId, role, HttpContext.RequestAborted);
         return Ok(new { discordId, role });
+    }
+
+    // One-shot: backfills UserId on capture_proxy_addrs/capture_user_cas rows minted before those
+    // tables were keyed by user id. Run before the RepointCaptureTablesToUserId migration.
+    [HttpPost("backfill-capture-user-ids")]
+    public async Task<IActionResult> BackfillCaptureUserIds(CancellationToken ct)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
+        var identity = Identity; if (identity is null) return StatusCode(503, new { error = "identity api not configured" });
+        var updated = await CaptureUserIdBackfill.RunAsync(db, identity, ct);
+        return Ok(new { updated });
+    }
+
+    // One-shot: backfills owner_user_id/author_user_id on docs/doc_images/env_designs/
+    // env_design_versions/stored_endpoints/stored_routes/feed_subscriptions rows still holding a
+    // Discord ID string. Run before the RetypeOwnerAuthorUserIdColumns migration.
+    [HttpPost("backfill-owner-author-user-ids")]
+    public async Task<IActionResult> BackfillOwnerAuthorUserIds(CancellationToken ct)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
+        var identity = Identity; if (identity is null) return StatusCode(503, new { error = "identity api not configured" });
+        var updated = await OwnerAuthorUserIdBackfill.RunAsync(db, identity, ct);
+        return Ok(new { updated });
     }
 
     [HttpDelete("endpoint/{id:long}")]

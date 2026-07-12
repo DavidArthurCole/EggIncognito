@@ -62,8 +62,9 @@ public class CaptureAddressStoreTests
         await using var db = new EggIncognitoDbContext(opts);
         var store = new CaptureAddressStore(db);
 
-        var addr = await store.AddrForUserAsync(Prefix, Secret, "123");
+        var userId = Guid.NewGuid();
+        var addr = await store.AddrForUserAsync(Prefix, Secret, userId);
         var who = await store.UserForAddrAsync(addr);
-        Assert.Equal("123", who);
+        Assert.Equal(userId, who);
     }
 }

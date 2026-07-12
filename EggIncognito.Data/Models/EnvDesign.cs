@@ -18,7 +18,7 @@ public class EnvDesign
     public string Payload { get; set; } = "{}";
 
     [Column("owner_user_id")]
-    public string? OwnerUserId { get; set; }
+    public Guid? OwnerUserId { get; set; }
 
     [Column("created_at")]
     public DateTimeOffset CreatedAt { get; set; }

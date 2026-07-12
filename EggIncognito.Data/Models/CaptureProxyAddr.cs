@@ -8,11 +8,11 @@ namespace EggIncognito.Data.Models;
 public class CaptureProxyAddr
 {
     [Key]
-    [Column("discord_id")]
-    public string DiscordId { get; set; } = "";
-
     [Column("user_id")]
     public Guid UserId { get; set; }
+
+    [Column("discord_id")]
+    public string? DiscordId { get; set; }
 
     [Column("addr")]
     public string Addr { get; set; } = "";

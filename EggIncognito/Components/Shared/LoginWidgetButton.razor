@@ -1,14 +1,25 @@
-@* The interactive half of LoginButton: drives the SyncKit popup widget, falls back to the
-   full-page redirect on any failure (popup blocked/closed, script load failure, redeem failure). *@
+@* The interactive half of LoginButton: drives the SyncKit popup widget. No redirect fallback -
+   shows an inline error if the widget fails to load or the login attempt throws. *@
 @rendermode @(RenderMode.InteractiveServer)
 @inject AuthState Auth
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<button type="button" class="@CssClass" disabled="@_busy" @onclick="WidgetLogin">
-  @(_busy ? "Signing in..." : Label)
-</button>
+@if (Auth.WidgetEnabled)
+{
+  <button type="button" class="@CssClass" disabled="@_busy" @onclick="WidgetLogin">
+    @(_busy ? "Signing in..." : Label)
+  </button>
+  @if (_error is not null)
+  {
+    <p class="text-red-500 text-sm">@_error</p>
+  }
+}
+else
+{
+  <span class="@CssClass" style="opacity:0.6;cursor:not-allowed;">Login unavailable (identity service not configured)</span>
+}
 
 @code {
     [Parameter] public string ReturnPath { get; set; } = "/";
@@ -17,12 +28,12 @@
 
     private IJSObjectReference? _widgetMod;
     private bool _busy;
-
-    private string FallbackPath => Auth.AuthentikEnabled ? "/auth" : "/login";
+    private string? _error;
 
     async Task WidgetLogin()
     {
         _busy = true;
+        _error = null;
         StateHasChanged();
         try
         {
@@ -33,8 +44,7 @@
         }
         catch (JSException)
         {
-            Nav.NavigateTo($"{FallbackPath}?returnUrl={Uri.EscapeDataString(ReturnPath)}", forceLoad: true);
-            return;
+            _error = "Login unavailable, try again.";
         }
         finally
         {

@@ -528,7 +528,7 @@ else
     bool SaveDisabled =>
         _busy || (string.IsNullOrEmpty(_currentDesign) && string.IsNullOrWhiteSpace(_designName));
 
-    record DesignVersionRow(int VersionNo, string? Note, DateTimeOffset CreatedAt, string? AuthorUserId, int? RolledBackFrom);
+    record DesignVersionRow(int VersionNo, string? Note, DateTimeOffset CreatedAt, Guid? AuthorUserId, int? RolledBackFrom);
     record DesignVersionsResult(DesignVersionRow[]? Versions);
 
     string _bgColor = "#1a1a1f";
@@ -2286,7 +2286,7 @@ else
     record FarmPlaced(string Stem, string Label, float[] Pos, float RotY, float Scale, bool Recenter);
 
     record FarmLayoutResult(FarmPlaced[]? Elements);
-    record DesignRow(string Name, DateTimeOffset UpdatedAt, string? Owner);
+    record DesignRow(string Name, DateTimeOffset UpdatedAt, Guid? Owner);
     record DesignListResult(DesignRow[]? Designs);
 
     public async ValueTask DisposeAsync()

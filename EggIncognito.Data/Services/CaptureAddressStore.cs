@@ -32,26 +32,26 @@ public sealed class CaptureAddressStore(EggIncognitoDbContext db)
         return new IPAddress(bytes);
     }
 
-    public async Task<IPAddress> AddrForUserAsync(string prefixCidr, string secret, string discordId, CancellationToken ct = default)
+    public async Task<IPAddress> AddrForUserAsync(string prefixCidr, string secret, Guid userId, CancellationToken ct = default)
     {
-        var row = await db.CaptureProxyAddrs.AsNoTracking().FirstOrDefaultAsync(a => a.DiscordId == discordId, ct);
+        var row = await db.CaptureProxyAddrs.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId, ct);
         if (row is not null) return IPAddress.Parse(row.Addr);
-        return await MintAsync(prefixCidr, discordId, ct);
+        return await MintAsync(prefixCidr, userId, ct);
     }
 
     // Old address immediately resolves to nobody; the phone must be reconfigured with the new one.
-    public async Task<IPAddress> RotateAsync(string prefixCidr, string discordId, CancellationToken ct = default)
-        => await MintAsync(prefixCidr, discordId, ct);
+    public async Task<IPAddress> RotateAsync(string prefixCidr, Guid userId, CancellationToken ct = default)
+        => await MintAsync(prefixCidr, userId, ct);
 
-    private async Task<IPAddress> MintAsync(string prefixCidr, string discordId, CancellationToken ct)
+    private async Task<IPAddress> MintAsync(string prefixCidr, Guid userId, CancellationToken ct)
     {
         for (var attempt = 0; attempt < 5; attempt++)
         {
             var addr = RandomInPrefix(prefixCidr);
             var canonical = addr.ToString();
-            var row = await db.CaptureProxyAddrs.FirstOrDefaultAsync(a => a.DiscordId == discordId, ct);
+            var row = await db.CaptureProxyAddrs.FirstOrDefaultAsync(a => a.UserId == userId, ct);
             if (row is null)
-                db.CaptureProxyAddrs.Add(new CaptureProxyAddr { DiscordId = discordId, Addr = canonical, CreatedAt = DateTimeOffset.UtcNow });
+                db.CaptureProxyAddrs.Add(new CaptureProxyAddr { UserId = userId, Addr = canonical, CreatedAt = DateTimeOffset.UtcNow });
             else
                 row.Addr = canonical;
             try { await db.SaveChangesAsync(ct); return addr; }
@@ -60,10 +60,10 @@ public sealed class CaptureAddressStore(EggIncognitoDbContext db)
         throw new InvalidOperationException("could not mint a unique capture address after retries");
     }
 
-    public async Task<string?> UserForAddrAsync(IPAddress addr, CancellationToken ct = default)
+    public async Task<Guid?> UserForAddrAsync(IPAddress addr, CancellationToken ct = default)
     {
         var canonical = addr.ToString();
-        return (await db.CaptureProxyAddrs.AsNoTracking()
-            .FirstOrDefaultAsync(a => a.Addr == canonical, ct))?.DiscordId;
+        var row = await db.CaptureProxyAddrs.AsNoTracking().FirstOrDefaultAsync(a => a.Addr == canonical, ct);
+        return row?.UserId;
     }
 }

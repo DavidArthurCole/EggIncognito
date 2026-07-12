@@ -96,9 +96,8 @@ public class HostedCapturePageTests
             var c = Hosted(enabled: true).CreateClient();
             var html = await c.GetStringAsync("/capture");
             Assert.Contains("id=\"hostedLogin\"", html);
-            // Neither provider is configured in this test host; LoginButton's fallback picks /login
-            // when Authentik isn't wired (Auth.AuthentikEnabled false).
-            Assert.Contains("/login?returnUrl=%2Fcapture", html);
+            // Neither provider is configured; LoginButton renders disabled "Login unavailable".
+            Assert.Contains("Login unavailable", html);
             Assert.DoesNotContain("id=\"statsPanel\"", html);
         }
 

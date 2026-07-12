@@ -15,7 +15,7 @@ public sealed class FeedSubscription
     [Column("label")] public string? Label { get; set; }
     // Optional user-authored message with {{variable}} tokens (see FeedTemplate.Render); null/empty falls back to the built-in Discord embed.
     [Column("message_template")] public string? MessageTemplate { get; set; }
-    [Column("owner_user_id")] public string? OwnerUserId { get; set; }
+    [Column("owner_user_id")] public Guid? OwnerUserId { get; set; }
     [Column("created_at")] public DateTimeOffset CreatedAt { get; set; }
     [Column("active")] public bool Active { get; set; } = true;
     [Column("last_delivery_at")] public DateTimeOffset? LastDeliveryAt { get; set; }
