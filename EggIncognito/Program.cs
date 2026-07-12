@@ -73,12 +73,7 @@ builder.WebHost.ConfigureKestrel((context, opts) =>
 builder.Services.AddControllers();
 // API explorer powers the generic API console (/console): reflects every controller endpoint into a list.
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddRazorComponents().AddInteractiveServerComponents(o => o.DetailedErrors = true);
-// TEMP diagnostic for silent StartCircuit failures - revert once real error is captured.
-builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(o => o.EnableDetailedErrors = true);
-builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IHubFilter, EggIncognito.Services.CircuitExceptionLoggingFilter>();
-builder.Services.AddSingleton<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, EggIncognito.Services.CircuitDiagnosticsHandler>();
-builder.Services.AddSignalR();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 // Behind the reverse proxy (Cloudflare -> origin nginx), TLS terminates at the edge, so the origin sees
 // plain HTTP; honor X-Forwarded-Proto/-Host/-For so the app reconstructs the original https request.

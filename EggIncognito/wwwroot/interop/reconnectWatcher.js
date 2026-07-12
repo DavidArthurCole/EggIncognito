@@ -53,31 +53,20 @@
     setTimeout(tick, POLL_MS);
   }
 
-  // Blazor.start provides a reconnectionHandler; polling starts on the first reconnect attempt.
-  function hookBlazor() {
-    if (!window.Blazor || !window.Blazor.start) { setTimeout(hookBlazor, 50); return; }
-    window.Blazor.start({
-      circuit: {
-        reconnectionHandler: {
-          onConnectionDown: () => startPolling(),
-          onConnectionUp: () => stopPolling(),
-        },
-      },
-    }).catch(() => { /* Blazor may have auto-started; the observer below is the fallback */ });
-  }
-
-  // Fallback for an already-auto-started Blazor: observe the reconnect dialog's visibility classes.
+  // App.razor lets blazor.web.js auto-start (calling Blazor.start manually here fed it a
+  // legacy single-circuit options shape it doesn't expect in Blazor Web App hybrid mode and
+  // corrupted the StartCircuit handshake - 2026-07-11 outage). Observe the reconnect dialog instead.
   function observeDialog() {
     const modal = document.getElementById('components-reconnect-modal');
     if (!modal) { setTimeout(observeDialog, 200); return; }
     const obs = new MutationObserver(() => {
       const cls = modal.className || '';
       if (/components-reconnect-(show|failed)/.test(cls) || modal.open) startPolling();
+      else stopPolling();
     });
     obs.observe(modal, { attributes: true, attributeFilter: ['class', 'open'] });
   }
 
   captureLoadedVersion();
-  hookBlazor();
   observeDialog();
 })();
