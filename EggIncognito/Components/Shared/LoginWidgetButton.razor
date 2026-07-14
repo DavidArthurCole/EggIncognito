@@ -1,5 +1,6 @@
-@* The interactive half of LoginButton: drives the SyncKit popup widget. No redirect fallback -
-   shows an inline error if the widget fails to load or the login attempt throws. *@
+@* The interactive half of LoginButton: drives the SyncKit inline login widget. Clicking reveals
+   an iframe container in place of the button. No redirect fallback - shows an inline error if
+   the widget fails to load or the login attempt throws. *@
 @rendermode @(RenderMode.InteractiveServer)
 @inject AuthState Auth
 @inject NavigationManager Nav
@@ -8,9 +9,16 @@
 
 @if (Auth.WidgetEnabled)
 {
-  <button type="button" class="@CssClass" disabled="@_busy" @onclick="WidgetLogin">
-    @(_busy ? "Signing in..." : Label)
-  </button>
+  @if (_showContainer)
+  {
+    <div @ref="_containerRef" class="@ContainerCssClass"></div>
+  }
+  else
+  {
+    <button type="button" class="@CssClass" @onclick="ShowContainer">
+      @Label
+    </button>
+  }
   @if (_error is not null)
   {
     <p class="text-red-500 text-sm">@_error</p>
@@ -25,30 +33,35 @@ else
     [Parameter] public string ReturnPath { get; set; } = "/";
     [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
     [Parameter] public string Label { get; set; } = "Log in";
+    [Parameter] public string ContainerCssClass { get; set; } = "";
 
+    private ElementReference _containerRef;
     private IJSObjectReference? _widgetMod;
-    private bool _busy;
+    private bool _showContainer;
+    private bool _started;
     private string? _error;
 
-    async Task WidgetLogin()
+    private void ShowContainer()
     {
-        _busy = true;
         _error = null;
-        StateHasChanged();
+        _showContainer = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_showContainer || _started) return;
+        _started = true;
         try
         {
             _widgetMod ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/synckitLogin.js");
-            await _widgetMod.InvokeAsync<bool>("login", Auth.IdentityHostUrl);
+            await _widgetMod.InvokeAsync<bool>("loginInline", Auth.IdentityHostUrl, _containerRef);
             Nav.NavigateTo(ReturnPath, forceLoad: true);
-            return;
         }
         catch (JSException)
         {
             _error = "Login unavailable, try again.";
-        }
-        finally
-        {
-            _busy = false;
+            _showContainer = false;
+            _started = false;
             StateHasChanged();
         }
     }

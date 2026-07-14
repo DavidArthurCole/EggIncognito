@@ -29,3 +29,18 @@ export async function login(identityHostUrl) {
   if (!resp.ok) throw new Error("redeem_failed");
   return true;
 }
+
+// Runs the inline-iframe flow into containerEl, then redeems the code exactly like login() does.
+// Returns true on success; throws (script_load_failed / redeem_failed / whatever
+// SyncKitAuth.loginInline itself throws) otherwise.
+export async function loginInline(identityHostUrl, containerEl) {
+  await loadScript(identityHostUrl);
+  const { code } = await window.SyncKitAuth.loginInline(identityHostUrl, containerEl);
+  const resp = await fetch("/auth/redeem-code", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  if (!resp.ok) throw new Error("redeem_failed");
+  return true;
+}
