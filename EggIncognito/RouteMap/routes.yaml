@@ -133,8 +133,8 @@ routes:
     requestType: UserDataInfoRequest
     responseType: UserDataInfoResponse
   - path: ei/bot_first_contact
-    request: BasicRequestInfo
-    response: Backup
+    request: EggIncFirstContactRequest
+    response: EggIncFirstContactResponse
 
   # ei_afx/
   - path: ei_afx/abort_mission
