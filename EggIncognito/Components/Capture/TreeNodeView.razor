@@ -8,7 +8,7 @@
     <span class="jtree-caret @(Node.IsContainer ? "" : "jtree-caret-leaf")"></span>
     @if (Node.KeyText is not null)
     {
-      <span class="jtree-key">@Highlight(Node.KeyText)</span>
+      <span class="jtree-key">@Highlight(Node.KeyText, Node.KeyTextLower)</span>
       <span class="jtree-colon">: </span>
     }
     @if (Node.IsContainer)
@@ -86,7 +86,7 @@
             builder.AddAttribute(3, "onclick", EventCallback.Factory.Create<Microsoft.AspNetCore.Components.Web.MouseEventArgs>(this, OnLeafClick));
             builder.AddEventStopPropagationAttribute(4, "onclick", true);
         }
-        builder.AddContent(5, Highlight(LeafDisplay()));
+        builder.AddContent(5, Highlight(LeafDisplay(), Search.Length > 0 ? Node.LeafTextLower : null));
         builder.CloseElement();
     };
 
@@ -96,7 +96,7 @@
         else if (IsClamped) _clampOpen = !_clampOpen;
     }
 
-    RenderFragment Highlight(string text) => builder =>
+    RenderFragment Highlight(string text, string? lowerHint = null) => builder =>
     {
         var needle = Search;
         if (needle.Length == 0)
@@ -104,7 +104,7 @@
             builder.AddContent(0, text);
             return;
         }
-        var lower = text.ToLowerInvariant();
+        var lower = lowerHint ?? text.ToLowerInvariant();
         var idx = lower.IndexOf(needle, StringComparison.Ordinal);
         if (idx < 0)
         {

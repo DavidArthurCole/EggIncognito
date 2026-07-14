@@ -1,76 +1,76 @@
-@* The interactive half of LoginButton: drives the SyncKit inline login widget. Clicking reveals
-   an iframe container in place of the button. No redirect fallback - shows an inline error if
-   the widget fails to load or the login attempt throws. *@
+@* Interactive login CTA. Click reveals the native provider buttons fetched from SyncKit's
+   /login/sources; each is a plain top-level <a> into Authentik (mode=redirect), which returns to
+   /auth/callback. No popup, no iframe. The one-line sendBeacon stashes the return path on a browser
+   request (the circuit can't set browser cookies) right before the anchor navigates away. *@
 @rendermode @(RenderMode.InteractiveServer)
 @inject AuthState Auth
 @inject NavigationManager Nav
-@inject IJSRuntime JS
-@implements IAsyncDisposable
+@inject SyncKit.Identity.Client.IdentityApiClient Identity
 
-@if (Auth.WidgetEnabled)
+@if (!Auth.WidgetEnabled)
 {
-  @if (_showContainer)
-  {
-    <div @ref="_containerRef" class="@ContainerCssClass"></div>
-  }
-  else
-  {
-    <button type="button" class="@CssClass" @onclick="ShowContainer">
-      @Label
-    </button>
-  }
-  @if (_error is not null)
-  {
-    <p class="text-red-500 text-sm">@_error</p>
-  }
+  <span class="@CssClass" style="opacity:0.6;cursor:not-allowed;">Login unavailable (identity service not configured)</span>
+}
+else if (_sources is not null)
+{
+  <div class="auth-source-list">
+    @foreach (var s in _sources)
+    {
+      <a class="auth-source-btn" href="@s.Url" onclick="@BeaconJs">
+        @if (!string.IsNullOrEmpty(s.IconUrl))
+        {
+          <img class="auth-source-logo" src="@s.IconUrl" alt="" />
+        }
+        <span>@s.Name</span>
+      </a>
+    }
+  </div>
 }
 else
 {
-  <span class="@CssClass" style="opacity:0.6;cursor:not-allowed;">Login unavailable (identity service not configured)</span>
+  <button type="button" class="@CssClass" @onclick="Reveal" disabled="@_loading">
+    @(_loading ? "Loading..." : Label)
+  </button>
+}
+@if (_error is not null)
+{
+  <p class="text-red-500 text-sm">@_error</p>
 }
 
 @code {
     [Parameter] public string ReturnPath { get; set; } = "/";
     [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
     [Parameter] public string Label { get; set; } = "Log in";
-    [Parameter] public string ContainerCssClass { get; set; } = "";
 
-    private ElementReference _containerRef;
-    private IJSObjectReference? _widgetMod;
-    private bool _showContainer;
-    private bool _started;
+    private IReadOnlyList<SyncKit.Contract.LoginSourceResponse>? _sources;
+    private bool _loading;
     private string? _error;
 
-    private void ShowContainer()
+    private string BeaconJs =>
+        $"navigator.sendBeacon('/auth/login-return', {System.Text.Json.JsonSerializer.Serialize(ReturnPath)})";
+
+    private async Task Reveal()
     {
         _error = null;
-        _showContainer = true;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!_showContainer || _started) return;
-        _started = true;
+        _loading = true;
         try
         {
-            _widgetMod ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/synckitLogin.js");
-            await _widgetMod.InvokeAsync<bool>("loginInline", Auth.IdentityHostUrl, _containerRef);
-            Nav.NavigateTo(ReturnPath, forceLoad: true);
+            var origin = new Uri(Nav.BaseUri).GetLeftPart(UriPartial.Authority);
+            var resp = await Identity.GetLoginSourcesAsync(origin, "redirect", CancellationToken.None);
+            if (resp.Sources.Count == 0)
+            {
+                _error = "No login providers configured.";
+                return;
+            }
+            _sources = resp.Sources;
         }
-        catch (JSException)
+        catch (Exception)
         {
-            _error = "Login unavailable, try again.";
-            _showContainer = false;
-            _started = false;
-            StateHasChanged();
+            _error = "Login temporarily unavailable.";
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_widgetMod is not null)
+        finally
         {
-            try { await _widgetMod.DisposeAsync(); } catch (JSDisconnectedException) { }
+            _loading = false;
         }
     }
 }

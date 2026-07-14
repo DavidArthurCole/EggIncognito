@@ -4,6 +4,10 @@
 <PageTitle>EggIncognito</PageTitle>
 <main class="px-8 pt-6 pb-12 max-w-[960px]">
   <h1 class="sr-only">EggIncognito</h1>
+  @if (LoginError == 1)
+  {
+    <p class="panel text-red-500 text-sm mb-4">Login failed. Please try again.</p>
+  }
   <img class="block w-full max-w-[360px] h-auto mb-3" src="/brand/wordmark.png" alt="EggIncognito" />
   <p class="text-[15px] mb-4">Stateless mock server + toolkit for the Egg, Inc. API.</p>
   <div class="flex flex-wrap gap-3 mb-10">
@@ -68,3 +72,7 @@
     </p>
   </footer>
 </main>
+
+@code {
+    [SupplyParameterFromQuery(Name = "login_error")] public int LoginError { get; set; }
+}

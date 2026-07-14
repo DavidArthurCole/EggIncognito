@@ -36,10 +36,18 @@ public class AuthModeTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task RedeemCode_404s_WhenWidgetOff()
+    public async Task Callback_404s_WhenWidgetOff()
+    {
+        var c = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var r = await c.GetAsync("/auth/callback?code=abc");
+        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task LoginReturn_404s_WhenWidgetOff()
     {
         var c = _factory.CreateClient();
-        var r = await c.PostAsJsonAsync("/auth/redeem-code", new { code = "abc" });
+        var r = await c.PostAsync("/auth/login-return", new StringContent("\"/admin\""));
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 }

@@ -1,6 +1,7 @@
 @* Collapsible, searchable JSON tree viewer. The whole value is parsed once into TreeNode; expand/collapse
    toggles per-node state, search force-expands ancestor chains and dims non-matches. *@
 @using EggIncognito.Components.Capture
+@implements IDisposable
 
 <div class="jtree-viewer">
   <div class="jtree-tools">
@@ -26,15 +27,26 @@
     string _search = "";
     string _needle = "";
     string _count = "";
+    CancellationTokenSource? _debounceCts;
 
-    void OnSearchInput(ChangeEventArgs e)
+    // Debounce keystrokes: each search pass walks the whole tree and force-expands matches, heavy on
+    // large payloads, so coalesce bursts into one pass instead of one per keystroke.
+    async Task OnSearchInput(ChangeEventArgs e)
     {
         _search = e.Value?.ToString() ?? "";
+        _debounceCts?.Cancel();
+        var cts = _debounceCts = new CancellationTokenSource();
+        try { await Task.Delay(250, cts.Token); }
+        catch (TaskCanceledException) { return; }
         ApplySearch(_search);
+        StateHasChanged();
     }
+
+    public void Dispose() => _debounceCts?.Cancel();
 
     void ExpandAll()
     {
+        _debounceCts?.Cancel();
         _search = ""; _needle = ""; _count = "";
         if (Root is null) return;
         SetExpansion(Root, true);
@@ -43,6 +55,7 @@
 
     void CollapseAll()
     {
+        _debounceCts?.Cancel();
         _search = ""; _needle = ""; _count = "";
         if (Root is null) return;
         ClearMarks(Root);
@@ -66,6 +79,7 @@
     void ApplySearch(string query)
     {
         var needle = query.Trim().ToLowerInvariant();
+        if (needle == _needle && Root is not null) return;
         _needle = needle;
         if (Root is null) return;
         if (needle.Length == 0)
@@ -89,9 +103,9 @@
     static bool Visit(TreeNode node, string needle, ref int matches)
     {
         var selfMatch = false;
-        if (node.KeyText is not null && node.KeyText.ToLowerInvariant().Contains(needle))
+        if (node.KeyTextLower is not null && node.KeyTextLower.Contains(needle))
             selfMatch = true;
-        if (!node.IsContainer && node.LeafText.ToLowerInvariant().Contains(needle))
+        if (!node.IsContainer && node.LeafTextLower.Contains(needle))
             selfMatch = true;
 
         var childMatch = false;

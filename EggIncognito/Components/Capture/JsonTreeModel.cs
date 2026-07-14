@@ -19,6 +19,11 @@ public sealed class TreeNode
 
     // leaf value (rendered text, already quoted for strings)
     public string LeafText { get; init; } = "";
+
+    // lowercased key/leaf cached once at parse so search never re-lowers per keystroke
+    public string? KeyTextLower { get; private set; }
+    public string LeafTextLower { get; private set; } = "";
+
     public bool IsContainer => Kind is "object" or "array";
 
     public List<TreeNode> Children { get; } = [];
@@ -58,6 +63,8 @@ public sealed class TreeNode
             Depth = depth,
             LeafText = kind is "object" or "array" ? "" : LeafValue(value, kind),
         };
+        node.KeyTextLower = keyText?.ToLowerInvariant();
+        node.LeafTextLower = node.LeafText.ToLowerInvariant();
 
         if (value is JsonArray arr)
         {

@@ -105,12 +105,15 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
   text-decoration: none;
 }
 .auth-nav a.auth-btn:hover, .auth-nav button.auth-btn:hover { filter: brightness(1.07); }
-/* Discord login: accent2 blue + white logo/label. */
-.auth-nav .auth-btn-discord {
+/* Native federated login: one <a> per provider fetched from /login/sources, stacked. */
+.auth-source-list { display: inline-flex; flex-direction: column; gap: 0.35rem; }
+.auth-source-btn {
   display: inline-flex; align-items: center; gap: 0.4rem;
-  background: #5aa9e6; color: #fff;
+  color: #1b1b1f; background: #ef7559; border-radius: 6px;
+  padding: 0.25rem 0.6rem; font-size: 13px; font-weight: 600; text-decoration: none;
 }
-.auth-nav .auth-btn-discord .auth-btn-logo { display: block; flex: none; }
+.auth-source-btn:hover { filter: brightness(1.07); }
+.auth-source-logo { width: 16px; height: 16px; display: block; flex: none; }
 
 /* Column resize gutter between resizable panels (see resize.js). A thin grab strip with a centered
    handle that brightens on hover/drag. --gutter-w is the track width the grid reserves for it. */
