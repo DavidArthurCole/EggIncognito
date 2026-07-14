@@ -133,7 +133,7 @@ routes:
     requestType: UserDataInfoRequest
     responseType: UserDataInfoResponse
   - path: ei/bot_first_contact
-    request:  BasicRequestInfo
+    request: BasicRequestInfo
     response: Backup
     responseWrapped: true
 
