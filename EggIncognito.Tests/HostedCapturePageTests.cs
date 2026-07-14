@@ -123,7 +123,7 @@ public class HostedCapturePageTests
             Services.AddSingleton(NewManager());
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
-            Services.AddSingleton(new AuthState(DiscordEnabled: false, AuthentikEnabled: false));
+            Services.AddSingleton(new AuthState(IdentityApiEnabled: false));
             Services.AddHttpClient();
         }
 

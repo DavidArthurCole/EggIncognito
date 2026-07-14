@@ -179,9 +179,8 @@ if (dbEnabled)
         new EggIncognito.Data.Services.ScopedDbRouteProvider(sp.GetRequiredService<IServiceScopeFactory>()));
 }
 
-// Discord auth wires only when SyncKit.Identity is configured plus Discord creds are present. Authentik
-// wires as a second, additive OIDC scheme when its own config keys are present; either can run standalone
-// or both together. CurrentUser is always registered and reports anonymous when no auth middleware ran.
+// Login is SyncKit-only: the widget redeems a login code for this app's cookie. CurrentUser is always
+// registered and reports anonymous when no auth middleware ran.
 var identityApiUrl = builder.Configuration["Identity:ApiUrl"];
 var identityApiSecret = builder.Configuration["Identity:ApiSecret"];
 // Public, browser-reachable address of SyncKit.Identity.Host, serving /synckit-login.js. Distinct
@@ -197,20 +196,10 @@ if (identityApiEnabled)
         c.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", identityApiSecret);
     });
 }
-var discordAuthEnabled = builder.AddDiscordAuthIfConfigured(identityApiEnabled);
-var authentikAuthEnabled = builder.AddAuthentikAuthIfConfigured(identityApiEnabled);
-if (authentikAuthEnabled)
-{
-    // Backs AuthController.BackchannelLogout's logout_token signature check: fetches and caches
-    // Authentik's discovery doc/JWKS independently of the OIDC handler's own internal manager.
-    var authority = builder.Configuration["Authentik:Authority"]!;
-    builder.Services.AddSingleton(new Microsoft.IdentityModel.Protocols.ConfigurationManager<
-        Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfiguration>(
-        $"{authority.TrimEnd('/')}/.well-known/openid-configuration",
-        new Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfigurationRetriever()));
-}
-var authEnabled = discordAuthEnabled || authentikAuthEnabled;
-builder.Services.AddSingleton(new AuthState(discordAuthEnabled, authentikAuthEnabled, identityWidgetUrl));
+builder.AddSyncKitAuthIfConfigured(identityApiEnabled);
+var authState = new AuthState(identityApiEnabled, identityWidgetUrl);
+var authEnabled = authState.Enabled;
+builder.Services.AddSingleton(authState);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<EggIncognito.Services.Metrics.ApiMetrics>();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();

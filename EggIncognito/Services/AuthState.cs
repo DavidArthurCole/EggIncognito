@@ -1,13 +1,10 @@
 namespace EggIncognito.Services;
 
-// Singleton flags: which auth provider(s) wired this run, so always-present services can branch
-// without depending on auth-only services. DiscordEnabled/AuthentikEnabled let a challenge endpoint
-// 404 instead of throwing against a scheme its own provider never registered.
-public sealed record AuthState(bool DiscordEnabled, bool AuthentikEnabled, string? IdentityHostUrl = null)
+// Singleton flags for the SyncKit-only login path, so always-present services can branch without
+// depending on auth-only services. Widget login (AuthController.RedeemCode) mints its own cookie via
+// the Identity API; it needs the API configured plus the host serving /synckit-login.js.
+public sealed record AuthState(bool IdentityApiEnabled, string? IdentityHostUrl = null)
 {
-    public bool Enabled => DiscordEnabled || AuthentikEnabled;
-
-    // The embedded popup widget needs a live cookie scheme (Discord or Authentik already wired) plus
-    // the identity host serving /synckit-login.js and /identity/redeem.
-    public bool WidgetEnabled => Enabled && !string.IsNullOrWhiteSpace(IdentityHostUrl);
+    public bool WidgetEnabled => IdentityApiEnabled && !string.IsNullOrWhiteSpace(IdentityHostUrl);
+    public bool Enabled => WidgetEnabled;
 }

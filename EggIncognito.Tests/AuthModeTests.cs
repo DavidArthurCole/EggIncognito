@@ -20,10 +20,10 @@ public class AuthModeTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task Login_404s_WhenAuthOff()
+    public async Task Logout_404s_WhenAuthOff()
     {
         var c = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        var r = await c.GetAsync("/login");
+        var r = await c.PostAsync("/logout", null);
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 

@@ -39,7 +39,7 @@ public class AdminPageTests
         {
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
-            Services.AddSingleton(new AuthState(DiscordEnabled: false, AuthentikEnabled: false));
+            Services.AddSingleton(new AuthState(IdentityApiEnabled: false));
             Services.AddHttpClient();
         }
 
