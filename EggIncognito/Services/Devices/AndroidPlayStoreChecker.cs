@@ -10,7 +10,11 @@ public sealed class AndroidPlayStoreChecker(
     IProcessRunner runner, AndroidPlayStoreChecker.Options opts, ILogger<AndroidPlayStoreChecker> logger)
     : IDeviceStoreChecker
 {
-    public sealed record Options(string DriveTemplate, int PollSeconds, int PollAttempts);
+    // UiFirstWaitSeconds/UiRetryWaitSeconds gate the Play-page load poll; production waits 6s then 3s
+    // for the UI to render, tests pass 0 to run instantly.
+    public sealed record Options(
+        string DriveTemplate, int PollSeconds, int PollAttempts,
+        int UiFirstWaitSeconds = 6, int UiRetryWaitSeconds = 3);
 
     public string Platform => "android";
 
@@ -107,7 +111,8 @@ public sealed class AndroidPlayStoreChecker(
         progress?.Invoke("Play page open; locating Update button…");
         for (var tries = 0; tries < 4; tries++)
         {
-            try { await Task.Delay(TimeSpan.FromSeconds(tries == 0 ? 6 : 3), ct); }
+            var wait = tries == 0 ? opts.UiFirstWaitSeconds : opts.UiRetryWaitSeconds;
+            try { if (wait > 0) await Task.Delay(TimeSpan.FromSeconds(wait), ct); }
             catch (OperationCanceledException) { break; }
 
             var xml = await DumpUiAsync(device, ct);

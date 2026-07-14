@@ -6,11 +6,11 @@ namespace EggIncognito.Tests;
 // import/styles.css, must link the compiled Tailwind sheet, and that sheet must define the shared
 // component classes the migrated markup depends on. A regression in the shim or an accidental
 // re-introduction of the old sheet is caught here.
-public class ImportTabStyleTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class ImportTabStyleTests
 {
     private readonly WebApplicationFactory<Program> _f;
-    public ImportTabStyleTests(WebApplicationFactory<Program> f) =>
-        _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public ImportTabStyleTests(SharedAppFactory f) => _f = f;
 
     [Fact]
     public async Task ImportPage_UsesTailwind_NotBespokeSheet()

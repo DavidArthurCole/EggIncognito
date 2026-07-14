@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-public class BlazorShellTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class BlazorShellTests
 {
     private readonly WebApplicationFactory<Program> _f;
-    public BlazorShellTests(WebApplicationFactory<Program> f) =>
-        _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public BlazorShellTests(SharedAppFactory f) => _f = f;
 
     [Fact]
     public async Task Home_RendersBlazorShell()

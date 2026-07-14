@@ -5,11 +5,11 @@ namespace EggIncognito.Tests;
 
 // Public proto registry API surface. Robust to both run environments: no Postgres (store absent) and a
 // dev box with a real DB.
-public class ProtosApiTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class ProtosApiTests
 {
     private readonly WebApplicationFactory<Program> _factory;
-    public ProtosApiTests(WebApplicationFactory<Program> f) =>
-        _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public ProtosApiTests(SharedAppFactory f) => _factory = f;
 
     [Fact]
     public async Task Versions_ReturnsJsonArray()

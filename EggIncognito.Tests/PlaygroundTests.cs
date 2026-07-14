@@ -10,12 +10,12 @@ namespace EggIncognito.Tests;
 // Boots the real host and exercises the 3D-playground HTTP surface end to end: the page renders, the ship
 // list endpoint responds, and the animate-glb toolkit endpoint round-trips a real .glb through SharpGLTF.
 // Covers the wiring (routing, DI, multipart) that the GltfAnimator unit tests don't.
-public class PlaygroundTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class PlaygroundTests
 {
     private readonly WebApplicationFactory<Program> _factory;
 
-    public PlaygroundTests(WebApplicationFactory<Program> f) =>
-        _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public PlaygroundTests(SharedAppFactory f) => _factory = f;
 
     [Fact]
     public async Task Playground_Page_Renders_AdminGated()

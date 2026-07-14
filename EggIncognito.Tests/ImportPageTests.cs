@@ -12,11 +12,11 @@ namespace EggIncognito.Tests;
 public class ImportPageTests
 {
     // Page-level: the prerendered /import returns 200 with the dropzone chrome. Mirrors AdminPageTests.
-    public class Integration : IClassFixture<WebApplicationFactory<Program>>
+    [Collection(SharedAppCollection.Name)]
+    public class Integration
     {
         private readonly WebApplicationFactory<Program> _f;
-        public Integration(WebApplicationFactory<Program> f) =>
-            _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+        public Integration(SharedAppFactory f) => _f = f;
 
         [Fact]
         public async Task Import_RendersDropzoneShell()

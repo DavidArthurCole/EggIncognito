@@ -16,7 +16,8 @@ public class StoreCheckerProgressTests
     static DeviceStoreTarget Target => new("a", "android", "SER", "com.auxbrain.egginc");
 
     static AndroidPlayStoreChecker Checker(FakeRunner runner, int attempts) =>
-        new(runner, new AndroidPlayStoreChecker.Options("am start {package}", 0, attempts),
+        new(runner, new AndroidPlayStoreChecker.Options("am start {package}", 0, attempts,
+                UiFirstWaitSeconds: 0, UiRetryWaitSeconds: 0),
             NullLogger<AndroidPlayStoreChecker>.Instance);
 
     const string UiWithUpdate =

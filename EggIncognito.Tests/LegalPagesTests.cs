@@ -5,14 +5,14 @@ namespace EggIncognito.Tests;
 // /terms and /privacy render in all modes and both carry the not-affiliated disclaimer. The /about
 // page holds the disclaimer + license + the Terms/Privacy links (moved off the site-wide footer so it
 // no longer stretches every page's scroll).
-public class LegalPagesTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class LegalPagesTests
 {
     private const string Disclaimer =
         "EggIncognito is an independent, fan-made tool and is not affiliated with, endorsed by, or";
 
     private readonly WebApplicationFactory<Program> _factory;
-    public LegalPagesTests(WebApplicationFactory<Program> f) =>
-        _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public LegalPagesTests(SharedAppFactory f) => _factory = f;
 
     [Fact]
     public async Task TermsPage_Renders_WithDisclaimer()

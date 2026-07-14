@@ -7,12 +7,12 @@ namespace EggIncognito.Tests;
 // /api/inspector/decode-response is an egress-free pure-decode helper used by custom-proxy mode: the
 // browser already holds the bytes and just needs them rendered. No network, no salt. These boot the
 // real host (no AppMode override - the helper is ungated) and prove decode works without any send.
-public class InspectorDecodeResponseTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class InspectorDecodeResponseTests
 {
     private readonly WebApplicationFactory<Program> _factory;
 
-    public InspectorDecodeResponseTests(WebApplicationFactory<Program> f) =>
-        _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public InspectorDecodeResponseTests(SharedAppFactory f) => _factory = f;
 
     [Fact]
     public async Task DecodesKnownResponse()

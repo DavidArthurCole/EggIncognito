@@ -5,11 +5,11 @@ namespace EggIncognito.Tests;
 // Neither Inspector nor Capture links a bespoke per-tab sheet: the single compiled Tailwind sheet
 // defines the canonical component classes both tabs depend on, and .btn-primary resolves to the
 // accent (orange) color.
-public class UnifiedStyleTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class UnifiedStyleTests
 {
     private readonly WebApplicationFactory<Program> _f;
-    public UnifiedStyleTests(WebApplicationFactory<Program> f) =>
-        _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public UnifiedStyleTests(SharedAppFactory f) => _f = f;
 
     [Theory]
     [InlineData("/inspector")]

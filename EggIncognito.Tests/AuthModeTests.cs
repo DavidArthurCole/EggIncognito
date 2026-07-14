@@ -4,11 +4,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-public class AuthModeTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class AuthModeTests
 {
     private readonly WebApplicationFactory<Program> _factory;
-    public AuthModeTests(WebApplicationFactory<Program> f) =>
-        _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public AuthModeTests(SharedAppFactory f) => _factory = f;
 
     [Fact]
     public async Task Mode_ReportsAuthDisabled_WhenNoCreds()

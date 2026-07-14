@@ -15,11 +15,11 @@ public class ProtosPageTests
 {
     // Page-level: the prerendered /protos returns 200 with the registry shell. Anonymous, so no
     // backfill panel renders.
-    public class Integration : IClassFixture<WebApplicationFactory<Program>>
+    [Collection(SharedAppCollection.Name)]
+    public class Integration
     {
         private readonly WebApplicationFactory<Program> _f;
-        public Integration(WebApplicationFactory<Program> f) =>
-            _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+        public Integration(SharedAppFactory f) => _f = f;
 
         [Fact]
         public async Task Protos_Anonymous_RendersTableShell_NoBackfillPanel()

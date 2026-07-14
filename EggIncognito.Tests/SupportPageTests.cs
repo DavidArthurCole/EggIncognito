@@ -4,11 +4,11 @@ namespace EggIncognito.Tests;
 
 // The /support marketing page renders in all modes: perks, the three platform cards, and the FAQ.
 // The connect-account section is auth-gated in markup and absent without OAuth config.
-public class SupportPageTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class SupportPageTests
 {
     private readonly WebApplicationFactory<Program> _factory;
-    public SupportPageTests(WebApplicationFactory<Program> f) =>
-        _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public SupportPageTests(SharedAppFactory f) => _factory = f;
 
     [Fact]
     public async Task SupportPage_Renders()

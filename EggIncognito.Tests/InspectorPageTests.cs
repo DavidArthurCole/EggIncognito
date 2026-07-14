@@ -15,11 +15,11 @@ namespace EggIncognito.Tests;
 public class InspectorPageTests
 {
     // Page-level: the prerendered /inspector returns 200 with the inspector shell markers.
-    public class Integration : IClassFixture<WebApplicationFactory<Program>>
+    [Collection(SharedAppCollection.Name)]
+    public class Integration
     {
         private readonly WebApplicationFactory<Program> _f;
-        public Integration(WebApplicationFactory<Program> f) =>
-            _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+        public Integration(SharedAppFactory f) => _f = f;
 
         [Fact]
         public async Task Inspector_RendersShell()

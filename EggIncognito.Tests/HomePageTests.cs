@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace EggIncognito.Tests;
 
 // The redesigned home page: feature grid, getting-started blocks, support strip, footer.
-public class HomePageTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class HomePageTests
 {
     private readonly WebApplicationFactory<Program> _factory;
-    public HomePageTests(WebApplicationFactory<Program> f) =>
-        _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public HomePageTests(SharedAppFactory f) => _factory = f;
 
     [Fact]
     public async Task Home_RendersFeatureGridAndSupportLink()

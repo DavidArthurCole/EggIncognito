@@ -10,11 +10,11 @@ namespace EggIncognito.Tests;
 // The registry is DB-free (proto reflection + curated lists), so the hub renders with no Postgres.
 public class DocsHubTests
 {
-    public class Integration : IClassFixture<WebApplicationFactory<Program>>
+    [Collection(SharedAppCollection.Name)]
+    public class Integration
     {
         private readonly WebApplicationFactory<Program> _f;
-        public Integration(WebApplicationFactory<Program> f) =>
-            _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+        public Integration(SharedAppFactory f) => _f = f;
 
         // Legacy /docs route now redirects into the Inspector; must still respond 200, not 404.
         [Fact]

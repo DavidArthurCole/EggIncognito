@@ -11,11 +11,11 @@ namespace EggIncognito.Tests;
 // The denied/panel split is gated server-side by ICurrentUser (courtesy UX; the controller ACL is the real gate).
 public class AdminPageTests
 {
-    public class Integration : IClassFixture<WebApplicationFactory<Program>>
+    [Collection(SharedAppCollection.Name)]
+    public class Integration
     {
         private readonly WebApplicationFactory<Program> _f;
-        public Integration(WebApplicationFactory<Program> f) =>
-            _f = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+        public Integration(SharedAppFactory f) => _f = f;
 
         [Fact]
         public async Task Admin_Anonymous_RendersDeniedState()

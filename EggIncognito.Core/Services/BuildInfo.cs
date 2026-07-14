@@ -24,9 +24,16 @@ public sealed record BuildInfo(string Version, string Sha, string ShortSha, stri
     {
         var asm = Assembly.GetEntryAssembly() ?? typeof(BuildInfo).Assembly;
         var iv = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
-        // Build date: the assembly file's last-write time, best-effort.
+        // Build date: the on-disk entry file's last-write time, best-effort. Assembly.Location is empty
+        // in a single-file publish, so use the process path (the exe) which single-file preserves.
         string buildDate;
-        try { buildDate = File.GetLastWriteTimeUtc(asm.Location).ToString("yyyy-MM-dd HH:mm 'UTC'"); }
+        try
+        {
+            var path = Environment.ProcessPath ?? asm.Location;
+            buildDate = string.IsNullOrEmpty(path)
+                ? "unknown"
+                : File.GetLastWriteTimeUtc(path).ToString("yyyy-MM-dd HH:mm 'UTC'");
+        }
         catch { buildDate = "unknown"; }
         return Parse(iv, repoUrl, buildDate);
     }

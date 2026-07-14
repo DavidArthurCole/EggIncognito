@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-public class AppVersionTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class AppVersionTests
 {
     private readonly WebApplicationFactory<Program> _factory;
-    public AppVersionTests(WebApplicationFactory<Program> f) =>
-        _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public AppVersionTests(SharedAppFactory f) => _factory = f;
 
     [Fact]
     public async Task AppVersion_ReturnsVersionAndSha()

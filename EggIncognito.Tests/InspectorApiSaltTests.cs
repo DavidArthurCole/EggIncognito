@@ -8,12 +8,12 @@ namespace EggIncognito.Tests;
 // Boots the real web host in-process and proves the Inspector build path is driven by a CLIENT-SUPPLIED
 // salt (sent in the request body), not a server env var: a salt -> canSign true, no salt -> canSign
 // false, the same salt -> a stable signature, and the old server-owned GET env-defaults endpoint is gone.
-public class InspectorApiSaltTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(SharedAppCollection.Name)]
+public class InspectorApiSaltTests
 {
     private readonly WebApplicationFactory<Program> _factory;
 
-    public InspectorApiSaltTests(WebApplicationFactory<Program> f) =>
-        _factory = f.WithWebHostBuilder(b => b.UseSetting("NoBrowser", "true"));
+    public InspectorApiSaltTests(SharedAppFactory f) => _factory = f;
 
     // A non-empty body: the signing hash mutates a byte at a fixed offset, so the inner message must
     // serialize to at least one byte (an all-default {} message is zero bytes).
