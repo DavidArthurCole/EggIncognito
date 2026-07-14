@@ -58,9 +58,13 @@ public class CapturePageTests
 
             cut.Find(".jtree-search").Input("alpha");
 
-            Assert.Contains("<mark>", cut.Markup);
-            Assert.Contains("jtree-dim", cut.Markup);
-            Assert.Contains("1 match", cut.Markup);
+            // Search is debounced (~250ms) then re-renders, so poll instead of asserting synchronously.
+            cut.WaitForAssertion(() =>
+            {
+                Assert.Contains("<mark>", cut.Markup);
+                Assert.Contains("jtree-dim", cut.Markup);
+                Assert.Contains("1 match", cut.Markup);
+            }, TimeSpan.FromSeconds(2));
         }
 
         [Fact]

@@ -19,7 +19,7 @@ else if (_sources is not null)
       <a class="auth-source-btn" href="@s.Url" onclick="@BeaconJs">
         @if (!string.IsNullOrEmpty(s.IconUrl))
         {
-          <img class="auth-source-logo" src="@s.IconUrl" alt="" />
+          <img class="auth-source-logo" src="@s.IconUrl" alt="" width="16" height="16" style="width:16px;height:16px;" />
         }
         <span>@s.Name</span>
       </a>
