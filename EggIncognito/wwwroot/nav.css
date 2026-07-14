@@ -105,10 +105,18 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
   text-decoration: none;
 }
 .auth-nav a.auth-btn:hover, .auth-nav button.auth-btn:hover { filter: brightness(1.07); }
-/* Native federated login: one <a> per provider fetched from /login/sources, stacked. */
-.auth-source-list { display: inline-flex; flex-direction: column; gap: 0.35rem; }
+/* Native federated login: the "Log in" button reveals a dropdown of one <a> per provider fetched from
+   /login/sources. The menu is absolutely anchored below the button and right-aligned so it drops down
+   and grows leftward, never off the right screen edge. */
+.auth-source-anchor { position: relative; display: inline-block; }
+.auth-source-menu {
+  position: absolute; top: calc(100% + 0.35rem); right: 0; z-index: 50;
+  display: flex; flex-direction: column; gap: 0.35rem; min-width: max-content;
+  background: #23232a; border: 1px solid #3a3a44; border-radius: 8px; padding: 0.4rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
 .auth-source-btn {
-  display: inline-flex; align-items: center; gap: 0.4rem;
+  display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;
   color: #1b1b1f; background: #ef7559; border-radius: 6px;
   padding: 0.25rem 0.6rem; font-size: 13px; font-weight: 600; text-decoration: none;
 }

@@ -235,6 +235,46 @@ public class TransportPipelineTests
     }
 
     [Fact]
+    public void Decode_ResponseWrappedFalse_ForcesDirectEvenWhenBytesResembleEnvelope()
+    {
+        // EggIncFirstContactResponse with only field 1 (backup) + field 2 (ei_user_id), both
+        // length-delimited, is byte-indistinguishable from a 2-field AuthenticatedMessage
+        // {message, code}, so LooksLikeAuthEnvelope passes. The route declares responseWrapped:false;
+        // the decoder must honor that and parse direct rather than mislabel it wrapped.
+        var pipe = Build();
+        var response = new Ei.EggIncFirstContactResponse
+        {
+            EiUserId = "oBlazin",
+            Backup = new Ei.Backup { UserName = "player" },
+        };
+        var b64 = Convert.ToBase64String(response.ToByteArray());
+
+        var result = pipe.Decode(b64, Ei.EggIncFirstContactResponse.Parser, responseWrapped: false);
+
+        Assert.Null(result.Error);
+        Assert.DoesNotContain(result.Stages, s => s.Name == "authenticated-message");
+        Assert.Contains(result.Stages, s => s.Name == "proto-decode");
+        Assert.Contains("oBlazin", result.Json);
+    }
+
+    [Fact]
+    public void Decode_ResponseWrappedTrue_ForcesWrappedEvenIfHeuristicWouldReject()
+    {
+        // A route declaring responseWrapped:true must take the wrapped path unconditionally, even
+        // when the inner payload's wire shape would fail LooksLikeAuthEnvelope on its own.
+        var pipe = Build();
+        var inner = new Ei.ContractsInfoResponse { ServerTime = 7.0 };
+        var wrapped = new Ei.AuthenticatedMessage { Message = ByteString.CopyFrom(inner.ToByteArray()) };
+        var b64 = Convert.ToBase64String(wrapped.ToByteArray());
+
+        var result = pipe.Decode(b64, Ei.ContractsInfoResponse.Parser, responseWrapped: true);
+
+        Assert.Null(result.Error);
+        Assert.Contains(result.Stages, s => s.Name == "authenticated-message");
+        Assert.Contains("7", result.Json);
+    }
+
+    [Fact]
     public void Decode_WrappedPath_SwallowsOnlyProtoAndDataExceptions()
     {
         // The wrapped-path probe swallows InvalidProtocolBufferException/InvalidDataException

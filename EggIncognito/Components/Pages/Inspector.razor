@@ -955,6 +955,7 @@
         {
             var res = await Client().PostAsJsonAsync("/api/inspector/send",
                 new { url, formBody = _lastBuild.FinalFormBody, responseType = e.Response,
+                      responseWrapped = e.ResponseWrapped,
                       @sealed = _target == "real" && _sealed }, JsonOpts);
             _response = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
             await MaybeDiagnose();
@@ -1026,7 +1027,7 @@
         try
         {
             var res = await Client().PostAsJsonAsync("/api/inspector/decode-response",
-                new { rawBase64 = raw, responseType = e.Response }, JsonOpts);
+                new { rawBase64 = raw, responseType = e.Response, responseWrapped = e.ResponseWrapped }, JsonOpts);
             var dec = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
             _response = new SendResponse(200, raw, dec?.Stages, dec?.Json, dec?.Error, null);
             await MaybeDiagnose();

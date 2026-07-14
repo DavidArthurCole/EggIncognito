@@ -113,7 +113,7 @@ public sealed class InspectorApiController(
         });
     }
 
-    public sealed record SendRequest(string Url, string FormBody, string? ResponseType, bool Sealed = false);
+    public sealed record SendRequest(string Url, string FormBody, string? ResponseType, bool Sealed = false, bool? ResponseWrapped = null);
 
     [HttpPost("send")]
     [EnableRateLimiting("egress")]
@@ -165,7 +165,7 @@ public sealed class InspectorApiController(
             ? reflection.FindParser(body.ResponseType)
             : null;
 
-        var decode = pipeline.Decode(raw, parser);
+        var decode = pipeline.Decode(raw, parser, body.ResponseWrapped);
         return Ok(new
         {
             status = (int)resp.StatusCode,
@@ -178,7 +178,7 @@ public sealed class InspectorApiController(
         });
     }
 
-    public sealed record DecodeResponseRequest(string RawBase64, string? ResponseType);
+    public sealed record DecodeResponseRequest(string RawBase64, string? ResponseType, bool? ResponseWrapped = null);
 
     [HttpPost("decode-response")]
     public IActionResult DecodeResponse([FromBody] DecodeResponseRequest body)
@@ -186,7 +186,7 @@ public sealed class InspectorApiController(
         // Pure decode of a response the browser already has in custom-proxy mode. No network, no salt,
         // no egress, just proto reflection. Ungated; renders the same decoded view Mock/Live get.
         var parser = body.ResponseType is not null ? reflection.FindParser(body.ResponseType) : null;
-        var decode = pipeline.Decode(body.RawBase64, parser);
+        var decode = pipeline.Decode(body.RawBase64, parser, body.ResponseWrapped);
         return Ok(new { decode.Stages, json = decode.Json, error = decode.Error });
     }
 

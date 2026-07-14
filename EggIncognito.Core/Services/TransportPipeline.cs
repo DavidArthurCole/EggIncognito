@@ -47,7 +47,7 @@ public interface ITransportPipeline
     BuildResult Build(byte[] innerProtoBytes, bool wrap, string? salt);
 
     /// <summary>Decode a base64 response body as the given response message type.</summary>
-    DecodeResult Decode(string responseBase64, MessageParser? responseParser);
+    DecodeResult Decode(string responseBase64, MessageParser? responseParser, bool? responseWrapped = null);
 }
 
 public sealed class TransportPipeline : ITransportPipeline
@@ -126,7 +126,7 @@ public sealed class TransportPipeline : ITransportPipeline
         return new BuildResult(stages, b64, formBody);
     }
 
-    public DecodeResult Decode(string responseBase64, MessageParser? responseParser)
+    public DecodeResult Decode(string responseBase64, MessageParser? responseParser, bool? responseWrapped = null)
     {
         var stages = new List<TransportStage>();
         byte[] respBytes;
@@ -144,13 +144,18 @@ public sealed class TransportPipeline : ITransportPipeline
             return new DecodeResult(stages, null, "no parser for this endpoint's response type");
 
         // Real auxbrain wraps responses in an AuthenticatedMessage; the EggIncognito mock returns the raw
-        // response directly. Try the wrapped path first (see LooksLikeAuthEnvelope), falling back to a
-        // direct parse if the inner payload doesn't match.
-        var wrapped = TryDecodeWrapped(respBytes, responseParser);
-        if (wrapped is not null)
+        // response directly. When the route declares responseWrapped, honor it; only guess via
+        // LooksLikeAuthEnvelope when the caller has no metadata (responseWrapped == null). The heuristic
+        // collides with response types whose leading fields are all length-delimited (e.g.
+        // EggIncFirstContactResponse), so it must never override an explicit false.
+        if (responseWrapped != false)
         {
-            stages.AddRange(wrapped.Value.Stages);
-            return new DecodeResult(stages, wrapped.Value.Json, null);
+            var wrapped = TryDecodeWrapped(respBytes, responseParser, force: responseWrapped == true);
+            if (wrapped is not null)
+            {
+                stages.AddRange(wrapped.Value.Stages);
+                return new DecodeResult(stages, wrapped.Value.Json, null);
+            }
         }
 
         try
@@ -169,12 +174,13 @@ public sealed class TransportPipeline : ITransportPipeline
     }
 
     private (IReadOnlyList<TransportStage> Stages, string Json)? TryDecodeWrapped(
-        byte[] respBytes, MessageParser responseParser)
+        byte[] respBytes, MessageParser responseParser, bool force = false)
     {
         // Protobuf parsing is permissive: an unwrapped response whose field 1 is length-delimited can
         // also "parse" as an AuthenticatedMessage. Require every top-level field to match the frozen
-        // envelope schema before committing to the wrapped path.
-        if (!LooksLikeAuthEnvelope(respBytes)) return null;
+        // envelope schema before committing to the wrapped path. When force is set the route already
+        // declared responseWrapped, so skip the guard.
+        if (!force && !LooksLikeAuthEnvelope(respBytes)) return null;
         try
         {
             var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(respBytes);
