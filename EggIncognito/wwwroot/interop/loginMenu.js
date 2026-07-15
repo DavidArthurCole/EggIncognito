@@ -1,45 +1,48 @@
 // Positions the login provider dropdown as a fixed-position element anchored to its trigger button.
-// Fixed positioning escapes any overflow:hidden/auto ancestor (e.g. the /protos modal card), which a
-// plain absolute child cannot. The requested placement is a preference; if the menu would overflow the
-// viewport it flips to the opposite side. Repositions on scroll/resize; closes on outside click.
+// Fixed positioning is what lets it escape any overflow:hidden/auto ancestor (the /protos modal card);
+// a plain absolute child would be clipped. The JS owns the width so positioning never depends on a CSS
+// sheet having loaded (a stale nav.css once left the menu measuring ~1400px and running off-screen).
+// The requested placement is a preference: it flips to the opposite side if it would overflow, and a
+// final clamp keeps the whole menu inside the viewport regardless. Repositions on scroll/resize.
 
 const GAP = 6;
+const WIDTH = 200;
 let active = null;
 
 function place(button, menu, placement) {
+  // Own the width here so offsetWidth is deterministic even if nav.css hasn't applied.
+  menu.style.boxSizing = "border-box";
+  menu.style.width = `${WIDTH}px`;
+  menu.style.maxWidth = "none";
+
   const b = button.getBoundingClientRect();
-  const mw = menu.offsetWidth;
+  const mw = WIDTH;
   const mh = menu.offsetHeight;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
-  let vert = placement.startsWith("Top") ? "top" : placement.startsWith("Bottom") ? "bottom" : "side";
-  let horiz = placement;
-
+  let vert = "side";
+  if (placement.startsWith("Top")) vert = "top";
+  else if (placement.startsWith("Bottom")) vert = "bottom";
   let top, left;
 
   if (vert === "side") {
-    // Right / Left: menu sits beside the button, top-aligned.
+    // Right / Left: beside the button, top-aligned. Flip if the preferred side has no room.
     let toRight = placement === "Right";
-    if (toRight && b.right + GAP + mw > vw && b.left - GAP - mw >= 0) toRight = false;
-    if (!toRight && b.left - GAP - mw < 0 && b.right + GAP + mw <= vw) toRight = true;
+    if (toRight && b.right + GAP + mw > vw && b.left - GAP - mw >= GAP) toRight = false;
+    if (!toRight && b.left - GAP - mw < GAP && b.right + GAP + mw <= vw) toRight = true;
     left = toRight ? b.right + GAP : b.left - GAP - mw;
     top = b.top;
-    if (top + mh > vh) top = Math.max(GAP, vh - mh - GAP);
   } else {
-    // Bottom* / Top*: menu drops below or above, aligned to one edge of the button.
+    // Bottom* / Top*: below or above the button, aligned to one horizontal edge. Flip if no room.
     let below = vert === "bottom";
-    if (below && b.bottom + GAP + mh > vh && b.top - GAP - mh >= 0) below = false;
-    if (!below && b.top - GAP - mh < 0 && b.bottom + GAP + mh <= vh) below = true;
+    if (below && b.bottom + GAP + mh > vh && b.top - GAP - mh >= GAP) below = false;
+    if (!below && b.top - GAP - mh < GAP && b.bottom + GAP + mh <= vh) below = true;
     top = below ? b.bottom + GAP : b.top - GAP - mh;
-
-    const rightAligned = horiz.endsWith("Right");
-    left = rightAligned ? b.right - mw : b.left;
-    if (left + mw > vw) left = vw - mw - GAP;
-    if (left < GAP) left = GAP;
+    left = placement.endsWith("Right") ? b.right - mw : b.left;
   }
 
-  // Final clamp: whatever the branch chose, keep the whole menu inside the viewport.
+  // Hard clamp: the whole menu stays inside the viewport whatever the branch chose.
   left = Math.min(Math.max(GAP, left), Math.max(GAP, vw - mw - GAP));
   top = Math.min(Math.max(GAP, top), Math.max(GAP, vh - mh - GAP));
 
