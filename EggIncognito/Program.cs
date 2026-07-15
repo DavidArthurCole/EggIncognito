@@ -200,6 +200,7 @@ builder.AddSyncKitAuthIfConfigured(identityApiEnabled);
 var authState = new AuthState(identityApiEnabled, identityWidgetUrl);
 var authEnabled = authState.Enabled;
 builder.Services.AddSingleton(authState);
+builder.Services.AddScoped<EggIncognito.Services.LoginSignIn>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<EggIncognito.Services.Metrics.ApiMetrics>();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
@@ -656,6 +657,8 @@ if (authEnabled)
 {
     app.UseAuthentication();
     app.UseAuthorization();
+    // Catches SyncKit's ?code/?error appended to whatever page login started from (0.6 redirect mode).
+    app.UseMiddleware<EggIncognito.Services.LoginCallbackMiddleware>();
 }
 // Required by interactive Razor Components. Must sit after UseRouting + the auth middleware and before
 // the endpoint maps; only form-posting components validate the token.

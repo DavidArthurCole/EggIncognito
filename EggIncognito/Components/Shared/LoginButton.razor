@@ -4,7 +4,7 @@
 
 @if (Auth.Enabled)
 {
-  <LoginWidgetButton CssClass="@CssClass" ReturnPath="@ReturnPath" Label="@Label" />
+  <LoginWidgetButton CssClass="@CssClass" Label="@Label" />
 }
 else
 {
@@ -12,7 +12,6 @@ else
 }
 
 @code {
-    [Parameter] public string ReturnPath { get; set; } = "/";
     [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
     [Parameter] public string Label { get; set; } = "Log in";
 }

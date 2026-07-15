@@ -19,7 +19,7 @@
     <!-- Npgsql 10.0.2 pulls EFCore.Relational 10.0.4 transitively; pin to 10.0.8 to match the EFCore
          package above and silence the MSB3277 version-unification warning. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.8" />
-    <PackageReference Include="SyncKit.Identity.Client" Version="0.5.0-preview.5" />
+    <PackageReference Include="SyncKit.Identity.Client" Version="0.6.0-preview.1" />
   </ItemGroup>
 
   <ItemGroup>

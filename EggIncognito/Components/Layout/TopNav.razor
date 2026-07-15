@@ -2,7 +2,6 @@
 @inject IAppMode AppMode
 @inject ICurrentUser User
 @inject AuthState Auth
-@inject NavigationManager Nav
 <nav class="app-nav">
   <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
   @* Docs folded into Inspector; Support + About moved to the float bubble + homepage footer. *@
@@ -35,18 +34,10 @@
         }
         else if (Auth.WidgetEnabled)
         {
-          <LoginButton CssClass="auth-btn" ReturnPath="@CurrentPath()" Label="Log in" />
+          <LoginButton CssClass="auth-btn" Label="Log in" />
         }
       </span>
     }
   </div>
 </nav>
 
-@code {
-    // The path login returns to. Relative so it never becomes an open redirect.
-    string CurrentPath()
-    {
-        var rel = Nav.ToBaseRelativePath(Nav.Uri);
-        return "/" + rel.TrimStart('/');
-    }
-}

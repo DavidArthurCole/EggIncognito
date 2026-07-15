@@ -36,18 +36,11 @@ public class AuthModeTests
     }
 
     [Fact]
-    public async Task Callback_404s_WhenWidgetOff()
+    public async Task Code_PassesThrough_WhenAuthOff()
     {
+        // No callback middleware is registered when auth is off, so ?code is not intercepted.
         var c = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        var r = await c.GetAsync("/auth/callback?code=abc");
-        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
-    }
-
-    [Fact]
-    public async Task LoginReturn_404s_WhenWidgetOff()
-    {
-        var c = _factory.CreateClient();
-        var r = await c.PostAsync("/auth/login-return", new StringContent("\"/admin\""));
-        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+        var r = await c.GetAsync("/health?code=abc");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
     }
 }

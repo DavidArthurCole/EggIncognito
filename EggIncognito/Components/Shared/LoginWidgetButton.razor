@@ -1,7 +1,7 @@
 @* Interactive login CTA. Click reveals the native provider buttons fetched from SyncKit's
-   /login/sources; each is a plain top-level <a> into Authentik (mode=redirect), which returns to
-   /auth/callback. No popup, no iframe. The one-line sendBeacon stashes the return path on a browser
-   request (the circuit can't set browser cookies) right before the anchor navigates away. *@
+   /login/sources; each is a plain top-level <a> into SyncKit's /login/go/{provider} (mode=redirect),
+   which returns the browser to this exact page with ?code appended. No popup, no iframe, no app-side
+   return-path handling: SyncKit round-trips the full returnUrl. *@
 @rendermode @(RenderMode.InteractiveServer)
 @inject AuthState Auth
 @inject NavigationManager Nav
@@ -22,7 +22,7 @@ else
       <div class="auth-source-menu">
         @foreach (var s in _sources)
         {
-          <a class="auth-source-btn" href="@s.Url" onclick="@BeaconJs">
+          <a class="auth-source-btn" href="@s.Url">
             @if (!string.IsNullOrEmpty(s.IconUrl))
             {
               <img class="auth-source-logo" src="@s.IconUrl" alt="" width="16" height="16" style="width:16px;height:16px;" />
@@ -40,16 +40,12 @@ else
 }
 
 @code {
-    [Parameter] public string ReturnPath { get; set; } = "/";
     [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
     [Parameter] public string Label { get; set; } = "Log in";
 
     private IReadOnlyList<SyncKit.Contract.LoginSourceResponse>? _sources;
     private bool _loading;
     private string? _error;
-
-    private string BeaconJs =>
-        $"navigator.sendBeacon('/auth/login-return', {System.Text.Json.JsonSerializer.Serialize(ReturnPath)})";
 
     private async Task Toggle()
     {
@@ -63,8 +59,8 @@ else
         _loading = true;
         try
         {
-            var origin = new Uri(Nav.BaseUri).GetLeftPart(UriPartial.Authority);
-            var resp = await Identity.GetLoginSourcesAsync(origin, "redirect", CancellationToken.None);
+            // Full current URL: SyncKit returns the user to this exact page with ?code appended.
+            var resp = await Identity.GetLoginSourcesAsync(Nav.Uri, "redirect", CancellationToken.None);
             if (resp.Sources.Count == 0)
             {
                 _error = "No login providers configured.";
