@@ -4,7 +4,7 @@
 
 @if (Auth.Enabled)
 {
-  <LoginWidgetButton CssClass="@CssClass" Label="@Label" />
+  <LoginWidgetButton CssClass="@CssClass" Label="@Label" Placement="@Placement" />
 }
 else
 {
@@ -14,4 +14,5 @@ else
 @code {
     [Parameter] public string CssClass { get; set; } = "btn-primary inline-block no-underline";
     [Parameter] public string Label { get; set; } = "Log in";
+    [Parameter] public LoginMenuPlacement Placement { get; set; } = LoginMenuPlacement.BottomRight;
 }

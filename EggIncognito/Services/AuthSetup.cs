@@ -2,6 +2,7 @@ using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using SyncKit.Auth;
 using SyncKit.Identity.Client;
 
@@ -12,11 +13,23 @@ namespace EggIncognito.Services;
 // auth middleware and endpoints. When false the app runs fully anonymous.
 public static class AuthSetup
 {
-    private static Task ValidateNotRevoked(CookieValidatePrincipalContext ctx)
+    // Fail-open: if the Identity API is unreachable the revocation check can't run, so keep the existing
+    // principal rather than throwing (a transient identity-service outage must not 500 every page load).
+    private static async Task ValidateNotRevoked(CookieValidatePrincipalContext ctx)
     {
         var identity = ctx.HttpContext.RequestServices.GetService<IdentityApiClient>();
-        if (identity is null) return Task.CompletedTask;
-        return AuthentikAspNetAuth.OnValidatePrincipalCheckRevoked(ctx, identity, AuthClaims.UserIdClaim, UserRoles.ClaimType);
+        if (identity is null) return;
+        try
+        {
+            await AuthentikAspNetAuth.OnValidatePrincipalCheckRevoked(ctx, identity, AuthClaims.UserIdClaim, UserRoles.ClaimType);
+        }
+        catch (HttpRequestException ex)
+        {
+            ctx.HttpContext.RequestServices.GetService<ILoggerFactory>()?
+                .CreateLogger("EggIncognito.Auth")
+                .LogWarning(ex, "revocation check skipped: identity API unreachable");
+        }
+        catch (TaskCanceledException) { }
     }
 
     // Cookie scheme for widget-minted logins. Persistent 30-day sliding window so a login survives

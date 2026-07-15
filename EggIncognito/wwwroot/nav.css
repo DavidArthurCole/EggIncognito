@@ -106,11 +106,11 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 }
 .auth-nav a.auth-btn:hover, .auth-nav button.auth-btn:hover { filter: brightness(1.07); }
 /* Native federated login: the "Log in" button reveals a dropdown of one <a> per provider fetched from
-   /login/sources. The menu is absolutely anchored below the button and right-aligned so it drops down
-   and grows leftward, never off the right screen edge. */
+   /login/sources. The menu is position:fixed and placed by loginMenu.js so it escapes any
+   overflow-clipped ancestor (e.g. the /protos modal card) and sits above all app chrome. */
 .auth-source-anchor { position: relative; display: inline-block; }
 .auth-source-menu {
-  position: absolute; top: calc(100% + 0.35rem); right: 0; z-index: 50;
+  position: fixed; top: 0; left: 0; z-index: 1000;
   display: flex; flex-direction: column; gap: 0.35rem; min-width: max-content;
   background: #23232a; border: 1px solid #3a3a44; border-radius: 8px; padding: 0.4rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
