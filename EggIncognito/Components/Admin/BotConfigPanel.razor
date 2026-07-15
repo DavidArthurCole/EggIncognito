@@ -1,0 +1,293 @@
+@* Bot config: dashboard channel + thread ids + per-event deploy-notification embeds. Calls
+   SyncKit.Bot.BotConfigService directly (no HTTP, no separate auth): the enclosing Admin.razor already
+   gates on UserRole.Admin. EmbedSpec is an immutable record, so each event binds a mutable EmbedForm
+   that serializes back to EmbedSpec JSON on save. *@
+@rendermode @(RenderMode.InteractiveServer)
+@using SyncKit.Bot
+@using SyncKit.Contract
+@inject IServiceProvider Services
+
+<section class="panel mb-4">
+  <div class="admin-panel-head">
+    <h2 class="admin-panel-title">Bot config</h2>
+    <span class="text-muted text-xs">dashboard + deploy-notification embeds</span>
+  </div>
+
+  @if (Service is null)
+  {
+    <p class="text-muted text-sm m-0">Bot not configured (needs a bot token, a dashboard channel, and Postgres).</p>
+  }
+  else if (!_loaded)
+  {
+    <p class="text-muted text-sm m-0">Loading…</p>
+  }
+  else
+  {
+    <div class="flex flex-col gap-2 mb-4 max-w-[520px]">
+      <label class="text-xs text-muted">Dashboard channel ID
+        <input class="reg-filter-input w-full mt-1" @bind="_dashboardChannelId" placeholder="snowflake" />
+      </label>
+      <label class="text-xs text-muted">GitHub feed thread ID
+        <input class="reg-filter-input w-full mt-1" @bind="_githubFeedThreadId" placeholder="snowflake (optional)" />
+      </label>
+      <label class="text-xs text-muted">Deploy notifications thread ID
+        <input class="reg-filter-input w-full mt-1" @bind="_deployThreadId" placeholder="snowflake (unset = no deploy pings)" />
+      </label>
+      @if (!string.IsNullOrEmpty(_githubWebhookUrl))
+      {
+        <label class="text-xs text-muted">GitHub webhook URL (read-only)
+          <input class="reg-filter-input w-full mt-1 font-mono text-xs" value="@_githubWebhookUrl" readonly />
+        </label>
+      }
+    </div>
+
+    <div class="admin-panel-head">
+      <h3 class="admin-panel-title text-sm">Deploy-notification embeds</h3>
+    </div>
+    <div class="flex gap-2 mb-3">
+      @foreach (var ev in Events)
+      {
+        <button type="button" class="btn-mini @(_tab == ev.Key ? "btn-primary" : "")" @onclick="() => _tab = ev.Key">@ev.Label</button>
+      }
+    </div>
+
+    <div class="flex flex-col gap-2 max-w-[640px]">
+      <div class="flex gap-2">
+        <label class="text-xs text-muted flex-1">Color (hex, e.g. 5865F2)
+          <input class="reg-filter-input w-full mt-1" @bind="Current.ColorHex" placeholder="RRGGBB" />
+        </label>
+        <label class="text-xs text-muted flex items-end gap-1 pb-1">
+          <input type="checkbox" @bind="Current.Timestamp" /> Timestamp
+        </label>
+      </div>
+      <label class="text-xs text-muted">Title
+        <input class="reg-filter-input w-full mt-1" @bind="Current.Title" />
+      </label>
+      <label class="text-xs text-muted">Title URL
+        <input class="reg-filter-input w-full mt-1" @bind="Current.TitleUrl" />
+      </label>
+      <label class="text-xs text-muted">Description
+        <textarea class="reg-filter-input w-full mt-1 font-mono text-xs" rows="2" @bind="Current.Description"></textarea>
+      </label>
+      <div class="flex gap-2">
+        <label class="text-xs text-muted flex-1">Author name
+          <input class="reg-filter-input w-full mt-1" @bind="Current.AuthorName" />
+        </label>
+        <label class="text-xs text-muted flex-1">Author URL
+          <input class="reg-filter-input w-full mt-1" @bind="Current.AuthorUrl" />
+        </label>
+      </div>
+      <label class="text-xs text-muted">Author icon URL
+        <input class="reg-filter-input w-full mt-1" @bind="Current.AuthorIconUrl" />
+      </label>
+      <div class="flex gap-2">
+        <label class="text-xs text-muted flex-1">Image URL
+          <input class="reg-filter-input w-full mt-1" @bind="Current.ImageUrl" />
+        </label>
+        <label class="text-xs text-muted flex-1">Thumbnail URL
+          <input class="reg-filter-input w-full mt-1" @bind="Current.ThumbnailUrl" />
+        </label>
+      </div>
+      <div class="flex gap-2">
+        <label class="text-xs text-muted flex-1">Footer text
+          <input class="reg-filter-input w-full mt-1" @bind="Current.FooterText" />
+        </label>
+        <label class="text-xs text-muted flex-1">Footer icon URL
+          <input class="reg-filter-input w-full mt-1" @bind="Current.FooterIconUrl" />
+        </label>
+      </div>
+
+      <div class="admin-panel-head mt-2">
+        <h4 class="admin-panel-title text-xs">Fields (@Current.Fields.Count / 25)</h4>
+        <button type="button" class="btn-mini" @onclick="() => AddField(Current)" disabled="@(Current.Fields.Count >= 25)">Add field</button>
+      </div>
+      @foreach (var fld in Current.Fields)
+      {
+        <div class="flex gap-2 items-end">
+          <label class="text-xs text-muted flex-1">Name
+            <input class="reg-filter-input w-full mt-1" @bind="fld.Name" />
+          </label>
+          <label class="text-xs text-muted flex-1">Value
+            <input class="reg-filter-input w-full mt-1" @bind="fld.Value" />
+          </label>
+          <label class="text-xs text-muted flex items-center gap-1 pb-2">
+            <input type="checkbox" @bind="fld.Inline" /> Inline
+          </label>
+          <button type="button" class="btn-mini btn-danger mb-1" @onclick="() => Current.Fields.Remove(fld)">Remove</button>
+        </div>
+      }
+    </div>
+
+    <div class="flex gap-2 mt-4">
+      <button type="button" class="btn-primary" @onclick="Save" disabled="@_saving">@(_saving ? "Saving…" : "Save")</button>
+      <button type="button" class="btn-secondary" @onclick="() => ResetTab(_tab)" disabled="@_saving">Reset this event to default</button>
+    </div>
+    @if (_msg is not null) { <p class="text-xs @(_error ? "err" : "text-muted") mt-2 mb-0">@_msg</p> }
+
+    <details class="mt-4">
+      <summary class="text-xs text-muted cursor-pointer">Template variables</summary>
+      <div class="reg-wrap mt-2">
+        <table class="reg-table">
+          <thead><tr><th>Variable</th><th>Description</th></tr></thead>
+          <tbody>
+            @foreach (var v in Service.Variables)
+            {
+              <tr><td class="mono text-xs">@v.Name</td><td class="text-muted text-xs">@v.Desc</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </details>
+  }
+</section>
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+    static readonly (string Key, string Label)[] Events =
+        [("success", "Success"), ("failure", "Failure"), ("uptodate", "Already up to date")];
+
+    // Resolved via GetService (not @inject/GetRequiredService) so a null-returning registration yields
+    // null instead of throwing; null renders the "bot not configured" state.
+    BotConfigService? Service => Services.GetService<BotConfigService>();
+
+    bool _loaded;
+    bool _saving;
+    bool _error;
+    string? _msg;
+    string _tab = "success";
+
+    string _dashboardChannelId = "";
+    string _githubFeedThreadId = "";
+    string _deployThreadId = "";
+    string _githubWebhookUrl = "";
+
+    EmbedForm _success = new();
+    EmbedForm _failure = new();
+    EmbedForm _uptodate = new();
+
+    EmbedForm Form(string key) => key switch { "failure" => _failure, "uptodate" => _uptodate, _ => _success };
+    EmbedForm Current => Form(_tab);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Service is null) return;
+        var v = await Service.GetAsync(CancellationToken.None);
+        _dashboardChannelId = v.DashboardChannelId ?? "";
+        _githubFeedThreadId = v.GithubFeedThreadId ?? "";
+        _deployThreadId = v.DeployNotificationsThreadId ?? "";
+        _githubWebhookUrl = v.GithubWebhookUrl ?? "";
+        _success = Seed(v.SuccessEmbedJson, v.DefaultSuccess);
+        _failure = Seed(v.FailureEmbedJson, v.DefaultFailure);
+        _uptodate = Seed(v.UptodateEmbedJson, v.DefaultUptodate);
+        _loaded = true;
+    }
+
+    // Prefer the saved embed JSON; fall back to the service-supplied default spec for an unset event.
+    static EmbedForm Seed(string? savedJson, EmbedSpec fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(savedJson))
+        {
+            try { return EmbedForm.From(System.Text.Json.JsonSerializer.Deserialize<EmbedSpec>(savedJson, JsonOpts)!); }
+            catch (System.Text.Json.JsonException) { }
+        }
+        return EmbedForm.From(fallback);
+    }
+
+    void ResetTab(string key)
+    {
+        if (Service is null) return;
+        var def = key switch { "failure" => Service.DefaultFailure, "uptodate" => Service.DefaultAlreadyUpToDate, _ => Service.DefaultSuccess };
+        var seeded = EmbedForm.From(def);
+        switch (key)
+        {
+            case "failure": _failure = seeded; break;
+            case "uptodate": _uptodate = seeded; break;
+            default: _success = seeded; break;
+        }
+    }
+
+    static void AddField(EmbedForm f) { if (f.Fields.Count < 25) f.Fields.Add(new FieldForm()); }
+
+    async Task Save()
+    {
+        if (Service is null) return;
+        _saving = true; _msg = null; _error = false;
+        try
+        {
+            var input = new BotConfigInput(
+                _dashboardChannelId.Trim(),
+                _githubFeedThreadId.Trim(),
+                _deployThreadId.Trim(),
+                ToJson(_success),
+                ToJson(_failure),
+                ToJson(_uptodate));
+            var result = await Service.SaveAsync(input, CancellationToken.None);
+            if (result.Ok)
+            {
+                _githubWebhookUrl = result.GithubWebhookUrl ?? _githubWebhookUrl;
+                _msg = "Saved.";
+            }
+            else { _error = true; _msg = $"Save failed: {result.Error}"; }
+        }
+        catch (Exception ex) { _error = true; _msg = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    static string ToJson(EmbedForm f) => System.Text.Json.JsonSerializer.Serialize(f.ToSpec(), JsonOpts);
+
+    sealed class FieldForm
+    {
+        public string Name { get; set; } = "";
+        public string Value { get; set; } = "";
+        public bool Inline { get; set; }
+    }
+
+    sealed class EmbedForm
+    {
+        public string ColorHex { get; set; } = "";
+        public string AuthorName { get; set; } = "";
+        public string AuthorUrl { get; set; } = "";
+        public string AuthorIconUrl { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string TitleUrl { get; set; } = "";
+        public string Description { get; set; } = "";
+        public List<FieldForm> Fields { get; set; } = [];
+        public string ImageUrl { get; set; } = "";
+        public string ThumbnailUrl { get; set; } = "";
+        public string FooterText { get; set; } = "";
+        public string FooterIconUrl { get; set; } = "";
+        public bool Timestamp { get; set; }
+
+        public static EmbedForm From(EmbedSpec s) => new()
+        {
+            ColorHex = s.Color is { } c ? c.ToString("X6") : "",
+            AuthorName = s.AuthorName ?? "",
+            AuthorUrl = s.AuthorUrl ?? "",
+            AuthorIconUrl = s.AuthorIconUrl ?? "",
+            Title = s.Title ?? "",
+            TitleUrl = s.TitleUrl ?? "",
+            Description = s.Description ?? "",
+            Fields = (s.Fields ?? []).Select(x => new FieldForm { Name = x.Name, Value = x.Value, Inline = x.Inline }).ToList(),
+            ImageUrl = s.ImageUrl ?? "",
+            ThumbnailUrl = s.ThumbnailUrl ?? "",
+            FooterText = s.FooterText ?? "",
+            FooterIconUrl = s.FooterIconUrl ?? "",
+            Timestamp = s.Timestamp,
+        };
+
+        public EmbedSpec ToSpec() => new(
+            ParseColor(ColorHex),
+            NullIfBlank(AuthorName), NullIfBlank(AuthorUrl), NullIfBlank(AuthorIconUrl),
+            NullIfBlank(Title), NullIfBlank(TitleUrl), NullIfBlank(Description),
+            Fields.Where(x => !string.IsNullOrWhiteSpace(x.Name) || !string.IsNullOrWhiteSpace(x.Value))
+                  .Select(x => new EmbedFieldSpec(x.Name, x.Value, x.Inline)).ToList(),
+            NullIfBlank(ImageUrl), NullIfBlank(ThumbnailUrl),
+            NullIfBlank(FooterText), NullIfBlank(FooterIconUrl),
+            Timestamp);
+
+        static uint? ParseColor(string hex) =>
+            uint.TryParse(hex.TrimStart('#'), System.Globalization.NumberStyles.HexNumber, null, out var v) ? v : null;
+
+        static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+    }
+}

@@ -12,6 +12,10 @@ public sealed class EggIncognitoBotHostedService(
 {
     private SyncKitBot? _bot;
 
+    // The running bot instance, null until StartAsync succeeds. Exposes ConfigService for the admin
+    // panel and Client for the deploy notifier.
+    public SyncKitBot? Bot => _bot;
+
     public async Task StartAsync(CancellationToken ct)
     {
         try { _bot = await SyncKitBot.StartAsync(cfg); }

@@ -111,7 +111,7 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 .auth-source-anchor { position: relative; display: inline-block; }
 .auth-source-menu {
   position: fixed; top: 0; left: 0; z-index: 1000;
-  display: flex; flex-direction: column; gap: 0.35rem; min-width: max-content;
+  display: flex; flex-direction: column; gap: 0.35rem; width: max-content; max-width: 220px;
   background: #23232a; border: 1px solid #3a3a44; border-radius: 8px; padding: 0.4rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
@@ -120,6 +120,7 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
   color: #1b1b1f; background: #ef7559; border-radius: 6px;
   padding: 0.25rem 0.6rem; font-size: 13px; font-weight: 600; text-decoration: none;
 }
+.auth-source-btn > span { overflow: hidden; text-overflow: ellipsis; }
 .auth-source-btn:hover { filter: brightness(1.07); }
 .auth-source-logo { width: 16px; height: 16px; display: block; flex: none; }
 

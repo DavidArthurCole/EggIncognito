@@ -25,10 +25,10 @@ else
       <div class="auth-source-menu" @ref="_menu">
         @foreach (var s in _sources)
         {
-          <a class="auth-source-btn" href="@s.Url">
+          <a class="auth-source-btn" href="@Abs(s.Url)">
             @if (!string.IsNullOrEmpty(s.IconUrl))
             {
-              <img class="auth-source-logo" src="@s.IconUrl" alt="" width="16" height="16" style="width:16px;height:16px;" />
+              <img class="auth-source-logo" src="@Abs(s.IconUrl)" alt="" width="16" height="16" style="width:16px;height:16px;" />
             }
             <span>@s.Name</span>
           </a>
@@ -50,6 +50,13 @@ else
     private IReadOnlyList<SyncKit.Contract.LoginSourceResponse>? _sources;
     private bool _loading;
     private string? _error;
+
+    // SyncKit returns Url/IconUrl relative to the identity host; resolve them against it so they don't
+    // hit this app's origin (which 405s on the catch-all). Absolute values pass through unchanged.
+    private string Abs(string url) =>
+        url.StartsWith("http", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(Auth.IdentityHostUrl)
+            ? url
+            : $"{Auth.IdentityHostUrl!.TrimEnd('/')}/{url.TrimStart('/')}";
     private ElementReference _button;
     private ElementReference _menu;
     private IJSObjectReference? _mod;

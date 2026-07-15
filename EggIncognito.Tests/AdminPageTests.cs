@@ -41,6 +41,8 @@ public class AdminPageTests
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton(new AuthState(IdentityApiEnabled: false));
             Services.AddHttpClient();
+            // BotConfigPanel resolves BotConfigService via GetService; unregistered here (null) renders
+            // the "bot not configured" state, which is the correct test-env behavior.
         }
 
         [Fact]

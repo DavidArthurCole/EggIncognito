@@ -253,7 +253,6 @@ if (!string.IsNullOrWhiteSpace(botToken))
             DeployAgentSecret = builder.Configuration["DEPLOY_AGENT_SECRET"] ?? builder.Configuration["Discord:DeployAgentSecret"] ?? "",
             PostgresConnectionString = dbEnabled ? pgConn! : "",
             DashboardChannelId = builder.Configuration["Discord:DashboardChannelId"] ?? "",
-            EnabledThreads = builder.Configuration["Discord:EnabledThreads"] ?? "",
             GlobalCommands = true,
             Extra = new[]
             {
@@ -266,12 +265,11 @@ if (!string.IsNullOrWhiteSpace(botToken))
     });
     builder.Services.AddSingleton<EggIncognito.Bot.EggIncognitoBotHostedService>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<EggIncognito.Bot.EggIncognitoBotHostedService>());
+    // The bot-config panel resolves this; null until the bot has started and its channel hub is on
+    // (dashboard channel + Postgres). The panel renders a "not configured" state when null.
+    builder.Services.AddScoped(sp =>
+        sp.GetRequiredService<EggIncognito.Bot.EggIncognitoBotHostedService>().Bot?.ConfigService!);
 }
-
-// Bot admin dashboard: /bot-admin config UI (SyncKit.Bot.AdminRoutes, vendored as BotAdminRoutes
-// with paths remapped). Auth rides this app's own centralized login (ICurrentUser/UserRole.Admin),
-// not a separate Discord OAuth flow - opt-in whenever Postgres + a bot token are configured.
-var botAdminEnabled = !string.IsNullOrWhiteSpace(botToken) && dbEnabled;
 
 // Inbound device-farm sync endpoint. Opt-in, only when SyncEvent:EventSecret is set; when absent,
 // the route below is never mapped and requests 404. Also gated at runtime by IAppMode.
@@ -684,23 +682,31 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
     app.MapPost("/events/new-version", SyncKit.Bot.NewVersionHandler.Build(eventSecret, evt => ingest.HandleAsync(evt)))
         .RequireRateLimiting("write");
 }
-// Migrations run whenever BotConfig.PostgresConnectionString is set (i.e. bot token + Postgres both
-// configured), independent of the admin-UI OAuth gate below: SyncKitBot's channel hub touches
-// bot_channel_config/bot_channel_state as soon as a Postgres connection string is present, whether
-// or not the /bot-admin page itself is enabled.
+// Migrations run whenever BotConfig.PostgresConnectionString is set (bot token + Postgres both
+// configured): SyncKitBot's channel hub touches bot_channel_config/bot_channel_state whenever a
+// Postgres connection string is present.
 if (!string.IsNullOrWhiteSpace(botToken) && dbEnabled)
 {
     await using var adminConn = await Npgsql.NpgsqlDataSource.Create(pgConn!).OpenConnectionAsync();
     await SyncKit.Db.Migrator.MigrateAsync(adminConn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
 }
-if (botAdminEnabled)
+// Deploy notifications: SyncKit.Agent POSTs a DeployResponse here after a redeploy. The notifier is
+// built per-request off the running bot (started async in the background) and is a silent no-op until
+// the DeployNotifications thread id is set in the /admin bot-config panel.
+var deployNotifySecret = builder.Configuration["DEPLOY_NOTIFY_SECRET"] ?? "";
+if (!string.IsNullOrWhiteSpace(deployNotifySecret) && !string.IsNullOrWhiteSpace(botToken) && dbEnabled)
 {
-    var adminDataSource = Npgsql.NpgsqlDataSource.Create(pgConn!);
-    var configStore = new SyncKit.Bot.ChannelConfigStore(adminDataSource);
+    var deployDataSource = Npgsql.NpgsqlDataSource.Create(pgConn!);
+    var configStore = new SyncKit.Bot.ChannelConfigStore(deployDataSource);
     var botCfg = app.Services.GetRequiredService<SyncKit.Bot.BotConfig>();
-    bool IsAdmin(HttpContext ctx) =>
-        ctx.RequestServices.GetRequiredService<ICurrentUser>().IsAtLeast(EggIncognito.Data.Models.UserRole.Admin);
-    EggIncognito.Bot.BotAdminRoutes.Map(app, botCfg, configStore, IsAdmin);
+    var hosted = app.Services.GetRequiredService<EggIncognito.Bot.EggIncognitoBotHostedService>();
+    app.MapPost("/internal/deploy-notify", SyncKit.Bot.DeployNotifyHandler.Build(deployNotifySecret, async res =>
+    {
+        var client = hosted.Bot?.Client;
+        if (client is null || !ulong.TryParse(botCfg.GuildId, out var guildId)) return;
+        var notifier = new SyncKit.Bot.DeployNotifier(configStore, client, guildId, botCfg.Name);
+        await notifier.NotifyAsync(res, CancellationToken.None);
+    })).RequireRateLimiting("write");
 }
 app.MapRazorComponents<EggIncognito.Components.App>()
    .AddInteractiveServerRenderMode();
