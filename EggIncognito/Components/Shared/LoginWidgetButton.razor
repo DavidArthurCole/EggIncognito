@@ -22,7 +22,7 @@ else
     </button>
     @if (_sources is not null)
     {
-      <div class="auth-source-menu" @ref="_menu">
+      <div class="auth-source-menu" @ref="_menu" style="width:200px;">
         @foreach (var s in _sources)
         {
           <a class="auth-source-btn" href="@Abs(s.Url)">
@@ -37,7 +37,7 @@ else
     }
     else if (_error is not null)
     {
-      <div class="auth-source-menu" @ref="_menu"><p class="text-red-500 text-sm" style="margin:0;padding:0.3rem 0.5rem;">@_error</p></div>
+      <div class="auth-source-menu" @ref="_menu" style="width:200px;"><p class="text-red-500 text-sm" style="margin:0;padding:0.3rem 0.5rem;">@_error</p></div>
     }
   </div>
 }

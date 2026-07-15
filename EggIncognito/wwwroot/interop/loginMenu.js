@@ -39,6 +39,10 @@ function place(button, menu, placement) {
     if (left < GAP) left = GAP;
   }
 
+  // Final clamp: whatever the branch chose, keep the whole menu inside the viewport.
+  left = Math.min(Math.max(GAP, left), Math.max(GAP, vw - mw - GAP));
+  top = Math.min(Math.max(GAP, top), Math.max(GAP, vh - mh - GAP));
+
   menu.style.position = "fixed";
   menu.style.top = `${Math.round(top)}px`;
   menu.style.left = `${Math.round(left)}px`;
