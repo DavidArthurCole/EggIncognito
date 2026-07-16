@@ -1,6 +1,5 @@
 namespace EggIncognito.Core.Services.Devices;
 
-
 public static class DeviceCaptureVerdict
 {
     public readonly record struct Counters(

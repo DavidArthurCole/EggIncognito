@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 
 namespace EggIncognito.Services.Metrics;
 
-
 public sealed class ApiAuditLog(TimeProvider time)
 {
     public const int RecentCapacity = 512;
@@ -24,7 +23,7 @@ public sealed class ApiAuditLog(TimeProvider time)
     {
         public long Total;
         public long LastSeenTicks;
-       
+
         public readonly ConcurrentDictionary<string, byte> Paths = new();
     }
 
@@ -72,7 +71,6 @@ public sealed class ApiAuditLog(TimeProvider time)
         }
     }
 
-   
     private T? GetOrCap<T>(ConcurrentDictionary<string, T> dict, string key) where T : class, new()
     {
         if (dict.TryGetValue(key, out var v)) return v;

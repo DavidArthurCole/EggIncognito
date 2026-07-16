@@ -91,12 +91,8 @@
         _busy = false;
     }
 
-   
-   
     static string Label(string key) => key == "__local" ? "local (anonymous)" : key;
 
-   
-   
     static string KindClass(string kind) => kind switch
     {
         "user" => "sess-kind-user",

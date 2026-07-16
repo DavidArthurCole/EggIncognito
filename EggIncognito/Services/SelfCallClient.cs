@@ -2,7 +2,6 @@ using EggIncognito.Services.Metrics;
 
 namespace EggIncognito.Services;
 
-
 public static class SelfCallClient
 {
     public static HttpClient Create(IHttpClientFactory factory, string? baseAddress, string? cookie)

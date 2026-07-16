@@ -5,17 +5,17 @@ using SyncKit.Identity.Client;
 namespace EggIncognito.Services.Metrics;
 public enum RequestBucket
 {
-   
+
     Internal,
-   
+
     Cross,
-   
+
     External,
 }
 
 public static class RequestBucketClassifier
 {
-   
+
     public const string SelfCallHeader = "X-EGI-Internal";
 
     public static RequestBucket Classify(HttpContext ctx, ICurrentUser user)
@@ -26,7 +26,6 @@ public static class RequestBucketClassifier
         return RequestBucket.External;
     }
 
-   
     private static bool SameOrigin(HttpContext ctx)
     {
         var host = ctx.Request.Host.Host;
