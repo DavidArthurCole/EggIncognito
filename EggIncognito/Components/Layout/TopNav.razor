@@ -4,18 +4,13 @@
 @inject AuthState Auth
 <nav class="app-nav">
   <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
-  @* Docs folded into Inspector; Support + About moved to the float bubble + homepage footer. *@
   <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
   <NavLink href="protos" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos</NavLink>
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="playground" ActiveClass="active">Playground</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="console" ActiveClass="active">Console</NavLink> }
-  @* Capture always shows: in hosted mode the page itself explains it is local-only + links the download,
-     so the tab stays discoverable rather than vanishing. Import stays gated (a pure write tool). *@
   <NavLink href="capture" ActiveClass="active">Capture</NavLink>
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
-  @* Right-aligned cluster. The per-page toolbar projects into the interactive NavToolbarOutlet via
-     SectionContent, so its click handlers survive; the auth slot follows it. *@
   <div class="nav-right">
     <NavToolbarOutlet />
     @if (Auth.Enabled)

@@ -37,9 +37,6 @@ else
 
   @if (!string.IsNullOrEmpty(Response.Json) || !string.IsNullOrEmpty(Response.RawBase64))
   {
-    @* Reuse the Capture detail display: a JSON tree + format toggle (YAML/XML/hex/bin), a copy button,
-       and a filter, all scrollable. JsonStr drives the decoded views; RawBase64 powers hex/bin even when
-       decode failed. A fresh CaptureViewState gives sane defaults (no PII blur in the Inspector). *@
     <FormatView Label="Response" JsonStr="@Response.Json" RawB64="@Response.RawBase64"
                 View="_view" FormatChoice="_formatChoice" EmptyNote="(no decoded response body)" />
   }

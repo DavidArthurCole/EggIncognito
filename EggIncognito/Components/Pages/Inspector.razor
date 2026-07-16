@@ -49,15 +49,11 @@
   </div>
 
   <section class="panel">
-    @* The builder chrome (request header, env panel, body, send bar) always renders in Endpoints mode;
-       the body details fill in once an endpoint is selected. This keeps the send bar visible like the
-       old cshtml #builder shell. *@
     <div class="@(_listMode == "endpoints" ? "" : "hidden")">
       <h2>Request <span class="muted">@(_selected is null ? "" : $"({ReqTypeLabel(_selected)})")</span></h2>
 
       <div class="env-box">
         <div class="env-box-title">Environment (BasicRequestInfo overrides)</div>
-        @* Three intentional row-groups; each field sized to its data instead of one wide grid. *@
         <div class="env-rowgroup">
           @EnvField("eiUserId", "env-w-eid")
           @EnvField("debug", "env-w-bool")
@@ -154,8 +150,6 @@
         <div class="target-toggle" role="radiogroup" aria-label="Target">
           <button type="button" class="target-opt @(_target is "mock" ? "active" : "")"
                   @onclick="@(() => SelectTarget("mock"))">Mock</button>
-          @* Live API covers both server-routed and custom-proxy sends; the routing choice is a sub-option
-             shown below when Live API is selected, not a third slider segment. *@
           <button type="button"
                   class="target-opt @(_target is "real" or "custom" ? "active" : "") @(_liveDisabled ? "target-opt-disabled" : "")"
                   disabled="@_liveDisabled"
@@ -168,8 +162,6 @@
         </div>
       </div>
 
-      @* Live API sub-options: where the request actually goes (this server -> auxbrain, or browser ->
-         your own proxy), plus the supporter sealed-proxy toggle. Only shown in Live API mode. *@
       @if (_target is "real" or "custom")
       {
         <div class="live-suboptions">
@@ -214,8 +206,6 @@
     }
   </section>
 
-  @* Pipeline + Response live behind sub-tabs (mirrors the Capture detail pane's tab pattern) so each
-     section owns its own scroll region instead of the whole pane scrolling as one cramped column. *@
   <section class="panel insp-result">
     <div class="detail-tabs insp-tabs">
       <div class="tab-bar">
@@ -244,8 +234,6 @@
         }
         else
         {
-          @* Proto docs for the selected endpoint (folded in from /docs). Object docs live in the middle
-             ObjectView; this is the endpoint surface. *@
           <EndpointDocsView Route="_selected" OnSelectObject="SelectObjectFromDocs" />
         }
       </div>

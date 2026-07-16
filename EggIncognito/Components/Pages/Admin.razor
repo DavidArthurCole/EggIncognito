@@ -20,7 +20,6 @@
   {
   <div class="admin-grid">
     <div class="admin-col-left">
-    @* Bot config: dashboard channel, thread ids, deploy-notification embeds (direct service calls). *@
     <BotConfigPanel />
 
     <section class="panel mb-4">
@@ -57,20 +56,14 @@
     </div>
 
     <div class="admin-col-right">
-    @* Live API-rate metrics (DB-backed per-minute rollups, inline SVG charts). *@
     <AdminMetricsPanel ClientFactory="Client" />
 
-    @* API audit: bucketed (Internal / Cross / External) request tracking by path + IP + recent. *@
     <AdminApiAuditPanel ClientFactory="Client" />
 
-    @* Active capture sessions (user/local + host devices): list + kill. *@
     <AdminSessionsPanel ClientFactory="Client" />
 
-    @* Live-view of the always-on per-device captures ONLY. *@
     <AdminDeviceCapturePanel ClientFactory="Client" />
 
-    @* Mesh cache: pre-compute every device mesh into the on-disk glb cache so the playground + API serve
-       precomputed glbs without a per-request device pull + decode. *@
     <section class="panel mb-4">
       <div class="admin-panel-head">
         <h2 class="admin-panel-title">Mesh cache</h2>
@@ -133,8 +126,6 @@
       }
     </section>
 
-    @* Game config: ingest a captured ConfigResponse (carries the DLCCatalog of shells) per platform, or
-       refresh from live. Feeds the shell viewer + asset pipeline. *@
     <section class="panel mb-4">
       <div class="admin-panel-head">
         <h2 class="admin-panel-title">Game config</h2>

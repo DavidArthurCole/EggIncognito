@@ -6,7 +6,6 @@
 <section id="hostedSetupCard" class="panel">
   <h2 class="text-base mt-0 mb-3 text-fg">Hosted proxy setup</h2>
 
-  @* The proxy coordinates. Address rotation + DM-config live in the Controls widget, not here. *@
   <div class="setup-coords mb-3">
     <div class="setup-coord"><span class="text-muted text-xs">Server</span>
       <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span></div>
@@ -36,7 +35,6 @@
     </p>
   }
 
-  @* One pass of steps, with the per-OS CA notes folded into step 2. No repeated instruction blocks. *@
   <ol class="setup-list">
     <li>Set your Wi-Fi proxy to <strong>Manual</strong> using the Server + Port above (auth off).</li>
     <li>Install + trust the DM'd CA:

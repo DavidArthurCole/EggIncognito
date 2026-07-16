@@ -17,7 +17,6 @@
   <h1 class="text-[1.3rem] mt-0 mb-1">Proto Registry</h1>
   <p class="text-muted mb-4">Versioned Egg, Inc. proto definitions. Drop an .ipa/.apk to analyze, or browse detected builds.</p>
 
-  @* Hero: ephemeral upload-and-analyze (everyone), full width above the registry. *@
   <section class="mb-6">
     <ProtoDropZone OnResult="OnExtracted" />
     @if (_result is not null)
@@ -26,10 +25,7 @@
     }
   </section>
 
-  @* Registry beside the side column on wide screens; stacked on smaller ones. The registry (the data-rich
-     table) gets the larger share; the side column always shows the device farm. *@
   <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start">
-  @* Registry table + management. *@
   <section class="reg-wrap">
     @if (_isAdmin || _isContributor)
     {
@@ -72,9 +68,6 @@
     }
     else
     {
-      @* The table (head + filter row) always renders once any rows exist, so the filter inputs stay
-         reachable even when the current filter matches nothing. A no-match shows an empty-state row in
-         the body instead of unmounting the controls. *@
       <table class="reg-table">
         <thead>
           <tr>
@@ -88,11 +81,8 @@
             <th class="reg-th-sort" @onclick="@(() => Sort("client"))"><span>Client</span>@Caret("client")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("sha"))"><span>Proto SHA</span>@Caret("sha")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("detected"))"><span>Detected</span>@Caret("detected")</th>
-            @* Actions (download for all + edit for contributors) always present. *@
             <th class="w-16"></th>
           </tr>
-          @* ServiceNow-style per-column filter row: a control per column. Replaces the old platform
-             segmented slider + the standalone "Filter version" box. Any active filter shows a Clear chip. *@
           <tr class="reg-filter-row">
             @if (_isAdmin)
             {
@@ -126,20 +116,15 @@
           @foreach (var rel in SortedReleases)
           {
             var primary = rel.Primary;
-            @* The whole row opens the primary member's detail; the checkbox, SHA, and Edit cells stop
-               propagation so they keep their own behavior, and a grouped release's per-platform chips/builds
-               override with their own member link. *@
             <tr class="reg-row cursor-pointer"
                 @onclick="@(() => Navigate($"/protos/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}"))">
               @if (_isAdmin)
               {
                 <td @onclick:stopPropagation="true">
-                  @* select toggles every member of the release together *@
                   <input type="checkbox" checked="@IsSelected(primary)" @onchange="@(() => ToggleRelease(rel))" />
                 </td>
               }
               <td>
-                @* one chip per platform in the release; each links to its own detail page *@
                 <div class="flex flex-wrap gap-1">
                   @foreach (var m in rel.Members)
                   {
@@ -171,20 +156,16 @@
                 }
               </td>
               <td class="mono text-muted">@(string.IsNullOrEmpty(primary.ClientVersion) ? "-" : primary.ClientVersion)</td>
-              @* SHA is display-only here; clicking anywhere on the row (incl. this cell) opens the entry.
-                 Copy lives on the detail page next to the full SHA. *@
               <td>
                 <span class="code-chip reg-sha" title="@primary.ProtoSha">@Short(primary.ProtoSha)</span>
               </td>
               <td class="text-muted text-xs">@primary.DetectedAt.ToString("u")</td>
               <td class="reg-actions" @onclick:stopPropagation="true">
-                @* Download the version's ei.proto - visible to everyone. *@
                 <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
                    href="@($"/api/protos/versions/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}/proto")"
                    title="Download .proto" aria-label="Download .proto"><Icon Name="download" /></a>
                 @if (_canWrite)
                 {
-                  @* pencil per release; opens an inline editor row right below this one (no scroll to top) *@
                   <button type="button" class="reg-edit-btn @(_editingKey == rel.Key ? "active" : "")"
                           title="Edit" aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
                     <Icon Name="pencil" />
@@ -207,8 +188,6 @@
     }
   </section>
 
-  @* Side column: device farm + missing-versions, then the Notifications + Sources widgets. Each panel gates
-     its own write actions; the server ACL is the real gate. *@
   <div class="flex flex-col gap-6">
     <DeviceStatusPanel OnSaved="OnMutated" />
     <MissingVersionsPanel />

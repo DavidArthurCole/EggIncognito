@@ -34,7 +34,6 @@ else
       <div class="canvas-wrap relative">
         <canvas @ref="_canvas" id="playgroundCanvas"></canvas>
 
-        @* File / Tools menubar over the top of the canvas (replaces the standalone Design widget). *@
         <div class="pg-menubar" @onclick:stopPropagation="true">
           <div class="relative">
             <button class="pg-menu-btn @(_fileMenuOpen ? "active" : "")" @onclick="ToggleFileMenu">File ▾</button>
@@ -91,7 +90,6 @@ else
           </div>
         </div>
 
-        @* Save-As / name prompt, shown inline when a save needs a name. *@
         @if (_namePromptOpen)
         {
           <div class="pg-popover" style="left: 50%; top: 60px; transform: translateX(-50%);" @onclick:stopPropagation="true">
@@ -105,7 +103,6 @@ else
           </div>
         }
 
-        @* Bottom-right element palette: add buildings / chickens / actors, auto-arrange, undo/redo. *@
         @if (_designMode)
         {
           <div class="pg-palette" @onclick:stopPropagation="true">
@@ -182,7 +179,6 @@ else
           </div>
         }
 
-        @* Draggable GIF recorder pop-over (Tools → Record loop GIF). *@
         @if (_gifOpen)
         {
           <div class="pg-popover" style="left: 50%; top: 40%; transform: translateX(-50%);" @ref="_gifPopoverRef" @onclick:stopPropagation="true">

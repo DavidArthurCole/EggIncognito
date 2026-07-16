@@ -7,7 +7,6 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="/brand/icon-trimmed.png" />
 
-    @* Link unfurl (Discord, Slack, social) via Open Graph + Twitter Card. Copy is per-route (PageMeta). *@
     <meta name="description" content="@_meta.Description" />
     <meta name="theme-color" content="#ef7559" />
     <meta property="og:type" content="website" />
@@ -22,7 +21,6 @@
     <meta name="twitter:description" content="@_meta.Description" />
     <meta name="twitter:image" content="https://eggincognito.davidarthurcole.me/brand/logo.png" />
 
-    @* Cache-bust on the build token so a fixed-filename sheet doesn't serve stale against new markup. *@
     <link rel="stylesheet" href="@($"/nav.css?v={_assetVersion}")" />
     <link rel="stylesheet" href="@($"/tailwind.css?v={_assetVersion}")" />
     <HeadOutlet />
@@ -30,8 +28,6 @@
 <body class="m-0 bg-bg text-fg font-sans">
     <Routes />
 
-    @* Custom Blazor reconnect UI (.NET 10 contract): providing this dialog suppresses the default modal.
-       Blazor toggles components-reconnect-*-visible classes on it per connection state. *@
     <dialog id="components-reconnect-modal" class="reconnect-modal">
       <div class="reconnect-card">
         <div class="components-rejoining-animation reconnect-spinner" aria-hidden="true"></div>

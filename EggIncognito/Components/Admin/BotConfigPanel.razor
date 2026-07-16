@@ -72,7 +72,6 @@
     </div>
 
     <div class="embed-editor">
-      @* Author row: icon url | name | name url *@
       <div class="embed-row-3">
         <label class="embed-field">Author icon URL
           <input class="reg-filter-input w-full mt-1" @bind="Current.AuthorIconUrl" />
@@ -85,7 +84,6 @@
         </label>
       </div>
 
-      @* Title row: color swatch | title | title url *@
       <div class="embed-row-title">
         <div class="embed-color">
           <span class="embed-field-label">Color</span>
@@ -106,7 +104,6 @@
         <textarea class="reg-filter-input w-full mt-1 font-mono text-xs" rows="2" @bind="Current.Description"></textarea>
       </label>
 
-      @* Fields *@
       <div class="admin-panel-head mt-1">
         <h4 class="admin-panel-title text-xs">Fields (@Current.Fields.Count / 25)</h4>
         <button type="button" class="btn-mini" @onclick="() => AddField(Current)" disabled="@(Current.Fields.Count >= 25)">Add field</button>
@@ -131,7 +128,6 @@
         </div>
       }
 
-      @* Image row: image url | thumbnail url *@
       <div class="embed-row-2">
         <label class="embed-field">Image URL
           <input class="reg-filter-input w-full mt-1" @bind="Current.ImageUrl" />
@@ -141,7 +137,6 @@
         </label>
       </div>
 
-      @* Footer row: footer | footer icon | date/select *@
       <div class="embed-row-footer">
         <label class="embed-field flex-1">Footer
           <input class="reg-filter-input w-full mt-1" @bind="Current.FooterText" />

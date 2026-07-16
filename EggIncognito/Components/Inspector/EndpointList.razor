@@ -10,7 +10,6 @@
     <button type="button" class="list-switch-opt @(Mode == "objects" ? "active" : "")"
             role="tab" @onclick="@(() => SetMode("objects"))">Objects</button>
   </div>
-  @* Endpoint-status: opens a modal (owned by the parent), not an inline column popover. Endpoints-only. *@
   @if (Mode == "endpoints")
   {
     <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"

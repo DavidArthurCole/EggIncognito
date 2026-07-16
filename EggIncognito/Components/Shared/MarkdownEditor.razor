@@ -15,8 +15,6 @@
       {
         <button type="button" class="md-tb-btn" title="@b.Title" @onclick="() => Insert(b.Token)">@b.Label</button>
       }
-      @* No JS interop, so InputFile is wrapped in a label that looks like a toolbar button (Blazor has
-         no programmatic file-picker open). Clicking the label opens the native picker. *@
       <label class="md-tb-btn" title="Upload image (png/jpeg/gif/webp)">upload
         <InputFile accept="image/png,image/jpeg,image/gif,image/webp" hidden="hidden" OnChange="OnImagePicked" />
       </label>
@@ -24,7 +22,6 @@
       <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">Save</button>
     </div>
     <textarea class="md-source" spellcheck="false" value="@_value" @oninput="OnInput"></textarea>
-    @* Preview stacked below the source in a dotted "preview" container (the dropzone look). *@
     <div class="md-preview-wrap">
       <div class="md-preview-label">Preview</div>
       <Markdown Body="@_value" CssClass="md-preview" />

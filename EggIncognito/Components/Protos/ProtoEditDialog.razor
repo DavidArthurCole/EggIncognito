@@ -9,7 +9,6 @@
       <button type="button" class="btn-mini" @onclick="@(() => OnClose.InvokeAsync())">Close</button>
     </div>
 
-    @* App version is shared across the release: one input, applied to every member on save. *@
     <label class="text-xs text-muted block mb-2">App version
       <input class="protos-filter w-full" @bind="_appVersion" /></label>
 

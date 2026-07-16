@@ -108,7 +108,6 @@
           </div>
         }
 
-        @* Only offer the diff when there is actually something different from the prior version. *@
         @if (_detail.HasProto && HasChanges)
         {
           <button type="button" class="btn-mini mt-2 @(_showDiff ? "active" : "")" @onclick="ToggleDiff">

@@ -40,7 +40,6 @@ else
     }
   </div>
 
-  @* Contributor-gated editor (self-gates via ICurrentUser). Keyed on the type so it re-seeds on change. *@
   <MarkdownEditor @key="@Name" Kind="message" Key="@Name" Initial="@_bodyMd" OnSaved="OnDocSaved" />
 
   <div class="doc-usedby">

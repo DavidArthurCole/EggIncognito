@@ -19,8 +19,6 @@
 
 @if (_session is not null)
 {
-  @* The hosted setup card collapses + fades away once a device is talking to the proxy (it is only needed
-     during setup), and re-appears when the session is stopped. *@
   @if (_hosted && (!_connected || !_running))
   {
     <div class="px-3 pt-3 setup-collapsible @(_connected ? "setup-hidden" : "")">
@@ -30,9 +28,6 @@
     </div>
   }
 
-  @* Responsive: panes stack in one scrolling column on phones; become the 220px stats + flow list +
-     detail columns filling the viewport on >=lg. The left column carries the controls + notifications
-     widgets above the stats (was the nav toolbar). *@
   <main class="capture-main grid gap-3 p-3 min-h-0">
     <div class="capture-side flex flex-col gap-3 min-h-0">
       <CaptureControlsPanel Running="_running" ToggleBusy="_toggleBusy" View="_view"
@@ -84,7 +79,6 @@ else if (AppMode.HostedCaptureEnabled)
           Egg, Inc. traffic from your device with no local setup - this server runs the proxy for you.</p>
         <a class="btn-primary inline-block w-fit no-underline" href="/support">Become a supporter</a>
       </div>
-      @* Self-host remains free; supporters just skip the setup. Keep the local instructions visible. *@
       <LocalCaptureGuide />
     }
     else

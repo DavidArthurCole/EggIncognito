@@ -42,7 +42,6 @@
                             }
                             else
                             {
-                                @* version | build | client on one line; clientVersion only shown once captured *@
                                 <span class="dev-verline">
                                     @(d.InstalledAppVersion ?? "?")
                                     <span class="dev-versep">|</span> @(d.InstalledBuild ?? "?")
@@ -82,8 +81,6 @@
         </div>
     }
 
-    @* Dismissable explainer INSIDE the panel (matches the missing-versions note), shown until closed
-       (persisted in localStorage). Everyone sees it. *@
     @if (!_infoDismissed)
     {
         <div class="rounded-md border border-border bg-panel2 p-2 mt-3 text-xs text-muted relative">

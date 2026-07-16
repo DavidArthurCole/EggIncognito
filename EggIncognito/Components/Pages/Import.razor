@@ -17,8 +17,6 @@
     </header>
 
     <div class="panel">
-      @* Native InputFile renders the file input; the label wrapper keeps the dropzone look + the .dragging
-         hover. Files dropped on the input are picked up by the browser's native file-drop behavior. *@
       <label id="dropZone" class="dropzone @(_dragging ? "dragging" : "")"
              @ondragenter="() => _dragging = true"
              @ondragleave="() => _dragging = false"
