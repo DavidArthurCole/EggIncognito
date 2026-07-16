@@ -42,7 +42,8 @@ public sealed class BoostFamily() : EmbeddedEffectFamily(Families.Boost, "boosts
         new EffectField("slotCap", EffectFieldType.Int, Required: false),
         new EffectField("price", EffectFieldType.Int, Required: false),
         new EffectField("tokenPrice", EffectFieldType.Int, Required: false),
-        new EffectField("seRequired", EffectFieldType.Double, Required: false)
+        new EffectField("seRequired", EffectFieldType.Double, Required: false),
+        new EffectField("iconAsset", EffectFieldType.String, Required: false)
     ]);
 
     public static BoostFamily Load() => new();
@@ -74,7 +75,8 @@ public sealed class ArtifactFamily() : EmbeddedEffectFamily(Families.Artifact, "
         new EffectField("boost", EffectFieldType.String),
         new EffectField("tier", EffectFieldType.Int, Required: false),
         new EffectField("rarity", EffectFieldType.Int, Required: false),
-        new EffectField("stoneCap", EffectFieldType.Int, Required: false)
+        new EffectField("stoneCap", EffectFieldType.Int, Required: false),
+        new EffectField("iconAsset", EffectFieldType.String, Required: false)
     ]);
 
     public static ArtifactFamily Load() => new();

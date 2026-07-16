@@ -26,6 +26,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<DeviceUpdate> DeviceUpdates => Set<DeviceUpdate>();
     public DbSet<StagedProto> StagedProtos => Set<StagedProto>();
     public DbSet<StoredMesh> StoredMeshes => Set<StoredMesh>();
+    public DbSet<StoredIcon> StoredIcons => Set<StoredIcon>();
     public DbSet<EnvDesign> EnvDesigns => Set<EnvDesign>();
     public DbSet<EnvDesignVersion> EnvDesignVersions => Set<EnvDesignVersion>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -137,6 +138,12 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Platform, x.Stem }).IsUnique();
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        b.Entity<StoredIcon>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Name).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
         b.Entity<EnvDesign>(e =>

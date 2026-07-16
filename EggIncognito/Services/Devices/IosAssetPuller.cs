@@ -78,6 +78,44 @@ public sealed class IosAssetPuller(IProcessRunner runner, string sshHost, string
     }
 
    
+    public async Task<IReadOnlyList<string>> ListTexturesAsync(string bundleId, CancellationToken ct)
+    {
+        var r = await Ssh(
+            $"app=$(for a in /private/var/containers/Bundle/Application/*/*.app; do " +
+            $"grep -qa {Shell(bundleId)} \"$a/Info.plist\" 2>/dev/null && echo \"$a\" && break; done); " +
+            $"[ -z \"$app\" ] && exit 3; " +
+            $"find \"$app\" -iname '*.png' -exec basename {{}} \\; 2>/dev/null | sort -u", ct);
+        if (r.ExitCode != 0) return [];
+        return r.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(StripExt).Where(s => s.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+    }
+
+    public async Task<byte[]?> PullOneTextureAsync(string bundleId, string stem, CancellationToken ct)
+    {
+        var find = await Ssh(
+            $"app=$(for a in /private/var/containers/Bundle/Application/*/*.app; do " +
+            $"grep -qa {Shell(bundleId)} \"$a/Info.plist\" 2>/dev/null && echo \"$a\" && break; done); " +
+            $"[ -z \"$app\" ] && exit 3; " +
+            $"find \"$app\" -name {Shell(stem + ".png")} 2>/dev/null | head -1", ct);
+        if (find.ExitCode != 0) return null;
+        var path = find.Stdout.Trim().Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim();
+        if (string.IsNullOrEmpty(path)) return null;
+
+        var dest = Path.Combine(Path.GetTempPath(), $"egi-png-{Guid.NewGuid():N}.png");
+        try
+        {
+            var scp = await runner.RunAsync("scp",
+                ["-P", sshPort, "-i", sshKeyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+                 $"root@{sshHost}:{path}", dest], ct);
+            if (scp.ExitCode != 0 || !File.Exists(dest)) return null;
+            return await File.ReadAllBytesAsync(dest, ct);
+        }
+        finally
+        {
+            try { if (File.Exists(dest)) File.Delete(dest); } catch { /* best-effort */ }
+        }
+    }
+
     public async Task<byte[]?> PullAppBinaryAsync(string bundleId, CancellationToken ct)
     {
         var find = await Ssh(

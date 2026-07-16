@@ -93,11 +93,20 @@ builder.Services.AddHttpClient("inspector", c =>
 builder.Services.AddScoped<EggIncognito.Services.ShipShellDownloader>();
 
 builder.Services.AddSingleton<EggIncognito.Services.MeshAssetCache>();
+builder.Services.AddSingleton<EggIncognito.Services.Assets.IconAssetCache>();
+
+builder.Services.AddScoped<EggIncognito.Services.Devices.IDeviceAssetReader, EggIncognito.Services.Devices.AndroidDeviceAssetReader>();
+builder.Services.AddScoped<EggIncognito.Services.Devices.IDeviceAssetReader, EggIncognito.Services.Devices.IosDeviceAssetReader>();
+builder.Services.AddScoped<EggIncognito.Services.Devices.DeviceAssetService>();
 
 builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetTier, EggIncognito.Services.Assets.MeshDbTier>();
 builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetTier, EggIncognito.Services.Assets.MeshDiskTier>();
 builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetTier, EggIncognito.Services.Assets.ConfigDiskTier>();
+builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetTier, EggIncognito.Services.Assets.IconDbTier>();
+builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetTier, EggIncognito.Services.Assets.IconDiskTier>();
 builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetOrigin, EggIncognito.Services.Assets.MeshDeviceOrigin>();
+builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetOrigin, EggIncognito.Services.Assets.IconDeviceOrigin>();
+builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetOrigin, EggIncognito.Services.Assets.IconCdnOrigin>();
 builder.Services.AddScoped<EggIncognito.Core.Services.Assets.GameAssetProvider>();
 
 builder.Services.AddScoped<EggIncognito.Services.DeviceMeshProvider>();
