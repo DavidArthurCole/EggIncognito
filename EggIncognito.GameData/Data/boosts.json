@@ -1,0 +1,20 @@
+{
+  "binaryVersion": "egginc-1.35.6",
+  "status": "binary@egginc-1.35.6: mults/durations verified PRESENT in __GLOBAL__sub_I_boostmanager init (presence, not per-id attribution); id->value mapping hand-assigned, confirmed vs wire (EGI boosts.json + EGG9000 CustomBackup). NOT positionally extracted.",
+  "rows": [
+    { "id": "tachyon_prism_blue", "target": "IHR", "combineMode": "Mul", "magnitude": 10, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 1800 } },
+    { "id": "tachyon_prism_blue_v2", "target": "IHR", "combineMode": "Mul", "magnitude": 10, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 1800 } },
+    { "id": "tachyon_prism_blue_big", "target": "IHR", "combineMode": "Mul", "magnitude": 10, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 14400 } },
+    { "id": "tachyon_prism_purple", "target": "IHR", "combineMode": "Mul", "magnitude": 100, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 1200 } },
+    { "id": "tachyon_prism_purple_v2", "target": "IHR", "combineMode": "Mul", "magnitude": 100, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 1200 } },
+    { "id": "tachyon_prism_purple_big", "target": "IHR", "combineMode": "Mul", "magnitude": 100, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 7200 } },
+    { "id": "tachyon_prism_orange", "target": "IHR", "combineMode": "Mul", "magnitude": 1000, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 600 } },
+    { "id": "tachyon_prism_orange_big", "target": "IHR", "combineMode": "Mul", "magnitude": 1000, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 3600 } },
+    { "id": "boost_beacon_blue", "target": "BeaconMult", "combineMode": "Add", "magnitude": 1, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "BeaconMult", "multiplier": 2, "durationSeconds": 1800, "appliesTo": "Feed,Prism,SoulBeacon" } },
+    { "id": "boost_beacon_blue_big", "target": "BeaconMult", "combineMode": "Add", "magnitude": 4, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "BeaconMult", "multiplier": 5, "durationSeconds": 3600, "appliesTo": "Feed,Prism,SoulBeacon" } },
+    { "id": "boost_beacon_purple", "target": "BeaconMult", "combineMode": "Add", "magnitude": 9, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "BeaconMult", "multiplier": 10, "durationSeconds": 600, "appliesTo": "Feed,Prism,SoulBeacon" } },
+    { "id": "boost_beacon_orange", "target": "BeaconMult", "combineMode": "Add", "magnitude": 49, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "BeaconMult", "multiplier": 50, "durationSeconds": 600, "appliesTo": "Feed,Prism,SoulBeacon" } },
+    { "id": "quantum_bulb", "target": "UnlimitedHatchery", "combineMode": "Mul", "magnitude": 1, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "UnlimitedHatchery", "durationSeconds": 600 } },
+    { "id": "dilithium_bulb", "target": "UnlimitedHatchery", "combineMode": "Mul", "magnitude": 1, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "UnlimitedHatchery", "durationSeconds": 600 } }
+  ]
+}

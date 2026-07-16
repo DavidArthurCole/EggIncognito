@@ -94,6 +94,12 @@ builder.Services.AddScoped<EggIncognito.Services.ShipShellDownloader>();
 
 builder.Services.AddSingleton<EggIncognito.Services.MeshAssetCache>();
 
+builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetTier, EggIncognito.Services.Assets.MeshDbTier>();
+builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetTier, EggIncognito.Services.Assets.MeshDiskTier>();
+builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetTier, EggIncognito.Services.Assets.ConfigDiskTier>();
+builder.Services.AddScoped<EggIncognito.Core.Services.Assets.IGameAssetOrigin, EggIncognito.Services.Assets.MeshDeviceOrigin>();
+builder.Services.AddScoped<EggIncognito.Core.Services.Assets.GameAssetProvider>();
+
 builder.Services.AddScoped<EggIncognito.Services.DeviceMeshProvider>();
 
 builder.Services.AddScoped<EggIncognito.Services.GameBinaryProvider>();
@@ -116,6 +122,7 @@ builder.Services.AddHttpClient(EggIncognito.Services.SealedProxy.EgressClientNam
 builder.Services.AddSingleton<IAppMode, AppModeService>();
 builder.Services.AddSingleton<IBehaviorService, BehaviorService>();
 builder.Services.AddSingleton<IProtoReflection, ProtoReflection>();
+builder.Services.AddSingleton<EggIncognito.GameData.IGameDataProvider>(_ => EggIncognito.GameData.GameDataProvider.CreateDefault());
 builder.Services.AddSingleton<IDocRegistry, DocRegistry>();
 builder.Services.AddSingleton<ITransportPipeline, TransportPipeline>();
 

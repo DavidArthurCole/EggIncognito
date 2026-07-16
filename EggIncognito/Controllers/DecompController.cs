@@ -368,6 +368,142 @@ public sealed class DecompController(
    
    
    
+    [HttpGet("disasm")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Disasm(
+        [FromQuery] string name, [FromQuery] string? device, [FromQuery] string mode = "list",
+        [FromQuery] int max = 512, [FromQuery] bool live = false, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
+        try
+        {
+            var (ok, bin, syms, source, diag) = await ResolveBinaryAsync(device, live, ct);
+            if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
+
+            switch (mode.ToLowerInvariant())
+            {
+                case "constants":
+                    var ex = syms is null
+                        ? FunctionConstantExtractor.Extract(bin, [name])
+                        : FunctionConstantExtractor.ExtractWith(bin, syms, [name]);
+                    return Ok(new { ok = ex.Ok, mode, source, result = Shape(ex) });
+
+                case "addresses" or "table":
+                    var scan = syms is null
+                        ? Arm64DataTableReader.Scan(bin, [name])
+                        : Arm64DataTableReader.ScanWith(bin, syms, [name]);
+                    return Ok(new
+                    {
+                        ok = scan.Ok,
+                        mode,
+                        source,
+                        function = scan.FunctionName,
+                        diagnostics = scan.Diagnostics,
+                        addresses = scan.Addresses.Select(a => new
+                        {
+                            va = "0x" + a.Va.ToString("x"), a.Segment, a.Section, a.Via,
+                        }).ToList(),
+                    });
+
+                case "list":
+                default:
+                    var lst = syms is null
+                        ? Arm64DataTableReader.List(bin, [name], Math.Clamp(max, 1, 4096))
+                        : Arm64DataTableReader.ListWith(bin, syms, [name], Math.Clamp(max, 1, 4096));
+                    return Ok(new
+                    {
+                        ok = lst.Ok,
+                        mode = "list",
+                        source,
+                        function = lst.FunctionName,
+                        start = "0x" + lst.Start.ToString("x"),
+                        end = "0x" + lst.End.ToString("x"),
+                        diagnostics = lst.Diagnostics,
+                        instructions = lst.Instructions.Select(i => new
+                        {
+                            va = "0x" + i.Va.ToString("x"), i.Mnemonic, i.Operands,
+                        }).ToList(),
+                    });
+            }
+        }
+        catch (DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
+    [HttpGet("live-pull")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> LivePull(CancellationToken ct)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        var (ok, bytes, syms, grafted, diag) = await binaries.GetLiveBinaryAsync(ct);
+        return Ok(new
+        {
+            ok,
+            bytes = bytes?.Length ?? 0,
+            symbols = syms?.Count ?? 0,
+            grafted,
+            diagnostics = diag,
+        });
+    }
+
+    private async Task<(bool Ok, byte[]? Bin, IReadOnlyList<MachoSymbols.Symbol>? Syms, string Source, string? Diag)>
+        ResolveBinaryAsync(string? device, bool live, CancellationToken ct)
+    {
+        if (live)
+        {
+            var (lok, lbytes, lsyms, grafted, ldiag) = await binaries.GetLiveBinaryAsync(ct);
+            if (lok && lbytes is not null)
+                return (true, lbytes, lsyms, grafted ? "device-grafted" : "device", ldiag);
+            return (false, null, null, "device", ldiag);
+        }
+        var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
+        return (ok, bin, null, "stash", diag);
+    }
+
+    [HttpGet("section")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Section(
+        [FromQuery] string va, [FromQuery] int count, [FromQuery] string elem = "f64",
+        [FromQuery] string? device = null, [FromQuery] bool live = false, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        if (!TryParseVa(va, out var addr)) return BadRequest(new { error = "va must be hex (0x...) or decimal" });
+        if (!Arm64ConstSectionReader.TryParseElem(elem, out var elemType))
+            return BadRequest(new { error = "elem must be one of f32,f64,i32,i64,u32,u64" });
+        try
+        {
+            var (ok, bin, _, source, diag) = await ResolveBinaryAsync(device, live, ct);
+            if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
+            var dump = Arm64ConstSectionReader.Dump(bin, addr, count, elemType);
+            return Ok(new
+            {
+                ok = dump.Ok,
+                source,
+                va = "0x" + dump.Va.ToString("x"),
+                segment = dump.Segment,
+                section = dump.Section,
+                elem,
+                values = dump.Values,
+                diagnostics = dump.Diagnostics,
+            });
+        }
+        catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
+    }
+
+    private static bool TryParseVa(string s, out ulong va)
+    {
+        va = 0;
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        s = s.Trim();
+        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            return ulong.TryParse(s.AsSpan(2), System.Globalization.NumberStyles.HexNumber, null, out va);
+        return ulong.TryParse(s, out va);
+    }
+
     private IActionResult VaResult(
         byte[] tgt, SymbolRecovery.RecoveryReport report, string name, ulong va, ulong textVm, ulong textOff,
         string method, object? detail)

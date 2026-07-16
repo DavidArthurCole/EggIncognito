@@ -1,16 +1,16 @@
+using EggIncognito.Core.Services.Assets;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.ProtoExtract;
-using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Services;
 
 
 public sealed class DeviceMeshProvider(
-    IServiceProvider services, MeshAssetCache cache, IProcessRunner runner,
-    IConfiguration config, ILogger<DeviceMeshProvider> logger)
+    IServiceProvider services, IProcessRunner runner,
+    IConfiguration config, GameAssetProvider assets)
 {
     private const string PlatformAndroid = "android";
     private const string PlatformIos = "ios";
@@ -20,42 +20,18 @@ public sealed class DeviceMeshProvider(
     private static Result Err(int status, string diag) => new(false, null, diag, status);
 
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
-    private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
-   
-   
+
+
     public async Task<Result> GetGlbAsync(string stem, string? deviceId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(stem) || stem.IndexOfAny(['/', '\\', '.']) >= 0)
             return Err(400, "invalid mesh name");
 
-        var device = await ResolveDeviceAsync(deviceId, ct);
-        var platform = device?.Platform;
-
-        if (await TryDbGetAsync(platform, stem, ct) is { } dbGlb)
-        {
-            if (cache.TryGet(platform ?? "db", stem) is null) await cache.PutAsync(platform ?? "db", stem, dbGlb, ct);
-            return new Result(true, dbGlb, null, 200);
-        }
-
-        if (platform is not null && cache.TryGet(platform, stem) is { } diskGlb)
-        {
-            await PutDbAsync(platform, stem, diskGlb, ct);
-            return new Result(true, diskGlb, null, 200);
-        }
-
-        if (device is null) return Err(503, "mesh not cached and no asset-source device available");
-
-        var (rpo, pullErr) = await PullRpoAsync(device, stem, ct);
-        if (rpo is null) return pullErr!;
-
-        var decode = RpoMeshDecoder.Decode(rpo, stem);
-        if (!decode.Ok) return Err(500, decode.Diagnostics);
-        var glb = decode.Glb!;
-        await cache.PutAsync(device.Platform, stem, glb, ct);
-        await PutDbAsync(device.Platform, stem, glb, ct);
-        logger.LogInformation("device mesh: pulled {Stem} off {Id} ({Plat}), cached to db + disk", stem, device.Id, device.Platform);
-        return new Result(true, glb, null, 200);
+        var platform = (await ResolveDeviceAsync(deviceId, ct))?.Platform;
+        var result = await assets.GetAsync(new GameAssetKey("mesh", platform, stem), ct);
+        if (result.Ok) return new Result(true, result.Asset!.Bytes, null, 200);
+        return Err(503, result.Diagnostics ?? "mesh not cached and no asset-source device available");
     }
 
    
@@ -171,35 +147,6 @@ public sealed class DeviceMeshProvider(
         return dot > 0 ? name[..dot] : name;
     }
 
-   
-    private async Task<byte[]?> TryDbGetAsync(string? platform, string stem, CancellationToken ct)
-    {
-        var db = Db;
-        if (db is null) return null;
-        try
-        {
-            var q = db.StoredMeshes.AsNoTracking().Where(m => m.Stem == stem);
-            if (platform is not null) q = q.Where(m => m.Platform == platform);
-            var row = await q.OrderByDescending(m => m.CreatedAt).FirstOrDefaultAsync(ct);
-            return row?.Glb;
-        }
-        catch (Exception ex) { logger.LogWarning(ex, "mesh db cache read failed {Stem}", stem); return null; }
-    }
-
-    private async Task PutDbAsync(string platform, string stem, byte[] glb, CancellationToken ct)
-    {
-        var db = Db;
-        if (db is null) return;
-        try
-        {
-            var existing = await db.StoredMeshes.FirstOrDefaultAsync(m => m.Platform == platform && m.Stem == stem, ct);
-            if (existing is null)
-                db.StoredMeshes.Add(new StoredMesh { Platform = platform, Stem = stem, Glb = glb, ByteSize = glb.Length });
-            else { existing.Glb = glb; existing.ByteSize = glb.Length; }
-            await db.SaveChangesAsync(ct);
-        }
-        catch (Exception ex) { logger.LogWarning(ex, "mesh db cache write failed {Stem}", stem); }
-    }
 
    
     private async Task<Device?> ResolveDeviceAsync(string? deviceId, CancellationToken ct)
