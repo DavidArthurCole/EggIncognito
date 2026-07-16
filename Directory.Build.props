@@ -1,4 +1,9 @@
 <Project>
+  <PropertyGroup>
+    <Authors>DavidArthurCole</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/DavidArthurCole/EggIncognito</RepositoryUrl>
+  </PropertyGroup>
   <Target Name="SetSourceRevisionId" BeforeTargets="GetAssemblyVersion" Condition="'$(SourceRevisionId)' == ''">
     <Exec Command="git rev-parse HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low">
       <Output TaskParameter="ConsoleOutput" PropertyName="_GitSha" />

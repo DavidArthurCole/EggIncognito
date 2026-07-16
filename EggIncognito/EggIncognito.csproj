@@ -49,7 +49,7 @@
     <Exec Condition="'$(TailwindIsWindows)' != 'true'"
           Command="curl -fsSL '$(TailwindUrl)' -o '$(TailwindExe)' &amp;&amp; chmod +x '$(TailwindExe)'" />
   </Target>
-  <Target Name="BuildTailwind" AfterTargets="Build" DependsOnTargets="FetchTailwindCli"
+  <Target Name="BuildTailwind" BeforeTargets="ResolveStaticWebAssetsInputs;AssignTargetPaths;Compile" DependsOnTargets="FetchTailwindCli"
           Condition="'$(BuildTailwindCss)' != 'false'">
     <Exec Command="&quot;$(TailwindExe)&quot; -c &quot;$(MSBuildProjectDirectory)/tailwind.config.js&quot; -i &quot;$(MSBuildProjectDirectory)/wwwroot/app.tailwind.css&quot; -o &quot;$(MSBuildProjectDirectory)/wwwroot/tailwind.css&quot; --minify" />
   </Target>
