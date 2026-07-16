@@ -20,8 +20,14 @@ RUN --mount=type=secret,id=github_token \
 COPY EggIncognito.Core/ EggIncognito.Core/
 COPY EggIncognito.Runner/ EggIncognito.Runner/
 
+ARG GIT_SHA
+ARG APP_VERSION
 RUN --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
-    dotnet publish EggIncognito.Runner/EggIncognito.Runner.csproj -c Release -o /app/publish --no-restore
+    set -eux; \
+    STAMP=""; \
+    [ -n "$GIT_SHA" ] && STAMP="$STAMP -p:SourceRevisionId=$GIT_SHA"; \
+    [ -n "$APP_VERSION" ] && STAMP="$STAMP -p:Version=$APP_VERSION"; \
+    dotnet publish EggIncognito.Runner/EggIncognito.Runner.csproj -c Release -o /app/publish --no-restore $STAMP
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # adb only: android polling reaches the host's adb server via ADB_SERVER_SOCKET (network_mode: host

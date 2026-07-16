@@ -9,59 +9,49 @@ permissions:
   packages: write
 
 jobs:
-  # Publish the reusable libraries (EggIncognito.Core + EggIncognito.GameData) as NuGet packages to
-  # GitHub Packages, versioned from the release tag (v2.0.2 -> 2.0.2). GameData depends on Core, so both
-  # ship at the same version. Consumed by EggAbacus/EggLedger via the same GitHub Packages feed.
-  nuget:
+  create-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
+      - uses: softprops/action-gh-release@v3
         with:
-          dotnet-version: "10.0.x"
+          generate_release_notes: true
 
-      - name: Pack + push libraries
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          for proj in EggIncognito.Core/EggIncognito.Core.csproj EggIncognito.GameData/EggIncognito.GameData.csproj; do
-            dotnet pack "$proj" --configuration Release -p:Version="$VERSION" --output nupkgs
-          done
-          dotnet nuget push "nupkgs/*.nupkg" \
-            --source "https://nuget.pkg.github.com/DavidArthurCole/index.json" \
-            --api-key "${{ secrets.GITHUB_TOKEN }}" \
-            --skip-duplicate
+  nuget:
+    uses: DavidArthurCole/EggBasket/.github/workflows/nuget-publish.yml@v1
+    permissions:
+      contents: read
+      packages: write
+    with:
+      pack-targets: |
+        EggIncognito.Core/EggIncognito.Core.csproj
+        EggIncognito.GameData/EggIncognito.GameData.csproj
+    secrets: inherit
 
-  # Self-contained, single-file builds of the EggIncognito app per runtime, with the Endpoints/
-  # response set bundled alongside the executable. One job per RID (matrix) instead of a
-  # sequential loop, so all four publish in parallel.
   binaries:
     name: Binary (${{ matrix.rid }})
+    needs: create-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         rid: [linux-x64, linux-arm64, osx-arm64, win-x64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
           restore-keys: ${{ runner.os }}-nuget-
 
-      # SyncKit.Contract lives on GitHub Packages; the feed requires auth even when public,
-      # and the per-run GITHUB_TOKEN can't read another repo's packages. Use the account-level
-      # PACKAGES_PAT secret (read:packages).
       - name: Authenticate GitHub Packages
         run: |
           dotnet nuget update source github \
-            --username DavidArthurCole \
+            --username ${{ github.repository_owner }} \
             --password ${{ secrets.PACKAGES_PAT }} \
             --store-password-in-clear-text \
             --configfile nuget.config
@@ -78,9 +68,8 @@ jobs:
             -p:PublishSingleFile=true \
             -p:NoBrowser=true \
             -p:EmitTypes=false \
+            -p:Version="${TAG#v}" \
             --output "$OUT"
-          # Bundle the endpoint response set next to the executable (the app reads ./Endpoints,
-          # overridable with EndpointsPath).
           cp -r EggIncognito/Endpoints "$OUT/Endpoints"
           ARCHIVE="eggincognito-${TAG}-${RID}.tar.gz"
           [[ "$RID" == win-* ]] && ARCHIVE="eggincognito-${TAG}-${RID}.zip"
@@ -92,90 +81,54 @@ jobs:
           rm -rf "$OUT"
 
       - name: Attach binary to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
           files: eggincognito-*-${{ matrix.rid }}.*
 
-  # Publish the container image to GHCR, tagged with the release tag and `latest`.
+      - name: Hash
+        run: sha256sum eggincognito-*-${{ matrix.rid }}.* > "sha-${{ matrix.rid }}.sha256"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sha-${{ matrix.rid }}
+          path: sha-${{ matrix.rid }}.sha256
+
+  checksums:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: sha-*
+          merge-multiple: true
+          path: sums
+
+      - run: cat sums/*.sha256 > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: SHA256SUMS
+
   docker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@v1
+    permissions:
+      contents: read
+      packages: write
+    with:
+      needs-pat: true
+      build-args: GITHUB_PACKAGES_USER=${{ github.actor }}
+      cache-scope: app
+    secrets: inherit
 
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # GHCR image names must be lowercase; the repo name has capitals.
-      - name: Lowercase image name
-        id: img
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          # Always re-pull FROM base images: a cached stale SDK image (publish-time) paired with a
-          # freshly-pulled runtime image caused a real StartCircuit version-skew outage (2026-07-11).
-          pull: true
-          # SyncKit.Contract restore inside the image needs the GitHub Packages PAT.
-          secrets: |
-            github_token=${{ secrets.PACKAGES_PAT }}
-          build-args: |
-            GITHUB_PACKAGES_USER=${{ github.actor }}
-          tags: |
-            ${{ steps.img.outputs.name }}:${{ github.ref_name }}
-            ${{ steps.img.outputs.name }}:latest
-          # The deploy-agent's docker-pull step reads the revision label to report commit
-          # hashes (with links) instead of image digests in /updateserver embeds.
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # Publish the device-runner image to GHCR. Same shape as `docker` above, separate context/tags.
   docker-runner:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Lowercase image name
-        id: img
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-runner" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: EggIncognito.Runner/Dockerfile
-          push: true
-          # Always re-pull FROM base images; see docker job above for why (SDK/runtime version skew).
-          pull: true
-          # EggIncognito.Core restore inside the image needs the GitHub Packages PAT (SyncKit.Contract).
-          secrets: |
-            github_token=${{ secrets.PACKAGES_PAT }}
-          build-args: |
-            GITHUB_PACKAGES_USER=${{ github.actor }}
-          tags: |
-            ${{ steps.img.outputs.name }}:${{ github.ref_name }}
-            ${{ steps.img.outputs.name }}:latest
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@v1
+    permissions:
+      contents: read
+      packages: write
+    with:
+      dockerfile: EggIncognito.Runner/Dockerfile
+      image-suffix: -runner
+      needs-pat: true
+      build-args: GITHUB_PACKAGES_USER=${{ github.actor }}
+      cache-scope: runner
+    secrets: inherit

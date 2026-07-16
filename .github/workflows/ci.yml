@@ -2,40 +2,38 @@ name: CI
 
 on:
   push:
+    branches: [master, main]
   pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+  ci:
+    uses: DavidArthurCole/EggBasket/.github/workflows/dotnet-ci.yml@v1
+    with:
+      solution: EggIncognito.slnx
+      packages-auth: true
+    secrets: inherit
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "10.0.x"
+  seed-app-image-cache:
+    if: github.event_name == 'push'
+    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@v1
+    with:
+      push: false
+      needs-pat: true
+      build-args: GITHUB_PACKAGES_USER=${{ github.actor }}
+      cache-scope: app
+    secrets: inherit
 
-      - uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: ${{ runner.os }}-nuget-
-
-      # SyncKit.Contract lives on GitHub Packages; the feed requires auth even when public,
-      # and the per-run GITHUB_TOKEN can't read another repo's packages. Use the account-level
-      # PACKAGES_PAT secret (read:packages).
-      - name: Authenticate GitHub Packages
-        run: |
-          dotnet nuget update source github \
-            --username DavidArthurCole \
-            --password ${{ secrets.PACKAGES_PAT }} \
-            --store-password-in-clear-text \
-            --configfile nuget.config
-
-      - name: Build
-        run: dotnet build
-
-      - name: Test
-        run: dotnet test --no-build --logger "console;verbosity=normal"
+  seed-runner-image-cache:
+    if: github.event_name == 'push'
+    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@v1
+    with:
+      push: false
+      dockerfile: EggIncognito.Runner/Dockerfile
+      image-suffix: -runner
+      needs-pat: true
+      build-args: GITHUB_PACKAGES_USER=${{ github.actor }}
+      cache-scope: runner
+    secrets: inherit

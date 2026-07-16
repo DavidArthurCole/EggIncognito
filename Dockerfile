@@ -68,9 +68,15 @@ RUN set -eux; \
 # Publish WITH restore: --no-restore against the csproj-only restore leaves the static-web-assets
 # manifest stale and drops wwwroot/_framework (blazor.web.js). Re-restore is cheap (cached above).
 # EmitTypes=false skips typedef regen. BuildTailwindCss=false skips the hook (sheet compiled above).
+ARG GIT_SHA
+ARG APP_VERSION
 RUN --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
+    set -eux; \
+    STAMP=""; \
+    [ -n "$GIT_SHA" ] && STAMP="$STAMP -p:SourceRevisionId=$GIT_SHA"; \
+    [ -n "$APP_VERSION" ] && STAMP="$STAMP -p:Version=$APP_VERSION"; \
     dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
-        -p:EmitTypes=false -p:BuildTailwindCss=false; \
+        -p:EmitTypes=false -p:BuildTailwindCss=false $STAMP; \
     test -s /app/publish/wwwroot/tailwind.css; \
     test -s /app/publish/wwwroot/_framework/blazor.web.js
 
