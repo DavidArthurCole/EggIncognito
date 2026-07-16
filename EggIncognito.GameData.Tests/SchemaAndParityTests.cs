@@ -25,6 +25,31 @@ public sealed class SchemaAndParityTests
     }
 
     [Fact]
+    public void Every_hatchery_boost_carries_a_cost_from_get_config()
+    {
+        foreach (var id in HatcheryBoostIds)
+        {
+            var e = Provider.Resolve("boost", id)!;
+            Assert.True(e.TryMeta("price", out _), $"{id} missing price");
+            Assert.True(e.TryMeta("tokenPrice", out _), $"{id} missing tokenPrice");
+            Assert.True(e.MetaInt("price") >= 0);
+            Assert.True(e.MetaInt("tokenPrice") >= 0);
+        }
+    }
+
+    [Fact]
+    public void Known_boost_costs_match_captured_get_config()
+    {
+        var e = Provider.Resolve("boost", "tachyon_prism_orange")!;
+        Assert.Equal(12000, e.MetaInt("price"));
+        Assert.Equal(4, e.MetaInt("tokenPrice"));
+
+        var beacon = Provider.Resolve("boost", "boost_beacon_orange")!;
+        Assert.Equal(50000, beacon.MetaInt("price"));
+        Assert.Equal(8, beacon.MetaInt("tokenPrice"));
+    }
+
+    [Fact]
     public void Every_effect_carries_a_source_citation()
     {
         var all = Provider.Families.SelectMany(f => f.Effects);

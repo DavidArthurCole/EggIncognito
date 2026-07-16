@@ -25,6 +25,7 @@
     <ProjectReference Include="..\EggIncognito.Capture\EggIncognito.Capture.csproj" />
     <ProjectReference Include="..\EggIncognito.Data\EggIncognito.Data.csproj" />
     <ProjectReference Include="..\EggIncognito\EggIncognito.csproj" />
+    <ProjectReference Include="..\EggIncognito.GameData\EggIncognito.GameData.csproj" />
     <ProjectReference Include="..\EggIncognito.Bot\EggIncognito.Bot.csproj" />
     <ProjectReference Include="..\EggIncognito.RouteGenerator\EggIncognito.RouteGenerator.csproj" />
     <ProjectReference Include="..\EggIncognito.RelayAgent\EggIncognito.RelayAgent.csproj" />

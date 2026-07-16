@@ -50,6 +50,27 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         return Ok(new { ok = r.Ok, empty = r.Empty, missing = r.Missing });
     }
 
+    [HttpGet("boost-costs")]
+    public IActionResult BoostCosts()
+    {
+        var path = Path.Combine(DefaultsDir, "ei", "get_config.json");
+        if (!System.IO.File.Exists(path)) return NotFound(new { error = "no get_config capture" });
+        try
+        {
+            var json = System.IO.File.ReadAllText(path);
+            var costs = EggIncognito.Services.BoostCostExtractor.FromConfigJson(json);
+            return Ok(new
+            {
+                count = costs.Count,
+                costs = costs.Select(kv => new { boostId = kv.Key, kv.Value.Price, kv.Value.TokenPrice, kv.Value.SeRequired })
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { count = 0, error = ex.Message });
+        }
+    }
+
     public sealed record ExtractIosProtoRequest(string BinaryBase64);
 
    

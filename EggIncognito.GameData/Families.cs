@@ -39,7 +39,10 @@ public sealed class BoostFamily() : EmbeddedEffectFamily(Families.Boost, "boosts
         new EffectField("durationSeconds", EffectFieldType.Int),
         new EffectField("multiplier", EffectFieldType.Double, Required: false),
         new EffectField("appliesTo", EffectFieldType.String, Required: false),
-        new EffectField("slotCap", EffectFieldType.Int, Required: false)
+        new EffectField("slotCap", EffectFieldType.Int, Required: false),
+        new EffectField("price", EffectFieldType.Int, Required: false),
+        new EffectField("tokenPrice", EffectFieldType.Int, Required: false),
+        new EffectField("seRequired", EffectFieldType.Double, Required: false)
     ]);
 
     public static BoostFamily Load() => new();
