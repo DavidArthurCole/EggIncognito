@@ -1,6 +1,6 @@
 {
   "binaryVersion": "egginc-1.35.6",
-  "status": "binary@egginc-1.35.6: mults/durations verified PRESENT in __GLOBAL__sub_I_boostmanager init (presence, not per-id attribution); id->value mapping hand-assigned, confirmed vs wire (EGI boosts.json + EGG9000 CustomBackup). NOT positionally extracted.",
+  "status": "binary@egginc-1.35.6, present-not-attributed",
   "rows": [
     { "id": "tachyon_prism_blue", "target": "IHR", "combineMode": "Mul", "magnitude": 10, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 1800 } },
     { "id": "tachyon_prism_blue_v2", "target": "IHR", "combineMode": "Mul", "magnitude": 10, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_boostmanager,present-not-attributed", "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 1800 } },

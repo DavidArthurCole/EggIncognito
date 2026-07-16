@@ -1,6 +1,6 @@
 {
   "binaryVersion": "egginc-1.35.6",
-  "status": "binary@egginc-1.35.6, NOT positionally extracted (corrected 2026-07-16). The researchdata init stores {id,name,desc,maxLevel,cost-curve,min/max-display-pair}, NOT per-level effect magnitudes. Prior 'additive extracted@' was presence-in-bag: 2/5/10/25/50 appear only as unrelated cost/range/level quantities (e.g. pairs {2,1000},{5,250},{50,10000}), never attributed to a research id. MulPlusOne fractions 0.05/0.02/0.1 DO exist as exact f64 in __TEXT,__const (clusters 0x239d9xx / 0x102397958) but are consumed by effect-eval code, not loaded by the init, and not yet attributed. All magnitudes hand-verified vs decomp; true extraction = trace the per-effect eval immediates / positional decode.",
+  "status": "binary@egginc-1.35.6, present-not-attributed",
   "rows": [
     { "id": "internal_hatchery1", "target": "IHR", "combineMode": "Add", "magnitude": 2, "maxLevel": 10, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_researchdata.cpp,present-not-attributed", "meta": { "name": "Internal Hatcheries" } },
     { "id": "internal_hatchery2", "target": "IHR", "combineMode": "Add", "magnitude": 5, "maxLevel": 10, "source": "binary@egginc-1.35.6:__GLOBAL__sub_I_researchdata.cpp,present-not-attributed", "meta": { "name": "Internal Hatchery Upgrades" } },

@@ -1,6 +1,6 @@
 {
   "binaryVersion": "egginc-1.35.6",
-  "status": "extracted@egginc-1.35.6: HabCapacityExtractor decodes the 19 capacity integers as an ORDERED movz sequence in __GLOBAL__sub_I_habdata (fails if any value/order is wrong). Strongest attribution of the set. id->capacity mapping is by hab construction order (canonical). The only dataset that is truly positionally extracted, not presence-matched.",
+  "status": "extracted@egginc-1.35.6, positional (ordered movz decode)",
   "rows": [
     { "id": "COOP", "target": "HabCapacity", "combineMode": "Add", "magnitude": 250, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 0, "name": "Coop" } },
     { "id": "SHACK", "target": "HabCapacity", "combineMode": "Add", "magnitude": 500, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 1, "name": "Shack" } },

@@ -1,6 +1,6 @@
 {
   "binaryVersion": "egginc-1.35.6",
-  "status": "binary@egginc-1.35.6: multiplier/delta constants PRESENT in __TEXT,__const (clusters ~0x23d8xxx / 0x2402xxx / delta mini-table 0x22c931x) but NOT attributed per-artifact. init.13 DISPROVEN as source (it composes 1.16 arithmetically; 1.16 exists nowhere as a stored f64). Among multipliers only 1.16 is absent as f64 (rest sit at ~0x23d8xxx/0x2402xxx); in delta form 0.22/0.23/0.28 are the absentees. Missing values likely f32 or runtime-derived. Hand-verified vs decomp; positional ArtifactSpec decode still owed.",
+  "status": "binary@egginc-1.35.6, present-not-attributed",
   "rows": [
     { "id": "ORNATE_GUSSET:1:0", "target": "HabCapacity", "combineMode": "Mul", "magnitude": 1.05, "source": "binary@egginc-1.35.6:__const,present-not-attributed", "meta": { "boost": "HabCapacity", "tier": 1, "rarity": 0, "stoneCap": 0 } },
     { "id": "ORNATE_GUSSET:2:0", "target": "HabCapacity", "combineMode": "Mul", "magnitude": 1.10, "source": "binary@egginc-1.35.6:__const,present-not-attributed", "meta": { "boost": "HabCapacity", "tier": 2, "rarity": 0, "stoneCap": 0 } },

@@ -14,6 +14,7 @@ COPY EggIncognito.Capture/EggIncognito.Capture.csproj EggIncognito.Capture/
 COPY EggIncognito.Data/EggIncognito.Data.csproj EggIncognito.Data/
 COPY EggIncognito.Bot/EggIncognito.Bot.csproj EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/EggIncognito.RouteGenerator.csproj EggIncognito.RouteGenerator/
+COPY EggIncognito.GameData/EggIncognito.GameData.csproj EggIncognito.GameData/
 COPY EggIncognito/EggIncognito.csproj EggIncognito/
 # Bake the GitHub Packages PAT into the copied nuget.config (the GitHub NuGet feed needs auth
 # even for public packages). Persists in this layer so the later publish re-restore is also
@@ -48,6 +49,7 @@ COPY EggIncognito.Capture/ EggIncognito.Capture/
 COPY EggIncognito.Data/ EggIncognito.Data/
 COPY EggIncognito.Bot/ EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/ EggIncognito.RouteGenerator/
+COPY EggIncognito.GameData/ EggIncognito.GameData/
 COPY EggIncognito/ EggIncognito/
 
 # Compile Tailwind here, not via the MSBuild hook: the hook's ContinueOnError can silently ship an
