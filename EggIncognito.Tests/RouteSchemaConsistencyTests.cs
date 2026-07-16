@@ -3,9 +3,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-// The two independent parsers of routes.yaml (compile-time Generator and runtime RouteCatalog)
-// must agree on every route's normalized shape. They cannot share code (the Generator is
-// netstandard2.0 and dependency-free), so this test guards against drift.
+
 public sealed class RouteSchemaConsistencyTests
 {
     private static string RealYamlPath()
@@ -30,7 +28,7 @@ public sealed class RouteSchemaConsistencyTests
         var gen = RouteParser.Parse(yaml).ToDictionary(e => e.Path);
         var cat = RouteCatalog.Parse(yaml).ToDictionary(e => e.Path);
 
-        // Same set of route paths across both parsers.
+       
         Assert.Equal(gen.Keys.OrderBy(k => k), cat.Keys.OrderBy(k => k));
 
         foreach (var path in gen.Keys)
@@ -120,7 +118,7 @@ public sealed class RouteSchemaConsistencyTests
         var g = RouteParser.Parse(yaml);
         var c = RouteCatalog.Parse(yaml);
 
-        // The empty-path block is dropped and its keys do not bleed into ei/real.
+       
         Assert.Single(g);
         Assert.Equal("ei/real", g[0].Path);
         Assert.Null(g[0].Response);
@@ -132,8 +130,8 @@ public sealed class RouteSchemaConsistencyTests
     [Fact]
     public void NewKeysWinOverLegacy_AtBlockLevel_InBothParsers()
     {
-        // New keys win even when the legacy key comes later in the block, and an
-        // explicitly empty new key (unknown inner type) still overrides legacy.
+       
+       
         const string yaml = """
             routes:
               - path: ei/both

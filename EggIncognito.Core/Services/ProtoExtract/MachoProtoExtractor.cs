@@ -1,8 +1,6 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// iOS-facing entry point for proto extraction. The decrypted Mach-O embeds serialized FileDescriptorProto
-// blobs; the format-agnostic DescriptorProtoCarver does the work. Kept as a named seam (CLI, IosRunner, tests)
-// and for the result-shape the callers expect.
+
 public static class MachoProtoExtractor
 {
     public sealed record CarvedDescriptor(string Name, int FileOffset, byte[] Bytes);

@@ -31,8 +31,8 @@ public class RateLimitKeysTests
         Assert.Equal("10.0.0.9", RateLimitKeys.ClientIp(CtxWith(cfIp: null, xff: null), hosted: false));
     }
 
-    // Hosted never trusts X-Forwarded-For: a client rotating that header must not mint fresh
-    // partitions, so everything without CF-Connecting-IP shares one bucket.
+   
+   
     [Fact]
     public void ClientIp_Hosted_IgnoresXff_UsesSharedBucket()
     {
@@ -90,7 +90,7 @@ public class RateLimitKeysTests
         Assert.Equal(new[] { "Contributor" }, RateLimitKeys.TiersFor(user));
     }
 
-    // Defaults: Egress 10, Write 60; tiers Anon 30 / Viewer 120 / Contributor 600.
+   
     [Theory]
     [InlineData("Anon", "Egress", 10)]
     [InlineData("Viewer", "Egress", 10)]
@@ -122,8 +122,8 @@ public class RateLimitKeysTests
         Assert.True(permitSupporter >= permitViewer);
     }
 
-    // Sliding-window QueueLimit=0 leases never carry RetryAfter metadata, so the 429 fallback comes
-    // from the matched policy's window, not a hardcoded 60.
+   
+   
     [Fact]
     public void FallbackRetryAfter_UsesMatchedPolicyWindow()
     {

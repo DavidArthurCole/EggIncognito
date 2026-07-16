@@ -38,7 +38,7 @@ public class AuthModeTests
     [Fact]
     public async Task Code_PassesThrough_WhenAuthOff()
     {
-        // No callback middleware is registered when auth is off, so ?code is not intercepted.
+       
         var c = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         var r = await c.GetAsync("/health?code=abc");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);

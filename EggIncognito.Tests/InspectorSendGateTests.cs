@@ -4,8 +4,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// Proves /api/inspector/send is login-gated when Hosted: an anonymous request gets 403 instead of
-// egressing to auxbrain from the server. /build is never gated (no egress), so it is not covered here.
 public class InspectorSendGateTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;

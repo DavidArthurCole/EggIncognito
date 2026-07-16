@@ -4,9 +4,7 @@ using Google.Protobuf;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// ShellCatalog indexes the shells in a DLCCatalog. A synthetic catalog proves the parse + url + asset-type
-// grouping; the real captured config (captures/config.json), when present, proves it against the live shape
-// (4138 shells, every one with a resolvable .rpoz url).
+
 public class ShellCatalogTests
 {
     [Fact]
@@ -68,8 +66,8 @@ public class ShellCatalogTests
     [Fact]
     public void InnerConfigProto_DirectParse_KeepsShells_WrappedAsAuthMsgIsHusk()
     {
-        // A direct ParseFrom of the inner ConfigResponse keeps the shells; the same bytes wrapped in an
-        // AuthenticatedMessage and parsed as ConfigResponse yields a husk, so ingest must prefer the unwrapped parse.
+       
+       
         var json = ConfigJson();
         if (json is null) return;
         var full = ConfigResponse.Parser.ParseJson(json);
@@ -91,7 +89,7 @@ public class ShellCatalogTests
     public void FromCatalog_RealConfig_HasManyShells()
     {
         var json = ConfigJson();
-        if (json is null) return; // fixture absent (CI): synthetic tests cover the logic
+        if (json is null) return;
 
         var cfg = ConfigResponse.Parser.ParseJson(json);
         Assert.NotNull(cfg.DlcCatalog);
@@ -156,7 +154,7 @@ public class ShellCatalogTests
     public void HatWearingChicken_WithoutMetadata_GetsDefaultAnchor()
     {
         var cat = new DLCCatalog();
-        // a chicken that wears a hat (noHats=false) but ships no metadata override.
+       
         cat.ShellObjects.Add(Obj("ei_chicken_skis", ShellSpec.Types.AssetType.Chicken));
         var o = Assert.Single(ShellCatalog.Chickens(cat));
         Assert.False(o.NoHats);
@@ -167,7 +165,7 @@ public class ShellCatalogTests
     public void RealConfig_HasChickensWithAnchors_AndHats()
     {
         var json = ConfigJson();
-        if (json is null) return; // fixture absent (CI)
+        if (json is null) return;
         var cfg = ConfigResponse.Parser.ParseJson(json);
         var chickens = ShellCatalog.Chickens(cfg.DlcCatalog!);
         var hats = ShellCatalog.Hats(cfg.DlcCatalog!);

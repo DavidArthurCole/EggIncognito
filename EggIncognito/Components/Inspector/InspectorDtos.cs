@@ -3,21 +3,15 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Components.Inspector;
 
-// Deserialization shapes for the Inspector controller responses. The build/send/decode calls go through
-// the controllers, which own the salt build, egress, and host allowlist.
-
-// POST /api/inspector/build
 public sealed record BuildResponse(
     List<TransportStage>? Stages,
     string? FinalBase64,
     string? FinalFormBody,
     bool CanSign,
-    // In-band ApiError fields when the build failed.
+   
     string? Error,
     string? Resolution,
     JsonElement? Details);
-
-// POST /api/inspector/send and /decode-response (status only on /send).
 public sealed record SendResponse(
     int? Status,
     string? RawBase64,
@@ -26,8 +20,6 @@ public sealed record SendResponse(
     string? Error,
     string? Resolution);
 
-// POST /api/tools/diagnose. Mirrors WireForensics.DiagnoseResult by field name so JSON binds 1:1; kept
-// separate because Core has no web dependency. Error is the in-band base64-decode failure field.
 public sealed record DiagnoseDto(
     bool Ok,
     int TotalLen,

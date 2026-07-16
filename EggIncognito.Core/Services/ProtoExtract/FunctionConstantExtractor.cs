@@ -1,8 +1,6 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Reads the float/double constants + call targets out of a named function in an arm64 Mach-O. Resolves the
-// function's VA range by symbol name, locates __text for the slide, disassembles the range, and maps each bl
-// target back to its nearest symbol.
+
 public static class FunctionConstantExtractor
 {
     public readonly record struct ExtractResult(bool Ok, string FunctionName, IReadOnlyList<double> Floats,
@@ -14,9 +12,9 @@ public static class FunctionConstantExtractor
         return ExtractWith(bin, MachoSymbols.Read(bin), nameNeedles);
     }
 
-    // Extracts using an explicit symbol list instead of the binary's own table, so a stripped binary can resolve
-    // functions via symbols recovered from a symbolized reference. Pass the full recovered set so a function's
-    // end VA can be inferred from the next symbol.
+   
+   
+   
     public static ExtractResult ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string[] nameNeedles)
     {
         if (bin is null || bin.Length < 64) return new(false, "", [], [], "binary too short");
@@ -32,8 +30,8 @@ public static class FunctionConstantExtractor
         return new(true, fn.Name, floats, calls, "ok");
     }
 
-    // The name of the symbol whose address is the greatest <= target (the function the bl lands in), or the
-    // hex VA when target is below every symbol.
+   
+   
     public static string ResolveCallName(IReadOnlyList<MachoSymbols.Symbol> syms, ulong target)
     {
         string? best = null;

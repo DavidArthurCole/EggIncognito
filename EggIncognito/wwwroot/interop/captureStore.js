@@ -1,6 +1,4 @@
-// Browser-side memory for the Capture Blazor tab. The small slice of JS that survives the port: the
-// view preferences (redaction mode, show-headers, auto-scroll, compare-to-known, default format) live
-// in this browser's localStorage exactly as the old redaction.js kept them. Server holds none of it.
+
 
 const REDACTION_KEY = "capture.redaction";
 const SHOW_HEADERS_KEY = "capture.showHeaders";
@@ -27,8 +25,6 @@ export function setRedactionMode(mode) {
 
 export function getShowHeaders() { return getRaw(SHOW_HEADERS_KEY) === "true"; }
 export function setShowHeaders(value) { setRaw(SHOW_HEADERS_KEY, String(!!value)); }
-
-// Default on.
 export function getAutoScroll() { return getRaw(AUTOSCROLL_KEY) !== "false"; }
 export function setAutoScroll(value) { setRaw(AUTOSCROLL_KEY, String(!!value)); }
 

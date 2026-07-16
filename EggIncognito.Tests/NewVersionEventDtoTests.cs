@@ -20,8 +20,8 @@ public class NewVersionEventDtoTests
     [Fact]
     public void Deserialize_PlatformIsNull_WhenAbsent()
     {
-        // SyncKit.Contract.NewVersionEvent has no "android" default; the fallback lives at the
-        // Program.cs Registry call site (see NewVersionIngestServiceTests.LegacyEvent_PlatformFallsBackToAndroid).
+       
+       
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"package":"com.auxbrain.egginc","version":"1.0","apkRef":"a","protoSha":"s","detectedAt":"t"}""");
         Assert.Null(e!.Platform);
@@ -50,7 +50,7 @@ public class NewVersionEventDtoTests
     [Fact]
     public void Deserialize_OldEmitter_OmitsNewFields()
     {
-        // Legacy emitters send only the single version field; the new fields stay null/empty.
+       
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"version":"1.34","build":"","clientVersion":null}""");
         Assert.Equal("1.34", e!.Version);

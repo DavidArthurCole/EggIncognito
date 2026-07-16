@@ -13,7 +13,7 @@ public sealed class DbEndpointSource(EggIncognitoDbContext db) : IEndpointSource
         var cleanPath = path.TrimEnd('/');
         while (true)
         {
-            // eid match ranked first (eid beats global).
+           
             var json = db.StoredEndpoints.AsNoTracking()
                 .Where(e => e.Path == cleanPath && (e.Eid == eid || e.Eid == null))
                 .OrderBy(e => e.Eid == null ? 1 : 0)

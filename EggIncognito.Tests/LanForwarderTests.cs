@@ -5,9 +5,7 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// Pure helpers carved out of LanForwarder: the CONNECT-head rewrite (Kestrel acceptance), the
-// IPv4-mapped-IPv6 unwrap, and the double-CRLF scan. Behavior these guard fixed the real
-// "phone 400s, curl works" bug, so they must not regress.
+
 public class LanForwarderTests
 {
     [Fact]
@@ -31,7 +29,7 @@ public class LanForwarderTests
     [Fact]
     public void CleanConnectHead_RewritesHostToMatchAuthority()
     {
-        // iOS sends Host with no port; Kestrel needs it to match the CONNECT authority exactly.
+       
         var head = "CONNECT www.auxbrain.com:443 HTTP/1.1\r\nHost: www.auxbrain.com";
         var cleaned = LanForwarder.CleanConnectHead(head);
         Assert.Contains("Host: www.auxbrain.com:443\r\n", cleaned);
@@ -49,13 +47,13 @@ public class LanForwarderTests
     [Fact]
     public void CleanConnectHead_AbsoluteUriGet_HostIsUrlAuthorityNotWholeUrl()
     {
-        // trustd sends absolute-URI proxy GETs for OCSP; Host must be the URL's authority, not the whole URL.
+       
         var head = "GET http://ocsp.digicert.com/MFAwTjBM HTTP/1.1\r\n" +
                    "Host: ocsp.digicert.com\r\n" +
                    "Proxy-Connection: keep-alive";
         var cleaned = LanForwarder.CleanConnectHead(head);
         Assert.Contains("Host: ocsp.digicert.com\r\n", cleaned);
-        Assert.DoesNotContain("Host: http://", cleaned); // never the raw URL
+        Assert.DoesNotContain("Host: http://", cleaned);
         Assert.DoesNotContain("Proxy-Connection:", cleaned);
         Assert.StartsWith("GET http://ocsp.digicert.com/MFAwTjBM HTTP/1.1\r\n", cleaned);
     }
@@ -87,7 +85,7 @@ public class LanForwarderTests
     {
         var bytes = Encoding.ASCII.GetBytes("HEAD line\r\nSecond\r\n\r\nbody");
         var idx = LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length);
-        // The \r\n\r\n begins right after "Second".
+       
         Assert.Equal(Encoding.ASCII.GetBytes("HEAD line\r\nSecond").Length, idx);
     }
 
@@ -98,8 +96,8 @@ public class LanForwarderTests
         Assert.Equal(-1, LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length));
     }
 
-    // Accept-loop resilience: a transient SocketException from one bad connection must not kill
-    // the loop for the rest of the session; only listener teardown stops it.
+   
+   
     [Theory]
     [InlineData(SocketError.ConnectionReset)]
     [InlineData(SocketError.ConnectionAborted)]

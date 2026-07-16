@@ -69,8 +69,8 @@ else
     [Parameter] public EventCallback<RouteInfo> OnSelectEndpoint { get; set; }
     [Parameter] public EventCallback<string> OnSelectObject { get; set; }
 
-    // Endpoint-status popover state, owned by the parent Inspector page (the status fetch + persistence
-    // live there); this component only renders the button + popover in its header.
+   
+   
     [Parameter] public bool StatusLoading { get; set; }
     [Parameter] public string StatusCounts { get; set; } = "";
     [Parameter] public string StatusOut { get; set; } = "";
@@ -80,8 +80,8 @@ else
     string _filter = "";
     readonly HashSet<string> _collapsed = [];
 
-    // The catalog + message list are immutable per app run; cache them (and the unfiltered grouping)
-    // so each render does not re-enumerate the services or re-lowercase every item.
+   
+   
     List<RouteInfo>? _routes;
     List<IGrouping<string, RouteInfo>>? _grouped;
     List<string>? _messages;

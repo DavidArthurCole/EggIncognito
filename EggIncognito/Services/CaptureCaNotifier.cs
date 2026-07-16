@@ -4,32 +4,22 @@ using System.Text.Json;
 
 namespace EggIncognito.Services;
 
-// Best-effort delivery of a freshly-minted capture CA + proxy details to the user over a Discord DM.
-// The web app never hard-depends on the bot: NoopCaptureCaNotifier is registered when Discord:BotToken
-// is unset.
+
 public interface ICaptureCaNotifier
 {
-    // Returns whether the DM (channel open + message with the CA profile + token/proxy text) was
-    // delivered. Never throws; any failure reports false so the caller falls back to the /capture card.
+   
+   
     Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct);
 }
 
-// Everything the DM needs: the public CA bytes (DER) plus the per-user proxy address to print as
-// copyable text. The front door identifies the user by destination address, so the proxy needs no
-// username or password.
+
 public sealed record CaptureSetupDm(
     string DiscordId, byte[] CerBytes, string ProxyHost, int Port);
-
-// No bot configured: nothing to send. The caller falls back to the download button.
 public sealed class NoopCaptureCaNotifier : ICaptureCaNotifier
 {
     public Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct) => Task.FromResult(false);
 }
 
-// Sends the setup over Discord REST with the bot token, mirroring SupporterStatus's HttpClient pattern
-// (no socket-client dependency). Opens a DM channel, then posts a multipart message carrying a
-// .mobileconfig (one-tap CA install on iOS) plus a text block with the per-user proxy host/port.
-// Fail-closed: any non-success or exception reports false.
 public sealed class DiscordCaptureCaNotifier(
     IHttpClientFactory httpFactory, IConfiguration config, ILogger<DiscordCaptureCaNotifier> logger)
     : ICaptureCaNotifier
@@ -58,7 +48,7 @@ public sealed class DiscordCaptureCaNotifier(
         }
     }
 
-    // iOS: open attached profile, install, trust. Front door identifies by address; no credentials needed.
+   
     internal static string BuildMessage(CaptureSetupDm dm) =>
         $"""
         **Hosted capture is live.**
@@ -71,7 +61,7 @@ public sealed class DiscordCaptureCaNotifier(
         **3. Open Egg, Inc.**
         """;
 
-    // POST /users/@me/channels {"recipient_id": id} -> the DM channel id, or null on any failure.
+   
     private static async Task<string?> OpenDmAsync(HttpClient http, string token, string discordId, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, "https://discord.com/api/v10/users/@me/channels")
@@ -90,7 +80,7 @@ public sealed class DiscordCaptureCaNotifier(
             : null;
     }
 
-    // POST /channels/{id}/messages as multipart: the .mobileconfig as files[0] + a payload_json part.
+   
     private static async Task<bool> PostAsync(
         HttpClient http, string token, string channelId, byte[] profile, string fileName, string content,
         CancellationToken ct)

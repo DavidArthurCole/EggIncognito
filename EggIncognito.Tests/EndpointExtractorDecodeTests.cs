@@ -3,8 +3,6 @@ using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
-// Guards against "mojibake": parsing an AM-wrapped blob as raw (or vice versa) makes the lenient
-// proto parser stuff the real payload into one giant trailing string field instead of the true type.
 public class EndpointExtractorDecodeTests
 {
     private static Ei.ContractsInfoRequest SampleRequest() => new()

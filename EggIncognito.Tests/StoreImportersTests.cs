@@ -1,8 +1,6 @@
 using EggIncognito.Services.Backfill;
 
 namespace EggIncognito.Tests;
-
-// Pure store-metadata parsers over canned responses.
 public class StoreImportersTests
 {
     [Fact]

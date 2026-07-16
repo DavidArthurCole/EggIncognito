@@ -2,11 +2,7 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
-// Recovers the singleton farm-position functions (FarmScene::missionControlPos / fuelTankPos / hoaPos) as
-// per-axis expression trees. These return a Vec3 via the arm64 sret out-param, computing
-// X = perElementConst + farmHalfWidth + offset where farmHalfWidth = min(gc[boundA], gc[boundB]) reads two live
-// GameController fields, folded here into a single Input("farmWidth"). See
-// docs/superpowers/specs/2026-06-29-farm-placement-recovery-design.md. Never throws.
+
 public static class FarmPlacementRecovery
 {
     public readonly record struct Vec3Model(
@@ -24,8 +20,8 @@ public static class FarmPlacementRecovery
         };
     }
 
-    // GameController farm-bound field offsets: missionControl/fuelTank read min(gc[0x3d4], gc[0x3d8]); hoa reads
-    // gc[0x3d0]. Any of these folds to Input("farmWidth").
+   
+   
     private static readonly long[] FarmWidthFields = { 0x3d0, 0x3d4, 0x3d8 };
 
     public static Vec3Model Recover(byte[] bin, string needle)
@@ -41,7 +37,7 @@ public static class FarmPlacementRecovery
         if (!Arm64Decode.SliceFunction(bin, fn.Start, fn.End, tvm, tfo, out var code, out _))
             return new(false, fn.Name, null, null, null, 0, "function range out of bounds");
 
-        // x0 = GameController* (named "gc"); x8 = the sret out-param pointer, whose stores land in RetVec.
+       
         var bases = new Dictionary<string, string> { ["x0"] = "gc", ["x8"] = "ret" };
         var exec = Arm64SymbolicExecutor.Run(code, fn, tvm, tfo, syms, new Dictionary<string, ExprNode>(), bases, KnownCallModels.Resolve);
 
@@ -52,8 +48,8 @@ public static class FarmPlacementRecovery
         return new(ok, fn.Name, x, y, z, exec.Opaque, diag);
     }
 
-    // Rewrites min(Field(gc, a), Field(gc, b)) over the two farm-bound fields, or a lone bound field, into
-    // Input("farmWidth"). Recurses the tree.
+   
+   
     private static ExprNode FoldFarmWidth(ExprNode n)
     {
         switch (n)
@@ -61,7 +57,7 @@ public static class FarmPlacementRecovery
             case Binary { Op: BinOp.Min } b when IsBound(b.A) && IsBound(b.B):
                 return new Input("farmWidth");
             case Select s when IsBound(s.A) && IsBound(s.B):
-                // fcsel min/max over the two bounds (the executor models fcsel as Select); treat as farmWidth.
+               
                 return new Input("farmWidth");
             case Field f when IsBoundField(f):
                 return new Input("farmWidth");

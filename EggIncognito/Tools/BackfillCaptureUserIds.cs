@@ -6,9 +6,7 @@ using SyncKit.Identity.Client;
 
 namespace EggIncognito.Tools;
 
-// One-shot data migration: populate UserId on capture_proxy_addrs/capture_user_cas rows minted
-// before those tables were keyed by user id. Run once via the admin endpoint before applying the
-// RepointCaptureTablesToUserId migration, whose Up() guard rejects unbackfilled rows.
+
 public static class CaptureUserIdBackfill
 {
     public static async Task<int> RunAsync(EggIncognitoDbContext db, IdentityApiClient identity, CancellationToken ct)
@@ -35,10 +33,6 @@ public static class CaptureUserIdBackfill
     }
 }
 
-// Second one-shot data migration: resolves the Discord-ID strings still held in owner_user_id /
-// author_user_id across 7 tables into SyncKit user ids, in place, before RetypeOwnerAuthorUserIdColumns
-// alters those columns from text to uuid. Runs over raw SQL (not EF) because the columns are still text
-// at this point while the C# models are already Guid?, so an EF query against them would fail to map.
 public static class OwnerAuthorUserIdBackfill
 {
     private static readonly (string Table, string Column)[] Targets =
@@ -58,8 +52,8 @@ public static class OwnerAuthorUserIdBackfill
         if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync(ct);
 
         var updated = 0;
-        // Shared across all 7 tables: the same Discord ID often owns rows in multiple tables, so
-        // caching keeps each distinct id resolved via ResolveAsync exactly once for this run.
+       
+       
         var cache = new Dictionary<string, Guid>();
 
         foreach (var (table, column) in Targets)

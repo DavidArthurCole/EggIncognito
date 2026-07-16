@@ -4,16 +4,14 @@ using SyncKit.Bot;
 
 namespace EggIncognito.Bot;
 
-// All gateway lifecycle, command registration, presence, and shared-role logic lives in SyncKit.Bot;
-// this class only owns the instance's lifetime, deliberately bypassing SyncKitBotBuilder.RunAsync()
-// (which owns its own WebApplication) since EggIncognito already hosts one and cannot run two.
+
 public sealed class EggIncognitoBotHostedService(
     BotConfig cfg, ILogger<EggIncognitoBotHostedService> logger) : IHostedService
 {
     private SyncKitBot? _bot;
 
-    // The running bot instance, null until StartAsync succeeds. Exposes ConfigService for the admin
-    // panel and Client for the deploy notifier.
+   
+   
     public SyncKitBot? Bot => _bot;
 
     public async Task StartAsync(CancellationToken ct)

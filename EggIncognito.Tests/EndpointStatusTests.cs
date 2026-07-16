@@ -77,13 +77,13 @@ public class EndpointStatusTests
     public void WriteStatusBlock_PreservesFollowingNonLowercaseTopLevelKey()
     {
         var (yamlPath, defaults) = MakeRepo();
-        // An existing block followed by top-level keys the old lowercase-only lookahead would eat.
+       
         File.AppendAllText(yamlPath,
             "\nendpoint_status:\n  missing:\n    - ei/stale_entry\n\n_meta: keep_underscore\nZone: keep_upper\n");
         var yaml = EndpointStatus.WriteStatusBlock(yamlPath, EndpointStatus.Classify(yamlPath, defaults));
         Assert.Contains("_meta: keep_underscore", yaml);
         Assert.Contains("Zone: keep_upper", yaml);
-        Assert.DoesNotContain("ei/stale_entry", yaml); // old block fully replaced
+        Assert.DoesNotContain("ei/stale_entry", yaml);
         Assert.Contains("ei/missing_endpoint", yaml);
     }
 }

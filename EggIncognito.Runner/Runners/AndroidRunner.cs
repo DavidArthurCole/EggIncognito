@@ -5,8 +5,6 @@ using EggIncognito.Runner.State;
 using SyncKit.Contract;
 
 namespace EggIncognito.Runner.Runners;
-
-// State is keyed on build (versionCode); force ignores state.
 public sealed class AndroidRunner(
     IAdbClient adb, IProtoExtractor proto, VersionState state, IClientVersionReader clientVersion,
     ClientVersionState cvState, string package, string apkStashDir,

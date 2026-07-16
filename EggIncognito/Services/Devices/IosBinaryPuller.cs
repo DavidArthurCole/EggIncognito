@@ -2,9 +2,7 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-// Pulls the Egg Inc Mach-O binary off a plugged-in jailbroken iPhone over ssh. Only the binary's first
-// __TEXT page is FairPlay-encrypted, and the embedded FileDescriptorProto blobs live past that window in
-// __DATA, so the on-disk binary carves without any runtime decrypt.
+
 public sealed class IosBinaryPuller(IProcessRunner runner, string sshHost, string sshPort, string sshKeyPath)
 {
     public async Task<byte[]?> PullBinaryAsync(string bundleId, CancellationToken ct)

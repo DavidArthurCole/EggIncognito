@@ -46,8 +46,8 @@
 </main>
 
 @code {
-    // HAR files can be large (full devtools sessions). 100 MB cap is generous headroom over the default
-    // 500 KB OpenReadStream limit; the controller still owns the real ingest + ACL.
+   
+   
     const long MaxUploadBytes = 104_857_600;
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -57,8 +57,8 @@
     string _result = "";
     IBrowserFile? _file;
 
-    // Captured while HttpContext is live; reused for the circuit-time self-call (the SignalR circuit has
-    // no HttpContext, so the auth cookie must be forwarded from the originating request).
+   
+   
     string _baseAddress = "";
     string? _cookie;
 
@@ -74,8 +74,8 @@
 
     void OnFileSelected(InputFileChangeEventArgs e) => _file = e.FileCount > 0 ? e.File : null;
 
-    // Self-call client forwarding the captured auth cookie so the CanWrite/ACL gate on the controller
-    // sees the request's auth context.
+   
+   
     HttpClient Client()
     {
         var c = HttpFactory.CreateClient();

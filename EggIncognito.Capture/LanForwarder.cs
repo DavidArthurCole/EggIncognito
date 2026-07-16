@@ -3,9 +3,7 @@ using System.Net.Sockets;
 
 namespace EggIncognito.Capture;
 
-// Unobtanium 0.9.x binds its proxy listener to 127.0.0.1 with no option to change it, so a phone on
-// the LAN cannot reach it directly. This tiny TCP forwarder listens on 0.0.0.0:<publicPort> and pipes
-// every connection to 127.0.0.1:<proxyPort>, forwarding raw bytes both ways, protocol-agnostic.
+
 public sealed class LanForwarder : IAsyncDisposable
 {
     private readonly TcpListener _listener;
@@ -13,17 +11,17 @@ public sealed class LanForwarder : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private Task? _acceptLoop;
 
-    // Optional diagnostic sink, wired to the proxy's verbose trace.
+   
     public Action<string>? Trace { get; set; }
     private void Log(string m) => Trace?.Invoke(m);
 
-    // Real device endpoints, observed at the LAN-facing accept, since the proxy itself only ever sees
-    // the loopback forwarder. Reported per unique IP (not per TCP connection) with a grace delay on
-    // disconnect to absorb constant connection churn.
+   
+   
+   
     public Action<string, int>? DeviceConnected { get; set; }
     public Action<string, int>? DeviceDisconnected { get; set; }
 
-    // Long enough that iOS's constant connection open/close churn between gameplay bursts never looks like a disconnect.
+   
     private static readonly TimeSpan DisconnectGrace = TimeSpan.FromSeconds(45);
     private readonly object _devLock = new();
     private readonly Dictionary<string, int> _connsPerIp = new(StringComparer.Ordinal);
@@ -31,7 +29,7 @@ public sealed class LanForwarder : IAsyncDisposable
 
     public LanForwarder(int publicPort, int proxyPort)
     {
-        // IPAddress.Any is IPv4-only; IPv6Any + DualMode accepts both.
+       
         _listener = new TcpListener(IPAddress.IPv6Any, publicPort);
         _listener.Server.DualMode = true;
         _proxyPort = proxyPort;
@@ -50,7 +48,7 @@ public sealed class LanForwarder : IAsyncDisposable
             TcpClient client;
             try { client = await _listener.AcceptTcpClientAsync(ct); }
             catch (OperationCanceledException) { break; }
-            catch (ObjectDisposedException) { break; } // listener stopped
+            catch (ObjectDisposedException) { break; }
             catch (SocketException ex)
             {
                 if (IsFatalAcceptError(ex, ct.IsCancellationRequested)) break;
@@ -58,17 +56,17 @@ public sealed class LanForwarder : IAsyncDisposable
                 continue;
             }
             Log($"FWD accept from {client.Client.RemoteEndPoint}");
-            _ = HandleAsync(client, ct); // fire and forget per connection
+            _ = HandleAsync(client, ct);
         }
     }
 
-    // Stop only when the listener is being torn down; everything else is a transient per-connection failure.
+   
     internal static bool IsFatalAcceptError(SocketException ex, bool cancelRequested) =>
         cancelRequested || ex.SocketErrorCode is SocketError.Interrupted or SocketError.OperationAborted;
 
     private async Task HandleAsync(TcpClient client, CancellationToken ct)
     {
-        // Real device IP from the LAN edge; the proxy only ever sees loopback.
+       
         var deviceIp = DeviceIp(client);
         OnDeviceConnectionOpened(deviceIp);
         try
@@ -84,12 +82,12 @@ public sealed class LanForwarder : IAsyncDisposable
             var cs = client.GetStream();
             var us = upstream.GetStream();
 
-            // The proxy is Kestrel, which 400s a CONNECT request carrying hop-by-hop headers like
-            // `Connection:` / `Proxy-Connection:` that iOS sends. Strip those, forward the cleaned head, then raw-pipe the tunnel.
+           
+           
             if (!await ForwardCleanedConnectAsync(cs, us, ct))
                 return;
 
-            // Do not tear down on a single half-close, which would kill the live direction.
+           
             var c2u = PumpAsync(cs, us, upstream, ct, "c2u");
             var u2c = PumpAsync(us, cs, client, ct, "u2c");
             try { await Task.WhenAll(c2u, u2c); }
@@ -102,7 +100,7 @@ public sealed class LanForwarder : IAsyncDisposable
         }
     }
 
-    // Fire DeviceConnected only on the 0 -> 1 transition for this IP, not for every connection.
+   
     private void OnDeviceConnectionOpened(string ip)
     {
         bool firstForIp;
@@ -116,8 +114,8 @@ public sealed class LanForwarder : IAsyncDisposable
         if (firstForIp) DeviceConnected?.Invoke(ip, deviceCount);
     }
 
-    // Only treat it as a real disconnect if the IP has zero active connections after a grace delay,
-    // otherwise a momentary 1 -> 0 -> 1 blip would spam disconnect/connect.
+   
+   
     private void OnDeviceConnectionClosed(string ip)
     {
         lock (_devLock)
@@ -138,15 +136,15 @@ public sealed class LanForwarder : IAsyncDisposable
         lock (_devLock)
         {
             _disconnectPending.Remove(ip);
-            if (_connsPerIp.GetValueOrDefault(ip) > 0) return; // reconnected during grace, not gone
+            if (_connsPerIp.GetValueOrDefault(ip) > 0) return;
             _connsPerIp.Remove(ip);
             deviceCount = _connsPerIp.Count(kv => kv.Value > 0);
         }
         DeviceDisconnected?.Invoke(ip, deviceCount);
     }
 
-    // Read the first HTTP request head, strip hop-by-hop headers Kestrel rejects on CONNECT, and write
-    // the cleaned head to upstream. Returns false if the connection closed before a head.
+   
+   
     private async Task<bool> ForwardCleanedConnectAsync(NetworkStream cs, NetworkStream us, CancellationToken ct)
     {
         var buf = new byte[8192];
@@ -156,17 +154,17 @@ public sealed class LanForwarder : IAsyncDisposable
         {
             if (len == buf.Length) { Log("FWD head too large"); return false; }
             int n = await cs.ReadAsync(buf.AsMemory(len, buf.Length - len), ct);
-            if (n == 0) return false; // closed before a full head
+            if (n == 0) return false;
             len += n;
             headerEnd = IndexOfDoubleCrlf(buf, len);
         }
 
-        var head = System.Text.Encoding.ASCII.GetString(buf, 0, headerEnd); // excludes the trailing \r\n\r\n
+        var head = System.Text.Encoding.ASCII.GetString(buf, 0, headerEnd);
         var cleaned = CleanConnectHead(head);
         var cleanedBytes = System.Text.Encoding.ASCII.GetBytes(cleaned);
         await us.WriteAsync(cleanedBytes, ct);
 
-        // Forward any bytes already read beyond the head; rare for CONNECT, but be correct.
+       
         int rest = len - (headerEnd + 4);
         if (rest > 0) await us.WriteAsync(buf.AsMemory(headerEnd + 4, rest), ct);
         await us.FlushAsync(ct);
@@ -175,11 +173,11 @@ public sealed class LanForwarder : IAsyncDisposable
         return true;
     }
 
-    // Rewrite a proxy request head so the inner Kestrel proxy accepts it: drop hop-by-hop headers it
-    // 400s on, and fix the Host header. Handles both request shapes a device sends to a proxy:
-    //   - CONNECT www.auxbrain.com:443 HTTP/1.1 (TLS tunnel setup) -> Host must EXACTLY match the authority incl. port.
-    //   - GET http://ocsp.digicert.com/... HTTP/1.1 (absolute-URI, e.g. trustd OCSP) -> Host must be the URL's host[:port], not the whole URL.
-    // Returns the cleaned head terminated with \r\n\r\n.
+   
+   
+   
+   
+   
     internal static string CleanConnectHead(string head)
     {
         var lines = head.Split("\r\n");
@@ -188,8 +186,8 @@ public sealed class LanForwarder : IAsyncDisposable
         var method = parts.Length >= 1 ? parts[0] : "";
         var target = parts.Length >= 2 ? parts[1] : "";
 
-        // The Host value Kestrel needs. CONNECT target is already an authority (host:port). For an
-        // absolute-URI request, extract the authority from the URL; never use the raw URL as Host.
+       
+       
         string authority;
         if (method.Equals("CONNECT", StringComparison.OrdinalIgnoreCase))
             authority = target;
@@ -203,7 +201,7 @@ public sealed class LanForwarder : IAsyncDisposable
         foreach (var line in lines.Skip(1))
         {
             var name = line.Split(':', 2)[0].Trim();
-            // Drop hop-by-hop headers that make Kestrel 400 a proxied request.
+           
             if (name.Equals("Connection", StringComparison.OrdinalIgnoreCase) ||
                 name.Equals("Proxy-Connection", StringComparison.OrdinalIgnoreCase) ||
                 name.Equals("Keep-Alive", StringComparison.OrdinalIgnoreCase))
@@ -221,11 +219,11 @@ public sealed class LanForwarder : IAsyncDisposable
         return string.Join("\r\n", kept) + "\r\n\r\n";
     }
 
-    // Printable device IP from a client socket, unwrapping IPv4-mapped-IPv6.
+   
     private static string DeviceIp(TcpClient client) =>
         client.Client.RemoteEndPoint is IPEndPoint ep ? DeviceIp(ep.Address) : "unknown";
 
-    // Unwrap IPv4-mapped-IPv6 (::ffff:x.x.x.x) to the printable IPv4 form. Pure.
+   
     internal static string DeviceIp(IPAddress addr) =>
         (addr.IsIPv4MappedToIPv6 ? addr.MapToIPv4() : addr).ToString();
 
@@ -236,7 +234,7 @@ public sealed class LanForwarder : IAsyncDisposable
         return -1;
     }
 
-    // Copy src -> dst; on clean EOF, shut down dst's send side so the opposite direction keeps flowing.
+   
     private async Task PumpAsync(NetworkStream src, NetworkStream dst, TcpClient dstClient, CancellationToken ct, string dir)
     {
         var buffer = new byte[16 * 1024];
@@ -261,7 +259,7 @@ public sealed class LanForwarder : IAsyncDisposable
         }
     }
 
-    // First few printable chars of the buffer, to see the CONNECT line - diagnostic only.
+   
     private static string Preview(byte[] b, int n)
     {
         var len = Math.Min(n, 300);

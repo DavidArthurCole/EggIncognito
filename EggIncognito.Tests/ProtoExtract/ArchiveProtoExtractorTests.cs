@@ -3,9 +3,7 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// ArchiveProtoExtractor pulls the native binary out of an APK or IPA zip and carves the embedded
-// descriptor. Synthetic archives wrap the real carved 1.35.8 descriptor fixture as the binary entry, so
-// the zip + entry-selection + decompress + carve path is exercised end to end without a 90MB archive.
+
 public class ArchiveProtoExtractorTests
 {
     [Fact]
@@ -21,8 +19,8 @@ public class ArchiveProtoExtractorTests
     [Fact]
     public void Extract_Ipa_CompressedAppExecutable_Carves()
     {
-        // The regression: an IPA's Mach-O is a COMPRESSED entry under Payload/<App>.app/. A raw scan of
-        // the zip bytes can't see it; the extractor must find + decompress the executable entry.
+       
+       
         var ipa = ZipWith("Payload/EggInc.app/egginc", Fixture(), CompressionLevel.Optimal);
         var r = ArchiveProtoExtractor.Extract(ipa);
         Assert.True(r.Ok, r.Diagnostics);
@@ -32,7 +30,7 @@ public class ArchiveProtoExtractorTests
     [Fact]
     public void Extract_Ipa_IgnoresAppResources_FindsExecutable()
     {
-        // Other Payload entries (Info.plist, assets) must not shadow the extensionless executable.
+       
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -66,8 +64,8 @@ public class ArchiveProtoExtractorTests
         var r = ArchiveProtoExtractor.Extract(ms.ToArray());
         Assert.True(r.Ok, r.Diagnostics);
         Assert.Equal("1.35.6", r.AppVersion);
-        // iOS build is intentionally null: CFBundleVersion ("1.35.6.3") is the bundle build, not the
-        // auxbrain build the client reports. The real build is backfilled from live capture / registry.
+       
+       
         Assert.Null(r.Build);
     }
 
@@ -77,7 +75,7 @@ public class ArchiveProtoExtractorTests
     [Fact]
     public void Extract_NotAZip_RawScanCarves()
     {
-        // A bare Mach-O is not a zip; the raw-scan fallback still carves.
+       
         var r = ArchiveProtoExtractor.Extract(Fixture());
         Assert.True(r.Ok, r.Diagnostics);
     }

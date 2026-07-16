@@ -5,8 +5,6 @@ using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
-// Proves the in-process per-flow path (ProcessFlow) and the HAR-file path (RunFromHar) produce
-// byte-identical endpoints + identical yaml/self-repair effects for the same flow.
 public class EndpointExtractorParityTests
 {
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";

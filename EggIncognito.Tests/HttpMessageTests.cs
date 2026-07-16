@@ -3,8 +3,6 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// The HTTP/1.1 parser/serializer the NativeCaptureProxy uses to relay + capture decrypted auxbrain flows.
-// HttpMessage is internal; EggIncognito.Capture exposes InternalsVisibleTo for the test project.
 public class HttpMessageTests
 {
     private static async Task<HttpMessage?> Parse(string raw)
@@ -56,12 +54,12 @@ public class HttpMessageTests
     [Fact]
     public async Task DecodesChunkedBodyAndReframesAsContentLength()
     {
-        // "Wiki" + "pedia" in two chunks.
+       
         var raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n";
         var msg = await Parse(raw);
         Assert.Equal("Wikipedia", Encoding.ASCII.GetString(msg!.Body!));
         var outText = await Serialize(msg);
-        Assert.DoesNotContain("Transfer-Encoding", outText); // reframed
+        Assert.DoesNotContain("Transfer-Encoding", outText);
         Assert.Contains("Content-Length: 9\r\n", outText);
         Assert.EndsWith("\r\n\r\nWikipedia", outText);
     }

@@ -16,8 +16,6 @@ public interface IProtoBackfillStore
 
     Task<int> PruneEmptyAsync(CancellationToken ct = default);
 }
-
-// Keyed by (platform, build): build is the monotonic versionCode, unique per build.
 public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfillStore
 {
     public async Task<(ProtoVersion Row, bool Created, bool ProtoChanged)> UpsertAsync(
@@ -109,7 +107,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
     public sealed record MergeSuggestion(string AppVersion, string ProtoSha, IReadOnlyList<MergeMember> Members);
     public sealed record MergeMember(string Platform, string Build);
 
-    // Groups active rows by (AppVersion, ProtoSha) spanning >=2 distinct platforms.
+   
     public async Task<List<MergeSuggestion>> SuggestMergesAsync(CancellationToken ct = default)
     {
         var rows = await db.ProtoVersions.AsNoTracking()
@@ -129,7 +127,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
             .ToList();
     }
 
-    // Hidden from the list but kept so a re-ingest does not resurrect it.
+   
     public async Task<bool> SoftDeleteAsync(string platform, string build, CancellationToken ct = default)
     {
         var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
@@ -149,7 +147,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         return true;
     }
 
-    // Null args leave the field unchanged; newBuild re-keys the row.
+   
     public enum MetadataUpdate { Ok, NotFound, BuildCollision }
 
     public async Task<MetadataUpdate> UpdateMetadataAsync(
@@ -159,7 +157,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
         if (row is null) return MetadataUpdate.NotFound;
 
-        // Reject if another row already holds newBuild for this platform.
+       
         if (!string.IsNullOrWhiteSpace(newBuild) && newBuild != build)
         {
             var clash = await db.ProtoVersions.AnyAsync(
@@ -174,7 +172,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         return MetadataUpdate.Ok;
     }
 
-    // Aliases stay visible: they keep their own platform/build/proto and gain a CanonicalId.
+   
     public async Task<int> MergeAsync(
         (string Platform, string Build) canonical, IReadOnlyList<(string Platform, string Build)> aliases,
         CancellationToken ct = default)
@@ -197,7 +195,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
             linked++;
         }
 
-        // Re-point rows aliased to a just-demoted row so no CanonicalId chains past one hop.
+       
         var stale = await db.ProtoVersions
             .Where(p => p.CanonicalId != null
                 && (demotedIds.Contains(p.CanonicalId.Value) || p.CanonicalId == canon.Id))

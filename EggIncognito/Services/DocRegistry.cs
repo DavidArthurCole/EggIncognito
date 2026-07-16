@@ -1,10 +1,6 @@
-// Typed registry of documentable subjects: proto messages, mock endpoints, config options, UI controls,
-// as a tree of DocSubject with O(1) lookup by (kind, key). Message + endpoint subtrees derive from live
-// proto reflection + the route catalog; config + control subjects are curated static lists.
+
 
 namespace EggIncognito.Services;
-
-// Children is never null; use [] for leaf nodes.
 public sealed record DocSubject(
     string Kind,
     string Key,
@@ -53,7 +49,7 @@ public sealed class DocRegistry : IDocRegistry
 
     private void Index(DocSubject s) => _byKey[$"{s.Kind}:{s.Key}"] = s;
 
-    // One subject per top-level Ei.* message type. Children are the message fields (display-only).
+   
     private static IReadOnlyList<DocSubject> BuildMessages(IProtoReflection proto)
     {
         var list = new List<DocSubject>();
@@ -75,7 +71,7 @@ public sealed class DocRegistry : IDocRegistry
         return new DocSubject("field", f.Name, f.Name, summary, []);
     }
 
-    // One subject per route; children link to request/response message subjects.
+   
     private static IReadOnlyList<DocSubject> BuildEndpoints(IRouteCatalog routes, IProtoReflection proto)
     {
         var list = new List<DocSubject>();
@@ -103,7 +99,7 @@ public sealed class DocRegistry : IDocRegistry
 
     private sealed record ConfigOption(string Key, string? Default, string Summary, string AppliesTo);
 
-    // Curated option list. Not exhaustive.
+   
     private static readonly ConfigOption[] ConfigOptions =
     [
         new("AppMode", "Local", "Local = full features; Hosted = capture + writes disabled (the public deploy)", "host"),
@@ -136,7 +132,7 @@ public sealed class DocRegistry : IDocRegistry
                 []))
             .ToList();
 
-    // Curated UI controls (the toggles/checkboxes the SPA exposes). Sparse by design.
+   
     private static readonly DocSubject[] Controls =
     [
         new("control", "inspector-send-target", "Inspector send target", "Mock / Live API / Custom proxy send toggle", []),

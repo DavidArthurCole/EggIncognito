@@ -1,23 +1,19 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Groups the hatchery mesh pieces of one tier into a body + its floating sub-pieces, from the bundle's `.rpo`
-// stem list. A hatchery's "floating effect" is not a particle system: it is separate sub-meshes that hover and
-// orbit the body, animated by RPA1 curves. Every tier follows `ei_hatchery_<tier>[_<part>]` naming, so the
-// binding is programmatic, no hardcoded per-tier list. Pure string grouping; the caller decodes + animates.
 public static class HatcheryEffectParts
 {
     public sealed record Parts(string Tier, string? Body, IReadOnlyList<string> Floating);
 
     private const string Prefix = "ei_hatchery_";
 
-    // Extracted from the observed rpos naming, not hand-curated per tier.
+   
     private static readonly string[] FloatingRoots =
     [
         "bolt", "probe", "ring", "top", "middle", "orb",
     ];
 
-    // The tier of a hatchery stem: ei_hatchery_<x> -> <x>, and ei_hatchery_<x>_<floatingSuffix> -> <x>. Returns
-    // null for non-hatchery.
+   
+   
     public static string? TierOf(string stem)
     {
         if (!stem.StartsWith(Prefix, StringComparison.Ordinal)) return null;
@@ -33,7 +29,7 @@ public static class HatcheryEffectParts
         return rest;
     }
 
-    // For a requested tier, body + its floating parts: stems whose remainder names a floating component.
+   
     public static Parts ForTier(IEnumerable<string> stems, string tier)
     {
         string body = Prefix + tier;
@@ -50,7 +46,7 @@ public static class HatcheryEffectParts
         return new Parts(tier, have.Contains(body) ? body : null, floating);
     }
 
-    // Every distinct hatchery tier present in the stem list.
+   
     public static IReadOnlyList<string> Tiers(IEnumerable<string> stems)
     {
         var tiers = new SortedSet<string>(StringComparer.Ordinal);

@@ -3,17 +3,13 @@ using System.Text.Json;
 
 namespace EggIncognito.Services.Backfill;
 
-// The reads the elgranjero importer needs: a paged commit list + a file's content at a commit. Extracted
-// as an interface so the importer test can stub it without hitting GitHub.
 public interface IGitHubClient
 {
     IAsyncEnumerable<GitHubClient.Commit> CommitsAsync(string repo, CancellationToken ct = default);
     Task<string?> FileAtAsync(string repo, string sha, string[] paths, CancellationToken ct = default);
 }
 
-// Minimal GitHub REST reads for the backfill: commit list (paged) + a file's content at a commit.
-// Token (read-only PAT) lifts the rate limit from 60/hr to 5000/hr; without it the importer does
-// what it can within 60.
+
 public sealed class GitHubClient(IHttpClientFactory httpFactory, IConfiguration config) : IGitHubClient
 {
     private HttpClient Client()
@@ -50,7 +46,7 @@ public sealed class GitHubClient(IHttpClientFactory httpFactory, IConfiguration 
         }
     }
 
-    // Raw file content at a commit; tries each candidate path, returns the first that exists.
+   
     public async Task<string?> FileAtAsync(string repo, string sha, string[] paths, CancellationToken ct = default)
     {
         var c = Client();

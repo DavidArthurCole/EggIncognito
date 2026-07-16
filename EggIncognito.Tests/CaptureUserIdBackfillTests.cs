@@ -52,8 +52,8 @@ public class CaptureUserIdBackfillTests
 
 public class OwnerAuthorUserIdBackfillTests
 {
-    // Counts ResolveAsync calls (one HTTP POST each) so the cache-hit assertion below is a real
-    // count, not an inference from row totals.
+   
+   
     private static (IdentityApiClient Client, Func<int> CallCount) CountingIdentity(Guid resolvedUserId)
     {
         var calls = 0;
@@ -77,13 +77,13 @@ public class OwnerAuthorUserIdBackfillTests
         var resolvedId = Guid.NewGuid();
         var (identity, callCount) = CountingIdentity(resolvedId);
 
-        // Same Discord ID string ("111") owns a doc and a stored endpoint; a null owner_user_id
-        // row and an already-migrated-shaped GUID-string row should both be left alone.
+       
+       
         db.Docs.Add(new Doc { SubjectKind = "message", SubjectKey = "A", BodyMd = "x" });
         db.StoredEndpoints.Add(new StoredEndpoint { Path = "/a", ResponseJson = "{}", ResponseType = "T" });
         await db.SaveChangesAsync();
 
-        // Model columns are already Guid?, so seed the raw text values directly to simulate pre-migration state.
+       
         var conn = (Npgsql.NpgsqlConnection)db.Database.GetDbConnection();
         await conn.OpenAsync();
         await using (var cmd = new Npgsql.NpgsqlCommand("UPDATE docs SET owner_user_id = '111' WHERE subject_key = 'A'", conn))

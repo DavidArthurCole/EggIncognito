@@ -6,9 +6,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace EggIncognito.Tests;
 
-// Proves the limiter blocks active actions: override the Write policy + Anon tier to a tiny permit
-// count, fire more than that many POSTs at a write endpoint from one anonymous partition, and assert
-// the overflow gets 429 + a Retry-After header.
+
 public class RateLimitIntegrationTests : IClassFixture<RateLimitIntegrationTests.TinyLimitFactory>
 {
     private readonly TinyLimitFactory _f;

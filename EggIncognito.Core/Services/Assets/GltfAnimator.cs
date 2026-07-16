@@ -3,22 +3,18 @@ using SharpGLTF.Schema2;
 
 namespace EggIncognito.Services.Assets;
 
-// Injects animation channels into a decoded ship .glb. The bundled ship meshes are static
-// (RpoMeshDecoder emits geometry only), so this generates the runtime spin as a baked glTF rotation
-// animation any glTF viewer can play without bespoke client code.
+
 //
-// Animations are a registry of named generators (AnimationKind), each producing keyframes for the
-// target node; add a kind by adding a generator. Rotation keyframes are quaternions split into quarter
-// steps so SLERP takes the intended direction.
+
 public static class GltfAnimator
 {
     public enum AnimationKind
     {
-        // Continuous spin about the vertical (Y) axis, looping. The conveyor/showcase rotation.
+       
         SpinY,
-        // Continuous spin about Z, for meshes authored with a different up axis.
+       
         SpinZ,
-        // Gentle bob (vertical translation) plus a slow Y spin, for an idle showcase.
+       
         HoverSpin,
     }
 
@@ -29,8 +25,8 @@ public static class GltfAnimator
 
     public sealed record Result(bool Ok, byte[]? Glb, string Diagnostics, string AnimationName, float DurationSeconds);
 
-    // Reads a .glb, adds the requested animation to its first mesh node, writes a new .glb. Returns a
-    // failed result (never throws) on malformed input or a model with no animatable node.
+   
+   
     public static Result Animate(byte[] glb, Options? options = null)
     {
         var opts = options ?? new Options();
@@ -60,8 +56,8 @@ public static class GltfAnimator
         return new Result(true, outGlb, "ok", name, opts.DurationSeconds);
     }
 
-    // The node carrying the mesh, preferring the first scene's first mesh node, falling back to the
-    // first node with a mesh, then the first node.
+   
+   
     private static Node? TargetNode(ModelRoot model)
     {
         var scene = model.DefaultScene ?? model.LogicalScenes.FirstOrDefault();
@@ -76,8 +72,8 @@ public static class GltfAnimator
     {
         var d = opts.DurationSeconds <= 0 ? 6f : opts.DurationSeconds;
 
-        // Spin about the geometry's CENTER, not the node origin: EI ship meshes are authored offset from
-        // their origin, so rotating the node directly would swing them around an off-center pivot.
+       
+       
         var pivot = RepivotToCenter(node);
 
         switch (opts.Kind)
@@ -98,9 +94,9 @@ public static class GltfAnimator
         }
     }
 
-    // Restructures so the animated (returned) node's origin sits at the mesh centroid: the mesh moves to
-    // a child translated by -center, the node keeps its old translation + center. World placement is
-    // unchanged; only the rotation pivot moves.
+   
+   
+   
     private static Node RepivotToCenter(Node node)
     {
         if (node.Mesh is null) return node;
@@ -121,7 +117,7 @@ public static class GltfAnimator
         return node;
     }
 
-    // The bounding-box center of a mesh's POSITION data (min+max)/2, or null when it has no positions.
+   
     private static Vector3? MeshCenter(Mesh mesh)
     {
         var min = new Vector3(float.MaxValue);
@@ -141,8 +137,8 @@ public static class GltfAnimator
         return any ? (min + max) * 0.5f : null;
     }
 
-    // A full 360 deg turn as 5 quaternion keys (0, 90, 180, 270, 360), so SLERP between adjacent keys
-    // rotates the short way and the 0==360 endpoints loop seamlessly.
+   
+   
     private static (float, Quaternion)[] SpinKeys(Vector3 axis, float duration)
     {
         var a = Vector3.Normalize(axis);
@@ -151,14 +147,14 @@ public static class GltfAnimator
         for (var i = 0; i <= steps; i++)
         {
             var t = duration * i / steps;
-            var angle = MathF.PI * 2f * i / steps; // radians, 0..2pi
+            var angle = MathF.PI * 2f * i / steps;
             keys[i] = (t, Quaternion.CreateFromAxisAngle(a, angle));
         }
         return keys;
     }
 
-    // A vertical bob: up to +amplitude and back over the duration, via 3 keys (0, peak, 0), relative to
-    // baseTranslation so the bob does not snap the model back to the origin.
+   
+   
     private static (float, Vector3)[] BobKeys(float amplitude, float duration, Vector3 baseTranslation)
     {
         var half = duration / 2f;
@@ -173,7 +169,7 @@ public static class GltfAnimator
     private static Result Fail(string why, Options opts) =>
         new(false, null, why, opts.Kind.ToString(), opts.DurationSeconds);
 
-    // Parses an animation kind from a query/string, case-insensitive, defaulting to SpinY.
+   
     public static AnimationKind ParseKind(string? s) =>
         Enum.TryParse<AnimationKind>(s, ignoreCase: true, out var k) ? k : AnimationKind.SpinY;
 }

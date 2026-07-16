@@ -1,8 +1,6 @@
 namespace EggIncognito.Core.Services.Devices;
 
-// Parses `*.egidevice.*` device-declaration files so the host can collect devices from a mounted dir
-// instead of inline env vars. Files are dotenv-style (`Key=Value` per line, `#` comments). Filename
-// pattern `{platform}.egidevice.{index}` supplies a sort index and a platform fallback.
+
 public static class DeviceFileParser
 {
     public sealed record ParsedDevice(
@@ -11,8 +9,8 @@ public static class DeviceFileParser
     public static bool IsDeviceFile(string fileName) =>
         fileName.Contains(".egidevice.", StringComparison.OrdinalIgnoreCase);
 
-    // fileName is the leaf name (e.g. "ios.egidevice.1"); content is the file body. Returns null only
-    // when the name is not a device file. Missing keys stay null for the caller to validate/skip.
+   
+   
     public static ParsedDevice? Parse(string fileName, string content)
     {
         if (!IsDeviceFile(fileName)) return null;
@@ -29,7 +27,7 @@ public static class DeviceFileParser
             Package: Nz(Get(kv, "Package")));
     }
 
-    // "ios.egidevice.1" -> ("ios", 1). Missing/non-numeric index sorts last.
+   
     private static (string? Platform, int Order) SplitName(string fileName)
     {
         var idx = fileName.IndexOf(".egidevice.", StringComparison.OrdinalIgnoreCase);

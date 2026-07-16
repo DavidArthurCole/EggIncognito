@@ -2,12 +2,10 @@ using System.Text.Json;
 
 namespace EggIncognito.Services;
 
-// Locally hosts the game's *Config (ei/get_config ConfigResponse) per platform, so EGI has an offline copy
-// without hitting the live API every time. Stored as JSON under <ConfigStore:Dir>/<platform>.json. Disabled
-// (reads null, writes no-op) when no dir is configured.
+
 public sealed class GameConfigStore(IConfiguration config)
 {
-    // Dir precedence: explicit ConfigStore:Dir, else <ShipAssets:OutputDir>/config. Null disables the store.
+   
     private string? Dir
     {
         get
@@ -46,7 +44,7 @@ public sealed class GameConfigStore(IConfiguration config)
         catch { return null; }
     }
 
-    // Platforms with a stored config + their save time + size, for the admin overview.
+   
     public IReadOnlyList<(string Platform, DateTimeOffset SavedAt, long Bytes)> List()
     {
         var dir = Dir;

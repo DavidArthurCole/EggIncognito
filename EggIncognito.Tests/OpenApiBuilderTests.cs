@@ -3,9 +3,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-// OpenApiBuilder turns an AuxbrainCatalog into an OpenAPI 3.0 JSON doc with proto-derived response
-// schemas. Small synthetic catalogs for shape assertions, plus a full real-catalog build to prove
-// every $ref resolves and recursive messages terminate.
+
 public sealed class OpenApiBuilderTests
 {
     private static readonly ProtoReflection Reflection = new();
@@ -78,7 +76,7 @@ public sealed class OpenApiBuilderTests
         var props = component.GetProperty("properties");
 
         Assert.Equal("string", props.GetProperty("eiUserId").GetProperty("type").GetString());
-        // Message field becomes a $ref into components, which must itself exist.
+       
         Assert.Equal("#/components/schemas/Backup", props.GetProperty("backup").GetProperty("$ref").GetString());
         Assert.True(doc.RootElement.GetProperty("components").GetProperty("schemas")
             .TryGetProperty("Backup", out _));
@@ -160,8 +158,8 @@ public sealed class OpenApiBuilderTests
         Assert.False(string.IsNullOrEmpty(ok.GetProperty("description").GetString()));
     }
 
-    // Full real catalog: every routes.yaml + auxbrain-paths.json entry builds, every $ref in the
-    // doc resolves to a component, and deep/recursive messages (Backup and friends) terminate.
+   
+   
     [Fact]
     public void FullRealCatalog_Builds_AndEveryRefResolves()
     {

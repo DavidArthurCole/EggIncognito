@@ -4,9 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// /api/docs/* mirrors the shared-DB ACL: anonymous (= viewer in the test host) write actions 403;
-// reads are public and degrade to empty/[] when no DB is configured. Same posture as
-// StoredEndpointGateTests, applied to the docs + tag-assignment endpoints.
+
 public class DocsGateTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;

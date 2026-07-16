@@ -2,15 +2,13 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
 
-// The computed data-quality rule for registry rows: an iOS row carrying an Android-style integer build
-// (the shared wire versionCode leaking into the iOS build key) is flagged, and must not win "latest".
 public class ProtoVersionQualityTests
 {
     [Theory]
     [InlineData("111342", true)]
     [InlineData("72", true)]
-    [InlineData("1.35.7.1", false)] // dotted iOS build
-    [InlineData("a1b2c3d4e5f6g7h8", false)] // hash build (has letters)
+    [InlineData("1.35.7.1", false)]
+    [InlineData("a1b2c3d4e5f6g7h8", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
     public void IsAndroidStyleBuild_DetectsBareIntegers(string? build, bool expected) =>
@@ -34,7 +32,7 @@ public class ProtoVersionQualityTests
     [Fact]
     public void Mismatch_AndroidWithIntegerBuild_IsClean()
     {
-        // Android builds ARE bare integers - that is correct, never flagged.
+       
         Assert.False(ProtoVersionQuality.HasPlatformBuildMismatch("android", "111342"));
         Assert.Null(ProtoVersionQuality.BuildQualityFlag("android", "111342"));
     }
@@ -57,12 +55,12 @@ public class ProtoVersionQualityTests
     [Fact]
     public void LatestSortKey_Ios_RanksByDottedVersion_NotIntegerBuild()
     {
-        // A real iOS row (dotted build) must outrank a BAD iOS row whose build is an Android integer,
-        // even though the integer is numerically large. This is the "thinks it's latest" bug fix.
+       
+       
         var good = ProtoVersionQuality.LatestSortKey("ios", "1.35.7.1", "1.35.7");
         var bad = ProtoVersionQuality.LatestSortKey("ios", "111342", "1.35.7");
         Assert.True(good > bad);
-        Assert.Equal(long.MinValue, bad); // bad iOS integer build sorts dead last
+        Assert.Equal(long.MinValue, bad);
     }
 
     [Fact]

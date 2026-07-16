@@ -2,8 +2,6 @@ using Discord;
 using EggIncognito.Services;
 
 namespace EggIncognito.Bot;
-
-// Pure embed builders for each command (no Discord client / no live service reads).
 public static class BotEmbeds
 {
     private const uint Accent = 0xEF7559;

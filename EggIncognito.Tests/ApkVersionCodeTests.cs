@@ -2,8 +2,6 @@ using System.IO.Compression;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
-
-// Fixture arm_split_AndroidManifest.bin is the binary AXML from Egg Inc 1.35.7's config.arm64_v8a.apk, versionCode 111344.
 public class ApkVersionCodeTests
 {
     private const string ExpectedVersionCode = "111344";

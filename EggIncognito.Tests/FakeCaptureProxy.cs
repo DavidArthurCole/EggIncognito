@@ -2,8 +2,6 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// Test double for ICaptureProxy: records Start/Stop calls and lets tests fire FlowCaptured.
-// No real listener or CA. Used by CaptureSessionTests.
 public sealed class FakeCaptureProxy : ICaptureProxy
 {
     public int StartCount { get; private set; }
@@ -15,7 +13,7 @@ public sealed class FakeCaptureProxy : ICaptureProxy
 
     public event Action<CapturedFlow>? FlowCaptured;
     public event Action<int, string?>? ClientConnected;
-#pragma warning disable CS0067 // events required by ICaptureProxy; not all are fired in tests
+#pragma warning disable CS0067
     public event Action<int, string?>? ClientDisconnected;
     public event Action? AuxbrainConnect;
     public event Action<string>? DecryptError;

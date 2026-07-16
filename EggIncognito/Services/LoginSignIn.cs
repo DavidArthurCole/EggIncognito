@@ -7,8 +7,6 @@ using System.Security.Claims;
 
 namespace EggIncognito.Services;
 
-// Turns a SyncKit-redeemed login result into this app's own session cookie. SyncKit owns the OAuth
-// round trip; this is the only auth logic the app keeps: mint a local cookie from claims it hands back.
 public sealed class LoginSignIn(ISupporterStatus supporters)
 {
     public async Task SignInAsync(HttpContext http, RedeemLoginCodeResponse result)

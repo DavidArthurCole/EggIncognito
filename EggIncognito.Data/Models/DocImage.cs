@@ -3,8 +3,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// A binary image uploaded for use inside a Doc's Markdown, referenced by URL /api/docs/image/{id}.
-// Stored as bytea (no filesystem writes); no hard FK to a doc, so an image is addressable on its own and may be reused.
 [Table("doc_images")]
 public class DocImage
 {

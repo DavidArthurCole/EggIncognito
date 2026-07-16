@@ -7,8 +7,8 @@ public class MachoArm64DisassemblerTests
     [Fact]
     public void Analyze_ResolvesAdrpAddLdr_ToFloatConstants_AndBl()
     {
-        // Fake binary: code at file 0 (vmaddr 0x1000), slide 0x1000. A f32 at file 0x80 (va 0x1080), a f64 at
-        // file 0x88 (va 0x1088). adrp x0 resolves to page 0x1000; add reaches 0x1080 / 0x1088.
+       
+       
         const ulong codeVa = 0x1000;
         var bin = new byte[0x100];
         BitConverter.GetBytes(5.5f).CopyTo(bin, 0x80);
@@ -16,12 +16,12 @@ public class MachoArm64DisassemblerTests
 
         var words = new List<uint>
         {
-            Adrp(0, codeVa, 0x1080), // x0 = page of 0x1080 = 0x1000
-            Add(0, 0, 0x80), // x0 = 0x1080
-            LdrS(0, 0, 0), // s0 = f32 @ 0x1080 = 5.5
+            Adrp(0, codeVa, 0x1080),
+            Add(0, 0, 0x80),
+            LdrS(0, 0, 0),
             Adrp(1, codeVa + 12, 0x1088),
             Add(1, 1, 0x88),
-            LdrD(2, 1, 0), // d2 = f64 @ 0x1088 = -0.5
+            LdrD(2, 1, 0),
             Bl(codeVa + 24, 0x2000),
         };
         var code = words.SelectMany(BitConverter.GetBytes).ToArray();
@@ -38,7 +38,7 @@ public class MachoArm64DisassemblerTests
     public void Analyze_ReadsVectorImmediates_FmovBroadcast_AndMoviZero()
     {
         const ulong codeVa = 0x1000;
-        // fmov v0.4s, #1.0 (0x4F03F600) broadcasts 1.0 across the lanes; movi v0.4s, #0 (0x4F000400) zeroes.
+       
         var words = new uint[] { 0x4F03F600u, 0x4F000400u };
         var code = words.SelectMany(BitConverter.GetBytes).ToArray();
 
@@ -48,7 +48,7 @@ public class MachoArm64DisassemblerTests
         Assert.Contains(res.Floats, f => f.Value == 0.0);
     }
 
-    // adrp Xd, <page of target>: imm21 = (targetPage - pcPage) >> 12, split immlo(2)+immhi(19).
+   
     static uint Adrp(int rd, ulong pc, ulong target)
     {
         long pageDelta = ((long)(target & ~0xFFFUL) - (long)(pc & ~0xFFFUL)) >> 12;

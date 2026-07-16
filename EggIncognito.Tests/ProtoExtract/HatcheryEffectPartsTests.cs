@@ -3,12 +3,10 @@ using Xunit;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// The hatchery "floating effect" is separate sub-meshes (bolt/probe/rings/tops) hovering around the body, named
-// ei_hatchery_<tier>[_<part>]. HatcheryEffectParts groups them programmatically. Tested against the real rpos
-// stem list pulled from the device bundle (egginc 1.36).
+
 public class HatcheryEffectPartsTests
 {
-    // a representative slice of the actual ei_hatchery_* rpos on the device.
+   
     static readonly string[] Stems =
     [
         "ei_hatchery_universe", "ei_hatchery_universe_bolt", "ei_hatchery_universe_probe",
@@ -19,7 +17,7 @@ public class HatcheryEffectPartsTests
         "ei_hatchery_vision", "ei_hatchery_vision_middle", "ei_hatchery_vision_top",
         "ei_hatchery_graviton", "ei_hatchery_graviton_top",
         "ei_hatchery_edible", "ei_hatchery_easter", "ei_hatchery_quantum",
-        // non-hatchery noise that must be ignored:
+       
         "ei_depot_3", "ei_lab_3", "hab_10k",
     ];
 
@@ -47,7 +45,7 @@ public class HatcheryEffectPartsTests
     {
         var p = HatcheryEffectParts.ForTier(Stems, "ai");
         Assert.Equal("ei_hatchery_ai", p.Body);
-        Assert.Equal(4, p.Floating.Count); // ai_top_0..3
+        Assert.Equal(4, p.Floating.Count);
     }
 
     [Fact]
@@ -86,7 +84,7 @@ public class HatcheryEffectPartsTests
         Assert.Contains("ai", tiers);
         Assert.Contains("vision", tiers);
         Assert.DoesNotContain("depot", tiers);
-        // a floating-part stem must not create a phantom tier (e.g. "universe_bolt").
+       
         Assert.DoesNotContain(tiers, t => t.Contains("bolt") || t.Contains("ring") || t.Contains("top"));
     }
 }

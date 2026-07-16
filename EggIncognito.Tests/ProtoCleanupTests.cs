@@ -2,9 +2,7 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
 
-// Parity guard for the C# port of protocleanup.py. The farm's protoSha depends on this matching the
-// python line-for-line, so the fixture asserts the merge mechanics exactly: common body inserted after
-// `package ei;`, import line dropped, aux. prefixes stripped.
+
 public class ProtoCleanupTests
 {
     private const string Ei =
@@ -40,13 +38,13 @@ public class ProtoCleanupTests
         var enumIdx = result.IndexOf("enum Platform {", StringComparison.Ordinal);
         var messageIdx = result.IndexOf("message M {", StringComparison.Ordinal);
         Assert.True(packageIdx >= 0 && enumIdx >= 0 && messageIdx >= 0);
-        // common body (the enum) lands after `package ei;` and before the message.
+       
         Assert.True(packageIdx < enumIdx, "enum must follow package ei;");
         Assert.True(enumIdx < messageIdx, "enum (common body) must precede the original message");
 
-        // aux. stripped on the field reference.
+       
         Assert.Contains("Platform platform = 3;", result);
-        // the enum members survive intact.
+       
         Assert.Contains("UNKNOWN_PLATFORM = 0;", result);
         Assert.Contains("IOS = 1;", result);
     }

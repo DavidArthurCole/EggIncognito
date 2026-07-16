@@ -6,7 +6,7 @@ namespace EggIncognito.Tests.ProtoExtract;
 
 public class Arm64ClientVersionScannerTests
 {
-    // Encoders for the two forms the scanner recognizes.
+   
     private static uint Movz(int wd, int imm16) => 0x52800000u | ((uint)(imm16 & 0xFFFF) << 5) | (uint)(wd & 0x1F);
     private static uint StrW(int wt, int xn, int imm12) =>
         0xB9000000u | ((uint)(imm12 & 0xFFF) << 10) | ((uint)(xn & 0x1F) << 5) | (uint)(wt & 0x1F);
@@ -23,8 +23,8 @@ public class Arm64ClientVersionScannerTests
     [Fact]
     public void Scan_PicksInRangeCandidate_PrevAnchored()
     {
-        // Value 72 written to offset slot 0x44 (imm12=0x11) from 3 distinct sites: a candidate.
-        // Value 19 written to a different offset from 4 sites: more frequent but out of [prev,prev+2].
+       
+       
         var words = new List<uint>();
         for (int s = 0; s < 3; s++) { words.Add(Movz(0, 72)); words.Add(StrW(0, 1, 0x11)); words.Add(0xD503201F); }
         for (int s = 0; s < 4; s++) { words.Add(Movz(2, 19)); words.Add(StrW(2, 1, 0x22)); words.Add(0xD503201F); }

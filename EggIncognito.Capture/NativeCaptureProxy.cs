@@ -9,17 +9,9 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-// A small, native-C# MITM capture proxy. Replaces UnobtaniumCaptureProxy for the device path: Unobtanium
-// 0.9.x hijacks the connection transport after a CONNECT while Kestrel's HTTP/1.1 loop keeps reading the
-// same pipe, tearing down the connection before the decrypted auxbrain request is relayed (flows:0 on
-// iOS). This proxy owns the socket end to end so there is no second reader to fight.
 //
-// Per accepted connection: read the CONNECT head, reply 200, then either MITM the auxbrain host
-// (SslStream-authenticate with a per-host leaf minted from our persistent root CA, relay to the real
-// host, raise FlowCaptured) or raw-tunnel any other host with no decrypt.
+
 //
-// CA: a persistent root (root.pfx in the CA cache dir) reused across runs. Per-host leafs are minted in
-// memory and cached for the session.
 public sealed class NativeCaptureProxy : ICaptureProxy
 {
     private const string RootCaName = "EggIncognito Capture Root";
@@ -78,7 +70,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var token = _cts.Token;
 
-        // Always listens on loopback at port+1; LanForwarder bridges the LAN-facing `port` when enabled.
+       
         var bindPort = port + 1;
         _listener = new TcpListener(IPAddress.Loopback, bindPort);
         _listener.Start();
@@ -152,7 +144,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         catch (Exception ex) { Log($"conn error: {ex.Message}"); }
     }
 
-    // Decrypt the device<->us TLS with a forged leaf, relay each request to the real host, capture the flow.
+   
     private async Task MitmAsync(NetworkStream deviceNet, string host, int port, CancellationToken ct)
     {
         var leaf = GetLeaf(host);
@@ -163,14 +155,14 @@ public sealed class NativeCaptureProxy : ICaptureProxy
             {
                 ServerCertificate = leaf,
                 ClientCertificateRequired = false,
-                // Offer HTTP/1.1 only, avoiding ALPN-driven h2 we would have to frame-decode.
+               
                 ApplicationProtocols = [SslApplicationProtocol.Http11],
                 EnabledSslProtocols = System.Security.Authentication.SslProtocols.None,
             }, ct);
         }
         catch (Exception ex)
         {
-            // "Authentication failed" server-side is usually an unusable leaf key, not device trust.
+           
             var inner = ex.InnerException is { } ie ? $" | inner: {ie.GetType().Name}: {ie.Message}" : "";
             Log($"MITM handshake failed for {host}: {ex.Message}{inner} | leaf hasKey={leaf.HasPrivateKey}");
             return;
@@ -193,11 +185,11 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         while (!ct.IsCancellationRequested)
         {
             var req = await HttpMessage.ReadAsync(deviceTls, ct);
-            if (req is null) break; // device closed
+            if (req is null) break;
 
             await req.WriteAsync(upstreamTls, ct);
             var resp = await HttpMessage.ReadAsync(upstreamTls, ct);
-            if (resp is null) break; // upstream closed
+            if (resp is null) break;
 
             await resp.WriteAsync(deviceTls, ct);
 
@@ -223,7 +215,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         catch (Exception ex) { Log($"emit flow error: {ex.Message}"); }
     }
 
-    // Non-auxbrain CONNECT: blind TCP tunnel, no decryption.
+   
     private async Task RawTunnelAsync(NetworkStream deviceNet, string host, int port, CancellationToken ct)
     {
         using var upstream = new TcpClient { NoDelay = true };
@@ -269,7 +261,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
 
     private X509Certificate2 GetLeaf(string host) => _leafCache.GetOrAdd(host, MintLeaf);
 
-    // Mint a leaf against a freshly created root, exercising the exact cert path SslStream uses.
+   
     internal static X509Certificate2 MintLeafForTest(string host, out X509Certificate2 root)
     {
         var p = new NativeCaptureProxy();
@@ -279,8 +271,8 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         finally { try { File.Delete(tmp); } catch { } }
     }
 
-    // Mint a leaf for `host`, signed by the root, with the SAN + EKU iOS requires. iOS rejects leafs with
-    // validity over ~398 days, so keep it well under that.
+   
+   
     private X509Certificate2 MintLeaf(string host)
     {
         using var rsa = RSA.Create(2048);
@@ -294,7 +286,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         req.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(req.PublicKey, false));
 
         var notBefore = DateTimeOffset.UtcNow.AddDays(-1);
-        // A leaf must not outlive its issuer or .NET refuses to sign it.
+       
         var notAfter = DateTimeOffset.UtcNow.AddDays(300);
         var rootExpiry = new DateTimeOffset(_rootCa!.NotAfter).AddMinutes(-5);
         if (notAfter > rootExpiry) notAfter = rootExpiry;
@@ -302,7 +294,7 @@ public sealed class NativeCaptureProxy : ICaptureProxy
         var serial = new byte[8];
         RandomNumberGenerator.Fill(serial);
         using var signed = req.Create(_rootCa!, notBefore, notAfter, serial);
-        // Do NOT use EphemeralKeySet: on Windows SChannel cannot use an ephemeral server key (handshake fails with an unexpected EOF).
+       
         using var withKey = signed.CopyWithPrivateKey(rsa);
         return X509CertificateLoader.LoadPkcs12(
             withKey.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.Exportable);

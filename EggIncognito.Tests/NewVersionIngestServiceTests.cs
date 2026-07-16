@@ -61,9 +61,9 @@ public class NewVersionIngestServiceTests
     [Fact]
     public async Task LegacyEvent_PlatformFallsBackToAndroid()
     {
-        // NewVersionIngestService itself passes the event through untouched; the Program.cs
-        // Registry closure applies `evt.Platform ?? "android"` before the DB-key sink. This
-        // mirrors that exact expression to keep the fallback under test.
+       
+       
+       
         string? seenPlatform = null;
         static Task NoOp(NewVersionEvent _, CancellationToken __) => Task.CompletedTask;
         var svc = new NewVersionIngestService("expected-sha",

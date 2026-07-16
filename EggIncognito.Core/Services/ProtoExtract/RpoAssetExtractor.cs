@@ -2,15 +2,13 @@ using System.IO.Compression;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Pulls the ship meshes out of a game archive (Android APK or iOS IPA, both zips). The .rpo/.rpoz mesh files
-// live in an `rpos/` directory inside the archive. Each is decoded to a .glb via RpoMeshDecoder. Size-capped,
-// degrades on malformed entries instead of throwing.
+
 public static class RpoAssetExtractor
 {
-    private const long MaxEntryBytes = 50_000_000L; // a single mesh is small; reject oversized entries
+    private const long MaxEntryBytes = 50_000_000L;
 
-    // One decoded mesh: the key (base filename without extension, used as the .glb name) + the glb bytes +
-    // the decode metadata the manifest needs. Failed decodes carry Ok=false and a diagnostic, no bytes.
+   
+   
     public sealed record Asset(string Key, string SourceEntry, RpoMeshDecoder.DecodeResult Decode);
 
     public sealed record ExtractResult(bool Ok, IReadOnlyList<Asset> Assets, string Diagnostics);
@@ -27,7 +25,7 @@ public static class RpoAssetExtractor
         }
         catch
         {
-            // Not a zip: try the raw bytes as a single .rpo/.rpoz (a directly supplied mesh file).
+           
             var single = RpoMeshDecoder.Decode(archiveZipBytes);
             return single.Ok
                 ? new ExtractResult(true, [new Asset("mesh", "<raw>", single)], "ok")
@@ -54,8 +52,8 @@ public static class RpoAssetExtractor
         return DecodeEntries(entries);
     }
 
-    // Decodes a flat list of (path, bytes) mesh entries already pulled from a zip, tar, or directory. Filters
-    // to .rpo/.rpoz, decodes each, keys by base filename.
+   
+   
     public static ExtractResult FromEntries(IEnumerable<(string Name, byte[] Bytes)> entries) =>
         DecodeEntries(entries.Where(e => IsRpoEntry(e.Name) && e.Bytes.LongLength is > 0 and <= MaxEntryBytes));
 
@@ -76,8 +74,8 @@ public static class RpoAssetExtractor
         fullName.EndsWith(".rpo", StringComparison.OrdinalIgnoreCase)
         || fullName.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase);
 
-    // Base filename without directory or extension, e.g. "assets/rpos/henerprise.rpoz" -> "henerprise".
-    // The caller maps this to the MissionInfo.Spaceship enum key when naming the output .glb.
+   
+   
     private static string KeyFromEntry(string fullName)
     {
         var slash = fullName.LastIndexOfAny(['/', '\\']);

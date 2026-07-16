@@ -3,9 +3,7 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// Pins the iOS dump path that DeviceMeshProvider.PullIosRposAsync uses: a device rpos tarball -> (stem -> raw
-// bytes) -> RpoMeshDecoder.Decode per stem -> bounds. Uses the same gated real fixture as
-// IosRposTarballFixtureTests; soft-skips when absent so fixture-free CI stays green.
+
 public class IosHatcheryStemDecodeTests
 {
     private static string? FindFixture()
@@ -29,7 +27,7 @@ public class IosHatcheryStemDecodeTests
         return output.ToArray();
     }
 
-    // Mirror of PullIosRposAsync's tar -> (stem -> bytes) mapping.
+   
     private static Dictionary<string, byte[]> StemMap(byte[] tar)
     {
         var map = new Dictionary<string, byte[]>(StringComparer.Ordinal);

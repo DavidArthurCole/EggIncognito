@@ -2,9 +2,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// Neither Inspector nor Capture links a bespoke per-tab sheet: the single compiled Tailwind sheet
-// defines the canonical component classes both tabs depend on, and .btn-primary resolves to the
-// accent (orange) color.
+
 [Collection(SharedAppCollection.Name)]
 public class UnifiedStyleTests
 {
@@ -47,11 +45,11 @@ public class UnifiedStyleTests
     {
         var c = _f.CreateClient();
         var css = await c.GetStringAsync("/tailwind.css");
-        // accent = #ef7559 -> rgb(239 117 89). accent2 = #5aa9e6 -> rgb(90 169 230).
-        // The .btn-primary rule must carry the orange background, proving the unification.
+       
+       
         var m = System.Text.RegularExpressions.Regex.Match(css, @"\.btn-primary\{[^}]*\}");
         Assert.True(m.Success, ".btn-primary rule not found");
-        Assert.Contains("239 117 89", m.Value); // orange background present
-        Assert.DoesNotContain("90 169 230", m.Value); // not blue
+        Assert.Contains("239 117 89", m.Value);
+        Assert.DoesNotContain("90 169 230", m.Value);
     }
 }

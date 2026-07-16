@@ -1,8 +1,6 @@
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
-// Maps a called symbol to its IR semantics so the executor can model the math without recursing into the
-// callee. libm scalars become Unary nodes; the particle sink (addParticle) returns the special "@sink" Opaque
-// carrying its Transform arg. Anything not listed returns null, becoming an Opaque leaf upstream.
+
 public static class KnownCallModels
 {
     public static ExprNode? Resolve(string mangled, ExprNode[] args)

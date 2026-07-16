@@ -1,6 +1,4 @@
-// Writes every log event to one file per process start: {LogsPath}/eggincognito-{startup}.log. Writes
-// happen off the request thread via a bounded Channel drained by a background task, so logging never
-// blocks request handling.
+
 
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
@@ -29,7 +27,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
         }
         catch
         {
-            // Degrade to a no-op file sink rather than crashing the app; console + in-memory still work.
+           
             _writer = null;
         }
         _writerTask = Task.Run(DrainAsync);
@@ -45,7 +43,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
         await foreach (var line in _channel.Reader.ReadAllAsync())
         {
             await _writer.WriteLineAsync(line);
-            // Flush opportunistically: when the queue drains, persist what we have.
+           
             if (_channel.Reader.Count == 0) await _writer.FlushAsync();
         }
         await _writer.FlushAsync();

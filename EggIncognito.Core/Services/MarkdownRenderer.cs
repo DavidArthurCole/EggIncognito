@@ -1,13 +1,9 @@
 using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services;
-
-// Dependency-free Markdown renderer, ported from wwwroot/inspector/md.js (render path).
 //
-// SECURITY: docs are contributor-authored and stored, then rendered for everyone. To avoid stored
-// XSS, Render escapes all HTML first, then applies a small fixed set of Markdown -> HTML transforms
-// over the escaped text. Authors cannot inject raw HTML/script; only the markdown syntax we
-// explicitly support produces tags. Links/images are emitted only for http(s)/relative URLs.
+
+
 public static class MarkdownRenderer
 {
     static readonly Regex EscapeChars = new("[&<>\"']", RegexOptions.Compiled);
@@ -23,13 +19,13 @@ public static class MarkdownRenderer
     static readonly Regex Fence = new(@"^```", RegexOptions.Compiled);
     static readonly Regex Rule = new(@"^\s*---+\s*$", RegexOptions.Compiled);
     static readonly Regex Heading = new(@"^(#{1,3})\s+(.*)$", RegexOptions.Compiled);
-    // Quote marker is matched as the escaped entity, since EscapeHtml runs before the line scan and
-    // turns a leading `>` into `&gt;`.
+   
+   
     static readonly Regex Quote = new(@"^\s*&gt;\s?", RegexOptions.Compiled);
     static readonly Regex Ul = new(@"^\s*[-*]\s+", RegexOptions.Compiled);
     static readonly Regex Ol = new(@"^\s*\d+\.\s+", RegexOptions.Compiled);
-    // Lookahead that stops a running paragraph at a special line. The blockquote alternative is the
-    // escaped `&gt;` for the same reason as Quote.
+   
+   
     static readonly Regex ParaStop = new(@"^(#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*&gt;|```|\s*---+\s*$)", RegexOptions.Compiled);
 
     static string EscapeHtml(string s) => EscapeChars.Replace(s, m => m.Value switch
@@ -42,15 +38,15 @@ public static class MarkdownRenderer
         _ => m.Value
     });
 
-    // Only allow safe URL schemes in links/images (no javascript:, data:, etc.). Relative URLs are fine.
+   
     static string SafeUrl(string url)
     {
         var u = url.Trim();
         return SafeScheme.IsMatch(u) ? u : "#";
     }
 
-    // Inline spans, on already-escaped text: code first so its contents are not further parsed, then
-    // images, links, bold, italic.
+   
+   
     static string Inline(string text)
     {
         text = InlineCode.Replace(text, m => $"<code>{m.Groups[1].Value}</code>");
@@ -61,13 +57,13 @@ public static class MarkdownRenderer
         return text;
     }
 
-    // Render markdown source to a safe HTML string.
+   
     public static string Render(string? src)
     {
         var lines = SplitLines.Split(EscapeHtml(src ?? ""));
         var outLines = new List<string>();
         var i = 0;
-        string? listType = null; // "ul" | "ol" | null
+        string? listType = null;
 
         void CloseList()
         {
@@ -84,7 +80,7 @@ public static class MarkdownRenderer
                 var body = new List<string>();
                 i++;
                 while (i < lines.Length && !Fence.IsMatch(lines[i].Trim())) { body.Add(lines[i]); i++; }
-                i++; // skip closing fence
+                i++;
                 outLines.Add($"<pre class=\"md-code\"><code>{string.Join("\n", body)}</code></pre>");
                 continue;
             }
@@ -101,7 +97,7 @@ public static class MarkdownRenderer
                 continue;
             }
 
-            // Blockquote: collect consecutive > lines.
+           
             if (Quote.IsMatch(line))
             {
                 CloseList();

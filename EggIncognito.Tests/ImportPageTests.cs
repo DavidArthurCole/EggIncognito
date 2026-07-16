@@ -6,12 +6,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-// The Import tab is a Blazor component (InputFile + drag-drop zone). It POSTs the chosen HAR to the
-// CanWrite-gated /api/import/har; the component never ingests directly. These confirm the page renders
-// its dropzone shell and that the Import button starts disabled until a file is chosen.
+
 public class ImportPageTests
 {
-    // Page-level: the prerendered /import returns 200 with the dropzone chrome. Mirrors AdminPageTests.
+   
     [Collection(SharedAppCollection.Name)]
     public class Integration
     {
@@ -33,7 +31,7 @@ public class ImportPageTests
         }
     }
 
-    // Component-level (bUnit): the Import button starts disabled (no file) and the dropzone renders.
+   
     public class Component : BunitContext
     {
         [Fact]

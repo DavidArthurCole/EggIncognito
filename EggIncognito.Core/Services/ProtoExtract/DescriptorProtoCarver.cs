@@ -4,23 +4,19 @@ using Google.Protobuf.Reflection;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Carves Egg Inc's .proto schema out of any binary that embeds serialized FileDescriptorProto blobs.
-// Locates each descriptor by its name-field framing (`0A <len> <name>`), wire-walks the top-level fields to
-// recover the exact byte length, parses with Google.Protobuf, emits proto2 text, and merges via ProtoCleanup.
-// Format-agnostic: the same anchor search works on Mach-O (iOS) and ELF .so (Android). Defensive: malformed
-// input yields a failed result, never a throw.
+
 public static class DescriptorProtoCarver
 {
     public sealed record CarvedDescriptor(string Name, int FileOffset, byte[] Bytes);
-    // AppVersion/Build come from the archive's own metadata (APK manifest, iOS Info.plist); null for a bare binary.
+   
     public sealed record ExtractResult(bool Ok, string? Proto, string Diagnostics, string? ProtoSha,
         IReadOnlyList<string> Messages, string? AppVersion = null, string? Build = null);
 
-    // The descriptor files the app compiles in: ei.proto is the schema, common.proto the aux-package enums,
-    // abb.proto a small ad-config proto.
+   
+   
     private static readonly string[] DescriptorFiles = ["ei.proto", "common.proto", "abb.proto"];
 
-    // Finds every embedded FileDescriptorProto and returns its raw bytes. Missing files are absent from the result.
+   
     public static IReadOnlyList<CarvedDescriptor> CarveAll(byte[] binary)
     {
         var found = new List<CarvedDescriptor>();
@@ -38,7 +34,7 @@ public static class DescriptorProtoCarver
         return found;
     }
 
-    // Parses a carved FileDescriptorProto and emits proto2 source text. Returns null on parse failure.
+   
     public static string? EmitProto(byte[] fileDescriptorProtoBytes)
     {
         var fdp = TryParse(fileDescriptorProtoBytes);
@@ -48,8 +44,8 @@ public static class DescriptorProtoCarver
         return sb.ToString();
     }
 
-    // Full pipeline: carve ei + common, emit both, merge with ProtoCleanup. Reports counts + the proto
-    // SHA + the message-name index. Never throws.
+   
+   
     public static ExtractResult Extract(byte[] binary)
     {
         var carved = CarveAll(binary);
@@ -79,7 +75,7 @@ public static class DescriptorProtoCarver
         catch { return null; }
     }
 
-    // carving
+   
 
     private static int FindAnchor(byte[] b, string protoName)
     {
@@ -91,8 +87,8 @@ public static class DescriptorProtoCarver
         return IndexOf(b, pat);
     }
 
-    // Walk top-level fields to recover length: every top-level field is length-delimited (wire type 2),
-    // field number 1..12. Returns byte length, or 0 on a malformed start.
+   
+   
     internal static int WireWalkLength(byte[] b, int start)
     {
         int pos = start, lastGood = start;
@@ -114,7 +110,7 @@ public static class DescriptorProtoCarver
         }
         catch
         {
-            // truncated varint at the tail: keep the last clean field boundary.
+           
         }
         return lastGood - start;
     }
@@ -146,7 +142,7 @@ public static class DescriptorProtoCarver
         return result;
     }
 
-    // emission
+   
 
     private static void EmitFile(FileDescriptorProto f, StringBuilder sb)
     {
@@ -190,8 +186,8 @@ public static class DescriptorProtoCarver
         sb.Append(pad).Append("}\n");
     }
 
-    // Message/enum fields carry a fully-qualified type_name (".ei.Foo"); strip the leading dot to match
-    // ei.proto style (ProtoCleanup later drops the aux./ei. qualifiers as the canonical form does).
+   
+   
     private static string TypeName(FieldDescriptorProto f)
     {
         if (f.Type is FieldDescriptorProto.Types.Type.Message or FieldDescriptorProto.Types.Type.Enum)

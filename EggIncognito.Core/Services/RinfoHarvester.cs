@@ -2,9 +2,7 @@ using System.Text.Json;
 
 namespace EggIncognito.Services;
 
-// Harvests the BasicRequestInfo (rinfo: clientVersion/version/build/platform) fields out of a captured
-// request's already-decoded display JSON. System.Text.Json is correct here since the input is plain
-// display JSON, not the proto wire; the proto<->JSON boundary is upstream in FlowDecoder.
+
 public static class RinfoHarvester
 {
     public sealed record ObservedVersion(string Platform, string? Version, string? Build, int? ClientVersion);

@@ -4,22 +4,18 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Services.Devices;
 
-// Parses the NDJSON the frida hook (tools/ios-frida/particle-capture.js) writes on the phone: one record per
-// ParticleBatchedMesh::addParticle call = { t, mesh, x:[12 floats], s }. The transform is a column-major 3x4
-// affine; cells 9/10/11 (the 4th column) are the world translation.
+
 //
-// The hatchery effect is one of several live particle streams; the mesh pointer separates them. We cluster by
-// mesh, pick the dominant cluster (most particles at rest = the floating hatchery sparkle), and summarize its
-// geometry as world-space stats the host can fit or bake. No model authored here; this READS the captured
-// motion so the renderer can replay it (EXTRACT-not-author).
+
+
 //
-// Pure: takes the log text, returns a model. No device, no ssh. Testable from a fixture.
+
 public static class ParticleCaptureModel
 {
-    // One captured addParticle call.
+   
     public readonly record struct Sample(int T, string Mesh, float[] Transform, float Size);
 
-    // A single particle stream (one mesh pointer): its samples + world-space summary stats.
+   
     public readonly record struct Cluster(
         string Mesh, int Count, float[] Centroid, float Radius, float[] BobSpan, float MeanSize)
     {
@@ -36,7 +32,7 @@ public static class ParticleCaptureModel
 
     public readonly record struct Model(bool Ok, int TotalSamples, IReadOnlyList<Cluster> Clusters, string Diagnostics)
     {
-        // The dominant cluster = the most-sampled stream = the resting-farm effect we want.
+       
         public Cluster? Dominant => Clusters.Count == 0 ? null : Clusters[0];
 
         public JsonObject ToJson() => new()
@@ -90,7 +86,7 @@ public static class ParticleCaptureModel
 
             var t = new float[12];
             for (int i = 0; i < 12; i++) t[i] = (float)xs[i]!.GetValue<double>();
-            // any NaN/Inf cell (a bad pointer read on the phone) => drop the record.
+           
             foreach (var v in t) if (float.IsNaN(v) || float.IsInfinity(v)) return false;
 
             var size = o["s"] is { } sn ? (float)sn.GetValue<double>() : 0f;
@@ -103,9 +99,9 @@ public static class ParticleCaptureModel
         catch (FormatException) { return false; }
     }
 
-    // World-space summary of one stream. Translation = the affine's 4th column (cells 9,10,11 column-major).
-    // Centroid = mean position. Radius = mean horizontal distance from the centroid (the float ring extent).
-    // BobSpan = per-axis (max - min) of position (the bounding extent of the motion).
+   
+   
+   
     private static Cluster Summarize(string mesh, List<Sample> samples)
     {
         int n = samples.Count;
@@ -137,6 +133,6 @@ public static class ParticleCaptureModel
         return new Cluster(mesh, n, centroid, (float)(radSum / n), bob, (float)(sizeSum / n));
     }
 
-    // Column-major 3x4 affine: column j = cells[3j..3j+2]; the 4th column (j=3) = translation = cells 9,10,11.
+   
     private static (float X, float Y, float Z) Translation(float[] m) => (m[9], m[10], m[11]);
 }

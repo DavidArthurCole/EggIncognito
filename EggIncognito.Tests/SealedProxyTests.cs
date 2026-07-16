@@ -4,8 +4,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-// The Sealed API proxy supporter perk: configured-ness, fail-closed access gating (anon, non-supporter,
-// lapsed supporter), and the WebProxy build from options.
 public class SealedProxyTests
 {
     private sealed class FakeUser(bool authed, bool supporter, string? id = "tester") : ICurrentUser
@@ -62,7 +60,7 @@ public class SealedProxyTests
         var supporters = new FakeSupporters(true);
         var proxy = NewProxy(new SealedProxyOptions(), supporters);
         Assert.False(await proxy.CanUseAsync(new FakeUser(authed: true, supporter: true)));
-        Assert.Equal(0, supporters.Calls); // short-circuits before the live check
+        Assert.Equal(0, supporters.Calls);
     }
 
     [Fact]
@@ -80,13 +78,13 @@ public class SealedProxyTests
         var supporters = new FakeSupporters(true);
         var proxy = NewProxy(Configured(), supporters);
         Assert.False(await proxy.CanUseAsync(new FakeUser(authed: true, supporter: false)));
-        Assert.Equal(0, supporters.Calls); // cookie claim rejected before the live re-check
+        Assert.Equal(0, supporters.Calls);
     }
 
     [Fact]
     public async Task CanUse_SupporterClaimButLiveCheckFails_False()
     {
-        var supporters = new FakeSupporters(false); // role lapsed since the cookie was stamped
+        var supporters = new FakeSupporters(false);
         var proxy = NewProxy(Configured(), supporters);
         Assert.False(await proxy.CanUseAsync(new FakeUser(authed: true, supporter: true)));
         Assert.Equal(1, supporters.Calls);

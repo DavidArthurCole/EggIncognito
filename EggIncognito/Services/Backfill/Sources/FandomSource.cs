@@ -4,8 +4,6 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.Backfill.Sources;
 
-// Fandom wiki Version_History via the MediaWiki parse API (JSON, no HTML scrape). Primary list source
-// since it carries a changelog.
 public sealed partial class FandomSource(IHttpClientFactory httpFactory, ILogger<FandomSource> logger)
     : IVersionListSource
 {
@@ -37,7 +35,7 @@ public sealed partial class FandomSource(IHttpClientFactory httpFactory, ILogger
         }
     }
 
-    // The parse API wraps the wikitext at .parse.wikitext["*"].
+   
     private static string? ExtractWikitext(string json)
     {
         try
@@ -52,7 +50,7 @@ public sealed partial class FandomSource(IHttpClientFactory httpFactory, ILogger
         catch (JsonException) { return null; }
     }
 
-    // Matches a wiki table row's leading version cell, e.g. "| 1.35.7 ||" or "|1.35.7\n".
+   
     [GeneratedRegex(@"^\s*\|+\s*'*\[*\s*(\d+\.\d+(?:\.\d+)*)\b", RegexOptions.Multiline)]
     private static partial Regex VersionCellRe();
 
@@ -84,7 +82,7 @@ public sealed partial class FandomSource(IHttpClientFactory httpFactory, ILogger
         return result;
     }
 
-    // Everything after the version cell on the row, cleaned of wiki markup, as the changelog blob.
+   
     private static string? ExtractChangelog(string row, int afterVersion)
     {
         var tail = row[Math.Min(afterVersion, row.Length)..];

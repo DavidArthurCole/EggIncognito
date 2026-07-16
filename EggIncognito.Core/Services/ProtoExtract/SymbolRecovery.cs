@@ -1,11 +1,7 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Recovers a symbol -> target-VA map onto a stripped egginc Mach-O using a symbolized binary as reference, so
-// the decomp extractor can resolve functions when no symbolized binary of the device's exact version exists.
-// Two tiers, both byte-verified (never fabricates a mapping): Tier 0 exact-transplant applies the reference
-// symbol table as-is when the two __text sections are byte-equal; Tier 1 content-hash recovers functions that
-// are byte-identical after masking pc-relative displacements, anchored on the target's LC_FUNCTION_STARTS. See
-// spec docs/superpowers/specs/2026-06-29-symbol-recovery-v2-design.md.
+
+
 public static class SymbolRecovery
 {
     public readonly record struct RecoveryReport(
@@ -30,14 +26,14 @@ public static class SymbolRecovery
         var refSyms = MachoSymbols.Read(symbolizedRef);
         if (refSyms.Count == 0) return None(interestNeedles, "reference has no symbols");
 
-        // Tier 0: byte-equal __text -> transplant the whole reference table.
+       
         if (rSize == tSize && rSize > 0 && SpanEqual(symbolizedRef, rOff, strippedTarget, tOff, rSize))
         {
             var (found0, missing0) = Partition(refSyms, interestNeedles);
             return new RecoveryReport("exact-transplant", refSyms.Count, refSyms, found0, missing0, "ok: identical __text");
         }
 
-        // Tier 1: content-hash recovery of byte-identical (displacement-masked) functions.
+       
         var recovered = ContentHashRecover(symbolizedRef, rOff, rVm, refSyms, strippedTarget, tOff, tSize, tVm);
         var (found, missing) = Partition(recovered, interestNeedles);
         var diag = recovered.Count == 0
@@ -46,13 +42,13 @@ public static class SymbolRecovery
         return new RecoveryReport("content-hash", recovered.Count, recovered, found, missing, diag);
     }
 
-    private const int MinFuncLen = 32; // skips tiny shared stubs/thunks that pile into hot prefix buckets
+    private const int MinFuncLen = 32;
     private const int MaxFuncLen = 0x20000;
     private const int PrefixLen = 32;
 
-    // Recovers function symbols whose normalized body is byte-identical between ref and target: index reference
-    // functions by a cheap normalized 32-byte-prefix hash, scan the target only at its real function starts, and
-    // run the expensive byte-exact compare only on prefix-bucket hits.
+   
+   
+   
     private static List<MachoSymbols.Symbol> ContentHashRecover(
         byte[] refBin, int rOff, ulong rVm, IReadOnlyList<MachoSymbols.Symbol> refSyms,
         byte[] tgtBin, int tOff, int tSize, ulong tVm)
@@ -60,7 +56,7 @@ public static class SymbolRecovery
         var rSlide = rVm - (ulong)rOff;
         var ranges = FunctionRanges(refSyms, rVm, rVm + (ulong)refBin.Length);
 
-        // prefix index: cheap FNV of the normalized first 32 bytes -> list of candidate functions.
+       
         var byPrefix = new Dictionary<ulong, List<RefFunc>>();
         foreach (var (name, start, end) in ranges)
         {
@@ -80,7 +76,7 @@ public static class SymbolRecovery
         var usedNames = new HashSet<string>(StringComparer.Ordinal);
         var usedFullHashes = new HashSet<ulong>();
 
-        // Scan only the target's real function starts when available; fall back to a dense 4-byte sweep.
+       
         var starts = MachoFunctionStarts.Read(tgtBin);
         IEnumerable<int> Offsets()
         {
@@ -114,7 +110,7 @@ public static class SymbolRecovery
 
     private readonly record struct RefFunc(string Name, byte[] Norm, ulong FullHash);
 
-    // FNV-1a over a whole normalized body. Collisions are caught by the subsequent byte-exact NormalizedEquals.
+   
     private static ulong FnvFull(byte[] norm)
     {
         ulong h = 1469598103934665603UL;
@@ -122,7 +118,7 @@ public static class SymbolRecovery
         return h;
     }
 
-    // FNV-1a over the normalized first PrefixLen bytes of an already-normalized buffer.
+   
     private static ulong FnvPrefix(byte[] norm)
     {
         ulong h = 1469598103934665603UL;
@@ -131,7 +127,7 @@ public static class SymbolRecovery
         return h;
     }
 
-    // FNV-1a over the normalized first PrefixLen bytes at off in a raw target buffer, allocation-free.
+   
     private static ulong FnvNormalizedPrefixAt(byte[] bin, int off)
     {
         ulong h = 1469598103934665603UL;
@@ -146,7 +142,7 @@ public static class SymbolRecovery
         return h;
     }
 
-    // Compares a target window at off against an already-normalized reference body. Allocation-free.
+   
     private static bool NormalizedEquals(byte[] tgt, int off, byte[] norm)
     {
         for (int i = 0; i + 4 <= norm.Length; i += 4)
@@ -158,7 +154,7 @@ public static class SymbolRecovery
         return true;
     }
 
-    // Function [start,end) ranges from symbol addresses: end = next symbol address, capped at textEnd.
+   
     private static List<(string Name, ulong Start, ulong End)> FunctionRanges(
         IReadOnlyList<MachoSymbols.Symbol> syms, ulong textVm, ulong textEnd)
     {
@@ -177,7 +173,7 @@ public static class SymbolRecovery
     private static int CountTextFuncs(IReadOnlyList<MachoSymbols.Symbol> syms, ulong textVm, int textSize)
         => FunctionRanges(syms, textVm, textVm + (ulong)textSize).Count;
 
-    // Masks the immediate bytes of pc-relative instructions so a relocated-but-unchanged function still matches.
+   
     private static byte[] NormalizeRange(byte[] bin, int off, int len)
     {
         var c = new byte[len];
@@ -191,14 +187,14 @@ public static class SymbolRecovery
         return c;
     }
 
-    // Zeroes the displacement bytes of a pc-relative instruction word, keeps the opcode byte.
+   
     private static uint NormalizeWord(uint w)
     {
         uint top6 = w >> 26;
         uint top8 = w >> 24;
-        bool brImm = top6 == 0b000101 || top6 == 0b100101; // b / bl
-        bool bcond = top8 == 0b01010100; // b.cond
-        bool adr = (w & 0x1F000000) == 0x10000000; // adr / adrp family
+        bool brImm = top6 == 0b000101 || top6 == 0b100101;
+        bool bcond = top8 == 0b01010100;
+        bool adr = (w & 0x1F000000) == 0x10000000;
         return (brImm || bcond || adr) ? (w & 0xFF000000) : w;
     }
 

@@ -1,0 +1,91 @@
+@* Live-view of the always-on per-device captures ONLY (the phones plugged into this host). Never shows
+   user capture sessions, so no user's traffic is viewable here. Polls /api/admin/device-captures. *@
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@using EggIncognito.Core.Services.Devices
+@implements IDisposable
+
+<section class="panel mb-4">
+  <div class="admin-panel-head">
+    <h2 class="admin-panel-title">Device capture (live)</h2>
+    <span class="text-muted text-xs">host devices only</span>
+  </div>
+
+  @if (_rows.Count == 0)
+  {
+    <p class="text-muted text-sm m-0">No devices declared on this host.</p>
+  }
+  else
+  {
+    <div class="flex flex-col gap-3">
+      @foreach (var d in _rows)
+      {
+        var v = Verdict(d);
+        <div class="devcap-row">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-sm font-medium truncate">@d.Label</span>
+              <span class="text-xs text-muted">@d.Platform</span>
+              @if (d.Listening) { <span class="mono text-xs text-muted">:@d.Port</span> }
+            </div>
+            <span class="text-xs @v.Color" title="@v.Detail">@v.Label</span>
+          </div>
+          <div class="devcap-counters mt-1.5">
+            <span title="client connections to the proxy">conns <b>@d.ClientConnects</b></span>
+            <span title="auxbrain CONNECTs decrypted">aux <b>@d.AuxbrainConnects</b></span>
+            <span title="decoded flows">flows <b>@d.Flows</b></span>
+            <span title="rinfo harvested">rinfo <b>@d.RinfoHarvests</b></span>
+          </div>
+          @if (d.RecentConnects is { Count: > 0 })
+          {
+            <div class="devcap-connects mt-1.5">
+              @foreach (var host in d.RecentConnects.Take(8))
+              {
+                <span class="devcap-connect">@host</span>
+              }
+            </div>
+          }
+          @if (!string.IsNullOrEmpty(d.LastDecryptError))
+          {
+            <div class="text-xs text-err mt-1 mono">@d.LastDecryptError</div>
+          }
+        </div>
+      }
+    </div>
+  }
+</section>
+
+@code {
+    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
+
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    List<Row> _rows = [];
+    System.Threading.Timer? _timer;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _timer = new System.Threading.Timer(async _ => await InvokeAsync(async () => { await Load(); StateHasChanged(); }),
+                null, TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(4));
+    }
+
+    async Task Load()
+    {
+        if (ClientFactory is null) return;
+        try { _rows = await ClientFactory().GetFromJsonAsync<List<Row>>("/api/admin/device-captures", JsonOpts) ?? []; }
+        catch { }
+    }
+
+    static DeviceCaptureVerdict.Verdict Verdict(Row d) =>
+        DeviceCaptureVerdict.For(new DeviceCaptureVerdict.Counters(
+            d.Listening, d.Port, d.ClientConnects, d.AuxbrainConnects, d.Flows, d.RinfoHarvests, d.LastDecryptError));
+
+    public void Dispose() => _timer?.Dispose();
+
+    record Row(string Id, string Label, string Platform, bool Listening, int Port,
+        long ClientConnects, long AuxbrainConnects, long Flows, long RinfoHarvests,
+        string? LastDecryptError, List<string>? RecentConnects);
+}

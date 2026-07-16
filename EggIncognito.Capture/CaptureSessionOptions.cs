@@ -1,7 +1,5 @@
 namespace EggIncognito.Capture;
 
-// Options for a single capture session. WriteEndpoints=false (hosted) skips the endpoint extractor
-// entirely, so flows never touch the shared Endpoints/ tree.
 public sealed record CaptureSessionOptions(
     int Port,
     string? Eid,

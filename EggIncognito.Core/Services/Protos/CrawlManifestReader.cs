@@ -3,9 +3,7 @@ using System.Text.Json;
 
 namespace EggIncognito.Core.Services.Protos;
 
-// Parses the GitHub-crawl backfill dataset (a zip of manifest.json + snapshots/*.proto) into distinct proto
-// states for staging, deduped by ProtoSha256. Version is attached only for trusted confidence
-// (version-file/subject); tree-scan is a heuristic and stages version-less for manual review.
+
 public static class CrawlManifestReader
 {
     public sealed record CrawlRecord(
@@ -17,7 +15,7 @@ public static class CrawlManifestReader
         int? ClientVersion, string? AppVersion, string? Build, string? SnapshotFile, string? VersionConfidence,
         string? Platform);
 
-    // Higher rank wins when deduping a sha: version-file > subject > tree-scan > empty.
+   
     private static int ConfidenceRank(string? c) => c switch
     {
         "version-file" => 3,
@@ -28,7 +26,7 @@ public static class CrawlManifestReader
 
     private static bool IsTrusted(string? c) => c is "version-file" or "subject";
 
-    // Registry keys on lowercase "ios"/"android"; unknown platform defaults to "android".
+   
     private static string NormalizePlatform(string? p) => p?.ToUpperInvariant() switch
     {
         "IOS" => "ios",
@@ -73,7 +71,7 @@ public static class CrawlManifestReader
                 trusted ? r.AppVersion : null,
                 trusted ? r.Build : null,
                 trusted ? r.ClientVersion?.ToString() : null,
-                // Npgsql's timestamptz only accepts offset 0; commit dates carry a local offset.
+               
                 r.ProtoSha256!, text, r.Repo, r.Commit, r.Date?.ToUniversalTime(),
                 string.IsNullOrEmpty(r.VersionConfidence) ? null : r.VersionConfidence));
         }

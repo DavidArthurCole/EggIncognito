@@ -9,12 +9,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-// The redesigned /protos page: a toolbar projected into the nav, a real registry table, and an
-// admin-only backfill panel below it. The controller ACL is the real admin gate; this is courtesy UX.
 public class ProtosPageTests
 {
-    // Page-level: the prerendered /protos returns 200 with the registry shell. Anonymous, so no
-    // backfill panel renders.
+   
+   
     [Collection(SharedAppCollection.Name)]
     public class Integration
     {
@@ -29,12 +27,12 @@ public class ProtosPageTests
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
             var html = await r.Content.ReadAsStringAsync();
             Assert.Contains("Proto Registry", html);
-            // The admin-only panel must not render for an anonymous caller.
+           
             Assert.DoesNotContain("id=\"backfillPanel\"", html);
         }
 
-        // Subscribe + Sources are modal overlays on /protos now; the legacy routes redirect there. The
-        // redirect page must still respond 200 (a client-side NavigateTo), not 404.
+       
+       
         [Fact]
         public async Task SubscribeRoute_StillResponds() =>
             Assert.Equal(System.Net.HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/subscribe")).StatusCode);
@@ -44,8 +42,8 @@ public class ProtosPageTests
             Assert.Equal(System.Net.HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/sources")).StatusCode);
     }
 
-    // Component-level (bUnit): a faked ICurrentUser drives the admin gate. Admin renders the backfill
-    // panel; viewer does not. The empty registry table renders its empty state (no DB).
+   
+   
     public class Component : BunitContext
     {
         private void Wire(UserRole role)
@@ -53,7 +51,7 @@ public class ProtosPageTests
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddHttpClient();
-            // Copy/navigate JS only fires on click; tolerate any unplanned invocation during render.
+           
             JSInterop.Mode = JSRuntimeMode.Loose;
         }
 
@@ -62,7 +60,7 @@ public class ProtosPageTests
         {
             Wire(UserRole.Admin);
             var cut = Render<Protos>();
-            // Backfill is now a per-source refresh icon in the Sources side widget (admin-only).
+           
             Assert.Contains("Re-import from elgranjero", cut.Markup);
             Assert.Contains("Missing versions", cut.Markup);
         }
@@ -80,7 +78,7 @@ public class ProtosPageTests
         {
             Wire(UserRole.Viewer);
             var cut = Render<Protos>();
-            // No DB -> the load fails and degrades to the styled empty table.
+           
             Assert.Contains("No proto versions yet.", cut.Markup);
         }
 
@@ -91,7 +89,7 @@ public class ProtosPageTests
             Services.AddHttpClient();
             JSInterop.Mode = JSRuntimeMode.Loose;
             var cut = Render<EggIncognito.Components.Protos.ProtoSourcesPanel>();
-            // Only farm + elgranjero + fandom remain; APKPure/Uptodown/iTunes were removed as bloat.
+           
             Assert.Contains("elgranjero", cut.Markup);
             Assert.Contains("Device farm", cut.Markup);
             Assert.Contains("Fandom", cut.Markup);
@@ -106,7 +104,7 @@ public class ProtosPageTests
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddHttpClient();
             JSInterop.Mode = JSRuntimeMode.Loose;
-            // Per-source refresh icons (admin-only), incl. the device-farm fan-out.
+           
             var admin = Render<EggIncognito.Components.Protos.ProtoSourcesPanel>(p => p.Add(x => x.IsAdmin, true));
             Assert.Contains("Re-import from elgranjero", admin.Markup);
             Assert.Contains("Re-import from Fandom", admin.Markup);
@@ -122,7 +120,7 @@ public class ProtosPageTests
             Services.AddHttpClient();
             JSInterop.Mode = JSRuntimeMode.Loose;
             var cut = Render<MissingVersionsPanel>();
-            // No DB -> known list empty state + the public contribute ask is shown.
+           
             Assert.Contains("No discovered versions", cut.Markup);
             Assert.Contains("send the file my way", cut.Markup);
         }

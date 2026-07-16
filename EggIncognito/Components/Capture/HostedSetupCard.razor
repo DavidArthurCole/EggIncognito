@@ -55,14 +55,14 @@
 @code {
     [Parameter] public int Port { get; set; }
     [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
-    // Discord invite shown in the DM-failed notice so the user can join + enable DMs. Null hides the link.
+   
     [Parameter] public string? InviteUrl { get; set; }
 
     string? _proxyHost;
     bool _caDmFailed;
     bool _rotated;
 
-    // The page pushes a freshly-rotated host here so the card updates the displayed Server without re-fetching.
+   
     [Parameter] public string? HostOverride { get; set; }
 
     protected override void OnParametersSet()
@@ -74,8 +74,8 @@
         }
     }
 
-    // After the interactive circuit is live (ClientFactory can forward the auth cookie), fetch the
-    // user's proxy address and poll status once to surface a failed CA DM.
+   
+   
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender || ClientFactory is null) return;

@@ -5,8 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
-
-// The heavy extract (APKPure download + C# carve) is integration-only; here only the gate + binding are asserted.
 public class ApkExtractGateTests
 {
     private static IConfiguration Config(Dictionary<string, string?> values) =>

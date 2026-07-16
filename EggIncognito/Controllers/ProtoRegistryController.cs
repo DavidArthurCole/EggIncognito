@@ -6,9 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EggIncognito.Controllers;
 
-// Write surface over the proto registry, split from the public read-only ProtosController. Save and edit
-// are additive (contributor+); delete and merge are destructive (admin). Deletes are soft (DeletedAt)
-// so the auto-importers cannot resurrect them.
+
 [ApiController]
 [Route("api/protos/versions")]
 [EnableRateLimiting("write")]
@@ -24,8 +22,8 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
     public sealed record SaveRequest(string Platform, string AppVersion, string Build, string? ClientVersion,
         string? Package, string Proto, string? Source);
 
-    // Promote an uploaded/analyzed extraction into the registry. Contributor+. Computes the SHA + index
-    // from the proto text so the row matches farm-ingested rows. Source defaults to "upload".
+   
+   
     [HttpPost]
     public async Task<IActionResult> Save([FromBody] SaveRequest req, CancellationToken ct)
     {
@@ -44,8 +42,8 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
     public sealed record EditRequest(string? AppVersion, string? ClientVersion, string? Source, string? Build);
 
-    // Correct/annotate a stored version's metadata. Contributor+. Null fields are left unchanged. Build re-keys
-    // the row when given + different; a collision (another row already has that build for the platform) -> 409.
+   
+   
     [HttpPatch("{platform}/{build}")]
     public async Task<IActionResult> Edit(string platform, string build, [FromBody] EditRequest req, CancellationToken ct)
     {
@@ -62,7 +60,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         };
     }
 
-    // Soft-delete one stored version. Admin. The row is hidden, not removed, so re-ingest cannot revive it.
+   
     [HttpDelete("{platform}/{build}")]
     public async Task<IActionResult> Delete(string platform, string build, CancellationToken ct)
     {
@@ -75,7 +73,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
     public sealed record VersionKey(string Platform, string Build);
     public sealed record BulkDeleteRequest(IReadOnlyList<VersionKey> Versions);
 
-    // Soft-delete many. Admin. Returns the count deleted.
+   
     [HttpPost("delete")]
     public async Task<IActionResult> BulkDelete([FromBody] BulkDeleteRequest req, CancellationToken ct)
     {
@@ -87,9 +85,9 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { ok = true, deleted });
     }
 
-    // Suggested cross-platform merges: groups of active rows sharing app version + proto SHA across >=2
-    // platforms (e.g. the iOS + Android build of one release). Read-only; the UI offers a one-click merge.
-    // Public read like the version list (the merge action itself is admin-gated).
+   
+   
+   
     [HttpGet("merge-suggestions")]
     public async Task<IActionResult> MergeSuggestions(CancellationToken ct)
     {
@@ -100,8 +98,8 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
     public sealed record MergeRequest(VersionKey Canonical, IReadOnlyList<VersionKey> Aliases);
 
-    // Merge aliases into a canonical version (same schema, possibly cross-platform). Admin. Aliases become
-    // hidden pointers to the canonical; reversible via restore.
+   
+   
     [HttpPost("merge")]
     public async Task<IActionResult> Merge([FromBody] MergeRequest req, CancellationToken ct)
     {
@@ -114,7 +112,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { ok = true, linked });
     }
 
-    // Restore a soft-deleted / merged version. Admin.
+   
     [HttpPost("{platform}/{build}/restore")]
     public async Task<IActionResult> Restore(string platform, string build, CancellationToken ct)
     {
@@ -124,14 +122,14 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return ok ? Ok(new { ok = true }) : NotFound();
     }
 
-    // Staged submissions: review queue between proto sources and the live registry. Routes are absolute
-    // (/api/protos/staged/*) so they sit beside the versions surface rather than under it.
+   
+   
     private StagedProtoStore? StagedStore => services.GetService(typeof(StagedProtoStore)) as StagedProtoStore;
 
     public sealed record OfferRequest(string Platform, string? AppVersion, string? Build,
         string? ClientVersion, string? Package, string ProtoSha, string ProtoText, string? MessageIndex);
 
-    // Public: does this proto already exist (registry or pending)? Drives the analyze-result Offer button.
+   
     [HttpGet("/api/protos/staged/check")]
     public async Task<IActionResult> StagedCheck(
         [FromQuery] string platform, [FromQuery] string? appVersion, [FromQuery] string protoSha, CancellationToken ct)
@@ -141,7 +139,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { inRegistry = inReg, pending });
     }
 
-    // Public (rate-limited): submit a proto for review. Dedup-guarded server-side.
+   
     [HttpPost("/api/protos/staged/offer")]
     public async Task<IActionResult> StagedOffer([FromBody] OfferRequest req, CancellationToken ct)
     {
@@ -154,7 +152,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { result = r.ToString().ToLowerInvariant() });
     }
 
-    // Public: pending count for the review badge (0 when no DB).
+   
     [HttpGet("/api/protos/staged/count")]
     public async Task<IActionResult> StagedCount(CancellationToken ct)
     {
@@ -162,7 +160,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { count = await s.PendingCountAsync(ct) });
     }
 
-    // Contributor+: the pending review queue.
+   
     [HttpGet("/api/protos/staged")]
     public async Task<IActionResult> StagedList(CancellationToken ct)
     {
@@ -180,7 +178,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
     public sealed record ApproveRequest(string? Platform, string? AppVersion, string? Build, string? ClientVersion);
 
-    // Contributor+: approve (with optional metadata edits) -> promotes to the registry.
+   
     [HttpPost("/api/protos/staged/{id:int}/approve")]
     public async Task<IActionResult> StagedApprove(int id, [FromBody] ApproveRequest req, CancellationToken ct)
     {
@@ -199,7 +197,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
     public sealed record RejectRequest(string? Note);
 
-    // Contributor+: reject (hidden, blocks re-offer of that sha).
+   
     [HttpPost("/api/protos/staged/{id:int}/reject")]
     public async Task<IActionResult> StagedReject(int id, [FromBody] RejectRequest req, CancellationToken ct)
     {
@@ -212,8 +210,8 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
     public sealed record BulkApproveItem(int Id, string? Platform, string? AppVersion, string? Build, string? ClientVersion);
     public sealed record BulkApproveRequest(IReadOnlyList<BulkApproveItem> Items);
 
-    // Contributor+: approve many staged rows with their (edited) metadata. Rows that can't promote (missing
-    // build, collision) are skipped, not fatal. Returns per-outcome counts.
+   
+   
     [HttpPost("/api/protos/staged/bulk-approve")]
     public async Task<IActionResult> StagedBulkApprove([FromBody] BulkApproveRequest req, CancellationToken ct)
     {
@@ -229,7 +227,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
     public sealed record BulkRejectRequest(IReadOnlyList<int> Ids, string? Note);
 
-    // Contributor+: reject many staged rows at once. Returns the count rejected.
+   
     [HttpPost("/api/protos/staged/bulk-reject")]
     public async Task<IActionResult> StagedBulkReject([FromBody] BulkRejectRequest req, CancellationToken ct)
     {
@@ -240,7 +238,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { ok = true, rejected });
     }
 
-    // Admin: bulk-import the GitHub-crawl backfill dataset (zip of manifest.json + snapshots/) into staging.
+   
     [HttpPost("/api/protos/staged/import-crawl")]
     public async Task<IActionResult> ImportCrawl(IFormFile file, CancellationToken ct)
     {

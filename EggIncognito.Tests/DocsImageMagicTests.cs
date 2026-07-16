@@ -3,15 +3,13 @@ using EggIncognito.Controllers;
 
 namespace EggIncognito.Tests;
 
-// The upload ContentType is client-supplied, so DocsController verifies the leading bytes match the
-// declared raster format before storing. A non-image payload labeled image/* must be rejected.
 public class DocsImageMagicTests
 {
     private static byte[] Png => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x00];
     private static byte[] Jpeg => [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
     private static byte[] Gif89 => [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'9', (byte)'a', 0x00, 0x00];
     private static byte[] Gif87 => [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'7', (byte)'a', 0x00, 0x00];
-    // "RIFF" + 4 size bytes + "WEBP" + start of the VP8 chunk.
+   
     private static byte[] Webp =>
     [
         (byte)'R', (byte)'I', (byte)'F', (byte)'F', 0x00, 0x00, 0x00, 0x00,

@@ -71,7 +71,7 @@ else
     string _saveMsg = "";
     string _saveCls = "";
 
-    // Keyed by a stable value identity, not render index, so reveal state survives re-renders.
+   
     readonly HashSet<string> _revealed = new(StringComparer.Ordinal);
 
     long _renderedFlowId = -1;
@@ -155,7 +155,7 @@ else
         <span class="known-card-val @(unknown ? "unknown" : "")">@value</span>
       </div>;
 
-    // Git-style +N (green) / -N (red) spans for diff outcomes.
+   
     RenderFragment DiffCounts(int added, int removed) =>@<text>@if (added > 0)
         {<span class="diff-add">@("+" + added)</span>}@if (removed > 0)
         {<span class="diff-del">@("-" + removed)</span>}</text>;
@@ -209,8 +209,8 @@ else
         }
         else if (ImageMime(f) is { } mime && !string.IsNullOrEmpty(f.ResponseB64))
         {
-            // Image responses (PNG/JPEG/GIF/WebP): render the actual image, not a hex dump. Hex of an
-            // image is useless and the byte-by-byte view is slow for large blobs.
+           
+           
             builder.AddContent(seq++, ImageResponseSection(mime, f.ResponseB64!));
         }
         else
@@ -242,14 +242,14 @@ else
         <pre class="data-text">@text</pre>
       </div>;
 
-    // Detect an image response by the leading magic bytes of the base64 body (independent of any
-    // content-type header). Returns the MIME type, or null if not a recognized raster image.
+   
+   
     static string? ImageMime(DashboardFlow f)
     {
         var b64 = f.ResponseB64;
         if (string.IsNullOrEmpty(b64)) return null;
         Span<byte> head = stackalloc byte[12];
-        // Decode just the first few bytes: 16 base64 chars -> 12 bytes, enough for every signature.
+       
         var prefix = b64.Length >= 16 ? b64[..16] : b64;
         int n;
         try { if (!Convert.TryFromBase64String(prefix.PadRight((prefix.Length + 3) / 4 * 4, '='), head, out n)) return null; }
@@ -266,7 +266,7 @@ else
     RenderFragment ImageResponseSection(string mime, string b64) => builder =>
     {
         var seq = 0;
-        var bytes = (b64.Length * 3) / 4; // approximate decoded size
+        var bytes = (b64.Length * 3) / 4;
         builder.OpenElement(seq++, "div");
 
         builder.OpenElement(seq++, "div");
@@ -301,8 +301,8 @@ else
         n >= 1024 * 1024 ? $"{n / (1024.0 * 1024):0.#} MB" :
         n >= 1024 ? $"{n / 1024.0:0.#} KB" : $"{n} B";
 
-    // "URL" section: the request path plus any path/query params, EID-bearing values blurred/redacted.
-    // Returns null when there is nothing to show.
+   
+   
     RenderFragment? BuildParams(DashboardFlow flow)
     {
         var parsed = ParseFlowUrl(flow);
@@ -401,8 +401,8 @@ else
         return (path, query, pathParams);
     }
 
-    // A side's headers: a name/value table. In blur mode a sensitive value blurs (reveal on click).
-    // Returns null when there are no headers.
+   
+   
     RenderFragment? BuildHeaders(string label, IReadOnlyList<DashboardHeader>? redacted, IReadOnlyList<DashboardHeader>? raw)
     {
         var headers = View.IsBlurMode || View.ShowRawHeaders ? raw ?? redacted ?? [] : redacted ?? [];

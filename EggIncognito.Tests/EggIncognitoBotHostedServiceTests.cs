@@ -16,7 +16,7 @@ public class EggIncognitoBotHostedServiceTests
 
         await svc.StartAsync(CancellationToken.None);
         await svc.StopAsync(CancellationToken.None);
-        // No assertion beyond "did not throw" - SyncKitBot.StartAsync returns null for an empty
-        // token (documented no-op), and StopAsync on a never-started service must be a no-op too.
+       
+       
     }
 }

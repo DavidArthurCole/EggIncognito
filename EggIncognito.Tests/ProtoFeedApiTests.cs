@@ -7,8 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Tests;
 
-// Unit-level coverage of the create endpoint over a stub IServiceProvider + IHttpClientFactory, so the
-// shape is asserted without a live DB.
 public class ProtoFeedApiTests
 {
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
@@ -27,7 +25,7 @@ public class ProtoFeedApiTests
         public object? GetService(Type serviceType) => map.GetValueOrDefault(serviceType);
     }
 
-    // Never opens a connection; the 400 paths return before any query touches it.
+   
     private static FeedSubscriptionStore UnconnectedStore()
     {
         var opts = new DbContextOptionsBuilder<EggIncognitoDbContext>()
@@ -150,7 +148,7 @@ public class ProtoFeedApiTests
     {
         var masked = ProtoFeedController.MaskWebhook(url);
         Assert.Equal(expected, masked);
-        // The full token must never survive masking.
+       
         Assert.DoesNotContain("abcdEFGHtoken1234", masked);
     }
 

@@ -5,9 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Services.Devices;
 
-// Shared probe path used by both the background service and the admin refresh endpoint, so scheduled and
-// manual probes are identical except for provenance (triggeredBy). Classification is per-platform because
-// iOS has no build number: android compares numeric build, ios compares semver appVersion.
+
 public static class DeviceProbeRunner
 {
     public static IDeviceProbe ProbeFor(Device d, IProcessRunner runner) => d.Platform switch
@@ -19,7 +17,7 @@ public static class DeviceProbeRunner
     public static string Classify(Device d, DeviceProbeResult r, string? extractedLatestBuild, string? extractedLatestAppVersion)
         => Classify(r, d.Platform, extractedLatestBuild, extractedLatestAppVersion);
 
-    // Platform-string overload so callers without a Device (the /status reclassification) can use it too.
+   
     public static string Classify(DeviceProbeResult r, string platform, string? extractedLatestBuild, string? extractedLatestAppVersion)
     {
         if (!r.Reachable) return "unreachable";
@@ -36,7 +34,7 @@ public static class DeviceProbeRunner
         return SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion ?? "") > 0 ? "new_version" : "no_change";
     }
 
-    // Dotted-numeric compare (1.35.10 > 1.35.9).
+   
     public static int SemverCompare(string a, string b)
     {
         var pa = a.Split('.'); var pb = b.Split('.');
@@ -49,15 +47,15 @@ public static class DeviceProbeRunner
         return 0;
     }
 
-    // A pure status read + registry classification; it never drives a device update. Store-sync lives in
-    // DeviceProbeService.
+   
+   
     public static async Task<DeviceProbe> ProbeOneAsync(
         Device d, string triggeredBy, IProcessRunner runner, IDeviceStatusStore store,
         EggIncognitoDbContext db, ILogger logger, TimeProvider time, CancellationToken ct)
     {
         var result = await ProbeFor(d, runner).ProbeAsync(ct);
 
-        // The true maximum, not the most-recently-created row: backfills insert old versions later.
+       
         var extracted = await db.ProtoVersions.AsNoTracking()
             .Where(p => p.Platform == d.Platform && p.DeletedAt == null)
             .Select(p => new { p.Build, p.AppVersion })

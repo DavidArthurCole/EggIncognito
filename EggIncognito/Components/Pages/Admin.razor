@@ -10,7 +10,7 @@
 @using EggIncognito.Components.Shared
 
 <PageTitle>EggIncognito - Admin</PageTitle>
-<main id="adminMain" class="px-8 pt-6 pb-8 max-w-[1100px]">
+<main id="adminMain" class="px-8 pt-6 pb-8 max-w-[1400px]">
   <h1 class="text-[1.3rem] mt-0 mb-4">Admin</h1>
   @if (!_isAdmin)
   {
@@ -18,12 +18,8 @@
   }
   else
   {
-    @* Live API-rate metrics (DB-backed per-minute rollups, inline SVG charts). *@
-    <AdminMetricsPanel ClientFactory="Client" />
-
-    @* Active capture sessions: list + kill. *@
-    <AdminSessionsPanel ClientFactory="Client" />
-
+  <div class="admin-grid">
+    <div class="admin-col-left">
     @* Bot config: dashboard channel, thread ids, deploy-notification embeds (direct service calls). *@
     <BotConfigPanel />
 
@@ -58,6 +54,20 @@
         </table>
       </div>
     </section>
+    </div>
+
+    <div class="admin-col-right">
+    @* Live API-rate metrics (DB-backed per-minute rollups, inline SVG charts). *@
+    <AdminMetricsPanel ClientFactory="Client" />
+
+    @* API audit: bucketed (Internal / Cross / External) request tracking by path + IP + recent. *@
+    <AdminApiAuditPanel ClientFactory="Client" />
+
+    @* Active capture sessions (user/local + host devices): list + kill. *@
+    <AdminSessionsPanel ClientFactory="Client" />
+
+    @* Live-view of the always-on per-device captures ONLY. *@
+    <AdminDeviceCapturePanel ClientFactory="Client" />
 
     @* Mesh cache: pre-compute every device mesh into the on-disk glb cache so the playground + API serve
        precomputed glbs without a per-request device pull + decode. *@
@@ -178,6 +188,8 @@
     {
       <pre id="log" class="result-pre">@_log</pre>
     }
+    </div>
+  </div>
   }
 </main>
 
@@ -203,8 +215,8 @@
     bool _configError;
     string _configResult = "";
 
-    // Captured in OnInitializedAsync while HttpContext is live; reused for circuit-time calls (the
-    // SignalR circuit has no HttpContext, so the auth cookie must be forwarded from the request).
+   
+   
     string _baseAddress = "";
     string? _cookie;
 
@@ -251,8 +263,8 @@
             using var ms = new MemoryStream();
             await e.File.OpenReadStream(200_000_000).CopyToAsync(ms);
             var bytes = ms.ToArray();
-            // A file may be raw proto bytes or already base64 text; if it decodes as UTF-8 base64-ish text,
-            // pass it through, else base64 the raw bytes. The server's loose decoder tolerates both.
+           
+           
             _configB64 = LooksLikeBase64Text(bytes)
                 ? System.Text.Encoding.UTF8.GetString(bytes).Trim()
                 : Convert.ToBase64String(bytes);
@@ -264,7 +276,7 @@
 
     static bool LooksLikeBase64Text(byte[] b)
     {
-        // Heuristic: a JSON capture or base64 text is all printable ASCII; raw proto has control bytes.
+       
         var n = Math.Min(b.Length, 256);
         for (var i = 0; i < n; i++)
             if (b[i] < 0x09 || (b[i] > 0x0D && b[i] < 0x20)) return false;
@@ -286,16 +298,16 @@
         finally { _configBusy = false; }
     }
 
-    // Fetch the live config through the Inspector pipeline: build+sign a ConfigRequest (browser salt) via
-    // /api/inspector/build, send it to get_config via /api/inspector/send, then ingest the decoded response.
+   
+   
     async Task FetchConfigViaInspector()
     {
         if (string.IsNullOrWhiteSpace(_configEid)) { ConfigStatus("EID is required", true); return; }
         _configBusy = true; ConfigStatus("Building request…", false);
         try
         {
-            // Pull the salt + the Inspector's BasicRequestInfo defaults from the same browser store.
-            // rinfo is mandatory: clone the defaults, set the EID, and pass them as the build env.
+           
+           
             string salt = "";
             System.Text.Json.JsonElement env = default;
             try
@@ -306,8 +318,8 @@
             }
             catch { ConfigStatus("could not read Inspector rinfo defaults", true); return; }
 
-            // Override the EID on the cloned rinfo (the one field the user supplies). Drop "debug": it is a
-            // UI-only toggle in the seed, not a BasicRequestInfo proto field, so it would fail ParseJson.
+           
+           
             var envObj = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(env.GetRawText()) ?? new();
             envObj.Remove("debug");
             envObj["eiUserId"] = _configEid.Trim();
@@ -317,7 +329,7 @@
             if (!build.IsSuccessStatusCode) { ConfigStatus($"build failed: HTTP {(int)build.StatusCode}", true); return; }
             var built = await build.Content.ReadFromJsonAsync<BuildResult>(JsonOpts);
             if (built?.FinalFormBody is null) { ConfigStatus("build returned no form body", true); return; }
-            // Diagnostic: a missing salt => unsigned request => auxbrain returns a thin config. Surface it.
+           
             if (string.IsNullOrEmpty(salt))
                 _log = "WARNING: no Inspector salt set, request is UNSIGNED (set the salt in the Inspector). ";
 
@@ -326,12 +338,12 @@
                 new { url = "https://www.auxbrain.com/ei/get_config", formBody = built.FinalFormBody, responseType = "ConfigResponse" });
             if (!send.IsSuccessStatusCode) { ConfigStatus($"send failed: HTTP {(int)send.StatusCode}", true); return; }
             var sent = await send.Content.ReadFromJsonAsync<SendResult>(JsonOpts);
-            // Diagnostics: surface the raw + decoded sizes so a thin response is visible at the UI.
+           
             _log += $"send: status={sent?.Status}, signed={!string.IsNullOrEmpty(salt)}, rawB64={sent?.RawBase64?.Length ?? 0} chars, json={sent?.Json?.Length ?? 0} chars, error={sent?.Error ?? "(none)"}";
             if (string.IsNullOrEmpty(sent?.Json)) { ConfigStatus(sent?.Error ?? "send returned no decoded config", true); return; }
 
-            // A thin live response (no dlcCatalog) is common: auxbrain gates the full config behind a real
-            // client context. Detect it from the decoded json + steer to the reliable manual-paste path.
+           
+           
             if (!sent.Json.Contains("dlcCatalog"))
             {
                 ConfigStatus($"live get_config returned a thin config ({sent.Json.Length} chars, no DLCCatalog). "
@@ -411,14 +423,8 @@
         finally { _cacheBusy = false; await LoadCachedMeshes(); }
     }
 
-    // Self-call client forwarding the captured auth cookie so the admin ACL on the controller sees the role.
-    HttpClient Client()
-    {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
-    }
+   
+    HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
 
     async Task LoadUsers()
     {

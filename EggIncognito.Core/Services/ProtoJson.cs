@@ -1,7 +1,5 @@
-// Shared JSON formatting helpers for the proto-JSON the app reads and writes: a stable pretty-printer
-// with a deterministic 2-space layout, and the float normalizer that makes "X.0" and "X" compare
-// equal. Used by the extraction pipeline and the capture dashboard decoder, so both render proto JSON
-// identically.
+
+
 
 using System.Text;
 using System.Text.RegularExpressions;
@@ -10,13 +8,13 @@ namespace EggIncognito.Services;
 
 public static class ProtoJson
 {
-    // Collapse a "<int>.0" produced by the proto JSON formatter to "<int>" so an endpoint that only
-    // differs by float formatting compares as the same content.
+   
+   
     public static string NormalizeFloats(string json) =>
         Regex.Replace(json, @"(?<=[:\[,\s])(-?\d+)\.0(?=[,\}\]\s\r\n])", "$1");
 
-    // Deterministic pretty-printer. Hand-rolled, not System.Text.Json, so the layout is stable and
-    // string contents are preserved verbatim.
+   
+   
     public static string PrettyPrint(string json)
     {
         var sb = new StringBuilder(json.Length * 2);

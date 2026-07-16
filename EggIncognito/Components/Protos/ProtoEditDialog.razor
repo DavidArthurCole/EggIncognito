@@ -38,7 +38,7 @@
 }
 
 @code {
-    // Targets = the platform members of the release being edited (one for a standalone row, N for a merge).
+   
     [Parameter] public IReadOnlyList<Row>? Targets { get; set; }
     [Parameter] public Func<string, object, Task<bool>> Patch { get; set; } = (_, _) => Task.FromResult(false);
     [Parameter] public EventCallback OnChanged { get; set; }
@@ -51,7 +51,7 @@
 
     public sealed record Row(string Platform, string Build, string AppVersion, string? ClientVersion, string Source);
 
-    // Mutable per-member edit state (the original build is kept to detect a re-key + target the PATCH URL).
+   
     sealed class MemberField
     {
         public string Platform = "";
@@ -83,7 +83,7 @@
         var allOk = true;
         foreach (var f in _fields)
         {
-            // build re-keys when changed; send it only when different so an unchanged build is a no-op.
+           
             var newBuild = string.IsNullOrWhiteSpace(f.Build) || f.Build == f.OriginalBuild ? null : f.Build.Trim();
             var body = new
             {
@@ -92,9 +92,9 @@
                 source = f.Source,
                 build = newBuild,
             };
-            // PATCH targets the CURRENT build in the URL; the body's build (if any) re-keys it server-side.
+           
             var ok = await Patch($"/api/protos/versions/{f.Platform}/{Uri.EscapeDataString(f.OriginalBuild)}", body);
-            if (ok) f.OriginalBuild = f.Build; // a follow-up save in the same dialog targets the new key
+            if (ok) f.OriginalBuild = f.Build;
             allOk &= ok;
         }
         _msg = allOk ? "saved" : "failed (build taken? contributor+?)";

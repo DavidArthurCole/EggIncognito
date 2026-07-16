@@ -6,8 +6,6 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// Exercises the .rpo / .rpoz -> .glb decoder against a synthetic mesh built to the documented format
-// (RpoMeshDecoder header notes).
 public class RpoMeshDecoderTests
 {
     private static byte[] BuildRpo() => SampleRpo.Build();
@@ -42,11 +40,11 @@ public class RpoMeshDecoderTests
     public void Decode_ProducesValidGlbContainer()
     {
         var glb = RpoMeshDecoder.Decode(BuildRpo()).Glb!;
-        Assert.Equal((uint)0x46546C67, BinaryPrimitives.ReadUInt32LittleEndian(glb)); // "glTF"
-        Assert.Equal((uint)2, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(4))); // version
-        Assert.Equal((uint)glb.Length, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(8))); // total length
-        Assert.Equal((uint)0x4E4F534A, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(16))); // "JSON"
-        Assert.Equal(0, glb.Length % 4); // 4-byte aligned container
+        Assert.Equal((uint)0x46546C67, BinaryPrimitives.ReadUInt32LittleEndian(glb));
+        Assert.Equal((uint)2, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(4)));
+        Assert.Equal((uint)glb.Length, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(8)));
+        Assert.Equal((uint)0x4E4F534A, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(16)));
+        Assert.Equal(0, glb.Length % 4);
     }
 
     [Fact]
@@ -107,14 +105,14 @@ public class RpoMeshDecoderTests
         using var ms = new MemoryStream();
         ms.WriteByte(0x78);
         ms.WriteByte(0x9C);
-        // ZLibStream emits its own 78 9C header, so use it for the whole stream instead of prepending one.
+       
         ms.SetLength(0);
         using (var zl = new ZLibStream(ms, CompressionLevel.Optimal, leaveOpen: true))
             zl.Write(data);
         return ms.ToArray();
     }
 
-    // Pulls the mesh.primitives[0].attributes map out of a glb's JSON chunk.
+   
     private static Dictionary<string, JsonElement> PrimitiveAttributes(byte[] glb)
     {
         var jsonLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12));

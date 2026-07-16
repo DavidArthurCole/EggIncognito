@@ -3,9 +3,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Services.Devices;
 
-// iOS device-driven store check: drives the on-device App Store via the eggupdate tweak (ssh-touch the
-// watched trigger file), then re-reads the installed version to see whether it climbed. No version list:
-// the App Store decides the target, so this detects any climb rather than matching a known version.
+
 public sealed class IosStoreChecker(
     IProcessRunner runner, IConfiguration config, ILogger<IosStoreChecker> logger) : IDeviceStoreChecker
 {
@@ -37,8 +35,8 @@ public sealed class IosStoreChecker(
                 "ios ssh not configured (DeviceUpdate:Ios:SshHost/SshKeyPath)");
         }
 
-        // SSPurchase needs the App Store app's authenticated session live: kill any stale (possibly zombied)
-        // process, launch it to prime the session, then touch the kqueue-watched trigger file.
+       
+       
         progress?.Invoke($"installed {before}; launching App Store to prime session…");
         logger.LogInformation("device check-update: {Id} ios launching App Store + firing trigger", device.Id);
         await runner.RunAsync("ssh",
@@ -95,8 +93,8 @@ public sealed class IosStoreChecker(
         }
     }
 
-    // Screen lock itself happens inside the eggupdate tweak via SBSLockDevice(); this just kills the
-    // foreground App Store app. Best-effort, never throws.
+   
+   
     private async Task SleepDeviceAsync(string host, string port, string key, CancellationToken ct)
     {
         try

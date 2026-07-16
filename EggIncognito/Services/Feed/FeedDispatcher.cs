@@ -3,16 +3,14 @@ using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services.Feed;
 
-// Fans a registry event out to matching active Discord subscriptions. Best-effort per sub: a failure
-// records a failed delivery + bumps fail_count; 404/410 deactivates the dead webhook. Idempotent via
-// the unique (subscription, proto_version) delivery row.
+
 public sealed class FeedDispatcher(
     IFeedSubscriptionStore store, IHttpClientFactory httpFactory, ILogger<FeedDispatcher> logger)
 {
     private const int DeadAfterFailures = 5;
 
-    // Default public host for the proto page links in feed payloads. Overridable via Feed:PageBaseUrl (no
-    // trailing slash). Proto pages live at /protos/* on the main host.
+   
+   
     public const string DefaultPageBaseUrl = "https://eggincognito.davidarthurcole.me";
 
     public static string BuildPageUrl(string? baseUrl, string platform, string build) =>

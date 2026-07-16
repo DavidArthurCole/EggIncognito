@@ -33,7 +33,7 @@
 </div>
 
 @code {
-    // IPAs/APKs run 25-90 MB; cap well above that. The browser streams the part, so memory stays bounded.
+   
     const long MaxUploadBytes = 200_000_000;
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 

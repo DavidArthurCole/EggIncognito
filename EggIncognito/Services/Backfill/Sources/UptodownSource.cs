@@ -2,8 +2,6 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.Backfill.Sources;
-
-// Uptodown android versions page. HTML scrape via the "scrape" client (bare clients 403).
 public sealed partial class UptodownSource(IHttpClientFactory httpFactory, ILogger<UptodownSource> logger)
     : IVersionListSource
 {
@@ -32,7 +30,7 @@ public sealed partial class UptodownSource(IHttpClientFactory httpFactory, ILogg
         }
     }
 
-    // Matches per list item: the div.version label then the nearest date span.
+   
     [GeneratedRegex(
         @"<div[^>]*\bclass=""[^""]*\bversion\b[^""]*""[^>]*>\s*([\d][\d.]*)\s*</div>.*?<(?:span|td)[^>]*\bclass=""[^""]*\bdate\b[^""]*""[^>]*>\s*([^<]+?)\s*</",
         RegexOptions.Singleline)]

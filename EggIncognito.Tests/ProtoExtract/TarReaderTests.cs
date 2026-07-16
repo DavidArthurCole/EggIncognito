@@ -3,16 +3,14 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// TarReader walks the ustar tarball the iOS asset puller scps off the device. These build minimal ustar
-// archives by hand (same layout BSD tar on iOS emits) and assert the file entries round-trip, including
-// the multi-block, padding, and end-of-archive cases.
+
 public class TarReaderTests
 {
     [Fact]
     public void Read_TwoFiles_RoundTrips()
     {
         var a = Encoding.UTF8.GetBytes("hello rpo");
-        var b = new byte[600]; // spans two 512 blocks, exercises padding
+        var b = new byte[600];
         for (var i = 0; i < b.Length; i++) b[i] = (byte)(i & 0xFF);
 
         var tar = BuildTar(("Henerprise.rpo", a), ("rpos/Voyegger.rpoz", b));
@@ -39,8 +37,8 @@ public class TarReaderTests
         Assert.Equal("Atlas", r.Assets[0].Key);
     }
 
-    // Builds a minimal ustar archive: one 512-byte header per file (name, octal size, type '0', checksum),
-    // the file data padded up to 512, then two zero blocks as the end marker.
+   
+   
     private static byte[] BuildTar(params (string Name, byte[] Data)[] files)
     {
         using var ms = new MemoryStream();
@@ -49,9 +47,9 @@ public class TarReaderTests
             var header = new byte[512];
             var nameBytes = Encoding.ASCII.GetBytes(name);
             Array.Copy(nameBytes, header, Math.Min(nameBytes.Length, 100));
-            WriteOctal(header, 100, 8, 0b110_100_100); // mode 0644
-            WriteOctal(header, 124, 12, data.Length); // size
-            header[156] = (byte)'0'; // typeflag: regular file
+            WriteOctal(header, 100, 8, 0b110_100_100);
+            WriteOctal(header, 124, 12, data.Length);
+            header[156] = (byte)'0';
             Encoding.ASCII.GetBytes("ustar\0").CopyTo(header, 257);
             for (var i = 148; i < 156; i++) header[i] = (byte)' ';
             var sum = 0; foreach (var x in header) sum += x;
@@ -62,7 +60,7 @@ public class TarReaderTests
             var pad = (512 - (data.Length & 511)) & 511;
             ms.Write(new byte[pad]);
         }
-        ms.Write(new byte[1024]); // two zero blocks = end of archive
+        ms.Write(new byte[1024]);
         return ms.ToArray();
     }
 

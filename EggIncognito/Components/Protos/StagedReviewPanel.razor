@@ -117,7 +117,7 @@
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public bool IsAdmin { get; set; }
 
-    // Rows passing the text filter (repo / sha / appVersion / build substring, case-insensitive).
+   
     List<StagedRow> Shown =>
         string.IsNullOrWhiteSpace(_filter)
             ? _rows
@@ -154,7 +154,7 @@
     {
         try { _rows = await Client().GetFromJsonAsync<List<StagedRow>>("/api/protos/staged", JsonOpts) ?? []; }
         catch { _rows = []; }
-        // Drop any selection that no longer maps to a pending row.
+       
         _selected.IntersectWith(_rows.Select(r => r.Id));
         StateHasChanged();
     }
@@ -174,7 +174,7 @@
     {
         "version-file" => "text-accent",
         "subject" => "text-muted",
-        _ => "text-red-400", // tree-scan / heuristic: flag it
+        _ => "text-red-400",
     };
 
     static object ApproveBody(StagedRow r) =>
@@ -257,8 +257,8 @@
 
     IJSObjectReference? _copy;
 
-    // Build a structured, paste-back audit report for rows with missing version fields: one block per row
-    // with identity, what is known, what is missing, and the crawl provenance.
+   
+   
     static string MissingReport(IEnumerable<StagedRow> rows)
     {
         var sb = new System.Text.StringBuilder();
@@ -277,9 +277,9 @@
         static string Or(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s;
     }
 
-    // Copy the report to the clipboard, then reject those rows so they leave the review queue; reject here
-    // means "not enough data yet" and is revivable if the same proto re-surfaces with more data. Copy must
-    // succeed before we reject, so a clipboard failure never silently drops rows from the queue.
+   
+   
+   
     async Task CopyAndClear(IReadOnlyList<StagedRow> rows)
     {
         if (rows.Count == 0) return;

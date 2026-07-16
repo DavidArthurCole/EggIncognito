@@ -5,7 +5,7 @@ namespace EggIncognito.Tests.ProtoExtract;
 
 public class SymbolRecoveryTests
 {
-    // arm64 encoders (subset, mirrors MachoArm64DisassemblerTests).
+   
     private static uint Bl(long pc, long target) => 0x94000000u | (uint)(((target - pc) >> 2) & 0x03FFFFFF);
     private static uint Nop() => 0xD503201Fu;
     private static uint Ret() => 0xD65F03C0u;
@@ -39,7 +39,7 @@ public class SymbolRecoveryTests
     {
         var vm = SyntheticMacho.TextVm;
 
-        // funcA (32 bytes) = [bl ->0x500, 6 nops, ret] at vm+0; funcB (32 bytes) = [movz #7, 6 nops, ret] at vm+32.
+       
         var refFuncA = Words(Bl((long)vm, (long)vm + 0x500), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         var refFuncB = Words(MovZ(0, 7), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         var refText = refFuncA.Concat(refFuncB).ToArray();
@@ -49,8 +49,8 @@ public class SymbolRecoveryTests
             new SyntheticMacho.Sym("__ZN6FuncB2goEv", vm + (ulong)refFuncA.Length),
         });
 
-        // Target: leading nop pad, funcA reappears with a different bl displacement (matches only after
-        // displacement masking), funcB's body is changed (movz #9 not #7) so it must not be recovered.
+       
+       
         var pad = Words(Nop(), Nop());
         var tgtFuncA = Words(Bl((long)vm + 8, (long)vm + 0x900), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         var tgtFuncBChanged = Words(MovZ(0, 9), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
@@ -89,8 +89,8 @@ public class SymbolRecoveryTests
         Assert.Empty(r.RequestedMissing);
     }
 
-    // Adjacent-version recovery (symbolized 1.35.6 -> stripped 1.35.8): content-hash recovers functions
-    // byte-identical across the two minor versions, including the real GalaxyParticle::update.
+   
+   
     [Fact]
     public void Recover_Real_AdjacentVersion_RecoversManyIncludingRealTargets()
     {
@@ -103,12 +103,12 @@ public class SymbolRecoveryTests
         Assert.True(r.Recovered > 10_000, $"recovered={r.Recovered}");
 
         Assert.Contains(r.Symbols, s => s.Name == "__ZN14GalaxyParticle6updateEP14ParticleSystemf");
-        // updateSilo's body changed between versions; lambda thunks named after it may still match, so
-        // RequestedFound can list it even though the exact symbol below is not recovered.
+       
+       
         Assert.DoesNotContain(r.Symbols, s => s.Name == "__ZN9FarmScene10updateSiloEP14GameControlleri");
     }
 
-    // Recovers symbols onto the stripped binary, then extracts constants directly from it using the recovered map.
+   
     [Fact]
     public void ExtractWith_RecoveredSymbols_PullsConstantsFromStrippedBinary()
     {

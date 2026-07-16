@@ -7,9 +7,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
-// Named environment designs for the playground designer, stored in Postgres. Reads are public; save and
-// delete need contributor+ (delete also allows the owner or an admin). The payload is opaque app JSON,
-// validated as well-formed and size-capped, never parsed as proto.
+
 [ApiController]
 [Route("api/env/designs")]
 public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
@@ -48,8 +46,8 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
 
     public sealed record SaveDesign(string Payload, string? Note);
 
-    // Save appends a new version to the design's history and updates the head payload, instead of silently
-    // overwriting. Creating the design seeds version 1.
+   
+   
     [HttpPut("{name}")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Save(string name, [FromBody] SaveDesign body)
@@ -87,7 +85,7 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         return Ok(new { saved = name, version = next });
     }
 
-    // The version timeline for a design, newest first.
+   
     [HttpGet("{name}/versions")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Versions(string name)
@@ -104,7 +102,7 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         return Ok(new { versions = rows });
     }
 
-    // The payload of one specific version (for preview / load-without-rollback).
+   
     [HttpGet("{name}/versions/{versionNo:int}")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> GetVersion(string name, int versionNo)
@@ -121,8 +119,8 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
 
     public sealed record RollbackBody(int VersionNo);
 
-    // Roll back: append a new version whose payload is copied from an older one, so history is preserved
-    // and the restore is auditable via RolledBackFrom. Updates the head payload to match.
+   
+   
     [HttpPost("{name}/rollback")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Rollback(string name, [FromBody] RollbackBody body)

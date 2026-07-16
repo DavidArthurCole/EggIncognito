@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
-
-// A user's hosted-capture root CA, the Unobtanium root.pfx minted on their first session.
 [Table("capture_user_cas")]
 public class CaptureUserCa
 {

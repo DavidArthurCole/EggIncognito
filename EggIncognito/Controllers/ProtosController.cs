@@ -5,11 +5,9 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EggIncognito.Controllers;
 
-// Read-only public registry surface over proto_versions + proto_protos. Writes happen only via the
-// authed farm event. No DB configured means empty list / 404.
 [ApiController]
 [Route("api/protos")]
-// "fetch" is flat, not tier-capped, so an anon visitor polling several panels never trips Anon 30/min.
+
 [EnableRateLimiting("fetch")]
 public sealed class ProtosController(IServiceProvider services) : ControllerBase
 {
@@ -21,8 +19,8 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
     {
         if (Store is null) return Ok(Array.Empty<object>());
         var rows = await Store.ListAsync(platform, ct);
-        // Id + CanonicalId let the UI group a cross-platform release into one row. buildFlag is computed
-        // (no DB column) and flags rows whose build doesn't match their platform's format.
+       
+       
         return Ok(rows.Select(r => new
         {
             r.Id, r.CanonicalId, r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.Package,
@@ -54,8 +52,8 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
         return Content(pp.ProtoText, "text/plain");
     }
 
-    // Row count per source for the /protos/sources attribution page. No DB => empty object, so the page
-    // renders its static credits with zero counts rather than erroring.
+   
+   
     [HttpGet("sources")]
     public async Task<IActionResult> Sources(CancellationToken ct)
     {
@@ -68,8 +66,8 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
     {
         if (Store is null) return NotFound();
         var rows = await Store.ListAsync(platform, ct);
-        // "Latest" = newest release, not the most-recently-inserted row: backfill ingests history in
-        // arbitrary order, so CreatedAt alone is not a recency proxy.
+       
+       
         var r = rows
             .OrderByDescending(p => ProtoVersionQuality.LatestSortKey(p.Platform, p.Build, p.AppVersion))
             .ThenByDescending(p => p.CreatedAt)
@@ -78,8 +76,8 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
             : Ok(new { r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.ProtoSha, r.DetectedAt });
     }
 
-    // Namespace-insensitive diff between two stored versions' .proto texts (port of protodiff.py).
-    // 404 if either version or its proto text is missing; text/plain `@@ message @@` +/- sections.
+   
+   
     [HttpGet("diff")]
     public async Task<IActionResult> Diff(
         [FromQuery] string from, [FromQuery] string to, [FromQuery] string platform = "android",

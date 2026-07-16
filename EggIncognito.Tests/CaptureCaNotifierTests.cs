@@ -56,7 +56,7 @@ public class CaptureCaNotifierTests
 
     private sealed class FreshCaProxy : ICaptureProxy
     {
-#pragma warning disable CS0067 // events required by ICaptureProxy; not fired in this stub
+#pragma warning disable CS0067
         public event Action<CapturedFlow>? FlowCaptured;
         public event Action<int, string?>? ClientConnected;
         public event Action<int, string?>? ClientDisconnected;

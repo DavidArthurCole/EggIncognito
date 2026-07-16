@@ -4,7 +4,7 @@ namespace EggIncognito.Tests;
 
 public class Arm64DecoderTests
 {
-    // Assemble 32-bit instruction words little-endian into a byte stream.
+   
     private static byte[] Words(params uint[] words)
     {
         var b = new byte[words.Length * 4];
@@ -18,15 +18,15 @@ public class Arm64DecoderTests
         return b;
     }
 
-    // MOVZ Wd, #imm (32-bit): base 0x52800000 | (hw<<21) | (imm16<<5) | Rd
+   
     private static uint Movz(int rd, int imm16, int hw = 0) =>
         0x52800000u | ((uint)hw << 21) | ((uint)imm16 << 5) | (uint)rd;
 
-    // MOVK Wd, #imm, LSL #(hw*16): base 0x72800000
+   
     private static uint Movk(int rd, int imm16, int hw) =>
         0x72800000u | ((uint)hw << 21) | ((uint)imm16 << 5) | (uint)rd;
 
-    // STR Wt, [Xn, #off] unsigned offset (32-bit): base 0xB9000000 | (imm12<<10) | (Rn<<5) | Rt; imm12 = off/4
+   
     private static uint Str(int rt, int rn, int byteOff) =>
         0xB9000000u | (((uint)byteOff / 4) << 10) | ((uint)rn << 5) | (uint)rt;
 

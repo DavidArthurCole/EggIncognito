@@ -4,8 +4,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// Anonymous requests (no auth wired in the test host) are role viewer, so the shared-DB write gate
-// (contributor+) 403s them. Reads stay public.
 public class StoredEndpointGateTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
@@ -39,6 +37,6 @@ public class StoredEndpointGateTests : IClassFixture<WebApplicationFactory<Progr
     {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/db/endpoints");
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode); // [] with no DB configured
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
     }
 }

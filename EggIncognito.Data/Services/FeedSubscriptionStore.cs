@@ -75,7 +75,7 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
             .Where(s => s.Id == id && s.OwnerUserId == ownerUserId)
             .ExecuteDeleteAsync(ct) > 0;
 
-    // The webhook URL is not editable here: a different URL is a new subscription.
+   
     public async Task<bool> UpdateAsync(
         int id, Guid ownerUserId, string[] platforms, string trigger, bool active, string? messageTemplate,
         CancellationToken ct = default)

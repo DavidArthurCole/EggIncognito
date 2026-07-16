@@ -2,8 +2,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Capture;
 
-// Hosted-capture knobs, bound from the "Capture" config section over code defaults. The front door
-// listens on FrontDoorPort; each per-user session gets a loopback base port from the pool (PortPoolBase + 3n).
 public sealed record HostedCaptureOptions(
     int FrontDoorPort,
     int PortPoolBase,
@@ -48,7 +46,7 @@ public sealed record HostedCaptureOptions(
 
     private static int Int(string? raw, int fallback) => int.TryParse(raw, out var v) ? v : fallback;
 
-    // Case-insensitive exact or subdomain match against ExtraAllowedHosts.
+   
     public bool IsExtraAllowed(string host)
     {
         foreach (var h in ExtraAllowedHosts)

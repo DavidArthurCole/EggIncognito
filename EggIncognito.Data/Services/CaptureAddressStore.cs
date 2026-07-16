@@ -39,7 +39,7 @@ public sealed class CaptureAddressStore(EggIncognitoDbContext db)
         return await MintAsync(prefixCidr, userId, ct);
     }
 
-    // Old address immediately resolves to nobody; the phone must be reconfigured with the new one.
+   
     public async Task<IPAddress> RotateAsync(string prefixCidr, Guid userId, CancellationToken ct = default)
         => await MintAsync(prefixCidr, userId, ct);
 

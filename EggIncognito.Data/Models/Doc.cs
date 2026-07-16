@@ -3,8 +3,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// Editable documentation about an API subject: subject_kind is "message" (subject_key = Ei.* short type name) or "endpoint" (subject_key = route path), one doc per subject.
-// Body is Markdown, HTML-escaped on render so a contributor cannot inject script.
 [Table("docs")]
 public class Doc
 {

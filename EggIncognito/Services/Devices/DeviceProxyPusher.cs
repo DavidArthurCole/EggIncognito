@@ -3,9 +3,7 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-// Drives each declared device's system HTTP proxy to its dedicated capture listener, and forces a fresh
-// rinfo harvest on demand by launching the egginc app then waiting for the device's rinfo to update.
-// Never throws: every push/trigger returns a result.
+
 public sealed class DeviceProxyPusher(
     DeviceCaptureManager manager,
     DeviceCaptureConfig config,
@@ -29,7 +27,7 @@ public sealed class DeviceProxyPusher(
             logger.LogWarning("device capture: cannot push proxy, host IP unresolved (set DeviceCapture:HostIp)");
             return;
         }
-        // A docker bridge IP is unreachable from a LAN device; warn once so the operator pins HostIp.
+       
         if (!_warnedBridge && string.IsNullOrWhiteSpace(config.HostIp) && LooksLikeDockerBridge(host))
         {
             _warnedBridge = true;
@@ -41,7 +39,7 @@ public sealed class DeviceProxyPusher(
         foreach (var d in devices) await PushOneAsync(d, host, ct);
     }
 
-    // Not authoritative (172.16/12 is a legit LAN range too), just a heuristic to flag the common misconfig.
+   
     internal static bool LooksLikeDockerBridge(string ip)
     {
         var p = ip.Split('.');
@@ -60,8 +58,8 @@ public sealed class DeviceProxyPusher(
         return (ok, note);
     }
 
-    // Force-restarts the egginc app so it makes a fresh launch call to auxbrain, then polls the device's
-    // rinfo until it changes or the timeout elapses. A plain foreground does not re-hit auxbrain, hence kill.
+   
+   
     public async Task<DeviceRinfo?> ForceHarvestAsync(DeviceEntry d, TimeSpan timeout, CancellationToken ct)
     {
         var before = manager.Rinfo.Latest(d.Id);
@@ -79,7 +77,7 @@ public sealed class DeviceProxyPusher(
         return result ?? manager.Rinfo.Latest(d.Id);
     }
 
-    // Returns the device to its low-power locked resting state after a capture.
+   
     public async Task<(bool Ok, string? Note)> LockDeviceAsync(DeviceEntry d, CancellationToken ct)
     {
         if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase))
@@ -99,7 +97,7 @@ public sealed class DeviceProxyPusher(
         return (false, $"no lock for platform {d.Platform}");
     }
 
-    // Best-effort: a no-op if the app is not running.
+   
     private async Task IosKillAppAsync(CancellationToken ct)
     {
         const string remote =
@@ -110,8 +108,8 @@ public sealed class DeviceProxyPusher(
              "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
     }
 
-    // The backboardd EggHomePress dylib is a dumb one-shot executor with no lock-state read or retry; all
-    // retry logic lives here against the `lockstate` CLI as the accurate oracle.
+   
+   
     private async Task<bool?> IosLockstateAsync(CancellationToken ct)
     {
         var r = await runner.RunAsync("ssh",
@@ -122,7 +120,7 @@ public sealed class DeviceProxyPusher(
         return r.ExitCode switch { 10 => true, 0 => false, _ => (bool?)null };
     }
 
-    // World-writable so the mobile-uid dylib can truncate the file after consuming.
+   
     private async Task<(bool Ok, string? Note)> IosSendCmdAsync(string cmd, CancellationToken ct)
     {
         var remote = $"/bin/sh -c 'printf %s {cmd} > /tmp/ehp.cmd; chmod 666 /tmp/ehp.cmd; echo sent'";
@@ -145,14 +143,14 @@ public sealed class DeviceProxyPusher(
         return await IosLockstateAsync(ct) == false;
     }
 
-    // Android: `am force-stop` + monkey launch. iOS: kill the app process over ssh then uiopen.
+   
     public async Task<(bool Ok, string? Note)> RestartAppAsync(DeviceEntry d, CancellationToken ct)
     {
         try
         {
             if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase))
             {
-                // Doze mode throttles a backgrounded device's app, so wake + hold screen on before launch.
+               
                 await runner.RunAsync("adb", ["-s", d.Target, "shell", "input", "keyevent", "KEYCODE_WAKEUP"], ct);
                 await runner.RunAsync("adb", ["-s", d.Target, "shell", "wm", "dismiss-keyguard"], ct);
                 await runner.RunAsync("adb", ["-s", d.Target, "shell", "svc", "power", "stayon", "true"], ct);
@@ -172,14 +170,14 @@ public sealed class DeviceProxyPusher(
                     return (false, "ios ssh not configured");
                 var bundle = d.Package;
                 var proc = string.IsNullOrEmpty(config.IosAppProcessName) ? "Egg, Inc." : config.IosAppProcessName;
-                // A locked iOS app launches suspended and never phones auxbrain, so unlock first.
+               
                 if (string.IsNullOrEmpty(config.IosRestartCommand))
                 {
                     var unlocked = await IosEnsureUnlockedAsync(ct);
                     if (!unlocked)
                         logger.LogWarning("device capture: {Id} could not confirm unlock; launching anyway", d.Id);
                 }
-                // A suspended iOS app must be killed before relaunch or it resumes without a fresh auxbrain call.
+               
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
                     ? "/bin/sh -c '" +
                       "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; sleep 1; " +

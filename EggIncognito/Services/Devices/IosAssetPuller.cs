@@ -2,14 +2,12 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-// Pulls the Egg Inc 3D ship meshes (.rpo/.rpoz) off a plugged-in jailbroken iPhone over ssh. The .app bundle
-// is decrypted on disk, so mesh files are read directly, no .ipa, no FairPlay decrypt.
-// scp moves bytes intact since ssh stdout through IProcessRunner is decoded as text.
+
 public sealed class IosAssetPuller(IProcessRunner runner, string sshHost, string sshPort, string sshKeyPath)
 {
     private const string RemoteTar = "/tmp/egi-rpos.tar";
 
-    // Returns the device's rpos tarball bytes, or null. The caller runs TarReader + RpoAssetExtractor.
+   
     public async Task<byte[]?> PullRposTarAsync(string bundleId, CancellationToken ct)
     {
         var make = await Ssh(
@@ -39,7 +37,7 @@ public sealed class IosAssetPuller(IProcessRunner runner, string sshHost, string
         }
     }
 
-    // Returns [] on failure.
+   
     public async Task<IReadOnlyList<string>> ListRposAsync(string bundleId, CancellationToken ct)
     {
         var r = await Ssh(
@@ -52,7 +50,7 @@ public sealed class IosAssetPuller(IProcessRunner runner, string sshHost, string
             .Select(StripExt).Where(s => s.Length > 0).Distinct(StringComparer.Ordinal).ToList();
     }
 
-    // Tries .rpo then .rpoz. Returns the raw bytes (caller decodes), or null.
+   
     public async Task<byte[]?> PullOneRpoAsync(string bundleId, string stem, CancellationToken ct)
     {
         var find = await Ssh(
@@ -79,7 +77,7 @@ public sealed class IosAssetPuller(IProcessRunner runner, string sshHost, string
         }
     }
 
-    // Pulls the app's decrypted Mach-O executable back as raw bytes, or null. The binary never lands in the repo.
+   
     public async Task<byte[]?> PullAppBinaryAsync(string bundleId, CancellationToken ct)
     {
         var find = await Ssh(

@@ -1,11 +1,9 @@
-// Survives a server redeploy: when the SignalR circuit drops and the server returns at a different build
-// version, reload the page so a fresh circuit attaches to the new build. A same-version return is a
-// transient blip, left to Blazor's normal reconnect. Loaded once from App.razor after blazor.web.js.
+
 
 (function () {
   const VERSION_URL = '/api/app/version';
   const POLL_MS = 2000;
-  const MAX_POLLS = 90; // ~3 minutes of polling, then give up to the manual reconnect dialog
+  const MAX_POLLS = 90;
   let loadedVersion = null;
   let polling = false;
   let polls = 0;
@@ -41,7 +39,7 @@
     polls += 1;
     const current = await fetchVersion();
     if (current) {
-      // A different build reloads onto it; same build is a blip, let Blazor's own reconnect resume.
+     
       if (loadedVersion && current !== loadedVersion) {
         location.reload();
         return;
@@ -53,9 +51,9 @@
     setTimeout(tick, POLL_MS);
   }
 
-  // App.razor lets blazor.web.js auto-start (calling Blazor.start manually here fed it a
-  // legacy single-circuit options shape it doesn't expect in Blazor Web App hybrid mode and
-  // corrupted the StartCircuit handshake - 2026-07-11 outage). Observe the reconnect dialog instead.
+ 
+ 
+ 
   function observeDialog() {
     const modal = document.getElementById('components-reconnect-modal');
     if (!modal) { setTimeout(observeDialog, 200); return; }

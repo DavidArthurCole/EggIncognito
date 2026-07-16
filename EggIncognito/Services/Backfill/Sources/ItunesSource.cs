@@ -2,8 +2,6 @@ using System.Globalization;
 using System.Text.Json;
 
 namespace EggIncognito.Services.Backfill.Sources;
-
-// iTunes lookup (ios, current version only). AppStore:BundleId config overrides the default bundle id.
 public sealed class ItunesSource(
     IHttpClientFactory httpFactory, IConfiguration config, ILogger<ItunesSource> logger)
     : IVersionListSource
@@ -36,7 +34,7 @@ public sealed class ItunesSource(
         }
     }
 
-    // results[0].version (+ currentVersionReleaseDate, releaseNotes when present) as a single-element list.
+   
     public static IReadOnlyList<ListedVersion> ParseJson(string json)
     {
         if (string.IsNullOrEmpty(json)) return [];

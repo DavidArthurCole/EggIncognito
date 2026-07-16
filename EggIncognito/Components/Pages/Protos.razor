@@ -226,14 +226,12 @@
 </main>
 
 <ProtoSubscribeModal @ref="_subscribeModal" />
-
-
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     List<VersionRow> _rows = [];
-    // Per-column filters (the ServiceNow-style filter row). All are AND-combined, case-insensitive substring;
-    // platform is an exact dropdown. Replaces the old platform slider + single "filter version" box.
+   
+   
     string _fPlatform = "";
     string _fVersion = "";
     string _fBuild = "";
@@ -243,14 +241,14 @@
     bool _isAdmin;
     bool _isContributor;
     bool _canWrite;
-    // Default sort = app version desc. Detected-date is useless as the default because bulk imports (backfill,
-    // crawl approvals) all land with today's date; app version groups releases sensibly newest-first.
+   
+   
     string _sortCol = "appVersion";
     bool _sortDesc = true;
 
     ProtoDropZone.ExtractResult? _result;
     readonly List<ProtoSelectionBar.VersionKey> _selected = [];
-    int? _editingKey; // release key whose inline editor row is open (null = none)
+    int? _editingKey;
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
     ProtoSubscribeModal? _subscribeModal;
@@ -299,9 +297,9 @@
         }
     }
 
-    // Releases in the sorted order of their primary (first-appearing member). Grouping a merged release into
-    // one row means the table iterates releases, not raw rows. A release's primary = the highest-ranked member
-    // under the current sort (it appears first in Sorted), so first-seen order preserves the column sort.
+   
+   
+   
     List<Release> SortedReleases
     {
         get
@@ -334,7 +332,7 @@
         return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
     }
 
-    // Human label for a computed build-quality flag (see ProtoVersionQuality).
+   
     static string BuildFlagTitle(string flag) => flag switch
     {
         "android_build_on_ios" => "iOS row has an Android-style integer build (versionCode) - mislabeled data",
@@ -363,7 +361,7 @@
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
-        // Snapshot the gates during the request; the interactive circuit has no HttpContext.
+       
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         _isContributor = User.IsAtLeast(UserRole.Contributor);
         _canWrite = User.IsAtLeast(UserRole.Contributor);
@@ -372,19 +370,19 @@
     protected override async Task OnInitializedAsync()
     {
         await Load();
-        // Poll every few seconds so changes from any source surface here promptly: the registry table, the
-        // merge suggestions, and the staged queue all reload together. Local mutations still refresh instantly
-        // via OnMutated; this is the background safety net.
+       
+       
+       
         _refresh = new Timer(async _ => await InvokeAsync(RefreshAll), null,
             TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(6));
     }
 
     Timer? _refresh;
 
-    // Reload everything the page shows, without touching the user's current selection/edit state mid-action.
+   
     async Task RefreshAll()
     {
-        if (_loading || _busyMutating) return; // don't fight an in-flight load or a mutation
+        if (_loading || _busyMutating) return;
         await Load(background: true);
         if (_stagedPanel is not null) await _stagedPanel.Load();
         StateHasChanged();
@@ -416,33 +414,33 @@
         try { await Client().PostAsync(url, null); } catch { }
     }
 
-    // background = the 6s poll: it must not flash the "Loading..." state or wipe already-rendered rows on a
-    // transient fetch failure. Foreground keeps the old behavior: show the spinner, surface a real empty on failure.
+   
+   
     async Task Load(bool background = false)
     {
         if (!background) _loading = true;
         try
         {
-            // Always fetch the full set; the per-column filter row narrows it client-side.
+           
             _rows = await Client().GetFromJsonAsync<List<VersionRow>>("/api/protos/versions", JsonOpts) ?? [];
         }
-        catch { if (!background) _rows = []; } // keep last-good rows on a background poll failure
+        catch { if (!background) _rows = []; }
         await LoadSuggestions(background);
         if (!background) _loading = false;
     }
 
-    // Cross-platform merge suggestions: rows sharing app version + proto SHA across platforms. Admin-only UI
-    // (the merge action is admin-gated server-side too). Best-effort; a failure just hides the banner.
+   
+   
     async Task LoadSuggestions(bool background = false)
     {
         if (!_isAdmin) { _suggestions = []; return; }
         try { _suggestions = await Client().GetFromJsonAsync<List<MergeSuggestion>>(
             "/api/protos/versions/merge-suggestions", JsonOpts) ?? []; }
-        catch { if (!background) _suggestions = []; } // keep last-good on a background poll failure
+        catch { if (!background) _suggestions = []; }
     }
 
-    // One-click: merge a suggested group, keeping the first member (alphabetical by platform = android) as the
-    // canonical, the rest as aliases. Admin-gated server-side.
+   
+   
     async Task AcceptSuggestion(MergeSuggestion s)
     {
         if (s.Members.Count < 2) return;
@@ -455,7 +453,7 @@
     public sealed record MergeSuggestion(string AppVersion, string ProtoSha, List<MergeMember> Members);
     public sealed record MergeMember(string Platform, string Build);
 
-    // Generic authed self-calls for the management components.
+   
     async Task<bool> PostJson(string url, object body)
     {
         try { return (await Client().PostAsJsonAsync(url, body, JsonOpts)).IsSuccessStatusCode; }
@@ -499,8 +497,8 @@
             foreach (var r in Sorted) _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
     }
 
-    // A release's checkbox toggles every member at once (so a delete/merge of a grouped release acts on all
-    // its platform rows). Mixed state counts as "select all members".
+   
+   
     void ToggleRelease(Release rel)
     {
         var allSelected = rel.Members.All(IsSelected);
@@ -514,8 +512,8 @@
 
     void ClearSelection() => _selected.Clear();
 
-    // Inline editor: clicking the pencil opens an editor row directly under the release (toggle to close).
-    // A standalone row edits one member; a merged release edits all its platform members in one dialog.
+   
+   
     void ToggleEdit(Release rel) => _editingKey = _editingKey == rel.Key ? null : rel.Key;
 
     List<ProtoEditDialog.Row> EditTargets(Release rel) =>
@@ -523,8 +521,8 @@
             .Select(m => new ProtoEditDialog.Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
             .ToList();
 
-    // Span the inline editor row across every column: checkbox (admin) + 6 data + actions (canWrite).
-    int EditColspan => 6 + (_isAdmin ? 1 : 0) + 1; // 6 data + optional select (admin) + actions (always)
+   
+    int EditColspan => 6 + (_isAdmin ? 1 : 0) + 1;
 
     void Navigate(string href) => _ = JS.InvokeVoidAsync("location.assign", href);
 
@@ -552,9 +550,9 @@
         string? ClientVersion, string Source, string Package, string ProtoSha, DateTimeOffset DetectedAt,
         string? BuildFlag = null);
 
-    // A release = a canonical row + any aliases merged into it (same app version + proto across platforms).
-    // ReleaseKey groups them: an alias keys on its CanonicalId, a standalone row on its own Id. Members are
-    // ordered platform-stably so the grouped row renders deterministically.
+   
+   
+   
     sealed record Release(int Key, IReadOnlyList<VersionRow> Members)
     {
         public VersionRow Primary => Members[0];

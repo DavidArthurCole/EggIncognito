@@ -2,8 +2,6 @@ using System.Text.Json;
 
 namespace EggIncognito.Capture;
 
-// Persists remembered capture devices to <capturePath>/devices.json so the dashboard can show
-// previously-seen devices across runs. Best-effort: missing/corrupt reads empty, write failures swallowed.
 public sealed class DeviceStore(string capturePath)
 {
     private const int MaxDevices = 50;
@@ -38,7 +36,7 @@ public sealed class DeviceStore(string capturePath)
         }
         catch
         {
-            // best-effort - a failed write must never break the capture
+           
         }
     }
 }

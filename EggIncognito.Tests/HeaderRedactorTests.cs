@@ -3,9 +3,7 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// Header capture + redaction for the dashboard. Sensitive header values are redacted in the
-// display copy (default view) but preserved in the raw copy (shown only when redaction is Off),
-// mirroring the body-redaction model. HarWriter keeps raw headers in the durable artifact.
+
 public class HeaderRedactorTests
 {
     [Fact]
@@ -20,14 +18,14 @@ public class HeaderRedactorTests
 
         var (redacted, raw) = HeaderRedactor.Build(headers);
 
-        // Redacted copy: secrets masked, others intact.
+       
         Assert.Equal("redacted", redacted[0].Value);
         Assert.True(redacted[0].Sensitive);
         Assert.Equal("application/x-www-form-urlencoded", redacted[1].Value);
         Assert.False(redacted[1].Sensitive);
         Assert.Equal("redacted", redacted[2].Value);
 
-        // Raw copy: original values, but still flagged sensitive so the UI can blur them.
+       
         Assert.Equal("Bearer secret-token", raw[0].Value);
         Assert.True(raw[0].Sensitive);
         Assert.Equal("sid=abc123", raw[2].Value);
@@ -64,7 +62,7 @@ public class HeaderRedactorTests
         var reqHeaders = entry.GetProperty("request").GetProperty("headers");
         var respHeaders = entry.GetProperty("response").GetProperty("headers");
 
-        // HAR keeps the RAW header value (durable artifact; redaction is display-time only).
+       
         Assert.Equal("Authorization", reqHeaders[0].GetProperty("name").GetString());
         Assert.Equal("Bearer raw-secret", reqHeaders[0].GetProperty("value").GetString());
         Assert.Equal("Content-Type", respHeaders[0].GetProperty("name").GetString());

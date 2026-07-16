@@ -18,13 +18,14 @@
     <div class="reg-wrap">
       <table class="reg-table">
         <thead>
-          <tr><th>Session</th><th>State</th><th>Port</th><th>Flows</th><th>Conns</th><th>Devices</th><th>Decrypt</th><th></th></tr>
+          <tr><th>Session</th><th>Kind</th><th>State</th><th>Port</th><th>Flows</th><th>Conns</th><th>Devices</th><th>Decrypt</th><th></th></tr>
         </thead>
         <tbody>
           @foreach (var s in _rows)
           {
             <tr>
               <td class="mono text-xs">@Label(s.Key)</td>
+              <td><span class="sess-kind @KindClass(s.Kind)">@s.Kind</span></td>
               <td><span class="@(s.Running ? "text-green-400" : "text-muted")">@(s.Running ? "running" : "stopped")</span></td>
               <td class="mono text-xs">@s.Port</td>
               <td class="mono text-xs">@s.Flows</td>
@@ -32,7 +33,14 @@
               <td class="mono text-xs">@s.Devices</td>
               <td class="mono text-xs">@s.DecryptOk ok / <span class="@(s.DecryptErr > 0 ? "text-err" : "")">@s.DecryptErr err</span></td>
               <td>
-                <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Kill(s.Key)">Kill</button>
+                @if (s.Killable)
+                {
+                  <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Kill(s.Key)">Kill</button>
+                }
+                else
+                {
+                  <span class="text-muted text-xs" title="host-managed capture, not killable">host</span>
+                }
               </td>
             </tr>
           }
@@ -83,10 +91,20 @@
         _busy = false;
     }
 
-    // The local anonymous session shows a friendly label; per-user keys are Discord ids.
+   
+   
     static string Label(string key) => key == "__local" ? "local (anonymous)" : key;
+
+   
+   
+    static string KindClass(string kind) => kind switch
+    {
+        "user" => "sess-kind-user",
+        "device" => "sess-kind-device",
+        _ => "sess-kind-local",
+    };
 
     public void Dispose() => _timer?.Dispose();
 
-    record Row(string Key, bool Running, int Port, int Flows, int Connections, int Devices, int DecryptOk, int DecryptErr);
+    record Row(string Key, string Kind, bool Killable, bool Running, int Port, long Flows, long Connections, int Devices, long DecryptOk, int DecryptErr);
 }

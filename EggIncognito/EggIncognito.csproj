@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SyncKit.Auth" Version="0.6.0-preview.5" />
+    <PackageReference Include="SyncKit.Auth" Version="0.6.0-preview.6" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,18 +23,12 @@
     <AdditionalFiles Include="RouteMap\routes.yaml" />
   </ItemGroup>
 
-  <!-- Compile Tailwind utilities into wwwroot/tailwind.css at build time using the standalone CLI
-       (no Node). On first build the CLI binary is fetched to tools/tailwind/. Skip with
-       -p:BuildTailwindCss=false (used by any build that already has a committed/compiled sheet, or to
-       avoid the network fetch). The compiled file is gitignored + served as a normal static asset.
-       The fetch is RID-aware so Linux/macOS CI gets the right binary, not the Windows .exe. -->
   <PropertyGroup>
     <TailwindDir>$(MSBuildProjectDirectory)/../tools/tailwind</TailwindDir>
     <TailwindVersion>v3.4.17</TailwindVersion>
     <TailwindIsWindows>$([MSBuild]::IsOSPlatform('Windows'))</TailwindIsWindows>
     <TailwindIsMac>$([MSBuild]::IsOSPlatform('OSX'))</TailwindIsMac>
     <TailwindIsArm64 Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">true</TailwindIsArm64>
-    <!-- Asset name on the tailwindlabs release: tailwindcss-<os>-<arch>[.exe]. -->
     <TailwindOs Condition="'$(TailwindIsWindows)' == 'true'">windows</TailwindOs>
     <TailwindOs Condition="'$(TailwindIsMac)' == 'true'">macos</TailwindOs>
     <TailwindOs Condition="'$(TailwindOs)' == ''">linux</TailwindOs>
@@ -45,29 +39,17 @@
     <TailwindExe>$(TailwindDir)/tailwindcss$(TailwindExeSuffix)</TailwindExe>
     <TailwindUrl>https://github.com/tailwindlabs/tailwindcss/releases/download/$(TailwindVersion)/$(TailwindAsset)</TailwindUrl>
   </PropertyGroup>
-  <!-- Fetch only when the CLI is missing. NOT gated on the BuildTailwind run-condition: this is a
-       DependsOnTargets of BuildTailwind, so it must be able to run before the compile. No
-       ContinueOnError - a failed fetch should fail the build, not silently ship no sheet (which then
-       surfaces as a confusing 405 on /tailwind.css in tests + an unstyled deploy). -->
   <Target Name="FetchTailwindCli"
           Condition="'$(BuildTailwindCss)' != 'false' AND !Exists('$(TailwindExe)')">
     <MakeDir Directories="$(TailwindDir)" />
     <Message Importance="high" Text="Fetching standalone Tailwind CLI $(TailwindVersion) ($(TailwindAsset))..." />
-    <!-- Windows uses PowerShell's Invoke-WebRequest; Linux/macOS use curl with -f so an HTTP error fails. -->
     <Exec Condition="'$(TailwindIsWindows)' == 'true'"
           Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Invoke-WebRequest -Uri '$(TailwindUrl)' -OutFile '$(TailwindExe)'&quot;" />
     <Exec Condition="'$(TailwindIsWindows)' != 'true'"
           Command="curl -fsSL '$(TailwindUrl)' -o '$(TailwindExe)' &amp;&amp; chmod +x '$(TailwindExe)'" />
   </Target>
-  <!-- Always runs after Build (unless disabled): the Exists check was removed from the run-condition
-       because it was evaluated at schedule time, before FetchTailwindCli (its dependency) could create
-       the exe - so a fresh CI/container with no cached CLI skipped the compile entirely. Now the fetch
-       runs as a dependency, then the compile runs unconditionally. No ContinueOnError so a broken
-       compile fails the build. -->
   <Target Name="BuildTailwind" AfterTargets="Build" DependsOnTargets="FetchTailwindCli"
           Condition="'$(BuildTailwindCss)' != 'false'">
-    <!-- Forward slashes only: a hardcoded backslash is a literal char on Linux, so the CI runner could
-         not find wwwroot\app.tailwind.css. '/' works on Windows + Linux + macOS. -->
     <Exec Command="&quot;$(TailwindExe)&quot; -c &quot;$(MSBuildProjectDirectory)/tailwind.config.js&quot; -i &quot;$(MSBuildProjectDirectory)/wwwroot/app.tailwind.css&quot; -o &quot;$(MSBuildProjectDirectory)/wwwroot/tailwind.css&quot; --minify" />
   </Target>
 </Project>

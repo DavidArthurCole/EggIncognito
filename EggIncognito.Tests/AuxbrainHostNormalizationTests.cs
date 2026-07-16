@@ -17,7 +17,7 @@ public class AuxbrainHostNormalizationTests
     [InlineData("")]
     [InlineData("www.auxbrain.com/path")]
     [InlineData("https://www.auxbrain.com")]
-    [InlineData("2001:db8::1")] // raw IPv6, no brackets
+    [InlineData("2001:db8::1")]
     [InlineData("[unclosed")]
     [InlineData("[]")]
     public void NormalizeHost_RejectsNonHosts(string authority) =>

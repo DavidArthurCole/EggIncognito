@@ -10,9 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Controllers;
 
-// Device status (public read) + admin refresh. Reads project the latest probe per device; refresh runs an
-// immediate probe tagged admin:<id> through the same DeviceProbeRunner the background poller uses. DB-gated:
-// reads return [] without Postgres, writes return 503. Admin gate mirrors AdminController.RequireAdmin.
+
 [ApiController]
 [Route("api/devices")]
 [EnableRateLimiting("read")]
@@ -27,7 +25,7 @@ public sealed class DevicesController(
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
 
     [HttpGet("status")]
-    [EnableRateLimiting("fetch")] // public + polled every 8s by DeviceStatusPanel; not the class "read" cap
+    [EnableRateLimiting("fetch")]
     public async Task<IActionResult> Status()
     {
         var store = Store;
@@ -36,20 +34,20 @@ public sealed class DevicesController(
         var devices = (await store.EnabledDevicesAsync()).ToDictionary(d => d.Id);
         var updates = (await store.LatestUpdatePerDeviceAsync()).ToDictionary(u => u.DeviceId);
 
-        // store-latest per distinct platform, so the Update button shows only when the store is ahead of
-        // what is installed. One lookup per platform, reused across that platform's devices.
+       
+       
         var db = Db;
         var storeLatest = new Dictionary<string, string?>();
-        // Live registry latest per platform (non-deleted), used to re-classify at read time against the
-        // current registry rather than the probe-time snapshot.
+       
+       
         var regLatestApp = new Dictionary<string, string?>();
         var regLatestBuild = new Dictionary<string, string?>();
         if (db is not null)
             foreach (var plat in devices.Values.Select(d => d.Platform).Distinct())
             {
                 storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, HttpContext.RequestAborted);
-                // "Represented" = a live row or a merged alias (DeletedAt+CanonicalId set); only a true
-                // soft-delete (DeletedAt set, CanonicalId null) drops a version out of "represented".
+               
+               
                 var extracted = await db.ProtoVersions.AsNoTracking()
                     .Where(v => v.Platform == plat && (v.DeletedAt == null || v.CanonicalId != null))
                     .Select(v => new { v.Build, v.AppVersion })
@@ -66,7 +64,7 @@ public sealed class DevicesController(
             var d = devices[p.DeviceId];
             updates.TryGetValue(d.Id, out var up);
             var sl = storeLatest.GetValueOrDefault(d.Platform);
-            // Reclassify against the live registry; falls back to the stored Result for unreachable/error rows.
+           
             var liveResult = (p.Reachable && !string.IsNullOrEmpty(p.InstalledAppVersion))
                 ? DeviceProbeRunner.Classify(
                     new DeviceProbeResult(true, p.InstalledAppVersion, p.InstalledBuild, null),
@@ -136,8 +134,8 @@ public sealed class DevicesController(
         });
     }
 
-    // Fan out a probe to every enabled device (the Sources "Device farm" refresh). Admin + DB gated.
-    // Best-effort per device; returns how many were probed.
+   
+   
     [HttpPost("refresh-all")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> RefreshAll()
@@ -166,9 +164,9 @@ public sealed class DevicesController(
         return Ok(new { probed = n });
     }
 
-    // Tell the plugged-in device to ask its own store for an Egg Inc update and install it if there is one.
-    // Fire-and-forget: the store poll runs ~6 minutes, far past the reverse-proxy timeout, so this validates,
-    // launches a background task, and returns 202 immediately; the UI polls GET check-status for progress.
+   
+   
+   
     [HttpPost("{id}/check-update")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> CheckUpdate(string id)
@@ -189,22 +187,22 @@ public sealed class DevicesController(
         if (checker is null)
             return StatusCode(501, new { error = $"no store checker for platform {device.Platform}" });
 
-        // Overlap guard: refuse a second concurrent check for the same device.
+       
         if (!jobs.TryStart(id, "checking store..."))
             return StatusCode(409, new { error = "check already running" });
 
         logger.LogInformation("device check-update: {Id} start (by {Who})", id, who);
         var target = new DeviceStoreTarget(device.Id, device.Platform, device.Target, device.Package);
 
-        // Run detached with its own DI scope and CancellationToken.None: the request scope disposes and
-        // HttpContext.RequestAborted fires as soon as the 202 response completes.
+       
+       
         _ = Task.Run(() => RunCheckUpdateAsync(id, target, checker, who));
 
         return Accepted(new { id = device.Id, action = "running" });
     }
 
-    // Background body of check-update. Owns its DI scope and lifetime; every exit funnels through the
-    // tracker (Finish/Fail) so the UI's check-status poll always reaches a terminal row.
+   
+   
     private async Task RunCheckUpdateAsync(string id, DeviceStoreTarget target, IDeviceStoreChecker checker, string who)
     {
         using var scope = scopeFactory.CreateScope();
@@ -221,8 +219,8 @@ public sealed class DevicesController(
                 return;
             }
 
-            // Pre-check: only drive the device store when the store is actually ahead of what is installed,
-            // so an already-current device skips the full ~6 min poll window.
+           
+           
             jobs.Progress(id, "reading installed version…");
             IDeviceProbe preProbe = string.Equals(target.Platform, "ios", StringComparison.OrdinalIgnoreCase)
                 ? new IosDeviceProbe(runner, target.Target, target.Package)
@@ -267,8 +265,8 @@ public sealed class DevicesController(
         }
     }
 
-    // Live status of an in-flight (or just-finished) check-update. The UI polls this every ~3s while running.
-    // Returns { state:"idle" } when no live/recent job (none started, or the terminal verdict's TTL elapsed).
+   
+   
     [HttpGet("{id}/check-status")]
     public IActionResult CheckStatus(string id)
     {
@@ -284,9 +282,9 @@ public sealed class DevicesController(
         });
     }
 
-    // Pull the installed app off the device and carve its proto in-process, then upsert a registry row.
-    // Android: `adb pull` the arm split, run ArchiveProtoExtractor. iOS: ssh-pull the egginc Mach-O (only
-    // the first __TEXT page is FairPlay-encrypted, so the on-disk binary carves with no runtime decrypt).
+   
+   
+   
     [HttpPost("{id}/save")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Save(string id)
@@ -308,7 +306,7 @@ public sealed class DevicesController(
 
         var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
         var probe = await DeviceProbeRunner.ProbeFor(device, runner).ProbeAsync(HttpContext.RequestAborted);
-        // Android needs both appVersion and build; iOS has no build (sha stands in), so only appVersion is required.
+       
         var needBuild = device.Platform == PlatformAndroid;
         if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion) || (needBuild && string.IsNullOrEmpty(probe.InstalledBuild)))
         {
@@ -324,8 +322,8 @@ public sealed class DevicesController(
         var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(carve.Proto))).ToLowerInvariant();
 
-        // clientVersion is not in the binary; it is only reported on the wire, so launch the app and harvest
-        // a fresh rinfo. Best-effort: a miss leaves it null.
+       
+       
         var clientVersion = await HarvestClientVersionAsync(device, HttpContext.RequestAborted);
         logger.LogInformation("device save: {Id} harvested clientVersion={Cv}", id, clientVersion?.ToString() ?? "(none)");
 
@@ -339,7 +337,7 @@ public sealed class DevicesController(
             logger.LogInformation("device save: {Id} -> registry {Plat} build {Build} ({State}, sha {Sha})",
                 id, device.Platform, build, created ? "created" : "updated", sha[..12]);
 
-            // Fan the new/changed build out to feed subscriptions. Best-effort; no subs = no-op.
+           
             var dispatcher = services.GetService(typeof(EggIncognito.Services.Feed.FeedDispatcher))
                 as EggIncognito.Services.Feed.FeedDispatcher;
             if (dispatcher is not null)
@@ -370,8 +368,8 @@ public sealed class DevicesController(
 
     private sealed record CarveResult(string Proto, string Build);
 
-    // Per-platform pull + carve. Returns the carved proto text and registry build key on success,
-    // or (null, errorResult) with the failure already logged.
+   
+   
     private async Task<(CarveResult? carve, IActionResult? err)> PullAndCarveAsync(
         Device device, DeviceProbeResult probe, IProcessRunner runner, ILogger logger)
     {
@@ -411,8 +409,8 @@ public sealed class DevicesController(
         }
         logger.LogInformation("device save: {Id} pulled ios binary ({Bytes} bytes), carving proto", device.Id, bin.Length);
 
-        // Stash the pulled binary where the eggincognito-runner-ios sidecar's IOS_BINARY_PATH reads it, so its
-        // next poll tick emits a NewVersionEvent without needing its own device/ssh access. No-op if unset.
+       
+       
         var stashPath = (services.GetService(typeof(IConfiguration)) as IConfiguration)?["Runner:IosBinaryStashPath"];
         if (!string.IsNullOrEmpty(stashPath))
         {
@@ -425,16 +423,16 @@ public sealed class DevicesController(
             logger.LogWarning("device save: {Id} carve failed: {Diag}", device.Id, iosCarve.Diagnostics);
             return (null, StatusCode(500, new { error = $"proto carve failed: {iosCarve.Diagnostics}" }));
         }
-        // iOS registry build = CFBundleVersion, matching what the probe reads and the Devices panel shows.
-        // Falls back to the binary content sha only if the probe could not read CFBundleVersion.
+       
+       
         var iosBuild = !string.IsNullOrEmpty(probe.InstalledBuild)
             ? probe.InstalledBuild!
             : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bin))[..16].ToLowerInvariant();
         return (new CarveResult(iosCarve.Proto, iosBuild), null);
     }
 
-    // Harvest the on-the-wire clientVersion for the registry row: launch the app and wait for a fresh rinfo
-    // via ForceHarvestAsync. Best-effort; capture off, no device entry, or no fresh rinfo returns null.
+   
+   
     private async Task<string?> HarvestClientVersionAsync(Device device, CancellationToken ct)
     {
         var pusher = services.GetService(typeof(DeviceProxyPusher)) as DeviceProxyPusher;
@@ -447,8 +445,8 @@ public sealed class DevicesController(
         return rinfo?.ClientVersion?.ToString();
     }
 
-    // Resolve the iOS ssh connection from DeviceUpdate:Ios config. Host defaults to the device target.
-    // Returns null when no ssh key is configured.
+   
+   
     private (string Host, string Port, string Key)? IosSsh(Device device)
     {
         var cfg = (services.GetService(typeof(IConfiguration)) as IConfiguration)!
@@ -459,9 +457,9 @@ public sealed class DevicesController(
         return (host, cfg["SshPort"] ?? "2222", key);
     }
 
-    // Pull the 3D ship meshes off the device and decode them to glTF (.glb). Android: pull base.apk (ship
-    // meshes live in its assets, not the arm split the proto carve uses). iOS: ssh-tar the rpos files out
-    // of the on-disk .app bundle. Returns the same manifest shape as POST /api/tools/extract-meshes.
+   
+   
+   
     [HttpPost("{id}/pull-meshes")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> PullMeshes(string id, [FromQuery] bool export = false, [FromQuery] string? build = null)
@@ -496,12 +494,12 @@ public sealed class DevicesController(
             extract = Services.ProtoExtract.RpoAssetExtractor.FromEntries(entries);
         }
 
-        // export=true returns the Spaceship-enum-keyed ship .glb set; otherwise the raw per-mesh manifest.
+       
         return Ok(export ? MeshManifest.Ships(extract, build, false, null) : MeshManifest.From(extract));
     }
 
-    // Lists the mesh (.rpo/.rpoz) file stems available on the device, names only, no decode. iOS: ssh `find`
-    // in the .app bundle. Android: pull base.apk once and list its rpo entries.
+   
+   
     [HttpGet("{id}/list-meshes")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> ListMeshes(string id)
@@ -532,7 +530,7 @@ public sealed class DevicesController(
         return StatusCode(501, new { error = $"no mesh listing for platform {device.Platform}" });
     }
 
-    // Pulls one mesh by stem off the device, decodes to glTF (.glb), optionally bakes an animation.
+   
     [HttpGet("{id}/mesh/{stem}")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Mesh(string id, string stem, [FromQuery] string? animate, [FromQuery] float seconds)
@@ -540,7 +538,7 @@ public sealed class DevicesController(
         if (RequireAdmin() is { } no) return no;
         var ct = HttpContext.RequestAborted;
 
-        // Cache-first pull; animation is applied on top so one cached glb serves every animation kind.
+       
         var provider = (DeviceMeshProvider)services.GetRequiredService(typeof(DeviceMeshProvider));
         var res = await provider.GetGlbAsync(stem, id, ct);
         if (!res.Ok) return StatusCode(res.Status, new { error = res.Diagnostics });
@@ -556,9 +554,9 @@ public sealed class DevicesController(
         return File(glb, "model/gltf-binary", $"{stem}.glb");
     }
 
-    // Pre-computes every mesh on the device into the on-disk glb cache, so later /mesh requests serve from
-    // cache. Pulls the archive once, decodes all, writes each un-animated glb. Needs ShipAssets:OutputDir
-    // configured, else the cache is disabled and this is a no-op.
+   
+   
+   
     [HttpPost("{id}/precache-meshes")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> PrecacheMeshes(string id)
@@ -608,7 +606,7 @@ public sealed class DevicesController(
         return Ok(new { ok = true, platform = device.Platform, cached, failed = failed.Count, failedKeys = failed.Take(20) });
     }
 
-    // Lists the cached meshes for a device's platform (stem + size + time).
+   
     [HttpGet("{id}/cached-meshes")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> CachedMeshes(string id)
@@ -622,7 +620,7 @@ public sealed class DevicesController(
         return Ok(new { enabled = true, platform = device.Platform, meshes });
     }
 
-    // Deletes one cached mesh by stem, or all when stem is "*".
+   
     [HttpDelete("{id}/cached-meshes/{stem}")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> DeleteCachedMesh(string id, string stem)
@@ -642,8 +640,8 @@ public sealed class DevicesController(
         return Ok(new { ok = deleted, deleted });
     }
 
-    // Force-restart the egginc app on the device so it makes a fresh launch request to auxbrain, which the
-    // capture proxy decrypts to harvest rinfo. Needed because an idle/backgrounded app won't re-hit auxbrain.
+   
+   
     [HttpPost("{id}/restart-app")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> RestartApp(string id)
@@ -662,10 +660,10 @@ public sealed class DevicesController(
         return ok ? Ok(new { restarted = true, note }) : StatusCode(502, new { error = note ?? "restart failed" });
     }
 
-    // Latest live rinfo harvested off the wire for a device (build/clientVersion/version + recency).
-    // Empty 200 when none seen or capture is off.
+   
+   
     [HttpGet("{id}/live")]
-    [EnableRateLimiting("fetch")] // public + polled per-device by DeviceStatusPanel; not the class "read" cap
+    [EnableRateLimiting("fetch")]
     public IActionResult Live(string id)
     {
         if (services.GetService(typeof(DeviceCaptureManager)) is not DeviceCaptureManager mgr)

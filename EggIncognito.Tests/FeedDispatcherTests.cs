@@ -6,8 +6,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// Dispatcher fan-out over a faked IFeedSubscriptionStore (no EF) + a stub IHttpClientFactory. Covers:
-// proto_changed fires on change and is skipped when unchanged, 410 deactivates, idempotent re-delivery.
 public class FeedDispatcherTests
 {
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
@@ -25,7 +23,7 @@ public class FeedDispatcherTests
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
     }
 
-    // In-memory store fake: holds subs + records deliveries, mirrors the real surface the dispatcher uses.
+   
     private sealed class FakeStore(params FeedSubscription[] subs) : IFeedSubscriptionStore
     {
         public List<FeedSubscription> Subs { get; } = [.. subs];

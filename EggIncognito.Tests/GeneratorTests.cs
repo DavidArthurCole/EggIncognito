@@ -49,12 +49,12 @@ public class GeneratorTests
         Assert.True(e[0].RequestWrapped);
         Assert.True(e[0].ResponseWrapped);
 
-        // Path-param-only: no request body, identity via URL.
+       
         Assert.Null(e[1].Request);
         Assert.True(e[1].PathParamOnly);
         Assert.Equal("UserSubscriptionInfo", e[1].Response);
         Assert.True(e[1].ResponseWrapped);
-        // Mock still serializes the known inner type.
+       
         Assert.Equal("UserSubscriptionInfo", e[1].MockResponseType);
     }
 
@@ -75,10 +75,10 @@ public class GeneratorTests
 
         var e = RouteParser.Parse(yaml);
 
-        // Empty value with a trailing comment must read as null, not the comment text.
+       
         Assert.Equal("SomeRequest", e[0].Request);
         Assert.Null(e[0].Response);
-        Assert.Equal("AuthenticatedMessage", e[0].MockResponseType); // falls back, never "# ack..."
+        Assert.Equal("AuthenticatedMessage", e[0].MockResponseType);
         Assert.True(e[0].ResponseWrapped);
 
         Assert.Null(e[1].Request);
@@ -98,7 +98,7 @@ public class GeneratorTests
 
         var e = RouteParser.Parse(yaml)[0];
 
-        // Legacy AuthenticatedMessage request => unknown inner type + wrapped.
+       
         Assert.Null(e.Request);
         Assert.True(e.RequestWrapped);
         Assert.Equal("EggIncCurrentEvents", e.Response);
@@ -131,15 +131,15 @@ public class GeneratorTests
 
         Assert.Null(endpoints[0].Request);
         Assert.Null(endpoints[0].Response);
-        // The mock still needs a concrete type to serialize an (empty) response.
+       
         Assert.Equal("AuthenticatedMessage", endpoints[0].MockResponseType);
     }
 
     [Fact]
     public void ParseOutput_HasValueEquality_ForIdenticalYaml()
     {
-        // The incremental generator caches on the parsed model; identical yaml must
-        // produce routes that compare equal or controllers regenerate on every change.
+       
+       
         const string yaml = """
             routes:
               - path: ei/first_contact_secure
@@ -159,7 +159,7 @@ public class GeneratorTests
         var a = RouteParser.Parse(yaml);
         var b = RouteParser.Parse(yaml);
 
-        Assert.Equal(a, b); // element-wise via RouteModel value equality
+        Assert.Equal(a, b);
         Assert.True(RouteListComparer.Instance.Equals(a, b));
         Assert.Equal(RouteListComparer.Instance.GetHashCode(a), RouteListComparer.Instance.GetHashCode(b));
     }

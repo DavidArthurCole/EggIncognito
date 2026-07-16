@@ -4,9 +4,7 @@ using SyncKit.Bot;
 
 namespace EggIncognito.Bot;
 
-// Domain slash commands (health/status/endpoints/proto), wired as SyncKit.Bot.BotCommand entries
-// via BotConfig.Extra. Definitions are global + user-installable + usable in DMs, matching the
-// scope EggIncognito registered on its own gateway host before the SyncKit cutover.
+
 public static class ExtraCommands
 {
     private static readonly ApplicationIntegrationType[] Integrations =
@@ -32,8 +30,8 @@ public static class ExtraCommands
         new SyncKit.Bot.BotCommand(Base("endpoints", "Show endpoint coverage (ok / empty / missing).").Build(), "endpoints",
             async (SocketSlashCommandContext ctx) => await RunAsync(ctx, () => BotEmbeds.Endpoints(status.Build())));
 
-    // Deferring here (not left to SyncKitBot, which has no dispatch-level try/catch around Extra
-    // handlers) matches every handler needing the same ephemeral-defer-then-followup shape.
+   
+   
     private static async Task RunAsync(SocketSlashCommandContext ctx, Func<Embed> build)
     {
         await ctx.Command.DeferAsync(ephemeral: true);

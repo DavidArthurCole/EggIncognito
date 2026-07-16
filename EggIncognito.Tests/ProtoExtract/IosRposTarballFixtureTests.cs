@@ -4,10 +4,6 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// End-to-end check of the iOS 3D-asset pull path against a real device tarball, without a live device.
-// The fixture captures\egi-repos.tgz is a gzip of the plain tar IosAssetPuller scps back from the on-device
-// rpos/ dir; gunzip it and run TarReader.Read -> RpoAssetExtractor.FromEntries. Skips (does not fail) when the
-// fixture is absent so CI without the capture stays green.
 public class IosRposTarballFixtureTests
 {
     private static string? FindFixture()

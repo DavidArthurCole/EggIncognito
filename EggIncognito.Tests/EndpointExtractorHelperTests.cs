@@ -3,8 +3,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-// Pure-logic helpers on EndpointExtractor: EID scrubbing, the loss-guard richness signal, and the
-// HAR request `data` extraction.
 public class EndpointExtractorHelperTests
 {
     private const string Eid = "EI1234567890123456";
@@ -50,7 +48,7 @@ public class EndpointExtractorHelperTests
     [Fact]
     public void CountJsonFields_SeesLossThatObjectCountMisses()
     {
-        // Same object count, fewer populated fields - the richness signal must drop.
+       
         var rich = "{\"a\":1,\"b\":2,\"c\":3}";
         var sparse = "{\"a\":1}";
         Assert.True(EndpointExtractor.CountJsonFields(sparse) < EndpointExtractor.CountJsonFields(rich));

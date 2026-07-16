@@ -3,8 +3,6 @@ using EggIncognito.Services.ProtoExtract;
 using Xunit.Abstractions;
 
 namespace EggIncognito.Tests;
-
-// Not a CI gate: runs the clientVersion heuristic across every locally-collected historical iOS binary.
 public class MachoClientVersionSurveyTests(ITestOutputHelper output)
 {
     private static readonly string Root =

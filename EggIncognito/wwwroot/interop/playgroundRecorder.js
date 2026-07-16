@@ -1,6 +1,4 @@
-// Records one perfect loop of the playground's procedural animation and exports a looping GIF in the browser.
-// Drives the engine's deterministic capture over one period, composites each frame onto an offscreen 2D
-// canvas, and encodes with gif.js in a worker.
+
 
 function engine() { return globalThis.__pgEngine; }
 function designer() { return globalThis.__pgDesigner; }
@@ -13,7 +11,7 @@ let workerBlobUrl = null;
 
 async function ensureGif() {
   if (GIFClass) return GIFClass;
-  // gif.js is a UMD bundle that sets window.GIF, not an ES module, so load it via a script tag.
+ 
   await new Promise((resolve, reject) => {
     if (globalThis.GIF) { resolve(); return; }
     const s = document.createElement('script');
@@ -27,8 +25,6 @@ async function ensureGif() {
   return GIFClass;
 }
 
-// A Web Worker cannot be created from a cross-origin URL, so fetch the worker source as text and wrap it in
-// a same-origin blob URL instead. Cached after the first fetch.
 async function ensureWorkerUrl() {
   if (workerBlobUrl) return workerBlobUrl;
   const resp = await fetch(GIF_WORKER_URL);
@@ -37,8 +33,6 @@ async function ensureWorkerUrl() {
   workerBlobUrl = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
   return workerBlobUrl;
 }
-
-// Rounds half away from zero, matching the C# LoopFrames contract.
 function rnd(x) { return Math.sign(x) * Math.round(Math.abs(x)); }
 
 export async function record(dotnetRef, opts) {
@@ -59,8 +53,8 @@ export async function record(dotnetRef, opts) {
   const outW = maxWidth && maxWidth < srcW ? maxWidth : srcW;
   const outH = Math.max(1, Math.round(srcH * (outW / srcW)));
 
-  // Pre-fills the fallback bg, then draws the (possibly downscaled) frame onto it, flattening a transparent
-  // scene onto a solid color.
+ 
+ 
   const off = document.createElement('canvas');
   off.width = outW; off.height = outH;
   const ctx = off.getContext('2d');
@@ -69,7 +63,7 @@ export async function record(dotnetRef, opts) {
   const workerScript = await ensureWorkerUrl();
   const gif = new GIF({ workers: 2, quality: 10, width: outW, height: outH, workerScript, repeat: 0 });
 
-  // Drops the selection outline + hides the gizmo for the duration of the capture.
+ 
   e.captureCleanOutline(true);
   if (designer()) designer().setGizmoVisible(false);
   e.captureBegin();

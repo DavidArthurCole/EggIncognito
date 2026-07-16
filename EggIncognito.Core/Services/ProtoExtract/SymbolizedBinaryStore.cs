@@ -2,10 +2,6 @@ using System.IO.Compression;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Indexes a local directory of decrypted egginc .ipa files by their Info.plist version, keeping only the
-// symbolized builds (the App Store build is stripped; only mirror/older IPAs carry the ~450k C++ symbols the
-// decomp extractor needs). Returns the iOS app executable bytes for a requested version, or the newest
-// symbolized build when there is no exact match. Pure read of local files; never commits or fetches anything.
 public sealed class SymbolizedBinaryStore
 {
     public readonly record struct Result(bool Ok, byte[]? Bytes, string Version, bool ExactVersion, string Diagnostics);
@@ -54,8 +50,8 @@ public sealed class SymbolizedBinaryStore
         return map;
     }
 
-    // Reads (CFBundleShortVersionString, iOS app executable bytes) from a Payload zip. The executable is the
-    // top-level extensionless entry under Payload/<App>.app/. Defensive: returns nulls on a missing piece.
+   
+   
     private static (string? Version, byte[]? Exec) ReadIpa(ZipArchive zip)
     {
         var plist = zip.Entries.FirstOrDefault(e =>
@@ -86,8 +82,8 @@ public sealed class SymbolizedBinaryStore
         return rest.Length > 0 && !rest.Contains('/') && !rest.Contains('.');
     }
 
-    // Minimal plist value read: finds <key>NAME</key> then the next <string>VALUE</string>. Handles the binary
-    // + xml plist text forms loosely; we only need the version string, which is ascii in both.
+   
+   
     private static string? PlistString(string plist, string key)
     {
         var k = plist.IndexOf($"<key>{key}</key>", StringComparison.Ordinal);
@@ -99,7 +95,7 @@ public sealed class SymbolizedBinaryStore
         return e < 0 ? null : plist[s..e].Trim();
     }
 
-    // Numeric-aware version sort key: "1.35.7" -> (1,35,7). Non-numeric parts sort as 0.
+   
     private static (int, int, int, int) VersionKey(string v)
     {
         var p = v.Split('.');

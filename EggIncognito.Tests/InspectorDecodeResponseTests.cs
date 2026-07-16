@@ -4,9 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// /api/inspector/decode-response is an egress-free pure-decode helper used by custom-proxy mode: the
-// browser already holds the bytes and just needs them rendered. No network, no salt. These boot the
-// real host (no AppMode override - the helper is ungated) and prove decode works without any send.
+
 [Collection(SharedAppCollection.Name)]
 public class InspectorDecodeResponseTests
 {
@@ -33,6 +31,6 @@ public class InspectorDecodeResponseTests
         var c = _factory.CreateClient();
         var r = await c.PostAsJsonAsync("/api/inspector/decode-response",
             new { rawBase64 = "AA==", responseType = (string?)null });
-        Assert.True(r.IsSuccessStatusCode); // decode error is in-band, not an HTTP failure
+        Assert.True(r.IsSuccessStatusCode);
     }
 }

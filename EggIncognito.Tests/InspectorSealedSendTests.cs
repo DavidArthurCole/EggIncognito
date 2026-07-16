@@ -6,9 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// The /api/inspector/send sealed-proxy gate: a request that asks for sealed mode without the perk is
-// rejected 403 before any egress; a non-sealed request never consults the perk. Egress itself is not
-// exercised (it would hit the network); these assert the gate, the security-critical seam.
+
 public class InspectorSealedSendTests
 {
     private sealed class FakeAppMode(AppMode mode) : IAppMode
@@ -89,6 +87,6 @@ public class InspectorSealedSendTests
 
         var ex = await Assert.ThrowsAsync<ApiException>(() => controller.Send(SealedSend()));
         Assert.Equal(StatusCodes.Status403Forbidden, ex.Status);
-        Assert.Equal(0, sealedProxy.CanUseCalls); // login gate fires first
+        Assert.Equal(0, sealedProxy.CanUseCalls);
     }
 }

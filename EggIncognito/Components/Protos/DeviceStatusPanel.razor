@@ -111,18 +111,17 @@
         string? LatestAvailable, string? StoreLatest, bool StoreAhead,
         string Result, string? Note, DateTimeOffset ProbedAt);
 
-    // Per-device action state, so a slow Save on one device does not freeze the others and each row shows
-    // its own success/error instead of swallowing it.
+   
+   
     sealed class ActionState { public bool Busy; public string? Message; public bool IsError; }
 
     const string InfoDismissKey = "egi:devicesInfoDismissed";
 
-    // Live capture-boundary counters per device (from /api/devices/{id}/live). Tells which stage the device's
-    // traffic reached, so an empty clientVersion is diagnosable without reading raw JSON.
+   
+   
     sealed record CaptureBlock(bool Listening, int Port, long ClientConnects, long AuxbrainConnects,
         long Flows, long RinfoHarvests, string? LastDecryptError, List<string>? RecentConnects);
     sealed record LiveResponse(bool Found, int? ClientVersion, CaptureBlock? Capture);
-    sealed record CaptureV(string Label, string Color, string Detail);
 
     List<DeviceStatus> _devices = [];
     readonly Dictionary<string, CaptureBlock> _capture = new();
@@ -131,21 +130,11 @@
 
     CaptureBlock? Capture(string id) => _capture.GetValueOrDefault(id);
 
-    // Plain-words verdict from the counters: the first broken boundary, walking the capture pipeline in order.
-    static CaptureV CaptureVerdict(CaptureBlock c)
-    {
-        if (!c.Listening)
-            return new("listener down", "text-red-400", "no per-device capture listener bound (DeviceCapture disabled or failed to start)");
-        if (c.RinfoHarvests > 0)
-            return new("ok", "text-green-400", $"{c.RinfoHarvests} rinfo harvested, {c.Flows} flows");
-        if (c.Flows > 0)
-            return new("no rinfo in flows", "text-yellow-400", $"{c.Flows} flows decoded but none carried rinfo (request types lack BasicRequestInfo, or field mismatch)");
-        if (c.AuxbrainConnects > 0)
-            return new("CA untrusted", "text-red-400", c.LastDecryptError ?? $"{c.AuxbrainConnects} auxbrain CONNECTs but 0 decrypted flows: the capture CA is not trusted on the device");
-        if (c.ClientConnects > 0)
-            return new("not reaching auxbrain", "text-yellow-400", $"{c.ClientConnects} client connects but 0 auxbrain CONNECTs: traffic reaches the proxy but not auxbrain (DNS / host filter)");
-        return new("not routing", "text-red-400", $"listening on :{c.Port} but 0 client connects: the device is not routing through the proxy (proxy not applied, or the app bypasses the system proxy)");
-    }
+   
+    static EggIncognito.Core.Services.Devices.DeviceCaptureVerdict.Verdict CaptureVerdict(CaptureBlock c) =>
+        EggIncognito.Core.Services.Devices.DeviceCaptureVerdict.For(
+            new EggIncognito.Core.Services.Devices.DeviceCaptureVerdict.Counters(
+                c.Listening, c.Port, c.ClientConnects, c.AuxbrainConnects, c.Flows, c.RinfoHarvests, c.LastDecryptError));
     bool _isAdmin;
     bool _infoDismissed;
     bool _disposed;
@@ -165,12 +154,12 @@
             _cookie = req.Headers.Cookie;
         }
         await LoadAsync();
-        // Poll every 8s so a device coming back online surfaces quickly. ReprobeStaleAsync (admin only) fires
-        // an immediate probe for any unreachable device so recovery shows within a poll.
+       
+       
         _timer = new Timer(async _ => await InvokeAsync(LoadAsync), null, 8_000, 8_000);
     }
 
-    // localStorage is only reachable after the first render on a Server circuit (no JS during prerender).
+   
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -188,13 +177,7 @@
         try { await JS.InvokeVoidAsync("localStorage.setItem", InfoDismissKey, "1"); } catch { }
     }
 
-    HttpClient Client()
-    {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
-    }
+    HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
 
     async Task LoadAsync()
     {
@@ -211,8 +194,8 @@
 
     bool _reprobing;
 
-    // Immediately re-probe any device that reads unreachable, so it self-heals within a poll instead of
-    // waiting for the 3-min server probe. Admin-gated; single-flight so a slow probe never stacks across polls.
+   
+   
     async Task ReprobeStaleAsync()
     {
         if (!_isAdmin || _reprobing) return;
@@ -226,15 +209,15 @@
                 try { await Client().PostAsync($"/api/devices/{id}/refresh", null); }
                 catch { /* device still down; ignore */ }
             }
-            // Pull the freshly-probed rows so a recovered device flips reachable now, not next tick.
+           
             var rows = await Client().GetFromJsonAsync<List<DeviceStatus>>("/api/devices/status");
             if (rows is not null) { _devices = rows; await InvokeAsync(StateHasChanged); }
         }
         finally { _reprobing = false; }
     }
 
-    // Per-device capture-boundary counters. Separate best-effort fetch so a slow/absent capture endpoint
-    // never blocks the status rows; elsewhere it returns found=false and the chip stays hidden.
+   
+   
     async Task LoadCaptureAsync()
     {
         foreach (var d in _devices.ToList())
@@ -255,8 +238,8 @@
 
     Task Save(string id) => Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "installed to registry", OnSaved);
 
-    // Force-restart Egg Inc so it phones auxbrain, then refresh the capture counters a few times so the chip
-    // reflects the freshly-harvested rinfo without waiting for the 15s poll.
+   
+   
     async Task RestartApp(string id)
     {
         var s = _actions[id] = new ActionState { Busy = true, Message = "restarting app..." };
@@ -267,8 +250,8 @@
             if (resp.IsSuccessStatusCode)
             {
                 s.Message = "launched, waiting for API call...";
-                // The launch request hits auxbrain within a few seconds; poll the capture block so the
-                // chip flips (not-reaching -> ok / shows the new CONNECTs) without the 15s tick.
+               
+               
                 for (var i = 0; i < 8 && !_disposed; i++)
                 {
                     await Task.Delay(2000);
@@ -282,8 +265,8 @@
         finally { s.Busy = false; StateHasChanged(); _ = ClearLater(id); }
     }
 
-    // Tell the device to check its own store for an update. The server runs the ~6-min store poll in the
-    // background and returns 202 at once; we then poll check-status every ~3s until a terminal state.
+   
+   
     async Task CheckUpdate(string id)
     {
         var s = _actions[id] = new ActionState { Busy = true, Message = "checking store..." };
@@ -311,8 +294,8 @@
         }
     }
 
-    // Poll check-status until the job leaves "running", rendering its live message. Guarded against component
-    // disposal so a closed circuit stops the loop. On a terminal verdict: final message, reload card, clear.
+   
+   
     async Task PollCheckStatus(string id)
     {
         var s = _actions.TryGetValue(id, out var existing) ? existing : (_actions[id] = new ActionState { Busy = true });
@@ -340,7 +323,7 @@
                 continue;
             }
 
-            // Terminal: done / error / idle (TTL-expired). Map to a final row message.
+           
             (s.Message, s.IsError) = (state, action) switch
             {
                 ("error", _) => (message ?? "check failed", true),
@@ -358,9 +341,9 @@
         _ = ClearLater(id);
     }
 
-    // Run a device action, surfacing the real outcome on that row. On a non-2xx the server's {error} body
-    // is shown verbatim so a failure is visible instead of silent. Reloads status on success, then fires
-    // onSuccess (e.g. the parent reloads the registry table so a freshly-saved build appears at once).
+   
+   
+   
     async Task Act(string id, string url, string busyMsg, string okMsg, EventCallback onSuccess = default)
     {
         var s = _actions[id] = new ActionState { Busy = true, Message = busyMsg };
@@ -403,7 +386,7 @@
         return $"failed ({(int)resp.StatusCode})";
     }
 
-    // Clear the row message after a few seconds so it returns to the normal build/ago line.
+   
     async Task ClearLater(string id)
     {
         await Task.Delay(6000);

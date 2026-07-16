@@ -1,15 +1,11 @@
 namespace EggIncognito.Core.Services.Devices;
 
-// Points a jailbroken iOS device's HTTP proxy at the capture listener over ssh, by writing the active
-// network service's proxy keys in SystemConfiguration/preferences.plist via plutil. The set/clear commands
-// are built in code from a few values (network-service GUID, plutil path, plist path); a full
-// SetTemplate/ClearTemplate ({host}/{port}) remains an optional escape hatch for an exotic jailbreak.
-// device.Target is the UDID (not used for ssh; the ssh host is the LAN address). Never throws: a non-zero
-// ssh exit or missing config returns (false, note).
+
+
 public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigurator.SshConfig ssh) : IDeviceProxyConfigurator
 {
-    // Guid = the active network-service id under NetworkServices in preferences.plist (device-specific).
-    // SetTemplate/ClearTemplate override the whole built command when present.
+   
+   
     public sealed record SshConfig(
         string? Host, string Port, string? KeyPath, string? SetTemplate, string? ClearTemplate,
         string? Guid = null, string? PlutilPath = null, string? PrefsPlist = null);
@@ -37,8 +33,8 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
         return await Ssh(BuildClear(), ct);
     }
 
-    // plutil writes one key per invocation; the proxy needs the HTTP + HTTPS enable/host/port sextet.
-    // internal for the command-shape unit test.
+   
+   
     internal string BuildSet(string hostIp, int port)
     {
         var p = ssh.PlutilPath ?? DefaultPlutil;

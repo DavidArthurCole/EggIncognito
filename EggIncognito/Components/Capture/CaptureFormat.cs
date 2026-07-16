@@ -4,8 +4,6 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Components.Capture;
 
-// Format converters for the request/response data sections. The decoded proto arrives as a JSON string;
-// these render it in alternate shapes. Hex/Bin operate on the raw on-the-wire bytes (base64-decoded).
 public static class CaptureFormat
 {
     public static readonly string[] JsonFormats = ["json-tree", "json", "yaml", "xml", "js"];
@@ -28,8 +26,8 @@ public static class CaptureFormat
 
     static bool IsContainer(JsonNode? v) => v is JsonObject or JsonArray;
 
-    // Renders the decoded-JSON string into the chosen text format. json-tree is rendered by the tree
-    // component, not here.
+   
+   
     public static string JsonToText(string? jsonStr, string fmt)
     {
         if (string.IsNullOrEmpty(jsonStr)) return "";
@@ -172,7 +170,7 @@ public static class CaptureFormat
 
     static string JsonString(string s) => JsonSerializer.Serialize(s);
 
-    // Tolerant base64 -> bytes: handles form-mangled '+' (space) and missing padding.
+   
     public static byte[] BytesFromBase64(string? b64)
     {
         if (string.IsNullOrEmpty(b64)) return [];
@@ -183,7 +181,7 @@ public static class CaptureFormat
         catch { return []; }
     }
 
-    // Classic hex dump: offset  16 hex bytes  | ascii |
+   
     public static string ToHexDump(byte[] bytes)
     {
         if (bytes.Length == 0) return "(empty)";
@@ -199,7 +197,7 @@ public static class CaptureFormat
         return string.Join("\n", lines);
     }
 
-    // 8-bit binary per byte, 8 bytes per line, offset-prefixed.
+   
     public static string ToBinDump(byte[] bytes)
     {
         if (bytes.Length == 0) return "(empty)";

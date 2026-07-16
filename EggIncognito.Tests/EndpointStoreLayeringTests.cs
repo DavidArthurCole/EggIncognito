@@ -15,7 +15,7 @@ public class EndpointStoreLayeringTests
             => map.TryGetValue(eid is null ? path : $"{eid}:{path}", out var v) ? Encoding.UTF8.GetBytes(v) : null;
     }
 
-    // Build a store with a file source and an optional DB source resolved via a scope factory + marker.
+   
     private static EndpointStore Store(IEndpointSource file, IEndpointSource? db)
     {
         IServiceScopeFactory? factory = null;

@@ -58,7 +58,7 @@ needs_capture:
         ed.Save();
         var yaml = Read(root);
         Assert.DoesNotContain("- ei/unknown", yaml);
-        Assert.Contains("request_unknown:", yaml); // header kept
+        Assert.Contains("request_unknown:", yaml);
     }
 
     [Fact]
@@ -68,10 +68,10 @@ needs_capture:
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.RequestUnresolved("ei/unknown"));
         Assert.True(ed.MarkRequestNone("ei/unknown"));
-        Assert.False(ed.RequestUnresolved("ei/unknown")); // now resolved
+        Assert.False(ed.RequestUnresolved("ei/unknown"));
         ed.Save();
         var once = Read(root);
-        // Re-applying yields identical output (stable), even if the call reports a write.
+       
         var ed2 = new Svc.RoutesYamlEditor(root);
         ed2.MarkRequestNone("ei/unknown");
         ed2.Save();
@@ -88,11 +88,11 @@ needs_capture:
         var yaml = Read(root);
         Assert.Contains("- path: ei/brand_new", yaml);
         Assert.Contains("response: NewResp", yaml);
-        // The new block must sit inside routes:, before needs_capture:.
+       
         Assert.True(yaml.IndexOf("ei/brand_new") < yaml.IndexOf("needs_capture:"));
     }
 
-    // Non-standard indentation: items at 4 spaces, fields at 6.
+   
     private const string DeepIndent = """
 routes:
     - path: ei/deep
@@ -139,14 +139,14 @@ routes:
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.SetFieldIfEmpty("ei/unknown", "request", "FoundRequest"));
 
-        // A concurrent writer edits the file after our load.
+       
         var p = Path.Combine(root, "RouteMap", "routes.yaml");
         File.WriteAllText(p, Sample + "\n# concurrent edit\n");
         File.SetLastWriteTimeUtc(p, DateTime.UtcNow.AddSeconds(5));
 
         Assert.Throws<IOException>(() => ed.Save());
-        Assert.Contains("# concurrent edit", Read(root)); // their edit survives
-        Assert.DoesNotContain("FoundRequest", Read(root)); // our stale view not flushed
+        Assert.Contains("# concurrent edit", Read(root));
+        Assert.DoesNotContain("FoundRequest", Read(root));
     }
 
     [Fact]
@@ -157,7 +157,7 @@ routes:
         Assert.True(ed.SetFieldIfEmpty("ei/unknown", "request", "FoundRequest"));
         ed.Save();
         Assert.True(ed.RemoveFromNeedsCapture("ei/unknown"));
-        ed.Save(); // must not throw: the first Save refreshed the stamp
+        ed.Save();
         Assert.DoesNotContain("- ei/unknown", Read(root));
     }
 }

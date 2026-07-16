@@ -6,7 +6,7 @@ namespace EggIncognito.Data.Services;
 public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStore registry)
 {
     public enum OfferResult { Staged, AlreadyPending, AlreadyInRegistry }
-    // Merged = the build already existed, so staged data was filled into the gaps of that row.
+   
     public enum ApproveResult { Ok, Merged, NotFound, MissingBuild }
 
     private async Task<bool> ShaInRegistryAsync(string sha, CancellationToken ct) =>
@@ -15,7 +15,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     private async Task<bool> ShaPendingAsync(string sha, CancellationToken ct) =>
         await db.StagedProtos.AnyAsync(s => s.ProtoSha == sha && s.Status == "pending", ct);
 
-    // How many of the three version fields a candidate carries, used to compare against a rejected row.
+   
     private static int FieldScore(string? appVersion, string? build, string? clientVersion) =>
         (string.IsNullOrWhiteSpace(appVersion) ? 0 : 1)
         + (string.IsNullOrWhiteSpace(build) ? 0 : 1)
@@ -136,7 +136,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         }
         else
         {
-            // Fills only the existing row's empty fields; writes the proto only if it has none.
+           
             var hasProto = await db.ProtoProtos.AnyAsync(x => x.ProtoVersionId == existing.Id, ct);
             await registry.BackfillUpsertAsync(plat, appV!, bld!, cv, package: row.Package ?? "",
                 protoText: row.ProtoText, protoSha: row.ProtoSha, messageIndex: row.MessageIndex,

@@ -6,10 +6,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Services.Devices;
 
-// Persistent per-device capture. Each declared device gets its own long-lived capture proxy on a dedicated
-// loopback+LAN port, so a harvested flow maps to exactly one device: rolling-rinfo-only, no HAR, no
-// endpoint extract, no flow history. Gated by DeviceCapture:Enabled; one device's proxy failing to
-// bind/start is logged and recorded, never kills the others or the host.
 public sealed class DeviceCaptureManager(
     DeviceCaptureConfig config,
     DeviceConfig devices,
@@ -34,8 +30,8 @@ public sealed class DeviceCaptureManager(
     public int PortFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Port : 0;
     public DeviceRinfoStore Rinfo => _rinfo;
 
-    // clientConnects=0: device not routing through the proxy. auxbrainConnects=0: DNS/host filter.
-    // flows=0: CA not trusted. rinfoHarvests=0: request decodes but carries no rinfo.
+   
+   
     public DeviceCaptureDiag DiagFor(string deviceId) =>
         _diag.TryGetValue(deviceId, out var d) ? d.Snapshot() : DeviceCaptureDiag.Empty;
 
@@ -61,8 +57,8 @@ public sealed class DeviceCaptureManager(
         foreach (var id in _captures.Keys.ToList()) await TeardownAsync(id);
     }
 
-    // Each device proxy consumes 3 consecutive ports: the LAN-facing port plus two internal ports
-    // UnobtaniumCaptureProxy binds. Devices must be spaced >= 3 apart or blocks collide.
+   
+   
     public const int PortsPerDevice = 3;
 
     public static int PortForIndex(int basePort, int index) => basePort + index * PortsPerDevice;
@@ -118,7 +114,7 @@ public sealed class DeviceCaptureManager(
             logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca}, freshCa={Fresh})",
                 d.Id, port, caPath, proxy.FreshCa);
 
-            // A fresh CA means every cert previously installed on a device is now stale.
+           
             if (proxy.FreshCa)
                 logger.LogWarning(
                     "device capture: {Id} FRESH CA minted ({Ca}). Any cert installed on a device last run is now " +
@@ -132,7 +128,7 @@ public sealed class DeviceCaptureManager(
         }
     }
 
-    // Best-effort: a failure leaves the device untrusted until the next attempt, never breaks capture.
+   
     public async Task<(bool Ok, string? Note)> InstallCaAsync(DeviceEntry d, CancellationToken ct)
     {
         if (!_caInstallers.TryGetValue(d.Platform, out var installer))
@@ -181,8 +177,6 @@ public sealed class DeviceCaptureManager(
     }
 }
 
-// Live per-device capture counters, incremented from proxy event threads + the harvest pump (hence
-// Interlocked).
 public sealed class DeviceCaptureDiag
 {
     public long ClientConnects;
@@ -190,7 +184,7 @@ public sealed class DeviceCaptureDiag
     public long Flows;
     public long RinfoHarvests;
     public string? LastDecryptError;
-    // Most-recent-first, each "host (decrypt=true|false)".
+   
     public IReadOnlyList<string> RecentConnects { get; private set; } = [];
 
     private const int MaxRecent = 12;

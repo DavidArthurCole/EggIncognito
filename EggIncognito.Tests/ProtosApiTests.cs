@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// Public proto registry API surface. Robust to both run environments: no Postgres (store absent) and a
-// dev box with a real DB.
 [Collection(SharedAppCollection.Name)]
 public class ProtosApiTests
 {

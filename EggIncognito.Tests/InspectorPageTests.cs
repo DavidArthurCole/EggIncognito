@@ -7,14 +7,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-// Phase 4: the Inspector tab ported to Blazor Server. The page is InteractiveServer, but its static
-// shell prerenders, so the endpoint list, the send bar (Mock/Live/Custom + Build/Send), the pipeline,
-// and the response panel all render on the first server pass. The build/send/decode paths stay in the
-// InspectorApiController (salt build, egress, host allowlist); these tests only assert the shell + the
-// recursive field-tree component, no live egress.
+
 public class InspectorPageTests
 {
-    // Page-level: the prerendered /inspector returns 200 with the inspector shell markers.
+   
     [Collection(SharedAppCollection.Name)]
     public class Integration
     {
@@ -28,22 +24,22 @@ public class InspectorPageTests
             var r = await c.GetAsync("/inspector");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
             var html = await r.Content.ReadAsStringAsync();
-            // Active nav + the three-pane shell markers.
+           
             Assert.Contains(">Inspector</a>", html);
-            Assert.Contains("list-switch", html); // the Endpoints | Objects switch in the left pane
+            Assert.Contains("list-switch", html);
             Assert.Contains("Pipeline", html);
-            // Send-target toggle + actions.
+           
             Assert.Contains("target-toggle", html);
             Assert.Contains(">Build</button>", html);
             Assert.Contains(">Send</button>", html);
-            // The Live target is present but anonymous; no egress is performed by rendering.
+           
             Assert.Contains("Live API", html);
         }
     }
 
-    // Component-level (bUnit): the recursive FieldTree renders a scalar, an enum select, a repeated
-    // editor, and a nested message's child field from a small fake schema. Collect() then walks the
-    // edited tree into the protojson object the build call sends.
+   
+   
+   
     public class FieldTreeComponent : BunitContext
     {
         private static SchemaMessage Inner() => new("Inner", new List<SchemaField>
@@ -67,11 +63,11 @@ public class InspectorPageTests
                 t => t == "Inner" ? Inner() : null);
             var cut = Render<FieldTree>(p => p.Add(c => c.Nodes, nodes));
 
-            // A typed scalar input, an enum + bool select, and the repeated "+ add" button.
+           
             Assert.NotEmpty(cut.FindAll("input.field-input"));
             Assert.NotEmpty(cut.FindAll("select.field-input"));
             Assert.Contains("+ add", cut.Markup);
-            // The nested message's child field name appears (recursion resolved Inner's schema).
+           
             Assert.Contains("flag", cut.Markup);
         }
 
@@ -80,7 +76,7 @@ public class InspectorPageTests
         {
             var nodes = FieldTreeBuilder.Build(Root(),
                 t => t == "Inner" ? Inner() : null);
-            // Edit the scalar + the nested child + a repeated item.
+           
             nodes.First(n => n.Field.JsonName == "name").Value = "hi";
             nodes.First(n => n.Field.JsonName == "inner").Children
                 .First(c => c.Field.JsonName == "flag").Value = "true";
@@ -93,8 +89,8 @@ public class InspectorPageTests
             Assert.Contains("\"ids\":[7]", json);
         }
 
-        // Raw-mode edits survive the toggle back to the tree: Apply maps the protojson object back
-        // onto the field nodes (the inverse of Collect), clearing fields the raw edit removed.
+       
+       
         [Fact]
         public void Apply_MapsRawJsonBackOntoTree()
         {
@@ -109,7 +105,7 @@ public class InspectorPageTests
             Assert.Equal("true", nodes.First(n => n.Field.JsonName == "inner").Children
                 .First(c => c.Field.JsonName == "flag").Value);
 
-            // A raw edit that deleted fields clears them in the tree (round-trip, not a merge).
+           
             FieldTreeBuilder.Apply(nodes, new JsonObject());
             Assert.Equal("", nodes.First(n => n.Field.JsonName == "name").Value);
             Assert.Empty(nodes.First(n => n.Field.JsonName == "ids").Items);

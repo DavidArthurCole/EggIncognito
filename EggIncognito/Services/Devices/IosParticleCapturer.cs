@@ -2,9 +2,7 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-// Captures a live particle effect off a jailbroken iPhone over ssh: stages a frida hook, runs it against
-// the egginc process, pulls the NDJSON log, and summarizes via ParticleCaptureModel. addrOffset is
-// addParticle's __text offset recovered host-side for the stripped device build; null uses the script's symbol path.
+
 public sealed class IosParticleCapturer(
     IProcessRunner runner, string sshHost, string sshPort, string sshKeyPath, string localScriptPath,
     string? addrOffset = null)
@@ -26,7 +24,7 @@ public sealed class IosParticleCapturer(
         try { File.Delete(staged); } catch { }
         if (push.ExitCode != 0) return null;
 
-        // No --runtime=v8: frida 17.x is QuickJS-only and the v8 flag faults the agent.
+       
         var run = await Ssh(
             $"rm -f {RemoteLog}; frida -U -n {Quote(ProcessName)} -l {RemoteScript} -q 2>&1; " +
             $"echo __frida_exit_$?", ct);
@@ -51,7 +49,7 @@ public sealed class IosParticleCapturer(
         }
     }
 
-    // Prepends `const addrOffset = '0x...';` for the stripped-device path; no offset stages the script unchanged.
+   
     private async Task<string?> BuildStagedScriptAsync(CancellationToken ct)
     {
         var body = await File.ReadAllTextAsync(localScriptPath, ct);

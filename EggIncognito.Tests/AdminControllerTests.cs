@@ -46,7 +46,7 @@ public class AdminControllerTests
         Assert.Equal(400, ((IStatusCodeActionResult)r).StatusCode);
     }
 
-    // Unknown roles must 400, never coerce to viewer.
+   
     [Theory]
     [InlineData("superuser")]
     [InlineData("")]

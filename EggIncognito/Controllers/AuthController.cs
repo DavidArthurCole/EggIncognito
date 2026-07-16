@@ -5,8 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EggIncognito.Controllers;
 
-// Logout + current-user JSON only. Login is entirely SyncKit's: it drives the OAuth round trip and
-// appends ?code to the page the user started on, which LoginCallbackMiddleware redeems into the cookie.
 [ApiController]
 public sealed class AuthController(AuthState authState, ICurrentUser currentUser) : ControllerBase
 {

@@ -75,7 +75,7 @@
             var doc = await Client().GetFromJsonAsync<DocResult>($"/api/docs/doc/{Kind}/{Uri.EscapeDataString(Key)}", JsonOpts);
             _bodyMd = doc?.BodyMd;
         }
-        catch { _bodyMd = null; } // best-effort; the summary still shows
+        catch { _bodyMd = null; }
     }
 
     record DocResult(string? BodyMd);

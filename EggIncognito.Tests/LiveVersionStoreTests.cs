@@ -36,7 +36,7 @@ public class LiveVersionStoreTests
         var dir = TempDir();
         var store = new LiveVersionStore(dir);
         store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.6", "111341", 72), "t1");
-        // a later request whose rinfo only carries clientVersion + platform must NOT wipe version/build.
+       
         store.Observe(new RinfoHarvester.ObservedVersion("IOS", null, null, 72), "t2");
 
         var v = store.Latest("ios");

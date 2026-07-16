@@ -52,7 +52,7 @@ public class RinfoHarvesterTests
     [Fact]
     public void Harvest_NestedInRealRequest_AndroidContributor()
     {
-        // rinfo is the key regardless of the enclosing message; harvest reads the top-level rinfo only.
+       
         var o = RinfoHarvester.TryHarvest("""{ "rinfo": { "clientVersion": 71, "version": "1.35.5", "platform": "ANDROID" } }""");
         Assert.Equal(71, o!.ClientVersion);
         Assert.Equal("ANDROID", o.Platform);

@@ -3,8 +3,6 @@ using System.Text.Json;
 
 namespace EggIncognito.Services;
 
-// The supporter claim baked into the auth cookie at login. Fail-closed: missing claim = not a
-// supporter.
 public static class SupporterClaims
 {
     public const string ClaimType = "egi:supporter";
@@ -16,15 +14,11 @@ public static class SupporterClaims
         identity.AddClaim(new Claim(ClaimType, isSupporter ? "true" : "false"));
     }
 }
-
-// Seam over the live role check so gates (hosted capture start) are testable without Discord.
 public interface ISupporterStatus
 {
     Task<bool> CheckAsync(string discordId, CancellationToken ct = default);
 }
 
-// Checks Supporter Discord role membership via the bot token. Fail-closed: missing config, API
-// error, non-member, missing role all report false. Never throws into the login pipeline.
 public sealed class SupporterStatus(
     IHttpClientFactory httpFactory, IConfiguration config, ILogger<SupporterStatus> logger) : ISupporterStatus
 {

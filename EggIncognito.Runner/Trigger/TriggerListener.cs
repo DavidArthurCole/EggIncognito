@@ -6,8 +6,6 @@ using EggIncognito.Runner.Runners;
 namespace EggIncognito.Runner.Trigger;
 
 public sealed record ResyncResult(int Status, RunOutcome? Outcome, string? Error);
-
-// Separate from Kestrel so it is unit-testable without a port.
 public sealed class ResyncHandler(string secret, Func<bool, RunOutcome> run)
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -39,8 +37,6 @@ public sealed class ResyncHandler(string secret, Func<bool, RunOutcome> run)
         return CryptographicOperations.FixedTimeEquals(presented, expected);
     }
 }
-
-// Host-local Kestrel listener: POST /resync (Authorization: Bearer, optional {"force":true}).
 public static class TriggerListener
 {
     public static WebApplication Build(string urls, ResyncHandler handler, ApkPureExtractHandler? extract = null)

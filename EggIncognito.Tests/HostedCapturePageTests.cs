@@ -12,8 +12,6 @@ using CapturePage = EggIncognito.Components.Pages.Capture;
 
 namespace EggIncognito.Tests;
 
-// Hosted capture surface: the mode payload capability, the /capture page branches per role, and the
-// controller gates (live supporter re-check on start, supporter-or-contributor on hosted save).
 public class HostedCapturePageTests
 {
     private sealed class FakeAppMode(bool canCapture, bool hostedEnabled) : IAppMode
@@ -58,7 +56,7 @@ public class HostedCapturePageTests
             (key, basePort) => CaptureSessionManagerTests.NewSession(
                 key == CaptureSessionManager.LocalKey ? 18080 : basePort));
 
-    // Page-level over the real host: Hosted mode payload + the anonymous /capture branch.
+   
     public class Integration : IClassFixture<WebApplicationFactory<Program>>
     {
         private readonly WebApplicationFactory<Program> _base;
@@ -72,8 +70,8 @@ public class HostedCapturePageTests
                 if (enabled)
                 {
                     b.UseSetting("HostedCaptureEnabled", "true");
-                    b.UseSetting("Capture:FrontDoorPort", "0"); // ephemeral; no fixed bind in tests
-                    b.UseSetting("Capture:AddressSecret", "test-secret"); // required when hosted capture is on
+                    b.UseSetting("Capture:FrontDoorPort", "0");
+                    b.UseSetting("Capture:AddressSecret", "test-secret");
                 }
             });
 
@@ -97,7 +95,7 @@ public class HostedCapturePageTests
             var c = Hosted(enabled: true).CreateClient();
             var html = await c.GetStringAsync("/capture");
             Assert.Contains("id=\"hostedLogin\"", html);
-            // Neither provider is configured; LoginButton renders disabled "Login unavailable".
+           
             Assert.Contains("Login unavailable", html);
             Assert.DoesNotContain("id=\"statsPanel\"", html);
         }
@@ -111,7 +109,7 @@ public class HostedCapturePageTests
         }
     }
 
-    // Component-level (bUnit): a faked ICurrentUser drives the page branch, AdminPageTests-style.
+   
     public class Component : BunitContext
     {
         private void Wire(bool authed, bool supporter)
@@ -161,12 +159,12 @@ public class HostedCapturePageTests
             Wire(authed: true, supporter: true);
             var cut = Render<CapturePage>();
             var markup = cut.Markup;
-            // The per-user IPv6 host placeholder + port + auth-off rows render.
+           
             Assert.NotNull(cut.Find("#proxyHost"));
             Assert.Contains("Server", markup);
             Assert.Contains("Port", markup);
             Assert.Contains("Auth", markup);
-            // No token / username credentials, no rotate button, no auto-proxy SSID card.
+           
             Assert.Empty(cut.FindAll("#proxyProfileCard"));
             Assert.Empty(cut.FindAll("#mintedToken"));
             Assert.DoesNotContain("Username", markup);
@@ -177,7 +175,7 @@ public class HostedCapturePageTests
         }
     }
 
-    // Controller gates, unit-level with fakes (StoredEndpointRoleTests style).
+   
     public class StartGate
     {
         private static CaptureController Controller(
@@ -196,7 +194,7 @@ public class HostedCapturePageTests
         [Fact]
         public async Task Start_LiveCheckFails_Is403SupporterRequired()
         {
-            // Even with the cookie claim set, the live re-check decides.
+           
             var r = await Controller(NewManager(), new FakeUser(true, supporter: true), new FakeSupporters(false))
                 .Start(CancellationToken.None);
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
@@ -260,7 +258,7 @@ public class HostedCapturePageTests
             var (controller, session) = WithFlowSession(new FakeUser(true, supporter: true, UserRole.Viewer));
             var id = PublishFlow(session);
             var r = await controller.SaveEndpoint(new CaptureController.SaveEndpointRequest(id), new FakeRoutes());
-            Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode); // past the role gate, stopped by no-DB
+            Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
         }
 
         [Fact]

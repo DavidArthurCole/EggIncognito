@@ -21,8 +21,8 @@ public class StoredEndpointRoleTests
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(role, need);
     }
 
-    // No DB registered, so a contributor passes the role gate then hits the 503 "no database" branch;
-    // a viewer is stopped at the 403 gate first. The status code tells us which gate fired.
+   
+   
     private sealed class EmptyServices : IServiceProvider
     {
         public object? GetService(Type serviceType) => null;
@@ -50,6 +50,6 @@ public class StoredEndpointRoleTests
     {
         var r = await Controller(UserRole.Contributor).UpsertEndpointAsync(
             new StoredEndpointController.UpsertEndpoint("ei/x", null, "{}", "PeriodicalsResponse"), new FakeRoutes());
-        Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode); // past the role gate, stopped by no-DB
+        Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
     }
 }

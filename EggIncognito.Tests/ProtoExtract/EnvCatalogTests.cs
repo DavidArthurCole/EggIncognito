@@ -26,7 +26,7 @@ public class EnvCatalogTests
         var ground = EnvCatalog.Pieces.First(p => p.Stem == "ei_farm_ground");
         Assert.True(ground.Singleton);
         Assert.Equal("Terrain", ground.Group);
-        // habs + storage are repeatable.
+       
         Assert.False(EnvCatalog.Pieces.First(p => p.Stem == "hab_10k").Singleton);
         Assert.Equal("Habs", EnvCatalog.Pieces.First(p => p.Stem == "hab_10k").Group);
         Assert.Equal("Storage", EnvCatalog.Pieces.First(p => p.Stem == "ei_silo_0_large").Group);
@@ -43,7 +43,7 @@ public class EnvCatalogTests
         Assert.Equal(4, habs.Select(h => h.Pos[0]).Distinct().Count());
         Assert.Equal(10, placed.Count(p => p.Stem == "ei_silo_0_large"));
         Assert.DoesNotContain(placed, p => p.Stem == "coop");
-        // the hyperloop station is part of the standard farm (across the road).
+       
         Assert.Contains(placed, p => p.Stem == "ei_hyperloop_stop");
     }
 
@@ -53,14 +53,14 @@ public class EnvCatalogTests
         var fam = EnvCatalog.Family("hab_10k");
         Assert.True(fam.Count >= 5);
         Assert.All(fam, p => Assert.Equal("hab", p.Family));
-        // a non-family piece has no siblings.
+       
         Assert.Empty(EnvCatalog.Family("ei_farm_ground"));
     }
 
     [Fact]
     public void SiloPos_MatchesGameFormula()
     {
-        // FarmScene::updateSilo: X = -6*floor(i/2) - 5; Z alternates 5.5 / -0.5; Y = 0.
+       
         Assert.Equal(new[] { -5f, 0f, 5.5f }, FarmLayout.SiloPos(0));
         Assert.Equal(new[] { -5f, 0f, -0.5f }, FarmLayout.SiloPos(1));
         Assert.Equal(new[] { -11f, 0f, 5.5f }, FarmLayout.SiloPos(2));
@@ -71,8 +71,8 @@ public class EnvCatalogTests
     [Fact]
     public void Standard_PlacesCoreZonesAtRowAnchors()
     {
-        // FarmLayout.Standard gives each core building its ROW's initial anchor (real left-to-right spacing
-        // is applied afterward by playground.js's repackZoneRow, using real mesh width the C# side cannot see).
+       
+       
         var placed = FarmLayout.Standard("hab_10k");
         var lab = placed.First(p => p.Stem == "ei_lab_6");
         var hoa = placed.First(p => p.Stem == "ei_hoa_3");
@@ -121,16 +121,16 @@ public class EnvCatalogTests
     [Fact]
     public void Standard_DefaultHabRow_IsMixedTopTiers_And_DefaultVariants()
     {
-        var placed = FarmLayout.Standard(); // no ?hab= -> the mixed default row
+        var placed = FarmLayout.Standard();
         var habs = placed.Where(p => p.Stem.StartsWith("hab_")).OrderBy(p => p.Pos[0]).ToList();
         Assert.Equal(4, habs.Count);
-        // left -> right: Chicken Universe x2, Planet Portal, Monolith
+       
         Assert.Equal(new[] { "hab_chicken_universe", "hab_chicken_universe", "hab_portal", "hab_monolith" },
             habs.Select(h => h.Stem).ToArray());
-        // all habs share the extracted fixed row Z.
+       
         Assert.All(habs, h => Assert.Equal(FarmLayout.HabRowZ, h.Pos[2], 2));
 
-        // default core variants.
+       
         Assert.Contains(placed, p => p.Stem == "ei_lab_6");
         Assert.Contains(placed, p => p.Stem == "ei_hoa_3");
         Assert.Contains(placed, p => p.Stem == "ei_hatchery_universe");

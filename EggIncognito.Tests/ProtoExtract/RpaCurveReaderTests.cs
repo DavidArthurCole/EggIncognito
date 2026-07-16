@@ -2,21 +2,19 @@ using EggIncognito.Services.ProtoExtract;
 using Xunit;
 
 namespace EggIncognito.Tests.ProtoExtract;
-
-// RPA1 = the Egg Inc baked animation-curve format (animations/*.rpa). Header + 16-byte keys (time, c0, c1, c2).
 public class RpaCurveReaderTests
 {
-    // Build a minimal valid RPA1 with the given keys (each = time + 3 components).
+   
     static byte[] Build(int nComp, (float t, float c0, float c1, float c2)[] keys)
     {
         var ms = new MemoryStream();
         var w = new BinaryWriter(ms);
         w.Write(new[] { (byte)'R', (byte)'P', (byte)'A', (byte)'1' });
-        w.Write(1); // tracks
-        w.Write(0); // reserved
-        w.Write(0); // reserved
-        w.Write(keys.Length); // nKeys @0x10
-        w.Write(nComp); // nComponents @0x14
+        w.Write(1);
+        w.Write(0);
+        w.Write(0);
+        w.Write(keys.Length);
+        w.Write(nComp);
         foreach (var k in keys) { w.Write(k.t); w.Write(k.c0); w.Write(k.c1); w.Write(k.c2); }
         return ms.ToArray();
     }
@@ -46,7 +44,7 @@ public class RpaCurveReaderTests
     public void Read_Truncated_NotOk()
     {
         var bin = Build(3, [(0f, 1f, 2f, 3f), (1f, 4f, 5f, 6f)]);
-        var trunc = bin[..(bin.Length - 8)]; // chop half a key
+        var trunc = bin[..(bin.Length - 8)];
         Assert.False(RpaCurveReader.Read(trunc).Ok);
     }
 
@@ -54,11 +52,11 @@ public class RpaCurveReaderTests
     public void Sample_LinearInterpolatesBetweenKeys_AndClampsEnds()
     {
         var c = RpaCurveReader.Read(Build(1, [(0f, 0f, 0f, 0f), (1f, 10f, 0f, 0f)]));
-        Assert.Equal(0f, c.Sample(-1f), 3); // clamp low
+        Assert.Equal(0f, c.Sample(-1f), 3);
         Assert.Equal(0f, c.Sample(0f), 3);
-        Assert.Equal(5f, c.Sample(0.5f), 3); // midpoint
+        Assert.Equal(5f, c.Sample(0.5f), 3);
         Assert.Equal(10f, c.Sample(1f), 3);
-        Assert.Equal(10f, c.Sample(2f), 3); // clamp high
+        Assert.Equal(10f, c.Sample(2f), 3);
     }
 
     [Fact]

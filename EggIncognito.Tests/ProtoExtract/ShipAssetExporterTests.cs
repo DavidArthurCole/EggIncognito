@@ -3,11 +3,9 @@ using EggIncognito.Services;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
-
-// ShipNameMap + ShipAssetExporter: the ei_ship_* -> Spaceship enum mapping and the ship-only export.
 public class ShipAssetExporterTests
 {
-    // The 11 MissionInfo.Spaceship enum names, value order. Mirrors EggLedger's enum.
+   
     private static readonly string[] EnumShips =
     [
         "ChickenOne", "ChickenNine", "ChickenHeavy", "Bcr", "MilleniumChicken",
@@ -20,7 +18,7 @@ public class ShipAssetExporterTests
         var mapped = ShipNameMap.All.Select(s => s.EnumName).ToList();
         Assert.Equal(EnumShips.Length, mapped.Count);
         Assert.Equal(EnumShips.OrderBy(x => x), mapped.OrderBy(x => x));
-        Assert.Equal(mapped.Count, mapped.Distinct().Count()); // no dupes
+        Assert.Equal(mapped.Count, mapped.Distinct().Count());
     }
 
     [Fact]
@@ -41,7 +39,7 @@ public class ShipAssetExporterTests
         Assert.True(ShipNameMap.IsBundledShip("ei_ship_bcr"));
         Assert.False(ShipNameMap.IsBundledShip("afx_ship_galeggtica"));
         Assert.Null(ShipNameMap.EnumNameForStem("ei_silo_3_large"));
-        Assert.Null(ShipNameMap.EnumNameForStem("ei_ship_rooster")); // launch prop, not an enum ship
+        Assert.Null(ShipNameMap.EnumNameForStem("ei_ship_rooster"));
     }
 
     [Fact]

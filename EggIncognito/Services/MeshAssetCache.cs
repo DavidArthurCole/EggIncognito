@@ -1,8 +1,6 @@
 namespace EggIncognito.Services;
 
-// On-disk cache of decoded mesh .glb files, so the playground + API serve a pre-computed glb instead of
-// re-pulling the archive off a device and re-decoding on every request. Keyed by (platform, stem), under
-// ShipAssets:OutputDir/cache; a null/empty config disables the cache (every read a miss, every write a no-op).
+
 public sealed class MeshAssetCache(IConfiguration config)
 {
     private string? CacheRoot
@@ -14,8 +12,8 @@ public sealed class MeshAssetCache(IConfiguration config)
         }
     }
 
-    // The cached glb bytes for (platform, stem), or null on a miss / no cache configured. Decoded glb only
-    // (un-animated); animation is applied on top per request so one cache entry serves every animation kind.
+   
+   
     public byte[]? TryGet(string platform, string stem)
     {
         var path = PathFor(platform, stem);
@@ -42,7 +40,7 @@ public sealed class MeshAssetCache(IConfiguration config)
 
     public sealed record CachedMesh(string Stem, long Bytes, DateTimeOffset CachedAt);
 
-    // The cached meshes for a platform (stem + size + time), for the admin list. Empty when none / disabled.
+   
     public IReadOnlyList<CachedMesh> List(string platform)
     {
         var root = CacheRoot;
@@ -78,7 +76,7 @@ public sealed class MeshAssetCache(IConfiguration config)
 
     public bool Enabled => CacheRoot is not null;
 
-    // <cacheRoot>/<platform>/<stem>.glb. Stem + platform are sanitized to a safe filename (no traversal).
+   
     private string? PathFor(string platform, string stem)
     {
         var root = CacheRoot;
@@ -86,7 +84,7 @@ public sealed class MeshAssetCache(IConfiguration config)
         return Path.Combine(root, Safe(platform), Safe(stem) + ".glb");
     }
 
-    // Strips anything but the filename-safe set so a crafted stem cannot escape the cache dir.
+   
     private static string Safe(string s)
     {
         Span<char> buf = stackalloc char[s.Length];

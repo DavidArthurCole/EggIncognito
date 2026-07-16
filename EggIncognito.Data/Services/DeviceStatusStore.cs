@@ -46,7 +46,7 @@ public sealed class DeviceStatusStore(EggIncognitoDbContext db) : IDeviceStatusS
 
     public async Task<List<DeviceProbe>> LatestPerDeviceAsync(CancellationToken ct = default)
     {
-        // Correlated subquery so Postgres uses the (device_id, probed_at) index instead of a full scan.
+       
         return await db.DeviceProbes.AsNoTracking()
             .Where(p => p.ProbedAt == db.DeviceProbes
                 .Where(x => x.DeviceId == p.DeviceId)

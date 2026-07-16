@@ -29,7 +29,7 @@ public static class Program
 
         Directory.CreateDirectory(apkStash);
 
-        // SIGTERM/Ctrl+C cancel the poll loop so the process exits promptly instead of waiting for systemd's kill timeout.
+       
         using var shutdown = new CancellationTokenSource();
         using var sigterm = System.Runtime.InteropServices.PosixSignalRegistration.Create(
             System.Runtime.InteropServices.PosixSignal.SIGTERM, ctx => { ctx.Cancel = true; shutdown.Cancel(); });
@@ -75,7 +75,7 @@ public static class Program
                 new CSharpProtoExtractor(), clientVersion, cvState,
                 evt => poster.PostAsync(evt));
             trigger = TriggerListener.Build(triggerUrls, handler, extractHandler);
-            // StartAsync (not RunAsync) keeps the host from installing its own SIGTERM handler to race ours.
+           
             await trigger.StartAsync(ct);
             Console.WriteLine($"resync trigger listening on {triggerUrls}");
         }
@@ -85,7 +85,7 @@ public static class Program
         {
             try
             {
-                // RunOnce is synchronous and ct-blind; race it against cancellation so SIGTERM returns control immediately.
+               
                 var tick = Task.Run(() => runner.RunOnce(force: false));
                 var done = await Task.WhenAny(tick, Task.Delay(Timeout.Infinite, ct));
                 if (done != tick) break;

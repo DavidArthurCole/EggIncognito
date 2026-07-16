@@ -1,8 +1,6 @@
 namespace EggIncognito.Tests.ProtoExtract;
 
-// Builds a minimal valid thin arm64 Mach-O in memory for symbol-recovery tests: a mach_header_64 +
-// LC_SEGMENT_64(__TEXT) with one __text section + LC_SYMTAB. Enough for MachoText.TryFindText and
-// MachoSymbols.Read to parse it. Not a real executable; never run.
+
 public static class SyntheticMacho
 {
     public const ulong TextVm = 0x100004000;
@@ -24,7 +22,7 @@ public static class SyntheticMacho
         }
 
         const int headerSize = 32;
-        const int segCmdSize = 72 + 80; // segment_command_64 (72) + one section_64 (80)
+        const int segCmdSize = 72 + 80;
         const int symtabCmdSize = 24;
         int loadCmdsSize = segCmdSize + symtabCmdSize;
         int textFileOff = headerSize + loadCmdsSize;
@@ -39,38 +37,38 @@ public static class SyntheticMacho
 
         var bin = new byte[total];
 
-        WU32(bin, 0, 0xFEEDFACF); // magic
-        WU32(bin, 4, 0x0100000C); // cputype ARM64
-        WU32(bin, 8, 0); // cpusubtype
-        WU32(bin, 12, 2); // filetype MH_EXECUTE
-        WU32(bin, 16, 2); // ncmds (segment + symtab)
-        WU32(bin, 20, (uint)loadCmdsSize); // sizeofcmds
-        WU32(bin, 24, 0); // flags
-        WU32(bin, 28, 0); // reserved
+        WU32(bin, 0, 0xFEEDFACF);
+        WU32(bin, 4, 0x0100000C);
+        WU32(bin, 8, 0);
+        WU32(bin, 12, 2);
+        WU32(bin, 16, 2);
+        WU32(bin, 20, (uint)loadCmdsSize);
+        WU32(bin, 24, 0);
+        WU32(bin, 28, 0);
 
         int lc = headerSize;
-        WU32(bin, lc, 0x19); // cmd LC_SEGMENT_64
-        WU32(bin, lc + 4, (uint)segCmdSize); // cmdsize
-        WStr16(bin, lc + 8, "__TEXT"); // segname
-        WU64(bin, lc + 24, TextVm); // vmaddr
-        WU64(bin, lc + 32, (ulong)text.Length); // vmsize
-        WU64(bin, lc + 40, (ulong)textFileOff); // fileoff
-        WU64(bin, lc + 48, (ulong)text.Length); // filesize
-        WU32(bin, lc + 56, 7); // maxprot
-        WU32(bin, lc + 60, 5); // initprot
-        WU32(bin, lc + 64, 1); // nsects
-        WU32(bin, lc + 68, 0); // flags
+        WU32(bin, lc, 0x19);
+        WU32(bin, lc + 4, (uint)segCmdSize);
+        WStr16(bin, lc + 8, "__TEXT");
+        WU64(bin, lc + 24, TextVm);
+        WU64(bin, lc + 32, (ulong)text.Length);
+        WU64(bin, lc + 40, (ulong)textFileOff);
+        WU64(bin, lc + 48, (ulong)text.Length);
+        WU32(bin, lc + 56, 7);
+        WU32(bin, lc + 60, 5);
+        WU32(bin, lc + 64, 1);
+        WU32(bin, lc + 68, 0);
 
         int sec = lc + 72;
-        WStr16(bin, sec, "__text"); // sectname
-        WStr16(bin, sec + 16, "__TEXT"); // segname
-        WU64(bin, sec + 32, TextVm); // addr
-        WU64(bin, sec + 40, (ulong)text.Length); // size
-        WU32(bin, sec + 48, (uint)textFileOff); // offset
-        WU32(bin, sec + 52, 4); // align (2^4)
+        WStr16(bin, sec, "__text");
+        WStr16(bin, sec + 16, "__TEXT");
+        WU64(bin, sec + 32, TextVm);
+        WU64(bin, sec + 40, (ulong)text.Length);
+        WU32(bin, sec + 48, (uint)textFileOff);
+        WU32(bin, sec + 52, 4);
 
         lc = headerSize + segCmdSize;
-        WU32(bin, lc, 0x02); // cmd LC_SYMTAB
+        WU32(bin, lc, 0x02);
         WU32(bin, lc + 4, (uint)symtabCmdSize);
         WU32(bin, lc + 8, (uint)symoff);
         WU32(bin, lc + 12, (uint)nsyms);
@@ -82,11 +80,11 @@ public static class SyntheticMacho
         for (int i = 0; i < nsyms; i++)
         {
             int e = symoff + i * 16;
-            WU32(bin, e, strx[symList[i].Name]); // n_strx
-            bin[e + 4] = 0x0E; // n_type N_SECT | N_EXT-ish (nonzero, parser ignores)
-            bin[e + 5] = 1; // n_sect
-            WU16(bin, e + 6, 0); // n_desc
-            WU64(bin, e + 8, symList[i].Value); // n_value
+            WU32(bin, e, strx[symList[i].Name]);
+            bin[e + 4] = 0x0E;
+            bin[e + 5] = 1;
+            WU16(bin, e + 6, 0);
+            WU64(bin, e + 8, symList[i].Value);
         }
 
         for (int i = 0; i < strtab.Count; i++) bin[stroff + i] = strtab[i];

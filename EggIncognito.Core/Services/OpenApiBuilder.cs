@@ -1,8 +1,4 @@
-// AuxbrainCatalog -> OpenAPI 3.0 document, built by hand with System.Text.Json (no Swagger package
-// in Core; the JsonParser.Default rule covers endpoint proto payloads only, not this doc). Each path
-// is a POST taking the form field data=<base64 proto>; the 200 response schema is derived from the
-// response proto descriptor via ProtoReflection. Every message type becomes one component schema,
-// referenced by $ref, so recursive protos terminate naturally. Pure: catalog in, JSON string out.
+
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -14,7 +10,7 @@ public static class OpenApiBuilder
 {
     public static string BuildJson(IReadOnlyList<AuxbrainEntry> entries, IProtoReflection reflection)
     {
-        // Components are collected here while operations are built, then attached once at the end.
+       
         var components = new SortedDictionary<string, JsonObject>(StringComparer.Ordinal);
 
         var paths = new JsonObject();
@@ -162,8 +158,8 @@ public static class OpenApiBuilder
         return response;
     }
 
-    // One component schema per message type, $ref'd everywhere it appears. The placeholder is
-    // registered before fields are walked so recursive messages hit the ref instead of looping.
+   
+   
     private static JsonObject Ref(MessageDescriptor d, IDictionary<string, JsonObject> components)
     {
         var name = ComponentName(d);
@@ -179,7 +175,7 @@ public static class OpenApiBuilder
         return new JsonObject { ["$ref"] = "#/components/schemas/" + name };
     }
 
-    // "ei.Backup.Settings" -> "Backup.Settings": short where possible, still unique for nested types.
+   
     private static string ComponentName(MessageDescriptor d) =>
         d.FullName.StartsWith("ei.", StringComparison.Ordinal) ? d.FullName[3..] : d.FullName;
 
@@ -199,8 +195,8 @@ public static class OpenApiBuilder
         return SingleSchema(f, components);
     }
 
-    // Scalar mapping follows the protobuf JSON wire format the mock's decoder/Inspector emit:
-    // 64-bit integers serialize as strings, bytes as base64 strings, enums as value names.
+   
+   
     private static JsonObject SingleSchema(FieldDescriptor f, IDictionary<string, JsonObject> components)
     {
         return f.FieldType switch

@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
-
-// Stores the key ring in Postgres so auth cookies survive restarts.
 public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> options)
     : DbContext(options), IDataProtectionKeyContext
 {
@@ -43,7 +41,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         b.Entity<StoredRoute>(r =>
         {
             r.HasIndex(x => x.Path).IsUnique();
-            // DbRouteProvider.AllDbRoutes filters on source alone; without this it full-scans.
+           
             r.HasIndex(x => x.Source);
             r.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
@@ -59,7 +57,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         });
         b.Entity<SubjectTag>(s =>
         {
-            // The composite unique index also serves (subject_kind, subject_key) prefix lookups.
+           
             s.HasIndex(x => new { x.SubjectKind, x.SubjectKey, x.TagId }).IsUnique();
         });
         b.Entity<DocImage>(im =>
@@ -100,7 +98,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         b.Entity<BackfillJob>(e =>
         {
             e.HasKey(x => x.Id);
-            // LatestPerSource orders by StartedAt within a source; index keeps that off a full scan.
+           
             e.HasIndex(x => new { x.Source, x.StartedAt });
         });
         b.Entity<KnownVersion>(e =>
@@ -122,7 +120,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         b.Entity<DeviceProbe>(e =>
         {
             e.HasKey(x => x.Id);
-            // LatestPerDevice orders by ProbedAt within a device; index keeps that off a full scan.
+           
             e.HasIndex(x => new { x.DeviceId, x.ProbedAt });
         });
         b.Entity<DeviceUpdate>(e =>

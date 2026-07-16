@@ -17,8 +17,8 @@ public class AndroidProtoExtractorTests
     [Fact]
     public void Extract_BareSoWithDescriptor_CarvesProto()
     {
-        // A raw (non-zip) buffer carrying a serialized ei.proto FileDescriptorProto anchor is carved
-        // directly. Build a minimal descriptor: name field only ("ei.proto", package ei).
+       
+       
         var fdp = new FileDescriptorProto { Name = "ei.proto", Package = "ei" };
         var blob = fdp.ToByteArray();
         var buf = new byte[64 + blob.Length];

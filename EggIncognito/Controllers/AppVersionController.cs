@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EggIncognito.Controllers;
 
-// The build identity of the running server, for the client reconnect watcher: when the version
-// differs from the one the page loaded with, the page reloads.
 [ApiController]
 [Route("api/app/version")]
 public sealed class AppVersionController : ControllerBase

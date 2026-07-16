@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
-
-// Links a subject (message type or endpoint path) to a Tag. No hard FK to tags; validity enforced in app. Unique per (subject, tag).
 [Table("subject_tags")]
 public class SubjectTag
 {

@@ -8,13 +8,11 @@ using SyncKit.Identity.Client;
 
 namespace EggIncognito.Services;
 
-// Wires the single cookie scheme the SyncKit widget login signs into. No OAuth providers: login is
-// SyncKit-only (AuthController.RedeemCode). Returns whether auth was wired so Program.cs can guard the
-// auth middleware and endpoints. When false the app runs fully anonymous.
+
 public static class AuthSetup
 {
-    // Fail-open: if the Identity API is unreachable the revocation check can't run, so keep the existing
-    // principal rather than throwing (a transient identity-service outage must not 500 every page load).
+   
+   
     private static async Task ValidateNotRevoked(CookieValidatePrincipalContext ctx)
     {
         var identity = ctx.HttpContext.RequestServices.GetService<IdentityApiClient>();
@@ -32,8 +30,8 @@ public static class AuthSetup
         catch (TaskCanceledException) { }
     }
 
-    // Cookie scheme for widget-minted logins. Persistent 30-day sliding window so a login survives
-    // restarts/redeploys. Registered only when the SyncKit Identity API is configured.
+   
+   
     public static bool AddSyncKitAuthIfConfigured(this WebApplicationBuilder builder, bool identityApiEnabled)
     {
         if (!identityApiEnabled) return false;

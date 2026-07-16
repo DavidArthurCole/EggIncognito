@@ -2,16 +2,10 @@ using System.IO.Compression;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Pulls the Egg Inc native binary out of a mobile app archive (Android APK or iOS IPA, both zips) and
-// carves the embedded FileDescriptorProto from it. The binary is a COMPRESSED zip entry, so it must be
-// located + decompressed before scanning. Candidate entries, in priority order:
-//   APK: lib/<abi>/libegginc.so  (prefer arm64), then any lib .so
-//   IPA: Payload/<App>.app/<exec> Mach-O (the executable + frameworks)
-// Each candidate is decompressed (size-capped against zip bombs) and run through DescriptorProtoCarver;
-// the first that yields a descriptor wins. Pure + defensive: the archive is read as bytes, never executed.
+
 public static class ArchiveProtoExtractor
 {
-    // Cap on a single decompressed entry (real binaries: libegginc.so ~10-40MB, iOS Mach-O ~50-90MB).
+   
     private const long MaxEntryBytes = 300_000_000L;
 
     public static DescriptorProtoCarver.ExtractResult Extract(byte[] archiveZipBytes)
@@ -27,13 +21,13 @@ public static class ArchiveProtoExtractor
             if (r.Ok) return r with { AppVersion = appVersion, Build = build };
         }
 
-        // Last resort: scan the whole archive bytes (covers a stored/uncompressed binary entry).
+       
         var raw = DescriptorProtoCarver.Extract(archiveZipBytes);
         return raw.Ok ? raw with { AppVersion = appVersion, Build = build } : raw;
     }
 
-    // Reads (appVersion, build) from the archive's own metadata. APK: versionName + versionCode
-    // (versionCode IS the auxbrain build, e.g. 111341). iOS: CFBundleShortVersionString; build null.
+   
+   
     private static (string? AppVersion, string? Build) ReadVersion(byte[] zipBytes)
     {
         try
@@ -51,7 +45,7 @@ public static class ArchiveProtoExtractor
                 es.CopyTo(buf);
                 var text = System.Text.Encoding.UTF8.GetString(buf.ToArray());
                 var shortVer = PlistString(text, "CFBundleShortVersionString");
-                // build is null for iOS: CFBundleVersion is the bundle build, not the auxbrain build; backfilled from live capture / registry.
+               
                 return (shortVer, null);
             }
 
@@ -69,8 +63,8 @@ public static class ArchiveProtoExtractor
         return (null, null);
     }
 
-    // Pulls a string value from an XML plist: <key>NAME</key><string>VALUE</string>. Binary plists are
-    // not parsed (decrypted IPAs from the App Store ship XML plists); returns null when not found.
+   
+   
     private static string? PlistString(string plistXml, string key)
     {
         var keyTag = $"<key>{key}</key>";
@@ -85,7 +79,7 @@ public static class ArchiveProtoExtractor
         return val.Length == 0 ? null : System.Net.WebUtility.HtmlDecode(val);
     }
 
-    // Yields the decompressed bytes of each candidate binary entry, best-guess order, APK then IPA.
+   
     private static IEnumerable<byte[]> CandidateBinaries(byte[] archiveZipBytes)
     {
         ZipArchive zip;
@@ -95,7 +89,7 @@ public static class ArchiveProtoExtractor
         }
         catch
         {
-            yield break; // not a readable zip
+            yield break;
         }
 
         using (zip)
@@ -117,14 +111,14 @@ public static class ArchiveProtoExtractor
         }
     }
 
-    // Ranks zip entries by how likely they hold the descriptor. APK native libs + the iOS app executable
-    // and its frameworks, arm64 preferred. Distinct, highest-priority first.
+   
+   
     private static IEnumerable<ZipArchiveEntry> OrderedCandidates(ZipArchive zip)
     {
         bool IsApkLibEggInc(ZipArchiveEntry e) => e.FullName.EndsWith("/libegginc.so", StringComparison.OrdinalIgnoreCase);
         bool IsArm64So(ZipArchiveEntry e) => e.FullName.Contains("arm64", StringComparison.OrdinalIgnoreCase) && e.FullName.EndsWith(".so", StringComparison.OrdinalIgnoreCase);
         bool IsAnySo(ZipArchiveEntry e) => e.FullName.EndsWith(".so", StringComparison.OrdinalIgnoreCase);
-        // The iOS app executable has no extension and sits directly under Payload/<App>.app/.
+       
         bool IsIosAppExecutable(ZipArchiveEntry e)
         {
             var f = e.FullName;
@@ -132,9 +126,9 @@ public static class ArchiveProtoExtractor
             var appIdx = f.IndexOf(".app/", StringComparison.OrdinalIgnoreCase);
             if (appIdx < 0) return false;
             var rest = f[(appIdx + 5)..];
-            return rest.Length > 0 && !rest.Contains('/') && !rest.Contains('.'); // top-level, extensionless
+            return rest.Length > 0 && !rest.Contains('/') && !rest.Contains('.');
         }
-        // iOS frameworks (nanopb/proto runtime + the app's own) carry descriptors too.
+       
         bool IsIosFrameworkBinary(ZipArchiveEntry e)
         {
             var f = e.FullName;
@@ -151,8 +145,6 @@ public static class ArchiveProtoExtractor
     }
 }
 
-// Back-compat alias. Earlier code + tests referenced ApkProtoExtractor; the logic now handles both APK
-// and IPA via ArchiveProtoExtractor.
 public static class ApkProtoExtractor
 {
     public static DescriptorProtoCarver.ExtractResult Extract(byte[] archiveZipBytes) =>

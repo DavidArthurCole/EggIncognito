@@ -33,8 +33,8 @@ public class RedactorTests
         var json = $"{{ \"{field}\": \"super-secret-value-123\" }}";
         var red = Svc.Redactor.Redact(json);
         Assert.DoesNotContain("super-secret-value-123", red);
-        Assert.Contains($"\"{field}\":", red); // key preserved
-        Assert.Contains("redacted-", red); // value tokenized
+        Assert.Contains($"\"{field}\":", red);
+        Assert.Contains("redacted-", red);
     }
 
     [Fact]
@@ -57,13 +57,13 @@ public class RedactorTests
         var json = "{ \"originalTransactionId\": \"amdflgjddogdgeejiamdpaej.AO-J1Oy8\", \"periodEnd\": 1782945704.448 }";
         var red = Svc.Redactor.Redact(json);
         Assert.DoesNotContain("amdflgjddogdgeejiamdpaej", red);
-        Assert.Contains("1782945704.448", red); // non-sensitive numeric kept
+        Assert.Contains("1782945704.448", red);
     }
 
     [Fact]
     public void Redact_ValueWithEscapedQuote_IsConsumedWhole()
     {
-        // The value contains \" - the naive [^"]+ pattern stops at the escape and leaks the tail.
+       
         var json = "{ \"deviceName\": \"say \\\" hideout\" }";
         var red = Svc.Redactor.Redact(json);
         Assert.DoesNotContain("say", red);
@@ -80,9 +80,9 @@ public class RedactorTests
         Assert.Contains("\"keepMe\": \"visible\"", red);
     }
 
-    // The allowlist is hand-maintained, so sweep every Ei.* string field whose name looks PII-shaped
-    // and demand it is either in SensitiveFields or explicitly justified as safe below. A new proto
-    // field that smells like PII then fails this test until someone makes the call.
+   
+   
+   
     [Fact]
     public void SensitiveFields_CoverEveryPiiLookingProtoStringField()
     {
@@ -90,17 +90,17 @@ public class RedactorTests
             "email|secret|password|token|account|device|transaction|receipt|advertising|push|signature|alias|identifier|username|userid|servicesid",
             RegexOptions.IgnoreCase);
 
-        // PII-shaped names that are safe to keep in public endpoint JSON, and why.
+       
         var safe = new HashSet<string>(StringComparer.Ordinal)
         {
-            // EID-form ids: scrubbed to the EID placeholder by the extractor, not the redactor
+           
             "userId", "eiUserId", "coopUserId", "requestingUserId", "destUserId",
             "toEiUserId", "eiUserIdToKeep", "pastUserIds", "playerIdentifier",
-            // public, world-readable game identifiers (contracts, seasons, cosmetics, products)
+           
             "identifier", "contractIdentifier", "contractIdentifiers", "seasonIdentifier",
             "setIdentifier", "shellIdentifier", "shellSetIdentifier", "variationIdentifier",
             "decoratorIdentifier", "groupIdentifier", "chickenIdentifier", "hatIdentifier",
-            // coarse hardware class, not a unique identifier
+           
             "deviceBucket",
         };
 

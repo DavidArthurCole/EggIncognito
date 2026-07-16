@@ -3,15 +3,13 @@ using EggIncognito.Services.Backfill.Sources;
 
 namespace EggIncognito.Services.Backfill;
 
-// Proactive store poller: on a schedule, fetches the iOS App Store and Google Play version and records
-// newly seen versions in the known-versions discovery list. DB-gated: a no-DB or disabled host no-ops.
 public sealed class VersionPollerService(
     IServiceScopeFactory scopeFactory,
     VersionPollerOptions options,
     TimeProvider time,
     ILogger<VersionPollerService> logger) : BackgroundService
 {
-    // APKPure's versions page Cloudflare-403s the scrape client, so it's the APK-download source only.
+   
     private static readonly (string Platform, string Source)[] PlatformSources =
         [("android", "fandom"), ("ios", "itunes")];
 

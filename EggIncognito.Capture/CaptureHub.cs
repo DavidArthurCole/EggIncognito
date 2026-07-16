@@ -2,10 +2,6 @@ using System.Threading.Channels;
 
 namespace EggIncognito.Capture;
 
-// In-memory broker between the capture proxy and the dashboard browsers. The proxy raises flows +
-// connection/error events on its own threads; all mutable state is guarded by a lock, and each
-// subscriber gets its own bounded Channel of CaptureEnvelope so a stalled browser drops oldest queued
-// messages instead of blocking the proxy.
 public sealed class CaptureHub
 {
     private const int BufferCap = 500;
@@ -19,17 +15,17 @@ public sealed class CaptureHub
     private readonly List<Channel<CaptureEnvelope>> _subscribers = [];
     private long _nextId;
 
-    // stats counters, all under _gate
+   
     private int _activeConnections;
     private readonly Dictionary<string, Device> _devices = new(StringComparer.Ordinal);
-    // Devices remembered from prior runs, seeded at session start. Shown as offline cards until a
-    // matching IP connects, at which point the live device adopts the remembered identity.
+   
+   
     private readonly Dictionary<string, RememberedDevice> _known = new(StringComparer.Ordinal);
-    // Raised outside the lock whenever the device set changes, so the owner can persist it.
+   
     public Action? DevicesChanged;
-    // Session's most-recently-seen device OS + game version, from the decoded request's rinfo. The flow
-    // path sees loopback not the device IP, so these are only surfaced when exactly one device is
-    // connected, the common single-phone case.
+   
+   
+   
     private string? _lastOs;
     private string? _lastGameVersion;
     private int _capturedAuxbrain;
@@ -43,11 +39,11 @@ public sealed class CaptureHub
     private bool _sawAuxbrainConnect;
     private CertState _certState = CertState.Waiting;
 
-    // When paused, Publish records nothing and broadcasts no flow. Stats/connection events still
-    // update so the cert pill and device info stay accurate while paused.
+   
+   
     public bool Paused { get; set; }
 
-    // Stamp Id/Timestamp, buffer, update stats, broadcast. Returns stored flow or null if paused.
+   
     public DashboardFlow? Publish(DashboardFlow flow, string timestamp, bool isAuxbrain = true)
     {
         DashboardFlow? stored = null;
@@ -64,8 +60,8 @@ public sealed class CaptureHub
                 var (os, gameVersion) = ParseRInfo(flow.RequestJson);
                 if (os is not null) _lastOs = os;
                 if (gameVersion is not null) _lastGameVersion = gameVersion;
-                // When exactly one device is connected, the rinfo OS/version belongs to it - stamp it on
-                // that device so it persists per-device and survives into the remembered store.
+               
+               
                 if (_devices.Count == 1 && (os is not null || gameVersion is not null))
                 {
                     var only = _devices.Values.First();
@@ -77,7 +73,7 @@ public sealed class CaptureHub
                 if (!string.IsNullOrEmpty(flow.Path))
                     _bytesByEndpoint[flow.Path] = _bytesByEndpoint.GetValueOrDefault(flow.Path) + bytes;
 
-                // First successful auxbrain decrypt means the CA is trusted on the device.
+               
                 if (_certState != CertState.Trusted)
                 {
                     _certState = CertState.Trusted;
@@ -109,7 +105,7 @@ public sealed class CaptureHub
         return stored;
     }
 
-    // Record a new connection; fires DeviceConnected toast for a newly-seen device.
+   
     public void RecordConnection(int activeCount, string? ip, string timestamp)
     {
         CaptureEvent? notice = null;
@@ -121,7 +117,7 @@ public sealed class CaptureHub
             {
                 if (!_devices.TryGetValue(ip, out var dev))
                 {
-                    // Adopt the remembered identity if we have seen this IP in a prior run.
+                   
                     _known.TryGetValue(ip, out var prior);
                     dev = new Device(ip, prior?.FirstSeen ?? timestamp)
                     {
@@ -151,8 +147,8 @@ public sealed class CaptureHub
         lock (_gate)
         {
             _activeConnections = activeCount;
-            // When all connections are gone, every live device is now offline. The forwarder cannot
-            // tell us which IP dropped, so a zero count means none remain.
+           
+           
             if (activeCount == 0)
                 foreach (var d in _devices.Values) d.Online = false;
         }
@@ -162,7 +158,7 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    // Best-effort reverse-DNS for a device IP, off the hot path. Failures are silently ignored.
+   
     private async Task ResolveHostnameAsync(string ip)
     {
         string? host = null;
@@ -179,14 +175,14 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    // Seeing a CONNECT alone does not prove the cert is untrusted; a later decrypt error is what flips state.
+   
     public void RecordAuxbrainConnect()
     {
         lock (_gate) _sawAuxbrainConnect = true;
         BroadcastStats();
     }
 
-    // A decrypt/TLS error fired. Strong signal the CA is not trusted on the device.
+   
     public void RecordDecryptError(string message, string timestamp)
     {
         lock (_gate)
@@ -227,7 +223,7 @@ public sealed class CaptureHub
                 d.GameVersion ?? (single ? _lastGameVersion : null),
                 Online: d.Online,
                 TotalConnections: d.TotalConnections));
-        // Remembered devices from prior runs that are not live this session, shown as offline cards.
+       
         var offline = _known.Values
             .Where(k => !_devices.ContainsKey(k.Ip))
             .Select(k => new DeviceInfo(
@@ -253,7 +249,7 @@ public sealed class CaptureHub
             Port: _proxyPort);
     }
 
-    // OS + version from rinfo; User-Agent does not carry the OS. Returns (null, null) when absent.
+   
     private static (string? Os, string? GameVersion) ParseRInfo(string? requestJson)
     {
         if (string.IsNullOrEmpty(requestJson)) return (null, null);
@@ -278,7 +274,7 @@ public sealed class CaptureHub
         }
     }
 
-    // Map Egg, Inc.'s platform enum strings to a human OS name.
+   
     private static string OsLabel(string? platform) => platform?.ToUpperInvariant() switch
     {
         "IOS" => "iOS",
@@ -287,21 +283,21 @@ public sealed class CaptureHub
         _ => platform!,
     };
 
-    // Mutable per-device record kept in the hub, converted to the immutable DeviceInfo for snapshots.
+   
     private sealed class Device(string ip, string firstSeen)
     {
         public string Ip { get; } = ip;
         public string FirstSeen { get; } = firstSeen;
         public string LastSeen { get; set; } = firstSeen;
         public string? Hostname { get; set; }
-        public int Connections { get; set; } // active connections this session
-        public int TotalConnections { get; set; } // lifetime, seeded from the remembered value
+        public int Connections { get; set; }
+        public int TotalConnections { get; set; }
         public bool Online { get; set; } = true;
         public string? Os { get; set; }
         public string? GameVersion { get; set; }
     }
 
-    // Seed devices remembered from prior runs. Called once at session start, before any connection.
+   
     public void SeedKnownDevices(IReadOnlyList<RememberedDevice> devices)
     {
         lock (_gate)
@@ -311,8 +307,8 @@ public sealed class CaptureHub
         }
     }
 
-    // The merged device set, live plus remembered-offline, as a persistable list. Live devices win and
-    // carry their up-to-date fields; remembered-only devices are preserved as-is.
+   
+   
     public IReadOnlyList<RememberedDevice> SnapshotRememberedDevices()
     {
         lock (_gate)
@@ -346,7 +342,7 @@ public sealed class CaptureHub
         }
     }
 
-    // Mark a buffered flow as saved-as-endpoint and re-broadcast it so open tabs stay in sync.
+   
     public void MarkSaved(long id)
     {
         DashboardFlow? updated = null;
@@ -364,7 +360,7 @@ public sealed class CaptureHub
 
     public bool HasSubscribers { get { lock (_gate) return _subscribers.Count > 0; } }
 
-    // Set by CaptureSession on start/stop; pushed on stats so the running pill stays live.
+   
     private bool _proxyRunning;
     private int _proxyPort;
     public void SetProxyState(bool running, int port)
@@ -373,7 +369,7 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    // Push a one-off notice to every dashboard, e.g. a failed CA Discord DM at session start.
+   
     public void PostNotice(CaptureEvent notice) =>
         Broadcast(new CaptureEnvelope(KindNotice, null, null, notice));
 
@@ -414,7 +410,7 @@ public sealed class CaptureHub
         ch.Writer.TryComplete();
     }
 
-    // Rough on-the-wire size of a flow for the bytes stat: base64 lengths of request + response.
+   
     private static long ApproxBytes(DashboardFlow flow) =>
         (flow.ResponseB64?.Length ?? 0) + (flow.RequestDataB64?.Length ?? 0);
 

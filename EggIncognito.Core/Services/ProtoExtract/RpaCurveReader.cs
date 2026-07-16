@@ -1,18 +1,10 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Decodes the Egg Inc "RPA1" animation-curve format (the `.rpa` files under animations/). These are baked
-// keyframe curves the game samples over time to drive value tweens + node motion, so reading them lets the
-// playground replay the real motion instead of a hand-authored spin.
+
 //
-// Format (little-endian):
-//   0x00  char[4]  magic "RPA1"
-//   0x04  int32    tracks
-//   0x08  int32    reserved/flags
-//   0x0C  int32    reserved/flags
-//   0x10  int32    nKeys
-//   0x14  int32    nComponents (a vec up to 3 wide)
-//   0x18  key[nKeys], each = 4 floats = (time, c0, c1, c2), time in seconds.
-// Defensive: bad magic/short -> Ok=false.
+
+
+
 public static class RpaCurveReader
 {
     public readonly record struct Key(float Time, float C0, float C1, float C2);
@@ -21,7 +13,7 @@ public static class RpaCurveReader
     {
         public float Duration => Keys.Count == 0 ? 0 : Keys[^1].Time;
 
-        // Samples component `comp` (0..2) at time t with linear interpolation between keys. Clamps to the ends.
+       
         public float Sample(float t, int comp = 0)
         {
             if (Keys.Count == 0) return 0;

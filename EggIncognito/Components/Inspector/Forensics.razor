@@ -97,7 +97,7 @@
         catch (System.Exception ex) { Result = new DiagnoseDto(false, 0, 0, null, null, null, null, null, ex.Message); }
     }
 
-    // Render the hex window with the error byte wrapped in a marker span.
+   
     RenderFragment HexMarked(HexWindowDto w) => builder =>
     {
         int seq = 0;

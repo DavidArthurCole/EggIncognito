@@ -26,14 +26,14 @@ public class CrawlManifestReaderTests
     {
         var manifest = JsonSerializer.Serialize(new[]
         {
-            // shaA: a subject record (trusted version) + a later tree-scan dup -> subject wins, version kept.
+           
             new { Repo = "r1", Commit = "c1", Date = "2021-01-01T00:00:00Z", ProtoPath = "ei.proto",
                   ProtoSha256 = "shaA", ClientVersion = (int?)40, AppVersion = "1.21", Build = "111",
                   SnapshotFile = "snapshots/r1/a.proto", Reason = "x", VersionConfidence = "subject", CommitSubject = "s" },
             new { Repo = "r2", Commit = "c2", Date = "2022-01-01T00:00:00Z", ProtoPath = "ei.proto",
                   ProtoSha256 = "shaA", ClientVersion = (int?)40, AppVersion = "9.9", Build = "999",
                   SnapshotFile = "snapshots/r2/b.proto", Reason = "x", VersionConfidence = "tree-scan", CommitSubject = "s" },
-            // shaB: only an empty-confidence record with a version -> version must be DROPPED (review-only).
+           
             new { Repo = "r3", Commit = "c3", Date = "2021-06-01T00:00:00Z", ProtoPath = "ei.proto",
                   ProtoSha256 = "shaB", ClientVersion = (int?)50, AppVersion = "1.20.3", Build = "110",
                   SnapshotFile = "snapshots/r3/c.proto", Reason = "x", VersionConfidence = "", CommitSubject = "s" },
@@ -47,28 +47,28 @@ public class CrawlManifestReaderTests
 
         var recs = CrawlManifestReader.Read(zip);
 
-        Assert.Equal(2, recs.Count); // shaA + shaB
+        Assert.Equal(2, recs.Count);
         var a = Assert.Single(recs, r => r.ProtoSha == "shaA");
-        Assert.Equal("r1", a.OriginRepo); // subject record chosen
+        Assert.Equal("r1", a.OriginRepo);
         Assert.Equal("subject", a.Confidence);
-        Assert.Equal("1.21", a.AppVersion); // trusted version attached
+        Assert.Equal("1.21", a.AppVersion);
         Assert.Equal("111", a.Build);
         Assert.Equal("40", a.ClientVersion);
         Assert.Contains("// A", a.ProtoText);
         Assert.Equal("android", a.Platform);
 
         var b = Assert.Single(recs, r => r.ProtoSha == "shaB");
-        Assert.Null(b.AppVersion); // empty confidence -> version dropped
+        Assert.Null(b.AppVersion);
         Assert.Null(b.Build);
         Assert.Null(b.ClientVersion);
-        Assert.Null(b.Confidence); // empty normalized to null
+        Assert.Null(b.Confidence);
         Assert.Contains("// C", b.ProtoText);
     }
 
     [Fact]
     public void Read_VersionFile_HighestTrust_CarriesPlatformAndFullTriple()
     {
-        // version-file confidence beats subject for the same sha + supplies the full triple + platform (IOS).
+       
         var manifest = JsonSerializer.Serialize(new[]
         {
             new { Repo = "subj", Commit = "c1", Date = "2022-01-01T00:00:00Z", ProtoPath = "ei.proto",
@@ -87,12 +87,12 @@ public class CrawlManifestReaderTests
         });
 
         var rec = Assert.Single(CrawlManifestReader.Read(zip));
-        Assert.Equal("version-file", rec.Confidence); // beat subject
+        Assert.Equal("version-file", rec.Confidence);
         Assert.Equal("vfile", rec.OriginRepo);
-        Assert.Equal("1.23.1", rec.AppVersion); // full triple from the version file
+        Assert.Equal("1.23.1", rec.AppVersion);
         Assert.Equal("1.23.1.0", rec.Build);
         Assert.Equal("40", rec.ClientVersion);
-        Assert.Equal("ios", rec.Platform); // IOS -> ios
+        Assert.Equal("ios", rec.Platform);
         Assert.Contains("// V", rec.ProtoText);
     }
 
@@ -116,7 +116,7 @@ public class CrawlManifestReaderTests
     [Fact]
     public void Read_TreeScanVersion_NotAttached_ButConfidenceCarried()
     {
-        // A single tree-scan record: proto content ingested, but its (heuristic) version is NOT trusted.
+       
         var manifest = JsonSerializer.Serialize(new[]
         {
             new { Repo = "r", Commit = "c", Date = "2024-01-01T00:00:00Z", ProtoPath = "ei.proto",
@@ -131,18 +131,18 @@ public class CrawlManifestReaderTests
 
         var rec = Assert.Single(CrawlManifestReader.Read(zip));
         Assert.Equal("shaT", rec.ProtoSha);
-        Assert.Contains("// T", rec.ProtoText); // content always ingested
-        Assert.Null(rec.AppVersion); // tree-scan version NOT attached
+        Assert.Contains("// T", rec.ProtoText);
+        Assert.Null(rec.AppVersion);
         Assert.Null(rec.Build);
         Assert.Null(rec.ClientVersion);
-        Assert.Equal("tree-scan", rec.Confidence); // hint carried for the reviewer
+        Assert.Equal("tree-scan", rec.Confidence);
     }
 
     [Fact]
     public void Read_OriginDate_NormalizedToUtc()
     {
-        // Commit dates carry a local offset (here -08:00). Npgsql timestamptz only accepts UTC offset 0, so
-        // the reader must convert OriginDate to UTC, else the staged-import insert throws.
+       
+       
         var manifest = JsonSerializer.Serialize(new[]
         {
             new { Repo = "r", Commit = "c", Date = "2022-02-04T12:59:44-08:00", ProtoPath = "ei.proto",
@@ -157,8 +157,8 @@ public class CrawlManifestReaderTests
 
         var rec = Assert.Single(CrawlManifestReader.Read(zip));
         Assert.NotNull(rec.OriginDate);
-        Assert.Equal(TimeSpan.Zero, rec.OriginDate!.Value.Offset); // converted to UTC
-        Assert.Equal(new DateTimeOffset(2022, 2, 4, 20, 59, 44, TimeSpan.Zero), rec.OriginDate); // 12:59-08 = 20:59Z
+        Assert.Equal(TimeSpan.Zero, rec.OriginDate!.Value.Offset);
+        Assert.Equal(new DateTimeOffset(2022, 2, 4, 20, 59, 44, TimeSpan.Zero), rec.OriginDate);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class CrawlManifestReaderTests
                   ProtoSha256 = "shaX", ClientVersion = (int?)null, AppVersion = (string?)null, Build = (string?)null,
                   SnapshotFile = "snapshots/missing.proto", Reason = "x", VersionConfidence = "", CommitSubject = "s" },
         });
-        var zip = BuildZip(new[] { ("manifest.json", manifest) }); // no snapshot entry
+        var zip = BuildZip(new[] { ("manifest.json", manifest) });
         Assert.Empty(CrawlManifestReader.Read(zip));
     }
 }

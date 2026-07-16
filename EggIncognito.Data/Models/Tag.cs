@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
-
-// A broad API bucket, e.g. Coops, Backups, Shells. `slug` is the stable key, `label` the display text, `color` an optional hex accent chip.
 [Table("tags")]
 public class Tag
 {

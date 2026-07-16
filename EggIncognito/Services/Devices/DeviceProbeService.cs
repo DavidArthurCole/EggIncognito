@@ -3,10 +3,6 @@ using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services.Devices;
 
-// Background heartbeat for the plugged-in slave devices. Per tick, per device: probes the installed version
-// and classifies it vs the registry, store-syncs via IDeviceStoreChecker when the device's own store is
-// ahead of what's installed, and re-points the device's proxy at its capture listener. Store-sync is gated
-// by DeviceSync:Enabled; the server never downloads a package, the device's own store does the install.
 public sealed class DeviceProbeService(
     IServiceScopeFactory scopeFactory,
     DeviceConfig config,
@@ -37,8 +33,8 @@ public sealed class DeviceProbeService(
         catch (OperationCanceledException) { /* shutdown */ }
     }
 
-    // One app cycle per device at launch so clientVersion is captured up front. Best-effort + logged; an
-    // unreachable device is picked up by the next manual/heartbeat trigger.
+   
+   
     private async Task StartupHarvestAsync(CancellationToken ct)
     {
         foreach (var d in config.Devices)

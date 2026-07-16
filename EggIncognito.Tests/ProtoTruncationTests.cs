@@ -38,8 +38,8 @@ public class ProtoTruncationTests
     [Fact]
     public void Truncate_DefaultBudget_FitsEmbedLimitWithCodeFence()
     {
-        // The router wraps /proto type output in a code fence; the whole description must stay
-        // under Discord's 4096-char embed cap or EmbedBuilder.Build() throws.
+       
+       
         var fenced = "```\n" + ProtoQuery.Truncate(new string('x', 50_000)) + "\n```";
         Assert.True(fenced.Length <= 4096);
     }

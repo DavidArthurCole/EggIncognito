@@ -60,7 +60,7 @@
     List<string> _formats = [];
     JsonNode? _parsed;
     TreeNode? _tree;
-    string? _treeFor; // the JsonStr the current _tree was built from; guards needless rebuilds
+    string? _treeFor;
 
     readonly HashSet<string> _revealed = new(StringComparer.Ordinal);
     string? _revealedFor;
@@ -97,7 +97,7 @@
         if (!string.IsNullOrEmpty(RawB64)) _formats.AddRange(CaptureFormat.ByteFormats);
         if (_formats.Count == 0)
         {
-            // Have a body but could not decode it: show the raw base64 + the note.
+           
             _emptyNoteOnly = EmptyNote;
             _showRawBox = true;
             return;
@@ -107,8 +107,8 @@
         if (!_formats.Contains(current)) current = _formats[0];
         _currentFormat = current;
         FormatChoice[Label] = current;
-        // Rebuild the tree only when JsonStr actually changes, or the tree's expand/dim/filter state is
-        // wiped on every unrelated parent re-render.
+       
+       
         if (_currentFormat == "json-tree")
         {
             if (_tree is null || _treeFor != JsonStr)
@@ -156,7 +156,7 @@
     string CurrentText()
     {
         var fmt = _currentFormat;
-        if (fmt == "json-tree") return JsonStr ?? ""; // copy gives pretty JSON for the tree
+        if (fmt == "json-tree") return JsonStr ?? "";
         if (CaptureFormat.IsByteFormat(fmt)) return CaptureFormat.BytesToText(RawB64, fmt);
         return CaptureFormat.JsonToText(JsonStr, fmt);
     }
@@ -171,8 +171,8 @@
         StateHasChanged();
     }
 
-    // Filters to lines containing the needle (case-insensitive; empty shows all), and in blur mode
-    // wraps sensitive-value occurrences in a blur span.
+   
+   
     RenderFragment RenderTextBody() => builder =>
     {
         var text = CurrentText();
@@ -195,7 +195,7 @@
             return;
         }
 
-        // Longest values first so a longer match is not pre-empted by a shorter substring of it.
+       
         var needles = sensitive.Where(s => s.Length > 0).OrderByDescending(s => s.Length).ToList();
         var seq = 0;
         var i = 0;

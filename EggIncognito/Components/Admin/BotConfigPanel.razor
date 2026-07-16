@@ -43,6 +43,26 @@
 
     <div class="admin-panel-head">
       <h3 class="admin-panel-title text-sm">Deploy-notification embeds</h3>
+      <div class="embed-vars-anchor">
+        <button type="button" class="btn-mini" @onclick="() => _varsOpen = !_varsOpen">Variables</button>
+        @if (_varsOpen)
+        {
+          <div class="embed-vars-pop">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-semibold text-fg">Template variables</span>
+              <button type="button" class="reg-filter-clear" @onclick="() => _varsOpen = false">×</button>
+            </div>
+            <table class="reg-table">
+              <tbody>
+                @foreach (var v in Service.Variables)
+                {
+                  <tr><td class="mono text-xs">@v.Name</td><td class="text-muted text-xs">@v.Desc</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
     </div>
     <div class="flex gap-2 mb-3">
       @foreach (var ev in Events)
@@ -51,71 +71,108 @@
       }
     </div>
 
-    <div class="flex flex-col gap-2 max-w-[640px]">
-      <div class="flex gap-2">
-        <label class="text-xs text-muted flex-1">Color (hex, e.g. 5865F2)
-          <input class="reg-filter-input w-full mt-1" @bind="Current.ColorHex" placeholder="RRGGBB" />
+    <div class="embed-editor">
+      @* Author row: icon url | name | name url *@
+      <div class="embed-row-3">
+        <label class="embed-field">Author icon URL
+          <input class="reg-filter-input w-full mt-1" @bind="Current.AuthorIconUrl" />
         </label>
-        <label class="text-xs text-muted flex items-end gap-1 pb-1">
-          <input type="checkbox" @bind="Current.Timestamp" /> Timestamp
-        </label>
-      </div>
-      <label class="text-xs text-muted">Title
-        <input class="reg-filter-input w-full mt-1" @bind="Current.Title" />
-      </label>
-      <label class="text-xs text-muted">Title URL
-        <input class="reg-filter-input w-full mt-1" @bind="Current.TitleUrl" />
-      </label>
-      <label class="text-xs text-muted">Description
-        <textarea class="reg-filter-input w-full mt-1 font-mono text-xs" rows="2" @bind="Current.Description"></textarea>
-      </label>
-      <div class="flex gap-2">
-        <label class="text-xs text-muted flex-1">Author name
+        <label class="embed-field">Author name
           <input class="reg-filter-input w-full mt-1" @bind="Current.AuthorName" />
         </label>
-        <label class="text-xs text-muted flex-1">Author URL
+        <label class="embed-field">Author name URL
           <input class="reg-filter-input w-full mt-1" @bind="Current.AuthorUrl" />
         </label>
       </div>
-      <label class="text-xs text-muted">Author icon URL
-        <input class="reg-filter-input w-full mt-1" @bind="Current.AuthorIconUrl" />
-      </label>
-      <div class="flex gap-2">
-        <label class="text-xs text-muted flex-1">Image URL
-          <input class="reg-filter-input w-full mt-1" @bind="Current.ImageUrl" />
+
+      @* Title row: color swatch | title | title url *@
+      <div class="embed-row-title">
+        <div class="embed-color">
+          <span class="embed-field-label">Color</span>
+          <div class="color-picker mt-1">
+            <input type="color" class="color-input" value="@ColorInputValue" @onchange="OnColorInput" title="Pick a color" />
+            <input class="reg-filter-input color-hex" @bind="Current.ColorHex" placeholder="RRGGBB" />
+          </div>
+        </div>
+        <label class="embed-field flex-1">Title
+          <input class="reg-filter-input w-full mt-1" @bind="Current.Title" />
         </label>
-        <label class="text-xs text-muted flex-1">Thumbnail URL
-          <input class="reg-filter-input w-full mt-1" @bind="Current.ThumbnailUrl" />
-        </label>
-      </div>
-      <div class="flex gap-2">
-        <label class="text-xs text-muted flex-1">Footer text
-          <input class="reg-filter-input w-full mt-1" @bind="Current.FooterText" />
-        </label>
-        <label class="text-xs text-muted flex-1">Footer icon URL
-          <input class="reg-filter-input w-full mt-1" @bind="Current.FooterIconUrl" />
+        <label class="embed-field embed-field-url">Title URL
+          <input class="reg-filter-input w-full mt-1" @bind="Current.TitleUrl" />
         </label>
       </div>
 
-      <div class="admin-panel-head mt-2">
+      <label class="embed-field">Description
+        <textarea class="reg-filter-input w-full mt-1 font-mono text-xs" rows="2" @bind="Current.Description"></textarea>
+      </label>
+
+      @* Fields *@
+      <div class="admin-panel-head mt-1">
         <h4 class="admin-panel-title text-xs">Fields (@Current.Fields.Count / 25)</h4>
         <button type="button" class="btn-mini" @onclick="() => AddField(Current)" disabled="@(Current.Fields.Count >= 25)">Add field</button>
       </div>
+      @if (Current.Fields.Count == 0)
+      {
+        <p class="text-muted text-xs m-0">No fields.</p>
+      }
       @foreach (var fld in Current.Fields)
       {
-        <div class="flex gap-2 items-end">
-          <label class="text-xs text-muted flex-1">Name
+        <div class="embed-field-row">
+          <label class="embed-field flex-1">Name
             <input class="reg-filter-input w-full mt-1" @bind="fld.Name" />
           </label>
-          <label class="text-xs text-muted flex-1">Value
+          <label class="embed-field flex-1">Value
             <input class="reg-filter-input w-full mt-1" @bind="fld.Value" />
           </label>
-          <label class="text-xs text-muted flex items-center gap-1 pb-2">
-            <input type="checkbox" @bind="fld.Inline" /> Inline
+          <label class="embed-switch">
+            <input type="checkbox" @bind="fld.Inline" /> <span>Inline</span>
           </label>
-          <button type="button" class="btn-mini btn-danger mb-1" @onclick="() => Current.Fields.Remove(fld)">Remove</button>
+          <button type="button" class="btn-mini btn-danger" @onclick="() => Current.Fields.Remove(fld)">Remove</button>
         </div>
       }
+
+      @* Image row: image url | thumbnail url *@
+      <div class="embed-row-2">
+        <label class="embed-field">Image URL
+          <input class="reg-filter-input w-full mt-1" @bind="Current.ImageUrl" />
+        </label>
+        <label class="embed-field">Thumbnail URL
+          <input class="reg-filter-input w-full mt-1" @bind="Current.ThumbnailUrl" />
+        </label>
+      </div>
+
+      @* Footer row: footer | footer icon | date/select *@
+      <div class="embed-row-footer">
+        <label class="embed-field flex-1">Footer
+          <input class="reg-filter-input w-full mt-1" @bind="Current.FooterText" />
+        </label>
+        <label class="embed-field flex-1">Footer icon URL
+          <input class="reg-filter-input w-full mt-1" @bind="Current.FooterIconUrl" />
+        </label>
+        <div class="embed-ts">
+          <label class="embed-switch" title="Show a timestamp next to the footer.">
+            <input type="checkbox" @bind="Current.Timestamp" /> <span>Timestamp</span>
+          </label>
+          @if (Current.Timestamp)
+          {
+            <div class="embed-ts-modes mt-1">
+              <label class="embed-radio">
+                <input type="radio" name="@($"tsmode-{_tab}")" checked="@(!Current.TimestampFixedMode)"
+                       @onchange="() => Current.TimestampFixedMode = false" /> <span>Real-time</span>
+              </label>
+              <label class="embed-radio">
+                <input type="radio" name="@($"tsmode-{_tab}")" checked="@Current.TimestampFixedMode"
+                       @onchange="() => Current.TimestampFixedMode = true" /> <span>Fixed</span>
+              </label>
+            </div>
+            @if (Current.TimestampFixedMode)
+            {
+              <input type="datetime-local" class="reg-filter-input mt-1 w-full"
+                     value="@FixedInputValue" @onchange="OnFixedInput" />
+            }
+          }
+        </div>
+      </div>
     </div>
 
     <div class="flex gap-2 mt-4">
@@ -123,21 +180,6 @@
       <button type="button" class="btn-secondary" @onclick="() => ResetTab(_tab)" disabled="@_saving">Reset this event to default</button>
     </div>
     @if (_msg is not null) { <p class="text-xs @(_error ? "err" : "text-muted") mt-2 mb-0">@_msg</p> }
-
-    <details class="mt-4">
-      <summary class="text-xs text-muted cursor-pointer">Template variables</summary>
-      <div class="reg-wrap mt-2">
-        <table class="reg-table">
-          <thead><tr><th>Variable</th><th>Description</th></tr></thead>
-          <tbody>
-            @foreach (var v in Service.Variables)
-            {
-              <tr><td class="mono text-xs">@v.Name</td><td class="text-muted text-xs">@v.Desc</td></tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </details>
   }
 </section>
 
@@ -146,15 +188,36 @@
     static readonly (string Key, string Label)[] Events =
         [("success", "Success"), ("failure", "Failure"), ("uptodate", "Already up to date")];
 
-    // Resolved via GetService (not @inject/GetRequiredService) so a null-returning registration yields
-    // null instead of throwing; null renders the "bot not configured" state.
+   
+   
     BotConfigService? Service => Services.GetService<BotConfigService>();
 
     bool _loaded;
     bool _saving;
     bool _error;
+    bool _varsOpen;
     string? _msg;
     string _tab = "success";
+
+   
+   
+    string ColorInputValue
+    {
+        get
+        {
+            var h = (Current.ColorHex ?? "").TrimStart('#');
+            return h.Length == 6 && uint.TryParse(h, System.Globalization.NumberStyles.HexNumber, null, out _)
+                ? $"#{h.ToUpperInvariant()}" : "#5865F2";
+        }
+    }
+
+    void OnColorInput(ChangeEventArgs e) => Current.ColorHex = (e.Value?.ToString() ?? "").TrimStart('#').ToUpperInvariant();
+
+   
+    string FixedInputValue => (Current.TimestampFixedLocal ?? DateTime.Now).ToString("yyyy-MM-ddTHH:mm");
+
+    void OnFixedInput(ChangeEventArgs e) =>
+        Current.TimestampFixedLocal = DateTime.TryParse(e.Value?.ToString(), out var dt) ? dt : null;
 
     string _dashboardChannelId = "";
     string _githubFeedThreadId = "";
@@ -182,7 +245,7 @@
         _loaded = true;
     }
 
-    // Prefer the saved embed JSON; fall back to the service-supplied default spec for an unset event.
+   
     static EmbedForm Seed(string? savedJson, EmbedSpec fallback)
     {
         if (!string.IsNullOrWhiteSpace(savedJson))
@@ -257,6 +320,9 @@
         public string FooterText { get; set; } = "";
         public string FooterIconUrl { get; set; } = "";
         public bool Timestamp { get; set; }
+       
+        public bool TimestampFixedMode { get; set; }
+        public DateTime? TimestampFixedLocal { get; set; }
 
         public static EmbedForm From(EmbedSpec s) => new()
         {
@@ -273,6 +339,8 @@
             FooterText = s.FooterText ?? "",
             FooterIconUrl = s.FooterIconUrl ?? "",
             Timestamp = s.Timestamp,
+            TimestampFixedMode = s.TimestampFixed is not null,
+            TimestampFixedLocal = s.TimestampFixed?.LocalDateTime,
         };
 
         public EmbedSpec ToSpec() => new(
@@ -283,7 +351,10 @@
                   .Select(x => new EmbedFieldSpec(x.Name, x.Value, x.Inline)).ToList(),
             NullIfBlank(ImageUrl), NullIfBlank(ThumbnailUrl),
             NullIfBlank(FooterText), NullIfBlank(FooterIconUrl),
-            Timestamp);
+            Timestamp,
+            Timestamp && TimestampFixedMode && TimestampFixedLocal is { } t
+                ? new DateTimeOffset(DateTime.SpecifyKind(t, DateTimeKind.Local))
+                : null);
 
         static uint? ParseColor(string hex) =>
             uint.TryParse(hex.TrimStart('#'), System.Globalization.NumberStyles.HexNumber, null, out var v) ? v : null;

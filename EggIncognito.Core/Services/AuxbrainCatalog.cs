@@ -1,7 +1,5 @@
-// Merged view of the mock surface (routes.yaml via RouteCatalog) and the canonical real-API path
-// registry (RouteMap/auxbrain-paths.json). One entry per path in the union: mocked paths keep the
-// route's shape and carry their EndpointStatus bucket; canonical-only paths are real-but-unmocked and
-// take their shape from the registry. Pure: parsed inputs in, entries out, so tests need no disk.
+
+
 
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
@@ -9,8 +7,6 @@ using Microsoft.Extensions.Configuration;
 namespace EggIncognito.Services;
 
 public enum AuxbrainStatus { Ok, Empty, Missing, NotMocked }
-
-// One auxbrain-paths.json value: the real API's shape for a path.
 public sealed record CanonicalPath(
     string? RequestType,
     string? ResponseType,
@@ -28,13 +24,13 @@ public sealed record AuxbrainEntry(
     bool PathParam,
     AuxbrainStatus Status)
 {
-    /// <summary>Alternate request paths that resolve to this route. Empty for canonical-only entries.</summary>
+   
     public IReadOnlyList<string> Aliases { get; init; } = [];
 }
 
 public static class AuxbrainCatalog
 {
-    // Wire/JSON form of a status, used by the OpenAPI vendor extension and the catalog API.
+   
     public static string Label(AuxbrainStatus status) => status switch
     {
         AuxbrainStatus.Ok => "ok",
@@ -52,8 +48,8 @@ public static class AuxbrainCatalog
         var missing = status.Missing.ToHashSet(StringComparer.Ordinal);
         var entries = new List<AuxbrainEntry>();
 
-        // A path is mocked if it is a route or resolves to one via alias (the catch-all serves
-        // aliases), so an aliased canonical key never shows up as a separate not-mocked entry.
+       
+       
         var mocked = routes.Select(r => r.Path)
             .Concat(routes.SelectMany(r => r.Aliases))
             .ToHashSet(StringComparer.Ordinal);
@@ -62,7 +58,7 @@ public static class AuxbrainCatalog
         {
             var s = empty.Contains(r.Path) ? AuxbrainStatus.Empty
                 : missing.Contains(r.Path) ? AuxbrainStatus.Missing
-                : AuxbrainStatus.Ok; // raw-response routes are skipped by Classify and serve literals
+                : AuxbrainStatus.Ok;
             entries.Add(new AuxbrainEntry(
                 r.Path, NamespaceOf(r.Path), r.Request, r.Response,
                 r.RequestWrapped, r.ResponseWrapped, r.PathParam, s)
@@ -81,7 +77,7 @@ public static class AuxbrainCatalog
         return entries;
     }
 
-    // First path segment: "ei_ctx/get_leaderboard" -> "ei_ctx".
+   
     private static string NamespaceOf(string path)
     {
         var i = path.IndexOf('/');
@@ -112,7 +108,7 @@ public static class AuxbrainCatalog
     private static bool Flag(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
 
-    // Same resolution as RouteCatalog's routes.yaml: config override, then search up from the app base dir.
+   
     public static string ResolveJsonPath(IConfiguration config) =>
         ContentRoot.ResolveRouteMapFile(config["AuxbrainPathsPath"], "auxbrain-paths.json");
 }

@@ -2,18 +2,16 @@ using System.Collections.Concurrent;
 
 namespace EggIncognito.Services.Metrics;
 
-// Lightweight in-process API-rate metrics: a 60-slot ring of per-minute buckets (last hour). Each request
-// increments the current minute's total + its 429 count if rate-limited. Singleton; thread-safe via
-// Interlocked on the bucket fields. Resets on restart.
+
 public sealed class ApiMetrics(TimeProvider time)
 {
     public const int Minutes = 60;
 
     private sealed class Bucket
     {
-        public long Epoch; // minute index this bucket represents
+        public long Epoch;
         public int Total;
-        public int Limited; // 429s
+        public int Limited;
     }
 
     private readonly Bucket[] _ring = Enumerable.Range(0, Minutes).Select(_ => new Bucket()).ToArray();
@@ -35,7 +33,7 @@ public sealed class ApiMetrics(TimeProvider time)
         if (limited) Interlocked.Increment(ref b.Limited);
     }
 
-    // The last `Minutes` buckets oldest-first, zero-filled for minutes with no traffic.
+   
     public IReadOnlyList<Point> Snapshot()
     {
         var now = NowMinute();

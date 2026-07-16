@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
-
-// A decoded game mesh (.glb bytes) cached in Postgres, keyed by (platform, stem), so every instance reuses one device pull.
 [Table("stored_meshes")]
 public class StoredMesh
 {

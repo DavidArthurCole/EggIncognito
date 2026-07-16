@@ -1,8 +1,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
-
-// The cleaned .proto text for one ProtoVersion, plus a derived jsonb index of message + enum names for fast listing/search.
 [Table("proto_protos")]
 public sealed class ProtoProto
 {

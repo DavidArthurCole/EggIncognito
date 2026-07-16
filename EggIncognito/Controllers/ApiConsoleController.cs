@@ -5,9 +5,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
-// Backs the generic API console (/console): a machine list of every internal /api/* endpoint, reflected
-// from MVC's API explorer, so the UI can invoke any endpoint. Admin-gated since the console can reach
-// admin/egress endpoints.
+
 [ApiController]
 [Route("api/console")]
 [EnableRateLimiting("read")]

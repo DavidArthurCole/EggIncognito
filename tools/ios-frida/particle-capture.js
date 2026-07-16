@@ -1,12 +1,6 @@
-// Live particle observation for Egg Inc on a jailbroken iPhone: hooks ParticleBatchedMesh::addParticle to
-// log every visible particle's per-frame world transform + size. The host clusters by mesh pointer to
-// isolate one effect.
+
 //
-// Run on the phone (frida-server live): frida -U -l particle-capture.js -n "Egg, Inc."
-// Writes NDJSON to OUT_PATH on the phone; the host scp's it back. Self-detaches after DURATION_MS.
 //
-// arm64 AAPCS for ParticleBatchedMesh::addParticle(Eigen::Transform<f,3,2>, float): x0 = this, x1 = pointer
-// to the Transform (12 contiguous floats, column-major 3x4 affine), s0 = the float (size/alpha).
 
 const SYMBOL = '__ZN19ParticleBatchedMesh11addParticleEN5Eigen9TransformIfLi3ELi2ELi0EEEf';
 const MODULE = 'egginc';
@@ -14,9 +8,7 @@ const OUT_PATH = '/var/root/particle-capture.ndjson';
 const DURATION_MS = 5000;
 const MAX_RECORDS = 60000;
 
-// The device build is stripped of the C++ symbol table, so addParticle's address comes from host-side
-// content-hash symbol recovery (/api/decomp/resolve-va), passed in as ADDR_OFFSET (bytes from __text vmaddr
-// to the function). Runtime address = module.base + ADDR_OFFSET.
+
 const ADDR_OFFSET = (typeof addrOffset !== 'undefined' && addrOffset) ? addrOffset : null;
 
 function resolveAddParticle() {
@@ -24,7 +16,7 @@ function resolveAddParticle() {
         const m = Process.getModuleByName(MODULE);
         if (m) return m.base.add(ptr(ADDR_OFFSET));
     }
-    // Symbol path, only useful if a symbolized build is ever on-device: exact name, then a scan.
+   
     let p = null;
     try { p = Module.findGlobalExportByName(SYMBOL); } catch (e) {}
     if (p) return p;
@@ -40,7 +32,7 @@ function resolveAddParticle() {
 }
 
 function readTransform12(ptrTransform) {
-    // 12 floats, column-major 3x4. Reads defensively so a bad pointer never crashes the app.
+   
     const out = new Array(12);
     try {
         for (let i = 0; i < 12; i++) out[i] = ptrTransform.add(i * 4).readFloat();
@@ -50,8 +42,6 @@ function readTransform12(ptrTransform) {
     return out;
 }
 
-// PROBE mode dumps the raw arg registers + s0-s3 on the first few hits, so the host can find where the
-// per-particle transform actually sits before bulk mode reads it directly.
 const PROBE = (typeof probe !== 'undefined') ? probe : true;
 const PROBE_HITS = 5;
 

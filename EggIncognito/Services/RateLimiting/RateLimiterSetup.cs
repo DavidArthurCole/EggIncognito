@@ -6,10 +6,6 @@ using EggIncognito.Data.Models;
 
 namespace EggIncognito.Services.RateLimiting;
 
-// Wires named rate-limit policies for explicitly-annotated endpoints only: egress (the Live-API
-// send), write (import/db/docs/admin), and read (the public /api drop-in surface). No global
-// backstop, so page loads, static assets, and unannotated read APIs are never throttled. Rejections
-// return 429 + Retry-After + a small JSON body.
 public static class RateLimiterSetup
 {
     public static IServiceCollection AddAppRateLimiter(this IServiceCollection services, IConfiguration config)
@@ -30,7 +26,7 @@ public static class RateLimiterSetup
             AddPolicy(o, "egress", opts);
             AddPolicy(o, "write", opts);
             AddPolicy(o, "read", opts);
-            // "fetch" skips the per-tier min so anon visitors get the full Fetch limit, not Anon's 30/min.
+           
             o.AddPolicy("fetch", ctx => Partition(ctx, "Fetch", opts, tierCapped: false));
 
             o.OnRejected = async (ctx, ct) =>
@@ -73,8 +69,8 @@ public static class RateLimiterSetup
         return Math.Min(opts.Policies[policyOptionKey].PermitLimit, best);
     }
 
-    // Build a sliding-window partition for a caller. tierCapped policies use min(policy, tier) so anon stays
-    // stricter; tierCapped=false uses the flat policy limit.
+   
+   
     private static RateLimitPartition<string> Partition(
         HttpContext ctx, string policyOptionKey, RateLimitOptions opts, bool tierCapped = true)
     {

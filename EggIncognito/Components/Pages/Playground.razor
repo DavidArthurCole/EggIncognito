@@ -448,8 +448,8 @@ else
     IJSObjectReference? _autosave;
     IJSObjectReference? _recorder;
 
-    // App-chrome state: the File/Tools menubar, the bottom-right element palette, the draggable GIF pop-over, and
-    // the inline name prompt used by Save / Save As. The Design widget is gone; its CRUD lives in the File menu.
+   
+   
     bool _fileMenuOpen;
     bool _toolsMenuOpen;
     bool _viewMenuOpen;
@@ -463,7 +463,7 @@ else
     IJSObjectReference? _popoverDragMod;
     IJSObjectReference? _gifDragHandle;
     int _gifFps = 20;
-    int _gifMaxWidth = 0; // 0 = full
+    int _gifMaxWidth = 0;
     bool _recording;
     string _recordStage = "";
     double _recordFraction;
@@ -479,14 +479,14 @@ else
     List<ShellRow> _allShells = [];
     List<EnvPieceRow> _catalogPieces = [];
 
-    // The playground is always in design mode now (no view-only state). Kept as a const-true field so the many
-    // `@if (_designMode)` blocks + the JS setDesignMode call still read naturally.
+   
+   
     const bool _designMode = true;
     readonly List<DesignElement> _elements = [];
     string? _selectedElementId;
 
-    // Grid snapping is always active: drags/nudges land on _gridSize multiples (gizmo live snap + the C#
-    // solver) and the floor grid overlay is always shown.
+   
+   
     float _gridSize = 1f;
     LightingState _lighting = new();
     int _elementSeq;
@@ -494,10 +494,10 @@ else
     readonly Stack<List<DesignElement>> _undo = new();
     readonly Stack<List<DesignElement>> _redo = new();
     const int HistoryCap = 50;
-    bool _restoringHistory; // guards re-entrant history push + autosave storm during a rebuild
+    bool _restoringHistory;
 
-    string? _decoratorId; // farm-wide decorator selection (null/empty = none)
-    string _setApplyMode = "all"; // "all" | "selected"
+    string? _decoratorId;
+    string _setApplyMode = "all";
     List<ShellSetRow> _shellSets = [];
     List<ShellSetRow> _decorators = [];
     bool _shellSetsOpen;
@@ -516,9 +516,9 @@ else
     string _selectedDesign = "";
     List<string> _savedDesigns = [];
 
-    // Stateful design editing: the design the user is working on (empty = a new unsaved one), the version they
-    // last saved/loaded, the version timeline, an optional note for the next save, and a dirty flag set on any
-    // scene change since the last save.
+   
+   
+   
     string _currentDesign = "";
     int _currentVersion;
     string _versionNote = "";
@@ -582,7 +582,7 @@ else
             return;
         }
 
-        // make the GIF pop-over draggable by its header the first frame it is open; dispose when it closes.
+       
         if (_gifOpen && _gifDragHandle is null && _popoverDragMod is not null)
         {
             try { _gifDragHandle = await _popoverDragMod.InvokeAsync<IJSObjectReference>("makeDraggable", _gifPopoverRef, _gifPopoverHeadRef); }
@@ -636,7 +636,7 @@ else
         await RefreshAnimatedFlag();
     }
 
-    // Reads the engine's "is anything animated" flag to gate the Record button.
+   
     async Task RefreshAnimatedFlag()
     {
         if (_mod is null) return;
@@ -725,7 +725,7 @@ else
         catch { _catalogPieces = []; }
     }
 
-    // The playground is always in design mode: load the gizmo designer module once at startup.
+   
     async Task EnsureDesigner()
     {
         if (_mod is not null) await _mod.InvokeVoidAsync("setDesignMode", true);
@@ -735,12 +735,12 @@ else
             _designer = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundDesigner.js?v={InteropVersion()}");
             await _designer.InvokeVoidAsync("initDesigner", _selfRef);
         }
-        // warm the hatchery dump in the background so the first effect toggle does not wait on the device pull.
+       
         _ = FetchHatcheryDump();
     }
 
-    // Called from the gizmo (playgroundDesigner.js) whenever a drag moves the selected element, so the numeric
-    // inspector fields follow the gizmo live.
+   
+   
     [JSInvokable]
     public async Task OnGizmoTransform(string id, double[] pos, double[] rotDeg, double scale)
     {
@@ -750,16 +750,16 @@ else
             el.Pos = [(float)pos[0], (float)pos[1], (float)pos[2]];
             el.RotDeg = [(float)rotDeg[0], (float)rotDeg[1], (float)rotDeg[2]];
             el.Scale = (float)scale;
-            // A moved building re-routes the actors that key off it. A moved actor is left alone (re-deriving
-            // would snap it back off its own placement).
+           
+           
             if (el.Kind != "actor") await RederiveActors();
             await InvokeAsync(StateHasChanged);
             Autosave();
         }
     }
 
-    // The grid blocked a drop (target cells occupied, off-grid, or outside every zone); the element reverted.
-    // reason distinguishes the hint text ("blocked" = occupied, "outside-zone" = no zone contains the drop).
+   
+   
     [JSInvokable]
     public Task OnPlacementBlocked(string reason = "blocked")
     {
@@ -768,8 +768,8 @@ else
         return Task.CompletedTask;
     }
 
-    // A transient "placement adjusted" hint after the solver moves a piece (floor / overlap), so the jump reads
-    // as intentional. Cleared after a short delay.
+   
+   
     string? _lastAdjustReason;
     bool _showAdjustHint;
     async Task ShowAdjustHint()
@@ -781,8 +781,8 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
-    // Called from the canvas raycast (playgroundDesigner.js) when the user clicks an element (or empty space).
-    // The JS side already attached the gizmo + outline, so this only syncs the C# selection + inspector.
+   
+   
     [JSInvokable]
     public async Task OnPickElement(string? id)
     {
@@ -794,7 +794,7 @@ else
 
     string NextElementId() => $"el{++_elementSeq}";
 
-    // The glb URL for an element by kind. mesh + env share the env route; shell/chicken use the shells route.
+   
     string? ElementGlbUrl(DesignElement el) => el.Kind switch
     {
         "env" => $"/api/env/{Uri.EscapeDataString(el.Shell ?? el.Ref)}/glb",
@@ -807,8 +807,8 @@ else
         _ => null,
     };
 
-    // Pushes an actor's motion descriptor to the engine (or clears it for a non-actor). Deriving the path is
-    // done when the actor is added or a source building moves, not here.
+   
+   
     async Task PushElementMotion(DesignElement el)
     {
         if (_mod is null) return;
@@ -823,9 +823,9 @@ else
         await RefreshAnimatedFlag();
     }
 
-    // Derives an actor's motion from the placed buildings: chicken hatchery->nearest hab, vehicle the road line
-    // across the farm X bounds, rocket vertical from the mission control pad. Falls back to a sane local path
-    // + a status note when the source building is absent.
+   
+   
+   
     async Task<MotionState> DeriveMotion(DesignElement actor)
     {
         if (actor.Actor == "rocket")
@@ -835,7 +835,7 @@ else
             if (mc is null) Status("Place a mission control to launch the rocket from it.");
             else
             {
-                // align the rocket to the mission control pad: sit on it + share its Y-orientation.
+               
                 actor.Pos = [pos[0], pos[1], pos[2]];
                 actor.RotDeg = [0f, mc.RotDeg[1], 0f];
             }
@@ -846,9 +846,9 @@ else
             var xs = _elements.Where(e => e.Kind != "actor").Select(e => e.Pos[0]).ToList();
             var minX = xs.Count > 0 ? xs.Min() - 6f : -20f;
             var maxX = xs.Count > 0 ? xs.Max() + 6f : 20f;
-            // The depot: all truck traffic uses the single lane closest to it, and trucks dwell as they pass it.
-            // Depot renders left-pinned (recenterX="min"), so el.Pos is its left edge, not its dock face: fetch
-            // its real footprint so the truck dwells at the real center X and front (road-facing) edge.
+           
+           
+           
             var depot = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_depot"));
             float? depotX = depot?.Pos[0];
             float? depotZ = depot?.Pos[2];
@@ -860,14 +860,14 @@ else
                     if (foot is not null)
                     {
                         depotX = depot.Pos[0] + (foot.MinX + foot.MaxX) / 2f;
-                        depotZ = depot.Pos[2] + foot.MaxZ; // front (road-facing) edge, not the building's back corner
+                        depotZ = depot.Pos[2] + foot.MaxZ;
                     }
                 }
                 catch { /* fall back to the authored corner if the group is not yet rendered */ }
             }
-            // Drive one direction right -> left (from +X toward -X, looking at the farm from the front), wrapping
-            // pacman-style at the end (Loop=cycle, not pingpong). FaceOffset +90deg aligns the +X-forward vehicle
-            // mesh to the drive heading.
+           
+           
+           
             return new MotionState
             {
                 Kind = "path", Path = PlaygroundPaths.RoadPath(maxX, minX), Speed = 6f,
@@ -879,8 +879,8 @@ else
                 DepotZ = depotZ,
             };
         }
-        // Chickens run one-directionally hatchery-door -> hab (Loop=cycle, wrapping back to the door, never
-        // pingponging). Count > 1 runs several chickens at once, staggered by the engine.
+       
+       
         var count = actor.Motion?.Count is > 0 ? actor.Motion.Count : 1;
         var hatch = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_hatchery"));
         var habs = _elements.Where(e => e.Kind == "env" && EnvCatalog.AssetTypeOf(e.Ref) is { } at && IsHab(at)).ToList();
@@ -897,8 +897,8 @@ else
         or "TheStandard" or "LongHouse" or "DoubleDecker" or "Warehouse" or "Center" or "Bunker" or "Eggkea"
         or "Hab1K" or "Hangar" or "Tower" or "Hab10K" or "Eggtopia" or "Monolith" or "PlanetPortal" or "ChickenUniverse";
 
-    // Terrain layers (ground / paths / hardscape / ground detail / display ground) keep their authored Y (no
-    // base-snap) so they sit inside each other rather than stacking, and stay out of collision/grid.
+   
+   
     static bool IsTerrain(string stem) => stem is "ei_farm_ground" or "ei_farm" or "ei_farm_hardscape"
         or "ei_farm_misc" or "ei_chicken_display_ground";
 
@@ -908,8 +908,8 @@ else
         return dx * dx + dz * dz;
     }
 
-    // Place an actor (chicken / vehicle / rocket). Derives its path from the placed buildings, renders, selects.
-    // Rockets (ships) are capped at one per farm; a second add selects the existing one instead.
+   
+   
     async Task AddActor(string actorType, string meshRef, string label)
     {
         if (actorType == "rocket")
@@ -926,18 +926,18 @@ else
         StateHasChanged();
     }
 
-    // Re-derive every actor's path (after a building moves), so motion follows the new layout.
+   
     async Task RederiveActors()
     {
         foreach (var a in _elements.Where(e => e.Kind == "actor").ToList())
         {
-            a.Motion = await DeriveMotion(a); // may realign the rocket onto the mission control
+            a.Motion = await DeriveMotion(a);
             if (a.Actor == "rocket") await PushElementTransform(a);
             await PushElementMotion(a);
         }
     }
 
-    // Render (or re-render) an element's group at its transform. Chickens compose the hat.
+   
     async Task RenderElement(DesignElement el)
     {
         if (_mod is null) return;
@@ -955,9 +955,9 @@ else
         }
         else
         {
-            // Free-placed env buildings re-center so the gizmo lands on them; layout-derived and zone-grid-core
-            // pieces keep their authored plot offset (core pins its left edge so a tier swap grows right).
-            // Terrain layers keep their authored Y (snapBase=false).
+           
+           
+           
             var stem = el.Shell ?? el.Ref;
             var leftPin = IsZoneCorePinned(stem);
             await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb),
@@ -970,8 +970,8 @@ else
         Autosave();
     }
 
-    // Set the element's placed transform on its group (works in view + design mode; the gizmo reads the same
-    // base). When the gizmo is attached to this element, re-point it so it follows the new transform.
+   
+   
     async Task PushElementTransform(DesignElement el)
     {
         if (_mod is not null)
@@ -984,14 +984,14 @@ else
     async Task SelectElement(string id)
     {
         _selectedElementId = id;
-        _confirmDeleteId = null; // a pending delete-confirm does not carry to a newly selected element
+        _confirmDeleteId = null;
         if (_designer is not null) await _designer.InvokeVoidAsync("selectElement", id);
         await LoadFamilyOptions();
         StateHasChanged();
     }
 
-    // Fetch the swap-family siblings for the selected env element (hab tiers, lab levels, ...). Empty for
-    // pieces with no family or non-env elements.
+   
+   
     async Task LoadFamilyOptions()
     {
         _familyOptions = [];
@@ -1006,21 +1006,21 @@ else
         }
     }
 
-    // Swap a placed element to another piece in its family (a different hab tier / lab level), keeping its
-    // transform. sel.Ref is already updated by the bind; re-render with the new mesh + refresh the family.
+   
+   
     async Task SwapVariation(DesignElement sel)
     {
         PushHistory();
         var opt = _familyOptions.FirstOrDefault(f => f.Stem == sel.Ref);
         if (opt is not null) sel.Label = opt.Label;
         await RenderElement(sel);
-        // a tier swap can change the building's cell footprint; on the grid, ripple neighbors out of the way.
+       
         await RunDomino(sel.Id);
         await SelectElement(sel.Id);
     }
 
-    // After an element resizes (tier swap), push grid neighbors it now overlaps out of the way, cascading. The
-    // cell math is the tested PlacementSolver.DominoNudge; the engine supplies the grid boxes + applies the moves.
+   
+   
     async Task RunDomino(string changedId)
     {
         if (_mod is null) return;
@@ -1062,7 +1062,7 @@ else
     }
     public sealed class MovedElement { public string Id { get; set; } = ""; public float[]? Pos { get; set; } }
 
-    // Delete after the inline confirm. Clears the confirm + selection, removes the group.
+   
     async Task ConfirmDelete(DesignElement el)
     {
         _confirmDeleteId = null;
@@ -1092,8 +1092,8 @@ else
         },
     }).ToList();
 
-    // Snapshot the element list before a mutating action so it can be undone; clears the redo branch. Skipped
-    // while a history restore is in flight, so undo/redo do not push their own result.
+   
+   
     void PushHistory()
     {
         if (_restoringHistory) return;
@@ -1126,9 +1126,9 @@ else
         await ApplyHistorySnapshot(_redo.Pop());
     }
 
-    // Restore a history snapshot by diffing it against the live scene and touching only what changed: remove
-    // elements gone from the snapshot, add ones new to it, re-render ones whose mesh-affecting fields differ,
-    // and just re-place ones where only the transform moved.
+   
+   
+   
     async Task ApplyHistorySnapshot(List<DesignElement> snapshot)
     {
         if (_mod is null) return;
@@ -1166,13 +1166,13 @@ else
         Autosave();
     }
 
-    // Mesh-affecting fields: a change here needs a full RenderElement (new geometry/shell/hat/actor). A pure
-    // transform/anim change does not. Motion is compared by reference-free value via the actor/kind it rides.
+   
+   
     static bool MeshIdentical(DesignElement a, DesignElement b) =>
         a.Kind == b.Kind && a.Ref == b.Ref && a.Hat == b.Hat && a.Shell == b.Shell && a.Actor == b.Actor;
 
-    // Copy a snapshot's fields onto the live element in place (keeps the same object identity so selection +
-    // group bindings hold).
+   
+   
     static void CopyInto(DesignElement live, DesignElement snap)
     {
         live.Kind = snap.Kind; live.Ref = snap.Ref; live.Label = snap.Label; live.Hat = snap.Hat; live.Shell = snap.Shell;
@@ -1180,11 +1180,9 @@ else
         live.RotDeg = [snap.RotDeg[0], snap.RotDeg[1], snap.RotDeg[2]];
         live.Scale = snap.Scale; live.Anim = snap.Anim; live.Actor = snap.Actor; live.Motion = snap.Motion; live.Recenter = snap.Recenter; live.Effect = snap.Effect; live.HasEffects = snap.HasEffects; live.EffectCount = snap.EffectCount;
     }
-
-
-    // Builds a game-like farm in one click: clears the scene, fetches the standard layout, adds each element
-    // at its plot position. A starting point to tweak, not a pixel-exact farm (positions are derived, not
-    // extracted from the binary).
+   
+   
+   
     System.Threading.CancellationTokenSource? _arrangeCts;
 
     async Task AutoArrangeFarm()
@@ -1195,7 +1193,7 @@ else
         _arrangeCts = cts;
         var ct = cts.Token;
         _busy = true; Status("Arranging farm…");
-        _suppressAutosave = true; // one autosave at the end, not per element
+        _suppressAutosave = true;
         try
         {
             FarmLayoutResult? layout;
@@ -1210,23 +1208,23 @@ else
             _selectedElementId = null;
             if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
 
-            // build the element list first (no interop yet).
+           
             var newEls = placed.Select(pl => new DesignElement
             {
                 Id = NextElementId(), Kind = "env", Ref = pl.Stem, Label = pl.Label,
                 Pos = pl.Pos, RotDeg = [0, pl.RotY, 0], Scale = pl.Scale <= 0 ? 1 : pl.Scale,
-                Recenter = pl.Recenter, // core buildings recenter so the layout Pos is authoritative
+                Recenter = pl.Recenter,
             }).ToList();
 
             await RenderElementsBatch(newEls, ct);
             if (ct.IsCancellationRequested) return;
 
-            // Core buildings start at their zone-anchor positions (ZoneLayout.Resolve), but the zone grid's
-            // reserved widths are stopgap guesses, so repack each row by real mesh width so adjacent zones
-            // never overlap. Habs need the same real-width respace (the renderer holds the live mesh bbox).
+           
+           
+           
             await RepackCoreZones();
             await RespaceHabs();
-            // apply per-element effects (hatchery orbits etc) after placement, once.
+           
             foreach (var el in _elements.ToList())
             {
                 if (ct.IsCancellationRequested) return;
@@ -1245,10 +1243,10 @@ else
         }
     }
 
-    // Repack the 3 gravity-packed zone-grid rows (back: Lab/Hoa, mid: Hatchery/MissionControl/Fuel, front:
-    // Depot alone) by real mesh footprint width and depth, one interop call per row. ZoneLayout.cs only seeds
-    // the first row's back edge; each next row's back edge chains from the previous row's real front edge + a
-    // gap, so a deep building pushes the row behind it back instead of overlapping.
+   
+   
+   
+   
     static readonly string[][] ZoneRowFamilies = [["lab", "hoa"], ["hatchery", "mission", "fuel"], ["depot"]];
 
     public sealed class ZoneRowPackResult
@@ -1257,9 +1255,9 @@ else
         public float NextBackEdgeZ { get; set; }
     }
 
-    // The road's Z (PlaygroundPaths.RoadZ) minus a clearance margin: the front row's real front edge must never
-    // reach or cross this, or the depot visually lands on/past the road. A hard safety clamp, since real
-    // per-tier depth is unknown offline (see ZoneLayout's stopgap note).
+   
+   
+   
     const float RoadClearZ = EggIncognito.Services.ProtoExtract.PlaygroundPaths.RoadZ - 1.5f;
 
     async Task RepackCoreZones()
@@ -1284,8 +1282,8 @@ else
                 backEdgeZ, EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX,
                 EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX);
 
-            // The last row (depot) must clear the road: if its real front edge would cross RoadClearZ, re-pack
-            // it pinned to a back edge pulled back by the overflow.
+           
+           
             var isLastRow = rowIndex == ZoneRowFamilies.Length - 1;
             if (isLastRow && result.NextBackEdgeZ - EggIncognito.Services.ProtoExtract.ZoneLayout.ZoneGapX > RoadClearZ)
             {
@@ -1303,9 +1301,9 @@ else
         }
     }
 
-    // Re-space the placed habs by the game's rule (GameController::getHabPosition, extracted): fixed row Z, X by
-    // cumulative mesh-bbox width + the extracted gap. The renderer holds the meshes so it does the bbox walk; we
-    // pass the extracted constants and sync each hab's el.Pos from the returned positions.
+   
+   
+   
     async Task RespaceHabs()
     {
         if (_mod is null) return;
@@ -1324,9 +1322,9 @@ else
             habs[i].Pos = [positions[i][0], habs[i].Pos[1], positions[i][1]];
     }
 
-    // Per-farm placement limits. Families that allow exactly one instance regardless of tier (a farm has one
-    // research lab, one mission control, one artifact hall, one hatchery, one trophy case, one depot, one fuel
-    // tank). Plus count caps on the multi-instance pieces: habs and silos.
+   
+   
+   
     static readonly HashSet<string> SingleInstanceFamilies = new(StringComparer.Ordinal)
         { "lab", "mission", "hoa", "hatchery", "trophy", "depot", "fuel" };
     const int MaxHabs = 4;
@@ -1334,8 +1332,8 @@ else
 
     static bool IsSilo(string stem) => stem.StartsWith("ei_silo", StringComparison.Ordinal);
 
-    // The 6 zone-grid core buildings all pin their left edge (recenterX="min" in addGroup) so their Pos is the
-    // zone's back-left anchor, unambiguous with every other zone.
+   
+   
     static bool IsZoneCorePinned(string stem) =>
         stem.StartsWith("ei_lab", StringComparison.Ordinal) || stem.StartsWith("ei_hoa", StringComparison.Ordinal)
         || stem.StartsWith("ei_afx_construction", StringComparison.Ordinal) || stem.StartsWith("ei_hatchery_", StringComparison.Ordinal)
@@ -1347,8 +1345,8 @@ else
     int CountHabs() => CountFamily("hab");
     int CountSilos() => _elements.Count(e => e.Kind == "env" && IsSilo(e.Ref));
 
-    // Why a piece cannot be placed right now (null = placeable). Drives both the disabled picker state + the
-    // AddElement guard. A single-instance family already present blocks; habs/silos block at their cap.
+   
+   
     string? PlacementBlockedReason(EnvPieceRow p)
     {
         if (!string.IsNullOrEmpty(p.Family) && SingleInstanceFamilies.Contains(p.Family) && CountFamily(p.Family) >= 1)
@@ -1359,8 +1357,8 @@ else
         return null;
     }
 
-    // One picker entry per family (placing the highest tier = the last catalog piece in the family), plus each
-    // family-less piece on its own. Display name strips the trophy/lab-style "(n)" tier suffix for families.
+   
+   
     readonly record struct PickerEntry(EnvPieceRow Piece, string Display);
     IEnumerable<PickerEntry> FamilyPickerEntries(IEnumerable<EnvPieceRow> group)
     {
@@ -1369,7 +1367,7 @@ else
         {
             if (string.IsNullOrEmpty(p.Family)) { yield return new(p, p.Label); continue; }
             if (!seen.Add(p.Family)) continue;
-            // highest tier = the last catalog piece sharing this family (catalog is tier-ascending).
+           
             var top = _catalogPieces.Last(q => q.Family == p.Family);
             yield return new(top, FamilyDisplayName(p.Family, top.Label));
         }
@@ -1388,8 +1386,8 @@ else
         return i > 0 ? label[..i] : label;
     }
 
-    // Add a picked element of a kind. Selects + renders it. Enforces the per-farm placement limits; a blocked
-    // add (cap reached / single-instance present) just selects the existing one when there is one.
+   
+   
     async Task AddElement(string kind, string id, string label)
     {
         if (kind == "env")
@@ -1405,8 +1403,8 @@ else
             }
         }
         PushHistory();
-        // free-placed env buildings re-center on their group origin so the gizmo lands on them. Actors +
-        // chickens ride their own anchored motion; they are not re-centered.
+       
+       
         var el = new DesignElement { Id = NextElementId(), Kind = kind, Ref = id, Label = label, Recenter = kind == "env" };
         _elements.Add(el);
         await RenderElement(el);
@@ -1419,13 +1417,13 @@ else
         if (Selected is { } sel) await RenderAndReselect(sel);
     }
 
-    // Discrete-edit wrappers: each pushes one undo step before the underlying re-render. The inner methods are
-    // also called internally (e.g. RenderElement -> ApplyElementAnimation) where a push would be wrong, so the
-    // push lives in the wrapper, not the inner method.
+   
+   
+   
     async Task OnAnimChanged(DesignElement sel) { PushHistory(); await ApplyElementAnimation(sel); }
 
-    // Toggle the extracted decomp particle effect on a hab. Fetches the recovered EffectModel from the decomp
-    // endpoint and attaches or clears it, using orbit math extracted from the binary.
+   
+   
     async Task OnEffectToggled(DesignElement sel, bool on)
     {
         PushHistory();
@@ -1434,12 +1432,12 @@ else
         StateHasChanged();
     }
 
-    // Render (or clear) a building's extracted effects. The set of effects is discovered from the binary by the
-    // building-effect resolver (no hardcoded per-stem list), fetched for el.Ref and handed to the engine.
+   
+   
     async Task ApplyEffect(DesignElement el)
     {
         if (_mod is null || el.Kind != "env") return;
-        // hatchery floating effect = real sub-meshes (bolt/probe/rings/tops) hovering the body, not particles.
+       
         if (el.Ref.StartsWith("ei_hatchery", StringComparison.Ordinal))
         {
             await ApplyHatcheryParts(el);
@@ -1457,17 +1455,17 @@ else
         StateHasChanged();
     }
 
-    // Load a hatchery's floating sub-pieces + orbit them around the body. Resolves the tier's parts, fetches
-    // each part's glb, and hands them to attachHatcheryParts. Orbit radius is a stopgap (scaled from the body)
-    // until the exact RPA1 curve / FarmScene hab constants are extracted.
+   
+   
+   
     async Task ApplyHatcheryParts(DesignElement el)
     {
         if (_mod is null) return;
         try
         {
             var tier = HatcheryTierOf(el.Ref);
-            // hatchery-dump already carries every tier's floating parts (fetched once, memoized in
-            // _hatcheryDumpTask), avoiding a second uncached device pull on every hatchery placement.
+           
+           
             var dump = await FetchHatcheryDump();
             var floating = new List<string>();
             if (dump is { } d && d.TryGetProperty("tiers", out var tiers) && tiers.ValueKind == System.Text.Json.JsonValueKind.Array)
@@ -1487,10 +1485,10 @@ else
                 return;
             }
 
-            // Build the extracted state-machine model: orb at the assembly anchor; disc piece = orbiting probes
-            // (count/rate from rotate_pyramid); spike piece = the beam fired probe->orb intermittently. Pieces
-            // are classified by decode-stats bounds; params that do not recover stay null (not animated).
-            // Cache the built model per tier (it holds the piece glbs); a re-toggle or tier re-visit is instant.
+           
+           
+           
+           
             if (!_hatcheryModelCache.TryGetValue(tier, out var model))
             {
                 model = await BuildHatcheryModel(tier, floating, dump);
@@ -1502,8 +1500,8 @@ else
         StateHasChanged();
     }
 
-    // The hatchery dump (all tiers + bounds + assembly) is the same for every hatchery; fetching it pulls the
-    // slow device archive. Cache it for the session and dedupe concurrent fetches; prefetched on init.
+   
+   
     System.Text.Json.JsonElement? _hatcheryDump;
     Task<System.Text.Json.JsonElement?>? _hatcheryDumpTask;
     readonly Dictionary<string, object?> _hatcheryModelCache = new(StringComparer.Ordinal);
@@ -1526,35 +1524,35 @@ else
         finally { _hatcheryDumpTask = null; }
     }
 
-    // Build the state-machine model for one tier from the extracted dump. Classifies each floating piece by its
-    // bounds (a spike = the beam; a flat disc = a probe), fetches the glbs, and reads orbit/beam params from
-    // the extracted rotate_pyramid + anchor.
+   
+   
+   
     async Task<object?> BuildHatcheryModel(string tier, List<string> floating, System.Text.Json.JsonElement? dump)
     {
-        // orb position relative to the body group origin, approximated as (0, anchorY, 0) since anchor X/Z == body center.
+       
         float[] orb = [0f, 2.15f, 0f];
-        // ~10-12 probes observed in game (runtime frandom, no static count): a display value, not extracted.
+       
         int probeCount = 12;
-        float orbitRadius = 0f;    // from the frandom scatter; filled from extracted translation magnitude if present
-        float orbitSpeed = 0.5f;   // rotate_pyramid easing/rate
+        float orbitRadius = 0f;   
+        float orbitSpeed = 0.5f;  
         float beamInterval = 0f, beamDuration = 0.2f;
-        bool beamRandom = false;   // true => fire delay is the frandom output, renderer jitters the interval
+        bool beamRandom = false;  
 
         if (dump is { } d && d.TryGetProperty("assembly", out var asmEl))
         {
-            // timing recovered from rotate_pyramid's ActionBuilder tween call args: waitFor = beam-fire delay,
-            // smoothDuration = eased anim duration, orbitSegments = piece/segment count.
+           
+           
             if (asmEl.TryGetProperty("timing", out var tm) && tm.ValueKind == System.Text.Json.JsonValueKind.Object)
             {
-                // orbitSegments (rotate_pyramid's `3`) is the pyramid quarter-turn segment count, not the probe
-                // count; probeCount is a display value spawned by a runtime frandom loop with no static count.
+               
+               
                 if (tm.TryGetProperty("smoothDuration", out var sd) && sd.ValueKind == System.Text.Json.JsonValueKind.Number)
                 {
                     var dur = (float)sd.GetDouble();
-                    if (dur > 0.01f) { orbitSpeed = (float)(Math.PI / 2 / dur); beamDuration = dur; } // quarter-turn / duration
+                    if (dur > 0.01f) { orbitSpeed = (float)(Math.PI / 2 / dur); beamDuration = dur; }
                 }
-                // waitFor = a fixed beam-fire delay; waitForRandom = the delay is frandom() output, random by
-                // design, with smoothDuration as the mean cadence.
+               
+               
                 if (tm.TryGetProperty("waitFor", out var wf) && wf.ValueKind == System.Text.Json.JsonValueKind.Number)
                 {
                     var w = (float)wf.GetDouble();
@@ -1563,10 +1561,10 @@ else
                 else if (tm.TryGetProperty("waitForRandom", out var wr) && wr.ValueKind == System.Text.Json.JsonValueKind.True)
                 {
                     beamRandom = true;
-                    if (beamInterval <= 0f) beamInterval = Math.Max(beamDuration, 1f); // mean cadence; renderer jitters it
+                    if (beamInterval <= 0f) beamInterval = Math.Max(beamDuration, 1f);
                 }
             }
-            // orbit radius from a recovered piece translation distance from the anchor (the frandom scatter extent).
+           
             if (asmEl.TryGetProperty("transforms", out var tr) && tr.ValueKind == System.Text.Json.JsonValueKind.Array
                 && asmEl.TryGetProperty("anchor", out var a2) && a2.ValueKind == System.Text.Json.JsonValueKind.Array && a2.GetArrayLength() == 3)
             {
@@ -1581,32 +1579,32 @@ else
             }
         }
 
-        // Classify each floating piece from its authored .rpo bounds: a world-placed roof spike renders static
-        // at its spot, a centered piece is driven by the extracted state machine (beam, orbit, spin, hover).
+       
+       
         var fullBounds = HatcheryFullBounds(tier, dump);
-        // The body mesh is recentered (addGroup shifts it by -bbox.center in X/Z and -bbox.min.y in Y), and
-        // floating sub-pieces live in the same mesh coords, so the renderer must apply the same shift.
-        // bodyShift must match the body's recenter: pin the left edge (-minX) in X, center in Z, base-snap in Y.
+       
+       
+       
         float[] bodyShift = [0f, 0f, 0f];
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyB))
             bodyShift = [-bodyB.MinX, -bodyB.MinY, -(bodyB.MinZ + bodyB.MaxZ) * 0.5f];
 
-        // The orb is the visible dome sphere on top of the body: derived from the body bounds, not the extracted
-        // anchor (which is the building's farm-plot position, not the orb's mesh-local point). domeRadius
-        // approximates the visible sphere; probes ring outside it as a display value (the dome is baked into
-        // the body mesh, not a separately-extractable orb).
+       
+       
+       
+       
         float domeRadius = 1.5f;
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bForOrb))
         {
             float h = bForOrb.MaxY - bForOrb.MinY;
-            float cx = (bForOrb.MinX + bForOrb.MaxX) * 0.5f + bodyShift[0]; // footprint center X, recentered
-            float cz = (bForOrb.MinZ + bForOrb.MaxZ) * 0.5f + bodyShift[2]; // footprint center Z, recentered
-            orb = [cx, h * 0.62f, cz]; // dome center over the body top
+            float cx = (bForOrb.MinX + bForOrb.MaxX) * 0.5f + bodyShift[0];
+            float cz = (bForOrb.MinZ + bForOrb.MaxZ) * 0.5f + bodyShift[2];
+            orb = [cx, h * 0.62f, cz];
             domeRadius = Math.Clamp(h * 0.30f, 0.8f, 2.5f);
         }
 
-        // body bounds-center, for positioning world-placed pieces relative to the body (the renderer adds these
-        // offsets to the live body-mesh center, so the dump-vs-glb coordinate mismatch can't drift them).
+       
+       
         float bodyCx = 0f, bodyCy = 0f, bodyCz = 0f, bodyTopY = 0f;
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyForOff))
         {
@@ -1623,43 +1621,43 @@ else
             var role = HatcheryPieceClassifier.Classify(bb);
             var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
             if (glb is null) continue;
-            // a piece's authored center relative to the body center (X/Z), so the renderer places it at
-            // liveBodyCenter + offset and stays aligned regardless of the dump-vs-glb origin difference.
+           
+           
             float[] offset = [(bb.MinX + bb.MaxX) * 0.5f - bodyCx, (bb.MinY + bb.MaxY) * 0.5f - bodyCy, (bb.MinZ + bb.MaxZ) * 0.5f - bodyCz];
             pieces.Add(new
             {
                 glb = Convert.ToBase64String(glb),
                 role = role.ToString(),
                 worldPlaced = role == HatcheryPieceClassifier.Role.WorldPlaced,
-                offset, // authored position relative to body center; renderer adds to the live body center
-                // capstone pieces (a single small orb that caps the body, e.g. enlightenment) sit on top, centered.
+                offset,
+               
                 capstone = role == HatcheryPieceClassifier.Role.Orb && floating.Count == 1,
-                // a centered ring/shell uses its own radius (its bounds half-extent) as the orbit/spin radius.
+               
                 size = Math.Max(bb.ExtentX, bb.ExtentZ) * 0.5f,
             });
         }
 
-        // The probe orbit radius is not statically resolvable (runtime frandom scatter, no literal in the
-        // binary): fall back to a display radius derived from the body's footprint, large enough to clear the
-        // dome so probes ring visibly outside it.
+       
+       
+       
         if (orbitRadius <= 0f)
             orbitRadius = domeRadius + 0.8f;
 
         return new
         {
-            orb, // fallback only; the renderer derives the orb from the live body-mesh bbox (orbYFrac up the body)
+            orb,
             orbYFrac = 0.78f,
             pieces,
             probeCount,
             orbitSpeed,
             orbitRadius,
-            orbitRadiusApprox = true, // the radius is a display fallback, not an extracted scatter value
+            orbitRadiusApprox = true,
             beam = new { fireInterval = beamInterval, fireDuration = beamDuration, fireRandom = beamRandom },
         };
     }
 
-    // Full per-stem bounds (HatcheryPieceClassifier.Bounds) for the tier, from the dump's decode-stats. Carries
-    // the whole min/max so the classifier can read center + per-axis extents (the role depends on both).
+   
+   
     Dictionary<string, HatcheryPieceClassifier.Bounds> HatcheryFullBounds(string tier, System.Text.Json.JsonElement? dump)
     {
         var map = new Dictionary<string, HatcheryPieceClassifier.Bounds>(StringComparer.Ordinal);
@@ -1681,9 +1679,9 @@ else
         return map;
     }
 
-    // The tier token of a hatchery stem (ei_hatchery_universe -> universe). Mirrors HatcheryEffectParts.TierOf;
-    // kept simple here since the UI only needs the body tier, which is the remainder after the prefix with any
-    // trailing floating-part suffix stripped server-side anyway (we pass the body stem's tier).
+   
+   
+   
     static string HatcheryTierOf(string stem)
     {
         const string prefix = "ei_hatchery_";
@@ -1711,9 +1709,9 @@ else
         catch { _shellSets = []; _decorators = []; }
     }
 
-    // Apply a shell set: for each placed element whose asset type matches a set member, set that element's Shell
-    // to the member identifier and re-render. "selected" mode limits it to the selected element. One undoable
-    // action. Elements with no matching member are left untouched (single cosmetic per element).
+   
+   
+   
     async Task ApplyShellSet(ShellSetRow set)
     {
         var members = set.Members ?? [];
@@ -1736,9 +1734,9 @@ else
         Status($"Applied set \"{set.Name ?? set.Identifier}\".");
     }
 
-    // Farm-wide decorator: a single design-level cosmetic overlay across matching elements. Applies the
-    // decorator's member shells to matching elements' Shell (same match rule as a set), and records the
-    // selection so it persists with the design. None clears the recorded selection (placed base meshes stay).
+   
+   
+   
     async Task ApplyDecorator()
     {
         PushHistory();
@@ -1766,8 +1764,8 @@ else
         await SelectElement(el.Id);
     }
 
-    // Shells offered for an element's shell dropdown. v1: all shells (the env catalog carries no asset-type
-    // map per stem, so a precise filter is deferred); the user picks a compatible shell.
+   
+   
     IEnumerable<ShellRow> ShellsForAssetTypeOf(DesignElement el) => _allShells;
 
     async Task SetGizmoMode(string mode)
@@ -1782,7 +1780,7 @@ else
         await ApplyGridSettings();
     }
 
-    // Grid snapping is always on: show the floor grid + set the gizmo's live translate/rotate snap at _gridSize.
+   
     async Task ApplyGridSettings()
     {
         var cell = _gridSize;
@@ -1790,8 +1788,8 @@ else
         if (_designer is not null) await _designer.InvokeVoidAsync("setGridSnap", cell);
     }
 
-    // The transform numeric fields for the selected element; editing pushes the transform to the gizmo + group.
-    // One row per vector (Pos, Rot, Scale); the X/Y/Z order is implicit and each input carries a placeholder.
+   
+   
     RenderFragment TransformFields(DesignElement el) => builder =>
     {
         int seq = 0;
@@ -1827,8 +1825,8 @@ else
         Row("Scale", ("", () => el.Scale, v => el.Scale = v <= 0 ? 1 : v));
     };
 
-    // Save appends a new version to the working design's history. For a brand-new design, the typed name becomes
-    // the working design. The server returns the new version number; the timeline refreshes + dirty clears.
+   
+   
     async Task SaveDesign()
     {
         var name = string.IsNullOrEmpty(_currentDesign) ? _designName.Trim() : _currentDesign;
@@ -1873,17 +1871,17 @@ else
             _selectedDesign = "";
             _dirty = false;
             await LoadVersions();
-            _currentVersion = _versions.Count > 0 ? _versions[0].VersionNo : 0; // newest = head
+            _currentVersion = _versions.Count > 0 ? _versions[0].VersionNo : 0;
             Status($"Loaded \"{_currentDesign}\" v{_currentVersion}.");
         }
         catch (Exception ex) { Fail(ex.Message); }
     }
 
-    // Start a fresh, unsaved design: clear the scene + the working-design state.
+   
     async Task NewDesign()
     {
-        // stop any ongoing procedure first: an in-flight auto-arrange (its token aborts, and the batched interop is
-        // suppressed), the animation playback, and a running GIF capture. Then clear the scene.
+       
+       
         _arrangeCts?.Cancel();
         _suppressAutosave = false;
         _busy = false;
@@ -1893,8 +1891,8 @@ else
         Status("New design.");
     }
 
-    // File / Tools menubar + palette + GIF pop-over wiring. The menus close on action; a click anywhere else also
-    // closes them (handled by the page-level close handler).
+   
+   
 
     void ToggleFileMenu() { _fileMenuOpen = !_fileMenuOpen; _toolsMenuOpen = false; _viewMenuOpen = false; }
     void ToggleToolsMenu() { _toolsMenuOpen = !_toolsMenuOpen; _fileMenuOpen = false; _viewMenuOpen = false; }
@@ -1904,7 +1902,7 @@ else
 
     async Task MenuNew() { CloseMenus(); await NewDesign(); }
 
-    // Save: a named design saves a new version; an unnamed one opens the name prompt first.
+   
     async Task MenuSave()
     {
         CloseMenus();
@@ -1921,8 +1919,8 @@ else
         _namePromptOpen = true;
     }
 
-    // Confirm the inline name prompt. Save As forces a brand-new design under the typed name (clears the current
-    // binding so SaveDesign treats it as new); a plain named-save just runs with the typed name.
+   
+   
     async Task ConfirmNamePrompt()
     {
         if (string.IsNullOrWhiteSpace(_designName)) return;
@@ -1938,7 +1936,7 @@ else
         await LoadDesign();
     }
 
-    // Reload the current design from disk, discarding unsaved edits.
+   
     async Task MenuReload()
     {
         CloseMenus();
@@ -1977,8 +1975,8 @@ else
         catch { _versions = []; }
     }
 
-    // Roll back to a prior version: the server appends a new version copying it (non-destructive), then we load
-    // that restored payload into the scene + refresh the timeline.
+   
+   
     async Task RollbackTo(int versionNo)
     {
         if (string.IsNullOrEmpty(_currentDesign)) return;
@@ -2001,7 +1999,7 @@ else
 
     record RollbackResult(string RolledBack, int FromVersion, int NewVersion);
 
-    // Clear the scene without touching the working-design state. Shared by NewDesign + payload restore.
+   
     async Task ClearScene()
     {
         if (_mod is null) return;
@@ -2011,8 +2009,8 @@ else
         if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
     }
 
-    // On load, silently restore a recent autosaved design (a redeploy reload or a crash left one), then clear
-    // it and show a dismissible notice. Stale or absent autosave is ignored.
+   
+   
     async Task TryRestoreAutosave()
     {
         if (_autosave is null || _mod is null) return;
@@ -2034,12 +2032,12 @@ else
         finally { await _autosave.InvokeVoidAsync("clear"); }
     }
 
-    // Debounced autosave of the current scene to the localStorage slot. Called on every meaningful change.
-    bool _suppressAutosave; // set during batch ops (auto-arrange) so one save runs at the end, not per element
+   
+    bool _suppressAutosave;
 
     void Autosave()
     {
-        _dirty = true; // any scene change makes the working design dirty until the next explicit save
+        _dirty = true;
         if (_suppressAutosave) return;
         _autosaveCts?.Cancel();
         var cts = new System.Threading.CancellationTokenSource();
@@ -2067,8 +2065,8 @@ else
 
     record AppVersionDto(string Version, string Sha);
 
-    // Rebuilds the scene from a design payload: clears the current groups, restores background + lighting, then
-    // batch-renders every element. Shared by Load-design and the autosave restore.
+   
+   
     async Task RestoreFromPayload(DesignPayload payload)
     {
         if (_mod is null) return;
@@ -2098,9 +2096,9 @@ else
         await RefreshAnimatedFlag();
     }
 
-    // Parallel-fetches every element's glb (+ hat glb for a chicken wearing one), then adds them all in one
-    // interop batch instead of one fetch+addGroup round-trip per element. Adds each successfully-fetched
-    // element to _elements as it goes; the caller runs whatever per-element post-steps it needs.
+   
+   
+   
     async Task<List<DesignElement>> RenderElementsBatch(IReadOnlyList<DesignElement> elements, CancellationToken ct = default)
     {
         if (_mod is null || elements.Count == 0) return [];
@@ -2175,7 +2173,7 @@ else
 
     System.Threading.CancellationTokenSource? _statusCts;
 
-    // Transient status: shows the message then auto-clears after a few seconds (cancels any prior clear).
+   
     void Status(string s)
     {
         _error = false; _status = s; StateHasChanged();
@@ -2192,50 +2190,50 @@ else
 
     void Fail(string s) { _statusCts?.Cancel(); _error = true; _status = s; StateHasChanged(); }
 
-    // A page-wide failure (3D init crash, engine dead): shown as a prominent overlay inside the canvas box, not
-    // buried in a side-widget status line. Persists until dismissed.
+   
+   
     void FatalError(string s) { _fatalError = s; StateHasChanged(); }
     void DismissFatal() { _fatalError = ""; StateHasChanged(); }
 
     public sealed class DesignElement
     {
         public string Id { get; set; } = "";
-        public string Kind { get; set; } = "env"; // env | chicken | shell | mesh
-        public string Ref { get; set; } = ""; // stem or identifier
+        public string Kind { get; set; } = "env";
+        public string Ref { get; set; } = "";
         public string Label { get; set; } = "";
-        public string? Hat { get; set; } // chicken hat identifier
-        public string? Shell { get; set; } // applied shell identifier
+        public string? Hat { get; set; }
+        public string? Shell { get; set; }
         public float[] Pos { get; set; } = [0, 0, 0];
         public float[] RotDeg { get; set; } = [0, 0, 0];
         public float Scale { get; set; } = 1f;
-        public string Anim { get; set; } = "none"; // none | SpinY | SpinZ | HoverSpin (per element)
-        public string Actor { get; set; } = ""; // ""|chicken|vehicle|rocket (kind=="actor")
+        public string Anim { get; set; } = "none";
+        public string Actor { get; set; } = "";
         public MotionState? Motion { get; set; }
-        public bool Recenter { get; set; } // free-placed: re-center the mesh on the group origin so the gizmo lands on it
-        public bool Effect { get; set; } // render this building's extracted decomp effects
-        public bool HasEffects { get; set; } // the resolver found >=1 effect for this building's mesh
-        public int EffectCount { get; set; } // how many discovered effects
+        public bool Recenter { get; set; }
+        public bool Effect { get; set; }
+        public bool HasEffects { get; set; }
+        public int EffectCount { get; set; }
     }
 
     public sealed class MotionState
     {
-        public string Kind { get; set; } = "path"; // path | launch
-        public float[][] Path { get; set; } = []; // world waypoints (path kind)
+        public string Kind { get; set; } = "path";
+        public float[][] Path { get; set; } = [];
         public float Speed { get; set; } = 3f;
-        public string Loop { get; set; } = "cycle"; // cycle | pingpong
+        public string Loop { get; set; } = "cycle";
         public bool FacePath { get; set; } = true;
-        public float FaceOffset { get; set; } = 0f; // radians added to the face-path heading (mesh forward fix)
-        public float Height { get; set; } = 12f; // launch rise
-        public float Period { get; set; } = 6f; // launch seconds/cycle
-        public int Count { get; set; } = 1; // instances running this path at once (chickens)
-        public float StopSeconds { get; set; } = 0f; // dwell at the path end before wrapping (vehicle depot stop)
-        public bool Vehicle { get; set; } = false; // trucks: single depot-side lane, dwell at the depot, convoy spacing
-        public float? DepotX { get; set; } // depot world X (where trucks dwell); null = no depot placed
-        public float? DepotZ { get; set; } // depot world Z (picks the near lane side); null = no depot placed
+        public float FaceOffset { get; set; } = 0f;
+        public float Height { get; set; } = 12f;
+        public float Period { get; set; } = 6f;
+        public int Count { get; set; } = 1;
+        public float StopSeconds { get; set; } = 0f;
+        public bool Vehicle { get; set; } = false;
+        public float? DepotX { get; set; }
+        public float? DepotZ { get; set; }
     }
 
-    // The real local footprint reported by the engine (playground.js's getGroupFootprint), used to find a
-    // building's real center/dock edge instead of guessing from its (possibly left-pinned) placement Pos.
+   
+   
     public sealed class GroupFootprintDto
     {
         public float MinX { get; set; }
@@ -2250,11 +2248,11 @@ else
         public float SunElevationDeg { get; set; } = 55;
         public string SunColor { get; set; } = "#ffffff";
         public float SunIntensity { get; set; } = 1.0f;
-        public string ToneMapping { get; set; } = "none"; // none | linear | aces | reinhard | cineon
+        public string ToneMapping { get; set; } = "none";
         public float Exposure { get; set; } = 1.0f;
         public float AmbientIntensity { get; set; } = 0.55f;
         public float HemiIntensity { get; set; } = 0.5f;
-        public float Emission { get; set; } = 0.25f; // 0 = fully lit/dull, 1 = flat vibrant; 0.25 = subtle (default)
+        public float Emission { get; set; } = 0.25f;
         public string FogColor { get; set; } = "#1a1a1f";
         public float FogDensity { get; set; } = 0f;
     }

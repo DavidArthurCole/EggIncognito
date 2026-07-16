@@ -2,9 +2,7 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
 
-// Port parity for protodiff.py: per-message namespace-insensitive diff. Identical protos diff empty,
-// namespace-only changes normalize away to empty, added fields and added messages surface as +/- under
-// a `@@ message @@` header.
+
 public class ProtoDiffTests
 {
     [Fact]
@@ -62,7 +60,7 @@ public class ProtoDiffTests
         const string oldP = "message Foo {\n    enum E {\n        X = 0;\n    }\n}\n";
         const string newP = "message Foo {\n    enum E {\n        X = 0;\n        Y = 1;\n    }\n}\n";
         var diff = ProtoDiff.Diff(oldP, newP);
-        // The enum content shows under the message path, not its own path.
+       
         Assert.Contains("@@ message Foo @@", diff);
         Assert.DoesNotContain("@@ message E @@", diff);
         Assert.Contains("+        Y = 1;", diff);

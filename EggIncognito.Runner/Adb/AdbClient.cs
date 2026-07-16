@@ -2,13 +2,11 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace EggIncognito.Runner.Adb;
-
-// IAdbClient is the test seam for the poll loop; real impl shells adb.
 public interface IAdbClient
 {
     string DumpsysPackage(string package);
 
-    // The arm split carries the proto descriptors the carver needs.
+   
     string PullArmApk(string package, string destPath);
 }
 
@@ -36,7 +34,7 @@ public sealed class AdbClient : IAdbClient
         return m.Success ? m.Groups[1].Value : "";
     }
 
-    // Hashed split dirs mean paths cannot be guessed, only resolved via `pm path`.
+   
     public static IReadOnlyList<string> ParseApkPaths(string pmPathOutput)
     {
         var paths = new List<string>();
@@ -51,7 +49,7 @@ public sealed class AdbClient : IAdbClient
         return paths;
     }
 
-    // The arm split carries the native + descriptor payload the carver needs.
+   
     public static string SelectArmApk(IReadOnlyList<string> apkPaths)
     {
         foreach (var p in apkPaths)
@@ -84,7 +82,7 @@ public sealed class AdbClient : IAdbClient
         return destPath;
     }
 
-    // RunText runs adb with the given args via ArgumentList (no shell, no redirection/quoting surprises).
+   
     private static string RunText(params string[] args)
     {
         var psi = new ProcessStartInfo("adb")

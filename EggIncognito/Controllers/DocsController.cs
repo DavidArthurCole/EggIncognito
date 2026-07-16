@@ -7,10 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Controllers;
 
-// Read + write API for documentation and tags attached to API "subjects" (a proto message type or an
-// endpoint path). Reads are public and degrade to empty without a DB; writes require contributor+ and
-// 503 without a DB. Creating tag definitions is an admin op in AdminController; here a contributor only
-// assigns existing tags to subjects.
 [ApiController]
 [Route("api/docs")]
 [EnableRateLimiting("write")]
@@ -23,20 +19,20 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             ? null
             : StatusCode(403, new { error = "contributor role required to edit documentation" });
 
-    // Valid subject kinds. Widened for the docs hub: the registry also exposes route, config, control.
+   
     private static bool ValidKind(string kind) =>
         kind is "message" or "endpoint" or "route" or "config" or "control";
 
-    // Mark a read response browser-cacheable briefly so the SPA's per-load fetches don't re-query the
-    // DB each navigation. Short TTL keeps edits surfacing quickly; private = per-browser, never shared.
+   
+   
     private void CacheFor(int seconds) =>
         Response.Headers.CacheControl = $"private, max-age={seconds}";
 
     public sealed record UpsertDoc(string SubjectKind, string SubjectKey, string BodyMd);
     public sealed record SetSubjectTags(string SubjectKind, string SubjectKey, long[] TagIds);
 
-    // GET /api/docs/doc/{kind}/{**key} - the doc for a subject, or { bodyMd: null } when none. key is a
-    // catch-all because endpoint paths contain slashes.
+   
+   
     [HttpGet("doc/{kind}/{**key}")]
     public async Task<IActionResult> GetDoc(string kind, string key)
     {
@@ -50,7 +46,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             : new { bodyMd = doc.BodyMd, updatedAt = (object)doc.UpdatedAt, owner = (object?)doc.OwnerUserId });
     }
 
-    // POST /api/docs/doc - upsert a subject's doc (contributor+). An empty/whitespace body deletes it.
+   
     [HttpPost("doc")]
     public async Task<IActionResult> UpsertDocAsync([FromBody] UpsertDoc body)
     {
@@ -79,13 +75,13 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         else
         {
             existing.BodyMd = body.BodyMd;
-            existing.UpdatedAt = System.DateTimeOffset.UtcNow; // default only applies on insert
+            existing.UpdatedAt = System.DateTimeOffset.UtcNow;
         }
         await db.SaveChangesAsync();
         return Ok(new { saved = !empty });
     }
 
-    // GET /api/docs/tags - the tag catalog (public; [] when no DB).
+   
     [HttpGet("tags")]
     public async Task<IActionResult> GetTags()
     {
@@ -97,7 +93,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(rows);
     }
 
-    // GET /api/docs/subject-tags/{kind}/{**key} - the tag objects applied to one subject.
+   
     [HttpGet("subject-tags/{kind}/{**key}")]
     public async Task<IActionResult> GetSubjectTags(string kind, string key)
     {
@@ -114,7 +110,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(rows);
     }
 
-    // POST /api/docs/subject-tags - replace the full tag set for a subject (contributor+).
+   
     [HttpPost("subject-tags")]
     public async Task<IActionResult> SetSubjectTagsAsync([FromBody] SetSubjectTags body)
     {
@@ -124,7 +120,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         if (db is null) return StatusCode(503, new { error = "no database configured" });
 
         var wanted = (body.TagIds ?? []).Distinct().ToHashSet();
-        // Filter to real tag ids to prevent dangling joins.
+       
         if (wanted.Count > 0)
         {
             var real = await db.Tags.Where(t => wanted.Contains(t.Id)).Select(t => t.Id).ToListAsync();
@@ -144,8 +140,8 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(new { tagIds = wanted });
     }
 
-    // GET /api/docs/tags-map - every subject's tags in one batch, so the SPA can render chips across a
-    // whole list without N round-trips. Shape: { "message:Contract": [tag...], ... }.
+   
+   
     [HttpGet("tags-map")]
     public async Task<IActionResult> GetTagsMap()
     {
@@ -166,16 +162,16 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(map);
     }
 
-    // Uploaded inline-doc images live in Postgres bytea so they work in the read-only Hosted deploy with
-    // no filesystem writes. Upload is contributor+; serving is public.
+   
+   
 
     private const int MaxImageBytes = 4 * 1024 * 1024;
-    // Raster only: an SVG opened directly can execute script, a stored-XSS vector.
+   
     private static readonly HashSet<string> AllowedImageTypes =
         new(StringComparer.OrdinalIgnoreCase) { "image/png", "image/jpeg", "image/gif", "image/webp" };
 
-    // The ContentType header is client-supplied, so verify the leading bytes actually are the declared
-    // raster format before storing. Stops e.g. an HTML/SVG payload uploaded as "image/png".
+   
+   
     internal static bool MagicMatches(byte[] b, string contentType) => contentType.ToLowerInvariant() switch
     {
         "image/png" => b.Length >= 8
@@ -191,7 +187,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         _ => false,
     };
 
-    // POST /api/docs/image - multipart upload of one image file. Returns { url, id }.
+   
     [HttpPost("image")]
     [RequestSizeLimit(MaxImageBytes + 64 * 1024)]
     public async Task<IActionResult> UploadImageAsync(IFormFile? file)
@@ -221,7 +217,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(new { id = img.Id, url = $"/api/docs/image/{img.Id}" });
     }
 
-    // GET /api/docs/image/{id} - serve the stored bytes (public). 404 when missing or no DB.
+   
     [HttpGet("image/{id:long}")]
     public async Task<IActionResult> GetImage(long id)
     {
@@ -229,14 +225,14 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         if (db is null) return NotFound();
         var img = await db.DocImages.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id);
         if (img is null) return NotFound();
-        // nosniff so the browser honors the declared raster type.
+       
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         Response.Headers.CacheControl = "public, max-age=31536000, immutable";
         return File(img.Bytes, img.ContentType);
     }
 
-    // GET /api/docs/has - which subjects HAVE a doc, so the SPA can mark them in the list without
-    // fetching each body. Shape: { "message:Contract": true, ... }.
+   
+   
     [HttpGet("has")]
     public async Task<IActionResult> GetHasDocs()
     {

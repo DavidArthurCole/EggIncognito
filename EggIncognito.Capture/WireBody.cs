@@ -3,16 +3,14 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-// Pure wire-body helpers for the capture proxy's response/request handlers, factored out of
-// UnobtaniumCaptureProxy so the three-shape normalization can be unit-tested without a live proxy.
 public static class WireBody
 {
-    // Normalize a decrypted response body to the canonical responseB64: base64 of the AuthenticatedMessage
-    // bytes. The wire body arrives in three shapes depending on the endpoint and Accept-Encoding:
-    //   1. base64 text, the API's normal framing         -> use the text as-is
-    //   2. gzip of the AuthenticatedMessage, real device -> gunzip, then text-or-base64
-    //   3. raw AuthenticatedMessage bytes                -> base64 directly
-    // `shape` is a short human label for the trace log.
+   
+   
+   
+   
+   
+   
     public static (string responseB64, string shape) Normalize(byte[] respBytes)
     {
         string shape;
@@ -23,8 +21,8 @@ public static class WireBody
         }
         else shape = "";
 
-        // A plain-text ack body like "SUCCESS" is also all-base64-alphabet, so only treat it as base64
-        // text when it actually decodes to a parseable AuthenticatedMessage.
+       
+       
         if (LooksLikeBase64Text(respBytes))
         {
             var text = Encoding.ASCII.GetString(respBytes).Trim();
@@ -34,7 +32,7 @@ public static class WireBody
         return (Convert.ToBase64String(respBytes), shape + "raw");
     }
 
-    // True if `text` base64-decodes to bytes that parse as an AuthenticatedMessage.
+   
     private static bool DecodesToAuthMessage(string text)
     {
         try
@@ -49,7 +47,7 @@ public static class WireBody
         }
     }
 
-    // True if the bytes are entirely the base64 alphabet plus whitespace/padding.
+   
     public static bool LooksLikeBase64Text(byte[] b)
     {
         if (b.Length == 0) return false;
@@ -65,7 +63,7 @@ public static class WireBody
         return true;
     }
 
-    // Pull the base64 value of the `data` form field out of a urlencoded body.
+   
     public static string? ExtractDataParam(string body)
     {
         if (string.IsNullOrEmpty(body)) return null;

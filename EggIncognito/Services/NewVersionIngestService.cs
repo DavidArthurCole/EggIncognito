@@ -2,21 +2,17 @@ using EggIncognito.Bot;
 using SyncKit.Contract;
 
 namespace EggIncognito.Services;
-
-// Outcome of handling one device-farm NewVersionEvent.
 public enum IngestOutcome
 {
-    // proto matched the build: affected endpoints regenerated into staged/ for human review.
+   
     Regenerated,
-    // proto differed: artifacts stashed + flagged, no regen. A human must refresh the frozen ei.proto.
+   
     ProtoRefreshNeeded
 }
 
-// Classifies an inbound event by protoSha against the build's frozen ei.proto identity, then either
-// regenerates affected endpoints into staged/ (proto unchanged) or stashes the artifacts and flags a
-// manual proto refresh (proto changed). Never edits ei.proto and never writes default/.
+
 //
-// Side effects run behind delegate seams (fetch, regen, stash) so tests can bypass disk and Discord.
+
 public sealed class NewVersionIngestService
 {
     private readonly string _expectedProtoSha;

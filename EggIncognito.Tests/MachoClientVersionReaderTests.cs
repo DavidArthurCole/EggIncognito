@@ -4,7 +4,7 @@ namespace EggIncognito.Tests;
 
 public class MachoClientVersionReaderTests
 {
-    // Pick is the prev-anchor selection over a candidate->siteCount map.
+   
     [Fact]
     public void Pick_SelectsInRangeNearestToPrev()
     {
@@ -16,13 +16,13 @@ public class MachoClientVersionReaderTests
     public void Pick_BumpsToPrevPlusOne()
     {
         var cands = new Dictionary<int, int> { [19] = 37, [72] = 7 };
-        Assert.Equal(72, MachoClientVersionReader.Pick(cands, 71)); // 71 absent, 72 in {71,72,73}
+        Assert.Equal(72, MachoClientVersionReader.Pick(cands, 71));
     }
 
     [Fact]
     public void Pick_NearerCandidateWinsOverHigherSiteCount()
     {
-        // prev=72 -> range {72,73,74}. 73 is nearer than 74, so 73 wins despite equal site counts.
+       
         var cands = new Dictionary<int, int> { [73] = 9, [74] = 9 };
         Assert.Equal(73, MachoClientVersionReader.Pick(cands, 72));
     }
@@ -31,7 +31,7 @@ public class MachoClientVersionReaderTests
     public void Pick_SameDistance_TieBreaksByDescendingSiteCount()
     {
         var cands = new Dictionary<int, int> { [72] = 2, [73] = 99 };
-        Assert.Equal(72, MachoClientVersionReader.Pick(cands, 72)); // 72 nearest, chosen over higher-count 73
+        Assert.Equal(72, MachoClientVersionReader.Pick(cands, 72));
     }
 
     [Fact]
@@ -48,11 +48,11 @@ public class MachoClientVersionReaderTests
         Assert.Null(MachoClientVersionReader.Pick(cands, null));
     }
 
-    // Candidates: a value written to the same (base,offset) from >=3 sites is a candidate; <3 is dropped.
+   
     [Fact]
     public void Candidates_RequiresThreeDistinctSites()
     {
-        // Build synthetic insns: three MOVZ W0,#72 / STR W0,[X1,#0x110] at distinct addresses -> candidate.
+       
         var insns = new List<Arm64Insn>();
         ulong addr = 0x1000;
         for (int k = 0; k < 3; k++)
@@ -60,7 +60,7 @@ public class MachoClientVersionReaderTests
             insns.Add(new Arm64Insn(addr, Arm64Op.Movz, 0, 0, 72)); addr += 4;
             insns.Add(new Arm64Insn(addr, Arm64Op.Str, 0, 1, 0x110)); addr += 4;
         }
-        // A value with only 2 sites must NOT appear.
+       
         for (int k = 0; k < 2; k++)
         {
             insns.Add(new Arm64Insn(addr, Arm64Op.Movz, 2, 0, 99)); addr += 4;
@@ -75,7 +75,7 @@ public class MachoClientVersionReaderTests
     [Fact]
     public void Candidates_MovkOverlayResolvesValue()
     {
-        // MOVZ W0,#0  then MOVK W0,#72  -> 72, stored 3x.
+       
         var insns = new List<Arm64Insn>();
         ulong addr = 0x2000;
         for (int k = 0; k < 3; k++)

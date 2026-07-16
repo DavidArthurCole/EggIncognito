@@ -1,7 +1,5 @@
 namespace EggIncognito.Core.Services.Devices;
 
-// Android status probe: `adb -s <serial> shell dumpsys package <pkg>` then parse versionName/Code.
-// A non-zero exit or empty version means the device is not reachable (unplugged / adb offline).
 public sealed class AdbDeviceProbe(IProcessRunner runner, string serial, string package) : IDeviceProbe
 {
     public async Task<DeviceProbeResult> ProbeAsync(CancellationToken ct)

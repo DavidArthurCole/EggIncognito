@@ -37,7 +37,7 @@
     [Parameter] public string Search { get; set; } = "";
     [Parameter] public bool IsRoot { get; set; }
 
-    // long leaf strings render clamped; click reveals the rest. mirrors JS jv-open.
+   
     bool _clampOpen;
     bool _revealed;
 
@@ -48,15 +48,15 @@
 
     bool IsSensitive => View.IsSensitiveKey(Node.KeyName);
 
-    // The display text for a leaf, honoring clamp state. During an active search the full value shows so
-    // the highlight can reach it (matches tree.js making clamped strings show full while highlighting).
+   
+   
     string LeafDisplay()
     {
         var full = Node.LeafText;
         var searching = Search.Length > 0;
         if (Node.Kind == "string" && full.Length > TreeNode.ValueClamp + 2 && !_clampOpen && !searching)
         {
-            // full includes surrounding quotes; clamp inside them: "xxxx..."
+           
             var inner = full.Substring(1, Math.Min(TreeNode.ValueClamp, full.Length - 2));
             return "\"" + inner + "...\"";
         }

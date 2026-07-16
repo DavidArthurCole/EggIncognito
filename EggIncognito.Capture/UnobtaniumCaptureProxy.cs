@@ -9,10 +9,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-// ICaptureProxy on Unobtanium.Web.Proxy 0.9.x. The whole point is selective decryption:
-// ShouldDecryptNewConnection returns true only for auxbrain hosts, so every other TLS connection
-// tunnels through untouched. Request body is stashed by RequestId in OnRequest, paired with the
-// response in OnResponse to raise FlowCaptured.
 public sealed class UnobtaniumCaptureProxy : ICaptureProxy
 {
     private const string RootCaName = "EggIncognito Capture Root";
@@ -24,15 +20,15 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
     private bool _trustAdded;
     private bool _freshCa;
 
-    // A request whose response never arrives would otherwise leak its stash, so entries carry a
-    // timestamp and stale ones are swept on each request.
+   
+   
     private sealed record PendingRequest(DateTime StashedAtUtc, string? Data, IReadOnlyList<HttpHeader> Headers);
     internal static readonly TimeSpan PendingTtl = TimeSpan.FromMinutes(2);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, PendingRequest> _pendingRequests = new();
     private DateTime _lastSweepUtc = DateTime.UtcNow;
 
-    // The engine exposes no TLS-decrypt-failure callback: if no flow decrypts within the grace window
-    // after an auxbrain CONNECT, the CA is almost certainly not installed on the device.
+   
+   
     private static readonly TimeSpan TrustGrace = TimeSpan.FromSeconds(8);
     private readonly object _trustGate = new();
     private bool _trustProven;
@@ -44,7 +40,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
 
     public event Action<CapturedFlow>? FlowCaptured;
 
-    // Device connect/disconnect carry the real device IP from the LAN forwarder; the proxy itself only ever sees loopback.
+   
     public event Action<int, string?>? ClientConnected;
     public event Action<int, string?>? ClientDisconnected;
     public event Action? AuxbrainConnect;
@@ -53,8 +49,8 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
 
     public bool Verbose { get; set; }
 
-    // Hosted sessions are fronted by ProxyFrontDoor: no LAN-facing forwarder may bind, and per-user
-    // CAs must not enter the server's own OS trust store.
+   
+   
     public bool LanForwarderEnabled { get; init; } = true;
     public bool TrustCaInOsStore { get; init; } = true;
 
@@ -77,8 +73,8 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         var certDir = Path.GetDirectoryName(Path.GetFullPath(caPath))!;
         Directory.CreateDirectory(certDir);
 
-        // The proxy library writes CA working files under its CachePath using hardcoded names; tuck
-        // them in a hidden `.ca` subdir so captures/ shows only the device-facing cert exported at caPath.
+       
+       
         var caCacheDir = Path.Combine(certDir, ".ca");
         Directory.CreateDirectory(caCacheDir);
 
@@ -87,14 +83,14 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
 
         WireEvents();
 
-        // Unobtanium 0.9.x binds the proxy to 127.0.0.1 only; run it on an internal loopback port and
-        // put a LAN forwarder on the user-facing `port` (0.0.0.0) so the phone can reach it.
+       
+       
         var internalPort = port + 1;
         var internalHttpsPort = port + 2;
 
         var builder = Host.CreateApplicationBuilder();
-        // The proxy library logs every passthrough hiccup at error level and its EventLog provider
-        // throws on shutdown; drop all providers and only keep a quiet console sink in verbose mode.
+       
+       
         builder.Logging.ClearProviders();
         builder.Logging.SetMinimumLevel(Verbose ? LogLevel.Warning : LogLevel.None);
         if (Verbose) builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
@@ -107,7 +103,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         });
         builder.Services.Configure<CertificateManagerConfiguration>(o =>
         {
-            // Do not cache per-host leaf certs to disk: caching littered captures/ with hundreds of junk .pfx files.
+           
             o.CachePath = caCacheDir;
             o.RootCertificateName = RootCaName;
             o.CacheRootCertificate = true;
@@ -151,14 +147,14 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
             var decrypt = ShouldDecrypt(host);
             Log($"CONNECT {host}  decrypt={decrypt}");
             ConnectSeen?.Invoke(host, decrypt);
-            // client?.Address here is the loopback forwarder, not the device.
+           
             if (decrypt) { AuxbrainConnect?.Invoke(); ArmTrustInference(host); }
             return Task.FromResult(decrypt);
         };
     }
 
-    // Read the form-encoded `data=<base64>` body, then replace the request content with a buffered copy
-    // since reading consumes the original stream. Stash the extracted base64 by RequestId for OnResponse.
+   
+   
     private void WireRequest()
     {
         _events.OnRequest += async (sender, e, token) =>
@@ -192,7 +188,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         };
     }
 
-    // Pair buffered request with response and emit CapturedFlow.
+   
     private void WireResponse()
     {
         _events.OnResponse += async (sender, e, token) =>
@@ -222,7 +218,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         };
     }
 
-    // Flatten message + content headers into an ordered list. Multi-value headers expand to one HttpHeader per value.
+   
     private static IReadOnlyList<HttpHeader> CollectHeaders(
         System.Net.Http.Headers.HttpHeaders messageHeaders,
         System.Net.Http.Headers.HttpHeaders? contentHeaders)
@@ -239,7 +235,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         return list;
     }
 
-    // Drop pending-request stashes whose response never arrived, at most once per TTL window.
+   
     private void SweepStalePending() => SweepStalePending(DateTime.UtcNow);
 
     internal void SweepStalePending(DateTime nowUtc)
@@ -288,7 +284,7 @@ public sealed class UnobtaniumCaptureProxy : ICaptureProxy
         DecryptError?.Invoke($"No decrypted traffic after connecting to {host} - is the CA installed and trusted on the device?");
     }
 
-    // Prunes roots left behind by earlier mints first: each carries a private key on disk and could forge any site.
+   
     private void TrustRootCa(X509Certificate2 cert)
     {
         try

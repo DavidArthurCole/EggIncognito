@@ -4,8 +4,6 @@ using EggIncognito.Runner.State;
 using SyncKit.Contract;
 
 namespace EggIncognito.Runner.Runners;
-
-// binaryPath must be pre-staged on disk; no automated device pull. State is keyed on content hash since iOS has no versionCode.
 public sealed class IosRunner(
     string binaryPath, VersionState state, string package,
     Action<NewVersionEvent> onNewVersion) : IDeviceRunner

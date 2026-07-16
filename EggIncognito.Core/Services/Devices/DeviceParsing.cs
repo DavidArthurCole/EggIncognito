@@ -3,8 +3,6 @@ using System.Xml.Linq;
 
 namespace EggIncognito.Core.Services.Devices;
 
-// Pure parsers for the two probe outputs. Kept separate from the probes so they unit-test without
-// spawning a process. Android regexes mirror Runner's AdbClient (Core cannot reference Runner).
 public static partial class DeviceParsing
 {
     [GeneratedRegex(@"versionName=([^\s]+)")] private static partial Regex VersionNameRe();
@@ -18,12 +16,12 @@ public static partial class DeviceParsing
                 code.Success ? code.Groups[1].Value : null);
     }
 
-    // The runtime image's `ideviceinstaller -u <udid> -l -o xml` prints a plist <array> of <dict> app
-    // entries; find the one whose CFBundleIdentifier matches and return its CFBundleShortVersionString.
-    // ideviceinstaller's CLI varies by package build, so fall back to CSV parse if the output is not a plist.
+   
+   
+   
     public static string? IosAppVersion(string output, string bundleId) => IosVersion(output, bundleId).AppVersion;
 
-    // AppVersion = CFBundleShortVersionString (1.36); Build = CFBundleVersion (1.36.0.2).
+   
     public static (string? AppVersion, string? Build) IosVersion(string output, string bundleId)
     {
         var fromPlist = IosFromPlist(output, bundleId);
@@ -32,7 +30,7 @@ public static partial class DeviceParsing
         return (csv, null);
     }
 
-    // plist form: <dict> with alternating <key>/<value> children, one dict per app.
+   
     private static (string? AppVersion, string? Build) IosFromPlist(string xml, string bundleId)
     {
         XDocument doc;
@@ -58,7 +56,7 @@ public static partial class DeviceParsing
         return null;
     }
 
-    // CSV form: one line per app, `<bundleId>, "<shortVersion>", "<displayName>"`.
+   
     private static string? IosFromCsv(string output, string bundleId)
     {
         foreach (var raw in output.Split('\n'))
@@ -75,6 +73,6 @@ public static partial class DeviceParsing
         return null;
     }
 
-    // Bound a shell error blurb before it becomes a probe Note (stderr can be verbose).
+   
     public static string TrimNote(string s) => s.Trim() is { Length: > 200 } t ? t[..200] : s.Trim();
 }

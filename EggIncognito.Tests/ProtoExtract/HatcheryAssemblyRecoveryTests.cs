@@ -3,9 +3,7 @@ using Xunit;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// HatcheryAssemblyRecovery reads FarmScene::updateHatchery's anchor + each matrix lambda's returned 4x4 (sret).
-// The real recovery is exercised by the env-gated real-binary test; here we cover the defensive contract + the
-// Mat4 translation/JSON shape without a binary.
+
 public class HatcheryAssemblyRecoveryTests
 {
     [Fact]
@@ -70,7 +68,7 @@ public class HatcheryAssemblyRecoveryTests
     [Fact]
     public void Timing_ToJson_FlagsRandomFireDelay()
     {
-        // waitFor null but waitForRandom true = the fire delay is the frandom output (random by design).
+       
         var json = new HatcheryAssemblyRecovery.Timing(null, true, 0.5f, 3, "ok").ToJson();
         Assert.Null(json["waitFor"]);
         Assert.True((bool)json["waitForRandom"]!);

@@ -5,9 +5,7 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// FlowProcessor is the per-flow core of the capture command, lifted out of the inline RunAsync
-// lambda so it can be tested. These prove a synthetic CapturedFlow yields the expected
-// DashboardFlow (outcome, types, known) and exercise the pure helpers (OutcomeDelta, DiffCounts).
+
 public class FlowProcessorTests
 {
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
@@ -47,9 +45,9 @@ needs_capture:
         Assert.Equal(Slug, dash.Path);
         Assert.Equal("wrote", dash.Outcome);
         Assert.Equal("PeriodicalsResponse", dash.ResponseType);
-        Assert.True(dash.Known); // response is yaml-mapped; request has no body
-        Assert.Equal(1, har.Count); // HAR entry appended
-        Assert.True(extractor.Quiet); // FlowProcessor put the extractor in quiet mode
+        Assert.True(dash.Known);
+        Assert.Equal(1, har.Count);
+        Assert.True(extractor.Quiet);
     }
 
     [Fact]
@@ -60,7 +58,7 @@ needs_capture:
         var decoder = new FlowDecoder(root);
         var proc = new FlowProcessor(extractor, decoder, new HarWriter(), root);
 
-        // 404 -> ProcessFlow returns null (skipped). Display path falls back to the normalized URL.
+       
         var dash = proc.Process(new CapturedFlow(Url, "POST", 404, null, WrappedResponseB64()));
 
         Assert.Equal(Slug, dash.Path);
@@ -88,13 +86,13 @@ needs_capture:
         var staged = Path.Combine(dir("staged"), Slug + ".json");
         Directory.CreateDirectory(Path.GetDirectoryName(existing)!);
         Directory.CreateDirectory(Path.GetDirectoryName(staged)!);
-        File.WriteAllText(existing, "a\nb\nb\nc", Encoding.UTF8); // removes one 'b' and 'c'
-        File.WriteAllText(staged, "a\nb\nd\ne", Encoding.UTF8); // adds 'd' and 'e'
+        File.WriteAllText(existing, "a\nb\nb\nc", Encoding.UTF8);
+        File.WriteAllText(staged, "a\nb\nd\ne", Encoding.UTF8);
 
         var (added, removed) = FlowProcessor.DiffCounts(root, Slug);
 
-        Assert.Equal(2, added); // d, e
-        Assert.Equal(2, removed); // one b, c
+        Assert.Equal(2, added);
+        Assert.Equal(2, removed);
     }
 
     [Fact]

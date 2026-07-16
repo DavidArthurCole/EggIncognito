@@ -2,16 +2,14 @@ using Google.Protobuf.Reflection;
 
 namespace EggIncognito.Services;
 
-// Schema-less + schema-aware protobuf wire-format diagnosis for corrupt blobs. Walks raw bytes by wire
-// type (does not depend on a successful parse), recording the exact byte offset where structure first
-// breaks and salvaging printable-ASCII runs from the broken span.
+
 public static class WireForensics
 {
     public sealed record WireError(int Offset, string Path, string? ResolvedPath, string Message);
     public sealed record HexWindow(int From, int To, int ErrorIndexInWindow, string Hex);
     public sealed record SalvagedString(int Offset, string Text);
 
-    // DataStart/DataEnd: the LEN payload byte range [DataStart, DataEnd), null for non-LEN fields.
+   
     public sealed record WireNode(
         string Path,
         string? ResolvedName,
@@ -24,10 +22,10 @@ public static class WireForensics
         bool SchemaMismatch,
         IReadOnlyList<WireNode> Children);
 
-    // Value is best-effort: scalar text/number, a decoded string, or "<N bytes>" for non-printable blobs.
+   
     public sealed record RecoveredField(int Field, string? ResolvedName, string Wire, string Value, bool Bad);
 
-    // AlignedAt is the byte offset the re-parse locked onto; SkippedBytes is how many bytes it skipped to resync.
+   
     public sealed record Recovery(
         int AlignedAt,
         int SkippedBytes,
@@ -78,11 +76,11 @@ public static class WireForensics
         throw new WireException("truncated varint (hit end of buffer)", start);
     }
 
-    // Checked as ulong before narrowing to int so an oversized varint cannot wrap negative and defeat the bounds check.
+   
     static bool LenFits(ulong declaredLen, int pos, int end) =>
         pos <= end && declaredLen <= (ulong)(end - pos);
 
-    // True when [start,end) parses cleanly as a nested message (every field reads to exactly end).
+   
     static bool LooksLikeMessage(ReadOnlySpan<byte> buf, int start, int end)
     {
         if (start == end) return false;
@@ -106,7 +104,7 @@ public static class WireForensics
                         if (!LenFits(len, lnext, end)) return false;
                         pos = lnext + (int)len;
                         break;
-                    default: return false; // groups / illegal => bail
+                    default: return false;
                 }
                 if (pos > end) return false;
             }
@@ -185,8 +183,8 @@ public static class WireForensics
         return new HexWindow(lo, hi, errorOffset - lo, System.Convert.ToHexString(buf[lo..hi]).ToLowerInvariant());
     }
 
-    // Printable-ASCII run scan over [start,end). minLen filters noise. No local function so the ref-like
-    // span is not captured (CS9108).
+   
+   
     static List<SalvagedString> SalvageStrings(ReadOnlySpan<byte> buf, int start, int end, int minLen = 4)
     {
         var outp = new List<SalvagedString>();
@@ -234,7 +232,7 @@ public static class WireForensics
             }
         }
 
-        // Re-parse the region around the break, skipping corrupt fields, so intact fields past the corruption are still readable.
+       
         Recovery? recovered = null;
         if (first is not null)
         {
@@ -260,8 +258,8 @@ public static class WireForensics
             Recovered: recovered);
     }
 
-    // Find the deepest walked region containing errorOffset; fall back to outermost.
-    // DataEnd is the next sibling field's tag: an error there belongs to the PARENT region, not this body.
+   
+   
     static int EnclosingRegionStart(IReadOnlyList<WireNode> tree, int errorOffset, int fallbackStart)
     {
         foreach (var n in tree)
@@ -307,7 +305,7 @@ public static class WireForensics
                     : new RecoveredField(field, null, "len", $"<{len} bytes>", true);
                 return (node, pos + len);
             default:
-                return null; // wire 3/4/6/7 -> implausible here
+                return null;
         }
     }
 
@@ -318,7 +316,7 @@ public static class WireForensics
         return true;
     }
 
-    // Ported from traceFailingField.js linear().
+   
     static (List<RecoveredField> Fields, int CleanPrefix, int Skipped) RecoverLinear(ReadOnlySpan<byte> buf, int from, int end)
     {
         var fields = new List<RecoveredField>();
@@ -341,8 +339,8 @@ public static class WireForensics
         return (fields, cleanPrefix, skip);
     }
 
-    // The caller's start may sit mid-tag or mid-wrapper; try a few candidate offsets and keep the one
-    // with the longest clean prefix, not the one that racks up the most fields after wandering through garbage.
+   
+   
     static (IReadOnlyList<RecoveredField> Fields, int AlignedAt, int Skipped) RecoverFields(ReadOnlySpan<byte> buf, int start, int end, int maxProbe = 8)
     {
         (List<RecoveredField> f, int prefix, int skip, int off)? best = null;
@@ -350,18 +348,18 @@ public static class WireForensics
         for (int off = start; off <= hi; off++)
         {
             var (f, prefix, skip) = RecoverLinear(buf, off, end);
-            int score = prefix * 1000 - off; // prefer earlier offset on ties
+            int score = prefix * 1000 - off;
             int bestScore = best is { } b ? b.prefix * 1000 - b.off : int.MinValue;
             if (best is null || score > bestScore) best = (f, prefix, skip, off);
         }
         return best is { } bb ? (bb.f, bb.off, bb.skip) : ([], start, 0);
     }
 
-    // The path's last segment is the broken field; its PARENT message type owns the sibling fields we recovered.
+   
     static IReadOnlyList<RecoveredField> ResolveRecovered(IReadOnlyList<RecoveredField> fields, string brokenPath, MessageDescriptor? rootDesc)
     {
         if (rootDesc is null) return fields;
-        // Walk the numeric path down to the parent of the broken field.
+       
         var segs = brokenPath.Split('.').Select(int.Parse).ToArray();
         var desc = rootDesc;
         for (int i = 0; i < segs.Length - 1 && desc is not null; i++)
@@ -378,10 +376,10 @@ public static class WireForensics
         }).ToList();
     }
 
-    // Wire type codes: 0=varint,1=i64,2=len,5=i32; -1=unknown.
+   
     static int ExpectedWire(FieldDescriptor f)
     {
-        if (f.IsRepeated && f.IsPacked) return 2; // packed repeated scalars travel as LEN
+        if (f.IsRepeated && f.IsPacked) return 2;
         return f.FieldType switch
         {
             FieldType.Int32 or FieldType.Int64 or FieldType.UInt32 or FieldType.UInt64

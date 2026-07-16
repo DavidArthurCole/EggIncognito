@@ -2,17 +2,15 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// Headless smoke for the backfill surface, DB-free (the test host boots without Postgres): the
-// attribution page prerenders 200, and the admin-only backfill POST 403s for an anonymous caller.
 [Collection(SharedAppCollection.Name)]
 public class ProtoSourcesPageTests
 {
     private readonly WebApplicationFactory<Program> _f;
     public ProtoSourcesPageTests(SharedAppFactory f) => _f = f;
 
-    // Sources is now a modal overlay on /protos; the legacy /protos/sources route redirects there. The
-    // redirect page must still respond 200 (client-side NavigateTo), not 404. The attribution content
-    // itself is covered by ProtosPageTests.Component.SourcesPanel_RendersAttribution.
+   
+   
+   
     [Fact]
     public async Task SourcesRoute_StillResponds()
     {

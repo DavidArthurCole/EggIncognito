@@ -1,6 +1,4 @@
 namespace EggIncognito.Components.Inspector;
-
-// Persisted client-side (browser localStorage via inspectorStore.js), not server-side.
 public sealed record InspectorHistoryEntry(
     string Id,
     string Path,

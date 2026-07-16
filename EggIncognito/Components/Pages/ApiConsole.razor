@@ -158,7 +158,7 @@ else
             : _endpoints.Where(e => e.Route.Contains(_filter, StringComparison.OrdinalIgnoreCase)
                                     || e.Method.Contains(_filter, StringComparison.OrdinalIgnoreCase));
 
-    // Group the (filtered) endpoints by their namespace, the segment after /api/ (tools, devices, capture…).
+   
     IEnumerable<IGrouping<string, Endpoint>> Grouped() =>
         Filtered().GroupBy(Namespace).OrderBy(g => g.Key, StringComparer.Ordinal);
 
@@ -168,7 +168,7 @@ else
         return parts.Length >= 2 && parts[0] == "api" ? parts[1] : parts.ElementAtOrDefault(0) ?? "api";
     }
 
-    // Drops the /api/<namespace>/ prefix so rows read compactly under their group header.
+   
     static string ShortRoute(string route)
     {
         var parts = route.TrimStart('/').Split('/');
@@ -201,7 +201,7 @@ else
         _busy = true; _status = null; _isBinary = false; _blobUrl = null;
         try
         {
-            // Substitute {path} params into the route, collect the rest as a query string.
+           
             var route = _selected.Route;
             var query = new List<string>();
             foreach (var p in _selected.Query)
@@ -236,7 +236,7 @@ else
             }
             else
             {
-                // Binary (a glb, file): expose a data-url download rather than dumping bytes.
+               
                 var bytes = await res.Content.ReadAsByteArrayAsync();
                 _respBytes = bytes.Length;
                 _isBinary = true;

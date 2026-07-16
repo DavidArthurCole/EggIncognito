@@ -2,8 +2,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-// Per-flow capture work, separated from the queue consumer for unit-testability (extractor runs Quiet).
-// HAR append, endpoint extract, display JSON decode, diff counts. Returns DashboardFlow; hub owns Id/Timestamp.
 public sealed class FlowProcessor
 {
     private readonly EndpointExtractor? _extractor;
@@ -11,11 +9,11 @@ public sealed class FlowProcessor
     private readonly HarWriter _har;
     private readonly string _contentRoot;
 
-    // extractor null = hosted session: decode + HAR only, no endpoint files are written.
+   
     public FlowProcessor(EndpointExtractor? extractor, FlowDecoder decoder, HarWriter har, string contentRoot)
     {
         _extractor = extractor;
-        // The extractor's per-flow console chatter belongs in the dashboard, not stdout.
+       
         _extractor?.Quiet = true;
         _decoder = decoder;
         _har = har;
@@ -45,7 +43,7 @@ public sealed class FlowProcessor
         var (reqHeaders, reqHeadersRaw) = HeaderRedactor.Build(flow.RequestHeaders);
         var (respHeaders, respHeadersRaw) = HeaderRedactor.Build(flow.ResponseHeaders);
 
-        // Use unredacted JSON for rinfo: version fields are not PII, and redaction may tokenize ei_user_id inside rinfo.
+       
         var observed = RinfoHarvester.TryHarvest(req.JsonRaw);
 
         return new DashboardFlow(
@@ -60,11 +58,11 @@ public sealed class FlowProcessor
             ResponseIsAck: resp.Ack, ResponseText: resp.Text, Observed: observed);
     }
 
-    // Snapshot of the extractor's write tallies, used to derive a single flow's outcome.
+   
     internal static (int wrote, int upd, int diff, int same, int loss) Snapshot(HarCounts c)
         => (c.Wrote, c.Upd, c.Diff, c.Same, c.Loss);
 
-    // The single tally that changed between two snapshots is this flow's outcome.
+   
     internal static string OutcomeDelta(
         (int wrote, int upd, int diff, int same, int loss) a,
         (int wrote, int upd, int diff, int same, int loss) b)
@@ -77,7 +75,7 @@ public sealed class FlowProcessor
         return "";
     }
 
-    // Git-style +/- line counts for a staged endpoint diff. Multiset comparison, so duplicate lines count correctly.
+   
     internal static (int added, int removed) DiffCounts(string contentRoot, string path)
     {
         try

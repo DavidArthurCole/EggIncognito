@@ -1,6 +1,4 @@
-// Backend for the Transport Inspector SPA. Hand-written, not source-generated. Routes live under
-// /api/inspector so they never collide with the generated mock endpoint controllers, which are routed
-// by their Egg, Inc. API path.
+
 
 using System.Text.Json;
 using Google.Protobuf;
@@ -12,7 +10,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/inspector")]
-#pragma warning disable S107 // Inspector backend genuinely depends on each of these injected services.
+#pragma warning disable S107
 public sealed class InspectorApiController(
     IRouteCatalog catalog,
     IProtoReflection reflection,
@@ -40,13 +38,13 @@ public sealed class InspectorApiController(
                 e.PathParamOnly,
                 e.RawResponse,
             });
-        // Short browser cache: the catalog is yaml-driven plus rare DB routes. The Reload button
-        // bypasses cache for an explicit refresh.
+       
+       
         Response.Headers.CacheControl = "private, max-age=20";
         return Ok(list);
     }
 
-    // Proto is frozen per process; let the browser cache it.
+   
     [HttpGet("messages")]
     public IActionResult Messages()
     {
@@ -101,7 +99,7 @@ public sealed class InspectorApiController(
         }
 
         var inner = message.ToByteArray();
-        // The salt is client-owned: it rides in this request and is used only for this build.
+       
         var result = pipeline.Build(inner, body.Wrap, body.Salt);
 
         return Ok(new
@@ -119,16 +117,16 @@ public sealed class InspectorApiController(
     [EnableRateLimiting("egress")]
     public async Task<IActionResult> Send([FromBody] SendRequest body)
     {
-        // The /send egress makes an outbound auxbrain call from this server; when hosted, only for an
-        // authenticated user.
+       
+       
         if (appMode.Mode == AppMode.Hosted && !currentUser.IsAuthenticated)
             throw new ApiException(
                 "log in to use Live API from the hosted site",
                 "Sign in with Discord, then retry. Local runs are never gated.",
                 StatusCodes.Status403Forbidden);
 
-        // Sealed API proxy (supporter perk): fail-closed, a non-supporter or unconfigured upstream
-        // asking for sealed mode is rejected rather than silently sent direct.
+       
+       
         var useSealed = body.Sealed;
         if (useSealed && !await sealedProxy.CanUseAsync(currentUser, HttpContext.RequestAborted))
             throw new ApiException(
@@ -150,7 +148,7 @@ public sealed class InspectorApiController(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "send {Host}{Path} -> FAILED", uri.Host, uri.AbsolutePath);
-            // In-band error so the SPA renders this inline rather than as an HTTP failure.
+           
             return Ok(new ApiError(
                 $"send failed: {ex.Message}",
                 "Check the target host is reachable and the URL is correct.",
@@ -183,15 +181,15 @@ public sealed class InspectorApiController(
     [HttpPost("decode-response")]
     public IActionResult DecodeResponse([FromBody] DecodeResponseRequest body)
     {
-        // Pure decode of a response the browser already has in custom-proxy mode. No network, no salt,
-        // no egress, just proto reflection. Ungated; renders the same decoded view Mock/Live get.
+       
+       
         var parser = body.ResponseType is not null ? reflection.FindParser(body.ResponseType) : null;
         var decode = pipeline.Decode(body.RawBase64, parser, body.ResponseWrapped);
         return Ok(new { decode.Stages, json = decode.Json, error = decode.Error });
     }
 
-    // Merge the env panel's BasicRequestInfo overrides onto the message's `rinfo` field,
-    // but only for keys the user did not already set explicitly in the JSON tree.
+   
+   
     private static string MergeEnv(string fieldsJson, JsonElement? env,
         Google.Protobuf.Reflection.MessageDescriptor descriptor)
     {
@@ -206,7 +204,7 @@ public sealed class InspectorApiController(
         foreach (var prop in root.EnumerateObject())
             outObj[prop.Name] = prop.Value.Clone();
 
-        // Existing rinfo (if any) wins per-key over env defaults.
+       
         var rinfoKey = rinfoField.JsonName;
         var envObj = new Dictionary<string, JsonElement>();
         foreach (var prop in env.Value.EnumerateObject())
@@ -239,9 +237,9 @@ public sealed class InspectorApiController(
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    // Validates the send target against the host allowlist and returns the parsed Uri, or throws
-    // ApiException with a resolution. selfHost is always allowed so "Mock (this instance)" works on a
-    // public deploy; every other target falls back to the auxbrain + localhost rule.
+   
+   
+   
     private static Uri ResolveAllowedUrl(string url, string selfHost)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
@@ -259,8 +257,8 @@ public sealed class InspectorApiController(
             StatusCodes.Status400BadRequest);
     }
 
-    // The /send target allowlist = auxbrain hosts + localhost + this instance's own host. selfHost is
-    // compared case-insensitively; empty selfHost falls through to the static rules.
+   
+   
     internal static bool IsAllowedHost(string host, string? selfHost = null) =>
         host is "localhost" or "127.0.0.1"
         || (!string.IsNullOrEmpty(selfHost) && string.Equals(host, selfHost, StringComparison.OrdinalIgnoreCase))

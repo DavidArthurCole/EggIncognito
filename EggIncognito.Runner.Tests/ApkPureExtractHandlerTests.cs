@@ -4,8 +4,6 @@ using SyncKit.Contract;
 using Xunit;
 
 namespace EggIncognito.Runner.Tests;
-
-// 409 test uses a blocking HttpMessageHandler so the first call holds the single-flight lock while a second races in.
 public class ApkPureExtractHandlerTests
 {
     private static ApkPureExtractHandler Make(string secret, HttpMessageHandler? handler = null) =>
@@ -45,7 +43,7 @@ public class ApkPureExtractHandlerTests
         await first;
     }
 
-    // Blocks the HTTP send until released, then returns 404 so the first call resolves to 502.
+   
     private sealed class BlockingHandler(ManualResetEventSlim entered, ManualResetEventSlim release) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

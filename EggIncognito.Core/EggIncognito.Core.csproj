@@ -14,18 +14,12 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
-    <!-- glTF 2.0 read/write + animation authoring (MIT). Powers the asset AnimationToolkit: load a decoded
-         .glb, inject rotation/orbit animation channels, write back. -->
     <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
-    <!-- arm64 disassembler (C# binding to native capstone, BSD). Powers the decomp constant extractor that
-         reads game behavior out of the egginc binary. Admin/offline path only, never the hot mock path. -->
     <PackageReference Include="Gee.External.Capstone" Version="2.3.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Protobuf Include="Proto\ei.proto" ProtoRoot="Proto" GrpcServices="None" />
-    <!-- Copy the frozen proto next to the published payload so ProtoHash.Current can read it in
-         hosted mode, where the dev-tree EggIncognito.Core/Proto path does not exist. -->
     <Content Include="Proto\ei.proto" Link="Proto\ei.proto" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

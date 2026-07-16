@@ -3,8 +3,6 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
 
-// Shapes a decoded mesh set into the consumer manifest both mesh endpoints return. One place so the
-// contract EggLedger consumes never drifts between the two paths.
 public static class MeshManifest
 {
     public static object From(RpoAssetExtractor.ExtractResult r)
@@ -32,8 +30,8 @@ public static class MeshManifest
         return new { ok = r.Ok, diagnostics = r.Diagnostics, count = ships.Count, ships, failed };
     }
 
-    // Filters the decoded set to Spaceship enum ships, renames to <EnumName>.glb, and returns the manifest
-    // plus the enum ships still missing a mesh.
+   
+   
     public static object Ships(RpoAssetExtractor.ExtractResult r, string? build, bool wroteToDisk, string? outputDir,
         EggIncognito.Services.Assets.GltfAnimator.Options? animate = null)
     {
@@ -53,7 +51,7 @@ public static class MeshManifest
             count = ships.Count,
             manifest = export.Manifest,
             ships,
-            skipped = export.SkippedShips, // enum ships with no bundled mesh (CDN-only / absent)
+            skipped = export.SkippedShips,
             wroteToDisk,
             outputDir = wroteToDisk ? outputDir : null,
         };

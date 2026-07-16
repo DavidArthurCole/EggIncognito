@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Services.Backfill;
-
-// Tunables for the store-version poller, bound from the "VersionPoller" config section.
 public sealed record VersionPollerOptions
 {
     public bool Enabled { get; init; } = true;

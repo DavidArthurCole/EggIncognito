@@ -3,8 +3,6 @@ using EggIncognito.Services.Backfill.Sources;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Services.Backfill;
-
-// Runs one IVersionListSource adapter, upserting its rows into known_versions, job-tracked.
 public sealed class VersionListImporter(
     IServiceScopeFactory scopeFactory, ILogger<VersionListImporter> logger)
 {

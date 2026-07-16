@@ -5,8 +5,6 @@ using SyncKit.Contract;
 
 namespace EggIncognito.Bot;
 
-// Result of a deploy-agent call. Wire shape is SyncKit.Contract.DeployResponse; this is the
-// router's domain view, mapping failures (HTTP errors, timeouts, bad JSON) to Ok=false with a human Tail.
 public sealed record DeployResult(
     bool Ok, bool AlreadyUpToDate, string? Tail, string? FromHash, string? ToHash,
     string? FromUrl = null, string? ToUrl = null)
@@ -14,17 +12,15 @@ public sealed record DeployResult(
     public static DeployResult Failure(string tail) => new(false, false, tail, null, null);
 }
 
-// Talks to the host-side synckit-agent: POST {url} with a bearer secret, decode the JSON reply.
-// System.Text.Json is correct here - this is the synckit HTTP contract, not endpoint proto JSON.
 public sealed class DeployAgentClient(string url, string secret)
 {
-    // 120s: a docker pull of a fresh image can take a while; matches the ledger bot's client timeout.
+   
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(120) };
 
     public async Task<DeployResult> DeployAsync(CancellationToken ct = default)
     {
-        // A misconfigured stack env var (relative URI, wrong scheme) must surface in the embed,
-        // not as an unhandled exception in the router.
+       
+       
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
             return DeployResult.Failure($"Deploy agent URL is invalid: \"{url}\".");
         try
@@ -42,7 +38,7 @@ public sealed class DeployAgentClient(string url, string secret)
         catch (HttpRequestException ex) { return DeployResult.Failure($"Could not reach deploy agent: {ex.Message}"); }
     }
 
-    // Decodes the shared SyncKit.Contract.DeployResponse wire type, then projects to the router's DeployResult.
+   
     public static DeployResult Parse(string json)
     {
         try

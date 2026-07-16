@@ -5,9 +5,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
-// Write tooling: import a HAR or mitmproxy .mitm capture into the content root's Endpoints/, update
-// the endpoint_status block. Local-only; returns 403 in hosted mode since a request must not mutate
-// shared data.
+
 [ApiController]
 [Route("api/import")]
 [EnableRateLimiting("write")]
@@ -15,8 +13,8 @@ public sealed class ImportController(IConfiguration config, IAppMode appMode) : 
 {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
 
-    // 100 MB cap: real capture-session HARs run tens of MB (base64 proto bodies inflate fast), so
-    // this is generous headroom while still bounding a hostile upload.
+   
+   
     [HttpPost("har")]
     [RequestSizeLimit(100 * 1024 * 1024)]
     public Task<IActionResult> Har(IFormFile file, [FromQuery] bool overwrite = false)

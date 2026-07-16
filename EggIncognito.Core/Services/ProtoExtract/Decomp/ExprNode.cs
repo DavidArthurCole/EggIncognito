@@ -2,9 +2,7 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
-// Immutable expression-tree IR: the portable form of a recovered function's math. The symbolic executor emits
-// it, EffectRecovery serializes it to JSON, and the JS evaluator replays it per frame. Opaque is a black box for
-// unmodeled calls/instructions.
+
 public enum UnOp { Neg, Sin, Cos, Sqrt, Abs, Floor }
 public enum BinOp { Add, Sub, Mul, Div, Min, Max, Mod }
 
@@ -49,7 +47,7 @@ public abstract record ExprNode
         return new Binary(op, a, b);
     }
 
-    // Evaluates the tree to a number given named inputs (e.g. {"farmWidth": 12.0}). Unresolved Input/Field/Opaque -> 0.
+   
     public static double Eval(ExprNode n, IReadOnlyDictionary<string, double> inputs) => n switch
     {
         Const c => c.V,
@@ -60,7 +58,7 @@ public abstract record ExprNode
         _ => 0,
     };
 
-    // True when the tree has no unresolved Field/Opaque leaf, so Eval over the known inputs is exact.
+   
     public static bool IsFullyResolved(ExprNode n) => n switch
     {
         Field => false,

@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// The /support marketing page renders in all modes: perks, the three platform cards, and the FAQ.
-// The connect-account section is auth-gated in markup and absent without OAuth config.
 [Collection(SharedAppCollection.Name)]
 public class SupportPageTests
 {

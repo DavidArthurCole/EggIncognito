@@ -2,9 +2,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// /terms and /privacy render in all modes and both carry the not-affiliated disclaimer. The /about
-// page holds the disclaimer + license + the Terms/Privacy links (moved off the site-wide footer so it
-// no longer stretches every page's scroll).
+
 [Collection(SharedAppCollection.Name)]
 public class LegalPagesTests
 {

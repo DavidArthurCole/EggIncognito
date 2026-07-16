@@ -3,10 +3,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Services.Devices;
 
-// Declares the physical devices this host can probe, bound from the "Devices" + "DevicePolling" config.
-// Devices come from a mounted dir of `*.egidevice.*` files (Devices:Dir, default /devices) and/or inline
-// Devices:N:* entries. Inline entries win on Id collision. Target is the platform-natural address:
-// adb serial (android) or UDID (ios).
 public sealed record DeviceConfig
 {
     public bool Enabled { get; init; } = true;
@@ -28,7 +24,7 @@ public sealed record DeviceConfig
         };
     }
 
-    // Inline entries override dir entries sharing an Id; remaining dir entries keep their file order.
+   
     internal static IReadOnlyList<DeviceEntry> Merge(
         IReadOnlyList<DeviceEntry> fromDir, IReadOnlyList<DeviceEntry> inline)
     {

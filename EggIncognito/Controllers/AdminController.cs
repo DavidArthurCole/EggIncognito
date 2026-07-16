@@ -9,8 +9,6 @@ using SyncKit.Identity.Client;
 
 namespace EggIncognito.Controllers;
 
-// Admin-only management API. User list/role-mutation goes through SyncKit.Identity;
-// everything else is local Postgres. DB-touching actions return 503 when no DB is configured.
 [ApiController]
 [Route("api/admin")]
 [EnableRateLimiting("write")]
@@ -34,7 +32,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(rows);
     }
 
-    // Last 60 one-minute buckets (total requests + 429s per minute), in-process ring.
+   
     [HttpGet("metrics")]
     [EnableRateLimiting("read")]
     public IActionResult Metrics()
@@ -47,34 +45,163 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(pts);
     }
 
-    // Empty list when capture is not wired (e.g. a hosted instance with capture off).
+   
+   
     [HttpGet("sessions")]
     [EnableRateLimiting("read")]
     public IActionResult Sessions()
     {
         if (RequireAdmin() is { } no) return no;
-        var mgr = services.GetService(typeof(EggIncognito.Capture.CaptureSessionManager))
-            as EggIncognito.Capture.CaptureSessionManager;
-        if (mgr is null) return Ok(Array.Empty<object>());
-        var rows = mgr.All().Select(x =>
+        var rows = new List<object>();
+
+        if (services.GetService(typeof(EggIncognito.Capture.CaptureSessionManager))
+            is EggIncognito.Capture.CaptureSessionManager mgr)
         {
-            var s = x.Session.Hub.StatsSnapshot();
+            rows.AddRange(mgr.All().Select(x =>
+            {
+                var s = x.Session.Hub.StatsSnapshot();
+                return (object)new
+                {
+                    key = x.Key,
+                    kind = x.Key == EggIncognito.Capture.CaptureSessionManager.LocalKey ? "local" : "user",
+                    killable = true,
+                    running = s.Running,
+                    port = s.Port,
+                    flows = s.CapturedAuxbrain,
+                    connections = s.ActiveConnections,
+                    devices = s.DeviceCount,
+                    decryptOk = s.DecryptOk,
+                    decryptErr = s.DecryptErrors,
+                };
+            }));
+        }
+
+        if (services.GetService(typeof(EggIncognito.Services.Devices.DeviceCaptureManager))
+                is EggIncognito.Services.Devices.DeviceCaptureManager dcm
+            && services.GetService(typeof(EggIncognito.Services.Devices.DeviceConfig))
+                is EggIncognito.Services.Devices.DeviceConfig devCfg)
+        {
+            rows.AddRange(devCfg.Devices.Select(d =>
+            {
+                var diag = dcm.DiagFor(d.Id);
+                var port = dcm.PortFor(d.Id);
+                return (object)new
+                {
+                    key = $"device:{d.Id}",
+                    kind = "device",
+                    killable = false,
+                    running = port != 0,
+                    port,
+                    flows = diag.Flows,
+                    connections = diag.ClientConnects,
+                    devices = 1,
+                    decryptOk = diag.RinfoHarvests,
+                    decryptErr = diag.LastDecryptError is null ? 0 : 1,
+                };
+            }));
+        }
+
+        return Ok(rows);
+    }
+
+   
+   
+    [HttpGet("device-captures")]
+    [EnableRateLimiting("read")]
+    public IActionResult DeviceCaptures()
+    {
+        if (RequireAdmin() is { } no) return no;
+        if (services.GetService(typeof(EggIncognito.Services.Devices.DeviceCaptureManager))
+                is not EggIncognito.Services.Devices.DeviceCaptureManager dcm
+            || services.GetService(typeof(EggIncognito.Services.Devices.DeviceConfig))
+                is not EggIncognito.Services.Devices.DeviceConfig devCfg)
+            return Ok(Array.Empty<object>());
+
+        var rows = devCfg.Devices.Select(d =>
+        {
+            var diag = dcm.DiagFor(d.Id);
+            var port = dcm.PortFor(d.Id);
             return new
             {
-                key = x.Key,
-                running = s.Running,
-                port = s.Port,
-                flows = s.CapturedAuxbrain,
-                connections = s.ActiveConnections,
-                devices = s.DeviceCount,
-                decryptOk = s.DecryptOk,
-                decryptErr = s.DecryptErrors,
+                id = d.Id,
+                label = d.Label,
+                platform = d.Platform,
+                listening = port != 0,
+                port,
+                clientConnects = diag.ClientConnects,
+                auxbrainConnects = diag.AuxbrainConnects,
+                flows = diag.Flows,
+                rinfoHarvests = diag.RinfoHarvests,
+                lastDecryptError = diag.LastDecryptError,
+                recentConnects = diag.RecentConnects,
             };
         }).ToList();
         return Ok(rows);
     }
 
-    // The local key stops but is not removed: it is the shared anonymous session.
+   
+    private EggIncognito.Services.Metrics.ApiAuditLog? Audit =>
+        services.GetService(typeof(EggIncognito.Services.Metrics.ApiAuditLog))
+            as EggIncognito.Services.Metrics.ApiAuditLog;
+
+    [HttpGet("audit/recent")]
+    [EnableRateLimiting("read")]
+    public IActionResult AuditRecent([FromQuery] int take = 200)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var a = Audit; if (a is null) return Ok(Array.Empty<object>());
+        var rows = a.Recent(take).Select(e => new
+        {
+            ts = e.Ts,
+            method = e.Method,
+            path = e.Path,
+            status = e.Status,
+            bucket = e.Bucket.ToString(),
+            ip = e.Ip,
+            user = e.User,
+        });
+        return Ok(rows);
+    }
+
+    [HttpGet("audit/paths")]
+    [EnableRateLimiting("read")]
+    public IActionResult AuditPaths()
+    {
+        if (RequireAdmin() is { } no) return no;
+        var a = Audit; if (a is null) return Ok(Array.Empty<object>());
+        var rows = a.Paths().Select(p => new
+        {
+            path = p.Path,
+            total = p.Roll.Total,
+            @internal = p.Roll.Internal,
+            cross = p.Roll.Cross,
+            external = p.Roll.External,
+            lastSeen = new DateTimeOffset(System.Threading.Volatile.Read(ref p.Roll.LastSeenTicks), TimeSpan.Zero),
+        });
+        return Ok(rows);
+    }
+
+    [HttpGet("audit/ips")]
+    [EnableRateLimiting("read")]
+    public IActionResult AuditIps()
+    {
+        if (RequireAdmin() is { } no) return no;
+        var a = Audit; if (a is null) return Ok(Array.Empty<object>());
+        var rows = a.Ips().Select(x => new { ip = x.Ip, total = x.Total, distinctPaths = x.DistinctPaths, lastSeen = x.LastSeen });
+        return Ok(rows);
+    }
+
+    [HttpGet("audit/buckets")]
+    [EnableRateLimiting("read")]
+    public IActionResult AuditBuckets()
+    {
+        if (RequireAdmin() is { } no) return no;
+        var a = Audit; if (a is null) return Ok(new { @internal = 0, cross = 0, external = 0, keysCapped = 0 });
+        var (i, c, e) = a.Buckets();
+        return Ok(new { @internal = i, cross = c, external = e, keysCapped = a.KeysCapped });
+    }
+
+   
     [HttpDelete("sessions/{key}")]
     public async Task<IActionResult> KillSession(string key)
     {
@@ -107,8 +234,8 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { discordId, role });
     }
 
-    // One-shot: backfills UserId on capture_proxy_addrs/capture_user_cas rows minted before those
-    // tables were keyed by user id. Run before the RepointCaptureTablesToUserId migration.
+   
+   
     [HttpPost("backfill-capture-user-ids")]
     public async Task<IActionResult> BackfillCaptureUserIds(CancellationToken ct)
     {
@@ -119,9 +246,9 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { updated });
     }
 
-    // One-shot: backfills owner_user_id/author_user_id on docs/doc_images/env_designs/
-    // env_design_versions/stored_endpoints/stored_routes/feed_subscriptions rows still holding a
-    // Discord ID string. Run before the RetypeOwnerAuthorUserIdColumns migration.
+   
+   
+   
     [HttpPost("backfill-owner-author-user-ids")]
     public async Task<IActionResult> BackfillOwnerAuthorUserIds(CancellationToken ct)
     {
@@ -159,7 +286,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
     public sealed record AddTag(string Slug, string Label, string? Color);
 
-    // Tag definitions are catalog-level data, admin-only; contributors only assign existing tags.
+   
     [HttpPost("tag")]
     public async Task<IActionResult> AddTagAsync([FromBody] AddTag body)
     {
@@ -177,7 +304,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { tag.Id, tag.Slug, tag.Label, tag.Color });
     }
 
-    // Deleting a tag also clears its subject_tags join rows: no hard FK, so it's done in app.
+   
     [HttpDelete("tag/{id:long}")]
     public async Task<IActionResult> DeleteTag(long id)
     {

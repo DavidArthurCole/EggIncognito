@@ -4,9 +4,7 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
 
-// Full-file parity against the real extracted ei.proto + common.proto: C# ProtoCleanup must produce
-// byte-identical output to the python protocleanup.py. Fixtures live next to this test, resolved via
-// the compile-time source path so no csproj copy wiring is needed.
+
 public class ProtoCleanupParityTests
 {
     private const string ExpectedSha =

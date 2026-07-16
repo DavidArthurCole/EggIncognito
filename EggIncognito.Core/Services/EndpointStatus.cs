@@ -3,9 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services;
 
-// Classifies active routes by endpoint-file state - ok, empty, or missing - and can rewrite the
-// endpoint_status: block in routes.yaml. Pure: paths in, result out. Backs the Inspector's Tools
-// status panel for read and the Import tab's status update for write.
+
 public static class EndpointStatus
 {
     public sealed record Result(
@@ -17,10 +15,10 @@ public static class EndpointStatus
         var ok = new List<string>(); var empty = new List<string>(); var missing = new List<string>();
         foreach (var r in catalog.All())
         {
-            if (r.RawResponse is not null) continue; // raw endpoints serve literals; no file needed
+            if (r.RawResponse is not null) continue;
             var file = Path.Combine(defaultsDir, r.Path.Replace('/', Path.DirectorySeparatorChar) + ".json");
             if (!File.Exists(file)) { missing.Add(r.Path); continue; }
-            // Whitespace-insensitive: a zero-property object is empty however it is spaced.
+           
             var compact = Regex.Replace(File.ReadAllText(file), @"\s", "");
             if (compact is "{}" or "") empty.Add(r.Path);
             else ok.Add(r.Path);
@@ -28,8 +26,8 @@ public static class EndpointStatus
         return new Result(ok, empty, missing);
     }
 
-    // Rewrite the endpoint_status: block from a classification: strip the existing block, append a
-    // freshly built one. Returns the new yaml text, which is also written to disk.
+   
+   
     public static string WriteStatusBlock(string yamlPath, Result r)
     {
         var sb = new StringBuilder();
@@ -46,8 +44,8 @@ public static class EndpointStatus
             foreach (var p in r.Missing) sb.Append($"    - {p}\n");
         }
         var yaml = File.ReadAllText(yamlPath);
-        // Stop at the next top-level key in the parsers' form (`\w[\w_]*:`), so keys starting with
-        // uppercase, underscore, or a digit survive the rewrite.
+       
+       
         yaml = Regex.Replace(yaml, @"(?s)\nendpoint_status:.*?(?=\n\w[\w_]*:|\z)", "");
         yaml = yaml.TrimEnd() + "\n" + sb.ToString().TrimStart('\n') + "\n";
         File.WriteAllText(yamlPath, yaml);

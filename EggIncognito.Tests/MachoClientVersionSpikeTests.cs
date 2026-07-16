@@ -2,8 +2,6 @@ using EggIncognito.Services.ProtoExtract;
 using Xunit.Abstractions;
 
 namespace EggIncognito.Tests;
-
-// Regression guard: the inline-disasm clientVersion heuristic reflects the prev-anchor value back instead of reading the real version on iOS.
 public class MachoClientVersionSpikeTests(ITestOutputHelper output)
 {
     private static readonly string Root =

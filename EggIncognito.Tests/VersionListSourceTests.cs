@@ -4,12 +4,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// Pure parse tests over canned fixtures, no network. Each fixture is a realistic snippet of the source's
-// payload; the test asserts the parsed ListedVersion list. Resilience is asserted too: garbage in yields
-// an empty list, never an exception.
+
 public class VersionListSourceTests
 {
-    // Fandom (MediaWiki parse-API wikitext)
+   
 
     private const string FandomJson = """
     {
@@ -26,12 +24,12 @@ public class VersionListSourceTests
     public void Fandom_Parses_Versions_Dates_Changelog()
     {
         var json = FandomJson;
-        // ExtractWikitext is private; the test drives ParseWikitext over the unwrapped text directly.
+       
         var wikitext = "{| class=\"wikitable\"\n|-\n! Version !! Date !! Changes\n"
             + "|-\n| 1.35.7 || January 5, 2024 || Added [[Artifacts|new artifacts]] and bug fixes\n"
             + "|-\n| 1.34.1 || December 12, 2023 || '''Holiday event''' tweaks\n"
             + "|-\n| 1.33.0 || 2023-11-01 || Performance improvements\n|}";
-        Assert.Contains("1.35.7", json); // fixture sanity
+        Assert.Contains("1.35.7", json);
 
         var list = FandomSource.ParseWikitext(wikitext);
         Assert.Equal(3, list.Count);
@@ -64,7 +62,7 @@ public class VersionListSourceTests
         Assert.Equal("1.20.0", list[0].AppVersion);
     }
 
-    // Uptodown (HTML)
+   
 
     private const string UptodownHtml = """
     <div class="content-versions">
@@ -97,7 +95,7 @@ public class VersionListSourceTests
         Assert.Empty(UptodownSource.ParseHtml(""));
     }
 
-    // APKPure (HTML)
+   
 
     private const string ApkPureHtml = """
     <ul class="ver-wrap">
@@ -125,7 +123,7 @@ public class VersionListSourceTests
         Assert.Empty(ApkPureSource.ParseHtml(""));
     }
 
-    // iTunes (lookup JSON)
+   
 
     private const string ItunesJson = """
     {
@@ -163,7 +161,7 @@ public class VersionListSourceTests
         Assert.Empty(ItunesSource.ParseJson(""));
     }
 
-    // Internet Archive (advancedsearch JSON)
+   
 
     private const string ArchiveJson = """
     {
@@ -218,7 +216,7 @@ public class VersionListSourceTests
         Assert.Empty(InternetArchiveSource.ParseJson("""{ "no": "response" }"""));
     }
 
-    // Unset AppStore:BundleId falls back to the known Egg Inc bundle id and still fetches.
+   
 
     private sealed class CapturingHandler(string body) : HttpMessageHandler
     {
@@ -242,7 +240,7 @@ public class VersionListSourceTests
     public async Task Itunes_Unset_BundleId_Uses_Default_And_Fetches()
     {
         var handler = new CapturingHandler(ItunesJson);
-        var config = new ConfigurationBuilder().Build(); // AppStore:BundleId unset
+        var config = new ConfigurationBuilder().Build();
         var src = new ItunesSource(new StubFactory(handler), config, NullLogger<ItunesSource>.Instance);
 
         var list = await src.FetchAsync(CancellationToken.None);

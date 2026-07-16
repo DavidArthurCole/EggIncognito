@@ -1,8 +1,6 @@
 namespace EggIncognito.Services;
 
-// Identifies the proto type of an arbitrary captured base64 blob. Backs POST /api/tools/decode. Tries
-// the bytes raw and, if they parse as an AuthenticatedMessage, unwrapped, returning the best-ranked
-// Ei.* type + its JSON.
+
 public static class BlobDecoder
 {
     public sealed record DecodeResult(string? Type, string? Json, bool Wrapped, int Confidence);

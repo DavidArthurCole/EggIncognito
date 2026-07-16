@@ -2,8 +2,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Services.Devices;
 
-// Persistent per-device capture config, bound from the "DeviceCapture" section. Off by default. HostIp is
-// the address devices dial back to; unset => auto-detect via HostAddress.Resolve.
 public sealed record DeviceCaptureConfig
 {
     public bool Enabled { get; init; }

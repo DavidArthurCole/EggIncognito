@@ -9,7 +9,7 @@ public class PlaygroundPathsTests
     {
         var run = PlaygroundPaths.ChickenRun([0, 0, 2], [10, 0, -10]);
         Assert.True(run.Length >= 2);
-        // the run starts at the hatchery DOOR (+X offset from the hatchery placement), not its center.
+       
         Assert.Equal(PlaygroundPaths.HatcheryDoorOffsetX, run[0][0], 3);
         Assert.Equal(2f, run[0][2], 3);
         var last = run[^1];
@@ -40,7 +40,7 @@ public class PlaygroundPathsTests
     [Fact]
     public void RoadPath_DefaultsSpan_WhenSparse()
     {
-        // too-close endpoints fall back to the default span, driving right -> left (+X to -X).
+       
         var road = PlaygroundPaths.RoadPath(5, 5);
         Assert.Equal(20f, road[0][0], 3);
         Assert.Equal(-20f, road[1][0], 3);

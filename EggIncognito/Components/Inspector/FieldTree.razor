@@ -74,7 +74,7 @@
 @code {
     [Parameter] public required List<FieldNode> Nodes { get; set; }
     [Parameter] public bool Nested { get; set; }
-    // Bubbled to the builder so it can re-sync raw JSON if shown.
+   
     [Parameter] public EventCallback OnChanged { get; set; }
 
     Task Set(FieldNode n, string? v) { n.Value = v ?? ""; return OnChanged.InvokeAsync(); }

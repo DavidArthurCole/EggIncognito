@@ -1,39 +1,33 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Fixed zone grid for the farm's buildable core. A horizontal path separates the hab row (above) from the core
-// area (below). Below the path, left to right: the silo field (its own area, exempt from gravity/domino), then
-// 3 gravity-packed rows: BackRow (Research Lab, HOA), MidRow (Chicken Run Outflow, Hatchery, Mission Control,
-// Fuel Tank), FrontRow (Depot alone, across the road). Zone granularity is deliberately coarse, a wide Z-band
-// per row; per-slot ordering comes from left-to-right packing by real mesh width (repackZoneRow in
-// playground.js) plus PlacementSolver.DominoNudge.
+
+
 //
-// STOPGAP (CLAUDE.md "EXTRACT, don't author"): row Z bands + gap are hand-tuned. The real per-row bounds live
-// in the game's FarmScene terrain layout, not yet disassembled. Silos and the hab row already use extracted
-// formulas and are wrapped as Fixed zones for addressability only.
+
 public static class ZoneLayout
 {
     public enum ZoneId { Silos, Habs, BackRow, MidRow, FrontRow }
 
-    // AnchorX/AnchorZ = the zone's back-left corner. Width/Depth = the zone's extent.
+   
     public sealed record Zone(ZoneId Id, float AnchorX, float AnchorZ, float Width, float Depth);
 
-    // Row bands (Z).
-    public const float BackRowZ = -4f; // Lab/HOA row, below the top hab path
-    public const float MidRowZ = 5f; // ChickenOutflow/Hatchery/MissionControl/Fuel row
-    public const float FrontRowZ = 10f; // Depot row, across the road
-    public const float RowDepthBand = 6f; // generous Z-thickness of a row's drop band (covers any real tier depth)
-    public const float ZoneGapX = 2.5f; // horizontal gap between adjacent buildings in a row
-    public const float CoreLeftX = 2f; // left bound of the gravity-packed core rows, right of the silo field
-    public const float CoreWidth = 60f; // generous right bound so a row band covers the whole packed core
+   
+    public const float BackRowZ = -4f;
+    public const float MidRowZ = 5f;
+    public const float FrontRowZ = 10f;
+    public const float RowDepthBand = 6f;
+    public const float ZoneGapX = 2.5f;
+    public const float CoreLeftX = 2f;
+    public const float CoreWidth = 60f;
 
     public static readonly IReadOnlyDictionary<ZoneId, Zone> Zones = BuildZones();
 
     private static IReadOnlyDictionary<ZoneId, Zone> BuildZones()
     {
-        // silo field: its OWN area, left of the core rows, exempt from gravity/domino. FarmLayout.SiloPos
-        // already places the silos there (negative-X); this rect is informational only.
+       
+       
         var silos = new Zone(ZoneId.Silos, AnchorX: -35f, AnchorZ: -2f, Width: 30f, Depth: 9f);
-        // hab row, ABOVE the top path. Not gravity-packed with the core rows below.
+       
         var habs = new Zone(ZoneId.Habs, AnchorX: -35f, AnchorZ: FarmLayout.HabRowZ - 2f, Width: 70f, Depth: 4f);
 
         var backRow = new Zone(ZoneId.BackRow, AnchorX: CoreLeftX, AnchorZ: BackRowZ, Width: CoreWidth, Depth: RowDepthBand);
@@ -47,8 +41,8 @@ public static class ZoneLayout
         };
     }
 
-    // Places Lab+Hoa at BackRow, Hatchery/MissionControl/Fuel at MidRow, Depot at FrontRow. All 6 core buildings
-    // render left-pinned, so Pos is the zone's anchor corner, not center.
+   
+   
     public static IReadOnlyList<FarmLayout.Placed> Resolve(string lab, string hoa, string hatchery,
         string missionControl, string fuel, string depot)
     {
@@ -65,7 +59,7 @@ public static class ZoneLayout
         ];
     }
 
-    // Whether (x, z) lands inside any zone's rect.
+   
     public static bool IsInsideAnyZone(float x, float z)
     {
         foreach (var zone in Zones.Values)

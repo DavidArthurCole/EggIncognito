@@ -6,16 +6,14 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Controllers;
 
-// Serves the shell DB built from the locally stored game config (GameConfigStore -> DLCCatalog ->
-// ShellCatalog). A shell is a cosmetic mesh for an asset type. Reads are public; the glb fetch does CDN
-// egress so it is egress-gated and hosted-auth like Inspector send.
+
 [ApiController]
 [Route("api/shells")]
 public sealed class ShellsController(
     GameConfigStore configStore, ShipShellDownloader downloader, MeshAssetCache cache,
     IAppMode appMode, ICurrentUser currentUser) : ControllerBase
 {
-    // Lists shells from the stored config, optionally for one asset type (?assetType=CHICKEN) and platform.
+   
     [HttpGet]
     public IActionResult List([FromQuery] string platform = "ios", [FromQuery] string? assetType = null)
     {
@@ -26,7 +24,7 @@ public sealed class ShellsController(
             ? ShellCatalog.FromCatalog(catalog)
             : ShellCatalog.ForAssetType(catalog, assetType);
 
-        // Group asset types for the picker (which models have shells), plus the shells themselves.
+       
         var assetTypes = ShellCatalog.FromCatalog(catalog)
             .Select(s => s.AssetType).Distinct(StringComparer.Ordinal).OrderBy(a => a, StringComparer.Ordinal).ToArray();
 
@@ -40,8 +38,8 @@ public sealed class ShellsController(
         });
     }
 
-    // Lists shellObjects (chickens / hats / all) from the stored config for the chicken+hat compositor.
-    // ?type=chicken|hat filters, empty = all. Returns the hat anchor + noHats per object.
+   
+   
     [HttpGet("objects")]
     public IActionResult Objects([FromQuery] string platform = "ios", [FromQuery] string? type = null)
     {
@@ -66,9 +64,9 @@ public sealed class ShellsController(
         });
     }
 
-    // Lists shell sets + decorators from the stored config so the designer can apply a coordinated reskin
-    // across matching elements, or a farm-wide cosmetic overlay. Members carry the asset type so the
-    // client matches each to a placed element.
+   
+   
+   
     [HttpGet("sets")]
     public IActionResult Sets([FromQuery] string platform = "ios")
     {
@@ -90,8 +88,8 @@ public sealed class ShellsController(
         });
     }
 
-    // Fetches one shell's mesh as .glb: resolve its url from the catalog, download, decode, optional animate.
-    // Caches the decoded glb so repeat views skip the CDN.
+   
+   
     [HttpGet("{platform}/{identifier}/glb")]
     [EnableRateLimiting("egress")]
     public async Task<IActionResult> Glb(string platform, string identifier, [FromQuery] string? animate, [FromQuery] float seconds, CancellationToken ct)
@@ -125,8 +123,8 @@ public sealed class ShellsController(
         return File(glb, "model/gltf-binary", $"{identifier}.glb");
     }
 
-    // Parses the stored ConfigResponse JSON back to a proto and returns its DLCCatalog. Null when no
-    // config is stored for the platform, or it carries no catalog.
+   
+   
     private Ei.DLCCatalog? LoadCatalog(string platform)
     {
         var stored = configStore.Get(platform);

@@ -350,12 +350,12 @@
     string? _rawError;
 
     string _target = "mock";
-    bool _busy; // in-flight Build/Send guard; both buttons disable while a call is running
+    bool _busy;
     BuildResponse? _lastBuild;
     List<TransportStage>? _buildStages;
     SendResponse? _response;
     string _saveOut = "";
-    int _resultTab; // 0 = Pipeline, 1 = Response, 2 = Diagnose (mirrors Capture's remembered detail tab)
+    int _resultTab;
     DiagnoseDto? _diagnosis;
 
     bool _hasSalt;
@@ -365,11 +365,11 @@
     bool _settingsModalOpen;
     bool _historyNoticeOpen;
 
-    // Client-side request history ("quick swap"). Default on; toggled in the settings modal.
+   
     bool _historyEnabled = true;
     List<InspectorHistoryEntry> _history = [];
     bool _statusModalOpen;
-    // Modal focus: move keyboard focus into a freshly opened modal so Escape works immediately.
+   
     ElementReference _saltInputRef;
     ElementReference _consentCancelRef;
     bool _focusSaltModal;
@@ -386,13 +386,13 @@
     bool _canSaveDb;
     bool _hosted;
 
-    // Sealed API proxy supporter perk: the toggle shows only when the perk is configured and this user
-    // is a supporter. The server re-checks on /send, so this is purely the affordance.
+   
+   
     bool _sealedAvailable;
     bool _sealed;
 
-    // The salt is read fresh from the browser only when needed (build, badge). It never lives in a
-    // server field beyond a single build round-trip; this holds only the badge-state boolean.
+   
+   
 
     string _baseAddress = "";
     string? _cookie;
@@ -406,28 +406,28 @@
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
-        // Live API egress is login-gated when hosted; grey the toggle for anonymous hosted users. The
-        // server /send is the real gate. Read IAppMode/ICurrentUser directly (server-side render).
+       
+       
         _hosted = AppMode.Mode == EggIncognito.Services.AppMode.Hosted;
         _liveDisabled = _hosted && !User.IsAuthenticated;
-        // Save to DB needs contributor+. In Local with no auth, ICurrentUser is anonymous (viewer), so
-        // mirror app.js's fail-open: show the button when auth is off (Local) or the user is contributor+.
+       
+       
         _canSaveDb = AppMode.Mode != EggIncognito.Services.AppMode.Hosted
             || User.IsAtLeast(UserRole.Contributor);
-        // Show the sealed-proxy toggle only when configured + this user is a supporter. The /send gate
-        // re-verifies live, so a stale claim here can never actually use the sealed egress.
+       
+       
         _sealedAvailable = SealedProxy.IsConfigured && User.IsSupporter;
-        // Seed the env panel from the in-memory defaults so it renders on the first (pre-JS) pass; the
-        // browser-stored overrides are merged in after the interop module loads (OnAfterRenderAsync).
+       
+       
         SeedEnvRows();
     }
 
-    // Browser-memory reads need JS, so they run after the first interactive render. The ES module is
-    // imported once; all browser-local state (salt, EIDs, proxy URL, rinfo defaults) flows through it.
+   
+   
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Focus a freshly opened modal (set by OpenSaltModal/RequestTarget) so Escape-to-close works
-        // without a mouse click first.
+       
+       
         if (_focusSaltModal)
         {
             _focusSaltModal = false;
@@ -440,7 +440,7 @@
         }
         if (!firstRender) return;
         try { _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js"); }
-        catch { return; } // JS unavailable (e.g. test prerender); the page stays usable with defaults.
+        catch { return; }
         _rinfo = await InvokeOr("getRinfoDefaults", _rinfo);
         _hasSalt = !string.IsNullOrEmpty(await InvokeOr("getSalt", ""));
         _customTarget = await InvokeOr("getCustomTarget", "");
@@ -485,14 +485,14 @@
         _selectedObject = name;
     }
 
-    // From the endpoint Docs tab's request/response type link: jump the left list to Objects + select it.
+   
     void SelectObjectFromDocs(string name)
     {
         _listMode = "objects";
         _selectedObject = name;
     }
 
-    // From the Object view's "used by" list: jump to the endpoint builder.
+   
     async Task SelectFromObject(RouteInfo e)
     {
         _listMode = "endpoints";
@@ -506,7 +506,7 @@
         return e.RequestWrapped ? $"{t}, signed (AuthenticatedMessage)" : t;
     }
 
-    // schema + field tree (direct service reads, no API round-trip)
+   
     SchemaMessage? Schema(string? typeName)
     {
         if (string.IsNullOrEmpty(typeName)) return null;
@@ -544,8 +544,8 @@
         ];
     }
 
-    // One env field by key, with a width class. Sized per-field (clientVersion is tiny, eiUserId is wide)
-    // instead of a uniform grid. Returns nothing if the key is unknown (defensive).
+   
+   
     RenderFragment EnvField(string key, string widthClass) => builder =>
     {
         var r = _envRows.FirstOrDefault(x => x.Key == key);
@@ -605,11 +605,11 @@
         row.Value = value ?? "";
         SyncRinfoFromRow(row);
         ApplyEnvLock();
-        // Env edits are the request defaults; persist them browser-side so they survive a reload.
+       
         await InvokeVoid("setRinfoDefaults", _rinfo);
     }
 
-    // Mirror a single edited env row back onto the persisted BasicRequestInfo defaults.
+   
     void SyncRinfoFromRow(EnvRow row)
     {
         switch (row.Key)
@@ -630,15 +630,15 @@
         if (_fieldNodes is null) return;
         var env = EnvCollector.AsStrings(_envRows);
         FieldTreeBuilder.ApplyEnvLock(_fieldNodes, env);
-        // Default top-level request fields (clientVersion, eiUserId, platform, ...) from the Environment
-        // constants so the same values do not have to be retyped per request.
+       
+       
         FieldTreeBuilder.ApplyEnvDefaults(_fieldNodes, env);
     }
 
     void OnTreeChanged() { /* re-render; raw JSON is re-derived on toggle */ }
 
-    // True when the request type has fields but they are all env-locked (covered by BasicRequestInfo
-    // overrides), so nothing is left for the user to fill in.
+   
+   
     bool NoFillableFields =>
         _fieldNodes is { Count: > 0 } && _fieldNodes.All(n => n.Locked);
 
@@ -653,8 +653,8 @@
                 _rawJson = FieldTreeBuilder.Collect(_fieldNodes).ToJsonString(new JsonSerializerOptions { WriteIndented = true });
             return;
         }
-        // Switching raw off: parse the raw edits back into the field tree so they are not silently
-        // discarded. If the raw JSON does not parse, stay in raw mode and surface the error.
+       
+       
         if (_fieldNodes is not null)
         {
             try
@@ -675,7 +675,7 @@
         _rawMode = false;
     }
 
-    // endpoint-status modal (was a cramped inline column popover)
+   
     async Task ToggleStatus()
     {
         _statusModalOpen = true;
@@ -709,7 +709,7 @@
         _focusSaltModal = true;
     }
 
-    // Escape closes whichever modal is open (the handler sits on each modal's overlay).
+   
     void OnModalKeyDown(KeyboardEventArgs e)
     {
         if (e.Key != "Escape") return;
@@ -733,7 +733,7 @@
         _target = t;
     }
 
-    // Live API sends real auxbrain requests; gate the first switch per browser behind consent.
+   
     async Task RequestTarget(string t)
     {
         if (_liveDisabled) return;
@@ -761,9 +761,9 @@
 
     void OnSealedToggle(ChangeEventArgs e) => _sealed = e.Value is bool b && b;
 
-    // build + send. /build owns the salt+sign; /send owns egress+allowlist; /decode-response is pure.
-    // Both entry points share the _busy in-flight guard so a double-click cannot fire concurrent
-    // /build or /send calls (Send can be live-API egress).
+   
+   
+   
 
     async Task Build()
     {
@@ -786,7 +786,7 @@
         var e = _selected;
         if (e is null) return;
         _response = null;
-        _resultTab = 0; // surface the freshly-built pipeline
+        _resultTab = 0;
 
         if (e.PathParamOnly)
         {
@@ -818,8 +818,8 @@
             return;
         }
 
-        // Read the client-owned salt fresh from the browser for this one build call. It is sent only
-        // here, never stored server-side.
+       
+       
         var salt = await InvokeOr<string?>("getSalt", null);
 
         var body = new
@@ -853,8 +853,8 @@
         }
     }
 
-    // Persist the just-built request to client-side history (if enabled). On the very first save, pop a
-    // one-time notice that history can be turned off in settings.
+   
+   
     async Task SaveToHistory(RouteInfo e, JsonNode? fields)
     {
         if (!_historyEnabled || _store is null) return;
@@ -883,19 +883,19 @@
         return string.Join(" · ", bits);
     }
 
-    // Restore a history entry into the builder: select the endpoint, then re-apply the saved env, body,
-    // path param, and target.
+   
+   
     async Task RestoreHistory(InspectorHistoryEntry h)
     {
         var route = Catalog.All().FirstOrDefault(r => r.Path == h.Path);
         if (route is null) return;
         await SelectEndpoint(route);
-        // Re-apply saved env onto the rows + persisted rinfo.
+       
         foreach (var row in _envRows)
             if (h.Env.TryGetValue(row.Key, out var v)) { row.Value = v; SyncRinfoFromRow(row); }
         if (!string.IsNullOrEmpty(h.PathParam)) _pathParam = h.PathParam;
         _target = h.Target;
-        // Re-apply the saved body fields.
+       
         if (_fieldNodes is not null)
         {
             try
@@ -922,7 +922,7 @@
     {
         var e = _selected;
         if (_lastBuild is null || e is null) return;
-        _resultTab = 1; // jump to the Response tab so the decoded result is visible
+        _resultTab = 1;
 
         if (_target == "custom")
         {
@@ -966,8 +966,8 @@
         }
     }
 
-    // When a send decoded to an error but we still have the raw response bytes, run wire forensics and
-    // surface the Diagnose tab so the failure is actionable instead of just an error string.
+   
+   
     async Task MaybeDiagnose()
     {
         _diagnosis = null;
@@ -977,13 +977,13 @@
             var res = await Client().PostAsJsonAsync("/api/tools/diagnose",
                 new { Base64 = _response.RawBase64, RootType = _selected?.Response }, JsonOpts);
             _diagnosis = await res.Content.ReadFromJsonAsync<DiagnoseDto>(JsonOpts);
-            _resultTab = 2; // focus the Diagnose tab on a decode failure
+            _resultTab = 2;
         }
         catch { /* leave _diagnosis null; the Response tab still shows the error */ }
     }
 
-    // Custom: the browser POSTs the built form body straight to the user's proxy (this server bypassed),
-    // then the egress-free /decode-response turns the bytes into JSON.
+   
+   
     async Task SendCustom(RouteInfo e)
     {
         if (string.IsNullOrEmpty(_customTarget))
@@ -1044,7 +1044,7 @@
         candidates.AddRange(_envRows.Select(r => r.Value));
         var present = candidates.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToArray();
         if (present.Length == 0) return;
-        // The interop expects a single array argument (rememberEids(values)).
+       
         _recentEids = await InvokeOr("rememberEids", _recentEids, new object?[] { present });
     }
 
@@ -1091,7 +1091,7 @@
         catch (Exception ex) { _saveOut = $"Request failed: {ex.Message}"; }
     }
 
-    // Self-call client forwarding the auth cookie so the controllers' gates see the request's auth.
+   
     HttpClient Client()
     {
         var c = HttpFactory.CreateClient();
@@ -1100,8 +1100,8 @@
         return c;
     }
 
-    // Mutable holder for the seven BasicRequestInfo defaults. Field types mirror the JS interop shape
-    // exactly (getRinfoDefaults returns clientVersion:int, debug:bool) so the JSON round-trips cleanly.
+   
+   
     sealed class RinfoDefaults
     {
         public string EiUserId { get; set; } = "";
@@ -1114,10 +1114,10 @@
         public bool Debug { get; set; }
     }
 
-    // Platform is a string field on BasicRequestInfo, but the only valid values are the proto Platform
-    // enum names (e.g. DROID, IOS). Source the dropdown from the enum's original proto names (the
-    // [OriginalName] attribute), not the PascalCase C# members, so the value on the wire matches what the
-    // real client sends and can never drift from the proto.
+   
+   
+   
+   
     static readonly string[] PlatformOptions = typeof(Ei.Platform).GetFields()
         .Where(f => f.IsLiteral)
         .Select(f => f.GetCustomAttribute<Google.Protobuf.Reflection.OriginalNameAttribute>()?.Name ?? f.Name)

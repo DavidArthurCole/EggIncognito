@@ -2,9 +2,7 @@ using System.IO.Compression;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Pulls lib/arm64-v8a/libegginc.so out of an arm-split APK (or accepts a bare .so), parses its .text via Elf64,
-// and runs the Arm64ClientVersionScanner with the previous known clientVersion as the anchor. Defensive: any
-// structural surprise returns null, never a throw.
+
 public static class LibegincClientVersion
 {
     private const long MaxSoBytes = 300_000_000L;
@@ -33,7 +31,7 @@ public static class LibegincClientVersion
     private static bool IsZip(byte[] b) =>
         b is { Length: > 4 } && b[0] == 0x50 && b[1] == 0x4B && b[2] == 0x03 && b[3] == 0x04;
 
-    // Prefer lib/arm64-v8a/libegginc.so, then any arm64 .so, then libegginc.so under any abi.
+   
     private static byte[]? ReadSoFromZip(byte[] zipBytes)
     {
         try

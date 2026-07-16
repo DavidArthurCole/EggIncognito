@@ -2,8 +2,6 @@ using EggIncognito.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Data.Services;
-
-// Opens a DI scope per call so it can use the scoped DbRouteProvider, which depends on the scoped DbContext.
 public sealed class ScopedDbRouteProvider(IServiceScopeFactory scopeFactory) : IDbRouteProvider
 {
     public RouteInfo? GetDbRoute(string path)

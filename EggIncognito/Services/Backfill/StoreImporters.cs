@@ -4,8 +4,6 @@ using EggIncognito.Data.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Services.Backfill;
-
-// Current-version-only, proto-less, source-tagged metadata importers for the Play + App stores.
 public static partial class StoreParse
 {
     [GeneratedRegex(@"Current Version.*?>([\d][\d.]*)<", RegexOptions.Singleline)]
@@ -42,8 +40,6 @@ public static partial class StoreParse
         }
     }
 }
-
-// Fetches the current Android version from the public Play store page and upserts a metadata-only row.
 public sealed class PlayStoreImporter(
     IHttpClientFactory httpFactory, IServiceScopeFactory scopeFactory, ILogger<PlayStoreImporter> logger)
 {
@@ -68,8 +64,6 @@ public sealed class PlayStoreImporter(
         return true;
     }
 }
-
-// Fetches the current iOS version via the iTunes lookup API and upserts a metadata-only row.
 public sealed class AppStoreImporter(
     IHttpClientFactory httpFactory, IConfiguration config, IServiceScopeFactory scopeFactory,
     ILogger<AppStoreImporter> logger)

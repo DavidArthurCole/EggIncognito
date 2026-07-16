@@ -2,9 +2,7 @@ using System.Text;
 
 namespace EggIncognito.Services;
 
-// The file-backed endpoint source: loads every default/*.json + eids/<eid>/*.json under the root at
-// construction, keyed by relative slug without the .json. Lookup applies eid-beats-default precedence
-// and the path-parameter parent walk, where ei_ctx/get_eval/<id> falls back to ei_ctx/get_eval.
+
 public sealed class FileEndpointSource : IEndpointSource
 {
     private readonly Dictionary<string, byte[]> _endpoints = new(StringComparer.OrdinalIgnoreCase);
@@ -14,8 +12,8 @@ public sealed class FileEndpointSource : IEndpointSource
     public FileEndpointSource(string endpointsPath)
     {
         if (!Directory.Exists(endpointsPath)) return;
-        // IgnoreInaccessible skips subdirectories/files the process cannot read (e.g. root-owned
-        // /tmp/systemd-private-* when the root is a shared temp dir) instead of throwing mid-enumeration.
+       
+       
         var opts = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
         foreach (var file in Directory.EnumerateFiles(endpointsPath, "*.json", opts))
         {

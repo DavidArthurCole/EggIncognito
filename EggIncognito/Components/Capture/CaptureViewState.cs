@@ -2,17 +2,13 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Components.Capture;
 
-// View preferences + redaction logic for the capture detail pane. Three redaction modes:
-//   off    - raw json, nothing blurred
-//   blur   - raw json, sensitive values blurred (CSS .blurred), revealed on click
-//   redact - pre-redacted json with "redacted-xxxx" tokens
 public sealed class CaptureViewState
 {
-    // Matches an EID anywhere in a string: path params, query values, etc.
+   
     public static readonly Regex EidRe = new("EI\\d{10,}", RegexOptions.Compiled);
 
-    // Field names whose values are blurred in blur mode. Seeded with EID fields; rest added from
-    // /api/capture/sensitive-keys.
+   
+   
     public HashSet<string> SensitiveKeys { get; } = new(StringComparer.Ordinal) { "eiUserId", "userId" };
 
     public string RedactionMode { get; set; } = "blur";
@@ -26,7 +22,7 @@ public sealed class CaptureViewState
 
     public bool ShowRawHeaders => RedactionMode == "off";
 
-    // redact uses pre-redacted json; off/blur use raw, falling back to redacted if null.
+   
     public string? PickJson(string? redacted, string? raw) =>
         RedactionMode == "redact" ? redacted : raw ?? redacted;
 
@@ -35,19 +31,19 @@ public sealed class CaptureViewState
 
     public bool LooksLikeEid(string s) => EidRe.IsMatch(s);
 
-    // EID-looking values are redacted to "redacted-eid" or blurred; others pass through. Blur true means
-    // wrap the span in a click-to-reveal blur.
+   
+   
     public (string Text, bool Blur) RedactParamValue(string value)
     {
         if (RedactionMode == "redact" && EidRe.IsMatch(value)) return ("redacted-eid", false);
         return (value, RedactionMode == "blur" && EidRe.IsMatch(value));
     }
 
-    // Tokenizes a path on '/' so any EID-looking segment respects the current mode while the rest stays
-    // raw. Blur true means render that segment blurred.
+   
+   
     public IEnumerable<(string Text, bool Blur)> RenderRedactedPath(string path)
     {
-        // Keep separators so the path renders exactly as-is.
+       
         var parts = Regex.Split(path, "(/)");
         foreach (var part in parts)
         {
@@ -64,8 +60,8 @@ public sealed class CaptureViewState
         }
     }
 
-    // Collects the exact string values that should be blurred in text views: any value under a sensitive
-    // key, plus any string that looks like an EID anywhere.
+   
+   
     public HashSet<string> CollectSensitiveValues(System.Text.Json.Nodes.JsonNode? value)
     {
         var outSet = new HashSet<string>(StringComparer.Ordinal);

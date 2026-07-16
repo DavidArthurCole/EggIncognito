@@ -2,16 +2,12 @@ using System.Text;
 
 namespace EggIncognito.Services;
 
-// Reads mitmproxy .mitm flow files into the same (url, method, status, requestData, responseBody)
-// tuples the HAR path produces, so both feed EndpointExtractor.ProcessFlow identically. A .mitm file
-// is a sequence of top-level tnetstring dicts, one per flow; each HTTP flow holds request + response
-// sub-dicts. Request/response string fields are stored as bytes.
 public static class MitmFlowReader
 {
     public sealed record MitmFlow(string Url, string Method, int Status, string? RequestDataB64, string ResponseBodyB64);
 
-    // Yield every HTTP flow with a request and a response. Flows of other types (websocket, dns) and
-    // request-only flows (no response captured) are skipped.
+   
+   
     public static IEnumerable<MitmFlow> Read(byte[] fileBytes)
     {
         var pos = 0;
@@ -20,7 +16,7 @@ public static class MitmFlowReader
             object? value;
             int next;
             try { (value, next) = TnetString.Decode(fileBytes, pos); }
-            catch (FormatException) { yield break; } // truncated tail: stop, keep what parsed
+            catch (FormatException) { yield break; }
 
             pos = next;
             if (value is not Dictionary<string, object?> flow) continue;
@@ -54,7 +50,7 @@ public static class MitmFlowReader
         return $"{scheme}://{authority}{path}";
     }
 
-    // '+' restored before unescaping to match base64 padding (HAR path parity).
+   
     private static string? ReadDataParam(byte[]? content)
     {
         if (content is null || content.Length == 0) return null;

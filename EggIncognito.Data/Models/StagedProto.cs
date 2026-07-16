@@ -3,8 +3,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
 
-// One proto awaiting review before it enters the live registry, from a public "offer" or an admin "crawl" import.
-// Approval promotes it to proto_versions via ProtoRegistryStore.
 [Table("staged_protos")]
 public sealed class StagedProto
 {
@@ -17,8 +15,8 @@ public sealed class StagedProto
     [Column("proto_sha")] public string ProtoSha { get; set; } = "";
     [Column("proto_text")] public string ProtoText { get; set; } = "";
     [Column("message_index")] public string? MessageIndex { get; set; }
-    [Column("source")] public string Source { get; set; } = "offer"; // offer | crawl
-    [Column("status")] public string Status { get; set; } = "pending"; // pending | approved | rejected
+    [Column("source")] public string Source { get; set; } = "offer";
+    [Column("status")] public string Status { get; set; } = "pending";
     [Column("submitted_by")] public string? SubmittedBy { get; set; }
     [Column("submitted_at")] public DateTimeOffset SubmittedAt { get; set; }
     [Column("reviewed_by")] public string? ReviewedBy { get; set; }

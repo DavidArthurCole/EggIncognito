@@ -1,19 +1,17 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Merges common.proto's body into ei.proto after the `package ei;` line, drops the `import "common.proto";`
-// line, and strips `aux.` prefixes. Line endings normalized to \n.
 public static class ProtoCleanup
 {
     public static string Clean(string eiProto, string commonProto)
     {
         var commonLines = SplitKeepEnds(commonProto);
-        commonLines = commonLines.Skip(3).ToList(); // syntax, package, blank
+        commonLines = commonLines.Skip(3).ToList();
         if (commonLines.Count > 0)
             commonLines[^1] = commonLines[^1].TrimEnd();
 
         var lines = SplitKeepEnds(eiProto);
 
-        // Drop the import line (matched on the trimmed text).
+       
         lines = lines.Where(l => !l.TrimStart().StartsWith("import \"common.proto\";", StringComparison.Ordinal)).ToList();
 
         var packageIndex = lines.FindIndex(l => l.TrimStart().StartsWith("package ei;", StringComparison.Ordinal));
@@ -25,7 +23,7 @@ public static class ProtoCleanup
         return string.Concat(lines);
     }
 
-    // Splits text into lines preserving the trailing \n on each. A final line without a newline keeps none.
+   
     private static List<string> SplitKeepEnds(string text)
     {
         var normalized = text.Replace("\r\n", "\n").Replace("\r", "\n");

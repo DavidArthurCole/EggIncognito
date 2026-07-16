@@ -152,8 +152,8 @@
     string? _prevAppVersion;
     List<string> _added = [];
     List<string> _removed = [];
-    // Field-level change counts (added/removed proto lines from the diff), so the summary reflects in-place
-    // edits like a new field on an existing message, not just whole-message add/remove.
+   
+   
     int _lineAdds;
     int _lineRems;
 
@@ -207,16 +207,16 @@
         _loading = false;
     }
 
-    // Find the immediately-prior version on this platform and diff its message-name set against this one.
-    // Order by (app-version semver, then numeric build) so it works for both platforms, since iOS builds
-    // like "1.35.7.1" are not numeric.
+   
+   
+   
     async Task LoadComparison()
     {
         try
         {
             var versions = await Client().GetFromJsonAsync<List<VersionRow>>(
                 $"/api/protos/versions?platform={Platform}", JsonOpts) ?? [];
-            // Rank ascending; the "previous" is the highest-ranked row strictly below this one.
+           
             int Cmp(string aApp, string aBuild, string bApp, string bBuild)
             {
                 var s = CompareSemver(aApp, bApp);
@@ -225,7 +225,7 @@
             VersionRow? prev = null;
             foreach (var v in versions)
             {
-                // Skip self + anything not strictly below this version.
+               
                 if (Cmp(v.AppVersion, v.Build, _detail?.AppVersion ?? "", Build) >= 0) continue;
                 if (prev is null || Cmp(v.AppVersion, v.Build, prev.AppVersion, prev.Build) > 0) prev = v;
             }
@@ -242,8 +242,8 @@
             _added = _messages.Where(m => !prevSet.Contains(m)).ToList();
             _removed = prevMsgs.Where(m => !thisSet.Contains(m)).ToList();
 
-            // Count field-level changes from the actual proto diff so in-place edits (a new field on an
-            // existing message) are reflected even when no whole message was added/removed.
+           
+           
             try
             {
                 var diff = await Client().GetStringAsync(
@@ -260,7 +260,7 @@
         catch { }
     }
 
-    // Semver-ish compare of dotted numeric versions (1.35.7 vs 1.35.6); missing parts = 0.
+   
     static int CompareSemver(string a, string b)
     {
         var ap = (a ?? "").Split('.');
@@ -274,7 +274,7 @@
         return 0;
     }
 
-    // Build compare: numeric when both parse (Android 111343), else dotted-semver (iOS 1.35.7.1).
+   
     static int CompareBuild(string a, string b)
     {
         if (long.TryParse(a, out var al) && long.TryParse(b, out var bl)) return al.CompareTo(bl);
@@ -320,7 +320,7 @@
         _showDiff = true;
     }
 
-    // Wrap +/- lines in colored spans. HTML-escape first so proto text never injects markup.
+   
     static MarkupString ColorizeDiff(string text)
     {
         var sb = new System.Text.StringBuilder();

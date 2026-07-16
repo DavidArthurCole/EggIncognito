@@ -5,9 +5,7 @@ using Xunit;
 
 namespace EggIncognito.Tests;
 
-// Boots the real web host in-process and proves the sync endpoint's auth ladder against the
-// SyncKit.Bot.NewVersionHandler-backed route: 401 on missing/bad bearer, 200 on a good authed
-// request. No more 202/outcome-body assertions - NewVersionHandler always returns a bare 200.
+
 public class EventsControllerTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private const string Secret = "test-secret-123";

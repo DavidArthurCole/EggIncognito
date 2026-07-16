@@ -3,9 +3,7 @@ using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Shared arm64 decode helpers used by both the constant-only MachoArm64Disassembler and the richer
-// Arm64SymbolicExecutor: create a details-enabled capstone disassembler, slice a function's bytes out of the
-// binary, and read a float from a resolved const-pool VA via the __text slide. Pure, no state.
+
 public static class Arm64Decode
 {
     public static CapstoneArm64Disassembler CreateDisassembler()

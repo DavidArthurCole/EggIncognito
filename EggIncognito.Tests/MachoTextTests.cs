@@ -4,7 +4,7 @@ namespace EggIncognito.Tests;
 
 public class MachoTextTests
 {
-    // Build a minimal thin ARM64 Mach-O with one LC_SEGMENT_64 "__TEXT" containing one "__text" section.
+   
     private static byte[] MinimalMacho(uint textFileOff, uint textSize, ulong textVmAddr, out byte[] textBytes)
     {
         textBytes = new byte[textSize];

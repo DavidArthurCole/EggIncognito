@@ -3,9 +3,7 @@ using SyncKit.Identity.Client;
 
 namespace EggIncognito.Services;
 
-// SyncKit 0.6 redirect mode appends ?code (or ?error) to the exact page the user started login from,
-// not a fixed callback path. This middleware catches that on any GET: redeem the code into a cookie,
-// then 302 back to the same URL with the auth params stripped so a refresh doesn't re-redeem.
+
 public sealed class LoginCallbackMiddleware(RequestDelegate next)
 {
     public async Task Invoke(HttpContext ctx, AuthState authState, LoginSignIn signIn, IdentityApiClient identity, ILogger<LoginCallbackMiddleware> logger)
@@ -43,8 +41,8 @@ public sealed class LoginCallbackMiddleware(RequestDelegate next)
         ctx.Response.Redirect(StripAuthParams(ctx, loginError: !string.IsNullOrEmpty(error)));
     }
 
-    // Rebuilds the current URL without code/error/state, optionally re-adding login_error=1 so the
-    // page can surface a failure. Keeps every other original query param.
+   
+   
     private static string StripAuthParams(HttpContext ctx, bool loginError)
     {
         var kept = ctx.Request.Query

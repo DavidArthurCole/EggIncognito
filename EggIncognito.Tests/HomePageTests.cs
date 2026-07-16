@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
-
-// The redesigned home page: feature grid, getting-started blocks, support strip, footer.
 [Collection(SharedAppCollection.Name)]
 public class HomePageTests
 {

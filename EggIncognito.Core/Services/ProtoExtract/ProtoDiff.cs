@@ -2,9 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Parses two ei.proto texts into an ordered map of message-path -> content lines (only `message` blocks open a
-// path; enum/oneof/extend/service are content of the enclosing message), normalizes away ei./aux. prefixes,
-// then emits a per-message `@@ path @@` +/- diff via an LCS opcode walk. Joins sections with \n.
+
 public static partial class ProtoDiff
 {
     [GeneratedRegex(@"\b(ei|aux)\.")]
@@ -23,7 +21,7 @@ public static partial class ProtoDiff
         var old = Parse(oldProto);
         var @new = Parse(newProto);
 
-        // new-file order first, then old-only paths.
+       
         var seen = new HashSet<string>();
         var paths = new List<string>();
         foreach (var p in @new.Keys) { paths.Add(p); seen.Add(p); }
@@ -72,8 +70,8 @@ public static partial class ProtoDiff
         return string.Join("\n", sections);
     }
 
-    // Parses a proto into an ordered map of message-path -> content lines. Only `message` opens a path;
-    // enum/oneof/extend/service add their open + close braces as content of the enclosing message.
+   
+   
     private static Dictionary<string, List<string>> Parse(string protoText)
     {
         var messages = new Dictionary<string, List<string>>();
@@ -169,13 +167,13 @@ public static partial class ProtoDiff
         return result;
     }
 
-    // LCS-based opcode walk: a list of (tag, i1, i2, j1, j2) tuples partitioning both sequences. Matched blocks
-    // become `equal`, gaps become insert/delete/replace.
+   
+   
     private static List<(string Tag, int I1, int I2, int J1, int J2)> GetOpcodes(
         IReadOnlyList<string> a, IReadOnlyList<string> b)
     {
         var matches = LongestCommonSubsequence(a, b);
-        // Sentinel terminal block so the trailing gap is emitted.
+       
         matches.Add((a.Count, b.Count, 0));
 
         var opcodes = new List<(string, int, int, int, int)>();
@@ -194,7 +192,7 @@ public static partial class ProtoDiff
         return opcodes;
     }
 
-    // Returns matching blocks (aStart, bStart, length) of an LCS in increasing position order.
+   
     private static List<(int A, int B, int Size)> LongestCommonSubsequence(
         IReadOnlyList<string> a, IReadOnlyList<string> b)
     {
@@ -214,7 +212,7 @@ public static partial class ProtoDiff
             else y++;
         }
 
-        // Collapse consecutive (x,y)/(x+1,y+1) pairs into contiguous blocks.
+       
         var blocks = new List<(int A, int B, int Size)>();
         var k = 0;
         while (k < pairs.Count)

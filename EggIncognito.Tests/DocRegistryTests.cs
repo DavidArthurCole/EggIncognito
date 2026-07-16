@@ -2,9 +2,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-// DocRegistry builds the docs subject tree from the real ProtoReflection + a RouteCatalog. No DB,
-// no web host: ProtoReflection is parameterless, RouteCatalog reads an inline routes.yaml from a
-// temp file (the same construction the TransportPipeline/MergedRouteCatalog tests use).
+
 public class DocRegistryTests
 {
     private const string YamlText = """

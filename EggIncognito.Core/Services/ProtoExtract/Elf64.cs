@@ -2,8 +2,6 @@ using System.Text;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Minimal ELF64 little-endian section reader. Locates a section by name and returns its virtual address,
-// file offset, and size. Defensive: a non-ELF/truncated/big-endian input yields null, never a throw.
 public static class Elf64
 {
     public sealed record Section(ulong VAddr, long FileOffset, long Size);
@@ -14,7 +12,7 @@ public static class Elf64
         {
             if (elf is null || elf.Length < 64) return null;
             if (elf[0] != 0x7F || elf[1] != (byte)'E' || elf[2] != (byte)'L' || elf[3] != (byte)'F') return null;
-            if (elf[4] != 2 || elf[5] != 1) return null; // ELFCLASS64 + little-endian only
+            if (elf[4] != 2 || elf[5] != 1) return null;
 
             ulong shoff = U64(elf, 0x28);
             int shentsize = U16(elf, 0x3A);

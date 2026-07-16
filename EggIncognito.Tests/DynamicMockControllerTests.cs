@@ -5,8 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-// Boots the real host with a fake DB route provider so a DB-only route is served by
-// DynamicMockController without a live Postgres.
 public class DynamicMockControllerTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private sealed class FakeRoutes : IDbRouteProvider

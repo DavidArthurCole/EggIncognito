@@ -1,6 +1,4 @@
 namespace EggIncognito.Runner.Runners;
-
-// force=true ignores saved state and always emits; force=false emits only on an unseen build.
 public interface IDeviceRunner
 {
     string Platform { get; }

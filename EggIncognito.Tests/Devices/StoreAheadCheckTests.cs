@@ -2,8 +2,6 @@ using EggIncognito.Services.Devices;
 using Xunit;
 
 namespace EggIncognito.Tests.Devices;
-
-// Dotted-numeric semver compare, so 1.36 > 1.35.8.
 public class StoreAheadCheckTests
 {
     [Theory]

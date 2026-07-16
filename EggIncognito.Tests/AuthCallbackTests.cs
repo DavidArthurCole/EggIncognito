@@ -6,8 +6,6 @@ using Xunit;
 
 namespace EggIncognito.Tests;
 
-// Widget-on integration: LoginCallbackMiddleware redeems a ?code appended to any page into the auth
-// cookie, then redirects to the same URL with auth params stripped. Identity API is stubbed.
 public class AuthCallbackTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;

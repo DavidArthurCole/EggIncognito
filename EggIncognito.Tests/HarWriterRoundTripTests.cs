@@ -5,10 +5,6 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// Proves the capture path is self-consistent: a flow written to a HAR by HarWriter and then
-// re-read by EndpointExtractor.RunFromHar produces the SAME endpoint as feeding that flow straight
-// to ProcessFlow. This is the "re-running the HAR is a no-op" guarantee from the plan, and it is
-// what lets the durable HAR be the hand-off artifact for the in-process capture.
 public class HarWriterRoundTripTests
 {
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
@@ -42,14 +38,14 @@ needs_capture:
     {
         var flow = new CapturedFlow(Url, "POST", 200, RequestDataB64: null, ResponseBodyB64: ResponseB64());
 
-        // Direct: feed the flow straight to ProcessFlow.
+       
         var directRoot = MakeRepo();
         var direct = EndpointExtractor.ForRepo(directRoot, null, "EI0000000000000000", false);
         direct.ProcessFlow(flow.Url, flow.Method, flow.Status, flow.RequestDataB64, flow.ResponseBodyB64);
         direct.Save();
         var directEndpoint = File.ReadAllText(EndpointPath(directRoot));
 
-        // Via HAR: HarWriter emits the flow, RunFromHar reads it back.
+       
         var harRoot = MakeRepo();
         var writer = new HarWriter();
         writer.Add(flow);
@@ -73,13 +69,13 @@ needs_capture:
         var writer = new HarWriter();
         writer.Add(flow);
         var har = writer.ToHar();
-        // The data param must be present so EndpointExtractor.ReadRequestData can recover it.
+       
         Assert.Contains("\"data\"", har);
         Assert.Contains("AAEC", har);
     }
 
-    // Regression: Add runs on the proxy flow thread while ToHar runs on the consumer thread.
-    // An unguarded List would throw or serialize a torn snapshot under this interleaving.
+   
+   
     [Fact]
     public async Task HarWriter_ConcurrentAddAndToHar_NeverThrows_AndSnapshotsParse()
     {
@@ -98,7 +94,7 @@ needs_capture:
             start.Wait();
             while (writer.Count < total)
             {
-                // Every snapshot must be valid JSON, never a torn enumeration.
+               
                 using var doc = JsonDocument.Parse(writer.ToHar());
             }
         });

@@ -3,9 +3,7 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-// In-memory status for one in-flight device check-update per device. The controller fires the check as a
-// background task and the UI polls this tracker via GET check-status. TryStart doubles as the overlap
-// guard: a device cannot run two checks at once. Done/Error entries self-expire on read after a TTL.
+
 public enum JobState { Running, Done, Error }
 
 public sealed record JobStatus(
@@ -34,7 +32,7 @@ public sealed class DeviceJobTracker(TimeProvider time) : IDeviceJobTracker
         var now = time.GetUtcNow();
         var running = new JobStatus(JobState.Running, message, "running", null, null, now, now);
 
-        // AddOrUpdate's delegate can run more than once under contention, so it stays side-effect-free.
+       
         var stored = _jobs.AddOrUpdate(
             deviceId,
             running,

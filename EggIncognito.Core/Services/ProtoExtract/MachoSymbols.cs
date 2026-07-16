@@ -1,8 +1,6 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// Parses a Mach-O LC_SYMTAB into (name, vmAddress) pairs. The iOS egginc binary is not fully stripped: its C++
-// method symbols survive, letting a disassembler scope the search to one function instead of the whole
-// noise-flooded .text.
+
 public static class MachoSymbols
 {
     private const uint MhMagic64 = 0xFEEDFACF;
@@ -14,8 +12,8 @@ public static class MachoSymbols
 
     public readonly record struct Symbol(string Name, ulong Value, byte Type, byte Sect);
 
-    // Address range of a __text-resident function: [Start, End) in vm address space. End is the next
-    // symbol's address (functions are not sized in nlist), capped at the section end.
+   
+   
     public readonly record struct FuncRange(string Name, ulong Start, ulong End);
 
     public static IReadOnlyList<Symbol> Read(byte[] bin)
@@ -58,9 +56,9 @@ public static class MachoSymbols
         return outp;
     }
 
-    // Find the address range of the first symbol whose name contains every needle (substring match on the
-    // mangled name). End = the smallest symbol address strictly greater than Start (next function), so the
-    // disassembler reads only that function's bytes.
+   
+   
+   
     public static bool TryFindFunc(IReadOnlyList<Symbol> syms, string[] needles, out FuncRange range)
     {
         range = default;
@@ -78,7 +76,7 @@ public static class MachoSymbols
         ulong end = ulong.MaxValue;
         foreach (var s in syms)
             if (s.Value > start && s.Value < end) end = s.Value;
-        if (end == ulong.MaxValue) end = start + 0x4000; // fallback window when no later symbol
+        if (end == ulong.MaxValue) end = start + 0x4000;
         range = new FuncRange(hit.Value.Name, start, end);
         return true;
     }

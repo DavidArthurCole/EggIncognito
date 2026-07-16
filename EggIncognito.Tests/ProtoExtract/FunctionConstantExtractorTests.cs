@@ -14,16 +14,16 @@ public class FunctionConstantExtractorTests
         };
         Assert.Equal("__ZN3Bar6updateEv", FunctionConstantExtractor.ResolveCallName(syms, 0x2010));
         Assert.Equal("__ZN3FooC1Ev", FunctionConstantExtractor.ResolveCallName(syms, 0x1004));
-        Assert.StartsWith("0x", FunctionConstantExtractor.ResolveCallName(syms, 0x10)); // below all -> hex
+        Assert.StartsWith("0x", FunctionConstantExtractor.ResolveCallName(syms, 0x10));
     }
 
     [Fact]
     public void Extract_RealBinary_SiloConstants_Regression()
     {
         var bin = TestBinary();
-        if (bin is null) return; // fixture absent (CI): the synthetic + manual cover the path
+        if (bin is null) return;
 
-        // The silo layout function carries the disassembled constants 5.5 and -0.5 (FarmLayout.SiloPos Z values).
+       
         var res = FunctionConstantExtractor.Extract(bin, ["FarmScene10updateSilo"]);
         Assert.True(res.Ok, res.Diagnostics);
         Assert.Contains(res.Floats, f => Math.Abs(f - 5.5) < 0.01);
@@ -36,9 +36,9 @@ public class FunctionConstantExtractorTests
         var bin = TestBinary();
         if (bin is null) return;
 
-        // The Chicken Universe hab floating effect = a GalaxyParticle system; its orbit constants live in
-        // GalaxyParticle::onBirth + ::update. The decomp feature reads them; assert the symbols resolve and
-        // each carries at least one constant (proves the fmov-immediate path, not just memory-pool loads).
+       
+       
+       
         var onBirth = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle7onBirth"]);
         var update = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle6update"]);
         Assert.True(onBirth.Ok, onBirth.Diagnostics);
@@ -46,7 +46,7 @@ public class FunctionConstantExtractorTests
         Assert.True(onBirth.Floats.Count + update.Floats.Count > 0, "no orbit constants recovered");
     }
 
-    // Optional local egginc Mach-O fixture; absent on CI. Same pattern as ShellCatalogTests.ConfigJson().
+   
     private static byte[]? TestBinary()
     {
         foreach (var rel in new[] { "../../../../captures/egginc", "../../../../../captures/egginc", "../../../../EggIncognito/captures/egginc" })

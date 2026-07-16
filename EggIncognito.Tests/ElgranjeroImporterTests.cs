@@ -6,9 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// The elgranjero importer's decision logic against a stubbed GitHub client + a fake store, DB-free. The
-// fake store is registered in a real ServiceCollection so the importer's own scope (it opens one inside
-// RunAsync) resolves it exactly as production would resolve the scoped ProtoRegistryStore.
+
 public class ElgranjeroImporterTests
 {
     private sealed record Upsert(
@@ -35,7 +33,7 @@ public class ElgranjeroImporterTests
         public Task<int> PruneEmptyAsync(CancellationToken ct = default) => Task.FromResult(0);
     }
 
-    // Canned commit list + per-commit proto, no HTTP.
+   
     private sealed class StubGitHub(
         IEnumerable<GitHubClient.Commit> commits, Func<string, string?> protoForSha) : IGitHubClient
     {
@@ -95,8 +93,8 @@ public class ElgranjeroImporterTests
         await Importer(github, store).RunAsync();
 
         var u = Assert.Single(store.Upserts);
-        Assert.False(u.WriteProto); // farm proto is authoritative
-        Assert.Equal("elgranjero", u.Source); // metadata still upserted (fills nulls)
+        Assert.False(u.WriteProto);
+        Assert.Equal("elgranjero", u.Source);
     }
 
     [Fact]
@@ -107,7 +105,7 @@ public class ElgranjeroImporterTests
             new GitHubClient.Commit("eeeeeee0000", "ClientVersion: 72, AppVersion: 1.35.7, Build: 111343", DateTimeOffset.UtcNow),
         };
         var store = new FakeStore();
-        var github = new StubGitHub(commits, _ => null); // no proto at this commit
+        var github = new StubGitHub(commits, _ => null);
 
         await Importer(github, store).RunAsync();
 

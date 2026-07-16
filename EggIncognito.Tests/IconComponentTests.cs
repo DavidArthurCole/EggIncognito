@@ -3,8 +3,6 @@ using EggIncognito.Components.Shared;
 
 namespace EggIncognito.Tests;
 
-// Smoke test for the bUnit toolchain plus the Icon port. Confirms a known icon renders its inner SVG
-// and an unknown name renders an empty svg (mirrors the icons.js `?? ""`).
 public class IconComponentTests : BunitContext
 {
     [Fact]
@@ -13,7 +11,7 @@ public class IconComponentTests : BunitContext
         var cut = Render<Icon>(p => p.Add(c => c.Name, "gear"));
         var svg = cut.Find("svg");
         Assert.Contains("icon", svg.ClassList);
-        Assert.NotEmpty(svg.Children); // gear has a <circle> + <path>
+        Assert.NotEmpty(svg.Children);
     }
 
     [Fact]

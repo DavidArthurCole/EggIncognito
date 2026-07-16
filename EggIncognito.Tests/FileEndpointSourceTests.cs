@@ -38,7 +38,7 @@ public class FileEndpointSourceTests
         Directory.CreateDirectory(Path.Combine(root, "default", "ei_ctx"));
         File.WriteAllText(Path.Combine(root, "default", "ei_ctx", "get_eval.json"), "{}");
         var src = new FileEndpointSource(root);
-        Assert.NotNull(src.Lookup("ei_ctx/get_eval/pumpkin-pie", null)); // falls back to ei_ctx/get_eval
+        Assert.NotNull(src.Lookup("ei_ctx/get_eval/pumpkin-pie", null));
     }
 
     [Fact]
@@ -51,8 +51,8 @@ public class FileEndpointSourceTests
     [Fact]
     public void Priority_IsZero()
     {
-        // Use an isolated empty dir, not Path.GetTempPath(): on CI Linux /tmp holds root-owned
-        // systemd-private-* subdirs the runner cannot read, which the ctor's recursive scan would hit.
+       
+       
         MakeDir(out var root);
         Assert.Equal(0, new FileEndpointSource(root).Priority);
     }

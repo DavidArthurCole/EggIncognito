@@ -1,13 +1,9 @@
-// Pure evaluator for the decomp EffectModel expression tree (see EffectRecovery / ExprNode). Walks the JSON
-// node given an env {t, particleIndex, count} and returns a number; no eval() of strings, it interprets data.
-// An Opaque or unresolved Field returns a safe default and warns once instead of crashing.
+
 const warned = new Set();
 function warnOnce(key, msg) { if (!warned.has(key)) { warned.add(key); console.warn('effectEval:', msg); } }
-
-// Known struct fields (renderer has no live game memory) mapped to the render env. Extend as fields are identified.
 const FIELD_BINDINGS = {
-  'x8@80': (env) => env.t, // ldr s0,[x8,#0x50]: system elapsed-time field
-  'x19@36': (env) => env.particleIndex, // ldr w,[x19,#0x24]: particle index
+  'x8@80': (env) => env.t,
+  'x19@36': (env) => env.particleIndex,
 };
 
 function fieldKey(node) { return (node.base || '') + '@' + (node.offset || 0); }
@@ -43,8 +39,6 @@ export function evalExpr(node, env) {
     default: warnOnce('unk:' + node.op, 'unknown op ' + node.op + ' -> 0'); return 0;
   }
 }
-
-// A MatrixBuild root -> Float32Array(16), column-major (three.js). Non-matrix root -> identity.
 export function evalMatrix(node, env) {
   const m = new Float32Array(16);
   m[0] = m[5] = m[10] = m[15] = 1;

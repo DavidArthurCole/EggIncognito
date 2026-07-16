@@ -1,6 +1,4 @@
-// Process-lifetime view of the drop-in API surface: the merged AuxbrainCatalog entries, the canonical
-// real-API path registry, the known auxbrain namespaces, and the OpenAPI document. Every input is
-// static per process, so each piece is built lazily once and cached.
+
 
 namespace EggIncognito.Services;
 
@@ -17,8 +15,8 @@ public sealed class AuxbrainSurface
         _canonical = new(() => AuxbrainCatalog.LoadCanonical(AuxbrainCatalog.ResolveJsonPath(config)));
         _entries = new(() =>
         {
-            // Same status inputs as ToolsController's endpoint-status: the content root's
-            // routes.yaml classified against its Endpoints/default directory.
+           
+           
             var root = ContentRoot.Resolve(config["ContentRoot"]);
             var status = EndpointStatus.Classify(
                 Path.Combine(root, "RouteMap", "routes.yaml"),
@@ -28,7 +26,7 @@ public sealed class AuxbrainSurface
         _namespaces = new(() =>
             _entries.Value.Select(e => e.Namespace).ToHashSet(StringComparer.Ordinal));
         _openApiJson = new(() => OpenApiBuilder.BuildJson(_entries.Value, reflection));
-        // Aliases live only in routes.yaml (DB routes carry none), so the map is process-static.
+       
         _aliases = new(() =>
         {
             var map = new Dictionary<string, RouteInfo>(StringComparer.Ordinal);
@@ -39,7 +37,7 @@ public sealed class AuxbrainSurface
         });
     }
 
-    /// <summary>The canonical route an alias path resolves to, or null if not an alias.</summary>
+   
     public RouteInfo? ResolveAlias(string path) =>
         _aliases.Value.TryGetValue(path, out var r) ? r : null;
 

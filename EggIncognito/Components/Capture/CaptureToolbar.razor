@@ -123,8 +123,8 @@
 
     string? _open;
 
-    // Opening the notif popover marks notices read right away; closing marks again to catch any notice
-    // that arrived while it was open.
+   
+   
     async Task Toggle(string which)
     {
         if (_open == which)
@@ -158,6 +158,6 @@
     Task DismissNotice(int id) => OnDismissNotice.InvokeAsync(id);
     Task ClearAllNotices() => OnClearNotices.InvokeAsync();
 
-    // Severity is "info" | "ok" | "warn" | "error".
+   
     public sealed record NoticeItem(int Id, string Severity, string Message, string Timestamp);
 }

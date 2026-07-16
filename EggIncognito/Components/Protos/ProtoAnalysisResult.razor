@@ -116,9 +116,9 @@
         }
     }
 
-    // Pre-fill the save form from the archive's own metadata (app version + build) and inferred platform.
-    // Then backfill build + clientVersion the binary cannot give from the live capture store, falling back
-    // to a registry row with the same app version.
+   
+   
+   
     protected override async Task OnParametersSetAsync()
     {
         if (Result is null || ReferenceEquals(Result, _seededFor)) return;
@@ -133,8 +133,8 @@
         await CheckOfferable();
     }
 
-    // Public offer: if this proto is neither already in the registry nor pending review, surface a button to
-    // submit it to the staging queue. No role needed; the server dedups by sha. Best-effort (no DB -> hidden).
+   
+   
     bool _offerable, _offered, _offerBusy;
 
     async Task CheckOfferable()
@@ -177,11 +177,11 @@
 
     sealed record CheckResp(bool InRegistry, bool Pending);
 
-    // build + clientVersion are not in the iOS binary. Source them, in priority order:
-    //   1. live capture: BasicRequestInfo harvested off the wire for this platform (authoritative),
-    //   2. registry: a stored row with the same app version (clientVersion is platform-shared; build only
-    //      from a same-platform row).
-    // Only fills blanks; never overwrites a value the archive already provided (Android build).
+   
+   
+   
+   
+   
     async Task BackfillBuildAndClientVersion()
     {
         try
@@ -201,16 +201,16 @@
         {
             try
             {
-                // /api/protos/versions filters by platform only, so fetch all and match app version here.
+               
                 var all = await Client().GetFromJsonAsync<List<RegRowDto>>("/api/protos/versions", JsonOpts) ?? [];
                 var sameApp = all.Where(r => string.Equals(r.AppVersion, _saveAppVersion, StringComparison.OrdinalIgnoreCase)).ToList();
-                // clientVersion: any row with this app version (platform-shared).
+               
                 if (string.IsNullOrWhiteSpace(_saveClientVersion))
                 {
                     var cv = sameApp.Select(r => r.ClientVersion).FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
                     if (!string.IsNullOrWhiteSpace(cv)) _saveClientVersion = cv!;
                 }
-                // build: only from a same-platform row (build is per-platform).
+               
                 if (string.IsNullOrWhiteSpace(_saveBuild))
                 {
                     var b = sameApp.Where(r => string.Equals(r.Platform, _savePlatform, StringComparison.OrdinalIgnoreCase))
@@ -284,8 +284,8 @@
         finally { _saving = false; }
     }
 
-    // Message-set diff of the uploaded proto vs the latest stored version for the inferred platform.
-    // Client-side set difference over message names; no new endpoint, reuses the public read API.
+   
+   
     async Task CompareToLatest()
     {
         _comparing = true;

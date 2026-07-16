@@ -6,8 +6,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
-
-// The registry is DB-free (proto reflection + curated lists), so the hub renders with no Postgres.
 public class DocsHubTests
 {
     [Collection(SharedAppCollection.Name)]
@@ -16,7 +14,7 @@ public class DocsHubTests
         private readonly WebApplicationFactory<Program> _f;
         public Integration(SharedAppFactory f) => _f = f;
 
-        // Legacy /docs route now redirects into the Inspector; must still respond 200, not 404.
+       
         [Fact]
         public async Task DocsRoute_StillResponds()
         {

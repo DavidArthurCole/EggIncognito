@@ -7,9 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-// VersionListImporter lifecycle over a fake source + fake job store, DB-free. A good source upserts each
-// version and drives the job running -> done with the right imported count; a throwing source marks the
-// job failed with the error note.
+
 public class VersionListImporterTests
 {
     private sealed class FakeSource(string name, string platform, IReadOnlyList<ListedVersion> versions)
@@ -98,7 +96,7 @@ public class VersionListImporterTests
         public Task<List<ExtractJob>> ListExtractJobsAsync(CancellationToken ct = default) => Task.FromResult(Extracts);
     }
 
-    // The importer opens its own DI scope; give it a provider that resolves the fake job store.
+   
     private static ServiceProvider Provider(IBackfillJobStore store)
     {
         var sc = new ServiceCollection();

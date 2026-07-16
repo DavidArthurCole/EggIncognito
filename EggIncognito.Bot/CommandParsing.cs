@@ -1,9 +1,5 @@
 namespace EggIncognito.Bot;
-
-// Top-level slash commands the router knows how to dispatch.
 public enum BotCommand { Health, Status, Verify, Endpoints, Proto, UpdateServer, Unknown }
-
-// Parsed /proto invocation. Built via the factories; Error is non-null for malformed payloads.
 public sealed record ProtoArgs(bool IsList, int Page, string? TypeName, string? Error)
 {
     public static ProtoArgs ListPage(int page) => new(true, page, null, null);
@@ -11,8 +7,6 @@ public sealed record ProtoArgs(bool IsList, int Page, string? TypeName, string? 
     public static ProtoArgs Invalid(string error) => new(false, 0, null, error);
 }
 
-// Pure dispatch + option parsing for the router, kept Discord-free so it is unit-testable.
-// The router lowers gateway payloads to primitives before calling in.
 public static class CommandParsing
 {
     public static BotCommand Resolve(string? name) => name switch
@@ -26,8 +20,8 @@ public static class CommandParsing
         _ => BotCommand.Unknown,
     };
 
-    // subcommand = the first option's name; options = that subcommand's nested (name, value) pairs.
-    // Never throws on a malformed payload - returns ProtoArgs.Invalid with a user-facing reason.
+   
+   
     public static ProtoArgs ParseProto(string? subcommand, IReadOnlyList<(string Name, object? Value)> options)
     {
         switch (subcommand)

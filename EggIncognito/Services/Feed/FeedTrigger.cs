@@ -1,6 +1,4 @@
 namespace EggIncognito.Services.Feed;
-
-// Decides whether one subscription should fire for one registry event. Pure.
 public static class FeedTrigger
 {
     public static bool Matches(string trigger, bool created, bool protoChanged,

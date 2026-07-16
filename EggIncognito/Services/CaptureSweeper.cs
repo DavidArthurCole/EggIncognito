@@ -2,8 +2,6 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Services;
 
-// Reaps hosted capture sessions: stop + remove after MaxIdleMinutes without a flow or MaxSessionHours
-// total. The local session is never swept. Registered only when hosted capture is enabled.
 public sealed class CaptureSweeper(
     CaptureSessionManager manager,
     HostedCaptureOptions opts,
@@ -32,7 +30,7 @@ public sealed class CaptureSweeper(
 
             if (session.State != CaptureState.Running)
             {
-                // A stopped session still holds a pool slot until released here.
+               
                 if (session.State == CaptureState.Stopped && idle)
                 {
                     manager.Remove(key);
@@ -42,7 +40,7 @@ public sealed class CaptureSweeper(
             }
 
             if (!idle && !capped) continue;
-            // Remove before stopping so a concurrent GetOrCreate gets a fresh session, not this one.
+           
             manager.Remove(key);
             try { await session.StopAsync(); }
             catch (Exception ex) { logger.LogWarning(ex, "capture sweep: stop failed for {Key}", key); }

@@ -108,8 +108,8 @@ else
 }
 
 @code {
-    // The live flow buffer, mirroring the JS `flows` Map: an ordered list (oldest first) + an id index
-    // for in-place updates on re-broadcast.
+   
+   
     readonly List<DashboardFlow> _flows = [];
     readonly Dictionary<long, int> _flowIndex = new();
     long? _selectedId;
@@ -137,8 +137,8 @@ else
     string? _cookie;
     IJSObjectReference? _store;
 
-    // The caller's session: the anonymous local session in Local mode, the per-user session for a
-    // hosted supporter, null when this caller may not capture (pitch/login/capacity panels render).
+   
+   
     CaptureSession? _session;
     bool _hosted;
     string? _rotatedHost;
@@ -155,7 +155,7 @@ else
             _cookie = req.Headers.Cookie;
         }
 
-        // Snapshot auth during the initial request; the interactive circuit has no HttpContext.
+       
         _isAuthenticated = User.IsAuthenticated;
         _isSupporter = User.IsSupporter;
         _userId = User.DiscordId;
@@ -163,16 +163,16 @@ else
         ResolveSession();
         if (_session is null) return;
 
-        // Seed the dashboard from the hub snapshots, exactly as the SSE controller writes them first.
+       
         foreach (var f in _session.Hub.Snapshot()) AddOrUpdateFlow(f);
         ApplyStats(_session.Hub.StatsSnapshot());
 
-        // Seed sensitive keys for blur mode from the controller's list (Redactor + EID fields).
+       
         foreach (var k in CaptureController_SensitiveKeys()) _view.SensitiveKeys.Add(k);
     }
 
-    // Local: the anonymous local session, as the old singleton. Hosted+enabled supporter: this user's
-    // own session (created idle here; starting it still passes the controller's live role re-check).
+   
+   
     void ResolveSession()
     {
         if (AppMode.CanCapture)
@@ -187,8 +187,8 @@ else
         catch (CaptureCapacityException) { /* capacity panel renders */ }
     }
 
-    // The sensitive-key set the /api/capture/sensitive-keys endpoint returns, read in-process to avoid a
-    // self HTTP call during prerender. Mirrors CaptureController.SensitiveKeys.
+   
+   
     static IEnumerable<string> CaptureController_SensitiveKeys() =>
         Redactor.SensitiveFieldNames.Concat(["eiUserId", "userId"]).Distinct();
 
@@ -196,8 +196,8 @@ else
     {
         if (!firstRender || _session is null) return;
 
-        // Load browser-stored view prefs, then subscribe to the live hub and start the read loop. Both
-        // need the interactive circuit, so they run after the first render.
+       
+       
         try
         {
             _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/captureStore.js");
@@ -213,15 +213,15 @@ else
         StateHasChanged();
     }
 
-    // Subscribe to the hub and consume its channel on a background loop. Hub events fire on the proxy's
-    // threads, not the circuit's sync context, so every UI mutation is marshaled via InvokeAsync.
+   
+   
     void StartSubscription()
     {
         if (_session is null) return;
         var (reader, subscription) = _session.Hub.Subscribe();
         _subscription = subscription;
-        // Re-seed after subscribing (the SSE controller's order), so any flow published between the
-        // prerender snapshot and this subscription is not missed. AddOrUpdateFlow dedupes by id.
+       
+       
         foreach (var f in _session.Hub.Snapshot()) AddOrUpdateFlow(f);
         ApplyStats(_session.Hub.StatsSnapshot());
         _loopCts = new CancellationTokenSource();
@@ -240,7 +240,7 @@ else
         }, ct);
     }
 
-    // Runs on the circuit thread (via InvokeAsync). Mutates state then renders.
+   
     void ApplyEnvelope(CaptureEnvelope env)
     {
         switch (env.Kind)
@@ -262,7 +262,7 @@ else
     {
         if (_flowIndex.TryGetValue(flow.Id, out var idx))
         {
-            _flows[idx] = flow; // in-place update on re-broadcast (e.g. Saved flip)
+            _flows[idx] = flow;
             if (_selectedId == flow.Id) _selectedFlow = flow;
             return;
         }
@@ -284,8 +284,8 @@ else
         _selectedFlow = _flowIndex.TryGetValue(id, out var idx) ? _flows[idx] : null;
     }
 
-    // The toolbar's start/stop toggle. Start/Stop go through the controller so the CanCapture gate stays
-    // centralized. The stats stream re-broadcasts the running state, so the pill stays correct.
+   
+   
     async Task ToggleCapture()
     {
         _toggleBusy = true;
@@ -295,8 +295,8 @@ else
             await Client().PostAsync(url, null);
         }
         catch { /* surfaced via the next stats broadcast; nothing to do here */ }
-        // Re-enable the button now rather than waiting on the next stats broadcast (which can lag or, on
-        // an error, never arrive).
+       
+       
         finally { _toggleBusy = false; StateHasChanged(); }
     }
 
@@ -318,7 +318,7 @@ else
 
     async Task OnViewChanged()
     {
-        // Persist the changed view prefs to the browser, mirroring redaction.js's localStorage writes.
+       
         await InvokeVoid("setRedactionMode", _view.RedactionMode);
         await InvokeVoid("setShowHeaders", _view.ShowHeaders);
         await InvokeVoid("setAutoScroll", _view.AutoScroll);
@@ -333,7 +333,7 @@ else
         _notices.Insert(0, new CaptureToolbar.NoticeItem(_nextNoticeId++, severity, ev.Message, ev.Timestamp));
         if (_notices.Count > 200) _notices.RemoveRange(200, _notices.Count - 200);
         _unread++;
-        // Transient toast, auto-dismissed after 5s.
+       
         var toast = new ToastItem(_nextToastId++, severity, ev.Message, ev.Timestamp);
         _toasts.Add(toast);
         _ = AutoDismissToast(toast.Id, _loopCts?.Token ?? CancellationToken.None);
@@ -349,7 +349,7 @@ else
     async Task AutoDismissToast(int id, CancellationToken ct)
     {
         try { await Task.Delay(5000, ct); }
-        catch (OperationCanceledException) { return; } // circuit torn down
+        catch (OperationCanceledException) { return; }
         await InvokeAsync(() => { RemoveToast(id); StateHasChanged(); });
     }
 
@@ -370,7 +370,7 @@ else
         try { await _store.InvokeVoidAsync(fn, args); } catch { }
     }
 
-    // Self-call client forwarding the auth cookie so the controllers' gates see the request's auth.
+   
     HttpClient Client()
     {
         var c = HttpFactory.CreateClient();
@@ -381,8 +381,8 @@ else
 
     public async ValueTask DisposeAsync()
     {
-        // Cancel the read loop, drop the hub subscription (a leaked subscription leaks a circuit
-        // resource), and dispose the JS module.
+       
+       
         _loopCts?.Cancel();
         _subscription?.Dispose();
         if (_loopTask is not null)

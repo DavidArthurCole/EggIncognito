@@ -7,9 +7,7 @@ using EggIncognito.Tests.ProtoExtract;
 
 namespace EggIncognito.Tests;
 
-// Boots the real host and exercises the 3D-playground HTTP surface end to end: the page renders, the ship
-// list endpoint responds, and the animate-glb toolkit endpoint round-trips a real .glb through SharpGLTF.
-// Covers the wiring (routing, DI, multipart) that the GltfAnimator unit tests don't.
+
 [Collection(SharedAppCollection.Name)]
 public class PlaygroundTests
 {
@@ -20,7 +18,7 @@ public class PlaygroundTests
     [Fact]
     public async Task Playground_Page_Renders_AdminGated()
     {
-        // Anonymous (no auth wired in the test host) sees the admin-required view, not the 3D canvas.
+       
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/playground");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
@@ -35,7 +33,7 @@ public class PlaygroundTests
     {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/devices/some-device/list-meshes");
-        // Anonymous: admin gate returns 403 (or 503 when no DB), never 200 with data.
+       
         Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
             $"expected 403/503, got {(int)r.StatusCode}");
     }
@@ -46,7 +44,7 @@ public class PlaygroundTests
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/ship-assets/list");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        // No output dir configured in tests, so the list is empty but well-formed.
+       
         var body = await r.Content.ReadFromJsonAsync<ListResult>();
         Assert.NotNull(body);
         Assert.NotNull(body!.Ships);
@@ -68,7 +66,7 @@ public class PlaygroundTests
         Assert.Equal("model/gltf-binary", r.Content.Headers.ContentType?.MediaType);
 
         var outGlb = await r.Content.ReadAsByteArrayAsync();
-        // It is a valid glb with an animation now.
+       
         var model = SharpGLTF.Schema2.ModelRoot.ParseGLB(outGlb);
         Assert.Single(model.LogicalAnimations);
     }
@@ -88,7 +86,7 @@ public class PlaygroundTests
         var r = await c.GetAsync("/api/shells/objects?platform=ios&type=chicken");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var json = await r.Content.ReadAsStringAsync();
-        // public read; no stored config -> ok:false diagnostics, with one -> objects. either echoes type.
+       
         Assert.Contains("\"ok\"", json);
         Assert.Contains("\"type\":\"chicken\"", json);
     }
@@ -132,7 +130,7 @@ public class PlaygroundTests
         var c = _factory.CreateClient();
         var body = new StringContent("{\"payload\":\"{}\"}", System.Text.Encoding.UTF8, "application/json");
         var r = await c.PutAsync("/api/env/designs/test", body);
-        // anon (no auth wired in the test host) is a viewer: 403, or 503 when no DB. Never 200.
+       
         Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
             $"expected 403/503, got {(int)r.StatusCode}");
     }
@@ -149,7 +147,7 @@ public class PlaygroundTests
     [Fact]
     public async Task EnvGlb_RequiresAdmin()
     {
-        // Env meshes are pulled off a device, so the glb route is admin-gated: anonymous is always 403.
+       
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/env/ei_farm_ground/glb");
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
@@ -174,7 +172,7 @@ public class PlaygroundTests
     [Fact]
     public async Task InspectorBuild_ConfigRequest_WithClonedRinfo_Is200()
     {
-        // Builds a ConfigRequest with the Inspector's rinfo defaults as env (minus the UI-only "debug").
+       
         var c = _factory.CreateClient();
         var body = new
         {
@@ -202,7 +200,7 @@ public class PlaygroundTests
     [Fact]
     public async Task Shells_List_Responds()
     {
-        // No config stored in the test host, so ok=false with a diagnostic, but the route + parse work.
+       
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/shells?platform=ios");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);

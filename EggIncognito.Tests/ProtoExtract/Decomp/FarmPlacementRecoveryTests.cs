@@ -20,11 +20,11 @@ public class FarmPlacementRecoveryTests
         var r = FarmPlacementRecovery.Recover(bin, "FarmScene17missionControlPos");
         Assert.True(r.Ok, r.Diagnostics);
         Assert.NotNull(r.X);
-        // X = perElementConst(2.8) + farmWidth + offset(1.5). After the farmWidth fold the tree references the
-        // single Input("farmWidth"); the two constants survive in the JSON.
+       
+       
         var xjson = ExprNode.ToJson(r.X!).ToJsonString();
         Assert.Contains("\"name\":\"farmWidth\"", xjson);
-        // the recovered constants: 2.8 (the per-element const) + 1.5 (the offset) appear.
+       
         Assert.True(ContainsConstNear(r.X!, 2.8) || ContainsConstNear(r.X!, 1.5),
             "expected the recovered placement constants (2.8 / 1.5)");
     }

@@ -3,17 +3,13 @@ using System.Text;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Reads android:versionCode from an APK without aapt. Finds AndroidManifest.xml (binary AXML) and
-// walks the chunked format: header, string-pool, optional resource-map, then XML node chunks.
-// The START_ELEMENT for `manifest` carries attribute records; versionCode is the one whose name is
-// "versionCode" with an INT typed value. Returns null when not found or bytes don't parse.
 public static class ApkVersionCode
 {
-    // AXML chunk type tags.
+   
     private const ushort ResXmlType = 0x0003;
     private const ushort ResStringPoolType = 0x0001;
     private const ushort ResXmlStartElementType = 0x0102;
-    // Resource value type for an integer.
+   
     private const byte TypeIntDec = 0x10;
 
     public static string? Read(byte[] apkZipBytes)
@@ -36,8 +32,8 @@ public static class ApkVersionCode
         }
     }
 
-    // Parses raw AXML bytes for the manifest element's versionCode int. Defensive: any structural
-    // surprise returns null rather than throwing.
+   
+   
     internal static string? ParseAxml(byte[] data)
     {
         try
@@ -46,7 +42,7 @@ public static class ApkVersionCode
             var fileType = ReadU16(data, 0);
             if (fileType != ResXmlType) return null;
 
-            var pos = 8; // skip the file header (type, headerSize, fileSize).
+            var pos = 8;
             string[]? strings = null;
 
             while (pos + 8 <= data.Length)
@@ -76,8 +72,8 @@ public static class ApkVersionCode
         }
     }
 
-    // Reads android:versionName (a string) from the manifest. Same AXML walk as the versionCode reader,
-    // but the value is the attribute's rawValue string-pool index. Returns null when absent.
+   
+   
     public static string? ReadVersionName(byte[] data)
     {
         try
@@ -104,7 +100,7 @@ public static class ApkVersionCode
         catch { return null; }
     }
 
-    // Returns the rawValue string of the named attribute in a START_ELEMENT chunk, or null.
+   
     private static string? ReadStartElementStringAttr(byte[] data, int chunkPos, int headerSize, string[] strings, string attr)
     {
         var ext = chunkPos + headerSize;
@@ -126,8 +122,8 @@ public static class ApkVersionCode
         return null;
     }
 
-    // START_ELEMENT ext after the generic header: attribute records are 5 uint32 each (ns, name,
-    // rawValue, typedValue, data); typedValue packs size(2)+res0(1)+dataType(1).
+   
+   
     private static string? ReadStartElementVersionCode(byte[] data, int chunkPos, int headerSize, string[] strings)
     {
         var ext = chunkPos + headerSize;
@@ -153,8 +149,8 @@ public static class ApkVersionCode
         return null;
     }
 
-    // Reads a ResStringPool chunk into a string array. Supports UTF-8 and UTF-16 flavors. Only the
-    // fields we need are parsed; styles are ignored.
+   
+   
     private static string[] ReadStringPool(byte[] data, int chunkPos)
     {
         var stringCount = (int)ReadU32(data, chunkPos + 8);
@@ -163,7 +159,7 @@ public static class ApkVersionCode
         var isUtf8 = (flags & 0x100) != 0;
 
         var result = new string[stringCount];
-        var offsetsBase = chunkPos + 28; // after the string-pool header (28 bytes).
+        var offsetsBase = chunkPos + 28;
         var dataBase = chunkPos + stringsStart;
 
         for (var i = 0; i < stringCount; i++)
@@ -175,12 +171,12 @@ public static class ApkVersionCode
         return result;
     }
 
-    // UTF-8 strings: a (possibly two-pass) length prefix for the char count, then a length for the byte
-    // count, then the bytes. We only need the byte length to slice the string.
+   
+   
     private static string ReadUtf8String(byte[] data, int pos)
     {
         var p = pos;
-        p = SkipUtf8Len(data, p); // character count
+        p = SkipUtf8Len(data, p);
         var (byteLen, next) = ReadUtf8Len(data, p);
         return Encoding.UTF8.GetString(data, next, byteLen);
     }
@@ -199,8 +195,8 @@ public static class ApkVersionCode
         return (b, pos + 1);
     }
 
-    // UTF-16 strings: a length prefix in 16-bit units (high-bit extension for long strings), then the
-    // UTF-16LE code units, then a null terminator.
+   
+   
     private static string ReadUtf16String(byte[] data, int pos)
     {
         int len = ReadU16(data, pos);

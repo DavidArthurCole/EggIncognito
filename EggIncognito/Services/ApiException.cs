@@ -1,6 +1,4 @@
-// Throw this for any error response that should short-circuit a request. ApiExceptionHandler turns it
-// into an ApiError JSON body with the matching status. Every throw site supplies a Resolution, the
-// "possible fix" the user sees.
+
 
 namespace EggIncognito.Services;
 

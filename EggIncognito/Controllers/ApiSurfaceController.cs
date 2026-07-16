@@ -4,8 +4,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
-// Read-only drop-in surface, available Local and Hosted: HTML landing, OpenAPI document, Redoc
-// reference, machine catalog, and bare-namespace indexes.
 [ApiController]
 [EnableRateLimiting("read")]
 public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBase
@@ -30,7 +28,7 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
         return Ok(surface.Entries.Select(ToWire));
     }
 
-    // The real API never GETs a bare namespace, so these cannot shadow real client traffic.
+   
     [HttpGet("/ei")]
     [HttpGet("/ei_afx")]
     [HttpGet("/ei_ctx")]
@@ -99,7 +97,7 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
         </html>
         """;
 
-    // Redoc standalone bundle from the jsdelivr CDN: no package dependency, no build step.
+   
     private const string ReferenceHtml = """
         <!doctype html>
         <html lang="en">

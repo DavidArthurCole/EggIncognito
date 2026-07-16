@@ -6,8 +6,6 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// Mints a leaf, runs a loopback SslStream server with it, and requires a client that trusts the
-// root to complete the handshake, proving the leaf works as an SslStream server certificate.
 public class NativeCaptureProxyCertTests
 {
     [Fact]
@@ -20,7 +18,7 @@ public class NativeCaptureProxyCertTests
             Assert.Equal("CN=www.auxbrain.com", leaf.Subject);
             var san = leaf.Extensions.OfType<X509Extension>().FirstOrDefault(e => e.Oid?.Value == "2.5.29.17");
             Assert.NotNull(san);
-            // Leaf must not outlive the issuer.
+           
             Assert.True(leaf.NotAfter <= root.NotAfter);
         }
     }
@@ -44,7 +42,7 @@ public class NativeCaptureProxyCertTests
                 ServerCertificate = leaf,
                 ApplicationProtocols = [SslApplicationProtocol.Http11],
             });
-            // Echo one byte so the client knows the channel is live.
+           
             var buf = new byte[1];
             await tls.ReadExactlyAsync(buf);
             await tls.WriteAsync(buf);
@@ -54,7 +52,7 @@ public class NativeCaptureProxyCertTests
         await client.ConnectAsync(IPAddress.Loopback, port);
         await using var ctls = new SslStream(client.GetStream(), false, (_, cert, chain, errors) =>
         {
-            // Trust exactly our root: rebuild the chain with it as the only trusted anchor.
+           
             using var c2 = new X509Chain();
             c2.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
             c2.ChainPolicy.CustomTrustStore.Add(root);

@@ -2,8 +2,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Bot;
 
-// Everything the status/verify/endpoints embeds need, captured at one instant.
-// Mode is a string ("Local"/"Hosted") because the AppMode enum lives in the web project, which this library does not reference.
 public sealed record StatusSnapshot(
     string Mode,
     bool CanCapture,

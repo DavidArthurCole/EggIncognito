@@ -7,8 +7,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
-
-// The denied/panel split is gated server-side by ICurrentUser (courtesy UX; the controller ACL is the real gate).
 public class AdminPageTests
 {
     [Collection(SharedAppCollection.Name)]
@@ -26,13 +24,13 @@ public class AdminPageTests
             var html = await r.Content.ReadAsStringAsync();
             Assert.Contains("adminMain", html);
             Assert.Contains("id=\"denied\"", html);
-            // Neither provider is configured; LoginButton renders disabled "Login unavailable".
+           
             Assert.Contains("Login unavailable", html);
             Assert.DoesNotContain("<h2>Users</h2>", html);
         }
     }
 
-    // No HttpContext in the test, so the panel's list loads no-op to empty tables.
+   
     public class Component : BunitContext
     {
         private void Wire(UserRole role)
@@ -41,8 +39,8 @@ public class AdminPageTests
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton(new AuthState(IdentityApiEnabled: false));
             Services.AddHttpClient();
-            // BotConfigPanel resolves BotConfigService via GetService; unregistered here (null) renders
-            // the "bot not configured" state, which is the correct test-env behavior.
+           
+           
         }
 
         [Fact]

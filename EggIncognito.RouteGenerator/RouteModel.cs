@@ -8,31 +8,31 @@ public sealed class RouteModel : IEquatable<RouteModel>
 {
     public string Path { get; set; } = "";
 
-    /// <summary>Inner request proto type, or null when the route has no request body
-    /// (path-param-only) or its inner type is not yet known.</summary>
+   
+   
     public string? Request { get; set; }
 
-    /// <summary>Inner response proto type, or null when not yet known.</summary>
+   
     public string? Response { get; set; }
 
-    /// <summary>Request is signed and wrapped in an AuthenticatedMessage on the wire.</summary>
+   
     public bool RequestWrapped { get; set; }
 
-    /// <summary>Response is wrapped in an AuthenticatedMessage and must be unwrapped to Response.</summary>
+   
     public bool ResponseWrapped { get; set; }
 
-    /// <summary>When set, the route returns this literal string instead of encoded protobuf.</summary>
+   
     public string? RawResponse { get; set; }
 
     public bool PathParam { get; set; }
 
     public bool PathParamOnly { get; set; }
 
-    /// <summary>The proto type the mock serializes for its response. Falls back to
-    /// AuthenticatedMessage when the inner type is not yet known.</summary>
+   
+   
     public string MockResponseType => Response ?? "AuthenticatedMessage";
 
-    // Value equality lets the incremental generator pipeline cache on parse output.
+   
     public bool Equals(RouteModel? other) =>
         other is not null
         && Path == other.Path
@@ -60,8 +60,6 @@ public sealed class RouteModel : IEquatable<RouteModel>
         }
     }
 }
-
-/// <summary>Sequence equality over the parsed route list, used as the incremental pipeline comparer.</summary>
 public sealed class RouteListComparer : IEqualityComparer<List<RouteModel>>
 {
     public static readonly RouteListComparer Instance = new RouteListComparer();
@@ -113,7 +111,7 @@ public static class RouteParser
         {
             var trimmed = rawLine.TrimStart().TrimEnd();
 
-            // Only `routes:` entries become routes; `excluded:`/`endpoint_status:` etc. are skipped.
+           
             if (IsTopLevelKey(rawLine, trimmed))
             {
                 Flush();
@@ -137,7 +135,7 @@ public static class RouteParser
         return results;
     }
 
-    // Mirrors RouteCatalog's ^(\w[\w_]*):\s*$ top-level key match.
+   
     private static bool IsTopLevelKey(string rawLine, string trimmed)
     {
         if (rawLine.Length == 0 || char.IsWhiteSpace(rawLine[0])) return false;
@@ -172,7 +170,7 @@ public static class RouteParser
     }
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
 
-    // New keys beat legacy; "AuthenticatedMessage" in legacy becomes null inner + wrapped flag.
+   
     private static RouteModel Emit(Block b)
     {
         var (reqType, reqWrapDefault) = Normalize(b.HasRequest ? b.Request : b.LegacyReq);

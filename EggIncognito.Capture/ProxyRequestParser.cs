@@ -1,12 +1,10 @@
 namespace EggIncognito.Capture;
 
-// First-request parse for the front door: method, target authority, and the raw bytes consumed
-// so the tunnel can replay them verbatim to the inner proxy.
 public sealed record ProxyFirstRequest(string Method, string TargetHost, int TargetPort, byte[] RawBytes);
 
 public static class ProxyRequestParser
 {
-    // Reads from the buffer up to the end of headers (\r\n\r\n). Returns null if incomplete.
+   
     public static ProxyFirstRequest? TryParse(ReadOnlySpan<byte> buffer)
     {
         var end = IndexOfHeaderEnd(buffer);

@@ -4,8 +4,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace EggIncognito.Tests.Devices;
-
-// Asserts behavior (climb announced, waiting reported, no throw), not exact callback counts.
 public class StoreCheckerProgressTests
 {
     sealed class FakeRunner(Func<string[], ProcessResult> fn) : IProcessRunner
@@ -50,7 +48,7 @@ public class StoreCheckerProgressTests
     [Fact]
     public async Task ProgressAnnouncesClimb_ThenUpdated()
     {
-        // dumpsys call sequence: before, poll1, poll2+ (climb).
+       
         var dumpsys = 0;
         var runner = new FakeRunner(args =>
         {

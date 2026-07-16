@@ -3,8 +3,6 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.Backfill.Sources;
 
-// Internet Archive (ios history). Queries archive.org's advancedsearch JSON for Egg Inc software items
-// and pulls a version number out of each doc's title or identifier.
 public sealed partial class InternetArchiveSource(
     IHttpClientFactory httpFactory, ILogger<InternetArchiveSource> logger)
     : IVersionListSource
@@ -39,7 +37,7 @@ public sealed partial class InternetArchiveSource(
     [GeneratedRegex(@"\d+\.\d+(?:\.\d+)?")]
     private static partial Regex VersionRe();
 
-    // response.docs[]: pull a version from title (preferred) or identifier, dedup, keep the doc's date.
+   
     public static IReadOnlyList<ListedVersion> ParseJson(string json)
     {
         if (string.IsNullOrEmpty(json)) return [];

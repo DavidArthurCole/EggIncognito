@@ -51,8 +51,8 @@ else
     private bool _loading;
     private string? _error;
 
-    // SyncKit returns Url/IconUrl relative to the identity host; resolve them against it so they don't
-    // hit this app's origin (which 405s on the catch-all). Absolute values pass through unchanged.
+   
+   
     private string Abs(string url) =>
         url.StartsWith("http", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(Auth.IdentityHostUrl)
             ? url
@@ -75,7 +75,7 @@ else
         _loading = true;
         try
         {
-            // Full current URL: SyncKit returns the user to this exact page with ?code appended.
+           
             var resp = await Identity.GetLoginSourcesAsync(Nav.Uri, "redirect", CancellationToken.None);
             if (resp.Sources.Count == 0)
                 _error = "No login providers configured.";

@@ -3,8 +3,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-// MitmFlowReader extracts (url, method, status, requestData, responseBody) tuples from serialized
-// mitmproxy flows. Flows are built with the test-only tnetstring encoder in TnetStringTests.
 public class MitmFlowReaderTests
 {
     private static string Flow(string type, string method, string scheme, string host, int port,

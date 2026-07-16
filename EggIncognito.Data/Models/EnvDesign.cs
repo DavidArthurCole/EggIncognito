@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
-
-// A named environment design authored in the playground designer. Payload is opaque client-owned JSON (elements, lighting, background); server only validates well-formedness and a size cap.
 [Table("env_designs")]
 public class EnvDesign
 {

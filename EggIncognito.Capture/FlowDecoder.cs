@@ -3,9 +3,7 @@ using Google.Protobuf;
 
 namespace EggIncognito.Capture;
 
-// Decodes a captured flow's raw base64 into readable JSON for the dashboard, in both a redacted
-// safe-display form and a raw form. Proto-framing lives in EndpointExtractor.DecodeRequestBody so
-// the dashboard view can never drift from what the endpoint pipeline writes.
+
 public sealed class FlowDecoder
 {
     private readonly IReadOnlyDictionary<string, string> _responseTypes;
@@ -22,11 +20,11 @@ public sealed class FlowDecoder
             EndpointExtractor.LoadRawResponses(contentRoot).Keys, StringComparer.Ordinal);
     }
 
-    //   Json/JsonRaw - redacted/unredacted display JSON
-    //   Type         - resolved proto type name (yaml-mapped or auto-detected), or null
-    //   Known        - type came from routes.yaml
-    //   Ack          - rawResponse endpoint (plain-text ack, not proto)
-    //   Text         - plain-text body; null for proto responses
+   
+   
+   
+   
+   
     public sealed record DecodeResult(
         string? Json, string? JsonRaw, string? Type, bool Known, bool Ack = false, string? Text = null);
 
@@ -36,21 +34,21 @@ public sealed class FlowDecoder
     public string? KnownRequestType(string path) =>
         _requestTypes.TryGetValue(path, out var t) ? t : null;
 
-    // Pair a raw unredacted JSON string with its redacted copy.
+   
     private static DecodeResult Result(string? rawJson, string? type, bool known) =>
         rawJson is null
             ? new(null, null, type, known)
             : new(Redactor.Redact(rawJson), rawJson, type, known);
 
-    // Protobuf endpoints wrap the response bytes as an AuthenticatedMessage; log/data endpoints reply
-    // with a short plain-text ack, surfaced as text instead of a hex dump.
+   
+   
     public DecodeResult DecodeResponse(string path, string responseB64)
     {
         byte[] respBytes;
         try { respBytes = ProtoFraming.FromBase64Loose(responseB64); }
         catch { return new(null, null, null, false); }
 
-        // Try the protobuf framing first.
+       
         try
         {
             var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(respBytes);
@@ -81,8 +79,8 @@ public sealed class FlowDecoder
         return new(null, null, null, false);
     }
 
-    // The string form of a short, fully-printable body (no control chars), else null. Caps length so a
-    // large binary blob that happens to be printable is not treated as text.
+   
+   
     private static string? AsPrintableText(byte[] bytes)
     {
         if (bytes.Length is 0 or > 256) return null;
@@ -94,7 +92,7 @@ public sealed class FlowDecoder
         catch { return null; }
     }
 
-    // Decode the request `data` base64 to JSON + type via the shared library decoder.
+   
     public DecodeResult DecodeRequest(string path, string? requestDataB64)
     {
         var knownType = KnownRequestType(path);

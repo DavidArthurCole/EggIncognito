@@ -2,8 +2,6 @@ using EggIncognito.Data.Models;
 
 namespace EggIncognito.Services;
 
-// The signed-in or anonymous user for the current request. Always registered; reports anonymous when
-// no auth middleware ran. ACL checks read Role/DiscordId/UserId from here.
 public interface ICurrentUser
 {
     bool IsAuthenticated { get; }

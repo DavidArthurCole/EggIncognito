@@ -2,9 +2,7 @@ using System.Text;
 
 namespace EggIncognito.Services;
 
-// Decoder for the tnetstring serialization mitmproxy uses in its .mitm flow files. One value is
-// LENGTH:PAYLOAD<tag>, where tag selects the type; only the read path is implemented.
-// Tags: ',' bytes ';' str '#' int '^' float '!' bool '~' null ']' list '}' dict.
+
 public static class TnetString
 {
     public static (object? value, int next) Decode(byte[] data, int offset)
@@ -49,7 +47,7 @@ public static class TnetString
         return items;
     }
 
-    // Dict keys are tnetstrings (bytes/str); decode each to a UTF-8 string. Values keep their type.
+   
     private static Dictionary<string, object?> DecodeDict(byte[] data, int start, int len)
     {
         var dict = new Dictionary<string, object?>(StringComparer.Ordinal);

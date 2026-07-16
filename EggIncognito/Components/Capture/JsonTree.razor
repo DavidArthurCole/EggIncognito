@@ -29,8 +29,8 @@
     string _count = "";
     CancellationTokenSource? _debounceCts;
 
-    // Debounce keystrokes: each search pass walks the whole tree and force-expands matches, heavy on
-    // large payloads, so coalesce bursts into one pass instead of one per keystroke.
+   
+   
     async Task OnSearchInput(ChangeEventArgs e)
     {
         _search = e.Value?.ToString() ?? "";
@@ -60,7 +60,7 @@
         if (Root is null) return;
         ClearMarks(Root);
         SetExpansion(Root, false);
-        Root.Expanded = true; // keep root open
+        Root.Expanded = true;
     }
 
     static void SetExpansion(TreeNode node, bool expand)
@@ -90,7 +90,7 @@
         }
 
         var matches = 0;
-        // Visit each child of root (root itself stays visible/open), matching the JS.
+       
         foreach (var c in Root.Children) Visit(c, needle, ref matches);
         Root.Dim = false;
         Root.SelfMatch = false;
@@ -98,8 +98,8 @@
         _count = matches + (matches == 1 ? " match" : " matches");
     }
 
-    // Depth-first; returns true if the node or any descendant matched. Sets Dim/SelfMatch + expands the
-    // ancestor chain of any match.
+   
+   
     static bool Visit(TreeNode node, string needle, ref int matches)
     {
         var selfMatch = false;

@@ -22,8 +22,8 @@ public class EffectRecoveryTests
         Assert.True(r.Ok, r.Diagnostics);
         Assert.Equal(new Const(27), r.Count);
         Assert.NotNull(r.Placement);
-        // the placement is a real assembled affine, not a trivial constant: deep tree with named struct-field
-        // inputs (the per-particle spawn data) + the 27/offset phase math.
+       
+       
         Assert.True(ExprNode.Depth(r.Placement!) > 4, "placement too shallow; no real math recovered");
         var json = ExprNode.ToJson(r.Placement!).ToJsonString();
         Assert.Contains("\"op\":\"Field\"", json);

@@ -1,19 +1,17 @@
 namespace EggIncognito.Services;
 
-// Per-route link-unfurl metadata (Open Graph / Twitter title + description). App.razor renders the
-// static OG tags once per request; this picks the right copy for the requested path.
 public static class PageMeta
 {
     public readonly record struct Meta(string Title, string Description);
 
-    // Used for "/", unknown routes, and any POST mock endpoint.
+   
     public static readonly Meta Default = new(
         "EggIncognito - a toolkit for the Egg, Inc. API",
         "A toolkit for the Egg, Inc. API: a byte-identical mock server, a request inspector, a live " +
         "capture proxy, a versioned proto registry, and a physical device farm. Test tooling without real " +
         "accounts or rate limits.");
 
-    // Path-prefix -> copy. Longest matching prefix wins, so "/protos/sources" falls back to "/protos".
+   
     static readonly (string Prefix, Meta Meta)[] Routes =
     [
         ("/inspector", new(

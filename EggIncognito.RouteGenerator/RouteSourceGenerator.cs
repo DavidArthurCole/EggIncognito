@@ -9,7 +9,7 @@ namespace EggIncognito.RouteGenerator;
 [Generator]
 public sealed class RouteSourceGenerator : IIncrementalGenerator
 {
-    // RS2008 wants analyzer release-tracking files; not needed for an internal generator.
+   
 #pragma warning disable RS2008
     private static readonly DiagnosticDescriptor InvalidIdentifier = new(
         id: "EGI001",

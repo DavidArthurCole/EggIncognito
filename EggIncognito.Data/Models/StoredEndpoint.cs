@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
-
-// A user-contributed endpoint response stored in Postgres, overlaying the file default for its (path, eid) key. Eid null means global.
 [Table("stored_endpoints")]
 public class StoredEndpoint
 {

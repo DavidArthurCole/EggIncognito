@@ -1,6 +1,4 @@
 namespace EggIncognito.Runner.State;
-
-// Seeded once from PREV_CLIENT_VERSION env, then self-advances after each successful extract.
 public sealed class ClientVersionState(string path, int? seed)
 {
     public int? Last()

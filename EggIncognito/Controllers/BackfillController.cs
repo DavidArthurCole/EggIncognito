@@ -12,15 +12,9 @@ using System.Net.Http.Json;
 
 namespace EggIncognito.Controllers;
 
-// Admin-only proto-backfill triggers + status. Importers run in the background (each opens its own
-// DI scope), so the request returns immediately.
 //
-// GET /api/protos/backfill/status response shape:
-//   {
-//     "jobs": [ { "source", "status", "startedAt", "finishedAt", "imported", "total", "note" } ],
-//     "known": [ { "platform", "appVersion", "releaseDate", "changelog", "source" } ]
-//   }
-// jobs = latest run per source (newest first); known = the known_versions discovery list (newest first).
+
+
 [ApiController]
 [Route("api/protos/backfill")]
 [EnableRateLimiting("write")]
@@ -80,7 +74,7 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
 
     public sealed record ApkExtractRequest(string AppVersion);
 
-    // Local extract if configured; else forward to the runner agent; else 501.
+   
     [HttpPost("apk-extract")]
     public async Task<IActionResult> ApkExtract([FromBody] ApkExtractRequest req, CancellationToken ct)
     {
@@ -156,7 +150,7 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
             await jobs.FinishExtractAsync("android", version, status, note, CancellationToken.None);
     }
 
-    // Deletes keyless/stub registry rows (empty build or appVersion). No DB => 0 pruned.
+   
     [HttpPost("prune")]
     public async Task<IActionResult> Prune(CancellationToken ct)
     {
@@ -169,8 +163,8 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
 
     public sealed record ResyncRequest(string? Platform);
 
-    // Forwards a force re-sync to the host-side runner agent (the device farm). Unset returns
-    // 501 not-configured, since most hosts have no runner.
+   
+   
     [HttpPost("runner-resync")]
     public async Task<IActionResult> RunnerResync([FromBody] ResyncRequest? req, CancellationToken ct)
     {
@@ -198,7 +192,7 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
         }
     }
 
-    // Latest job per source + the known-versions discovery list. The admin UI polls this for live status.
+   
     [HttpGet("status")]
     public async Task<IActionResult> Status(CancellationToken ct)
     {
@@ -245,8 +239,8 @@ public sealed class BackfillController(IServiceProvider services, ICurrentUser u
         });
     }
 
-    // Public discovery list: app versions known to exist, with release date + source, no job internals.
-    // Empty [] without a DB.
+   
+   
     [HttpGet("known")]
     [EnableRateLimiting("fetch")]
     public async Task<IActionResult> Known(CancellationToken ct)

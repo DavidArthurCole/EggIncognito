@@ -5,9 +5,7 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-// The proxy's three-shape response normalization + the form-data extraction, factored into
-// WireBody so they can be tested without a live proxy. These guard the hot path that turns a
-// decrypted wire body into the canonical responseB64 the endpoint pipeline reads.
+
 public class WireBodyTests
 {
     private static byte[] Gzip(byte[] data)
@@ -17,8 +15,8 @@ public class WireBodyTests
         return o.ToArray();
     }
 
-    // A genuine API response: base64 text of an AuthenticatedMessage. This is what the alphabet
-    // check must accept as "already base64" (it decodes to a valid AM).
+   
+   
     private static string AuthMessageB64() =>
         Convert.ToBase64String(new Ei.AuthenticatedMessage { Message = ByteString.CopyFrom([1, 2, 3]) }.ToByteArray());
 
@@ -34,7 +32,7 @@ public class WireBodyTests
     [Fact]
     public void Normalize_RawProtoBytes_Base64Encoded()
     {
-        var raw = new byte[] { 0x08, 0x96, 0x01, 0xff }; // 0xff is outside the base64 alphabet
+        var raw = new byte[] { 0x08, 0x96, 0x01, 0xff };
         var (result, shape) = WireBody.Normalize(raw);
         Assert.Equal(Convert.ToBase64String(raw), result);
         Assert.Equal("raw", shape);
@@ -43,9 +41,9 @@ public class WireBodyTests
     [Fact]
     public void Normalize_PlainTextAck_Base64EncodedNotPassedThrough()
     {
-        // "SUCCESS" is all base64-alphabet letters but is NOT base64-of-a-proto. It must be treated
-        // as a raw body and base64-encoded so it round-trips to the literal text downstream - the
-        // old alphabet-only check wrongly passed it through, which then decoded to garbage.
+       
+       
+       
         var (result, shape) = WireBody.Normalize(Encoding.ASCII.GetBytes("SUCCESS"));
         Assert.Equal(Convert.ToBase64String(Encoding.ASCII.GetBytes("SUCCESS")), result);
         Assert.Equal("raw", shape);
@@ -73,9 +71,9 @@ public class WireBodyTests
     }
 
     [Theory]
-    [InlineData("data=ABC%2BD", "ABC+D")] // %2B decodes to '+'
-    [InlineData("foo=1&data=Zm9v&bar=2", "Zm9v")] // picks the data field among others
-    [InlineData("data=a+b", "a+b")] // literal '+' preserved (form '+' kept)
+    [InlineData("data=ABC%2BD", "ABC+D")]
+    [InlineData("foo=1&data=Zm9v&bar=2", "Zm9v")]
+    [InlineData("data=a+b", "a+b")]
     public void ExtractDataParam_PullsDataField(string body, string expected)
     {
         Assert.Equal(expected, WireBody.ExtractDataParam(body));

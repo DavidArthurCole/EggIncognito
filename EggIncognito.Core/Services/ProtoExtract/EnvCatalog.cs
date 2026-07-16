@@ -1,15 +1,11 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-// The farm-environment mesh catalog (names only, no asset bytes): the buildings, habs, and ground pieces a
-// designer can place. Meshes are pulled off a device + cached (DeviceMeshProvider); this is just the allowlist
-// of known stems + their display labels. Most building meshes are authored at their real in-game plot position
-// in their own vertex coords, so placing them at world origin self-positions them; only repeated rows (habs,
-// silos) are centered-at-origin single plots the layout instances at multiple spots.
+
 public static class EnvCatalog
 {
-    // Singleton = the scene holds at most one (terrain layers + the self-placing single-slot buildings).
-    // Group = the picker section. Family = the swap group: a placed element can be switched to another piece
-    // in the same family (a hab tier for a hab, a lab level for a lab); "" = not swappable.
+   
+   
+   
     public sealed record EnvPiece(string Stem, string Label, string Group, bool Singleton = false, string Family = "");
 
     public static readonly IReadOnlyList<EnvPiece> Pieces = new[]
@@ -20,7 +16,7 @@ public static class EnvCatalog
         new EnvPiece("ei_farm_misc", "Ground detail", "Terrain", Singleton: true),
         new EnvPiece("ei_chicken_display_ground", "Display ground", "Terrain", Singleton: true),
 
-        // The 19 hab tiers, in capacity order. Stem naming is inconsistent: most are bare, five carry a hab_ prefix.
+       
         new EnvPiece("coop", "Coop", "Habs", Family: "hab"),
         new EnvPiece("shack", "Shack", "Habs", Family: "hab"),
         new EnvPiece("super_shack", "Super Shack", "Habs", Family: "hab"),
@@ -71,11 +67,11 @@ public static class EnvCatalog
         new EnvPiece("ei_hoa_3", "Artifact hall (3)", "Buildings", Singleton: true, Family: "hoa"),
         new EnvPiece("ei_trophy_case", "Trophy case", "Buildings", Singleton: true, Family: "trophy"),
         new EnvPiece("ei_trophy_case2", "Trophy case (2)", "Buildings", Singleton: true, Family: "trophy"),
-        // Construction site shares the "hoa" family with the 3 completed tiers so the variation dropdown swaps construction <-> completed.
+       
         new EnvPiece("ei_afx_construction_site", "Artifact hall (construction)", "Buildings", Singleton: true, Family: "hoa"),
 
-        // The egg hatchery. Sub-part meshes (_top/_ring/_orb/...) are excluded; they are pieces of a
-        // specific hatchery, not standalone.
+       
+       
         new EnvPiece("ei_hatchery_edible", "Hatchery (Edible)", "Buildings", Singleton: true, Family: "hatchery"),
         new EnvPiece("ei_hatchery_superfood", "Hatchery (Superfood)", "Buildings", Singleton: true, Family: "hatchery"),
         new EnvPiece("ei_hatchery_medical", "Hatchery (Medical)", "Buildings", Singleton: true, Family: "hatchery"),
@@ -97,7 +93,7 @@ public static class EnvCatalog
 
         new EnvPiece("ei_farm_mailbox_full", "Mailbox", "Structures", Singleton: true),
 
-        // Road vehicles. Non-singleton: place several. The _aux/_light sub-meshes are not placed standalone.
+       
         new EnvPiece("ei_vehicle_semi", "Semi", "Vehicles"),
         new EnvPiece("ei_vehicle_pickup", "Pickup", "Vehicles"),
         new EnvPiece("ei_vehicle_trike", "Trike", "Vehicles"),
@@ -109,7 +105,7 @@ public static class EnvCatalog
         new EnvPiece("ei_vehicle_hover_semi", "Hover semi", "Vehicles"),
         new EnvPiece("ei_vehicle_mega_semi", "Mega semi", "Vehicles"),
 
-        // Ships, used for the rocket-launch actor from mission control.
+       
         new EnvPiece("ei_ship_egg_shuttle", "Egg shuttle", "Ships"),
         new EnvPiece("ei_ship_rooster", "Rooster", "Ships"),
         new EnvPiece("ei_ship_bcr", "BCR", "Ships"),
@@ -121,12 +117,12 @@ public static class EnvCatalog
         new EnvPiece("ei_ship_atreggies_shuttle", "Atreggies Shuttle", "Ships"),
     };
 
-    // The hab meshes (the "Habs" group), for any caller wanting just the habs.
+   
     public static IReadOnlyList<EnvPiece> Habs =>
         Pieces.Where(p => p.Group == "Habs").ToList();
 
-    // The other pieces in a piece's swap family (a hab tier's siblings, a lab level's siblings). Empty for
-    // pieces with no family. Used to offer a "switch variation" dropdown on a placed element.
+   
+   
     public static IReadOnlyList<EnvPiece> Family(string stem)
     {
         var fam = Pieces.FirstOrDefault(p => p.Stem == stem)?.Family ?? "";
@@ -137,9 +133,9 @@ public static class EnvCatalog
     public static bool IsKnownPiece(string stem) =>
         Pieces.Any(p => string.Equals(p.Stem, stem, StringComparison.Ordinal));
 
-    // Maps an env stem to its ShellSpec.AssetType enum name, so a placed element can be matched to the shell-set
-    // member that reskins that asset type. A table, not reflection: stem naming and enum names do not align 1:1
-    // (hab_1k -> Hab1K, hanger -> Hangar, hab_portal -> PlanetPortal).
+   
+   
+   
     private static readonly Dictionary<string, string?> _assetTypeByStem = new(StringComparer.Ordinal)
     {
         ["coop"] = "Coop", ["shack"] = "Shack", ["super_shack"] = "SuperShack",

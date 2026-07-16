@@ -5,9 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-// Boots the real web host in-process and proves the Inspector build path is driven by a CLIENT-SUPPLIED
-// salt (sent in the request body), not a server env var: a salt -> canSign true, no salt -> canSign
-// false, the same salt -> a stable signature, and the old server-owned GET env-defaults endpoint is gone.
+
 [Collection(SharedAppCollection.Name)]
 public class InspectorApiSaltTests
 {
@@ -15,8 +13,8 @@ public class InspectorApiSaltTests
 
     public InspectorApiSaltTests(SharedAppFactory f) => _factory = f;
 
-    // A non-empty body: the signing hash mutates a byte at a fixed offset, so the inner message must
-    // serialize to at least one byte (an all-default {} message is zero bytes).
+   
+   
     private static object BuildBody(string? salt) => new
     {
         path = "ei/first_contact_secure",
@@ -63,7 +61,7 @@ public class InspectorApiSaltTests
     [Fact]
     public async Task EnvDefaults_EndpointIsGone()
     {
-        // No GET handler remains: resolves to NotFound (no route) or MethodNotAllowed (verb claimed by a catch-all).
+       
         var resp = await _factory.CreateClient().GetAsync("/api/inspector/env-defaults");
         Assert.False(resp.IsSuccessStatusCode);
         Assert.Contains(resp.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });

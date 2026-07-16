@@ -2,8 +2,6 @@ using EggIncognito.Services.ProtoExtract.Decomp;
 
 namespace EggIncognito.Tests.ProtoExtract.Decomp;
 
-// Locks the JSON "op" strings effectEval.js switches on, so a rename on the C# side cannot silently break the
-// renderer. If any of these fail, the op name in ExprNode.ToJson and the JS switch have diverged.
 public class EffectEvalContractTests
 {
     [Theory]

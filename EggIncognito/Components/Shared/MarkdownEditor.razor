@@ -42,11 +42,11 @@
     [Parameter] public string? Initial { get; set; }
     [Parameter] public EventCallback<string> OnSaved { get; set; }
 
-    // 5 MB cap on the upload read stream; the server still enforces its own 4 MB byte cap + type allowlist.
+   
     const long MaxImageBytes = 5 * 1024 * 1024;
     static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
 
-    // token-insert toolbar (no real selection wrap; see file header)
+   
     static readonly (string Label, string Title, string Token)[] Buttons =
     [
         ("B", "Bold", "**bold**"),
@@ -63,11 +63,11 @@
     bool _busy;
     string _value = "";
     string? _status;
-    string? _seeded; // the Initial we last seeded from, to detect a fresh async load
-    bool _dirty; // the user has typed; stop re-seeding from Initial once they have
+    string? _seeded;
+    bool _dirty;
 
-    // Captured while HttpContext is live; reused for the circuit-time self-call (the SignalR circuit has
-    // no HttpContext, so the auth cookie must be forwarded from the originating request).
+   
+   
     string _baseAddress = "";
     string? _cookie;
 
@@ -82,8 +82,8 @@
         }
     }
 
-    // Seed from Initial when it changes (e.g. the parent's async doc load arrives after first render), but
-    // only while the user has not typed; once dirty we leave _value alone so edits are never clobbered.
+   
+   
     protected override void OnParametersSet()
     {
         if (!_dirty && Initial != _seeded)

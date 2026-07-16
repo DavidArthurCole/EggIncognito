@@ -3,11 +3,9 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-// Latest BasicRequestInfo (rinfo) observed on the wire for a single device, keyed by device id. Per-device
-// sibling of LiveVersionStore (which keys by platform); the auxbrain build reported here is the
-// authoritative iOS build, since the static IPA binary cannot give it.
+
 //
-// Best-effort like LiveVersionStore/DeviceStore: missing/corrupt reads empty, write failures swallowed.
+
 public sealed class DeviceRinfoStore(string capturePath)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -36,7 +34,7 @@ public sealed class DeviceRinfoStore(string capturePath)
         return null;
     }
 
-    // Newer non-null fields win; a prior version/build/clientVersion is kept when the new observation is null.
+   
     public void Observe(string deviceId, RinfoHarvester.ObservedVersion v, string nowIso)
     {
         if (string.IsNullOrEmpty(deviceId)) return;
@@ -60,12 +58,10 @@ public sealed class DeviceRinfoStore(string capturePath)
             }
             catch
             {
-                // best-effort: a failed write must never break the capture
+               
             }
         }
     }
 }
-
-// Latest live rinfo seen for one device. Build is the auxbrain build the client reports on the wire, not the iOS bundle build.
 public sealed record DeviceRinfo(
     string DeviceId, string? Platform, string? Version, string? Build, int? ClientVersion, string LastSeen);

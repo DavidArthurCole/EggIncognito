@@ -444,8 +444,6 @@
   .toast-certTrusted .toast-msg { @apply text-ok; }
   .toast-decryptError .toast-msg { @apply text-err; }
   .toast-info { @apply border-l-info; }
-
-
   /* Legal pages (/terms, /privacy): readable long-form prose in the flat aesthetic. The disclaimer
      box is the one bordered call-out; everything else is plain muted prose with clear headings. */
   .legal-title { @apply text-[1.4rem] font-semibold leading-tight text-fg m-0 mb-1; }
@@ -1183,6 +1181,88 @@
   .metric-swatch-limited { background: var(--err); }
   /* Admin user table reuses .reg-table; select sits inline. */
   .admin-users-table select { @apply w-auto; }
+
+  /* Admin two-column layout: narrow-ish left (bot config + users), fluid right (everything else). Single
+     column below lg. Panels inside each column keep their own .panel mb-4 stacking. */
+  .admin-grid { @apply grid gap-4 items-start lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]; }
+  .admin-col-left, .admin-col-right { @apply min-w-0; }
+
+  /* API audit bucket summary tiles. */
+  .audit-buckets { @apply grid grid-cols-3 gap-2; }
+  .audit-bucket { @apply flex flex-col gap-0.5 rounded-md border border-border bg-panel2 px-3 py-2; }
+  .audit-bucket-label { @apply text-xs text-muted; }
+  .audit-bucket-val { @apply text-lg font-semibold text-fg font-mono; }
+
+  /* Session-kind chip. */
+  .sess-kind { @apply inline-block rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide border; }
+  .sess-kind-user { @apply text-accent2 border-accent2; }
+  .sess-kind-local { @apply text-muted border-border; }
+  .sess-kind-device { @apply text-green-400 border-green-700; }
+
+  /* Device-capture live-view rows. */
+  .devcap-row { @apply rounded-md border border-border bg-panel2 px-3 py-2; }
+  .devcap-counters { @apply flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted font-mono; }
+  .devcap-counters b { @apply text-fg font-semibold; }
+  .devcap-connects { @apply flex flex-wrap gap-1; }
+  .devcap-connect { @apply rounded bg-bg border border-border px-1.5 py-0.5 text-[0.65rem] font-mono text-muted; }
+
+  /* Bot config embed editor: labelled rows, checkbox switches vertically centered, popout color picker. */
+  .embed-editor { @apply flex flex-col gap-3 max-w-[720px]; }
+  .embed-field { @apply text-xs text-muted flex flex-col; }
+  .embed-field-label { @apply text-xs text-muted; }
+  .embed-row-2 { @apply grid grid-cols-2 gap-2; }
+  .embed-row-3 { @apply grid grid-cols-3 gap-2; }
+  .embed-row-title { @apply flex items-start gap-2; }
+  .embed-field-url { @apply w-[38%] shrink-0; }
+  .embed-row-footer { @apply flex items-start gap-2; }
+  .embed-field-row { @apply flex items-start gap-2; }
+
+  /* Checkbox switch: label + box on one centered baseline, no ad-hoc padding hacks. */
+  .embed-switch { @apply inline-flex items-center gap-2 text-xs text-muted select-none whitespace-nowrap; }
+  .embed-switch input[type="checkbox"] {
+    @apply w-4 h-4 shrink-0 cursor-pointer rounded-sm bg-bg relative;
+    -webkit-appearance: none;
+    appearance: none;
+    border: 1.5px solid #6b6b78;
+  }
+  .embed-switch input[type="checkbox"]:hover { @apply border-accent2; }
+  .embed-switch input[type="checkbox"]:checked { @apply bg-accent border-accent; }
+  .embed-switch input[type="checkbox"]:checked::after {
+    content: "";
+    @apply absolute left-[4px] top-[1px] w-[5px] h-[9px] border-white border-b-2 border-r-2;
+    transform: rotate(45deg);
+  }
+  /* In a field row the switch aligns to the input line (label sits above the input elsewhere). */
+  .embed-field-row .embed-switch { @apply pt-[1.35rem]; }
+  .embed-field-row .btn-danger { @apply mt-[1.35rem]; }
+
+  /* Timestamp control: toggle, then real-time / fixed choice, then a native picker in fixed mode. */
+  .embed-ts { @apply flex flex-col min-w-[180px] pt-[1.35rem]; }
+  .embed-ts-modes { @apply flex items-center gap-3; }
+  .embed-radio { @apply inline-flex items-center gap-1.5 text-xs text-muted cursor-pointer select-none; }
+  .embed-radio input[type="radio"] { @apply w-3.5 h-3.5 cursor-pointer accent-[color:var(--accent)]; }
+  .embed-ts input[type="datetime-local"] { @apply cursor-pointer; }
+  .embed-ts input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }
+
+  /* Color picker: a native color input styled as a swatch + a synced hex box. */
+  .embed-color { @apply flex flex-col; }
+  .color-picker { @apply flex items-center gap-2; }
+  .color-input {
+    @apply w-9 h-9 shrink-0 cursor-pointer rounded-md border border-border bg-transparent p-0;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .color-input::-webkit-color-swatch-wrapper { padding: 2px; }
+  .color-input::-webkit-color-swatch { @apply rounded border-0; }
+  .color-input::-moz-color-swatch { @apply rounded border-0; }
+  .color-hex { @apply w-[7.5rem]; }
+
+  /* Template-variables popover, anchored to the Variables button in the embeds header. */
+  .embed-vars-anchor { @apply relative; }
+  .embed-vars-pop {
+    @apply absolute right-0 top-full mt-1 z-20 w-[320px] max-h-[50vh] overflow-auto
+           rounded-md border border-border bg-panel p-3 shadow-lg;
+  }
 
   /* Hosted setup card: collapse + fade out once a device is connected (re-shows when stopped). */
   .setup-collapsible { @apply transition-all duration-300; }

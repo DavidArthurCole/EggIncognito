@@ -1,6 +1,4 @@
-// Browser-side memory for the Inspector Blazor tab: signing salt, remembered EIDs, custom proxy URL,
-// and BasicRequestInfo defaults, all in localStorage. The salt is client-owned and only ever handed to
-// the build call, never persisted or encrypted server-side.
+
 
 const SALT_KEY = "inspector.salt";
 const RINFO_KEY = "inspector.rinfoDefaults";
@@ -14,8 +12,6 @@ const HISTORY_MAX = 50;
 
 const EID_RE = /^EI\d{10,}$/;
 const EID_MAX = 12;
-
-// Seed defaults for BasicRequestInfo: the standard client constants a real request carries.
 const RINFO_SEED = {
   eiUserId: "",
   clientVersion: 72,
@@ -42,8 +38,6 @@ export function setCustomTarget(value) { setRaw(CUSTOM_TARGET_KEY, String(value 
 
 export function getLiveConsent() { return getRaw(LIVE_CONSENT_KEY) === "1"; }
 export function setLiveConsent() { setRaw(LIVE_CONSENT_KEY, "1"); }
-
-// The rinfo defaults: the seed merged with any saved overrides. Always returns all seven keys.
 export function getRinfoDefaults() {
   try {
     const saved = JSON.parse(getRaw(RINFO_KEY) || "{}");
@@ -53,16 +47,12 @@ export function getRinfoDefaults() {
   }
 }
 export function setRinfoDefaults(obj) { setRaw(RINFO_KEY, JSON.stringify(obj || {})); }
-
-// Remembered EIDs, stored as [{ eid, order }] with a monotonic order counter (recency only, no clock).
 function loadEids() {
   try {
     const raw = JSON.parse(getRaw(EIDS_KEY) || "[]");
     return Array.isArray(raw) ? raw.filter((e) => e && EID_RE.test(e.eid)) : [];
   } catch { return []; }
 }
-
-// Remember one EID (no-op for non-EID strings). Returns the refreshed most-recent-first list.
 export function rememberEid(value) {
   const eid = String(value || "").trim();
   if (EID_RE.test(eid)) {
@@ -74,8 +64,6 @@ export function rememberEid(value) {
   }
   return recentEids();
 }
-
-// Remember several at once; returns the refreshed list.
 export function rememberEids(values) {
   for (const v of values || []) {
     const eid = String(v || "").trim();
@@ -94,17 +82,13 @@ export function recentEids() {
 }
 export function forgetEids() { setRaw(EIDS_KEY, "[]"); return []; }
 
-// Inspector request history (client-side "quick swap"), default ON. Each entry is the builder state
-// needed to restore a request: { id, path, summary, env, fieldsJson, pathParam, target, order }.
 
 export function getHistoryEnabled() {
   const raw = getRaw(HISTORY_ENABLED_KEY);
-  return raw === null ? true : raw === "1"; // default ON
+  return raw === null ? true : raw === "1";
 }
 export function setHistoryEnabled(on) { setRaw(HISTORY_ENABLED_KEY, on ? "1" : "0"); }
 
-// True the first time history is ever saved (so the page can show the one-time "you can turn this off"
-// notice exactly once). Marks itself seen on read.
 export function historyNoticeUnseen() {
   if (getRaw(HISTORY_SEEN_KEY) === "1") return false;
   setRaw(HISTORY_SEEN_KEY, "1");
@@ -122,8 +106,6 @@ export function getHistory() {
   return loadHistory().sort((a, b) => (b.order || 0) - (a.order || 0));
 }
 
-// Save an entry (no-op when history is off). De-dupes by (path + fieldsJson + pathParam) so re-building the
-// same request bumps it to the top instead of piling duplicates. Returns the refreshed list.
 export function saveHistory(entry) {
   if (!getHistoryEnabled() || !entry || !entry.path) return getHistory();
   const list = loadHistory().filter(
@@ -141,8 +123,6 @@ export function deleteHistory(id) {
 }
 export function clearHistory() { setRaw(HISTORY_KEY, "[]"); return []; }
 
-// Browser-direct POST to the user's own proxy in Custom send mode, bypassing this server entirely.
-// Returns the trimmed response text or throws on a network/CORS failure.
 export async function postForm(url, formBody) {
   const resp = await fetch(url, {
     method: "POST",

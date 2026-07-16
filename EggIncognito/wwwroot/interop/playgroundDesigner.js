@@ -1,10 +1,6 @@
-// The environment-designer overlay for the playground: a three.js TransformControls gizmo for free-placing
-// elements, selection, and two-way transform sync with the Blazor side. Drives the same scene the engine
-// (playground.js) owns via that module's accessors.
 
-// Reads the engine's live accessors off window.__pgEngine rather than importing playground.js: the Razor
-// side loads the engine with a ?v= cache-bust query, so a static import would resolve to a different
-// (uninitialized) module instance.
+
+
 function engine() { return globalThis.__pgEngine; }
 
 const TC_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/TransformControls.js';
@@ -28,14 +24,14 @@ export async function initDesigner(dotnetRef) {
   gizmo = new TransformControls(cam, dom);
   gizmo.setMode('translate');
 
-  // The gizmo attaches to a proxy object at the selected element's visual center rather than the group root,
-  // which is an off-origin authored corner for self-placing meshes.
+ 
+ 
   proxy = new THREE.Object3D();
   e.scene().add(proxy);
   centerOffset = new THREE.Vector3(0, 0, 0);
 
-  // Dragging the gizmo must not also orbit the camera. objectChange fires per frame, so history is snapshotted
-  // once on the drag-start edge instead, keeping a whole drag as a single undo step.
+ 
+ 
   gizmo.addEventListener('dragging-changed', ev => {
     controls.enabled = !ev.value;
     dragging = ev.value;
@@ -49,7 +45,7 @@ export async function initDesigner(dotnetRef) {
     }
   });
 
-  // Click-to-select: raycast from a click that was not a drag onto the element group roots.
+ 
   raycaster = new THREE.Raycaster();
   pointer = new THREE.Vector2();
   onPointerDown = ev => { downXY = [ev.clientX, ev.clientY]; };
@@ -70,12 +66,12 @@ export async function initDesigner(dotnetRef) {
   dom.addEventListener('pointerdown', onPointerDown);
   dom.addEventListener('pointerup', onPointerUp);
 
-  // Arrow keys nudge the selected element along the ground, relative to the current view angle. Ignored
-  // while typing in an input.
+ 
+ 
   onKeyDown = ev => {
     const t = ev.target;
     const typing = t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-    // Undo/redo works with nothing selected.
+   
     if ((ev.ctrlKey || ev.metaKey) && !typing) {
       const key = ev.key.toLowerCase();
       if (key === 'z' && !ev.shiftKey) { ev.preventDefault(); dotnet?.invokeMethodAsync('OnUndo'); return; }
@@ -90,8 +86,8 @@ export async function initDesigner(dotnetRef) {
   };
   window.addEventListener('keydown', onKeyDown);
 
-  // Writes the new transform into the group's base immediately, so the anim loop does not revert it next
-  // frame, then notifies .NET so the inspector fields follow.
+ 
+ 
   gizmo.addEventListener('objectChange', () => {
     if (suppress || !selectedId || !gizmo.object) return;
     const o = gizmo.object;
@@ -105,12 +101,10 @@ export async function initDesigner(dotnetRef) {
     }
   });
 
-  // r0.169: TransformControls is no longer an Object3D; its rendered/interactive form is the helper.
+ 
   e.scene().add(gizmo.getHelper());
   globalThis.__pgDesigner = { setGizmoVisible };
 }
-
-// Hide/show the gizmo around a capture so it does not appear in the recorded frames.
 export function setGizmoVisible(on) {
   if (gizmo) gizmo.getHelper().visible = !!on;
 }
@@ -118,8 +112,6 @@ export function setGizmoVisible(on) {
 function deg(rad) { return rad * 180 / Math.PI; }
 function rad(d) { return d * Math.PI / 180; }
 
-// Moves the selected element by `step` along the ground, in the screen direction of the pressed arrow: the
-// camera's forward/right vectors are flattened onto the XZ plane so Up always means deeper into the scene.
 function nudge(key, step) {
   const e = engine();
   if (!e || !selectedId) return;
@@ -152,8 +144,6 @@ function nudge(key, step) {
   commitGridDrop();
 }
 
-// Snaps the selected element's block to the grid and accepts the drop only if every target cell is free,
-// otherwise reverts to dragStartPos. Replaces the overlap-push solver for grid mode.
 function commitGridDrop() {
   const e = engine();
   if (!e || !selectedId) return;
@@ -173,8 +163,6 @@ function commitGridDrop() {
   dotnet.invokeMethodAsync('OnGizmoTransform', selectedId, target, base.rotDeg, base.scale);
   if (!snap.valid) dotnet.invokeMethodAsync('OnPlacementBlocked', snap.reason || 'blocked');
 }
-
-// Live gizmo snapping while dragging: translate snaps to the grid cell, rotate to 15deg; size 0 is free.
 export function setGridSnap(cellSize) {
   if (!gizmo) return;
   const s = Number(cellSize) > 0 ? Number(cellSize) : null;
@@ -188,7 +176,7 @@ export function selectElement(id) {
   if (!root) { deselect(); return; }
   if (selectedId && selectedId !== id) e.setSelectionOutline(selectedId, false);
   selectedId = id;
-  // Places the proxy at the element's visual center. centerOffset = centerWorld - basePos, removed on drag.
+ 
   const base = e.getGroupBase(id) || { pos: [0, 0, 0], rotDeg: [0, 0, 0], scale: 1 };
   const cw = e.getGroupCenterWorld(id) || [base.pos[0], base.pos[1], base.pos[2]];
   centerOffset.set(cw[0] - base.pos[0], cw[1] - base.pos[1], cw[2] - base.pos[2]);
@@ -208,8 +196,6 @@ export function deselect() {
 export function setGizmoMode(mode) {
   if (gizmo && (mode === 'translate' || mode === 'rotate')) gizmo.setMode(mode);
 }
-
-// Applies a transform from .NET's numeric fields; suppress stops the objectChange echo.
 export function applyTransform(id, pos, rotDeg, scale) {
   const e = engine();
   if (!e) return;

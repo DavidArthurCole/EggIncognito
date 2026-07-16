@@ -1,6 +1,4 @@
-// Make a fixed-position card draggable by a handle, client-side (no Blazor round-trip per move). makeDraggable
-// returns a disposer that removes the listeners. Used by the playground GIF pop-over so it floats freely over
-// the screen while recording.
+
 export function makeDraggable(el, handle) {
   if (!el || !handle) return { dispose() {} };
 
@@ -10,7 +8,7 @@ export function makeDraggable(el, handle) {
     if (!dragging) return;
     const left = baseLeft + (ev.clientX - startX);
     const top = baseTop + (ev.clientY - startY);
-    // keep the card on screen (leave at least a little visible).
+   
     const maxLeft = window.innerWidth - 40;
     const maxTop = window.innerHeight - 40;
     el.style.left = Math.max(-el.offsetWidth + 80, Math.min(maxLeft, left)) + 'px';
@@ -22,7 +20,7 @@ export function makeDraggable(el, handle) {
   const onDown = ev => {
     dragging = true;
     const rect = el.getBoundingClientRect();
-    // switch from any centering transform to explicit left/top so the drag math is absolute.
+   
     el.style.transform = 'none';
     el.style.left = rect.left + 'px';
     el.style.top = rect.top + 'px';

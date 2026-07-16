@@ -1,13 +1,11 @@
 
 namespace EggIncognito.Capture;
 
-// Redacts sensitive HTTP header values for dashboard display. The HAR keeps raw headers as the durable
-// artifact; the dashboard shows redacted values by default and the unredacted copy only when the UI
-// redaction mode is Off, mirroring the body-redaction model.
+
 public static class HeaderRedactor
 {
-    // Header names whose values are secrets or PII and must not be shown in the clear. Matched
-    // case-insensitively against the full header name.
+   
+   
     private static readonly HashSet<string> Sensitive = new(StringComparer.OrdinalIgnoreCase)
     {
         "authorization",
@@ -21,7 +19,7 @@ public static class HeaderRedactor
 
     public static bool IsSensitive(string name) => Sensitive.Contains(name);
 
-    // Build both the redacted display copy and the raw copy from captured headers.
+   
     public static (IReadOnlyList<DashboardHeader> redacted, IReadOnlyList<DashboardHeader> raw) Build(
         IReadOnlyList<HttpHeader>? headers)
     {

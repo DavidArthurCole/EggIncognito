@@ -2,27 +2,23 @@ using Ei;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Indexes the shells in a DLCCatalog (the ei/get_config config). A shell is a cosmetic mesh that replaces a
-// model's look for a given asset type (a chicken skin, a depot reskin, a hab variant). Each carries a
-// DLCItem with the CDN url of its .rpoz mesh, so a shell renders through the same download + RpoMeshDecoder
-// path as any other mesh. This is the read model behind the shell viewer + the local shell DB.
 public static class ShellCatalog
 {
     private const string CdnBase = "https://www.auxbrain.com/dlc";
 
-    // One shell: its identifier, display set, the asset type it applies to (DEPOT_1, CHICKEN, ...), and the
-    // resolved mesh url + checksum. AssetType groups shells by the model they fit, so the viewer can offer
-    // only the shells valid for the loaded model.
+   
+   
+   
     public sealed record Shell(string Identifier, string? Name, string AssetType, string Url, string? Checksum, bool ModifiedGeometry, string? SetIdentifier = null);
 
-    // A chicken, hat, or other interactive shell object. Carries the hat anchor (metadata = [x, hatY, hatZ,
-    // scale] on chickens) and the noHats flag.
+   
+   
     public sealed record ShellObject(
         string Identifier, string? Name, string AssetType, string Url, string? Checksum,
         IReadOnlyList<double> Anchor, bool NoHats);
 
-    // Every shell in the catalog with a resolvable mesh url. Pulls the primary piece (the main mesh); shells
-    // without a primary piece dlc are skipped. ShellObjects (LOD pieces) are included via their first piece.
+   
+   
     public static IReadOnlyList<Shell> FromCatalog(DLCCatalog catalog)
     {
         var shells = new List<Shell>();
@@ -40,7 +36,7 @@ public static class ShellCatalog
 
         foreach (var o in catalog.ShellObjects)
         {
-            // shell objects nest LOD pieces; take the lowest LOD (highest detail) with a dlc.
+           
             var piece = o.Pieces.Where(p => p.Dlc is not null).OrderBy(p => p.Lod).FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
             var url = Url(dlc);
@@ -52,15 +48,15 @@ public static class ShellCatalog
         return shells;
     }
 
-    // The shells that fit a given asset type, e.g. "CHICKEN". Case-insensitive.
+   
     public static IReadOnlyList<Shell> ForAssetType(DLCCatalog catalog, string assetType) =>
         FromCatalog(catalog).Where(s => string.Equals(s.AssetType, assetType, StringComparison.OrdinalIgnoreCase)).ToList();
 
-    // One shell by identifier (case-sensitive identifiers in the catalog), or null.
+   
     public static Shell? ById(DLCCatalog catalog, string identifier) =>
         FromCatalog(catalog).FirstOrDefault(s => string.Equals(s.Identifier, identifier, StringComparison.Ordinal));
 
-    // The standard chicken head anchor [x, hatY, hatZ, scale], used when a hat-wearing chicken has no explicit metadata.
+   
     public static readonly IReadOnlyList<double> DefaultChickenAnchor = new[] { 0.0, 0.428, -0.11, 1.06 };
 
     public static IReadOnlyList<ShellObject> Objects(DLCCatalog catalog)
@@ -92,8 +88,8 @@ public static class ShellCatalog
     public static ShellObject? ObjectById(DLCCatalog catalog, string identifier) =>
         Objects(catalog).FirstOrDefault(o => string.Equals(o.Identifier, identifier, StringComparison.Ordinal));
 
-    // A shell set (a coordinated reskin across asset types) or a decorator (a farm-wide cosmetic overlay).
-    // Decorator=true marks a decorator (DLCCatalog.decorators) vs a set (DLCCatalog.shell_sets).
+   
+   
     public sealed record ShellSet(string Identifier, string? Name, bool Decorator, IReadOnlyList<Shell> Members);
 
     public static IReadOnlyList<ShellSet> Sets(DLCCatalog catalog) => BuildSets(catalog, catalog?.ShellSets, decorator: false);

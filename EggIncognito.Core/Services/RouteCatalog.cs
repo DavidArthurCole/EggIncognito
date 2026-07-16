@@ -1,7 +1,5 @@
-// Runtime view of routes.yaml for the Inspector UI: the source generator parses the same file at
-// compile time to emit controllers, this is the runtime equivalent. Normalization must match
-// RouteGenerator's RouteParser: new `request`/`response` keys win over legacy `requestType`/`responseType`,
-// and literal "AuthenticatedMessage" means wrapped with inner type not yet known.
+
+
 
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
@@ -18,8 +16,8 @@ public sealed record RouteInfo(
     bool PathParam,
     bool PathParamOnly)
 {
-    /// <summary>Alternate request paths that resolve to this route. Runtime-only: the generator ignores
-    /// aliases, so resolution happens via the catch-all, not a dedicated controller.</summary>
+   
+   
     public IReadOnlyList<string> Aliases { get; init; } = [];
 }
 
@@ -52,7 +50,7 @@ public sealed class RouteCatalog : IRouteCatalog
     private static string ResolveYamlPath(IConfiguration config) =>
         ContentRoot.ResolveRouteMapFile(config["RoutesYamlPath"], "routes.yaml");
 
-    // Raw, pre-normalization values collected per route block.
+   
     private sealed class Block
     {
         public string? Path, Request, Response, RawResponse, LegacyReq, LegacyRes;
@@ -61,7 +59,7 @@ public sealed class RouteCatalog : IRouteCatalog
         public List<string> Aliases = [];
     }
 
-    // Minimal line-based parser. Only reads the `routes:` section, stopping at the next top-level key.
+   
     internal static List<RouteInfo> Parse(string yaml)
     {
         var result = new List<RouteInfo>();
@@ -153,7 +151,7 @@ public sealed class RouteCatalog : IRouteCatalog
         { Aliases = b.Aliases };
     }
 
-    // Returns (innerType, wrappedDefault). "AuthenticatedMessage" maps to (null, true).
+   
     private static (string? type, bool wrapped) Normalize(string? v)
     {
         if (v is null) return (null, false);

@@ -7,8 +7,6 @@ public interface IApkDownloader
 {
     Task<byte[]?> DownloadApkAsync(string appVersion, CancellationToken ct = default);
 }
-
-// APKPure versions page (android): list source (appVersion + release date) plus APK-download source.
 public sealed partial class ApkPureSource(IHttpClientFactory httpFactory, ILogger<ApkPureSource> logger)
     : IVersionListSource, IApkDownloader
 {
@@ -41,13 +39,13 @@ public sealed partial class ApkPureSource(IHttpClientFactory httpFactory, ILogge
         }
     }
 
-    // Matches a list item's data-dt-version attribute (appVersion) then the nearest following date span.
+   
     [GeneratedRegex(
         @"data-dt-version=""([\d][\d.]*)"".*?<span[^>]*\bclass=""[^""]*\bupdate-on\b[^""]*""[^>]*>\s*([^<]+?)\s*</span>",
         RegexOptions.Singleline)]
     private static partial Regex EntryRe();
 
-    // Fallback markup: <a class="version-info"> blocks holding version + date text.
+   
     [GeneratedRegex(
         @"<div[^>]*\bclass=""[^""]*\bver-item\b[^""]*""[^>]*>.*?>\s*([\d][\d.]*)\s*<.*?<span[^>]*>\s*([A-Za-z0-9, \-]+?)\s*</span>",
         RegexOptions.Singleline)]
@@ -85,8 +83,8 @@ public sealed partial class ApkPureSource(IHttpClientFactory httpFactory, ILogge
         return DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out date);
     }
 
-    // The Egg Inc proto lives in lib/arm64-v8a/libegginc.so, present only in the arm split (not base.apk).
-    // Returns null when the download is a single base APK or not a bundle.
+   
+   
     public async Task<byte[]?> DownloadArmSplitAsync(string appVersion, CancellationToken ct = default)
     {
         var bytes = await DownloadApkAsync(appVersion, ct);

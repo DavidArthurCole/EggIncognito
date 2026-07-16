@@ -6,9 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Services.Backfill;
 
-// Walks elgranjero/EggIncProtos history, upserting one registry row per version commit with its
-// ei.proto. Idempotent (keyed on build), precedence-aware (never clobbers farm proto). Runs in a
-// background task, so it opens its own DI scope rather than capturing a request-scoped one.
+
 public sealed class ElgranjeroImporter(
     IGitHubClient github, IServiceScopeFactory scopeFactory, ILogger<ElgranjeroImporter> logger)
 {
@@ -52,7 +50,7 @@ public sealed class ElgranjeroImporter(
         }
     }
 
-    // Imports one commit's version + proto if it parses; returns whether a row was written.
+   
     private async Task<bool> ImportCommitAsync(IProtoBackfillStore store, GitHubClient.Commit commit, CancellationToken ct)
     {
         var v = ElgranjeroParse.FromMessage(commit.Message);

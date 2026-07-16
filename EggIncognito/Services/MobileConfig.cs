@@ -3,13 +3,11 @@ using System.Text;
 
 namespace EggIncognito.Services;
 
-// Builds an Apple .mobileconfig (configuration profile) that installs the capture root CA in one tap
-// on iOS. UUIDs are derived from the seed bytes so the same input always yields the same profile
-// identity, a reinstall replaces cleanly rather than stacking duplicate profiles.
+
 public static class MobileConfig
 {
-    // stableId anchors the profile UUIDs so a given user always gets the same profile identity, letting
-    // iOS replace the installed profile on reinstall instead of stacking a new one.
+   
+   
     public static byte[] BuildCaProfile(byte[] cerDer, string stableId)
     {
         var idSeed = Encoding.UTF8.GetBytes(stableId);
@@ -69,7 +67,7 @@ public static class MobileConfig
         return Encoding.UTF8.GetBytes(xml);
     }
 
-    // A stable RFC-4122-shaped UUID derived from a seed + a role tag: a deterministic hash formatted as a UUID.
+   
     internal static string DeterministicUuid(byte[] seed, string role)
     {
         var hash = SHA256.HashData([.. seed, .. Encoding.UTF8.GetBytes(role)]);

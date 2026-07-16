@@ -1,6 +1,4 @@
 namespace EggIncognito.Data.Models;
-
-// Higher ordinal = more authority; compared by rank for "is at least contributor" checks.
 public enum UserRole { Viewer = 0, Contributor = 1, Admin = 2 }
 
 public static class UserRoles

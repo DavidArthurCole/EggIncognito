@@ -3,8 +3,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-// The tnetstring decoder used to read mitmproxy .mitm files. A test-only encoder builds known values
-// so the decoder can be checked round-trip without a real capture file.
 public class TnetStringTests
 {
     [Fact]
@@ -51,7 +49,7 @@ public class TnetStringTests
     [Fact]
     public void Decode_Dict()
     {
-        // {"method": "POST", "port": 443}
+       
         var dict = Assert.IsType<Dictionary<string, object?>>(
             TnetString.Decode(Enc(Dict(("method", BytesStr("POST")), ("port", Int(443)))), 0).value);
         Assert.Equal("POST", Str(dict["method"]));
@@ -72,7 +70,7 @@ public class TnetStringTests
     public void Decode_MissingDelimiter_Throws()
         => Assert.Throws<FormatException>(() => TnetString.Decode(Enc("nodelim"), 0));
 
-    // test-only tnetstring encoder
+   
 
     internal static string BytesStr(string s) => $"{Encoding.UTF8.GetByteCount(s)}:{s},";
     internal static string Int(long n) { var s = n.ToString(); return $"{s.Length}:{s}#"; }

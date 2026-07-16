@@ -2,9 +2,7 @@ using System.Text;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Minimal read-only POSIX ustar parser: walks a tarball into (name, bytes) entries without a third-party
-// dependency. Handles the regular-file + directory typeflags and GNU/ustar long-name cases. Defensive:
-// malformed input yields the entries parsed so far, never a throw.
+
 public static class TarReader
 {
     private const int BlockSize = 512;
@@ -15,10 +13,10 @@ public static class TarReader
         if (tar is null || tar.Length < BlockSize) return entries;
 
         var pos = 0;
-        string? longName = null; // pending name from a GNU 'L' long-name header
+        string? longName = null;
         while (pos + BlockSize <= tar.Length)
         {
-            // Two consecutive all-zero blocks mark end of archive.
+           
             if (IsZeroBlock(tar, pos)) break;
 
             var size = ParseOctal(tar, pos + 124, 12);
@@ -27,30 +25,30 @@ public static class TarReader
             longName = null;
 
             var dataStart = pos + BlockSize;
-            if (size < 0 || dataStart + size > tar.Length) break; // truncated/garbage; stop cleanly
+            if (size < 0 || dataStart + size > tar.Length) break;
 
             switch (typeFlag)
             {
-                case 'L': // GNU long name: this block's data IS the next entry's full name
+                case 'L':
                     longName = Encoding.UTF8.GetString(tar, dataStart, (int)size).TrimEnd('\0');
                     break;
                 case '0':
-                case '\0': // regular file (old tar uses NUL typeflag)
+                case '\0':
                     var bytes = new byte[size];
                     Array.Copy(tar, dataStart, bytes, 0, (int)size);
                     entries.Add((name, bytes));
                     break;
-                // directories ('5') and other typeflags: skip the (zero-length) data
+               
             }
 
-            // Advance past the header + data, rounded up to the next 512 boundary.
+           
             var dataBlocks = (size + BlockSize - 1) / BlockSize;
             pos = dataStart + (int)(dataBlocks * BlockSize);
         }
         return entries;
     }
 
-    // ustar name field (100 bytes) optionally prefixed by the 'prefix' field (155 bytes at offset 345).
+   
     private static string ParseName(byte[] tar, int header)
     {
         var name = ReadString(tar, header, 100);
@@ -66,7 +64,7 @@ public static class TarReader
         return Encoding.UTF8.GetString(buf, offset, end - offset);
     }
 
-    // tar sizes are NUL/space-terminated octal ASCII. Returns -1 on garbage.
+   
     private static long ParseOctal(byte[] buf, int offset, int len)
     {
         long value = 0;

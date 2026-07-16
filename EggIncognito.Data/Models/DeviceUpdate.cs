@@ -1,8 +1,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
-
-// One auto/manual update attempt on a device, append-only. Status is verified/failed/skipped.
 [Table("device_updates")]
 public sealed class DeviceUpdate
 {

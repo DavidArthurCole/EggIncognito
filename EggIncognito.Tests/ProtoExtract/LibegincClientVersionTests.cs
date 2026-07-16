@@ -10,7 +10,7 @@ public class LibegincClientVersionTests
     private static uint StrW(int wt, int xn, int imm12) =>
         0xB9000000u | ((uint)(imm12 & 0xFFF) << 10) | ((uint)(xn & 0x1F) << 5) | (uint)(wt & 0x1F);
 
-    // Wraps machine-code words in a MiniElf whose .text section points at them.
+   
     private static byte[] SoWithText(byte[] textBytes)
     {
         var shstrtab = System.Text.Encoding.ASCII.GetBytes("\0.text\0.shstrtab\0");

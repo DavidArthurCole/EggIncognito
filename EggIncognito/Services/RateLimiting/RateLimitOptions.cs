@@ -2,12 +2,8 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Services.RateLimiting;
 
-// One limiter's knobs: a sliding window of WindowSeconds split into SegmentsPerWindow segments,
-// allowing PermitLimit requests per window per partition.
 public sealed record RateLimit(int PermitLimit, int WindowSeconds, int SegmentsPerWindow);
 
-// Rate-limiting configuration, bound from the "RateLimiting" config section over code defaults.
-// Tiers scale by auth role; Policies scale by surface (the named limiters + "Global" backstop).
 public sealed record RateLimitOptions(
     bool Enabled,
     IReadOnlyDictionary<string, RateLimit> Tiers,
@@ -28,8 +24,8 @@ public sealed record RateLimitOptions(
             ["Egress"] = new(PermitLimit: 10, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Write"] = new(PermitLimit: 60, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Read"] = new(PermitLimit: 120, WindowSeconds: 60, SegmentsPerWindow: 6),
-            // Public GET data the UI polls. NOT tier-capped (see RateLimiterSetup.Partition), since a page
-            // polls several panels every few seconds and must not hit the Anon tier's 30/min.
+           
+           
             ["Fetch"] = new(PermitLimit: 300, WindowSeconds: 60, SegmentsPerWindow: 6),
         });
 

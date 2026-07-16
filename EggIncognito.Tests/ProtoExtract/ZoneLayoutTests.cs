@@ -26,8 +26,8 @@ public class ZoneLayoutTests
         var fuel = Assert.Single(placed, p => p.Stem == "ei_fuel_tank_2");
         var depot = Assert.Single(placed, p => p.Stem == "ei_depot_3");
 
-        // Lab + Hoa share BackRow (same initial anchor - repackZoneRow spaces them apart by real mesh width
-        // after the batch add); Hatchery/MissionControl/Fuel share MidRow; Depot is alone in FrontRow.
+       
+       
         Assert.Equal(ZoneLayout.BackRowZ, lab.Pos[2], 2);
         Assert.Equal(ZoneLayout.BackRowZ, hoa.Pos[2], 2);
         Assert.Equal(lab.Pos[0], hoa.Pos[0], 2);

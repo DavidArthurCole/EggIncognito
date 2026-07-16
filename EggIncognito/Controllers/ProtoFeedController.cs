@@ -25,7 +25,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             !req.WebhookUrl.StartsWith("https://discord.com/api/webhooks/", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { error = "a Discord webhook URL is required" });
 
-        // Validate by sending a tiny test message; a bad/expired webhook 404s.
+       
         var http = httpFactory.CreateClient("discord-api");
         var test = await http.PostAsync(req.WebhookUrl,
             new StringContent("""{"content":"EggIncognito proto feed connected."}""",
@@ -87,8 +87,8 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         return Ok(new { deleted = true });
     }
 
-    // Re-send a test message to an existing subscription's webhook (owner-gated). The client never holds the
-    // full URL (it is masked), so the test must run server-side from the stored target.
+   
+   
     [HttpPost("{id:int}/test")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Test(int id, CancellationToken ct)
@@ -100,8 +100,8 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         var sub = (await Store.ByOwnerAsync(owner.Value, ct)).FirstOrDefault(s => s.Id == id);
         if (sub is null) return NotFound(new { error = "subscription not found" });
 
-        // No real proto event exists for a manual test, so render the subscriber's own template (if any)
-        // against sample data - this is what a real dispatch will actually send, not a generic placeholder.
+       
+       
         var body = string.IsNullOrWhiteSpace(sub.MessageTemplate)
             ? """{"content":"EggIncognito proto feed test."}"""
             : EggIncognito.Services.Feed.DiscordFeedPayload.Build(
@@ -119,8 +119,8 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
 
     public sealed record UpdateReq(string[]? Platforms, string? Trigger, bool? Active, string? MessageTemplate);
 
-    // Owner-gated edit of a subscription's platforms / trigger / active state (not the webhook URL). Mirrors
-    // Delete's owner scoping. 404 when the subscription is not the caller's.
+   
+   
     [HttpPatch("{id:int}")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateReq req, CancellationToken ct)
@@ -139,8 +139,8 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         return Ok(new { updated = true });
     }
 
-    // Identifies a webhook without leaking its token. Discord URL = /webhooks/{id}/{token}; id is public,
-    // token is the secret, so show only its last 4 chars.
+   
+   
     public static string MaskWebhook(string url)
     {
         var parts = url.Split('/', StringSplitOptions.RemoveEmptyEntries);

@@ -8,8 +8,8 @@ public sealed class EggIncApiFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Not "Development" - keeps startup-only dev conveniences (e.g. auto-opening the
-        // inspector in a browser) from firing during the test host.
+       
+       
         builder.UseEnvironment("Testing");
         builder.UseSetting("EndpointsPath", FindEndpointsPath());
         builder.UseSetting("NoBrowser", "true");

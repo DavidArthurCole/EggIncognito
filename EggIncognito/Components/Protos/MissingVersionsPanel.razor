@@ -121,13 +121,13 @@
         return c;
     }
 
-    // background = the 10s poll: keeps last-good on a transient fetch failure instead of wiping the chips.
-    // Both endpoints fetch into temps so a partial failure never leaves _known and _stored inconsistent.
+   
+   
     async Task Load(bool background)
     {
         try
         {
-            // Public endpoints both: known-versions discovery list + the registry (to hide already-stored).
+           
             var known = await Client().GetFromJsonAsync<List<KnownRow>>("/api/protos/backfill/known", JsonOpts) ?? [];
             var versions = await Client().GetFromJsonAsync<List<RegRow>>("/api/protos/versions", JsonOpts);
             _known = known;

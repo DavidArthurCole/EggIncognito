@@ -25,8 +25,8 @@ public class NewVersionEventTests
     [Fact]
     public void Serializes_OmitsNullOptionalFields()
     {
-        // AppVersion/Build/ClientVersion/Platform/ProtoTextB64 are [JsonIgnore(WhenWritingDefault)]
-        // on SyncKit.Contract.NewVersionEvent, unlike the old local DTO which always wrote them.
+       
+       
         var evt = new NewVersionEvent { Package = "com.auxbrain.egginc", Version = "1.34", ProtoSha = "abc" };
         var json = JsonSerializer.Serialize(evt);
         Assert.DoesNotContain("appVersion", json);

@@ -5,8 +5,6 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Controllers;
 
-// Serves the exported ship .glb set (ShipAssets:OutputDir/ships) for the 3D playground. The 7 bundled
-// ships are produced by the device export path; this just lists and serves them, optionally animated.
 [ApiController]
 [Route("api/ship-assets")]
 [EnableRateLimiting("read")]
@@ -27,7 +25,7 @@ public sealed class ShipAssetsController(IConfiguration config) : ControllerBase
         return Ok(new { ships });
     }
 
-    // The enum-name allowlist blocks path traversal.
+   
     [HttpGet("glb/{name}")]
     public IActionResult Glb(string name, [FromQuery] string? animate, [FromQuery] float seconds)
     {

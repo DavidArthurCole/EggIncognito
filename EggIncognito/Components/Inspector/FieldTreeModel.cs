@@ -4,25 +4,21 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Components.Inspector;
 
-// The editable request-body tree, built from proto schema (IProtoReflection). One node per proto field;
-// message fields expand to child nodes by resolving their sub-schema, repeated fields hold a list of
-// scalar item values, scalars/enums/bools hold a single string value. Collect() walks the tree into the
-// Google.Protobuf JSON object the /build call expects.
 public sealed class FieldNode
 {
     public required SchemaField Field { get; init; }
-    // jsonName chain from the root, used only for the env-lock match (rinfo.<key>).
+   
     public required string PathKey { get; init; }
 
-    // Scalar/enum/bool single value (empty => unset, omitted from JSON).
+   
     public string Value { get; set; } = "";
-    // Repeated item values; each is coerced like a scalar.
+   
     public List<string> Items { get; set; } = [];
-    // Child nodes for a message field.
+   
     public List<FieldNode> Children { get; set; } = [];
 
-    // Env-lock: when the Environment panel sets this rinfo.<key>, the input is mirrored + disabled so
-    // the two cannot desync. An empty env value releases the lock.
+   
+   
     public bool Locked { get; set; }
 
     public bool IsMessage => Field.Type == "message";
@@ -36,8 +32,8 @@ public sealed class FieldNode
 
 public static class FieldTreeBuilder
 {
-    // Build the top-level node list for a request type. schemaOf resolves a type name to its schema
-    // (cached by the caller). Recurses into message fields.
+   
+   
     public static List<FieldNode> Build(SchemaMessage schema, Func<string, SchemaMessage?> schemaOf) =>
         schema.Fields.Select(f => BuildNode(f, [], schemaOf)).ToList();
 
@@ -55,28 +51,28 @@ public static class FieldTreeBuilder
         return node;
     }
 
-    // proto numeric type groups, matching app.js coerce().
+   
     private static readonly HashSet<string> Int32 =
         ["int32", "uint32", "sint32", "fixed32", "sfixed32"];
     private static readonly HashSet<string> Int64 =
         ["int64", "uint64", "sint64", "fixed64", "sfixed64"];
     private static readonly HashSet<string> Floats = ["double", "float"];
 
-    // Coerce a raw string to the JSON node the proto JSON parser expects. Returns null to omit the
-    // field (empty value). 64-bit ints stay strings in protojson (can exceed JS/number precision).
+   
+   
     private static JsonNode? Coerce(string raw, string ptype)
     {
         if (string.IsNullOrEmpty(raw)) return null;
         if (ptype == "bool") return JsonValue.Create(raw == "true");
         if (Int32.Contains(ptype))
             return int.TryParse(raw, out var i) ? JsonValue.Create(i) : JsonValue.Create(raw);
-        if (Int64.Contains(ptype)) return JsonValue.Create(raw); // string in protojson
+        if (Int64.Contains(ptype)) return JsonValue.Create(raw);
         if (Floats.Contains(ptype))
             return double.TryParse(raw, out var d) ? JsonValue.Create(d) : JsonValue.Create(raw);
-        return JsonValue.Create(raw); // string, enum (name), bytes (b64)
+        return JsonValue.Create(raw);
     }
 
-    // Walk the tree into the protojson request object. Skips unset fields.
+   
     public static JsonObject Collect(IReadOnlyList<FieldNode> nodes)
     {
         var obj = new JsonObject();
@@ -106,8 +102,8 @@ public static class FieldTreeBuilder
         return obj;
     }
 
-    // Map a protojson object back onto the field tree (the inverse of Collect). Fields absent from the
-    // object are cleared; unknown keys in the object are ignored.
+   
+   
     public static void Apply(IReadOnlyList<FieldNode> nodes, JsonObject obj)
     {
         foreach (var n in nodes)
@@ -128,7 +124,7 @@ public static class FieldTreeBuilder
         }
     }
 
-    // The editable string form of a JSON leaf: strings unquoted, everything else its JSON text.
+   
     private static string ValueText(JsonNode? v) => v switch
     {
         null => "",
@@ -136,8 +132,8 @@ public static class FieldTreeBuilder
         _ => v.ToJsonString(),
     };
 
-    // Apply the env panel's BasicRequestInfo overrides onto the matching rinfo.<key> tree input, locking
-    // each set one. An empty env value releases the lock; keys with no matching input are skipped.
+   
+   
     public static void ApplyEnvLock(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env)
     {
         var rinfo = nodes.FirstOrDefault(n => n.Field.JsonName == "rinfo" && n.IsMessage);
@@ -156,36 +152,34 @@ public static class FieldTreeBuilder
         }
     }
 
-    // Prefill top-level fields that share a name with an Environment key (e.g. clientVersion, eiUserId,
-    // platform). Unlike the rinfo env-lock this only fills empty nodes and never locks. Skips the rinfo subtree.
+   
+   
     public static void ApplyEnvDefaults(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env)
     {
         foreach (var n in nodes)
         {
-            if (n.Field.JsonName == "rinfo") continue; // owned by ApplyEnvLock
+            if (n.Field.JsonName == "rinfo") continue;
             if (n.IsMessage || n.Field.Repeated) continue;
-            if (!string.IsNullOrEmpty(n.Value)) continue; // user value wins
+            if (!string.IsNullOrEmpty(n.Value)) continue;
             if (env.TryGetValue(n.Field.JsonName, out var v) && !string.IsNullOrEmpty(v))
                 n.Value = v;
         }
     }
 }
 
-// One Environment-panel row (a BasicRequestInfo override). Value typed as string; type recorded so
-// Collect coerces number/bool keys when building the env object sent to /build.
 public sealed class EnvRow
 {
     public required string Key { get; init; }
-    public required string ValueType { get; init; } // "number" | "boolean" | "string"
+    public required string ValueType { get; init; }
     public string Value { get; set; } = "";
-    // Editor kind for the env panel: "text" | "int" | "version" | "code" | "bool" | "select" | "eid".
+   
     public string Editor { get; init; } = "text";
-    // For Editor == "select": the allowed option values (e.g. Platform enum names).
+   
     public IReadOnlyList<string>? Options { get; init; }
-    // Short label shown next to the input describing the expected format.
+   
     public string? Hint { get; init; }
 
-    // Soft client-side validity: an invalid value gets a subtle invalid state but is never hard-blocked.
+   
     public bool IsInvalid()
     {
         if (string.IsNullOrEmpty(Value)) return false;
@@ -203,7 +197,7 @@ public sealed class EnvRow
 
 public static class EnvCollector
 {
-    // Collect the env rows into the JSON object /build's MergeEnv expects.
+   
     public static Dictionary<string, object?> Collect(IEnumerable<EnvRow> rows)
     {
         var env = new Dictionary<string, object?>();

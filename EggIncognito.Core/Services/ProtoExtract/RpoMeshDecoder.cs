@@ -5,32 +5,22 @@ using System.Text.Json;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-// Decodes Egg Inc's .rpo / .rpoz 3D mesh format to a web-loadable glTF 2.0 binary (.glb). Reimplemented in C#
-// from rpotool (https://github.com/tylertms/rpotool, MIT). The meshes remain property of Auxbrain Inc.; this
-// only reformats them. Defensive: malformed input yields a failed result, never a throw.
+
 //
-// .rpo layout (all little-endian):
-//   0..4   magic bytes "RPO1" (0x314F5052 as a LE u32)
-//   4..8   vertex count (u32)
-//   8..12  face bytes (u32); index count = face_bytes / 2 (u16 indices)
-//   then   a header of 8-byte stride descriptors; each descriptor whose bytes [4..8] == 06 14 00 00
-//          contributes one vertex attribute, its component count = descriptor byte [0] (2=Vec2, 3=Vec3,
-//          4=Vec4). The header ends at the 4-byte window whose u32 == face_bytes/2.
-//   then   interleaved f32 vertex data (sum(strides) floats per vertex)
-//   then   u16 indices (face_bytes/2 of them)
+
+
+
 //
-// rpotool assigns semantics positionally: accessor[0]=POSITION always, accessor[1]=COLOR_0 when its
-// stride>=3 (per-vertex emission), accessor[2]=NORMAL when its stride==3. .rpoz wraps the same stream in a
-// zlib container (0x78 0x9C); inflate first, then parse as .rpo.
+
 public static class RpoMeshDecoder
 {
     private const uint Rpo1Magic = 0x314F5052;
-    private const long MaxDecompressedBytes = 200_000_000L; // guard zip bombs on the public path
+    private const long MaxDecompressedBytes = 200_000_000L;
 
     public sealed record Vec3(float X, float Y, float Z);
     public sealed record BBox(Vec3 Min, Vec3 Max);
 
-    // HasEmission is true when a COLOR_0 attribute survived, so a caller can detect the silent emission-drop regression.
+   
     public sealed record DecodeResult(bool Ok, byte[]? Glb, string Diagnostics,
         int VertexCount, int IndexCount, BBox? Bounds, bool HasEmission, long TrailingBytes = 0);
 
@@ -38,7 +28,7 @@ public static class RpoMeshDecoder
 
     public static DecodeResult Decode(byte[] data) => Decode(data, null);
 
-    // name is folded into the glTF node/mesh name when supplied (the ship enum key), purely cosmetic.
+   
     public static DecodeResult Decode(byte[] data, string? name)
     {
         if (data is null || data.Length < 12) return Fail("input too short");
@@ -69,14 +59,14 @@ public static class RpoMeshDecoder
 
         var hasEmission = strides.Count >= 2 && strides[1] >= 3;
         var glb = BuildGlb(rpo, strides, vertexCount, indexCount, dataStart, vertexBytes, indexBytes, bounds, name);
-        // Nonzero trailing means the .rpo packs more than one mesh, which this single-mesh decoder drops.
-        // STOPGAP toward multi-mesh extraction (see CLAUDE.md "EXTRACT, don't author").
+       
+       
         var trailing = rpo.Length - (dataStart + vertexBytes + indexBytes);
         return new DecodeResult(true, glb, "ok", vertexCount, indexCount, bounds, hasEmission, trailing);
     }
 
-    // Inflates a zlib or gzip wrapped .rpo stream; otherwise returns as-is. Caps output so a crafted stream
-    // cannot exhaust memory.
+   
+   
     private static byte[] Inflate(byte[] data)
     {
         bool zlib = data.Length >= 2 && data[0] == 0x78 && (data[1] == 0x9C || data[1] == 0x01 || data[1] == 0xDA);
@@ -94,7 +84,7 @@ public static class RpoMeshDecoder
             while ((n = dec.Read(buf, 0, buf.Length)) > 0)
             {
                 total += n;
-                if (total > MaxDecompressedBytes) return data; // refuse a bomb; caller fails on magic mismatch
+                if (total > MaxDecompressedBytes) return data;
                 output.Write(buf, 0, n);
             }
             return output.ToArray();
@@ -102,9 +92,9 @@ public static class RpoMeshDecoder
         catch (InvalidDataException) { return data; }
     }
 
-    // Walks the 8-byte-descriptor header from offset 12. A 4-byte window whose u32 == indexCount marks the end
-    // of the header; every descriptor whose bytes [4..8] are 06 14 00 00 contributes one attribute with
-    // component count = byte[0].
+   
+   
+   
     private static bool ScanStrides(byte[] rpo, int indexCount, out List<int> strides, out int dataStart)
     {
         strides = [];
@@ -114,7 +104,7 @@ public static class RpoMeshDecoder
         {
             if (BinaryPrimitives.ReadUInt32LittleEndian(rpo.AsSpan(pos)) == (uint)indexCount)
             {
-                dataStart = pos + 4; // skip the terminator window, vertex data follows
+                dataStart = pos + 4;
                 return true;
             }
             if (pos + 8 <= rpo.Length
@@ -144,12 +134,12 @@ public static class RpoMeshDecoder
         return new BBox(new Vec3(minX, minY, minZ), new Vec3(maxX, maxY, maxZ));
     }
 
-    // Assembles a single-mesh GLB. One interleaved BIN region holds the vertex block followed by the index
-    // block; each attribute is one accessor over the shared interleaved vertex bufferView.
+   
+   
     private static byte[] BuildGlb(byte[] rpo, List<int> strides, int vertexCount, int indexCount,
         int dataStart, long vertexBytes, long indexBytes, BBox bounds, string? name)
     {
-        // BIN = vertex block (copied verbatim, already interleaved f32) + index block (u16). 4-byte aligned.
+       
         var binLen = (int)(vertexBytes + indexBytes);
         var pad = (4 - (binLen & 3)) & 3;
         var bin = new byte[binLen + pad];
@@ -164,7 +154,7 @@ public static class RpoMeshDecoder
         var accessors = new List<object>();
         var attributes = new Dictionary<string, int>();
 
-        // One accessor per attribute, all over the same interleaved vertex bufferView.
+       
         var vertexView = bufferViews.Count;
         bufferViews.Add(new Dictionary<string, object>
         {
@@ -172,7 +162,7 @@ public static class RpoMeshDecoder
             ["byteOffset"] = 0,
             ["byteLength"] = (int)vertexBytes,
             ["byteStride"] = vertexStrideBytes,
-            ["target"] = 34962, // ARRAY_BUFFER
+            ["target"] = 34962,
         });
 
         var attrByteOffset = 0;
@@ -184,11 +174,11 @@ public static class RpoMeshDecoder
             {
                 ["bufferView"] = vertexView,
                 ["byteOffset"] = attrByteOffset,
-                ["componentType"] = 5126, // FLOAT
+                ["componentType"] = 5126,
                 ["count"] = vertexCount,
                 ["type"] = type,
             };
-            // POSITION gets min/max (required by the glTF spec for the position accessor).
+           
             if (i == 0)
             {
                 accessor["min"] = new[] { bounds.Min.X, bounds.Min.Y, bounds.Min.Z };
@@ -197,7 +187,7 @@ public static class RpoMeshDecoder
             var accessorIndex = accessors.Count;
             accessors.Add(accessor);
 
-            // rpotool semantics: [0]=POSITION, [1]=COLOR_0 if stride>=3 (EI emission), [2]=NORMAL if stride==3.
+           
             if (i == 0) attributes["POSITION"] = accessorIndex;
             else if (i == 1 && s >= 3) attributes["COLOR_0"] = accessorIndex;
             else if (i == 2 && s == 3) attributes["NORMAL"] = accessorIndex;
@@ -212,13 +202,13 @@ public static class RpoMeshDecoder
             ["buffer"] = 0,
             ["byteOffset"] = (int)vertexBytes,
             ["byteLength"] = (int)indexBytes,
-            ["target"] = 34963, // ELEMENT_ARRAY_BUFFER
+            ["target"] = 34963,
         });
         var indexAccessor = accessors.Count;
         accessors.Add(new Dictionary<string, object>
         {
             ["bufferView"] = indexView,
-            ["componentType"] = 5123, // UNSIGNED_SHORT
+            ["componentType"] = 5123,
             ["count"] = indexCount,
             ["type"] = "SCALAR",
         });
@@ -241,7 +231,7 @@ public static class RpoMeshDecoder
                         {
                             ["attributes"] = attributes,
                             ["indices"] = indexAccessor,
-                            ["mode"] = 4, // TRIANGLES
+                            ["mode"] = 4,
                         },
                     },
                 },
@@ -252,12 +242,12 @@ public static class RpoMeshDecoder
         };
 
         var json = JsonSerializer.SerializeToUtf8Bytes(gltf);
-        var jsonPad = (4 - (json.Length & 3)) & 3; // JSON chunk padded with spaces to 4 bytes
+        var jsonPad = (4 - (json.Length & 3)) & 3;
 
         return PackGlb(json, jsonPad, bin);
     }
 
-    // GLB container: 12-byte header (magic "glTF", version 2, total length) + JSON chunk + BIN chunk.
+   
     private static byte[] PackGlb(byte[] json, int jsonPad, byte[] bin)
     {
         var jsonChunkLen = json.Length + jsonPad;
@@ -265,18 +255,18 @@ public static class RpoMeshDecoder
         var glb = new byte[total];
         var span = glb.AsSpan();
 
-        BinaryPrimitives.WriteUInt32LittleEndian(span, 0x46546C67); // "glTF"
+        BinaryPrimitives.WriteUInt32LittleEndian(span, 0x46546C67);
         BinaryPrimitives.WriteUInt32LittleEndian(span[4..], 2);
         BinaryPrimitives.WriteUInt32LittleEndian(span[8..], (uint)total);
 
         BinaryPrimitives.WriteUInt32LittleEndian(span[12..], (uint)jsonChunkLen);
-        BinaryPrimitives.WriteUInt32LittleEndian(span[16..], 0x4E4F534A); // "JSON"
+        BinaryPrimitives.WriteUInt32LittleEndian(span[16..], 0x4E4F534A);
         json.CopyTo(span[20..]);
-        for (var i = 0; i < jsonPad; i++) span[20 + json.Length + i] = 0x20; // space padding
+        for (var i = 0; i < jsonPad; i++) span[20 + json.Length + i] = 0x20;
 
         var binChunkStart = 20 + jsonChunkLen;
         BinaryPrimitives.WriteUInt32LittleEndian(span[binChunkStart..], (uint)bin.Length);
-        BinaryPrimitives.WriteUInt32LittleEndian(span[(binChunkStart + 4)..], 0x004E4942); // "BIN\0"
+        BinaryPrimitives.WriteUInt32LittleEndian(span[(binChunkStart + 4)..], 0x004E4942);
         bin.CopyTo(span[(binChunkStart + 8)..]);
 
         return glb;

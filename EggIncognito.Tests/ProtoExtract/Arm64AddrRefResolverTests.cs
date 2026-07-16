@@ -3,9 +3,7 @@ using Xunit;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-// Arm64AddrRefResolver finds which function references a target VA (adrp+add), to pin a function whose own body
-// changed across versions but whose closure recovered. Covers the defensive contract here (junk / too-short /
-// no function-starts -> empty, never throws); real resolution is proven on the device binary.
+
 public class Arm64AddrRefResolverTests
 {
     [Fact]
@@ -26,7 +24,7 @@ public class Arm64AddrRefResolverTests
     [Fact]
     public void FindReferrers_MachoWithoutFunctionStarts_Empty()
     {
-        // SyntheticMacho builds __TEXT + symtab but no LC_FUNCTION_STARTS, so the resolver has no boundaries.
+       
         var text = new byte[64];
         var bin = SyntheticMacho.Build(text, []);
         Assert.Empty(Arm64AddrRefResolver.FindReferrers(bin, SyntheticMacho.TextVm));

@@ -5,8 +5,6 @@ using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
-// RunFromMitm produces the same endpoint as RunFromHar for the same flow: both funnel into ProcessFlow,
-// so a .mitm import can never diverge from a HAR import. Mirrors EndpointExtractorParityTests.
 public class MitmImportParityTests
 {
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
@@ -40,7 +38,7 @@ needs_capture:
         var respBytes = WrappedResponse();
         var respB64 = Convert.ToBase64String(respBytes);
 
-        // HAR path
+       
         var harRoot = MakeRepo();
         var harFile = Path.Combine(harRoot, "session.har");
         File.WriteAllText(harFile, BuildHar(Url, respB64), new UTF8Encoding(false));
@@ -48,7 +46,7 @@ needs_capture:
         har.RunFromHar(harFile);
         har.Save();
 
-        // mitm path: the response content is the RAW wrapped bytes (the reader base64-encodes them).
+       
         var mitmRoot = MakeRepo();
         var mitmFile = Path.Combine(mitmRoot, "session.mitm");
         File.WriteAllBytes(mitmFile, BuildMitm(Url, "data=" + Uri.EscapeDataString(respB64), respBytes));
@@ -87,7 +85,7 @@ needs_capture:
         return JsonSerializer.Serialize(har);
     }
 
-    // Build a one-flow .mitm file. requestBody is form text; responseContent is raw bytes.
+   
     private static byte[] BuildMitm(string url, string requestBody, byte[] responseContent)
     {
         var uri = new Uri(url);
@@ -104,7 +102,7 @@ needs_capture:
         return TnetDict(("type", TnetStr("http")), ("request", req), ("response", res));
     }
 
-    // binary-safe tnetstring encoder (bytes for content, str for the rest)
+   
 
     private static byte[] TnetStr(string s) => TnetBytes(Encoding.UTF8.GetBytes(s));
 

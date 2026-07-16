@@ -1,29 +1,17 @@
-// EggFarmUnlock - a SpringBoard tweak for the capture device farm.
-//
-// The farm iPhone sits LOCKED with the screen off (no passcode, Auto-Lock never) to save power. An app
-// launched while locked stays SUSPENDED and never makes its network call, so nothing is captured. Unlock on
-// iOS 16 is SpringBoard-internal only (SBLockScreenManager -unlockUIFromSource:withOptions:); there is no
-// external C shim. So this tweak runs INSIDE SpringBoard and exposes unlock/relock over Darwin notifications,
-// which a tiny CLI (`notifypost`) fires over ssh.
-//
-//   notify "me.egg.farm.unlock"  -> wake + dismiss the (passcode-free) lock screen + hold a display-sleep
-//                                   assertion so the screen stays up while we capture.
-//   notify "me.egg.farm.relock"  -> release the assertion + lock + dim, to save power again.
-//
-// Loaded via ElleKit, filtered to com.apple.springboard.
 
+//
+
+//
+
+//
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <dlfcn.h>
 #import <notify.h>
-
-// IOKit power-assertion API (keep the display awake). Declared locally to avoid an IOKit header dependency.
 typedef uint32_t IOPMAssertionID;
 extern int IOPMAssertionCreateWithName(CFStringRef type, uint32_t level, CFStringRef name, IOPMAssertionID *id);
 extern int IOPMAssertionRelease(IOPMAssertionID id);
 #define kIOPMAssertionLevelOn 255
-
-// SpringBoardServices C shims for display wake/dim (these DO work from any process).
 static void (*SBSUndimScreen)(void);
 static void (*SBSDimScreen)(void);
 

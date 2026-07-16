@@ -4,8 +4,6 @@ using System.Net.Sockets;
 
 namespace EggIncognito.Services.Devices;
 
-// Resolves the LAN IPv4 address devices dial back to reach the per-device capture listeners. The operator
-// can pin it via config (DeviceCapture:HostIp); otherwise it auto-detects the host's primary routable IPv4.
 public static class HostAddress
 {
     public sealed record Nic(string Name, bool IsUp, bool IsLoopback, IReadOnlyList<string> IPv4Addresses);
@@ -16,7 +14,7 @@ public static class HostAddress
         return Pick(nics ?? Enumerate());
     }
 
-    // Prefers a private LAN IPv4 (192.168/10/172.16-31), then any non-loopback IPv4.
+   
     public static string? Pick(IReadOnlyList<Nic> nics)
     {
         var usable = nics
