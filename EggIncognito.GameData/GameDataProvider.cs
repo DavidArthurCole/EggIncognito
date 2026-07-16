@@ -4,9 +4,10 @@ public sealed class GameDataProvider : IGameDataProvider
 {
     private readonly Dictionary<string, IEffectFamily> _byKey;
 
-    public GameDataProvider(IReadOnlyList<IEffectFamily> families)
+    public GameDataProvider(IReadOnlyList<IEffectFamily> families, IColleggtibleCatalog colleggtibles)
     {
         Families = families;
+        Colleggtibles = colleggtibles;
         _byKey = families.ToDictionary(f => f.Key, StringComparer.Ordinal);
     }
 
@@ -16,9 +17,10 @@ public sealed class GameDataProvider : IGameDataProvider
             ResearchFamily.Load(),
             HabFamily.Load(),
             ArtifactFamily.Load()
-        ]);
+        ], ColleggtibleCatalog.Load());
 
     public IReadOnlyList<IEffectFamily> Families { get; }
+    public IColleggtibleCatalog Colleggtibles { get; }
 
     public IEffectFamily? Family(string key) => _byKey.GetValueOrDefault(key);
 

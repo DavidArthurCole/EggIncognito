@@ -3,6 +3,7 @@ namespace EggIncognito.GameData;
 public interface IGameDataProvider
 {
     IReadOnlyList<IEffectFamily> Families { get; }
+    IColleggtibleCatalog Colleggtibles { get; }
     IEffectFamily? Family(string key);
     Effect? Resolve(string family, string id);
     bool TryResolve(string family, string id, out Effect effect);

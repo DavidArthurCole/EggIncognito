@@ -71,6 +71,28 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         }
     }
 
+    [HttpGet("colleggtibles")]
+    public IActionResult Colleggtibles()
+    {
+        var path = Path.Combine(DefaultsDir, "ei", "get_periodicals.json");
+        if (!System.IO.File.Exists(path)) return NotFound(new { error = "no get_periodicals capture" });
+        try
+        {
+            var json = System.IO.File.ReadAllText(path);
+            var extract = EggIncognito.Services.ColleggtibleExtractor.FromPeriodicalsJson(json);
+            return Ok(new
+            {
+                count = extract.Eggs.Count,
+                eggs = extract.Eggs.Select(e => new { e.Identifier, e.Dimension, e.TierValues }),
+                contractEggMap = extract.ContractEggMap
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { count = 0, error = ex.Message });
+        }
+    }
+
     public sealed record ExtractIosProtoRequest(string BinaryBase64);
 
    
