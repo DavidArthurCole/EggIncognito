@@ -1,4 +1,5 @@
 @page "/capture"
+@page "/capture/device/{DeviceId}"
 @rendermode @(RenderMode.InteractiveServer)
 @implements IAsyncDisposable
 @using System.Threading.Channels
@@ -6,7 +7,9 @@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
 @using EggIncognito.Components.Shared
+@using EggIncognito.Services.Devices
 @inject CaptureSessionManager Manager
+@inject IServiceProvider Services
 @inject IAppMode AppMode
 @inject ICurrentUser User
 @inject HostedCaptureOptions HostedOptions
@@ -17,9 +20,9 @@
 
 <PageTitle>EggIncognito - Live Capture</PageTitle>
 
-@if (_session is not null)
+@if (_hub is not null)
 {
-  @if (_hosted && (!_connected || !_running))
+  @if (_session is not null && _hosted && (!_connected || !_running))
   {
     <div class="px-3 pt-3 setup-collapsible @(_connected ? "setup-hidden" : "")">
       <HostedSetupCard Port="HostedOptions.FrontDoorPort"
@@ -32,7 +35,7 @@
     <div class="capture-side flex flex-col gap-3 min-h-0">
       <CaptureControlsPanel Running="_running" ToggleBusy="_toggleBusy" View="_view"
                             OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
-                            Hosted="_hosted" ClientFactory="Client"
+                            Hosted="_hosted" ClientFactory="Client" ReadOnly="_readOnly" DeviceLabel="_deviceLabel"
                             OnAddressRotated="@(h => { _rotatedHost = h; StateHasChanged(); })" />
       <CaptureNoticesPanel Notices="_notices" Unread="_unread"
                            OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
@@ -59,6 +62,19 @@
       </div>
     }
   </div>
+}
+else if (!string.IsNullOrEmpty(DeviceId))
+{
+  <main class="px-8 pt-6 pb-8 max-w-[760px]">
+    <h1 class="text-[1.3rem] mt-0 mb-2">Device capture</h1>
+    <div class="panel">
+      <p class="text-muted text-sm my-0">
+        This device live-view is admin-only, and only available for a declared device whose capture is
+        running on this host. No live session for <code class="code-chip">@DeviceId</code>.
+      </p>
+      <a class="btn-secondary text-xs mt-3 w-fit no-underline" href="/admin">Back to Admin</a>
+    </div>
+  </main>
 }
 else if (AppMode.HostedCaptureEnabled)
 {
@@ -134,6 +150,10 @@ else
    
    
     CaptureSession? _session;
+    CaptureHub? _hub;
+    bool _readOnly;
+    string? _deviceLabel;
+    [Parameter] public string? DeviceId { get; set; }
     bool _hosted;
     string? _rotatedHost;
     bool _isAuthenticated;
@@ -149,36 +169,54 @@ else
             _cookie = req.Headers.Cookie;
         }
 
-       
+
         _isAuthenticated = User.IsAuthenticated;
         _isSupporter = User.IsSupporter;
         _userId = User.DiscordId;
 
-        ResolveSession();
-        if (_session is null) return;
+        if (!string.IsNullOrEmpty(DeviceId))
+            ResolveDeviceSession();
+        else
+            ResolveSession();
+        if (_hub is null) return;
 
-       
-        foreach (var f in _session.Hub.Snapshot()) AddOrUpdateFlow(f);
-        ApplyStats(_session.Hub.StatsSnapshot());
 
-       
+        foreach (var f in _hub.Snapshot()) AddOrUpdateFlow(f);
+        ApplyStats(_hub.StatsSnapshot());
+
+
         foreach (var k in CaptureController_SensitiveKeys()) _view.SensitiveKeys.Add(k);
     }
 
-   
-   
+
+
     void ResolveSession()
     {
         if (AppMode.CanCapture)
         {
             _session = Manager.GetOrCreate(CaptureSessionManager.LocalKey);
+            _hub = _session.Hub;
             return;
         }
         if (!AppMode.HostedCaptureEnabled || !_isAuthenticated || !_isSupporter || string.IsNullOrEmpty(_userId))
             return;
         _hosted = true;
-        try { _session = Manager.GetOrCreate(_userId); }
+        try { _session = Manager.GetOrCreate(_userId); _hub = _session.Hub; }
         catch (CaptureCapacityException) { /* capacity panel renders */ }
+    }
+
+
+
+    void ResolveDeviceSession()
+    {
+        if (!User.IsAtLeast(UserRole.Admin)) return;
+        var dcm = Services.GetService(typeof(DeviceCaptureManager)) as DeviceCaptureManager;
+        var hub = dcm?.HubFor(DeviceId!);
+        if (hub is null) return;
+        _hub = hub;
+        _readOnly = true;
+        var cfg = Services.GetService(typeof(DeviceConfig)) as DeviceConfig;
+        _deviceLabel = cfg?.Devices.FirstOrDefault(d => d.Id == DeviceId)?.Label ?? DeviceId;
     }
 
    
@@ -188,7 +226,7 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _session is null) return;
+        if (!firstRender || _hub is null) return;
 
        
        
@@ -211,13 +249,13 @@ else
    
     void StartSubscription()
     {
-        if (_session is null) return;
-        var (reader, subscription) = _session.Hub.Subscribe();
+        if (_hub is null) return;
+        var (reader, subscription) = _hub.Subscribe();
         _subscription = subscription;
-       
-       
-        foreach (var f in _session.Hub.Snapshot()) AddOrUpdateFlow(f);
-        ApplyStats(_session.Hub.StatsSnapshot());
+
+
+        foreach (var f in _hub.Snapshot()) AddOrUpdateFlow(f);
+        ApplyStats(_hub.StatsSnapshot());
         _loopCts = new CancellationTokenSource();
         var ct = _loopCts.Token;
         _loopTask = Task.Run(async () =>

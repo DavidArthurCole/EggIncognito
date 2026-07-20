@@ -3,10 +3,8 @@
 @inject ICurrentUser User
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
-@inject IJSRuntime JS
 @using System.Net.Http.Json
 @using System.Text.Json
-@using Microsoft.JSInterop
 @using EggIncognito.Components.Shared
 
 <PageTitle>EggIncognito - Admin</PageTitle>
@@ -64,116 +62,7 @@
 
     <AdminDeviceCapturePanel ClientFactory="Client" />
 
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Mesh cache</h2>
-        <span class="text-muted text-xs">precompute device meshes to glb</span>
-      </div>
-      <p class="text-muted text-xs mb-3">
-        Pulls every mesh off a device once, decodes to <code class="code-chip">.glb</code>, and caches it under
-        <code class="code-chip">ShipAssets:OutputDir/cache</code>. Later playground / API requests serve the
-        cached glb (no device round-trip). Needs an output dir configured.
-      </p>
-      @if (_devices.Count > 0)
-      {
-        <div class="flex items-center gap-2">
-          <select class="reg-filter-input w-auto" @bind="_cacheDevice" @bind:after="LoadCachedMeshes">
-            <option value="">Choose a device…</option>
-            @foreach (var d in _devices)
-            {
-              <option value="@d.Id">@d.Label (@d.Platform)</option>
-            }
-          </select>
-          <button class="btn-primary" @onclick="PrecacheMeshes" disabled="@(_cacheBusy || string.IsNullOrEmpty(_cacheDevice))">
-            @(_cacheBusy ? "Caching…" : "Pre-cache meshes")
-          </button>
-          @if (_cachedMeshes.Count > 0)
-          {
-            <button class="btn-secondary" @onclick="ClearCachedMeshes" disabled="@_cacheBusy">Clear all (@_cachedMeshes.Count)</button>
-          }
-        </div>
-        @if (!string.IsNullOrEmpty(_cacheResult))
-        {
-          <div class="mt-2 text-xs text-muted">@_cacheResult</div>
-        }
-        @if (_cachedMeshes.Count > 0)
-        {
-          <div class="reg-wrap mt-3" style="max-height:40vh;overflow:auto;">
-            <table class="reg-table">
-              <thead><tr><th>Mesh</th><th>Size</th><th>Cached</th><th></th></tr></thead>
-              <tbody>
-                @foreach (var m in _cachedMeshes)
-                {
-                  <tr>
-                    <td class="font-mono text-xs">@m.Stem</td>
-                    <td class="text-muted text-xs">@(m.Bytes / 1024)KB</td>
-                    <td class="text-muted text-xs">@m.CachedAt.ToLocalTime().ToString("g")</td>
-                    <td><button class="btn-secondary text-xs" @onclick="() => DeleteCachedMesh(m.Stem)" disabled="@_cacheBusy">Delete</button></td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-        else if (!string.IsNullOrEmpty(_cacheDevice))
-        {
-          <div class="mt-2 text-xs text-muted">No cached meshes for this device.</div>
-        }
-      }
-      else
-      {
-        <div class="text-muted text-xs">No devices configured.</div>
-      }
-    </section>
-
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Game config</h2>
-        <span class="text-muted text-xs">per-platform ConfigResponse + DLCCatalog</span>
-      </div>
-      <p class="text-muted text-xs mb-3">
-        Fetch the live config via the <a class="underline" href="/inspector">Inspector</a> pipeline (builds +
-        signs a <code class="code-chip">ConfigRequest</code> with the browser salt, sends to get_config), or
-        ingest a captured <code class="code-chip">ConfigResponse</code> (base64 / file). Either way it stores
-        the DLCCatalog for the shell viewer + asset pipeline.
-      </p>
-
-      @if (_configs.Count > 0)
-      {
-        <div class="text-xs text-muted mb-3">
-          Stored: @string.Join(", ", _configs.Select(c => $"{c.Platform} ({c.Bytes / 1024}KB, {c.SavedAt.ToLocalTime():g})"))
-        </div>
-      }
-
-      <div class="flex items-center gap-2 mb-2">
-        <select class="reg-filter-input w-auto" @bind="_configPlatform">
-          <option value="ios">ios</option>
-          <option value="android">android</option>
-        </select>
-        <input class="reg-filter-input w-auto" placeholder="EID (required)" @bind="_configEid" />
-        <button class="btn-primary" @onclick="FetchConfigViaInspector" disabled="@(_configBusy || string.IsNullOrWhiteSpace(_configEid))">
-          @(_configBusy ? "Fetching…" : "Fetch live via Inspector")
-        </button>
-      </div>
-      <p class="text-muted text-xs">rinfo is cloned from the Inspector's BasicRequestInfo defaults; only the EID is needed.</p>
-
-      <details class="mt-2">
-        <summary class="text-xs text-muted cursor-pointer">Or ingest a capture (file / base64)</summary>
-        <label class="file-btn mt-2">
-          <InputFile OnChange="OnConfigUpload" accept=".json,.bin,.txt" />
-          <span>Choose file…</span>
-        </label>
-        <textarea class="reg-filter-input w-full font-mono text-xs mt-2" rows="2" placeholder="…or paste base64 ConfigResponse here"
-                  @bind="_configB64" @bind:event="oninput"></textarea>
-        <button class="btn-secondary mt-2" @onclick="IngestConfig" disabled="@(_configBusy || string.IsNullOrWhiteSpace(_configB64))">
-          @(_configBusy ? "Ingesting…" : "Ingest pasted base64")
-        </button>
-      </details>
-      @if (!string.IsNullOrEmpty(_configResult))
-      {
-        <div class="mt-2 text-xs @(_configError ? "err" : "text-muted")">@_configResult</div>
-      }
-    </section>
+    <AdminDataMonitorPanel ClientFactory="Client" />
 
     @if (!string.IsNullOrEmpty(_log))
     {
@@ -192,22 +81,8 @@
     string _log = "";
     List<UserRow> _users = [];
 
-    List<DeviceRow> _devices = [];
-    string _cacheDevice = "";
-    bool _cacheBusy;
-    string _cacheResult = "";
-    List<CachedMeshRow> _cachedMeshes = [];
 
-    List<ConfigRow> _configs = [];
-    string _configPlatform = "ios";
-    string _configEid = "";
-    string _configB64 = "";
-    bool _configBusy;
-    bool _configError;
-    string _configResult = "";
 
-   
-   
     string _baseAddress = "";
     string? _cookie;
 
@@ -222,199 +97,9 @@
         }
         if (!_isAdmin) return;
         await LoadUsers();
-        await LoadDevices();
-        await LoadConfigs();
     }
 
-    async Task LoadDevices()
-    {
-        try
-        {
-            var res = await Client().GetFromJsonAsync<DeviceRow[]>("/api/devices/status");
-            _devices = res?.ToList() ?? [];
-        }
-        catch { _devices = []; }
-    }
 
-    async Task LoadConfigs()
-    {
-        try
-        {
-            var res = await Client().GetFromJsonAsync<ConfigListResult>("/api/config");
-            _configs = res?.Configs?.ToList() ?? [];
-        }
-        catch { _configs = []; }
-    }
-
-    async Task OnConfigUpload(InputFileChangeEventArgs e)
-    {
-        _configBusy = true; ConfigStatus("Reading file…", false);
-        try
-        {
-            using var ms = new MemoryStream();
-            await e.File.OpenReadStream(200_000_000).CopyToAsync(ms);
-            var bytes = ms.ToArray();
-           
-           
-            _configB64 = LooksLikeBase64Text(bytes)
-                ? System.Text.Encoding.UTF8.GetString(bytes).Trim()
-                : Convert.ToBase64String(bytes);
-            await IngestConfig();
-        }
-        catch (Exception ex) { ConfigStatus(ex.Message, true); }
-        finally { _configBusy = false; }
-    }
-
-    static bool LooksLikeBase64Text(byte[] b)
-    {
-       
-        var n = Math.Min(b.Length, 256);
-        for (var i = 0; i < n; i++)
-            if (b[i] < 0x09 || (b[i] > 0x0D && b[i] < 0x20)) return false;
-        return true;
-    }
-
-    async Task IngestConfig()
-    {
-        if (string.IsNullOrWhiteSpace(_configB64)) return;
-        _configBusy = true; ConfigStatus("Ingesting…", false);
-        try
-        {
-            var res = await Client().PostAsJsonAsync($"/api/config/{_configPlatform}/ingest",
-                new { configResponseBase64 = _configB64.Trim() });
-            await ReportConfig(res);
-            await LoadConfigs();
-        }
-        catch (Exception ex) { ConfigStatus(ex.Message, true); }
-        finally { _configBusy = false; }
-    }
-
-   
-   
-    async Task FetchConfigViaInspector()
-    {
-        if (string.IsNullOrWhiteSpace(_configEid)) { ConfigStatus("EID is required", true); return; }
-        _configBusy = true; ConfigStatus("Building request…", false);
-        try
-        {
-           
-           
-            string salt = "";
-            System.Text.Json.JsonElement env = default;
-            try
-            {
-                var store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js");
-                salt = await store.InvokeAsync<string>("getSalt") ?? "";
-                env = await store.InvokeAsync<System.Text.Json.JsonElement>("getRinfoDefaults");
-            }
-            catch { ConfigStatus("could not read Inspector rinfo defaults", true); return; }
-
-           
-           
-            var envObj = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(env.GetRawText()) ?? new();
-            envObj.Remove("debug");
-            envObj["eiUserId"] = _configEid.Trim();
-
-            var build = await Client().PostAsJsonAsync("/api/inspector/build",
-                new { path = "ei/get_config", requestType = "ConfigRequest", fields = new { }, env = envObj, wrap = true, salt });
-            if (!build.IsSuccessStatusCode) { ConfigStatus($"build failed: HTTP {(int)build.StatusCode}", true); return; }
-            var built = await build.Content.ReadFromJsonAsync<BuildResult>(JsonOpts);
-            if (built?.FinalFormBody is null) { ConfigStatus("build returned no form body", true); return; }
-           
-            if (string.IsNullOrEmpty(salt))
-                _log = "WARNING: no Inspector salt set, request is UNSIGNED (set the salt in the Inspector). ";
-
-            ConfigStatus("Sending to get_config…", false);
-            var send = await Client().PostAsJsonAsync("/api/inspector/send",
-                new { url = "https://www.auxbrain.com/ei/get_config", formBody = built.FinalFormBody, responseType = "ConfigResponse" });
-            if (!send.IsSuccessStatusCode) { ConfigStatus($"send failed: HTTP {(int)send.StatusCode}", true); return; }
-            var sent = await send.Content.ReadFromJsonAsync<SendResult>(JsonOpts);
-           
-            _log += $"send: status={sent?.Status}, signed={!string.IsNullOrEmpty(salt)}, rawB64={sent?.RawBase64?.Length ?? 0} chars, json={sent?.Json?.Length ?? 0} chars, error={sent?.Error ?? "(none)"}";
-            if (string.IsNullOrEmpty(sent?.Json)) { ConfigStatus(sent?.Error ?? "send returned no decoded config", true); return; }
-
-           
-           
-            if (!sent.Json.Contains("dlcCatalog"))
-            {
-                ConfigStatus($"live get_config returned a thin config ({sent.Json.Length} chars, no DLCCatalog). "
-                    + "Auxbrain gates the full catalog; use the manual paste below (Inspector Response -> inflate-step base64).", true);
-                return;
-            }
-
-            ConfigStatus("Storing config…", false);
-            var ingest = await Client().PostAsJsonAsync($"/api/config/{_configPlatform}/ingest-json",
-                new { json = sent.Json });
-            await ReportConfig(ingest);
-            await LoadConfigs();
-        }
-        catch (Exception ex) { ConfigStatus(ex.Message, true); }
-        finally { _configBusy = false; }
-    }
-
-    async Task ReportConfig(HttpResponseMessage res)
-    {
-        if (res.IsSuccessStatusCode)
-        {
-            var d = await res.Content.ReadFromJsonAsync<ConfigIngestResult>(JsonOpts);
-            if (d is { Ok: true })
-                ConfigStatus($"stored {d.Platform}: {d.Bytes / 1024}KB, {d.Shells} shells, {d.ShellObjects} shell objects", false);
-            else
-                ConfigStatus(d?.Diagnostics ?? "ingest failed", true);
-        }
-        else { ConfigStatus(await ReadError(res) ?? $"HTTP {(int)res.StatusCode}", true); }
-    }
-
-    void ConfigStatus(string s, bool err) { _configError = err; _configResult = s; StateHasChanged(); }
-
-    async Task PrecacheMeshes()
-    {
-        if (string.IsNullOrEmpty(_cacheDevice)) return;
-        _cacheBusy = true; _cacheResult = "";
-        try
-        {
-            var res = await Client().PostAsync($"/api/devices/{_cacheDevice}/precache-meshes", null);
-            if (res.IsSuccessStatusCode)
-            {
-                var d = await res.Content.ReadFromJsonAsync<PrecacheResult>(JsonOpts);
-                _cacheResult = d is null ? "done" : $"cached {d.Cached} meshes ({d.Failed} failed) for {d.Platform}";
-            }
-            else { _cacheResult = await ReadError(res) ?? $"HTTP {(int)res.StatusCode}"; }
-        }
-        catch (Exception ex) { _cacheResult = ex.Message; }
-        finally { _cacheBusy = false; await LoadCachedMeshes(); }
-    }
-
-    async Task LoadCachedMeshes()
-    {
-        _cachedMeshes = [];
-        if (string.IsNullOrEmpty(_cacheDevice)) { StateHasChanged(); return; }
-        try
-        {
-            var res = await Client().GetFromJsonAsync<CachedMeshList>($"/api/devices/{_cacheDevice}/cached-meshes");
-            _cachedMeshes = res?.Meshes?.ToList() ?? [];
-        }
-        catch { _cachedMeshes = []; }
-        StateHasChanged();
-    }
-
-    async Task DeleteCachedMesh(string stem)
-    {
-        _cacheBusy = true;
-        try { await Client().DeleteAsync($"/api/devices/{_cacheDevice}/cached-meshes/{Uri.EscapeDataString(stem)}"); }
-        catch (Exception ex) { _cacheResult = ex.Message; }
-        finally { _cacheBusy = false; await LoadCachedMeshes(); }
-    }
-
-    async Task ClearCachedMeshes()
-    {
-        _cacheBusy = true;
-        try { await Client().DeleteAsync($"/api/devices/{_cacheDevice}/cached-meshes/*"); }
-        catch (Exception ex) { _cacheResult = ex.Message; }
-        finally { _cacheBusy = false; await LoadCachedMeshes(); }
-    }
-
-   
     HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
 
     async Task LoadUsers()
@@ -464,13 +149,4 @@
     record UserRow(string DiscordId, string Username, string Role, DateTimeOffset LastLoginAt);
     record SetRoleResult(string DiscordId, string Role);
     record ErrorResult(string Error);
-    record DeviceRow(string Id, string Platform, string Label);
-    record PrecacheResult(bool Ok, string Platform, int Cached, int Failed);
-    record CachedMeshRow(string Stem, long Bytes, DateTimeOffset CachedAt);
-    record CachedMeshList(bool Enabled, string? Platform, CachedMeshRow[]? Meshes);
-    record ConfigRow(string Platform, DateTimeOffset SavedAt, long Bytes);
-    record ConfigListResult(bool Enabled, ConfigRow[]? Configs);
-    record ConfigIngestResult(bool Ok, string? Platform, int Bytes, bool HasDlcCatalog, int Shells, int ShellObjects, string? Diagnostics);
-    record BuildResult(string? FinalFormBody);
-    record SendResult(int Status, string? RawBase64, string? Json, string? Error);
 }

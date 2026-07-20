@@ -6,11 +6,11 @@ public sealed class FlowProcessor
 {
     private readonly EndpointExtractor? _extractor;
     private readonly FlowDecoder _decoder;
-    private readonly HarWriter _har;
+    private readonly HarWriter? _har;
     private readonly string _contentRoot;
 
-   
-    public FlowProcessor(EndpointExtractor? extractor, FlowDecoder decoder, HarWriter har, string contentRoot)
+
+    public FlowProcessor(EndpointExtractor? extractor, FlowDecoder decoder, HarWriter? har, string contentRoot)
     {
         _extractor = extractor;
        
@@ -22,7 +22,7 @@ public sealed class FlowProcessor
 
     public DashboardFlow Process(CapturedFlow flow)
     {
-        _har.Add(flow);
+        _har?.Add(flow);
 
         string? path = null;
         var outcome = "";

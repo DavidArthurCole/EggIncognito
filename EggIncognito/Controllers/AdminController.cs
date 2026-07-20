@@ -1,10 +1,12 @@
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.GameData;
 using EggIncognito.Services;
 using EggIncognito.Tools;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using SyncKit.Identity.Client;
 
 namespace EggIncognito.Controllers;
@@ -139,7 +141,72 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(rows);
     }
 
-   
+    [HttpGet("data-status")]
+    [EnableRateLimiting("read")]
+    public IActionResult DataStatus()
+    {
+        if (RequireAdmin() is { } no) return no;
+
+        var gameData = new List<object>();
+        if (services.GetService(typeof(IGameDataProvider)) is IGameDataProvider provider)
+        {
+            foreach (var f in provider.Families)
+                gameData.Add(new
+                {
+                    key = f.Key,
+                    count = f.Effects.Count,
+                    provenance = (f as EmbeddedEffectFamily)?.Status ?? "",
+                });
+            var col = provider.Colleggtibles;
+            gameData.Add(new
+            {
+                key = "colleggtibles",
+                count = col.Eggs.Count,
+                provenance = string.IsNullOrEmpty(col.BinaryVersion) ? col.Status : col.BinaryVersion,
+            });
+        }
+
+        var platforms = Array.Empty<object>();
+        var configEnabled = false;
+        if (services.GetService(typeof(GameConfigStore)) is GameConfigStore store)
+        {
+            configEnabled = store.Enabled;
+            platforms = store.List()
+                .Select(c => (object)new { platform = c.Platform, savedAt = c.SavedAt, bytes = c.Bytes })
+                .ToArray();
+        }
+
+        var fixtures = new List<object>();
+        if (services.GetService(typeof(IConfiguration)) is IConfiguration cfg)
+        {
+            var eiDir = Path.Combine(ContentRoot.Resolve(cfg["ContentRoot"]), "Endpoints", "default", "ei");
+            if (Directory.Exists(eiDir))
+            {
+                foreach (var path in Directory.EnumerateFiles(eiDir, "*.json").OrderBy(p => p, StringComparer.Ordinal))
+                {
+                    var info = new FileInfo(path);
+                    string status;
+                    try
+                    {
+                        var trimmed = System.IO.File.ReadAllText(path).Trim();
+                        status = trimmed.Length == 0 || trimmed == "{}" ? "empty" : "ok";
+                    }
+                    catch { status = "unreadable"; }
+                    fixtures.Add(new
+                    {
+                        name = Path.GetFileNameWithoutExtension(info.Name),
+                        bytes = info.Length,
+                        updatedAt = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
+                        status,
+                    });
+                }
+            }
+        }
+
+        return Ok(new { gameData, config = new { enabled = configEnabled, platforms }, fixtures });
+    }
+
+
     private EggIncognito.Services.Metrics.ApiAuditLog? Audit =>
         services.GetService(typeof(EggIncognito.Services.Metrics.ApiAuditLog))
             as EggIncognito.Services.Metrics.ApiAuditLog;

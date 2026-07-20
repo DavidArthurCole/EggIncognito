@@ -10,6 +10,7 @@
     <h2 class="admin-panel-title">Device capture (live)</h2>
     <span class="text-muted text-xs">host devices only</span>
   </div>
+  <p class="text-muted text-xs mb-2 mt-0">Open a read-only mirror of a device's live capture (same view as your own, minus the controls).</p>
 
   @if (_rows.Count == 0)
   {
@@ -28,7 +29,10 @@
               <span class="text-xs text-muted">@d.Platform</span>
               @if (d.Listening) { <span class="mono text-xs text-muted">:@d.Port</span> }
             </div>
-            <span class="text-xs @v.Color" title="@v.Detail">@v.Label</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs @v.Color" title="@v.Detail">@v.Label</span>
+              <a class="text-xs text-accent2 no-underline hover:underline" href="/capture/device/@d.Id" title="Open read-only live view">live view →</a>
+            </div>
           </div>
           <div class="devcap-counters mt-1.5">
             <span title="client connections to the proxy">conns <b>@d.ClientConnects</b></span>

@@ -25,10 +25,16 @@ public sealed class DeviceCaptureManager(
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _cts;
 
-    private sealed record DeviceCapture(ICaptureProxy Proxy, int Port, Channel<CapturedFlow> Queue, Task Pump);
+    private sealed record DeviceCapture(ICaptureProxy Proxy, int Port, Channel<CapturedFlow> Queue, Task Pump, CaptureHub Hub);
 
     public int PortFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Port : 0;
     public DeviceRinfoStore Rinfo => _rinfo;
+
+
+
+    public CaptureHub? HubFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Hub : null;
+
+    private static string Now() => DateTime.Now.ToString("HH:mm:ss");
 
    
    
@@ -78,9 +84,11 @@ public sealed class DeviceCaptureManager(
     {
         try
         {
+            var hub = new CaptureHub();
             var queue = Channel.CreateUnbounded<CapturedFlow>(new UnboundedChannelOptions { SingleReader = true });
             var decoder = new FlowDecoder(contentRoot);
-            var pump = Task.Run(() => PumpAsync(d.Id, queue, decoder), ct);
+            var processor = new FlowProcessor(null, decoder, null, contentRoot);
+            var pump = Task.Run(() => PumpAsync(d.Id, queue, processor, hub), ct);
 
             var diag = _diag.GetOrAdd(d.Id, _ => new DeviceCaptureDiag());
 
@@ -95,22 +103,27 @@ public sealed class DeviceCaptureManager(
             proxy.ClientConnected += (count, ip) =>
             {
                 diag.Bump(ref diag.ClientConnects);
+                hub.RecordConnection(count, ip, Now());
                 logger.LogInformation("device capture: {Id} client connected (active={Count}, ip={Ip})", d.Id, count, ip ?? "?");
             };
+            proxy.ClientDisconnected += (count, ip) => hub.RecordDisconnection(count, Now());
             proxy.AuxbrainConnect += () =>
             {
                 diag.Bump(ref diag.AuxbrainConnects);
+                hub.RecordAuxbrainConnect();
                 logger.LogDebug("device capture: {Id} auxbrain CONNECT decrypted", d.Id);
             };
             proxy.DecryptError += msg =>
             {
                 diag.LastDecryptError = msg;
+                hub.RecordDecryptError(msg, Now());
                 logger.LogWarning("device capture: {Id} decrypt error: {Msg}", d.Id, msg);
             };
             proxy.ConnectSeen += (host, willDecrypt) => diag.NoteConnect(host, willDecrypt);
             await proxy.StartAsync(port, caPath, ct);
+            hub.SetProxyState(running: true, port: port);
 
-            _captures[d.Id] = new DeviceCapture(proxy, port, queue, pump);
+            _captures[d.Id] = new DeviceCapture(proxy, port, queue, pump, hub);
             logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca}, freshCa={Fresh})",
                 d.Id, port, caPath, proxy.FreshCa);
 
@@ -148,19 +161,19 @@ public sealed class DeviceCaptureManager(
         }
     }
 
-    private async Task PumpAsync(string deviceId, Channel<CapturedFlow> queue, FlowDecoder decoder)
+    private async Task PumpAsync(string deviceId, Channel<CapturedFlow> queue, FlowProcessor processor, CaptureHub hub)
     {
         await foreach (var flow in queue.Reader.ReadAllAsync())
         {
             try
             {
-                var req = decoder.DecodeRequest(EndpointExtractor.NormalizePath(flow.Url), flow.RequestDataB64);
-                var obs = RinfoHarvester.TryHarvest(req.JsonRaw);
-                if (obs is not null)
+                var dash = processor.Process(flow);
+                if (dash.Observed is { } obs)
                 {
                     _rinfo.Observe(deviceId, obs, DateTimeOffset.UtcNow.ToString("O"));
                     if (_diag.TryGetValue(deviceId, out var dg)) dg.Bump(ref dg.RinfoHarvests);
                 }
+                hub.Publish(dash, Now());
             }
             catch { }
         }
@@ -169,6 +182,7 @@ public sealed class DeviceCaptureManager(
     private async Task TeardownAsync(string id)
     {
         if (!_captures.TryRemove(id, out var c)) return;
+        c.Hub.SetProxyState(running: false, port: c.Port);
         try { await c.Proxy.StopAsync(); } catch { }
         c.Queue.Writer.TryComplete();
         try { await c.Pump; } catch { }
