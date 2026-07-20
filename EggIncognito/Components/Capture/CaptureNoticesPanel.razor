@@ -48,7 +48,7 @@
 </section>
 
 @code {
-    [Parameter] public IReadOnlyList<CaptureToolbar.NoticeItem> Notices { get; set; } = [];
+    [Parameter] public IReadOnlyList<NoticeItem> Notices { get; set; } = [];
     [Parameter] public int Unread { get; set; }
     [Parameter] public EventCallback<int> OnDismissNotice { get; set; }
     [Parameter] public EventCallback OnClearNotices { get; set; }
@@ -64,4 +64,6 @@
 
     Task DismissNotice(int id) => OnDismissNotice.InvokeAsync(id);
     Task ClearAllNotices() => OnClearNotices.InvokeAsync();
+
+    public sealed record NoticeItem(int Id, string Severity, string Message, string Timestamp);
 }

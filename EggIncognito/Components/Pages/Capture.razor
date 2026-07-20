@@ -133,7 +133,7 @@ else
 
     readonly CaptureViewState _view = new();
 
-    readonly List<CaptureToolbar.NoticeItem> _notices = [];
+    readonly List<CaptureNoticesPanel.NoticeItem> _notices = [];
     readonly List<ToastItem> _toasts = [];
     int _unread;
     int _nextNoticeId = 1;
@@ -362,7 +362,7 @@ else
     void PushNotice(CaptureEvent ev)
     {
         var severity = NoticeSeverity(ev.Kind);
-        _notices.Insert(0, new CaptureToolbar.NoticeItem(_nextNoticeId++, severity, ev.Message, ev.Timestamp));
+        _notices.Insert(0, new CaptureNoticesPanel.NoticeItem(_nextNoticeId++, severity, ev.Message, ev.Timestamp));
         if (_notices.Count > 200) _notices.RemoveRange(200, _notices.Count - 200);
         _unread++;
        

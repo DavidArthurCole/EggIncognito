@@ -106,41 +106,6 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(rows);
     }
 
-   
-   
-    [HttpGet("device-captures")]
-    [EnableRateLimiting("read")]
-    public IActionResult DeviceCaptures()
-    {
-        if (RequireAdmin() is { } no) return no;
-        if (services.GetService(typeof(EggIncognito.Services.Devices.DeviceCaptureManager))
-                is not EggIncognito.Services.Devices.DeviceCaptureManager dcm
-            || services.GetService(typeof(EggIncognito.Services.Devices.DeviceConfig))
-                is not EggIncognito.Services.Devices.DeviceConfig devCfg)
-            return Ok(Array.Empty<object>());
-
-        var rows = devCfg.Devices.Select(d =>
-        {
-            var diag = dcm.DiagFor(d.Id);
-            var port = dcm.PortFor(d.Id);
-            return new
-            {
-                id = d.Id,
-                label = d.Label,
-                platform = d.Platform,
-                listening = port != 0,
-                port,
-                clientConnects = diag.ClientConnects,
-                auxbrainConnects = diag.AuxbrainConnects,
-                flows = diag.Flows,
-                rinfoHarvests = diag.RinfoHarvests,
-                lastDecryptError = diag.LastDecryptError,
-                recentConnects = diag.RecentConnects,
-            };
-        }).ToList();
-        return Ok(rows);
-    }
-
     [HttpGet("data-status")]
     [EnableRateLimiting("read")]
     public IActionResult DataStatus()

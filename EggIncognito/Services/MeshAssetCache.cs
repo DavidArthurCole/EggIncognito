@@ -30,14 +30,6 @@ public sealed class MeshAssetCache(IConfiguration config)
         await File.WriteAllBytesAsync(path, glb, ct);
     }
 
-    public int Count(string platform)
-    {
-        var root = CacheRoot;
-        if (root is null) return 0;
-        var dir = Path.Combine(root, Safe(platform));
-        return Directory.Exists(dir) ? Directory.EnumerateFiles(dir, "*.glb").Count() : 0;
-    }
-
     public sealed record CachedMesh(string Stem, long Bytes, DateTimeOffset CachedAt);
 
    

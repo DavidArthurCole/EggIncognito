@@ -35,6 +35,9 @@
   }
 
   .data-mon-group { @apply mt-3.5 first:mt-0; }
+  .data-mon-group .reg-wrap { @apply inline-block max-w-full align-top; }
+  .data-mon-group table { @apply w-auto; }
+  .data-mon-group th, .data-mon-group td { @apply whitespace-nowrap; }
   .data-mon-head { @apply text-xs font-semibold text-fg mb-1.5; }
   .prov-chip { @apply inline-block text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 mr-1.5 font-semibold; }
   .prov-captured { @apply bg-ok/15 text-ok; }
@@ -79,11 +82,6 @@
 
   /* Right-aligned toolbar cluster in the nav. Pairs with .app-nav-tools (nav.css). */
   .toolbar { @apply ml-auto inline-flex items-center gap-1.5; }
-
-  /* Capture toolbar: projected into the top nav via SectionContent. No page padding here; the
-     .app-nav-tools cluster positions it. Popovers anchor to their own .settings-wrap so they drop
-     below the nav. */
-  .capture-toolbar { @apply flex items-center gap-1.5; }
 
   /* Hosted-capture setup instructions: collapsible (auto-closed once a device connects), with iOS
      vs Android as two side-by-side branches rather than a misleading numbered sequence. */
@@ -353,7 +351,6 @@
     border-top: 1px solid theme(colors.border);
     transform: rotate(45deg);
   }
-  .notif-menu { @apply w-[320px]; }
   .confirm-menu { @apply w-[240px]; }
   .confirm-actions { @apply flex justify-end gap-2 mt-2.5; }
   /* Capture controls is a narrow left-column .panel (overflow-hidden), which clipped its own popovers off
@@ -870,9 +867,6 @@
   .param-val { @apply text-fg; }
 
   /* Capture: notifications */
-  .notif-badge { @apply absolute min-w-[15px] h-[15px] px-[3px] rounded-lg bg-err text-[10px] font-bold inline-flex items-center justify-center; top: -5px; right: -5px; color: #fff; line-height: 15px; }
-  #notifBtn.has-unread { @apply border-accent text-accent; }
-  .notif-icon { @apply inline-flex; }
   .notif-list { @apply max-h-[360px] overflow-y-auto flex flex-col gap-1.5; }
   .notif-empty { @apply text-muted text-xs; padding: 6px 2px; }
   .notif-item { @apply flex items-start gap-2 p-2 border border-border rounded bg-panel; border-left: 3px solid theme(colors.border); }
@@ -885,7 +879,6 @@
   .notif-time { @apply text-[11px] text-muted mt-0.5 font-mono; }
   .notif-dismiss { @apply flex-none bg-none border-0 text-muted cursor-pointer p-0.5 rounded-[3px] inline-flex; }
   .notif-dismiss:hover { @apply text-fg bg-panel2; }
-  .notif-head { @apply flex items-center justify-between; }
 
   /* Capture: JSON tree viewer */
   .jtree-viewer { @apply border border-border rounded bg-bg; }
@@ -1215,13 +1208,6 @@
   .sess-kind-user { @apply text-accent2 border-accent2; }
   .sess-kind-local { @apply text-muted border-border; }
   .sess-kind-device { @apply text-green-400 border-green-700; }
-
-  /* Device-capture live-view rows. */
-  .devcap-row { @apply rounded-md border border-border bg-panel2 px-3 py-2; }
-  .devcap-counters { @apply flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted font-mono; }
-  .devcap-counters b { @apply text-fg font-semibold; }
-  .devcap-connects { @apply flex flex-wrap gap-1; }
-  .devcap-connect { @apply rounded bg-bg border border-border px-1.5 py-0.5 text-[0.65rem] font-mono text-muted; }
 
   /* Bot config embed editor: labelled rows, checkbox switches vertically centered, popout color picker. */
   .embed-editor { @apply flex flex-col gap-3 max-w-[720px]; }
