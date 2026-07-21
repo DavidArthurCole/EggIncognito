@@ -164,16 +164,16 @@ else
     {
         var f = Flow!;
         var seq = 0;
+        if (View.ShowHeaders)
+        {
+            var sec = BuildHeaders("request", f.RequestHeaders, f.RequestHeadersRaw);
+            if (sec is not null) builder.AddContent(seq++, sec);
+        }
+
         var paramsSection = BuildParams(f);
         if (paramsSection is not null) builder.AddContent(seq++, paramsSection);
 
         builder.AddContent(seq++, RequestBodySection(f));
-
-        if (View.ShowHeaders)
-        {
-            var sec = BuildHeaders("Request headers", f.RequestHeaders, f.RequestHeadersRaw);
-            if (sec is not null) builder.AddContent(seq++, sec);
-        }
     };
 
     RenderFragment RequestBodySection(DashboardFlow f)
@@ -201,6 +201,12 @@ else
     {
         var f = Flow!;
         var seq = 0;
+        if (View.ShowHeaders)
+        {
+            var hdr = BuildHeaders("response", f.ResponseHeaders, f.ResponseHeadersRaw);
+            if (hdr is not null) builder.AddContent(seq++, hdr);
+        }
+
         if (f.ResponseText is not null)
         {
             builder.AddContent(seq++, TextResponseSection(f.ResponseText, f.ResponseIsAck));
@@ -230,11 +236,6 @@ else
             builder.CloseComponent();
         }
 
-        if (View.ShowHeaders)
-        {
-            var sec = BuildHeaders("Response headers", f.ResponseHeaders, f.ResponseHeadersRaw);
-            if (sec is not null) builder.AddContent(seq++, sec);
-        }
     };
 
     RenderFragment TextResponseSection(string text, bool isAck) =>@<div>
@@ -302,14 +303,19 @@ else
         var (path, query, pathParams) = parsed.Value;
         if (pathParams.Count == 0 && query.Count == 0) return null;
 
-        var displayPath = string.IsNullOrEmpty(flow.Path) ? path : "/" + flow.Path;
+        var generalPath = "/" + (flow.Path ?? "").TrimStart('/');
+        var basePath = StripPathParams(path, pathParams);
+        var showPath = !string.Equals(basePath, generalPath, StringComparison.Ordinal);
         return @<div>
-            <div class="section-head"><h3>URL</h3></div>
+            <div class="section-head"><h3>Query</h3></div>
             <div class="params-box">
-              @ParamRow("path", PathFragment(displayPath))
+              @if (showPath)
+              {
+                @ParamRow("path", PathFragment(basePath))
+              }
               @foreach (var p in pathParams)
               {
-                @ParamRow("path param", ParamValueFragment(p))
+                @ParamRow("query", ParamValueFragment(p))
               }
               @foreach (var (k, v) in query)
               {
@@ -346,6 +352,18 @@ else
         {
           @text
         }</text>;
+
+    static string StripPathParams(string path, List<string> pathParams)
+    {
+        var result = path;
+        for (var i = pathParams.Count - 1; i >= 0; i--)
+        {
+            var suffix = "/" + pathParams[i];
+            if (result.EndsWith(suffix, StringComparison.Ordinal))
+                result = result[..^suffix.Length];
+        }
+        return result.Length == 0 ? "/" : result;
+    }
 
     (string Path, List<(string, string)> Query, List<string> PathParams)? ParseFlowUrl(DashboardFlow flow)
     {
@@ -396,32 +414,27 @@ else
 
    
    
-    RenderFragment? BuildHeaders(string label, IReadOnlyList<DashboardHeader>? redacted, IReadOnlyList<DashboardHeader>? raw)
+    RenderFragment? BuildHeaders(string keyPrefix, IReadOnlyList<DashboardHeader>? redacted, IReadOnlyList<DashboardHeader>? raw)
     {
         var headers = View.IsBlurMode || View.ShowRawHeaders ? raw ?? redacted ?? [] : redacted ?? [];
         if (headers.Count == 0) return null;
 
-        return @<div>
-            <div class="section-head"><h3>@label</h3></div>
-            <div class="params-box">
-              @foreach (var h in headers)
+        return @<div class="headers-box">
+            @foreach (var h in headers)
+            {
+              var blur = View.IsBlurMode && h.Sensitive;
+              var key = "hdr:" + keyPrefix + ":" + h.Name + ":" + h.Value;
+              <span class="h-name">@h.Name</span>
+              @if (blur)
               {
-                var blur = View.IsBlurMode && h.Sensitive;
-                var key = "hdr:" + label + ":" + h.Name + ":" + h.Value;
-                <div class="param-row">
-                  <span class="param-label">@h.Name</span>
-                  @if (blur)
-                  {
-                    <span class="param-val blurred @RevealCls(key)" title="Click to reveal"
-                          @onclick="() => ToggleReveal(key)">@h.Value</span>
-                  }
-                  else
-                  {
-                    <span class="param-val">@h.Value</span>
-                  }
-                </div>
+                <span class="h-val blurred @RevealCls(key)" title="Click to reveal"
+                      @onclick="() => ToggleReveal(key)">@h.Value</span>
               }
-            </div>
+              else
+              {
+                <span class="h-val">@h.Value</span>
+              }
+            }
           </div>;
     }
 

@@ -295,8 +295,11 @@
   .data-box { @apply border border-border rounded bg-bg; }
   .data-box .data-tools { @apply p-1.5 border-b border-border flex-wrap; }
   .data-box pre.data-text { @apply border-0 rounded-none bg-transparent; }
-  .params-box { @apply border border-border rounded-md bg-panel2 px-3 py-2 flex flex-col gap-1.5; }
+  .params-box { @apply border border-border rounded-md bg-panel2 px-3 py-2 mb-3 flex flex-col gap-1.5; }
   .param-row { @apply flex gap-3 items-baseline text-xs; }
+  .headers-box { @apply border border-border rounded-md bg-panel2 px-3 py-2 mb-3 grid gap-x-3 gap-y-1 text-xs; grid-template-columns: auto 1fr; }
+  .h-name { @apply text-muted font-mono whitespace-nowrap; }
+  .h-val { @apply text-fg font-mono [word-break:break-all] min-w-0; }
   /* Plain content wrapper around a data view (Capture FormatView). Children carry their own chrome. */
   .data-body { @apply block; }
 
@@ -326,10 +329,10 @@
   /* Popover system (settings / export / clear / notif menus) */
   .settings-wrap { @apply relative inline-flex; }
   .settings-menu {
-    @apply absolute right-0 z-[1100] w-[240px] bg-panel2 border border-border rounded-md p-3
+    @apply absolute right-0 z-[1100] w-[240px] bg-panel0 border border-border rounded-md p-3
            overflow-auto;
     top: calc(100% + 8px);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, .4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .55);
     transform-origin: top right;
     opacity: 0;
     transform: scale(.96) translateY(-6px);
@@ -340,14 +343,15 @@
   .settings-menu.open { opacity: 1; transform: scale(1) translateY(0); pointer-events: auto; }
   .settings-menu.open::before {
     content: "";
-    @apply absolute w-[9px] h-[9px] bg-panel2;
+    @apply absolute w-[9px] h-[9px] bg-panel0;
     top: -5px; right: 12px;
     border-left: 1px solid theme(colors.border);
     border-top: 1px solid theme(colors.border);
     transform: rotate(45deg);
   }
   .settings-menu-lg { @apply w-[280px]; }
-  .notices-menu { @apply max-h-[420px]; }
+  .notices-menu { @apply max-h-[420px] left-0 right-auto; transform-origin: top left; }
+  .notices-menu.open::before { left: 12px; right: auto; }
   .notices-badge {
     @apply absolute z-[1200] min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[10px]
            font-semibold leading-4 inline-flex items-center justify-center pointer-events-none;
@@ -806,9 +810,10 @@
   .flow-combo > .flow-filter-input { @apply w-full min-w-0; }
   .combo-menu {
     @apply absolute left-0 right-0 top-full mt-1 z-[1200] max-h-[240px] overflow-auto
-           bg-panel2 border border-border rounded-md py-1;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, .4);
+           bg-panel0 border border-border rounded-md py-1;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .55);
   }
+  .popover-backdrop { @apply fixed inset-0 z-[1040]; }
   .combo-opt { @apply block w-full text-left px-2.5 py-1.5 text-xs text-fg bg-transparent border-0 cursor-pointer truncate; font-family: inherit; }
   .combo-opt:hover { @apply bg-accent2 text-bg; }
   .combo-empty { @apply px-2.5 py-1.5 text-xs text-muted; }

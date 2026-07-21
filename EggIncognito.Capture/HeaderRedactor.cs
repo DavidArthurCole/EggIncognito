@@ -15,6 +15,7 @@ public static class HeaderRedactor
         "x-api-key",
         "x-auth-token",
         "x-egg-inc-token",
+        "x-cloud-trace-context",
     };
 
     public static bool IsSensitive(string name) => Sensitive.Contains(name);

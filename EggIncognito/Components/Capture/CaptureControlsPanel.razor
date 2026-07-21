@@ -4,6 +4,10 @@
 @using EggIncognito.Components.Shared
 
 <div class="capture-controls">
+  @if (_open is not null)
+  {
+    <div class="popover-backdrop" @onclick="@(() => _open = null)"></div>
+  }
   <div class="flex items-center gap-2">
     <div class="flex flex-wrap items-center gap-1.5">
       @if (!ReadOnly)

@@ -2,6 +2,10 @@
 @using EggIncognito.Components.Shared
 
 <div class="settings-wrap capture-notices">
+  @if (_open)
+  {
+    <div class="popover-backdrop" @onclick="@(() => _open = false)"></div>
+  }
   <button type="button" class="icon-btn notices-btn" title="Notifications"
           aria-haspopup="true" aria-expanded="@_open" @onclick="ToggleOpen">
     <Icon Name="bell" />
