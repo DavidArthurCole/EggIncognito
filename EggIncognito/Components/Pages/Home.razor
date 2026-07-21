@@ -1,58 +1,17 @@
 @page "/"
-@inject IRouteCatalog Routes
-@inject FileEndpointSource Endpoints
 <PageTitle>EggIncognito</PageTitle>
-<main class="px-8 pt-6 pb-12 max-w-[960px]">
+<main class="px-8 pt-12 pb-12 max-w-[960px]">
   <h1 class="sr-only">EggIncognito</h1>
   @if (LoginError == 1)
   {
-    <p class="panel text-red-500 text-sm mb-4">Login failed. Please try again.</p>
+    <p class="panel text-red-500 text-sm mb-6">Login failed. Please try again.</p>
   }
-  <img class="block w-full max-w-[360px] h-auto mb-3" src="/brand/wordmark.png" alt="EggIncognito" />
-  <p class="text-[15px] mb-4">Stateless mock server + toolkit for the Egg, Inc. API.</p>
-  <div class="flex flex-wrap gap-3 mb-10">
+  <img class="block w-full max-w-[420px] h-auto mb-4" src="/brand/wordmark.png" alt="EggIncognito" />
+  <p class="text-[15px] text-muted mb-8">A mock server and toolkit for the Egg, Inc. API.</p>
+  <div class="flex flex-wrap gap-3 mb-16">
     <a class="btn-primary" href="/inspector/">Inspector</a>
     <a class="btn-primary" href="/capture/">Capture</a>
-    <a class="btn-primary" href="/protos">Protos</a>
-  </div>
-
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10">
-    <a class="panel card-link p-4" href="/inspector/">
-      <strong>Inspector</strong>
-      <p class="text-sm mt-1">Build, sign, send, and decode API requests.</p>
-    </a>
-    <a class="panel card-link p-4" href="/capture/">
-      <strong>Capture</strong>
-      <p class="text-sm mt-1">Record live game traffic into reusable endpoints.</p>
-    </a>
-    <a class="panel card-link p-4" href="/import/">
-      <strong>Import</strong>
-      <p class="text-sm mt-1">Turn HAR files into endpoints.</p>
-    </a>
-    <a class="panel card-link p-4" href="/protos">
-      <strong>Protos</strong>
-      <p class="text-sm mt-1">Versioned proto registry. Drop an .ipa/.apk to extract its schema, or browse detected builds per platform.</p>
-    </a>
-    <div class="panel p-4">
-      <strong>Mock API</strong>
-      <p class="text-sm mt-1 text-muted">@Routes.All().Count routes, @Endpoints.Count canned endpoints, ready to POST against.</p>
-    </div>
-  </div>
-
-  <h2 class="text-lg font-semibold mb-3">Getting started</h2>
-  <div class="grid gap-3 sm:grid-cols-3 mb-10 text-sm">
-    <div class="panel p-3">
-      <strong class="block mb-1">Docker</strong>
-      <span class="code-chip">docker run -p 5080:8080 ghcr.io/davidarthurcole/eggincognito:latest</span>
-    </div>
-    <div class="panel p-3">
-      <strong class="block mb-1">Binary</strong>
-      Per-OS single-file builds on <a class="text-accent2" href="https://github.com/DavidArthurCole/EggIncognito/releases" target="_blank" rel="noopener">GitHub Releases</a>
-    </div>
-    <div class="panel p-3">
-      <strong class="block mb-1">Source</strong>
-      <span class="code-chip">dotnet run --project EggIncognito</span>
-    </div>
+    <a class="btn-primary" href="/protodata">Protos &amp; Data</a>
   </div>
 
   <footer class="home-footer">
