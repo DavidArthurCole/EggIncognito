@@ -25,7 +25,7 @@
                     <span class="@(d.Reachable ? "text-green-500" : "text-red-500") shrink-0" title="@(d.Reachable ? "reachable" : "unreachable")">
                         <Icon Name="@PlatformIcon(d.Platform)" />
                     </span>
-                    <div class="min-w-0 flex-1">
+                    <div class="min-w-0 flex-1 max-w-[19rem]">
                         <div class="flex items-baseline gap-2">
                             <span class="text-sm font-medium truncate">@d.Label</span>
                             <span class="text-xs text-muted opacity-60 whitespace-nowrap shrink-0" title="@d.ProbedAt.ToString("u")">@Ago(d.ProbedAt)</span>

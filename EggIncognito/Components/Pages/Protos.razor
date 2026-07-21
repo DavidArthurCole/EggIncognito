@@ -19,32 +19,20 @@
 <main class="px-4 sm:px-8 pt-6 pb-8 max-w-7xl mx-auto w-full">
   <h1 class="text-[1.3rem] mt-0 mb-4">Protos &amp; Data</h1>
 
-  <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 mb-6">
+  <div class="flex flex-col lg:flex-row gap-4 mb-6 items-start">
     <DeviceStatusPanel OnSaved="OnMutated" />
-    <section class="panel flex items-center justify-between gap-3">
+    <section class="panel flex items-center gap-4">
       <div>
-        <h3 class="text-sm font-semibold mt-0 mb-1">Notifications</h3>
+        <h3 class="text-sm font-semibold m-0">Notifications</h3>
         <p class="text-muted text-xs m-0">Proto-build + periodicals webhooks.</p>
       </div>
       <button type="button" class="btn-primary shrink-0" @onclick="@(() => _subscribeModal?.Open())">Manage subscriptions</button>
     </section>
   </div>
 
-  <div class="tab-bar">
-    <button type="button" class="tab-btn @(_tab == "registry" ? "active" : "")" @onclick='() => SelectTab("registry")'>Registry</button>
-    @if (_isAdmin)
-    {
-      <button type="button" class="tab-btn @(_tab == "periodicals" ? "active" : "")" @onclick='() => SelectTab("periodicals")'>Periodicals</button>
-    }
-  </div>
-
-  @if (_isAdmin && _tab == "periodicals")
-  {
-    <PeriodicalsPanel />
-  }
-  else
-  {
-  <section class="mb-6">
+  <div class="flex flex-col xl:flex-row gap-6 items-start">
+  <div class="flex-1 min-w-0 flex flex-col gap-6">
+  <section>
     <ProtoDropZone OnResult="OnExtracted" />
     @if (_result is not null)
     {
@@ -209,7 +197,14 @@
       </table>
     }
   </section>
+  </div>
+  @if (_isAdmin)
+  {
+    <div class="w-full xl:w-[38%] shrink-0 min-w-0">
+      <PeriodicalsPanel />
+    </div>
   }
+  </div>
 </main>
 
 <ProtoSubscribeModal @ref="_subscribeModal" />
@@ -228,9 +223,8 @@
     bool _isAdmin;
     bool _isContributor;
     bool _canWrite;
-    string _tab = "registry";
-   
-   
+
+
     string _sortCol = "appVersion";
     bool _sortDesc = true;
 
@@ -366,39 +360,6 @@
     }
 
     Timer? _refresh;
-    IJSObjectReference? _tabsJs;
-
-    async Task<IJSObjectReference> TabsJs() =>
-        _tabsJs ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/tabs.js");
-
-    static string? NormalizeTab(string hash) => hash switch
-    {
-        "periodicals" => "periodicals",
-        "registry" => "registry",
-        _ => null,
-    };
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        try
-        {
-            var want = NormalizeTab(await (await TabsJs()).InvokeAsync<string>("getHash"));
-            if (want is not null && want != _tab && (_isAdmin || want == "registry"))
-            {
-                _tab = want;
-                StateHasChanged();
-            }
-        }
-        catch { }
-    }
-
-    async Task SelectTab(string tab)
-    {
-        _tab = tab;
-        try { await (await TabsJs()).InvokeVoidAsync("setHash", tab); }
-        catch { }
-    }
 
    
     async Task RefreshAll()
@@ -551,8 +512,6 @@
         if (_refresh is not null) await _refresh.DisposeAsync();
         if (_copy is not null)
             try { await _copy.DisposeAsync(); } catch { }
-        if (_tabsJs is not null)
-            try { await _tabsJs.DisposeAsync(); } catch { }
     }
 
     record VersionRow(int Id, int? CanonicalId, string Platform, string AppVersion, string Build,

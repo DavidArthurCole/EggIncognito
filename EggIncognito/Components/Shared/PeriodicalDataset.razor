@@ -12,6 +12,10 @@
       <button type="button" class="btn-mini" @onclick="Toggle">@(_open ? "Hide" : "View")</button>
     </div>
   </div>
+  @if (!string.IsNullOrEmpty(SubText))
+  {
+    <a class="mono text-muted text-xs break-all no-underline hover:text-fg" href="@SubText">@SubText</a>
+  }
   @if (_open)
   {
     <div class="mt-2">
@@ -31,6 +35,7 @@
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public RenderFragment? Badges { get; set; }
     [Parameter] public string Endpoint { get; set; } = "";
+    [Parameter] public string? SubText { get; set; }
     [Parameter] public string DownloadName { get; set; } = "data.json";
     [Parameter] public Func<string, Task<string>>? Fetch { get; set; }
     [Parameter] public CaptureViewState View { get; set; } = new();
