@@ -181,8 +181,7 @@ else
         var hasBody = !string.IsNullOrEmpty(f.RequestJson)
             || !string.IsNullOrEmpty(f.RequestJsonRaw)
             || !string.IsNullOrEmpty(f.RequestDataB64);
-        return @<div>
-            <div class="section-head"><h3>Body</h3></div>
+        return @<text>
             @if (hasBody)
             {
               <FormatView Label="Request" ShowLabel="false"
@@ -195,7 +194,7 @@ else
             {
               <div class="empty-box">No request body</div>
             }
-          </div>;
+          </text>;
     }
 
     RenderFragment ResponsePane() => builder =>

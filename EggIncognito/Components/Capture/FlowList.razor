@@ -18,15 +18,46 @@
         <option value="ei_data">ei_data</option>
         <option value="ei_srv">ei_srv</option>
       </select>
-      <input class="flow-filter-input" type="search" placeholder="path..." value="@_pathFilter" @oninput="OnPathInput" />
-      <input class="flow-filter-input" type="search" list="seenTypes" placeholder="request/response type..."
-             value="@_typeFilter" @oninput="OnTypeInput" />
-      <datalist id="seenTypes">
-        @foreach (var t in SeenTypes())
+      <div class="flow-combo">
+        <input class="flow-filter-input" type="search" placeholder="path..." autocomplete="off"
+               data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+               value="@_pathFilter" @oninput="OnPathInput"
+               @onfocus="@(() => _openCombo = "path")" @onblur="CloseCombo" />
+        @if (_openCombo == "path")
         {
-          <option value="@t" />
+          <div class="combo-menu">
+            @{ var pathOpts = PathOptions().ToList(); }
+            @if (pathOpts.Count == 0)
+            {
+              <div class="combo-empty">No matches</div>
+            }
+            @foreach (var p in pathOpts)
+            {
+              <button type="button" class="combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickPath(p))">@p</button>
+            }
+          </div>
         }
-      </datalist>
+      </div>
+      <div class="flow-combo">
+        <input class="flow-filter-input" type="search" placeholder="request/response type..." autocomplete="off"
+               data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+               value="@_typeFilter" @oninput="OnTypeInput"
+               @onfocus="@(() => _openCombo = "type")" @onblur="CloseCombo" />
+        @if (_openCombo == "type")
+        {
+          <div class="combo-menu">
+            @{ var typeOpts = TypeOptions().ToList(); }
+            @if (typeOpts.Count == 0)
+            {
+              <div class="combo-empty">No matches</div>
+            }
+            @foreach (var t in typeOpts)
+            {
+              <button type="button" class="combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickType(t))">@t</button>
+            }
+          </div>
+        }
+      </div>
       <button type="button" class="btn-mini" title="Reset all filters" @onclick="ClearFilters">Clear filters</button>
     </div>
   </div>
@@ -67,6 +98,7 @@
     string _group = "";
     string _pathFilter = "";
     string _typeFilter = "";
+    string? _openCombo;
 
     ElementReference _listRef;
     IJSObjectReference? _scroll;
@@ -99,6 +131,24 @@
     void OnPathInput(ChangeEventArgs e) => _pathFilter = (e.Value?.ToString() ?? "").Trim();
     void OnTypeInput(ChangeEventArgs e) => _typeFilter = (e.Value?.ToString() ?? "").Trim();
     void ClearFilters() { _group = ""; _pathFilter = ""; _typeFilter = ""; }
+
+    void CloseCombo() => _openCombo = null;
+    void PickPath(string p) { _pathFilter = p; _openCombo = null; }
+    void PickType(string t) { _typeFilter = t; _openCombo = null; }
+
+    IEnumerable<string> PathOptions()
+    {
+        var seen = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var f in Flows) if (!string.IsNullOrEmpty(f.Path)) seen.Add(f.Path);
+        var q = _pathFilter.ToLowerInvariant();
+        return q.Length == 0 ? seen : seen.Where(p => p.ToLowerInvariant().Contains(q));
+    }
+
+    IEnumerable<string> TypeOptions()
+    {
+        var q = _typeFilter.ToLowerInvariant();
+        return q.Length == 0 ? SeenTypes() : SeenTypes().Where(t => t.ToLowerInvariant().Contains(q));
+    }
 
     IEnumerable<string> SeenTypes()
     {

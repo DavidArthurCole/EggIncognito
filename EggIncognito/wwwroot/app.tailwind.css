@@ -290,12 +290,13 @@
   }
   .bytes-label { @apply text-muted text-[10px] uppercase mt-1 mb-0.5; }
   .no-json { @apply text-muted text-xs mb-1.5; }
-  .empty-box { @apply border border-dashed border-border rounded bg-bg text-muted text-xs px-3 py-4 text-center; }
+  .empty-box { @apply border border-dashed border-border rounded-md bg-panel2 text-muted text-xs px-3 py-5 text-center; }
   /* Boxed data wrapper with an inner toolbar. */
   .data-box { @apply border border-border rounded bg-bg; }
   .data-box .data-tools { @apply p-1.5 border-b border-border flex-wrap; }
   .data-box pre.data-text { @apply border-0 rounded-none bg-transparent; }
-  .params-box { @apply border border-border rounded bg-bg px-2 py-1.5; }
+  .params-box { @apply border border-border rounded-md bg-panel2 px-3 py-2 flex flex-col gap-1.5; }
+  .param-row { @apply flex gap-3 items-baseline text-xs; }
   /* Plain content wrapper around a data view (Capture FormatView). Children carry their own chrome. */
   .data-body { @apply block; }
 
@@ -552,7 +553,7 @@
      Inline grid styles cannot do media queries, so this lives here. */
   .inspector-main { @apply grid-cols-1; }
   .capture-body { @apply grid grid-cols-1 flex-1 min-h-0; }
-  .capture-topbar { @apply flex flex-row flex-wrap items-center gap-x-5 gap-y-3; }
+  .capture-topbar { @apply relative z-30 flex flex-row flex-wrap items-center gap-x-5 gap-y-3 overflow-visible; }
   .capture-topbar-btns { @apply flex items-center gap-1.5; }
   .capture-topbar-spacer { @apply flex-1 min-w-[1rem]; }
   .capture-device { @apply flex flex-col leading-tight; }
@@ -801,6 +802,16 @@
   .flow-filter-input { @apply flex-1 min-w-[100px]; }
   .flow-filter-select { @apply flex-none; }
   .flow-filter-select:focus, .flow-filter-input:focus { @apply outline-none border-accent2; }
+  .flow-combo { @apply relative flex-1 min-w-[100px]; }
+  .flow-combo > .flow-filter-input { @apply w-full min-w-0; }
+  .combo-menu {
+    @apply absolute left-0 right-0 top-full mt-1 z-[1200] max-h-[240px] overflow-auto
+           bg-panel2 border border-border rounded-md py-1;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .4);
+  }
+  .combo-opt { @apply block w-full text-left px-2.5 py-1.5 text-xs text-fg bg-transparent border-0 cursor-pointer truncate; font-family: inherit; }
+  .combo-opt:hover { @apply bg-accent2 text-bg; }
+  .combo-empty { @apply px-2.5 py-1.5 text-xs text-muted; }
   .flow-list { @apply overflow-auto flex-1 pr-2.5; scrollbar-gutter: stable; }
   .empty-state { @apply h-full flex flex-col items-center justify-center text-center text-muted text-[13px] px-6; }
   .empty-hint { @apply mt-2 text-xs text-muted opacity-80 max-w-prose mx-auto leading-relaxed; }
@@ -854,15 +865,19 @@
   .detail-panes > .detail-pane { display: none; }
   .detail-panes > .detail-pane.pane-active { display: block; }
   .detail-pane-title { display: none; @apply text-xs uppercase tracking-[0.04em] text-muted font-semibold mt-0 mb-1.5; }
+  #detailPanel .detail-tabs { @apply flex-1 min-h-0 flex flex-col mt-3; }
+  #detailPanel .detail-panes { @apply flex-1 min-h-0 flex flex-col; }
+  #detailPanel .detail-panes > .detail-pane.pane-active { @apply flex-1 min-h-0 overflow-auto pr-1; }
   @media (min-width: 1280px) {
     .detail-tabs-bar { display: none; }
-    .detail-panes { @apply flex gap-6 items-start; }
-    .detail-panes > .detail-pane { display: block; @apply flex-1 min-w-0; }
+    .detail-panes { @apply flex-row gap-6 items-stretch; }
+    .detail-panes > .detail-pane { display: block; }
     .detail-pane-title { display: block; }
+    #detailPanel .detail-panes { flex-direction: row; }
+    #detailPanel .detail-panes > .detail-pane { @apply flex-1 min-w-0 min-h-0 overflow-auto pr-1; }
   }
-  #detailPanel .detail-tabs { @apply flex-1 min-h-0 flex flex-col mt-3; }
-  #detailPanel .detail-panes { @apply flex-1 min-h-0 overflow-auto pr-1; }
   #detailPanel .detail-panes .jtree-root,
+  #detailPanel .detail-panes .jtree-flat,
   #detailPanel .detail-panes pre.json,
   #detailPanel .detail-panes .json,
   #detailPanel .detail-panes pre.data-text { max-height: none; }
@@ -895,8 +910,8 @@
   .save-result { @apply font-mono text-xs; }
   .save-result.ok { @apply text-ok; }
   .save-result.err { @apply text-err; }
-  .param-label { @apply text-muted flex-none min-w-[88px]; }
-  .param-val { @apply text-fg; }
+  .param-label { @apply text-muted flex-none min-w-[76px]; }
+  .param-val { @apply text-fg font-mono [word-break:break-word]; }
 
   /* Capture: notifications */
   .notif-list { @apply max-h-[360px] overflow-y-auto flex flex-col gap-1.5; }
