@@ -11,6 +11,7 @@ namespace EggIncognito.Controllers;
 public sealed class ConfigController(
     GameConfigStore store, ITransportPipeline pipeline, IHttpClientFactory httpFactory,
     ICurrentUser currentUser, IAppMode appMode, IConfiguration config,
+    EggIncognito.Services.Feed.PeriodicalsChangeNotifier notifier,
     ILogger<ConfigController> logger) : ControllerBase
 {
     private const string GetConfigUrl = "https://www.auxbrain.com/ei/get_config";

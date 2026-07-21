@@ -7,6 +7,7 @@ public sealed class FeedSubscription
     [Column("id")] public int Id { get; set; }
     [Column("kind")] public string Kind { get; set; } = "discord";
     [Column("target_url")] public string TargetUrl { get; set; } = "";
+    [Column("event_kind")] public string EventKind { get; set; } = "proto_build";
     [Column("platforms")] public string[] Platforms { get; set; } = ["android", "ios"];
     [Column("trigger")] public string Trigger { get; set; } = "proto_changed";
     [Column("secret")] public string? Secret { get; set; }

@@ -34,4 +34,26 @@ public static class DiscordFeedPayload
         };
         return JsonSerializer.Serialize(new { embeds = new[] { embed } });
     }
+
+    public static string BuildPeriodicals(string feed, string sha, string pageUrl, string? messageTemplate = null)
+    {
+        if (!string.IsNullOrWhiteSpace(messageTemplate))
+        {
+            var vars = FeedTemplate.PeriodicalsVars(feed, sha, pageUrl);
+            return JsonSerializer.Serialize(new { content = FeedTemplate.Render(messageTemplate, vars) });
+        }
+
+        var embed = new
+        {
+            title = $"Egg, Inc. periodicals changed: {feed}",
+            url = pageUrl,
+            color = 0x8b5cf6,
+            fields = new[]
+            {
+                new { name = "Feed", value = feed, inline = true },
+                new { name = "Hash", value = sha.Length > 12 ? sha[..12] : sha, inline = true },
+            },
+        };
+        return JsonSerializer.Serialize(new { embeds = new[] { embed } });
+    }
 }

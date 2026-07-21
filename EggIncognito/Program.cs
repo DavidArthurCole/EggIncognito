@@ -114,6 +114,7 @@ builder.Services.AddScoped<EggIncognito.Services.DeviceMeshProvider>();
 builder.Services.AddScoped<EggIncognito.Services.GameBinaryProvider>();
 
 builder.Services.AddSingleton<EggIncognito.Services.GameConfigStore>();
+builder.Services.AddSingleton<EggIncognito.Services.Feed.PeriodicalsChangeNotifier>();
 var sealedProxyOptions = EggIncognito.Services.SealedProxyOptions.FromConfig(builder.Configuration);
 builder.Services.AddSingleton(sealedProxyOptions);
 builder.Services.AddSingleton<EggIncognito.Services.ISealedProxy, EggIncognito.Services.SealedProxy>();
@@ -306,8 +307,9 @@ if (!string.IsNullOrWhiteSpace(eventSecret))
                 var cfg = scope.ServiceProvider.GetService<IConfiguration>();
                 var pageUrl = EggIncognito.Services.Feed.FeedDispatcher.BuildPageUrl(
                     cfg?["Feed:PageBaseUrl"], platform, build);
-                await dispatcher.DispatchAsync(row.Id, platform, appVersion, build, evt.ClientVersion,
-                    evt.ProtoSha, created, protoChanged, pageUrl, ct);
+                await dispatcher.DispatchAsync(new EggIncognito.Services.Feed.ProtoBuildEvent(
+                    row.Id, platform, appVersion, build, evt.ClientVersion,
+                    evt.ProtoSha, created, protoChanged, pageUrl), ct);
             }
         }
 
@@ -415,8 +417,8 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Data.Services.IFeedSubscriptionStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.FeedSubscriptionStore>());
     builder.Services.AddScoped<EggIncognito.Services.Feed.FeedDispatcher>();
-   
-   
+
+
     builder.Services.AddScoped<EggIncognito.Data.Services.IProtoBackfillStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.ProtoRegistryStore>());
     builder.Services.AddHttpClient("github");

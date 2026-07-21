@@ -7,7 +7,7 @@ public interface IFeedSubscriptionStore
 {
     Task<FeedSubscription> AddAsync(FeedSubscription sub, CancellationToken ct = default);
     Task<List<FeedSubscription>> ActiveAsync(CancellationToken ct = default);
-    Task<bool> AlreadyDeliveredAsync(int subId, int protoVersionId, CancellationToken ct = default);
+    Task<bool> AlreadyDeliveredAsync(int subId, string eventKind, string dedupKey, CancellationToken ct = default);
     Task RecordAsync(FeedDelivery delivery, CancellationToken ct = default);
     Task SetActiveAsync(int subId, bool active, CancellationToken ct = default);
     Task BumpFailAsync(int subId, CancellationToken ct = default);
@@ -30,8 +30,9 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
     public Task<List<FeedSubscription>> ActiveAsync(CancellationToken ct = default) =>
         db.FeedSubscriptions.AsNoTracking().Where(s => s.Active).ToListAsync(ct);
 
-    public async Task<bool> AlreadyDeliveredAsync(int subId, int protoVersionId, CancellationToken ct = default) =>
-        await db.FeedDeliveries.AnyAsync(d => d.SubscriptionId == subId && d.ProtoVersionId == protoVersionId, ct);
+    public async Task<bool> AlreadyDeliveredAsync(int subId, string eventKind, string dedupKey, CancellationToken ct = default) =>
+        await db.FeedDeliveries.AnyAsync(
+            d => d.SubscriptionId == subId && d.EventKind == eventKind && d.DedupKey == dedupKey, ct);
 
     public async Task RecordAsync(FeedDelivery delivery, CancellationToken ct = default)
     {

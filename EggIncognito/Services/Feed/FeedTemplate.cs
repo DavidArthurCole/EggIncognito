@@ -23,4 +23,11 @@ public static partial class FeedTemplate
         ["protoChanged"] = protoChanged ? "changed" : "unchanged",
         ["pageUrl"] = pageUrl,
     };
+
+    public static Dictionary<string, string> PeriodicalsVars(string feed, string sha, string pageUrl) => new()
+    {
+        ["feed"] = feed,
+        ["sha"] = sha,
+        ["pageUrl"] = pageUrl,
+    };
 }

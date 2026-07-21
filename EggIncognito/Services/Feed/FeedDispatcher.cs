@@ -16,22 +16,20 @@ public sealed class FeedDispatcher(
     public static string BuildPageUrl(string? baseUrl, string platform, string build) =>
         $"{(string.IsNullOrEmpty(baseUrl) ? DefaultPageBaseUrl : baseUrl!.TrimEnd('/'))}/protos/{platform}/{build}";
 
-    public async Task DispatchAsync(
-        int protoVersionId, string platform, string appVersion, string build, string? clientVersion,
-        string protoSha, bool created, bool protoChanged, string pageUrl, CancellationToken ct = default)
+    public async Task DispatchAsync(INotificationEvent evt, CancellationToken ct = default)
     {
         var subs = await store.ActiveAsync(ct);
         var http = httpFactory.CreateClient("discord-api");
         foreach (var sub in subs)
         {
-            if (!FeedTrigger.Matches(sub.Trigger, created, protoChanged, sub.Platforms, platform)) continue;
-            if (await store.AlreadyDeliveredAsync(sub.Id, protoVersionId, ct)) continue;
+            if (!string.Equals(sub.EventKind, evt.EventKind, StringComparison.Ordinal)) continue;
+            if (!evt.Matches(sub)) continue;
+            if (await store.AlreadyDeliveredAsync(sub.Id, evt.EventKind, evt.DedupKey, ct)) continue;
 
             int? code = null; var ok = false;
             try
             {
-                var body = DiscordFeedPayload.Build(
-                    platform, appVersion, build, clientVersion, protoSha, protoChanged, pageUrl, sub.MessageTemplate);
+                var body = evt.BuildBody(sub.MessageTemplate);
                 var res = await http.PostAsync(sub.TargetUrl,
                     new StringContent(body, System.Text.Encoding.UTF8, "application/json"), ct);
                 code = (int)res.StatusCode;
@@ -42,7 +40,7 @@ public sealed class FeedDispatcher(
 
             await store.RecordAsync(new FeedDelivery
             {
-                SubscriptionId = sub.Id, ProtoVersionId = protoVersionId,
+                SubscriptionId = sub.Id, EventKind = evt.EventKind, DedupKey = evt.DedupKey,
                 Status = ok ? "sent" : "failed", AttemptedAt = DateTimeOffset.UtcNow,
                 ResponseCode = code, Attempts = 1,
             }, ct);

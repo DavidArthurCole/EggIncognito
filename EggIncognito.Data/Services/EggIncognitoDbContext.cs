@@ -90,11 +90,14 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasKey(x => x.Id);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.Property(x => x.Platforms).HasColumnType("text[]");
+            e.Property(x => x.EventKind).HasDefaultValue("proto_build");
         });
         b.Entity<FeedDelivery>(e =>
         {
             e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.SubscriptionId, x.ProtoVersionId }).IsUnique();
+            e.Property(x => x.EventKind).HasDefaultValue("proto_build");
+            e.Property(x => x.DedupKey).HasDefaultValue("");
+            e.HasIndex(x => new { x.SubscriptionId, x.EventKind, x.DedupKey }).IsUnique();
         });
         b.Entity<BackfillJob>(e =>
         {

@@ -25,6 +25,8 @@ public sealed class EndpointExtractor
    
     public bool Quiet { get; set; }
 
+    public IEndpointWriteObserver? WriteObserver { get; set; }
+
     private void Out(string line) { if (!Quiet) Console.WriteLine(line); }
     private void Err(string line) { if (!Quiet) Console.Error.WriteLine(line); }
 
@@ -191,7 +193,9 @@ public sealed class EndpointExtractor
             }
         }
 
-        switch (WriteEndpointFile(outFile, json, _overwrite || forceOverwrite))
+        var writeResult = WriteEndpointFile(outFile, json, _overwrite || forceOverwrite);
+        if (writeResult is "wrote" or "upd") WriteObserver?.OnEndpointWritten(path, json);
+        switch (writeResult)
         {
             case "wrote": Counts.Wrote++; Out($"  wrote {slug}.json"); break;
             case "upd":   Counts.Upd++;   Out($"  upd   {slug}.json"); break;
