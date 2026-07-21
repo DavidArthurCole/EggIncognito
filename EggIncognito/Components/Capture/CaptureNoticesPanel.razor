@@ -13,17 +13,17 @@
         <span class="notif-badge-inline">@(Unread > 99 ? "99+" : Unread.ToString())</span>
       }
     </h3>
-    <div class="flex items-center gap-2">
-      @if (Notices.Count > 0)
-      {
-        <button type="button" class="btn-mini" @onclick:stopPropagation="true" @onclick="ClearAllNotices">Clear all</button>
-      }
-      <Icon Name="chevronDown" Class="@($"icon-sm transition-transform {(_open ? "rotate-180" : "")}")" />
-    </div>
+    <Icon Name="chevronDown" Class="@($"icon-sm text-muted transition-transform {(_open ? "rotate-180" : "")}")" />
   </div>
 
   @if (_open)
   {
+    @if (Notices.Count > 0)
+    {
+      <div class="flex justify-end mt-2">
+        <button type="button" class="btn-mini" @onclick:stopPropagation="true" @onclick="ClearAllNotices">Clear all</button>
+      </div>
+    }
     <div class="notif-list mt-2">
       @foreach (var n in Notices)
       {

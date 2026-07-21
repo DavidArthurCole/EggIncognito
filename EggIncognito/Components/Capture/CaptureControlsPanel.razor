@@ -12,8 +12,8 @@
   {
     <div class="text-sm font-medium truncate">@DeviceLabel</div>
   }
-  <div class="flex items-center justify-center gap-2">
-    <div class="flex flex-wrap items-center justify-center gap-1.5 max-w-[10rem]">
+  <div class="flex items-center @(ReadOnly ? "justify-start" : "justify-center") gap-2">
+    <div class="flex flex-wrap items-center gap-1.5 @(ReadOnly ? "" : "justify-center max-w-[10rem]")">
       @if (!ReadOnly)
       {
       <button type="button" class="icon-btn @(Running ? "capture-stop" : "capture-start")" disabled="@ToggleBusy"

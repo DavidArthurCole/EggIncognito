@@ -1,0 +1,43 @@
+@using EggIncognito.Components.Shared
+
+<div class="feed-viewer mt-2">
+  <div class="flex items-center gap-2 cursor-pointer select-none" @onclick="Toggle">
+    <Icon Name="chevronDown" Class="@($"icon-sm transition-transform {(_open ? "rotate-180" : "")}")" />
+    <span class="text-sm font-medium">@Label</span>
+    @if (_busy) { <span class="text-muted text-xs">loading…</span> }
+  </div>
+  @if (_open && _body is not null)
+  {
+    <div class="flex items-center gap-3 mt-1 mb-1">
+      <span class="text-muted text-xs mono">@(_body.Length) chars</span>
+      <button class="btn-mini" @onclick="Reload">Reload</button>
+    </div>
+    <pre class="result-pre" style="max-height:50vh;overflow:auto;">@_body</pre>
+  }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Feed { get; set; } = "";
+    [Parameter] public Func<string, Task<string>>? Fetch { get; set; }
+
+    bool _open;
+    bool _busy;
+    string? _body;
+
+    async Task Toggle()
+    {
+        _open = !_open;
+        if (_open && _body is null) await Load();
+    }
+
+    async Task Reload() => await Load();
+
+    async Task Load()
+    {
+        if (Fetch is null) return;
+        _busy = true;
+        try { _body = await Fetch(Feed); }
+        finally { _busy = false; }
+    }
+}

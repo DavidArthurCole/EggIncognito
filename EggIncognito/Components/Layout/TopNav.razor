@@ -7,7 +7,7 @@
   <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
   <NavLink href="protos" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos</NavLink>
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="playground" ActiveClass="active">Playground</NavLink> }
-  @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="console" ActiveClass="active">Console</NavLink> }
+  @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="periodicals" ActiveClass="active">Periodicals</NavLink> }
   <NavLink href="capture" ActiveClass="active">Capture</NavLink>
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }

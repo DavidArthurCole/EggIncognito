@@ -35,7 +35,7 @@
     <div class="capture-side flex flex-col gap-3 min-h-0">
       <CaptureControlsPanel Running="_running" ToggleBusy="_toggleBusy" View="_view"
                             OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
-                            Hosted="_hosted" ClientFactory="Client" ReadOnly="_readOnly" DeviceLabel="_deviceLabel"
+                            Hosted="_hosted" ClientFactory="Client" ReadOnly="_readOnly" DeviceLabel="@_deviceLabel"
                             OnAddressRotated="@(h => { _rotatedHost = h; StateHasChanged(); })" />
       <CaptureNoticesPanel Notices="_notices" Unread="_unread"
                            OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />

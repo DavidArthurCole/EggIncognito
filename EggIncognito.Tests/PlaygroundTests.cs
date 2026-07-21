@@ -223,13 +223,13 @@ public class PlaygroundTests
     }
 
     [Fact]
-    public async Task Console_Page_Renders_AdminGated()
+    public async Task Periodicals_Page_Renders_AdminGated()
     {
         var c = _factory.CreateClient();
-        var r = await c.GetAsync("/console");
+        var r = await c.GetAsync("/periodicals");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var html = await r.Content.ReadAsStringAsync();
-        Assert.Contains("API Console", html);
+        Assert.Contains("Periodicals", html);
         Assert.Contains("Admin access required", html);
     }
 

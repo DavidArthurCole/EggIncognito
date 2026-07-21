@@ -1,0 +1,209 @@
+@page "/periodicals"
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Net.Http.Json
+@using System.Text.Json
+@using EggIncognito.Components.Shared
+@inject ICurrentUser User
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>EggIncognito - Periodicals</PageTitle>
+<main class="px-8 pt-6 pb-8 max-w-[1200px]">
+  <h1 class="text-[1.3rem] mt-0 mb-1">Periodicals</h1>
+  <p class="text-muted text-xs mb-4">
+    Rotating game data intercepted (and sanitized) from server-attached devices, plus values extracted from
+    the binary. Admin-only while we validate.
+  </p>
+
+  @if (!_isAdmin)
+  {
+    <div class="panel" id="denied">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft" /></div>
+  }
+  else if (_summary is null)
+  {
+    <div class="panel"><p class="text-muted text-sm m-0">Loading…</p></div>
+  }
+  else
+  {
+    <section class="panel mb-4">
+      <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Extracted periodicals</h2>
+        <span class="text-muted text-xs">GameData nupkg, by id</span>
+      </div>
+      <div class="data-mon-group">
+        <div class="reg-wrap">
+          <table class="reg-table">
+            <thead><tr><th>Family</th><th class="text-right">Rows</th><th>Provenance</th></tr></thead>
+            <tbody>
+              @foreach (var g in _summary.Extracted)
+              {
+                var p = Prov(g.Provenance);
+                <tr>
+                  <td class="font-medium">@g.Key</td>
+                  <td class="text-right mono">@g.Count</td>
+                  <td>
+                    <span class="prov-chip @p.Cls">@p.Label</span>
+                    @if (!string.IsNullOrEmpty(g.Provenance)) { <span class="text-muted text-xs mono" title="@g.Provenance">@ShortProv(g.Provenance)</span> }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel mb-4">
+      <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Colleggtibles</h2>
+        @if (_summary.Colleggtibles is { } cg)
+        {
+          <span class="text-muted text-xs">@cg.Count eggs @if (!string.IsNullOrEmpty(cg.Provenance)) { <span class="mono">@cg.Provenance</span> }</span>
+        }
+      </div>
+      @if (_summary.Colleggtibles is { } c)
+      {
+        <div class="data-mon-group">
+          <div class="reg-wrap">
+            <table class="reg-table">
+              <thead><tr><th>Identifier</th><th>Dimension</th><th>Tier values</th></tr></thead>
+              <tbody>
+                @foreach (var e in c.Eggs)
+                {
+                  <tr>
+                    <td class="font-medium">@e.Identifier</td>
+                    <td class="mono text-xs">@e.Dimension</td>
+                    <td class="mono text-xs">@string.Join(", ", e.TierValues)</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+      else
+      {
+        <p class="text-muted text-xs m-0">No colleggtible data.</p>
+      }
+      <FeedViewer Label="Whole get_periodicals response" Feed="periodicals" Fetch="Fetch" />
+    </section>
+
+    <section class="panel mb-4">
+      <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Config store</h2>
+        <span class="text-muted text-xs">DLCCatalog per platform</span>
+      </div>
+      @if (!_summary.Config.Enabled)
+      {
+        <p class="text-muted text-xs m-0">Not configured (no <code class="code-chip">ConfigStore:Dir</code> / <code class="code-chip">ShipAssets:OutputDir</code>).</p>
+      }
+      else if (_summary.Config.Platforms.Count == 0)
+      {
+        <p class="text-muted text-xs m-0">Enabled, nothing stored yet.</p>
+      }
+      else
+      {
+        <div class="data-mon-group">
+          <div class="reg-wrap">
+            <table class="reg-table">
+              <thead><tr><th>Platform</th><th class="text-right">Size</th><th>Stored</th></tr></thead>
+              <tbody>
+                @foreach (var pf in _summary.Config.Platforms)
+                {
+                  <tr>
+                    <td class="font-medium">@pf.Platform</td>
+                    <td class="text-right mono">@Kb(pf.Bytes)</td>
+                    <td class="text-muted text-xs">@pf.SavedAt.ToLocalTime().ToString("g")</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    </section>
+
+    <section class="panel mb-4">
+      <div class="admin-panel-head">
+        <h2 class="admin-panel-title">eiafx_data</h2>
+        <span class="text-muted text-xs">baked artifact catalog (crafting + tiers)</span>
+      </div>
+      <p class="text-muted text-xs mt-0 mb-2">
+        Baked from real captures, shaped like the community <code class="code-chip">eiafx-data.json</code>.
+        Family/tier structure, crafting prices, quality and rarities come from <code class="code-chip">ei_afx/config</code>;
+        icon filenames from the <code class="code-chip">get_config</code> DLC catalog. Display names, tier names and
+        effect strings are omitted until a real in-game string source is extracted (nothing authored).
+      </p>
+      <FeedViewer Label="View baked eiafx_data" Feed="__eiafx" Fetch="Fetch" />
+    </section>
+
+    <section class="panel mb-4">
+      <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Raw feeds</h2>
+        <span class="text-muted text-xs">sanitized device captures</span>
+      </div>
+      <FeedViewer Label="ei_afx/config (ArtifactsConfigurationResponse)" Feed="afx-config" Fetch="Fetch" />
+      <FeedViewer Label="ei_ctx/get_season_infos_v2 (ContractSeasonInfos)" Feed="season-infos" Fetch="Fetch" />
+    </section>
+  }
+</main>
+
+@code {
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    bool _isAdmin;
+    Summary? _summary;
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isAdmin = User.IsAtLeast(UserRole.Admin);
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+        if (!_isAdmin) return;
+        try { _summary = await Client().GetFromJsonAsync<Summary>("/api/periodicals/summary", JsonOpts); }
+        catch { }
+    }
+
+    HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
+
+    async Task<string> Fetch(string feed)
+    {
+        var route = feed == "__eiafx" ? "/api/periodicals/eiafx-data" : $"/api/periodicals/feed/{feed}";
+        try
+        {
+            var res = await Client().GetAsync(route);
+            var body = await res.Content.ReadAsStringAsync();
+            return res.IsSuccessStatusCode ? body : $"HTTP {(int)res.StatusCode}: {body}";
+        }
+        catch (Exception ex) { return ex.Message; }
+    }
+
+    static string Kb(long bytes) => bytes >= 1024 ? $"{bytes / 1024}KB" : $"{bytes}B";
+
+    static string ShortProv(string prov)
+    {
+        var cut = prov.IndexOfAny([',', ';']);
+        return cut > 0 ? prov[..cut] : prov;
+    }
+
+    static (string Label, string Cls) Prov(string p)
+    {
+        if (p.StartsWith("captured@", StringComparison.Ordinal)) return ("captured", "prov-captured");
+        if (p.StartsWith("binary@", StringComparison.Ordinal)) return ("binary", "prov-binary");
+        if (p.StartsWith("extracted@", StringComparison.Ordinal)) return ("extracted", "prov-extracted");
+        return (string.IsNullOrEmpty(p) ? "unknown" : "mixed", "prov-unknown");
+    }
+
+    record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config);
+    record ExtractedRow(string Key, int Count, string Provenance);
+    record ColleggtiblesInfo(int Count, string Provenance, List<EggRow> Eggs);
+    record EggRow(string Identifier, string Dimension, List<double> TierValues);
+    record ConfigInfo(bool Enabled, List<PlatformRow> Platforms);
+    record PlatformRow(string Platform, DateTimeOffset SavedAt, long Bytes);
+}
