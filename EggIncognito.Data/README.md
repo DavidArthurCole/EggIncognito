@@ -64,8 +64,8 @@ A versioned catalog of game proto definitions per platform.
 - `ProtoVersion` is the build row, keyed by `(platform, build)`. It carries three version numbers: `app_version` (user label), `build` (monotonic versionCode), `client_version` (proto API version, nullable).
 - `ProtoProto` holds the cleaned `.proto` text plus a jsonb `message_index` for fast listing/search.
 - Soft-delete (`deleted_at`) hides a row without physically removing it, so an auto-importer cannot resurrect it. A merge (`canonical_id`) makes a row an alias of a canonical build sharing the same schema. Both are reversible.
-- `KnownVersion` is a metadata-only discovery list (fandom/uptodown/apkpure/itunes). Promoting one to a real `ProtoVersion` needs an APK extract.
-- `BackfillJob` and `ExtractJob` track import/extract progress so the admin UI shows state without tailing logs.
+- `KnownVersion` is a metadata-only version list read by the device farm's `StoreAheadCheck` (is the device's store ahead of the installed build?). The automated external-source populators (Fandom/elgranjero/app-store scrapers) were removed, so it is only written by device-store checks now.
+- `BackfillJob` and `ExtractJob` are dormant legacy tables from the removed automated-backfill subsystem; nothing writes them anymore.
 
 ## Staged protos
 

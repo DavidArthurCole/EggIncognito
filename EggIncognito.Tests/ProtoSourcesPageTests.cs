@@ -27,12 +27,4 @@ public class ProtoSourcesPageTests
         Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
         Assert.Equal("{}", (await r.Content.ReadAsStringAsync()).Trim());
     }
-
-    [Fact]
-    public async Task Backfill_Elgranjero_Anonymous_Is403()
-    {
-        var c = _f.CreateClient();
-        var r = await c.PostAsync("/api/protos/backfill/elgranjero", null);
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, r.StatusCode);
-    }
 }

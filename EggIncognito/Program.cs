@@ -424,48 +424,6 @@ if (dbEnabled)
 
     builder.Services.AddScoped<EggIncognito.Data.Services.IProtoBackfillStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.ProtoRegistryStore>());
-    builder.Services.AddHttpClient("github");
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.IGitHubClient, EggIncognito.Services.Backfill.GitHubClient>();
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.ElgranjeroImporter>();
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.PlayStoreImporter>();
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.AppStoreImporter>();
-
-   
-   
-    builder.Services.AddScoped<EggIncognito.Data.Services.BackfillJobStore>();
-    builder.Services.AddScoped<EggIncognito.Data.Services.IBackfillJobStore>(
-        sp => sp.GetRequiredService<EggIncognito.Data.Services.BackfillJobStore>());
-    builder.Services.AddHttpClient("scrape", c => c.DefaultRequestHeaders.UserAgent.ParseAdd(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"));
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.FandomSource>();
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.UptodownSource>();
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.ApkPureSource>();
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.IApkDownloader>(
-        sp => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.ApkPureSource>());
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.ItunesSource>();
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.Ipa4funSource>();
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.Sources.InternetArchiveSource>();
-    builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
-        "fandom", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.FandomSource>());
-    builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
-        "uptodown", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.UptodownSource>());
-    builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
-        "apkpure", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.ApkPureSource>());
-    builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
-        "itunes", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.ItunesSource>());
-    builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
-        "ipa4fun", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.Ipa4funSource>());
-    builder.Services.AddKeyedScoped<EggIncognito.Services.Backfill.Sources.IVersionListSource>(
-        "archive", (sp, _) => sp.GetRequiredService<EggIncognito.Services.Backfill.Sources.InternetArchiveSource>());
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.VersionListImporter>();
-    builder.Services.AddScoped<EggIncognito.Services.Backfill.ApkExtractService>();
-
-   
-   
-    var pollerOptions = EggIncognito.Services.Backfill.VersionPollerOptions.Bind(builder.Configuration);
-    builder.Services.AddSingleton(pollerOptions);
-    if (pollerOptions.Enabled)
-        builder.Services.AddHostedService<EggIncognito.Services.Backfill.VersionPollerService>();
 }
 
 

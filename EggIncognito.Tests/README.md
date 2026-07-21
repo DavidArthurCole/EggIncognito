@@ -19,7 +19,7 @@ dotnet test EggIncognito.slnx
 - Rate limiting (`RateLimitOptions` / `RateLimitKeys`).
 - The docs hub registry (`DocRegistryTests`) and the `MarkdownRenderer` (`MarkdownRendererTests`).
 - Auth + roles (`AuthModeTests`, `CurrentUserRoleTests`, `ControllerPolicyAttributeTests`, `AdminControllerTests`).
-- Proto registry + backfill: version polling, importers, APK extract/version-code, and ARM-split decoding (`Backfill/`, `BackfillApiTests`, `ElgranjeroImporterTests`, `ApkVersionCodeTests`, `Arm64DecoderTests`).
+- Proto registry: staged-proto review, crawl-dataset parsing, APK version-code, and ARM-split decoding (`CrawlManifestReaderTests`, `ApkVersionCodeTests`, `Arm64DecoderTests`).
 - The proto feed (`FeedDispatcherTests`, `FeedTriggerTests`, `DiscordFeedPayloadTests`).
 - Staged protos (`StagedProtoStoreTests`).
 - The device farm (`Devices/`: parsing, probe runner, status store, controller, iOS binary puller).

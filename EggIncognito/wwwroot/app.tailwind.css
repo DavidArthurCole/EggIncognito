@@ -184,9 +184,6 @@
 
   /* A whole .panel used as an anchor (home feature grid). Preflight is off, so without this the
      browser default link styling (underline + visited purple) paints the card's text content. */
-  .card-link, .card-link:visited { @apply no-underline text-fg; }
-  .card-link:hover { @apply border-accent; }
-  .card-link p { @apply text-muted; }
 
   /* /support page. Flat panels, outlined pills, mono chips, same vocabulary as the rest of
      the app. No gradients, no filled color blobs, no brand dots. */
@@ -1119,16 +1116,6 @@
   .known-pill { @apply text-[0.7rem]; }
 
   /* Sources attribution grid (legacy page) */
-  .src-grid { @apply grid gap-3 sm:grid-cols-2; }
-  .src-card { @apply gap-1; }
-  .src-head { @apply flex items-center justify-between gap-3 mb-1; }
-  .src-role { @apply text-muted text-[13px] leading-snug m-0; }
-
-  /* Sources as a side-column widget: a compact stacked list, not a 2-col card grid. */
-  .src-list { @apply flex flex-col gap-2.5; }
-  .src-row { @apply flex flex-col gap-0.5; }
-  .src-row-head { @apply flex items-center justify-between gap-2; }
-
   /* Subscribe confirmation (legacy page bits still referenced) */
   .sub-section { @apply mb-0; }
   .sub-confirm { @apply flex flex-col gap-2; }

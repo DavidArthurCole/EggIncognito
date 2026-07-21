@@ -171,9 +171,8 @@ A versioned store of Egg, Inc. `.proto` definitions, one row per app build. DB-b
 | `/api/protos/staged` | GET | contributor+ | The pending review queue. |
 | `/api/protos/staged/{id}/approve` \| `/reject` | POST | contributor+ | Approve (promotes, with optional metadata edits) or reject. |
 | `/api/protos/staged/bulk-approve` \| `/bulk-reject` | POST | contributor+ | Same, in bulk. |
-| `/api/protos/staged/import-crawl` | POST | admin | Bulk-import the GitHub-crawl backfill dataset zip into staging. |
+| `/api/protos/staged/import-crawl` | POST | admin | Bulk-import a proto-crawl dataset zip into staging (manual admin upload). |
 | `/api/protos/feed` (+ `/mine`, `/{id}`) | POST/GET/PATCH/DELETE | owner | Manage proto feed Discord-webhook subscriptions. |
-| `/api/protos/backfill/*` | POST/GET | admin | Drive the version backfill crawlers + per-APK extract jobs (`BackfillController`). |
 
 ## Device farm API
 

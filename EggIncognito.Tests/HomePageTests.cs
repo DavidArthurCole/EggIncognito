@@ -8,7 +8,7 @@ public class HomePageTests
     public HomePageTests(SharedAppFactory f) => _factory = f;
 
     [Fact]
-    public async Task Home_RendersFeatureGridAndSupportLink()
+    public async Task Home_RendersHeaderAndSupportLink()
     {
         using var client = _factory.CreateClient();
         var res = await client.GetAsync("/");
@@ -16,6 +16,5 @@ public class HomePageTests
         var html = await res.Content.ReadAsStringAsync();
         Assert.Contains("Inspector", html);
         Assert.Contains("/support", html);
-        Assert.Contains("Getting started", html);
     }
 }

@@ -19,6 +19,17 @@
 <main class="px-4 sm:px-8 pt-6 pb-8 max-w-7xl mx-auto w-full">
   <h1 class="text-[1.3rem] mt-0 mb-4">Protos &amp; Data</h1>
 
+  <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 mb-6">
+    <DeviceStatusPanel OnSaved="OnMutated" />
+    <section class="panel flex items-center justify-between gap-3">
+      <div>
+        <h3 class="text-sm font-semibold mt-0 mb-1">Notifications</h3>
+        <p class="text-muted text-xs m-0">Proto-build + periodicals webhooks.</p>
+      </div>
+      <button type="button" class="btn-primary shrink-0" @onclick="@(() => _subscribeModal?.Open())">Manage subscriptions</button>
+    </section>
+  </div>
+
   <div class="tab-bar">
     <button type="button" class="tab-btn @(_tab == "registry" ? "active" : "")" @onclick='() => SelectTab("registry")'>Registry</button>
     @if (_isAdmin)
@@ -41,7 +52,6 @@
     }
   </section>
 
-  <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start">
   <section class="reg-wrap">
     @if (_isAdmin || _isContributor)
     {
@@ -199,20 +209,6 @@
       </table>
     }
   </section>
-
-  <div class="flex flex-col gap-6">
-    <DeviceStatusPanel OnSaved="OnMutated" />
-    <MissingVersionsPanel />
-    <section class="panel">
-      <h3 class="text-sm font-semibold mt-0 mb-2">Notifications</h3>
-      <button type="button" class="btn-primary" @onclick="@(() => _subscribeModal?.Open())">Manage subscriptions</button>
-    </section>
-    <section class="panel">
-      <h3 class="text-sm font-semibold mt-0 mb-2">Sources</h3>
-      <ProtoSourcesPanel IsAdmin="_isAdmin" OnTrigger="OnTrigger" />
-    </section>
-  </div>
-  </div>
   }
 </main>
 
@@ -425,22 +421,8 @@
 
     void OnExtracted(ProtoDropZone.ExtractResult r) => _result = r;
 
-    async Task OnTrigger(string which)
-    {
-        var url = which switch
-        {
-            "github" => "/api/protos/backfill/elgranjero",
-            "android" => "/api/protos/backfill/list/fandom",
-            "resync" => "/api/protos/backfill/runner-resync",
-            "farm" => "/api/devices/refresh-all",
-            _ => null,
-        };
-        if (url is null) return;
-        try { await Client().PostAsync(url, null); } catch { }
-    }
 
-   
-   
+
     async Task Load(bool background = false)
     {
         if (!background) _loading = true;
