@@ -22,7 +22,8 @@ public sealed class PeriodicalsController(
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
     private string DefaultsDir => Path.Combine(Root, "Endpoints", "default");
 
-    private IEnumerable<DataSource> WireSources => catalog.ByGroup("periodical");
+    private IEnumerable<DataSource> WireSources =>
+        catalog.ByGroup("periodical").Where(s => s.Provenance == DataProvenance.WireFixture);
 
     private IActionResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
@@ -107,7 +108,7 @@ public sealed class PeriodicalsController(
     public async Task<IActionResult> EiAfxData(CancellationToken ct)
     {
         if (RequireAdmin() is { } no) return no;
-        var src = catalog.ById("derived", "eiafx");
+        var src = catalog.ByChild("periodical", "afx-config", "eiafx");
         if (src is null) return NotFound(new { error = "eiafx source missing" });
 
         var payload = await src.Produce(new DataProduceContext(HttpContext, null), ct);
@@ -118,7 +119,7 @@ public sealed class PeriodicalsController(
     private IReadOnlyDictionary<string, string> LoadColleggtibleIcons()
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        var route = catalog.ById("derived", "colleggtibles")?.WireRoute;
+        var route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
         if (route is null) return map;
         var path = FixturePath(route);
         if (!System.IO.File.Exists(path)) return map;

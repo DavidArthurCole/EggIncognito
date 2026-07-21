@@ -1236,7 +1236,7 @@
 
   /* Admin two-column layout: narrow-ish left (bot config + users), fluid right (everything else). Single
      column below lg. Panels inside each column keep their own .panel mb-4 stacking. */
-  .admin-grid { @apply grid gap-4 items-start lg:grid-cols-[minmax(0,640px)_minmax(0,1fr)]; }
+  .admin-grid { @apply grid gap-4 items-start lg:grid-cols-2; }
   .admin-col-left, .admin-col-right { @apply min-w-0; }
 
   /* API audit bucket summary tiles. */

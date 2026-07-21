@@ -5,7 +5,6 @@
 @inject ICurrentUser User
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
-@inject IJSRuntime JS
 
 @if (!_isAdmin)
 {
@@ -22,20 +21,39 @@ else
     {
       @foreach (var grp in Groups)
       {
-        var rows = _catalog.Sources.Where(s => s.Group == grp.Key).ToList();
+        var rows = _catalog.Sources.Where(s => s.Group == grp.Key && s.Extends is null).ToList();
         if (rows.Count == 0) { continue; }
         <section class="panel">
           <h3 class="text-sm font-semibold mt-0 mb-3">@grp.Label</h3>
           <div class="flex flex-col divide-y divide-border">
             @foreach (var s in rows)
             {
-              <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
-                                 DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
-                                 SubText="@s.Url">
-                <Badges>
-                  @if (s.Bytes is { } b) { <span class="mono text-muted text-xs">@Kb(b)</span> }
-                </Badges>
-              </PeriodicalDataset>
+              <div>
+                <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
+                                   DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
+                                   SubText="@s.Url">
+                  <Badges>
+                    @if (s.Bytes is { } b) { <span class="mono text-muted text-xs">@Kb(b)</span> }
+                  </Badges>
+                </PeriodicalDataset>
+                @{ var kids = _catalog.Sources.Where(k => k.Group == grp.Key && k.Extends == s.Id).ToList(); }
+                @if (kids.Count > 0)
+                {
+                  <div class="ml-4 pl-3 border-l border-border flex flex-col divide-y divide-border">
+                    @foreach (var k in kids)
+                    {
+                      <PeriodicalDataset Title="@k.DisplayName" Endpoint="@k.Url"
+                                         DownloadName="@($"{k.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
+                                         SubText="@k.Url">
+                        <Badges>
+                          <span class="text-muted text-[0.65rem] uppercase tracking-wide">extends @s.DisplayName</span>
+                          @if (k.Bytes is { } kb) { <span class="mono text-muted text-xs">@Kb(kb)</span> }
+                        </Badges>
+                      </PeriodicalDataset>
+                    }
+                  </div>
+                }
+              </div>
             }
           </div>
         </section>
@@ -49,7 +67,7 @@ else
           <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
           <div class="flex items-center gap-2">
             <span class="text-muted text-xs">@c.Count</span>
-            <a class="btn-mini no-underline" href="/api/v1/data/gamedata/colleggtibles" download="colleggtibles.json" title="Download JSON"><Icon Name="download" Class="icon-sm" /></a>
+            <a class="btn-mini no-underline" href="/api/v1/data/periodical/get_periodicals/colleggtibles" download="colleggtibles.json" title="Download JSON"><Icon Name="download" Class="icon-sm" /></a>
           </div>
         </div>
         <table class="reg-table">
@@ -61,10 +79,10 @@ else
                 <td>
                   @if (!string.IsNullOrEmpty(e.Icon))
                   {
-                    <img class="w-6 h-6 object-contain" src="@e.Icon" alt="" loading="lazy" />
+                    <img class="w-[1.875rem] h-[1.875rem] object-contain" src="@e.Icon" alt="" loading="lazy" />
                   }
                 </td>
-                <td class="reg-version">@e.Identifier</td>
+                <td class="font-mono text-accent">@e.Identifier</td>
                 <td class="mono text-muted text-xs">@e.Dimension</td>
                 <td class="mono text-xs">@string.Join(", ", e.TierValues)</td>
               </tr>
@@ -73,82 +91,6 @@ else
         </table>
       </section>
     }
-
-    <section class="panel">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">API keys</h2>
-        <span class="text-muted text-xs">Send as <span class="code-chip">X-Api-Key</span>. Up to 20 per account.</span>
-      </div>
-      @if (_noDb)
-      {
-        <p class="text-muted text-sm m-0">API keys need a database and are not available on this instance.</p>
-      }
-      else
-      {
-        @if (_minted is not null)
-        {
-          <div class="mb-4">
-            <p class="text-sm mb-1 font-semibold">Copy it now. It will not be shown again.</p>
-            <pre class="result-pre">@_minted.Key</pre>
-            <div class="flex items-center gap-3 mt-2">
-              <button type="button" class="btn-primary" @onclick="() => Copy(_minted.Key)">Copy key</button>
-              @if (_copied) { <span class="text-green-400 text-sm">Copied.</span> }
-              <button type="button" class="btn-mini" @onclick="Dismiss">Done</button>
-            </div>
-          </div>
-        }
-        else
-        {
-          <div class="flex items-end gap-3 mb-4">
-            <label class="sub-field flex-1">
-              <span class="sub-field-label">Name</span>
-              <input class="field-input w-full" placeholder="my integration" @bind="_name" @bind:event="oninput" />
-            </label>
-            <button type="button" class="btn-primary shrink-0" disabled="@(_busy || string.IsNullOrWhiteSpace(_name))" @onclick="Create">
-              @(_busy ? "Creating..." : "Create key")
-            </button>
-          </div>
-          @if (_error is not null) { <p class="text-err text-sm mt-0 mb-3">@_error</p> }
-        }
-
-        @if (_keys is null)
-        {
-          <p class="text-muted text-sm m-0">Loading...</p>
-        }
-        else if (_keys.Count == 0)
-        {
-          <p class="text-muted text-sm m-0">No keys yet.</p>
-        }
-        else
-        {
-          <div class="reg-wrap">
-            <table class="reg-table">
-              <thead>
-                <tr><th>Prefix</th><th>Name</th><th>Last used</th><th>Requests</th><th>Status</th><th></th></tr>
-              </thead>
-              <tbody>
-                @foreach (var k in _keys)
-                {
-                  <tr>
-                    <td class="mono text-xs">@k.Prefix</td>
-                    <td class="font-medium">@k.Name</td>
-                    <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("g") ?? "never")</td>
-                    <td class="mono text-xs">@k.RequestCount</td>
-                    <td><span class="@(k.Revoked ? "text-muted" : "text-green-400")">@(k.Revoked ? "revoked" : "active")</span></td>
-                    <td>
-                      @if (!k.Revoked)
-                      {
-                        <button type="button" class="btn-mini btn-danger" disabled="@_busyRow" @onclick="() => Revoke(k.Id)">Revoke</button>
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-      }
-    </section>
 
     @if (_catalogError is not null)
     {
@@ -169,21 +111,9 @@ else
     string _baseAddress = "";
     string? _cookie;
 
-    bool _noDb;
-    List<KeyRow>? _keys;
-    string _name = "";
-    bool _busy;
-    bool _deleting;
-    bool _busyRow => _deleting;
-    string? _error;
-    Minted? _minted;
-    bool _copied;
-    IJSObjectReference? _copy;
-
     static readonly (string Key, string Label)[] Groups =
     [
         ("periodical", "Periodical"),
-        ("derived", "Derived"),
         ("gamedata", "Game data"),
     ];
 
@@ -219,8 +149,6 @@ else
             else { _catalogError = $"HTTP {(int)res.StatusCode}"; }
         }
         catch (Exception ex) { _catalogError = ex.Message; }
-
-        await LoadKeys();
     }
 
     HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
@@ -236,70 +164,6 @@ else
         catch (Exception ex) { return ex.Message; }
     }
 
-    async Task LoadKeys()
-    {
-        try
-        {
-            var res = await Client().GetAsync("/api/v1/keys");
-            if (res.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable) { _noDb = true; return; }
-            if (res.IsSuccessStatusCode)
-                _keys = await res.Content.ReadFromJsonAsync<List<KeyRow>>(JsonOpts) ?? [];
-            else _keys ??= [];
-        }
-        catch { _keys ??= []; }
-    }
-
-    async Task Create()
-    {
-        _busy = true;
-        _error = null;
-        _copied = false;
-        try
-        {
-            var res = await Client().PostAsJsonAsync("/api/v1/keys", new { name = _name }, JsonOpts);
-            if (res.IsSuccessStatusCode)
-            {
-                _minted = await res.Content.ReadFromJsonAsync<Minted>(JsonOpts);
-                _name = "";
-                await LoadKeys();
-            }
-            else if (res.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable) { _noDb = true; }
-            else if (res.StatusCode == System.Net.HttpStatusCode.Conflict) { _error = "Key cap reached (20). Revoke one first."; }
-            else { _error = $"Create failed ({(int)res.StatusCode})."; }
-        }
-        catch (Exception ex) { _error = $"Create failed: {ex.Message}"; }
-        _busy = false;
-    }
-
-    async Task Revoke(long id)
-    {
-        _deleting = true;
-        try
-        {
-            var res = await Client().DeleteAsync($"/api/v1/keys/{id}");
-            if (res.IsSuccessStatusCode) await LoadKeys();
-        }
-        catch { }
-        _deleting = false;
-    }
-
-    async Task Copy(string text)
-    {
-        try
-        {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
-            await _copy.InvokeAsync<bool>("writeText", text);
-            _copied = true;
-        }
-        catch { }
-    }
-
-    void Dismiss()
-    {
-        _minted = null;
-        _copied = false;
-    }
-
     static string Kb(long bytes) => bytes >= 1024 ? $"{bytes / 1024}KB" : $"{bytes}B";
 
     record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config, List<FeedInfo> Feeds);
@@ -312,7 +176,5 @@ else
 
     record DataResponse(int Count, List<Source> Sources);
     record Source(string Id, string Group, string Url, string DisplayName, string? Description,
-        string Provenance, string Access, string? Feed, bool AcceptsName, long? Bytes);
-    record KeyRow(long Id, string Name, string Prefix, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt, long RequestCount, bool Revoked);
-    record Minted(long Id, string Name, string Prefix, string Key);
+        string Provenance, string Access, string? Feed, string? Extends, bool AcceptsName, long? Bytes);
 }

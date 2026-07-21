@@ -52,6 +52,21 @@ public class DataApiIntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
+    public async Task Extension_NestedUrl_Anon_Returns200()
+    {
+        var resp = await Client("10.10.0.5").GetAsync("/api/v1/data/periodical/get_periodicals/colleggtibles");
+        resp.EnsureSuccessStatusCode();
+        Assert.Equal("application/json", resp.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task Extension_FlatUrl_Returns404()
+    {
+        var resp = await Client("10.10.0.6").GetAsync("/api/v1/data/periodical/colleggtibles");
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+    }
+
+    [Fact]
     public async Task UnknownSource_Returns404()
     {
         var resp = await Client("10.10.0.4").GetAsync("/api/v1/data/nope/nope");

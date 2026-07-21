@@ -1,0 +1,180 @@
+@using System.Net.Http.Json
+@using System.Text.Json
+@using EggIncognito.Components.Shared
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+
+<section class="panel h-full flex flex-col">
+  <div class="admin-panel-head">
+    <h3 class="text-sm font-semibold m-0">API keys</h3>
+    <span class="text-muted text-xs">Send as <span class="code-chip">X-Api-Key</span>. Up to 20.</span>
+  </div>
+  @if (_noDb)
+  {
+    <p class="text-muted text-sm m-0">API keys need a database and are not available on this instance.</p>
+  }
+  else
+  {
+    @if (_minted is not null)
+    {
+      <div class="mb-4">
+        <p class="text-sm mb-1 font-semibold">Copy it now. It will not be shown again.</p>
+        <pre class="result-pre">@_minted.Key</pre>
+        <div class="flex items-center gap-3 mt-2">
+          <button type="button" class="btn-primary" @onclick="() => Copy(_minted.Key)">Copy key</button>
+          @if (_copied) { <span class="text-green-400 text-sm">Copied.</span> }
+          <button type="button" class="btn-mini" @onclick="Dismiss">Done</button>
+        </div>
+      </div>
+    }
+    else
+    {
+      <div class="flex items-end gap-3 mb-4">
+        <label class="sub-field flex-1">
+          <span class="sub-field-label">Name</span>
+          <input class="field-input w-full" placeholder="my integration" @bind="_name" @bind:event="oninput" />
+        </label>
+        <button type="button" class="btn-primary shrink-0" disabled="@(_busy || string.IsNullOrWhiteSpace(_name))" @onclick="Create">
+          @(_busy ? "Creating..." : "Create key")
+        </button>
+      </div>
+      @if (_error is not null) { <p class="text-err text-sm mt-0 mb-3">@_error</p> }
+    }
+
+    @if (_keys is null)
+    {
+      <p class="text-muted text-sm m-0">Loading...</p>
+    }
+    else if (_keys.Count == 0)
+    {
+      <p class="text-muted text-sm m-0">No keys yet.</p>
+    }
+    else
+    {
+      <div class="reg-wrap">
+        <table class="reg-table">
+          <thead>
+            <tr><th>Prefix</th><th>Name</th><th>Last used</th><th>Requests</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody>
+            @foreach (var k in _keys)
+            {
+              <tr>
+                <td class="mono text-xs">@k.Prefix</td>
+                <td class="font-medium">@k.Name</td>
+                <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("g") ?? "never")</td>
+                <td class="mono text-xs">@k.RequestCount</td>
+                <td><span class="@(k.Revoked ? "text-muted" : "text-green-400")">@(k.Revoked ? "revoked" : "active")</span></td>
+                <td>
+                  @if (!k.Revoked)
+                  {
+                    <button type="button" class="btn-mini btn-danger" disabled="@_busyRow" @onclick="() => Revoke(k.Id)">Revoke</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</section>
+
+@code {
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    bool _noDb;
+    List<KeyRow>? _keys;
+    string _name = "";
+    bool _busy;
+    bool _deleting;
+    bool _busyRow => _deleting;
+    string? _error;
+    Minted? _minted;
+    bool _copied;
+    IJSObjectReference? _copy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null)
+        {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+        await LoadKeys();
+    }
+
+    HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
+
+    async Task LoadKeys()
+    {
+        try
+        {
+            var res = await Client().GetAsync("/api/v1/keys");
+            if (res.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable) { _noDb = true; return; }
+            if (res.IsSuccessStatusCode)
+                _keys = await res.Content.ReadFromJsonAsync<List<KeyRow>>(JsonOpts) ?? [];
+            else _keys ??= [];
+        }
+        catch { _keys ??= []; }
+    }
+
+    async Task Create()
+    {
+        _busy = true;
+        _error = null;
+        _copied = false;
+        try
+        {
+            var res = await Client().PostAsJsonAsync("/api/v1/keys", new { name = _name }, JsonOpts);
+            if (res.IsSuccessStatusCode)
+            {
+                _minted = await res.Content.ReadFromJsonAsync<Minted>(JsonOpts);
+                _name = "";
+                await LoadKeys();
+            }
+            else if (res.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable) { _noDb = true; }
+            else if (res.StatusCode == System.Net.HttpStatusCode.Conflict) { _error = "Key cap reached (20). Revoke one first."; }
+            else { _error = $"Create failed ({(int)res.StatusCode})."; }
+        }
+        catch (Exception ex) { _error = $"Create failed: {ex.Message}"; }
+        _busy = false;
+    }
+
+    async Task Revoke(long id)
+    {
+        _deleting = true;
+        try
+        {
+            var res = await Client().DeleteAsync($"/api/v1/keys/{id}");
+            if (res.IsSuccessStatusCode) await LoadKeys();
+        }
+        catch { }
+        _deleting = false;
+    }
+
+    async Task Copy(string text)
+    {
+        try
+        {
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
+            await _copy.InvokeAsync<bool>("writeText", text);
+            _copied = true;
+        }
+        catch { }
+    }
+
+    void Dismiss()
+    {
+        _minted = null;
+        _copied = false;
+    }
+
+    record KeyRow(long Id, string Name, string Prefix, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt, long RequestCount, bool Revoked);
+    record Minted(long Id, string Name, string Prefix, string Key);
+}

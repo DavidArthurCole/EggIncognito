@@ -29,6 +29,7 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
                 provenance = s.Provenance.ToString(),
                 access = s.Access.ToString(),
                 feed = s.Feed,
+                extends = s.Extends,
                 acceptsName = s.AcceptsName,
                 bytes = await SizeOf(s, ct),
                 refresh = new { s.Refresh.Egress, deviceTrigger = s.Refresh.Device is not null },
@@ -54,7 +55,22 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
     {
         var src = catalog.ById(group, id);
         if (src is null) return NotFound(new { error = "unknown data source", group, id });
+        if (src.Extends is not null)
+            return NotFound(new { error = "this is an extension dataset", url = catalog.UrlFor(src) });
+        return await Serve(src, name, ct);
+    }
 
+    [HttpGet("{group}/{parent}/{sub}")]
+    [EnableRateLimiting("data")]
+    public async Task<IActionResult> GetExtension(string group, string parent, string sub, [FromQuery] string? name, CancellationToken ct)
+    {
+        var src = catalog.ByChild(group, parent, sub);
+        if (src is null) return NotFound(new { error = "unknown extension dataset", group, parent, sub });
+        return await Serve(src, name, ct);
+    }
+
+    private async Task<IActionResult> Serve(DataSource src, string? name, CancellationToken ct)
+    {
         if (src.Access == DataAccess.Authenticated && !currentUser.IsAuthenticated)
             return StatusCode(401, new { error = "authentication required", hint = "mint an API key at /api/v1/keys or log in" });
 

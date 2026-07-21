@@ -15,12 +15,6 @@ public sealed class DataCatalog
         WriteIndented = true,
     };
 
-    private static readonly JsonSerializerOptions CamelJson = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true,
-    };
-
     private readonly IReadOnlyList<DataSource> _sources;
     private readonly Dictionary<string, DataSource> _byRoute;
 
@@ -39,6 +33,15 @@ public sealed class DataCatalog
             string.Equals(s.Group, group, StringComparison.Ordinal) &&
             string.Equals(s.Id, id, StringComparison.Ordinal));
 
+    public DataSource? ByChild(string group, string parentId, string subId) =>
+        _sources.FirstOrDefault(s =>
+            string.Equals(s.Group, group, StringComparison.Ordinal) &&
+            string.Equals(s.Extends, parentId, StringComparison.Ordinal) &&
+            string.Equals(s.Id, subId, StringComparison.Ordinal));
+
+    public IReadOnlyList<DataSource> Children(DataSource parent) =>
+        _sources.Where(s => string.Equals(s.Extends, parent.Id, StringComparison.Ordinal)).ToArray();
+
     public DataSource? ByWireRoute(string route) => _byRoute.GetValueOrDefault(route);
 
     public IReadOnlyList<DataSource> ByGroup(string group) =>
@@ -54,7 +57,9 @@ public sealed class DataCatalog
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-    public string UrlFor(DataSource s) => $"/api/v1/data/{s.Group}/{s.Id}";
+    public string UrlFor(DataSource s) => s.Extends is null
+        ? $"/api/v1/data/{s.Group}/{s.Id}"
+        : $"/api/v1/data/{s.Group}/{s.Extends}/{s.Id}";
 
     public static string EgressUrl(DataSource s) => $"https://www.auxbrain.com/{s.WireRoute}";
 
@@ -73,18 +78,22 @@ public sealed class DataCatalog
             "ei/get_config", null,
             p => new Ei.ConfigRequest { Rinfo = new Ei.BasicRequestInfo { Platform = p } }.ToByteArray()),
 
-        Derived("colleggtibles", "Colleggtibles", "Custom-egg buff defs extracted from get_periodicals.",
-            "ei/get_periodicals", ProduceColleggtibles),
-        Derived("eiafx", "eiafx data", "Artifact families/tiers extracted from ei_afx/config + get_config icons.",
-            "ei_afx/config", ProduceEiAfx),
-        Derived("boost-costs", "Boost costs", "Boost price/token/SE costs extracted from get_config.",
-            "ei/get_config", ProduceBoostCosts),
+        new DataSource("colleggtibles", "periodical", "Colleggtibles",
+            "Custom-egg buff defs extracted from get_periodicals.",
+            DataProvenance.GameDataEmbedded, DataAccess.Public,
+            null, null, new DataRefresh(false), false,
+            (ctx, ct) => Task.FromResult(EmbeddedJson("colleggtibles.json")),
+            Extends: "get_periodicals"),
+        new DataSource("eiafx", "periodical", "eiafx data",
+            "Artifact families/tiers extracted from ei_afx/config + get_config icons.",
+            DataProvenance.DerivedExtract, DataAccess.Public,
+            "ei_afx/config", null, new DataRefresh(false), false,
+            ProduceEiAfx, Extends: "afx-config"),
 
         Embedded("boost", "Boosts", "boosts.json", "boosts.json"),
         Embedded("research", "Research", "research.json", "research.json"),
         Embedded("hab", "Habs", "habs.json", "habs.json"),
         Embedded("artifact", "Artifacts", "artifacts.json", "artifacts.json"),
-        Embedded("colleggtibles", "Colleggtibles", "colleggtibles.json", "colleggtibles.json"),
 
         new DataSource("icon", "asset", "Game icon", "Boost/artifact icon PNG by asset name.",
             DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceIcon),
@@ -95,11 +104,6 @@ public sealed class DataCatalog
         new(id, "periodical", display, desc, DataProvenance.WireFixture, DataAccess.Authenticated,
             route, feed, new DataRefresh(true), false,
             (ctx, ct) => Task.FromResult(FixtureJson(ctx, route)), egressRequest);
-
-    private static DataSource Derived(string id, string display, string desc, string route,
-        Func<DataProduceContext, CancellationToken, Task<DataPayload?>> produce) =>
-        new(id, "derived", display, desc, DataProvenance.DerivedExtract, DataAccess.Public,
-            route, null, new DataRefresh(false), false, produce);
 
     private static DataSource Embedded(string id, string display, string desc, string resource) =>
         new(id, "gamedata", display, desc, DataProvenance.GameDataEmbedded, DataAccess.Public,
@@ -140,33 +144,6 @@ public sealed class DataCatalog
         using var stream = asm.GetManifestResourceStream(full)!;
         using var reader = new StreamReader(stream);
         return DataPayload.Json(reader.ReadToEnd());
-    }
-
-    private static Task<DataPayload?> ProduceColleggtibles(DataProduceContext ctx, CancellationToken ct)
-    {
-        var json = FixtureText(ctx, "ei/get_periodicals");
-        if (json is null) return Task.FromResult<DataPayload?>(null);
-        var extract = ColleggtibleExtractor.FromPeriodicalsJson(json);
-        var dto = new
-        {
-            count = extract.Eggs.Count,
-            eggs = extract.Eggs.Select(e => new { e.Identifier, e.Dimension, e.TierValues }),
-            contractEggMap = extract.ContractEggMap,
-        };
-        return Task.FromResult<DataPayload?>(DataPayload.Json(JsonSerializer.Serialize(dto, CamelJson)));
-    }
-
-    private static Task<DataPayload?> ProduceBoostCosts(DataProduceContext ctx, CancellationToken ct)
-    {
-        var json = FixtureText(ctx, "ei/get_config");
-        if (json is null) return Task.FromResult<DataPayload?>(null);
-        var costs = BoostCostExtractor.FromConfigJson(json);
-        var dto = new
-        {
-            count = costs.Count,
-            costs = costs.Select(kv => new { boostId = kv.Key, kv.Value.Price, kv.Value.TokenPrice, kv.Value.SeRequired }),
-        };
-        return Task.FromResult<DataPayload?>(DataPayload.Json(JsonSerializer.Serialize(dto, CamelJson)));
     }
 
     private static Task<DataPayload?> ProduceEiAfx(DataProduceContext ctx, CancellationToken ct)

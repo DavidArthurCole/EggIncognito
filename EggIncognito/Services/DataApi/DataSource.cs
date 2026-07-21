@@ -34,4 +34,5 @@ public sealed record DataSource(
     DataRefresh Refresh,
     bool AcceptsName,
     Func<DataProduceContext, CancellationToken, Task<DataPayload?>> Produce,
-    Func<string, byte[]>? BuildEgressRequest = null);
+    Func<string, byte[]>? BuildEgressRequest = null,
+    string? Extends = null);
