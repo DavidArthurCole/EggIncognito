@@ -290,6 +290,7 @@
   }
   .bytes-label { @apply text-muted text-[10px] uppercase mt-1 mb-0.5; }
   .no-json { @apply text-muted text-xs mb-1.5; }
+  .empty-box { @apply border border-dashed border-border rounded bg-bg text-muted text-xs px-3 py-4 text-center; }
   /* Boxed data wrapper with an inner toolbar. */
   .data-box { @apply border border-border rounded bg-bg; }
   .data-box .data-tools { @apply p-1.5 border-b border-border flex-wrap; }
@@ -551,8 +552,12 @@
      Inline grid styles cannot do media queries, so this lives here. */
   .inspector-main { @apply grid-cols-1; }
   .capture-body { @apply grid grid-cols-1 flex-1 min-h-0; }
-  .capture-topbar { @apply flex flex-row flex-wrap items-center gap-x-8 gap-y-3; }
+  .capture-topbar { @apply flex flex-row flex-wrap items-center gap-x-5 gap-y-3; }
+  .capture-topbar-btns { @apply flex items-center gap-1.5; }
   .capture-topbar-spacer { @apply flex-1 min-w-[1rem]; }
+  .capture-device { @apply flex flex-col leading-tight; }
+  .capture-device-tag { @apply text-[10px] uppercase tracking-wide text-accent2 font-semibold; }
+  .capture-device-name { @apply text-sm font-medium truncate max-w-[16rem]; }
   @media (min-width: 1024px) {
     .inspector-main {
       grid-template-columns: 270px 1fr 1fr;

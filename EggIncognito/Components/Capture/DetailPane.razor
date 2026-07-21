@@ -167,16 +167,7 @@ else
         var paramsSection = BuildParams(f);
         if (paramsSection is not null) builder.AddContent(seq++, paramsSection);
 
-        var emptyNote = !string.IsNullOrEmpty(f.RequestDataB64) ? "(no decoded JSON)" : "(no request body)";
-        builder.OpenComponent<FormatView>(seq++);
-        builder.AddComponentParameter(seq++, nameof(FormatView.Label), "Request");
-        builder.AddComponentParameter(seq++, nameof(FormatView.ShowLabel), false);
-        builder.AddComponentParameter(seq++, nameof(FormatView.JsonStr), View.PickJson(f.RequestJson, f.RequestJsonRaw));
-        builder.AddComponentParameter(seq++, nameof(FormatView.RawB64), f.RequestDataB64);
-        builder.AddComponentParameter(seq++, nameof(FormatView.EmptyNote), emptyNote);
-        builder.AddComponentParameter(seq++, nameof(FormatView.View), View);
-        builder.AddComponentParameter(seq++, nameof(FormatView.FormatChoice), _formatChoice);
-        builder.CloseComponent();
+        builder.AddContent(seq++, RequestBodySection(f));
 
         if (View.ShowHeaders)
         {
@@ -184,6 +175,28 @@ else
             if (sec is not null) builder.AddContent(seq++, sec);
         }
     };
+
+    RenderFragment RequestBodySection(DashboardFlow f)
+    {
+        var hasBody = !string.IsNullOrEmpty(f.RequestJson)
+            || !string.IsNullOrEmpty(f.RequestJsonRaw)
+            || !string.IsNullOrEmpty(f.RequestDataB64);
+        return @<div>
+            <div class="section-head"><h3>Body</h3></div>
+            @if (hasBody)
+            {
+              <FormatView Label="Request" ShowLabel="false"
+                          JsonStr="@View.PickJson(f.RequestJson, f.RequestJsonRaw)"
+                          RawB64="@f.RequestDataB64"
+                          EmptyNote="@(!string.IsNullOrEmpty(f.RequestDataB64) ? "(no decoded JSON)" : "No request body")"
+                          View="View" FormatChoice="_formatChoice" />
+            }
+            else
+            {
+              <div class="empty-box">No request body</div>
+            }
+          </div>;
+    }
 
     RenderFragment ResponsePane() => builder =>
     {
