@@ -9,11 +9,11 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/v1/data")]
-[EnableRateLimiting("data")]
 [ApiAccess(ApiAccessLevel.Public)]
 public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentUser) : ControllerBase
 {
     [HttpGet]
+    [EnableRateLimiting("read")]
     public IActionResult Index()
     {
         var items = catalog.Sources.Select(s => new
@@ -33,6 +33,7 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
     }
 
     [HttpGet("{group}/{id}")]
+    [EnableRateLimiting("data")]
     public async Task<IActionResult> Get(string group, string id, [FromQuery] string? name, CancellationToken ct)
     {
         var src = catalog.ById(group, id);
