@@ -8,7 +8,8 @@ public sealed record CaptureSessionOptions(
     bool Verbose,
     string CapturePath,
     string CaPath,
-    bool WriteEndpoints = true)
+    bool WriteEndpoints = true,
+    EggIncognito.Services.IEndpointWriteObserver? WriteObserver = null)
 {
     public string HarFileName()
     {

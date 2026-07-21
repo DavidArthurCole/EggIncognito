@@ -7,6 +7,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/assets")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
 public sealed class AssetsController(GameAssetProvider assets) : ControllerBase
 {

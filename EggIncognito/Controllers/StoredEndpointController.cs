@@ -9,6 +9,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/db")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("write")]
 public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
 {

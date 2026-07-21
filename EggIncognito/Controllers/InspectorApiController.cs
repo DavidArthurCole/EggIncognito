@@ -10,6 +10,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/inspector")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 #pragma warning disable S107
 public sealed class InspectorApiController(
     IRouteCatalog catalog,

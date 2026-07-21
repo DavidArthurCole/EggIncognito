@@ -1,22 +1,17 @@
 using System.Security.Cryptography;
 using System.Text;
+using EggIncognito.Services.DataApi;
 
 namespace EggIncognito.Services.Feed;
 
 public sealed class PeriodicalsChangeNotifier(
-    IServiceScopeFactory scopes, IConfiguration config, ILogger<PeriodicalsChangeNotifier> logger)
+    IServiceScopeFactory scopes, IConfiguration config, DataCatalog catalog,
+    ILogger<PeriodicalsChangeNotifier> logger)
     : IEndpointWriteObserver
 {
-    private static readonly IReadOnlyDictionary<string, string> FeedByRoute = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        ["ei/get_periodicals"] = "periodicals",
-        ["ei_afx/config"] = "afx-config",
-        ["ei_ctx/get_season_infos_v2"] = "season-infos",
-    };
-
     public void OnEndpointWritten(string routePath, string json)
     {
-        if (!FeedByRoute.TryGetValue(routePath, out var feed)) return;
+        if (catalog.ByWireRoute(routePath)?.Feed is not { } feed) return;
         var sha = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
         var pageUrl = PageUrl(config["Feed:PageBaseUrl"]);
         _ = Task.Run(async () =>

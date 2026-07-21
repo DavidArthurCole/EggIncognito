@@ -6,6 +6,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/gamedata")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
 public sealed class GameDataController(IGameDataProvider provider) : ControllerBase
 {

@@ -8,6 +8,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/protos/feed")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFactory httpFactory)
     : ControllerBase
 {

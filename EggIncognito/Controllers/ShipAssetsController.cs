@@ -7,6 +7,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/ship-assets")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
 public sealed class ShipAssetsController(IConfiguration config) : ControllerBase
 {

@@ -7,6 +7,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/env")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser currentUser, GameBinaryProvider binaries) : ControllerBase
 {
    

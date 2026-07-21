@@ -6,6 +6,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [EnableRateLimiting("read")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBase
 {
     [HttpGet("/api")]

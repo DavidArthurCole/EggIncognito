@@ -6,6 +6,7 @@ using EggIncognito.Services;
 namespace EggIncognito.Controllers;
 
 [ApiController]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorService behaviors) : ControllerBase
 {
     private readonly IEndpointStore _endpoints = endpoints;

@@ -4,6 +4,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/app/version")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class AppVersionController : ControllerBase
 {
     private const string RepoUrl = "https://github.com/davidarthurcole/EggIncognito";

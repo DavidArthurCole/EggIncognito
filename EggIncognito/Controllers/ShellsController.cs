@@ -9,6 +9,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/shells")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class ShellsController(
     GameConfigStore configStore, ShipShellDownloader downloader, MeshAssetCache cache,
     IAppMode appMode, ICurrentUser currentUser) : ControllerBase

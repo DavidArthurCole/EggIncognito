@@ -77,6 +77,7 @@ public sealed class CaptureSession
             {
                 _extractor = EndpointExtractor.ForRepo(_contentRoot, _opts.Eid, EidPlaceholder, _opts.Overwrite);
                 _extractor.Quiet = true;
+                _extractor.WriteObserver = _opts.WriteObserver;
             }
             _har = new HarWriter();
             var decoder = new FlowDecoder(_contentRoot);

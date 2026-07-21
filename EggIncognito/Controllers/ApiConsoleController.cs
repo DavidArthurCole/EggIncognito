@@ -8,6 +8,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/console")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Admin)]
 [EnableRateLimiting("read")]
 public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider explorer, ICurrentUser currentUser) : ControllerBase
 {

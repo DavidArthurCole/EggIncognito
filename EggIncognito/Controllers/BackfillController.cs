@@ -17,6 +17,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/protos/backfill")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("write")]
 public sealed class BackfillController(IServiceProvider services, ICurrentUser user) : ControllerBase
 {

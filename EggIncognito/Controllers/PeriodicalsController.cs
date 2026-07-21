@@ -1,7 +1,8 @@
-using System.Text.Json;
+using System.Text;
 using EggIncognito.Data.Models;
 using EggIncognito.GameData;
 using EggIncognito.Services;
+using EggIncognito.Services.DataApi;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
@@ -10,27 +11,18 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/periodicals")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Admin)]
 [EnableRateLimiting("read")]
 public sealed class PeriodicalsController(
     ICurrentUser currentUser,
     IConfiguration config,
+    DataCatalog catalog,
     IServiceProvider services) : ControllerBase
 {
-    private static readonly JsonSerializerOptions SnakeJson = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        WriteIndented = true,
-    };
-
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
     private string DefaultsDir => Path.Combine(Root, "Endpoints", "default");
 
-    private static readonly Dictionary<string, string[]> Feeds = new(StringComparer.Ordinal)
-    {
-        ["periodicals"] = ["ei", "get_periodicals.json"],
-        ["afx-config"] = ["ei_afx", "config.json"],
-        ["season-infos"] = ["ei_ctx", "get_season_infos_v2.json"],
-    };
+    private IEnumerable<DataSource> WireSources => catalog.ByGroup("periodical");
 
     private IActionResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
@@ -83,80 +75,52 @@ public sealed class PeriodicalsController(
             extracted,
             colleggtibles,
             config = new { enabled = configEnabled, platforms },
-            feeds = Feeds.Keys.Select(FeedInfo).ToArray(),
+            feeds = WireSources.Select(FeedInfo).ToArray(),
         });
     }
 
     [HttpGet("feed/{name}")]
-    public IActionResult Feed(string name)
+    public async Task<IActionResult> Feed(string name, CancellationToken ct)
     {
         if (RequireAdmin() is { } no) return no;
-        if (!Feeds.TryGetValue(name, out var parts)) return NotFound(new { error = "unknown feed" });
+        var src = WireSources.FirstOrDefault(s => string.Equals(s.Feed, name, StringComparison.Ordinal));
+        if (src is null) return NotFound(new { error = "unknown feed" });
 
-        var path = Path.Combine(DefaultsDir, parts[0], parts[1]);
-        if (!System.IO.File.Exists(path)) return NotFound(new { error = "no capture on disk" });
-
-        var json = System.IO.File.ReadAllText(path);
-        return Content(json, "application/json");
+        var payload = await src.Produce(new DataProduceContext(HttpContext, null), ct);
+        if (payload is null) return NotFound(new { error = "no capture on disk" });
+        return Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
     }
 
-    private static readonly Dictionary<string, string> GameDataResources = new(StringComparer.Ordinal)
-    {
-        ["boost"] = "boosts.json",
-        ["research"] = "research.json",
-        ["hab"] = "habs.json",
-        ["artifact"] = "artifacts.json",
-        ["colleggtibles"] = "colleggtibles.json",
-    };
-
     [HttpGet("gamedata/{key}")]
-    public IActionResult GameData(string key)
+    public async Task<IActionResult> GameData(string key, CancellationToken ct)
     {
         if (RequireAdmin() is { } no) return no;
-        if (!GameDataResources.TryGetValue(key, out var file)) return NotFound(new { error = "unknown dataset" });
+        var src = catalog.ById("gamedata", $"gamedata-{key}");
+        if (src is null) return NotFound(new { error = "unknown dataset" });
 
-        var asm = typeof(ColleggtibleCatalog).Assembly;
-        var full = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(file, StringComparison.Ordinal));
-        if (full is null) return NotFound(new { error = "resource not found" });
-
-        using var stream = asm.GetManifestResourceStream(full)!;
-        using var reader = new StreamReader(stream);
-        return Content(reader.ReadToEnd(), "application/json");
+        var payload = await src.Produce(new DataProduceContext(HttpContext, null), ct);
+        if (payload is null) return NotFound(new { error = "resource not found" });
+        return Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
     }
 
     [HttpGet("eiafx-data")]
-    public IActionResult EiAfxData()
+    public async Task<IActionResult> EiAfxData(CancellationToken ct)
     {
         if (RequireAdmin() is { } no) return no;
+        var src = catalog.ById("derived", "eiafx");
+        if (src is null) return NotFound(new { error = "eiafx source missing" });
 
-        var path = Path.Combine(DefaultsDir, "ei_afx", "config.json");
-        if (!System.IO.File.Exists(path)) return NotFound(new { error = "no ei_afx/config capture" });
-
-        try
-        {
-            var json = System.IO.File.ReadAllText(path);
-            var icons = LoadArtifactIcons();
-            var data = EiAfxDataBuilder.BuildFromJson(json, icons, "captured@ei_afx/config + get_config");
-            return Content(JsonSerializer.Serialize(data, SnakeJson), "application/json");
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { error = ex.Message });
-        }
-    }
-
-    private IReadOnlyDictionary<string, string> LoadArtifactIcons()
-    {
-        var path = Path.Combine(DefaultsDir, "ei", "get_config.json");
-        if (!System.IO.File.Exists(path)) return new Dictionary<string, string>();
-        try { return DlcArtifactIcons.FromConfigJson(System.IO.File.ReadAllText(path)); }
-        catch { return new Dictionary<string, string>(); }
+        var payload = await src.Produce(new DataProduceContext(HttpContext, null), ct);
+        if (payload is null) return NotFound(new { error = "no ei_afx/config capture" });
+        return Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
     }
 
     private IReadOnlyDictionary<string, string> LoadColleggtibleIcons()
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        var path = Path.Combine(DefaultsDir, "ei", "get_periodicals.json");
+        var route = catalog.ById("derived", "colleggtibles")?.WireRoute;
+        if (route is null) return map;
+        var path = FixturePath(route);
         if (!System.IO.File.Exists(path)) return map;
         try
         {
@@ -172,20 +136,27 @@ public sealed class PeriodicalsController(
         return map;
     }
 
+    private string FixturePath(string route)
+    {
+        var parts = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var file = parts[^1] + ".json";
+        return Path.Combine(DefaultsDir, Path.Combine(parts[..^1]), file);
+    }
+
     private static readonly IReadOnlyDictionary<int, string> DimNames =
         ColleggtibleCatalog.DimensionCodes.ToDictionary(kv => kv.Value, kv => kv.Key);
 
     private static string DimensionName(int code) => DimNames.TryGetValue(code, out var n) ? n : code.ToString();
 
-    private object FeedInfo(string name)
+    private object FeedInfo(DataSource src)
     {
-        var parts = Feeds[name];
-        var path = Path.Combine(DefaultsDir, parts[0], parts[1]);
+        var route = src.WireRoute!;
+        var path = FixturePath(route);
         var exists = System.IO.File.Exists(path);
         return new
         {
-            name,
-            path = $"{parts[0]}/{Path.GetFileNameWithoutExtension(parts[1])}",
+            name = src.Feed,
+            path = route,
             present = exists,
             bytes = exists ? new FileInfo(path).Length : 0,
         };

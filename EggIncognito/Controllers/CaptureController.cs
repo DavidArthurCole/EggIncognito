@@ -14,6 +14,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/capture")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class CaptureController(
     CaptureSessionManager manager,
     IAppMode appMode,

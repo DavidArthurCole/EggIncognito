@@ -62,7 +62,7 @@ builder.WebHost.ConfigureKestrel((context, opts) =>
     opts.ListenAnyIP(httpsPort, o => o.UseHttps(X509Certificate2.CreateFromPemFile(certFile, keyFile)));
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(o => o.Filters.Add<EggIncognito.Services.Auth.ApiAccessFilter>());
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
@@ -115,6 +115,7 @@ builder.Services.AddScoped<EggIncognito.Services.GameBinaryProvider>();
 
 builder.Services.AddSingleton<EggIncognito.Services.GameConfigStore>();
 builder.Services.AddSingleton<EggIncognito.Services.Feed.PeriodicalsChangeNotifier>();
+builder.Services.AddSingleton<EggIncognito.Services.DataApi.DataCatalog>();
 var sealedProxyOptions = EggIncognito.Services.SealedProxyOptions.FromConfig(builder.Configuration);
 builder.Services.AddSingleton(sealedProxyOptions);
 builder.Services.AddSingleton<EggIncognito.Services.ISealedProxy, EggIncognito.Services.SealedProxy>();
@@ -379,7 +380,8 @@ builder.Services.AddSingleton(sp =>
                 Overwrite: config.GetValue("CaptureOverwrite", false),
                 Verbose: config.GetValue("CaptureVerbose", false),
                 CapturePath: capturePath,
-                CaPath: caPath);
+                CaPath: caPath,
+                WriteObserver: sp.GetService<EggIncognito.Services.Feed.PeriodicalsChangeNotifier>());
             return new EggIncognito.Capture.CaptureSession(contentRoot, opts);
         }
        
@@ -417,6 +419,7 @@ if (dbEnabled)
     builder.Services.AddScoped<EggIncognito.Data.Services.IFeedSubscriptionStore>(
         sp => sp.GetRequiredService<EggIncognito.Data.Services.FeedSubscriptionStore>());
     builder.Services.AddScoped<EggIncognito.Services.Feed.FeedDispatcher>();
+    builder.Services.AddScoped<EggIncognito.Data.Services.ApiKeyStore>();
 
 
     builder.Services.AddScoped<EggIncognito.Data.Services.IProtoBackfillStore>(
@@ -617,8 +620,9 @@ app.UseRouting();
 if (authEnabled)
 {
     app.UseAuthentication();
+    app.UseMiddleware<EggIncognito.Services.Auth.ApiKeyResolutionMiddleware>();
     app.UseAuthorization();
-   
+
     app.UseMiddleware<EggIncognito.Services.LoginCallbackMiddleware>();
 }
 app.UseAntiforgery();

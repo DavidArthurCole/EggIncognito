@@ -17,6 +17,7 @@ public sealed record RateLimitOptions(
             ["Viewer"] = new(PermitLimit: 120, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Contributor"] = new(PermitLimit: 600, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Supporter"] = new(PermitLimit: 1200, WindowSeconds: 60, SegmentsPerWindow: 6),
+            ["Keyed"] = new(PermitLimit: 600, WindowSeconds: 60, SegmentsPerWindow: 6),
         },
         Policies: new Dictionary<string, RateLimit>
         {
@@ -24,9 +25,11 @@ public sealed record RateLimitOptions(
             ["Egress"] = new(PermitLimit: 10, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Write"] = new(PermitLimit: 60, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Read"] = new(PermitLimit: 120, WindowSeconds: 60, SegmentsPerWindow: 6),
-           
-           
+
+
             ["Fetch"] = new(PermitLimit: 300, WindowSeconds: 60, SegmentsPerWindow: 6),
+            ["Data"] = new(PermitLimit: 600, WindowSeconds: 60, SegmentsPerWindow: 6),
+            ["DataAnon"] = new(PermitLimit: 1, WindowSeconds: 3600, SegmentsPerWindow: 1),
         });
 
     public static RateLimitOptions Bind(IConfiguration config)

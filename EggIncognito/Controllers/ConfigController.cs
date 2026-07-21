@@ -8,14 +8,15 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/config")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class ConfigController(
     GameConfigStore store, ITransportPipeline pipeline, IHttpClientFactory httpFactory,
     ICurrentUser currentUser, IAppMode appMode, IConfiguration config,
     EggIncognito.Services.Feed.PeriodicalsChangeNotifier notifier,
+    EggIncognito.Services.DataApi.DataCatalog catalog,
     ILogger<ConfigController> logger) : ControllerBase
 {
     private const string GetConfigUrl = "https://www.auxbrain.com/ei/get_config";
-    private const string GetPeriodicalsUrl = "https://www.auxbrain.com/ei/get_periodicals";
 
     [HttpGet]
     public IActionResult List()
@@ -167,12 +168,15 @@ public sealed class ConfigController(
             return new { endpoint = label, ok = written is not null, path = written };
         }
 
-        var cfg = await One(GetConfigUrl, "ei/get_config",
-            new Ei.ConfigRequest { Rinfo = new Ei.BasicRequestInfo { Platform = platform } }.ToByteArray());
-        var per = await One(GetPeriodicalsUrl, "ei/get_periodicals",
-            new Ei.GetPeriodicalsRequest { Rinfo = new Ei.BasicRequestInfo { Platform = platform } }.ToByteArray());
+        var results = new List<object>();
+        foreach (var src in catalog.EgressSources())
+        {
+            if (src.BuildEgressRequest is null) continue;
+            results.Add(await One(
+                EggIncognito.Services.DataApi.DataCatalog.EgressUrl(src), src.WireRoute!, src.BuildEgressRequest(platform)));
+        }
 
-        return Ok(new { results = new[] { cfg, per } });
+        return Ok(new { results });
     }
 
     private async Task<(bool Ok, string Raw, string Diag)> FetchRawAsync(string url, byte[] inner, string? salt, CancellationToken ct)

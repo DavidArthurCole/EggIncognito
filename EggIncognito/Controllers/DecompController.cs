@@ -10,6 +10,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/decomp")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Admin)]
 public sealed class DecompController(
     GameBinaryProvider binaries, ICurrentUser currentUser, DeviceCaptureConfig capture,
     IProcessRunner runner, IWebHostEnvironment env) : ControllerBase

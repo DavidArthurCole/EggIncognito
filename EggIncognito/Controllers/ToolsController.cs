@@ -8,6 +8,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/tools")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
 public sealed class ToolsController(IConfiguration config, IProtoReflection reflection) : ControllerBase
 {

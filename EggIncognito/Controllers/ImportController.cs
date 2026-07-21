@@ -8,6 +8,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/import")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("write")]
 public sealed class ImportController(
     IConfiguration config, IAppMode appMode,

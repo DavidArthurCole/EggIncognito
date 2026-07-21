@@ -9,6 +9,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/protos/versions")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("write")]
 public sealed class ProtoRegistryController(IServiceProvider services, ICurrentUser user) : ControllerBase
 {
@@ -89,6 +90,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
    
    
     [HttpGet("merge-suggestions")]
+    [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Authenticated)]
     public async Task<IActionResult> MergeSuggestions(CancellationToken ct)
     {
         if (Store is not { } store) return Ok(Array.Empty<object>());
@@ -131,6 +133,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
    
     [HttpGet("/api/protos/staged/check")]
+    [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Authenticated)]
     public async Task<IActionResult> StagedCheck(
         [FromQuery] string platform, [FromQuery] string? appVersion, [FromQuery] string protoSha, CancellationToken ct)
     {
@@ -154,6 +157,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
    
     [HttpGet("/api/protos/staged/count")]
+    [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Authenticated)]
     public async Task<IActionResult> StagedCount(CancellationToken ct)
     {
         if (StagedStore is not { } s) return Ok(new { count = 0 });

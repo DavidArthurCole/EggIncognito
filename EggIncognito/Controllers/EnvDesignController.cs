@@ -10,6 +10,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/env/designs")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
 {
     private const int MaxPayloadBytes = 2_000_000;

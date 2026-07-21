@@ -28,6 +28,7 @@ public static class RateLimiterSetup
             AddPolicy(o, "read", opts);
            
             o.AddPolicy("fetch", ctx => Partition(ctx, "Fetch", opts, tierCapped: false));
+            o.AddPolicy("data", ctx => DataPartition(ctx, opts));
 
             o.OnRejected = async (ctx, ct) =>
             {
@@ -93,4 +94,39 @@ public static class RateLimiterSetup
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
             });
     }
+
+
+
+
+    private static RateLimitPartition<string> DataPartition(HttpContext ctx, RateLimitOptions opts)
+    {
+        var user = ctx.RequestServices.GetRequiredService<ICurrentUser>();
+        if (IsExempt(user)) return RateLimitPartition.GetNoLimiter($"admin:{user.DiscordId}");
+
+        var hosted = ctx.RequestServices.GetRequiredService<IAppMode>().Mode == AppMode.Hosted;
+
+        if (ctx.User.FindFirst(DataApi.ApiKeyGen.Claim) is { } keyClaim)
+        {
+            var permit = Math.Min(opts.Policies["Data"].PermitLimit, opts.Tiers["Keyed"].PermitLimit);
+            return Sliding($"data:apikey:{keyClaim.Value}", permit, opts.Policies["Data"]);
+        }
+        if (user.IsAuthenticated && user.UserId is { } uid)
+        {
+            var permit = EffectivePermit(opts, RateLimitKeys.TiersFor(user), "Data");
+            return Sliding($"data:user:{uid}", permit, opts.Policies["Data"]);
+        }
+        var anon = opts.Policies["DataAnon"];
+        return Sliding($"data:ip:{RateLimitKeys.ClientIp(ctx, hosted)}", anon.PermitLimit, anon);
+    }
+
+    private static RateLimitPartition<string> Sliding(string key, int permit, RateLimit policy) =>
+        RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
+            new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = permit,
+                Window = TimeSpan.FromSeconds(policy.WindowSeconds),
+                SegmentsPerWindow = policy.SegmentsPerWindow,
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            });
 }

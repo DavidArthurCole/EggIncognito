@@ -7,6 +7,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/protos")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 
 [EnableRateLimiting("fetch")]
 public sealed class ProtosController(IServiceProvider services) : ControllerBase

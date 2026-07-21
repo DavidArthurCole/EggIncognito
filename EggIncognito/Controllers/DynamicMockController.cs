@@ -6,6 +6,7 @@ namespace EggIncognito.Controllers;
 
 
 [ApiController]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class DynamicMockController(
     IRouteCatalog routes,
     IEndpointStore endpoints,

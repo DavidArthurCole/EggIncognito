@@ -1,5 +1,6 @@
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -45,7 +46,9 @@ public static class AuthSetup
                 o.Cookie.SameSite = SameSiteMode.Lax;
                 o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
                 o.Events.OnValidatePrincipal = ValidateNotRevoked;
-            });
+            })
+            .AddScheme<AuthenticationSchemeOptions, Auth.ApiKeyAuthenticationHandler>(
+                DataApi.ApiKeyGen.SchemeName, null);
         builder.Services.AddAuthorization();
         return true;
     }

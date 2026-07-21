@@ -33,9 +33,9 @@ public class PlaygroundTests
     {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/devices/some-device/list-meshes");
-       
-        Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
-            $"expected 403/503, got {(int)r.StatusCode}");
+
+        Assert.True(r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
+            $"expected 401/403/503, got {(int)r.StatusCode}");
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class PlaygroundTests
     {
         var c = _factory.CreateClient();
         var r = await c.PostAsync("/api/devices/x/precache-meshes", null);
-        Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable);
+        Assert.True(r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable);
     }
 
     [Fact]

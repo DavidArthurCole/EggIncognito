@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EggIncognito.Controllers;
 
 [ApiController]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public sealed class AuthController(AuthState authState, ICurrentUser currentUser) : ControllerBase
 {
     [HttpPost("/logout")]

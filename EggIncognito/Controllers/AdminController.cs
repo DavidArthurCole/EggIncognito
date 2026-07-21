@@ -13,6 +13,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/admin")]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Admin)]
 [EnableRateLimiting("write")]
 public sealed class AdminController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
 {
@@ -21,6 +22,8 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
     private IActionResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
+
+    private ApiKeyStore? Keys => services.GetService(typeof(ApiKeyStore)) as ApiKeyStore;
 
     public sealed record SetRole(string Role);
 
@@ -32,6 +35,31 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         var users = await identity.ListAdminUsersAsync(HttpContext.RequestAborted);
         var rows = users.Select(u => new { u.DiscordId, u.Username, u.Role, u.LastLoginAt });
         return Ok(rows);
+    }
+
+    [HttpGet("api-keys")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> ApiKeys(CancellationToken ct)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Keys;
+        if (store is null) return Ok(Array.Empty<object>());
+        var rows = await store.AllAsync(ct);
+        return Ok(rows.Select(k => new
+        {
+            k.Id, k.Name, k.Prefix, k.OwnerUserId, k.CreatedAt, k.LastUsedAt, k.RequestCount, k.Revoked, k.RevokedAt,
+        }));
+    }
+
+    [HttpDelete("api-keys/{id:int}")]
+    public async Task<IActionResult> RevokeApiKey(int id, CancellationToken ct)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Keys;
+        if (store is null) return StatusCode(503, new { error = "no database configured" });
+        var ok = await store.AdminRevokeAsync(id, ct);
+        if (!ok) return NotFound(new { error = "key not found" });
+        return Ok(new { revoked = true });
     }
 
    

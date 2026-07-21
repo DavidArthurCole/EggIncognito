@@ -4,6 +4,7 @@ using EggIncognito.Services;
 namespace EggIncognito.Controllers;
 
 [ApiController]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 public class SimulationController(IBehaviorService behaviors) : ControllerBase
 {
     [HttpOptions("/")]
