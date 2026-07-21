@@ -80,11 +80,11 @@ public sealed class DataCatalog
         Derived("boost-costs", "Boost costs", "Boost price/token/SE costs extracted from get_config.",
             "ei/get_config", ProduceBoostCosts),
 
-        Embedded("gamedata-boost", "GameData boosts", "boosts.json", "boosts.json"),
-        Embedded("gamedata-research", "GameData research", "research.json", "research.json"),
-        Embedded("gamedata-hab", "GameData habs", "habs.json", "habs.json"),
-        Embedded("gamedata-artifact", "GameData artifacts", "artifacts.json", "artifacts.json"),
-        Embedded("gamedata-colleggtibles", "GameData colleggtibles", "colleggtibles.json", "colleggtibles.json"),
+        Embedded("boost", "Boosts", "boosts.json", "boosts.json"),
+        Embedded("research", "Research", "research.json", "research.json"),
+        Embedded("hab", "Habs", "habs.json", "habs.json"),
+        Embedded("artifact", "Artifacts", "artifacts.json", "artifacts.json"),
+        Embedded("colleggtibles", "Colleggtibles", "colleggtibles.json", "colleggtibles.json"),
 
         new DataSource("icon", "asset", "Game icon", "Boost/artifact icon PNG by asset name.",
             DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceIcon),

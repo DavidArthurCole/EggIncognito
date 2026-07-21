@@ -18,11 +18,6 @@ else if (_summary is null && _catalog is null)
 else
 {
   <div class="flex flex-col gap-6">
-    <section class="panel">
-      <p class="text-sm m-0 mb-1">Extracted game data, served from the catalog. View or download inline, or hit the API route.</p>
-      <p class="text-muted text-xs m-0">Unauthenticated API requests are limited to 1 per hour. Log in or mint an API key below and send it as the <span class="code-chip">X-Api-Key</span> header.</p>
-    </section>
-
     @if (_catalog is not null)
     {
       @foreach (var grp in Groups)
@@ -34,27 +29,13 @@ else
           <div class="flex flex-col divide-y divide-border">
             @foreach (var s in rows)
             {
-              @if (s.AcceptsName)
-              {
-                <div class="ds-row">
-                  <div class="flex items-center justify-between gap-3 flex-wrap">
-                    <span class="font-medium">@s.DisplayName</span>
-                    <span class="text-muted text-xs">needs <span class="code-chip">?name=</span></span>
-                  </div>
-                  <a class="code-chip no-underline mono text-xs break-all" href="@s.Url">@s.Url</a>
-                </div>
-              }
-              else
-              {
-                <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
-                                   DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
-                                   SubText="@s.Url">
-                  <Badges>
-                    @if (CountBadge(s) is { } cb) { <span class="mono text-muted text-xs">@cb</span> }
-                    @if (SizeBadge(s) is { } sb) { <span class="mono text-muted text-xs">@sb</span> }
-                  </Badges>
-                </PeriodicalDataset>
-              }
+              <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
+                                 DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
+                                 SubText="@s.Url">
+                <Badges>
+                  @if (s.Bytes is { } b) { <span class="mono text-muted text-xs">@Kb(b)</span> }
+                </Badges>
+              </PeriodicalDataset>
             }
           </div>
         </section>
@@ -68,7 +49,7 @@ else
           <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
           <div class="flex items-center gap-2">
             <span class="text-muted text-xs">@c.Count</span>
-            <a class="btn-mini no-underline" href="/api/v1/data/gamedata/gamedata-colleggtibles" download="colleggtibles.json" title="Download JSON"><Icon Name="download" Class="icon-sm" /></a>
+            <a class="btn-mini no-underline" href="/api/v1/data/gamedata/colleggtibles" download="colleggtibles.json" title="Download JSON"><Icon Name="download" Class="icon-sm" /></a>
           </div>
         </div>
         <table class="reg-table">
@@ -183,7 +164,6 @@ else
     Summary? _summary;
     DataResponse? _catalog;
     string? _catalogError;
-    Dictionary<string, ExtractedRow> _extractedByKey = new();
     readonly CaptureViewState _view = new();
     readonly Dictionary<string, string> _fc = new();
     string _baseAddress = "";
@@ -205,7 +185,6 @@ else
         ("periodical", "Periodical"),
         ("derived", "Derived"),
         ("gamedata", "Game data"),
-        ("asset", "Asset"),
     ];
 
     protected override async Task OnInitializedAsync()
@@ -225,7 +204,6 @@ else
             if (fetched is not null)
             {
                 _summary = fetched;
-                _extractedByKey = fetched.Extracted.ToDictionary(e => e.Key);
             }
         }
         catch { }
@@ -256,30 +234,6 @@ else
             return res.IsSuccessStatusCode ? body : $"HTTP {(int)res.StatusCode}: {body}";
         }
         catch (Exception ex) { return ex.Message; }
-    }
-
-    string? CountBadge(Source s)
-    {
-        if (s.Id.StartsWith("gamedata-", StringComparison.Ordinal))
-        {
-            var key = s.Id["gamedata-".Length..];
-            if (_extractedByKey.TryGetValue(key, out var r)) return $"{r.Count} rows";
-        }
-        return null;
-    }
-
-    string? SizeBadge(Source s)
-    {
-        var name = s.Id switch
-        {
-            "get_periodicals" => "periodicals",
-            "afx-config" => "afx-config",
-            "season-infos" => "season-infos",
-            _ => null,
-        };
-        if (name is null) return null;
-        var f = _summary?.Feeds.FirstOrDefault(x => x.Name == name);
-        return f is { Present: true } ? Kb(f.Bytes) : null;
     }
 
     async Task LoadKeys()
@@ -358,7 +312,7 @@ else
 
     record DataResponse(int Count, List<Source> Sources);
     record Source(string Id, string Group, string Url, string DisplayName, string? Description,
-        string Provenance, string Access, string? Feed, bool AcceptsName);
+        string Provenance, string Access, string? Feed, bool AcceptsName, long? Bytes);
     record KeyRow(long Id, string Name, string Prefix, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt, long RequestCount, bool Revoked);
     record Minted(long Id, string Name, string Prefix, string Key);
 }

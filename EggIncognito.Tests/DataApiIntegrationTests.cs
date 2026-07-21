@@ -22,7 +22,7 @@ public class DataApiIntegrationTests : IClassFixture<EggIncApiFactory>
         var resp = await Client("10.10.0.1").GetAsync("/api/v1/data");
         resp.EnsureSuccessStatusCode();
         var body = await resp.Content.ReadAsStringAsync();
-        Assert.Contains("gamedata-boost", body);
+        Assert.Contains("\"boost\"", body);
         Assert.Contains("get_periodicals", body);
     }
 
@@ -46,7 +46,7 @@ public class DataApiIntegrationTests : IClassFixture<EggIncApiFactory>
     [Fact]
     public async Task PublicGamedataSource_Anon_Returns200()
     {
-        var resp = await Client("10.10.0.3").GetAsync("/api/v1/data/gamedata/gamedata-boost");
+        var resp = await Client("10.10.0.3").GetAsync("/api/v1/data/gamedata/boost");
         resp.EnsureSuccessStatusCode();
         Assert.Equal("application/json", resp.Content.Headers.ContentType?.MediaType);
     }
@@ -62,8 +62,8 @@ public class DataApiIntegrationTests : IClassFixture<EggIncApiFactory>
     public async Task Anon_SecondDataCall_IsRateLimited()
     {
         var client = Client("10.10.9.9");
-        var first = await client.GetAsync("/api/v1/data/gamedata/gamedata-boost");
-        var second = await client.GetAsync("/api/v1/data/gamedata/gamedata-boost");
+        var first = await client.GetAsync("/api/v1/data/gamedata/boost");
+        var second = await client.GetAsync("/api/v1/data/gamedata/boost");
         Assert.NotEqual(HttpStatusCode.TooManyRequests, first.StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
     }

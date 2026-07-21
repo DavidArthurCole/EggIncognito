@@ -95,7 +95,7 @@ public sealed class PeriodicalsController(
     public async Task<IActionResult> GameData(string key, CancellationToken ct)
     {
         if (RequireAdmin() is { } no) return no;
-        var src = catalog.ById("gamedata", $"gamedata-{key}");
+        var src = catalog.ById("gamedata", key);
         if (src is null) return NotFound(new { error = "unknown dataset" });
 
         var payload = await src.Produce(new DataProduceContext(HttpContext, null), ct);

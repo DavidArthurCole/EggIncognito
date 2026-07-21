@@ -14,22 +14,38 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
 {
     [HttpGet]
     [EnableRateLimiting("read")]
-    public IActionResult Index()
+    public async Task<IActionResult> Index(CancellationToken ct)
     {
-        var items = catalog.Sources.Select(s => new
+        var items = new List<object>(catalog.Sources.Count);
+        foreach (var s in catalog.Sources)
         {
-            s.Id,
-            s.Group,
-            url = catalog.UrlFor(s),
-            displayName = s.DisplayName,
-            description = s.Description,
-            provenance = s.Provenance.ToString(),
-            access = s.Access.ToString(),
-            feed = s.Feed,
-            acceptsName = s.AcceptsName,
-            refresh = new { s.Refresh.Egress, deviceTrigger = s.Refresh.Device is not null },
-        });
+            items.Add(new
+            {
+                s.Id,
+                s.Group,
+                url = catalog.UrlFor(s),
+                displayName = s.DisplayName,
+                description = s.Description,
+                provenance = s.Provenance.ToString(),
+                access = s.Access.ToString(),
+                feed = s.Feed,
+                acceptsName = s.AcceptsName,
+                bytes = await SizeOf(s, ct),
+                refresh = new { s.Refresh.Egress, deviceTrigger = s.Refresh.Device is not null },
+            });
+        }
         return Ok(new { count = catalog.Sources.Count, sources = items });
+    }
+
+    private async Task<long?> SizeOf(DataSource s, CancellationToken ct)
+    {
+        if (s.AcceptsName) return null;
+        try
+        {
+            var payload = await s.Produce(new DataProduceContext(HttpContext, null), ct);
+            return payload?.Bytes.LongLength;
+        }
+        catch { return null; }
     }
 
     [HttpGet("{group}/{id}")]

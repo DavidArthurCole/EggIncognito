@@ -244,6 +244,8 @@ if (!string.IsNullOrWhiteSpace(botToken))
             DeployAgentSecret = builder.Configuration["DEPLOY_AGENT_SECRET"] ?? builder.Configuration["Discord:DeployAgentSecret"] ?? "",
             PostgresConnectionString = dbEnabled ? pgConn! : "",
             DashboardChannelId = builder.Configuration["Discord:DashboardChannelId"] ?? "",
+            DashboardProvider = _ => Task.FromResult(DashboardSnapshotFor(status, buildInfo, startedAt, repoUrl)),
+            DashboardRefreshInterval = TimeSpan.FromMinutes(5),
             GlobalCommands = true,
             Extra = new[]
             {
@@ -260,6 +262,37 @@ if (!string.IsNullOrWhiteSpace(botToken))
    
     builder.Services.AddScoped(sp =>
         sp.GetRequiredService<EggIncognito.Bot.EggIncognitoBotHostedService>().Bot?.ConfigService!);
+
+    static SyncKit.Contract.DashboardSnapshot DashboardSnapshotFor(
+        EggIncognito.Bot.IStatusProvider status,
+        EggIncognito.Services.BuildInfo buildInfo,
+        DateTimeOffset startedAt,
+        string repoUrl)
+    {
+        var snap = new SyncKit.Contract.DashboardSnapshot
+        {
+            AppName = "EggIncognito",
+            Version = buildInfo.Version,
+            BuildHash = buildInfo.Sha,
+            DeployStatus = "online",
+            UptimeSince = startedAt,
+            RepoUrl = repoUrl,
+        };
+        try
+        {
+            var s = status.Build();
+            snap.ExtraFields = new Dictionary<string, string>
+            {
+                ["Mode"] = s.Mode,
+                ["Devices"] = s.DeviceCount.ToString(),
+                ["Capture"] = s.CaptureState,
+                ["DB"] = s.DbEnabled ? "on" : "off",
+                ["Signing"] = s.SigningReady ? "ready" : "unset",
+            };
+        }
+        catch { }
+        return snap;
+    }
 }
 
 var eventSecret = builder.Configuration["SyncEvent:EventSecret"];

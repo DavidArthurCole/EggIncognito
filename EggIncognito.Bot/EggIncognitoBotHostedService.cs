@@ -10,8 +10,8 @@ public sealed class EggIncognitoBotHostedService(
 {
     private SyncKitBot? _bot;
 
-   
-   
+
+
     public SyncKitBot? Bot => _bot;
 
     public async Task StartAsync(CancellationToken ct)
