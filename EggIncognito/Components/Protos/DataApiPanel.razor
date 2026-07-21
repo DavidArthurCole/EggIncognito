@@ -44,7 +44,7 @@ else
               <td><a href="@s.Url" class="code-chip no-underline">@s.Url</a></td>
               <td class="text-xs">@s.Access</td>
               <td class="mono text-muted text-xs">@s.Provenance</td>
-              <td class="text-xs">@(s.Feed ? "yes" : "-")</td>
+              <td class="text-xs">@(string.IsNullOrEmpty(s.Feed) ? "-" : s.Feed)</td>
             </tr>
           }
         </tbody>
@@ -260,7 +260,7 @@ else
 
     record DataResponse(int Count, List<Source> Sources);
     record Source(string Id, string Group, string Url, string DisplayName, string? Description,
-        string Provenance, string Access, bool Feed, bool AcceptsName);
+        string Provenance, string Access, string? Feed, bool AcceptsName);
     record KeyRow(long Id, string Name, string Prefix, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt, long RequestCount, bool Revoked);
     record Minted(long Id, string Name, string Prefix, string Key);
 }
