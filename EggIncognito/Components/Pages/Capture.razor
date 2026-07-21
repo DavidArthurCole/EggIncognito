@@ -37,10 +37,10 @@
                             OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
                             Hosted="_hosted" ClientFactory="Client" ReadOnly="_readOnly" DeviceLabel="@_deviceLabel"
                             OnAddressRotated="@(h => { _rotatedHost = h; StateHasChanged(); })" />
-      <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
-      <div class="capture-topbar-spacer"></div>
       <CaptureNoticesPanel Notices="_notices" Unread="_unread"
                            OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
+      <div class="capture-topbar-spacer"></div>
+      <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
     </section>
 
     <div class="capture-body grid gap-3 min-h-0">

@@ -120,7 +120,7 @@
         }
 
         if (emptyDecoded && hasBytes)
-            _decodedEmptyNote = "Decoded message is all default values, but the response carried bytes. Raw wire bytes below (our proto snapshot may be missing fields).";
+            _decodedEmptyNote = "Decoded to defaults. Raw bytes:";
 
         var current = FormatChoice.TryGetValue(Label, out var c) ? c : View.DefaultFormat;
         if (!_formats.Contains(current)) current = _formats[0];

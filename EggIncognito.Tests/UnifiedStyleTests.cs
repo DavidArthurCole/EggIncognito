@@ -26,7 +26,7 @@ public class UnifiedStyleTests
         var c = _f.CreateClient();
         var css = await c.GetStringAsync("/tailwind.css");
         foreach (var cls in new[] { ".panel", ".btn-primary", ".icon-btn", ".settings-menu",
-            ".pill", ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".stat-group",
+            ".pill", ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".cap-stat",
             ".toast", ".modal-overlay", ".known-card", ".tab-btn", ".notif-item",
             ".perk-list", ".rail", ".connect-card", ".faq-list",
             ".reg-table", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",

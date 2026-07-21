@@ -1,6 +1,5 @@
 using System.Net;
 using EggIncognito.Data.Services;
-using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace EggIncognito.Tests;
@@ -8,7 +7,6 @@ namespace EggIncognito.Tests;
 public class CaptureAddressStoreTests
 {
     const string Prefix = "2a01:4f8:c012:e15b::/64";
-    const string Secret = "test-secret-key";
 
     [Fact]
     public void RandomInPrefix_IsRandom_NotDeterministic()
@@ -52,19 +50,5 @@ public class CaptureAddressStoreTests
             for (var i = 8; i < 15; i++) if (bytes[i] != 0) hostAllZeroExceptLast = false;
             Assert.False(hostAllZeroExceptLast && bytes[15] <= 1);
         }
-    }
-
-    [Fact(Skip = "requires Postgres; no EF test provider per tests-DB-free repo rule")]
-    public async Task AddrForUser_PersistsAndReverseMaps()
-    {
-        var opts = new DbContextOptionsBuilder<EggIncognitoDbContext>()
-            .UseNpgsql("Host=frame;Port=5432;Database=eggincognito_test;Username=ei;Password=ei").Options;
-        await using var db = new EggIncognitoDbContext(opts);
-        var store = new CaptureAddressStore(db);
-
-        var userId = Guid.NewGuid();
-        var addr = await store.AddrForUserAsync(Prefix, Secret, userId);
-        var who = await store.UserForAddrAsync(addr);
-        Assert.Equal(userId, who);
     }
 }

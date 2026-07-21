@@ -19,22 +19,18 @@ Part of [EggIncognito](../README.md). Sibling projects:
 
 ## Frontend
 
-The UI is Blazor Server (Razor Components in `Components/`). `Components/App.razor` is the host page; `Components/Pages/*.razor` are the routable pages over `Components/Layout/MainLayout.razor` + `TopNav.razor`. `Components/Shared/` holds reusable pieces (`Icon`, `Markdown`, `MarkdownEditor`, `DocHelp`). Interactivity is `InteractiveServer` over a SignalR circuit.
+The UI is Blazor Server (Razor Components). A host page loads the routable pages over a shared main layout plus the `TopNav`. Reusable pieces (`Icon`, `Markdown`, `MarkdownEditor`, `DocHelp`) live in a shared components area. Interactivity is `InteractiveServer` over a SignalR circuit.
 
 - Pages: `/` (Home), `/inspector`, `/capture`, `/import`, `/protodata` (Protos & Data, also served at `/protos` + `/data` + `/periodicals`), `/playground` (admin), `/docs`, `/admin`, `/support`.
 - Navigation is normal Blazor routing. There is no separate client-side router.
 
-`wwwroot/` holds only static assets:
-
-- CSS: `nav.css`, the `app.tailwind.css` source, and the compiled `tailwind.css`.
-- `brand/` images.
-- Minimal interop JS in `interop/` (`inspectorStore.js`, `captureStore.js` - localStorage bridges; no Tailwind classes).
+Static assets are the CSS layer (a small nav sheet plus the Tailwind source and its compiled output), brand images, and minimal localStorage-bridge interop JS for the Inspector and Capture. The interop JS carries no Tailwind classes.
 
 The tabs:
 
 - **Inspector** (`/inspector`) - builds, visualizes, and sends Egg, Inc. requests. See the Inspector send targets section.
 - **Capture** (`/capture`) - the live capture dashboard. Start/stop the proxy, watch flows stream in.
-- **Import** (`/import`) - import a HAR into `Endpoints/`. Local-only.
+- **Import** (`/import`) - import a HAR into the endpoint store. Local-only.
 - **Protos & Data** (`/protodata`, also `/protos` + `/data` + `/periodicals`) - one page with `.tab-bar` sub-tabs. Registry (public): drop an `.ipa`/`.apk` to extract its `.proto` (everyone), browse detected builds per platform, diff two builds, and (contributor+) review the staged-proto queue. Periodicals + Data API (admin-only): the game-data repository (families, eiafx_data, raw feeds, colleggtibles) and the public data API source index plus API-key management. `/protos/{platform}/{build}` is one build's detail; `/protos/sources` credits the sources; `/protos/subscribe` manages proto feed webhooks.
 - **Docs** (`/docs`) - browses `IDocRegistry` subjects (proto messages + endpoints) with editable DB-backed Markdown + tags. `<DocHelp>` gives inline help next to controls elsewhere.
 - **Admin** (`/admin`) - user role management, DB-contribution review, API activity, and API-key oversight. Admin-only.
@@ -42,13 +38,13 @@ The tabs:
 
 `TopNav` reads `GET /api/app/mode` and hides the Capture/Import/Admin links when the matching capability or role is off.
 
-Middleware order matters in `Program.cs`: `UseStaticFiles()` must come before `UseRouting()`, otherwise `SimulationController`'s catch-all `[HttpOptions("/{**slug}")]` makes every static GET return 405.
+Middleware order matters: `UseStaticFiles()` must come before `UseRouting()`, otherwise `SimulationController`'s catch-all `[HttpOptions("/{**slug}")]` makes every static GET return 405.
 
 ## Adding an endpoint
 
-Controllers are source-generated from `RouteMap/routes.yaml` by [EggIncognito.RouteGenerator](../EggIncognito.RouteGenerator/README.md). They land in `obj/` and are not checked in. Never edit generated files.
+Controllers are source-generated from the route map by [EggIncognito.RouteGenerator](../EggIncognito.RouteGenerator/README.md). The generated files are not checked in. Never edit them.
 
-To add an endpoint, edit `routes.yaml` only:
+To add an endpoint, edit the route map only:
 
 ```yaml
 - path: ei/my_endpoint
@@ -56,17 +52,17 @@ To add an endpoint, edit `routes.yaml` only:
   response: MyResponseType
 ```
 
-Then run `dotnet build`. Add an endpoint file under `EggIncognito/Endpoints/default/<namespace>/` if a non-default response is needed.
+Then run `dotnet build`. Add a namespaced endpoint file to the default store if a non-default response is needed.
 
 For a path-parameterized route (the EID rides in the URL), add `pathParam: true`. Add `pathParamOnly: true` when there is no request body at all.
 
-`routes.yaml` also carries `excluded:` (paths intentionally not mocked) and `endpoint_status:` (auto-generated ok/empty/missing buckets).
+The route map also carries `excluded:` (paths intentionally not mocked) and `endpoint_status:` (auto-generated ok/empty/missing buckets).
 
 ## Run modes
 
-`IAppMode` (`Services/AppMode.cs`) splits the app into two modes via the `AppMode` config key.
+`IAppMode` splits the app into two modes via the `AppMode` config key.
 
-- **Local** (default) - full features. Capture and endpoint writes mutate the local `Endpoints/`. The developer / self-host mode.
+- **Local** (default) - full features. Capture and endpoint writes mutate the local endpoint store. The developer / self-host mode.
 - **Hosted** (`AppMode=Hosted`) - the public deploy (`https://eggincognito.davidarthurcole.me`). A request must not mutate shared data, and the proxy/CA cannot be shared. So capture (`/api/capture/start`, `save-endpoint`) and writes (`/api/import/*`) return 403. The mock API, Inspector, and read-only Tools stay available.
 
 `CaptureEnabled` / `WritesEnabled` override per capability. The UI reads `GET /api/app/mode`.
@@ -83,7 +79,7 @@ For a path-parameterized route (the EID rides in the URL), add `pathParam: true`
 |---|---|---|
 | `EndpointsPath` | `<app dir>/Endpoints` | Endpoints (response payloads) root |
 | `ASPNETCORE_URLS` | `http://+:8080` | Bind address (used in Docker, overridden when certs present) |
-| `CertsPath` | `<app dir>/certs` | Directory containing `server.crt` and `server.key` |
+| `CertsPath` | `<app dir>/certs` | Directory containing the server certificate and key |
 | `HttpPort` | `8080` | HTTP port when certs are present (overrides ASPNETCORE_URLS) |
 | `HttpsPort` | `8443` | HTTPS port (only active when certs are present) |
 | `AppMode` | `Local` | `Local` = full features; `Hosted` = capture + writes disabled (the public deploy) |
@@ -93,7 +89,7 @@ For a path-parameterized route (the EID rides in the URL), add `pathParam: true`
 | `Discord:GuildId` | unset | Optional. Enables instant guild command registration for the bot. |
 | `CaptureEnabled` | follows mode | Per-capability override for the capture proxy |
 | `WritesEnabled` | follows mode | Per-capability override for endpoint writes (HAR import + status rewrite) |
-| `ContentRoot` | auto-resolved | The dir holding `RouteMap/` + `Endpoints/` (resolved from the app/base dir; rarely set) |
+| `ContentRoot` | auto-resolved | The dir holding the route map + endpoint store (resolved from the app/base dir; rarely set) |
 | `EGG_INC_EID` | optional | EID used to scrub captured/imported data and as the in-app capture default |
 | `CapturePort` | `8080` | Port the capture proxy listens on |
 | `CapturePath` | `<content root>/captures` | Directory the capture HAR is written to |
@@ -113,22 +109,22 @@ The former PowerShell scripts and CLI subcommands are gone. Their behavior is no
 
 | Where | Purpose |
 |---|---|
-| Inspector Tools -> `GET /api/tools/postman-collection` | Download a Postman v2.1 collection from `routes.yaml` (was `export-collection`) |
+| Inspector Tools -> `GET /api/tools/postman-collection` | Download a Postman v2.1 collection from the route map (was `export-collection`) |
 | Inspector Tools -> `GET /api/tools/endpoint-status` | Report routes with a missing or empty endpoint (was `check-endpoints`) |
 | `POST /api/import/endpoint-status/update` (Local) | Rewrite the `endpoint_status:` block (was `check-endpoints --update`) |
 | Inspector Tools -> `POST /api/tools/decode` | Auto-detect the proto type of an arbitrary base64 blob (was `decode`) |
-| Import tab -> `POST /api/import/har` (Local) | Import a HAR into `Endpoints/default/` (staged unless `?overwrite=true`) (was `from-har`) |
-| `EmitDashboardTypes` MSBuild target | Regenerate `wwwroot/capture/types.d.ts` from the capture records on every build (was `emit-types`) |
-| `BuildTailwind` MSBuild target | Compile `wwwroot/app.tailwind.css` -> `wwwroot/tailwind.css` with the standalone Tailwind CLI. See below. |
+| Import tab -> `POST /api/import/har` (Local) | Import a HAR into the default endpoint store (staged unless `?overwrite=true`) (was `from-har`) |
+| `EmitDashboardTypes` MSBuild target | Regenerate the capture dashboard type declarations from the capture records on every build (was `emit-types`) |
+| `BuildTailwind` MSBuild target | Compile the Tailwind source sheet into the served stylesheet with the standalone Tailwind CLI. See below. |
 
 `BuildTailwind` details:
 
-- No Node. The standalone Tailwind CLI is fetched to `tools/tailwind/` on first build (gitignored).
-- Tokens live only in `tailwind.config.js`. All chrome is one canonical `@layer components` block in `app.tailwind.css`.
+- No Node. The standalone Tailwind CLI is fetched to a local tools dir on first build (gitignored).
+- Tokens live only in the Tailwind config. All chrome is one canonical `@layer components` block in the Tailwind source.
 - `.btn-primary` is orange (`--accent`) everywhere. Blue (`--accent2`) is info/secondary.
 - The Razor components emit semantic class names; the `@layer components` block defines them. Add a missing class to the component layer rather than inlining utility soup in markup.
 - Skip with `-p:BuildTailwindCss=false`.
-- Gotcha: the target runs `AfterTargets="Build"`, so a wwwroot-only incremental build does not recompile. Run `dotnet build EggIncognito/EggIncognito.csproj -t:BuildTailwind`.
+- Gotcha: the target runs `AfterTargets="Build"`, so a static-asset-only incremental build does not recompile. Run `dotnet build -t:BuildTailwind`.
 - Gotcha: `@apply hidden` inside `@layer components` is a circular-dependency error. Use raw `display:none`.
 - The fetch is RID-aware (right asset per OS + arch), so Linux/macOS CI compiles the sheet natively.
 
@@ -204,18 +200,18 @@ The role (viewer / contributor / admin) rides in the cookie's `egi:role` claim, 
 - `IAppMode.CanWrite` gates local file ops (`/api/import/*`, capture). These have no user and run only in Local mode.
 - The role gate authorizes shared-DB writes: `/api/db/endpoint` + `/api/db/route` require contributor+ (403 otherwise). Reads stay public.
 
-New users default to viewer. `AdminController.SetUserRole` proxies the identity service's `SetRoleAsync`. `/api/admin/*` (admin-only) lists/promotes users and reviews/deletes DB contributions. `/admin` is the admin page, with its nav link shown only to admins. Viewers/anonymous who try to save get a browser-`localStorage` fallback. The role check + admin self-lockout guard run before any DB access, so they are testable DB-free.
+New users default to viewer. `AdminController.SetUserRole` proxies the identity service's `SetRoleAsync`. `/api/admin/*` (admin-only) lists/promotes users and reviews/deletes DB contributions. `/admin` is the admin page, with its nav link shown only to admins. Viewers/anonymous who try to save get a browser-`localStorage` fallback. The role check + admin self-lockout guard run before any DB access.
 
 ## API access + keys
 
-Every `/api/*` MVC action declares an explicit floor via `[ApiAccess(ApiAccessLevel.{Public|Authenticated|Contributor|Admin})]` (class or action; action wins). The global `ApiAccessFilter` enforces default-DENY: a `/api/*` action with no attribute returns 500 (guarded by `ApiAccessGuardTests` so it cannot ship). The attribute is a floor only; the in-body guards above (`CanWrite`, hosted-block, `RequireAdmin`/`RequireContributor`, owner/supporter checks) still run and can be stricter.
+Every `/api/*` MVC action declares an explicit floor via `[ApiAccess(ApiAccessLevel.{Public|Authenticated|Contributor|Admin})]` (class or action; action wins). The global `ApiAccessFilter` enforces default-DENY: a `/api/*` action with no attribute returns 500, so it cannot ship. The attribute is a floor only; the in-body guards above (`CanWrite`, hosted-block, `RequireAdmin`/`RequireContributor`, owner/supporter checks) still run and can be stricter.
 
 - **Keys.** Any logged-in user mints/lists/revokes their own keys at `/api/v1/keys/*` (`ApiKeysController`); the self-service UI lives in the Data API sub-tab of `/protodata`. Admins view + revoke all keys at `/api/admin/api-keys`. A key is `egi_live_<rand>`, stored as a SHA-256 hash + 12-char prefix, shown once. Cap `ApiKeys:MaxPerUser` (default 20). DB-gated: writes 503 without Postgres.
 - **Public data API.** `GET /api/v1/data` (index) + `/api/v1/data/{group}/{id}` (dispatch) serve every game-data point from the self-describing `DataCatalog`, so each source gets a URL automatically and nothing is hardcoded elsewhere. Groups: `periodical` (wire fixtures, authenticated, egress-refreshable), `derived` + `gamedata` (public, extracted/embedded), `asset` (icon PNG, public, `?name=`). Anonymous callers get 1 request/hour; log in or send `X-Api-Key`.
 
 ## Rate limiting
 
-Built-in `Microsoft.AspNetCore.RateLimiting` (`Services/RateLimiting/`). `UseRateLimiter()` is placed after auth (the partition key needs the authenticated user) and before `MapControllers`. Default-on; `RateLimiting:Enabled=false` makes it a pass-through. A policy applies only where a controller opts in with `[EnableRateLimiting("...")]`; unmarked page loads, static assets, and the SSE stream are never throttled.
+Built-in `Microsoft.AspNetCore.RateLimiting`. `UseRateLimiter()` is placed after auth (the partition key needs the authenticated user) and before `MapControllers`. Default-on; `RateLimiting:Enabled=false` makes it a pass-through. A policy applies only where a controller opts in with `[EnableRateLimiting("...")]`; unmarked page loads, static assets, and the SSE stream are never throttled.
 
 Named policies (requests/min unless noted):
 
@@ -243,20 +239,20 @@ Tiers (requests/min):
 - **Admins are exempt entirely.** `RateLimiterSetup.IsExempt` returns true for `IsAtLeast(Admin)`, so an admin's partition is `GetNoLimiter`. The device farm + admin tooling legitimately burst (poll loops, force-restart + capture), which a per-tier cap would throttle.
 - **Partition.** `user:{id}` when logged in, else `ip:{clientIp}` from `CF-Connecting-IP`. The `X-Forwarded-For` first hop and the socket IP are local/no-CF fallbacks.
 - **Rejections.** 429 + `Retry-After` + a small JSON body.
-- **Config.** Driven by the `RateLimiting` appsettings section. `RateLimitOptions` / `RateLimitKeys` are pure + unit-tested.
+- **Config.** Driven by the `RateLimiting` appsettings section. `RateLimitOptions` / `RateLimitKeys` are pure.
 - **Security note.** Trusting `CF-Connecting-IP` is safe only while Cloudflare is the only path to the origin.
 
 ## Distribution
 
 The app ships two ways. Both are produced by the `Release` workflow on a `v*` tag.
 
-- **Self-contained binaries** - `dotnet publish --self-contained -p:PublishSingleFile=true` per runtime: `linux-x64`, `linux-arm64`, `osx-arm64`, `win-x64`. No .NET install needed. The `Endpoints/` response set is bundled alongside the executable. Attached to the GitHub release.
-- **Container image** - `ghcr.io/davidarthurcole/eggincognito:<tag>` and `:latest`, built from the repo `Dockerfile`.
+- **Self-contained binaries** - `dotnet publish --self-contained -p:PublishSingleFile=true` per runtime: `linux-x64`, `linux-arm64`, `osx-arm64`, `win-x64`. No .NET install needed. The endpoint response set is bundled alongside the executable. Attached to the GitHub release.
+- **Container image** - `ghcr.io/davidarthurcole/eggincognito:<tag>` and `:latest`, built from the repo's container image definition.
 
 To build a single-file binary locally:
 
 ```sh
-dotnet publish EggIncognito/EggIncognito.csproj -c Release -r linux-x64 \
+dotnet publish EggIncognito -c Release -r linux-x64 \
   --self-contained true -p:PublishSingleFile=true -o ./publish
 cp -r EggIncognito/Endpoints ./publish/Endpoints
 ```

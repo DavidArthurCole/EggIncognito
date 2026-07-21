@@ -1,14 +1,14 @@
 # iOS auto-update tweaks (eggnoop + eggupdate)
 
 Headless Egg Inc App Store update for the frame-tethered jailbroken iPhone, so each new proto can be
-extracted with zero taps. This is mission step 2 for iOS. See `docs/device-auto-update-MISSION.md`.
+extracted with zero taps. This is mission step 2 for iOS.
 
 Two tweaks:
 
-| Dir | Package | Purpose |
-|---|---|---|
-| `noop/` | `me.eggincognito.eggnoop` | Phase B: prove a launch-time tweak loads stably in SpringBoard. Logs one line on load, nothing else. |
-| `eggupdate/` | `me.eggincognito.eggupdate` | Phase C: file-watch trigger -> two-phase StoreServices update of Egg Inc. |
+| Package | Purpose |
+|---|---|
+| `me.eggincognito.eggnoop` | Phase B: prove a launch-time tweak loads stably in SpringBoard. Logs one line on load, nothing else. |
+| `me.eggincognito.eggupdate` | Phase C: file-watch trigger -> two-phase StoreServices update of Egg Inc. |
 
 ## How it works
 
@@ -44,7 +44,7 @@ Phone IP is DHCP (`192.168.1.132` as of 2026-06-18); if unreachable, owner suppl
 
 ## SUPERVISED device steps (owner present - one at a time, verify between)
 
-Hard safety rules (`docs/handoff-ios-autoupdate-toolkit-2026-06-18.md`, memory `ios-frida-spike-danger`):
+Hard safety rules (memory `ios-frida-spike-danger`):
 after EVERY step run the safe version read + an ssh `echo`. If either fails -> phone likely panicked ->
 STOP, do not pile on recovery, document, wait. One destabilizing op at a time.
 
@@ -88,7 +88,7 @@ before any install. Read the dumped methods to pick the exact phase-2 install se
 ### 5. Confirm the phase-2 selector, arm, retest
 - From the `eggUpdate methods` dump in `/var/root/eggupdate.log`, identify the install selector
   (`updateAllWithOrder:completionBlock:` scoped to egginc, or `SSPurchase`+`SSPurchaseRequest`).
-- Wire it into `installUpdate()` in `eggupdate/Tweak.x` (replace the TODO block).
+- Wire it into the eggupdate tweak's `installUpdate()` (replace the TODO block).
 - `make package EGGUPDATE_ARMED=1`, reinstall, downgrade to 1.35.8 (step 3), fire trigger, then verify
   `ideviceinstaller -l` climbs to 1.36. Iterate via the downgrade loop until reliable.
 
@@ -108,7 +108,7 @@ proven (mutating action; frame opts in).
 
 Done while AFK (no device risk taken):
 - Theos + toolchain + SDK on frame; both tweaks compile/sign/package clean.
-- `IosDeviceUpdater` rewritten to the touch-trigger + usbmux-poll flow (frida path dropped) + unit tests.
+- `IosDeviceUpdater` rewritten to the touch-trigger + usbmux-poll flow, frida path dropped.
 
 Blocked on supervised device work (steps 2-5 above) because they respring SpringBoard / install over the
 App Store version while the owner is AFK. Left ready to run.

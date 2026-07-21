@@ -48,27 +48,41 @@ public sealed class FlowDecoder
         try { respBytes = ProtoFraming.FromBase64Loose(responseB64); }
         catch { return new(null, null, null, false); }
 
-       
+        var knownType = KnownResponseType(path);
+
+
+
+
+        byte[]? inner = null;
         try
         {
             var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(respBytes);
-            var inner = outer.Compressed
+            inner = outer.Compressed
                 ? ProtoFraming.Decompress(outer.Message.ToByteArray())
                 : outer.Message.ToByteArray();
-
-            var knownType = KnownResponseType(path);
-            if (knownType is not null)
-            {
-                var msg = EndpointExtractor.ParseByTypeName(knownType, inner);
-                if (msg is not null)
-                    return Result(ProtoJson.PrettyPrint(JsonFormatter.Default.Format(msg)), knownType, known: true);
-            }
-
-            var det = EndpointExtractor.AutoDetect(inner);
-            if (det.json is not null)
-                return Result(det.json, det.typeName, known: false);
         }
-        catch { /* not an AuthenticatedMessage, fall through to the text/ack handling below */ }
+        catch { }
+
+        if (knownType is not null)
+        {
+            var direct = ScoreKnown(knownType, respBytes);
+            var wrapped = inner is { Length: > 0 } ? ScoreKnown(knownType, inner) : (score: 0, json: (string?)null);
+            var best = wrapped.score > direct.score ? wrapped : direct;
+            if (best.json is not null)
+                return Result(best.json, knownType, known: true);
+        }
+        else
+        {
+            if (inner is { Length: > 0 })
+            {
+                var det = EndpointExtractor.AutoDetect(inner);
+                if (det.json is not null)
+                    return Result(det.json, det.typeName, known: false);
+            }
+            var detRaw = EndpointExtractor.AutoDetect(respBytes);
+            if (detRaw.json is not null)
+                return Result(detRaw.json, detRaw.typeName, known: false);
+        }
 
         var text = AsPrintableText(respBytes);
         var isAck = _rawResponsePaths.Contains(path);
@@ -77,6 +91,25 @@ public sealed class FlowDecoder
         if (isAck)
             return new(null, null, "acknowledgement", Known: true, Ack: true);
         return new(null, null, null, false);
+    }
+
+
+
+    private static (int score, string? json) ScoreKnown(string knownType, byte[] data)
+    {
+        try
+        {
+            var msg = EndpointExtractor.ParseByTypeName(knownType, data);
+            if (msg is null) return (0, null);
+            var json = JsonFormatter.Default.Format(msg);
+            var fieldScore = json.Count(c => c == ':');
+            var exact = msg.ToByteArray().AsSpan().SequenceEqual(data);
+            return (exact ? 1000 + fieldScore : fieldScore, ProtoJson.PrettyPrint(json));
+        }
+        catch
+        {
+            return (0, null);
+        }
     }
 
    

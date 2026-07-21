@@ -1,28 +1,15 @@
-@* Capture stats, rendered inline in the top bar: running pill + request count + captured-data counters.
-   Pure render of the latest CaptureStats; the page feeds a fresh snapshot on each "stats" envelope. *@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
 
 <div id="statsPanel" class="capture-stats">
   <span class="pill @(Running ? "live" : "paused")">@StatusText</span>
-  <div class="stat-group">
-    <div class="stat-group-title">Session</div>
-    <dl class="stat-rows">
-      <dt>Requests</dt><dd>@FlowCount</dd>
-    </dl>
-  </div>
-  <div class="stat-group">
-    <div class="stat-group-title">Captured data</div>
-    <dl class="stat-rows">
-      <dt>Auxbrain flows</dt><dd>@(Stats?.CapturedAuxbrain ?? 0)</dd>
-      <dt>Unique endpoints</dt><dd>@(Stats?.UniqueEndpoints ?? 0)</dd>
-      <dt>Bytes</dt><dd>@CaptureHelpers.FormatBytes(Stats?.BytesCaptured ?? 0)</dd>
-      <dt>Decrypt</dt><dd><span class="ok">@(Stats?.DecryptOk ?? 0)</span> ok / <span class="err">@(Stats?.DecryptErrors ?? 0)</span> err</dd>
-    </dl>
-  </div>
+  <span class="cap-stat"><span class="cap-stat-k">Flows</span><span class="cap-stat-v">@(Stats?.CapturedAuxbrain ?? 0)</span></span>
+  <span class="cap-stat"><span class="cap-stat-k">Endpoints</span><span class="cap-stat-v">@(Stats?.UniqueEndpoints ?? 0)</span></span>
+  <span class="cap-stat"><span class="cap-stat-k">Bytes</span><span class="cap-stat-v">@CaptureHelpers.FormatBytes(Stats?.BytesCaptured ?? 0)</span></span>
+  <span class="cap-stat"><span class="cap-stat-k">Decrypt</span><span class="cap-stat-v"><span class="ok">@(Stats?.DecryptOk ?? 0)</span> ok / <span class="err">@(Stats?.DecryptErrors ?? 0)</span> err</span></span>
   @if (!string.IsNullOrEmpty(Stats?.LastError))
   {
-    <div class="stat-line muted stat-last-error" title="@Stats.LastError">last: @Stats.LastError</div>
+    <span class="cap-stat stat-last-error" title="@Stats.LastError">last: @Stats.LastError</span>
   }
 </div>
 

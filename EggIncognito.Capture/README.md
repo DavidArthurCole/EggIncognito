@@ -23,13 +23,13 @@ Everything else tunnels through untouched and is never decrypted. This includes 
 | `CaptureHub` / `FlowProcessor` / `FlowDecoder` | Receive, decode, and fan out captured flows. |
 | `HarWriter` | Appends each flow to the session HAR. |
 | `CaptureSession` | The thread-safe start/stop lifecycle owner the web app drives. Persists device + routes changes. |
-| `DeviceStore` | Remembers devices across runs in `captures/devices.json`. The hub seeds + merges live/offline; the session persists on change. |
-| `LiveVersionStore` | Persists the latest live app version per platform to `captures/live-versions.json`. Source is the harvested rinfo. This is the authoritative iOS `clientVersion` and build, which the static binary cannot give. |
-| `DeviceRinfoStore` | The per-device sibling of `LiveVersionStore`, keyed by device id, in `captures/device-rinfo.json`. Persistent per-device capture points each device at its own listener, so a harvested flow maps to exactly one device. |
+| `DeviceStore` | Remembers devices across runs in the device store file. The hub seeds + merges live/offline; the session persists on change. |
+| `LiveVersionStore` | Persists the latest live app version per platform to the live-version store file. Source is the harvested rinfo. This is the authoritative iOS `clientVersion` and build, which the static binary cannot give. |
+| `DeviceRinfoStore` | The per-device sibling of `LiveVersionStore`, keyed by device id, in the per-device rinfo store file. Persistent per-device capture points each device at its own listener, so a harvested flow maps to exactly one device. |
 
 Captured flows funnel into Core's `EndpointExtractor.ProcessFlow`, the same per-flow contract the HAR import path uses, so a live capture and a HAR replay yield the same endpoints.
 
-The Blazor capture page (`Components/Capture/`) subscribes to `CaptureHub` in-process over its SignalR circuit for the live flow stream. The controller's SSE `stream` endpoint (`/api/capture/stream`) is no longer used by the UI but remains for external consumers.
+The Blazor capture page subscribes to `CaptureHub` in-process over its SignalR circuit for the live flow stream. The controller's SSE `stream` endpoint (`/api/capture/stream`) is no longer used by the UI but remains for external consumers.
 
 ## Device farm (auto-capture)
 
@@ -39,7 +39,7 @@ Gated by `DeviceCapture:Enabled` (default off). When off, the farm path no-ops e
 
 How it differs from the manual path:
 
-- **Persistent per-device listeners.** `DeviceCaptureManager` (in the web project, `Services/Devices/`) gives each declared device its own long-lived capture proxy on a dedicated loopback and LAN port. A harvested flow maps to exactly one device by listener identity. Failure of one device's proxy is isolated and never kills the others.
+- **Persistent per-device listeners.** `DeviceCaptureManager` (in the web project) gives each declared device its own long-lived capture proxy on a dedicated loopback and LAN port. A harvested flow maps to exactly one device by listener identity. Failure of one device's proxy is isolated and never kills the others.
 - **Proxy auto-pointed.** The device's system HTTP proxy is set to its listener via Core's `IDeviceProxyConfigurator` (`AdbProxyConfigurator` over `adb`, `IosProxyConfigurator`). No manual Wi-Fi proxy entry.
 - **CA auto-installed and trusted.** Core's `IDeviceCaInstaller` installs the capture root CA on the device with no tap. Android (`AdbCaInstaller`) writes the cert into the system trust store on a rooted device, bind-mounting into zygote's mount namespace so freshly forked apps see it. iOS (`IosCaInstaller`) inserts a trust row into `TrustStore.sqlite3` over ssh and restarts `trustd`. Called on capture start and again whenever the proxy mints a fresh CA.
 - **Rinfo harvest, not endpoints.** The farm path is rolling-rinfo-only: no HAR, no endpoint extract. It decodes each request enough to read `BasicRequestInfo` (`clientVersion` / `version` / `build` / `platform`) via Core's `RinfoHarvester` and stores the latest per device in `DeviceRinfoStore`. This is the authoritative iOS `clientVersion` and build.
@@ -74,7 +74,7 @@ dotnet run --project EggIncognito -- --capture --eid EI1234567890123456 --label 
 The app surfaces two things you need:
 
 - The listening port. Default `8080`, set by `CapturePort`.
-- The root CA path. Default `captures/eggincognito-ca.cer`, set by `CaPath`. The CA is generated on first run and reused after that.
+- The root CA path, set by `CaPath`. The CA is generated on first run and reused after that.
 
 ### 2. Find the computer's LAN IP
 
@@ -88,7 +88,7 @@ The app surfaces two things you need:
 
 ### 4. Get the CA onto the phone
 
-Transfer `captures/eggincognito-ca.cer` to the phone. Use AirDrop on iOS, email, or serve the folder. To serve it, run `python -m http.server` inside `captures/`, then open `http://<computer-ip>:8000/eggincognito-ca.cer` on the phone.
+Transfer the CA file to the phone. Use AirDrop on iOS, email, or serve the folder. To serve it, run `python -m http.server` inside the capture directory, then open `http://<computer-ip>:8000/eggincognito-ca.cer` on the phone.
 
 ### 5. Install and trust the CA
 
@@ -111,8 +111,8 @@ Open Egg, Inc. and navigate around. Each captured flow shows up as a row on the 
 
 Click **Stop capture**, or stop the app. On stop, in one pass, the proxy:
 
-- writes the HAR to `captures/session[_label][_EID].har` (under `CapturePath`),
-- saves `routes.yaml` once,
+- writes the HAR under `CapturePath`,
+- saves the route map once,
 - surfaces the flow counts (`new / upd / diff / same / loss / err`) and the self-repair report on the dashboard.
 
 If no auxbrain traffic was seen, no HAR is written.
@@ -122,17 +122,17 @@ If no auxbrain traffic was seen, no HAR is written.
 For each Egg, Inc. flow, in one pass, the tool:
 
 - appends a HAR entry,
-- decodes the flow and writes a redacted endpoint to `EggIncognito/Endpoints/default/<namespace>/<endpoint>.json`,
-- self-repairs `routes.yaml` by filling in newly-seen endpoints and types.
+- decodes the flow and writes a redacted endpoint to the mock server's endpoint store,
+- self-repairs the route map by filling in newly-seen endpoints and types.
 
-Without `CaptureOverwrite`, changed endpoints are staged for review rather than overwritten, so you can diff them before applying. The `captures/` directory is gitignored. It can hold player data and the CA.
+Without `CaptureOverwrite`, changed endpoints are staged for review rather than overwritten, so you can diff them before applying. The capture directory is gitignored. It can hold player data and the CA.
 
 ## Re-running a capture
 
 The HAR is the durable artifact. Replay it to reproduce the same endpoints without the phone:
 
 1. Open the **Import** tab (`/import`).
-2. Choose the HAR, e.g. `captures/session_iphone_EI....har`.
+2. Choose the session HAR.
 3. Import.
 
 Tick "overwrite existing" to apply changes instead of staging them. The live-capture and HAR-import paths share the same extraction code, so a replay yields the same endpoints. It is idempotent. Import is a Local-mode feature. It is disabled on the public hosted deploy.
@@ -145,8 +145,8 @@ Tick "overwrite existing" to apply changes instead of staging them. The live-cap
 | `EGG_INC_EID` | (unset) | Your EID. Scrubbed from saved endpoints and added to the HAR name when it matches `^EI\d{16,}$`. |
 | `CaptureLabel` | (none) | Label added to the HAR filename, e.g. `iphone`. |
 | `CaptureOverwrite` | off | Overwrite existing endpoints instead of staging diffs. |
-| `CapturePath` | `captures/` | HAR output directory. |
-| `CaPath` | `captures/eggincognito-ca.cer` | Persisted root CA file. |
+| `CapturePath` | capture directory | HAR output directory. |
+| `CaPath` | CA file in capture directory | Persisted root CA file. |
 
 ## Troubleshooting
 

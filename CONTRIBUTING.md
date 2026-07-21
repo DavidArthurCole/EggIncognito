@@ -12,29 +12,28 @@ EggIncognito is a .NET solution split into focused projects. Each has its own RE
 - [EggIncognito.Data](EggIncognito.Data/README.md) - the optional Postgres layer.
 - [EggIncognito.Bot](EggIncognito.Bot/README.md) - the optional Discord bot.
 - [EggIncognito.RouteGenerator](EggIncognito.RouteGenerator/README.md) - the Roslyn source generator.
-- [EggIncognito.Tests](EggIncognito.Tests/README.md) - the test suite.
 
 ## Build and test
 
 ```sh
-dotnet build EggIncognito.slnx
-dotnet test EggIncognito.slnx
+dotnet build
+dotnet test
 dotnet run --project EggIncognito
 ```
 
-The source generator and the Tailwind compile run as part of `dotnet build`. Never edit generated files in `obj/`. They are overwritten every build.
+The source generator and the Tailwind compile run as part of `dotnet build`. Never edit generated files. They are overwritten every build.
 
-When you change only `wwwroot/**` or a `.razor` component and need the Tailwind sheet recompiled, run:
+When you change only static web assets or a Razor component and need the Tailwind sheet recompiled, run:
 
 ```sh
-dotnet build EggIncognito/EggIncognito.csproj -t:BuildTailwind
+dotnet build -t:BuildTailwind
 ```
 
-The compile target runs `AfterTargets="Build"`, so a wwwroot-only incremental build skips it otherwise.
+The compile target runs `AfterTargets="Build"`, so a static-asset-only incremental build skips it otherwise.
 
 ## Adding an endpoint
 
-Edit `EggIncognito/RouteMap/routes.yaml` only. The source generator emits the controller:
+Edit the route map only. The source generator emits the controller:
 
 ```yaml
 - path: ei/my_endpoint
@@ -42,11 +41,11 @@ Edit `EggIncognito/RouteMap/routes.yaml` only. The source generator emits the co
   response: MyResponseType
 ```
 
-Run `dotnet build`. Add a response file under `EggIncognito/Endpoints/default/<namespace>/` if you need a non-default response. Never hand-write a controller for a route in `routes.yaml`. It conflicts with the generated one.
+Run `dotnet build`. Add a response file under the endpoints directory for your namespace if you need a non-default response. Never hand-write a controller for a route in the route map. It conflicts with the generated one.
 
 ## The proto
 
-`EggIncognito.Core/Proto/ei.proto` is a frozen checked-in snapshot of the upstream Egg, Inc. schema. There is no in-repo refresh tooling. Only edit it directly if a proto change is genuinely required, then rebuild. Proto changes can invalidate existing endpoint files.
+The proto schema is a frozen checked-in snapshot of the upstream Egg, Inc. schema. There is no in-repo refresh tooling. Only edit it directly if a proto change is genuinely required, then rebuild. Proto changes can invalidate existing endpoint files.
 
 ## Code style
 
@@ -58,14 +57,12 @@ Run `dotnet build`. Add a response file under `EggIncognito/Endpoints/default/<n
 
 These apply to both prose docs and code comments.
 
-## Tests
+## Route generator
 
-Add tests for new behavior. The suite is xUnit. Pure logic should be unit-tested directly; web behavior is covered by `WebApplicationFactory<Program>` integration tests. See the [test project README](EggIncognito.Tests/README.md).
-
-Keep `EggIncognito.RouteGenerator` on `netstandard2.0` and dependency-free. Its route-parsing logic is duplicated from `Core/Services/RouteCatalog.cs` on purpose and kept in sync by `RouteSchemaConsistencyTests`. Do not merge them.
+Keep `EggIncognito.RouteGenerator` on `netstandard2.0` and dependency-free. Its route-parsing logic is duplicated from the runtime route catalog on purpose and kept in sync automatically. Do not merge them.
 
 ## Submitting
 
 - Branch off `main`.
-- Keep `dotnet build` at 0 errors and `dotnet test EggIncognito.slnx` green.
+- Keep `dotnet build` at 0 errors and `dotnet test` green.
 - Open a pull request describing the change and why.

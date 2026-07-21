@@ -2,11 +2,11 @@
 
 The optional Postgres layer (net10.0, EF Core 10 + Npgsql). References [EggIncognito.Core](../EggIncognito.Core/README.md).
 
-Part of [EggIncognito](../README.md). Active only when `ConnectionStrings:Postgres` is set. With no connection string the app is file-only and the test suite runs DB-free.
+Part of [EggIncognito](../README.md). Active only when `ConnectionStrings:Postgres` is set. With no connection string the app is file-only.
 
 ## Entities
 
-`EggIncognitoDbContext` plus these models (`Models/`):
+`EggIncognitoDbContext` plus these models:
 
 | Entity | Table | Purpose |
 |---|---|---|
@@ -43,7 +43,7 @@ owner user id on a row is the identity `Guid` with no local foreign key.
 
 Lookup goes through the `IEndpointSource` seam.
 
-- `FileEndpointSource` (the checked-in `Endpoints/` defaults) is always present.
+- `FileEndpointSource` (the checked-in file defaults) is always present.
 - `DbEndpointSource` (`stored_endpoints`) is consulted first when a DB is configured, so a stored row overrides the file default for the same `(path, eid)`.
 - The singleton `EndpointStore` resolves the scoped DB source per-lookup via a service scope. A transient DB error degrades to the file default, never a failed request.
 
@@ -97,8 +97,8 @@ Status and update history for the physical devices this host probes.
 ## Migrations
 
 - Auto-applied at startup when a DB is configured (`Database.MigrateAsync`). Fail fast on a broken DB.
-- `DesignTimeDbContextFactory` lets `dotnet ef migrations add ... --project EggIncognito.Data` run without a live DB or the web host.
+- A design-time context factory lets `dotnet ef migrations add` run without a live DB or the web host.
 - Target DB: a new `eggincognito` database on the project's Postgres instance.
 - Entities use `[Table]` / `[Column]` snake_case annotations.
 
-This library references `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore`, which persists the app's data-protection keys (auth-cookie signing keys) in the DB so cookie logins survive restarts (`data_protection_keys` table, migration `AddDataProtectionKeys`). It also references `SyncKit.Identity.Client` for the revocation-check call on cookie validation. Auth itself is the external SyncKit.Identity service. See the web project's [Authentication](../EggIncognito/README.md#authentication-synckit-identity-optional) section.
+This library references `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore`, which persists the app's data-protection keys (auth-cookie signing keys) in the DB so cookie logins survive restarts (`data_protection_keys` table). It also references `SyncKit.Identity.Client` for the revocation-check call on cookie validation. Auth itself is the external SyncKit.Identity service. See the web project's [Authentication](../EggIncognito/README.md#authentication-synckit-identity-optional) section.

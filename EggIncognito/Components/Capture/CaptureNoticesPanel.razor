@@ -1,5 +1,3 @@
-@* Capture notifications as a top-bar popover. The bell button carries the unread badge and toggles the
-   dropdown; opening marks notices read. *@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Shared
 
@@ -7,11 +5,11 @@
   <button type="button" class="icon-btn notices-btn" title="Notifications"
           aria-haspopup="true" aria-expanded="@_open" @onclick="ToggleOpen">
     <Icon Name="bell" />
-    @if (Unread > 0)
-    {
-      <span class="notif-badge-inline">@(Unread > 99 ? "99+" : Unread.ToString())</span>
-    }
   </button>
+  @if (Unread > 0)
+  {
+    <span class="notices-badge">@(Unread > 99 ? "99+" : Unread.ToString())</span>
+  }
 
   <div class="settings-menu settings-menu-lg notices-menu @(_open ? "open" : "")">
     <div class="flex items-center justify-between mb-2">

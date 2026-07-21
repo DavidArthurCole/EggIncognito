@@ -346,7 +346,11 @@
   }
   .settings-menu-lg { @apply w-[280px]; }
   .notices-menu { @apply max-h-[420px]; }
-  .notices-btn { @apply relative; }
+  .notices-badge {
+    @apply absolute z-[1200] min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[10px]
+           font-semibold leading-4 inline-flex items-center justify-center pointer-events-none;
+    top: -5px; right: -5px;
+  }
   .confirm-menu { @apply w-[240px]; }
   .confirm-actions { @apply flex justify-end gap-2 mt-2.5; }
   /* Capture controls is a narrow left-column .panel (overflow-hidden), which clipped its own popovers off
@@ -547,9 +551,8 @@
      Inline grid styles cannot do media queries, so this lives here. */
   .inspector-main { @apply grid-cols-1; }
   .capture-body { @apply grid grid-cols-1 flex-1 min-h-0; }
-  /* Capture top bar: controls + stats + notices in one full-width widget above the flow/detail row. */
-  .capture-topbar { @apply flex flex-wrap items-center gap-x-6 gap-y-3; }
-  .capture-topbar-spacer { @apply hidden lg:block flex-1; }
+  .capture-topbar { @apply flex flex-row flex-wrap items-center gap-x-8 gap-y-3; }
+  .capture-topbar-spacer { @apply flex-1 min-w-[1rem]; }
   @media (min-width: 1024px) {
     .inspector-main {
       grid-template-columns: 270px 1fr 1fr;
@@ -748,9 +751,12 @@
   /* Capture: stats panel */
   .stats-panel { @apply overflow-auto; }
   .stats-grid { @apply flex flex-col gap-3.5; }
-  /* Capture top bar: stats laid out horizontally in the single top widget (controls styled above). */
-  .capture-stats { @apply flex flex-wrap items-center gap-x-5 gap-y-2; }
-  .capture-stats .stat-group { @apply py-1.5; }
+  .capture-stats { @apply flex flex-wrap items-center gap-x-7 gap-y-1.5; }
+  .cap-stat { @apply inline-flex items-baseline gap-1.5 whitespace-nowrap text-sm; }
+  .cap-stat-k { @apply text-[11px] uppercase tracking-[0.05em] text-muted; }
+  .cap-stat-v { @apply font-mono text-fg; }
+  .cap-stat .ok { @apply text-ok; }
+  .cap-stat .err { @apply text-err; }
   .stat-group { @apply bg-panel2 border border-border rounded-md px-2.5 py-2; }
   .stat-group-title { @apply text-[11px] uppercase tracking-[0.05em] text-muted mb-1.5; }
   .stat-rows { @apply grid gap-x-2.5 gap-y-[3px] mt-1.5 text-xs; grid-template-columns: auto 1fr; }
@@ -840,8 +846,6 @@
   .tab-btn:hover { @apply text-fg; }
   .tab-btn.active { @apply text-accent; border-bottom-color: theme(colors.accent); }
   .tab-body { @apply block; }
-  /* Request/Response: tabbed on narrow (only the active pane shows), side-by-side on wide (both, equal
-     width, no tab bar). */
   .detail-panes > .detail-pane { display: none; }
   .detail-panes > .detail-pane.pane-active { display: block; }
   .detail-pane-title { display: none; @apply text-xs uppercase tracking-[0.04em] text-muted font-semibold mt-0 mb-1.5; }
@@ -857,7 +861,6 @@
   #detailPanel .detail-panes pre.json,
   #detailPanel .detail-panes .json,
   #detailPanel .detail-panes pre.data-text { max-height: none; }
-  /* Data viewers wrap inside the detail panes instead of scrolling horizontally. */
   #detailPanel .detail-pane .jtree-root { overflow-x: hidden; }
   #detailPanel .detail-pane .jtree-row { white-space: normal; }
   #detailPanel .detail-pane .jv { overflow-wrap: anywhere; }

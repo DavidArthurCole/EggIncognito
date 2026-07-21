@@ -25,7 +25,7 @@ The public instance runs at [eggincognito.davidarthurcole.me](https://eggincogni
 
 ## Quick start
 
-Grab a self-contained binary for your platform from the [latest release](https://github.com/DavidArthurCole/EggIncognito/releases/latest). No .NET install needed. Builds: `linux-x64`, `linux-arm64`, `osx-arm64`, `win-x64`. Unpack, run the `EggIncognito` executable. The `Endpoints/` response set ships alongside it.
+Grab a self-contained binary for your platform from the [latest release](https://github.com/DavidArthurCole/EggIncognito/releases/latest). No .NET install needed. Builds: `linux-x64`, `linux-arm64`, `osx-arm64`, `win-x64`. Unpack, run the `EggIncognito` executable. The response set ships alongside it.
 
 Or the container image:
 
@@ -47,15 +47,9 @@ docker compose up
 
 All listen on `http://localhost:5080`. Point your Egg, Inc. client at that address.
 
-Run the tests:
-
-```sh
-dotnet test EggIncognito.slnx
-```
-
 ## Configuring responses
 
-Responses come from endpoint files on disk under `EggIncognito/Endpoints/`, grouped by API namespace:
+Responses come from endpoint files on disk, grouped by API namespace:
 
 ```
 Endpoints/
@@ -87,7 +81,7 @@ Point the phone's Wi-Fi proxy at your computer, install and trust the printed ce
 
 ## Proto registry
 
-`/protos` keeps a versioned record of the Egg, Inc. proto schema. Drop an `.ipa` or `.apk` and it carves the `ei.proto` out of the binary in-process (no external toolchain), shows the diff against what is on record, and (for contributors) stages it for review. Browse detected builds per platform, see clientVersion / build / appVersion, and read the schema. The registry is DB-backed and empty without Postgres. See the [data layer README](EggIncognito.Data/README.md) and [Core README](EggIncognito.Core/README.md).
+`/protos` keeps a versioned record of the Egg, Inc. proto schema. Drop an `.ipa` or `.apk` and it carves the `.proto` schema out of the binary in-process (no external toolchain), shows the diff against what is on record, and (for contributors) stages it for review. Browse detected builds per platform, see clientVersion / build / appVersion, and read the schema. The registry is DB-backed and empty without Postgres. See the [data layer README](EggIncognito.Data/README.md) and [Core README](EggIncognito.Core/README.md).
 
 ## Going deeper
 
@@ -98,10 +92,9 @@ Point the phone's Wi-Fi proxy at your computer, install and trust the printed ce
 | [EggIncognito.Capture](EggIncognito.Capture/README.md) | The capture engine + the manual and device-farm capture walkthroughs. |
 | [EggIncognito.Data](EggIncognito.Data/README.md) | The optional Postgres layer (endpoint overlay, proto registry, device farm, docs). |
 | [EggIncognito.Bot](EggIncognito.Bot/README.md) | The optional Discord bot. |
-| [EggIncognito.RouteGenerator](EggIncognito.RouteGenerator/README.md) | The Roslyn source generator that turns `routes.yaml` into controllers. |
-| [EggIncognito.Tests](EggIncognito.Tests/README.md) | The test suite. |
+| [EggIncognito.RouteGenerator](EggIncognito.RouteGenerator/README.md) | The Roslyn source generator that turns the route map into controllers. |
 
-For the internals overview see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). EggIncognito is .NET / ASP.NET Core. Its mock controllers are source-generated from a single `routes.yaml`, and its UI is a Blazor Server app (Razor Components in `EggIncognito/Components/`, InteractiveServer render mode over a SignalR circuit).
+For the internals overview see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). EggIncognito is .NET / ASP.NET Core. Its mock controllers are source-generated from a single route map, and its UI is a Blazor Server app (Razor Components, InteractiveServer render mode over a SignalR circuit).
 
 ## Run modes
 
@@ -109,4 +102,4 @@ For the internals overview see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Egg
 
 ## HTTPS (optional)
 
-Place `server.crt` and `server.key` (PEM) in a `certs/` directory. Kestrel detects them at startup and enables HTTPS automatically. Locally this serves `https://localhost:5443`. For Docker, mount `./certs:/app/certs:ro`. The `certs/` directory is gitignored, so never commit private keys.
+Place a PEM certificate and key in a `certs/` directory. Kestrel detects them at startup and enables HTTPS automatically. Locally this serves `https://localhost:5443`. For Docker, mount `./certs:/app/certs:ro`. The `certs/` directory is gitignored, so never commit private keys.
