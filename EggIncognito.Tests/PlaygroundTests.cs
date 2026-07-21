@@ -223,14 +223,15 @@ public class PlaygroundTests
     }
 
     [Fact]
-    public async Task Periodicals_Page_Renders_AdminGated()
+    public async Task Periodicals_Route_MergedIntoProtosData_AdminOnlyTabs()
     {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/periodicals");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var html = await r.Content.ReadAsStringAsync();
-        Assert.Contains("Periodicals", html);
-        Assert.Contains("Admin access required", html);
+        Assert.Contains("Protos &amp; Data", html);
+
+        Assert.DoesNotContain(">Periodicals</button>", html);
     }
 
     private record ListResult(string[]? Ships);

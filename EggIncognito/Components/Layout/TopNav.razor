@@ -5,12 +5,10 @@
 <nav class="app-nav">
   <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
   <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
-  <NavLink href="protos" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos</NavLink>
+  <NavLink href="protodata" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos & Data</NavLink>
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="playground" ActiveClass="active">Playground</NavLink> }
-  @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="periodicals" ActiveClass="active">Periodicals</NavLink> }
   <NavLink href="capture" ActiveClass="active">Capture</NavLink>
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
-  <NavLink href="data" ActiveClass="active">Data</NavLink>
   @if (User.IsAuthenticated) { <NavLink href="keys" ActiveClass="active">Keys</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
   <div class="nav-right">

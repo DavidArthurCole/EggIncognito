@@ -26,8 +26,8 @@ public class ProtosPageTests
             var r = await c.GetAsync("/protos");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
             var html = await r.Content.ReadAsStringAsync();
-            Assert.Contains("Proto Registry", html);
-           
+            Assert.Contains("Protos &amp; Data", html);
+
             Assert.DoesNotContain("id=\"backfillPanel\"", html);
         }
 
