@@ -5,7 +5,7 @@
 @inject IJSRuntime JS
 
 <div>
-  @if (!string.IsNullOrEmpty(Label))
+  @if (ShowLabel && !string.IsNullOrEmpty(Label))
   {
     <div class="section-head"><h3>@Label</h3></div>
   }
@@ -31,6 +31,10 @@
   else
   {
     <div class="data-body">
+      @if (_decodedEmptyNote is not null)
+      {
+        <div class="no-json">@_decodedEmptyNote</div>
+      }
       <div class="data-box">
         <div class="data-tools">
           @FormatSelect()
@@ -47,6 +51,7 @@
 
 @code {
     [Parameter] public string Label { get; set; } = "";
+    [Parameter] public bool ShowLabel { get; set; } = true;
     [Parameter] public string? JsonStr { get; set; }
     [Parameter] public string? RawB64 { get; set; }
     [Parameter] public string EmptyNote { get; set; } = "(no decoded JSON)";
@@ -54,6 +59,7 @@
     [Parameter] public Dictionary<string, string> FormatChoice { get; set; } = new();
 
     string? _emptyNoteOnly;
+    string? _decodedEmptyNote;
     bool _showRawBox;
     string _currentFormat = "json-tree";
     string _filter = "";
@@ -76,6 +82,7 @@
             _revealedFor = JsonStr;
         }
         _emptyNoteOnly = null;
+        _decodedEmptyNote = null;
         _showRawBox = false;
         _parsed = null;
         var parseOk = false;
@@ -84,27 +91,36 @@
             try { _parsed = JsonNode.Parse(JsonStr); parseOk = true; } catch { }
         }
 
-        if (string.IsNullOrEmpty(JsonStr) && string.IsNullOrEmpty(RawB64))
+        var hasBytes = !string.IsNullOrEmpty(RawB64);
+        var emptyDecoded = !string.IsNullOrEmpty(JsonStr) && parseOk && IsEmptyContainer(_parsed);
+
+        if (string.IsNullOrEmpty(JsonStr) && !hasBytes)
         {
             _emptyNoteOnly = EmptyNote;
             return;
         }
-        if (!string.IsNullOrEmpty(JsonStr) && parseOk && IsEmptyContainer(_parsed))
+
+
+
+        if (emptyDecoded && !hasBytes)
         {
             _emptyNoteOnly = "(empty - all default values)";
             return;
         }
 
         _formats = [];
-        if (!string.IsNullOrEmpty(JsonStr) && parseOk) _formats.AddRange(CaptureFormat.JsonFormats);
-        if (!string.IsNullOrEmpty(RawB64)) _formats.AddRange(CaptureFormat.ByteFormats);
+        if (!string.IsNullOrEmpty(JsonStr) && parseOk && !emptyDecoded) _formats.AddRange(CaptureFormat.JsonFormats);
+        if (hasBytes) _formats.AddRange(CaptureFormat.ByteFormats);
         if (_formats.Count == 0)
         {
-           
+
             _emptyNoteOnly = EmptyNote;
-            _showRawBox = true;
+            _showRawBox = hasBytes;
             return;
         }
+
+        if (emptyDecoded && hasBytes)
+            _decodedEmptyNote = "Decoded message is all default values, but the response carried bytes. Raw wire bytes below (our proto snapshot may be missing fields).";
 
         var current = FormatChoice.TryGetValue(Label, out var c) ? c : View.DefaultFormat;
         if (!_formats.Contains(current)) current = _formats[0];

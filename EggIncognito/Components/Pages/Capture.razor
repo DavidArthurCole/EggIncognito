@@ -31,23 +31,26 @@
     </div>
   }
 
-  <main class="capture-main grid gap-3 p-3 min-h-0">
-    <div class="capture-side flex flex-col gap-3 min-h-0">
+  <main class="capture-main flex flex-col gap-3 p-3 min-h-0">
+    <section class="panel capture-topbar">
       <CaptureControlsPanel Running="_running" ToggleBusy="_toggleBusy" View="_view"
                             OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
                             Hosted="_hosted" ClientFactory="Client" ReadOnly="_readOnly" DeviceLabel="@_deviceLabel"
                             OnAddressRotated="@(h => { _rotatedHost = h; StateHasChanged(); })" />
+      <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
+      <div class="capture-topbar-spacer"></div>
       <CaptureNoticesPanel Notices="_notices" Unread="_unread"
                            OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
-      <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
-    </div>
-
-    <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow" />
-
-    <section id="detailPanel" class="panel">
-      <h2>Detail</h2>
-      <DetailPane Flow="_selectedFlow" View="_view" ClientFactory="Client" />
     </section>
+
+    <div class="capture-body grid gap-3 min-h-0">
+      <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow" />
+
+      <section id="detailPanel" class="panel">
+        <h2>Detail</h2>
+        <DetailPane Flow="_selectedFlow" View="_view" ClientFactory="Client" />
+      </section>
+    </div>
   </main>
 
   <div class="toast-container">

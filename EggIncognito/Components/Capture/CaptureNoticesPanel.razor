@@ -1,30 +1,27 @@
-@* Capture notifications as a collapsible side-column widget (was the nav notification popover). Sits
-   between the controls and the stats. Collapsed by default; the header shows the unread badge and toggles
-   open. Opening marks notices read. *@
+@* Capture notifications as a top-bar popover. The bell button carries the unread badge and toggles the
+   dropdown; opening marks notices read. *@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Shared
 
-<section class="panel capture-notices">
-  <div class="flex items-center justify-between cursor-pointer select-none" @onclick="ToggleOpen">
-    <h3 class="text-sm font-semibold m-0 flex items-center gap-2">
-      Notifications
-      @if (Unread > 0)
-      {
-        <span class="notif-badge-inline">@(Unread > 99 ? "99+" : Unread.ToString())</span>
-      }
-    </h3>
-    <Icon Name="chevronDown" Class="@($"icon-sm text-muted transition-transform {(_open ? "rotate-180" : "")}")" />
-  </div>
-
-  @if (_open)
-  {
-    @if (Notices.Count > 0)
+<div class="settings-wrap capture-notices">
+  <button type="button" class="icon-btn notices-btn" title="Notifications"
+          aria-haspopup="true" aria-expanded="@_open" @onclick="ToggleOpen">
+    <Icon Name="bell" />
+    @if (Unread > 0)
     {
-      <div class="flex justify-end mt-2">
-        <button type="button" class="btn-mini" @onclick:stopPropagation="true" @onclick="ClearAllNotices">Clear all</button>
-      </div>
+      <span class="notif-badge-inline">@(Unread > 99 ? "99+" : Unread.ToString())</span>
     }
-    <div class="notif-list mt-2">
+  </button>
+
+  <div class="settings-menu settings-menu-lg notices-menu @(_open ? "open" : "")">
+    <div class="flex items-center justify-between mb-2">
+      <div class="settings-title m-0">Notifications</div>
+      @if (Notices.Count > 0)
+      {
+        <button type="button" class="btn-mini" @onclick="ClearAllNotices">Clear all</button>
+      }
+    </div>
+    <div class="notif-list">
       @foreach (var n in Notices)
       {
         <div class="notif-item notif-@n.Severity">
@@ -44,8 +41,8 @@
         <div class="notif-empty">No notifications.</div>
       }
     </div>
-  }
-</section>
+  </div>
+</div>
 
 @code {
     [Parameter] public IReadOnlyList<NoticeItem> Notices { get; set; } = [];

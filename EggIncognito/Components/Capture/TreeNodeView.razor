@@ -3,33 +3,45 @@
    clamp/expand on click, blur-reveal of sensitive leaves, and dim of non-matching branches. *@
 @using EggIncognito.Components.Capture
 
-<div class="jtree-node @(IsRoot ? "jtree-root" : "") @(Node.Expanded ? "jtree-expanded" : "") @(Node.Dim ? "jtree-dim" : "") @(Node.SelfMatch ? "jtree-match" : "")">
-  <div class="jtree-row" @onclick="ToggleRow">
-    <span class="jtree-caret @(Node.IsContainer ? "" : "jtree-caret-leaf")"></span>
-    @if (Node.KeyText is not null)
+@if (FlattenRoot)
+{
+  <div class="jtree-flat">
+    @foreach (var child in Node.Children)
     {
-      <span class="jtree-key">@Highlight(Node.KeyText, Node.KeyTextLower)</span>
-      <span class="jtree-colon">: </span>
-    }
-    @if (Node.IsContainer)
-    {
-      <span class="jtree-summary">@Node.Summary</span>
-    }
-    else
-    {
-      @LeafSpan()
+      <TreeNodeView Node="child" View="View" Search="@Search" />
     }
   </div>
-  @if (Node.IsContainer && Node.Expanded)
-  {
-    <div class="jtree-children">
-      @foreach (var child in Node.Children)
+}
+else
+{
+  <div class="jtree-node @(IsRoot ? "jtree-root" : "") @(Node.Expanded ? "jtree-expanded" : "") @(Node.Dim ? "jtree-dim" : "") @(Node.SelfMatch ? "jtree-match" : "")">
+    <div class="jtree-row" @onclick="ToggleRow">
+      <span class="jtree-caret @(Node.IsContainer ? "" : "jtree-caret-leaf")"></span>
+      @if (Node.KeyText is not null)
       {
-        <TreeNodeView Node="child" View="View" Search="@Search" />
+        <span class="jtree-key">@Highlight(Node.KeyText, Node.KeyTextLower)</span>
+        <span class="jtree-colon">: </span>
+      }
+      @if (Node.IsContainer)
+      {
+        <span class="jtree-summary">@Node.Summary</span>
+      }
+      else
+      {
+        @LeafSpan()
       }
     </div>
-  }
-</div>
+    @if (Node.IsContainer && Node.Expanded)
+    {
+      <div class="jtree-children">
+        @foreach (var child in Node.Children)
+        {
+          <TreeNodeView Node="child" View="View" Search="@Search" />
+        }
+      </div>
+    }
+  </div>
+}
 
 @code {
     [Parameter] public TreeNode Node { get; set; } = default!;
@@ -46,7 +58,13 @@
         if (Node.IsContainer) Node.Expanded = !Node.Expanded;
     }
 
-    bool IsSensitive => View.IsSensitiveKey(Node.KeyName);
+
+    bool FlattenRoot => IsRoot && Node.IsContainer && Node.DescendantCount <= TreeNode.SmallChildLimit;
+
+
+    bool IsEmptyLeaf => Node.Kind == "string" && Node.LeafText == "\"\"";
+
+    bool IsSensitive => View.IsSensitiveKey(Node.KeyName) && !IsEmptyLeaf;
 
    
    

@@ -3,17 +3,17 @@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Shared
 
-<section class="panel capture-controls">
-  <div class="flex items-center gap-2 mb-2">
-    <h3 class="text-sm font-semibold m-0">@(ReadOnly ? "Live view" : "Controls")</h3>
-    @if (ReadOnly) { <span class="text-[10px] uppercase tracking-wide text-accent2 border border-accent2 rounded px-1.5 py-0.5">read-only</span> }
-  </div>
-  @if (ReadOnly && !string.IsNullOrEmpty(DeviceLabel))
+<div class="capture-controls">
+  @if (ReadOnly)
   {
-    <div class="text-sm font-medium truncate">@DeviceLabel</div>
+    <span class="text-[10px] uppercase tracking-wide text-accent2 border border-accent2 rounded px-1.5 py-0.5">read-only</span>
+    @if (!string.IsNullOrEmpty(DeviceLabel))
+    {
+      <span class="text-sm font-medium truncate max-w-[12rem]">@DeviceLabel</span>
+    }
   }
-  <div class="flex items-center @(ReadOnly ? "justify-start" : "justify-center") gap-2">
-    <div class="flex flex-wrap items-center gap-1.5 @(ReadOnly ? "" : "justify-center max-w-[10rem]")">
+  <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-1.5">
       @if (!ReadOnly)
       {
       <button type="button" class="icon-btn @(Running ? "capture-stop" : "capture-start")" disabled="@ToggleBusy"
@@ -56,9 +56,9 @@
       <div class="settings-wrap" style="position: relative;">
         <button type="button" class="icon-btn" title="Settings" aria-label="Settings"
                 aria-haspopup="true" aria-expanded="@(_open == "settings")" @onclick="@(() => Toggle("settings"))"><Icon Name="gear" /></button>
-        <div class="settings-menu @(_open == "settings" ? "open" : "")">
+        <div class="settings-menu settings-menu-lg @(_open == "settings" ? "open" : "")">
           <div class="settings-title">Redaction</div>
-          <div class="settings-hint">How sensitive values appear in the detail pane.</div>
+          <div class="settings-hint">Hide user IDs and EIDs in the detail pane.</div>
           <div class="settings-seg" role="radiogroup" aria-label="Redaction mode">
             <button type="button" class="seg-btn @(View.RedactionMode == "off" ? "active" : "")" @onclick="@(() => SetMode("off"))">Off</button>
             <button type="button" class="seg-btn @(View.RedactionMode == "blur" ? "active" : "")" @onclick="@(() => SetMode("blur"))">Blur</button>
@@ -71,12 +71,12 @@
           <div class="settings-title">List</div>
           <label class="settings-check"><input type="checkbox" checked="@View.AutoScroll" @onchange="OnAutoScroll" /> Auto-scroll to newest</label>
 
-          <div class="settings-title">Compare to known data</div>
-          <div class="settings-hint">Tag each capture by how it compares to the checked-in endpoint set (wrote / upd / same / diff / loss).</div>
+          <div class="settings-title">Comparison tags</div>
+          <div class="settings-hint">Tag each capture against the saved endpoint set.</div>
           <label class="settings-check"><input type="checkbox" checked="@View.CompareToKnown" @onchange="OnCompare" /> Show comparison tags</label>
 
           <div class="settings-title">Default format</div>
-          <div class="settings-hint">The view request/response data opens in.</div>
+          <div class="settings-hint">Format the data opens in.</div>
           <select class="data-format settings-select" value="@View.DefaultFormat" @onchange="OnDefaultFormat">
             <option value="json-tree">JSON (tree)</option>
             <option value="json">JSON (raw)</option>
@@ -90,11 +90,8 @@
       </div>
     </div>
   </div>
-  <div class="text-xs text-muted mt-2.5">
-    @(Running ? "Capturing." : ReadOnly ? "Idle." : "Stopped.")
-  </div>
-  @if (_actionMsg is not null) { <div class="text-xs mt-1 @(_actionOk ? "text-green-400" : "text-err")">@_actionMsg</div> }
-</section>
+  @if (_actionMsg is not null) { <div class="text-xs w-full @(_actionOk ? "text-green-400" : "text-err")">@_actionMsg</div> }
+</div>
 
 @code {
     [Parameter] public bool Running { get; set; }

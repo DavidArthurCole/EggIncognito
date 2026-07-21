@@ -344,6 +344,9 @@
     border-top: 1px solid theme(colors.border);
     transform: rotate(45deg);
   }
+  .settings-menu-lg { @apply w-[280px]; }
+  .notices-menu { @apply max-h-[420px]; }
+  .notices-btn { @apply relative; }
   .confirm-menu { @apply w-[240px]; }
   .confirm-actions { @apply flex justify-end gap-2 mt-2.5; }
   /* Capture controls is a narrow left-column .panel (overflow-hidden), which clipped its own popovers off
@@ -375,12 +378,12 @@
   .canvas-wrap canvas { @apply w-full h-full block; }
   .canvas-error-overlay { @apply absolute inset-0 flex items-center justify-center p-6; background: rgba(0,0,0,0.55); }
   .canvas-error-box { @apply panel max-w-[420px] text-center border border-red-500/40; }
-  .capture-controls { @apply overflow-visible; }
+  .capture-controls { @apply flex flex-wrap items-center gap-2 overflow-visible; }
   .capture-controls .settings-menu { @apply left-0 right-auto; transform-origin: top left; }
   .capture-controls .settings-menu.open::before { left: 12px; right: auto; }
-  .settings-title { @apply text-xs font-semibold uppercase tracking-[0.05em] text-muted mb-1; }
+  .settings-title { @apply text-[13px] font-semibold text-fg mb-1; }
   .settings-title .muted { @apply normal-case tracking-normal font-normal; }
-  .settings-hint { @apply text-xs text-muted mb-2.5; }
+  .settings-hint { @apply text-xs leading-snug mb-2.5; color: var(--muted); opacity: .95; }
   .settings-divider { @apply border-0 border-t border-border my-3.5; }
   .settings-group { @apply border border-border rounded-md p-2 bg-bg flex flex-col gap-1.5; }
   .settings-menu .set-row { @apply flex items-center justify-between gap-2 text-xs text-muted; }
@@ -542,17 +545,19 @@
   /* Inspector layout: on phones the three panes stack and the page scrolls; on >=lg they are the
      270px endpoint list + two equal columns filling the viewport, each pane scrolling on its own.
      Inline grid styles cannot do media queries, so this lives here. */
-  .inspector-main, .capture-main { @apply grid-cols-1; }
+  .inspector-main { @apply grid-cols-1; }
+  .capture-body { @apply grid grid-cols-1 flex-1 min-h-0; }
+  /* Capture top bar: controls + stats + notices in one full-width widget above the flow/detail row. */
+  .capture-topbar { @apply flex flex-wrap items-center gap-x-6 gap-y-3; }
+  .capture-topbar-spacer { @apply hidden lg:block flex-1; }
   @media (min-width: 1024px) {
     .inspector-main {
       grid-template-columns: 270px 1fr 1fr;
       height: calc(100vh - var(--nav-h, 48px) - 2.75rem);
     }
-    .capture-main {
-      grid-template-columns: 220px 2fr 3fr;
-      height: calc(100vh - var(--nav-h, 48px));
-    }
-    .inspector-main > .panel, .capture-main > .panel { min-height: 0; overflow: auto; }
+    .capture-main { height: calc(100vh - var(--nav-h, 48px)); }
+    .capture-body { grid-template-columns: 2fr 3fr; }
+    .inspector-main > .panel, .capture-body > .panel { min-height: 0; overflow: auto; }
     /* The result pane manages its own scrolling via the sub-tab body; keep the panel itself clipped. */
     .inspector-main > .panel.insp-result { overflow: hidden; }
   }
@@ -743,6 +748,9 @@
   /* Capture: stats panel */
   .stats-panel { @apply overflow-auto; }
   .stats-grid { @apply flex flex-col gap-3.5; }
+  /* Capture top bar: stats laid out horizontally in the single top widget (controls styled above). */
+  .capture-stats { @apply flex flex-wrap items-center gap-x-5 gap-y-2; }
+  .capture-stats .stat-group { @apply py-1.5; }
   .stat-group { @apply bg-panel2 border border-border rounded-md px-2.5 py-2; }
   .stat-group-title { @apply text-[11px] uppercase tracking-[0.05em] text-muted mb-1.5; }
   .stat-rows { @apply grid gap-x-2.5 gap-y-[3px] mt-1.5 text-xs; grid-template-columns: auto 1fr; }
@@ -832,12 +840,29 @@
   .tab-btn:hover { @apply text-fg; }
   .tab-btn.active { @apply text-accent; border-bottom-color: theme(colors.accent); }
   .tab-body { @apply block; }
+  /* Request/Response: tabbed on narrow (only the active pane shows), side-by-side on wide (both, equal
+     width, no tab bar). */
+  .detail-panes > .detail-pane { display: none; }
+  .detail-panes > .detail-pane.pane-active { display: block; }
+  .detail-pane-title { display: none; @apply text-xs uppercase tracking-[0.04em] text-muted font-semibold mt-0 mb-1.5; }
+  @media (min-width: 1280px) {
+    .detail-tabs-bar { display: none; }
+    .detail-panes { @apply flex gap-6 items-start; }
+    .detail-panes > .detail-pane { display: block; @apply flex-1 min-w-0; }
+    .detail-pane-title { display: block; }
+  }
   #detailPanel .detail-tabs { @apply flex-1 min-h-0 flex flex-col mt-3; }
-  #detailPanel .tab-body { @apply flex-1 min-h-0 overflow-auto pr-1; }
-  #detailPanel .tab-body .jtree-root,
-  #detailPanel .tab-body pre.json,
-  #detailPanel .tab-body .json,
-  #detailPanel .tab-body pre.data-text { max-height: none; }
+  #detailPanel .detail-panes { @apply flex-1 min-h-0 overflow-auto pr-1; }
+  #detailPanel .detail-panes .jtree-root,
+  #detailPanel .detail-panes pre.json,
+  #detailPanel .detail-panes .json,
+  #detailPanel .detail-panes pre.data-text { max-height: none; }
+  /* Data viewers wrap inside the detail panes instead of scrolling horizontally. */
+  #detailPanel .detail-pane .jtree-root { overflow-x: hidden; }
+  #detailPanel .detail-pane .jtree-row { white-space: normal; }
+  #detailPanel .detail-pane .jv { overflow-wrap: anywhere; }
+  #detailPanel .detail-pane pre.data-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .jtree-flat { @apply font-mono text-xs px-2 py-1.5; }
 
   /* Inspector result pane: Pipeline/Response sub-tabs fill the panel; the panel itself does not scroll
      (its overflow:auto is overridden) so the active tab body owns the only scrollbar. Without this the

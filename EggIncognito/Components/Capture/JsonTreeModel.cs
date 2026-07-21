@@ -33,6 +33,17 @@ public sealed class TreeNode
 
     public int ChildCount => Children.Count;
 
+
+    public int DescendantCount
+    {
+        get
+        {
+            var n = Children.Count;
+            foreach (var c in Children) n += c.DescendantCount;
+            return n;
+        }
+    }
+
     public string Summary => Kind == "array"
         ? $"[...] {ChildCount} {(ChildCount == 1 ? "item" : "items")}"
         : $"{{...}} {ChildCount} {(ChildCount == 1 ? "key" : "keys")}";

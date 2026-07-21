@@ -1,37 +1,30 @@
-@* Left stats panel + device list, ported from wwwroot/capture/stats.js. Pure render of the latest
-   CaptureStats; the page feeds a fresh snapshot on each "stats" envelope. The running pill + cert
-   state + per-device cards all derive from the snapshot. *@
+@* Capture stats, rendered inline in the top bar: running pill + request count + captured-data counters.
+   Pure render of the latest CaptureStats; the page feeds a fresh snapshot on each "stats" envelope. *@
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
 
-<section id="statsPanel" class="panel stats-panel">
-  <h2>Stats</h2>
-  <div class="stats-grid">
-    <div class="stat-group">
-      <div class="stat-group-title">Session</div>
-      <div class="stat-line">
-        <span class="pill @(Running ? "live" : "paused")">@StatusText</span>
-      </div>
-      <dl class="stat-rows">
-        <dt>Cert</dt><dd class="@_certCls" title="@_certTitle">@_certText</dd>
-        <dt>Requests</dt><dd>@FlowCount</dd>
-      </dl>
-    </div>
-    <div class="stat-group">
-      <div class="stat-group-title">Captured Data</div>
-      <dl class="stat-rows">
-        <dt>Auxbrain flows</dt><dd>@(Stats?.CapturedAuxbrain ?? 0)</dd>
-        <dt>Unique endpoints</dt><dd>@(Stats?.UniqueEndpoints ?? 0)</dd>
-        <dt>Bytes</dt><dd>@CaptureHelpers.FormatBytes(Stats?.BytesCaptured ?? 0)</dd>
-        <dt>Decrypt</dt><dd><span class="ok">@(Stats?.DecryptOk ?? 0)</span> ok / <span class="err">@(Stats?.DecryptErrors ?? 0)</span> err</dd>
-      </dl>
-      @if (!string.IsNullOrEmpty(Stats?.LastError))
-      {
-        <div class="stat-line muted stat-last-error" title="@Stats.LastError">last: @Stats.LastError</div>
-      }
-    </div>
+<div id="statsPanel" class="capture-stats">
+  <span class="pill @(Running ? "live" : "paused")">@StatusText</span>
+  <div class="stat-group">
+    <div class="stat-group-title">Session</div>
+    <dl class="stat-rows">
+      <dt>Requests</dt><dd>@FlowCount</dd>
+    </dl>
   </div>
-</section>
+  <div class="stat-group">
+    <div class="stat-group-title">Captured data</div>
+    <dl class="stat-rows">
+      <dt>Auxbrain flows</dt><dd>@(Stats?.CapturedAuxbrain ?? 0)</dd>
+      <dt>Unique endpoints</dt><dd>@(Stats?.UniqueEndpoints ?? 0)</dd>
+      <dt>Bytes</dt><dd>@CaptureHelpers.FormatBytes(Stats?.BytesCaptured ?? 0)</dd>
+      <dt>Decrypt</dt><dd><span class="ok">@(Stats?.DecryptOk ?? 0)</span> ok / <span class="err">@(Stats?.DecryptErrors ?? 0)</span> err</dd>
+    </dl>
+  </div>
+  @if (!string.IsNullOrEmpty(Stats?.LastError))
+  {
+    <div class="stat-line muted stat-last-error" title="@Stats.LastError">last: @Stats.LastError</div>
+  }
+</div>
 
 @code {
     [Parameter] public CaptureStats? Stats { get; set; }
@@ -39,37 +32,5 @@
     [Parameter] public bool Running { get; set; }
     [Parameter] public int Port { get; set; }
 
-    string _certCls = "cert-waiting";
-    string _certText = "Waiting";
-    string _certTitle = "No device traffic yet - point the device's Wi-Fi proxy here and generate traffic.";
-
     string StatusText => Running ? (Port > 0 ? $"RUNNING : {Port}" : "RUNNING") : "STOPPED";
-
-    protected override void OnParametersSet() =>
-        UpdateCertState(Stats?.CertState, Stats?.ActiveConnections ?? 0);
-
-    void UpdateCertState(string? state, int activeConnections)
-    {
-        _certCls = "cert-waiting";
-        _certText = "Waiting";
-        _certTitle = "No device traffic yet - point the device's Wi-Fi proxy here and generate traffic.";
-        if (state == "Trusted")
-        {
-            _certCls = "cert-trusted";
-            _certText = "Trusted - capturing";
-            _certTitle = "Cert trusted - auxbrain traffic is decrypting.";
-        }
-        else if (state == "Untrusted")
-        {
-            _certCls = "cert-untrusted";
-            _certText = "Not trusted";
-            _certTitle = "Device connected but the CA is not trusted - install + trust the CA on the device.";
-        }
-        else if (activeConnections > 0)
-        {
-            _certText = "Connected, awaiting traffic";
-            _certTitle = "Device connected - waiting for the first auxbrain request to decrypt.";
-        }
-    }
-
 }

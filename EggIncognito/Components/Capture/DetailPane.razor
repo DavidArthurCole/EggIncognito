@@ -42,19 +42,19 @@ else
   }
 
   <div class="detail-tabs">
-    <div class="tab-bar">
+    <div class="tab-bar detail-tabs-bar">
       <button type="button" class="tab-btn @(_tab == 0 ? "active" : "")" @onclick="@(() => _tab = 0)">Request</button>
       <button type="button" class="tab-btn @(_tab == 1 ? "active" : "")" @onclick="@(() => _tab = 1)">Response</button>
     </div>
-    <div class="tab-body">
-      @if (_tab == 0)
-      {
+    <div class="detail-panes">
+      <div class="detail-pane @(_tab == 0 ? "pane-active" : "")">
+        <div class="detail-pane-title">Request</div>
         @RequestPane()
-      }
-      else
-      {
+      </div>
+      <div class="detail-pane @(_tab == 1 ? "pane-active" : "")">
+        <div class="detail-pane-title">Response</div>
         @ResponsePane()
-      }
+      </div>
     </div>
   </div>
 }
@@ -170,6 +170,7 @@ else
         var emptyNote = !string.IsNullOrEmpty(f.RequestDataB64) ? "(no decoded JSON)" : "(no request body)";
         builder.OpenComponent<FormatView>(seq++);
         builder.AddComponentParameter(seq++, nameof(FormatView.Label), "Request");
+        builder.AddComponentParameter(seq++, nameof(FormatView.ShowLabel), false);
         builder.AddComponentParameter(seq++, nameof(FormatView.JsonStr), View.PickJson(f.RequestJson, f.RequestJsonRaw));
         builder.AddComponentParameter(seq++, nameof(FormatView.RawB64), f.RequestDataB64);
         builder.AddComponentParameter(seq++, nameof(FormatView.EmptyNote), emptyNote);
@@ -195,16 +196,8 @@ else
         else if (f.ResponseIsAck)
         {
             builder.OpenElement(seq++, "div");
-            builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "section-head");
-            builder.OpenElement(seq++, "h3");
-            builder.AddContent(seq++, "Response");
-            builder.CloseElement();
-            builder.CloseElement();
-            builder.OpenElement(seq++, "div");
             builder.AddAttribute(seq++, "class", "no-json");
             builder.AddContent(seq++, "Acknowledgement - this endpoint returns a short non-protobuf ack.");
-            builder.CloseElement();
             builder.CloseElement();
         }
         else if (ImageMime(f) is { } mime && !string.IsNullOrEmpty(f.ResponseB64))
@@ -217,6 +210,7 @@ else
         {
             builder.OpenComponent<FormatView>(seq++);
             builder.AddComponentParameter(seq++, nameof(FormatView.Label), "Response");
+            builder.AddComponentParameter(seq++, nameof(FormatView.ShowLabel), false);
             builder.AddComponentParameter(seq++, nameof(FormatView.JsonStr), View.PickJson(f.ResponseJson, f.ResponseJsonRaw));
             builder.AddComponentParameter(seq++, nameof(FormatView.RawB64), f.ResponseB64);
             builder.AddComponentParameter(seq++, nameof(FormatView.View), View);
@@ -232,13 +226,10 @@ else
     };
 
     RenderFragment TextResponseSection(string text, bool isAck) =>@<div>
-        <div class="section-head">
-          <h3>Response</h3>
-          @if (isAck)
-          {
-            <span class="ack-tag">acknowledgement</span>
-          }
-        </div>
+        @if (isAck)
+        {
+          <div class="section-head"><span class="ack-tag">acknowledgement</span></div>
+        }
         <pre class="data-text">@text</pre>
       </div>;
 
@@ -268,17 +259,6 @@ else
         var seq = 0;
         var bytes = (b64.Length * 3) / 4;
         builder.OpenElement(seq++, "div");
-
-        builder.OpenElement(seq++, "div");
-        builder.AddAttribute(seq++, "class", "section-head");
-        builder.OpenElement(seq++, "h3");
-        builder.AddContent(seq++, "Response");
-        builder.CloseElement();
-        builder.OpenElement(seq++, "span");
-        builder.AddAttribute(seq++, "class", "ack-tag");
-        builder.AddContent(seq++, mime);
-        builder.CloseElement();
-        builder.CloseElement();
 
         builder.OpenElement(seq++, "div");
         builder.AddAttribute(seq++, "class", "image-preview");
