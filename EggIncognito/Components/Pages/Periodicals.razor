@@ -8,143 +8,113 @@
 @inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>EggIncognito - Periodicals</PageTitle>
-<main class="px-8 pt-6 pb-8 max-w-[1200px]">
+<main class="px-4 sm:px-8 pt-6 pb-8 max-w-7xl mx-auto w-full">
   <h1 class="text-[1.3rem] mt-0 mb-1">Periodicals</h1>
-  <p class="text-muted text-xs mb-4">
-    Rotating game data intercepted (and sanitized) from server-attached devices, plus values extracted from
-    the binary. Admin-only while we validate.
-  </p>
+  <p class="text-muted mb-4">Rotating game data captured from server-attached devices, plus magnitudes extracted from the binary. Admin only.</p>
 
   @if (!_isAdmin)
   {
-    <div class="panel" id="denied">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft" /></div>
+    <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft" /></div>
   }
   else if (_summary is null)
   {
-    <div class="panel"><p class="text-muted text-sm m-0">Loading…</p></div>
+    <div class="panel text-muted text-sm">Loading…</div>
   }
   else
   {
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Extracted periodicals</h2>
-        <span class="text-muted text-xs">GameData nupkg, by id</span>
-      </div>
-      <div class="data-mon-group">
-        <div class="reg-wrap">
+    <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start">
+      <div class="flex flex-col gap-6">
+        <section class="panel">
+          <h3 class="text-sm font-semibold mt-0 mb-3">Extracted periodicals</h3>
           <table class="reg-table">
             <thead><tr><th>Family</th><th class="text-right">Rows</th><th>Provenance</th></tr></thead>
             <tbody>
               @foreach (var g in _summary.Extracted)
               {
-                var p = Prov(g.Provenance);
                 <tr>
-                  <td class="font-medium">@g.Key</td>
+                  <td class="reg-version">@g.Key</td>
                   <td class="text-right mono">@g.Count</td>
-                  <td>
-                    <span class="prov-chip @p.Cls">@p.Label</span>
-                    @if (!string.IsNullOrEmpty(g.Provenance)) { <span class="text-muted text-xs mono" title="@g.Provenance">@ShortProv(g.Provenance)</span> }
-                  </td>
+                  <td><span class="prov-chip @Prov(g.Provenance).Cls" title="@g.Provenance">@Prov(g.Provenance).Label</span></td>
                 </tr>
               }
             </tbody>
           </table>
-        </div>
-      </div>
-    </section>
+        </section>
 
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Colleggtibles</h2>
-        @if (_summary.Colleggtibles is { } cg)
-        {
-          <span class="text-muted text-xs">@cg.Count eggs @if (!string.IsNullOrEmpty(cg.Provenance)) { <span class="mono">@cg.Provenance</span> }</span>
-        }
-      </div>
-      @if (_summary.Colleggtibles is { } c)
-      {
-        <div class="data-mon-group">
-          <div class="reg-wrap">
+        <section class="panel">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
+            @if (_summary.Colleggtibles is { } cg)
+            {
+              <span class="text-muted text-xs">@cg.Count eggs</span>
+            }
+          </div>
+          @if (_summary.Colleggtibles is { } c)
+          {
             <table class="reg-table">
               <thead><tr><th>Identifier</th><th>Dimension</th><th>Tier values</th></tr></thead>
               <tbody>
                 @foreach (var e in c.Eggs)
                 {
                   <tr>
-                    <td class="font-medium">@e.Identifier</td>
-                    <td class="mono text-xs">@e.Dimension</td>
+                    <td class="reg-version">@e.Identifier</td>
+                    <td class="mono text-muted text-xs">@e.Dimension</td>
                     <td class="mono text-xs">@string.Join(", ", e.TierValues)</td>
                   </tr>
                 }
               </tbody>
             </table>
-          </div>
-        </div>
-      }
-      else
-      {
-        <p class="text-muted text-xs m-0">No colleggtible data.</p>
-      }
-      <FeedViewer Label="Whole get_periodicals response" Feed="periodicals" Fetch="Fetch" />
-    </section>
+            <FeedViewer Label="Full get_periodicals response" Feed="periodicals" Fetch="Fetch" />
+          }
+          else
+          {
+            <div class="text-muted text-sm">No colleggtible data.</div>
+          }
+        </section>
 
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Config store</h2>
-        <span class="text-muted text-xs">DLCCatalog per platform</span>
+        <section class="panel">
+          <h3 class="text-sm font-semibold mt-0 mb-1">eiafx_data</h3>
+          <p class="text-muted text-xs mt-0 mb-2">Baked artifact catalog: structure, crafting prices, quality and rarities from ei_afx/config; icons from the get_config DLC catalog. All extracted, nothing authored.</p>
+          <FeedViewer Label="View baked eiafx_data" Feed="__eiafx" Fetch="Fetch" />
+        </section>
       </div>
-      @if (!_summary.Config.Enabled)
-      {
-        <p class="text-muted text-xs m-0">Not configured (no <code class="code-chip">ConfigStore:Dir</code> / <code class="code-chip">ShipAssets:OutputDir</code>).</p>
-      }
-      else if (_summary.Config.Platforms.Count == 0)
-      {
-        <p class="text-muted text-xs m-0">Enabled, nothing stored yet.</p>
-      }
-      else
-      {
-        <div class="data-mon-group">
-          <div class="reg-wrap">
+
+      <div class="flex flex-col gap-6">
+        <section class="panel">
+          <h3 class="text-sm font-semibold mt-0 mb-3">Config store</h3>
+          @if (!_summary.Config.Enabled)
+          {
+            <div class="text-muted text-sm">Not configured.</div>
+          }
+          else if (_summary.Config.Platforms.Count == 0)
+          {
+            <div class="text-muted text-sm">Nothing stored yet.</div>
+          }
+          else
+          {
             <table class="reg-table">
               <thead><tr><th>Platform</th><th class="text-right">Size</th><th>Stored</th></tr></thead>
               <tbody>
                 @foreach (var pf in _summary.Config.Platforms)
                 {
                   <tr>
-                    <td class="font-medium">@pf.Platform</td>
+                    <td class="reg-version">@pf.Platform</td>
                     <td class="text-right mono">@Kb(pf.Bytes)</td>
                     <td class="text-muted text-xs">@pf.SavedAt.ToLocalTime().ToString("g")</td>
                   </tr>
                 }
               </tbody>
             </table>
-          </div>
-        </div>
-      }
-    </section>
+          }
+        </section>
 
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">eiafx_data</h2>
-        <span class="text-muted text-xs">baked artifact catalog (crafting + tiers)</span>
+        <section class="panel">
+          <h3 class="text-sm font-semibold mt-0 mb-3">Raw feeds</h3>
+          <FeedViewer Label="ei_afx/config" Feed="afx-config" Fetch="Fetch" />
+          <FeedViewer Label="ei_ctx/get_season_infos_v2" Feed="season-infos" Fetch="Fetch" />
+        </section>
       </div>
-      <p class="text-muted text-xs mt-0 mb-2">
-        Baked from real captures, shaped like the community <code class="code-chip">eiafx-data.json</code>.
-        Family/tier structure, crafting prices, quality and rarities come from <code class="code-chip">ei_afx/config</code>;
-        icon filenames from the <code class="code-chip">get_config</code> DLC catalog. Display names, tier names and
-        effect strings are omitted until a real in-game string source is extracted (nothing authored).
-      </p>
-      <FeedViewer Label="View baked eiafx_data" Feed="__eiafx" Fetch="Fetch" />
-    </section>
-
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Raw feeds</h2>
-        <span class="text-muted text-xs">sanitized device captures</span>
-      </div>
-      <FeedViewer Label="ei_afx/config (ArtifactsConfigurationResponse)" Feed="afx-config" Fetch="Fetch" />
-      <FeedViewer Label="ei_ctx/get_season_infos_v2 (ContractSeasonInfos)" Feed="season-infos" Fetch="Fetch" />
-    </section>
+    </div>
   }
 </main>
 
@@ -185,12 +155,6 @@
     }
 
     static string Kb(long bytes) => bytes >= 1024 ? $"{bytes / 1024}KB" : $"{bytes}B";
-
-    static string ShortProv(string prov)
-    {
-        var cut = prov.IndexOfAny([',', ';']);
-        return cut > 0 ? prov[..cut] : prov;
-    }
 
     static (string Label, string Cls) Prov(string p)
     {
