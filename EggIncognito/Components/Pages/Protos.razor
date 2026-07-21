@@ -20,11 +20,11 @@
   <h1 class="text-[1.3rem] mt-0 mb-4">Protos &amp; Data</h1>
 
   <div class="tab-bar">
-    <button type="button" class="tab-btn @(_tab == "registry" ? "active" : "")" @onclick='() => _tab = "registry"'>Registry</button>
+    <button type="button" class="tab-btn @(_tab == "registry" ? "active" : "")" @onclick='() => SelectTab("registry")'>Registry</button>
     @if (_isAdmin)
     {
-      <button type="button" class="tab-btn @(_tab == "periodicals" ? "active" : "")" @onclick='() => _tab = "periodicals"'>Periodicals</button>
-      <button type="button" class="tab-btn @(_tab == "data" ? "active" : "")" @onclick='() => _tab = "data"'>Data API</button>
+      <button type="button" class="tab-btn @(_tab == "periodicals" ? "active" : "")" @onclick='() => SelectTab("periodicals")'>Periodicals</button>
+      <button type="button" class="tab-btn @(_tab == "data" ? "active" : "")" @onclick='() => SelectTab("data")'>Data API</button>
     }
   </div>
 
@@ -375,6 +375,40 @@
     }
 
     Timer? _refresh;
+    IJSObjectReference? _tabsJs;
+
+    async Task<IJSObjectReference> TabsJs() =>
+        _tabsJs ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/tabs.js");
+
+    static string? NormalizeTab(string hash) => hash switch
+    {
+        "periodicals" => "periodicals",
+        "data" => "data",
+        "registry" => "registry",
+        _ => null,
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var want = NormalizeTab(await (await TabsJs()).InvokeAsync<string>("getHash"));
+            if (want is not null && want != _tab && (_isAdmin || want == "registry"))
+            {
+                _tab = want;
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    async Task SelectTab(string tab)
+    {
+        _tab = tab;
+        try { await (await TabsJs()).InvokeVoidAsync("setHash", tab == "registry" ? "" : tab); }
+        catch { }
+    }
 
    
     async Task RefreshAll()
@@ -541,6 +575,8 @@
         if (_refresh is not null) await _refresh.DisposeAsync();
         if (_copy is not null)
             try { await _copy.DisposeAsync(); } catch { }
+        if (_tabsJs is not null)
+            try { await _tabsJs.DisposeAsync(); } catch { }
     }
 
     record VersionRow(int Id, int? CanonicalId, string Platform, string AppVersion, string Build,

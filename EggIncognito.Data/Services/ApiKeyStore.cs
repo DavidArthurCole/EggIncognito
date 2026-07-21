@@ -64,4 +64,13 @@ public sealed class ApiKeyStore(EggIncognitoDbContext db)
         await db.SaveChangesAsync(ct);
         return true;
     }
+
+    public async Task<bool> AdminDeleteAsync(int id, CancellationToken ct = default)
+    {
+        var row = await db.ApiKeys.FirstOrDefaultAsync(k => k.Id == id, ct);
+        if (row is null) return false;
+        db.ApiKeys.Remove(row);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
 }

@@ -23,6 +23,10 @@ else
       <h2 class="admin-panel-title">Sources</h2>
       <span class="text-muted text-xs">@_data.Count total</span>
     </div>
+    @if (_dataError is not null)
+    {
+      <p class="text-err text-sm m-0 mb-2">Could not load the catalog: @_dataError</p>
+    }
     <div class="reg-wrap">
       <table class="reg-table">
         <thead>
@@ -143,6 +147,7 @@ else
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     DataResponse? _data;
+    string? _dataError;
     string _baseAddress = "";
     string? _cookie;
 
@@ -173,9 +178,16 @@ else
     {
         try
         {
-            _data = await Client().GetFromJsonAsync<DataResponse>("/api/v1/data", JsonOpts);
+            var res = await Client().GetAsync("/api/v1/data");
+            if (res.IsSuccessStatusCode)
+            {
+                var fetched = await res.Content.ReadFromJsonAsync<DataResponse>(JsonOpts);
+                if (fetched is not null) { _data = fetched; _dataError = null; }
+            }
+            else { _dataError = $"HTTP {(int)res.StatusCode}"; }
         }
-        catch { _data = new DataResponse(0, []); }
+        catch (Exception ex) { _dataError = ex.Message; }
+        _data ??= new DataResponse(0, []);
 
         if (_isAuthed) await LoadKeys();
     }
@@ -188,9 +200,9 @@ else
         {
             var res = await Client().GetAsync("/api/v1/keys");
             if (res.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable) { _noDb = true; return; }
-            _keys = res.IsSuccessStatusCode
-                ? await res.Content.ReadFromJsonAsync<List<KeyRow>>(JsonOpts) ?? []
-                : [];
+            if (res.IsSuccessStatusCode)
+                _keys = await res.Content.ReadFromJsonAsync<List<KeyRow>>(JsonOpts) ?? [];
+            else _keys ??= [];
         }
         catch { _keys = []; }
     }

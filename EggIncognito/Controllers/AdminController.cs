@@ -62,7 +62,18 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { revoked = true });
     }
 
-   
+    [HttpDelete("api-keys/{id:int}/purge")]
+    public async Task<IActionResult> DeleteApiKey(int id, CancellationToken ct)
+    {
+        if (RequireAdmin() is { } no) return no;
+        var store = Keys;
+        if (store is null) return StatusCode(503, new { error = "no database configured" });
+        var ok = await store.AdminDeleteAsync(id, ct);
+        if (!ok) return NotFound(new { error = "key not found" });
+        return Ok(new { deleted = true });
+    }
+
+
     [HttpGet("metrics")]
     [EnableRateLimiting("read")]
     public IActionResult Metrics()
