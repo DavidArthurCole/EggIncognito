@@ -13,7 +13,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/devices")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Authenticated)]
+[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
 public sealed class DevicesController(
     ICurrentUser currentUser, IServiceProvider services,

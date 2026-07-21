@@ -12,7 +12,6 @@ Part of [EggIncognito](../README.md). Active only when `ConnectionStrings:Postgr
 |---|---|---|
 | `StoredEndpoint` | `stored_endpoints` | A stored response that overrides the file default for a `(path, eid)`. |
 | `StoredRoute` | `stored_routes` | Mirrors the yaml catalog (`source=yaml`) and holds user-added routes (`source=db`). |
-| `User` | `users` | Discord identity, `discord_id` PK, carries `Role`. |
 | `Doc` | `docs` | One Markdown body per subject. |
 | `Tag` | `tags` | Slug/label/color catalog. |
 | `SubjectTag` | `subject_tags` | Subject -> tag join. |
@@ -30,8 +29,15 @@ Part of [EggIncognito](../README.md). Active only when `ConnectionStrings:Postgr
 | `DeviceUpdate` | `device_updates` | One append-only update attempt on a device. |
 | `CaptureProxyAddr` | `capture_proxy_addrs` | A user's stable IPv6 hosted-capture address. |
 | `CaptureUserCa` | `capture_user_cas` | A user's hosted-capture root CA pfx (bytea). |
+| `ApiKey` | `api_keys` | A user-minted API key: SHA-256 hash + 12-char prefix, owner user id, usage counters, revocation. |
+| `StoredMesh` | `stored_meshes` | A device-pulled `.glb` mesh cached in the DB, keyed by `(platform, stem)`. |
+| `StoredIcon` | `stored_icons` | A device-pulled icon PNG cached in the DB, keyed by asset name. |
+| `EnvDesign` | `env_designs` | A saved playground farm-layout design. |
+| `EnvDesignVersion` | `env_design_versions` | One version snapshot of an `EnvDesign`. |
 
-`UserRole` (viewer / contributor / admin) is the role enum.
+`UserRole` (viewer / contributor / admin) is the role enum. Users themselves live in the external
+SyncKit.Identity service, not in this database. Roles ride in the auth cookie's `egi:role` claim; an
+owner user id on a row is the identity `Guid` with no local foreign key.
 
 ## Endpoint overlay
 
@@ -95,4 +101,4 @@ Status and update history for the physical devices this host probes.
 - Target DB: a new `eggincognito` database on the project's Postgres instance.
 - Entities use `[Table]` / `[Column]` snake_case annotations.
 
-This library also carries a `<FrameworkReference Include="Microsoft.AspNetCore.App"/>` so it can see the OAuth ticket type used by `UserUpsert.OnLoginAsync` (the Discord login upsert). See the web project's [Authentication](../EggIncognito/README.md#authentication-discord-oauth-optional) section.
+This library references `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore`, which persists the app's data-protection keys (auth-cookie signing keys) in the DB so cookie logins survive restarts (`data_protection_keys` table, migration `AddDataProtectionKeys`). It also references `SyncKit.Identity.Client` for the revocation-check call on cookie validation. Auth itself is the external SyncKit.Identity service. See the web project's [Authentication](../EggIncognito/README.md#authentication-synckit-identity-optional) section.

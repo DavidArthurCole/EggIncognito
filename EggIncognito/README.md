@@ -21,7 +21,7 @@ Part of [EggIncognito](../README.md). Sibling projects:
 
 The UI is Blazor Server (Razor Components in `Components/`). `Components/App.razor` is the host page; `Components/Pages/*.razor` are the routable pages over `Components/Layout/MainLayout.razor` + `TopNav.razor`. `Components/Shared/` holds reusable pieces (`Icon`, `Markdown`, `MarkdownEditor`, `DocHelp`). Interactivity is `InteractiveServer` over a SignalR circuit.
 
-- Pages: `/` (Home), `/inspector`, `/capture`, `/import`, `/protos`, `/docs`, `/admin`, `/support`.
+- Pages: `/` (Home), `/inspector`, `/capture`, `/import`, `/protodata` (Protos & Data, also served at `/protos` + `/data` + `/periodicals`), `/playground` (admin), `/docs`, `/admin`, `/support`.
 - Navigation is normal Blazor routing. There is no separate client-side router.
 
 `wwwroot/` holds only static assets:
@@ -35,9 +35,9 @@ The tabs:
 - **Inspector** (`/inspector`) - builds, visualizes, and sends Egg, Inc. requests. See the Inspector send targets section.
 - **Capture** (`/capture`) - the live capture dashboard. Start/stop the proxy, watch flows stream in.
 - **Import** (`/import`) - import a HAR into `Endpoints/`. Local-only.
-- **Protos** (`/protos`) - the proto registry console. Drop an `.ipa`/`.apk` to extract its `.proto` (everyone), browse detected builds per platform, diff two builds, and (contributor+) review the staged-proto queue. `/protos/{platform}/{build}` is one build's detail; `/protos/sources` credits the sources; `/protos/subscribe` manages proto feed webhooks.
+- **Protos & Data** (`/protodata`, also `/protos` + `/data` + `/periodicals`) - one page with `.tab-bar` sub-tabs. Registry (public): drop an `.ipa`/`.apk` to extract its `.proto` (everyone), browse detected builds per platform, diff two builds, and (contributor+) review the staged-proto queue. Periodicals + Data API (admin-only): the game-data repository (families, eiafx_data, raw feeds, colleggtibles) and the public data API source index plus API-key management. `/protos/{platform}/{build}` is one build's detail; `/protos/sources` credits the sources; `/protos/subscribe` manages proto feed webhooks.
 - **Docs** (`/docs`) - browses `IDocRegistry` subjects (proto messages + endpoints) with editable DB-backed Markdown + tags. `<DocHelp>` gives inline help next to controls elsewhere.
-- **Admin** (`/admin`) - user role management plus DB-contribution review. Admin-only.
+- **Admin** (`/admin`) - user role management, DB-contribution review, API activity, and API-key oversight. Admin-only.
 - **Support** (`/support`) - supporter / donation info.
 
 `TopNav` reads `GET /api/app/mode` and hides the Capture/Import/Admin links when the matching capability or role is off.
@@ -88,8 +88,7 @@ For a path-parameterized route (the EID rides in the URL), add `pathParam: true`
 | `HttpsPort` | `8443` | HTTPS port (only active when certs are present) |
 | `AppMode` | `Local` | `Local` = full features; `Hosted` = capture + writes disabled (the public deploy) |
 | `ConnectionStrings:Postgres` | unset | When set, enables the Postgres data layer (overlay + DB routes) and applies migrations at startup. Unset = file-only. |
-| `Discord:ClientId` / `Discord:ClientSecret` | unset | Discord OAuth app credentials. Auth wires only when both are set AND a DB is configured. |
-| `Discord:AdminIds` | unset | Comma-separated Discord ids auto-promoted to admin on login (bootstraps the first admin). |
+| `Identity:ApiUrl` / `Identity:ApiSecret` | unset | External SyncKit.Identity service URL + shared secret. Cookie auth wires only when both are set. Users/roles live in that service, not locally. |
 | `Discord:BotToken` | unset | When set, starts the optional Discord bot. |
 | `Discord:GuildId` | unset | Optional. Enables instant guild command registration for the bot. |
 | `CaptureEnabled` | follows mode | Per-capability override for the capture proxy |
@@ -191,31 +190,44 @@ A rack of wired Android + iOS phones, probed and updated and captured automatica
 | `/api/devices/{id}/save` | POST | admin | Pull the installed app, carve its proto in-process, harvest clientVersion off the wire, and upsert a registry row. |
 | `/api/devices/{id}/restart-app` | POST | admin | Force-restart the app (kill + relaunch) so it hits auxbrain and a fresh rinfo can be captured. |
 
-## Authentication (Discord OAuth, optional)
+## Authentication (SyncKit.Identity, optional)
 
-Cookie auth + `AspNet.Security.OAuth.Discord`, wired only when a DB AND `Discord:ClientId` + `Discord:ClientSecret` are configured (`AuthSetup.AddDiscordAuthIfConfigured`). Without that config the app is fully anonymous and unchanged.
+Cookie auth backed by the external SyncKit.Identity microservice (`IdentityApiClient`), wired only when `Identity:ApiUrl` + `Identity:ApiSecret` are set (`AuthSetup.AddSyncKitAuthIfConfigured`, cookie `egi.auth`, 30-day sliding). There is no local user table (dropped 2026-07-08); users, roles, and the admin allowlist all live in the identity service. Without that config the app is fully anonymous and unchanged.
 
-- **Flow.** `GET /login` issues a Discord challenge. The middleware handles the `/discord-auth` callback, issues the cookie, and runs `UserUpsert.OnLoginAsync` (upserts the `users` row). `POST /logout` clears the cookie. `GET /api/auth/me` + `GET /api/app/mode` report the current user. `TopNav` renders login state from `/api/app/mode` (`authEnabled` + `user`).
-- **Identity.** `User` entity in [EggIncognito.Data](../EggIncognito.Data/README.md) (`discord_id` PK). `ICurrentUser` (web) exposes the Discord claims server-side. `AuthState` is a singleton flag for the wired/not-wired branch.
-- **Operator setup.** Register the OAuth app's redirect URI in the Discord developer portal: `https://eggincognito.davidarthurcole.me/discord-auth` (prod) and `http://localhost:5032/discord-auth` (local dev). Scope: `identify` (no email).
+- **Flow.** Login happens through the identity widget (Discord OAuth is inside that service, not here). The app redeems a login code, signs in the cookie, and caches the claims `egi:user_id` / `egi:role` / `egi:supporter`. `POST /logout` clears the cookie. On each request `OnValidatePrincipal` asks the identity service whether the session was revoked (skipped gracefully if the service is unreachable). `GET /api/auth/me` + `GET /api/app/mode` report the current user; `TopNav` renders login state from `/api/app/mode`.
+- **Identity.** `ICurrentUser` (web) reads the cached claims server-side. `AuthState` is a singleton flag for the wired/not-wired branch. Row ownership stores the identity `Guid` with no local foreign key.
+- **API keys.** `AuthSetup` also chains an `ApiKey` authentication scheme so a request carrying `X-Api-Key` / `Bearer egi_` authenticates as a viewer (reads + higher rate tier only, never write/admin). See [API access + keys](#api-access--keys).
 
 ## Authorization (roles + ACLs)
 
-`User.Role` (viewer / contributor / admin) is resolved on login and stamped into the cookie as the `egi:role` claim. Two orthogonal authorities:
+The role (viewer / contributor / admin) rides in the cookie's `egi:role` claim, resolved by the identity service. Two orthogonal authorities:
 
 - `IAppMode.CanWrite` gates local file ops (`/api/import/*`, capture). These have no user and run only in Local mode.
-- The role gate authorizes shared-DB writes: `/api/db/endpoint` + `/api/db/route` require contributor+ (403 otherwise). Reads stay public. This replaces the old `CanWrite` check on those actions.
+- The role gate authorizes shared-DB writes: `/api/db/endpoint` + `/api/db/route` require contributor+ (403 otherwise). Reads stay public.
 
-The first admin is bootstrapped from `Discord:AdminIds`. New users default to viewer. `/api/admin/*` (admin-only) lists/promotes users and reviews/deletes DB contributions. `/admin` is the admin page, with its nav link shown only to admins. Viewers/anonymous who try to save get a browser-`localStorage` fallback. The role check + admin self-lockout guard run before any DB access, so they are testable DB-free.
+New users default to viewer. `AdminController.SetUserRole` proxies the identity service's `SetRoleAsync`. `/api/admin/*` (admin-only) lists/promotes users and reviews/deletes DB contributions. `/admin` is the admin page, with its nav link shown only to admins. Viewers/anonymous who try to save get a browser-`localStorage` fallback. The role check + admin self-lockout guard run before any DB access, so they are testable DB-free.
+
+## API access + keys
+
+Every `/api/*` MVC action declares an explicit floor via `[ApiAccess(ApiAccessLevel.{Public|Authenticated|Contributor|Admin})]` (class or action; action wins). The global `ApiAccessFilter` enforces default-DENY: a `/api/*` action with no attribute returns 500 (guarded by `ApiAccessGuardTests` so it cannot ship). The attribute is a floor only; the in-body guards above (`CanWrite`, hosted-block, `RequireAdmin`/`RequireContributor`, owner/supporter checks) still run and can be stricter.
+
+- **Keys.** Any logged-in user mints/lists/revokes their own keys at `/api/v1/keys/*` (`ApiKeysController`); the self-service UI lives in the Data API sub-tab of `/protodata`. Admins view + revoke all keys at `/api/admin/api-keys`. A key is `egi_live_<rand>`, stored as a SHA-256 hash + 12-char prefix, shown once. Cap `ApiKeys:MaxPerUser` (default 20). DB-gated: writes 503 without Postgres.
+- **Public data API.** `GET /api/v1/data` (index) + `/api/v1/data/{group}/{id}` (dispatch) serve every game-data point from the self-describing `DataCatalog`, so each source gets a URL automatically and nothing is hardcoded elsewhere. Groups: `periodical` (wire fixtures, authenticated, egress-refreshable), `derived` + `gamedata` (public, extracted/embedded), `asset` (icon PNG, public, `?name=`). Anonymous callers get 1 request/hour; log in or send `X-Api-Key`.
 
 ## Rate limiting
 
-Built-in `Microsoft.AspNetCore.RateLimiting` (`Services/RateLimiting/`). `UseRateLimiter()` is placed after auth (the partition key needs the authenticated user) and before `MapControllers`.
+Built-in `Microsoft.AspNetCore.RateLimiting` (`Services/RateLimiting/`). `UseRateLimiter()` is placed after auth (the partition key needs the authenticated user) and before `MapControllers`. Default-on; `RateLimiting:Enabled=false` makes it a pass-through. A policy applies only where a controller opts in with `[EnableRateLimiting("...")]`; unmarked page loads, static assets, and the SSE stream are never throttled.
 
-There is no global backstop and no read policy. Page loads, static assets, the SSE stream, and read APIs are never throttled. Only two named policies are wired:
+Named policies (requests/min unless noted):
 
-- `egress` - the Inspector Live-API `send`.
-- `write` - the import/db/docs/admin controllers.
+| Policy | Limit | Applied to |
+|---|---|---|
+| `egress` | 10 | the Inspector Live-API `send` |
+| `write` | 60 | import / db / docs / admin writes |
+| `read` | 120 | read APIs |
+| `fetch` | 300 | high-frequency status polls (device status/live) |
+| `data` | see below | the public data API (`/api/v1/data`) |
+| `Global` | 300 | backstop |
 
 Tiers (requests/min):
 
@@ -223,13 +235,16 @@ Tiers (requests/min):
 |---|---|
 | anon | 30 |
 | viewer | 120 |
-| contributor+ | 600 |
+| contributor | 600 |
+| supporter | 1200 |
+| keyed (API-key callers) | 600 |
 
 - **Effective permit** = `min(policy, tier)`, so anonymous callers stay strictest.
+- **`data` policy** is custom (`DataPartition`): anonymous = 1 request/HOUR by ip (the anti-scrape gate), API-key = the keyed tier by `apikey:{id}`, cookie = the role tier by `user:{id}`.
 - **Admins are exempt entirely.** `RateLimiterSetup.IsExempt` returns true for `IsAtLeast(Admin)`, so an admin's partition is `GetNoLimiter`. The device farm + admin tooling legitimately burst (poll loops, force-restart + capture), which a per-tier cap would throttle.
-- **Partition.** `user:{DiscordId}` when logged in, else `ip:{clientIp}` from `CF-Connecting-IP`. The `X-Forwarded-For` first hop and the socket IP are local/no-CF fallbacks.
+- **Partition.** `user:{id}` when logged in, else `ip:{clientIp}` from `CF-Connecting-IP`. The `X-Forwarded-For` first hop and the socket IP are local/no-CF fallbacks.
 - **Rejections.** 429 + `Retry-After` + a small JSON body.
-- **Config.** Driven by the `RateLimiting` appsettings section. `Enabled:false` makes it a no-op. `RateLimitOptions` / `RateLimitKeys` are pure + unit-tested.
+- **Config.** Driven by the `RateLimiting` appsettings section. `RateLimitOptions` / `RateLimitKeys` are pure + unit-tested.
 - **Security note.** Trusting `CF-Connecting-IP` is safe only while Cloudflare is the only path to the origin.
 
 ## Distribution

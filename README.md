@@ -18,10 +18,10 @@ The public instance runs at [eggincognito.davidarthurcole.me](https://eggincogni
 | Mock API | (POST endpoints) | Serves canned protobuf responses per route + per EID, byte-identical to auxbrain. |
 | Inspector | `/inspector` | Build, sign, send, and decode any API request. Every transform is visualized. |
 | Capture | `/capture` | TLS-intercepting proxy. Records live game traffic into reusable endpoints. |
-| Protos | `/protos` | Versioned proto registry. Drop an `.ipa`/`.apk` to extract its schema, or browse detected builds per platform. |
+| Protos & Data | `/protodata` | Versioned proto registry (drop an `.ipa`/`.apk` to extract its schema) plus the game-data repository and the public data API + key management. |
 | Docs | `/docs` | Per-message + per-endpoint documentation with tags and a proto reference. |
 | Import | `/import` | Turn a captured HAR into endpoints. |
-| Admin | `/admin` | User roles + shared-store review. |
+| Admin | `/admin` | User roles + shared-store review + API-key oversight. |
 
 ## Quick start
 

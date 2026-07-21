@@ -9,7 +9,6 @@
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="playground" ActiveClass="active">Playground</NavLink> }
   <NavLink href="capture" ActiveClass="active">Capture</NavLink>
   @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
-  @if (User.IsAuthenticated) { <NavLink href="keys" ActiveClass="active">Keys</NavLink> }
   @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
   <div class="nav-right">
     <NavToolbarOutlet />

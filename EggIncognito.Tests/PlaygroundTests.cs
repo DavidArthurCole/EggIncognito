@@ -29,6 +29,14 @@ public class PlaygroundTests
     }
 
     [Fact]
+    public async Task Devices_Status_IsPublic_ForAnonymousHosts()
+    {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/devices/status");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+    }
+
+    [Fact]
     public async Task Devices_ListMeshes_RequiresAdmin()
     {
         var c = _factory.CreateClient();
