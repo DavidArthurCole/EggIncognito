@@ -84,7 +84,7 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
         var row = await db.FeedSubscriptions.FirstOrDefaultAsync(s => s.Id == id && s.OwnerUserId == ownerUserId, ct);
         if (row is null) return false;
         row.Platforms = platforms is { Length: > 0 } ? platforms : ["android", "ios"];
-        row.Trigger = trigger == "new_version" ? "new_version" : "proto_changed";
+        row.Trigger = string.IsNullOrWhiteSpace(trigger) ? row.Trigger : trigger;
         row.Active = active;
         row.MessageTemplate = string.IsNullOrWhiteSpace(messageTemplate) ? null : messageTemplate;
         await db.SaveChangesAsync(ct);

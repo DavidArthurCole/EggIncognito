@@ -346,7 +346,7 @@ public sealed class DevicesController(
                 var pageUrl = EggIncognito.Services.Feed.FeedDispatcher.BuildPageUrl(
                     cfg?["Feed:PageBaseUrl"], device.Platform, build);
                 await dispatcher.DispatchAsync(new EggIncognito.Services.Feed.ProtoBuildEvent(
-                    row.Id, device.Platform, appVersion, build, clientVersion: null,
+                    row.Id, device.Platform, appVersion, build, ClientVersion: null,
                     sha, created, protoChanged, pageUrl), HttpContext.RequestAborted);
             }
         }

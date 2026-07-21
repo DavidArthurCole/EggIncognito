@@ -38,8 +38,8 @@ public class FeedDispatcherTests
         public Task<List<FeedSubscription>> ActiveAsync(CancellationToken ct = default) =>
             Task.FromResult(Subs.Where(s => s.Active).ToList());
 
-        public Task<bool> AlreadyDeliveredAsync(int subId, int protoVersionId, CancellationToken ct = default) =>
-            Task.FromResult(Deliveries.Any(d => d.SubscriptionId == subId && d.ProtoVersionId == protoVersionId));
+        public Task<bool> AlreadyDeliveredAsync(int subId, string eventKind, string dedupKey, CancellationToken ct = default) =>
+            Task.FromResult(Deliveries.Any(d => d.SubscriptionId == subId && d.EventKind == eventKind && d.DedupKey == dedupKey));
 
         public Task RecordAsync(FeedDelivery delivery, CancellationToken ct = default)
         {
@@ -98,17 +98,27 @@ public class FeedDispatcherTests
 
     private static FeedSubscription Sub(int id, string trigger, params string[] platforms) => new()
     {
-        Id = id, Kind = "discord", TargetUrl = "https://discord.com/api/webhooks/1/abc",
+        Id = id, Kind = "discord", EventKind = "proto_build",
+        TargetUrl = "https://discord.com/api/webhooks/1/abc",
         Trigger = trigger, Platforms = platforms, Active = true,
     };
+
+    private static FeedSubscription PeriodicalsSub(int id, string trigger) => new()
+    {
+        Id = id, Kind = "discord", EventKind = "periodicals_changed",
+        TargetUrl = "https://discord.com/api/webhooks/1/abc",
+        Trigger = trigger, Platforms = [], Active = true,
+    };
+
+    private static ProtoBuildEvent ProtoEvt(bool protoChanged, string platform = "android", int id = 7) =>
+        new(id, platform, "1.0", "111343", "72", "sha", Created: true, ProtoChanged: protoChanged, "https://x/y");
 
     [Fact]
     public async Task ProtoChanged_Fires_OnChange()
     {
         var store = new FakeStore(Sub(1, "proto_changed", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
-        await Dispatcher(store, handler).DispatchAsync(
-            7, "android", "1.0", "111343", "72", "sha", created: true, protoChanged: true, "https://x/y");
+        await Dispatcher(store, handler).DispatchAsync(ProtoEvt(protoChanged: true));
 
         Assert.Equal(1, handler.Posts);
         Assert.Single(store.Deliveries);
@@ -120,8 +130,7 @@ public class FeedDispatcherTests
     {
         var store = new FakeStore(Sub(1, "proto_changed", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
-        await Dispatcher(store, handler).DispatchAsync(
-            7, "android", "1.0", "111343", "72", "sha", created: true, protoChanged: false, "https://x/y");
+        await Dispatcher(store, handler).DispatchAsync(ProtoEvt(protoChanged: false));
 
         Assert.Equal(0, handler.Posts);
         Assert.Empty(store.Deliveries);
@@ -132,8 +141,7 @@ public class FeedDispatcherTests
     {
         var store = new FakeStore(Sub(1, "new_version", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Gone));
-        await Dispatcher(store, handler).DispatchAsync(
-            7, "android", "1.0", "111343", "72", "sha", created: true, protoChanged: false, "https://x/y");
+        await Dispatcher(store, handler).DispatchAsync(ProtoEvt(protoChanged: false));
 
         Assert.False(store.Subs[0].Active);
         Assert.Equal("failed", store.Deliveries[0].Status);
@@ -145,8 +153,8 @@ public class FeedDispatcherTests
         var store = new FakeStore(Sub(1, "new_version", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         var d = Dispatcher(store, handler);
-        await d.DispatchAsync(7, "android", "1.0", "111343", "72", "sha", true, false, "https://x/y");
-        await d.DispatchAsync(7, "android", "1.0", "111343", "72", "sha", true, false, "https://x/y");
+        await d.DispatchAsync(ProtoEvt(protoChanged: false));
+        await d.DispatchAsync(ProtoEvt(protoChanged: false));
 
         Assert.Equal(1, handler.Posts);
         Assert.Single(store.Deliveries);
@@ -160,10 +168,59 @@ public class FeedDispatcherTests
         var store = new FakeStore(sub);
         string? sentBody = null;
         var handler = new StubHandler(req => { sentBody = req.Content!.ReadAsStringAsync().Result; return new HttpResponseMessage(HttpStatusCode.NoContent); });
-        await Dispatcher(store, handler).DispatchAsync(
-            7, "android", "1.0", "111343", "72", "sha", created: true, protoChanged: true, "https://x/y");
+        await Dispatcher(store, handler).DispatchAsync(ProtoEvt(protoChanged: true));
 
         Assert.Contains("New build 1.0 (111343) on android: changed", sentBody);
         Assert.DoesNotContain("embeds", sentBody);
+    }
+
+    [Fact]
+    public async Task WrongKind_Subscription_NotFired()
+    {
+        var store = new FakeStore(PeriodicalsSub(1, "any"));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        await Dispatcher(store, handler).DispatchAsync(ProtoEvt(protoChanged: true));
+
+        Assert.Equal(0, handler.Posts);
+        Assert.Empty(store.Deliveries);
+    }
+
+    [Fact]
+    public async Task Periodicals_Any_Fires_ProtoSubIgnored()
+    {
+        var store = new FakeStore(PeriodicalsSub(1, "any"), Sub(2, "proto_changed", "android"));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        await Dispatcher(store, handler).DispatchAsync(new PeriodicalsChangedEvent("periodicals", "abc123", "https://x/periodicals"));
+
+        Assert.Equal(1, handler.Posts);
+        Assert.Single(store.Deliveries);
+        Assert.Equal("periodicals_changed", store.Deliveries[0].EventKind);
+        Assert.Equal("periodicals:abc123", store.Deliveries[0].DedupKey);
+    }
+
+    [Fact]
+    public async Task Periodicals_FeedTrigger_MatchesOnlyThatFeed()
+    {
+        var store = new FakeStore(PeriodicalsSub(1, "afx-config"));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var d = Dispatcher(store, handler);
+        await d.DispatchAsync(new PeriodicalsChangedEvent("periodicals", "h1", "https://x/periodicals"));
+        Assert.Equal(0, handler.Posts);
+        await d.DispatchAsync(new PeriodicalsChangedEvent("afx-config", "h2", "https://x/periodicals"));
+        Assert.Equal(1, handler.Posts);
+    }
+
+    [Fact]
+    public async Task Periodicals_SameContentHash_Deduped()
+    {
+        var store = new FakeStore(PeriodicalsSub(1, "any"));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var d = Dispatcher(store, handler);
+        await d.DispatchAsync(new PeriodicalsChangedEvent("periodicals", "samehash", "https://x/periodicals"));
+        await d.DispatchAsync(new PeriodicalsChangedEvent("periodicals", "samehash", "https://x/periodicals"));
+
+        Assert.Equal(1, handler.Posts);
+        await d.DispatchAsync(new PeriodicalsChangedEvent("periodicals", "newhash", "https://x/periodicals"));
+        Assert.Equal(2, handler.Posts);
     }
 }

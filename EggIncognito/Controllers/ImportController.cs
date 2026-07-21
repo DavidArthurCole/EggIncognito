@@ -9,7 +9,9 @@ namespace EggIncognito.Controllers;
 [ApiController]
 [Route("api/import")]
 [EnableRateLimiting("write")]
-public sealed class ImportController(IConfiguration config, IAppMode appMode) : ControllerBase
+public sealed class ImportController(
+    IConfiguration config, IAppMode appMode,
+    EggIncognito.Services.Feed.PeriodicalsChangeNotifier notifier) : ControllerBase
 {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
 
@@ -36,6 +38,7 @@ public sealed class ImportController(IConfiguration config, IAppMode appMode) : 
             await using (var fs = System.IO.File.Create(tmp)) await file.CopyToAsync(fs);
             var eid = config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID");
             var extractor = EndpointExtractor.ForRepo(Root, eid, "EI0000000000000000", overwrite);
+            extractor.WriteObserver = notifier;
             run(extractor, tmp);
             extractor.Save();
             var c = extractor.Counts;

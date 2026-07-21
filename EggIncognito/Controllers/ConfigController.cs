@@ -155,6 +155,7 @@ public sealed class ConfigController(
         var contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
         var extractor = EndpointExtractor.ForRepo(contentRoot, eid: null, "EI0000000000000000", overwrite: true);
         extractor.Quiet = true;
+        extractor.WriteObserver = notifier;
 
         async Task<object> One(string url, string label, byte[] inner)
         {

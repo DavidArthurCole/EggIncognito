@@ -1,5 +1,6 @@
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Services.Feed;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -11,10 +12,13 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
     : ControllerBase
 {
     public sealed record CreateReq(string WebhookUrl, string[]? Platforms, string? Trigger, string? Label,
-        string? MessageTemplate);
+        string? MessageTemplate, string? EventKind = null);
 
     private FeedSubscriptionStore? Store =>
         services.GetService(typeof(FeedSubscriptionStore)) as FeedSubscriptionStore;
+
+    [HttpGet("kinds")]
+    public IActionResult Kinds() => Ok(FeedEventKinds.All);
 
     [HttpPost]
     [EnableRateLimiting("write")]
@@ -33,18 +37,20 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         if (!test.IsSuccessStatusCode)
             return BadRequest(new { error = "webhook rejected the test message" });
 
+        var kind = FeedEventKinds.Normalize(req.EventKind);
         var sub = await Store.AddAsync(new FeedSubscription
         {
             Kind = "discord",
+            EventKind = kind,
             TargetUrl = req.WebhookUrl,
             Platforms = req.Platforms is { Length: > 0 } ? req.Platforms : ["android", "ios"],
-            Trigger = req.Trigger == "new_version" ? "new_version" : "proto_changed",
+            Trigger = FeedEventKinds.NormalizeTrigger(kind, req.Trigger),
             Label = req.Label,
             MessageTemplate = string.IsNullOrWhiteSpace(req.MessageTemplate) ? null : req.MessageTemplate,
             OwnerUserId = (services.GetService(typeof(EggIncognito.Services.ICurrentUser))
                 as EggIncognito.Services.ICurrentUser)?.UserId,
         }, ct);
-        return Ok(new { sub.Id, sub.Platforms, sub.Trigger });
+        return Ok(new { sub.Id, sub.EventKind, sub.Platforms, sub.Trigger });
     }
 
     private Guid? OwnerUserId =>
@@ -63,6 +69,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         {
             s.Id,
             s.Label,
+            s.EventKind,
             s.Platforms,
             s.Trigger,
             s.Active,
@@ -102,12 +109,15 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
 
        
        
-        var body = string.IsNullOrWhiteSpace(sub.MessageTemplate)
-            ? """{"content":"EggIncognito proto feed test."}"""
-            : EggIncognito.Services.Feed.DiscordFeedPayload.Build(
-                "android", "1.0.0", "1", "1", "0000000000000000000000000000000000000000",
-                true, EggIncognito.Services.Feed.FeedDispatcher.BuildPageUrl(null, "android", "1"),
-                sub.MessageTemplate);
+        var body = sub.EventKind == FeedEventKinds.PeriodicalsChanged
+            ? DiscordFeedPayload.BuildPeriodicals(
+                "periodicals", "0000000000000000000000000000000000000000000000000000000000000000",
+                $"{FeedDispatcher.DefaultPageBaseUrl}/periodicals", sub.MessageTemplate)
+            : string.IsNullOrWhiteSpace(sub.MessageTemplate)
+                ? """{"content":"EggIncognito feed test."}"""
+                : DiscordFeedPayload.Build(
+                    "android", "1.0.0", "1", "1", "0000000000000000000000000000000000000000",
+                    true, FeedDispatcher.BuildPageUrl(null, "android", "1"), sub.MessageTemplate);
 
         var http = httpFactory.CreateClient("discord-api");
         var res = await http.PostAsync(sub.TargetUrl,
