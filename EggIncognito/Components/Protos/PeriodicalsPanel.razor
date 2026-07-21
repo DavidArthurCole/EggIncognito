@@ -5,63 +5,75 @@
 @inject ICurrentUser User
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
 
 @if (!_isAdmin)
 {
   <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft" /></div>
 }
-else if (_summary is null)
+else if (_summary is null && _catalog is null)
 {
   <div class="panel text-muted text-sm">Loading…</div>
 }
 else
 {
+  <section class="panel mb-6">
+    <p class="text-sm m-0 mb-1">Every game-data point below is served from the self-describing catalog. View or download it inline, or hit its API route directly.</p>
+    <p class="text-muted text-sm m-0">Unauthenticated API requests are limited to 1 per hour. Log in or mint an API key below and send it as the <span class="code-chip">X-Api-Key</span> header for normal rate limits.</p>
+  </section>
+
   <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start">
     <div class="flex flex-col gap-6">
-      <section class="panel">
-        <h3 class="text-sm font-semibold mt-0 mb-3">Extracted</h3>
-        <div class="flex flex-col divide-y divide-border">
-          @foreach (var g in _summary.Extracted)
-          {
-            <PeriodicalDataset Title="@g.Key" Endpoint="@($"/api/periodicals/gamedata/{g.Key}")"
-                               DownloadName="@($"{g.Key}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc">
-              <Badges>
-                <span class="mono text-muted text-xs">@g.Count rows</span>
-                <span class="prov-chip @Prov(g.Provenance).Cls" title="@g.Provenance">@Prov(g.Provenance).Label</span>
-              </Badges>
-            </PeriodicalDataset>
-          }
-          <PeriodicalDataset Title="eiafx_data" Endpoint="/api/periodicals/eiafx-data"
-                             DownloadName="eiafx-data.json" Fetch="Fetch" View="_view" FormatChoice="_fc" />
-        </div>
-      </section>
+      @if (_catalog is not null)
+      {
+        @foreach (var grp in Groups)
+        {
+          var rows = _catalog.Sources.Where(s => s.Group == grp.Key).ToList();
+          if (rows.Count == 0) { continue; }
+          <section class="panel">
+            <h3 class="text-sm font-semibold mt-0 mb-3">@grp.Label</h3>
+            <div class="flex flex-col divide-y divide-border">
+              @foreach (var s in rows)
+              {
+                @if (s.AcceptsName)
+                {
+                  <div class="ds-row">
+                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <span class="font-medium">@s.DisplayName</span>
+                        <span class="text-muted text-xs">needs <span class="code-chip">?name=</span></span>
+                      </div>
+                      <a class="code-chip no-underline" href="@s.Url">@s.Url</a>
+                    </div>
+                  </div>
+                }
+                else
+                {
+                  <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
+                                     DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc">
+                    <Badges>
+                      @if (CountBadge(s) is { } cb) { <span class="mono text-muted text-xs">@cb</span> }
+                      @if (SizeBadge(s) is { } sb) { <span class="mono text-muted text-xs">@sb</span> }
+                      @if (s.Access != "Public") { <span class="text-muted text-xs">@s.Access</span> }
+                      @if (!string.IsNullOrEmpty(s.Feed)) { <span class="text-muted text-xs">feed: @s.Feed</span> }
+                      <a class="code-chip no-underline" href="@s.Url" @onclick:stopPropagation="true">@s.Url</a>
+                    </Badges>
+                  </PeriodicalDataset>
+                }
+              }
+            </div>
+          </section>
+        }
+      }
 
-      <section class="panel">
-        <h3 class="text-sm font-semibold mt-0 mb-3">Feeds</h3>
-        <div class="flex flex-col divide-y divide-border">
-          <PeriodicalDataset Title="get_periodicals" Endpoint="/api/periodicals/feed/periodicals"
-                             DownloadName="get_periodicals.json" Fetch="Fetch" View="_view" FormatChoice="_fc">
-            <Badges><span class="mono text-muted text-xs">@FeedSize("periodicals")</span></Badges>
-          </PeriodicalDataset>
-          <PeriodicalDataset Title="ei_afx/config" Endpoint="/api/periodicals/feed/afx-config"
-                             DownloadName="ei_afx_config.json" Fetch="Fetch" View="_view" FormatChoice="_fc">
-            <Badges><span class="mono text-muted text-xs">@FeedSize("afx-config")</span></Badges>
-          </PeriodicalDataset>
-          <PeriodicalDataset Title="get_season_infos_v2" Endpoint="/api/periodicals/feed/season-infos"
-                             DownloadName="get_season_infos_v2.json" Fetch="Fetch" View="_view" FormatChoice="_fc">
-            <Badges><span class="mono text-muted text-xs">@FeedSize("season-infos")</span></Badges>
-          </PeriodicalDataset>
-        </div>
-      </section>
-
-      @if (_summary.Colleggtibles is { } c)
+      @if (_summary?.Colleggtibles is { } c)
       {
         <section class="panel">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
             <div class="flex items-center gap-2">
               <span class="text-muted text-xs">@c.Count</span>
-              <a class="btn-mini no-underline" href="/api/periodicals/gamedata/colleggtibles" download="colleggtibles.json" title="Download JSON"><Icon Name="download" Class="icon-sm" /></a>
+              <a class="btn-mini no-underline" href="/api/v1/data/gamedata/gamedata-colleggtibles" download="colleggtibles.json" title="Download JSON"><Icon Name="download" Class="icon-sm" /></a>
             </div>
           </div>
           <table class="reg-table">
@@ -85,12 +97,96 @@ else
           </table>
         </section>
       }
+
+      <section class="panel">
+        <div class="admin-panel-head">
+          <h2 class="admin-panel-title">API keys</h2>
+          <span class="text-muted text-xs">Send as <span class="code-chip">X-Api-Key</span>. Up to 20 per account.</span>
+        </div>
+        @if (_noDb)
+        {
+          <p class="text-muted text-sm m-0">API keys need a database and are not available on this instance.</p>
+        }
+        else
+        {
+          <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-start">
+            <div>
+              <h3 class="text-sm font-semibold mt-0 mb-3">Your keys</h3>
+              @if (_keys is null)
+              {
+                <p class="text-muted text-sm m-0">Loading...</p>
+              }
+              else if (_keys.Count == 0)
+              {
+                <p class="text-muted text-sm m-0">No keys yet. Create one on the right.</p>
+              }
+              else
+              {
+                <div class="reg-wrap">
+                  <table class="reg-table">
+                    <thead>
+                      <tr><th>Prefix</th><th>Name</th><th>Last used</th><th>Requests</th><th>Status</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      @foreach (var k in _keys)
+                      {
+                        <tr>
+                          <td class="mono text-xs">@k.Prefix</td>
+                          <td class="font-medium">@k.Name</td>
+                          <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("g") ?? "never")</td>
+                          <td class="mono text-xs">@k.RequestCount</td>
+                          <td><span class="@(k.Revoked ? "text-muted" : "text-green-400")">@(k.Revoked ? "revoked" : "active")</span></td>
+                          <td>
+                            @if (!k.Revoked)
+                            {
+                              <button type="button" class="btn-mini btn-danger" disabled="@_busyRow" @onclick="() => Revoke(k.Id)">Revoke</button>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div>
+
+            <div>
+              <h3 class="text-sm font-semibold mt-0 mb-3">Create a key</h3>
+              @if (_minted is not null)
+              {
+                <div class="mb-3">
+                  <p class="text-sm mb-1 font-semibold">Copy it now. It will not be shown again.</p>
+                  <pre class="result-pre">@_minted.Key</pre>
+                  <div class="flex items-center gap-3 mt-2">
+                    <button type="button" class="btn-primary" @onclick="() => Copy(_minted.Key)">Copy key</button>
+                    @if (_copied) { <span class="text-green-400 text-sm">Copied.</span> }
+                    <button type="button" class="btn-mini" @onclick="Dismiss">Done</button>
+                  </div>
+                </div>
+              }
+              else
+              {
+                <label class="sub-field">
+                  <span class="sub-field-label">Name</span>
+                  <input class="field-input w-full" placeholder="my integration" @bind="_name" @bind:event="oninput" />
+                </label>
+                <div class="flex items-center gap-3 mt-3">
+                  <button type="button" class="btn-primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_name))" @onclick="Create">
+                    @(_busy ? "Creating..." : "Create key")
+                  </button>
+                  @if (_error is not null) { <span class="text-err text-sm">@_error</span> }
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </section>
     </div>
 
     <div class="flex flex-col gap-6">
       <section class="panel">
         <h3 class="text-sm font-semibold mt-0 mb-3">Config store</h3>
-        @if (!_summary.Config.Enabled)
+        @if (_summary is null || !_summary.Config.Enabled)
         {
           <div class="text-muted text-sm">Not configured.</div>
         }
@@ -115,6 +211,11 @@ else
           </table>
         }
       </section>
+
+      @if (_catalogError is not null)
+      {
+        <div class="panel text-err text-sm">Could not load the source catalog: @_catalogError</div>
+      }
     </div>
   </div>
 }
@@ -124,10 +225,32 @@ else
 
     bool _isAdmin;
     Summary? _summary;
+    DataResponse? _catalog;
+    string? _catalogError;
+    Dictionary<string, ExtractedRow> _extractedByKey = new();
     readonly CaptureViewState _view = new();
     readonly Dictionary<string, string> _fc = new();
     string _baseAddress = "";
     string? _cookie;
+
+    bool _noDb;
+    List<KeyRow>? _keys;
+    string _name = "";
+    bool _busy;
+    bool _deleting;
+    bool _busyRow => _deleting;
+    string? _error;
+    Minted? _minted;
+    bool _copied;
+    IJSObjectReference? _copy;
+
+    static readonly (string Key, string Label)[] Groups =
+    [
+        ("periodical", "Feeds (wire fixtures)"),
+        ("derived", "Derived (extracted)"),
+        ("gamedata", "Game data (embedded)"),
+        ("asset", "Assets"),
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -139,8 +262,31 @@ else
             _cookie = req.Headers.Cookie;
         }
         if (!_isAdmin) return;
-        try { _summary = await Client().GetFromJsonAsync<Summary>("/api/periodicals/summary", JsonOpts); }
+
+        try
+        {
+            var fetched = await Client().GetFromJsonAsync<Summary>("/api/periodicals/summary", JsonOpts);
+            if (fetched is not null)
+            {
+                _summary = fetched;
+                _extractedByKey = fetched.Extracted.ToDictionary(e => e.Key);
+            }
+        }
         catch { }
+
+        try
+        {
+            var res = await Client().GetAsync("/api/v1/data");
+            if (res.IsSuccessStatusCode)
+            {
+                var cat = await res.Content.ReadFromJsonAsync<DataResponse>(JsonOpts);
+                if (cat is not null) { _catalog = cat; _catalogError = null; }
+            }
+            else { _catalogError = $"HTTP {(int)res.StatusCode}"; }
+        }
+        catch (Exception ex) { _catalogError = ex.Message; }
+
+        await LoadKeys();
     }
 
     HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
@@ -156,21 +302,95 @@ else
         catch (Exception ex) { return ex.Message; }
     }
 
-    string FeedSize(string name)
+    string? CountBadge(Source s)
     {
+        if (s.Id.StartsWith("gamedata-", StringComparison.Ordinal))
+        {
+            var key = s.Id["gamedata-".Length..];
+            if (_extractedByKey.TryGetValue(key, out var r)) return $"{r.Count} rows";
+        }
+        return null;
+    }
+
+    string? SizeBadge(Source s)
+    {
+        var name = s.Id switch
+        {
+            "get_periodicals" => "periodicals",
+            "afx-config" => "afx-config",
+            "season-infos" => "season-infos",
+            _ => null,
+        };
+        if (name is null) return null;
         var f = _summary?.Feeds.FirstOrDefault(x => x.Name == name);
-        return f is null || !f.Present ? "-" : Kb(f.Bytes);
+        return f is { Present: true } ? Kb(f.Bytes) : null;
+    }
+
+    async Task LoadKeys()
+    {
+        try
+        {
+            var res = await Client().GetAsync("/api/v1/keys");
+            if (res.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable) { _noDb = true; return; }
+            if (res.IsSuccessStatusCode)
+                _keys = await res.Content.ReadFromJsonAsync<List<KeyRow>>(JsonOpts) ?? [];
+            else _keys ??= [];
+        }
+        catch { _keys ??= []; }
+    }
+
+    async Task Create()
+    {
+        _busy = true;
+        _error = null;
+        _copied = false;
+        try
+        {
+            var res = await Client().PostAsJsonAsync("/api/v1/keys", new { name = _name }, JsonOpts);
+            if (res.IsSuccessStatusCode)
+            {
+                _minted = await res.Content.ReadFromJsonAsync<Minted>(JsonOpts);
+                _name = "";
+                await LoadKeys();
+            }
+            else if (res.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable) { _noDb = true; }
+            else if (res.StatusCode == System.Net.HttpStatusCode.Conflict) { _error = "Key cap reached (20). Revoke one first."; }
+            else { _error = $"Create failed ({(int)res.StatusCode})."; }
+        }
+        catch (Exception ex) { _error = $"Create failed: {ex.Message}"; }
+        _busy = false;
+    }
+
+    async Task Revoke(long id)
+    {
+        _deleting = true;
+        try
+        {
+            var res = await Client().DeleteAsync($"/api/v1/keys/{id}");
+            if (res.IsSuccessStatusCode) await LoadKeys();
+        }
+        catch { }
+        _deleting = false;
+    }
+
+    async Task Copy(string text)
+    {
+        try
+        {
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
+            await _copy.InvokeAsync<bool>("writeText", text);
+            _copied = true;
+        }
+        catch { }
+    }
+
+    void Dismiss()
+    {
+        _minted = null;
+        _copied = false;
     }
 
     static string Kb(long bytes) => bytes >= 1024 ? $"{bytes / 1024}KB" : $"{bytes}B";
-
-    static (string Label, string Cls) Prov(string p)
-    {
-        if (p.StartsWith("captured@", StringComparison.Ordinal)) return ("captured", "prov-captured");
-        if (p.StartsWith("binary@", StringComparison.Ordinal)) return ("binary", "prov-binary");
-        if (p.StartsWith("extracted@", StringComparison.Ordinal)) return ("extracted", "prov-extracted");
-        return (string.IsNullOrEmpty(p) ? "unknown" : "mixed", "prov-unknown");
-    }
 
     record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config, List<FeedInfo> Feeds);
     record ExtractedRow(string Key, int Count, string Provenance);
@@ -179,4 +399,10 @@ else
     record ConfigInfo(bool Enabled, List<PlatformRow> Platforms);
     record PlatformRow(string Platform, DateTimeOffset SavedAt, long Bytes);
     record FeedInfo(string Name, string Path, bool Present, long Bytes);
+
+    record DataResponse(int Count, List<Source> Sources);
+    record Source(string Id, string Group, string Url, string DisplayName, string? Description,
+        string Provenance, string Access, string? Feed, bool AcceptsName);
+    record KeyRow(long Id, string Name, string Prefix, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt, long RequestCount, bool Revoked);
+    record Minted(long Id, string Name, string Prefix, string Key);
 }

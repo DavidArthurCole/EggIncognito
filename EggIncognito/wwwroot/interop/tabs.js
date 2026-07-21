@@ -3,6 +3,5 @@ export function getHash() {
 }
 
 export function setHash(h) {
-  const url = h ? "#" + h : location.pathname + location.search;
-  history.replaceState(null, "", url);
+  history.replaceState(null, "", "#" + h);
 }

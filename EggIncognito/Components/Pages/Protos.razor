@@ -24,17 +24,12 @@
     @if (_isAdmin)
     {
       <button type="button" class="tab-btn @(_tab == "periodicals" ? "active" : "")" @onclick='() => SelectTab("periodicals")'>Periodicals</button>
-      <button type="button" class="tab-btn @(_tab == "data" ? "active" : "")" @onclick='() => SelectTab("data")'>Data API</button>
     }
   </div>
 
   @if (_isAdmin && _tab == "periodicals")
   {
     <PeriodicalsPanel />
-  }
-  else if (_isAdmin && _tab == "data")
-  {
-    <DataApiPanel />
   }
   else
   {
@@ -383,7 +378,6 @@
     static string? NormalizeTab(string hash) => hash switch
     {
         "periodicals" => "periodicals",
-        "data" => "data",
         "registry" => "registry",
         _ => null,
     };
@@ -406,7 +400,7 @@
     async Task SelectTab(string tab)
     {
         _tab = tab;
-        try { await (await TabsJs()).InvokeVoidAsync("setHash", tab == "registry" ? "" : tab); }
+        try { await (await TabsJs()).InvokeVoidAsync("setHash", tab); }
         catch { }
     }
 
