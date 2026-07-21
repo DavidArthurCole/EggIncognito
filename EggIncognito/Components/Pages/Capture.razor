@@ -83,16 +83,14 @@ else if (AppMode.HostedCaptureEnabled)
     @if (!_isAuthenticated)
     {
       <div class="panel" id="hostedLogin">
-        <p class="text-muted text-sm mt-0 mb-3">Hosted capture runs a private proxy session tied to
-          your Discord account. Log in to get started.</p>
+        <p class="text-muted text-sm mt-0 mb-3">Log in to start a hosted capture session.</p>
         <LoginButton Label="Log in" />
       </div>
     }
     else if (!_isSupporter)
     {
       <div class="panel mb-4" id="hostedPitch">
-        <p class="text-muted text-sm mt-0 mb-3">Hosted capture is a supporter perk: capture real
-          Egg, Inc. traffic from your device with no local setup - this server runs the proxy for you.</p>
+        <p class="text-muted text-sm mt-0 mb-3">Hosted capture is a supporter perk.</p>
         <a class="btn-primary inline-block w-fit no-underline" href="/support">Become a supporter</a>
       </div>
       <LocalCaptureGuide />
@@ -110,9 +108,7 @@ else
 {
   <main class="px-8 pt-6 pb-8 max-w-[760px]">
     <h1 class="text-[1.3rem] mt-0 mb-2">Capture</h1>
-    <p class="text-muted leading-relaxed mb-5">Live capture records real Egg, Inc. traffic from a device
-      into endpoint fixtures. It runs a local proxy + CA and writes to disk, so it cannot run on this
-      shared hosted instance - but it is a couple of minutes to set up on your own machine.</p>
+    <p class="text-muted leading-relaxed mb-5">Capture runs a local proxy + CA and writes to disk, so it cannot run on this hosted instance.</p>
     <LocalCaptureGuide />
   </main>
 }

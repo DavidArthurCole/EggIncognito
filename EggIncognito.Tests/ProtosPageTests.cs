@@ -122,7 +122,7 @@ public class ProtosPageTests
             var cut = Render<MissingVersionsPanel>();
            
             Assert.Contains("No discovered versions", cut.Markup);
-            Assert.Contains("send the file my way", cut.Markup);
+            Assert.Contains("Offer to registry", cut.Markup);
         }
     }
 

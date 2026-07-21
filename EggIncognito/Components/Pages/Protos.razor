@@ -14,8 +14,7 @@
 <PageTitle>EggIncognito - Proto Registry</PageTitle>
 
 <main class="px-4 sm:px-8 pt-6 pb-8 max-w-7xl mx-auto w-full">
-  <h1 class="text-[1.3rem] mt-0 mb-1">Proto Registry</h1>
-  <p class="text-muted mb-4">Versioned Egg, Inc. proto definitions. Drop an .ipa/.apk to analyze, or browse detected builds.</p>
+  <h1 class="text-[1.3rem] mt-0 mb-4">Proto Registry</h1>
 
   <section class="mb-6">
     <ProtoDropZone OnResult="OnExtracted" />
@@ -35,10 +34,7 @@
     {
       <div class="panel mb-3">
         <div class="text-sm font-semibold mb-2">Suggested merges</div>
-        <div class="text-xs text-muted mb-2">
-          These entries share an app version + proto SHA across platforms (the same release on iOS + Android).
-          Merging links them under one canonical entry.
-        </div>
+        <div class="text-xs text-muted mb-2">Same app version + proto SHA across platforms. Merge links them under one entry.</div>
         @foreach (var s in _suggestions)
         {
           <div class="flex items-center gap-2 flex-wrap mb-1">
@@ -62,8 +58,7 @@
     {
       <div class="reg-empty">
         <div>No proto versions yet.</div>
-        <div class="reg-empty-hint">Drop a binary above to analyze one, or let the device farm + backfill
-          importers populate this registry as new builds are detected.</div>
+        <div class="reg-empty-hint">Drop a binary above to analyze one.</div>
       </div>
     }
     else
@@ -193,7 +188,6 @@
     <MissingVersionsPanel />
     <section class="panel">
       <h3 class="text-sm font-semibold mt-0 mb-2">Notifications</h3>
-      <p class="text-muted text-xs m-0 mb-3">Get a Discord message when the registry sees a new game build.</p>
       <button type="button" class="btn-primary" @onclick="@(() => _subscribeModal?.Open())">Manage subscriptions</button>
     </section>
     <section class="panel">

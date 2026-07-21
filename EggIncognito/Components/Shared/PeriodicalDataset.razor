@@ -1,0 +1,47 @@
+@using EggIncognito.Capture
+@using EggIncognito.Components.Capture
+
+<div class="ds-row">
+  <div class="flex items-center justify-between gap-3 flex-wrap">
+    <div class="flex items-center gap-2 min-w-0">
+      <span class="font-medium">@Title</span>
+      @Badges
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0">
+      <a class="btn-mini no-underline" href="@Endpoint" download="@DownloadName" title="Download JSON"><Icon Name="download" Class="icon-sm" /></a>
+      <button type="button" class="btn-mini" @onclick="Toggle">@(_open ? "Hide" : "View")</button>
+    </div>
+  </div>
+  @if (_open)
+  {
+    <div class="mt-2">
+      @if (_json is null)
+      {
+        <div class="text-muted text-xs">Loading…</div>
+      }
+      else
+      {
+        <FormatView Label="" JsonStr="@_json" View="View" FormatChoice="FormatChoice" />
+      }
+    </div>
+  }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? Badges { get; set; }
+    [Parameter] public string Endpoint { get; set; } = "";
+    [Parameter] public string DownloadName { get; set; } = "data.json";
+    [Parameter] public Func<string, Task<string>>? Fetch { get; set; }
+    [Parameter] public CaptureViewState View { get; set; } = new();
+    [Parameter] public Dictionary<string, string> FormatChoice { get; set; } = new();
+
+    bool _open;
+    string? _json;
+
+    async Task Toggle()
+    {
+        _open = !_open;
+        if (_open && _json is null && Fetch is not null) _json = await Fetch(Endpoint);
+    }
+}

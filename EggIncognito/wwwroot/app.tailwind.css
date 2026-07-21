@@ -35,6 +35,7 @@
   }
 
   .prov-chip { @apply inline-block text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 font-semibold; }
+  .ds-row { @apply py-2.5 first:pt-0 last:pb-0; }
   .prov-captured { @apply bg-ok/15 text-ok; }
   .prov-binary { @apply bg-accent2/15 text-accent2; }
   .prov-extracted { @apply bg-accent/15 text-accent; }

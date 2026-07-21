@@ -53,11 +53,18 @@ public sealed class PeriodicalsController(
                 });
 
             var col = provider.Colleggtibles;
+            var icons = LoadColleggtibleIcons();
             colleggtibles = new
             {
                 count = col.Eggs.Count,
                 provenance = string.IsNullOrEmpty(col.BinaryVersion) ? col.Status : col.BinaryVersion,
-                eggs = col.Eggs.Select(e => new { e.Identifier, dimension = DimensionName(e.Dimension), e.TierValues }),
+                eggs = col.Eggs.Select(e => new
+                {
+                    e.Identifier,
+                    dimension = DimensionName(e.Dimension),
+                    e.TierValues,
+                    icon = icons.GetValueOrDefault(e.Identifier),
+                }),
             };
         }
 
@@ -93,6 +100,30 @@ public sealed class PeriodicalsController(
         return Content(json, "application/json");
     }
 
+    private static readonly Dictionary<string, string> GameDataResources = new(StringComparer.Ordinal)
+    {
+        ["boost"] = "boosts.json",
+        ["research"] = "research.json",
+        ["hab"] = "habs.json",
+        ["artifact"] = "artifacts.json",
+        ["colleggtibles"] = "colleggtibles.json",
+    };
+
+    [HttpGet("gamedata/{key}")]
+    public IActionResult GameData(string key)
+    {
+        if (RequireAdmin() is { } no) return no;
+        if (!GameDataResources.TryGetValue(key, out var file)) return NotFound(new { error = "unknown dataset" });
+
+        var asm = typeof(ColleggtibleCatalog).Assembly;
+        var full = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(file, StringComparison.Ordinal));
+        if (full is null) return NotFound(new { error = "resource not found" });
+
+        using var stream = asm.GetManifestResourceStream(full)!;
+        using var reader = new StreamReader(stream);
+        return Content(reader.ReadToEnd(), "application/json");
+    }
+
     [HttpGet("eiafx-data")]
     public IActionResult EiAfxData()
     {
@@ -120,6 +151,25 @@ public sealed class PeriodicalsController(
         if (!System.IO.File.Exists(path)) return new Dictionary<string, string>();
         try { return DlcArtifactIcons.FromConfigJson(System.IO.File.ReadAllText(path)); }
         catch { return new Dictionary<string, string>(); }
+    }
+
+    private IReadOnlyDictionary<string, string> LoadColleggtibleIcons()
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        var path = Path.Combine(DefaultsDir, "ei", "get_periodicals.json");
+        if (!System.IO.File.Exists(path)) return map;
+        try
+        {
+            var per = Ei.PeriodicalsResponse.Parser.ParseJson(System.IO.File.ReadAllText(path));
+            foreach (var egg in per.Contracts?.CustomEggs ?? Enumerable.Empty<Ei.CustomEgg>())
+            {
+                var url = egg.Icon?.Url;
+                if (!string.IsNullOrEmpty(egg.Identifier) && !string.IsNullOrEmpty(url))
+                    map[egg.Identifier] = url;
+            }
+        }
+        catch { }
+        return map;
     }
 
     private static readonly IReadOnlyDictionary<int, string> DimNames =

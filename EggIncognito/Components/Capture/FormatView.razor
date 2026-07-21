@@ -5,7 +5,10 @@
 @inject IJSRuntime JS
 
 <div>
-  <div class="section-head"><h3>@Label</h3></div>
+  @if (!string.IsNullOrEmpty(Label))
+  {
+    <div class="section-head"><h3>@Label</h3></div>
+  }
   @if (_emptyNoteOnly is not null)
   {
     <div class="no-json">@_emptyNoteOnly</div>

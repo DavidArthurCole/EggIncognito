@@ -4,7 +4,6 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
-@inject IJSRuntime JS
 @implements IDisposable
 
 <div class="panel">
@@ -81,25 +80,6 @@
         </div>
     }
 
-    @if (!_infoDismissed)
-    {
-        <div class="rounded-md border border-border bg-panel2 p-2 mt-3 text-xs text-muted relative">
-            <button type="button" class="absolute top-1.5 right-1.5 text-muted hover:text-fg"
-                    title="Dismiss" @onclick="DismissInfo">
-                <Icon Name="x" Class="icon-sm" />
-            </button>
-            <div class="flex items-center gap-1.5 text-sm font-medium text-fg mb-1">
-                <Icon Name="info" Class="icon-sm" />
-                <span>Why two devices?</span>
-            </div>
-            <p class="m-0 pr-5">
-                Two physical phones (one Android, one iOS) stay plugged into this host running Egg, Inc. They
-                exist only to keep the proto registry current: when a new app version ships, the device updates
-                and its fresh proto definition is pulled in automatically. No accounts, no gameplay, just a
-                live source of the latest schema.
-            </p>
-        </div>
-    }
 </div>
 
 @code {
@@ -111,8 +91,6 @@
    
    
     sealed class ActionState { public bool Busy; public string? Message; public bool IsError; }
-
-    const string InfoDismissKey = "egi:devicesInfoDismissed";
 
    
    
@@ -133,7 +111,6 @@
             new EggIncognito.Core.Services.Devices.DeviceCaptureVerdict.Counters(
                 c.Listening, c.Port, c.ClientConnects, c.AuxbrainConnects, c.Flows, c.RinfoHarvests, c.LastDecryptError));
     bool _isAdmin;
-    bool _infoDismissed;
     bool _disposed;
     Timer? _timer;
     string _baseAddress = "";
@@ -154,24 +131,6 @@
        
        
         _timer = new Timer(async _ => await InvokeAsync(LoadAsync), null, 8_000, 8_000);
-    }
-
-   
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        try
-        {
-            var v = await JS.InvokeAsync<string?>("localStorage.getItem", InfoDismissKey);
-            if (v == "1") { _infoDismissed = true; StateHasChanged(); }
-        }
-        catch { /* prerender / JS unavailable: keep the note shown */ }
-    }
-
-    async Task DismissInfo()
-    {
-        _infoDismissed = true;
-        try { await JS.InvokeVoidAsync("localStorage.setItem", InfoDismissKey, "1"); } catch { }
     }
 
     HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);

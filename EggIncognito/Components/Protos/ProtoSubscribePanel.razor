@@ -9,10 +9,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
 
-<p class="text-muted text-xs mb-3">
-  Get a Discord notification when the registry sees a new game build. Paste a channel webhook URL,
-  pick what you want, and we send a test message on save.
-</p>
+<p class="text-muted text-xs mb-3">A test message is sent to the webhook on save.</p>
 
 @if (!_isAuthed)
 {
