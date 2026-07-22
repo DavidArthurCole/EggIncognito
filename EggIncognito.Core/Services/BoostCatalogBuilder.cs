@@ -51,6 +51,7 @@ public static class BoostCatalogBuilder {
 
         var provenance = new Dictionary<string, ProvenanceSource>(StringComparer.Ordinal) {
             ["identity"] = new ProvenanceSource("binary", "boostmanager"),
+            ["description"] = new ProvenanceSource("binary", "boostmanager", "decoded"),
             ["cost"] = new ProvenanceSource("config", "ei/get_config"),
             ["iconAsset"] = new ProvenanceSource("derived"),
         };
