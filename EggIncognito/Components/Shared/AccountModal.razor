@@ -57,6 +57,7 @@
               </div>
             </AvatarTemplate>
             <ProvidersTemplate Context="ctx">
+              <hr class="my-3 border-0 border-t border-border" />
               @if (ctx.Banner is not null)
               {
                 <div class="text-muted text-sm mb-2">@ctx.Banner</div>
@@ -68,7 +69,7 @@
                     <tr>
                       <td class="py-2 pr-2 border-b border-border align-middle w-32">
                         <span class="flex items-center gap-2 font-medium">
-                          <img class="w-[18px] h-[18px] shrink-0 object-contain" src="@LinkHref($"/login/icons/{item.Provider}")" alt="" loading="lazy" />
+                          <img class="acct-prov-icon" src="@LinkHref($"/login/icons/{item.Provider}")" alt="" loading="lazy" />
                           @Cap(item.Provider)
                         </span>
                       </td>
