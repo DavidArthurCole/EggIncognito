@@ -15,7 +15,7 @@ public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider 
     [HttpGet("endpoints")]
     public IActionResult Endpoints()
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
         var endpoints = explorer.ApiDescriptionGroups.Items

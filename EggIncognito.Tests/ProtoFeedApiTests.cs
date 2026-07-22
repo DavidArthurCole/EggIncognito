@@ -76,9 +76,9 @@ public class ProtoFeedApiTests
         public string? Username => null;
         public string? Avatar => null;
         public string? AvatarUrl => null;
-        public EggIncognito.Data.Models.UserRole Role => EggIncognito.Data.Models.UserRole.Viewer;
+        public SyncKit.Contract.UserRole Role => SyncKit.Contract.UserRole.Viewer;
         public bool IsSupporter => false;
-        public bool IsAtLeast(EggIncognito.Data.Models.UserRole need) => false;
+        public bool IsAtLeast(SyncKit.Contract.UserRole need) => false;
     }
 
     [Fact]

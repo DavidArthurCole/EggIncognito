@@ -8,8 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SyncKit.Auth" Version="0.7.0-preview.4" />
-    <PackageReference Include="SyncKit.Bot.AdminUi" Version="0.7.0-preview.4" />
+    <PackageReference Include="SyncKit.Auth" Version="0.8.0-preview.1" />
+    <PackageReference Include="SyncKit.Bot.AdminUi" Version="0.8.0-preview.1" />
+    <PackageReference Include="SyncKit.Metrics" Version="0.8.0-preview.1" />
+    <PackageReference Include="SyncKit.Metrics.AdminUi" Version="0.8.0-preview.1" />
   </ItemGroup>
 
   <ItemGroup>

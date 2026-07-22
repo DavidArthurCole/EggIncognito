@@ -21,7 +21,7 @@ public sealed class DecompController(
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Symbols([FromQuery] string? filter, [FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
         if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
@@ -46,7 +46,7 @@ public sealed class DecompController(
     [EnableRateLimiting("read")]
     public async Task<IActionResult> FunctionConstants([FromQuery] string name, [FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
         return await ExtractAsync([name], device, ct);
@@ -59,7 +59,7 @@ public sealed class DecompController(
     [EnableRateLimiting("read")]
     public async Task<IActionResult> GalaxyParticle([FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         try
         {
@@ -82,7 +82,7 @@ public sealed class DecompController(
     public async Task<IActionResult> Recover(
         [FromQuery] string? name, [FromQuery] string? refVersion, [FromQuery] string? targetPath, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         try
         {
@@ -124,7 +124,7 @@ public sealed class DecompController(
     public async Task<IActionResult> ResolveVa(
         [FromQuery] string name, [FromQuery] string? refVersion, [FromQuery] string? targetPath, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
         try
@@ -171,7 +171,7 @@ public sealed class DecompController(
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Effect([FromQuery] string? name, [FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         if (!string.Equals(name, "galaxy-particle", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { error = "unknown effect; supported: galaxy-particle" });
@@ -194,7 +194,7 @@ public sealed class DecompController(
     [EnableRateLimiting("read")]
     public async Task<IActionResult> FarmPlacement([FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         try
         {
@@ -242,7 +242,7 @@ public sealed class DecompController(
     [EnableRateLimiting("read")]
     public async Task<IActionResult> HatcheryAssembly([FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         try
         {
@@ -294,7 +294,7 @@ public sealed class DecompController(
     [EnableRateLimiting("read")]
     public async Task<IActionResult> ParticleCapture([FromQuery] string? addrOffset, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
         var host = capture.IosSshHost;
@@ -327,7 +327,7 @@ public sealed class DecompController(
     public async Task<IActionResult> Signature(
         [FromQuery] string name, [FromQuery] string? refVersion, [FromQuery] int instructions, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
         if (instructions <= 0) instructions = 8;
@@ -375,7 +375,7 @@ public sealed class DecompController(
         [FromQuery] string name, [FromQuery] string? device, [FromQuery] string mode = "list",
         [FromQuery] int max = 512, [FromQuery] bool live = false, CancellationToken ct = default)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
         try
@@ -437,7 +437,7 @@ public sealed class DecompController(
     [EnableRateLimiting("read")]
     public async Task<IActionResult> LivePull(CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         var (ok, bytes, syms, grafted, diag) = await binaries.GetLiveBinaryAsync(ct);
         return Ok(new
@@ -470,7 +470,7 @@ public sealed class DecompController(
         [FromQuery] string va, [FromQuery] int count, [FromQuery] string elem = "f64",
         [FromQuery] string? device = null, [FromQuery] bool live = false, CancellationToken ct = default)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         if (!TryParseVa(va, out var addr)) return BadRequest(new { error = "va must be hex (0x...) or decimal" });
         if (!Arm64ConstSectionReader.TryParseElem(elem, out var elemType))

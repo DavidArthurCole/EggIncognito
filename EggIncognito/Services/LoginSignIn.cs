@@ -1,4 +1,3 @@
-using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -15,7 +14,7 @@ public sealed class LoginSignIn(ISupporterStatus supporters)
         {
             new(ClaimTypes.NameIdentifier, result.DiscordId ?? result.UserId.ToString()),
             new(ClaimTypes.Name, result.Username),
-            new(UserRoles.ClaimType, result.Role),
+            new(AuthClaims.RoleClaim, result.Role),
             new(AuthClaims.UserIdClaim, result.UserId.ToString()),
         };
         if (!string.IsNullOrEmpty(result.Avatar))

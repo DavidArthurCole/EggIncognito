@@ -1,7 +1,8 @@
 using System.Security.Claims;
-using EggIncognito.Data.Models;
+using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
+using SyncKit.Contract;
 
 namespace EggIncognito.Tests;
 
@@ -25,7 +26,7 @@ public class CurrentUserRoleTests
     [Fact]
     public void Contributor_Claim_IsAtLeastContributor()
     {
-        var u = Make(new Claim(ClaimTypes.NameIdentifier, "1"), new Claim(UserRoles.ClaimType, "contributor"));
+        var u = Make(new Claim(ClaimTypes.NameIdentifier, "1"), new Claim(AuthClaims.RoleClaim, "contributor"));
         Assert.Equal(UserRole.Contributor, u.Role);
         Assert.True(u.IsAtLeast(UserRole.Contributor));
         Assert.False(u.IsAtLeast(UserRole.Admin));
@@ -34,7 +35,7 @@ public class CurrentUserRoleTests
     [Fact]
     public void Admin_Claim_IsAtLeastAdmin()
     {
-        var u = Make(new Claim(ClaimTypes.NameIdentifier, "1"), new Claim(UserRoles.ClaimType, "admin"));
+        var u = Make(new Claim(ClaimTypes.NameIdentifier, "1"), new Claim(AuthClaims.RoleClaim, "admin"));
         Assert.True(u.IsAtLeast(UserRole.Admin));
     }
 }

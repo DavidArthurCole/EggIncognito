@@ -1,4 +1,4 @@
-using EggIncognito.Data.Models;
+using SyncKit.Contract;
 
 namespace EggIncognito.Services;
 

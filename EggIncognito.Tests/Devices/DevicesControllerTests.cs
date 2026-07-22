@@ -1,5 +1,6 @@
 using EggIncognito.Controllers;
 using EggIncognito.Data.Models;
+using SyncKit.Contract;
 using EggIncognito.Services;
 using EggIncognito.Services.Devices;
 using Microsoft.AspNetCore.Mvc;

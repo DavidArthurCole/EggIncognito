@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using SyncKit.Contract;
 
 namespace EggIncognito.Controllers;
 

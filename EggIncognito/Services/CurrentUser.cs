@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using Microsoft.AspNetCore.Http;
+using SyncKit.Contract;
 
 namespace EggIncognito.Services;
 
@@ -24,7 +24,7 @@ public sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
         var a => $"https://cdn.discordapp.com/avatars/{DiscordId}/{a}.png",
     };
 
-    public UserRole Role => UserRoles.Parse(IsAuthenticated ? Principal!.FindFirstValue(UserRoles.ClaimType) : null);
+    public UserRole Role => UserRoles.Parse(IsAuthenticated ? Principal!.FindFirstValue(AuthClaims.RoleClaim) : null);
     public bool IsSupporter =>
         IsAuthenticated && Principal!.FindFirstValue(SupporterClaims.ClaimType) == "true";
     public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(Role, need);

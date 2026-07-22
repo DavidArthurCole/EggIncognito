@@ -7,6 +7,8 @@ using EggIncognito.Services.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using SyncKit.Metrics;
+using SyncKit.Metrics.AdminUi;
 
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("EggIncognito.Tests")]
 
@@ -198,8 +200,14 @@ var authEnabled = authState.Enabled;
 builder.Services.AddSingleton(authState);
 builder.Services.AddScoped<EggIncognito.Services.LoginSignIn>();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddSingleton<EggIncognito.Services.Metrics.ApiMetrics>();
-builder.Services.AddSingleton<EggIncognito.Services.Metrics.ApiAuditLog>();
+var hostedBehindProxy = string.Equals(builder.Configuration["AppMode"], "Hosted", StringComparison.OrdinalIgnoreCase);
+builder.Services.AddSyncKitRequestMetrics(o =>
+{
+    o.PathPrefix = "/api";
+    o.InternalMarkerHeader = EggIncognito.Services.SelfCallClient.InternalMarkerHeader;
+    o.HostedBehindProxy = hostedBehindProxy;
+});
+builder.Services.AddSingleton<ITrafficSource, EggIncognito.Services.Metrics.TrafficSource>();
 builder.Services.TryAddScoped<ICurrentUser, CurrentUser>();
 
 builder.Services.AddHttpClient("discord-api", c => c.Timeout = TimeSpan.FromSeconds(8));
@@ -618,28 +626,7 @@ if (authEnabled)
 }
 app.UseAntiforgery();
 app.UseRateLimiter();
-
-{
-    var metrics = app.Services.GetRequiredService<EggIncognito.Services.Metrics.ApiMetrics>();
-    var audit = app.Services.GetRequiredService<EggIncognito.Services.Metrics.ApiAuditLog>();
-    var appMode = app.Services.GetRequiredService<IAppMode>();
-    app.Use(async (ctx, next) =>
-    {
-        var isApi = ctx.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase);
-        await next();
-        if (!isApi) return;
-        var limited = ctx.Response.StatusCode == StatusCodes.Status429TooManyRequests;
-        metrics.Record(limited);
-
-        var user = ctx.RequestServices.GetService<ICurrentUser>();
-        var bucket = user is null
-            ? EggIncognito.Services.Metrics.RequestBucket.External
-            : EggIncognito.Services.Metrics.RequestBucketClassifier.Classify(ctx, user);
-        var ip = EggIncognito.Services.Metrics.RequestBucketClassifier.Ip(ctx, appMode.Mode == AppMode.Hosted);
-        audit.Record(ctx.Request.Method, ctx.Request.Path.Value ?? "/", ctx.Response.StatusCode,
-            bucket, ip, user?.DiscordId);
-    });
-}
+app.UseSyncKitRequestMetrics();
 
 app.MapControllers();
 if (!string.IsNullOrWhiteSpace(eventSecret))
@@ -683,7 +670,7 @@ app.MapGet("/api/app/mode", (IAppMode m, AuthState auth, ICurrentUser user) =>
         authEnabled = auth.Enabled,
         user = user.IsAuthenticated
             ? new { user.DiscordId, user.Username, user.Avatar,
-                    role = EggIncognito.Data.Models.UserRoles.ToName(user.Role),
+                    role = SyncKit.Contract.UserRoles.ToName(user.Role),
                     supporter = user.IsSupporter }
             : null,
     }));

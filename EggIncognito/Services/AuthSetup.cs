@@ -1,4 +1,3 @@
-using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -20,7 +19,7 @@ public static class AuthSetup
         if (identity is null) return;
         try
         {
-            await AuthentikAspNetAuth.OnValidatePrincipalCheckRevoked(ctx, identity, AuthClaims.UserIdClaim, UserRoles.ClaimType);
+            await AuthentikAspNetAuth.OnValidatePrincipalCheckRevoked(ctx, identity, AuthClaims.UserIdClaim, AuthClaims.RoleClaim);
         }
         catch (HttpRequestException ex)
         {

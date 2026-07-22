@@ -87,7 +87,7 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     [EnableRateLimiting("read")]
     public async Task<IActionResult> DeviceStems([FromQuery] string? device, [FromQuery] string? filter, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         var (ok, stems, diag) = await meshes.ListStemsAsync(device, ct);
         if (!ok) return Ok(new { ok = false, diagnostics = diag });
@@ -104,7 +104,7 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     [EnableRateLimiting("read")]
     public async Task<IActionResult> HatcheryEffects([FromQuery] string? tier, [FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         var (ok, stems, diag) = await meshes.ListStemsAsync(device, ct);
         if (!ok) return Ok(new { ok = false, diagnostics = diag });
@@ -127,7 +127,7 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     [EnableRateLimiting("read")]
     public async Task<IActionResult> HatcheryDump([FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
        
@@ -221,7 +221,7 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     [EnableRateLimiting("read")]
     public async Task<IActionResult> DecodeStats(string stem, [FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
         var (ok, stats, diag) = await meshes.GetDecodeStatsAsync(stem, device, ct);
         if (!ok || stats is null) return Ok(new { ok = false, diagnostics = diag });
@@ -248,7 +248,7 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Glb(string stem, [FromQuery] string? device, CancellationToken ct)
     {
-        if (!currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin))
+        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
        
        

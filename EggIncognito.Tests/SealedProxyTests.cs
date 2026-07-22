@@ -1,5 +1,6 @@
 using System.Net;
 using EggIncognito.Data.Models;
+using SyncKit.Contract;
 using EggIncognito.Services;
 
 namespace EggIncognito.Tests;

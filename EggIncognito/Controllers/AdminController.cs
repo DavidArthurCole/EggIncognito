@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using SyncKit.Contract;
 using SyncKit.Identity.Client;
 
 namespace EggIncognito.Controllers;
@@ -74,20 +75,6 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     }
 
 
-    [HttpGet("metrics")]
-    [EnableRateLimiting("read")]
-    public IActionResult Metrics()
-    {
-        if (RequireAdmin() is { } no) return no;
-        var metrics = services.GetService(typeof(EggIncognito.Services.Metrics.ApiMetrics))
-            as EggIncognito.Services.Metrics.ApiMetrics;
-        if (metrics is null) return Ok(Array.Empty<object>());
-        var pts = metrics.Snapshot().Select(p => new { minute = p.Minute, total = p.Total, limited = p.Limited });
-        return Ok(pts);
-    }
-
-   
-   
     [HttpGet("sessions")]
     [EnableRateLimiting("read")]
     public IActionResult Sessions()
@@ -211,68 +198,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     }
 
 
-    private EggIncognito.Services.Metrics.ApiAuditLog? Audit =>
-        services.GetService(typeof(EggIncognito.Services.Metrics.ApiAuditLog))
-            as EggIncognito.Services.Metrics.ApiAuditLog;
 
-    [HttpGet("audit/recent")]
-    [EnableRateLimiting("read")]
-    public IActionResult AuditRecent([FromQuery] int take = 200)
-    {
-        if (RequireAdmin() is { } no) return no;
-        var a = Audit; if (a is null) return Ok(Array.Empty<object>());
-        var rows = a.Recent(take).Select(e => new
-        {
-            ts = e.Ts,
-            method = e.Method,
-            path = e.Path,
-            status = e.Status,
-            bucket = e.Bucket.ToString(),
-            ip = e.Ip,
-            user = e.User,
-        });
-        return Ok(rows);
-    }
-
-    [HttpGet("audit/paths")]
-    [EnableRateLimiting("read")]
-    public IActionResult AuditPaths()
-    {
-        if (RequireAdmin() is { } no) return no;
-        var a = Audit; if (a is null) return Ok(Array.Empty<object>());
-        var rows = a.Paths().Select(p => new
-        {
-            path = p.Path,
-            total = p.Roll.Total,
-            @internal = p.Roll.Internal,
-            cross = p.Roll.Cross,
-            external = p.Roll.External,
-            lastSeen = new DateTimeOffset(System.Threading.Volatile.Read(ref p.Roll.LastSeenTicks), TimeSpan.Zero),
-        });
-        return Ok(rows);
-    }
-
-    [HttpGet("audit/ips")]
-    [EnableRateLimiting("read")]
-    public IActionResult AuditIps()
-    {
-        if (RequireAdmin() is { } no) return no;
-        var a = Audit; if (a is null) return Ok(Array.Empty<object>());
-        var rows = a.Ips().Select(x => new { ip = x.Ip, total = x.Total, distinctPaths = x.DistinctPaths, lastSeen = x.LastSeen });
-        return Ok(rows);
-    }
-
-    [HttpGet("audit/buckets")]
-    [EnableRateLimiting("read")]
-    public IActionResult AuditBuckets()
-    {
-        if (RequireAdmin() is { } no) return no;
-        var a = Audit; if (a is null) return Ok(new { @internal = 0, cross = 0, external = 0, keysCapped = 0 });
-        var (i, c, e) = a.Buckets();
-        return Ok(new { @internal = i, cross = c, external = e, keysCapped = a.KeysCapped });
-    }
-
-   
     [HttpDelete("sessions/{key}")]
     public async Task<IActionResult> KillSession(string key)
     {

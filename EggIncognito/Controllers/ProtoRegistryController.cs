@@ -3,6 +3,7 @@ using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using SyncKit.Contract;
 
 namespace EggIncognito.Controllers;
 

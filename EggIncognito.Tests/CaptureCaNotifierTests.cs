@@ -2,6 +2,7 @@ using System.Net;
 using EggIncognito.Capture;
 using EggIncognito.Controllers;
 using EggIncognito.Data.Models;
+using SyncKit.Contract;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Configuration;

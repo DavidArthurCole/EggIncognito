@@ -206,6 +206,6 @@ public sealed class ConfigController(
     }
 
     private IActionResult? RequireAdmin() =>
-        currentUser.IsAtLeast(EggIncognito.Data.Models.UserRole.Admin)
+        currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin)
             ? null : StatusCode(403, new { error = "admin role required" });
 }

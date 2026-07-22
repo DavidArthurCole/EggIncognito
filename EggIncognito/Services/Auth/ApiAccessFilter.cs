@@ -1,7 +1,7 @@
-using EggIncognito.Data.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
+using SyncKit.Contract;
 
 namespace EggIncognito.Services.Auth;
 

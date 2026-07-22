@@ -1,6 +1,7 @@
 using EggIncognito.Services;
 using EggIncognito.Services.RateLimiting;
 using EggIncognito.Data.Models;
+using SyncKit.Contract;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 
