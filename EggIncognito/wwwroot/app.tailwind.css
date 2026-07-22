@@ -41,6 +41,31 @@
   .prov-extracted { @apply bg-accent/15 text-accent; }
   .prov-unknown { @apply bg-panel2 text-muted; }
 
+  .ds-cell { @apply px-2 py-2 rounded-md; }
+  .ds-stripe { @apply bg-white/[0.03]; }
+  .ds-children { @apply ml-3 flex flex-col gap-0.5; }
+  .ds-elbow { @apply relative w-3.5 h-4 shrink-0 self-center -ml-1 mr-0.5; }
+  .ds-elbow::before {
+    content: "";
+    @apply absolute left-0 top-[-0.5rem] bottom-1/2 w-2 border-l border-b border-border rounded-bl;
+  }
+
+  .ds-state { @apply flex items-center gap-2 whitespace-nowrap; }
+  .ds-state-k { @apply text-[10px] uppercase tracking-wide text-muted w-12; }
+
+  .apidoc { @apply border border-border rounded-md overflow-hidden; background: rgba(255, 255, 255, .02); }
+  .apidoc-head {
+    @apply w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-fg bg-transparent border-0 cursor-pointer;
+    font-family: inherit;
+  }
+  .apidoc-head:hover { @apply text-accent2; }
+  .apidoc-caret { @apply ml-auto transition-transform; }
+  .apidoc-caret.open { @apply rotate-180; }
+  .apidoc-body { @apply px-3 pb-3 flex flex-col gap-2 text-xs text-muted leading-relaxed; }
+  .apidoc-example {
+    @apply font-mono text-xs bg-bg border border-border rounded p-2 overflow-x-auto m-0 text-fg whitespace-pre-wrap [word-break:break-all];
+  }
+
   /* Buttons */
   /* Primary action = orange (accent). Canonical across all tabs (Phase 2 + 3). */
   .btn-primary {

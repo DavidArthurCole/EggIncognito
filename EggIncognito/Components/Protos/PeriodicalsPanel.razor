@@ -23,30 +23,30 @@ else
       {
         var rows = _catalog.Sources.Where(s => s.Group == grp.Key && s.Extends is null).ToList();
         if (rows.Count == 0) { continue; }
+        var ix = 0;
         <section class="panel">
           <h3 class="text-sm font-semibold mt-0 mb-3">@grp.Label</h3>
-          <div class="flex flex-col divide-y divide-border">
+          <div class="flex flex-col gap-0.5">
             @foreach (var s in rows)
             {
+              var kids = _catalog.Sources.Where(k => k.Group == grp.Key && k.Extends == s.Id).ToList();
               <div>
                 <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
                                    DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
-                                   SubText="@s.Url">
+                                   RowClass="@Stripe(ix++)">
                   <Badges>
                     @if (s.Bytes is { } b) { <span class="mono text-muted text-xs">@Kb(b)</span> }
                   </Badges>
                 </PeriodicalDataset>
-                @{ var kids = _catalog.Sources.Where(k => k.Group == grp.Key && k.Extends == s.Id).ToList(); }
                 @if (kids.Count > 0)
                 {
-                  <div class="ml-4 pl-3 border-l border-border flex flex-col divide-y divide-border">
+                  <div class="ds-children">
                     @foreach (var k in kids)
                     {
-                      <PeriodicalDataset Title="@k.DisplayName" Endpoint="@k.Url"
+                      <PeriodicalDataset Title="@k.DisplayName" Endpoint="@k.Url" Nested="true"
                                          DownloadName="@($"{k.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
-                                         SubText="@k.Url">
+                                         RowClass="@Stripe(ix++)">
                         <Badges>
-                          <span class="text-muted text-[0.65rem] uppercase tracking-wide">extends @s.DisplayName</span>
                           @if (k.Bytes is { } kb) { <span class="mono text-muted text-xs">@Kb(kb)</span> }
                         </Badges>
                       </PeriodicalDataset>
@@ -165,6 +165,8 @@ else
     }
 
     static string Kb(long bytes) => bytes >= 1024 ? $"{bytes / 1024}KB" : $"{bytes}B";
+
+    static string Stripe(int ix) => "ds-cell" + (ix % 2 == 1 ? " ds-stripe" : "");
 
     record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config, List<FeedInfo> Feeds);
     record ExtractedRow(string Key, int Count, string Provenance);

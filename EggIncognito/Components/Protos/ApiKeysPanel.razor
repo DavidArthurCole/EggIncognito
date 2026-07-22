@@ -5,10 +5,22 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
 
-<section class="panel h-full flex flex-col">
-  <div class="admin-panel-head">
-    <h3 class="text-sm font-semibold m-0">API keys</h3>
-    <span class="text-muted text-xs">Send as <span class="code-chip">X-Api-Key</span>. Up to 20.</span>
+<div class="flex flex-col gap-4">
+  <div class="apidoc">
+    <button type="button" class="apidoc-head" @onclick="() => _docOpen = !_docOpen" aria-expanded="@_docOpen">
+      <Icon Name="info" Class="icon-sm" />
+      <span>Using the API</span>
+      <Icon Name="chevronDown" Class="@($"icon-sm apidoc-caret {(_docOpen ? "open" : "")}")" />
+    </button>
+    @if (_docOpen)
+    {
+      <div class="apidoc-body">
+        <p class="m-0">Authenticate every request with your key in the
+          <span class="code-chip">X-Api-Key</span> header. Keys are shown once at creation, so store them
+          securely; you can hold up to 20 active keys and revoke any of them below.</p>
+        <pre class="apidoc-example">curl -H "X-Api-Key: &lt;your-key&gt;" @($"{_origin}/api/v1/data")</pre>
+      </div>
+    }
   </div>
   @if (_noDb)
   {
@@ -30,8 +42,8 @@
     }
     else
     {
-      <div class="flex items-end gap-3 mb-4">
-        <label class="sub-field flex-1">
+      <div class="flex items-end gap-3">
+        <label class="sub-field w-full max-w-xs">
           <span class="sub-field-label">Name</span>
           <input class="field-input w-full" placeholder="my integration" @bind="_name" @bind:event="oninput" />
         </label>
@@ -79,13 +91,15 @@
       </div>
     }
   }
-</section>
+</div>
 
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     string _baseAddress = "";
     string? _cookie;
+    string _origin = "https://eggincognito.davidarthurcole.me";
+    bool _docOpen;
 
     bool _noDb;
     List<KeyRow>? _keys;
@@ -104,6 +118,7 @@
         if (req is not null)
         {
             _baseAddress = $"{req.Scheme}://{req.Host}";
+            _origin = _baseAddress;
             _cookie = req.Headers.Cookie;
         }
         await LoadKeys();

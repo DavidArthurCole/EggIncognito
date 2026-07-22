@@ -21,19 +21,40 @@
 
   <div class="flex flex-col lg:flex-row gap-4 mb-6 items-stretch">
     <DeviceStatusPanel OnSaved="OnMutated" />
-    <section class="panel flex flex-col justify-center gap-3">
-      <div>
-        <h3 class="text-sm font-semibold m-0">Notifications</h3>
-        <p class="text-muted text-xs m-0 mt-1">Discord webhooks that fire on new proto builds and periodicals updates.</p>
+    <section class="panel shrink-0 flex flex-row flex-wrap items-stretch gap-4">
+      <div class="flex flex-col justify-center gap-2 text-xs">
+        <div class="ds-state">
+          <span class="ds-state-k">Latest</span>
+          <span class="dev-verline">
+            @if (LatestRow is { } lr) { @lr.AppVersion<span class="dev-versep">·</span>@lr.Build }
+            else { <span class="text-muted">none yet</span> }
+          </span>
+        </div>
+        <div class="ds-state">
+          <span class="ds-state-k">Server</span>
+          <span class="dev-verline">@_serverVersion<span class="dev-versep">·</span>@_serverSha</span>
+        </div>
       </div>
-      <button type="button" class="btn-primary self-start shrink-0" @onclick="@(() => _subscribeModal?.Open())">Manage subscriptions</button>
+      <div class="w-px self-stretch bg-border"></div>
+      <div class="w-52 flex flex-col justify-between gap-2">
+        <div>
+          <h3 class="text-sm font-semibold m-0">Notifications</h3>
+          <p class="text-muted text-xs m-0 mt-1">Discord webhooks that fire on new proto builds and periodicals updates.</p>
+        </div>
+        <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _subscribeModal?.Open())">Manage notifications</button>
+      </div>
+      @if (_isAuthenticated)
+      {
+        <div class="w-px self-stretch bg-border"></div>
+        <div class="w-52 flex flex-col justify-between gap-2">
+          <div>
+            <h3 class="text-sm font-semibold m-0">API keys</h3>
+            <p class="text-muted text-xs m-0 mt-1">Programmatic access to the data API.</p>
+          </div>
+          <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _apiKeysModal?.Open())">Manage API keys</button>
+        </div>
+      }
     </section>
-    @if (_isAuthenticated)
-    {
-      <div class="flex-1 min-w-0">
-        <ApiKeysPanel />
-      </div>
-    }
   </div>
 
   <div class="flex flex-col xl:flex-row gap-6 items-start">
@@ -214,6 +235,7 @@
 </main>
 
 <ProtoSubscribeModal @ref="_subscribeModal" />
+<ApiKeysModal @ref="_apiKeysModal" />
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -241,6 +263,18 @@
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
     ProtoSubscribeModal? _subscribeModal;
+    ApiKeysModal? _apiKeysModal;
+
+    string _serverVersion = "";
+    string _serverSha = "";
+
+    VersionRow? LatestRow => _rows
+        .OrderBy(r => r, Comparer<VersionRow>.Create((a, b) =>
+        {
+            var v = CompareSemver(a.AppVersion, b.AppVersion);
+            return v != 0 ? v : CompareNumeric(a.Build, b.Build);
+        }))
+        .LastOrDefault();
 
     string _baseAddress = "";
     string? _cookie;
@@ -355,6 +389,10 @@
         _isContributor = User.IsAtLeast(UserRole.Contributor);
         _canWrite = User.IsAtLeast(UserRole.Contributor);
         _isAuthenticated = User.IsAuthenticated;
+
+        var b = EggIncognito.Services.BuildInfo.FromAssembly("https://github.com/davidarthurcole/EggIncognito");
+        _serverVersion = $"v{b.Version}";
+        _serverSha = b.ShortSha;
     }
 
     protected override async Task OnInitializedAsync()
