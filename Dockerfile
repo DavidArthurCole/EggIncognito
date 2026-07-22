@@ -104,6 +104,9 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 VOLUME ["/app/Endpoints"]
 
+ARG GIT_SHA
+ENV GIT_SHA=$GIT_SHA
+
 ENV ASPNETCORE_URLS=http://+:8080
 ENV EndpointsPath=/app/Endpoints
 # Containers have no browser to auto-open.
