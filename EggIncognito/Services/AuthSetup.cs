@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using EggIncognito.Data.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -30,12 +31,40 @@ public static class AuthSetup
         catch (TaskCanceledException) { }
     }
 
-   
-   
-    public static bool AddSyncKitAuthIfConfigured(this WebApplicationBuilder builder, bool identityApiEnabled)
+    private static async Task StampSupporterClaim(ClaimsPrincipal principal, HttpContext ctx, CancellationToken ct)
+    {
+        var discordId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? principal.FindFirstValue(SessionClaims.DiscordId);
+        if (string.IsNullOrEmpty(discordId) || principal.Identity is not ClaimsIdentity identity) return;
+        var supporters = ctx.RequestServices.GetService<ISupporterStatus>();
+        if (supporters is null) return;
+
+        bool isSupporter;
+        try
+        {
+            isSupporter = await supporters.CheckAsync(discordId, ct);
+        }
+        catch (Exception ex)
+        {
+            ctx.RequestServices.GetService<ILoggerFactory>()?
+                .CreateLogger("EggIncognito.Auth")
+                .LogWarning(ex, "supporter check skipped during claims validation");
+            return;
+        }
+
+        if (identity.FindFirst(SupporterClaims.ClaimType) is { } existing) identity.RemoveClaim(existing);
+        identity.AddClaim(new Claim(SupporterClaims.ClaimType, isSupporter ? "true" : "false"));
+    }
+
+    private static Task StampSupporterClaimCookie(CookieValidatePrincipalContext ctx) =>
+        ctx.Principal is null ? Task.CompletedTask : StampSupporterClaim(ctx.Principal, ctx.HttpContext, ctx.HttpContext.RequestAborted);
+
+    public static bool AddSyncKitAuthIfConfigured(
+        this WebApplicationBuilder builder, bool identityApiEnabled, SessionCookieOptions? session)
     {
         if (!identityApiEnabled) return false;
-        builder.Services.AddAuthentication(o => o.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme)
+        var auth = builder.Services.AddAuthentication(o => o.DefaultScheme = session is not null
+                ? SyncKitSessionDefaults.Scheme
+                : CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(o =>
             {
                 o.ExpireTimeSpan = TimeSpan.FromDays(30);
@@ -44,10 +73,15 @@ public static class AuthSetup
                 o.Cookie.HttpOnly = true;
                 o.Cookie.SameSite = SameSiteMode.Lax;
                 o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-                o.Events.OnValidatePrincipal = ValidateNotRevoked;
+                o.Events.OnValidatePrincipal = async ctx =>
+                {
+                    await ValidateNotRevoked(ctx);
+                    await StampSupporterClaimCookie(ctx);
+                };
             })
             .AddScheme<AuthenticationSchemeOptions, Auth.ApiKeyAuthenticationHandler>(
                 DataApi.ApiKeyGen.SchemeName, null);
+        if (session is not null) auth.AddSyncKitSession(session, onValidated: StampSupporterClaim);
         builder.Services.AddAuthorization();
         return true;
     }

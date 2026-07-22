@@ -7,6 +7,7 @@ using EggIncognito.Services.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using SyncKit.Auth;
 using SyncKit.Metrics;
 using SyncKit.Metrics.AdminUi;
 
@@ -194,7 +195,8 @@ if (identityApiEnabled)
         c.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", identityApiSecret);
     });
 }
-builder.AddSyncKitAuthIfConfigured(identityApiEnabled);
+var syncKitSession = SessionCookieOptions.FromEnvironment();
+builder.AddSyncKitAuthIfConfigured(identityApiEnabled, syncKitSession);
 var authState = new AuthState(identityApiEnabled, identityWidgetUrl);
 var authEnabled = authState.Enabled;
 builder.Services.AddSingleton(authState);
@@ -678,16 +680,11 @@ app.MapGet("/api/app/mode", (IAppMode m, AuthState auth, ICurrentUser user) =>
 if (authEnabled)
 {
     app.MapPost("/api/account/refresh-benefits",
-        async (HttpContext http, ICurrentUser user, SupporterStatus checker) =>
+        (HttpContext http, ICurrentUser user, SupporterStatus checker) =>
     {
         if (!user.IsAuthenticated || string.IsNullOrEmpty(user.DiscordId))
             return Results.Unauthorized();
-        var isSupporter = await checker.CheckAsync(user.DiscordId, http.RequestAborted);
-        var identity = (System.Security.Claims.ClaimsIdentity)http.User.Identity!;
-        SupporterClaims.Stamp(identity, isSupporter);
-        await http.SignInAsync(
-            Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme,
-            new System.Security.Claims.ClaimsPrincipal(identity));
+        checker.Invalidate(user.DiscordId);
         return Results.Redirect("/support");
     }).RequireRateLimiting("read");
 }

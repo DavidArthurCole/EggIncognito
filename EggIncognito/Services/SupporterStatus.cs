@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -20,8 +21,11 @@ public interface ISupporterStatus
 }
 
 public sealed class SupporterStatus(
-    IHttpClientFactory httpFactory, IConfiguration config, ILogger<SupporterStatus> logger) : ISupporterStatus
+    IHttpClientFactory httpFactory, IConfiguration config, ILogger<SupporterStatus> logger, TimeProvider clock) : ISupporterStatus
 {
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(30);
+    private readonly ConcurrentDictionary<string, (bool IsSupporter, DateTimeOffset Expires)> _cache = new();
+
     public static bool ParseHasRole(string memberJson, string roleId)
     {
         try
@@ -40,7 +44,20 @@ public sealed class SupporterStatus(
         }
     }
 
+    public void Invalidate(string discordId) => _cache.TryRemove(discordId, out _);
+
     public async Task<bool> CheckAsync(string discordId, CancellationToken ct = default)
+    {
+        var now = clock.GetUtcNow();
+        if (_cache.TryGetValue(discordId, out var cached) && cached.Expires > now)
+            return cached.IsSupporter;
+
+        var result = await CheckLiveAsync(discordId, ct);
+        _cache[discordId] = (result, now + CacheTtl);
+        return result;
+    }
+
+    private async Task<bool> CheckLiveAsync(string discordId, CancellationToken ct)
     {
         var guildId = config["Discord:GuildId"];
         var roleId = config["Discord:SupporterRoleId"];
