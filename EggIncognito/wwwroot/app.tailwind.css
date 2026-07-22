@@ -2,7 +2,7 @@
    This is the SINGLE source of the app's component vocabulary: every styled class the tabs' markup
    and JS emit is defined ONCE here (via @apply + the token utilities), replacing the deleted per-tab
    styles.css sheets. Tokens live in tailwind.config.js. Phase 3 unified Inspector + Capture onto this
-   layer; .btn-primary is orange (accent) everywhere, .btn-info is the secondary-orange (accent2) variant. */
+   layer; .btn-primary is orange (accent) everywhere, .btn-info is the secondary-orange (accent) variant. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -37,7 +37,7 @@
   .prov-chip { @apply inline-block text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 font-semibold; }
   .ds-row { @apply py-2.5 first:pt-0 last:pb-0; }
   .prov-captured { @apply bg-ok/15 text-ok; }
-  .prov-binary { @apply bg-accent2/15 text-accent2; }
+  .prov-binary { @apply bg-accent/15 text-accent; }
   .prov-extracted { @apply bg-accent/15 text-accent; }
   .prov-unknown { @apply bg-panel2 text-muted; }
 
@@ -86,7 +86,7 @@
   .btn-secondary:disabled { @apply cursor-not-allowed; opacity: 0.4; }
 
   .btn-info {
-    @apply bg-accent2 text-bg border-0 rounded-md px-[1.4rem] py-2 font-semibold text-sm cursor-pointer;
+    @apply bg-accent text-bg border-0 rounded-md px-[1.4rem] py-2 font-semibold text-sm cursor-pointer;
   }
   .btn-info:disabled { @apply cursor-not-allowed; opacity: 0.4; }
   .btn-info:hover:not(:disabled) { filter: brightness(1.07); }
@@ -96,7 +96,7 @@
     @apply inline-flex items-center gap-1 h-7 box-border bg-panel2 border border-border text-fg
            rounded px-2.5 text-xs cursor-pointer leading-none;
   }
-  .btn-mini:hover { @apply border-accent2; }
+  .btn-mini:hover { @apply border-accent; }
   .btn-mini:disabled { @apply opacity-40 cursor-not-allowed; }
   .btn-mini:disabled:hover { @apply border-border; }
   .btn-mini .icon, .btn-mini .icon-sm { @apply inline-block; }
@@ -123,7 +123,7 @@
            inline-flex items-center justify-center p-0 no-underline text-[15px];
     line-height: 1;
   }
-  .icon-btn:hover:not(:disabled) { @apply border-accent2; }
+  .icon-btn:hover:not(:disabled) { @apply border-accent; }
   .icon-btn:disabled { @apply cursor-not-allowed opacity-40; }
   .icon-btn.active { @apply border-accent text-accent; }
   /* Capture toggle: green play (start), red pause (stop). The icon inherits currentColor. */
@@ -148,7 +148,7 @@
 
   /* underline-link button (Inspector "forget" eids). */
   .forget-eids {
-    @apply bg-transparent border-0 text-accent2 cursor-pointer text-[11px] underline p-0 ml-1.5;
+    @apply bg-transparent border-0 text-accent cursor-pointer text-[11px] underline p-0 ml-1.5;
   }
   .forget-eids:hover { @apply text-fg; }
 
@@ -246,7 +246,7 @@
   .rail:hover { @apply border-accent; }
   .rail-name { @apply font-semibold text-sm text-fg mb-2; }
   .rail-note { @apply text-xs text-muted leading-snug m-0 mb-3 flex-1; }
-  .rail-go { @apply text-xs font-semibold text-accent2; }
+  .rail-go { @apply text-xs font-semibold text-accent; }
 
   /* Connect row: one flat panel, supporter state shown via the .pill outline. */
   .connect-card {
@@ -337,7 +337,7 @@
   .data-tools > * { @apply h-7 box-border; }
   .data-format { @apply bg-panel2 border border-border rounded text-fg text-xs px-2 cursor-pointer; }
   .data-filter { @apply bg-panel2 border border-border rounded text-fg text-xs px-2 w-[150px]; }
-  .data-format:focus, .data-filter:focus { @apply outline-none border-accent2; }
+  .data-format:focus, .data-filter:focus { @apply outline-none border-accent; }
   .data-copy { @apply inline-flex items-center gap-1 px-2.5; }
 
   /* Segmented toggles */
@@ -348,7 +348,7 @@
   .target-opt-disabled, .target-opt:disabled { @apply opacity-45 cursor-not-allowed; }
   .list-switch { @apply inline-flex border border-border rounded-md overflow-hidden; }
   .list-switch-opt { @apply bg-panel2 text-muted border-0 cursor-pointer px-2.5 py-[3px] text-xs; }
-  .list-switch-opt.active { @apply bg-accent2 text-bg font-semibold; }
+  .list-switch-opt.active { @apply bg-accent text-bg font-semibold; }
   .settings-seg { @apply flex border border-border rounded overflow-hidden; }
   .seg-btn { @apply flex-1 bg-panel border-0 border-r border-border text-muted cursor-pointer text-xs py-1.5; font-family: inherit; }
   .seg-btn:last-child { @apply border-r-0; }
@@ -446,7 +446,7 @@
   }
   .panel input[type="checkbox"] { @apply rounded-sm; }
   .panel input[type="radio"] { @apply rounded-full; }
-  .panel input[type="checkbox"]:hover, .panel input[type="radio"]:hover { @apply border-accent2; }
+  .panel input[type="checkbox"]:hover, .panel input[type="radio"]:hover { @apply border-accent; }
   .panel input[type="checkbox"]:checked, .panel input[type="radio"]:checked { @apply bg-accent border-accent; }
   .panel input[type="checkbox"]:checked::after {
     content: "";
@@ -464,7 +464,7 @@
   }
   .settings-out:empty { display: none; }
   .export-item { @apply block px-2 py-[7px] rounded text-fg no-underline text-[13px]; }
-  .export-item:hover { @apply bg-panel text-accent2; }
+  .export-item:hover { @apply bg-panel text-accent; }
 
   /* Modal */
   .modal-overlay { @apply fixed inset-0 flex items-center justify-center z-[100]; background: rgba(0,0,0,.6); }
@@ -506,7 +506,7 @@
   .legal-p { @apply text-sm text-muted leading-relaxed max-w-[80ch] m-0 mb-3; }
   .legal-p:last-child { @apply mb-0; }
   .legal-list { @apply text-sm text-muted leading-relaxed max-w-[80ch] list-disc pl-5 my-3 flex flex-col gap-1.5; }
-  .legal-link { @apply text-accent2 no-underline; }
+  .legal-link { @apply text-accent no-underline; }
   .legal-link:hover { @apply underline; }
 
   /* Floating GitHub link, fixed in the lower-right on every shell page. */
@@ -548,9 +548,9 @@
   .support-pop-rails { @apply flex flex-col gap-1.5 mb-2.5; }
   .support-pop-rail {
     @apply block px-2.5 py-1.5 rounded-md bg-panel2 border border-border text-sm text-fg no-underline
-           hover:border-accent2;
+           hover:border-accent;
   }
-  .support-pop-more { @apply text-xs text-accent2 no-underline hover:underline; }
+  .support-pop-more { @apply text-xs text-accent no-underline hover:underline; }
 
   /* Homepage About/legal footer (folded in from /about). */
   .home-footer { @apply mt-12 pt-6 border-t border-border; }
@@ -568,7 +568,7 @@
   /* Inspector: layout */
   /* Note: `main` layout for the 3-pane Inspector is set inline on the shell's <main>. */
   #endpointFilter { @apply w-full mb-2 px-2 py-1.5 bg-panel2 border border-border rounded text-fg; }
-  #endpointFilter:focus { @apply outline-none border-accent2; }
+  #endpointFilter:focus { @apply outline-none border-accent; }
   /* The left-list scroll regions: reserve the scrollbar gutter + pad right so the bar never overlaps the
      row text (the "scrollbar over text" bug). */
   #endpoints, #objects, #history { @apply overflow-auto pr-2; scrollbar-gutter: stable; }
@@ -590,7 +590,7 @@
   .capture-topbar-btns { @apply flex items-center gap-1.5; }
   .capture-topbar-spacer { @apply flex-1 min-w-[1rem]; }
   .capture-device { @apply flex flex-col leading-tight; }
-  .capture-device-tag { @apply text-[10px] uppercase tracking-wide text-accent2 font-semibold; }
+  .capture-device-tag { @apply text-[10px] uppercase tracking-wide text-accent font-semibold; }
   .capture-device-name { @apply text-sm font-medium truncate max-w-[16rem]; }
   @media (min-width: 1024px) {
     .inspector-main {
@@ -627,7 +627,7 @@
   /* Endpoint docs tab: request/response type links. */
   .doc-types { @apply flex flex-col gap-1 mb-3; }
   .doc-type-row { @apply flex items-center gap-2; }
-  .doc-type-link { @apply text-accent2 text-xs no-underline hover:underline cursor-pointer bg-transparent border-0 p-0; }
+  .doc-type-link { @apply text-accent text-xs no-underline hover:underline cursor-pointer bg-transparent border-0 p-0; }
   /* Environment section: a bordered box (no longer collapsible) grouping the BasicRequestInfo overrides. */
   .env-box { @apply border border-border rounded-md bg-panel2 p-2 my-2; }
   .env-box-title { @apply font-semibold text-xs text-fg mb-2; }
@@ -643,23 +643,23 @@
   .env-input {
     @apply bg-panel border border-border rounded text-fg px-1.5 py-0.5 font-mono text-xs w-full;
   }
-  .env-input:focus { @apply outline-none border-accent2; }
+  .env-input:focus { @apply outline-none border-accent; }
   .env-invalid { @apply border-red-500; }
   .env-check { @apply self-start mt-1 h-4 w-4; accent-color: var(--accent); }
   .field-row { @apply grid items-center gap-2 py-0.5; grid-template-columns: minmax(160px, 240px) 1fr auto; }
   .field-row.nested { @apply border-l-2 border-border pl-2 ml-1; }
   .field-name { @apply font-mono text-xs min-w-0 overflow-hidden text-ellipsis whitespace-nowrap; }
   .field-name .fnum { @apply text-muted text-[10px] ml-1; }
-  .field-name .ftype { @apply text-accent2 text-[10px] ml-1; }
+  .field-name .ftype { @apply text-accent text-[10px] ml-1; }
   .field-row input, .field-row select {
     @apply bg-panel2 border border-border rounded text-fg px-1.5 py-1 font-mono text-xs w-full;
   }
-  .field-row input:focus, .field-row select:focus { @apply outline-none border-accent2; }
+  .field-row input:focus, .field-row select:focus { @apply outline-none border-accent; }
   /* Base text input (Notifications webhook, subscribe edit, etc). Was unstyled = browser-white. */
   .field-input {
     @apply bg-panel2 border border-border rounded-md text-fg px-2 py-1.5 text-sm w-full;
   }
-  .field-input:focus { @apply outline-none border-accent2; }
+  .field-input:focus { @apply outline-none border-accent; }
   .field-input::placeholder { @apply text-muted; }
   .field-input.env-locked, .field-input:disabled { @apply opacity-70 cursor-not-allowed; background: #20202733; }
   .repeated-items { @apply flex flex-col gap-[3px] w-full; }
@@ -673,11 +673,11 @@
   .stage { @apply border border-border rounded-md mb-2 overflow-hidden; }
   .stage.skipped { @apply opacity-55; }
   .stage-head { @apply flex items-center gap-2 px-2.5 py-1.5 bg-panel2 cursor-pointer; }
-  .stage-head .num { @apply w-5 h-5 inline-flex items-center justify-center bg-accent2 text-bg rounded-full text-[11px] font-bold; }
+  .stage-head .num { @apply w-5 h-5 inline-flex items-center justify-center bg-accent text-bg rounded-full text-[11px] font-bold; }
   .stage-head .sname { @apply font-mono font-semibold; }
   .stage-head .srole { @apply text-[10px] uppercase tracking-[0.04em] text-muted border border-border px-1.5 py-px rounded-[3px]; }
   .stage.role-envelope .stage-head .srole { @apply text-accent border-accent; }
-  .stage.role-payload .stage-head .srole { @apply text-accent2 border-accent2; }
+  .stage.role-payload .stage-head .srole { @apply text-accent border-accent; }
   .stage-head .slen { @apply ml-auto text-muted text-[11px]; }
   .stage-body { @apply px-2.5 py-2 text-xs; }
   .stage-desc { @apply text-muted mb-1.5; }
@@ -698,7 +698,7 @@
   .custom-config.hidden { display: none; }
   .custom-config label { @apply text-xs text-muted; }
   .custom-config input { @apply w-full box-border bg-bg text-fg border border-border rounded px-1.5 py-1 font-mono text-xs; }
-  .custom-config input:focus { @apply outline-none border-accent2; }
+  .custom-config input:focus { @apply outline-none border-accent; }
   .sealed-config { @apply mt-3 p-2.5 border border-border rounded-md bg-panel2 flex flex-col gap-1.5; }
   .sealed-config .settings-check { @apply text-sm text-fg; }
   #rawJson, .raw-json { @apply w-full min-h-[200px] bg-panel2 border border-border rounded text-fg p-2 font-mono text-xs; }
@@ -708,13 +708,13 @@
 
   /* Inspector: endpoint list */
   .ep-group { @apply mb-2; }
-  .ep-group > .ep-ns { @apply text-accent2 text-[11px] lowercase flex items-center gap-1.5 cursor-pointer select-none; margin: 6px 0 2px; }
+  .ep-group > .ep-ns { @apply text-accent text-[11px] lowercase flex items-center gap-1.5 cursor-pointer select-none; margin: 6px 0 2px; }
   .ep-caret { @apply inline-block w-0 h-0; border: 4px solid transparent; border-left-color: currentColor; transition: transform .1s; }
   .ep-group:not(.collapsed) .ep-caret { transform: rotate(90deg); }
   .ep-group.collapsed .ep-group-body { display: none; }
   .ep { @apply px-2 py-1 rounded cursor-pointer font-mono text-xs flex items-center gap-1.5; }
   .ep:hover { @apply bg-panel2; }
-  .ep.active { @apply bg-accent2 text-bg; }
+  .ep.active { @apply bg-accent text-bg; }
   /* Name truncates so a long route plus the signed badge never overflow the fixed-width list. */
   .ep .ep-name { @apply min-w-0 truncate; }
   .ep .wrap-flag { @apply flex-none text-accent text-[9px] uppercase tracking-[0.04em] border border-accent rounded-[3px] px-[3px]; }
@@ -727,7 +727,7 @@
   .tag-chips { @apply inline-flex flex-wrap gap-1 align-middle ml-1.5; }
   .tag-chip { @apply text-[10px] leading-[1.4] px-1.5 rounded-[10px] border border-border text-muted bg-transparent whitespace-nowrap; }
   .tag-chip-more { @apply cursor-pointer; font-family: inherit; }
-  .tag-chip-more:hover { @apply border-accent2 text-fg; }
+  .tag-chip-more:hover { @apply border-accent text-fg; }
   .doc-head { @apply flex items-center gap-2.5 flex-wrap mb-3; }
   .doc-title { @apply m-0 font-mono text-[15px] text-fg normal-case tracking-normal; }
   .doc-body { @apply text-[13px] leading-relaxed; }
@@ -736,7 +736,7 @@
   .doc-body .md-h3 { @apply text-sm; }
   .doc-body h1, .doc-body h2, .doc-body h3 { @apply text-fg; margin: 14px 0 6px; }
   .doc-body p { @apply my-2; }
-  .doc-body a { @apply text-accent2; }
+  .doc-body a { @apply text-accent; }
   .doc-body code { @apply font-mono text-xs bg-bg border border-border rounded-[3px] px-[3px]; }
   .doc-body pre.md-code { @apply bg-bg border border-border rounded-md p-2 overflow-auto; }
   .doc-body pre.md-code code { @apply border-0 p-0; background: none; }
@@ -750,7 +750,7 @@
   .doc-section-title { @apply text-xs uppercase tracking-[0.05em] text-muted; margin: 16px 0 6px; }
   .doc-usedby-list { @apply flex flex-col gap-1; }
   .doc-usedby-item { @apply flex items-center justify-between gap-2 bg-panel2 border border-border rounded text-fg cursor-pointer px-2 py-1 text-left; font: inherit; }
-  .doc-usedby-item:hover { @apply border-accent2; }
+  .doc-usedby-item:hover { @apply border-accent; }
   .doc-usedby-item .mono { @apply font-mono text-xs; }
   .doc-usedby-role { @apply text-[10px] text-muted uppercase tracking-[0.04em]; }
   .md-editor { @apply border border-border rounded-md overflow-hidden mt-2 max-w-full; }
@@ -761,7 +761,7 @@
     @apply inline-flex items-center justify-center h-7 box-border min-w-[28px] px-2
            bg-bg text-fg border border-border rounded cursor-pointer text-xs leading-none;
   }
-  .md-tb-btn:hover { @apply border-accent2; }
+  .md-tb-btn:hover { @apply border-accent; }
   .md-toolbar .btn-primary { @apply h-7 box-border inline-flex items-center px-3 py-0 text-xs; }
   /* Source + preview side by side on wide editors; stack on narrow ones (e.g. the Inspector Objects
      pane). Both panes are a fixed height with their own scroll, so the editor never grows unbounded. */
@@ -779,7 +779,7 @@
   .md-preview .md-h2 { @apply text-base; }
   .md-preview .md-h3 { @apply text-sm; }
   .md-preview h1, .md-preview h2, .md-preview h3 { @apply text-fg; margin: 12px 0 6px; }
-  .md-preview a { @apply text-accent2; }
+  .md-preview a { @apply text-accent; }
   .md-preview code { @apply font-mono text-xs bg-bg border border-border rounded-[3px] px-[3px]; }
   .md-preview pre.md-code { @apply bg-bg border border-border rounded-md p-2 overflow-auto; }
   .md-preview blockquote.md-quote { @apply my-2 px-2.5 py-1.5; border-left: 3px solid theme(colors.accent); background: rgba(239,117,89,.07); }
@@ -817,13 +817,13 @@
   .device-rows dt { @apply text-muted; }
   .device-rows dd { @apply m-0 font-mono text-fg; }
   .device-cards { @apply flex flex-col gap-1.5; margin: 4px 0 2px; }
-  .device-card { @apply border border-border rounded bg-panel px-2 py-1.5; border-left: 3px solid theme(colors.accent2); }
+  .device-card { @apply border border-border rounded bg-panel px-2 py-1.5; border-left: 3px solid theme(colors.accent); }
   .device-offline { @apply opacity-60; }
   .device-head { @apply flex items-center gap-2 flex-wrap; }
   .device-dot { @apply w-2 h-2 rounded-full flex-none; }
   .device-dot.online { @apply bg-ok; }
   .device-dot.offline { @apply bg-muted; }
-  .device-ip { @apply font-mono text-xs font-semibold text-accent2; }
+  .device-ip { @apply font-mono text-xs font-semibold text-accent; }
   .device-host { @apply text-[11px] text-muted; }
 
   /* Capture: flow list + rows */
@@ -834,7 +834,7 @@
   .flow-filter-select, .flow-filter-input { @apply h-7 box-border bg-bg border border-border rounded text-fg text-xs px-2; }
   .flow-filter-input { @apply flex-1 min-w-[100px]; }
   .flow-filter-select { @apply flex-none; }
-  .flow-filter-select:focus, .flow-filter-input:focus { @apply outline-none border-accent2; }
+  .flow-filter-select:focus, .flow-filter-input:focus { @apply outline-none border-accent; }
   .flow-combo { @apply relative flex-1 min-w-[100px]; }
   .flow-combo > .flow-filter-input { @apply w-full min-w-0; }
   .combo-menu {
@@ -844,7 +844,7 @@
   }
   .popover-backdrop { @apply fixed inset-0 z-[1040]; }
   .combo-opt { @apply block w-full text-left px-2.5 py-1.5 text-xs text-fg bg-transparent border-0 cursor-pointer truncate; font-family: inherit; }
-  .combo-opt:hover { @apply bg-accent2 text-bg; }
+  .combo-opt:hover { @apply bg-accent text-bg; }
   .combo-empty { @apply px-2.5 py-1.5 text-xs text-muted; }
   .flow-list { @apply overflow-auto flex-1 pr-2.5; scrollbar-gutter: stable; }
   .empty-state { @apply h-full flex flex-col items-center justify-center text-center text-muted text-[13px] px-6; }
@@ -860,13 +860,13 @@
   .forensics-rfield.bad { @apply text-err opacity-70; }
   .forensics-node { @apply whitespace-nowrap; }
   .forensics-node.mismatch { @apply text-err; }
-  .forensics-name { @apply text-accent2 ml-1; }
+  .forensics-name { @apply text-accent ml-1; }
   .forensics-wire { @apply text-muted ml-1; }
   .forensics-flag { @apply text-err text-[10px] uppercase ml-1.5 border border-err rounded px-1; }
   .hex-error { @apply text-err font-bold; }
   .flow-row { @apply flex flex-col gap-[3px] px-2 py-1.5 rounded cursor-pointer; border: 1px solid transparent; }
   .flow-row:hover { @apply bg-panel2; }
-  .flow-row.active { @apply bg-panel2 border-accent2; }
+  .flow-row.active { @apply bg-panel2 border-accent; }
   .flow-row.filtered-out { display: none; }
   .frow-top { @apply flex items-center gap-2; }
   .flow-row .ftime { @apply text-muted font-mono text-[11px]; }
@@ -881,7 +881,7 @@
   /* Capture: detail pane */
   #detail { @apply overflow-auto flex-1 pr-3; scrollbar-gutter: stable; }
   .detail-head { @apply font-mono text-[13px] mb-3; }
-  .detail-head .dpath { @apply text-accent2; }
+  .detail-head .dpath { @apply text-accent; }
   .detail-head .dstatus { @apply ml-2; }
   .detail-types { @apply mb-3 flex flex-col gap-[3px]; }
   .detail-type-line { @apply text-xs; }
@@ -954,7 +954,7 @@
   .notif-item.notif-ok { border-left-color: theme(colors.ok); }
   .notif-item.notif-error { border-left-color: theme(colors.err); }
   .notif-item.notif-warn { border-left-color: theme(colors.accent); }
-  .notif-item.notif-info { border-left-color: theme(colors.accent2); }
+  .notif-item.notif-info { border-left-color: theme(colors.accent); }
   .notif-body { @apply flex-1 min-w-0; }
   .notif-msg { @apply text-xs leading-[1.4] [word-break:break-word]; }
   .notif-time { @apply text-[11px] text-muted mt-0.5 font-mono; }
@@ -967,7 +967,7 @@
   .jtree-tools .data-format, .jtree-tools .data-copy { @apply h-7 box-border; }
   .jtree-tools .data-copy { @apply inline-flex items-center gap-1 px-2.5; }
   .jtree-search { @apply flex-1 min-w-[120px] bg-panel2 border border-border rounded text-fg px-2 py-[3px] text-xs; }
-  .jtree-search:focus { @apply outline-none border-accent2; }
+  .jtree-search:focus { @apply outline-none border-accent; }
   .jtree-search-count { @apply text-[11px] text-muted font-mono; }
   .jtree-root { @apply font-mono text-xs max-h-[320px] overflow-auto px-2 pt-1.5 pb-4; }
   .jtree-children { @apply ml-3 pl-1.5 border-l border-border; display: none; }
@@ -981,7 +981,7 @@
   .jtree-caret::before { content: "\25B8"; }
   .jtree-expanded > .jtree-row > .jtree-caret { transform: rotate(90deg); }
   .jtree-caret-leaf::before { content: ""; }
-  .jtree-key { @apply text-accent2; }
+  .jtree-key { @apply text-accent; }
   .jtree-colon { @apply text-muted; }
   .jtree-summary { @apply text-muted italic; }
   .jv-string { @apply text-ok whitespace-pre-wrap [word-break:break-word]; }
@@ -1012,7 +1012,7 @@
   #adminMain select, #adminMain button {
     @apply bg-panel2 text-fg border border-border rounded-md px-2 py-1 text-[13px] cursor-pointer;
   }
-  #adminMain select:hover, #adminMain button:hover { @apply border-accent2; }
+  #adminMain select:hover, #adminMain button:hover { @apply border-accent; }
   #adminMain button.danger { background: #5a2330; border-color: #7a3040; }
   #adminMain button.danger:hover { background: #6e2a3b; border-color: #9a3c4f; }
   /* Denied state reuses .panel chrome; this just tints the message. */
@@ -1028,14 +1028,14 @@
   .docs-tree { @apply overflow-auto gap-3 max-h-[45vh] md:max-h-none md:min-h-0; }
   .docs-detail { @apply overflow-auto min-h-0; }
   .docs-group { @apply mb-1; }
-  .docs-group-title { @apply text-accent2 text-[11px] uppercase tracking-[0.05em] mt-2 mb-1; }
+  .docs-group-title { @apply text-accent text-[11px] uppercase tracking-[0.05em] mt-2 mb-1; }
   .docs-subjects { @apply list-none m-0 p-0 flex flex-col gap-px; }
   .docs-subject-link {
     @apply block w-full text-left bg-transparent border-0 text-fg cursor-pointer rounded
            px-2 py-1 font-mono text-xs no-underline;
   }
   .docs-subject-link:hover { @apply bg-panel2; }
-  .docs-subject-link.active { @apply bg-accent2 text-bg; }
+  .docs-subject-link.active { @apply bg-accent text-bg; }
   .docs-detail-title { @apply m-0 font-mono text-[15px] text-fg normal-case tracking-normal; }
   .docs-detail-kind { @apply inline-block mt-1.5 lowercase; }
   .docs-detail-summary { @apply text-[13px] text-muted leading-relaxed my-2; }
@@ -1057,7 +1057,7 @@
     @apply w-[16px] h-[16px] inline-flex items-center justify-center rounded-full bg-panel2
            border border-border text-muted cursor-pointer text-[10px] font-bold p-0 leading-none;
   }
-  .dochelp-btn:hover { @apply border-accent2 text-fg; }
+  .dochelp-btn:hover { @apply border-accent text-fg; }
   .dochelp-pop {
     @apply absolute left-0 z-[1100] w-[300px] max-h-[320px] overflow-auto bg-panel2 border border-border
            rounded-md p-3 text-[13px];
@@ -1066,7 +1066,7 @@
   }
   .dochelp-title { @apply font-mono font-semibold text-fg mb-1; }
   .dochelp-summary { @apply text-muted text-xs leading-relaxed mb-2; }
-  .dochelp-link { @apply inline-block mt-2 text-accent2 text-xs no-underline; }
+  .dochelp-link { @apply inline-block mt-2 text-accent text-xs no-underline; }
   .dochelp-link:hover { @apply text-fg; }
 
   /* Markdown render output (<Markdown> wraps MarkdownRenderer.Render in .md-body). The renderer emits
@@ -1080,7 +1080,7 @@
     @apply text-fg; margin: 12px 0 6px;
   }
   .md-body p { @apply my-2; }
-  .md-body a { @apply text-accent2; }
+  .md-body a { @apply text-accent; }
   .md-body code { @apply font-mono text-xs bg-bg border border-border rounded-[3px] px-[3px]; }
   .md-body pre.md-code { @apply bg-bg border border-border rounded-md p-2 overflow-auto; }
   .md-body pre.md-code code { @apply border-0 p-0; background: none; }
@@ -1099,10 +1099,10 @@
   /* Proto registry (/protos): platform/download chips, version timeline, message inventory. */
   .btn-chip { @apply inline-flex items-center px-3 h-7 box-border text-xs bg-panel2 border border-border rounded-md text-fg no-underline; }
   .btn-chip:hover { filter: brightness(1.1); }
-  .btn-chip.active { @apply border-accent2 text-fg; }
+  .btn-chip.active { @apply border-accent text-fg; }
   .proto-list { @apply flex flex-col gap-1.5; }
   .proto-row { @apply flex items-center gap-3 flex-wrap; }
-  .proto-version { @apply font-mono text-accent2 no-underline; }
+  .proto-version { @apply font-mono text-accent no-underline; }
   .proto-version:hover { @apply underline; }
   .proto-detected { @apply text-xs; }
   .proto-msg-list { @apply flex flex-wrap gap-1.5; }
@@ -1116,17 +1116,17 @@
   .proto-meta .mono { @apply font-mono; }
   .proto-meta-sha { @apply col-span-full; }
   .proto-sha-copy { @apply cursor-pointer font-mono text-[0.8rem] bg-bg text-fg [word-break:break-all] text-left max-w-full; }
-  .proto-sha-copy:hover { @apply border-accent2; }
+  .proto-sha-copy:hover { @apply border-accent; }
 
   /* Version-detail comparison summary + diff. */
   .proto-cmp-line { @apply text-sm text-fg mb-2; }
-  .proto-cmp-add { @apply text-accent2; }
+  .proto-cmp-add { @apply text-accent; }
   .proto-cmp-rem { @apply text-muted; }
   .proto-cmp-chips { @apply flex flex-wrap gap-1.5 mb-2; }
-  .proto-chip-add { @apply text-accent2 border-accent2; }
+  .proto-chip-add { @apply text-accent border-accent; }
   .proto-chip-rem { @apply text-muted line-through; }
   .proto-diff { @apply max-h-[480px] overflow-auto; }
-  .proto-diff .diff-add { @apply text-accent2; }
+  .proto-diff .diff-add { @apply text-accent; }
   .proto-diff .diff-rem { @apply text-muted; }
   .proto-diff .diff-hunk { @apply text-fg font-semibold; }
 
@@ -1139,7 +1139,7 @@
   .protos-filter {
     @apply w-[160px] bg-panel2 text-fg border border-border rounded-md px-2 py-1 text-xs font-mono;
   }
-  .protos-filter:focus { @apply outline-none border-accent2; }
+  .protos-filter:focus { @apply outline-none border-accent; }
   .protos-filter::placeholder { @apply text-muted; }
   .protos-toolbar .protos-trigger { @apply w-full justify-start mb-1; }
   .protos-toolbar .protos-trigger:last-child { @apply mb-0; }
@@ -1161,9 +1161,9 @@
   .reg-row { @apply cursor-pointer; }
   .reg-table tbody tr.reg-row:hover { @apply bg-panel2; }
   .reg-table .mono { @apply font-mono text-xs; }
-  .reg-version { @apply font-mono text-accent2; }
+  .reg-version { @apply font-mono text-accent; }
   .reg-sha { @apply cursor-pointer bg-bg text-fg text-[0.8rem]; }
-  .reg-sha:hover { @apply border-accent2; }
+  .reg-sha:hover { @apply border-accent; }
   /* Computed bad-data warning chip (e.g. an iOS row carrying an Android integer build). */
   .reg-badwarn { @apply inline-block rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide bg-red-500/15 text-red-400 self-start; }
   .reg-empty { @apply flex flex-col items-center justify-center text-center text-muted text-[13px] px-6 py-12 gap-1; }
@@ -1186,7 +1186,7 @@
   .backfill-note { @apply text-xs text-muted font-mono [word-break:break-word]; }
   .backfill-message { @apply text-xs text-muted mt-3; }
   .backfill-empty { @apply text-muted text-[13px] px-3 py-4; }
-  .pill.running { @apply text-accent2 border-accent2; }
+  .pill.running { @apply text-accent border-accent; }
   .pill.done { @apply text-ok border-ok; }
   .pill.failed { @apply text-err border-err; }
 
@@ -1211,7 +1211,7 @@
   .reg-filter-input {
     @apply w-full bg-bg text-fg border border-border rounded px-2 py-1 text-xs font-mono;
   }
-  .reg-filter-input:focus { @apply outline-none border-accent2; }
+  .reg-filter-input:focus { @apply outline-none border-accent; }
   .reg-filter-input::placeholder { @apply text-muted; }
   .reg-filter-clear {
     @apply w-6 h-6 grid place-items-center rounded text-muted hover:text-fg hover:bg-panel text-base leading-none;
@@ -1224,13 +1224,13 @@
     @apply w-7 h-7 grid place-items-center rounded-md bg-bg text-muted cursor-pointer no-underline;
     border: 1px solid #4d4d59;
   }
-  .reg-edit-btn:hover { @apply text-fg border-accent2; }
+  .reg-edit-btn:hover { @apply text-fg border-accent; }
   .reg-view-btn {
     @apply h-7 inline-flex items-center rounded-md bg-bg text-muted cursor-pointer px-2.5 text-xs leading-none;
     border: 1px solid #4d4d59;
   }
-  .reg-view-btn:hover { @apply text-fg border-accent2; }
-  .reg-edit-btn.active { @apply text-accent2 border-accent2; }
+  .reg-view-btn:hover { @apply text-fg border-accent; }
+  .reg-edit-btn.active { @apply text-accent border-accent; }
   .reg-edit-row > td { @apply bg-panel2 p-3; }
   .reg-actions { @apply flex items-center gap-1.5; }
   /* Transient "copied" bubble (SHA copy on the version detail page). */
@@ -1249,7 +1249,7 @@
     appearance: none;
     border: 1.5px solid #6b6b78; /* readable against both the row + row-hover backgrounds */
   }
-  .reg-table input[type="checkbox"]:hover { @apply border-accent2; }
+  .reg-table input[type="checkbox"]:hover { @apply border-accent; }
   .reg-table input[type="checkbox"]:checked { @apply bg-accent border-accent; }
   .reg-table input[type="checkbox"]:checked::after {
     content: "";
@@ -1259,12 +1259,12 @@
 
   /* Admin metrics chart (hand-rolled inline SVG). */
   .metric-chart { @apply w-full h-20 block; }
-  .metric-bar-total { fill: var(--accent2); opacity: 0.55; }
+  .metric-bar-total { fill: theme(colors.accent); opacity: 0.55; }
   .metric-bar-limited { fill: var(--err); }
   .metric-legend { @apply flex items-center gap-3 flex-wrap; }
   .metric-key { @apply flex items-center gap-1.5 text-muted text-xs; }
   .metric-swatch { @apply inline-block w-2.5 h-2.5 rounded-sm; }
-  .metric-swatch-total { background: var(--accent2); opacity: 0.55; }
+  .metric-swatch-total { background: theme(colors.accent); opacity: 0.55; }
   .metric-swatch-limited { background: var(--err); }
   /* Admin user table reuses .reg-table; select sits inline. */
   .admin-users-table select { @apply w-auto; }
@@ -1282,7 +1282,7 @@
 
   /* Session-kind chip. */
   .sess-kind { @apply inline-block rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide border; }
-  .sess-kind-user { @apply text-accent2 border-accent2; }
+  .sess-kind-user { @apply text-accent border-accent; }
   .sess-kind-local { @apply text-muted border-border; }
   .sess-kind-device { @apply text-green-400 border-green-700; }
 

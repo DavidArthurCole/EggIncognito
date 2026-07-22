@@ -19,5 +19,5 @@ To add an endpoint, edit the route map and rebuild. See the [web app README](../
 
 - Must stay on `netstandard2.0`. Never change the target framework.
 - Must stay dependency-free. Never add runtime dependencies.
-- `RouteParser` / `RouteModel` are deliberately NOT shared with `RouteCatalog`. The generator must stay netstandard2.0 + dependency-free, so the parse logic is duplicated. The two must stay in sync. Do not try to merge it into Core.
+- `RouteParser` / `RouteModel` are deliberately not shared with `RouteCatalog`. The generator must stay netstandard2.0 + dependency-free, so the parse logic is duplicated. The two must stay in sync. Do not try to merge it into Core.
 - `RouteModel` supports the legacy `requestType:` / `responseType:` aliases and the `*Wrapped` flags, matching the runtime `RouteCatalog`.

@@ -77,7 +77,7 @@ Open `/capture/` and hit Start capture, or auto-start the proxy at launch:
 dotnet run --project EggIncognito -- --capture
 ```
 
-Point the phone's Wi-Fi proxy at your computer, install and trust the printed certificate, and play. Each captured flow becomes an endpoint on disk. The [capture engine README](EggIncognito.Capture/README.md) has the full device walkthrough, including the iOS certificate-trust step that trips people up, plus the automated device-farm path.
+Point the phone's Wi-Fi proxy at your computer, install and trust the printed certificate, and play. Each captured flow becomes an endpoint on disk. The [capture engine README](EggIncognito.Capture/README.md) has the full device walkthrough, including the iOS certificate-trust step, plus the automated device-farm path.
 
 ## Proto registry
 

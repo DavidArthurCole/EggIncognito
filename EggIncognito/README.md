@@ -121,8 +121,7 @@ The former PowerShell scripts and CLI subcommands are gone. Their behavior is no
 
 - No Node. The standalone Tailwind CLI is fetched to a local tools dir on first build (gitignored).
 - Tokens live only in the Tailwind config. All chrome is one canonical `@layer components` block in the Tailwind source.
-- `.btn-primary` is orange (`--accent`) everywhere. Blue (`--accent2`) is info/secondary.
-- The Razor components emit semantic class names; the `@layer components` block defines them. Add a missing class to the component layer rather than inlining utility soup in markup.
+- The Razor components emit semantic class names; the `@layer components` block defines them. Add a missing class to the component layer rather than inlining utilities in markup.
 - Skip with `-p:BuildTailwindCss=false`.
 - Gotcha: the target runs `AfterTargets="Build"`, so a static-asset-only incremental build does not recompile. Run `dotnet build -t:BuildTailwind`.
 - Gotcha: `@apply hidden` inside `@layer components` is a circular-dependency error. Use raw `display:none`.
