@@ -114,6 +114,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: write
     with:
       needs-pat: true
       build-args: GITHUB_PACKAGES_USER=${{ github.actor }}
@@ -125,6 +126,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: write
     with:
       dockerfile: EggIncognito.Runner/Dockerfile
       image-suffix: -runner

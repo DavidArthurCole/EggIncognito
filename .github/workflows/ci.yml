@@ -19,6 +19,9 @@ jobs:
   seed-app-image-cache:
     if: github.event_name == 'push'
     uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@v1
+    permissions:
+      contents: read
+      actions: write
     with:
       push: false
       needs-pat: true
@@ -29,6 +32,9 @@ jobs:
   seed-runner-image-cache:
     if: github.event_name == 'push'
     uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@v1
+    permissions:
+      contents: read
+      actions: write
     with:
       push: false
       dockerfile: EggIncognito.Runner/Dockerfile

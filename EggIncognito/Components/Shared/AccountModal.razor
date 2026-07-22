@@ -56,56 +56,60 @@
                 </div>
               </div>
             </AvatarTemplate>
-            <IdentitiesTemplate Context="ctx">
+            <ProvidersTemplate Context="ctx">
               @if (ctx.Banner is not null)
               {
                 <div class="text-muted text-sm mb-2">@ctx.Banner</div>
               }
-              <ul class="list-none m-0 p-0 flex flex-col gap-1">
-                @foreach (var item in ctx.Items)
-                {
-                  <li class="flex items-center gap-2.5 px-2.5 py-2 rounded-md bg-white/[0.03] hover:bg-white/[0.06]">
-                    <ProviderGlyph Provider="@item.Identity.Provider" Class="shrink-0" />
-                    @if (!string.IsNullOrEmpty(item.Identity.Avatar))
-                    {
-                      <button type="button" class="acct-chip" title="Use this picture" @onclick="item.OnSelectAvatar">
-                        <img src="@LinkHref(item.Identity.Avatar!)" alt="" />
-                      </button>
-                    }
-                    <span class="text-sm flex-1 truncate">@(item.Identity.Username ?? item.Identity.Subject)</span>
-                    <span class="text-xs text-muted shrink-0">@item.Identity.LinkedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</span>
-                    <button type="button" class="reg-edit-btn shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                            disabled="@(!item.CanUnlink)"
-                            title="@(item.CanUnlink ? "Unlink" : "Cannot unlink the last login")"
-                            @onclick="item.OnUnlink">
-                      <Icon Name="x" />
-                    </button>
-                  </li>
-                }
-              </ul>
-            </IdentitiesTemplate>
-            <LinkRowTemplate Context="ctx">
-              <div class="flex flex-wrap gap-2 mt-4">
-                @foreach (var item in ctx.Items)
-                {
-                  @if (item.Linked)
+              <table class="w-full border-collapse text-sm">
+                <tbody>
+                  @foreach (var item in ctx.Items)
                   {
-                    <span class="btn-mini opacity-45 pointer-events-none">
-                      <ProviderGlyph Provider="@item.Provider" />
-                      @Cap(item.Provider) linked
-                      <Icon Name="check" Class="icon-sm text-ok" />
-                    </span>
+                    <tr>
+                      <td class="py-2 pr-2 border-b border-border align-middle w-32">
+                        <span class="flex items-center gap-2 font-medium">
+                          <ProviderGlyph Provider="@item.Provider" Class="shrink-0" />
+                          @Cap(item.Provider)
+                        </span>
+                      </td>
+                      <td class="py-2 px-2 border-b border-border align-middle min-w-0">
+                        @if (item.Identity is { } id)
+                        {
+                          <span class="flex items-center gap-2 min-w-0">
+                            @if (!string.IsNullOrEmpty(id.Avatar))
+                            {
+                              <button type="button" class="acct-chip" title="Use this picture" @onclick="item.OnSelectAvatar">
+                                <img src="@LinkHref(id.Avatar!)" alt="" />
+                              </button>
+                            }
+                            <span class="truncate">@(id.Username ?? id.Subject)</span>
+                            <span class="text-xs text-muted shrink-0">@id.LinkedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</span>
+                          </span>
+                        }
+                        else
+                        {
+                          <span class="text-xs text-muted">Not linked</span>
+                        }
+                      </td>
+                      <td class="py-2 pl-2 border-b border-border align-middle w-20 text-right">
+                        @if (!item.Linked)
+                        {
+                          <a class="btn-mini" href="@LinkHref(item.LinkUrl)">Link</a>
+                        }
+                        else if (item.CanUnlink)
+                        {
+                          <button type="button" class="btn-mini" @onclick="item.OnUnlink">Unlink</button>
+                        }
+                        else
+                        {
+                          <button type="button" class="btn-mini" disabled title="Cannot unlink the last login">Linked</button>
+                        }
+                      </td>
+                    </tr>
                   }
-                  else
-                  {
-                    <a class="btn-mini" href="@LinkHref(item.LinkUrl)">
-                      <ProviderGlyph Provider="@item.Provider" />
-                      Link @Cap(item.Provider)
-                    </a>
-                  }
-                }
-              </div>
-            </LinkRowTemplate>
+                </tbody>
+              </table>
+            </ProvidersTemplate>
           </ProfilePanel>
         }
         else

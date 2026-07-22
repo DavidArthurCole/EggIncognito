@@ -97,6 +97,8 @@
            rounded px-2.5 text-xs cursor-pointer leading-none;
   }
   .btn-mini:hover { @apply border-accent2; }
+  .btn-mini:disabled { @apply opacity-40 cursor-not-allowed; }
+  .btn-mini:disabled:hover { @apply border-border; }
   .btn-mini .icon, .btn-mini .icon-sm { @apply inline-block; }
 
   /* Danger variant (Capture clear-list confirm). */
