@@ -180,7 +180,7 @@ if (identityApiEnabled) {
 }
 var syncKitSession = SessionCookieOptions.FromEnvironment();
 builder.AddSyncKitAuthIfConfigured(identityApiEnabled, syncKitSession);
-var authState = new AuthState(identityApiEnabled, identityWidgetUrl);
+var authState = new AuthState(identityApiEnabled, identityWidgetUrl, syncKitSession?.CookieName ?? "synckit_session");
 var authEnabled = authState.Enabled;
 builder.Services.AddSingleton(authState);
 builder.Services.AddScoped<EggIncognito.Services.LoginSignIn>();
