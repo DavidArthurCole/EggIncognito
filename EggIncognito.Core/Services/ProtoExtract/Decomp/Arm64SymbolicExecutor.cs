@@ -27,15 +27,15 @@ public static class Arm64SymbolicExecutor {
     private const int InstrBudget = 5000;
 
     public static ExecResult Run(
-        byte[] code, MachoSymbols.FuncRange fn, ulong textVmAddr, int textFileOff,
+        byte[] code, MachoSymbols.FuncRange fn,
         IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyDictionary<string, ExprNode> seedInputs,
         Func<string, ExprNode[], ExprNode?> resolveCall)
-        => Run(code, fn, textVmAddr, textFileOff, syms, seedInputs, null, resolveCall);
+        => Run(code, fn, syms, seedInputs, null, resolveCall);
 
 
 
     public static ExecResult Run(
-        byte[] code, MachoSymbols.FuncRange fn, ulong textVmAddr, int textFileOff,
+        byte[] code, MachoSymbols.FuncRange fn,
         IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyDictionary<string, ExprNode> seedInputs,
         IReadOnlyDictionary<string, string>? seedBases,
         Func<string, ExprNode[], ExprNode?> resolveCall) {
@@ -117,8 +117,8 @@ public static class Arm64SymbolicExecutor {
                 st.VecExt(ed.Name, RegName(ops, 1), RegName(ops, 2), (int)ops[3].Immediate);
                 break;
 
-            case Arm64InstructionId.ARM64_INS_STR: st.Store(ops, 1); break;
-            case Arm64InstructionId.ARM64_INS_STUR: st.Store(ops, 1); break;
+            case Arm64InstructionId.ARM64_INS_STR: st.Store(ops); break;
+            case Arm64InstructionId.ARM64_INS_STUR: st.Store(ops); break;
             case Arm64InstructionId.ARM64_INS_STP: st.StorePair(ops); break;
             case Arm64InstructionId.ARM64_INS_ST1: st.St1(ops); break;
             case Arm64InstructionId.ARM64_INS_LDR: st.Load(ops); break;
@@ -257,7 +257,7 @@ public static class Arm64SymbolicExecutor {
             SetVec(d, [combined[sh], combined[sh + 1], combined[sh + 2], combined[sh + 3]]);
         }
 
-        public void Store(Arm64Operand[] ops, int srcCount) {
+        public void Store(Arm64Operand[] ops) {
             if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory) return;
             if (!MemTarget(ops[^1], out var space, out var off)) return;
             var src = ops[0];

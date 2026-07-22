@@ -1,5 +1,3 @@
-using EggIncognito.Services.ProtoExtract;
-using Xunit;
 using static EggIncognito.Services.ProtoExtract.HatcheryPieceClassifier;
 
 namespace EggIncognito.Tests.ProtoExtract;

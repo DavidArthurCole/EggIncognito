@@ -48,7 +48,9 @@ public sealed class ProtoReflection : IProtoReflection {
         var clr = EiAssembly.GetType("Ei." + key);
         if (clr?.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static)
             ?.GetValue(null) is not MessageDescriptor descriptor || clr?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null) is not MessageParser parser) return null;
+            ?.GetValue(null) is not MessageParser parser) {
+            return null;
+        }
 
         Cache.TryAdd(key, (descriptor, parser));
         return (descriptor, parser);

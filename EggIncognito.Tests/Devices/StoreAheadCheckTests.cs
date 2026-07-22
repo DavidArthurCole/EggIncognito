@@ -1,5 +1,4 @@
 using EggIncognito.Services.Devices;
-using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 

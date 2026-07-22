@@ -1,5 +1,4 @@
 using System.Text;
-using Microsoft.AspNetCore.Http;
 
 namespace EggIncognito.Services.DataApi;
 

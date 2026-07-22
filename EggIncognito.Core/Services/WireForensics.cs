@@ -343,13 +343,13 @@ public static class WireForensics {
         return f.IsRepeated && f.IsPacked
             ? 2
             : f.FieldType switch {
-            FieldType.Int32 or FieldType.Int64 or FieldType.UInt32 or FieldType.UInt64
-                or FieldType.SInt32 or FieldType.SInt64 or FieldType.Bool or FieldType.Enum => 0,
-            FieldType.Fixed64 or FieldType.SFixed64 or FieldType.Double => 1,
-            FieldType.Fixed32 or FieldType.SFixed32 or FieldType.Float => 5,
-            FieldType.String or FieldType.Bytes or FieldType.Message or FieldType.Group => 2,
-            _ => -1,
-        };
+                FieldType.Int32 or FieldType.Int64 or FieldType.UInt32 or FieldType.UInt64
+                    or FieldType.SInt32 or FieldType.SInt64 or FieldType.Bool or FieldType.Enum => 0,
+                FieldType.Fixed64 or FieldType.SFixed64 or FieldType.Double => 1,
+                FieldType.Fixed32 or FieldType.SFixed32 or FieldType.Float => 5,
+                FieldType.String or FieldType.Bytes or FieldType.Message or FieldType.Group => 2,
+                _ => -1,
+            };
     }
 
     private static int WireIndex(string wireName) => System.Array.IndexOf(WireNames, wireName);

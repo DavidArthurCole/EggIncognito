@@ -35,7 +35,7 @@ public static class FarmPlacementRecovery {
 
 
         var bases = new Dictionary<string, string> { ["x0"] = "gc", ["x8"] = "ret" };
-        var exec = Arm64SymbolicExecutor.Run(code, fn, tvm, tfo, syms, new Dictionary<string, ExprNode>(), bases, KnownCallModels.Resolve);
+        var exec = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(), bases, KnownCallModels.Resolve);
 
         ExprNode? Axis(long off) => exec.RetVec.TryGetValue(off, out var e) ? FoldFarmWidth(ExprNode.Fold(e)) : null;
         var x = Axis(0); var y = Axis(4); var z = Axis(8);

@@ -1,7 +1,6 @@
 
 
 using System.Reflection;
-using Google.Protobuf;
 
 namespace EggIncognito.Services;
 
@@ -30,9 +29,9 @@ public sealed record DecodedEntry(
     string? AutoResponseType, int RespBestScore, int RespSecondScore);
 
 public static class ExtractorConfig {
-    internal static readonly HashSet<string> AlwaysSkip = new(StringComparer.Ordinal) {
-        "ei/get_config",
-    };
+    internal static readonly HashSet<string> AlwaysSkip = [
+with(StringComparer.Ordinal),         "ei/get_config",
+    ];
 
     public static readonly Assembly EiAssembly = typeof(Ei.AuthenticatedMessage).Assembly;
 

@@ -41,8 +41,7 @@ internal sealed class HttpMessage {
             headers.Add(new HttpHeader(lines[i][..idx].Trim(), lines[i][(idx + 1)..].Trim()));
         }
 
-        var msg = new HttpMessage { StartLine = startLine, Headers = headers, Body = null };
-        var body = await ReadBodyAsync(s, headers, msg.IsRequest, msg.StatusCode, ct);
+        var body = await ReadBodyAsync(s, headers, ct);
         return new HttpMessage { StartLine = startLine, Headers = headers, Body = body };
     }
 
@@ -97,7 +96,7 @@ internal sealed class HttpMessage {
         }
     }
 
-    private static async Task<byte[]> ReadBodyAsync(Stream s, List<HttpHeader> headers, bool isRequest, int status, CancellationToken ct) {
+    private static async Task<byte[]> ReadBodyAsync(Stream s, List<HttpHeader> headers, CancellationToken ct) {
         var te = Get(headers, "Transfer-Encoding");
         if (te is not null && te.Contains("chunked", StringComparison.OrdinalIgnoreCase))
             return await ReadChunkedAsync(s, ct);

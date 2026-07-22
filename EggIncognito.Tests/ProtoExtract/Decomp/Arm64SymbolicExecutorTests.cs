@@ -16,7 +16,7 @@ public class Arm64SymbolicExecutorTests {
         Func<string, ExprNode[], ExprNode?> resolve, string resultReg, out int opaque) {
         var syms = new List<MachoSymbols.Symbol>();
         var fn = new MachoSymbols.FuncRange("f", 0, (ulong)code.Length);
-        var r = Arm64SymbolicExecutor.Run(code, fn, textVmAddr: 0, textFileOff: 0, syms, seed, resolve);
+        var r = Arm64SymbolicExecutor.Run(code, fn, syms, seed, resolve);
         opaque = r.Opaque;
         return r.Reg(resultReg) ?? new Opaque("unset", []);
     }
@@ -56,7 +56,7 @@ public class Arm64SymbolicExecutorTests {
             FmovImm(3, 0x16), StrS(3, 19, 8), Ret());
         var syms = new List<MachoSymbols.Symbol>();
         var fn = new MachoSymbols.FuncRange("f", 0, (ulong)code.Length);
-        var r = Arm64SymbolicExecutor.Run(code, fn, 0, 0, syms, new Dictionary<string, ExprNode>(),
+        var r = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(),
             new Dictionary<string, string> { ["x8"] = "ret" }, (_, _) => null);
         Assert.Equal(2.5, Assert.IsType<Const>(ExprNode.Fold(r.RetVec[0])).V, 3);
         Assert.Equal(1.0, Assert.IsType<Const>(ExprNode.Fold(r.RetVec[4])).V, 3);
@@ -70,7 +70,7 @@ public class Arm64SymbolicExecutorTests {
         var code = Words(LdrS(0, 0, 0x3d8), Ret());
         var syms = new List<MachoSymbols.Symbol>();
         var fn = new MachoSymbols.FuncRange("f", 0, (ulong)code.Length);
-        var r = Arm64SymbolicExecutor.Run(code, fn, 0, 0, syms, new Dictionary<string, ExprNode>(),
+        var r = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(),
             new Dictionary<string, string> { ["x0"] = "gc" }, (_, _) => null);
         var f = Assert.IsType<Field>(r.Reg("s0"));
         Assert.Equal("gc", f.Base);

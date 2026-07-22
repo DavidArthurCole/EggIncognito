@@ -2,8 +2,6 @@ using System.Text.Json;
 using EggIncognito.Core.Services.Assets;
 using EggIncognito.GameData;
 using Google.Protobuf;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Services.DataApi;
 

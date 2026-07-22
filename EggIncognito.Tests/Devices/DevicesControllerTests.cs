@@ -1,11 +1,9 @@
 using EggIncognito.Controllers;
-using EggIncognito.Data.Models;
 using EggIncognito.Services;
 using EggIncognito.Services.Devices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SyncKit.Contract;
-using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 

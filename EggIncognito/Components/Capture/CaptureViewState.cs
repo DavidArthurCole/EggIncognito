@@ -8,7 +8,7 @@ public sealed partial class CaptureViewState {
 
 
 
-    public HashSet<string> SensitiveKeys { get; } = new(StringComparer.Ordinal) { "eiUserId", "userId" };
+    public HashSet<string> SensitiveKeys { get; } = [with(StringComparer.Ordinal), "eiUserId", "userId"];
 
     public string RedactionMode { get; set; } = "blur";
     public bool ShowHeaders { get; set; }

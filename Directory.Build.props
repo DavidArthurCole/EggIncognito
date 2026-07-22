@@ -3,6 +3,9 @@
     <Authors>DavidArthurCole</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/DavidArthurCole/EggIncognito</RepositoryUrl>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <Target Name="SetSourceRevisionId" BeforeTargets="GetAssemblyVersion" Condition="'$(SourceRevisionId)' == ''">
     <Exec Command="git rev-parse HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low">

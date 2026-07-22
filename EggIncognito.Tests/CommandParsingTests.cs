@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using EggIncognito.Bot;
 
 namespace EggIncognito.Tests;

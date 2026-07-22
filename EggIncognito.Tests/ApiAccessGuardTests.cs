@@ -2,7 +2,6 @@ using System.Reflection;
 using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
-using Xunit;
 
 namespace EggIncognito.Tests;
 

@@ -1,7 +1,6 @@
 
 
 using System.Threading.Channels;
-using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Logging;
 

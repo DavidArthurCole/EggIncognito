@@ -377,7 +377,7 @@ public static class StructInitReader {
 
     private static int VecWidth(string tok) => tok.Length >= 1 ? tok[0] switch { 'q' or 'v' => 16, 'd' => 8, 's' => 4, _ => 16 } : 16;
 
-    private static readonly HashSet<string> TrackedProducers = new(StringComparer.Ordinal) { "adrp", "add", "mov", "ldr", "ldur", "ldp", "movz", "movk", "movn", "orr" };
+    private static readonly HashSet<string> TrackedProducers = [with(StringComparer.Ordinal), "adrp", "add", "mov", "ldr", "ldur", "ldp", "movz", "movk", "movn", "orr"];
 
-    private static readonly HashSet<string> NonWritingMnemonics = new(StringComparer.Ordinal) { "cmp", "cmn", "tst", "fcmp", "str", "stur", "strb", "sturb", "strh", "sturh", "stp" };
+    private static readonly HashSet<string> NonWritingMnemonics = [with(StringComparer.Ordinal), "cmp", "cmn", "tst", "fcmp", "str", "stur", "strb", "sturb", "strh", "sturh", "stp"];
 }

@@ -1,5 +1,4 @@
 using EggIncognito.RelayAgent;
-using Xunit;
 
 namespace EggIncognito.Tests;
 

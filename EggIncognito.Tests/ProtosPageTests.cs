@@ -1,7 +1,5 @@
 using Bunit;
 using EggIncognito.Components.Pages;
-using EggIncognito.Components.Protos;
-using EggIncognito.Data.Models;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;

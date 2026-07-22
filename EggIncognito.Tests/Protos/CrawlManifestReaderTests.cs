@@ -1,8 +1,6 @@
 using System.IO.Compression;
-using System.Text;
 using System.Text.Json;
 using EggIncognito.Core.Services.Protos;
-using Xunit;
 
 namespace EggIncognito.Tests.ProtoStaging;
 

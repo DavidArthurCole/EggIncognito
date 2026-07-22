@@ -1,6 +1,5 @@
 using EggIncognito.Services;
 using EggIncognito.Tests.ProtoExtract;
-using Xunit;
 
 namespace EggIncognito.Tests.GameData;
 

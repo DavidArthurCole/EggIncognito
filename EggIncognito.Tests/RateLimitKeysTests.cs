@@ -1,4 +1,3 @@
-using EggIncognito.Data.Models;
 using EggIncognito.Services;
 using EggIncognito.Services.RateLimiting;
 using Microsoft.AspNetCore.Http;

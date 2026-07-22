@@ -1,5 +1,3 @@
-using EggIncognito.GameData;
-
 namespace EggIncognito.GameData.Tests;
 
 public sealed class IconBindingTests {

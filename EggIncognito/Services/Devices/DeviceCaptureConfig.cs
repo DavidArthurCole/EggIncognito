@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-
 namespace EggIncognito.Services.Devices;
 
 public sealed record DeviceCaptureConfig {

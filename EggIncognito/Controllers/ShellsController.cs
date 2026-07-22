@@ -1,6 +1,5 @@
 using EggIncognito.Services;
 using EggIncognito.Services.ProtoExtract;
-using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 

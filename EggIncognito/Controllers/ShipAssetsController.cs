@@ -1,5 +1,4 @@
 using EggIncognito.Services;
-using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 

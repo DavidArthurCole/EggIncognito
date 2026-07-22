@@ -5,8 +5,9 @@ namespace EggIncognito.Capture;
 public static class HeaderRedactor {
 
 
-    private static readonly HashSet<string> Sensitive = new(StringComparer.OrdinalIgnoreCase)
-    {
+    private static readonly HashSet<string> Sensitive =
+    [
+with(StringComparer.OrdinalIgnoreCase),
         "authorization",
         "proxy-authorization",
         "cookie",
@@ -15,7 +16,7 @@ public static class HeaderRedactor {
         "x-auth-token",
         "x-egg-inc-token",
         "x-cloud-trace-context",
-    };
+    ];
 
     public static bool IsSensitive(string name) => Sensitive.Contains(name);
 

@@ -1,5 +1,4 @@
 using Discord;
-using Discord.WebSocket;
 using SyncKit.Bot;
 
 namespace EggIncognito.Bot;

@@ -10,20 +10,20 @@ public sealed class IosDeviceAssetReader(IProcessRunner runner, IConfiguration c
         return Puller(device) is not { } p
             ? Task.FromResult<byte[]?>(null)
             : kind switch {
-            DeviceAssetKind.Mesh => p.PullOneRpoAsync(device.Package, name, ct),
-            DeviceAssetKind.Texture => p.PullOneTextureAsync(device.Package, name, ct),
-            _ => Task.FromResult<byte[]?>(null)
-        };
+                DeviceAssetKind.Mesh => p.PullOneRpoAsync(device.Package, name, ct),
+                DeviceAssetKind.Texture => p.PullOneTextureAsync(device.Package, name, ct),
+                _ => Task.FromResult<byte[]?>(null)
+            };
     }
 
     public async Task<IReadOnlyList<string>> ListAsync(Device device, DeviceAssetKind kind, CancellationToken ct) {
         return Puller(device) is not { } p
             ? []
             : kind switch {
-            DeviceAssetKind.Mesh => await p.ListRposAsync(device.Package, ct),
-            DeviceAssetKind.Texture => await p.ListTexturesAsync(device.Package, ct),
-            _ => []
-        };
+                DeviceAssetKind.Mesh => await p.ListRposAsync(device.Package, ct),
+                DeviceAssetKind.Texture => await p.ListTexturesAsync(device.Package, ct),
+                _ => []
+            };
     }
 
     private IosAssetPuller? Puller(Device device) {

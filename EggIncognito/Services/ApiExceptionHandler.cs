@@ -1,7 +1,6 @@
 
 
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http;
 
 namespace EggIncognito.Services;
 

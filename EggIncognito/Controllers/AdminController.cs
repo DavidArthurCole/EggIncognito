@@ -6,7 +6,6 @@ using EggIncognito.Tools;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using SyncKit.Contract;
 using SyncKit.Identity.Client;
 

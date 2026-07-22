@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
-using EggIncognito.Services.ProtoExtract;
-using Xunit;
 using static EggIncognito.Services.ProtoExtract.PlacementSolver;
 
 namespace EggIncognito.Tests.ProtoExtract;

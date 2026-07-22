@@ -80,7 +80,7 @@ public static class FarmLayout {
 
 
 
-    public static IReadOnlyList<Placed> StandardRecovered(SingletonPlacement rec, float farmHalfWidth, string defaultHab = DefaultHabPlaceholder) {
+    public static IReadOnlyList<Placed> StandardRecovered(string defaultHab = DefaultHabPlaceholder) {
         var list = Standard(defaultHab).ToList();
         list.RemoveAll(p => IsCoreZoneStem(p.Stem));
         list.AddRange(ZoneLayout.Resolve(DefaultLab, DefaultHoa, DefaultHatchery, DefaultMissionControl, DefaultFuel, DefaultDepot));

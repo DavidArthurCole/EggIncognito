@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-
 namespace EggIncognito.Services.RateLimiting;
 
 public sealed record RateLimit(int PermitLimit, int WindowSeconds, int SegmentsPerWindow);

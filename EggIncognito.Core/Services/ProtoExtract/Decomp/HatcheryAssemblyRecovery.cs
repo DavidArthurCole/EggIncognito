@@ -57,7 +57,7 @@ public static class HatcheryAssemblyRecovery {
             return new(false, null, [], default, "no __text");
         var syms = MachoSymbols.Read(bin);
 
-        var anchor = RecoverAnchor(bin, syms, tvm, tfo);
+        var anchor = RecoverAnchor(bin, syms);
 
         var transforms = sourceArray.Select(tag => RecoverMatrix(bin, syms, tvm, tfo, tag))
             .ToList();
@@ -70,7 +70,7 @@ public static class HatcheryAssemblyRecovery {
 
 
 
-    private static float[]? RecoverAnchor(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, ulong tvm, int tfo) {
+    private static float[]? RecoverAnchor(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms) {
         var ex = FunctionConstantExtractor.ExtractWith(bin, syms, ["FarmScene14updateHatcheryEP14GameControllerb"]);
         if (!ex.Ok) return null;
         var f = ex.Floats;
@@ -91,7 +91,7 @@ public static class HatcheryAssemblyRecovery {
             return new(null, false, null, 0, "rotate_pyramid range out of bounds");
 
         var exec = Arm64SymbolicExecutor.Run(
-            code, fn, tvm, tfo, syms, new Dictionary<string, ExprNode>(), KnownCallModels.Resolve);
+            code, fn, syms, new Dictionary<string, ExprNode>(), KnownCallModels.Resolve);
 
         float? ArgOf(string method, int idx) {
             foreach (var c in exec.Calls) {
@@ -148,7 +148,7 @@ public static class HatcheryAssemblyRecovery {
 
 
         var bases = new Dictionary<string, string> { ["x0"] = "self", ["x8"] = "ret" };
-        var exec = Arm64SymbolicExecutor.Run(code, fn, tvm, tfo, syms, new Dictionary<string, ExprNode>(), bases, KnownCallModels.Resolve);
+        var exec = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(), bases, KnownCallModels.Resolve);
 
         var cells = new ExprNode?[16];
         for (int i = 0; i < 16; i++)

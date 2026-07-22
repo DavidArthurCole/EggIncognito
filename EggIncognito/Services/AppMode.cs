@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-
 namespace EggIncognito.Services;
 
 public enum AppMode { Local, Hosted }

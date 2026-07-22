@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace EggIncognito.Tests;
 
 public class NoHardcodedRouteLiteralsTests {

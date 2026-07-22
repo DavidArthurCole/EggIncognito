@@ -1,6 +1,5 @@
 using EggIncognito.Services;
 using EggIncognito.Services.ProtoExtract;
-using Xunit;
 
 namespace EggIncognito.Tests.ProtoExtract;
 

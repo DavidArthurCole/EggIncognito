@@ -6,7 +6,6 @@ using EggIncognito.Services.Devices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using SyncKit.Contract;
 
 namespace EggIncognito.Controllers;

@@ -1,4 +1,3 @@
-using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;

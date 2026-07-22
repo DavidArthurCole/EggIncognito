@@ -48,12 +48,12 @@ public sealed class FlowDecoder(string contentRoot) {
         if (knownType is not null) {
             var direct = ScoreKnown(knownType, respBytes);
             var wrapped = inner is { Length: > 0 } ? ScoreKnown(knownType, inner) : (score: 0, json: (string?)null);
-            var (score, json) = wrapped.score > direct.score ? wrapped : direct;
+            var (_, json) = wrapped.score > direct.score ? wrapped : direct;
             if (json is not null)
                 return Result(json, knownType, known: true);
         } else {
             if (inner is { Length: > 0 }) {
-                var (typeName, json, confidence, bestScore, secondBestScore) = EndpointExtractor.AutoDetect(inner);
+                var (typeName, json, _, _, _) = EndpointExtractor.AutoDetect(inner);
                 if (json is not null)
                     return Result(json, typeName, known: false);
             }

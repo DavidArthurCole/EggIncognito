@@ -123,7 +123,7 @@ public static class EnvCatalog {
 
     public static IReadOnlyList<EnvPiece> Family(string stem) {
         var fam = Pieces.FirstOrDefault(p => p.Stem == stem)?.Family ?? "";
-        return string.IsNullOrEmpty(fam) ? [] : (IReadOnlyList<EnvPiece>)Pieces.Where(p => p.Family == fam).ToList();
+        return string.IsNullOrEmpty(fam) ? [] : [.. Pieces.Where(p => p.Family == fam)];
     }
 
     public static bool IsKnownPiece(string stem) =>

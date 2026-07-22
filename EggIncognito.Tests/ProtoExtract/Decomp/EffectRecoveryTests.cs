@@ -5,7 +5,7 @@ namespace EggIncognito.Tests.ProtoExtract.Decomp;
 public class EffectRecoveryTests {
     [Fact]
     public void Recover_SymbolNotFound_ReturnsNotOk() {
-        var r = EffectRecovery.Recover(new byte[64], "DoesNotExist", "AlsoNot", count: null);
+        var r = EffectRecovery.Recover(new byte[64], "DoesNotExist", count: null);
         Assert.False(r.Ok);
     }
 
@@ -14,8 +14,7 @@ public class EffectRecoveryTests {
         var bin = TestBinary();
         if (bin is null) return;
 
-        var r = EffectRecovery.Recover(bin, "DrawableGalaxyParticle6updateEf",
-            "GalaxyParticle7onBirthEP14ParticleSystem", count: new Const(27));
+        var r = EffectRecovery.Recover(bin, "DrawableGalaxyParticle6updateEf", count: new Const(27));
         Assert.True(r.Ok, r.Diagnostics);
         Assert.Equal(new Const(27), r.Count);
         Assert.NotNull(r.Placement);

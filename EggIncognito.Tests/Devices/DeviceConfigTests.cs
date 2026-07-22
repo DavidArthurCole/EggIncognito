@@ -1,6 +1,5 @@
 using EggIncognito.Services.Devices;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 

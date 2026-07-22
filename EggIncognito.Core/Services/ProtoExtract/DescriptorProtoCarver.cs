@@ -1,5 +1,4 @@
 using System.Text;
-using Google.Protobuf;
 using Google.Protobuf.Reflection;
 
 namespace EggIncognito.Services.ProtoExtract;
@@ -170,22 +169,22 @@ public static class DescriptorProtoCarver {
         return f.Type is FieldDescriptorProto.Types.Type.Message or FieldDescriptorProto.Types.Type.Enum
             ? f.TypeName.TrimStart('.')
             : f.Type switch {
-            FieldDescriptorProto.Types.Type.Double => "double",
-            FieldDescriptorProto.Types.Type.Float => "float",
-            FieldDescriptorProto.Types.Type.Int64 => "int64",
-            FieldDescriptorProto.Types.Type.Uint64 => "uint64",
-            FieldDescriptorProto.Types.Type.Int32 => "int32",
-            FieldDescriptorProto.Types.Type.Fixed64 => "fixed64",
-            FieldDescriptorProto.Types.Type.Fixed32 => "fixed32",
-            FieldDescriptorProto.Types.Type.Bool => "bool",
-            FieldDescriptorProto.Types.Type.String => "string",
-            FieldDescriptorProto.Types.Type.Bytes => "bytes",
-            FieldDescriptorProto.Types.Type.Uint32 => "uint32",
-            FieldDescriptorProto.Types.Type.Sfixed32 => "sfixed32",
-            FieldDescriptorProto.Types.Type.Sfixed64 => "sfixed64",
-            FieldDescriptorProto.Types.Type.Sint32 => "sint32",
-            FieldDescriptorProto.Types.Type.Sint64 => "sint64",
-            _ => "bytes",
-        };
+                FieldDescriptorProto.Types.Type.Double => "double",
+                FieldDescriptorProto.Types.Type.Float => "float",
+                FieldDescriptorProto.Types.Type.Int64 => "int64",
+                FieldDescriptorProto.Types.Type.Uint64 => "uint64",
+                FieldDescriptorProto.Types.Type.Int32 => "int32",
+                FieldDescriptorProto.Types.Type.Fixed64 => "fixed64",
+                FieldDescriptorProto.Types.Type.Fixed32 => "fixed32",
+                FieldDescriptorProto.Types.Type.Bool => "bool",
+                FieldDescriptorProto.Types.Type.String => "string",
+                FieldDescriptorProto.Types.Type.Bytes => "bytes",
+                FieldDescriptorProto.Types.Type.Uint32 => "uint32",
+                FieldDescriptorProto.Types.Type.Sfixed32 => "sfixed32",
+                FieldDescriptorProto.Types.Type.Sfixed64 => "sfixed64",
+                FieldDescriptorProto.Types.Type.Sint32 => "sint32",
+                FieldDescriptorProto.Types.Type.Sint64 => "sint64",
+                _ => "bytes",
+            };
     }
 }

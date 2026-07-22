@@ -32,7 +32,7 @@ public sealed class DocRegistry : IDocRegistry {
             new DocSubject("group", "controls", "Controls", "UI controls", controls),
         ];
 
-        _byKey = new(StringComparer.Ordinal);
+        _byKey = [with(StringComparer.Ordinal)];
         foreach (var root in _roots) {
             Index(root);
             foreach (var child in root.Children) Index(child);

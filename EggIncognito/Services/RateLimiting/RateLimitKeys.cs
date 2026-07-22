@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Http;
 using SyncKit.Contract;
 
 namespace EggIncognito.Services.RateLimiting;

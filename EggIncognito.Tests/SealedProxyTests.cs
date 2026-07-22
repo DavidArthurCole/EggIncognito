@@ -1,5 +1,4 @@
 using System.Net;
-using EggIncognito.Data.Models;
 using EggIncognito.Services;
 using SyncKit.Contract;
 

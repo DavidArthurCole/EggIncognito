@@ -81,8 +81,9 @@ public static class DeviceProbeRunner {
         if (result.Reachable) {
             logger.LogInformation("device probe: {Id} reachable installed={App} build={Build} -> {Result}",
                 d.Id, result.InstalledAppVersion ?? "?", result.InstalledBuild ?? "-", resultCode);
-        } else
+        } else {
             logger.LogInformation("device probe: {Id} unreachable ({Note})", d.Id, result.Note);
+        }
 
         return row;
     }

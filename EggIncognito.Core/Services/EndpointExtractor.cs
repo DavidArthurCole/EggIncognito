@@ -15,8 +15,8 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     private readonly bool _overwrite = overwrite;
 
 
-    private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _reqErrorSeen = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _seen = [with(StringComparer.Ordinal)];
+    private readonly HashSet<string> _reqErrorSeen = [with(StringComparer.Ordinal)];
 
     public HarCounts Counts { get; } = new();
 
@@ -597,7 +597,10 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     public static (int score, string? json) TryParseAs(Type type, byte[] data) {
         try {
             if (type.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
-                             ?.GetValue(null) is not MessageParser parser) return (0, null);
+                             ?.GetValue(null) is not MessageParser parser) {
+                return (0, null);
+            }
+
             var msg = parser.ParseFrom(data);
             var json = JsonFormatter.Default.Format(msg);
             var fieldScore = json.Count(c => c == ':');

@@ -17,10 +17,10 @@ public static class ProtoQuery {
 
     public static IReadOnlyList<string> Autocomplete(IReadOnlyList<string> names, string query) {
         return string.IsNullOrEmpty(query)
-            ? names.Take(25).ToList()
-            : names
+            ? [.. names.Take(25)]
+            : [.. names
             .Where(n => n.Contains(query, StringComparison.OrdinalIgnoreCase))
-            .Take(25).ToList();
+            .Take(25)];
     }
 
 

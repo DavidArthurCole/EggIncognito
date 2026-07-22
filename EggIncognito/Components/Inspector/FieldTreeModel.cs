@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using EggIncognito.Services;
 
@@ -153,13 +152,13 @@ public sealed partial class EnvRow {
         return string.IsNullOrEmpty(Value)
             ? false
             : Editor switch {
-            "int" => !int.TryParse(Value, out _),
-            "version" => !VersionRegex().IsMatch(Value),
-            "code" => !System.Text.RegularExpressions.Regex.IsMatch(Value, "^[A-Za-z]{2,3}$"),
-            "select" => Options is not null && !Options.Contains(Value),
-            "eid" => !System.Text.RegularExpressions.Regex.IsMatch(Value, @"^EI\d{10,}$"),
-            _ => false,
-        };
+                "int" => !int.TryParse(Value, out _),
+                "version" => !VersionRegex().IsMatch(Value),
+                "code" => !System.Text.RegularExpressions.Regex.IsMatch(Value, "^[A-Za-z]{2,3}$"),
+                "select" => Options is not null && !Options.Contains(Value),
+                "eid" => !System.Text.RegularExpressions.Regex.IsMatch(Value, @"^EI\d{10,}$"),
+                _ => false,
+            };
     }
 
     [System.Text.RegularExpressions.GeneratedRegex(@"^\d+(\.\d+){1,3}$")]

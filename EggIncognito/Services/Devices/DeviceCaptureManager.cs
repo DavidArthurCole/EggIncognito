@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using EggIncognito.Capture;
-using EggIncognito.Core.Services.Devices;
-using EggIncognito.Services;
 
 namespace EggIncognito.Services.Devices;
 

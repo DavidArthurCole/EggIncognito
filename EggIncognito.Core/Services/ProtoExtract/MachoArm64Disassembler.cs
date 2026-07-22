@@ -42,8 +42,10 @@ public static class MachoArm64Disassembler {
                     if (ops.Length == 3 && ops[0].Register is { } addRd && ops[1].Register is { } addRn
                         && ops[2].Type == Arm64OperandType.Immediate && page.TryGetValue(addRn.Name, out var addBase)) {
                         page[addRd.Name] = addBase + (ulong)ops[2].Immediate;
-                    } else if (ops.Length >= 1 && ops[0].Register is { } addClobber)
+                    } else if (ops.Length >= 1 && ops[0].Register is { } addClobber) {
                         page.Remove(addClobber.Name);
+                    }
+
                     break;
 
                 case Arm64InstructionId.ARM64_INS_LDR:
@@ -58,10 +60,11 @@ public static class MachoArm64Disassembler {
                         if (name.StartsWith('q') && fileOff >= 0 && fileOff + 16 <= bin.Length) {
                             for (int lane = 0; lane < 4; lane++)
                                 floats.Add(new FloatConst(va + (ulong)(lane * 4), BitConverter.ToSingle(bin, (int)fileOff + lane * 4), false));
-                        } else if (name.StartsWith('d') && fileOff >= 0 && fileOff + 8 <= bin.Length)
+                        } else if (name.StartsWith('d') && fileOff >= 0 && fileOff + 8 <= bin.Length) {
                             floats.Add(new FloatConst(va, BitConverter.ToDouble(bin, (int)fileOff), true));
-                        else if (name.StartsWith('s') && fileOff >= 0 && fileOff + 4 <= bin.Length)
+                        } else if (name.StartsWith('s') && fileOff >= 0 && fileOff + 4 <= bin.Length) {
                             floats.Add(new FloatConst(va, BitConverter.ToSingle(bin, (int)fileOff), false));
+                        }
                     } else if (ops.Length >= 1 && ops[0].Register is { } ldDst && page.ContainsKey(ldDst.Name)) {
                         page.Remove(ldDst.Name);
                     }

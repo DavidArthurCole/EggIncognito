@@ -17,7 +17,7 @@ public static class EffectRecovery {
         };
     }
 
-    public static EffectModel Recover(byte[] bin, string updateNeedle, string spawnNeedle, ExprNode? count) {
+    public static EffectModel Recover(byte[] bin, string updateNeedle, ExprNode? count) {
         if (bin is null || bin.Length < 64)
             return new(false, "", count, null, null, 0, "binary too short");
         if (!MachoText.TryFindText(bin, out var tfo, out _, out var tvm))
@@ -31,7 +31,7 @@ public static class EffectRecovery {
             return new(false, "", count, null, null, 0, "function range out of bounds");
 
         var seed = new Dictionary<string, ExprNode> { ["s0"] = new Input("t"), ["x1"] = new Input("particleIndex") };
-        var exec = Arm64SymbolicExecutor.Run(code, fn, tvm, tfo, syms, seed, KnownCallModels.Resolve);
+        var exec = Arm64SymbolicExecutor.Run(code, fn, syms, seed, KnownCallModels.Resolve);
 
 
 

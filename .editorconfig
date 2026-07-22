@@ -17,6 +17,7 @@ csharp_new_line_before_catch = false
 csharp_new_line_before_finally = false
 
 csharp_style_namespace_declarations = file_scoped:error
+dotnet_diagnostic.IDE0005.severity = warning
 dotnet_style_namespace_match_folder = false
 dotnet_diagnostic.IDE0130.severity = none
 dotnet_sort_system_directives_first = true

@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using Discord;
 using EggIncognito.Bot;
 using EggIncognito.Services;
 

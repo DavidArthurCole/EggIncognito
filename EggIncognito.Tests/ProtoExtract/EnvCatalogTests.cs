@@ -83,7 +83,7 @@ public class EnvCatalogTests {
 
     [Fact]
     public void StandardRecovered_FallsBackToZoneLayout_WhenNoFormula() {
-        var placed = FarmLayout.StandardRecovered(new FarmLayout.SingletonPlacement(null, null, null), farmHalfWidth: 20f);
+        var placed = FarmLayout.StandardRecovered();
         Assert.Contains(placed, p => p.Stem == "ei_hatchery_universe");
         Assert.Contains(placed, p => p.Stem == "ei_depot_7");
     }

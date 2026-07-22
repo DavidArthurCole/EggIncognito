@@ -1,7 +1,4 @@
-using System;
-using System.Linq;
 using EggIncognito.Services;
-using Xunit;
 
 namespace EggIncognito.Tests;
 

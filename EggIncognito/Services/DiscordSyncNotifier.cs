@@ -1,5 +1,4 @@
 using EggIncognito.Bot;
-using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Services;
 

@@ -1,6 +1,5 @@
 using System.Net;
 using EggIncognito.Data.Services;
-using Xunit;
 
 namespace EggIncognito.Tests;
 

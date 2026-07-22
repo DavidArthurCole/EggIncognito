@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
-using System.Text;
 using EggIncognito.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +29,7 @@ public sealed class CaptureAddressStore(EggIncognitoDbContext db) {
         return new IPAddress(bytes);
     }
 
-    public async Task<IPAddress> AddrForUserAsync(string prefixCidr, string secret, Guid userId, CancellationToken ct = default) {
+    public async Task<IPAddress> AddrForUserAsync(string prefixCidr, Guid userId, CancellationToken ct = default) {
         var row = await db.CaptureProxyAddrs.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId, ct);
         return row is not null ? IPAddress.Parse(row.Addr) : await MintAsync(prefixCidr, userId, ct);
     }

@@ -1,4 +1,3 @@
-using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -126,10 +125,9 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
     [HttpGet("/api/protos/staged/check")]
     [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Authenticated)]
-    public async Task<IActionResult> StagedCheck(
-        [FromQuery] string platform, [FromQuery] string? appVersion, [FromQuery] string protoSha, CancellationToken ct) {
+    public async Task<IActionResult> StagedCheck([FromQuery] string protoSha, CancellationToken ct) {
         if (StagedStore is not { } s) return Ok(new { inRegistry = false, pending = false });
-        var (inReg, pending) = await s.CheckAsync(platform, appVersion, protoSha, ct);
+        var (inReg, pending) = await s.CheckAsync(protoSha, ct);
         return Ok(new { inRegistry = inReg, pending });
     }
 

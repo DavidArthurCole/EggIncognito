@@ -158,7 +158,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
     private const int MaxImageBytes = 4 * 1024 * 1024;
 
     private static readonly HashSet<string> AllowedImageTypes =
-        new(StringComparer.OrdinalIgnoreCase) { "image/png", "image/jpeg", "image/gif", "image/webp" };
+        [with(StringComparer.OrdinalIgnoreCase), "image/png", "image/jpeg", "image/gif", "image/webp"];
 
 
 

@@ -16,10 +16,10 @@ public sealed class CaptureHub {
 
 
     private int _activeConnections;
-    private readonly Dictionary<string, Device> _devices = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Device> _devices = [with(StringComparer.Ordinal)];
 
 
-    private readonly Dictionary<string, RememberedDevice> _known = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, RememberedDevice> _known = [with(StringComparer.Ordinal)];
 
     public Action? DevicesChanged;
 
@@ -29,12 +29,12 @@ public sealed class CaptureHub {
     private string? _lastGameVersion;
     private int _capturedAuxbrain;
     private int _passthrough;
-    private readonly HashSet<string> _endpoints = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _endpoints = [with(StringComparer.Ordinal)];
     private int _decryptOk;
     private int _decryptErrors;
     private string? _lastError;
     private long _bytesCaptured;
-    private readonly Dictionary<string, long> _bytesByEndpoint = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> _bytesByEndpoint = [with(StringComparer.Ordinal)];
     private bool _sawAuxbrainConnect;
     private CertState _certState = CertState.Waiting;
 

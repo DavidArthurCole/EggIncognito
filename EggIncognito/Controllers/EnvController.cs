@@ -44,12 +44,7 @@ public sealed class EnvController(DeviceMeshProvider meshes, ICurrentUser curren
             var (ok, bin, _) = await binaries.GetBinaryAsync(device, ct);
             if (!ok || bin is null) return EggIncognito.Services.ProtoExtract.FarmLayout.Standard(stem);
 
-            var rec = new EggIncognito.Services.ProtoExtract.FarmLayout.SingletonPlacement(
-                EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover(bin, "FarmScene17missionControlPos"),
-                EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover(bin, "FarmScene11fuelTankPos"),
-                EggIncognito.Services.ProtoExtract.Decomp.FarmPlacementRecovery.Recover(bin, "FarmScene6hoaPos"));
-            const float farmHalfWidth = 13.5f;
-            return EggIncognito.Services.ProtoExtract.FarmLayout.StandardRecovered(rec, farmHalfWidth, stem);
+            return EggIncognito.Services.ProtoExtract.FarmLayout.StandardRecovered(stem);
         } catch {
             return EggIncognito.Services.ProtoExtract.FarmLayout.Standard(stem);
         }

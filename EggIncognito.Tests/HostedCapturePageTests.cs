@@ -1,7 +1,6 @@
 using Bunit;
 using EggIncognito.Capture;
 using EggIncognito.Controllers;
-using EggIncognito.Data.Models;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Infrastructure;

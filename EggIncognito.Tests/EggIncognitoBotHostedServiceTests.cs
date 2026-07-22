@@ -2,7 +2,6 @@ using EggIncognito.Bot;
 using Microsoft.Extensions.Logging.Abstractions;
 using SyncKit.Bot;
 using SyncKit.Contract;
-using Xunit;
 
 namespace EggIncognito.Tests;
 

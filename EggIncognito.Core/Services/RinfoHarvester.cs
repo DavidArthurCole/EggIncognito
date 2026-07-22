@@ -35,10 +35,10 @@ public static class RinfoHarvester {
         return !TryGetProperty(rinfo, "clientVersion", out var cv)
             ? null
             : cv.ValueKind switch {
-            JsonValueKind.Number when cv.TryGetInt32(out var n) => n,
-            JsonValueKind.String when int.TryParse(cv.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) => n,
-            _ => null,
-        };
+                JsonValueKind.Number when cv.TryGetInt32(out var n) => n,
+                JsonValueKind.String when int.TryParse(cv.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) => n,
+                _ => null,
+            };
     }
 
     private static bool TryGetProperty(JsonElement obj, string name, out JsonElement value) {

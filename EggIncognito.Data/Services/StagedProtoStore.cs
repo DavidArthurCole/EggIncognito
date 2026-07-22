@@ -107,8 +107,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     public Task<int> PendingCountAsync(CancellationToken ct) =>
         db.StagedProtos.CountAsync(s => s.Status == "pending", ct);
 
-    public async Task<(bool inRegistry, bool pending)> CheckAsync(
-        string platform, string? appVersion, string protoSha, CancellationToken ct) {
+    public async Task<(bool inRegistry, bool pending)> CheckAsync(string protoSha, CancellationToken ct) {
         var inReg = await ShaInRegistryAsync(protoSha, ct);
         var pending = await db.StagedProtos.AnyAsync(s => s.ProtoSha == protoSha && s.Status == "pending", ct);
         return (inReg, pending);

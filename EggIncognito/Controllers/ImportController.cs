@@ -1,7 +1,6 @@
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Controllers;
 

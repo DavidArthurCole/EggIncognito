@@ -1,7 +1,6 @@
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Feed;
 using EggIncognito.Services.RateLimiting;
-using Xunit;
 
 namespace EggIncognito.Tests;
 

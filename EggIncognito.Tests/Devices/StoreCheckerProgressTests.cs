@@ -1,7 +1,6 @@
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Services.Devices;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 

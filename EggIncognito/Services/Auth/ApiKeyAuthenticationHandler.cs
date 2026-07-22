@@ -3,7 +3,6 @@ using System.Text.Encodings.Web;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.DataApi;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace EggIncognito.Services.Auth;

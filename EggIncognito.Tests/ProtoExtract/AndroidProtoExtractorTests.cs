@@ -1,7 +1,6 @@
 using EggIncognito.Services.ProtoExtract;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
-using Xunit;
 
 namespace EggIncognito.Tests.ProtoExtract;
 

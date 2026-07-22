@@ -1,4 +1,3 @@
-using System;
 using EggIncognito.Bot;
 using EggIncognito.Services;
 

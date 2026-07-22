@@ -145,7 +145,7 @@ public sealed class CaptureController(
         if (result.FreshCa && store is not null)
             await PersistFreshCaAsync(session, store, currentUser.UserId!.Value, result.RootThumbprint, ct);
 
-        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId!.Value, store, ct);
+        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId!.Value, ct);
         return Ok(result);
     }
 
@@ -163,22 +163,21 @@ public sealed class CaptureController(
         var session = manager.Get(currentUser.DiscordId);
         if (session is null) return StatusCode(409, new { error = "start a capture session first" });
         session.CaDmFailed = false;
-        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId!.Value, Credentials, ct);
+        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId!.Value, ct);
         return Ok(new { sent = !session.CaDmFailed });
     }
 
 
 
     private async Task DeliverSetupAsync(
-        CaptureSession session, string discordId, Guid userId, CaptureCredentialStore? store, CancellationToken ct) {
+        CaptureSession session, string discordId, Guid userId, CancellationToken ct) {
         if (services.GetService(typeof(ICaptureCaNotifier)) is not ICaptureCaNotifier notifier || services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore addrStore) { FlagDmFailed(session); return; }
 
         byte[] cer;
         try { cer = await System.IO.File.ReadAllBytesAsync(session.CaPath, ct); } catch { cer = []; }
         if (cer.Length == 0) { FlagDmFailed(session); return; }
 
-        var addr = await addrStore.AddrForUserAsync(
-            hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, userId, ct);
+        var addr = await addrStore.AddrForUserAsync(hostedOptions.Ipv6Prefix, userId, ct);
         var dm = new CaptureSetupDm(discordId, cer, addr.ToString(), hostedOptions.FrontDoorPort);
         if (await notifier.SendSetupAsync(dm, ct)) return;
         FlagDmFailed(session);
@@ -315,8 +314,7 @@ public sealed class CaptureController(
     public async Task<IActionResult> ProxyAddress(CancellationToken ct) {
         if (RequireHostedSupporter() is { } no) return no;
         if (services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore store) return StatusCode(503, new { error = "no database configured" });
-        var addr = await store.AddrForUserAsync(
-            hostedOptions.Ipv6Prefix, hostedOptions.AddressSecret, currentUser.UserId!.Value, ct);
+        var addr = await store.AddrForUserAsync(hostedOptions.Ipv6Prefix, currentUser.UserId!.Value, ct);
         return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
 

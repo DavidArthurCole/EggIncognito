@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using EggIncognito.Data.Services;
-using Microsoft.AspNetCore.Http;
 using SyncKit.Auth;
 using SyncKit.Contract;
 

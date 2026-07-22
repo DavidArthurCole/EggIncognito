@@ -2,7 +2,6 @@ using EggIncognito.Capture;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Services;
 using EggIncognito.Services.Devices;
-using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 

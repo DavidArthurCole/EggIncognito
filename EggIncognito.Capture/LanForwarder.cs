@@ -23,8 +23,8 @@ public sealed class LanForwarder : IAsyncDisposable {
 
     private static readonly TimeSpan DisconnectGrace = TimeSpan.FromSeconds(45);
     private readonly Lock _devLock = new();
-    private readonly Dictionary<string, int> _connsPerIp = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _disconnectPending = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _connsPerIp = [with(StringComparer.Ordinal)];
+    private readonly HashSet<string> _disconnectPending = [with(StringComparer.Ordinal)];
 
     public LanForwarder(int publicPort, int proxyPort) {
 

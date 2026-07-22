@@ -1,4 +1,3 @@
-using System;
 using EggIncognito.Bot;
 
 namespace EggIncognito.Tests;

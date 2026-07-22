@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
-using System.Text;
 using System.Text.Json;
 
 namespace EggIncognito.Services.ProtoExtract;

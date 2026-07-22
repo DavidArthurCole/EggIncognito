@@ -1,11 +1,9 @@
 using System.Text;
-using EggIncognito.Data.Models;
 using EggIncognito.GameData;
 using EggIncognito.Services;
 using EggIncognito.Services.DataApi;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Configuration;
 using SyncKit.Contract;
 
 namespace EggIncognito.Controllers;

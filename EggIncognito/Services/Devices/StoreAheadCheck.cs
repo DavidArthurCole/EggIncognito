@@ -1,4 +1,3 @@
-using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
 using Microsoft.EntityFrameworkCore;
 

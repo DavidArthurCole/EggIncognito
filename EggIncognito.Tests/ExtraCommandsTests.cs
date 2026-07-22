@@ -1,6 +1,5 @@
 using EggIncognito.Bot;
 using EggIncognito.Services;
-using Xunit;
 
 namespace EggIncognito.Tests;
 

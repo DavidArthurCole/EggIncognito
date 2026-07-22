@@ -1,10 +1,8 @@
-using System.Text;
-
 namespace EggIncognito.Services;
 
 
 public sealed class FileEndpointSource : IEndpointSource {
-    private readonly Dictionary<string, byte[]> _endpoints = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, byte[]> _endpoints = [with(StringComparer.OrdinalIgnoreCase)];
     public int Priority => 0;
     public int Count => _endpoints.Count;
 

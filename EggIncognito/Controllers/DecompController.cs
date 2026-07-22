@@ -158,7 +158,7 @@ public sealed class DecompController(
             var (ok, bin, diag) = await binaries.GetBinaryAsync(device, ct);
             if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
             var model = EggIncognito.Services.ProtoExtract.Decomp.EffectRecovery.Recover(
-                bin, "DrawableGalaxyParticle6updateEf", "GalaxyParticle7onBirthEP14ParticleSystem",
+                bin, "DrawableGalaxyParticle6updateEf",
                 new EggIncognito.Services.ProtoExtract.Decomp.Const(27));
             return Content(model.ToJson().ToJsonString(), "application/json");
         } catch (System.DllNotFoundException) { return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" }); } catch (Exception ex) { return Ok(new { ok = false, diagnostics = ex.Message }); }
