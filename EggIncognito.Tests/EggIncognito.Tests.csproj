@@ -21,9 +21,13 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup Condition="!Exists('..\EggIncognito.ExtractMcp\EggIncognito.ExtractMcp.csproj')">
+    <Compile Remove="ProtoExtract\ExtractOpsTests.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
-    <ProjectReference Include="..\EggIncognito.ExtractMcp\EggIncognito.ExtractMcp.csproj" />
+    <ProjectReference Include="..\EggIncognito.ExtractMcp\EggIncognito.ExtractMcp.csproj" Condition="Exists('..\EggIncognito.ExtractMcp\EggIncognito.ExtractMcp.csproj')" />
     <ProjectReference Include="..\EggIncognito.Capture\EggIncognito.Capture.csproj" />
     <ProjectReference Include="..\EggIncognito.Data\EggIncognito.Data.csproj" />
     <ProjectReference Include="..\EggIncognito\EggIncognito.csproj" />
