@@ -49,8 +49,8 @@ public static class AuthSetup {
     public static bool AddSyncKitAuthIfConfigured(
         this WebApplicationBuilder builder, bool identityApiEnabled, SessionCookieOptions? session) {
         if (!identityApiEnabled) return false;
-        var auth = builder.Services.AddAuthentication(o => o.DefaultScheme = session is not null
-                ? SyncKitSessionDefaults.Scheme
+        var auth = builder.Services.AddAuthentication(session is not null
+                ? SelectorScheme
                 : CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(o => {
                 o.ExpireTimeSpan = TimeSpan.FromDays(30);
@@ -66,8 +66,17 @@ public static class AuthSetup {
             })
             .AddScheme<AuthenticationSchemeOptions, Auth.ApiKeyAuthenticationHandler>(
                 DataApi.ApiKeyGen.SchemeName, null);
-        if (session is not null) auth.AddSyncKitSession(session, onValidated: StampSupporterClaim);
+        if (session is not null) {
+            auth.AddSyncKitSession(session, onValidated: StampSupporterClaim);
+            auth.AddPolicyScheme(SelectorScheme, SelectorScheme, o =>
+                o.ForwardDefaultSelector = ctx =>
+                    ctx.Request.Cookies.ContainsKey(session.CookieName)
+                        ? SyncKitSessionDefaults.Scheme
+                        : CookieAuthenticationDefaults.AuthenticationScheme);
+        }
         builder.Services.AddAuthorization();
         return true;
     }
+
+    private const string SelectorScheme = "EgiAuthSelector";
 }
