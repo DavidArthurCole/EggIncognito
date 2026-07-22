@@ -10,10 +10,10 @@
       @Badges
     </div>
     <div class="flex items-center gap-1.5 shrink-0">
-      <button type="button" class="btn-mini" title="@CopyTitle" aria-label="Copy endpoint path" @onclick="CopyPath">
-        <Icon Name="@(_copied ? "check" : "copy")" Class="icon-sm" />
+      <button type="button" class="reg-edit-btn" title="@CopyTitle" aria-label="Copy endpoint path" @onclick="CopyPath">
+        <Icon Name="@(_copied ? "check" : "copy")" />
       </button>
-      <a class="btn-mini no-underline" href="@Endpoint" download="@DownloadName" target="_blank" rel="noopener" title="Download JSON" aria-label="Download JSON"><Icon Name="download" Class="icon-sm" /></a>
+      <a class="reg-edit-btn" href="@Endpoint" download="@DownloadName" target="_blank" rel="noopener" title="Download JSON" aria-label="Download JSON"><Icon Name="download" /></a>
       <button type="button" class="btn-mini" @onclick="Toggle">@(_open ? "Hide" : "View")</button>
     </div>
   </div>

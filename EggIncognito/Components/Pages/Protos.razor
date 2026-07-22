@@ -30,7 +30,7 @@
               @if (LatestRow is { } lr)
               {
                 @lr.AppVersion<span class="dev-versep">|</span>@lr.Build
-                @if (!string.IsNullOrEmpty(lr.ClientVersion)) { <span class="dev-versep">|</span><span class="text-muted">client</span> @lr.ClientVersion }
+                @if (!string.IsNullOrEmpty(lr.ClientVersion)) { <span class="dev-versep">|</span>@lr.ClientVersion }
               }
               else { <span class="text-muted">none yet</span> }
             </span>
@@ -424,15 +424,27 @@
        
        
         _refresh = new Timer(async _ => await InvokeAsync(RefreshAll), null,
-            TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(6));
+            TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
     }
 
     Timer? _refresh;
+    IJSObjectReference? _vis;
 
-   
+    async Task<bool> PageVisibleAsync()
+    {
+        try
+        {
+            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/visibility.js");
+            return await _vis.InvokeAsync<bool>("isVisible");
+        }
+        catch { return true; }
+    }
+
+
     async Task RefreshAll()
     {
         if (_loading || _busyMutating) return;
+        if (!await PageVisibleAsync()) return;
         await Load(background: true);
         if (_stagedPanel is not null) await _stagedPanel.Load();
         StateHasChanged();
@@ -578,6 +590,8 @@
     public async ValueTask DisposeAsync()
     {
         if (_refresh is not null) await _refresh.DisposeAsync();
+        if (_vis is not null)
+            try { await _vis.DisposeAsync(); } catch { }
         if (_copy is not null)
             try { await _copy.DisposeAsync(); } catch { }
     }

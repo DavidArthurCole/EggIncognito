@@ -4,6 +4,8 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
+@inject IJSRuntime JS
+@using Microsoft.JSInterop
 @implements IDisposable
 
 <div class="panel">
@@ -130,10 +132,28 @@
         await LoadAsync();
        
        
-        _timer = new Timer(async _ => await InvokeAsync(LoadAsync), null, 8_000, 8_000);
+        _timer = new Timer(async _ => await InvokeAsync(TickAsync), null, 30_000, 30_000);
     }
 
     HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
+
+    IJSObjectReference? _vis;
+
+    async Task<bool> PageVisibleAsync()
+    {
+        try
+        {
+            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/visibility.js");
+            return await _vis.InvokeAsync<bool>("isVisible");
+        }
+        catch { return true; }
+    }
+
+    async Task TickAsync()
+    {
+        if (_disposed || !await PageVisibleAsync()) return;
+        await LoadAsync();
+    }
 
     async Task LoadAsync()
     {
@@ -370,5 +390,6 @@
     {
         _disposed = true;
         _timer?.Dispose();
+        _ = _vis?.DisposeAsync();
     }
 }

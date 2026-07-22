@@ -17,13 +17,7 @@
       <span class="auth-nav">
         @if (User.IsAuthenticated)
         {
-          <a href="/account" class="auth-name" title="Manage account">
-            @if (!string.IsNullOrEmpty(User.AvatarUrl))
-            {
-              <img class="auth-avatar" src="@User.AvatarUrl" alt="" />
-            }
-            @User.Username
-          </a>
+          <AccountModal />
           <form method="post" action="/logout" style="margin:0;">
             <button type="submit" class="auth-btn">Log out</button>
           </form>

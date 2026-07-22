@@ -1,7 +1,10 @@
+using System.Security.Claims;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using SyncKit.Auth;
+using SyncKit.Identity.Client;
 
 namespace EggIncognito.Controllers;
 
@@ -12,6 +15,19 @@ public sealed class AuthController(AuthState authState, ICurrentUser currentUser
     public async Task<IActionResult> Logout() {
         if (!authState.Enabled) return NotFound();
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        var session = HttpContext.RequestServices.GetService<SessionCookieOptions>();
+        if (session is not null) {
+            var sid = User.FindFirstValue(SessionClaims.SessionId);
+            if (!string.IsNullOrEmpty(sid)) {
+                var identity = HttpContext.RequestServices.GetService<IdentityApiClient>();
+                if (identity is not null) {
+                    try {
+                        await identity.RevokeSessionAsync(sid, HttpContext.RequestAborted);
+                    } catch (HttpRequestException) { }
+                }
+            }
+            SessionIssuer.ClearCookie(Response, session);
+        }
         return Redirect("/");
     }
 

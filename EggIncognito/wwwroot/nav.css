@@ -101,8 +101,11 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 .auth-nav { display: inline-flex; align-items: center; gap: 0.4rem; }
 .auth-nav .auth-avatar { width: 22px; height: 22px; border-radius: 50%; display: block; }
 .auth-nav .auth-name { color: #c7c7cf; font-size: 13px; }
-.auth-nav a.auth-name { display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none; }
-.auth-nav a.auth-name:hover { color: #ffffff; }
+.auth-nav a.auth-name, .auth-nav button.auth-name {
+  display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none;
+  background: none; border: none; padding: 0; margin: 0; font-family: inherit; cursor: pointer;
+}
+.auth-nav a.auth-name:hover, .auth-nav button.auth-name:hover { color: #ffffff; }
 .auth-nav .auth-btn {
   color: #1b1b1f; background: #ef7559; border: none; border-radius: 6px;
   padding: 0.25rem 0.6rem; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;

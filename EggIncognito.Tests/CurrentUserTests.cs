@@ -9,7 +9,7 @@ public class CurrentUserTests {
         var ctx = new DefaultHttpContext();
         if (principal is not null) ctx.User = principal;
         var accessor = new HttpContextAccessor { HttpContext = ctx };
-        return new CurrentUser(accessor);
+        return new CurrentUser(accessor, new AuthState(false));
     }
 
     [Fact]

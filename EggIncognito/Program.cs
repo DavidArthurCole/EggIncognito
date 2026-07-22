@@ -179,6 +179,7 @@ if (identityApiEnabled) {
     });
 }
 var syncKitSession = SessionCookieOptions.FromEnvironment();
+if (syncKitSession is not null) builder.Services.AddSingleton(syncKitSession);
 builder.AddSyncKitAuthIfConfigured(identityApiEnabled, syncKitSession);
 var authState = new AuthState(identityApiEnabled, identityWidgetUrl, syncKitSession?.CookieName ?? "synckit_session");
 var authEnabled = authState.Enabled;
@@ -591,18 +592,23 @@ if (!string.IsNullOrWhiteSpace(botToken) && dbEnabled) {
     await SyncKit.Db.Migrator.MigrateAsync(adminConn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
 }
 
-var deployNotifySecret = builder.Configuration["DEPLOY_NOTIFY_SECRET"] ?? "";
-if (!string.IsNullOrWhiteSpace(deployNotifySecret) && !string.IsNullOrWhiteSpace(botToken) && dbEnabled) {
+if (!string.IsNullOrWhiteSpace(botToken) && dbEnabled) {
     var deployDataSource = Npgsql.NpgsqlDataSource.Create(pgConn!);
     var configStore = new SyncKit.Bot.ChannelConfigStore(deployDataSource);
     var botCfg = app.Services.GetRequiredService<SyncKit.Bot.BotConfig>();
     var hosted = app.Services.GetRequiredService<EggIncognito.Bot.EggIncognitoBotHostedService>();
-    app.MapPost("/internal/deploy-notify", SyncKit.Bot.DeployNotifyHandler.Build(deployNotifySecret, async res => {
+    app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () => {
         var client = hosted.Bot?.Client;
         if (client is null || !ulong.TryParse(botCfg.GuildId, out var guildId)) return;
         var notifier = new SyncKit.Bot.DeployNotifier(configStore, client, guildId, botCfg.Name);
-        await notifier.NotifyAsync(res, CancellationToken.None);
-    })).RequireRateLimiting("write");
+        var tracker = new SyncKit.Bot.DeployVersionTracker(new SyncKit.Bot.DeployStateStore(deployDataSource), notifier);
+        try {
+            await tracker.CheckAndNotifyAsync(
+                botCfg.Name, Environment.GetEnvironmentVariable("GIT_SHA") ?? "", botCfg.Build.Version, CancellationToken.None);
+        } catch (Exception ex) {
+            app.Logger.LogWarning(ex, "deploy notify failed");
+        }
+    }));
 }
 app.MapRazorComponents<EggIncognito.Components.App>()
    .AddInteractiveServerRenderMode();

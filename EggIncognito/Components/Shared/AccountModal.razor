@@ -1,0 +1,182 @@
+@rendermode @(RenderMode.InteractiveServer)
+@inject AuthState Auth
+@inject ICurrentUser User
+@inject NavigationManager Nav
+@inject IHttpContextAccessor HttpContextAccessor
+@using System.Globalization
+@using SyncKit.Identity.AdminUi
+
+<button type="button" class="auth-name" title="Manage account" @onclick="Open">
+  @if (!string.IsNullOrEmpty(User.AvatarUrl))
+  {
+    <img class="auth-avatar" src="@User.AvatarUrl" alt="" />
+  }
+  @User.Username
+</button>
+
+@if (_open)
+{
+  <div class="modal-backdrop" @onclick="Close" @onkeydown="OnKeyDown">
+    <div class="modal-card account-modal" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle"
+         @onclick:stopPropagation="true">
+      <div class="modal-head">
+        <h3 class="modal-title" id="accountModalTitle">Account</h3>
+        <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
+          <Icon Name="x" />
+        </button>
+      </div>
+      <div class="modal-body">
+        @if (_linkMessage is not null)
+        {
+          <div class="account-link-banner @(_linkOk ? "text-ok" : "text-err")">@_linkMessage</div>
+        }
+        @if (Auth.WidgetEnabled && !string.IsNullOrEmpty(_sessionToken))
+        {
+          <ProfilePanel SessionToken="@_sessionToken" ReturnUrl="@_returnUrl">
+            <AvatarTemplate Context="ctx">
+              <div class="flex items-center gap-4 mb-4">
+                @if (!string.IsNullOrEmpty(ctx.AvatarUrl))
+                {
+                  <img class="w-16 h-16 rounded-full bg-panel2 object-cover shrink-0" src="@LinkHref(ctx.AvatarUrl!)" alt="Profile picture" />
+                }
+                else
+                {
+                  <div class="w-16 h-16 rounded-full bg-panel2 shrink-0"></div>
+                }
+                <div class="flex flex-col gap-1.5 min-w-0">
+                  <label class="btn-mini w-fit cursor-pointer">
+                    <Icon Name="arrow-up" Class="icon-sm" /> Upload picture
+                    <InputFile class="hidden" OnChange="@ctx.OnFileSelected" accept="image/png,image/jpeg,image/webp" />
+                  </label>
+                  <span class="text-muted text-xs">PNG, JPEG, or WebP, up to 2 MB.</span>
+                  @if (ctx.Error is not null)
+                  {
+                    <span class="text-err text-xs">@ctx.Error</span>
+                  }
+                </div>
+              </div>
+            </AvatarTemplate>
+            <IdentitiesTemplate Context="ctx">
+              @if (ctx.Banner is not null)
+              {
+                <div class="text-muted text-sm mb-2">@ctx.Banner</div>
+              }
+              <ul class="list-none m-0 p-0 flex flex-col gap-1">
+                @foreach (var item in ctx.Items)
+                {
+                  <li class="flex items-center gap-2.5 px-2.5 py-2 rounded-md bg-white/[0.03] hover:bg-white/[0.06]">
+                    <ProviderGlyph Provider="@item.Identity.Provider" Class="shrink-0" />
+                    @if (!string.IsNullOrEmpty(item.Identity.Avatar))
+                    {
+                      <button type="button" class="acct-chip" title="Use this picture" @onclick="item.OnSelectAvatar">
+                        <img src="@LinkHref(item.Identity.Avatar!)" alt="" />
+                      </button>
+                    }
+                    <span class="text-sm flex-1 truncate">@(item.Identity.Username ?? item.Identity.Subject)</span>
+                    <span class="text-xs text-muted shrink-0">@item.Identity.LinkedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</span>
+                    <button type="button" class="reg-edit-btn shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled="@(!item.CanUnlink)"
+                            title="@(item.CanUnlink ? "Unlink" : "Cannot unlink the last login")"
+                            @onclick="item.OnUnlink">
+                      <Icon Name="x" />
+                    </button>
+                  </li>
+                }
+              </ul>
+            </IdentitiesTemplate>
+            <LinkRowTemplate Context="ctx">
+              <div class="flex flex-wrap gap-2 mt-4">
+                @foreach (var item in ctx.Items)
+                {
+                  @if (item.Linked)
+                  {
+                    <span class="btn-mini opacity-45 pointer-events-none">
+                      <ProviderGlyph Provider="@item.Provider" />
+                      @Cap(item.Provider) linked
+                      <Icon Name="check" Class="icon-sm text-ok" />
+                    </span>
+                  }
+                  else
+                  {
+                    <a class="btn-mini" href="@LinkHref(item.LinkUrl)">
+                      <ProviderGlyph Provider="@item.Provider" />
+                      Link @Cap(item.Provider)
+                    </a>
+                  }
+                }
+              </div>
+            </LinkRowTemplate>
+          </ProfilePanel>
+        }
+        else
+        {
+          <p class="text-muted m-0">Log in to manage your linked logins and avatar.</p>
+        }
+      </div>
+    </div>
+  </div>
+}
+
+@code {
+    string _sessionToken = "";
+    string _returnUrl = "";
+    string? _linkMessage;
+    bool _linkOk;
+    bool _open;
+    bool _stripQuery;
+
+    protected override void OnInitialized()
+    {
+        _sessionToken = HttpContextAccessor.HttpContext?.Request.Cookies[Auth.SessionCookieName] ?? "";
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        _returnUrl = uri.GetLeftPart(UriPartial.Path);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        if (query.ContainsKey("linked"))
+        {
+            _linkMessage = "Login linked.";
+            _linkOk = true;
+        }
+        else if (query.ContainsKey("linkConflict"))
+        {
+            _linkMessage = "That login already belongs to a different account, so it was not linked. Account merges go through an admin.";
+        }
+        else if (query.ContainsKey("linkError"))
+        {
+            _linkMessage = "Linking failed. Try again.";
+        }
+        if (_linkMessage is not null)
+        {
+            _open = true;
+            _stripQuery = true;
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && _stripQuery)
+        {
+            _stripQuery = false;
+            Nav.NavigateTo(_returnUrl, replace: true);
+        }
+    }
+
+    void Open() { _open = true; }
+
+    void Close()
+    {
+        _open = false;
+        _linkMessage = null;
+    }
+
+    void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Close();
+    }
+
+    static string Cap(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
+
+    string LinkHref(string url) =>
+        url.StartsWith("http", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(Auth.IdentityHostUrl)
+            ? url
+            : $"{Auth.IdentityHostUrl!.TrimEnd('/')}/{url.TrimStart('/')}";
+}

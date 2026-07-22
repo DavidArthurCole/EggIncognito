@@ -2,6 +2,8 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Net.Http.Json
 @using EggIncognito.Components.Shared
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
 @implements IDisposable
 
 <section class="panel mb-4">
@@ -66,8 +68,20 @@
     protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender)
-            _timer = new System.Threading.Timer(async _ => await InvokeAsync(async () => { await Load(); StateHasChanged(); }),
-                null, TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(4));
+            _timer = new System.Threading.Timer(async _ => await InvokeAsync(async () => { if (!await PageVisibleAsync()) return; await Load(); StateHasChanged(); }),
+                null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+    }
+
+    IJSObjectReference? _vis;
+
+    async Task<bool> PageVisibleAsync()
+    {
+        try
+        {
+            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/visibility.js");
+            return await _vis.InvokeAsync<bool>("isVisible");
+        }
+        catch { return true; }
     }
 
     async Task Load()
@@ -102,7 +116,11 @@
         _ => "sess-kind-local",
     };
 
-    public void Dispose() => _timer?.Dispose();
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        _ = _vis?.DisposeAsync();
+    }
 
     record Row(string Key, string Kind, bool Killable, bool Running, int Port, long Flows, long Connections, int Devices, long DecryptOk, int DecryptErr);
 }

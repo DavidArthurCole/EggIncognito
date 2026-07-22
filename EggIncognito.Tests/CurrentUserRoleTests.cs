@@ -10,7 +10,7 @@ public class CurrentUserRoleTests {
     private static CurrentUser Make(params Claim[] claims) {
         var ctx = new DefaultHttpContext();
         if (claims.Length > 0) ctx.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Discord"));
-        return new CurrentUser(new HttpContextAccessor { HttpContext = ctx });
+        return new CurrentUser(new HttpContextAccessor { HttpContext = ctx }, new AuthState(false));
     }
 
     [Fact]

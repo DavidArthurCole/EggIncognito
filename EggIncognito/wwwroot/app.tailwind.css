@@ -57,10 +57,9 @@
     border-bottom-left-radius: 4px;
   }
 
-  .ds-state { @apply flex items-center gap-2 whitespace-nowrap; }
-  .ds-state-k { @apply text-[10px] uppercase tracking-wide text-muted w-12; }
-  .ds-state-sub { @apply text-[10px] text-muted mt-0.5 pl-14 opacity-0 transition-opacity; }
-  .group:hover .ds-state-sub { @apply opacity-100; }
+  .ds-state { @apply flex flex-col items-start gap-0.5 whitespace-nowrap; }
+  .ds-state-k { @apply text-[10px] uppercase tracking-wide text-muted; }
+  .ds-state-sub { @apply text-[10px] text-muted mt-0.5; }
 
   .apidoc { @apply border border-border rounded-md overflow-hidden; background: rgba(255, 255, 255, .02); }
   .apidoc-body { @apply px-3 pb-3 flex flex-col gap-2 text-xs text-muted leading-relaxed; }
@@ -1155,8 +1154,9 @@
   .reg-th-sort:hover { @apply text-fg; }
   .reg-table tbody td { @apply text-left px-3 py-2 border-b border-border align-middle; }
   .reg-table tbody tr:last-child td { @apply border-b-0; }
+  .reg-table tbody tr:nth-child(even) { @apply bg-white/[0.04]; }
   .reg-row { @apply cursor-pointer; }
-  .reg-row:hover { @apply bg-panel2; }
+  .reg-table tbody tr.reg-row:hover { @apply bg-panel2; }
   .reg-table .mono { @apply font-mono text-xs; }
   .reg-version { @apply font-mono text-accent2; }
   .reg-sha { @apply cursor-pointer bg-bg text-fg text-[0.8rem]; }
@@ -1298,6 +1298,13 @@
   .modal-head { @apply flex items-center justify-between gap-3 px-5 py-3 border-b border-border; }
   .modal-title { @apply text-base font-semibold m-0 text-fg; }
   .modal-body { @apply px-5 py-4 overflow-x-auto; }
+
+  .account-modal { @apply max-w-md; }
+  .account-link-banner { @apply mb-3 text-sm; }
+
+  .acct-chip { @apply w-[22px] h-[22px] rounded-full p-0 border-2 border-solid border-transparent cursor-pointer bg-transparent shrink-0; }
+  .acct-chip:hover { @apply border-accent; }
+  .acct-chip img { @apply w-full h-full rounded-full object-cover block; }
 
   /* Subscribe panel (roomier than the old squished page). */
   .sub-section-head { @apply text-sm font-semibold text-fg; }
