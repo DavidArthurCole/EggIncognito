@@ -3,18 +3,18 @@
 @inject IJSRuntime JS
 
 <div class="@RowClass">
-  <div class="flex items-center justify-between gap-3">
+  <div class="ds-head flex items-center justify-between gap-3 cursor-pointer" @onclick="Toggle">
     <div class="flex items-center gap-2 min-w-0">
       @if (Nested) { <span class="ds-elbow" aria-hidden="true"></span> }
       <span class="font-medium truncate" title="@Endpoint">@Title</span>
       @Badges
     </div>
     <div class="flex items-center gap-1.5 shrink-0">
-      <button type="button" class="reg-edit-btn" title="@CopyTitle" aria-label="Copy endpoint path" @onclick="CopyPath">
+      <button type="button" class="reg-edit-btn" title="@CopyTitle" aria-label="Copy endpoint path" @onclick="CopyPath" @onclick:stopPropagation="true">
         <Icon Name="@(_copied ? "check" : "copy")" />
       </button>
-      <a class="reg-edit-btn" href="@Endpoint" download="@DownloadName" target="_blank" rel="noopener" title="Download JSON" aria-label="Download JSON"><Icon Name="download" /></a>
-      <button type="button" class="btn-mini" @onclick="Toggle">@(_open ? "Hide" : "View")</button>
+      <a class="reg-edit-btn" href="@Endpoint" download="@DownloadName" target="_blank" rel="noopener" title="Download JSON" aria-label="Download JSON" @onclick:stopPropagation="true"><Icon Name="download" /></a>
+      <button type="button" class="reg-view-btn" @onclick="Toggle" @onclick:stopPropagation="true">@(_open ? "Hide" : "View")</button>
     </div>
   </div>
   @if (_open)

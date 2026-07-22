@@ -2,7 +2,7 @@
    This is the SINGLE source of the app's component vocabulary: every styled class the tabs' markup
    and JS emit is defined ONCE here (via @apply + the token utilities), replacing the deleted per-tab
    styles.css sheets. Tokens live in tailwind.config.js. Phase 3 unified Inspector + Capture onto this
-   layer; .btn-primary is orange (accent) everywhere, .btn-accent is the blue (accent2) variant. */
+   layer; .btn-primary is orange (accent) everywhere, .btn-info is the secondary-orange (accent2) variant. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -42,6 +42,8 @@
   .prov-unknown { @apply bg-panel2 text-muted; }
 
   .ds-cell { @apply px-2 py-2 rounded-md; }
+  .ds-head { @apply rounded transition-colors; }
+  .ds-head:hover { @apply bg-panel2; }
   .ds-stripe { @apply bg-white/[0.04]; }
   .ds-children { @apply ml-3 flex flex-col gap-0.5; }
   .ds-elbow { @apply relative shrink-0 self-center; width: 1.1rem; height: 1.25rem; margin-right: 0.15rem; }
@@ -83,7 +85,6 @@
   .btn-secondary:hover:not(:disabled) { filter: brightness(1.07); }
   .btn-secondary:disabled { @apply cursor-not-allowed; opacity: 0.4; }
 
-  /* Blue action (Inspector Build): the info/secondary accent. */
   .btn-info {
     @apply bg-accent2 text-bg border-0 rounded-md px-[1.4rem] py-2 font-semibold text-sm cursor-pointer;
   }
@@ -1222,6 +1223,11 @@
     border: 1px solid #4d4d59;
   }
   .reg-edit-btn:hover { @apply text-fg border-accent2; }
+  .reg-view-btn {
+    @apply h-7 inline-flex items-center rounded-md bg-bg text-muted cursor-pointer px-2.5 text-xs leading-none;
+    border: 1px solid #4d4d59;
+  }
+  .reg-view-btn:hover { @apply text-fg border-accent2; }
   .reg-edit-btn.active { @apply text-accent2 border-accent2; }
   .reg-edit-row > td { @apply bg-panel2 p-3; }
   .reg-actions { @apply flex items-center gap-1.5; }

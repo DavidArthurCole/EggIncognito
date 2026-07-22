@@ -30,7 +30,7 @@
                     <div class="min-w-0 flex-1 max-w-[19rem]">
                         <div class="flex items-baseline gap-2">
                             <span class="text-sm font-medium truncate">@d.Label</span>
-                            <span class="text-xs text-muted opacity-60 whitespace-nowrap shrink-0" title="@d.ProbedAt.ToString("u")">@Ago(d.ProbedAt)</span>
+                            <span class="text-xs text-muted opacity-60 whitespace-nowrap shrink-0" title="@d.ProbedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")">@Ago(d.ProbedAt)</span>
                             @if (d.Result == "new_version")
                             {
                                 <span class="dev-badge-new" title="Installed version can populate new registry version">NEW</span>

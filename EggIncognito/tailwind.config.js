@@ -20,7 +20,7 @@ module.exports = {
         fg: "#e7e7ea",
         muted: "#9a9aa5",
         accent: "#ef7559",
-        accent2: "#5aa9e6",
+        accent2: "#f2a65a",
         info: "#5aa9e6",
         ok: "#5ec27e",
         err: "#e0685f",

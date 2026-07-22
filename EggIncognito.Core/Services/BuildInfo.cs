@@ -27,7 +27,7 @@ public sealed record BuildInfo(string Version, string Sha, string ShortSha, stri
             var path = Environment.ProcessPath ?? asm.Location;
             buildDate = string.IsNullOrEmpty(path)
                 ? "unknown"
-                : File.GetLastWriteTimeUtc(path).ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture);
+                : File.GetLastWriteTimeUtc(path).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         } catch { buildDate = "unknown"; }
         return Parse(iv, repoUrl, buildDate);
     }

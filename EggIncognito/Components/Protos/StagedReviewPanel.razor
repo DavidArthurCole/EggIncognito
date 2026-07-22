@@ -269,7 +269,7 @@
             sb.AppendLine($"  have: appVersion={Or(r.AppVersion)} build={Or(r.Build)} clientVersion={Or(r.ClientVersion)}");
             sb.AppendLine($"  MISSING: {string.Join(", ", r.Missing)}");
             if (r.OriginRepo is not null)
-                sb.AppendLine($"  origin: repo={r.OriginRepo} commit={Or(r.OriginCommit)} date={(r.OriginDate?.ToString("u") ?? "-")} confidence={Or(r.Confidence)}");
+                sb.AppendLine($"  origin: repo={r.OriginRepo} commit={Or(r.OriginCommit)} date={(r.OriginDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")} confidence={Or(r.Confidence)}");
             sb.AppendLine();
         }
         return sb.ToString();

@@ -37,7 +37,7 @@
           </div>
           @if (LatestRow is { } lu)
           {
-            <div class="ds-state-sub">updated @lu.DetectedAt.ToLocalTime().ToString("g")</div>
+            <div class="ds-state-sub">updated @lu.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
           }
         </div>
         <div class="group">
@@ -130,11 +130,11 @@
             {
               <th class="w-8"><input type="checkbox" checked="@AllSelected" @onchange="ToggleAll" /></th>
             }
-            <th class="reg-th-sort" @onclick="@(() => Sort("platform"))"><span>Platform</span>@Caret("platform")</th>
-            <th class="reg-th-sort" @onclick="@(() => Sort("appVersion"))"><span>App Version</span>@Caret("appVersion")</th>
-            <th class="reg-th-sort" @onclick="@(() => Sort("build"))"><span>Build</span>@Caret("build")</th>
-            <th class="reg-th-sort" @onclick="@(() => Sort("client"))"><span>Client</span>@Caret("client")</th>
-            <th class="reg-th-sort" @onclick="@(() => Sort("sha"))"><span>Proto SHA</span>@Caret("sha")</th>
+            <th class="reg-th-sort w-28" @onclick="@(() => Sort("platform"))"><span>Platform</span>@Caret("platform")</th>
+            <th class="reg-th-sort w-28" @onclick="@(() => Sort("appVersion"))"><span>App Version</span>@Caret("appVersion")</th>
+            <th class="reg-th-sort w-40" @onclick="@(() => Sort("build"))"><span>Build</span>@Caret("build")</th>
+            <th class="reg-th-sort w-20" @onclick="@(() => Sort("client"))"><span>Client</span>@Caret("client")</th>
+            <th class="reg-th-sort w-40" @onclick="@(() => Sort("sha"))"><span>Proto SHA</span>@Caret("sha")</th>
             <th class="reg-th-sort" @onclick="@(() => Sort("detected"))"><span>Detected</span>@Caret("detected")</th>
             <th class="w-16"></th>
           </tr>
@@ -214,7 +214,7 @@
               <td>
                 <span class="code-chip reg-sha" title="@primary.ProtoSha">@Short(primary.ProtoSha)</span>
               </td>
-              <td class="text-muted text-xs">@primary.DetectedAt.ToString("u")</td>
+              <td class="text-muted text-xs whitespace-nowrap">@primary.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
               <td class="reg-actions" @onclick:stopPropagation="true">
                 <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
                    href="@($"/api/protos/versions/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}/proto")"

@@ -70,7 +70,7 @@
               <tr>
                 <td class="mono text-xs">@k.Prefix</td>
                 <td class="font-medium">@k.Name</td>
-                <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("g") ?? "never")</td>
+                <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "never")</td>
                 <td class="mono text-xs">@k.RequestCount</td>
                 <td><span class="@(k.Revoked ? "text-muted" : "text-green-400")">@(k.Revoked ? "revoked" : "active")</span></td>
                 <td>

@@ -41,7 +41,7 @@
       <div><dt>Build</dt><dd class="mono">@_detail.Build</dd></div>
       <div><dt>Client</dt><dd class="mono">@(string.IsNullOrEmpty(_detail.ClientVersion) ? "unknown" : _detail.ClientVersion)</dd></div>
       <div><dt>Source</dt><dd><span class="code-chip">@(string.IsNullOrEmpty(_detail.Source) ? "unknown" : _detail.Source)</span></dd></div>
-      <div><dt>Detected</dt><dd class="text-muted">@_detail.DetectedAt.ToString("u")</dd></div>
+      <div><dt>Detected</dt><dd class="text-muted">@_detail.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
       <div class="proto-meta-sha"><dt>Proto SHA</dt><dd><button type="button" class="code-chip proto-sha-copy" title="Click to copy" @onclick="CopySha">@_detail.ProtoSha</button></dd></div>
     </dl>
 
