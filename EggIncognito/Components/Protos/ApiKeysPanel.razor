@@ -12,8 +12,8 @@
       <span>Using the API</span>
     </div>
     <div class="apidoc-body">
-      <p class="m-0">Send your key in the <span class="code-chip">X-Api-Key</span> header on every request.</p>
-      <p class="m-0">Keys show once at creation. Store them safely. Up to 20 active; revoke any below.</p>
+      <p class="m-0">Send the key in the <span class="code-chip">X-Api-Key</span> header.</p>
+      <p class="m-0">Keys are shown once, at creation. Limit: 20 per account.</p>
       <pre class="apidoc-example">curl -H "X-Api-Key: &lt;your-key&gt;" @($"{_origin}/api/v1/data")</pre>
     </div>
   </div>
