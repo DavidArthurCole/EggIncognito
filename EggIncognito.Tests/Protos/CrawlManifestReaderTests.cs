@@ -6,44 +6,42 @@ using Xunit;
 
 namespace EggIncognito.Tests.ProtoStaging;
 
-public class CrawlManifestReaderTests
-{
-    static byte[] BuildZip((string name, string content)[] entries)
-    {
+public class CrawlManifestReaderTests {
+    private static byte[] BuildZip((string name, string content)[] entries) {
         using var ms = new MemoryStream();
-        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true))
-            foreach (var (name, content) in entries)
-            {
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true)) {
+            foreach (var (name, content) in entries) {
                 var e = zip.CreateEntry(name);
                 using var w = new StreamWriter(e.Open());
                 w.Write(content);
             }
+        }
+
         return ms.ToArray();
     }
 
     [Fact]
-    public void Read_DedupsByProtoSha_SubjectVersionTrusted_EmptyVersionDropped()
-    {
+    public void Read_DedupsByProtoSha_SubjectVersionTrusted_EmptyVersionDropped() {
         var manifest = JsonSerializer.Serialize(new[]
         {
-           
+
             new { Repo = "r1", Commit = "c1", Date = "2021-01-01T00:00:00Z", ProtoPath = "ei.proto",
                   ProtoSha256 = "shaA", ClientVersion = (int?)40, AppVersion = "1.21", Build = "111",
                   SnapshotFile = "snapshots/r1/a.proto", Reason = "x", VersionConfidence = "subject", CommitSubject = "s" },
             new { Repo = "r2", Commit = "c2", Date = "2022-01-01T00:00:00Z", ProtoPath = "ei.proto",
                   ProtoSha256 = "shaA", ClientVersion = (int?)40, AppVersion = "9.9", Build = "999",
                   SnapshotFile = "snapshots/r2/b.proto", Reason = "x", VersionConfidence = "tree-scan", CommitSubject = "s" },
-           
+
             new { Repo = "r3", Commit = "c3", Date = "2021-06-01T00:00:00Z", ProtoPath = "ei.proto",
                   ProtoSha256 = "shaB", ClientVersion = (int?)50, AppVersion = "1.20.3", Build = "110",
                   SnapshotFile = "snapshots/r3/c.proto", Reason = "x", VersionConfidence = "", CommitSubject = "s" },
         });
-        var zip = BuildZip(new[]
-        {
+        var zip = BuildZip(
+        [
             ("manifest.json", manifest),
             ("snapshots/r1/a.proto", "syntax = \"proto2\"; // A"),
             ("snapshots/r3/c.proto", "syntax = \"proto2\"; // C"),
-        });
+        ]);
 
         var recs = CrawlManifestReader.Read(zip);
 
@@ -66,9 +64,8 @@ public class CrawlManifestReaderTests
     }
 
     [Fact]
-    public void Read_VersionFile_HighestTrust_CarriesPlatformAndFullTriple()
-    {
-       
+    public void Read_VersionFile_HighestTrust_CarriesPlatformAndFullTriple() {
+
         var manifest = JsonSerializer.Serialize(new[]
         {
             new { Repo = "subj", Commit = "c1", Date = "2022-01-01T00:00:00Z", ProtoPath = "ei.proto",
@@ -80,11 +77,11 @@ public class CrawlManifestReaderTests
                   SnapshotFile = "snapshots/vfile/b.proto", Reason = "x", VersionConfidence = "version-file",
                   CommitSubject = "s", Platform = (string?)"IOS" },
         });
-        var zip = BuildZip(new[]
-        {
+        var zip = BuildZip(
+        [
             ("manifest.json", manifest),
             ("snapshots/vfile/b.proto", "syntax = \"proto2\"; // V"),
-        });
+        ]);
 
         var rec = Assert.Single(CrawlManifestReader.Read(zip));
         Assert.Equal("version-file", rec.Confidence);
@@ -97,8 +94,7 @@ public class CrawlManifestReaderTests
     }
 
     [Fact]
-    public void Read_AndroidPlatform_Normalized()
-    {
+    public void Read_AndroidPlatform_Normalized() {
         var manifest = JsonSerializer.Serialize(new[]
         {
             new { Repo = "r", Commit = "c", Date = "2025-01-01T00:00:00Z", ProtoPath = "ei.proto",
@@ -106,7 +102,7 @@ public class CrawlManifestReaderTests
                   SnapshotFile = "snapshots/r/d.proto", Reason = "x", VersionConfidence = "version-file",
                   CommitSubject = "s", Platform = "ANDROID" },
         });
-        var zip = BuildZip(new[] { ("manifest.json", manifest), ("snapshots/r/d.proto", "syntax = \"proto2\";") });
+        var zip = BuildZip([("manifest.json", manifest), ("snapshots/r/d.proto", "syntax = \"proto2\";")]);
         var rec = Assert.Single(CrawlManifestReader.Read(zip));
         Assert.Equal("android", rec.Platform);
         Assert.Equal("1.17.0", rec.AppVersion);
@@ -114,20 +110,19 @@ public class CrawlManifestReaderTests
     }
 
     [Fact]
-    public void Read_TreeScanVersion_NotAttached_ButConfidenceCarried()
-    {
-       
+    public void Read_TreeScanVersion_NotAttached_ButConfidenceCarried() {
+
         var manifest = JsonSerializer.Serialize(new[]
         {
             new { Repo = "r", Commit = "c", Date = "2024-01-01T00:00:00Z", ProtoPath = "ei.proto",
                   ProtoSha256 = "shaT", ClientVersion = (int?)72, AppVersion = "1.33", Build = "131",
                   SnapshotFile = "snapshots/r/t.proto", Reason = "x", VersionConfidence = "tree-scan", CommitSubject = "s" },
         });
-        var zip = BuildZip(new[]
-        {
+        var zip = BuildZip(
+        [
             ("manifest.json", manifest),
             ("snapshots/r/t.proto", "syntax = \"proto2\"; // T"),
-        });
+        ]);
 
         var rec = Assert.Single(CrawlManifestReader.Read(zip));
         Assert.Equal("shaT", rec.ProtoSha);
@@ -139,21 +134,20 @@ public class CrawlManifestReaderTests
     }
 
     [Fact]
-    public void Read_OriginDate_NormalizedToUtc()
-    {
-       
-       
+    public void Read_OriginDate_NormalizedToUtc() {
+
+
         var manifest = JsonSerializer.Serialize(new[]
         {
             new { Repo = "r", Commit = "c", Date = "2022-02-04T12:59:44-08:00", ProtoPath = "ei.proto",
                   ProtoSha256 = "shaTz", ClientVersion = (int?)null, AppVersion = (string?)null, Build = (string?)null,
                   SnapshotFile = "snapshots/r/tz.proto", Reason = "x", VersionConfidence = "", CommitSubject = "s" },
         });
-        var zip = BuildZip(new[]
-        {
+        var zip = BuildZip(
+        [
             ("manifest.json", manifest),
             ("snapshots/r/tz.proto", "syntax = \"proto2\";"),
-        });
+        ]);
 
         var rec = Assert.Single(CrawlManifestReader.Read(zip));
         Assert.NotNull(rec.OriginDate);
@@ -162,15 +156,14 @@ public class CrawlManifestReaderTests
     }
 
     [Fact]
-    public void Read_SkipsRecordsWithMissingSnapshot()
-    {
+    public void Read_SkipsRecordsWithMissingSnapshot() {
         var manifest = JsonSerializer.Serialize(new[]
         {
             new { Repo = "r", Commit = "c", Date = "2021-01-01T00:00:00Z", ProtoPath = "ei.proto",
                   ProtoSha256 = "shaX", ClientVersion = (int?)null, AppVersion = (string?)null, Build = (string?)null,
                   SnapshotFile = "snapshots/missing.proto", Reason = "x", VersionConfidence = "", CommitSubject = "s" },
         });
-        var zip = BuildZip(new[] { ("manifest.json", manifest) });
+        var zip = BuildZip([("manifest.json", manifest)]);
         Assert.Empty(CrawlManifestReader.Read(zip));
     }
 }

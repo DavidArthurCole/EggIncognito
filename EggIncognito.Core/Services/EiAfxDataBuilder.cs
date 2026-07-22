@@ -2,9 +2,10 @@ using System.Text;
 
 namespace EggIncognito.Services;
 
+public sealed record ProvenanceSource(string Origin, string? Locator = null, string? Method = null);
+
 public sealed record EiAfxData(
-    string Status,
-    string Source,
+    IReadOnlyDictionary<string, ProvenanceSource> Provenance,
     IReadOnlyList<EiAfxFamily> ArtifactFamilies);
 
 public sealed record EiAfxFamily(
@@ -31,11 +32,12 @@ public sealed record EiAfxTier(
     bool HasRarities,
     IReadOnlyList<int> PossibleAfxRarities);
 
-public static class EiAfxDataBuilder
-{
-    private const string ProvenanceStatus =
-        "structure/prices/quality/rarities extracted from ei_afx/config; icon_filename from get_config dlcCatalog; " +
-        "display names / tier names / effect strings omitted (no in-game string source extracted yet)";
+public static class EiAfxDataBuilder {
+    private static readonly IReadOnlyDictionary<string, ProvenanceSource> DefaultProvenance =
+        new Dictionary<string, ProvenanceSource>(StringComparer.Ordinal) {
+            ["families"] = new ProvenanceSource("fixture", "ei_afx/config", "captured"),
+            ["icons"] = new ProvenanceSource("config", "ei/get_config"),
+        };
 
     private static readonly HashSet<string> IngredientNames =
     [
@@ -46,30 +48,26 @@ public static class EiAfxDataBuilder
 
     public static EiAfxData Build(
         Ei.ArtifactsConfigurationResponse cfg,
-        IReadOnlyDictionary<string, string> icons,
-        string source)
-    {
+        IReadOnlyDictionary<string, string> icons) {
         var families = cfg.ArtifactParameters
             .Where(p => p.Spec is not null)
             .GroupBy(p => p.Spec.Name)
             .OrderBy(g => (int)g.Key)
-            .Select(g => BuildFamily(g.Key, g.ToList(), icons))
+            .Select(g => BuildFamily(g.Key, [.. g], icons))
             .ToList();
 
-        return new EiAfxData(ProvenanceStatus, source, families);
+        return new EiAfxData(DefaultProvenance, families);
     }
 
     public static EiAfxData BuildFromJson(
         string configJson,
-        IReadOnlyDictionary<string, string> icons,
-        string source) =>
-        Build(Ei.ArtifactsConfigurationResponse.Parser.ParseJson(configJson), icons, source);
+        IReadOnlyDictionary<string, string> icons) =>
+        Build(Ei.ArtifactsConfigurationResponse.Parser.ParseJson(configJson), icons);
 
     private static EiAfxFamily BuildFamily(
         Ei.ArtifactSpec.Types.Name name,
         List<Ei.ArtifactsConfigurationResponse.Types.ArtifactParameters> rows,
-        IReadOnlyDictionary<string, string> icons)
-    {
+        IReadOnlyDictionary<string, string> icons) {
         var afxId = (int)name;
         var screaming = Screaming(name);
         var id = screaming.ToLowerInvariant().Replace('_', '-');
@@ -78,7 +76,7 @@ public static class EiAfxDataBuilder
         var tiers = rows
             .GroupBy(r => r.Spec.Level)
             .OrderBy(g => (int)g.Key)
-            .Select(g => BuildTier(screaming, id, afxId, g.Key, g.ToList(), icons))
+            .Select(g => BuildTier(screaming, id, afxId, g.Key, [.. g], icons))
             .ToList();
 
         return new EiAfxFamily(id, screaming, afxId, afxType, typeName, afxId, [afxId], tiers);
@@ -88,8 +86,7 @@ public static class EiAfxDataBuilder
         string screaming, string familyId, int afxId,
         Ei.ArtifactSpec.Types.Level level,
         List<Ei.ArtifactsConfigurationResponse.Types.ArtifactParameters> rows,
-        IReadOnlyDictionary<string, string> icons)
-    {
+        IReadOnlyDictionary<string, string> icons) {
         var levelInt = (int)level;
         var tierNumber = levelInt + 1;
 
@@ -116,20 +113,17 @@ public static class EiAfxDataBuilder
             PossibleAfxRarities: rarities);
     }
 
-    private static (int AfxType, string Name) Classify(string screaming)
-    {
+    private static (int AfxType, string Name) Classify(string screaming) {
         if (screaming.EndsWith("_STONE_FRAGMENT", StringComparison.Ordinal)) return (3, "Stone_Ingredient");
         if (screaming.EndsWith("_STONE", StringComparison.Ordinal)) return (1, "Stone");
         if (IngredientNames.Contains(screaming)) return (2, "Ingredient");
         return (0, "Artifact");
     }
 
-    private static string Screaming(Ei.ArtifactSpec.Types.Name name)
-    {
+    private static string Screaming(Ei.ArtifactSpec.Types.Name name) {
         var pascal = name.ToString();
         var sb = new StringBuilder(pascal.Length + 8);
-        for (var i = 0; i < pascal.Length; i++)
-        {
+        for (var i = 0; i < pascal.Length; i++) {
             var c = pascal[i];
             if (i > 0 && char.IsUpper(c)) sb.Append('_');
             sb.Append(char.ToUpperInvariant(c));

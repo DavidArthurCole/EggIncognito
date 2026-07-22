@@ -1,20 +1,18 @@
+using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
 [ApiController]
 [EnableRateLimiting("read")]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
-public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBase
-{
+public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBase {
     [HttpGet("/api")]
     public ContentResult Landing() => Content(LandingHtml, "text/html");
 
     [HttpGet("/api/openapi.json")]
-    public ContentResult OpenApi()
-    {
+    public ContentResult OpenApi() {
         Response.Headers.CacheControl = "public, max-age=300";
         return Content(surface.OpenApiJson, "application/json");
     }
@@ -23,31 +21,27 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
     public ContentResult Reference() => Content(ReferenceHtml, "text/html");
 
     [HttpGet("/api/catalog")]
-    public IActionResult Catalog()
-    {
+    public IActionResult Catalog() {
         Response.Headers.CacheControl = "public, max-age=300";
         return Ok(surface.Entries.Select(ToWire));
     }
 
-   
+
     [HttpGet("/ei")]
     [HttpGet("/ei_afx")]
     [HttpGet("/ei_ctx")]
     [HttpGet("/ei_data")]
     [HttpGet("/ei_srv")]
-    public IActionResult NamespaceIndex()
-    {
+    public IActionResult NamespaceIndex() {
         var ns = Request.Path.Value!.Trim('/');
         Response.Headers.CacheControl = "public, max-age=300";
-        return Ok(new
-        {
+        return Ok(new {
             @namespace = ns,
             routes = surface.Entries.Where(e => e.Namespace == ns).Select(ToWire),
         });
     }
 
-    private static object ToWire(AuxbrainEntry e) => new
-    {
+    private static object ToWire(AuxbrainEntry e) => new {
         path = e.Path,
         @namespace = e.Namespace,
         requestType = e.RequestType,
@@ -98,7 +92,7 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
         </html>
         """;
 
-   
+
     private const string ReferenceHtml = """
         <!doctype html>
         <html lang="en">

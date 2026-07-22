@@ -3,13 +3,11 @@ using Xunit;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class Elf64Tests
-{
-   
-   
-    private static byte[] MiniElf(ulong textVAddr, long textOffset, long textSize)
-    {
-       
+public class Elf64Tests {
+
+
+    private static byte[] MiniElf(ulong textVAddr, long textOffset, long textSize) {
+
         var shstrtab = System.Text.Encoding.ASCII.GetBytes("\0.text\0.shstrtab\0");
         int textNameOff = 1;
         int strtabNameOff = 7;
@@ -45,8 +43,7 @@ public class Elf64Tests
     }
 
     [Fact]
-    public void FindSection_Text_ReturnsAddrOffsetSize()
-    {
+    public void FindSection_Text_ReturnsAddrOffsetSize() {
         var elf = MiniElf(0x1000, 0x400, 0x2000);
         var s = Elf64.FindSection(elf, ".text");
         Assert.NotNull(s);
@@ -56,15 +53,11 @@ public class Elf64Tests
     }
 
     [Fact]
-    public void FindSection_Missing_ReturnsNull()
-    {
+    public void FindSection_Missing_ReturnsNull() {
         var elf = MiniElf(0x1000, 0x400, 0x2000);
         Assert.Null(Elf64.FindSection(elf, ".rodata"));
     }
 
     [Fact]
-    public void FindSection_NotElf_ReturnsNull()
-    {
-        Assert.Null(Elf64.FindSection([1, 2, 3, 4, 5, 6, 7, 8], ".text"));
-    }
+    public void FindSection_NotElf_ReturnsNull() => Assert.Null(Elf64.FindSection([1, 2, 3, 4, 5, 6, 7, 8], ".text"));
 }

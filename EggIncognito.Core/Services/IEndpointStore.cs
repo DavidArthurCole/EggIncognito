@@ -2,9 +2,8 @@ using Google.Protobuf;
 
 namespace EggIncognito.Services;
 
-public interface IEndpointStore
-{
+public interface IEndpointStore {
     TRes Get<TRes>(string path, string? eid = null) where TRes : IMessage<TRes>, new();
-   
+
     IMessage Get(System.Type messageType, string path, string? eid = null);
 }

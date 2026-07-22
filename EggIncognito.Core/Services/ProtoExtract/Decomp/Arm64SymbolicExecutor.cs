@@ -2,30 +2,26 @@ using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
-public static class Arm64SymbolicExecutor
-{
-   
+public static class Arm64SymbolicExecutor {
+
     public readonly record struct CallRecord(string Name, IReadOnlyList<ExprNode> FloatArgs);
 
     public readonly record struct ExecResult(
         IReadOnlyDictionary<string, ExprNode> Regs, IReadOnlyDictionary<long, ExprNode> Stack,
         IReadOnlyDictionary<long, ExprNode> RetVec, ExprNode? SinkArg, long? SinkStackPtr, int Opaque,
-        IReadOnlyList<CallRecord> Calls, string Diagnostics)
-    {
-       
+        IReadOnlyList<CallRecord> Calls, string Diagnostics) {
+
         public ExprNode? Reg(string name) => Regs.TryGetValue(NormKey(name), out var e) ? e : null;
     }
 
-    private static string NormKey(string name)
-    {
+    private static string NormKey(string name) {
         if (name.Length == 0) return name;
         char c = name[0];
         int i = 1;
         while (i < name.Length && char.IsDigit(name[i])) i++;
         var num = name[1..i];
         if (c is 'v' or 'q' or 'd' or 's') return "v" + num;
-        if (c is 'x' or 'w') return "x" + num;
-        return name;
+        return c is 'x' or 'w' ? "x" + num : name;
     }
 
     private const int InstrBudget = 5000;
@@ -36,45 +32,38 @@ public static class Arm64SymbolicExecutor
         Func<string, ExprNode[], ExprNode?> resolveCall)
         => Run(code, fn, textVmAddr, textFileOff, syms, seedInputs, null, resolveCall);
 
-   
-   
+
+
     public static ExecResult Run(
         byte[] code, MachoSymbols.FuncRange fn, ulong textVmAddr, int textFileOff,
         IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyDictionary<string, ExprNode> seedInputs,
         IReadOnlyDictionary<string, string>? seedBases,
-        Func<string, ExprNode[], ExprNode?> resolveCall)
-    {
+        Func<string, ExprNode[], ExprNode?> resolveCall) {
         var st = new State(seedInputs, seedBases);
         int n = 0;
 
-        try
-        {
+        try {
             using var cs = Arm64Decode.CreateDisassembler();
-            foreach (var insn in cs.Disassemble(code, (long)fn.Start))
-            {
+            foreach (var insn in cs.Disassemble(code, (long)fn.Start)) {
                 if (++n > InstrBudget) return st.Result("instruction budget exceeded");
                 var ops = insn.Details?.Operands;
                 if (ops is null) continue;
                 Step(st, insn, ops, syms, resolveCall);
             }
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             return st.Result("executor error: " + ex.Message);
         }
         return st.Result("ok");
     }
 
     private static void Step(State st, Arm64Instruction insn, Arm64Operand[] ops,
-        IReadOnlyList<MachoSymbols.Symbol> syms, Func<string, ExprNode[], ExprNode?> resolveCall)
-    {
-        switch (insn.Id)
-        {
+        IReadOnlyList<MachoSymbols.Symbol> syms, Func<string, ExprNode[], ExprNode?> resolveCall) {
+        switch (insn.Id) {
             case Arm64InstructionId.ARM64_INS_FMOV when ops.Length == 2 && ops[1].Type == Arm64OperandType.FloatingPoint && ops[0].Register is { } fi:
                 st.SetScalar(fi.Name, new Const(ops[1].FloatingPoint));
                 break;
             case Arm64InstructionId.ARM64_INS_FMOV when ops.Length == 2 && ops[0].Register is { } fd && ops[1].Register is { } fs:
-               
+
                 st.SetScalar(fd.Name, st.RegExpr(fs.Name));
                 break;
             case Arm64InstructionId.ARM64_INS_FMUL: st.Bin(ops, BinOp.Mul); break;
@@ -90,7 +79,7 @@ public static class Arm64SymbolicExecutor
                 st.SetScalar(cd.Name, st.Scalar(cs2.Name));
                 break;
             case Arm64InstructionId.ARM64_INS_FMADD when ops.Length == 4 && ops[0].Register is { } md:
-               
+
                 st.SetScalar(md.Name, new Binary(BinOp.Add, st.Scalar(RegName(ops, 3)),
                     new Binary(BinOp.Mul, st.Scalar(RegName(ops, 1)), st.Scalar(RegName(ops, 2)))));
                 break;
@@ -111,7 +100,7 @@ public static class Arm64SymbolicExecutor
                 st.AddImm(ad.Name, an.Name, ops[2].Immediate);
                 break;
             case Arm64InstructionId.ARM64_INS_ORR when ops.Length == 3 && ops[0].Register is { } od && ops[1].Register is { } on && ops[2].Type == Arm64OperandType.Immediate:
-               
+
                 st.OrrImm(od.Name, on.Name, ops[2].Immediate);
                 break;
 
@@ -145,12 +134,10 @@ public static class Arm64SymbolicExecutor
         }
     }
 
-    private static long ShiftImm(Arm64Operand[] ops)
-    {
+    private static long ShiftImm(Arm64Operand[] ops) {
         long v = ops[1].Immediate;
-       
-        if (ops.Length >= 2)
-        {
+
+        if (ops.Length >= 2) {
             try { if (ops[1].ShiftOperation != Arm64ShiftOperation.Invalid) v <<= ops[1].ShiftValue; } catch { }
         }
         return v;
@@ -158,34 +145,32 @@ public static class Arm64SymbolicExecutor
 
     private static string RegName(Arm64Operand[] ops, int i) => i < ops.Length && ops[i].Register is { } r ? r.Name : "";
 
-   
-    private sealed class State
-    {
-        private readonly Dictionary<string, ExprNode> _regs = new();
-        private readonly Dictionary<string, ExprNode[]> _vecs = new();
-        private readonly Dictionary<string, long> _gp = new();
-        private readonly Dictionary<string, (string Space, long Off)> _ptr = new();
-        private readonly Dictionary<long, ExprNode> _stack = new();
-        private readonly Dictionary<long, ExprNode> _retVec = new();
-        private readonly Dictionary<string, string> _named = new();
+
+    private sealed class State {
+        private readonly Dictionary<string, ExprNode> _regs = [];
+        private readonly Dictionary<string, ExprNode[]> _vecs = [];
+        private readonly Dictionary<string, long> _gp = [];
+        private readonly Dictionary<string, (string Space, long Off)> _ptr = [];
+        private readonly Dictionary<long, ExprNode> _stack = [];
+        private readonly Dictionary<long, ExprNode> _retVec = [];
+        private readonly Dictionary<string, string> _named = [];
         public int Opaque;
         public ExprNode? SinkArg;
         public long? SinkStackPtr;
-        private readonly List<CallRecord> _calls = new();
+        private readonly List<CallRecord> _calls = [];
 
         public State(IReadOnlyDictionary<string, ExprNode> seed) : this(seed, null) { }
-        public State(IReadOnlyDictionary<string, ExprNode> seed, IReadOnlyDictionary<string, string>? seedBases)
-        {
+        public State(IReadOnlyDictionary<string, ExprNode> seed, IReadOnlyDictionary<string, string>? seedBases) {
             foreach (var (k, v) in seed) _regs[Norm(k)] = v;
             _ptr["sp"] = ("sp", 0);
             _regs["zr"] = new Const(0);
             _gp["zr"] = 0;
-            if (seedBases is not null)
-                foreach (var (reg, name) in seedBases)
-                {
+            if (seedBases is not null) {
+                foreach (var (reg, name) in seedBases) {
                     _named[Norm(reg)] = name;
                     if (name == "ret") _ptr[Norm(reg)] = ("ret", 0);
                 }
+            }
         }
 
         public IReadOnlyDictionary<long, ExprNode> RetVec => _retVec;
@@ -201,22 +186,20 @@ public static class Arm64SymbolicExecutor
 
         public void SetScalar(string name, ExprNode e) => _regs[Norm(name)] = e;
 
-        public void Bin(Arm64Operand[] ops, BinOp op)
-        {
+        public void Bin(Arm64Operand[] ops, BinOp op) {
             if (ops.Length < 3 || ops[0].Register is not { } d) return;
-           
-            if (IsVec(ops[0]))
-            {
+
+            if (IsVec(ops[0])) {
                 var a = Lanes(RegName(ops, 1)); var b = Lanes(RegName(ops, 2));
                 var outl = new ExprNode[4];
                 for (int i = 0; i < 4; i++) outl[i] = new Binary(op, a[i], b[i]);
                 SetVec(d.Name, outl);
+            } else {
+                SetScalar(d.Name, new Binary(op, Scalar(RegName(ops, 1)), Scalar(RegName(ops, 2))));
             }
-            else SetScalar(d.Name, new Binary(op, Scalar(RegName(ops, 1)), Scalar(RegName(ops, 2))));
         }
 
-        public void Un(Arm64Operand[] ops, UnOp op)
-        {
+        public void Un(Arm64Operand[] ops, UnOp op) {
             if (ops.Length < 2 || ops[0].Register is not { } d) return;
             SetScalar(d.Name, new Unary(op, Scalar(RegName(ops, 1))));
         }
@@ -224,8 +207,7 @@ public static class Arm64SymbolicExecutor
         public void SetGp(string name, long v) { _gp[Norm(name)] = v; _regs[Norm(name)] = new Const(ReinterpretFloat(v)); }
         public long GpVal(string name) => _gp.TryGetValue(Norm(name), out var v) ? v : 0;
 
-        public void CopyReg(string d, string s)
-        {
+        public void CopyReg(string d, string s) {
             d = Norm(d); s = Norm(s);
             if (_regs.TryGetValue(s, out var e)) _regs[d] = e;
             if (_gp.TryGetValue(s, out var g)) _gp[d] = g;
@@ -234,134 +216,114 @@ public static class Arm64SymbolicExecutor
             if (_vecs.TryGetValue(s, out var v)) _vecs[d] = (ExprNode[])v.Clone();
         }
 
-        public void AddImm(string d, string n, long imm)
-        {
+        public void AddImm(string d, string n, long imm) {
             d = Norm(d); n = Norm(n);
-            if (_ptr.TryGetValue(n, out var p)) _ptr[d] = (p.Space, p.Off + imm);
-            else { _ptr.Remove(d); if (_gp.TryGetValue(n, out var g)) _gp[d] = g + imm; }
+            if (_ptr.TryGetValue(n, out var p)) {
+                _ptr[d] = (p.Space, p.Off + imm);
+            } else { _ptr.Remove(d); if (_gp.TryGetValue(n, out var g)) _gp[d] = g + imm; }
         }
 
-        public void OrrImm(string d, string n, long imm)
-        {
+        public void OrrImm(string d, string n, long imm) {
             d = Norm(d); n = Norm(n);
             if (_ptr.TryGetValue(n, out var p)) _ptr[d] = (p.Space, p.Off | imm);
         }
 
-        public ExprNode[] Lanes(string name)
-        {
+        public ExprNode[] Lanes(string name) {
             name = Norm(name);
             if (_vecs.TryGetValue(name, out var v)) return v;
-           
+
             var e = _regs.TryGetValue(name, out var r) ? r : new Opaque("unset", []);
             return [e, new Opaque("unset", []), new Opaque("unset", []), new Opaque("unset", [])];
         }
         public void SetVec(string name, ExprNode[] lanes) { name = Norm(name); _vecs[name] = lanes; _regs[name] = new Const(0); }
 
-        public void VecInsert(string d, int di, string s, int si)
-        {
+        public void VecInsert(string d, int di, string s, int si) {
             var dl = (ExprNode[])Lanes(d).Clone(); var sl = Lanes(s);
             if (di >= 0 && di < 4 && si >= 0 && si < 4) dl[di] = sl[si];
             SetVec(d, dl);
         }
-        public void VecDup(string d, string s, int si)
-        {
-            var sl = Lanes(s); var e = si >= 0 && si < 4 ? sl[si] : sl[0];
+        public void VecDup(string d, string s, int si) {
+            var sl = Lanes(s); var e = si is >= 0 and < 4 ? sl[si] : sl[0];
             SetVec(d, [e, e, e, e]);
         }
-        public void VecZip1(string d, string a, string b)
-        {
+        public void VecZip1(string d, string a, string b) {
             var al = Lanes(a); var bl = Lanes(b);
             SetVec(d, [al[0], bl[0], al[1], bl[1]]);
         }
-        public void VecExt(string d, string a, string b, int byteIdx)
-        {
-           
+        public void VecExt(string d, string a, string b, int byteIdx) {
+
             var al = Lanes(a); var bl = Lanes(b); int sh = byteIdx / 4;
             var combined = new[] { al[0], al[1], al[2], al[3], bl[0], bl[1], bl[2], bl[3] };
             SetVec(d, [combined[sh], combined[sh + 1], combined[sh + 2], combined[sh + 3]]);
         }
 
-        public void Store(Arm64Operand[] ops, int srcCount)
-        {
+        public void Store(Arm64Operand[] ops, int srcCount) {
             if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory) return;
             if (!MemTarget(ops[^1], out var space, out var off)) return;
             var src = ops[0];
             if (src.Register is not { } r) return;
-            if (IsVec(src) || r.Name.StartsWith('q'))
-            {
+            if (IsVec(src) || r.Name.StartsWith('q')) {
                 var lanes = Lanes(r.Name);
                 for (int i = 0; i < 4; i++) WriteSlot(space, off + i * 4, lanes[i]);
-            }
-            else if (r.Name.StartsWith('d'))
-            {
+            } else if (r.Name.StartsWith('d')) {
                 var lanes = Lanes(r.Name);
                 WriteSlot(space, off, lanes[0]); WriteSlot(space, off + 4, lanes[1]);
-            }
-            else
-            {
+            } else {
                 WriteSlot(space, off, Scalar(r.Name));
             }
         }
 
-        public void StorePair(Arm64Operand[] ops)
-        {
+        public void StorePair(Arm64Operand[] ops) {
             if (ops.Length < 3 || ops[^1].Type != Arm64OperandType.Memory) return;
             if (!MemTarget(ops[^1], out var space, out var off)) return;
             if (ops[0].Register is { } a) WriteSlot(space, off, Scalar(a.Name));
             if (ops[1].Register is { } b) WriteSlot(space, off + LaneSize(ops[0]), Scalar(b.Name));
         }
 
-        public void St1(Arm64Operand[] ops)
-        {
-           
+        public void St1(Arm64Operand[] ops) {
+
             if (ops.Length < 2) return;
             var memOp = ops[^1];
             if (!MemTarget(memOp, out var space, out var off)) return;
-            if (ops[0].Register is { } v)
-            {
+            if (ops[0].Register is { } v) {
                 var lanes = Lanes(v.Name);
                 int li = ops[0].VectorIndex >= 0 ? ops[0].VectorIndex : 0;
                 WriteSlot(space, off, li < 4 ? lanes[li] : lanes[0]);
             }
         }
 
-        public void Load(Arm64Operand[] ops)
-        {
+        public void Load(Arm64Operand[] ops) {
             if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory || ops[0].Register is not { } r) return;
-            if (MemTarget(ops[^1], out var space, out var off) && space == "sp")
-            {
+            if (MemTarget(ops[^1], out var space, out var off) && space == "sp") {
                 if (IsVec(ops[0]) || r.Name.StartsWith('q'))
                     SetVec(r.Name, [Slot(off), Slot(off + 4), Slot(off + 8), Slot(off + 12)]);
                 else
                     SetScalar(r.Name, Slot(off));
                 return;
             }
-           
+
             _ptr.Remove(Norm(r.Name));
-            if (ops[^1].Memory?.Base is { } b)
-            {
+            if (ops[^1].Memory?.Base is { } b) {
                 var baseName = _named.TryGetValue(Norm(b.Name), out var nb) ? nb : b.Name;
                 var disp = ops[^1].Memory.Displacement;
                 if (IsVec(ops[0]) || r.Name.StartsWith('q'))
                     SetVec(r.Name, [new Field(baseName, disp), new Field(baseName, disp + 4), new Field(baseName, disp + 8), new Field(baseName, disp + 12)]);
                 else
                     SetScalar(r.Name, new Field(baseName, disp));
+            } else {
+                _regs.Remove(Norm(r.Name));
             }
-            else _regs.Remove(Norm(r.Name));
         }
 
-        public void LoadPair(Arm64Operand[] ops)
-        {
+        public void LoadPair(Arm64Operand[] ops) {
             if (ops.Length < 3 || ops[^1].Type != Arm64OperandType.Memory) return;
             var sz = LaneSize(ops[0]);
-            if (MemTarget(ops[^1], out var space, out var off) && space == "sp")
-            {
+            if (MemTarget(ops[^1], out var space, out var off) && space == "sp") {
                 if (ops[0].Register is { } a) SetScalar(a.Name, Slot(off));
                 if (ops[1].Register is { } b) SetScalar(b.Name, Slot(off + sz));
                 return;
             }
-            if (ops[^1].Memory?.Base is { } mb)
-            {
+            if (ops[^1].Memory?.Base is { } mb) {
                 var baseName = _named.TryGetValue(Norm(mb.Name), out var nb) ? nb : mb.Name;
                 var disp = ops[^1].Memory.Displacement;
                 if (ops[0].Register is { } a) SetScalar(a.Name, new Field(baseName, disp));
@@ -371,10 +333,9 @@ public static class Arm64SymbolicExecutor
 
         private ExprNode Slot(long off) => _stack.TryGetValue(off, out var e) ? e : new Field("stack", off);
 
-       
-       
-        private bool MemTarget(Arm64Operand mem, out string space, out long off)
-        {
+
+
+        private bool MemTarget(Arm64Operand mem, out string space, out long off) {
             space = ""; off = 0;
             if (mem.Memory?.Base is not { } b) return false;
             if (!_ptr.TryGetValue(Norm(b.Name), out var p)) return false;
@@ -382,14 +343,12 @@ public static class Arm64SymbolicExecutor
             return true;
         }
 
-       
-        private void WriteSlot(string space, long off, ExprNode e)
-        {
+
+        private void WriteSlot(string space, long off, ExprNode e) {
             if (space == "ret") _retVec[off] = e; else _stack[off] = e;
         }
 
-        public void DirectCall(Arm64Operand[] ops, IReadOnlyList<MachoSymbols.Symbol> syms, Func<string, ExprNode[], ExprNode?> resolveCall)
-        {
+        public void DirectCall(Arm64Operand[] ops, IReadOnlyList<MachoSymbols.Symbol> syms, Func<string, ExprNode[], ExprNode?> resolveCall) {
             var target = ops.Length == 1 && ops[0].Type == Arm64OperandType.Immediate ? (ulong)ops[0].Immediate : 0;
             var name = Nearest(syms, target);
             var args = new[] { Scalar("s0"), Scalar("s1"), Scalar("s2") };
@@ -400,42 +359,36 @@ public static class Arm64SymbolicExecutor
             SetScalar("s0", modeled); SetScalar("x0", modeled);
         }
 
-       
-       
-        public void IndirectCall()
-        {
+
+
+        public void IndirectCall() {
             Opaque++;
             if (_ptr.TryGetValue("x2", out var p) && p.Space == "sp") SinkStackPtr = p.Off;
         }
 
-        private static string Nearest(IReadOnlyList<MachoSymbols.Symbol> syms, ulong target)
-        {
+        private static string Nearest(IReadOnlyList<MachoSymbols.Symbol> syms, ulong target) {
             string? best = null; ulong bestAddr = 0;
-            foreach (var s in syms)
-            {
+            foreach (var s in syms) {
                 if (s.Value == 0 || string.IsNullOrEmpty(s.Name)) continue;
                 if (s.Value <= target && s.Value >= bestAddr) { bestAddr = s.Value; best = s.Name; }
             }
             return best ?? $"0x{target:x}";
         }
 
-       
+
         private static double ReinterpretFloat(long bits) => BitConverter.Int32BitsToSingle((int)(bits & 0xFFFFFFFF));
 
         private static bool IsVec(Arm64Operand op) => op.VectorArrangementSpecifier != Arm64VectorArrangementSpecifier.Invalid;
-        private static int LaneSize(Arm64Operand op)
-        {
+        private static int LaneSize(Arm64Operand op) {
             var r = op.Register;
             return r is null ? 8 : r.Name.StartsWith('d') ? 8 : r.Name.StartsWith('s') || r.Name.StartsWith('w') ? 4 : 8;
         }
 
-       
-       
-        private static string Norm(string name)
-        {
+
+
+        private static string Norm(string name) {
             if (name is "sp" or "wsp") return "sp";
-            if (name is "wzr" or "xzr") return "zr";
-            return NormKey(name);
+            return name is "wzr" or "xzr" ? "zr" : NormKey(name);
         }
     }
 }

@@ -10,8 +10,7 @@ namespace EggIncognito.Services;
 
 public sealed class DeviceMeshProvider(
     IServiceProvider services, IProcessRunner runner,
-    IConfiguration config, GameAssetProvider assets)
-{
+    IConfiguration config, GameAssetProvider assets) {
     private const string PlatformAndroid = "android";
     private const string PlatformIos = "ios";
 
@@ -23,21 +22,20 @@ public sealed class DeviceMeshProvider(
 
 
 
-    public async Task<Result> GetGlbAsync(string stem, string? deviceId, CancellationToken ct)
-    {
+    public async Task<Result> GetGlbAsync(string stem, string? deviceId, CancellationToken ct) {
         if (string.IsNullOrEmpty(stem) || stem.IndexOfAny(['/', '\\', '.']) >= 0)
             return Err(400, "invalid mesh name");
 
         var platform = (await ResolveDeviceAsync(deviceId, ct))?.Platform;
         var result = await assets.GetAsync(new GameAssetKey("mesh", platform, stem), ct);
-        if (result.Ok) return new Result(true, result.Asset!.Bytes, null, 200);
-        return Err(503, result.Diagnostics ?? "mesh not cached and no asset-source device available");
+        return result.Ok
+            ? new Result(true, result.Asset!.Bytes, null, 200)
+            : Err(503, result.Diagnostics ?? "mesh not cached and no asset-source device available");
     }
 
-   
-   
-    public async Task<(bool Ok, RpoMeshDecoder.DecodeResult? Stats, string? Diagnostics)> GetDecodeStatsAsync(string stem, string? deviceId, CancellationToken ct)
-    {
+
+
+    public async Task<(bool Ok, RpoMeshDecoder.DecodeResult? Stats, string? Diagnostics)> GetDecodeStatsAsync(string stem, string? deviceId, CancellationToken ct) {
         if (string.IsNullOrEmpty(stem) || stem.IndexOfAny(['/', '\\', '.']) >= 0) return (false, null, "invalid mesh name");
         var device = await ResolveDeviceAsync(deviceId, ct);
         if (device is null) return (false, null, "no asset-source device available");
@@ -46,34 +44,30 @@ public sealed class DeviceMeshProvider(
         return (true, RpoMeshDecoder.Decode(rpo, stem), null);
     }
 
-    private async Task<(byte[]? Rpo, Result? Err)> PullRpoAsync(Device device, string stem, CancellationToken ct)
-    {
+    private async Task<(byte[]? Rpo, Result? Err)> PullRpoAsync(Device device, string stem, CancellationToken ct) {
         byte[]? rpo;
-        if (device.Platform == PlatformIos)
-        {
+        if (device.Platform == PlatformIos) {
             if (IosSsh(device) is not { } ssh)
                 return (null, Err(503, "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured"));
             rpo = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullOneRpoAsync(device.Package, stem, ct);
-        }
-        else if (device.Platform == PlatformAndroid)
-        {
+        } else if (device.Platform == PlatformAndroid) {
             var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
             if (apk is null) return (null, Err(502, "could not pull base.apk from the device"));
             rpo = RpoAssetLister.ReadStem(apk, stem);
+        } else {
+            return (null, Err(501, $"no mesh pull for platform {device.Platform}"));
         }
-        else return (null, Err(501, $"no mesh pull for platform {device.Platform}"));
+
         if (rpo is null) return (null, Err(404, "mesh not found on device"));
         return (rpo, null);
     }
 
-   
-   
-    public async Task<(bool Ok, IReadOnlyList<string> Stems, string? Diagnostics)> ListStemsAsync(string? deviceId, CancellationToken ct)
-    {
+
+
+    public async Task<(bool Ok, IReadOnlyList<string> Stems, string? Diagnostics)> ListStemsAsync(string? deviceId, CancellationToken ct) {
         var device = await ResolveDeviceAsync(deviceId, ct);
         if (device is null) return (false, [], "no asset-source device available");
-        if (device.Platform == PlatformIos)
-        {
+        if (device.Platform == PlatformIos) {
             if (IosSsh(device) is not { } ssh)
                 return (false, [], "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured");
             var names = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).ListRposAsync(device.Package, ct);
@@ -86,18 +80,16 @@ public sealed class DeviceMeshProvider(
         return (true, RpoAssetLister.ListStems(apk), null);
     }
 
-   
-   
-   
+
+
+
     public async Task<(bool Ok, IReadOnlyList<string> Stems, IReadOnlyDictionary<string, RpoMeshDecoder.DecodeResult> Stats, string? Diagnostics)>
-        ListStemsWithStatsAsync(string? deviceId, Func<IReadOnlyList<string>, IEnumerable<string>> selectStatsFor, CancellationToken ct)
-    {
+        ListStemsWithStatsAsync(string? deviceId, Func<IReadOnlyList<string>, IEnumerable<string>> selectStatsFor, CancellationToken ct) {
         var empty = (IReadOnlyDictionary<string, RpoMeshDecoder.DecodeResult>)new Dictionary<string, RpoMeshDecoder.DecodeResult>();
         var device = await ResolveDeviceAsync(deviceId, ct);
         if (device is null) return (false, [], empty, "no asset-source device available");
 
-        var (rpos, diag) = device.Platform switch
-        {
+        var (rpos, diag) = device.Platform switch {
             PlatformAndroid => await PullAndroidRposAsync(device, ct),
             PlatformIos => await PullIosRposAsync(device, ct),
             _ => (null, $"no mesh listing for platform {device.Platform}"),
@@ -111,8 +103,7 @@ public sealed class DeviceMeshProvider(
         return (true, stems, stats, null);
     }
 
-    private async Task<(IReadOnlyDictionary<string, byte[]>?, string?)> PullAndroidRposAsync(Device device, CancellationToken ct)
-    {
+    private async Task<(IReadOnlyDictionary<string, byte[]>?, string?)> PullAndroidRposAsync(Device device, CancellationToken ct) {
         var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
         if (apk is null) return (null, "could not pull base.apk from the device");
         var map = new Dictionary<string, byte[]>(StringComparer.Ordinal);
@@ -121,26 +112,26 @@ public sealed class DeviceMeshProvider(
         return (map, null);
     }
 
-   
-    private async Task<(IReadOnlyDictionary<string, byte[]>?, string?)> PullIosRposAsync(Device device, CancellationToken ct)
-    {
+
+    private async Task<(IReadOnlyDictionary<string, byte[]>?, string?)> PullIosRposAsync(Device device, CancellationToken ct) {
         if (IosSsh(device) is not { } ssh)
             return (null, "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured");
         var tar = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullRposTarAsync(device.Package, ct);
         if (tar is null) return (null, "could not pull the rpos tarball off the device");
         var map = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        foreach (var (name, bytes) in TarReader.Read(tar))
-        {
+        foreach (var (name, bytes) in TarReader.Read(tar)) {
             if (bytes.Length == 0) continue;
             if (!name.EndsWith(".rpo", StringComparison.OrdinalIgnoreCase)
-                && !name.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase)) continue;
+                && !name.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            }
+
             map[StemOf(name)] = bytes;
         }
         return (map, null);
     }
 
-    private static string StemOf(string path)
-    {
+    private static string StemOf(string path) {
         var slash = path.LastIndexOfAny(['/', '\\']);
         var name = slash >= 0 ? path[(slash + 1)..] : path;
         var dot = name.LastIndexOf('.');
@@ -148,9 +139,8 @@ public sealed class DeviceMeshProvider(
     }
 
 
-   
-    private async Task<Device?> ResolveDeviceAsync(string? deviceId, CancellationToken ct)
-    {
+
+    private async Task<Device?> ResolveDeviceAsync(string? deviceId, CancellationToken ct) {
         var store = Store;
         if (store is null) return null;
         if (!string.IsNullOrEmpty(deviceId)) return await store.GetAsync(deviceId, ct);
@@ -162,8 +152,7 @@ public sealed class DeviceMeshProvider(
         return reachable ?? devices[0];
     }
 
-    private (string Host, string Port, string Key)? IosSsh(Device device)
-    {
+    private (string Host, string Port, string Key)? IosSsh(Device device) {
         var cfg = config.GetSection("DeviceUpdate").GetSection("Ios");
         var key = cfg["SshKeyPath"];
         if (string.IsNullOrEmpty(key)) return null;

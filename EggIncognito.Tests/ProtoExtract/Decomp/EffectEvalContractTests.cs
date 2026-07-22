@@ -2,8 +2,7 @@ using EggIncognito.Services.ProtoExtract.Decomp;
 
 namespace EggIncognito.Tests.ProtoExtract.Decomp;
 
-public class EffectEvalContractTests
-{
+public class EffectEvalContractTests {
     [Theory]
     [InlineData("Const")]
     [InlineData("Input")]
@@ -20,10 +19,8 @@ public class EffectEvalContractTests
     [InlineData("Select")]
     [InlineData("MatrixBuild")]
     [InlineData("Opaque")]
-    public void Json_UsesExpectedOpNames(string op)
-    {
-        ExprNode n = op switch
-        {
+    public void Json_UsesExpectedOpNames(string op) {
+        ExprNode n = op switch {
             "Const" => new Const(1),
             "Input" => new Input("t"),
             "Field" => new Field("x8", 0x50),

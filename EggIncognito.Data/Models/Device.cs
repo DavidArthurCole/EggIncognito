@@ -1,9 +1,9 @@
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
+
 [Table("devices")]
-public sealed class Device
-{
+public sealed class Device {
     [Column("id")] public string Id { get; set; } = "";
     [Column("platform")] public string Platform { get; set; } = "android";
     [Column("label")] public string Label { get; set; } = "";

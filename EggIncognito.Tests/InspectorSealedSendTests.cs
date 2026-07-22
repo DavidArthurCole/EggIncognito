@@ -1,25 +1,22 @@
 using EggIncognito.Controllers;
 using EggIncognito.Data.Models;
-using SyncKit.Contract;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using SyncKit.Contract;
 
 namespace EggIncognito.Tests;
 
 
-public class InspectorSealedSendTests
-{
-    private sealed class FakeAppMode(AppMode mode) : IAppMode
-    {
+public class InspectorSealedSendTests {
+    private sealed class FakeAppMode(AppMode mode) : IAppMode {
         public AppMode Mode => mode;
         public bool CanCapture => false;
         public bool CanWrite => false;
         public bool HostedCaptureEnabled => false;
     }
 
-    private sealed class FakeUser(bool authed, bool supporter) : ICurrentUser
-    {
+    private sealed class FakeUser(bool authed, bool supporter) : ICurrentUser {
         public bool IsAuthenticated => authed;
         public Guid? UserId => null;
         public string? DiscordId => authed ? "tester" : null;
@@ -31,12 +28,10 @@ public class InspectorSealedSendTests
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(UserRole.Viewer, need);
     }
 
-    private sealed class FakeSealedProxy(bool configured, bool canUse) : ISealedProxy
-    {
+    private sealed class FakeSealedProxy(bool configured, bool canUse) : ISealedProxy {
         public int CanUseCalls { get; private set; }
         public bool IsConfigured => configured;
-        public Task<bool> CanUseAsync(ICurrentUser user, CancellationToken ct = default)
-        {
+        public Task<bool> CanUseAsync(ICurrentUser user, CancellationToken ct = default) {
             CanUseCalls++;
             return Task.FromResult(canUse);
         }
@@ -44,12 +39,12 @@ public class InspectorSealedSendTests
     }
 
     private static InspectorApiController NewController(
-        IAppMode appMode, ICurrentUser user, ISealedProxy sealedProxy)
-    {
+        IAppMode appMode, ICurrentUser user, ISealedProxy sealedProxy) {
         var c = new InspectorApiController(
             catalog: null!, reflection: null!, pipeline: null!, httpFactory: null!,
-            appMode, user, sealedProxy, NullLogger<InspectorApiController>.Instance);
-        c.ControllerContext = new() { HttpContext = new DefaultHttpContext() };
+            appMode, user, sealedProxy, NullLogger<InspectorApiController>.Instance) {
+            ControllerContext = new() { HttpContext = new DefaultHttpContext() }
+        };
         return c;
     }
 
@@ -57,8 +52,7 @@ public class InspectorSealedSendTests
         new("https://www.auxbrain.com/ei/first_contact", "data=x", "EggIncFirstContactResponse", Sealed: true);
 
     [Fact]
-    public async Task Send_SealedRequest_NotConfigured_403()
-    {
+    public async Task Send_SealedRequest_NotConfigured_403() {
         var sealedProxy = new FakeSealedProxy(configured: false, canUse: false);
         var controller = NewController(
             new FakeAppMode(AppMode.Local), new FakeUser(authed: true, supporter: true), sealedProxy);
@@ -69,8 +63,7 @@ public class InspectorSealedSendTests
     }
 
     [Fact]
-    public async Task Send_SealedRequest_NonSupporter_403()
-    {
+    public async Task Send_SealedRequest_NonSupporter_403() {
         var sealedProxy = new FakeSealedProxy(configured: true, canUse: false);
         var controller = NewController(
             new FakeAppMode(AppMode.Local), new FakeUser(authed: true, supporter: false), sealedProxy);
@@ -80,8 +73,7 @@ public class InspectorSealedSendTests
     }
 
     [Fact]
-    public async Task Send_HostedAnonymous_403_BeforeSealedCheck()
-    {
+    public async Task Send_HostedAnonymous_403_BeforeSealedCheck() {
         var sealedProxy = new FakeSealedProxy(configured: true, canUse: true);
         var controller = NewController(
             new FakeAppMode(AppMode.Hosted), new FakeUser(authed: false, supporter: false), sealedProxy);

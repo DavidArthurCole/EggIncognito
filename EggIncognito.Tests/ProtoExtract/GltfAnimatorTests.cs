@@ -5,18 +5,15 @@ using SharpGLTF.Schema2;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class GltfAnimatorTests
-{
-    private static byte[] SampleGlb()
-    {
+public class GltfAnimatorTests {
+    private static byte[] SampleGlb() {
         var decode = RpoMeshDecoder.Decode(SampleRpo.Build(), "TestShip");
         Assert.True(decode.Ok, decode.Diagnostics);
         return decode.Glb!;
     }
 
     [Fact]
-    public void Animate_SpinY_AddsRotationChannel()
-    {
+    public void Animate_SpinY_AddsRotationChannel() {
         var r = GltfAnimator.Animate(SampleGlb(), GltfAnimator.Options.Spin(6f));
         Assert.True(r.Ok, r.Diagnostics);
         Assert.Equal("SpinY", r.AnimationName);
@@ -24,14 +21,13 @@ public class GltfAnimatorTests
         var model = ModelRoot.ParseGLB(r.Glb!);
         var anim = Assert.Single(model.LogicalAnimations);
         Assert.Equal("SpinY", anim.Name);
-       
-        Assert.True(anim.Duration > 5.9f && anim.Duration < 6.1f, $"duration {anim.Duration}");
+
+        Assert.True(anim.Duration is > 5.9f and < 6.1f, $"duration {anim.Duration}");
         Assert.Contains(anim.Channels, c => c.GetRotationSampler() is not null);
     }
 
     [Fact]
-    public void Animate_HoverSpin_AddsRotationAndTranslation()
-    {
+    public void Animate_HoverSpin_AddsRotationAndTranslation() {
         var r = GltfAnimator.Animate(SampleGlb(), new GltfAnimator.Options(GltfAnimator.AnimationKind.HoverSpin, 4f, 0.2f));
         Assert.True(r.Ok, r.Diagnostics);
 
@@ -42,9 +38,8 @@ public class GltfAnimatorTests
     }
 
     [Fact]
-    public void Animate_RoundTripsGeometry()
-    {
-       
+    public void Animate_RoundTripsGeometry() {
+
         var r = GltfAnimator.Animate(SampleGlb(), GltfAnimator.Options.Spin());
         Assert.True(r.Ok, r.Diagnostics);
         var model = ModelRoot.ParseGLB(r.Glb!);
@@ -54,21 +49,20 @@ public class GltfAnimatorTests
     }
 
     [Fact]
-    public void Animate_OffCenterMesh_PivotsAtCentroid()
-    {
-       
-       
+    public void Animate_OffCenterMesh_PivotsAtCentroid() {
+
+
         var r = GltfAnimator.Animate(SampleGlb(), GltfAnimator.Options.Spin());
         Assert.True(r.Ok, r.Diagnostics);
 
         var model = ModelRoot.ParseGLB(r.Glb!);
         var anim = model.LogicalAnimations[0];
-       
+
         var rotNode = anim.Channels.First(c => c.GetRotationSampler() is not null).TargetNode;
         var t = rotNode.LocalTransform.Translation;
         Assert.True(System.MathF.Abs(t.X - 0.5f) < 1e-4f, $"pivot x {t.X}");
         Assert.True(System.MathF.Abs(t.Y - 1.0f) < 1e-4f, $"pivot y {t.Y}");
-       
+
         Assert.Null(rotNode.Mesh);
         var child = rotNode.VisualChildren.Single();
         Assert.NotNull(child.Mesh);
@@ -76,16 +70,14 @@ public class GltfAnimatorTests
     }
 
     [Fact]
-    public void Animate_BadInput_FailsCleanly()
-    {
+    public void Animate_BadInput_FailsCleanly() {
         var r = GltfAnimator.Animate([1, 2, 3], GltfAnimator.Options.Spin());
         Assert.False(r.Ok);
         Assert.Null(r.Glb);
     }
 
     [Fact]
-    public void ParseKind_IsCaseInsensitive_DefaultsSpinY()
-    {
+    public void ParseKind_IsCaseInsensitive_DefaultsSpinY() {
         Assert.Equal(GltfAnimator.AnimationKind.HoverSpin, GltfAnimator.ParseKind("hoverspin"));
         Assert.Equal(GltfAnimator.AnimationKind.SpinZ, GltfAnimator.ParseKind("SpinZ"));
         Assert.Equal(GltfAnimator.AnimationKind.SpinY, GltfAnimator.ParseKind("nonsense"));
@@ -93,8 +85,7 @@ public class GltfAnimatorTests
     }
 
     [Fact]
-    public void Animate_RealDeviceShip_Spins()
-    {
+    public void Animate_RealDeviceShip_Spins() {
         var tgz = DeviceTarball();
         if (tgz is null) return;
 
@@ -107,27 +98,24 @@ public class GltfAnimatorTests
         Assert.True(r.Ok, r.Diagnostics);
         var model = ModelRoot.ParseGLB(r.Glb!);
         Assert.Single(model.LogicalAnimations);
-       
+
         Assert.True(model.LogicalMeshes[0].Primitives[0].GetVertexAccessor("POSITION").Count > 100);
     }
 
-    private static byte[]? DeviceTarball()
-    {
+    private static byte[]? DeviceTarball() {
         var candidates = new[]
         {
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "captures", "egi-repos.tgz"),
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "captures", "egi-repos.tgz"),
         };
-        foreach (var c in candidates)
-        {
+        foreach (var c in candidates) {
             var full = Path.GetFullPath(c);
             if (File.Exists(full)) return File.ReadAllBytes(full);
         }
         return null;
     }
 
-    private static IEnumerable<(string Name, byte[] Bytes)> ReadGzippedTar(byte[] tgz)
-    {
+    private static IEnumerable<(string Name, byte[] Bytes)> ReadGzippedTar(byte[] tgz) {
         using var input = new MemoryStream(tgz);
         using var gz = new GZipStream(input, CompressionMode.Decompress);
         using var plain = new MemoryStream();

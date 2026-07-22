@@ -2,9 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
+
 [Table("capture_user_cas")]
-public class CaptureUserCa
-{
+public class CaptureUserCa {
     [Key]
     [Column("user_id")]
     public Guid UserId { get; set; }

@@ -4,10 +4,8 @@ using System.Text;
 
 namespace EggIncognito.RelayAgent;
 
-public static class Program
-{
-    public static void Main(string[] args)
-    {
+public static class Program {
+    public static void Main(string[] args) {
         var secret = Environment.GetEnvironmentVariable("RELAY_AGENT_SECRET") ?? "";
         var listen = Environment.GetEnvironmentVariable("RELAY_AGENT_LISTEN") ?? "http://[fd00:8::1]:7779";
         var iface = Environment.GetEnvironmentVariable("RELAY_IFACE") ?? "eth0";
@@ -17,24 +15,21 @@ public static class Program
         builder.WebHost.UseUrls(listen);
         var app = builder.Build();
 
-        bool Authed(HttpRequest r)
-        {
+        bool Authed(HttpRequest r) {
             if (string.IsNullOrEmpty(secret)) return false;
             var h = r.Headers.Authorization.ToString();
             const string p = "Bearer ";
-            if (!h.StartsWith(p)) return false;
+            if (!h.StartsWith(p, StringComparison.Ordinal)) return false;
             var a = Encoding.UTF8.GetBytes(h[p.Length..]);
             var b = Encoding.UTF8.GetBytes(secret);
             return a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
         }
 
         app.MapGet("/health", () => Results.Ok(new { ok = true }));
-        app.MapPost("/provision", async (HttpRequest req) =>
-        {
+        app.MapPost("/provision", async (HttpRequest req) => {
             if (!Authed(req)) return Results.Unauthorized();
             var tail = new StringBuilder();
-            foreach (var c in RelayCommands.Provision(prefix, iface))
-            {
+            foreach (var c in RelayCommands.Provision(prefix, iface)) {
                 var psi = new ProcessStartInfo(c.File) { RedirectStandardError = true, RedirectStandardOutput = true };
                 foreach (var a in c.Args) psi.ArgumentList.Add(a);
                 using var proc = Process.Start(psi)!;

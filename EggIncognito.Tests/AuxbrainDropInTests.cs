@@ -6,21 +6,16 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EggIncognito.Tests;
 
-public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
-{
-    private readonly HttpClient _client;
+public class AuxbrainDropInTests(EggIncApiFactory factory) : IClassFixture<EggIncApiFactory> {
+    private readonly HttpClient _client = factory.CreateClient();
 
-    public AuxbrainDropInTests(EggIncApiFactory factory) => _client = factory.CreateClient();
-
-    private static FormUrlEncodedContent EmptyForm()
-    {
+    private static FormUrlEncodedContent EmptyForm() {
         var data = Convert.ToBase64String(new Ei.AuthenticatedMessage().ToByteArray());
         return new FormUrlEncodedContent([new KeyValuePair<string, string>("data", data)]);
     }
 
     [Fact]
-    public async Task KnownMockedPath_StillServesCannedProto()
-    {
+    public async Task KnownMockedPath_StillServesCannedProto() {
         var resp = await _client.PostAsync("/ei/first_contact_secure", EmptyForm());
         resp.EnsureSuccessStatusCode();
         var body = await resp.Content.ReadAsStringAsync();
@@ -29,8 +24,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task UnmappedPath_InKnownNamespace_Returns200Marker_Never404()
-    {
+    public async Task UnmappedPath_InKnownNamespace_Returns200Marker_Never404() {
         var resp = await _client.PostAsync("/ei/zz_totally_unknown", EmptyForm());
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.Equal("not-mocked", resp.Headers.GetValues("x-eggincognito").Single());
@@ -39,8 +33,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task UnmockedButTypedCanonicalPath_ReturnsEmptyProto()
-    {
+    public async Task UnmockedButTypedCanonicalPath_ReturnsEmptyProto() {
         var resp = await _client.PostAsync("/ei/coop_status_bot", EmptyForm());
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.False(resp.Headers.Contains("x-eggincognito"));
@@ -51,8 +44,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task AliasPath_ServesSameBodyAsCanonicalPath()
-    {
+    public async Task AliasPath_ServesSameBodyAsCanonicalPath() {
         var canonical = await _client.PostAsync("/ei/update_coop_status", EmptyForm());
         var alias = await _client.PostAsync("/ei/update_coop_status_secure", EmptyForm());
         Assert.Equal(HttpStatusCode.OK, alias.StatusCode);
@@ -69,8 +61,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task OpenApiJson_Parses_AndAgreesWithCatalogPaths()
-    {
+    public async Task OpenApiJson_Parses_AndAgreesWithCatalogPaths() {
         var openApiResp = await _client.GetAsync("/api/openapi.json");
         openApiResp.EnsureSuccessStatusCode();
         using var openApi = JsonDocument.Parse(await openApiResp.Content.ReadAsStringAsync());
@@ -83,8 +74,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
         var entries = catalog.RootElement.EnumerateArray().ToList();
         Assert.True(entries.Count >= 64, $"expected >= 64 catalog entries, got {entries.Count}");
 
-        foreach (var entry in entries)
-        {
+        foreach (var entry in entries) {
             var path = entry.GetProperty("path").GetString()!;
             Assert.True(paths.GetProperty("/" + path).TryGetProperty("post", out _),
                 $"catalog path {path} missing from openapi.json");
@@ -92,8 +82,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task NamespaceIndex_Ei_ListsOnlyEiRoutes_WithStatusLabels()
-    {
+    public async Task NamespaceIndex_Ei_ListsOnlyEiRoutes_WithStatusLabels() {
         var resp = await _client.GetAsync("/ei");
         resp.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
@@ -102,8 +91,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
         var routes = doc.RootElement.GetProperty("routes").EnumerateArray().ToList();
         Assert.NotEmpty(routes);
         string[] labels = ["ok", "empty", "missing", "not-mocked"];
-        foreach (var r in routes)
-        {
+        foreach (var r in routes) {
             Assert.StartsWith("ei/", r.GetProperty("path").GetString());
             Assert.Contains(r.GetProperty("status").GetString(), labels);
         }
@@ -112,8 +100,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
     [Theory]
     [InlineData("/api")]
     [InlineData("/api/reference")]
-    public async Task LandingAndReference_Return200Html(string url)
-    {
+    public async Task LandingAndReference_Return200Html(string url) {
         var resp = await _client.GetAsync(url);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.Equal("text/html", resp.Content.Headers.ContentType?.MediaType);
@@ -122,8 +109,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task Landing_DocumentsFormShape_SigningAndInspector()
-    {
+    public async Task Landing_DocumentsFormShape_SigningAndInspector() {
         var body = await _client.GetStringAsync("/api");
         Assert.Contains("data=", body);
         Assert.Contains("AuthenticatedMessage", body);
@@ -132,8 +118,7 @@ public class AuxbrainDropInTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public void ApiSurfaceController_HasReadRateLimitPolicy()
-    {
+    public void ApiSurfaceController_HasReadRateLimitPolicy() {
         var attr = typeof(EggIncognito.Controllers.ApiSurfaceController)
             .GetCustomAttribute<EnableRateLimitingAttribute>();
         Assert.NotNull(attr);

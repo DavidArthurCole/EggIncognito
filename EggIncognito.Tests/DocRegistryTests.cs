@@ -3,8 +3,7 @@ using EggIncognito.Services;
 namespace EggIncognito.Tests;
 
 
-public class DocRegistryTests
-{
+public class DocRegistryTests {
     private const string YamlText = """
 routes:
   - path: ei/first_contact_secure
@@ -17,8 +16,7 @@ routes:
     response: PeriodicalsResponse
 """;
 
-    private static DocRegistry Build()
-    {
+    private static DocRegistry Build() {
         var path = Path.Combine(Path.GetTempPath(), $"ei-docreg-{Guid.NewGuid():N}.yaml");
         File.WriteAllText(path, YamlText);
         var routes = new RouteCatalog(path);
@@ -26,8 +24,7 @@ routes:
     }
 
     [Fact]
-    public void Roots_HasTheFourKinds()
-    {
+    public void Roots_HasTheFourKinds() {
         var roots = Build().Roots();
         var titles = roots.Select(r => r.Title).ToList();
         Assert.Contains("Messages", titles);
@@ -38,8 +35,7 @@ routes:
     }
 
     [Fact]
-    public void Messages_IncludeKnownTypeWithFieldChildren()
-    {
+    public void Messages_IncludeKnownTypeWithFieldChildren() {
         var reg = Build();
         var messages = reg.Roots().Single(r => r.Title == "Messages").Children;
 
@@ -51,8 +47,7 @@ routes:
     }
 
     [Fact]
-    public void Endpoints_IncludeKnownRouteWithLinkedTypes()
-    {
+    public void Endpoints_IncludeKnownRouteWithLinkedTypes() {
         var reg = Build();
         var endpoints = reg.Roots().Single(r => r.Title == "Endpoints").Children;
 
@@ -66,8 +61,7 @@ routes:
     }
 
     [Fact]
-    public void Config_IncludesCuratedKeys()
-    {
+    public void Config_IncludesCuratedKeys() {
         var reg = Build();
 
         var appMode = reg.Find("config", "AppMode");
@@ -80,8 +74,7 @@ routes:
     }
 
     [Fact]
-    public void Controls_ArePresent()
-    {
+    public void Controls_ArePresent() {
         var reg = Build();
         var controls = reg.Roots().Single(r => r.Title == "Controls").Children;
         Assert.NotEmpty(controls);
@@ -89,8 +82,7 @@ routes:
     }
 
     [Fact]
-    public void Find_ResolvesMessageAndMisses()
-    {
+    public void Find_ResolvesMessageAndMisses() {
         var reg = Build();
         Assert.NotNull(reg.Find("message", "Contract"));
         Assert.Null(reg.Find("nope", "nope"));

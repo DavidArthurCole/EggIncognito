@@ -2,30 +2,29 @@ using System.Threading.Channels;
 
 namespace EggIncognito.Capture;
 
-public sealed class CaptureHub
-{
+public sealed class CaptureHub {
     private const int BufferCap = 500;
     private const int SubscriberQueueCap = 256;
     private const string KindFlow = "flow";
     private const string KindStats = "stats";
     private const string KindNotice = "notice";
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly LinkedList<DashboardFlow> _buffer = new();
     private readonly List<Channel<CaptureEnvelope>> _subscribers = [];
     private long _nextId;
 
-   
+
     private int _activeConnections;
     private readonly Dictionary<string, Device> _devices = new(StringComparer.Ordinal);
-   
-   
+
+
     private readonly Dictionary<string, RememberedDevice> _known = new(StringComparer.Ordinal);
-   
+
     public Action? DevicesChanged;
-   
-   
-   
+
+
+
     private string? _lastOs;
     private string? _lastGameVersion;
     private int _capturedAuxbrain;
@@ -39,31 +38,27 @@ public sealed class CaptureHub
     private bool _sawAuxbrainConnect;
     private CertState _certState = CertState.Waiting;
 
-   
-   
+
+
     public bool Paused { get; set; }
 
-   
-    public DashboardFlow? Publish(DashboardFlow flow, string timestamp, bool isAuxbrain = true)
-    {
+
+    public DashboardFlow? Publish(DashboardFlow flow, string timestamp, bool isAuxbrain = true) {
         DashboardFlow? stored = null;
         Channel<CaptureEnvelope>[] targets;
         CaptureEvent? trustNotice = null;
 
-        lock (_gate)
-        {
-            if (isAuxbrain)
-            {
+        lock (_gate) {
+            if (isAuxbrain) {
                 _capturedAuxbrain++;
                 _decryptOk++;
                 if (!string.IsNullOrEmpty(flow.Path)) _endpoints.Add(flow.Path);
                 var (os, gameVersion) = ParseRInfo(flow.RequestJson);
                 if (os is not null) _lastOs = os;
                 if (gameVersion is not null) _lastGameVersion = gameVersion;
-               
-               
-                if (_devices.Count == 1 && (os is not null || gameVersion is not null))
-                {
+
+
+                if (_devices.Count == 1 && (os is not null || gameVersion is not null)) {
                     var only = _devices.Values.First();
                     only.Os = os ?? only.Os;
                     only.GameVersion = gameVersion ?? only.GameVersion;
@@ -73,30 +68,25 @@ public sealed class CaptureHub
                 if (!string.IsNullOrEmpty(flow.Path))
                     _bytesByEndpoint[flow.Path] = _bytesByEndpoint.GetValueOrDefault(flow.Path) + bytes;
 
-               
-                if (_certState != CertState.Trusted)
-                {
+
+                if (_certState != CertState.Trusted) {
                     _certState = CertState.Trusted;
                     trustNotice = new CaptureEvent("certTrusted", "Cert trusted - capturing!", timestamp);
                 }
-            }
-            else
-            {
+            } else {
                 _passthrough++;
             }
 
-            if (!Paused && isAuxbrain)
-            {
+            if (!Paused && isAuxbrain) {
                 stored = flow with { Id = ++_nextId, Timestamp = timestamp };
                 _buffer.AddLast(stored);
                 while (_buffer.Count > BufferCap) _buffer.RemoveFirst();
             }
 
-            targets = _subscribers.ToArray();
+            targets = [.. _subscribers];
         }
 
-        foreach (var ch in targets)
-        {
+        foreach (var ch in targets) {
             if (stored is not null) ch.Writer.TryWrite(new CaptureEnvelope(KindFlow, stored, null, null));
             if (trustNotice is not null) ch.Writer.TryWrite(new CaptureEnvelope(KindNotice, null, null, trustNotice));
         }
@@ -105,22 +95,17 @@ public sealed class CaptureHub
         return stored;
     }
 
-   
-    public void RecordConnection(int activeCount, string? ip, string timestamp)
-    {
+
+    public void RecordConnection(int activeCount, string? ip, string timestamp) {
         CaptureEvent? notice = null;
         bool needRdns = false;
-        lock (_gate)
-        {
+        lock (_gate) {
             _activeConnections = activeCount;
-            if (!string.IsNullOrEmpty(ip))
-            {
-                if (!_devices.TryGetValue(ip, out var dev))
-                {
-                   
+            if (!string.IsNullOrEmpty(ip)) {
+                if (!_devices.TryGetValue(ip, out var dev)) {
+
                     _known.TryGetValue(ip, out var prior);
-                    dev = new Device(ip, prior?.FirstSeen ?? timestamp)
-                    {
+                    dev = new Device(ip, prior?.FirstSeen ?? timestamp) {
                         Hostname = prior?.Hostname,
                         Os = prior?.Os,
                         GameVersion = prior?.GameVersion,
@@ -142,13 +127,11 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    public void RecordDisconnection(int activeCount, string timestamp)
-    {
-        lock (_gate)
-        {
+    public void RecordDisconnection(int activeCount, string timestamp) {
+        lock (_gate) {
             _activeConnections = activeCount;
-           
-           
+
+
             if (activeCount == 0)
                 foreach (var d in _devices.Values) d.Online = false;
         }
@@ -158,16 +141,13 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-   
-    private async Task ResolveHostnameAsync(string ip)
-    {
+
+    private async Task ResolveHostnameAsync(string ip) {
         string? host = null;
-        try
-        {
+        try {
             var entry = await System.Net.Dns.GetHostEntryAsync(ip);
             if (!string.IsNullOrEmpty(entry.HostName) && entry.HostName != ip) host = entry.HostName;
-        }
-        catch { /* no PTR record or lookup failed */ }
+        } catch { /* no PTR record or lookup failed */ }
 
         if (host is null) return;
         lock (_gate) { if (_devices.TryGetValue(ip, out var dev)) dev.Hostname = host; }
@@ -175,18 +155,15 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-   
-    public void RecordAuxbrainConnect()
-    {
+
+    public void RecordAuxbrainConnect() {
         lock (_gate) _sawAuxbrainConnect = true;
         BroadcastStats();
     }
 
-   
-    public void RecordDecryptError(string message, string timestamp)
-    {
-        lock (_gate)
-        {
+
+    public void RecordDecryptError(string message, string timestamp) {
+        lock (_gate) {
             _decryptErrors++;
             _lastError = message;
             if (_certState != CertState.Trusted && (_sawAuxbrainConnect || _activeConnections > 0))
@@ -197,18 +174,28 @@ public sealed class CaptureHub
         BroadcastStats();
     }
 
-    public IReadOnlyList<DashboardFlow> Snapshot()
-    {
+    public void RecordTrustRestored(string timestamp) {
+        bool changed;
+        lock (_gate) {
+            changed = _lastError is not null || _certState == CertState.Untrusted;
+            _lastError = null;
+            if (_certState == CertState.Untrusted) _certState = CertState.Trusted;
+        }
+        if (!changed) return;
+        Broadcast(new CaptureEnvelope(KindNotice, null, null,
+            new CaptureEvent("certTrusted", "Decryption recovered - CA is trusted", timestamp)));
+        BroadcastStats();
+    }
+
+    public IReadOnlyList<DashboardFlow> Snapshot() {
         lock (_gate) return _buffer.ToArray();
     }
 
-    public CaptureStats StatsSnapshot()
-    {
+    public CaptureStats StatsSnapshot() {
         lock (_gate) return BuildStats();
     }
 
-    private CaptureStats BuildStats()
-    {
+    private CaptureStats BuildStats() {
         string? biggest = null;
         long biggestBytes = 0;
         foreach (var (k, v) in _bytesByEndpoint)
@@ -223,7 +210,7 @@ public sealed class CaptureHub
                 d.GameVersion ?? (single ? _lastGameVersion : null),
                 Online: d.Online,
                 TotalConnections: d.TotalConnections));
-       
+
         var offline = _known.Values
             .Where(k => !_devices.ContainsKey(k.Ip))
             .Select(k => new DeviceInfo(
@@ -249,12 +236,10 @@ public sealed class CaptureHub
             Port: _proxyPort);
     }
 
-   
-    private static (string? Os, string? GameVersion) ParseRInfo(string? requestJson)
-    {
+
+    private static (string? Os, string? GameVersion) ParseRInfo(string? requestJson) {
         if (string.IsNullOrEmpty(requestJson)) return (null, null);
-        try
-        {
+        try {
             using var doc = System.Text.Json.JsonDocument.Parse(requestJson);
             if (!doc.RootElement.TryGetProperty("rinfo", out var rinfo)) return (null, null);
 
@@ -267,25 +252,21 @@ public sealed class CaptureHub
                 version = v.GetString();
 
             return (os, version);
-        }
-        catch (System.Text.Json.JsonException)
-        {
+        } catch (System.Text.Json.JsonException) {
             return (null, null);
         }
     }
 
-   
-    private static string OsLabel(string? platform) => platform?.ToUpperInvariant() switch
-    {
+
+    private static string OsLabel(string? platform) => platform?.ToUpperInvariant() switch {
         "IOS" => "iOS",
         "DROID" or "ANDROID" => "Android",
         null or "" => "Unknown OS",
         _ => platform!,
     };
 
-   
-    private sealed class Device(string ip, string firstSeen)
-    {
+
+    private sealed class Device(string ip, string firstSeen) {
         public string Ip { get; } = ip;
         public string FirstSeen { get; } = firstSeen;
         public string LastSeen { get; set; } = firstSeen;
@@ -297,26 +278,21 @@ public sealed class CaptureHub
         public string? GameVersion { get; set; }
     }
 
-   
-    public void SeedKnownDevices(IReadOnlyList<RememberedDevice> devices)
-    {
-        lock (_gate)
-        {
+
+    public void SeedKnownDevices(IReadOnlyList<RememberedDevice> devices) {
+        lock (_gate) {
             _known.Clear();
             foreach (var d in devices) _known[d.Ip] = d;
         }
     }
 
-   
-   
-    public IReadOnlyList<RememberedDevice> SnapshotRememberedDevices()
-    {
-        lock (_gate)
-        {
+
+
+    public IReadOnlyList<RememberedDevice> SnapshotRememberedDevices() {
+        lock (_gate) {
             var single = _devices.Count == 1;
             var merged = new Dictionary<string, RememberedDevice>(_known, StringComparer.Ordinal);
-            foreach (var d in _devices.Values)
-            {
+            foreach (var d in _devices.Values) {
                 merged[d.Ip] = new RememberedDevice(
                     d.Ip, d.Hostname,
                     d.Os ?? (single ? _lastOs : merged.GetValueOrDefault(d.Ip)?.Os),
@@ -327,30 +303,24 @@ public sealed class CaptureHub
         }
     }
 
-    public void Clear()
-    {
+    public void Clear() {
         lock (_gate) _buffer.Clear();
     }
 
-    public DashboardFlow? Find(long id)
-    {
-        lock (_gate)
-        {
+    public DashboardFlow? Find(long id) {
+        lock (_gate) {
             foreach (var f in _buffer)
                 if (f.Id == id) return f;
             return null;
         }
     }
 
-   
-    public void MarkSaved(long id)
-    {
+
+    public void MarkSaved(long id) {
         DashboardFlow? updated = null;
-        lock (_gate)
-        {
+        lock (_gate) {
             var node = _buffer.First;
-            while (node is not null)
-            {
+            while (node is not null) {
                 if (node.Value.Id == id) { node.Value = node.Value with { Saved = true }; updated = node.Value; break; }
                 node = node.Next;
             }
@@ -360,23 +330,20 @@ public sealed class CaptureHub
 
     public bool HasSubscribers { get { lock (_gate) return _subscribers.Count > 0; } }
 
-   
+
     private bool _proxyRunning;
     private int _proxyPort;
-    public void SetProxyState(bool running, int port)
-    {
+    public void SetProxyState(bool running, int port) {
         lock (_gate) { _proxyRunning = running; _proxyPort = port; }
         BroadcastStats();
     }
 
-   
+
     public void PostNotice(CaptureEvent notice) =>
         Broadcast(new CaptureEnvelope(KindNotice, null, null, notice));
 
-    public (ChannelReader<CaptureEnvelope> Reader, IDisposable Subscription) Subscribe()
-    {
-        var ch = Channel.CreateBounded<CaptureEnvelope>(new BoundedChannelOptions(SubscriberQueueCap)
-        {
+    public (ChannelReader<CaptureEnvelope> Reader, IDisposable Subscription) Subscribe() {
+        var ch = Channel.CreateBounded<CaptureEnvelope>(new BoundedChannelOptions(SubscriberQueueCap) {
             FullMode = BoundedChannelFullMode.DropOldest,
             SingleReader = true,
             SingleWriter = false,
@@ -385,40 +352,34 @@ public sealed class CaptureHub
         return (ch.Reader, new Subscription(this, ch));
     }
 
-    private void Broadcast(CaptureEnvelope env)
-    {
+    private void Broadcast(CaptureEnvelope env) {
         Channel<CaptureEnvelope>[] targets;
-        lock (_gate) targets = _subscribers.ToArray();
+        lock (_gate) targets = [.. _subscribers];
         foreach (var ch in targets) ch.Writer.TryWrite(env);
     }
 
-    private void BroadcastStats()
-    {
+    private void BroadcastStats() {
         CaptureEnvelope env;
         Channel<CaptureEnvelope>[] targets;
-        lock (_gate)
-        {
+        lock (_gate) {
             env = new CaptureEnvelope(KindStats, null, BuildStats(), null);
-            targets = _subscribers.ToArray();
+            targets = [.. _subscribers];
         }
         foreach (var ch in targets) ch.Writer.TryWrite(env);
     }
 
-    private void Unsubscribe(Channel<CaptureEnvelope> ch)
-    {
+    private void Unsubscribe(Channel<CaptureEnvelope> ch) {
         lock (_gate) _subscribers.Remove(ch);
         ch.Writer.TryComplete();
     }
 
-   
+
     private static long ApproxBytes(DashboardFlow flow) =>
         (flow.ResponseB64?.Length ?? 0) + (flow.RequestDataB64?.Length ?? 0);
 
-    private sealed class Subscription(CaptureHub hub, Channel<CaptureEnvelope> ch) : IDisposable
-    {
+    private sealed class Subscription(CaptureHub hub, Channel<CaptureEnvelope> ch) : IDisposable {
         private bool _disposed;
-        public void Dispose()
-        {
+        public void Dispose() {
             if (_disposed) return;
             _disposed = true;
             hub.Unsubscribe(ch);

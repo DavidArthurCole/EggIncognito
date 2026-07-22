@@ -9,8 +9,7 @@ public sealed class DeviceProxyPusher(
     DeviceCaptureConfig config,
     IProcessRunner runner,
     IEnumerable<IDeviceProxyConfigurator> configurators,
-    ILogger<DeviceProxyPusher> logger)
-{
+    ILogger<DeviceProxyPusher> logger) {
     private readonly Dictionary<string, IDeviceProxyConfigurator> _byPlatform =
         configurators.ToDictionary(c => c.Platform, StringComparer.OrdinalIgnoreCase);
 
@@ -18,18 +17,15 @@ public sealed class DeviceProxyPusher(
 
     private bool _warnedBridge;
 
-    public async Task PushAllAsync(IReadOnlyList<DeviceEntry> devices, CancellationToken ct)
-    {
+    public async Task PushAllAsync(IReadOnlyList<DeviceEntry> devices, CancellationToken ct) {
         if (!config.Enabled) return;
         var host = HostIp;
-        if (string.IsNullOrEmpty(host))
-        {
+        if (string.IsNullOrEmpty(host)) {
             logger.LogWarning("device capture: cannot push proxy, host IP unresolved (set DeviceCapture:HostIp)");
             return;
         }
-       
-        if (!_warnedBridge && string.IsNullOrWhiteSpace(config.HostIp) && LooksLikeDockerBridge(host))
-        {
+
+        if (!_warnedBridge && string.IsNullOrWhiteSpace(config.HostIp) && LooksLikeDockerBridge(host)) {
             _warnedBridge = true;
             logger.LogWarning(
                 "device capture: auto-detected host IP {Host} looks like a docker bridge address - LAN devices " +
@@ -39,15 +35,13 @@ public sealed class DeviceProxyPusher(
         foreach (var d in devices) await PushOneAsync(d, host, ct);
     }
 
-   
-    internal static bool LooksLikeDockerBridge(string ip)
-    {
+
+    internal static bool LooksLikeDockerBridge(string ip) {
         var p = ip.Split('.');
         return p.Length == 4 && p[0] == "172" && int.TryParse(p[1], out var b) && b >= 16 && b <= 31;
     }
 
-    public async Task<(bool Ok, string? Note)> PushOneAsync(DeviceEntry d, string host, CancellationToken ct)
-    {
+    public async Task<(bool Ok, string? Note)> PushOneAsync(DeviceEntry d, string host, CancellationToken ct) {
         var port = manager.PortFor(d.Id);
         if (port == 0) return (false, "no capture listener for device");
         if (!_byPlatform.TryGetValue(d.Platform, out var cfg)) return (false, $"no proxy configurator for {d.Platform}");
@@ -58,17 +52,15 @@ public sealed class DeviceProxyPusher(
         return (ok, note);
     }
 
-   
-   
-    public async Task<DeviceRinfo?> ForceHarvestAsync(DeviceEntry d, TimeSpan timeout, CancellationToken ct)
-    {
+
+
+    public async Task<DeviceRinfo?> ForceHarvestAsync(DeviceEntry d, TimeSpan timeout, CancellationToken ct) {
         var before = manager.Rinfo.Latest(d.Id);
         await RestartAppAsync(d, ct);
 
         var deadline = DateTimeOffset.UtcNow + timeout;
         DeviceRinfo? result = null;
-        while (DateTimeOffset.UtcNow < deadline)
-        {
+        while (DateTimeOffset.UtcNow < deadline) {
             try { await Task.Delay(TimeSpan.FromSeconds(2), ct); } catch (OperationCanceledException) { break; }
             var now = manager.Rinfo.Latest(d.Id);
             if (now is not null && (before is null || now.LastSeen != before.LastSeen)) { result = now; break; }
@@ -77,17 +69,14 @@ public sealed class DeviceProxyPusher(
         return result ?? manager.Rinfo.Latest(d.Id);
     }
 
-   
-    public async Task<(bool Ok, string? Note)> LockDeviceAsync(DeviceEntry d, CancellationToken ct)
-    {
-        if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase))
-        {
+
+    public async Task<(bool Ok, string? Note)> LockDeviceAsync(DeviceEntry d, CancellationToken ct) {
+        if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase)) {
             await runner.RunAsync("adb", ["-s", d.Target, "shell", "svc", "power", "stayon", "false"], ct);
             var r = await runner.RunAsync("adb", ["-s", d.Target, "shell", "input", "keyevent", "KEYCODE_SLEEP"], ct);
             return r.ExitCode == 0 ? (true, "locked") : (false, "lock failed");
         }
-        if (string.Equals(d.Platform, "ios", StringComparison.OrdinalIgnoreCase))
-        {
+        if (string.Equals(d.Platform, "ios", StringComparison.OrdinalIgnoreCase)) {
             if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
                 return (false, "ios ssh not configured");
             await IosKillAppAsync(ct);
@@ -97,9 +86,8 @@ public sealed class DeviceProxyPusher(
         return (false, $"no lock for platform {d.Platform}");
     }
 
-   
-    private async Task IosKillAppAsync(CancellationToken ct)
-    {
+
+    private async Task IosKillAppAsync(CancellationToken ct) {
         const string remote =
             "/bin/sh -c 'for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | " +
             "while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; echo killed'";
@@ -108,21 +96,18 @@ public sealed class DeviceProxyPusher(
              "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
     }
 
-   
-   
-    private async Task<bool?> IosLockstateAsync(CancellationToken ct)
-    {
+
+
+    private async Task<bool?> IosLockstateAsync(CancellationToken ct) {
         var r = await runner.RunAsync("ssh",
             ["-p", config.IosSshPort, "-i", config.IosSshKeyPath!, "-o", "StrictHostKeyChecking=no",
              "-o", "BatchMode=yes", $"root@{config.IosSshHost}", "lockstate"], ct);
         if (r.Stdout.Contains("locked=1")) return true;
-        if (r.Stdout.Contains("locked=0")) return false;
-        return r.ExitCode switch { 10 => true, 0 => false, _ => (bool?)null };
+        return r.Stdout.Contains("locked=0") ? false : r.ExitCode switch { 10 => true, 0 => false, _ => (bool?)null };
     }
 
-   
-    private async Task<(bool Ok, string? Note)> IosSendCmdAsync(string cmd, CancellationToken ct)
-    {
+
+    private async Task<(bool Ok, string? Note)> IosSendCmdAsync(string cmd, CancellationToken ct) {
         var remote = $"/bin/sh -c 'printf %s {cmd} > /tmp/ehp.cmd; chmod 666 /tmp/ehp.cmd; echo sent'";
         var r = await runner.RunAsync("ssh",
             ["-p", config.IosSshPort, "-i", config.IosSshKeyPath!, "-o", "StrictHostKeyChecking=no",
@@ -131,10 +116,8 @@ public sealed class DeviceProxyPusher(
                                : (false, EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(r.Stderr + r.Stdout));
     }
 
-    private async Task<bool> IosEnsureUnlockedAsync(CancellationToken ct, int maxTries = 3)
-    {
-        for (var i = 0; i < maxTries; i++)
-        {
+    private async Task<bool> IosEnsureUnlockedAsync(CancellationToken ct, int maxTries = 3) {
+        for (var i = 0; i < maxTries; i++) {
             var locked = await IosLockstateAsync(ct);
             if (locked == false) return true;
             await IosSendCmdAsync("unlock", ct);
@@ -143,41 +126,38 @@ public sealed class DeviceProxyPusher(
         return await IosLockstateAsync(ct) == false;
     }
 
-   
-    public async Task<(bool Ok, string? Note)> RestartAppAsync(DeviceEntry d, CancellationToken ct)
-    {
-        try
-        {
-            if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase))
-            {
-               
+
+    public async Task<(bool Ok, string? Note)> RestartAppAsync(DeviceEntry d, CancellationToken ct) {
+        try {
+            if (string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase)) {
+
                 await runner.RunAsync("adb", ["-s", d.Target, "shell", "input", "keyevent", "KEYCODE_WAKEUP"], ct);
                 await runner.RunAsync("adb", ["-s", d.Target, "shell", "wm", "dismiss-keyguard"], ct);
                 await runner.RunAsync("adb", ["-s", d.Target, "shell", "svc", "power", "stayon", "true"], ct);
                 var stop = await runner.RunAsync("adb", ["-s", d.Target, "shell", "am", "force-stop", d.Package], ct);
-                if (stop.ExitCode != 0)
+                if (stop.ExitCode != 0) {
                     logger.LogWarning("device capture: {Id} force-stop failed: {Note}",
                         d.Id, EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(stop.Stderr + stop.Stdout));
+                }
+
                 var launch = await runner.RunAsync("adb",
                     ["-s", d.Target, "shell", "monkey", "-p", d.Package, "-c", "android.intent.category.LAUNCHER", "1"], ct);
                 var ok = launch.ExitCode == 0;
                 logger.LogInformation("device capture: {Id} app restarted (launch ok={Ok})", d.Id, ok);
                 return ok ? (true, "restarted") : (false, "launch failed");
             }
-            if (string.Equals(d.Platform, "ios", StringComparison.OrdinalIgnoreCase))
-            {
+            if (string.Equals(d.Platform, "ios", StringComparison.OrdinalIgnoreCase)) {
                 if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
                     return (false, "ios ssh not configured");
                 var bundle = d.Package;
                 var proc = string.IsNullOrEmpty(config.IosAppProcessName) ? "Egg, Inc." : config.IosAppProcessName;
-               
-                if (string.IsNullOrEmpty(config.IosRestartCommand))
-                {
+
+                if (string.IsNullOrEmpty(config.IosRestartCommand)) {
                     var unlocked = await IosEnsureUnlockedAsync(ct);
                     if (!unlocked)
                         logger.LogWarning("device capture: {Id} could not confirm unlock; launching anyway", d.Id);
                 }
-               
+
                 var remote = string.IsNullOrEmpty(config.IosRestartCommand)
                     ? "/bin/sh -c '" +
                       "for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; sleep 1; " +
@@ -196,9 +176,7 @@ public sealed class DeviceProxyPusher(
                                        : (false, diag);
             }
             return (false, $"no restart for platform {d.Platform}");
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             logger.LogDebug(ex, "device capture: {Id} app restart failed (non-fatal)", d.Id);
             return (false, ex.Message);
         }

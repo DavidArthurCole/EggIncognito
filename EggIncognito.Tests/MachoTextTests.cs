@@ -2,11 +2,9 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
 
-public class MachoTextTests
-{
-   
-    private static byte[] MinimalMacho(uint textFileOff, uint textSize, ulong textVmAddr, out byte[] textBytes)
-    {
+public class MachoTextTests {
+
+    private static byte[] MinimalMacho(uint textFileOff, uint textSize, ulong textVmAddr, out byte[] textBytes) {
         textBytes = new byte[textSize];
         for (int i = 0; i < textSize; i++) textBytes[i] = (byte)(i & 0xFF);
 
@@ -51,8 +49,7 @@ public class MachoTextTests
     }
 
     [Fact]
-    public void TryFindText_ThinArm64_ReturnsSection()
-    {
+    public void TryFindText_ThinArm64_ReturnsSection() {
         var macho = MinimalMacho(0x200, 0x40, 0x100000000, out var expected);
         Assert.True(MachoText.TryFindText(macho, out int off, out int size, out ulong vm));
         Assert.Equal(0x200, off);
@@ -62,8 +59,5 @@ public class MachoTextTests
     }
 
     [Fact]
-    public void TryFindText_NotMacho_ReturnsFalse()
-    {
-        Assert.False(MachoText.TryFindText(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, out _, out _, out _));
-    }
+    public void TryFindText_NotMacho_ReturnsFalse() => Assert.False(MachoText.TryFindText([1, 2, 3, 4, 5, 6, 7, 8], out _, out _, out _));
 }

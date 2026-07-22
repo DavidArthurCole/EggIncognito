@@ -2,11 +2,9 @@ using EggIncognito.RouteGenerator;
 
 namespace EggIncognito.Tests;
 
-public class GeneratorTests
-{
+public class GeneratorTests {
     [Fact]
-    public void ParsesEndpointsFromYaml()
-    {
+    public void ParsesEndpointsFromYaml() {
         const string yaml = """
             routes:
               - path: ei/first_contact_secure
@@ -27,8 +25,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void NewSchemaKeysWinAndModelTheThreeAxes()
-    {
+    public void NewSchemaKeysWinAndModelTheThreeAxes() {
         const string yaml = """
             routes:
               - path: ei/first_contact_secure
@@ -49,18 +46,17 @@ public class GeneratorTests
         Assert.True(e[0].RequestWrapped);
         Assert.True(e[0].ResponseWrapped);
 
-       
+
         Assert.Null(e[1].Request);
         Assert.True(e[1].PathParamOnly);
         Assert.Equal("UserSubscriptionInfo", e[1].Response);
         Assert.True(e[1].ResponseWrapped);
-       
+
         Assert.Equal("UserSubscriptionInfo", e[1].MockResponseType);
     }
 
     [Fact]
-    public void InlineCommentsAreStrippedFromValues()
-    {
+    public void InlineCommentsAreStrippedFromValues() {
         const string yaml = """
             routes:
               - path: ei/ack_endpoint
@@ -75,7 +71,7 @@ public class GeneratorTests
 
         var e = RouteParser.Parse(yaml);
 
-       
+
         Assert.Equal("SomeRequest", e[0].Request);
         Assert.Null(e[0].Response);
         Assert.Equal("AuthenticatedMessage", e[0].MockResponseType);
@@ -87,8 +83,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void LegacyAuthenticatedMessageNormalizesToWrappedUnknown()
-    {
+    public void LegacyAuthenticatedMessageNormalizesToWrappedUnknown() {
         const string yaml = """
             routes:
               - path: ei/get_events
@@ -98,7 +93,7 @@ public class GeneratorTests
 
         var e = RouteParser.Parse(yaml)[0];
 
-       
+
         Assert.Null(e.Request);
         Assert.True(e.RequestWrapped);
         Assert.Equal("EggIncCurrentEvents", e.Response);
@@ -106,8 +101,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void StripsTrailingSlashFromPath()
-    {
+    public void StripsTrailingSlashFromPath() {
         const string yaml = """
             routes:
               - path: ei/get_events/
@@ -120,8 +114,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void OmittedTypesAreNullButMockResponseFallsBackToAuthenticatedMessage()
-    {
+    public void OmittedTypesAreNullButMockResponseFallsBackToAuthenticatedMessage() {
         const string yaml = """
             routes:
               - path: ei/unknown_endpoint
@@ -131,15 +124,14 @@ public class GeneratorTests
 
         Assert.Null(endpoints[0].Request);
         Assert.Null(endpoints[0].Response);
-       
+
         Assert.Equal("AuthenticatedMessage", endpoints[0].MockResponseType);
     }
 
     [Fact]
-    public void ParseOutput_HasValueEquality_ForIdenticalYaml()
-    {
-       
-       
+    public void ParseOutput_HasValueEquality_ForIdenticalYaml() {
+
+
         const string yaml = """
             routes:
               - path: ei/first_contact_secure
@@ -165,8 +157,7 @@ public class GeneratorTests
     }
 
     [Fact]
-    public void ParseOutput_Differs_WhenARouteChanges()
-    {
+    public void ParseOutput_Differs_WhenARouteChanges() {
         const string yaml = """
             routes:
               - path: ei/get_events
@@ -183,8 +174,5 @@ public class GeneratorTests
     [InlineData("ei_afx/launch_mission", "EiAfxLaunchMissionController")]
     [InlineData("ei_ctx/get_leaderboard", "EiCtxGetLeaderboardController")]
     [InlineData("ei_data", "EiDataController")]
-    public void DerivedClassNameFromPath(string path, string expected)
-    {
-        Assert.Equal(expected, RouteParser.ToClassName(path));
-    }
+    public void DerivedClassNameFromPath(string path, string expected) => Assert.Equal(expected, RouteParser.ToClassName(path));
 }

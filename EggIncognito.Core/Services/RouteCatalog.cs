@@ -14,29 +14,25 @@ public sealed record RouteInfo(
     bool ResponseWrapped,
     string? RawResponse,
     bool PathParam,
-    bool PathParamOnly)
-{
-   
-   
+    bool PathParamOnly) {
+
+
     public IReadOnlyList<string> Aliases { get; init; } = [];
 }
 
-public interface IRouteCatalog
-{
+public interface IRouteCatalog {
     IReadOnlyList<RouteInfo> All();
     RouteInfo? Get(string path);
 }
 
-public sealed class RouteCatalog : IRouteCatalog
-{
+public sealed partial class RouteCatalog : IRouteCatalog {
     private readonly IReadOnlyList<RouteInfo> _routes;
     private readonly Dictionary<string, RouteInfo> _byPath;
 
     public RouteCatalog(IConfiguration config)
         : this(ResolveYamlPath(config)) { }
 
-    internal RouteCatalog(string yamlPath)
-    {
+    internal RouteCatalog(string yamlPath) {
         var list = File.Exists(yamlPath) ? Parse(File.ReadAllText(yamlPath)) : [];
         _routes = list;
         _byPath = list.ToDictionary(e => e.Path, StringComparer.Ordinal);
@@ -50,35 +46,30 @@ public sealed class RouteCatalog : IRouteCatalog
     private static string ResolveYamlPath(IConfiguration config) =>
         ContentRoot.ResolveRouteMapFile(config["RoutesYamlPath"], "routes.yaml");
 
-   
-    private sealed class Block
-    {
+
+    private sealed class Block {
         public string? Path, Request, Response, RawResponse, LegacyReq, LegacyRes;
         public bool? RequestWrapped, ResponseWrapped;
         public bool PathParam, PathParamOnly, HasRequest, HasResponse, InAliases;
         public List<string> Aliases = [];
     }
 
-   
-    internal static List<RouteInfo> Parse(string yaml)
-    {
+
+    internal static List<RouteInfo> Parse(string yaml) {
         var result = new List<RouteInfo>();
         Block? b = null;
         bool inRoutes = false;
 
-        void Flush()
-        {
+        void Flush() {
             if (b?.Path is not null) result.Add(Emit(b));
             b = null;
         }
 
-        foreach (var rawLine in yaml.Split('\n'))
-        {
+        foreach (var rawLine in yaml.Split('\n')) {
             var line = rawLine.TrimEnd('\r');
 
-            var topKey = Regex.Match(line, @"^(\w[\w_]*):\s*$");
-            if (topKey.Success)
-            {
+            var topKey = TopKeyRegex().Match(line);
+            if (topKey.Success) {
                 Flush();
                 inRoutes = topKey.Groups[1].Value == "routes";
                 continue;
@@ -86,8 +77,7 @@ public sealed class RouteCatalog : IRouteCatalog
             if (!inRoutes) continue;
 
             var pathMatch = Regex.Match(line, @"^\s+-\s+path:\s*(.*?)\s*$");
-            if (pathMatch.Success)
-            {
+            if (pathMatch.Success) {
                 Flush();
                 var path = pathMatch.Groups[1].Value.Trim().TrimEnd('/');
                 b = new Block { Path = path.Length == 0 ? null : path };
@@ -101,19 +91,15 @@ public sealed class RouteCatalog : IRouteCatalog
         return result;
     }
 
-    private static void ApplyLine(Block b, string line)
-    {
-        string? V(string key)
-        {
+    private static void ApplyLine(Block b, string line) {
+        string? V(string key) {
             var m = Regex.Match(line, @"^\s+" + Regex.Escape(key) + @":\s*([^#]*?)\s*(?:#.*)?$");
             return m.Success ? m.Groups[1].Value : null;
         }
 
-        if (b.InAliases)
-        {
+        if (b.InAliases) {
             var item = Regex.Match(line, @"^\s+-\s*([^#]*?)\s*(?:#.*)?$");
-            if (item.Success)
-            {
+            if (item.Success) {
                 if (item.Groups[1].Value.Length > 0) b.Aliases.Add(item.Groups[1].Value);
                 return;
             }
@@ -121,22 +107,28 @@ public sealed class RouteCatalog : IRouteCatalog
         }
 
         string? v;
-        if ((v = V("requestType")) is not null) b.LegacyReq = v;
-        else if ((v = V("responseType")) is not null) b.LegacyRes = v;
-        else if ((v = V("request")) is not null) { b.Request = NullIfEmpty(v); b.HasRequest = true; }
-        else if ((v = V("response")) is not null) { b.Response = NullIfEmpty(v); b.HasResponse = true; }
-        else if ((v = V("requestWrapped")) is not null) b.RequestWrapped = v == "true";
-        else if ((v = V("responseWrapped")) is not null) b.ResponseWrapped = v == "true";
-        else if ((v = V("rawResponse")) is not null) b.RawResponse = v.Trim('"');
-        else if ((v = V("pathParamOnly")) is not null) b.PathParamOnly = v == "true";
-        else if ((v = V("pathParam")) is not null) b.PathParam = v == "true";
-        else if (V("aliases") is not null) b.InAliases = true;
+        if ((v = V("requestType")) is not null) {
+            b.LegacyReq = v;
+        } else if ((v = V("responseType")) is not null) {
+            b.LegacyRes = v;
+        } else if ((v = V("request")) is not null) { b.Request = NullIfEmpty(v); b.HasRequest = true; } else if ((v = V("response")) is not null) { b.Response = NullIfEmpty(v); b.HasResponse = true; } else if ((v = V("requestWrapped")) is not null) {
+            b.RequestWrapped = v == "true";
+        } else if ((v = V("responseWrapped")) is not null) {
+            b.ResponseWrapped = v == "true";
+        } else if ((v = V("rawResponse")) is not null) {
+            b.RawResponse = v.Trim('"');
+        } else if ((v = V("pathParamOnly")) is not null) {
+            b.PathParamOnly = v == "true";
+        } else if ((v = V("pathParam")) is not null) {
+            b.PathParam = v == "true";
+        } else if (V("aliases") is not null) {
+            b.InAliases = true;
+        }
     }
 
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
 
-    private static RouteInfo Emit(Block b)
-    {
+    private static RouteInfo Emit(Block b) {
         var (reqType, reqWrapDefault) = Normalize(b.HasRequest ? b.Request : b.LegacyReq);
         var (resType, resWrapDefault) = Normalize(b.HasResponse ? b.Response : b.LegacyRes);
         return new RouteInfo(
@@ -147,15 +139,16 @@ public sealed class RouteCatalog : IRouteCatalog
             ResponseWrapped: b.ResponseWrapped ?? resWrapDefault,
             RawResponse: b.RawResponse,
             PathParam: b.PathParam,
-            PathParamOnly: b.PathParamOnly)
-        { Aliases = b.Aliases };
+            PathParamOnly: b.PathParamOnly) { Aliases = b.Aliases };
     }
 
-   
-    private static (string? type, bool wrapped) Normalize(string? v)
-    {
+
+    private static (string? type, bool wrapped) Normalize(string? v) {
         if (v is null) return (null, false);
         if (v == "AuthenticatedMessage") return (null, true);
         return (v, false);
     }
+
+    [GeneratedRegex(@"^(\w[\w_]*):\s*$")]
+    private static partial Regex TopKeyRegex();
 }

@@ -2,39 +2,34 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class EnvCatalogTests
-{
+public class EnvCatalogTests {
     [Fact]
-    public void IsKnownPiece_RejectsTraversalAndUnknown()
-    {
+    public void IsKnownPiece_RejectsTraversalAndUnknown() {
         Assert.True(EnvCatalog.IsKnownPiece("ei_farm_ground"));
         Assert.False(EnvCatalog.IsKnownPiece("../egginc"));
         Assert.False(EnvCatalog.IsKnownPiece("nope"));
     }
 
     [Fact]
-    public void Pieces_IncludeBuildingsAndHabs()
-    {
+    public void Pieces_IncludeBuildingsAndHabs() {
         Assert.Contains(EnvCatalog.Pieces, p => p.Stem == "ei_silo_0_large");
         Assert.Contains(EnvCatalog.Pieces, p => p.Stem == "hab_10k");
         Assert.True(EnvCatalog.Pieces.Count >= 12);
     }
 
     [Fact]
-    public void TerrainPieces_AreSingleton_AndGrouped()
-    {
+    public void TerrainPieces_AreSingleton_AndGrouped() {
         var ground = EnvCatalog.Pieces.First(p => p.Stem == "ei_farm_ground");
         Assert.True(ground.Singleton);
         Assert.Equal("Terrain", ground.Group);
-       
+
         Assert.False(EnvCatalog.Pieces.First(p => p.Stem == "hab_10k").Singleton);
         Assert.Equal("Habs", EnvCatalog.Pieces.First(p => p.Stem == "hab_10k").Group);
         Assert.Equal("Storage", EnvCatalog.Pieces.First(p => p.Stem == "ei_silo_0_large").Group);
     }
 
     [Fact]
-    public void FarmLayout_Standard_HasFourHabs_TenSilos_NoCoop_KnownStems()
-    {
+    public void FarmLayout_Standard_HasFourHabs_TenSilos_NoCoop_KnownStems() {
         var placed = FarmLayout.Standard("hab_10k");
         Assert.All(placed, p => Assert.True(EnvCatalog.IsKnownPiece(p.Stem), $"unknown stem {p.Stem}"));
         Assert.Contains(placed, p => p.Stem == "ei_farm_ground");
@@ -43,36 +38,33 @@ public class EnvCatalogTests
         Assert.Equal(4, habs.Select(h => h.Pos[0]).Distinct().Count());
         Assert.Equal(10, placed.Count(p => p.Stem == "ei_silo_0_large"));
         Assert.DoesNotContain(placed, p => p.Stem == "coop");
-       
+
         Assert.Contains(placed, p => p.Stem == "ei_hyperloop_stop");
     }
 
     [Fact]
-    public void Family_ReturnsHabTiers()
-    {
+    public void Family_ReturnsHabTiers() {
         var fam = EnvCatalog.Family("hab_10k");
         Assert.True(fam.Count >= 5);
         Assert.All(fam, p => Assert.Equal("hab", p.Family));
-       
+
         Assert.Empty(EnvCatalog.Family("ei_farm_ground"));
     }
 
     [Fact]
-    public void SiloPos_MatchesGameFormula()
-    {
-       
-        Assert.Equal(new[] { -5f, 0f, 5.5f }, FarmLayout.SiloPos(0));
-        Assert.Equal(new[] { -5f, 0f, -0.5f }, FarmLayout.SiloPos(1));
-        Assert.Equal(new[] { -11f, 0f, 5.5f }, FarmLayout.SiloPos(2));
-        Assert.Equal(new[] { -11f, 0f, -0.5f }, FarmLayout.SiloPos(3));
-        Assert.Equal(new[] { -17f, 0f, 5.5f }, FarmLayout.SiloPos(4));
+    public void SiloPos_MatchesGameFormula() {
+
+        Assert.Equal([-5f, 0f, 5.5f], FarmLayout.SiloPos(0));
+        Assert.Equal([-5f, 0f, -0.5f], FarmLayout.SiloPos(1));
+        Assert.Equal([-11f, 0f, 5.5f], FarmLayout.SiloPos(2));
+        Assert.Equal([-11f, 0f, -0.5f], FarmLayout.SiloPos(3));
+        Assert.Equal([-17f, 0f, 5.5f], FarmLayout.SiloPos(4));
     }
 
     [Fact]
-    public void Standard_PlacesCoreZonesAtRowAnchors()
-    {
-       
-       
+    public void Standard_PlacesCoreZonesAtRowAnchors() {
+
+
         var placed = FarmLayout.Standard("hab_10k");
         var lab = placed.First(p => p.Stem == "ei_lab_6");
         var hoa = placed.First(p => p.Stem == "ei_hoa_3");
@@ -90,16 +82,14 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void StandardRecovered_FallsBackToZoneLayout_WhenNoFormula()
-    {
+    public void StandardRecovered_FallsBackToZoneLayout_WhenNoFormula() {
         var placed = FarmLayout.StandardRecovered(new FarmLayout.SingletonPlacement(null, null, null), farmHalfWidth: 20f);
         Assert.Contains(placed, p => p.Stem == "ei_hatchery_universe");
         Assert.Contains(placed, p => p.Stem == "ei_depot_7");
     }
 
     [Fact]
-    public void Family_FuelTank_HasFourVariants()
-    {
+    public void Family_FuelTank_HasFourVariants() {
         var fam = EnvCatalog.Family("ei_fuel_tank_2");
         Assert.Equal(4, fam.Count);
         Assert.All(fam, p => Assert.Equal("fuel", p.Family));
@@ -109,8 +99,7 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void Family_Silo_SwapsBaseAndAlt()
-    {
+    public void Family_Silo_SwapsBaseAndAlt() {
         var fam = EnvCatalog.Family("ei_silo_0_large");
         Assert.Equal(2, fam.Count);
         Assert.All(fam, p => Assert.Equal("silo", p.Family));
@@ -119,18 +108,17 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void Standard_DefaultHabRow_IsMixedTopTiers_And_DefaultVariants()
-    {
+    public void Standard_DefaultHabRow_IsMixedTopTiers_And_DefaultVariants() {
         var placed = FarmLayout.Standard();
-        var habs = placed.Where(p => p.Stem.StartsWith("hab_")).OrderBy(p => p.Pos[0]).ToList();
+        var habs = placed.Where(p => p.Stem.StartsWith("hab_", StringComparison.Ordinal)).OrderBy(p => p.Pos[0]).ToList();
         Assert.Equal(4, habs.Count);
-       
+
         Assert.Equal(new[] { "hab_chicken_universe", "hab_chicken_universe", "hab_portal", "hab_monolith" },
             habs.Select(h => h.Stem).ToArray());
-       
+
         Assert.All(habs, h => Assert.Equal(FarmLayout.HabRowZ, h.Pos[2], 2));
 
-       
+
         Assert.Contains(placed, p => p.Stem == "ei_lab_6");
         Assert.Contains(placed, p => p.Stem == "ei_hoa_3");
         Assert.Contains(placed, p => p.Stem == "ei_hatchery_universe");
@@ -141,15 +129,13 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void Standard_ExplicitHab_FillsAllFourPlots()
-    {
+    public void Standard_ExplicitHab_FillsAllFourPlots() {
         var placed = FarmLayout.Standard("hab_10k");
         Assert.Equal(4, placed.Count(p => p.Stem == "hab_10k"));
     }
 
     [Fact]
-    public void AssetTypeOf_MapsRepresentativeStems()
-    {
+    public void AssetTypeOf_MapsRepresentativeStems() {
         Assert.Equal("Depot3", EnvCatalog.AssetTypeOf("ei_depot_3"));
         Assert.Equal("Lab1", EnvCatalog.AssetTypeOf("ei_lab_1"));
         Assert.Equal("Hab1K", EnvCatalog.AssetTypeOf("hab_1k"));
@@ -162,8 +148,7 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void Vehicles_AreKnown_AndGrouped()
-    {
+    public void Vehicles_AreKnown_AndGrouped() {
         Assert.True(EnvCatalog.IsKnownPiece("ei_vehicle_semi"));
         Assert.True(EnvCatalog.IsKnownPiece("ei_vehicle_pickup"));
         Assert.True(EnvCatalog.IsKnownPiece("ei_vehicle_mega_semi"));
@@ -174,8 +159,7 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void Ships_AreKnown_AndGrouped()
-    {
+    public void Ships_AreKnown_AndGrouped() {
         Assert.True(EnvCatalog.IsKnownPiece("ei_ship_egg_shuttle"));
         var ships = EnvCatalog.Pieces.Where(p => p.Group == "Ships").ToList();
         Assert.True(ships.Count >= 5, $"expected 5+ ships, got {ships.Count}");
@@ -183,8 +167,7 @@ public class EnvCatalogTests
     }
 
     [Fact]
-    public void Habs_AreAllKnownPieces()
-    {
+    public void Habs_AreAllKnownPieces() {
         Assert.NotEmpty(EnvCatalog.Habs);
         foreach (var h in EnvCatalog.Habs)
             Assert.True(EnvCatalog.IsKnownPiece(h.Stem), $"hab {h.Stem} not in Pieces allowlist");

@@ -4,8 +4,9 @@ using System.Text.Json.Nodes;
 namespace EggIncognito.Services;
 
 
-public static class PostmanCollection
-{
+public static class PostmanCollection {
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
+
     private static readonly string[] PreRequest =
     [
         "const userId = pm.collectionVariables.get('userId') || '';",
@@ -20,13 +21,11 @@ public static class PostmanCollection
         "}",
     ];
 
-    public static string BuildJson(string yamlPath)
-    {
+    public static string BuildJson(string yamlPath) {
         var catalog = new RouteCatalog(yamlPath);
         var reflection = new ProtoReflection();
 
-        string Describe(string? requestType, string? responseType)
-        {
+        string Describe(string? requestType, string? responseType) {
             string req = requestType is null
                 ? "Request: (unknown)"
                 : "Request: " + requestType + FieldLines(reflection, requestType);
@@ -43,15 +42,12 @@ public static class PostmanCollection
             .OrderBy(g => g.Key);
 
         var folders = new JsonArray();
-        foreach (var g in groups)
-        {
+        foreach (var g in groups) {
             var requests = new JsonArray();
-            foreach (var e in g)
-            {
+            foreach (var e in g) {
                 var parts = new JsonArray();
                 foreach (var p in e.Path.Split('/')) parts.Add(p);
-                requests.Add(new JsonObject
-                {
+                requests.Add(new JsonObject {
                     ["name"] = e.Path,
                     ["event"] = new JsonArray
                     {
@@ -65,12 +61,10 @@ public static class PostmanCollection
                             },
                         },
                     },
-                    ["request"] = new JsonObject
-                    {
+                    ["request"] = new JsonObject {
                         ["method"] = "POST",
                         ["header"] = new JsonArray(),
-                        ["body"] = new JsonObject
-                        {
+                        ["body"] = new JsonObject {
                             ["mode"] = "urlencoded",
                             ["urlencoded"] = new JsonArray
                             {
@@ -83,8 +77,7 @@ public static class PostmanCollection
                                 },
                             },
                         },
-                        ["url"] = new JsonObject
-                        {
+                        ["url"] = new JsonObject {
                             ["raw"] = "{{baseUrl}}/" + e.Path,
                             ["host"] = new JsonArray { "{{baseUrl}}" },
                             ["path"] = parts,
@@ -109,10 +102,8 @@ public static class PostmanCollection
 
         folders.Add(SimulationFolder());
 
-        var collection = new JsonObject
-        {
-            ["info"] = new JsonObject
-            {
+        var collection = new JsonObject {
+            ["info"] = new JsonObject {
                 ["_postman_id"] = "egg-inc-test-api",
                 ["name"] = "EggIncognito",
                 ["description"] = "Mock server for the Egg, Inc. API. POST base64 protobuf as form field 'data'.",
@@ -126,18 +117,15 @@ public static class PostmanCollection
             ["item"] = folders,
         };
 
-        return collection.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        return collection.ToJsonString(IndentedJson);
     }
 
-    private static string FieldLines(ProtoReflection reflection, string typeName)
-    {
+    private static string FieldLines(ProtoReflection reflection, string typeName) {
         var schema = reflection.Schema(typeName);
-        if (schema is null || schema.Fields.Count == 0) return "";
-        return "\n" + string.Join("\n", schema.Fields.Select(f => $"  {f.Name} {f.Type}"));
+        return schema is null || schema.Fields.Count == 0 ? "" : "\n" + string.Join("\n", schema.Fields.Select(f => $"  {f.Name} {f.Type}"));
     }
 
-    private static JsonObject SimulationFolder() => new()
-    {
+    private static JsonObject SimulationFolder() => new() {
         ["name"] = "Simulation",
         ["item"] = new JsonArray
         {

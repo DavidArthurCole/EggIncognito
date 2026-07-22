@@ -7,16 +7,10 @@ namespace EggIncognito.Tests;
 
 
 [Collection(SharedAppCollection.Name)]
-public class InspectorApiSaltTests
-{
-    private readonly WebApplicationFactory<Program> _factory;
+public class InspectorApiSaltTests(SharedAppFactory f) {
+    private readonly WebApplicationFactory<Program> _factory = f;
 
-    public InspectorApiSaltTests(SharedAppFactory f) => _factory = f;
-
-   
-   
-    private static object BuildBody(string? salt) => new
-    {
+    private static object BuildBody(string? salt) => new {
         path = "ei/first_contact_secure",
         requestType = "EggIncFirstContactRequest",
         wrap = true,
@@ -26,8 +20,7 @@ public class InspectorApiSaltTests
     };
 
     [Fact]
-    public async Task Build_WithSalt_ReportsCanSignTrue()
-    {
+    public async Task Build_WithSalt_ReportsCanSignTrue() {
         var resp = await _factory.CreateClient().PostAsJsonAsync("/api/inspector/build", BuildBody("test-salt"));
         var bodyText = await resp.Content.ReadAsStringAsync();
         Assert.True(resp.IsSuccessStatusCode, $"status {(int)resp.StatusCode}: {bodyText}");
@@ -36,8 +29,7 @@ public class InspectorApiSaltTests
     }
 
     [Fact]
-    public async Task Build_WithoutSalt_ReportsCanSignFalse()
-    {
+    public async Task Build_WithoutSalt_ReportsCanSignFalse() {
         var resp = await _factory.CreateClient().PostAsJsonAsync("/api/inspector/build", BuildBody(null));
         resp.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
@@ -45,11 +37,9 @@ public class InspectorApiSaltTests
     }
 
     [Fact]
-    public async Task SameSalt_ProducesStableSignature()
-    {
+    public async Task SameSalt_ProducesStableSignature() {
         var client = _factory.CreateClient();
-        async Task<string> BuildOnce()
-        {
+        async Task<string> BuildOnce() {
             var resp = await client.PostAsJsonAsync("/api/inspector/build", BuildBody("stable-salt"));
             resp.EnsureSuccessStatusCode();
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
@@ -59,9 +49,8 @@ public class InspectorApiSaltTests
     }
 
     [Fact]
-    public async Task EnvDefaults_EndpointIsGone()
-    {
-       
+    public async Task EnvDefaults_EndpointIsGone() {
+
         var resp = await _factory.CreateClient().GetAsync("/api/inspector/env-defaults");
         Assert.False(resp.IsSuccessStatusCode);
         Assert.Contains(resp.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });

@@ -2,11 +2,9 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class ContentRootTests
-{
+public class ContentRootTests {
     [Fact]
-    public void Resolve_PrefersConfiguredPath()
-    {
+    public void Resolve_PrefersConfiguredPath() {
         var dir = Path.Combine(Path.GetTempPath(), "egi-cr-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(dir, "RouteMap"));
         File.WriteAllText(Path.Combine(dir, "RouteMap", "routes.yaml"), "routes:\n");
@@ -14,8 +12,7 @@ public class ContentRootTests
     }
 
     [Fact]
-    public void Resolve_NullConfig_ReturnsAnExistingDirectory()
-    {
+    public void Resolve_NullConfig_ReturnsAnExistingDirectory() {
         var resolved = ContentRoot.Resolve(null);
         Assert.False(string.IsNullOrEmpty(resolved));
         Assert.True(Directory.Exists(resolved));

@@ -10,10 +10,8 @@ namespace EggIncognito.Services.Auth;
 
 public sealed class ApiKeyAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
-    : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
-{
-    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
-    {
+    : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder) {
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync() {
         var key = ExtractKey();
         if (key is null) return AuthenticateResult.NoResult();
 
@@ -24,27 +22,24 @@ public sealed class ApiKeyAuthenticationHandler(
         var row = await store.FindActiveByHashAsync(hash, Context.RequestAborted);
         if (row is null) return AuthenticateResult.Fail("invalid api key");
 
-        var claims = new[]
-        {
-            new Claim(AuthClaims.UserIdClaim, row.OwnerUserId.ToString()),
-            new Claim(AuthClaims.RoleClaim, "viewer"),
-            new Claim(ApiKeyGen.Claim, row.Id.ToString()),
-        };
+        Claim[] claims = [
+            new(AuthClaims.UserIdClaim, row.OwnerUserId.ToString()),
+            new(AuthClaims.RoleClaim, "viewer"),
+            new(ApiKeyGen.Claim, row.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        ];
         var identity = new ClaimsIdentity(claims, ApiKeyGen.SchemeName);
         var principal = new ClaimsPrincipal(identity);
         await store.TouchAsync(row.Id, Context.RequestAborted);
         return AuthenticateResult.Success(new AuthenticationTicket(principal, ApiKeyGen.SchemeName));
     }
 
-    private string? ExtractKey()
-    {
+    private string? ExtractKey() {
         var header = Request.Headers["X-Api-Key"].ToString();
         if (!string.IsNullOrWhiteSpace(header)) return header.Trim();
 
         var auth = Request.Headers.Authorization.ToString();
         const string bearer = "Bearer ";
-        if (auth.StartsWith(bearer, StringComparison.OrdinalIgnoreCase))
-        {
+        if (auth.StartsWith(bearer, StringComparison.OrdinalIgnoreCase)) {
             var token = auth[bearer.Length..].Trim();
             if (token.StartsWith(ApiKeyGen.Scheme, StringComparison.Ordinal)) return token;
         }

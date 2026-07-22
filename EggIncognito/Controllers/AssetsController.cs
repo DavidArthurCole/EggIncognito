@@ -1,7 +1,7 @@
+using EggIncognito.Core.Services.Assets;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Net.Http.Headers;
-using EggIncognito.Core.Services.Assets;
 
 namespace EggIncognito.Controllers;
 
@@ -9,11 +9,9 @@ namespace EggIncognito.Controllers;
 [Route("api/assets")]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
-public sealed class AssetsController(GameAssetProvider assets) : ControllerBase
-{
+public sealed class AssetsController(GameAssetProvider assets) : ControllerBase {
     [HttpGet("icon")]
-    public async Task<IActionResult> Icon([FromQuery] string? name, [FromQuery] string? platform, CancellationToken ct)
-    {
+    public async Task<IActionResult> Icon([FromQuery] string? name, [FromQuery] string? platform, CancellationToken ct) {
         if (string.IsNullOrEmpty(name) || name.IndexOfAny(['/', '\\', '.', ' ']) >= 0)
             return BadRequest(new { error = "invalid icon name" });
 
@@ -22,8 +20,7 @@ public sealed class AssetsController(GameAssetProvider assets) : ControllerBase
         if (!result.Ok || result.Asset is null)
             return NotFound(new { error = result.Diagnostics ?? "icon not available", name });
 
-        Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue
-        {
+        Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue {
             Public = true,
             MaxAge = TimeSpan.FromDays(30)
         };

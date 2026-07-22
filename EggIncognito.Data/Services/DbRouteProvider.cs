@@ -4,30 +4,21 @@ using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Data.Services;
 
-public sealed class DbRouteProvider(EggIncognitoDbContext db, ILogger<DbRouteProvider> logger) : IDbRouteProvider
-{
-    public RouteInfo? GetDbRoute(string path)
-    {
-        try
-        {
+public sealed class DbRouteProvider(EggIncognitoDbContext db, ILogger<DbRouteProvider> logger) : IDbRouteProvider {
+    public RouteInfo? GetDbRoute(string path) {
+        try {
             var r = db.StoredRoutes.AsNoTracking().FirstOrDefault(x => x.Path == path && x.Source == "db");
             return r is null ? null : ToInfo(r);
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             logger.LogWarning(ex, "DB route lookup failed for {Path}; using yaml-only routing", path);
             return null;
         }
     }
 
-    public IReadOnlyList<RouteInfo> AllDbRoutes()
-    {
-        try
-        {
+    public IReadOnlyList<RouteInfo> AllDbRoutes() {
+        try {
             return db.StoredRoutes.AsNoTracking().Where(x => x.Source == "db").Select(ToInfo).ToList();
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             logger.LogWarning(ex, "DB route listing failed; using yaml-only routing");
             return [];
         }

@@ -1,7 +1,6 @@
 namespace EggIncognito.Components.Shared;
 
-public enum LoginMenuPlacement
-{
+public enum LoginMenuPlacement {
     BottomRight,
     BottomLeft,
     Right,

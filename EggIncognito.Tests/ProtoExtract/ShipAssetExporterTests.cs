@@ -3,9 +3,9 @@ using EggIncognito.Services;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
-public class ShipAssetExporterTests
-{
-   
+
+public class ShipAssetExporterTests {
+
     private static readonly string[] EnumShips =
     [
         "ChickenOne", "ChickenNine", "ChickenHeavy", "Bcr", "MilleniumChicken",
@@ -13,8 +13,7 @@ public class ShipAssetExporterTests
     ];
 
     [Fact]
-    public void NameMap_CoversEveryEnumShip_Once()
-    {
+    public void NameMap_CoversEveryEnumShip_Once() {
         var mapped = ShipNameMap.All.Select(s => s.EnumName).ToList();
         Assert.Equal(EnumShips.Length, mapped.Count);
         Assert.Equal(EnumShips.OrderBy(x => x), mapped.OrderBy(x => x));
@@ -22,18 +21,15 @@ public class ShipAssetExporterTests
     }
 
     [Fact]
-    public void NameMap_TierOrderMatchesEnumValues()
-    {
-        for (var i = 0; i < EnumShips.Length; i++)
-        {
+    public void NameMap_TierOrderMatchesEnumValues() {
+        for (var i = 0; i < EnumShips.Length; i++) {
             var ship = ShipNameMap.All.Single(s => s.Tier == i);
             Assert.Equal(EnumShips[i], ship.EnumName);
         }
     }
 
     [Fact]
-    public void NameMap_BundledStems_MapBackToEnum()
-    {
+    public void NameMap_BundledStems_MapBackToEnum() {
         Assert.Equal("ChickenOne", ShipNameMap.EnumNameForStem("ei_ship_chicken_one"));
         Assert.Equal("Atreggies", ShipNameMap.EnumNameForStem("ei_ship_atreggies_shuttle"));
         Assert.True(ShipNameMap.IsBundledShip("ei_ship_bcr"));
@@ -43,11 +39,9 @@ public class ShipAssetExporterTests
     }
 
     [Fact]
-    public void Export_Synthetic_RenamesShipsAndSkipsCdnOnly()
-    {
+    public void Export_Synthetic_RenamesShipsAndSkipsCdnOnly() {
         using var ms = new MemoryStream();
-        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
-        {
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true)) {
             WriteEntry(zip, "rpos/ei_ship_chicken_one.rpo", SampleRpo.Build());
             WriteEntry(zip, "rpos/ei_silo_3_large.rpo", SampleRpo.Build());
         }
@@ -65,8 +59,7 @@ public class ShipAssetExporterTests
     }
 
     [Fact]
-    public void Export_RealDeviceTarball_YieldsSevenBundledShips()
-    {
+    public void Export_RealDeviceTarball_YieldsSevenBundledShips() {
         var tgz = DeviceTarball();
         if (tgz is null) return;
 
@@ -85,29 +78,25 @@ public class ShipAssetExporterTests
             Assert.True(s.Glb.Length > 12, $"{s.EnumName} glb empty");
     }
 
-    private static void WriteEntry(ZipArchive zip, string name, byte[] data)
-    {
+    private static void WriteEntry(ZipArchive zip, string name, byte[] data) {
         using var es = zip.CreateEntry(name).Open();
         es.Write(data);
     }
 
-    private static byte[]? DeviceTarball()
-    {
+    private static byte[]? DeviceTarball() {
         var candidates = new[]
         {
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "captures", "egi-repos.tgz"),
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "captures", "egi-repos.tgz"),
         };
-        foreach (var c in candidates)
-        {
+        foreach (var c in candidates) {
             var full = Path.GetFullPath(c);
             if (File.Exists(full)) return File.ReadAllBytes(full);
         }
         return null;
     }
 
-    private static IEnumerable<(string Name, byte[] Bytes)> ReadGzippedTar(byte[] tgz)
-    {
+    private static IEnumerable<(string Name, byte[] Bytes)> ReadGzippedTar(byte[] tgz) {
         using var input = new MemoryStream(tgz);
         using var gz = new GZipStream(input, CompressionMode.Decompress);
         using var plain = new MemoryStream();

@@ -6,18 +6,14 @@ using Xunit;
 namespace EggIncognito.Tests;
 
 
-public class EventsControllerTests : IClassFixture<WebApplicationFactory<Program>>
-{
+public class EventsControllerTests(WebApplicationFactory<Program> f) : IClassFixture<WebApplicationFactory<Program>> {
     private const string Secret = "test-secret-123";
     private const string Body = "{\"package\":\"com.auxbrain.egginc\",\"version\":\"1.34\",\"protoSha\":\"x\"}";
 
-    private readonly WebApplicationFactory<Program> _base;
-
-    public EventsControllerTests(WebApplicationFactory<Program> f) => _base = f;
+    private readonly WebApplicationFactory<Program> _base = f;
 
     private HttpClient Client(bool withSecret) =>
-        _base.WithWebHostBuilder(b =>
-        {
+        _base.WithWebHostBuilder(b => {
             b.UseSetting("NoBrowser", "true");
             if (withSecret) b.UseSetting("SyncEvent:EventSecret", Secret);
         }).CreateClient();
@@ -25,24 +21,21 @@ public class EventsControllerTests : IClassFixture<WebApplicationFactory<Program
     private static StringContent Json() => new(Body, System.Text.Encoding.UTF8, "application/json");
 
     [Fact]
-    public async Task NoSecretConfigured_Is404()
-    {
+    public async Task NoSecretConfigured_Is404() {
         var c = Client(withSecret: false);
         var r = await c.PostAsync("/events/new-version", Json());
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 
     [Fact]
-    public async Task NoBearer_Is401()
-    {
+    public async Task NoBearer_Is401() {
         var c = Client(withSecret: true);
         var r = await c.PostAsync("/events/new-version", Json());
         Assert.Equal(HttpStatusCode.Unauthorized, r.StatusCode);
     }
 
     [Fact]
-    public async Task WrongBearer_Is401()
-    {
+    public async Task WrongBearer_Is401() {
         var c = Client(withSecret: true);
         var req = new HttpRequestMessage(HttpMethod.Post, "/events/new-version") { Content = Json() };
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "wrong");
@@ -51,8 +44,7 @@ public class EventsControllerTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact]
-    public async Task RightBearer_Is200()
-    {
+    public async Task RightBearer_Is200() {
         var c = Client(withSecret: true);
         var req = new HttpRequestMessage(HttpMethod.Post, "/events/new-version") { Content = Json() };
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Secret);

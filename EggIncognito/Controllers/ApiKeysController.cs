@@ -13,15 +13,13 @@ namespace EggIncognito.Controllers;
 [EnableRateLimiting("write")]
 [ApiAccess(ApiAccessLevel.Authenticated)]
 public sealed class ApiKeysController(ICurrentUser currentUser, IConfiguration config, IServiceProvider services)
-    : ControllerBase
-{
+    : ControllerBase {
     private ApiKeyStore? Store => services.GetService(typeof(ApiKeyStore)) as ApiKeyStore;
 
     public sealed record MintReq(string? Name);
 
     [HttpPost]
-    public async Task<IActionResult> Mint([FromBody] MintReq req, CancellationToken ct)
-    {
+    public async Task<IActionResult> Mint([FromBody] MintReq req, CancellationToken ct) {
         var owner = currentUser.UserId;
         if (owner is null) return Unauthorized(new { error = "log in to mint an API key" });
         if (User.HasClaim(c => c.Type == ApiKeyGen.Claim))
@@ -40,8 +38,7 @@ public sealed class ApiKeysController(ICurrentUser currentUser, IConfiguration c
     }
 
     [HttpGet]
-    public async Task<IActionResult> Mine(CancellationToken ct)
-    {
+    public async Task<IActionResult> Mine(CancellationToken ct) {
         var owner = currentUser.UserId;
         if (owner is null) return Unauthorized(new { error = "log in to manage keys" });
         var store = Store;
@@ -51,8 +48,7 @@ public sealed class ApiKeysController(ICurrentUser currentUser, IConfiguration c
     }
 
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Revoke(int id, CancellationToken ct)
-    {
+    public async Task<IActionResult> Revoke(int id, CancellationToken ct) {
         var owner = currentUser.UserId;
         if (owner is null) return Unauthorized(new { error = "log in to manage keys" });
         var store = Store;

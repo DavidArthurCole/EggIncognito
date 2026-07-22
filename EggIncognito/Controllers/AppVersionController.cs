@@ -5,14 +5,12 @@ namespace EggIncognito.Controllers;
 [ApiController]
 [Route("api/app/version")]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
-public sealed class AppVersionController : ControllerBase
-{
+public sealed class AppVersionController : ControllerBase {
     private const string RepoUrl = "https://github.com/davidarthurcole/EggIncognito";
 
     private static readonly object Payload = Build();
 
-    private static object Build()
-    {
+    private static object Build() {
         var b = EggIncognito.Services.BuildInfo.FromAssembly(RepoUrl);
         return new { version = b.Version, sha = b.ShortSha };
     }

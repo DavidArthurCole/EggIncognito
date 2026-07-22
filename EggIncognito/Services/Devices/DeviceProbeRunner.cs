@@ -6,10 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace EggIncognito.Services.Devices;
 
 
-public static class DeviceProbeRunner
-{
-    public static IDeviceProbe ProbeFor(Device d, IProcessRunner runner) => d.Platform switch
-    {
+public static class DeviceProbeRunner {
+    public static IDeviceProbe ProbeFor(Device d, IProcessRunner runner) => d.Platform switch {
         "ios" => new IosDeviceProbe(runner, d.Target, d.Package),
         _ => new AdbDeviceProbe(runner, d.Target, d.Package),
     };
@@ -17,29 +15,26 @@ public static class DeviceProbeRunner
     public static string Classify(Device d, DeviceProbeResult r, string? extractedLatestBuild, string? extractedLatestAppVersion)
         => Classify(r, d.Platform, extractedLatestBuild, extractedLatestAppVersion);
 
-   
-    public static string Classify(DeviceProbeResult r, string platform, string? extractedLatestBuild, string? extractedLatestAppVersion)
-    {
+
+    public static string Classify(DeviceProbeResult r, string platform, string? extractedLatestBuild, string? extractedLatestAppVersion) {
         if (!r.Reachable) return "unreachable";
         if (string.IsNullOrEmpty(r.InstalledAppVersion)) return "error";
 
-        if (platform == "ios")
-        {
-            if (extractedLatestAppVersion is null) return "new_version";
-            return SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion) > 0 ? "new_version" : "no_change";
+        if (platform == "ios") {
+            return extractedLatestAppVersion is null
+                ? "new_version"
+                : SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion) > 0 ? "new_version" : "no_change";
         }
         if (extractedLatestBuild is null) return "new_version";
-        if (long.TryParse(r.InstalledBuild, out var inst) && long.TryParse(extractedLatestBuild, out var ext))
-            return inst > ext ? "new_version" : "no_change";
-        return SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion ?? "") > 0 ? "new_version" : "no_change";
+        return long.TryParse(r.InstalledBuild, out var inst) && long.TryParse(extractedLatestBuild, out var ext)
+            ? inst > ext ? "new_version" : "no_change"
+            : SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion ?? "") > 0 ? "new_version" : "no_change";
     }
 
-   
-    public static int SemverCompare(string a, string b)
-    {
+
+    public static int SemverCompare(string a, string b) {
         var pa = a.Split('.'); var pb = b.Split('.');
-        for (var i = 0; i < Math.Max(pa.Length, pb.Length); i++)
-        {
+        for (var i = 0; i < Math.Max(pa.Length, pb.Length); i++) {
             var x = i < pa.Length && int.TryParse(pa[i], out var xi) ? xi : 0;
             var y = i < pb.Length && int.TryParse(pb[i], out var yi) ? yi : 0;
             if (x != y) return x.CompareTo(y);
@@ -47,15 +42,14 @@ public static class DeviceProbeRunner
         return 0;
     }
 
-   
-   
+
+
     public static async Task<DeviceProbe> ProbeOneAsync(
         Device d, string triggeredBy, IProcessRunner runner, IDeviceStatusStore store,
-        EggIncognitoDbContext db, ILogger logger, TimeProvider time, CancellationToken ct)
-    {
+        EggIncognitoDbContext db, ILogger logger, TimeProvider time, CancellationToken ct) {
         var result = await ProbeFor(d, runner).ProbeAsync(ct);
 
-       
+
         var extracted = await db.ProtoVersions.AsNoTracking()
             .Where(p => p.Platform == d.Platform && p.DeletedAt == null)
             .Select(p => new { p.Build, p.AppVersion })
@@ -71,8 +65,7 @@ public static class DeviceProbeRunner
 
         var resultCode = Classify(d, result, latestBuild, latestAppVersion);
 
-        var row = new DeviceProbe
-        {
+        var row = new DeviceProbe {
             DeviceId = d.Id,
             ProbedAt = time.GetUtcNow(),
             Reachable = result.Reachable,
@@ -85,10 +78,10 @@ public static class DeviceProbeRunner
         };
         await store.RecordProbeAsync(row, ct);
 
-        if (result.Reachable)
+        if (result.Reachable) {
             logger.LogInformation("device probe: {Id} reachable installed={App} build={Build} -> {Result}",
                 d.Id, result.InstalledAppVersion ?? "?", result.InstalledBuild ?? "-", resultCode);
-        else
+        } else
             logger.LogInformation("device probe: {Id} unreachable ({Note})", d.Id, result.Note);
 
         return row;

@@ -2,9 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
+
 [Table("capture_proxy_addrs")]
-public class CaptureProxyAddr
-{
+public class CaptureProxyAddr {
     [Key]
     [Column("user_id")]
     public Guid UserId { get; set; }

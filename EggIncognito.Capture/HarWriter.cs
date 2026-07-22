@@ -5,40 +5,35 @@ namespace EggIncognito.Capture;
 
 
 
-public sealed class HarWriter
-{
-   
-   
-    private readonly object _gate = new();
+public sealed class HarWriter {
+
+
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
+
+    private readonly Lock _gate = new();
     private readonly List<object> _entries = [];
 
     public int Count { get { lock (_gate) return _entries.Count; } }
 
-    public void Add(CapturedFlow flow)
-    {
+    public void Add(CapturedFlow flow) {
         var requestParams = flow.RequestDataB64 is null
             ? Array.Empty<object>()
             : [new { name = "data", value = flow.RequestDataB64 }];
 
-        var entry = new
-        {
-            request = new
-            {
+        var entry = new {
+            request = new {
                 method = flow.Method,
                 url = flow.Url,
                 headers = HarHeaders(flow.RequestHeaders),
-                postData = new
-                {
+                postData = new {
                     mimeType = "application/x-www-form-urlencoded",
                     @params = requestParams,
                 },
             },
-            response = new
-            {
+            response = new {
                 status = flow.Status,
                 headers = HarHeaders(flow.ResponseHeaders),
-                content = new
-                {
+                content = new {
                     text = flow.ResponseBodyB64,
                 },
             },
@@ -47,31 +42,27 @@ public sealed class HarWriter
         lock (_gate) _entries.Add(entry);
     }
 
-   
-   
+
+
     private static object[] HarHeaders(IReadOnlyList<HttpHeader>? headers) =>
         headers is null ? [] : [.. headers.Select(h => new { name = h.Name, value = h.Value })];
 
-    public string ToHar()
-    {
-       
+    public string ToHar() {
+
         object[] entries;
         lock (_gate) entries = [.. _entries];
 
-        var har = new
-        {
-            log = new
-            {
+        var har = new {
+            log = new {
                 version = "1.2",
                 creator = new { name = "EggIncognito.Capture", version = "1.0" },
                 entries,
             },
         };
-        return JsonSerializer.Serialize(har, new JsonSerializerOptions { WriteIndented = true });
+        return JsonSerializer.Serialize(har, IndentedJson);
     }
 
-    public void Save(string path)
-    {
+    public void Save(string path) {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         File.WriteAllText(path, ToHar(), new UTF8Encoding(false));
     }

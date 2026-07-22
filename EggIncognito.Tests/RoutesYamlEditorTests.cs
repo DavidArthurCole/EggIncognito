@@ -2,8 +2,7 @@ using Svc = EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class RoutesYamlEditorTests
-{
+public class RoutesYamlEditorTests {
     private static string MakeRepo(string yaml) => TestRepoFixture.MakeRepo(yaml, "ei-edit", withSlnxMarker: false);
 
     private static string Read(string root) =>
@@ -27,8 +26,7 @@ needs_capture:
 """;
 
     [Fact]
-    public void SetFieldIfEmpty_FillsPlaceholder_StripsComment()
-    {
+    public void SetFieldIfEmpty_FillsPlaceholder_StripsComment() {
         var root = MakeRepo(Sample);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.SetFieldIfEmpty("ei/unknown", "request", "FoundRequest"));
@@ -39,8 +37,7 @@ needs_capture:
     }
 
     [Fact]
-    public void SetFieldIfEmpty_NeverClobbersConcrete()
-    {
+    public void SetFieldIfEmpty_NeverClobbersConcrete() {
         var root = MakeRepo(Sample);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.False(ed.SetFieldIfEmpty("ei/known", "request", "Hacked"));
@@ -50,8 +47,7 @@ needs_capture:
     }
 
     [Fact]
-    public void RemoveFromNeedsCapture_RemovesItem_KeepsHeader()
-    {
+    public void RemoveFromNeedsCapture_RemovesItem_KeepsHeader() {
         var root = MakeRepo(Sample);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.RemoveFromNeedsCapture("ei/unknown"));
@@ -62,8 +58,7 @@ needs_capture:
     }
 
     [Fact]
-    public void MarkRequestNone_IsResolvedAndStable()
-    {
+    public void MarkRequestNone_IsResolvedAndStable() {
         var root = MakeRepo(Sample);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.RequestUnresolved("ei/unknown"));
@@ -71,7 +66,7 @@ needs_capture:
         Assert.False(ed.RequestUnresolved("ei/unknown"));
         ed.Save();
         var once = Read(root);
-       
+
         var ed2 = new Svc.RoutesYamlEditor(root);
         ed2.MarkRequestNone("ei/unknown");
         ed2.Save();
@@ -79,8 +74,7 @@ needs_capture:
     }
 
     [Fact]
-    public void AddEndpoint_LandsInSection_AndParses()
-    {
+    public void AddEndpoint_LandsInSection_AndParses() {
         var root = MakeRepo(Sample);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.AddRoute("ei/brand_new", "NewReq", false, "NewResp", true));
@@ -88,11 +82,11 @@ needs_capture:
         var yaml = Read(root);
         Assert.Contains("- path: ei/brand_new", yaml);
         Assert.Contains("response: NewResp", yaml);
-       
+
         Assert.True(yaml.IndexOf("ei/brand_new") < yaml.IndexOf("needs_capture:"));
     }
 
-   
+
     private const string DeepIndent = """
 routes:
     - path: ei/deep
@@ -103,8 +97,7 @@ routes:
 """;
 
     [Fact]
-    public void SetWrappedFlag_InsertMatchesSiblingFieldIndent()
-    {
+    public void SetWrappedFlag_InsertMatchesSiblingFieldIndent() {
         var root = MakeRepo(DeepIndent);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.SetWrappedFlag("ei/deep", "responseWrapped"));
@@ -113,8 +106,7 @@ routes:
     }
 
     [Fact]
-    public void SetFieldIfEmpty_InsertDerivesIndentFromPathLine()
-    {
+    public void SetFieldIfEmpty_InsertDerivesIndentFromPathLine() {
         var root = MakeRepo(DeepIndent);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.SetFieldIfEmpty("ei/bare", "request", "FoundRequest"));
@@ -123,8 +115,7 @@ routes:
     }
 
     [Fact]
-    public void MarkRequestNone_InsertDerivesIndentFromPathLine()
-    {
+    public void MarkRequestNone_InsertDerivesIndentFromPathLine() {
         var root = MakeRepo(DeepIndent);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.MarkRequestNone("ei/bare"));
@@ -133,13 +124,12 @@ routes:
     }
 
     [Fact]
-    public void Save_AbortsWhenFileChangedSinceLoad()
-    {
+    public void Save_AbortsWhenFileChangedSinceLoad() {
         var root = MakeRepo(Sample);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.SetFieldIfEmpty("ei/unknown", "request", "FoundRequest"));
 
-       
+
         var p = Path.Combine(root, "RouteMap", "routes.yaml");
         File.WriteAllText(p, Sample + "\n# concurrent edit\n");
         File.SetLastWriteTimeUtc(p, DateTime.UtcNow.AddSeconds(5));
@@ -150,8 +140,7 @@ routes:
     }
 
     [Fact]
-    public void Save_RefreshesStamp_SoSecondSaveWorks()
-    {
+    public void Save_RefreshesStamp_SoSecondSaveWorks() {
         var root = MakeRepo(Sample);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.SetFieldIfEmpty("ei/unknown", "request", "FoundRequest"));

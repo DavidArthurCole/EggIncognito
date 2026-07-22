@@ -8,7 +8,7 @@ public sealed record BuildResponse(
     string? FinalBase64,
     string? FinalFormBody,
     bool CanSign,
-   
+
     string? Error,
     string? Resolution,
     JsonElement? Details);

@@ -2,27 +2,23 @@ using Bunit;
 using EggIncognito.Components.Pages;
 using EggIncognito.Components.Protos;
 using EggIncognito.Data.Models;
-using SyncKit.Contract;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using SyncKit.Contract;
 
 namespace EggIncognito.Tests;
 
-public class ProtosPageTests
-{
-   
-   
+public class ProtosPageTests {
+
+
     [Collection(SharedAppCollection.Name)]
-    public class Integration
-    {
-        private readonly WebApplicationFactory<Program> _f;
-        public Integration(SharedAppFactory f) => _f = f;
+    public class Integration(SharedAppFactory f) {
+        private readonly WebApplicationFactory<Program> _f = f;
 
         [Fact]
-        public async Task Protos_Anonymous_RendersTableShell_NoBackfillPanel()
-        {
+        public async Task Protos_Anonymous_RendersTableShell_NoBackfillPanel() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/protos");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
@@ -32,8 +28,8 @@ public class ProtosPageTests
             Assert.DoesNotContain("id=\"backfillPanel\"", html);
         }
 
-       
-       
+
+
         [Fact]
         public async Task SubscribeRoute_StillResponds() =>
             Assert.Equal(System.Net.HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/subscribe")).StatusCode);
@@ -43,22 +39,19 @@ public class ProtosPageTests
             Assert.Equal(System.Net.HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/sources")).StatusCode);
     }
 
-   
-   
-    public class Component : BunitContext
-    {
-        private void Wire(UserRole role)
-        {
+
+
+    public class Component : BunitContext {
+        private void Wire(UserRole role) {
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddHttpClient();
-           
+
             JSInterop.Mode = JSRuntimeMode.Loose;
         }
 
         [Fact]
-        public void EmptyRegistry_ShowsEmptyState()
-        {
+        public void EmptyRegistry_ShowsEmptyState() {
             Wire(UserRole.Viewer);
             var cut = Render<Protos>();
 
@@ -66,8 +59,7 @@ public class ProtosPageTests
         }
     }
 
-    private sealed class FakeUser(UserRole role) : ICurrentUser
-    {
+    private sealed class FakeUser(UserRole role) : ICurrentUser {
         public bool IsAuthenticated => role != UserRole.Viewer;
         public Guid? UserId => null;
         public string? DiscordId => IsAuthenticated ? "fake" : null;

@@ -6,31 +6,25 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-public class FeedDispatcherTests
-{
-    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
-    {
+public class FeedDispatcherTests {
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler {
         public int Posts { get; private set; }
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) {
             Posts++;
             return Task.FromResult(respond(request));
         }
     }
 
-    private sealed class StubHttpFactory(HttpMessageHandler handler) : IHttpClientFactory
-    {
+    private sealed class StubHttpFactory(HttpMessageHandler handler) : IHttpClientFactory {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
     }
 
-   
-    private sealed class FakeStore(params FeedSubscription[] subs) : IFeedSubscriptionStore
-    {
+
+    private sealed class FakeStore(params FeedSubscription[] subs) : IFeedSubscriptionStore {
         public List<FeedSubscription> Subs { get; } = [.. subs];
         public List<FeedDelivery> Deliveries { get; } = [];
 
-        public Task<FeedSubscription> AddAsync(FeedSubscription sub, CancellationToken ct = default)
-        {
+        public Task<FeedSubscription> AddAsync(FeedSubscription sub, CancellationToken ct = default) {
             Subs.Add(sub);
             return Task.FromResult(sub);
         }
@@ -41,28 +35,24 @@ public class FeedDispatcherTests
         public Task<bool> AlreadyDeliveredAsync(int subId, string eventKind, string dedupKey, CancellationToken ct = default) =>
             Task.FromResult(Deliveries.Any(d => d.SubscriptionId == subId && d.EventKind == eventKind && d.DedupKey == dedupKey));
 
-        public Task RecordAsync(FeedDelivery delivery, CancellationToken ct = default)
-        {
+        public Task RecordAsync(FeedDelivery delivery, CancellationToken ct = default) {
             Deliveries.Add(delivery);
             return Task.CompletedTask;
         }
 
-        public Task SetActiveAsync(int subId, bool active, CancellationToken ct = default)
-        {
+        public Task SetActiveAsync(int subId, bool active, CancellationToken ct = default) {
             var s = Subs.FirstOrDefault(x => x.Id == subId);
             s?.Active = active;
             return Task.CompletedTask;
         }
 
-        public Task BumpFailAsync(int subId, CancellationToken ct = default)
-        {
+        public Task BumpFailAsync(int subId, CancellationToken ct = default) {
             var s = Subs.FirstOrDefault(x => x.Id == subId);
             if (s is not null) s.FailCount++;
             return Task.CompletedTask;
         }
 
-        public Task MarkDeliveredAsync(int subId, DateTimeOffset at, CancellationToken ct = default)
-        {
+        public Task MarkDeliveredAsync(int subId, DateTimeOffset at, CancellationToken ct = default) {
             var s = Subs.FirstOrDefault(x => x.Id == subId);
             if (s is not null) { s.LastDeliveryAt = at; s.FailCount = 0; }
             return Task.CompletedTask;
@@ -72,8 +62,7 @@ public class FeedDispatcherTests
             Task.FromResult(Subs.Where(s => s.OwnerUserId == ownerUserId)
                 .OrderByDescending(s => s.CreatedAt).ToList());
 
-        public Task<bool> DeleteAsync(int id, Guid ownerUserId, CancellationToken ct = default)
-        {
+        public Task<bool> DeleteAsync(int id, Guid ownerUserId, CancellationToken ct = default) {
             var s = Subs.FirstOrDefault(x => x.Id == id && x.OwnerUserId == ownerUserId);
             if (s is null) return Task.FromResult(false);
             Subs.Remove(s);
@@ -81,8 +70,7 @@ public class FeedDispatcherTests
         }
 
         public Task<bool> UpdateAsync(int id, Guid ownerUserId, string[] platforms, string trigger,
-            bool active, string? messageTemplate, CancellationToken ct = default)
-        {
+            bool active, string? messageTemplate, CancellationToken ct = default) {
             var s = Subs.FirstOrDefault(x => x.Id == id && x.OwnerUserId == ownerUserId);
             if (s is null) return Task.FromResult(false);
             s.Platforms = platforms;
@@ -96,26 +84,31 @@ public class FeedDispatcherTests
     private static FeedDispatcher Dispatcher(FakeStore store, HttpMessageHandler handler) =>
         new(store, new StubHttpFactory(handler), NullLogger<FeedDispatcher>.Instance);
 
-    private static FeedSubscription Sub(int id, string trigger, params string[] platforms) => new()
-    {
-        Id = id, Kind = "discord", EventKind = "proto_build",
+    private static FeedSubscription Sub(int id, string trigger, params string[] platforms) => new() {
+        Id = id,
+        Kind = "discord",
+        EventKind = "proto_build",
         TargetUrl = "https://discord.com/api/webhooks/1/abc",
-        Trigger = trigger, Platforms = platforms, Active = true,
+        Trigger = trigger,
+        Platforms = platforms,
+        Active = true,
     };
 
-    private static FeedSubscription PeriodicalsSub(int id, string trigger) => new()
-    {
-        Id = id, Kind = "discord", EventKind = "periodicals_changed",
+    private static FeedSubscription PeriodicalsSub(int id, string trigger) => new() {
+        Id = id,
+        Kind = "discord",
+        EventKind = "periodicals_changed",
         TargetUrl = "https://discord.com/api/webhooks/1/abc",
-        Trigger = trigger, Platforms = [], Active = true,
+        Trigger = trigger,
+        Platforms = [],
+        Active = true,
     };
 
     private static ProtoBuildEvent ProtoEvt(bool protoChanged, string platform = "android", int id = 7) =>
         new(id, platform, "1.0", "111343", "72", "sha", Created: true, ProtoChanged: protoChanged, "https://x/y");
 
     [Fact]
-    public async Task ProtoChanged_Fires_OnChange()
-    {
+    public async Task ProtoChanged_Fires_OnChange() {
         var store = new FakeStore(Sub(1, "proto_changed", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         await Dispatcher(store, handler).DispatchAsync(ProtoEvt(protoChanged: true));
@@ -126,8 +119,7 @@ public class FeedDispatcherTests
     }
 
     [Fact]
-    public async Task ProtoChanged_Skipped_WhenUnchanged()
-    {
+    public async Task ProtoChanged_Skipped_WhenUnchanged() {
         var store = new FakeStore(Sub(1, "proto_changed", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         await Dispatcher(store, handler).DispatchAsync(ProtoEvt(protoChanged: false));
@@ -137,8 +129,7 @@ public class FeedDispatcherTests
     }
 
     [Fact]
-    public async Task Gone410_Deactivates()
-    {
+    public async Task Gone410_Deactivates() {
         var store = new FakeStore(Sub(1, "new_version", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Gone));
         await Dispatcher(store, handler).DispatchAsync(ProtoEvt(protoChanged: false));
@@ -148,8 +139,7 @@ public class FeedDispatcherTests
     }
 
     [Fact]
-    public async Task Idempotent_SecondEvent_NoSecondDelivery()
-    {
+    public async Task Idempotent_SecondEvent_NoSecondDelivery() {
         var store = new FakeStore(Sub(1, "new_version", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         var d = Dispatcher(store, handler);
@@ -161,8 +151,7 @@ public class FeedDispatcherTests
     }
 
     [Fact]
-    public async Task CustomTemplate_SendsRenderedContent_NotEmbed()
-    {
+    public async Task CustomTemplate_SendsRenderedContent_NotEmbed() {
         var sub = Sub(1, "proto_changed", "android");
         sub.MessageTemplate = "New build {{appVersion}} ({{build}}) on {{platform}}: {{protoChanged}}";
         var store = new FakeStore(sub);
@@ -175,8 +164,7 @@ public class FeedDispatcherTests
     }
 
     [Fact]
-    public async Task WrongKind_Subscription_NotFired()
-    {
+    public async Task WrongKind_Subscription_NotFired() {
         var store = new FakeStore(PeriodicalsSub(1, "any"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         await Dispatcher(store, handler).DispatchAsync(ProtoEvt(protoChanged: true));
@@ -186,8 +174,7 @@ public class FeedDispatcherTests
     }
 
     [Fact]
-    public async Task Periodicals_Any_Fires_ProtoSubIgnored()
-    {
+    public async Task Periodicals_Any_Fires_ProtoSubIgnored() {
         var store = new FakeStore(PeriodicalsSub(1, "any"), Sub(2, "proto_changed", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         await Dispatcher(store, handler).DispatchAsync(new PeriodicalsChangedEvent("periodicals", "abc123", "https://x/periodicals"));
@@ -199,8 +186,7 @@ public class FeedDispatcherTests
     }
 
     [Fact]
-    public async Task Periodicals_FeedTrigger_MatchesOnlyThatFeed()
-    {
+    public async Task Periodicals_FeedTrigger_MatchesOnlyThatFeed() {
         var store = new FakeStore(PeriodicalsSub(1, "afx-config"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         var d = Dispatcher(store, handler);
@@ -211,8 +197,7 @@ public class FeedDispatcherTests
     }
 
     [Fact]
-    public async Task Periodicals_SameContentHash_Deduped()
-    {
+    public async Task Periodicals_SameContentHash_Deduped() {
         var store = new FakeStore(PeriodicalsSub(1, "any"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         var d = Dispatcher(store, handler);

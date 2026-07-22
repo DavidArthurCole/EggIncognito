@@ -1,4 +1,5 @@
 namespace EggIncognito.Components.Inspector;
+
 public sealed record InspectorHistoryEntry(
     string Id,
     string Path,

@@ -12,15 +12,14 @@ namespace EggIncognito.Services.ProtoExtract;
 
 //
 
-public static class RpoMeshDecoder
-{
+public static class RpoMeshDecoder {
     private const uint Rpo1Magic = 0x314F5052;
     private const long MaxDecompressedBytes = 200_000_000L;
 
     public sealed record Vec3(float X, float Y, float Z);
     public sealed record BBox(Vec3 Min, Vec3 Max);
 
-   
+
     public sealed record DecodeResult(bool Ok, byte[]? Glb, string Diagnostics,
         int VertexCount, int IndexCount, BBox? Bounds, bool HasEmission, long TrailingBytes = 0);
 
@@ -28,9 +27,8 @@ public static class RpoMeshDecoder
 
     public static DecodeResult Decode(byte[] data) => Decode(data, null);
 
-   
-    public static DecodeResult Decode(byte[] data, string? name)
-    {
+
+    public static DecodeResult Decode(byte[] data, string? name) {
         if (data is null || data.Length < 12) return Fail("input too short");
 
         var rpo = Inflate(data);
@@ -59,21 +57,19 @@ public static class RpoMeshDecoder
 
         var hasEmission = strides.Count >= 2 && strides[1] >= 3;
         var glb = BuildGlb(rpo, strides, vertexCount, indexCount, dataStart, vertexBytes, indexBytes, bounds, name);
-       
-       
+
+
         var trailing = rpo.Length - (dataStart + vertexBytes + indexBytes);
         return new DecodeResult(true, glb, "ok", vertexCount, indexCount, bounds, hasEmission, trailing);
     }
 
-   
-   
-    private static byte[] Inflate(byte[] data)
-    {
+
+
+    private static byte[] Inflate(byte[] data) {
         bool zlib = data.Length >= 2 && data[0] == 0x78 && (data[1] == 0x9C || data[1] == 0x01 || data[1] == 0xDA);
         bool gzip = data.Length >= 2 && data[0] == 0x1F && data[1] == 0x8B;
         if (!zlib && !gzip) return data;
-        try
-        {
+        try {
             using var input = new MemoryStream(data, writable: false);
             using Stream dec = gzip
                 ? new GZipStream(input, CompressionMode.Decompress)
@@ -81,35 +77,29 @@ public static class RpoMeshDecoder
             using var output = new MemoryStream();
             var buf = new byte[81920];
             int n; long total = 0;
-            while ((n = dec.Read(buf, 0, buf.Length)) > 0)
-            {
+            while ((n = dec.Read(buf, 0, buf.Length)) > 0) {
                 total += n;
                 if (total > MaxDecompressedBytes) return data;
                 output.Write(buf, 0, n);
             }
             return output.ToArray();
-        }
-        catch (InvalidDataException) { return data; }
+        } catch (InvalidDataException) { return data; }
     }
 
-   
-   
-   
-    private static bool ScanStrides(byte[] rpo, int indexCount, out List<int> strides, out int dataStart)
-    {
+
+
+
+    private static bool ScanStrides(byte[] rpo, int indexCount, out List<int> strides, out int dataStart) {
         strides = [];
         dataStart = -1;
         var pos = 12;
-        while (pos + 4 <= rpo.Length)
-        {
-            if (BinaryPrimitives.ReadUInt32LittleEndian(rpo.AsSpan(pos)) == (uint)indexCount)
-            {
+        while (pos + 4 <= rpo.Length) {
+            if (BinaryPrimitives.ReadUInt32LittleEndian(rpo.AsSpan(pos)) == (uint)indexCount) {
                 dataStart = pos + 4;
                 return true;
             }
             if (pos + 8 <= rpo.Length
-                && rpo[pos + 4] == 0x06 && rpo[pos + 5] == 0x14 && rpo[pos + 6] == 0x00 && rpo[pos + 7] == 0x00)
-            {
+                && rpo[pos + 4] == 0x06 && rpo[pos + 5] == 0x14 && rpo[pos + 6] == 0x00 && rpo[pos + 7] == 0x00) {
                 strides.Add(rpo[pos]);
             }
             pos += 4;
@@ -117,13 +107,11 @@ public static class RpoMeshDecoder
         return false;
     }
 
-    private static BBox ComputeBounds(byte[] rpo, int dataStart, int vertexCount, int floatsPerVertex)
-    {
+    private static BBox ComputeBounds(byte[] rpo, int dataStart, int vertexCount, int floatsPerVertex) {
         float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue;
         float maxX = float.MinValue, maxY = float.MinValue, maxZ = float.MinValue;
         var strideBytes = floatsPerVertex * 4;
-        for (var v = 0; v < vertexCount; v++)
-        {
+        for (var v = 0; v < vertexCount; v++) {
             var o = dataStart + v * strideBytes;
             var x = BinaryPrimitives.ReadSingleLittleEndian(rpo.AsSpan(o));
             var y = BinaryPrimitives.ReadSingleLittleEndian(rpo.AsSpan(o + 4));
@@ -134,12 +122,11 @@ public static class RpoMeshDecoder
         return new BBox(new Vec3(minX, minY, minZ), new Vec3(maxX, maxY, maxZ));
     }
 
-   
-   
+
+
     private static byte[] BuildGlb(byte[] rpo, List<int> strides, int vertexCount, int indexCount,
-        int dataStart, long vertexBytes, long indexBytes, BBox bounds, string? name)
-    {
-       
+        int dataStart, long vertexBytes, long indexBytes, BBox bounds, string? name) {
+
         var binLen = (int)(vertexBytes + indexBytes);
         var pad = (4 - (binLen & 3)) & 3;
         var bin = new byte[binLen + pad];
@@ -154,10 +141,9 @@ public static class RpoMeshDecoder
         var accessors = new List<object>();
         var attributes = new Dictionary<string, int>();
 
-       
+
         var vertexView = bufferViews.Count;
-        bufferViews.Add(new Dictionary<string, object>
-        {
+        bufferViews.Add(new Dictionary<string, object> {
             ["buffer"] = 0,
             ["byteOffset"] = 0,
             ["byteLength"] = (int)vertexBytes,
@@ -166,28 +152,25 @@ public static class RpoMeshDecoder
         });
 
         var attrByteOffset = 0;
-        for (var i = 0; i < strides.Count; i++)
-        {
+        for (var i = 0; i < strides.Count; i++) {
             var s = strides[i];
             var type = s switch { 2 => "VEC2", 3 => "VEC3", 4 => "VEC4", _ => "SCALAR" };
-            var accessor = new Dictionary<string, object>
-            {
+            var accessor = new Dictionary<string, object> {
                 ["bufferView"] = vertexView,
                 ["byteOffset"] = attrByteOffset,
                 ["componentType"] = 5126,
                 ["count"] = vertexCount,
                 ["type"] = type,
             };
-           
-            if (i == 0)
-            {
+
+            if (i == 0) {
                 accessor["min"] = new[] { bounds.Min.X, bounds.Min.Y, bounds.Min.Z };
                 accessor["max"] = new[] { bounds.Max.X, bounds.Max.Y, bounds.Max.Z };
             }
             var accessorIndex = accessors.Count;
             accessors.Add(accessor);
 
-           
+
             if (i == 0) attributes["POSITION"] = accessorIndex;
             else if (i == 1 && s >= 3) attributes["COLOR_0"] = accessorIndex;
             else if (i == 2 && s == 3) attributes["NORMAL"] = accessorIndex;
@@ -197,16 +180,14 @@ public static class RpoMeshDecoder
         }
 
         var indexView = bufferViews.Count;
-        bufferViews.Add(new Dictionary<string, object>
-        {
+        bufferViews.Add(new Dictionary<string, object> {
             ["buffer"] = 0,
             ["byteOffset"] = (int)vertexBytes,
             ["byteLength"] = (int)indexBytes,
             ["target"] = 34963,
         });
         var indexAccessor = accessors.Count;
-        accessors.Add(new Dictionary<string, object>
-        {
+        accessors.Add(new Dictionary<string, object> {
             ["bufferView"] = indexView,
             ["componentType"] = 5123,
             ["count"] = indexCount,
@@ -214,8 +195,7 @@ public static class RpoMeshDecoder
         });
 
         var meshName = string.IsNullOrEmpty(name) ? "mesh" : name;
-        var gltf = new Dictionary<string, object>
-        {
+        var gltf = new Dictionary<string, object> {
             ["asset"] = new Dictionary<string, object> { ["version"] = "2.0", ["generator"] = "EggIncognito RpoMeshDecoder" },
             ["scene"] = 0,
             ["scenes"] = new[] { new Dictionary<string, object> { ["nodes"] = new[] { 0 } } },
@@ -247,9 +227,8 @@ public static class RpoMeshDecoder
         return PackGlb(json, jsonPad, bin);
     }
 
-   
-    private static byte[] PackGlb(byte[] json, int jsonPad, byte[] bin)
-    {
+
+    private static byte[] PackGlb(byte[] json, int jsonPad, byte[] bin) {
         var jsonChunkLen = json.Length + jsonPad;
         var total = 12 + 8 + jsonChunkLen + 8 + bin.Length;
         var glb = new byte[total];

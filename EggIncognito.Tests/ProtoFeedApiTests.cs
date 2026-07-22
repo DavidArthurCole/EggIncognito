@@ -7,27 +7,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Tests;
 
-public class ProtoFeedApiTests
-{
-    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
-    {
+public class ProtoFeedApiTests {
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
             Task.FromResult(respond(request));
     }
 
-    private sealed class StubHttpFactory(HttpMessageHandler handler) : IHttpClientFactory
-    {
+    private sealed class StubHttpFactory(HttpMessageHandler handler) : IHttpClientFactory {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
     }
 
-    private sealed class MapServices(Dictionary<Type, object?> map) : IServiceProvider
-    {
+    private sealed class MapServices(Dictionary<Type, object?> map) : IServiceProvider {
         public object? GetService(Type serviceType) => map.GetValueOrDefault(serviceType);
     }
 
-   
-    private static FeedSubscriptionStore UnconnectedStore()
-    {
+
+    private static FeedSubscriptionStore UnconnectedStore() {
         var opts = new DbContextOptionsBuilder<EggIncognitoDbContext>()
             .UseNpgsql("Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=1").Options;
         return new FeedSubscriptionStore(new EggIncognitoDbContext(opts));
@@ -40,8 +35,7 @@ public class ProtoFeedApiTests
     private static int Status(IActionResult r) => ((IStatusCodeActionResult)r).StatusCode ?? 200;
 
     [Fact]
-    public async Task Create_NoStore_Returns503()
-    {
+    public async Task Create_NoStore_Returns503() {
         var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
         var r = await c.Create(new ProtoFeedController.CreateReq(
             "https://discord.com/api/webhooks/1/abc", null, null, null, null), CancellationToken.None);
@@ -49,8 +43,7 @@ public class ProtoFeedApiTests
     }
 
     [Fact]
-    public async Task Create_BadUrl_Returns400()
-    {
+    public async Task Create_BadUrl_Returns400() {
         var services = new MapServices(new() { [typeof(FeedSubscriptionStore)] = UnconnectedStore() });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
         var r = await c.Create(new ProtoFeedController.CreateReq(
@@ -60,16 +53,14 @@ public class ProtoFeedApiTests
     }
 
     [Fact]
-    public async Task Create_EmptyUrl_Returns400()
-    {
+    public async Task Create_EmptyUrl_Returns400() {
         var services = new MapServices(new() { [typeof(FeedSubscriptionStore)] = UnconnectedStore() });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
         var r = await c.Create(new ProtoFeedController.CreateReq("", null, null, null, null), CancellationToken.None);
         Assert.IsType<BadRequestObjectResult>(r);
     }
 
-    private sealed class StubUser(string? discordId) : EggIncognito.Services.ICurrentUser
-    {
+    private sealed class StubUser(string? discordId) : EggIncognito.Services.ICurrentUser {
         public bool IsAuthenticated => discordId is not null;
         public Guid? UserId => discordId is not null ? Guid.Parse("00000000-0000-0000-0000-000000000001") : null;
         public string? DiscordId => discordId;
@@ -82,18 +73,15 @@ public class ProtoFeedApiTests
     }
 
     [Fact]
-    public async Task Mine_Anon_Returns401()
-    {
+    public async Task Mine_Anon_Returns401() {
         var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
         var r = await c.Mine(CancellationToken.None);
         Assert.Equal(401, Status(r));
     }
 
     [Fact]
-    public async Task Mine_NoStore_Returns503()
-    {
-        var services = new MapServices(new()
-        {
+    public async Task Mine_NoStore_Returns503() {
+        var services = new MapServices(new() {
             [typeof(EggIncognito.Services.ICurrentUser)] = new StubUser("42"),
         });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
@@ -102,18 +90,15 @@ public class ProtoFeedApiTests
     }
 
     [Fact]
-    public async Task Delete_Anon_Returns401()
-    {
+    public async Task Delete_Anon_Returns401() {
         var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
         var r = await c.Delete(1, CancellationToken.None);
         Assert.Equal(401, Status(r));
     }
 
     [Fact]
-    public async Task Delete_NoStore_Returns503()
-    {
-        var services = new MapServices(new()
-        {
+    public async Task Delete_NoStore_Returns503() {
+        var services = new MapServices(new() {
             [typeof(EggIncognito.Services.ICurrentUser)] = new StubUser("42"),
         });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
@@ -122,18 +107,15 @@ public class ProtoFeedApiTests
     }
 
     [Fact]
-    public async Task Update_Anon_Returns401()
-    {
+    public async Task Update_Anon_Returns401() {
         var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
         var r = await c.Update(1, new ProtoFeedController.UpdateReq(["android"], "new_version", true, null), CancellationToken.None);
         Assert.Equal(401, Status(r));
     }
 
     [Fact]
-    public async Task Update_NoStore_Returns503()
-    {
-        var services = new MapServices(new()
-        {
+    public async Task Update_NoStore_Returns503() {
+        var services = new MapServices(new() {
             [typeof(EggIncognito.Services.ICurrentUser)] = new StubUser("42"),
         });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
@@ -144,17 +126,15 @@ public class ProtoFeedApiTests
     [Theory]
     [InlineData("https://discord.com/api/webhooks/123456789/abcdEFGHtoken1234", "webhooks/123456789/...1234")]
     [InlineData("https://discord.com/api/webhooks/999/tok", "webhooks/999/...tok")]
-    public void MaskWebhook_DiscordUrl_ShowsIdHidesToken(string url, string expected)
-    {
+    public void MaskWebhook_DiscordUrl_ShowsIdHidesToken(string url, string expected) {
         var masked = ProtoFeedController.MaskWebhook(url);
         Assert.Equal(expected, masked);
-       
+
         Assert.DoesNotContain("abcdEFGHtoken1234", masked);
     }
 
     [Fact]
-    public void MaskWebhook_NonDiscord_GenericTail()
-    {
+    public void MaskWebhook_NonDiscord_GenericTail() {
         var masked = ProtoFeedController.MaskWebhook("https://example.com/hook/SECRETvalue");
         Assert.Equal("...Tvalue", masked);
         Assert.DoesNotContain("SECRETvalue", masked);

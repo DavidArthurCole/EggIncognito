@@ -2,8 +2,7 @@ using System.Text.Json;
 
 namespace EggIncognito.Tests;
 
-public class DesignPayloadTests
-{
+public class DesignPayloadTests {
     private sealed record Element(string Id, string Kind, string Ref, string? Hat, string? Shell,
         float[] Pos, float[] RotDeg, float Scale, string Anim);
     private sealed record Lighting(float SunAzimuthDeg, float SunElevationDeg, string SunColor,
@@ -11,8 +10,7 @@ public class DesignPayloadTests
     private sealed record Payload(string Background, bool BackgroundTransparent, Lighting Lighting, Element[] Elements);
 
     [Fact]
-    public void Payload_RoundTrips()
-    {
+    public void Payload_RoundTrips() {
         var p = new Payload("#102030", false,
             new Lighting(45, 55, "#ffffff", 1.0f, "#222233", 0.05f),
             [

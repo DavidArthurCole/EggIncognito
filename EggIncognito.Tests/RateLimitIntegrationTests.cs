@@ -7,18 +7,14 @@ using Microsoft.Extensions.Hosting;
 namespace EggIncognito.Tests;
 
 
-public class RateLimitIntegrationTests : IClassFixture<RateLimitIntegrationTests.TinyLimitFactory>
-{
-    private readonly TinyLimitFactory _f;
-    public RateLimitIntegrationTests(TinyLimitFactory f) => _f = f;
+public class RateLimitIntegrationTests(RateLimitIntegrationTests.TinyLimitFactory f) : IClassFixture<RateLimitIntegrationTests.TinyLimitFactory> {
+    private readonly TinyLimitFactory _f = f;
 
     [Fact]
-    public async Task WriteEndpoint_Returns429_AfterLimit()
-    {
+    public async Task WriteEndpoint_Returns429_AfterLimit() {
         var c = _f.CreateClient();
         HttpResponseMessage? rejected = null;
-        for (var i = 0; i < 10; i++)
-        {
+        for (var i = 0; i < 10; i++) {
             var r = await c.PostAsJsonAsync("/api/db/route", new { path = "ei/x", response = "Y" });
             if (r.StatusCode == HttpStatusCode.TooManyRequests) { rejected = r; break; }
         }
@@ -26,12 +22,9 @@ public class RateLimitIntegrationTests : IClassFixture<RateLimitIntegrationTests
         Assert.True(rejected!.Headers.Contains("Retry-After"));
     }
 
-    public sealed class TinyLimitFactory : WebApplicationFactory<Program>
-    {
-        protected override IHost CreateHost(IHostBuilder builder)
-        {
-            builder.ConfigureHostConfiguration(cfg => cfg.AddInMemoryCollection(new Dictionary<string, string?>
-            {
+    public sealed class TinyLimitFactory : WebApplicationFactory<Program> {
+        protected override IHost CreateHost(IHostBuilder builder) {
+            builder.ConfigureHostConfiguration(cfg => cfg.AddInMemoryCollection(new Dictionary<string, string?> {
                 ["NoBrowser"] = "true",
                 ["RateLimiting:Policies:Write:PermitLimit"] = "3",
                 ["RateLimiting:Policies:Write:WindowSeconds"] = "60",

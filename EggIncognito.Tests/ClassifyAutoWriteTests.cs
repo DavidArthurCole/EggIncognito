@@ -2,8 +2,7 @@ using Svc = EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class ClassifyAutoWriteTests
-{
+public class ClassifyAutoWriteTests {
     private static Svc.AutoWriteVerdict Classify(int b, int s) => Svc.ExtractorConfig.ClassifyAutoWrite(b, s);
 
     [Fact]
@@ -15,8 +14,7 @@ public class ClassifyAutoWriteTests
         Assert.Equal(Svc.AutoWriteVerdict.Write, Classify(1053, 3));
 
     [Fact]
-    public void ExactWithFieldLead_Written()
-    {
+    public void ExactWithFieldLead_Written() {
         Assert.Equal(Svc.AutoWriteVerdict.Write, Classify(1053, 1003));
         Assert.Equal(Svc.AutoWriteVerdict.Write, Classify(1018, 1005));
     }

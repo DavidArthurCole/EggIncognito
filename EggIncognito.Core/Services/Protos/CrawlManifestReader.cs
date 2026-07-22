@@ -4,8 +4,7 @@ using System.Text.Json;
 namespace EggIncognito.Core.Services.Protos;
 
 
-public static class CrawlManifestReader
-{
+public static class CrawlManifestReader {
     public sealed record CrawlRecord(
         string Platform, string? AppVersion, string? Build, string? ClientVersion, string ProtoSha,
         string ProtoText, string? OriginRepo, string? OriginCommit, DateTimeOffset? OriginDate, string? Confidence);
@@ -15,9 +14,8 @@ public static class CrawlManifestReader
         int? ClientVersion, string? AppVersion, string? Build, string? SnapshotFile, string? VersionConfidence,
         string? Platform);
 
-   
-    private static int ConfidenceRank(string? c) => c switch
-    {
+
+    private static int ConfidenceRank(string? c) => c switch {
         "version-file" => 3,
         "subject" => 2,
         "tree-scan" => 1,
@@ -26,16 +24,14 @@ public static class CrawlManifestReader
 
     private static bool IsTrusted(string? c) => c is "version-file" or "subject";
 
-   
-    private static string NormalizePlatform(string? p) => p?.ToUpperInvariant() switch
-    {
+
+    private static string NormalizePlatform(string? p) => p?.ToUpperInvariant() switch {
         "IOS" => "ios",
         "ANDROID" => "android",
         _ => "android",
     };
 
-    public static IReadOnlyList<CrawlRecord> Read(byte[] zipBytes)
-    {
+    public static IReadOnlyList<CrawlRecord> Read(byte[] zipBytes) {
         using var ms = new MemoryStream(zipBytes);
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
 
@@ -44,9 +40,11 @@ public static class CrawlManifestReader
         if (manifestEntry is null) return [];
 
         List<ManifestRow>? rows;
-        using (var s = manifestEntry.Open())
+        using (var s = manifestEntry.Open()) {
             rows = JsonSerializer.Deserialize<List<ManifestRow>>(s,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+
         if (rows is null) return [];
 
         var bestPerSha = rows
@@ -58,8 +56,7 @@ public static class CrawlManifestReader
                 .First());
 
         var result = new List<CrawlRecord>();
-        foreach (var r in bestPerSha)
-        {
+        foreach (var r in bestPerSha) {
             var snap = zip.GetEntry(r.SnapshotFile!);
             if (snap is null) continue;
             string text;
@@ -71,7 +68,7 @@ public static class CrawlManifestReader
                 trusted ? r.AppVersion : null,
                 trusted ? r.Build : null,
                 trusted ? r.ClientVersion?.ToString() : null,
-               
+
                 r.ProtoSha256!, text, r.Repo, r.Commit, r.Date?.ToUniversalTime(),
                 string.IsNullOrEmpty(r.VersionConfidence) ? null : r.VersionConfidence));
         }

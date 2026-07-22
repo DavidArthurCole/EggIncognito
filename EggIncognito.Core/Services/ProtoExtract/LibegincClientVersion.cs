@@ -3,15 +3,12 @@ using System.IO.Compression;
 namespace EggIncognito.Services.ProtoExtract;
 
 
-public static class LibegincClientVersion
-{
+public static class LibegincClientVersion {
     private const long MaxSoBytes = 300_000_000L;
 
-    public static int? Read(byte[] apkOrSoBytes, int? prevClientVersion)
-    {
+    public static int? Read(byte[] apkOrSoBytes, int? prevClientVersion) {
         if (prevClientVersion is null) return null;
-        try
-        {
+        try {
             var so = IsZip(apkOrSoBytes) ? ReadSoFromZip(apkOrSoBytes) : apkOrSoBytes;
             if (so is null) return null;
             var text = Elf64.FindSection(so, ".text");
@@ -21,9 +18,7 @@ public static class LibegincClientVersion
             var textBytes = new byte[text.Size];
             Array.Copy(so, text.FileOffset, textBytes, 0, (int)text.Size);
             return Arm64ClientVersionScanner.Scan(textBytes, prevClientVersion.Value).ClientVersion;
-        }
-        catch
-        {
+        } catch {
             return null;
         }
     }
@@ -31,11 +26,9 @@ public static class LibegincClientVersion
     private static bool IsZip(byte[] b) =>
         b is { Length: > 4 } && b[0] == 0x50 && b[1] == 0x4B && b[2] == 0x03 && b[3] == 0x04;
 
-   
-    private static byte[]? ReadSoFromZip(byte[] zipBytes)
-    {
-        try
-        {
+
+    private static byte[]? ReadSoFromZip(byte[] zipBytes) {
+        try {
             using var zip = new ZipArchive(new MemoryStream(zipBytes, writable: false), ZipArchiveMode.Read);
             var entry = zip.GetEntry("lib/arm64-v8a/libegginc.so")
                 ?? zip.Entries.FirstOrDefault(e =>
@@ -47,9 +40,7 @@ public static class LibegincClientVersion
             using var buf = new MemoryStream();
             es.CopyTo(buf);
             return buf.ToArray();
-        }
-        catch
-        {
+        } catch {
             return null;
         }
     }

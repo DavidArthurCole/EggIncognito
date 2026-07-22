@@ -4,36 +4,31 @@ using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 
-public class DeviceJobTrackerTests
-{
-    sealed class FakeTime : TimeProvider
-    {
+public class DeviceJobTrackerTests {
+    private sealed class FakeTime : TimeProvider {
         private DateTimeOffset _now = new(2026, 6, 18, 0, 0, 0, TimeSpan.Zero);
         public override DateTimeOffset GetUtcNow() => _now;
         public void Advance(TimeSpan d) => _now += d;
     }
 
-    static StoreCheckResult UpToDate => new(true, "1.0", "1.0", false, false, "up_to_date", "no newer version");
+    private static StoreCheckResult UpToDate => new(true, "1.0", "1.0", false, false, "up_to_date", "no newer version");
 
     [Fact]
-    public void TryStart_RejectsSecondConcurrentRunning()
-    {
+    public void TryStart_RejectsSecondConcurrentRunning() {
         var t = new DeviceJobTracker(new FakeTime());
         Assert.True(t.TryStart("dev", "checking..."));
         Assert.False(t.TryStart("dev", "checking again..."));
     }
 
     [Fact]
-    public void TryStart_DifferentDevices_BothStart()
-    {
+    public void TryStart_DifferentDevices_BothStart() {
         var t = new DeviceJobTracker(new FakeTime());
         Assert.True(t.TryStart("a", "x"));
         Assert.True(t.TryStart("b", "x"));
     }
 
     [Fact]
-    public void Progress_UpdatesMessage_StaysRunning()
-    {
+    public void Progress_UpdatesMessage_StaysRunning() {
         var t = new DeviceJobTracker(new FakeTime());
         t.TryStart("dev", "checking...");
         t.Progress("dev", "poll 3/24: installed 1.0");
@@ -44,8 +39,7 @@ public class DeviceJobTrackerTests
     }
 
     [Fact]
-    public void Finish_TransitionsToDone_CarriesVerdict()
-    {
+    public void Finish_TransitionsToDone_CarriesVerdict() {
         var t = new DeviceJobTracker(new FakeTime());
         t.TryStart("dev", "checking...");
         t.Finish("dev", UpToDate);
@@ -57,8 +51,7 @@ public class DeviceJobTrackerTests
     }
 
     [Fact]
-    public void Fail_TransitionsToError()
-    {
+    public void Fail_TransitionsToError() {
         var t = new DeviceJobTracker(new FakeTime());
         t.TryStart("dev", "checking...");
         t.Fail("dev", "ssh failed");
@@ -68,8 +61,7 @@ public class DeviceJobTrackerTests
     }
 
     [Fact]
-    public void Finish_AllowsRestartAfterDone()
-    {
+    public void Finish_AllowsRestartAfterDone() {
         var t = new DeviceJobTracker(new FakeTime());
         t.TryStart("dev", "checking...");
         t.Finish("dev", UpToDate);
@@ -77,8 +69,7 @@ public class DeviceJobTrackerTests
     }
 
     [Fact]
-    public void TerminalEntry_ExpiresOnReadAfterTtl()
-    {
+    public void TerminalEntry_ExpiresOnReadAfterTtl() {
         var time = new FakeTime();
         var t = new DeviceJobTracker(time);
         t.TryStart("dev", "checking...");
@@ -89,8 +80,7 @@ public class DeviceJobTrackerTests
     }
 
     [Fact]
-    public void RunningEntry_NeverExpiresOnRead()
-    {
+    public void RunningEntry_NeverExpiresOnRead() {
         var time = new FakeTime();
         var t = new DeviceJobTracker(time);
         t.TryStart("dev", "checking...");
@@ -99,8 +89,7 @@ public class DeviceJobTrackerTests
     }
 
     [Fact]
-    public void Get_UnknownDevice_Null()
-    {
+    public void Get_UnknownDevice_Null() {
         var t = new DeviceJobTracker(new FakeTime());
         Assert.Null(t.Get("nope"));
     }

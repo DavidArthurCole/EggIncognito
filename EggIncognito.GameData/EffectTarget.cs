@@ -1,7 +1,6 @@
 namespace EggIncognito.GameData;
 
-public enum EffectTarget
-{
+public enum EffectTarget {
     IHR,
     IHROffline,
     IHRSharing,
@@ -25,22 +24,17 @@ public enum EffectTarget
     None
 }
 
-public enum CombineMode
-{
+public enum CombineMode {
     Add,
     Mul,
     MulPlusOne
 }
 
-public static class Folding
-{
-    public static double Fold(CombineMode mode, double seed, IEnumerable<double> contributions)
-    {
+public static class Folding {
+    public static double Fold(CombineMode mode, double seed, IEnumerable<double> contributions) {
         var value = seed;
-        foreach (var c in contributions)
-        {
-            value = mode switch
-            {
+        foreach (var c in contributions) {
+            value = mode switch {
                 CombineMode.Add => value + c,
                 CombineMode.Mul => value * c,
                 CombineMode.MulPlusOne => value * (1 + c),

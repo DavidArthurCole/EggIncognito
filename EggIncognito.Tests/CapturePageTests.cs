@@ -5,17 +5,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-public class CapturePageTests
-{
+public class CapturePageTests {
     [Collection(SharedAppCollection.Name)]
-    public class Integration
-    {
-        private readonly WebApplicationFactory<Program> _f;
-        public Integration(SharedAppFactory f) => _f = f;
+    public class Integration(SharedAppFactory f) {
+        private readonly WebApplicationFactory<Program> _f = f;
 
         [Fact]
-        public async Task Capture_RendersShell()
-        {
+        public async Task Capture_RendersShell() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/capture");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
@@ -30,11 +26,9 @@ public class CapturePageTests
         }
     }
 
-    public class Components : BunitContext
-    {
+    public class Components : BunitContext {
         [Fact]
-        public void JsonTree_RendersNodesForObject()
-        {
+        public void JsonTree_RendersNodesForObject() {
             var root = TreeNode.Parse("{\"a\":1,\"b\":{\"c\":\"hi\"}}");
             Assert.NotNull(root);
             var cut = Render<JsonTree>(p => p
@@ -49,8 +43,7 @@ public class CapturePageTests
         }
 
         [Fact]
-        public void JsonTree_Search_MarksMatchesAndDimsOthers()
-        {
+        public void JsonTree_Search_MarksMatchesAndDimsOthers() {
             var root = TreeNode.Parse("{\"alpha\":1,\"beta\":2}");
             var cut = Render<JsonTree>(p => p
                 .Add(c => c.Root, root)
@@ -58,9 +51,8 @@ public class CapturePageTests
 
             cut.Find(".jtree-search").Input("alpha");
 
-           
-            cut.WaitForAssertion(() =>
-            {
+
+            cut.WaitForAssertion(() => {
                 Assert.Contains("<mark>", cut.Markup);
                 Assert.Contains("jtree-dim", cut.Markup);
                 Assert.Contains("1 match", cut.Markup);
@@ -68,8 +60,7 @@ public class CapturePageTests
         }
 
         [Fact]
-        public void FormatView_BlurredValue_TogglesRevealOnClick()
-        {
+        public void FormatView_BlurredValue_TogglesRevealOnClick() {
             var view = new CaptureViewState { RedactionMode = "blur", DefaultFormat = "json" };
             var cut = Render<FormatView>(p => p
                 .Add(c => c.Label, "Request")
@@ -85,8 +76,7 @@ public class CapturePageTests
         }
 
         [Fact]
-        public void FlowList_AutoScroll_ScrollsToNewestOnNewFlow()
-        {
+        public void FlowList_AutoScroll_ScrollsToNewestOnNewFlow() {
             var module = JSInterop.SetupModule("./interop/scroll.js");
             module.SetupVoid("scrollToBottom", _ => true);
 
@@ -102,8 +92,7 @@ public class CapturePageTests
         }
 
         [Fact]
-        public void FlowList_AutoScrollOff_DoesNotScroll()
-        {
+        public void FlowList_AutoScrollOff_DoesNotScroll() {
             var module = JSInterop.SetupModule("./interop/scroll.js");
             module.SetupVoid("scrollToBottom", _ => true);
 
@@ -119,8 +108,7 @@ public class CapturePageTests
         }
 
         [Fact]
-        public void FormatView_RendersHexOfBytes()
-        {
+        public void FormatView_RendersHexOfBytes() {
             var view = new CaptureViewState { DefaultFormat = "hex" };
             var cut = Render<FormatView>(p => p
                 .Add(c => c.Label, "Response")
@@ -133,11 +121,9 @@ public class CapturePageTests
         }
     }
 
-    public class Format
-    {
+    public class Format {
         [Fact]
-        public void Yaml_RendersNestedObject()
-        {
+        public void Yaml_RendersNestedObject() {
             var y = CaptureFormat.JsonToText("{\"a\":1,\"b\":{\"c\":2}}", "yaml");
             Assert.Contains("a: 1", y);
             Assert.Contains("b:", y);
@@ -145,14 +131,10 @@ public class CapturePageTests
         }
 
         [Fact]
-        public void Hex_EmptyInput_ReportsEmpty()
-        {
-            Assert.Equal("(empty)", CaptureFormat.BytesToText("", "hex"));
-        }
+        public void Hex_EmptyInput_ReportsEmpty() => Assert.Equal("(empty)", CaptureFormat.BytesToText("", "hex"));
 
         [Fact]
-        public void Xml_WrapsAndPrettyPrints()
-        {
+        public void Xml_WrapsAndPrettyPrints() {
             var x = CaptureFormat.JsonToText("{\"a\":1}", "xml");
             Assert.Contains("<root>", x);
             Assert.Contains("<a>1</a>", x);

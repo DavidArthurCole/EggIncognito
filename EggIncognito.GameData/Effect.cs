@@ -1,29 +1,24 @@
 namespace EggIncognito.GameData;
 
-public sealed record Effect
-{
+public sealed record Effect {
     public Effect(
         string family,
         string id,
         EffectTarget target,
         CombineMode combineMode,
         double magnitude,
-        string source,
         int? maxLevel = null,
         EffectSchema? metaSchema = null,
-        IReadOnlyDictionary<string, object>? meta = null)
-    {
+        IReadOnlyDictionary<string, object>? meta = null) {
         Family = family;
         Id = id;
         Target = target;
         CombineMode = combineMode;
         Magnitude = magnitude;
-        Source = source;
         MaxLevel = maxLevel;
         MetaSchema = metaSchema;
         Meta = meta ?? EmptyMeta;
-        if (metaSchema is not null)
-        {
+        if (metaSchema is not null) {
             new EffectRow(metaSchema, id, Meta);
         }
     }
@@ -37,7 +32,6 @@ public sealed record Effect
     public CombineMode CombineMode { get; }
     public double Magnitude { get; }
     public int? MaxLevel { get; }
-    public string Source { get; }
     public EffectSchema? MetaSchema { get; }
     public IReadOnlyDictionary<string, object> Meta { get; }
 

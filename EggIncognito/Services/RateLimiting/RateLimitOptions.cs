@@ -7,20 +7,17 @@ public sealed record RateLimit(int PermitLimit, int WindowSeconds, int SegmentsP
 public sealed record RateLimitOptions(
     bool Enabled,
     IReadOnlyDictionary<string, RateLimit> Tiers,
-    IReadOnlyDictionary<string, RateLimit> Policies)
-{
+    IReadOnlyDictionary<string, RateLimit> Policies) {
     public static RateLimitOptions Defaults() => new(
         Enabled: true,
-        Tiers: new Dictionary<string, RateLimit>
-        {
+        Tiers: new Dictionary<string, RateLimit> {
             ["Anon"] = new(PermitLimit: 30, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Viewer"] = new(PermitLimit: 120, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Contributor"] = new(PermitLimit: 600, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Supporter"] = new(PermitLimit: 1200, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Keyed"] = new(PermitLimit: 600, WindowSeconds: 60, SegmentsPerWindow: 6),
         },
-        Policies: new Dictionary<string, RateLimit>
-        {
+        Policies: new Dictionary<string, RateLimit> {
             ["Global"] = new(PermitLimit: 300, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Egress"] = new(PermitLimit: 10, WindowSeconds: 60, SegmentsPerWindow: 6),
             ["Write"] = new(PermitLimit: 60, WindowSeconds: 60, SegmentsPerWindow: 6),
@@ -32,8 +29,7 @@ public sealed record RateLimitOptions(
             ["DataAnon"] = new(PermitLimit: 1, WindowSeconds: 3600, SegmentsPerWindow: 1),
         });
 
-    public static RateLimitOptions Bind(IConfiguration config)
-    {
+    public static RateLimitOptions Bind(IConfiguration config) {
         var d = Defaults();
         var section = config.GetSection("RateLimiting");
         var enabled = section.GetValue("Enabled", d.Enabled);
@@ -43,11 +39,9 @@ public sealed record RateLimitOptions(
     }
 
     private static IReadOnlyDictionary<string, RateLimit> MergeGroup(
-        IConfigurationSection group, IReadOnlyDictionary<string, RateLimit> defaults)
-    {
+        IConfigurationSection group, IReadOnlyDictionary<string, RateLimit> defaults) {
         var result = new Dictionary<string, RateLimit>(defaults);
-        foreach (var key in defaults.Keys)
-        {
+        foreach (var key in defaults.Keys) {
             var s = group.GetSection(key);
             if (!s.Exists()) continue;
             var d = defaults[key];

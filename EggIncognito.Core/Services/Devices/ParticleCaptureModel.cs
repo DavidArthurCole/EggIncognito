@@ -10,17 +10,14 @@ namespace EggIncognito.Services.Devices;
 
 //
 
-public static class ParticleCaptureModel
-{
-   
+public static class ParticleCaptureModel {
+
     public readonly record struct Sample(int T, string Mesh, float[] Transform, float Size);
 
-   
+
     public readonly record struct Cluster(
-        string Mesh, int Count, float[] Centroid, float Radius, float[] BobSpan, float MeanSize)
-    {
-        public JsonObject ToJson() => new()
-        {
+        string Mesh, int Count, float[] Centroid, float Radius, float[] BobSpan, float MeanSize) {
+        public JsonObject ToJson() => new() {
             ["mesh"] = Mesh,
             ["count"] = Count,
             ["centroid"] = new JsonArray(Centroid[0], Centroid[1], Centroid[2]),
@@ -30,13 +27,11 @@ public static class ParticleCaptureModel
         };
     }
 
-    public readonly record struct Model(bool Ok, int TotalSamples, IReadOnlyList<Cluster> Clusters, string Diagnostics)
-    {
-       
+    public readonly record struct Model(bool Ok, int TotalSamples, IReadOnlyList<Cluster> Clusters, string Diagnostics) {
+
         public Cluster? Dominant => Clusters.Count == 0 ? null : Clusters[0];
 
-        public JsonObject ToJson() => new()
-        {
+        public JsonObject ToJson() => new() {
             ["ok"] = Ok,
             ["totalSamples"] = TotalSamples,
             ["clusters"] = new JsonArray(Clusters.Select(c => (JsonNode)c.ToJson()).ToArray()),
@@ -45,15 +40,13 @@ public static class ParticleCaptureModel
         };
     }
 
-    public static Model Parse(string ndjson)
-    {
+    public static Model Parse(string ndjson) {
         if (string.IsNullOrWhiteSpace(ndjson))
             return new(false, 0, [], "empty capture log");
 
         var samples = new List<Sample>();
         int bad = 0;
-        foreach (var line in ndjson.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-        {
+        foreach (var line in ndjson.Split('\n', StringSplitOptions.RemoveEmptyEntries)) {
             var trimmed = line.Trim();
             if (trimmed.Length == 0) continue;
             if (TryParseLine(trimmed, out var s)) samples.Add(s);
@@ -65,7 +58,7 @@ public static class ParticleCaptureModel
 
         var clusters = samples
             .GroupBy(s => s.Mesh)
-            .Select(g => Summarize(g.Key, g.ToList()))
+            .Select(g => Summarize(g.Key, [.. g]))
             .OrderByDescending(c => c.Count)
             .ToList();
 
@@ -73,11 +66,9 @@ public static class ParticleCaptureModel
         return new(true, samples.Count, clusters, diag);
     }
 
-    private static bool TryParseLine(string line, out Sample s)
-    {
+    private static bool TryParseLine(string line, out Sample s) {
         s = default;
-        try
-        {
+        try {
             var node = JsonNode.Parse(line);
             if (node is not JsonObject o) return false;
             var mesh = o["mesh"]?.GetValue<string>();
@@ -86,31 +77,26 @@ public static class ParticleCaptureModel
 
             var t = new float[12];
             for (int i = 0; i < 12; i++) t[i] = (float)xs[i]!.GetValue<double>();
-           
+
             foreach (var v in t) if (float.IsNaN(v) || float.IsInfinity(v)) return false;
 
             var size = o["s"] is { } sn ? (float)sn.GetValue<double>() : 0f;
             var tIdx = o["t"] is { } tn ? tn.GetValue<int>() : 0;
             s = new Sample(tIdx, mesh, t, size);
             return true;
-        }
-        catch (JsonException) { return false; }
-        catch (InvalidOperationException) { return false; }
-        catch (FormatException) { return false; }
+        } catch (JsonException) { return false; } catch (InvalidOperationException) { return false; } catch (FormatException) { return false; }
     }
 
-   
-   
-   
-    private static Cluster Summarize(string mesh, List<Sample> samples)
-    {
+
+
+
+    private static Cluster Summarize(string mesh, List<Sample> samples) {
         int n = samples.Count;
         double cx = 0, cy = 0, cz = 0, sizeSum = 0;
         var minP = new[] { float.MaxValue, float.MaxValue, float.MaxValue };
         var maxP = new[] { float.MinValue, float.MinValue, float.MinValue };
 
-        foreach (var s in samples)
-        {
+        foreach (var s in samples) {
             var (px, py, pz) = Translation(s.Transform);
             cx += px; cy += py; cz += pz; sizeSum += s.Size;
             minP[0] = Math.Min(minP[0], px); maxP[0] = Math.Max(maxP[0], px);
@@ -121,8 +107,7 @@ public static class ParticleCaptureModel
         var centroid = new[] { (float)(cx / n), (float)(cy / n), (float)(cz / n) };
 
         double radSum = 0;
-        foreach (var s in samples)
-        {
+        foreach (var s in samples) {
             var (px, _, pz) = Translation(s.Transform);
             var dx = px - centroid[0];
             var dz = pz - centroid[2];
@@ -133,6 +118,6 @@ public static class ParticleCaptureModel
         return new Cluster(mesh, n, centroid, (float)(radSum / n), bob, (float)(sizeSum / n));
     }
 
-   
+
     private static (float X, float Y, float Z) Translation(float[] m) => (m[9], m[10], m[11]);
 }

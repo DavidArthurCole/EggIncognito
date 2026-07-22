@@ -3,31 +3,25 @@ using System.Text;
 namespace EggIncognito.Services;
 
 
-public sealed class FileEndpointSource : IEndpointSource
-{
+public sealed class FileEndpointSource : IEndpointSource {
     private readonly Dictionary<string, byte[]> _endpoints = new(StringComparer.OrdinalIgnoreCase);
     public int Priority => 0;
     public int Count => _endpoints.Count;
 
-    public FileEndpointSource(string endpointsPath)
-    {
+    public FileEndpointSource(string endpointsPath) {
         if (!Directory.Exists(endpointsPath)) return;
-       
-       
+
+
         var opts = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
-        foreach (var file in Directory.EnumerateFiles(endpointsPath, "*.json", opts))
-        {
+        foreach (var file in Directory.EnumerateFiles(endpointsPath, "*.json", opts)) {
             var relative = Path.GetRelativePath(endpointsPath, file).Replace('\\', '/').Replace(".json", "");
-            try { _endpoints[relative] = File.ReadAllBytes(file); }
-            catch { }
+            try { _endpoints[relative] = File.ReadAllBytes(file); } catch { }
         }
     }
 
-    public byte[]? Lookup(string path, string? eid)
-    {
+    public byte[]? Lookup(string path, string? eid) {
         var cleanPath = path.TrimEnd('/');
-        while (true)
-        {
+        while (true) {
             if (eid is not null && _endpoints.TryGetValue($"eids/{eid}/{cleanPath}", out var eidBytes))
                 return eidBytes;
             if (_endpoints.TryGetValue($"default/{cleanPath}", out var defaultBytes))

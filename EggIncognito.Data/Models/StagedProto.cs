@@ -4,8 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace EggIncognito.Data.Models;
 
 [Table("staged_protos")]
-public sealed class StagedProto
-{
+public sealed class StagedProto {
     [Key][Column("id")] public int Id { get; set; }
     [Column("platform")] public string Platform { get; set; } = "android";
     [Column("app_version")] public string? AppVersion { get; set; }

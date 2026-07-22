@@ -1,22 +1,19 @@
+using System.Security.Claims;
 using EggIncognito.Data.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using SyncKit.Contract;
-using System.Security.Claims;
 
 namespace EggIncognito.Services;
 
-public sealed class LoginSignIn(ISupporterStatus supporters)
-{
-    public async Task SignInAsync(HttpContext http, RedeemLoginCodeResponse result)
-    {
-        var claims = new List<Claim>
-        {
+public sealed class LoginSignIn(ISupporterStatus supporters) {
+    public async Task SignInAsync(HttpContext http, RedeemLoginCodeResponse result) {
+        List<Claim> claims = [
             new(ClaimTypes.NameIdentifier, result.DiscordId ?? result.UserId.ToString()),
             new(ClaimTypes.Name, result.Username),
             new(AuthClaims.RoleClaim, result.Role),
             new(AuthClaims.UserIdClaim, result.UserId.ToString()),
-        };
+        ];
         if (!string.IsNullOrEmpty(result.Avatar))
             claims.Add(new Claim("urn:discord:avatar:hash", result.Avatar));
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);

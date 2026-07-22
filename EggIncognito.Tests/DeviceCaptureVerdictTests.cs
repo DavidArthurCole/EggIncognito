@@ -2,8 +2,7 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Tests;
 
-public class DeviceCaptureVerdictTests
-{
+public class DeviceCaptureVerdictTests {
     private static DeviceCaptureVerdict.Verdict V(bool listening, int port, long client, long aux, long flows, long rinfo, string? err = null)
         => DeviceCaptureVerdict.For(new DeviceCaptureVerdict.Counters(listening, port, client, aux, flows, rinfo, err));
 

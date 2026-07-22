@@ -3,12 +3,10 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class MachoFunctionStartsTests
-{
+public class MachoFunctionStartsTests {
     [Fact]
-    public void Read_ReturnsEmpty_WhenNoTable()
-    {
-       
+    public void Read_ReturnsEmpty_WhenNoTable() {
+
         var bin = SyntheticMacho.Build(new byte[64], [new SyntheticMacho.Sym("__ZN1A1fEv", SyntheticMacho.TextVm)]);
         Assert.Empty(MachoFunctionStarts.Read(bin));
     }
@@ -17,49 +15,44 @@ public class MachoFunctionStartsTests
     public void Read_ReturnsEmpty_OnGarbage() => Assert.Empty(MachoFunctionStarts.Read(new byte[100]));
 
     [Fact]
-    public void Read_RealStrippedBinary_HasManySortedStarts()
-    {
+    public void Read_RealStrippedBinary_HasManySortedStarts() {
         var bin = StrippedExec();
         if (bin is null) return;
         var starts = MachoFunctionStarts.Read(bin);
-       
+
         Assert.True(starts.Count > 50_000, $"starts={starts.Count}");
         for (int i = 1; i < starts.Count; i++) Assert.True(starts[i] > starts[i - 1], "starts must be ascending");
         Assert.All(starts, s => Assert.InRange(s, 0, bin.Length - 1));
     }
 
     [Fact]
-    public void TryEnclosingStart_NoTable_False()
-    {
+    public void TryEnclosingStart_NoTable_False() {
         var bin = SyntheticMacho.Build(new byte[64], []);
         Assert.False(MachoFunctionStarts.TryEnclosingStart(bin, SyntheticMacho.TextVm, out _, out _));
     }
 
     [Fact]
-    public void TryEnclosingStart_SnapsMidFunctionVaToStart()
-    {
+    public void TryEnclosingStart_SnapsMidFunctionVaToStart() {
         var bin = StrippedExec();
         if (bin is null) return;
         var starts = MachoFunctionStarts.Read(bin);
         Assert.True(MachoText.TryFindText(bin, out var tfo, out _, out var tvm));
         var slide = tvm - (ulong)tfo;
 
-       
+
         var fnStartVa = (ulong)starts[1000] + slide;
         var midVa = fnStartVa + 8;
         Assert.True(MachoFunctionStarts.TryEnclosingStart(bin, midVa, out var snapped, out var end));
         Assert.Equal(fnStartVa, snapped);
         Assert.True(end > snapped, "enclosing end is past the start");
-       
+
         Assert.True(MachoFunctionStarts.TryEnclosingStart(bin, fnStartVa, out var exact, out _));
         Assert.Equal(fnStartVa, exact);
     }
 
-    private static byte[]? StrippedExec()
-    {
+    private static byte[]? StrippedExec() {
         string? dir = null;
-        foreach (var rel in new[] { "../../../../captures/ipas", "../../../../../captures/ipas" })
-        {
+        foreach (var rel in new[] { "../../../../captures/ipas", "../../../../../captures/ipas" }) {
             var full = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, rel));
             if (Directory.Exists(full)) { dir = full; break; }
         }
@@ -67,8 +60,7 @@ public class MachoFunctionStartsTests
         var path = Path.Combine(dir, "Egg-Inc-IPAOMTK.COM_latest.ipa");
         if (!File.Exists(path)) return null;
         using var zip = ZipFile.OpenRead(path);
-        var e = zip.Entries.FirstOrDefault(en =>
-        {
+        var e = zip.Entries.FirstOrDefault(en => {
             var f = en.FullName;
             if (!f.StartsWith("Payload/", StringComparison.OrdinalIgnoreCase)) return false;
             var i = f.IndexOf(".app/", StringComparison.OrdinalIgnoreCase);

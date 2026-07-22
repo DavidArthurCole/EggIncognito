@@ -3,8 +3,7 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Tests;
 
 
-public class ProtoCleanupTests
-{
+public class ProtoCleanupTests {
     private const string Ei =
         "syntax = \"proto2\";\n" +
         "\n" +
@@ -27,8 +26,7 @@ public class ProtoCleanupTests
         "}\n";
 
     [Fact]
-    public void Clean_Merges_Common_After_Package_StripsAux_DropsImport()
-    {
+    public void Clean_Merges_Common_After_Package_StripsAux_DropsImport() {
         var result = ProtoCleanup.Clean(Ei, Common);
 
         Assert.DoesNotContain("import \"common.proto\"", result);
@@ -38,20 +36,19 @@ public class ProtoCleanupTests
         var enumIdx = result.IndexOf("enum Platform {", StringComparison.Ordinal);
         var messageIdx = result.IndexOf("message M {", StringComparison.Ordinal);
         Assert.True(packageIdx >= 0 && enumIdx >= 0 && messageIdx >= 0);
-       
+
         Assert.True(packageIdx < enumIdx, "enum must follow package ei;");
         Assert.True(enumIdx < messageIdx, "enum (common body) must precede the original message");
 
-       
+
         Assert.Contains("Platform platform = 3;", result);
-       
+
         Assert.Contains("UNKNOWN_PLATFORM = 0;", result);
         Assert.Contains("IOS = 1;", result);
     }
 
     [Fact]
-    public void Clean_Exact_Expected_Output()
-    {
+    public void Clean_Exact_Expected_Output() {
         const string expected =
             "syntax = \"proto2\";\n" +
             "\n" +
@@ -71,8 +68,7 @@ public class ProtoCleanupTests
     }
 
     [Fact]
-    public void Clean_NoCommonBody_LeavesEiMinusImportAndAux()
-    {
+    public void Clean_NoCommonBody_LeavesEiMinusImportAndAux() {
         const string ei = "package ei;\nmessage M { optional aux.X x = 1; }\n";
         var result = ProtoCleanup.Clean(ei, "syntax\npackage aux;\n\n");
         Assert.DoesNotContain("aux.", result);

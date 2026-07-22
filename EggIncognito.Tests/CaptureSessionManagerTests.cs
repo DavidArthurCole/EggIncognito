@@ -2,13 +2,10 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-public class CaptureSessionManagerTests
-{
-    internal static string RealContentRoot()
-    {
+public class CaptureSessionManagerTests {
+    internal static string RealContentRoot() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
+        while (dir is not null) {
             var candidate = Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
             if (File.Exists(candidate)) return Path.Combine(dir.FullName, "EggIncognito");
             dir = dir.Parent;
@@ -16,8 +13,7 @@ public class CaptureSessionManagerTests
         throw new InvalidOperationException("Could not locate the EggIncognito project content root.");
     }
 
-    internal static CaptureSession NewSession(int port, FakeCaptureProxy? fake = null)
-    {
+    internal static CaptureSession NewSession(int port, FakeCaptureProxy? fake = null) {
         var tmp = Path.Combine(Path.GetTempPath(), "egi-mgr-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tmp);
         var opts = new CaptureSessionOptions(Port: port, Eid: null, Label: null,
@@ -31,8 +27,7 @@ public class CaptureSessionManagerTests
             (key, basePort) => NewSession(key == CaptureSessionManager.LocalKey ? 18080 : basePort));
 
     [Fact]
-    public void TwoKeys_GetDistinctSessions_WithDistinctPorts()
-    {
+    public void TwoKeys_GetDistinctSessions_WithDistinctPorts() {
         var m = NewManager();
         var a = m.GetOrCreate("user-a");
         var b = m.GetOrCreate("user-b");
@@ -43,15 +38,13 @@ public class CaptureSessionManagerTests
     }
 
     [Fact]
-    public void SameKey_ReturnsSameSession()
-    {
+    public void SameKey_ReturnsSameSession() {
         var m = NewManager();
         Assert.Same(m.GetOrCreate("user-a"), m.GetOrCreate("user-a"));
     }
 
     [Fact]
-    public void Remove_FreesThePortForReuse()
-    {
+    public void Remove_FreesThePortForReuse() {
         var m = NewManager();
         var a = m.GetOrCreate("user-a");
         m.GetOrCreate("user-b");
@@ -62,8 +55,7 @@ public class CaptureSessionManagerTests
     }
 
     [Fact]
-    public void CapacityCap_Throws()
-    {
+    public void CapacityCap_Throws() {
         var m = NewManager(maxSessions: 2);
         m.GetOrCreate("user-a");
         m.GetOrCreate("user-b");
@@ -71,8 +63,7 @@ public class CaptureSessionManagerTests
     }
 
     [Fact]
-    public void LocalKey_IsExemptFromCap()
-    {
+    public void LocalKey_IsExemptFromCap() {
         var m = NewManager(maxSessions: 1);
         m.GetOrCreate("user-a");
         var local = m.GetOrCreate(CaptureSessionManager.LocalKey);

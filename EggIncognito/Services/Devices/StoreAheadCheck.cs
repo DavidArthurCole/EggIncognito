@@ -4,11 +4,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Services.Devices;
 
-public static class StoreAheadCheck
-{
-   
-    public static async Task<string?> StoreLatestAsync(EggIncognitoDbContext db, string platform, CancellationToken ct)
-    {
+public static class StoreAheadCheck {
+
+    public static async Task<string?> StoreLatestAsync(EggIncognitoDbContext db, string platform, CancellationToken ct) {
         var versions = await db.KnownVersions.AsNoTracking()
             .Where(k => k.Platform == platform)
             .Select(k => k.AppVersion)

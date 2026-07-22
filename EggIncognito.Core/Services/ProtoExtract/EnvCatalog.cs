@@ -1,22 +1,20 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 
-public static class EnvCatalog
-{
-   
-   
-   
+public static class EnvCatalog {
+
+
+
     public sealed record EnvPiece(string Stem, string Label, string Group, bool Singleton = false, string Family = "");
 
-    public static readonly IReadOnlyList<EnvPiece> Pieces = new[]
-    {
+    public static readonly IReadOnlyList<EnvPiece> Pieces = [
         new EnvPiece("ei_farm_ground", "Farm ground", "Terrain", Singleton: true),
         new EnvPiece("ei_farm", "Farm paths", "Terrain", Singleton: true),
         new EnvPiece("ei_farm_hardscape", "Hardscape", "Terrain", Singleton: true),
         new EnvPiece("ei_farm_misc", "Ground detail", "Terrain", Singleton: true),
         new EnvPiece("ei_chicken_display_ground", "Display ground", "Terrain", Singleton: true),
 
-       
+
         new EnvPiece("coop", "Coop", "Habs", Family: "hab"),
         new EnvPiece("shack", "Shack", "Habs", Family: "hab"),
         new EnvPiece("super_shack", "Super Shack", "Habs", Family: "hab"),
@@ -67,11 +65,11 @@ public static class EnvCatalog
         new EnvPiece("ei_hoa_3", "Artifact hall (3)", "Buildings", Singleton: true, Family: "hoa"),
         new EnvPiece("ei_trophy_case", "Trophy case", "Buildings", Singleton: true, Family: "trophy"),
         new EnvPiece("ei_trophy_case2", "Trophy case (2)", "Buildings", Singleton: true, Family: "trophy"),
-       
+
         new EnvPiece("ei_afx_construction_site", "Artifact hall (construction)", "Buildings", Singleton: true, Family: "hoa"),
 
-       
-       
+
+
         new EnvPiece("ei_hatchery_edible", "Hatchery (Edible)", "Buildings", Singleton: true, Family: "hatchery"),
         new EnvPiece("ei_hatchery_superfood", "Hatchery (Superfood)", "Buildings", Singleton: true, Family: "hatchery"),
         new EnvPiece("ei_hatchery_medical", "Hatchery (Medical)", "Buildings", Singleton: true, Family: "hatchery"),
@@ -93,7 +91,7 @@ public static class EnvCatalog
 
         new EnvPiece("ei_farm_mailbox_full", "Mailbox", "Structures", Singleton: true),
 
-       
+
         new EnvPiece("ei_vehicle_semi", "Semi", "Vehicles"),
         new EnvPiece("ei_vehicle_pickup", "Pickup", "Vehicles"),
         new EnvPiece("ei_vehicle_trike", "Trike", "Vehicles"),
@@ -105,7 +103,7 @@ public static class EnvCatalog
         new EnvPiece("ei_vehicle_hover_semi", "Hover semi", "Vehicles"),
         new EnvPiece("ei_vehicle_mega_semi", "Mega semi", "Vehicles"),
 
-       
+
         new EnvPiece("ei_ship_egg_shuttle", "Egg shuttle", "Ships"),
         new EnvPiece("ei_ship_rooster", "Rooster", "Ships"),
         new EnvPiece("ei_ship_bcr", "BCR", "Ships"),
@@ -115,63 +113,100 @@ public static class EnvCatalog
         new EnvPiece("ei_ship_corellihen_corvette", "Corellihen Corvette", "Ships"),
         new EnvPiece("ei_ship_millenium_chicken", "Millenium Chicken", "Ships"),
         new EnvPiece("ei_ship_atreggies_shuttle", "Atreggies Shuttle", "Ships"),
-    };
+    ];
 
-   
+
     public static IReadOnlyList<EnvPiece> Habs =>
         Pieces.Where(p => p.Group == "Habs").ToList();
 
-   
-   
-    public static IReadOnlyList<EnvPiece> Family(string stem)
-    {
+
+
+    public static IReadOnlyList<EnvPiece> Family(string stem) {
         var fam = Pieces.FirstOrDefault(p => p.Stem == stem)?.Family ?? "";
-        if (string.IsNullOrEmpty(fam)) return [];
-        return Pieces.Where(p => p.Family == fam).ToList();
+        return string.IsNullOrEmpty(fam) ? [] : (IReadOnlyList<EnvPiece>)Pieces.Where(p => p.Family == fam).ToList();
     }
 
     public static bool IsKnownPiece(string stem) =>
         Pieces.Any(p => string.Equals(p.Stem, stem, StringComparison.Ordinal));
 
-   
-   
-   
-    private static readonly Dictionary<string, string?> _assetTypeByStem = new(StringComparer.Ordinal)
-    {
-        ["coop"] = "Coop", ["shack"] = "Shack", ["super_shack"] = "SuperShack",
-        ["short_house"] = "ShortHouse", ["the_standard"] = "TheStandard", ["long_house"] = "LongHouse",
-        ["double_decker"] = "DoubleDecker", ["warehouse"] = "Warehouse", ["center"] = "Center",
-        ["bunker"] = "Bunker", ["eggkea"] = "Eggkea", ["hab_1k"] = "Hab1K", ["hanger"] = "Hangar",
-        ["tower"] = "Tower", ["hab_10k"] = "Hab10K", ["hab_eggtopia"] = "Eggtopia",
-        ["hab_monolith"] = "Monolith", ["hab_portal"] = "PlanetPortal", ["hab_chicken_universe"] = "ChickenUniverse",
-        ["ei_depot_1"] = "Depot1", ["ei_depot_2"] = "Depot2", ["ei_depot_3"] = "Depot3", ["ei_depot_4"] = "Depot4",
-        ["ei_depot_5"] = "Depot5", ["ei_depot_6"] = "Depot6", ["ei_depot_7"] = "Depot7",
-        ["ei_fuel_tank_1"] = "FuelTank1", ["ei_fuel_tank_2"] = "FuelTank2",
-        ["ei_fuel_tank_3"] = "FuelTank3", ["ei_fuel_tank_4"] = "FuelTank4",
-        ["ei_lab_1"] = "Lab1", ["ei_lab_2"] = "Lab2", ["ei_lab_3"] = "Lab3",
-        ["ei_lab_4"] = "Lab4", ["ei_lab_5"] = "Lab5", ["ei_lab_6"] = "Lab6",
-        ["ei_mission_control_1"] = "MissionControl1", ["ei_mission_control_2"] = "MissionControl2",
+
+
+
+    private static readonly Dictionary<string, string?> _assetTypeByStem = new(StringComparer.Ordinal) {
+        ["coop"] = "Coop",
+        ["shack"] = "Shack",
+        ["super_shack"] = "SuperShack",
+        ["short_house"] = "ShortHouse",
+        ["the_standard"] = "TheStandard",
+        ["long_house"] = "LongHouse",
+        ["double_decker"] = "DoubleDecker",
+        ["warehouse"] = "Warehouse",
+        ["center"] = "Center",
+        ["bunker"] = "Bunker",
+        ["eggkea"] = "Eggkea",
+        ["hab_1k"] = "Hab1K",
+        ["hanger"] = "Hangar",
+        ["tower"] = "Tower",
+        ["hab_10k"] = "Hab10K",
+        ["hab_eggtopia"] = "Eggtopia",
+        ["hab_monolith"] = "Monolith",
+        ["hab_portal"] = "PlanetPortal",
+        ["hab_chicken_universe"] = "ChickenUniverse",
+        ["ei_depot_1"] = "Depot1",
+        ["ei_depot_2"] = "Depot2",
+        ["ei_depot_3"] = "Depot3",
+        ["ei_depot_4"] = "Depot4",
+        ["ei_depot_5"] = "Depot5",
+        ["ei_depot_6"] = "Depot6",
+        ["ei_depot_7"] = "Depot7",
+        ["ei_fuel_tank_1"] = "FuelTank1",
+        ["ei_fuel_tank_2"] = "FuelTank2",
+        ["ei_fuel_tank_3"] = "FuelTank3",
+        ["ei_fuel_tank_4"] = "FuelTank4",
+        ["ei_lab_1"] = "Lab1",
+        ["ei_lab_2"] = "Lab2",
+        ["ei_lab_3"] = "Lab3",
+        ["ei_lab_4"] = "Lab4",
+        ["ei_lab_5"] = "Lab5",
+        ["ei_lab_6"] = "Lab6",
+        ["ei_mission_control_1"] = "MissionControl1",
+        ["ei_mission_control_2"] = "MissionControl2",
         ["ei_mission_control_3"] = "MissionControl3",
-        ["ei_hoa_1"] = "Hoa1", ["ei_hoa_2"] = "Hoa2", ["ei_hoa_3"] = "Hoa3",
-        ["ei_trophy_case"] = "TrophyCase", ["ei_trophy_case2"] = "TrophyCase",
-        ["ei_silo_0_large"] = "Silo0Large", ["ei_silo"] = "Silo0Large",
-        ["ei_farm_mailbox_full"] = "Mailbox", ["ei_farm_hardscape"] = "Hardscape",
-        ["ei_hyperloop_stop"] = "Hyperloop", ["ei_hyperloop_track"] = "Hyperloop",
+        ["ei_hoa_1"] = "Hoa1",
+        ["ei_hoa_2"] = "Hoa2",
+        ["ei_hoa_3"] = "Hoa3",
+        ["ei_trophy_case"] = "TrophyCase",
+        ["ei_trophy_case2"] = "TrophyCase",
+        ["ei_silo_0_large"] = "Silo0Large",
+        ["ei_silo"] = "Silo0Large",
+        ["ei_farm_mailbox_full"] = "Mailbox",
+        ["ei_farm_hardscape"] = "Hardscape",
+        ["ei_hyperloop_stop"] = "Hyperloop",
+        ["ei_hyperloop_track"] = "Hyperloop",
     };
 
-    public static string? AssetTypeOf(string stem)
-    {
-        if (stem.StartsWith("ei_hatchery_", StringComparison.Ordinal))
-        {
+    public static string? AssetTypeOf(string stem) {
+        if (stem.StartsWith("ei_hatchery_", StringComparison.Ordinal)) {
             var suffix = stem["ei_hatchery_".Length..];
-            return suffix switch
-            {
-                "edible" => "HatcheryEdible", "superfood" => "HatcherySuperfood", "medical" => "HatcheryMedical",
-                "supermaterial" => "HatcherySupermaterial", "fusion" => "HatcheryFusion", "quantum" => "HatcheryQuantum",
-                "immortality" => "HatcheryImmortality", "tachyon" => "HatcheryTachyon", "graviton" => "HatcheryGraviton",
-                "dilithium" => "HatcheryDilithium", "prodigy" => "HatcheryProdigy", "terraform" => "HatcheryTerraform",
-                "antimatter" => "HatcheryAntimatter", "darkmatter" => "HatcheryDarkMatter", "ai" => "HatcheryAi",
-                "vision" => "HatcheryNebula", "universe" => "HatcheryUniverse", "enlightenment" => "HatcheryEnlightenment",
+            return suffix switch {
+                "edible" => "HatcheryEdible",
+                "superfood" => "HatcherySuperfood",
+                "medical" => "HatcheryMedical",
+                "supermaterial" => "HatcherySupermaterial",
+                "fusion" => "HatcheryFusion",
+                "quantum" => "HatcheryQuantum",
+                "immortality" => "HatcheryImmortality",
+                "tachyon" => "HatcheryTachyon",
+                "graviton" => "HatcheryGraviton",
+                "dilithium" => "HatcheryDilithium",
+                "prodigy" => "HatcheryProdigy",
+                "terraform" => "HatcheryTerraform",
+                "antimatter" => "HatcheryAntimatter",
+                "darkmatter" => "HatcheryDarkMatter",
+                "ai" => "HatcheryAi",
+                "vision" => "HatcheryNebula",
+                "universe" => "HatcheryUniverse",
+                "enlightenment" => "HatcheryEnlightenment",
                 _ => null,
             };
         }

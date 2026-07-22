@@ -5,50 +5,43 @@ using System.Text.Json;
 namespace EggIncognito.Services;
 
 
-public interface ICaptureCaNotifier
-{
-   
-   
+public interface ICaptureCaNotifier {
+
+
     Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct);
 }
 
 
 public sealed record CaptureSetupDm(
     string DiscordId, byte[] CerBytes, string ProxyHost, int Port);
-public sealed class NoopCaptureCaNotifier : ICaptureCaNotifier
-{
+public sealed class NoopCaptureCaNotifier : ICaptureCaNotifier {
     public Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct) => Task.FromResult(false);
 }
 
 public sealed class DiscordCaptureCaNotifier(
     IHttpClientFactory httpFactory, IConfiguration config, ILogger<DiscordCaptureCaNotifier> logger)
-    : ICaptureCaNotifier
-{
+    : ICaptureCaNotifier {
     private const string ProfileFile = "eggincognito-capture.mobileconfig";
 
-    public async Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct)
-    {
+    public async Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct) {
         var token = config["Discord:BotToken"];
         if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(dm.DiscordId) || dm.CerBytes.Length == 0)
             return false;
 
-        try
-        {
+        try {
             var http = httpFactory.CreateClient("discord-api");
             var channelId = await OpenDmAsync(http, token, dm.DiscordId, ct);
             if (channelId is null) return false;
 
             var profile = MobileConfig.BuildCaProfile(dm.CerBytes, dm.DiscordId);
             return await PostAsync(http, token, channelId, profile, ProfileFile, BuildMessage(dm), ct);
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             logger.LogWarning(ex, "Capture setup DM to {DiscordId} failed; fail-closed", dm.DiscordId);
             return false;
         }
     }
 
-   
+
     internal static string BuildMessage(CaptureSetupDm dm) =>
         $"""
         **Hosted capture is live.**
@@ -61,11 +54,9 @@ public sealed class DiscordCaptureCaNotifier(
         **3. Open Egg, Inc.**
         """;
 
-   
-    private static async Task<string?> OpenDmAsync(HttpClient http, string token, string discordId, CancellationToken ct)
-    {
-        using var req = new HttpRequestMessage(HttpMethod.Post, "https://discord.com/api/v10/users/@me/channels")
-        {
+
+    private static async Task<string?> OpenDmAsync(HttpClient http, string token, string discordId, CancellationToken ct) {
+        using var req = new HttpRequestMessage(HttpMethod.Post, "https://discord.com/api/v10/users/@me/channels") {
             Content = new StringContent(
                 JsonSerializer.Serialize(new { recipient_id = discordId }),
                 Encoding.UTF8, "application/json"),
@@ -80,11 +71,10 @@ public sealed class DiscordCaptureCaNotifier(
             : null;
     }
 
-   
+
     private static async Task<bool> PostAsync(
         HttpClient http, string token, string channelId, byte[] profile, string fileName, string content,
-        CancellationToken ct)
-    {
+        CancellationToken ct) {
         using var form = new MultipartFormDataContent();
         var file = new ByteArrayContent(profile);
         file.Headers.ContentType = new MediaTypeHeaderValue("application/x-apple-aspen-config");
@@ -93,8 +83,7 @@ public sealed class DiscordCaptureCaNotifier(
             JsonSerializer.Serialize(new { content }), Encoding.UTF8, "application/json"), "payload_json");
 
         using var req = new HttpRequestMessage(HttpMethod.Post,
-            $"https://discord.com/api/v10/channels/{channelId}/messages")
-        {
+            $"https://discord.com/api/v10/channels/{channelId}/messages") {
             Content = form,
         };
         req.Headers.TryAddWithoutValidation("Authorization", $"Bot {token}");

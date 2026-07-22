@@ -6,8 +6,7 @@ using SyncKit.Contract;
 
 namespace EggIncognito.Services;
 
-public sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
-{
+public sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser {
     private const string SessionSub = "sub";
 
     private ClaimsPrincipal? Principal => accessor.HttpContext?.User;
@@ -21,12 +20,11 @@ public sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
     public string? Username => IsAuthenticated ? Find(ClaimTypes.Name, SessionClaims.Name) : null;
     public string? Avatar => IsAuthenticated ? Find("urn:discord:avatar:hash", SessionClaims.Avatar) : null;
 
-   
-   
-    public string? AvatarUrl => Avatar switch
-    {
+
+
+    public string? AvatarUrl => Avatar switch {
         null or "" => null,
-        var a when a.StartsWith("http://") || a.StartsWith("https://") => a,
+        var a when a.StartsWith("http://", StringComparison.Ordinal) || a.StartsWith("https://", StringComparison.Ordinal) => a,
         var a => $"https://cdn.discordapp.com/avatars/{DiscordId}/{a}.png",
     };
 

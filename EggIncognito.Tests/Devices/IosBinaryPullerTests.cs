@@ -4,24 +4,20 @@ using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 
-public class IosBinaryPullerTests
-{
-    sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner
-    {
+public class IosBinaryPullerTests {
+    private sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner {
         public readonly List<(string exe, string[] args)> Calls = [];
-        public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct)
-        {
+        public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) {
             Calls.Add((exe, args));
             return Task.FromResult(fn(exe, args));
         }
     }
 
-    const string BundleId = "com.auxbrain.egginc";
-    const string BinPath = "/private/var/containers/Bundle/Application/ABC/egginc.app/egginc";
+    private const string BundleId = "com.auxbrain.egginc";
+    private const string BinPath = "/private/var/containers/Bundle/Application/ABC/egginc.app/egginc";
 
     [Fact]
-    public async Task Pull_LocateFails_ReturnsNull()
-    {
+    public async Task Pull_LocateFails_ReturnsNull() {
         var runner = new FakeRunner((exe, _) => exe == "ssh"
             ? new ProcessResult(255, "", "ssh: connect to host port 2222: Connection refused")
             : new ProcessResult(0, "", ""));
@@ -30,16 +26,14 @@ public class IosBinaryPullerTests
     }
 
     [Fact]
-    public async Task Pull_LocateEmpty_ReturnsNull()
-    {
+    public async Task Pull_LocateEmpty_ReturnsNull() {
         var runner = new FakeRunner((exe, _) => new ProcessResult(0, "", ""));
         var puller = new IosBinaryPuller(runner, "1.2.3.4", "2222", "/key");
         Assert.Null(await puller.PullBinaryAsync(BundleId, default));
     }
 
     [Fact]
-    public async Task Pull_ScpFails_ReturnsNull()
-    {
+    public async Task Pull_ScpFails_ReturnsNull() {
         var runner = new FakeRunner((exe, _) => exe == "ssh"
             ? new ProcessResult(0, BinPath + "\n", "")
             : new ProcessResult(1, "", "scp: no such file"));
@@ -48,11 +42,9 @@ public class IosBinaryPullerTests
     }
 
     [Fact]
-    public async Task Pull_Success_ReturnsBytes_AndUsesLocatedPath()
-    {
-        var payload = new byte[] { 0xCA, 0xFE, 0xBA, 0xBE };
-        var runner = new FakeRunner((exe, args) =>
-        {
+    public async Task Pull_Success_ReturnsBytes_AndUsesLocatedPath() {
+        byte[] payload = [0xCA, 0xFE, 0xBA, 0xBE];
+        var runner = new FakeRunner((exe, args) => {
             if (exe == "ssh") return new ProcessResult(0, BinPath + "\n", "");
             File.WriteAllBytes(args[^1], payload);
             return new ProcessResult(0, "", "");
@@ -70,10 +62,8 @@ public class IosBinaryPullerTests
     }
 
     [Fact]
-    public async Task Pull_PicksFirstLocatedLine_WhenMultiple()
-    {
-        var runner = new FakeRunner((exe, args) =>
-        {
+    public async Task Pull_PicksFirstLocatedLine_WhenMultiple() {
+        var runner = new FakeRunner((exe, args) => {
             if (exe == "ssh") return new ProcessResult(0, $"{BinPath}\n/other/path\n", "");
             File.WriteAllBytes(args[^1], [1]);
             return new ProcessResult(0, "", "");

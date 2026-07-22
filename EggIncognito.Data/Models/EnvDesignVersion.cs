@@ -4,8 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace EggIncognito.Data.Models;
 
 [Table("env_design_versions")]
-public class EnvDesignVersion
-{
+public class EnvDesignVersion {
     [Key]
     [Column("id")]
     public long Id { get; set; }
@@ -25,7 +24,7 @@ public class EnvDesignVersion
     [Column("note")]
     public string? Note { get; set; }
 
-   
+
     [Column("rolled_back_from")]
     public int? RolledBackFrom { get; set; }
 

@@ -1,0 +1,278 @@
+{
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "identity": {
+      "origin": "binary",
+      "locator": "boostmanager"
+    },
+    "cost": {
+      "origin": "config",
+      "locator": "ei/get_config"
+    },
+    "iconAsset": {
+      "origin": "derived"
+    }
+  },
+  "boosts": [
+    {
+      "id": "jimbos_blue_v2",
+      "displayName": "JIMBO'S EXCELLENT BIRD FEED",
+      "price": 50,
+      "tokenPrice": 0,
+      "seRequired": 0,
+      "iconAsset": "b_icon_jimbos_blue"
+    },
+    {
+      "id": "jimbos_purple_v2",
+      "displayName": "JIMBO'S PREMIUM BIRD FEED",
+      "price": 150,
+      "tokenPrice": 1,
+      "seRequired": 0,
+      "iconAsset": "b_icon_jimbos_purple"
+    },
+    {
+      "id": "jimbos_purple_big",
+      "price": 750,
+      "tokenPrice": 1,
+      "seRequired": 1,
+      "iconAsset": "b_icon_jimbos_purple_big"
+    },
+    {
+      "id": "jimbos_orange",
+      "displayName": "JIMBO'S BEST BIRD FEED",
+      "price": 2500,
+      "tokenPrice": 2,
+      "seRequired": 100,
+      "iconAsset": "b_icon_jimbos_orange"
+    },
+    {
+      "id": "jimbos_orange_big",
+      "price": 7500,
+      "tokenPrice": 3,
+      "seRequired": 100,
+      "iconAsset": "b_icon_jimbos_orange_big"
+    },
+    {
+      "id": "subsidy_application",
+      "displayName": "SUBSIDY APPLICATION",
+      "description": "This gives you instant cash equalling the amount in the description. Not boostable.",
+      "price": 200,
+      "tokenPrice": 1,
+      "seRequired": 0,
+      "iconAsset": "b_icon_subsidy_application"
+    },
+    {
+      "id": "blank_check",
+      "displayName": "BLANK CHECK",
+      "price": 750,
+      "tokenPrice": 1,
+      "seRequired": 100000,
+      "iconAsset": "b_icon_blank_check"
+    },
+    {
+      "id": "money_printer",
+      "displayName": "MONEY PRINTER",
+      "price": 2500,
+      "tokenPrice": 2,
+      "seRequired": 5000000,
+      "iconAsset": "b_icon_money_printer"
+    },
+    {
+      "id": "tachyon_prism_blue_v2",
+      "displayName": "TACHYON PRISM",
+      "price": 50,
+      "tokenPrice": 0,
+      "seRequired": 0,
+      "iconAsset": "b_icon_tachyon_prism_blue"
+    },
+    {
+      "id": "tachyon_prism_blue_big",
+      "displayName": "LARGE TACHYON PRISM",
+      "price": 500,
+      "tokenPrice": 0,
+      "seRequired": 0,
+      "iconAsset": "b_icon_tachyon_prism_blue_big"
+    },
+    {
+      "id": "tachyon_prism_purple_v2",
+      "displayName": "POWERFUL TACHYON PRISM",
+      "price": 1000,
+      "tokenPrice": 2,
+      "seRequired": 0,
+      "iconAsset": "b_icon_tachyon_prism_purple"
+    },
+    {
+      "id": "tachyon_prism_purple_big",
+      "displayName": "EPIC TACHYON PRISM",
+      "price": 5000,
+      "tokenPrice": 2,
+      "seRequired": 100,
+      "iconAsset": "b_icon_tachyon_prism_purple_big"
+    },
+    {
+      "id": "tachyon_prism_orange",
+      "displayName": "LEGENDARY TACHYON PRISM",
+      "price": 12000,
+      "tokenPrice": 4,
+      "seRequired": 2500,
+      "iconAsset": "b_icon_tachyon_prism_orange"
+    },
+    {
+      "id": "tachyon_prism_orange_big",
+      "displayName": "SUPREME TACHYON PRISM",
+      "price": 25000,
+      "tokenPrice": 4,
+      "seRequired": 100000,
+      "iconAsset": "b_icon_tachyon_prism_orange_big"
+    },
+    {
+      "id": "soul_beacon_blue_v2",
+      "displayName": "SOUL BEACON",
+      "description": "Increases the rate at which you earn soul eggs.",
+      "price": 200,
+      "tokenPrice": 0,
+      "seRequired": 10000,
+      "iconAsset": "b_icon_soul_beacon_blue"
+    },
+    {
+      "id": "soul_beacon_purple_v2",
+      "displayName": "EPIC SOUL BEACON",
+      "price": 1000,
+      "tokenPrice": 0,
+      "seRequired": 1000000,
+      "iconAsset": "b_icon_soul_beacon_purple"
+    },
+    {
+      "id": "soul_beacon_orange",
+      "displayName": "LEGENDARY SOUL BEACON",
+      "price": 10000,
+      "tokenPrice": 0,
+      "seRequired": 10000000000,
+      "iconAsset": "b_icon_soul_beacon_orange"
+    },
+    {
+      "id": "boost_beacon_blue",
+      "displayName": "BOOST BEACON",
+      "description": "Multiplies the effect of ALL other boosts, except instant cash and discount events. The effect on earnings boosts does NOT compound.",
+      "price": 1000,
+      "tokenPrice": 1,
+      "seRequired": 1000,
+      "iconAsset": "b_icon_boost_beacon_blue"
+    },
+    {
+      "id": "boost_beacon_purple",
+      "displayName": "EPIC BOOST BEACON",
+      "price": 8000,
+      "tokenPrice": 4,
+      "seRequired": 100000,
+      "iconAsset": "b_icon_boost_beacon_purple"
+    },
+    {
+      "id": "boost_beacon_blue_big",
+      "displayName": "LARGE BOOST BEACON",
+      "price": 15000,
+      "tokenPrice": 3,
+      "seRequired": 500000,
+      "iconAsset": "b_icon_boost_beacon_blue_big"
+    },
+    {
+      "id": "boost_beacon_orange",
+      "displayName": "LEGENDARY BOOST BEACON",
+      "price": 50000,
+      "tokenPrice": 8,
+      "seRequired": 100000000,
+      "iconAsset": "b_icon_boost_beacon_orange"
+    },
+    {
+      "id": "soul_mirror_blue",
+      "displayName": "SOUL MIRROR",
+      "description": "Temporarily have the earnings bonus of the top player in your co-op.",
+      "price": 100,
+      "tokenPrice": 1,
+      "seRequired": 1000,
+      "iconAsset": "b_icon_soul_mirror_blue"
+    },
+    {
+      "id": "soul_mirror_purple",
+      "displayName": "EPIC SOUL MIRROR",
+      "price": 500,
+      "tokenPrice": 2,
+      "seRequired": 1000,
+      "iconAsset": "b_icon_soul_mirror_purple"
+    },
+    {
+      "id": "soul_mirror_orange",
+      "displayName": "LEGENDARY SOUL MIRROR",
+      "price": 2000,
+      "tokenPrice": 3,
+      "seRequired": 10000,
+      "iconAsset": "b_icon_soul_mirror_orange"
+    },
+    {
+      "id": "quantum_bulb",
+      "displayName": "QUANTUM WARMING BULB",
+      "price": 10,
+      "tokenPrice": 0,
+      "seRequired": 0,
+      "iconAsset": "b_icon_quantum_bulb"
+    },
+    {
+      "id": "dilithium_bulb",
+      "displayName": "DILITHIUM WARMING BULB",
+      "description": "Unlimited hatchery that automatically hatches chickens at your hold to hatch rate. Does not work while away.",
+      "price": 1000,
+      "tokenPrice": 0,
+      "seRequired": 100000,
+      "iconAsset": "b_icon_dilithium_bulb"
+    },
+    {
+      "id": "jimbos_blue",
+      "price": 50,
+      "tokenPrice": 1,
+      "seRequired": 0,
+      "iconAsset": "b_icon_jimbos_blue"
+    },
+    {
+      "id": "jimbos_blue_big",
+      "price": 100,
+      "tokenPrice": 1,
+      "seRequired": 0,
+      "iconAsset": "b_icon_jimbos_blue_big"
+    },
+    {
+      "id": "jimbos_purple",
+      "price": 250,
+      "tokenPrice": 2,
+      "seRequired": 0,
+      "iconAsset": "b_icon_jimbos_purple"
+    },
+    {
+      "id": "tachyon_prism_blue",
+      "price": 200,
+      "tokenPrice": 1,
+      "seRequired": 0,
+      "iconAsset": "b_icon_tachyon_prism_blue"
+    },
+    {
+      "id": "tachyon_prism_purple",
+      "price": 1000,
+      "tokenPrice": 3,
+      "seRequired": 0,
+      "iconAsset": "b_icon_tachyon_prism_purple"
+    },
+    {
+      "id": "soul_beacon_blue",
+      "price": 200,
+      "tokenPrice": 0,
+      "seRequired": 10000,
+      "iconAsset": "b_icon_soul_beacon_blue"
+    },
+    {
+      "id": "soul_beacon_purple",
+      "price": 1000,
+      "tokenPrice": 0,
+      "seRequired": 1000000,
+      "iconAsset": "b_icon_soul_beacon_purple"
+    }
+  ]
+}

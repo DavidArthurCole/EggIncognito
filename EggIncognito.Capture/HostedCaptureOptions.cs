@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Capture;
@@ -11,8 +12,7 @@ public sealed record HostedCaptureOptions(
     IReadOnlyList<string> ExtraAllowedHosts,
     string PublicHost,
     string Ipv6Prefix,
-    string AddressSecret)
-{
+    string AddressSecret) {
     public static HostedCaptureOptions Defaults() => new(
         FrontDoorPort: 8443,
         PortPoolBase: 24000,
@@ -24,8 +24,7 @@ public sealed record HostedCaptureOptions(
         Ipv6Prefix: "2a01:4f8:c012:e15b::/64",
         AddressSecret: "");
 
-    public static HostedCaptureOptions Bind(IConfiguration config)
-    {
+    public static HostedCaptureOptions Bind(IConfiguration config) {
         var d = Defaults();
         var s = config.GetSection("Capture");
         return new HostedCaptureOptions(
@@ -44,16 +43,15 @@ public sealed record HostedCaptureOptions(
             AddressSecret: s["AddressSecret"] ?? d.AddressSecret);
     }
 
-    private static int Int(string? raw, int fallback) => int.TryParse(raw, out var v) ? v : fallback;
+    private static int Int(string? raw, int fallback) => int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : fallback;
 
-   
-    public bool IsExtraAllowed(string host)
-    {
-        foreach (var h in ExtraAllowedHosts)
-        {
+
+    public bool IsExtraAllowed(string host) {
+        foreach (var h in ExtraAllowedHosts) {
             if (host.Equals(h, StringComparison.OrdinalIgnoreCase) ||
-                host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase))
+                host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase)) {
                 return true;
+            }
         }
         return false;
     }

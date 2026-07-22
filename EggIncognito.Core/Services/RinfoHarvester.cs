@@ -1,17 +1,15 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace EggIncognito.Services;
 
 
-public static class RinfoHarvester
-{
+public static class RinfoHarvester {
     public sealed record ObservedVersion(string Platform, string? Version, string? Build, int? ClientVersion);
 
-    public static ObservedVersion? TryHarvest(string? requestJson)
-    {
+    public static ObservedVersion? TryHarvest(string? requestJson) {
         if (string.IsNullOrWhiteSpace(requestJson)) return null;
-        try
-        {
+        try {
             using var doc = JsonDocument.Parse(requestJson);
             if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
             if (!TryGetProperty(doc.RootElement, "rinfo", out var rinfo) || rinfo.ValueKind != JsonValueKind.Object)
@@ -25,34 +23,32 @@ public static class RinfoHarvester
                 ? NullIfEmpty(b.GetString()) : null;
             int? clientVersion = ReadClientVersion(rinfo);
 
-            if (platform is null && version is null && build is null && clientVersion is null) return null;
-            return new ObservedVersion(platform ?? "", version, build, clientVersion);
-        }
-        catch
-        {
+            return platform is null && version is null && build is null && clientVersion is null
+                ? null
+                : new ObservedVersion(platform ?? "", version, build, clientVersion);
+        } catch {
             return null;
         }
     }
 
-    private static int? ReadClientVersion(JsonElement rinfo)
-    {
-        if (!TryGetProperty(rinfo, "clientVersion", out var cv)) return null;
-        return cv.ValueKind switch
-        {
+    private static int? ReadClientVersion(JsonElement rinfo) {
+        return !TryGetProperty(rinfo, "clientVersion", out var cv)
+            ? null
+            : cv.ValueKind switch {
             JsonValueKind.Number when cv.TryGetInt32(out var n) => n,
-            JsonValueKind.String when int.TryParse(cv.GetString(), out var n) => n,
+            JsonValueKind.String when int.TryParse(cv.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) => n,
             _ => null,
         };
     }
 
-    private static bool TryGetProperty(JsonElement obj, string name, out JsonElement value)
-    {
-        foreach (var prop in obj.EnumerateObject())
-            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
-            {
+    private static bool TryGetProperty(JsonElement obj, string name, out JsonElement value) {
+        foreach (var prop in obj.EnumerateObject()) {
+            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) {
                 value = prop.Value;
                 return true;
             }
+        }
+
         value = default;
         return false;
     }

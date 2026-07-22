@@ -4,15 +4,13 @@ using Xunit;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class LibegincClientVersionTests
-{
+public class LibegincClientVersionTests {
     private static uint Movz(int wd, int imm16) => 0x52800000u | ((uint)(imm16 & 0xFFFF) << 5) | (uint)(wd & 0x1F);
     private static uint StrW(int wt, int xn, int imm12) =>
         0xB9000000u | ((uint)(imm12 & 0xFFF) << 10) | ((uint)(xn & 0x1F) << 5) | (uint)(wt & 0x1F);
 
-   
-    private static byte[] SoWithText(byte[] textBytes)
-    {
+
+    private static byte[] SoWithText(byte[] textBytes) {
         var shstrtab = System.Text.Encoding.ASCII.GetBytes("\0.text\0.shstrtab\0");
         int ehdr = 64, shentsize = 64, shstrtabOff = ehdr;
         int textOff = shstrtabOff + shstrtab.Length;
@@ -33,8 +31,7 @@ public class LibegincClientVersionTests
         return buf;
     }
 
-    private static byte[] Text()
-    {
+    private static byte[] Text() {
         var w = new List<uint>();
         for (int s = 0; s < 3; s++) { w.Add(Movz(0, 72)); w.Add(StrW(0, 1, 0x11)); w.Add(0xD503201F); }
         var b = new byte[w.Count * 4];
@@ -43,23 +40,15 @@ public class LibegincClientVersionTests
     }
 
     [Fact]
-    public void Read_RawSo_FindsClientVersion()
-    {
-        Assert.Equal(72, LibegincClientVersion.Read(SoWithText(Text()), prevClientVersion: 71));
-    }
+    public void Read_RawSo_FindsClientVersion() => Assert.Equal(72, LibegincClientVersion.Read(SoWithText(Text()), prevClientVersion: 71));
 
     [Fact]
-    public void Read_NullPrev_ReturnsNull()
-    {
-        Assert.Null(LibegincClientVersion.Read(SoWithText(Text()), prevClientVersion: null));
-    }
+    public void Read_NullPrev_ReturnsNull() => Assert.Null(LibegincClientVersion.Read(SoWithText(Text()), prevClientVersion: null));
 
     [Fact]
-    public void Read_ApkZip_PullsSoEntry()
-    {
+    public void Read_ApkZip_PullsSoEntry() {
         using var ms = new System.IO.MemoryStream();
-        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
-        {
+        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true)) {
             var e = zip.CreateEntry("lib/arm64-v8a/libegginc.so");
             using var es = e.Open();
             var so = SoWithText(Text());

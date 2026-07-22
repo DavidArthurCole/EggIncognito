@@ -3,11 +3,9 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests.GameData;
 
-public sealed class BoostCostParityTests
-{
+public sealed class BoostCostParityTests {
     [Fact]
-    public void GameDataBoostCosts_MatchGetConfigCapture()
-    {
+    public void GameDataBoostCosts_MatchGetConfigCapture() {
         var path = FindFixture();
         if (path is null) return;
 
@@ -15,8 +13,7 @@ public sealed class BoostCostParityTests
         var provider = GameDataProvider.CreateDefault();
 
         var matched = 0;
-        foreach (var e in provider.All("boost"))
-        {
+        foreach (var e in provider.All("boost")) {
             if (!costs.TryGetValue(e.Id, out var cost)) continue;
             matched++;
 
@@ -34,11 +31,9 @@ public sealed class BoostCostParityTests
         Assert.True(matched > 0, "no boost ids overlapped between GameData and the get_config capture");
     }
 
-    private static string? FindFixture()
-    {
+    private static string? FindFixture() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
+        while (dir is not null) {
             var candidate = Path.Combine(dir.FullName, "EggIncognito", "Endpoints", "default", "ei", "get_config.json");
             if (File.Exists(candidate)) return candidate;
             dir = dir.Parent;

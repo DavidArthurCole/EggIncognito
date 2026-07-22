@@ -1,8 +1,7 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 
-public static class MachoProtoExtractor
-{
+public static class MachoProtoExtractor {
     public sealed record CarvedDescriptor(string Name, int FileOffset, byte[] Bytes);
     public sealed record ExtractResult(bool Ok, string? Proto, string Diagnostics);
 
@@ -13,8 +12,7 @@ public static class MachoProtoExtractor
     public static string? EmitProto(byte[] fileDescriptorProtoBytes) =>
         DescriptorProtoCarver.EmitProto(fileDescriptorProtoBytes);
 
-    public static ExtractResult Extract(byte[] macho)
-    {
+    public static ExtractResult Extract(byte[] macho) {
         var r = DescriptorProtoCarver.Extract(macho);
         return new ExtractResult(r.Ok, r.Proto, r.Diagnostics);
     }

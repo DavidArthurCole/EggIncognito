@@ -1,37 +1,32 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.RateLimiting;
 using EggIncognito.Services;
+using Microsoft.AspNetCore.RateLimiting;
 using SyncKit.Contract;
 
 namespace EggIncognito.Services.RateLimiting;
 
-public static class RateLimiterSetup
-{
-    public static IServiceCollection AddAppRateLimiter(this IServiceCollection services, IConfiguration config)
-    {
+public static class RateLimiterSetup {
+    public static IServiceCollection AddAppRateLimiter(this IServiceCollection services, IConfiguration config) {
         var opts = RateLimitOptions.Bind(config);
-        if (!opts.Enabled)
-        {
+        if (!opts.Enabled) {
             services.AddRateLimiter(o => o.GlobalLimiter =
                 PartitionedRateLimiter.Create<HttpContext, string>(_ =>
                     RateLimitPartition.GetNoLimiter("disabled")));
             return services;
         }
 
-        services.AddRateLimiter(o =>
-        {
+        services.AddRateLimiter(o => {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             AddPolicy(o, "egress", opts);
             AddPolicy(o, "write", opts);
             AddPolicy(o, "read", opts);
-           
+
             o.AddPolicy("fetch", ctx => Partition(ctx, "Fetch", opts, tierCapped: false));
             o.AddPolicy("data", ctx => DataPartition(ctx, opts));
 
-            o.OnRejected = async (ctx, ct) =>
-            {
+            o.OnRejected = async (ctx, ct) => {
                 var retry = ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var ra)
                     ? (int)ra.TotalSeconds
                     : FallbackRetryAfterSeconds(ctx.HttpContext, opts);
@@ -44,18 +39,15 @@ public static class RateLimiterSetup
         return services;
     }
 
-    private static void AddPolicy(RateLimiterOptions o, string policyKey, RateLimitOptions opts)
-    {
+    private static void AddPolicy(RateLimiterOptions o, string policyKey, RateLimitOptions opts) {
         var optionKey = char.ToUpperInvariant(policyKey[0]) + policyKey[1..];
         o.AddPolicy(policyKey, ctx => Partition(ctx, optionKey, opts));
     }
 
-    internal static int FallbackRetryAfterSeconds(HttpContext ctx, RateLimitOptions opts)
-    {
+    internal static int FallbackRetryAfterSeconds(HttpContext ctx, RateLimitOptions opts) {
         var policyName = ctx.GetEndpoint()?.Metadata
             .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
-        if (policyName is { Length: > 0 })
-        {
+        if (policyName is { Length: > 0 }) {
             var optionKey = char.ToUpperInvariant(policyName[0]) + policyName[1..];
             if (opts.Policies.TryGetValue(optionKey, out var policy)) return policy.WindowSeconds;
         }
@@ -64,17 +56,15 @@ public static class RateLimiterSetup
 
     internal static bool IsExempt(ICurrentUser user) => user.IsAtLeast(UserRole.Admin);
 
-    internal static int EffectivePermit(RateLimitOptions opts, IReadOnlyList<string> tierNames, string policyOptionKey)
-    {
+    internal static int EffectivePermit(RateLimitOptions opts, IReadOnlyList<string> tierNames, string policyOptionKey) {
         var best = tierNames.Max(t => opts.Tiers[t].PermitLimit);
         return Math.Min(opts.Policies[policyOptionKey].PermitLimit, best);
     }
 
-   
-   
+
+
     private static RateLimitPartition<string> Partition(
-        HttpContext ctx, string policyOptionKey, RateLimitOptions opts, bool tierCapped = true)
-    {
+        HttpContext ctx, string policyOptionKey, RateLimitOptions opts, bool tierCapped = true) {
         var user = ctx.RequestServices.GetRequiredService<ICurrentUser>();
         if (IsExempt(user)) return RateLimitPartition.GetNoLimiter($"admin:{user.DiscordId}");
         var hosted = ctx.RequestServices.GetRequiredService<IAppMode>().Mode == AppMode.Hosted;
@@ -85,8 +75,7 @@ public static class RateLimiterSetup
             : policy.PermitLimit;
 
         return RateLimitPartition.GetSlidingWindowLimiter($"{policyOptionKey}:{key}", _ =>
-            new SlidingWindowRateLimiterOptions
-            {
+            new SlidingWindowRateLimiterOptions {
                 PermitLimit = permit,
                 Window = TimeSpan.FromSeconds(policy.WindowSeconds),
                 SegmentsPerWindow = policy.SegmentsPerWindow,
@@ -98,20 +87,17 @@ public static class RateLimiterSetup
 
 
 
-    private static RateLimitPartition<string> DataPartition(HttpContext ctx, RateLimitOptions opts)
-    {
+    private static RateLimitPartition<string> DataPartition(HttpContext ctx, RateLimitOptions opts) {
         var user = ctx.RequestServices.GetRequiredService<ICurrentUser>();
         if (IsExempt(user)) return RateLimitPartition.GetNoLimiter($"admin:{user.DiscordId}");
 
         var hosted = ctx.RequestServices.GetRequiredService<IAppMode>().Mode == AppMode.Hosted;
 
-        if (ctx.User.FindFirst(DataApi.ApiKeyGen.Claim) is { } keyClaim)
-        {
+        if (ctx.User.FindFirst(DataApi.ApiKeyGen.Claim) is { } keyClaim) {
             var permit = Math.Min(opts.Policies["Data"].PermitLimit, opts.Tiers["Keyed"].PermitLimit);
             return Sliding($"data:apikey:{keyClaim.Value}", permit, opts.Policies["Data"]);
         }
-        if (user.IsAuthenticated && user.UserId is { } uid)
-        {
+        if (user.IsAuthenticated && user.UserId is { } uid) {
             var permit = EffectivePermit(opts, RateLimitKeys.TiersFor(user), "Data");
             return Sliding($"data:user:{uid}", permit, opts.Policies["Data"]);
         }
@@ -121,8 +107,7 @@ public static class RateLimiterSetup
 
     private static RateLimitPartition<string> Sliding(string key, int permit, RateLimit policy) =>
         RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
-            new SlidingWindowRateLimiterOptions
-            {
+            new SlidingWindowRateLimiterOptions {
                 PermitLimit = permit,
                 Window = TimeSpan.FromSeconds(policy.WindowSeconds),
                 SegmentsPerWindow = policy.SegmentsPerWindow,

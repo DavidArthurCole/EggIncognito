@@ -2,10 +2,8 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class EndpointStatusTests
-{
-    private static string WriteYaml(string dir)
-    {
+public class EndpointStatusTests {
+    private static string WriteYaml(string dir) {
         var p = Path.Combine(dir, "routes.yaml");
         File.WriteAllText(p, """
             routes:
@@ -25,8 +23,7 @@ public class EndpointStatusTests
         return p;
     }
 
-    private static (string yamlPath, string defaults) MakeRepo()
-    {
+    private static (string yamlPath, string defaults) MakeRepo() {
         var dir = Path.Combine(Path.GetTempPath(), "egi-st-" + Guid.NewGuid().ToString("N"));
         var defaults = Path.Combine(dir, "default");
         Directory.CreateDirectory(Path.Combine(defaults, "ei"));
@@ -37,8 +34,7 @@ public class EndpointStatusTests
     }
 
     [Fact]
-    public void Classify_BucketsMissingEmptyOk_SkippingRaw()
-    {
+    public void Classify_BucketsMissingEmptyOk_SkippingRaw() {
         var (yamlPath, defaults) = MakeRepo();
         var r = EndpointStatus.Classify(yamlPath, defaults);
         Assert.Contains("ei/has_endpoint", r.Ok);
@@ -50,8 +46,7 @@ public class EndpointStatusTests
     }
 
     [Fact]
-    public void WriteStatusBlock_RewritesEndpointStatus()
-    {
+    public void WriteStatusBlock_RewritesEndpointStatus() {
         var (yamlPath, defaults) = MakeRepo();
         var yaml = EndpointStatus.WriteStatusBlock(yamlPath, EndpointStatus.Classify(yamlPath, defaults));
         Assert.Contains("endpoint_status:", yaml);
@@ -64,8 +59,7 @@ public class EndpointStatusTests
     [InlineData("{  }")]
     [InlineData("{\r\n}")]
     [InlineData("  ")]
-    public void Classify_WhitespaceVariantsOfEmptyObject_AreEmpty(string content)
-    {
+    public void Classify_WhitespaceVariantsOfEmptyObject_AreEmpty(string content) {
         var (yamlPath, defaults) = MakeRepo();
         File.WriteAllText(Path.Combine(defaults, "ei", "empty_endpoint.json"), content);
         var r = EndpointStatus.Classify(yamlPath, defaults);
@@ -74,10 +68,9 @@ public class EndpointStatusTests
     }
 
     [Fact]
-    public void WriteStatusBlock_PreservesFollowingNonLowercaseTopLevelKey()
-    {
+    public void WriteStatusBlock_PreservesFollowingNonLowercaseTopLevelKey() {
         var (yamlPath, defaults) = MakeRepo();
-       
+
         File.AppendAllText(yamlPath,
             "\nendpoint_status:\n  missing:\n    - ei/stale_entry\n\n_meta: keep_underscore\nZone: keep_upper\n");
         var yaml = EndpointStatus.WriteStatusBlock(yamlPath, EndpointStatus.Classify(yamlPath, defaults));

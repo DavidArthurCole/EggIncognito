@@ -4,8 +4,7 @@ using System.Text;
 namespace EggIncognito.Capture;
 
 
-internal sealed class HttpMessage
-{
+internal sealed class HttpMessage {
     public required string StartLine { get; init; }
     public required List<HttpHeader> Headers { get; init; }
     public byte[]? Body { get; init; }
@@ -13,10 +12,8 @@ internal sealed class HttpMessage
     public string Method => StartLine.Split(' ') is { Length: > 0 } p ? p[0] : "";
     public string Path => StartLine.Split(' ') is { Length: > 1 } p ? p[1] : "/";
 
-    public int StatusCode
-    {
-        get
-        {
+    public int StatusCode {
+        get {
             var parts = StartLine.Split(' ');
             return parts.Length > 1 && int.TryParse(parts[1], out var c) ? c : 0;
         }
@@ -28,9 +25,8 @@ internal sealed class HttpMessage
 
     private bool IsRequest => !StartLine.StartsWith("HTTP/", StringComparison.OrdinalIgnoreCase);
 
-   
-    public static async Task<HttpMessage?> ReadAsync(Stream s, CancellationToken ct)
-    {
+
+    public static async Task<HttpMessage?> ReadAsync(Stream s, CancellationToken ct) {
         var headBytes = await ReadHeadAsync(s, ct);
         if (headBytes is null) return null;
 
@@ -38,8 +34,7 @@ internal sealed class HttpMessage
         var lines = headText.Split("\r\n");
         var startLine = lines[0];
         var headers = new List<HttpHeader>();
-        for (int i = 1; i < lines.Length; i++)
-        {
+        for (int i = 1; i < lines.Length; i++) {
             if (lines[i].Length == 0) continue;
             var idx = lines[i].IndexOf(':');
             if (idx <= 0) continue;
@@ -51,19 +46,16 @@ internal sealed class HttpMessage
         return new HttpMessage { StartLine = startLine, Headers = headers, Body = body };
     }
 
-   
-   
-    public async Task WriteAsync(Stream s, CancellationToken ct)
-    {
+
+
+    public async Task WriteAsync(Stream s, CancellationToken ct) {
         var sb = new StringBuilder();
         sb.Append(StartLine).Append("\r\n");
         var bodyLen = Body?.Length ?? 0;
         bool wroteLen = false;
-        foreach (var h in Headers)
-        {
+        foreach (var h in Headers) {
             if (h.Name.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase)) continue;
-            if (h.Name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
-            {
+            if (h.Name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase)) {
                 sb.Append("Content-Length: ").Append(bodyLen).Append("\r\n");
                 wroteLen = true;
                 continue;
@@ -79,55 +71,47 @@ internal sealed class HttpMessage
         await s.FlushAsync(ct);
     }
 
-   
+
     private bool HasBodySemantics() =>
         IsRequest ? Method is "POST" or "PUT" or "PATCH" : StatusCode is not (204 or 304);
 
-   
-    private static async Task<byte[]?> ReadHeadAsync(Stream s, CancellationToken ct)
-    {
+
+    private static async Task<byte[]?> ReadHeadAsync(Stream s, CancellationToken ct) {
         var buf = new List<byte>(1024);
         var one = new byte[1];
         int matched = 0;
-        while (true)
-        {
+        while (true) {
             int n = await s.ReadAsync(one, ct);
-            if (n == 0) return buf.Count > 0 ? buf.ToArray() : null;
+            if (n == 0) return buf.Count > 0 ? [.. buf] : null;
             var b = one[0];
             buf.Add(b);
-            matched = (matched, b) switch
-            {
+            matched = (matched, b) switch {
                 (0, 13) => 1,
                 (1, 10) => 2,
                 (2, 13) => 3,
                 (3, 10) => 4,
                 _ => b == 13 ? 1 : 0,
             };
-            if (matched == 4) return buf.ToArray();
-            if (buf.Count > 64 * 1024) return buf.ToArray();
+            if (matched == 4) return [.. buf];
+            if (buf.Count > 64 * 1024) return [.. buf];
         }
     }
 
-    private static async Task<byte[]> ReadBodyAsync(Stream s, List<HttpHeader> headers, bool isRequest, int status, CancellationToken ct)
-    {
+    private static async Task<byte[]> ReadBodyAsync(Stream s, List<HttpHeader> headers, bool isRequest, int status, CancellationToken ct) {
         var te = Get(headers, "Transfer-Encoding");
         if (te is not null && te.Contains("chunked", StringComparison.OrdinalIgnoreCase))
             return await ReadChunkedAsync(s, ct);
 
         var clRaw = Get(headers, "Content-Length");
-        if (clRaw is not null && long.TryParse(clRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cl) && cl > 0)
-            return await ReadExactAsync(s, (int)cl, ct);
-
-       
-        return [];
+        return clRaw is not null && long.TryParse(clRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cl) && cl > 0
+            ? await ReadExactAsync(s, (int)cl, ct)
+            : [];
     }
 
-    private static async Task<byte[]> ReadExactAsync(Stream s, int count, CancellationToken ct)
-    {
+    private static async Task<byte[]> ReadExactAsync(Stream s, int count, CancellationToken ct) {
         var buf = new byte[count];
         int read = 0;
-        while (read < count)
-        {
+        while (read < count) {
             int n = await s.ReadAsync(buf.AsMemory(read, count - read), ct);
             if (n == 0) break;
             read += n;
@@ -135,11 +119,9 @@ internal sealed class HttpMessage
         return read == count ? buf : buf[..read];
     }
 
-    private static async Task<byte[]> ReadChunkedAsync(Stream s, CancellationToken ct)
-    {
+    private static async Task<byte[]> ReadChunkedAsync(Stream s, CancellationToken ct) {
         var outBuf = new List<byte>();
-        while (true)
-        {
+        while (true) {
             var sizeLine = await ReadLineAsync(s, ct);
             if (sizeLine is null) break;
             var semi = sizeLine.IndexOf(';');
@@ -150,19 +132,17 @@ internal sealed class HttpMessage
             outBuf.AddRange(chunk);
             await ReadLineAsync(s, ct);
         }
-        return outBuf.ToArray();
+        return [.. outBuf];
     }
 
-    private static async Task<string?> ReadLineAsync(Stream s, CancellationToken ct)
-    {
+    private static async Task<string?> ReadLineAsync(Stream s, CancellationToken ct) {
         var sb = new List<byte>();
         var one = new byte[1];
-        while (true)
-        {
+        while (true) {
             int n = await s.ReadAsync(one, ct);
-            if (n == 0) return sb.Count > 0 ? Encoding.ASCII.GetString(sb.ToArray()) : null;
+            if (n == 0) return sb.Count > 0 ? Encoding.ASCII.GetString([.. sb]) : null;
             if (one[0] == 13) continue;
-            if (one[0] == 10) return Encoding.ASCII.GetString(sb.ToArray());
+            if (one[0] == 10) return Encoding.ASCII.GetString([.. sb]);
             sb.Add(one[0]);
         }
     }

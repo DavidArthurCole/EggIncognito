@@ -4,13 +4,10 @@ using EggIncognito.Services;
 namespace EggIncognito.Tests;
 
 
-public sealed class RouteSchemaConsistencyTests
-{
-    private static string RealYamlPath()
-    {
+public sealed class RouteSchemaConsistencyTests {
+    private static string RealYamlPath() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
+        while (dir is not null) {
             if (dir.GetFiles("*.slnx").Length > 0 || dir.GetFiles("*.sln").Length > 0)
                 return Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
             dir = dir.Parent;
@@ -19,8 +16,7 @@ public sealed class RouteSchemaConsistencyTests
     }
 
     [Fact]
-    public void BothParsers_AgreeOnEveryRoute()
-    {
+    public void BothParsers_AgreeOnEveryRoute() {
         var yamlPath = RealYamlPath();
         Assert.True(File.Exists(yamlPath), $"routes.yaml not found at {yamlPath}");
         var yaml = File.ReadAllText(yamlPath);
@@ -28,11 +24,10 @@ public sealed class RouteSchemaConsistencyTests
         var gen = RouteParser.Parse(yaml).ToDictionary(e => e.Path);
         var cat = RouteCatalog.Parse(yaml).ToDictionary(e => e.Path);
 
-       
+
         Assert.Equal(gen.Keys.OrderBy(k => k), cat.Keys.OrderBy(k => k));
 
-        foreach (var path in gen.Keys)
-        {
+        foreach (var path in gen.Keys) {
             var g = gen[path];
             var c = cat[path];
 
@@ -47,8 +42,7 @@ public sealed class RouteSchemaConsistencyTests
     }
 
     [Fact]
-    public void LegacyAndNewKeyForms_ProduceIdenticalShape_AcrossParsers()
-    {
+    public void LegacyAndNewKeyForms_ProduceIdenticalShape_AcrossParsers() {
         const string legacy = """
             routes:
               - path: ei/x
@@ -76,8 +70,7 @@ public sealed class RouteSchemaConsistencyTests
     }
 
     [Fact]
-    public void EntriesOutsideRoutesSection_AreIgnored_ByBothParsers()
-    {
+    public void EntriesOutsideRoutesSection_AreIgnored_ByBothParsers() {
         const string yaml = """
             routes:
               - path: ei/real
@@ -105,8 +98,7 @@ public sealed class RouteSchemaConsistencyTests
     }
 
     [Fact]
-    public void EmptyPathEntry_EmitsNoRoute_AndDoesNotCorruptNeighbors()
-    {
+    public void EmptyPathEntry_EmitsNoRoute_AndDoesNotCorruptNeighbors() {
         const string yaml = """
             routes:
               - path: ei/real
@@ -118,7 +110,7 @@ public sealed class RouteSchemaConsistencyTests
         var g = RouteParser.Parse(yaml);
         var c = RouteCatalog.Parse(yaml);
 
-       
+
         Assert.Single(g);
         Assert.Equal("ei/real", g[0].Path);
         Assert.Null(g[0].Response);
@@ -128,10 +120,9 @@ public sealed class RouteSchemaConsistencyTests
     }
 
     [Fact]
-    public void NewKeysWinOverLegacy_AtBlockLevel_InBothParsers()
-    {
-       
-       
+    public void NewKeysWinOverLegacy_AtBlockLevel_InBothParsers() {
+
+
         const string yaml = """
             routes:
               - path: ei/both

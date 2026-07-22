@@ -1,6 +1,3 @@
-# Keep the build context lean + deterministic. The image fetches its own Linux Tailwind CLI, so the
-# host's tools/ (which may hold a Windows tailwindcss.exe) must not leak in. Build outputs + VCS +
-# local logs/captures are never needed for the image.
 **/bin/
 **/obj/
 tools/
@@ -12,3 +9,4 @@ tools/
 docs/
 *.md
 !EggIncognito/Endpoints/**
+dist/

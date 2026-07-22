@@ -4,8 +4,7 @@ using EggIncognito.Services;
 namespace EggIncognito.Tests;
 
 
-public sealed class OpenApiBuilderTests
-{
+public sealed class OpenApiBuilderTests {
     private static readonly ProtoReflection Reflection = new();
 
     private static AuxbrainEntry Entry(
@@ -18,15 +17,13 @@ public sealed class OpenApiBuilderTests
         AuxbrainStatus status = AuxbrainStatus.Ok,
         IReadOnlyList<string>? aliases = null) =>
         new(path, path.Split('/')[0], request, response,
-            requestWrapped, responseWrapped, pathParam, status)
-        { Aliases = aliases ?? [] };
+            requestWrapped, responseWrapped, pathParam, status) { Aliases = aliases ?? [] };
 
     private static JsonDocument Build(params AuxbrainEntry[] entries) =>
         JsonDocument.Parse(OpenApiBuilder.BuildJson(entries, Reflection));
 
     [Fact]
-    public void Doc_ParsesAsJson_WithOpenApiVersion()
-    {
+    public void Doc_ParsesAsJson_WithOpenApiVersion() {
         using var doc = Build(Entry("ei/first_contact"));
         Assert.Equal("3.0.3", doc.RootElement.GetProperty("openapi").GetString());
         Assert.True(doc.RootElement.TryGetProperty("info", out var info));
@@ -34,8 +31,7 @@ public sealed class OpenApiBuilderTests
     }
 
     [Fact]
-    public void EveryEntryPath_PresentUnderPaths_WithPost()
-    {
+    public void EveryEntryPath_PresentUnderPaths_WithPost() {
         using var doc = Build(
             Entry("ei/first_contact"),
             Entry("ei_afx/config", "ArtifactsConfigurationRequest", "ArtifactsConfigurationResponse"));
@@ -45,8 +41,7 @@ public sealed class OpenApiBuilderTests
     }
 
     [Fact]
-    public void RequestBody_IsFormEncoded_Base64DataField()
-    {
+    public void RequestBody_IsFormEncoded_Base64DataField() {
         using var doc = Build(Entry("ei/first_contact"));
         var body = doc.RootElement.GetProperty("paths").GetProperty("/ei/first_contact")
             .GetProperty("post").GetProperty("requestBody");
@@ -63,8 +58,7 @@ public sealed class OpenApiBuilderTests
     }
 
     [Fact]
-    public void ResponseSchema_RefsComponent_WithExpectedFields()
-    {
+    public void ResponseSchema_RefsComponent_WithExpectedFields() {
         using var doc = Build(Entry("ei/first_contact"));
         var schema = doc.RootElement.GetProperty("paths").GetProperty("/ei/first_contact")
             .GetProperty("post").GetProperty("responses").GetProperty("200")
@@ -76,15 +70,14 @@ public sealed class OpenApiBuilderTests
         var props = component.GetProperty("properties");
 
         Assert.Equal("string", props.GetProperty("eiUserId").GetProperty("type").GetString());
-       
+
         Assert.Equal("#/components/schemas/Backup", props.GetProperty("backup").GetProperty("$ref").GetString());
         Assert.True(doc.RootElement.GetProperty("components").GetProperty("schemas")
             .TryGetProperty("Backup", out _));
     }
 
     [Fact]
-    public void RepeatedField_MapsToArray()
-    {
+    public void RepeatedField_MapsToArray() {
         using var doc = Build(Entry("ei/first_contact"));
         var ids = doc.RootElement.GetProperty("components").GetProperty("schemas")
             .GetProperty("EggIncFirstContactResponse").GetProperty("properties")
@@ -94,8 +87,7 @@ public sealed class OpenApiBuilderTests
     }
 
     [Fact]
-    public void EnumField_MapsToStringEnumOfNames()
-    {
+    public void EnumField_MapsToStringEnumOfNames() {
         using var doc = Build(Entry("ei_afx/mission", "MissionRequest", "MissionInfo"));
         var ship = doc.RootElement.GetProperty("components").GetProperty("schemas")
             .GetProperty("MissionInfo").GetProperty("properties").GetProperty("ship");
@@ -105,8 +97,7 @@ public sealed class OpenApiBuilderTests
     }
 
     [Fact]
-    public void NotMockedEntry_GetsVendorExtension()
-    {
+    public void NotMockedEntry_GetsVendorExtension() {
         using var doc = Build(
             Entry("ei/coop_status_bot", "ContractCoopStatusRequest", "ContractCoopStatusResponse",
                 responseWrapped: true, status: AuxbrainStatus.NotMocked));
@@ -116,8 +107,7 @@ public sealed class OpenApiBuilderTests
     }
 
     [Fact]
-    public void WrappedEntry_DocumentsSigningInDescriptions()
-    {
+    public void WrappedEntry_DocumentsSigningInDescriptions() {
         using var doc = Build(
             Entry("ei/first_contact_secure", requestWrapped: true, responseWrapped: true));
         var op = doc.RootElement.GetProperty("paths").GetProperty("/ei/first_contact_secure")
@@ -127,16 +117,14 @@ public sealed class OpenApiBuilderTests
     }
 
     [Fact]
-    public void AliasedEntry_ListsAliasesAsVendorExtension()
-    {
+    public void AliasedEntry_ListsAliasesAsVendorExtension() {
         using var doc = Build(Entry("ei/new_name", aliases: ["ei/old_name"]));
         var op = doc.RootElement.GetProperty("paths").GetProperty("/ei/new_name").GetProperty("post");
         Assert.Equal("ei/old_name", op.GetProperty("x-eggincognito-aliases")[0].GetString());
     }
 
     [Fact]
-    public void PathParamEntry_EmitsEidVariantPath()
-    {
+    public void PathParamEntry_EmitsEidVariantPath() {
         using var doc = Build(
             Entry("ei_ctx/get_contract_evaluation", "BasicRequestInfo", "ContractEvaluation",
                 pathParam: true));
@@ -148,8 +136,7 @@ public sealed class OpenApiBuilderTests
     }
 
     [Fact]
-    public void NullResponseType_OmitsContent_KeepsDescription()
-    {
+    public void NullResponseType_OmitsContent_KeepsDescription() {
         using var doc = Build(Entry("ei/showcase_vote", request: null, response: null,
             requestWrapped: true, responseWrapped: true));
         var ok = doc.RootElement.GetProperty("paths").GetProperty("/ei/showcase_vote")
@@ -158,11 +145,10 @@ public sealed class OpenApiBuilderTests
         Assert.False(string.IsNullOrEmpty(ok.GetProperty("description").GetString()));
     }
 
-   
-   
+
+
     [Fact]
-    public void FullRealCatalog_Builds_AndEveryRefResolves()
-    {
+    public void FullRealCatalog_Builds_AndEveryRefResolves() {
         var root = RepoRoot();
         var yamlPath = Path.Combine(root, "EggIncognito", "RouteMap", "routes.yaml");
         var jsonPath = Path.Combine(root, "EggIncognito", "RouteMap", "auxbrain-paths.json");
@@ -176,29 +162,26 @@ public sealed class OpenApiBuilderTests
 
         using var doc = JsonDocument.Parse(OpenApiBuilder.BuildJson(entries, Reflection));
         var paths = doc.RootElement.GetProperty("paths");
-        foreach (var e in entries)
+        foreach (var e in entries) {
             Assert.True(paths.GetProperty("/" + e.Path).TryGetProperty("post", out _),
                 $"missing post operation for {e.Path}");
+        }
 
         var schemas = doc.RootElement.GetProperty("components").GetProperty("schemas");
         var refs = new List<string>();
         CollectRefs(doc.RootElement, refs);
         Assert.NotEmpty(refs);
-        foreach (var r in refs.Distinct())
-        {
+        foreach (var r in refs.Distinct()) {
             Assert.StartsWith("#/components/schemas/", r);
             var name = r["#/components/schemas/".Length..];
             Assert.True(schemas.TryGetProperty(name, out _), $"unresolved $ref {r}");
         }
     }
 
-    private static void CollectRefs(JsonElement element, List<string> refs)
-    {
-        switch (element.ValueKind)
-        {
+    private static void CollectRefs(JsonElement element, List<string> refs) {
+        switch (element.ValueKind) {
             case JsonValueKind.Object:
-                foreach (var p in element.EnumerateObject())
-                {
+                foreach (var p in element.EnumerateObject()) {
                     if (p.Name == "$ref" && p.Value.ValueKind == JsonValueKind.String)
                         refs.Add(p.Value.GetString()!);
                     else CollectRefs(p.Value, refs);
@@ -210,11 +193,9 @@ public sealed class OpenApiBuilderTests
         }
     }
 
-    private static string RepoRoot()
-    {
+    private static string RepoRoot() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
+        while (dir is not null) {
             if (dir.GetFiles("*.slnx").Length > 0 || dir.GetFiles("*.sln").Length > 0)
                 return dir.FullName;
             dir = dir.Parent;

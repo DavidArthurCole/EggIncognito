@@ -3,8 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace EggIncognito.Data.Models;
 
 [Table("feed_deliveries")]
-public sealed class FeedDelivery
-{
+public sealed class FeedDelivery {
     [Column("id")] public int Id { get; set; }
     [Column("subscription_id")] public int SubscriptionId { get; set; }
     [Column("event_kind")] public string EventKind { get; set; } = "proto_build";

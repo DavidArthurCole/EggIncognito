@@ -3,29 +3,24 @@ using System.IO.Compression;
 namespace EggIncognito.Services.ProtoExtract;
 
 
-public static class RpoAssetExtractor
-{
+public static class RpoAssetExtractor {
     private const long MaxEntryBytes = 50_000_000L;
 
-   
-   
+
+
     public sealed record Asset(string Key, string SourceEntry, RpoMeshDecoder.DecodeResult Decode);
 
     public sealed record ExtractResult(bool Ok, IReadOnlyList<Asset> Assets, string Diagnostics);
 
-    public static ExtractResult Extract(byte[] archiveZipBytes)
-    {
+    public static ExtractResult Extract(byte[] archiveZipBytes) {
         if (archiveZipBytes is null || archiveZipBytes.Length == 0)
             return new ExtractResult(false, [], "empty archive");
 
         ZipArchive zip;
-        try
-        {
+        try {
             zip = new ZipArchive(new MemoryStream(archiveZipBytes, writable: false), ZipArchiveMode.Read);
-        }
-        catch
-        {
-           
+        } catch {
+
             var single = RpoMeshDecoder.Decode(archiveZipBytes);
             return single.Ok
                 ? new ExtractResult(true, [new Asset("mesh", "<raw>", single)], "ok")
@@ -33,35 +28,29 @@ public static class RpoAssetExtractor
         }
 
         var entries = new List<(string Name, byte[] Bytes)>();
-        using (zip)
-        {
-            foreach (var entry in zip.Entries)
-            {
+        using (zip) {
+            foreach (var entry in zip.Entries) {
                 if (!IsRpoEntry(entry.FullName)) continue;
                 if (entry.Length is <= 0 or > MaxEntryBytes) continue;
-                try
-                {
+                try {
                     using var es = entry.Open();
                     using var buf = new MemoryStream();
                     es.CopyTo(buf);
                     entries.Add((entry.FullName, buf.ToArray()));
-                }
-                catch { /* skip unreadable entry */ }
+                } catch { /* skip unreadable entry */ }
             }
         }
         return DecodeEntries(entries);
     }
 
-   
-   
+
+
     public static ExtractResult FromEntries(IEnumerable<(string Name, byte[] Bytes)> entries) =>
         DecodeEntries(entries.Where(e => IsRpoEntry(e.Name) && e.Bytes.LongLength is > 0 and <= MaxEntryBytes));
 
-    private static ExtractResult DecodeEntries(IEnumerable<(string Name, byte[] Bytes)> entries)
-    {
+    private static ExtractResult DecodeEntries(IEnumerable<(string Name, byte[] Bytes)> entries) {
         var assets = new List<Asset>();
-        foreach (var (name, bytes) in entries)
-        {
+        foreach (var (name, bytes) in entries) {
             var key = KeyFromEntry(name);
             assets.Add(new Asset(key, name, RpoMeshDecoder.Decode(bytes, key)));
         }
@@ -74,10 +63,9 @@ public static class RpoAssetExtractor
         fullName.EndsWith(".rpo", StringComparison.OrdinalIgnoreCase)
         || fullName.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase);
 
-   
-   
-    private static string KeyFromEntry(string fullName)
-    {
+
+
+    private static string KeyFromEntry(string fullName) {
         var slash = fullName.LastIndexOfAny(['/', '\\']);
         var name = slash >= 0 ? fullName[(slash + 1)..] : fullName;
         var dot = name.LastIndexOf('.');

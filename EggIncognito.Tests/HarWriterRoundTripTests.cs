@@ -1,12 +1,11 @@
 using System.Text.Json;
+using EggIncognito.Capture;
 using EggIncognito.Services;
 using Google.Protobuf;
-using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-public class HarWriterRoundTripTests
-{
+public class HarWriterRoundTripTests {
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
     private const string Slug = "ei/get_periodicals";
 
@@ -23,8 +22,7 @@ needs_capture:
 
     private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-har");
 
-    private static string ResponseB64()
-    {
+    private static string ResponseB64() {
         var inner = new Ei.PeriodicalsResponse();
         var outer = new Ei.AuthenticatedMessage { Message = inner.ToByteString(), Compressed = false };
         return Convert.ToBase64String(outer.ToByteArray());
@@ -34,18 +32,17 @@ needs_capture:
         Path.Combine(root, "Endpoints", "default", Slug + ".json");
 
     [Fact]
-    public void HarWriter_Output_FedBackThroughExtractor_MatchesDirectFlow()
-    {
+    public void HarWriter_Output_FedBackThroughExtractor_MatchesDirectFlow() {
         var flow = new CapturedFlow(Url, "POST", 200, RequestDataB64: null, ResponseBodyB64: ResponseB64());
 
-       
+
         var directRoot = MakeRepo();
         var direct = EndpointExtractor.ForRepo(directRoot, null, "EI0000000000000000", false);
         direct.ProcessFlow(flow.Url, flow.Method, flow.Status, flow.RequestDataB64, flow.ResponseBodyB64);
         direct.Save();
         var directEndpoint = File.ReadAllText(EndpointPath(directRoot));
 
-       
+
         var harRoot = MakeRepo();
         var writer = new HarWriter();
         writer.Add(flow);
@@ -63,38 +60,33 @@ needs_capture:
     }
 
     [Fact]
-    public void HarWriter_EmitsRequestDataParam_WhenPresent()
-    {
+    public void HarWriter_EmitsRequestDataParam_WhenPresent() {
         var flow = new CapturedFlow(Url, "POST", 200, RequestDataB64: "AAEC", ResponseBodyB64: ResponseB64());
         var writer = new HarWriter();
         writer.Add(flow);
         var har = writer.ToHar();
-       
+
         Assert.Contains("\"data\"", har);
         Assert.Contains("AAEC", har);
     }
 
-   
-   
+
+
     [Fact]
-    public async Task HarWriter_ConcurrentAddAndToHar_NeverThrows_AndSnapshotsParse()
-    {
+    public async Task HarWriter_ConcurrentAddAndToHar_NeverThrows_AndSnapshotsParse() {
         var flow = new CapturedFlow(Url, "POST", 200, RequestDataB64: "AAEC", ResponseBodyB64: ResponseB64());
         var writer = new HarWriter();
         const int total = 2000;
         using var start = new ManualResetEventSlim(false);
 
-        var adder = Task.Run(() =>
-        {
+        var adder = Task.Run(() => {
             start.Wait();
             for (var i = 0; i < total; i++) writer.Add(flow);
         });
-        var serializer = Task.Run(() =>
-        {
+        var serializer = Task.Run(() => {
             start.Wait();
-            while (writer.Count < total)
-            {
-               
+            while (writer.Count < total) {
+
                 using var doc = JsonDocument.Parse(writer.ToHar());
             }
         });

@@ -1,8 +1,7 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 
-public static class MachoSymbols
-{
+public static class MachoSymbols {
     private const uint MhMagic64 = 0xFEEDFACF;
     private const uint FatMagic = 0xCAFEBABE;
     private const uint FatMagicLe = 0xBEBAFECA;
@@ -12,20 +11,17 @@ public static class MachoSymbols
 
     public readonly record struct Symbol(string Name, ulong Value, byte Type, byte Sect);
 
-   
-   
+
+
     public readonly record struct FuncRange(string Name, ulong Start, ulong End);
 
-    public static IReadOnlyList<Symbol> Read(byte[] bin)
-    {
+    public static IReadOnlyList<Symbol> Read(byte[] bin) {
         var outp = new List<Symbol>();
         if (bin is null || bin.Length < 32) return outp;
-        try
-        {
+        try {
             uint magic = U32(bin, 0);
             int b = 0;
-            if (magic == FatMagic || magic == FatMagicLe)
-            {
+            if (magic is FatMagic or FatMagicLe) {
                 if (!TryFatArm64(bin, out b) || b + 32 > bin.Length) return outp;
                 magic = U32(bin, b);
             }
@@ -33,14 +29,12 @@ public static class MachoSymbols
 
             uint ncmds = U32(bin, b + 16);
             int lc = b + 32;
-            for (uint c = 0; c < ncmds; c++)
-            {
+            for (uint c = 0; c < ncmds; c++) {
                 if (lc + 8 > bin.Length) return outp;
                 uint cmd = U32(bin, lc);
                 uint cmdsize = U32(bin, lc + 4);
                 if (cmdsize < 8 || lc + (long)cmdsize > bin.Length) return outp;
-                if (cmd == LcSymtab)
-                {
+                if (cmd == LcSymtab) {
                     uint symoff = U32(bin, lc + 8) + (uint)b;
                     uint nsyms = U32(bin, lc + 12);
                     uint stroff = U32(bin, lc + 16) + (uint)b;
@@ -49,22 +43,18 @@ public static class MachoSymbols
                 }
                 lc += (int)cmdsize;
             }
-        }
-        catch
-        {
+        } catch {
         }
         return outp;
     }
 
-   
-   
-   
-    public static bool TryFindFunc(IReadOnlyList<Symbol> syms, string[] needles, out FuncRange range)
-    {
+
+
+
+    public static bool TryFindFunc(IReadOnlyList<Symbol> syms, string[] needles, out FuncRange range) {
         range = default;
         Symbol? hit = null;
-        foreach (var s in syms)
-        {
+        foreach (var s in syms) {
             if (s.Value == 0 || string.IsNullOrEmpty(s.Name)) continue;
             bool all = true;
             foreach (var n in needles) if (!s.Name.Contains(n)) { all = false; break; }
@@ -81,10 +71,8 @@ public static class MachoSymbols
         return true;
     }
 
-    private static void ReadNlist(byte[] bin, uint symoff, uint nsyms, uint stroff, uint strsize, List<Symbol> outp)
-    {
-        for (uint i = 0; i < nsyms; i++)
-        {
+    private static void ReadNlist(byte[] bin, uint symoff, uint nsyms, uint stroff, uint strsize, List<Symbol> outp) {
+        for (uint i = 0; i < nsyms; i++) {
             long e = symoff + (long)i * 16;
             if (e + 16 > bin.Length) return;
             uint nStrx = U32(bin, (int)e);
@@ -98,14 +86,12 @@ public static class MachoSymbols
         }
     }
 
-    private static bool TryFatArm64(byte[] b, out int offset)
-    {
+    private static bool TryFatArm64(byte[] b, out int offset) {
         offset = 0;
         if (b.Length < 8) return false;
         uint nfat = U32be(b, 4);
         int e = 8;
-        for (uint i = 0; i < nfat; i++)
-        {
+        for (uint i = 0; i < nfat; i++) {
             if (e + 20 > b.Length) return false;
             if (U32be(b, e) == CpuArm64) { offset = (int)U32be(b, e + 8); return true; }
             e += 20;
@@ -116,15 +102,13 @@ public static class MachoSymbols
     private static uint U32(byte[] b, int o) => (uint)(b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24));
     private static uint U32be(byte[] b, int o) => (uint)((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]);
 
-    private static ulong U64(byte[] b, int o)
-    {
+    private static ulong U64(byte[] b, int o) {
         ulong v = 0;
         for (int k = 0; k < 8; k++) v |= (ulong)b[o + k] << (k * 8);
         return v;
     }
 
-    private static string Cstr(byte[] b, int o)
-    {
+    private static string Cstr(byte[] b, int o) {
         if (o < 0 || o >= b.Length) return "";
         int end = o;
         while (end < b.Length && b[end] != 0) end++;

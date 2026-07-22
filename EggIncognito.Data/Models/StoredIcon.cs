@@ -2,9 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
+
 [Table("stored_icons")]
-public class StoredIcon
-{
+public class StoredIcon {
     [Key]
     [Column("id")]
     public long Id { get; set; }

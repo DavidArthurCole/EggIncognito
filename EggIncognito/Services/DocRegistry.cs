@@ -1,6 +1,7 @@
 
 
 namespace EggIncognito.Services;
+
 public sealed record DocSubject(
     string Kind,
     string Key,
@@ -8,19 +9,16 @@ public sealed record DocSubject(
     string? Summary,
     IReadOnlyList<DocSubject> Children);
 
-public interface IDocRegistry
-{
+public interface IDocRegistry {
     IReadOnlyList<DocSubject> Roots();
     DocSubject? Find(string kind, string key);
 }
 
-public sealed class DocRegistry : IDocRegistry
-{
+public sealed class DocRegistry : IDocRegistry {
     private readonly IReadOnlyList<DocSubject> _roots;
     private readonly Dictionary<string, DocSubject> _byKey;
 
-    public DocRegistry(IProtoReflection proto, IRouteCatalog routes)
-    {
+    public DocRegistry(IProtoReflection proto, IRouteCatalog routes) {
         var messages = BuildMessages(proto);
         var endpoints = BuildEndpoints(routes, proto);
         var config = BuildConfig();
@@ -34,9 +32,8 @@ public sealed class DocRegistry : IDocRegistry
             new DocSubject("group", "controls", "Controls", "UI controls", controls),
         ];
 
-        _byKey = new Dictionary<string, DocSubject>(StringComparer.Ordinal);
-        foreach (var root in _roots)
-        {
+        _byKey = new(StringComparer.Ordinal);
+        foreach (var root in _roots) {
             Index(root);
             foreach (var child in root.Children) Index(child);
         }
@@ -49,12 +46,10 @@ public sealed class DocRegistry : IDocRegistry
 
     private void Index(DocSubject s) => _byKey[$"{s.Kind}:{s.Key}"] = s;
 
-   
-    private static IReadOnlyList<DocSubject> BuildMessages(IProtoReflection proto)
-    {
+
+    private static IReadOnlyList<DocSubject> BuildMessages(IProtoReflection proto) {
         var list = new List<DocSubject>();
-        foreach (var name in proto.AllMessageTypeNames())
-        {
+        foreach (var name in proto.AllMessageTypeNames()) {
             var schema = proto.Schema(name);
             var fields = schema is null
                 ? (IReadOnlyList<DocSubject>)[]
@@ -64,19 +59,16 @@ public sealed class DocRegistry : IDocRegistry
         return list;
     }
 
-    private static DocSubject FieldSubject(SchemaField f)
-    {
+    private static DocSubject FieldSubject(SchemaField f) {
         var typeText = f.Type == "message" && f.MessageType is not null ? f.MessageType : f.Type;
         var summary = f.Repeated ? $"repeated {typeText}" : typeText;
         return new DocSubject("field", f.Name, f.Name, summary, []);
     }
 
-   
-    private static IReadOnlyList<DocSubject> BuildEndpoints(IRouteCatalog routes, IProtoReflection proto)
-    {
+
+    private static IReadOnlyList<DocSubject> BuildEndpoints(IRouteCatalog routes, IProtoReflection proto) {
         var list = new List<DocSubject>();
-        foreach (var r in routes.All())
-        {
+        foreach (var r in routes.All()) {
             var req = r.Request ?? (r.RequestWrapped ? "AuthenticatedMessage" : "(none)");
             var res = r.Response ?? r.RawResponse ?? (r.ResponseWrapped ? "AuthenticatedMessage" : "(none)");
             var summary = $"request {req} -> response {res}";
@@ -90,8 +82,7 @@ public sealed class DocRegistry : IDocRegistry
         return list;
     }
 
-    private static void LinkMessage(List<DocSubject> into, string role, string? typeName, IProtoReflection proto)
-    {
+    private static void LinkMessage(List<DocSubject> into, string role, string? typeName, IProtoReflection proto) {
         if (string.IsNullOrEmpty(typeName)) return;
         if (proto.Schema(typeName) is null) return;
         into.Add(new DocSubject("message", typeName, $"{role}: {typeName}", null, []));
@@ -99,7 +90,7 @@ public sealed class DocRegistry : IDocRegistry
 
     private sealed record ConfigOption(string Key, string? Default, string Summary, string AppliesTo);
 
-   
+
     private static readonly ConfigOption[] ConfigOptions =
     [
         new("AppMode", "Local", "Local = full features; Hosted = capture + writes disabled (the public deploy)", "host"),
@@ -132,7 +123,7 @@ public sealed class DocRegistry : IDocRegistry
                 []))
             .ToList();
 
-   
+
     private static readonly DocSubject[] Controls =
     [
         new("control", "inspector-send-target", "Inspector send target", "Mock / Live API / Custom proxy send toggle", []),

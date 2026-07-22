@@ -7,20 +7,15 @@
 
 <div class="flex flex-col gap-4">
   <div class="apidoc">
-    <button type="button" class="apidoc-head" @onclick="() => _docOpen = !_docOpen" aria-expanded="@_docOpen">
+    <div class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-fg">
       <Icon Name="info" Class="icon-sm" />
       <span>Using the API</span>
-      <Icon Name="chevronDown" Class="@($"icon-sm apidoc-caret {(_docOpen ? "open" : "")}")" />
-    </button>
-    @if (_docOpen)
-    {
-      <div class="apidoc-body">
-        <p class="m-0">Authenticate every request with your key in the
-          <span class="code-chip">X-Api-Key</span> header. Keys are shown once at creation, so store them
-          securely; you can hold up to 20 active keys and revoke any of them below.</p>
-        <pre class="apidoc-example">curl -H "X-Api-Key: &lt;your-key&gt;" @($"{_origin}/api/v1/data")</pre>
-      </div>
-    }
+    </div>
+    <div class="apidoc-body">
+      <p class="m-0">Send your key in the <span class="code-chip">X-Api-Key</span> header on every request.</p>
+      <p class="m-0">Keys show once at creation. Store them safely. Up to 20 active; revoke any below.</p>
+      <pre class="apidoc-example">curl -H "X-Api-Key: &lt;your-key&gt;" @($"{_origin}/api/v1/data")</pre>
+    </div>
   </div>
   @if (_noDb)
   {
@@ -99,7 +94,6 @@
     string _baseAddress = "";
     string? _cookie;
     string _origin = "https://eggincognito.davidarthurcole.me";
-    bool _docOpen;
 
     bool _noDb;
     List<KeyRow>? _keys;

@@ -2,8 +2,7 @@ namespace EggIncognito.Services.ProtoExtract;
 
 
 
-public static class SymbolRecovery
-{
+public static class SymbolRecovery {
     public readonly record struct RecoveryReport(
         string Tier,
         int Recovered,
@@ -12,8 +11,7 @@ public static class SymbolRecovery
         IReadOnlyList<string> RequestedMissing,
         string Diagnostics);
 
-    public static RecoveryReport Recover(byte[] symbolizedRef, byte[] strippedTarget, string[] interestNeedles)
-    {
+    public static RecoveryReport Recover(byte[] symbolizedRef, byte[] strippedTarget, string[] interestNeedles) {
         interestNeedles ??= [];
         if (symbolizedRef is null || strippedTarget is null || symbolizedRef.Length < 64 || strippedTarget.Length < 64)
             return None(interestNeedles, "ref or target binary too short");
@@ -26,14 +24,13 @@ public static class SymbolRecovery
         var refSyms = MachoSymbols.Read(symbolizedRef);
         if (refSyms.Count == 0) return None(interestNeedles, "reference has no symbols");
 
-       
-        if (rSize == tSize && rSize > 0 && SpanEqual(symbolizedRef, rOff, strippedTarget, tOff, rSize))
-        {
+
+        if (rSize == tSize && rSize > 0 && SpanEqual(symbolizedRef, rOff, strippedTarget, tOff, rSize)) {
             var (found0, missing0) = Partition(refSyms, interestNeedles);
             return new RecoveryReport("exact-transplant", refSyms.Count, refSyms, found0, missing0, "ok: identical __text");
         }
 
-       
+
         var recovered = ContentHashRecover(symbolizedRef, rOff, rVm, refSyms, strippedTarget, tOff, tSize, tVm);
         var (found, missing) = Partition(recovered, interestNeedles);
         var diag = recovered.Count == 0
@@ -46,20 +43,18 @@ public static class SymbolRecovery
     private const int MaxFuncLen = 0x20000;
     private const int PrefixLen = 32;
 
-   
-   
-   
+
+
+
     private static List<MachoSymbols.Symbol> ContentHashRecover(
         byte[] refBin, int rOff, ulong rVm, IReadOnlyList<MachoSymbols.Symbol> refSyms,
-        byte[] tgtBin, int tOff, int tSize, ulong tVm)
-    {
+        byte[] tgtBin, int tOff, int tSize, ulong tVm) {
         var rSlide = rVm - (ulong)rOff;
         var ranges = FunctionRanges(refSyms, rVm, rVm + (ulong)refBin.Length);
 
-       
+
         var byPrefix = new Dictionary<ulong, List<RefFunc>>();
-        foreach (var (name, start, end) in ranges)
-        {
+        foreach (var (name, start, end) in ranges) {
             var fileStart = (long)start - (long)rSlide;
             var len = (long)end - (long)start;
             if (len < MinFuncLen || len > MaxFuncLen || fileStart < 0 || fileStart + len > refBin.Length) continue;
@@ -76,26 +71,20 @@ public static class SymbolRecovery
         var usedNames = new HashSet<string>(StringComparer.Ordinal);
         var usedFullHashes = new HashSet<ulong>();
 
-       
+
         var starts = MachoFunctionStarts.Read(tgtBin);
-        IEnumerable<int> Offsets()
-        {
-            if (starts.Count > 0)
-            {
+        IEnumerable<int> Offsets() {
+            if (starts.Count > 0) {
                 foreach (var s in starts) if (s >= tOff && s + PrefixLen <= tEnd) yield return s;
-            }
-            else
-            {
+            } else {
                 for (int p = tOff; p + PrefixLen <= tEnd; p += 4) yield return p;
             }
         }
 
-        foreach (var p in Offsets())
-        {
+        foreach (var p in Offsets()) {
             var pfx = FnvNormalizedPrefixAt(tgtBin, p);
             if (!byPrefix.TryGetValue(pfx, out var cands)) continue;
-            foreach (var fn in cands)
-            {
+            foreach (var fn in cands) {
                 if (p + fn.Norm.Length > tEnd) continue;
                 if (usedNames.Contains(fn.Name) || usedFullHashes.Contains(fn.FullHash)) continue;
                 if (!NormalizedEquals(tgtBin, p, fn.Norm)) continue;
@@ -110,29 +99,25 @@ public static class SymbolRecovery
 
     private readonly record struct RefFunc(string Name, byte[] Norm, ulong FullHash);
 
-   
-    private static ulong FnvFull(byte[] norm)
-    {
+
+    private static ulong FnvFull(byte[] norm) {
         ulong h = 1469598103934665603UL;
         for (int i = 0; i < norm.Length; i++) { h ^= norm[i]; h *= 1099511628211UL; }
         return h;
     }
 
-   
-    private static ulong FnvPrefix(byte[] norm)
-    {
+
+    private static ulong FnvPrefix(byte[] norm) {
         ulong h = 1469598103934665603UL;
         int n = Math.Min(PrefixLen, norm.Length);
         for (int i = 0; i < n; i++) { h ^= norm[i]; h *= 1099511628211UL; }
         return h;
     }
 
-   
-    private static ulong FnvNormalizedPrefixAt(byte[] bin, int off)
-    {
+
+    private static ulong FnvNormalizedPrefixAt(byte[] bin, int off) {
         ulong h = 1469598103934665603UL;
-        for (int i = 0; i < PrefixLen; i += 4)
-        {
+        for (int i = 0; i < PrefixLen; i += 4) {
             uint w = NormalizeWord((uint)(bin[off + i] | (bin[off + i + 1] << 8) | (bin[off + i + 2] << 16) | (bin[off + i + 3] << 24)));
             h ^= (byte)w; h *= 1099511628211UL;
             h ^= (byte)(w >> 8); h *= 1099511628211UL;
@@ -142,11 +127,9 @@ public static class SymbolRecovery
         return h;
     }
 
-   
-    private static bool NormalizedEquals(byte[] tgt, int off, byte[] norm)
-    {
-        for (int i = 0; i + 4 <= norm.Length; i += 4)
-        {
+
+    private static bool NormalizedEquals(byte[] tgt, int off, byte[] norm) {
+        for (int i = 0; i + 4 <= norm.Length; i += 4) {
             uint w = NormalizeWord((uint)(tgt[off + i] | (tgt[off + i + 1] << 8) | (tgt[off + i + 2] << 16) | (tgt[off + i + 3] << 24)));
             if ((byte)w != norm[i] || (byte)(w >> 8) != norm[i + 1] || (byte)(w >> 16) != norm[i + 2] || (byte)(w >> 24) != norm[i + 3])
                 return false;
@@ -154,15 +137,13 @@ public static class SymbolRecovery
         return true;
     }
 
-   
+
     private static List<(string Name, ulong Start, ulong End)> FunctionRanges(
-        IReadOnlyList<MachoSymbols.Symbol> syms, ulong textVm, ulong textEnd)
-    {
+        IReadOnlyList<MachoSymbols.Symbol> syms, ulong textVm, ulong textEnd) {
         var addrs = syms.Where(s => s.Value >= textVm && s.Value < textEnd && !string.IsNullOrEmpty(s.Name))
             .Select(s => (s.Name, s.Value)).Distinct().OrderBy(s => s.Value).ToList();
         var outp = new List<(string, ulong, ulong)>(addrs.Count);
-        for (int i = 0; i < addrs.Count; i++)
-        {
+        for (int i = 0; i < addrs.Count; i++) {
             var start = addrs[i].Value;
             var end = i + 1 < addrs.Count ? addrs[i + 1].Value : textEnd;
             if (end > start) outp.Add((addrs[i].Name, start, end));
@@ -173,13 +154,11 @@ public static class SymbolRecovery
     private static int CountTextFuncs(IReadOnlyList<MachoSymbols.Symbol> syms, ulong textVm, int textSize)
         => FunctionRanges(syms, textVm, textVm + (ulong)textSize).Count;
 
-   
-    private static byte[] NormalizeRange(byte[] bin, int off, int len)
-    {
+
+    private static byte[] NormalizeRange(byte[] bin, int off, int len) {
         var c = new byte[len];
         Array.Copy(bin, off, c, 0, len);
-        for (int i = 0; i + 4 <= len; i += 4)
-        {
+        for (int i = 0; i + 4 <= len; i += 4) {
             uint w = (uint)(c[i] | (c[i + 1] << 8) | (c[i + 2] << 16) | (c[i + 3] << 24));
             uint nw = NormalizeWord(w);
             c[i] = (byte)nw; c[i + 1] = (byte)(nw >> 8); c[i + 2] = (byte)(nw >> 16); c[i + 3] = (byte)(nw >> 24);
@@ -187,24 +166,21 @@ public static class SymbolRecovery
         return c;
     }
 
-   
-    private static uint NormalizeWord(uint w)
-    {
+
+    private static uint NormalizeWord(uint w) {
         uint top6 = w >> 26;
         uint top8 = w >> 24;
-        bool brImm = top6 == 0b000101 || top6 == 0b100101;
+        bool brImm = top6 is 0b000101 or 0b100101;
         bool bcond = top8 == 0b01010100;
         bool adr = (w & 0x1F000000) == 0x10000000;
         return (brImm || bcond || adr) ? (w & 0xFF000000) : w;
     }
 
     private static (IReadOnlyList<string> Found, IReadOnlyList<string> Missing) Partition(
-        IReadOnlyList<MachoSymbols.Symbol> syms, string[] needles)
-    {
+        IReadOnlyList<MachoSymbols.Symbol> syms, string[] needles) {
         var found = new List<string>();
         var missing = new List<string>();
-        foreach (var n in needles)
-        {
+        foreach (var n in needles) {
             if (syms.Any(s => s.Name.Contains(n, StringComparison.Ordinal))) found.Add(n);
             else missing.Add(n);
         }
@@ -214,9 +190,9 @@ public static class SymbolRecovery
     private static RecoveryReport None(string[] needles, string diag)
         => new("none", 0, [], [], needles, diag);
 
-    private static bool SpanEqual(byte[] a, int aOff, byte[] b, int bOff, int len)
-    {
-        if (aOff < 0 || bOff < 0 || aOff + len > a.Length || bOff + len > b.Length) return false;
-        return a.AsSpan(aOff, len).SequenceEqual(b.AsSpan(bOff, len));
+    private static bool SpanEqual(byte[] a, int aOff, byte[] b, int bOff, int len) {
+        return aOff < 0 || bOff < 0 || aOff + len > a.Length || bOff + len > b.Length
+            ? false
+            : a.AsSpan(aOff, len).SequenceEqual(b.AsSpan(bOff, len));
     }
 }

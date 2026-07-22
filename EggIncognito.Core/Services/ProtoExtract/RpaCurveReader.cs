@@ -5,24 +5,19 @@ namespace EggIncognito.Services.ProtoExtract;
 
 
 
-public static class RpaCurveReader
-{
+public static class RpaCurveReader {
     public readonly record struct Key(float Time, float C0, float C1, float C2);
 
-    public readonly record struct Curve(bool Ok, int Tracks, int Components, IReadOnlyList<Key> Keys, string Diagnostics)
-    {
+    public readonly record struct Curve(bool Ok, int Tracks, int Components, IReadOnlyList<Key> Keys, string Diagnostics) {
         public float Duration => Keys.Count == 0 ? 0 : Keys[^1].Time;
 
-       
-        public float Sample(float t, int comp = 0)
-        {
+
+        public float Sample(float t, int comp = 0) {
             if (Keys.Count == 0) return 0;
             if (t <= Keys[0].Time) return Comp(Keys[0], comp);
             if (t >= Keys[^1].Time) return Comp(Keys[^1], comp);
-            for (int i = 1; i < Keys.Count; i++)
-            {
-                if (t <= Keys[i].Time)
-                {
+            for (int i = 1; i < Keys.Count; i++) {
+                if (t <= Keys[i].Time) {
                     var a = Keys[i - 1];
                     var b = Keys[i];
                     var span = b.Time - a.Time;
@@ -36,8 +31,7 @@ public static class RpaCurveReader
         private static float Comp(Key k, int comp) => comp switch { 0 => k.C0, 1 => k.C1, 2 => k.C2, _ => 0 };
     }
 
-    public static Curve Read(byte[] bin)
-    {
+    public static Curve Read(byte[] bin) {
         if (bin is null || bin.Length < 0x18) return new(false, 0, 0, [], "too short");
         if (!(bin[0] == 'R' && bin[1] == 'P' && bin[2] == 'A' && bin[3] == '1'))
             return new(false, 0, 0, [], "not RPA1");
@@ -45,7 +39,7 @@ public static class RpaCurveReader
         int tracks = I32(bin, 0x04);
         int nKeys = I32(bin, 0x10);
         int nComp = I32(bin, 0x14);
-        if (nKeys < 0 || nKeys > 1_000_000) return new(false, tracks, nComp, [], $"implausible nKeys {nKeys}");
+        if (nKeys is < 0 or > 1_000_000) return new(false, tracks, nComp, [], $"implausible nKeys {nKeys}");
 
         long need = 0x18L + (long)nKeys * 16;
         if (need > bin.Length) return new(false, tracks, nComp, [], $"truncated: need {need}, have {bin.Length}");

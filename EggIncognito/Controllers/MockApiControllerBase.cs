@@ -1,25 +1,21 @@
 using System.Text;
+using EggIncognito.Services;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
-using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
 [ApiController]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
-public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorService behaviors) : ControllerBase
-{
+public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorService behaviors) : ControllerBase {
     private readonly IEndpointStore _endpoints = endpoints;
     private readonly IBehaviorService _behaviors = behaviors;
 
     protected Task<IActionResult> HandleAsync<TRes>(string path, string? data, string? sim = null)
-        where TRes : IMessage<TRes>, new()
-    {
-        if (sim is not null)
-        {
+        where TRes : IMessage<TRes>, new() {
+        if (sim is not null) {
             var behavior = _behaviors.Get(sim);
-            if (behavior is null)
-            {
+            if (behavior is null) {
                 var valid = _behaviors.All().Select(b => b.Name).ToArray();
                 throw new ApiException(
                     $"unknown sim '{sim}'",
@@ -33,8 +29,7 @@ public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorS
                 ? Encoding.UTF8.GetString(behavior.Body())
                 : string.Empty;
             var contentType = behavior.HttpStatus is >= 200 and < 300 ? "text/html" : "text/plain";
-            return Task.FromResult<IActionResult>(new ContentResult
-            {
+            return Task.FromResult<IActionResult>(new ContentResult {
                 StatusCode = behavior.HttpStatus,
                 Content = bodyStr,
                 ContentType = contentType,
@@ -46,13 +41,10 @@ public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorS
         return Task.FromResult<IActionResult>(Content(encoded, "text/html"));
     }
 
-    protected Task<IActionResult> HandleRawAsync(string body, string? sim = null)
-    {
-        if (sim is not null)
-        {
+    protected Task<IActionResult> HandleRawAsync(string body, string? sim = null) {
+        if (sim is not null) {
             var behavior = _behaviors.Get(sim);
-            if (behavior is null)
-            {
+            if (behavior is null) {
                 var valid = _behaviors.All().Select(b => b.Name).ToArray();
                 throw new ApiException(
                     $"unknown sim '{sim}'",
@@ -66,8 +58,7 @@ public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorS
                 ? Encoding.UTF8.GetString(behavior.Body())
                 : string.Empty;
             var contentType = behavior.HttpStatus is >= 200 and < 300 ? "text/html" : "text/plain";
-            return Task.FromResult<IActionResult>(new ContentResult
-            {
+            return Task.FromResult<IActionResult>(new ContentResult {
                 StatusCode = behavior.HttpStatus,
                 Content = bodyStr,
                 ContentType = contentType,

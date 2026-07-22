@@ -4,8 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace EggIncognito.Data.Models;
 
 [Table("docs")]
-public class Doc
-{
+public class Doc {
     [Key]
     [Column("id")]
     public long Id { get; set; }

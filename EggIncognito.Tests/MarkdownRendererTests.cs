@@ -2,35 +2,30 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class MarkdownRendererTests
-{
+public class MarkdownRendererTests {
     [Fact]
-    public void Script_IsEscaped_NeverRealTag()
-    {
+    public void Script_IsEscaped_NeverRealTag() {
         var html = MarkdownRenderer.Render("<script>alert(1)</script>");
         Assert.Contains("&lt;script&gt;", html);
         Assert.DoesNotContain("<script>", html);
     }
 
     [Fact]
-    public void Link_JavascriptScheme_BecomesHash()
-    {
+    public void Link_JavascriptScheme_BecomesHash() {
         var html = MarkdownRenderer.Render("[x](javascript:alert(1))");
         Assert.Contains("href=\"#\"", html);
         Assert.DoesNotContain("javascript:", html);
     }
 
     [Fact]
-    public void Link_DataScheme_BecomesHash()
-    {
+    public void Link_DataScheme_BecomesHash() {
         var html = MarkdownRenderer.Render("[x](data:text/html,evil)");
         Assert.Contains("href=\"#\"", html);
         Assert.DoesNotContain("data:", html);
     }
 
     [Fact]
-    public void Link_Https_Kept_WithSafeRel()
-    {
+    public void Link_Https_Kept_WithSafeRel() {
         var html = MarkdownRenderer.Render("[x](https://example.com)");
         Assert.Contains("href=\"https://example.com\"", html);
         Assert.Contains("target=\"_blank\" rel=\"noopener noreferrer\"", html);
@@ -41,53 +36,46 @@ public class MarkdownRendererTests
     [InlineData("/api/docs/image/1")]
     [InlineData("./foo")]
     [InlineData("#anchor")]
-    public void Link_RelativeAndAnchor_Allowed(string url)
-    {
+    public void Link_RelativeAndAnchor_Allowed(string url) {
         var html = MarkdownRenderer.Render($"[x]({url})");
         Assert.Contains($"href=\"{url}\"", html);
     }
 
     [Fact]
-    public void Image_SafeUrl_AndAlt()
-    {
+    public void Image_SafeUrl_AndAlt() {
         var html = MarkdownRenderer.Render("![cat](https://example.com/c.png)");
         Assert.Contains("<img src=\"https://example.com/c.png\" alt=\"cat\" />", html);
     }
 
     [Fact]
-    public void Image_UnsafeUrl_BecomesHash()
-    {
+    public void Image_UnsafeUrl_BecomesHash() {
         var html = MarkdownRenderer.Render("![x](javascript:alert(1))");
         Assert.Contains("src=\"#\"", html);
         Assert.DoesNotContain("javascript:", html);
     }
 
     [Fact]
-    public void Bold_Italic_Code()
-    {
+    public void Bold_Italic_Code() {
         Assert.Contains("<strong>bold</strong>", MarkdownRenderer.Render("**bold**"));
         Assert.Contains("<em>italic</em>", MarkdownRenderer.Render("*italic*"));
         Assert.Contains("<code>code</code>", MarkdownRenderer.Render("`code`"));
     }
 
     [Fact]
-    public void Headings_H1ToH3()
-    {
+    public void Headings_H1ToH3() {
         Assert.Contains("<h1 class=\"md-h1\">", MarkdownRenderer.Render("# H1"));
         Assert.Contains("<h2 class=\"md-h2\">", MarkdownRenderer.Render("## H2"));
         Assert.Contains("<h3 class=\"md-h3\">", MarkdownRenderer.Render("### H3"));
     }
 
     [Fact]
-    public void Heading_InlineFormattingApplied()
-    {
+    public void Heading_InlineFormattingApplied() {
         var html = MarkdownRenderer.Render("# Hello **world**");
         Assert.Contains("<h1 class=\"md-h1\">Hello <strong>world</strong></h1>", html);
     }
 
     [Fact]
-    public void FencedCode_Block()
-    {
+    public void FencedCode_Block() {
         var html = MarkdownRenderer.Render("```\nline1\nline2\n```");
         Assert.Contains("<pre class=\"md-code\"><code>", html);
         Assert.Contains("line1\nline2", html);
@@ -95,8 +83,7 @@ public class MarkdownRendererTests
     }
 
     [Fact]
-    public void UnorderedList_TwoItems()
-    {
+    public void UnorderedList_TwoItems() {
         var html = MarkdownRenderer.Render("- a\n- b");
         Assert.Contains("<ul class=\"md-list\">", html);
         Assert.Contains("<li>a</li>", html);
@@ -105,8 +92,7 @@ public class MarkdownRendererTests
     }
 
     [Fact]
-    public void OrderedList()
-    {
+    public void OrderedList() {
         var html = MarkdownRenderer.Render("1. a\n2. b");
         Assert.Contains("<ol class=\"md-list\">", html);
         Assert.Contains("<li>a</li>", html);
@@ -114,38 +100,33 @@ public class MarkdownRendererTests
     }
 
     [Fact]
-    public void Blockquote()
-    {
+    public void Blockquote() {
         var html = MarkdownRenderer.Render("> quote");
         Assert.Contains("<blockquote class=\"md-quote\">quote</blockquote>", html);
     }
 
     [Fact]
-    public void HorizontalRule()
-    {
+    public void HorizontalRule() {
         var html = MarkdownRenderer.Render("---");
         Assert.Contains("<hr class=\"md-rule\" />", html);
     }
 
     [Fact]
-    public void Code_BodyWithAngleBracket_IsEscaped()
-    {
+    public void Code_BodyWithAngleBracket_IsEscaped() {
         var html = MarkdownRenderer.Render("```\n<b>x</b>\n```");
         Assert.Contains("&lt;b&gt;", html);
         Assert.DoesNotContain("<b>", html);
     }
 
     [Fact]
-    public void Quote_BodyWithAngleBracket_IsEscaped()
-    {
+    public void Quote_BodyWithAngleBracket_IsEscaped() {
         var html = MarkdownRenderer.Render("> <b>x</b>");
         Assert.Contains("&lt;b&gt;", html);
         Assert.DoesNotContain("<b>", html);
     }
 
     [Fact]
-    public void Paragraph_MergesLinesWithBreak()
-    {
+    public void Paragraph_MergesLinesWithBreak() {
         var html = MarkdownRenderer.Render("one\ntwo");
         Assert.Contains("<p>one<br/>two</p>", html);
     }
@@ -153,30 +134,24 @@ public class MarkdownRendererTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void NullOrEmpty_ReturnsEmpty_NoThrow(string? src)
-    {
-        Assert.Equal("", MarkdownRenderer.Render(src));
-    }
+    public void NullOrEmpty_ReturnsEmpty_NoThrow(string? src) => Assert.Equal("", MarkdownRenderer.Render(src));
 
     [Fact]
-    public void Link_QuoteInUrl_CannotBreakOutOfHrefAttribute()
-    {
+    public void Link_QuoteInUrl_CannotBreakOutOfHrefAttribute() {
         var html = MarkdownRenderer.Render("[x](https://example.com/\" onmouseover=\"alert(1))");
         Assert.DoesNotContain("onmouseover=\"", html);
         Assert.Contains("&quot;", html);
     }
 
     [Fact]
-    public void Image_QuoteInUrl_CannotBreakOutOfSrcAttribute()
-    {
+    public void Image_QuoteInUrl_CannotBreakOutOfSrcAttribute() {
         var html = MarkdownRenderer.Render("![x](https://example.com/\" onerror=\"alert(1))");
         Assert.DoesNotContain("onerror=\"", html);
         Assert.Contains("&quot;", html);
     }
 
     [Fact]
-    public void Image_QuoteInAltText_CannotBreakOutOfAltAttribute()
-    {
+    public void Image_QuoteInAltText_CannotBreakOutOfAltAttribute() {
         var html = MarkdownRenderer.Render("![a\"b](https://example.com/c.png)");
         Assert.Contains("alt=\"a&quot;b\"", html);
     }

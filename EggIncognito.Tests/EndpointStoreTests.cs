@@ -3,14 +3,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-public sealed class EndpointStoreTests : IDisposable
-{
+public sealed class EndpointStoreTests : IDisposable {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
     public EndpointStoreTests() => Directory.CreateDirectory(_tempDir);
 
-    public void Dispose()
-    {
+    public void Dispose() {
         Directory.Delete(_tempDir, recursive: true);
         GC.SuppressFinalize(this);
     }
@@ -18,16 +16,14 @@ public sealed class EndpointStoreTests : IDisposable
     private EndpointStore CreateStore() =>
         new(new FileEndpointSource(_tempDir), null, NullLogger<EndpointStore>.Instance);
 
-    private void WriteEndpoint(string relativePath, string json)
-    {
+    private void WriteEndpoint(string relativePath, string json) {
         var full = Path.Combine(_tempDir, relativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         File.WriteAllText(full, json);
     }
 
     [Fact]
-    public void ReturnsDefaultInstanceWhenNoEndpoint()
-    {
+    public void ReturnsDefaultInstanceWhenNoEndpoint() {
         var store = CreateStore();
         var result = store.Get<Ei.AuthenticatedMessage>("ei/first_contact_secure");
         Assert.NotNull(result);
@@ -35,8 +31,7 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     [Fact]
-    public void ReturnsEndpointWhenDefaultExists()
-    {
+    public void ReturnsEndpointWhenDefaultExists() {
         WriteEndpoint("default/ei/first_contact_secure.json", "{}");
         var store = CreateStore();
         var result = store.Get<Ei.AuthenticatedMessage>("ei/first_contact_secure");
@@ -44,8 +39,7 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     [Fact]
-    public void PrefersEidEndpointOverDefault()
-    {
+    public void PrefersEidEndpointOverDefault() {
         WriteEndpoint("default/ei/get_periodicals.json", "{}");
         WriteEndpoint("eids/EI0000000000000001/ei/get_periodicals.json", "{}");
 
@@ -59,8 +53,7 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     [Fact]
-    public void FallsBackToDefaultWhenEidEndpointMissing()
-    {
+    public void FallsBackToDefaultWhenEidEndpointMissing() {
         WriteEndpoint("default/ei/get_periodicals.json", "{}");
 
         var store = CreateStore();
@@ -69,8 +62,7 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     [Fact]
-    public void UsesGroupedPathForLookup()
-    {
+    public void UsesGroupedPathForLookup() {
         WriteEndpoint("default/ei_afx/launch_mission.json", "{}");
 
         var store = CreateStore();
@@ -79,8 +71,7 @@ public sealed class EndpointStoreTests : IDisposable
     }
 
     [Fact]
-    public void DoesNotThrowWhenEndpointsDirMissing()
-    {
+    public void DoesNotThrowWhenEndpointsDirMissing() {
         var store = new EndpointStore(
             new FileEndpointSource(Path.Combine(_tempDir, "does_not_exist")),
             null,

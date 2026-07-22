@@ -5,24 +5,21 @@ using Google.Protobuf.Reflection;
 namespace EggIncognito.Services.ProtoExtract;
 
 
-public static class DescriptorProtoCarver
-{
+public static class DescriptorProtoCarver {
     public sealed record CarvedDescriptor(string Name, int FileOffset, byte[] Bytes);
-   
+
     public sealed record ExtractResult(bool Ok, string? Proto, string Diagnostics, string? ProtoSha,
         IReadOnlyList<string> Messages, string? AppVersion = null, string? Build = null);
 
-   
-   
+
+
     private static readonly string[] DescriptorFiles = ["ei.proto", "common.proto", "abb.proto"];
 
-   
-    public static IReadOnlyList<CarvedDescriptor> CarveAll(byte[] binary)
-    {
+
+    public static IReadOnlyList<CarvedDescriptor> CarveAll(byte[] binary) {
         var found = new List<CarvedDescriptor>();
         if (binary is null || binary.Length < 16) return found;
-        foreach (var name in DescriptorFiles)
-        {
+        foreach (var name in DescriptorFiles) {
             var at = FindAnchor(binary, name);
             if (at < 0) continue;
             var len = WireWalkLength(binary, at);
@@ -34,9 +31,8 @@ public static class DescriptorProtoCarver
         return found;
     }
 
-   
-    public static string? EmitProto(byte[] fileDescriptorProtoBytes)
-    {
+
+    public static string? EmitProto(byte[] fileDescriptorProtoBytes) {
         var fdp = TryParse(fileDescriptorProtoBytes);
         if (fdp is null) return null;
         var sb = new StringBuilder();
@@ -44,10 +40,9 @@ public static class DescriptorProtoCarver
         return sb.ToString();
     }
 
-   
-   
-    public static ExtractResult Extract(byte[] binary)
-    {
+
+
+    public static ExtractResult Extract(byte[] binary) {
         var carved = CarveAll(binary);
         var ei = carved.FirstOrDefault(c => c.Name == "ei.proto");
         if (ei is null)
@@ -69,16 +64,13 @@ public static class DescriptorProtoCarver
         return new ExtractResult(true, proto, diag, sha, messages);
     }
 
-    private static FileDescriptorProto? TryParse(byte[] bytes)
-    {
-        try { return FileDescriptorProto.Parser.ParseFrom(bytes); }
-        catch { return null; }
+    private static FileDescriptorProto? TryParse(byte[] bytes) {
+        try { return FileDescriptorProto.Parser.ParseFrom(bytes); } catch { return null; }
     }
 
-   
 
-    private static int FindAnchor(byte[] b, string protoName)
-    {
+
+    private static int FindAnchor(byte[] b, string protoName) {
         var nb = Encoding.ASCII.GetBytes(protoName);
         var pat = new byte[nb.Length + 2];
         pat[0] = 0x0A;
@@ -87,15 +79,12 @@ public static class DescriptorProtoCarver
         return IndexOf(b, pat);
     }
 
-   
-   
-    internal static int WireWalkLength(byte[] b, int start)
-    {
+
+
+    internal static int WireWalkLength(byte[] b, int start) {
         int pos = start, lastGood = start;
-        try
-        {
-            while (pos < b.Length)
-            {
+        try {
+            while (pos < b.Length) {
                 int p = pos;
                 ulong tag = ReadVarint(b, ref p);
                 int fieldNum = (int)(tag >> 3);
@@ -107,18 +96,14 @@ public static class DescriptorProtoCarver
                 pos += (int)len;
                 lastGood = pos;
             }
-        }
-        catch
-        {
-           
+        } catch {
+
         }
         return lastGood - start;
     }
 
-    private static int IndexOf(byte[] hay, byte[] needle)
-    {
-        for (int i = 0; i <= hay.Length - needle.Length; i++)
-        {
+    private static int IndexOf(byte[] hay, byte[] needle) {
+        for (int i = 0; i <= hay.Length - needle.Length; i++) {
             bool match = true;
             for (int j = 0; j < needle.Length; j++)
                 if (hay[i + j] != needle[j]) { match = false; break; }
@@ -127,12 +112,10 @@ public static class DescriptorProtoCarver
         return -1;
     }
 
-    private static ulong ReadVarint(byte[] b, ref int pos)
-    {
+    private static ulong ReadVarint(byte[] b, ref int pos) {
         int shift = 0;
         ulong result = 0;
-        while (true)
-        {
+        while (true) {
             byte by = b[pos++];
             result |= (ulong)(by & 0x7F) << shift;
             if ((by & 0x80) == 0) break;
@@ -142,10 +125,9 @@ public static class DescriptorProtoCarver
         return result;
     }
 
-   
 
-    private static void EmitFile(FileDescriptorProto f, StringBuilder sb)
-    {
+
+    private static void EmitFile(FileDescriptorProto f, StringBuilder sb) {
         sb.Append("syntax = \"").Append(string.IsNullOrEmpty(f.Syntax) ? "proto2" : f.Syntax).Append("\";\n");
         if (!string.IsNullOrEmpty(f.Package)) sb.Append("package ").Append(f.Package).Append(";\n");
         foreach (var dep in f.Dependency) sb.Append("import \"").Append(dep).Append("\";\n");
@@ -154,17 +136,14 @@ public static class DescriptorProtoCarver
         foreach (var m in f.MessageType) EmitMessage(m, sb, 0);
     }
 
-    private static void EmitMessage(DescriptorProto m, StringBuilder sb, int indent)
-    {
+    private static void EmitMessage(DescriptorProto m, StringBuilder sb, int indent) {
         var pad = new string(' ', indent * 2);
         sb.Append(pad).Append("message ").Append(m.Name).Append(" {\n");
         foreach (var en in m.EnumType) EmitEnum(en, sb, indent + 1);
         foreach (var nested in m.NestedType) EmitMessage(nested, sb, indent + 1);
         var p2 = new string(' ', (indent + 1) * 2);
-        foreach (var fld in m.Field)
-        {
-            string label = fld.Label switch
-            {
+        foreach (var fld in m.Field) {
+            string label = fld.Label switch {
                 FieldDescriptorProto.Types.Label.Required => "required",
                 FieldDescriptorProto.Types.Label.Repeated => "repeated",
                 _ => "optional",
@@ -176,8 +155,7 @@ public static class DescriptorProtoCarver
         sb.Append(pad).Append("}\n");
     }
 
-    private static void EmitEnum(EnumDescriptorProto e, StringBuilder sb, int indent)
-    {
+    private static void EmitEnum(EnumDescriptorProto e, StringBuilder sb, int indent) {
         var pad = new string(' ', indent * 2);
         sb.Append(pad).Append("enum ").Append(e.Name).Append(" {\n");
         var p2 = new string(' ', (indent + 1) * 2);
@@ -186,14 +164,12 @@ public static class DescriptorProtoCarver
         sb.Append(pad).Append("}\n");
     }
 
-   
-   
-    private static string TypeName(FieldDescriptorProto f)
-    {
-        if (f.Type is FieldDescriptorProto.Types.Type.Message or FieldDescriptorProto.Types.Type.Enum)
-            return f.TypeName.TrimStart('.');
-        return f.Type switch
-        {
+
+
+    private static string TypeName(FieldDescriptorProto f) {
+        return f.Type is FieldDescriptorProto.Types.Type.Message or FieldDescriptorProto.Types.Type.Enum
+            ? f.TypeName.TrimStart('.')
+            : f.Type switch {
             FieldDescriptorProto.Types.Type.Double => "double",
             FieldDescriptorProto.Types.Type.Float => "float",
             FieldDescriptorProto.Types.Type.Int64 => "int64",

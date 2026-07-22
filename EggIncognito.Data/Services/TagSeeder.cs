@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-public static class TagSeeder
-{
+public static class TagSeeder {
     public static readonly (string Slug, string Label, string Color)[] Defaults =
     [
         ("coops", "Coops", "#ef7559"),
@@ -18,12 +17,10 @@ public static class TagSeeder
         ("misc", "Misc", "#7f7f8a"),
     ];
 
-    public static async Task SeedAsync(EggIncognitoDbContext db, CancellationToken ct = default)
-    {
+    public static async Task SeedAsync(EggIncognitoDbContext db, CancellationToken ct = default) {
         var have = await db.Tags.Select(t => t.Slug).ToListAsync(ct);
         var haveSet = new HashSet<string>(have, StringComparer.OrdinalIgnoreCase);
-        foreach (var (slug, label, color) in Defaults)
-        {
+        foreach (var (slug, label, color) in Defaults) {
             if (haveSet.Contains(slug)) continue;
             db.Tags.Add(new Tag { Slug = slug, Label = label, Color = color });
         }

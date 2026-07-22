@@ -3,11 +3,9 @@ using EggIncognito.Core;
 
 namespace EggIncognito.Tests;
 
-public class ProtoHashTests
-{
+public class ProtoHashTests {
     [Fact]
-    public void Hashes_A_Known_File_Deterministically()
-    {
+    public void Hashes_A_Known_File_Deterministically() {
         var dir = Directory.CreateTempSubdirectory().FullName;
         var protoDir = Path.Combine(dir, "EggIncognito.Core", "Proto");
         Directory.CreateDirectory(protoDir);

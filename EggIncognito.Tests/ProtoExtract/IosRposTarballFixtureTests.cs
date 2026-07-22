@@ -4,13 +4,10 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class IosRposTarballFixtureTests
-{
-    private static string? FindFixture()
-    {
+public class IosRposTarballFixtureTests {
+    private static string? FindFixture() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
+        while (dir is not null) {
             var candidate = Path.Combine(dir.FullName, "captures", "egi-repos.tgz");
             if (File.Exists(candidate)) return candidate;
             dir = dir.Parent;
@@ -18,8 +15,7 @@ public class IosRposTarballFixtureTests
         return null;
     }
 
-    private static byte[] Gunzip(byte[] gz)
-    {
+    private static byte[] Gunzip(byte[] gz) {
         using var input = new MemoryStream(gz, writable: false);
         using var dec = new GZipStream(input, CompressionMode.Decompress);
         using var output = new MemoryStream();
@@ -28,8 +24,7 @@ public class IosRposTarballFixtureTests
     }
 
     [Fact]
-    public void RealDeviceTarball_ParsesAndDecodes()
-    {
+    public void RealDeviceTarball_ParsesAndDecodes() {
         var fixture = FindFixture();
         if (fixture is null) return;
 
@@ -47,8 +42,7 @@ public class IosRposTarballFixtureTests
 
         var ships = result.Assets.Where(a => a.Key.StartsWith("ei_ship_", StringComparison.OrdinalIgnoreCase)).ToList();
         Assert.Equal(9, ships.Count);
-        foreach (var s in ships)
-        {
+        foreach (var s in ships) {
             Assert.True(s.Decode.Ok, $"{s.Key}: {s.Decode.Diagnostics}");
             Assert.NotNull(s.Decode.Glb);
             Assert.True(s.Decode.Glb!.Length >= 12, $"{s.Key} glb too short");

@@ -5,21 +5,16 @@ using Microsoft.AspNetCore.Http;
 
 namespace EggIncognito.Services;
 
-public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : IExceptionHandler
-{
+public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : IExceptionHandler {
     public async ValueTask<bool> TryHandleAsync(
-        HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
-    {
+        HttpContext httpContext, Exception exception, CancellationToken cancellationToken) {
         ApiError error;
-        if (exception is ApiException api)
-        {
-           
+        if (exception is ApiException api) {
+
             logger.LogWarning("{Path} -> {Status} {Error}",
                 httpContext.Request.Path, api.Status, api.Error);
             error = api.ToApiError();
-        }
-        else
-        {
+        } else {
             logger.LogError(exception, "Unhandled exception at {Path}", httpContext.Request.Path);
             error = new ApiError(
                 Error: "internal server error",

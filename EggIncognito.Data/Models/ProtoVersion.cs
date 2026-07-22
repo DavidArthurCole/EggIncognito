@@ -3,8 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace EggIncognito.Data.Models;
 
 [Table("proto_versions")]
-public sealed class ProtoVersion
-{
+public sealed class ProtoVersion {
     [Column("id")] public int Id { get; set; }
     [Column("platform")] public string Platform { get; set; } = "android";
     [Column("app_version")] public string AppVersion { get; set; } = "";
@@ -17,8 +16,8 @@ public sealed class ProtoVersion
     [Column("detected_at")] public DateTimeOffset DetectedAt { get; set; }
     [Column("detected_by")] public string? DetectedBy { get; set; }
     [Column("created_at")] public DateTimeOffset CreatedAt { get; set; }
-   
+
     [Column("deleted_at")] public DateTimeOffset? DeletedAt { get; set; }
-   
+
     [Column("canonical_id")] public int? CanonicalId { get; set; }
 }

@@ -22,17 +22,35 @@
   <div class="flex flex-col lg:flex-row gap-4 mb-6 items-stretch">
     <DeviceStatusPanel OnSaved="OnMutated" />
     <section class="panel shrink-0 flex flex-row flex-wrap items-stretch gap-4">
-      <div class="flex flex-col justify-center gap-2 text-xs">
-        <div class="ds-state">
-          <span class="ds-state-k">Latest</span>
-          <span class="dev-verline">
-            @if (LatestRow is { } lr) { @lr.AppVersion<span class="dev-versep">·</span>@lr.Build }
-            else { <span class="text-muted">none yet</span> }
-          </span>
+      <div class="flex flex-col justify-center gap-4 text-xs">
+        <div class="group">
+          <div class="ds-state">
+            <span class="ds-state-k">Latest</span>
+            <span class="dev-verline">
+              @if (LatestRow is { } lr)
+              {
+                @lr.AppVersion<span class="dev-versep">|</span>@lr.Build
+                @if (!string.IsNullOrEmpty(lr.ClientVersion)) { <span class="dev-versep">|</span><span class="text-muted">client</span> @lr.ClientVersion }
+              }
+              else { <span class="text-muted">none yet</span> }
+            </span>
+          </div>
+          @if (LatestRow is { } lu)
+          {
+            <div class="ds-state-sub">updated @lu.DetectedAt.ToLocalTime().ToString("g")</div>
+          }
         </div>
-        <div class="ds-state">
-          <span class="ds-state-k">Server</span>
-          <span class="dev-verline">@_serverVersion<span class="dev-versep">·</span>@_serverSha</span>
+        <div class="group">
+          <div class="ds-state">
+            <span class="ds-state-k">Server</span>
+            <span class="dev-verline">
+              @_serverVersion<span class="dev-versep">|</span><a class="text-accent no-underline hover:underline" href="@_serverCommitUrl" target="_blank" rel="noopener">@_serverSha</a>
+            </span>
+          </div>
+          @if (!string.IsNullOrEmpty(_serverBuildDate))
+          {
+            <div class="ds-state-sub">built @_serverBuildDate</div>
+          }
         </div>
       </div>
       <div class="w-px self-stretch bg-border"></div>
@@ -267,6 +285,8 @@
 
     string _serverVersion = "";
     string _serverSha = "";
+    string _serverCommitUrl = "";
+    string _serverBuildDate = "";
 
     VersionRow? LatestRow => _rows
         .OrderBy(r => r, Comparer<VersionRow>.Create((a, b) =>
@@ -393,6 +413,8 @@
         var b = EggIncognito.Services.BuildInfo.FromAssembly("https://github.com/davidarthurcole/EggIncognito");
         _serverVersion = $"v{b.Version}";
         _serverSha = b.ShortSha;
+        _serverCommitUrl = b.CommitUrl;
+        _serverBuildDate = b.BuildDate == "unknown" ? "" : b.BuildDate;
     }
 
     protected override async Task OnInitializedAsync()

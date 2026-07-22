@@ -3,14 +3,12 @@ using Google.Protobuf;
 
 namespace EggIncognito.Services;
 
-public sealed class BehaviorService : IBehaviorService
-{
+public sealed class BehaviorService : IBehaviorService {
     private readonly IReadOnlyList<SimulationBehavior> _behaviors;
 
     public BehaviorService() : this(DefaultCatalog()) { }
 
-    internal BehaviorService(IEnumerable<SimulationBehavior> behaviors)
-    {
+    internal BehaviorService(IEnumerable<SimulationBehavior> behaviors) {
         _behaviors = behaviors.ToList();
     }
 

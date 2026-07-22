@@ -6,15 +6,11 @@ namespace EggIncognito.Tests;
 
 
 [Collection(SharedAppCollection.Name)]
-public class InspectorDecodeResponseTests
-{
-    private readonly WebApplicationFactory<Program> _factory;
-
-    public InspectorDecodeResponseTests(SharedAppFactory f) => _factory = f;
+public class InspectorDecodeResponseTests(SharedAppFactory f) {
+    private readonly WebApplicationFactory<Program> _factory = f;
 
     [Fact]
-    public async Task DecodesKnownResponse()
-    {
+    public async Task DecodesKnownResponse() {
         var msg = new Ei.PeriodicalsResponse();
         var b64 = System.Convert.ToBase64String(msg.ToByteArray());
         var c = _factory.CreateClient();
@@ -26,8 +22,7 @@ public class InspectorDecodeResponseTests
     }
 
     [Fact]
-    public async Task UnknownType_ReturnsDecodeError_NotCrash()
-    {
+    public async Task UnknownType_ReturnsDecodeError_NotCrash() {
         var c = _factory.CreateClient();
         var r = await c.PostAsJsonAsync("/api/inspector/decode-response",
             new { rawBase64 = "AA==", responseType = (string?)null });

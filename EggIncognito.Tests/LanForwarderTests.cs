@@ -6,11 +6,9 @@ using EggIncognito.Capture;
 namespace EggIncognito.Tests;
 
 
-public class LanForwarderTests
-{
+public class LanForwarderTests {
     [Fact]
-    public void CleanConnectHead_StripsHopByHopHeaders()
-    {
+    public void CleanConnectHead_StripsHopByHopHeaders() {
         var head = "CONNECT www.auxbrain.com:443 HTTP/1.1\r\n" +
                    "Host: www.auxbrain.com:443\r\n" +
                    "Connection: keep-alive\r\n" +
@@ -27,9 +25,8 @@ public class LanForwarderTests
     }
 
     [Fact]
-    public void CleanConnectHead_RewritesHostToMatchAuthority()
-    {
-       
+    public void CleanConnectHead_RewritesHostToMatchAuthority() {
+
         var head = "CONNECT www.auxbrain.com:443 HTTP/1.1\r\nHost: www.auxbrain.com";
         var cleaned = LanForwarder.CleanConnectHead(head);
         Assert.Contains("Host: www.auxbrain.com:443\r\n", cleaned);
@@ -37,17 +34,15 @@ public class LanForwarderTests
     }
 
     [Fact]
-    public void CleanConnectHead_AddsHostWhenMissing()
-    {
+    public void CleanConnectHead_AddsHostWhenMissing() {
         var head = "CONNECT www.auxbrain.com:443 HTTP/1.1";
         var cleaned = LanForwarder.CleanConnectHead(head);
         Assert.Contains("Host: www.auxbrain.com:443\r\n", cleaned);
     }
 
     [Fact]
-    public void CleanConnectHead_AbsoluteUriGet_HostIsUrlAuthorityNotWholeUrl()
-    {
-       
+    public void CleanConnectHead_AbsoluteUriGet_HostIsUrlAuthorityNotWholeUrl() {
+
         var head = "GET http://ocsp.digicert.com/MFAwTjBM HTTP/1.1\r\n" +
                    "Host: ocsp.digicert.com\r\n" +
                    "Proxy-Connection: keep-alive";
@@ -59,45 +54,38 @@ public class LanForwarderTests
     }
 
     [Fact]
-    public void CleanConnectHead_AbsoluteUriWithPort_KeepsPortInHost()
-    {
+    public void CleanConnectHead_AbsoluteUriWithPort_KeepsPortInHost() {
         var head = "GET http://example.com:8080/x HTTP/1.1\r\nHost: example.com:8080";
         var cleaned = LanForwarder.CleanConnectHead(head);
         Assert.Contains("Host: example.com:8080\r\n", cleaned);
     }
 
     [Fact]
-    public void DeviceIp_UnwrapsIPv4MappedIPv6()
-    {
+    public void DeviceIp_UnwrapsIPv4MappedIPv6() {
         var mapped = IPAddress.Parse("192.168.1.50").MapToIPv6();
         Assert.True(mapped.IsIPv4MappedToIPv6);
         Assert.Equal("192.168.1.50", LanForwarder.DeviceIp(mapped));
     }
 
     [Fact]
-    public void DeviceIp_PlainIPv4Unchanged()
-    {
-        Assert.Equal("10.0.0.1", LanForwarder.DeviceIp(IPAddress.Parse("10.0.0.1")));
-    }
+    public void DeviceIp_PlainIPv4Unchanged() => Assert.Equal("10.0.0.1", LanForwarder.DeviceIp(IPAddress.Parse("10.0.0.1")));
 
     [Fact]
-    public void IndexOfDoubleCrlf_FindsBlankLine()
-    {
+    public void IndexOfDoubleCrlf_FindsBlankLine() {
         var bytes = Encoding.ASCII.GetBytes("HEAD line\r\nSecond\r\n\r\nbody");
         var idx = LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length);
-       
+
         Assert.Equal(Encoding.ASCII.GetBytes("HEAD line\r\nSecond").Length, idx);
     }
 
     [Fact]
-    public void IndexOfDoubleCrlf_NotPresent_ReturnsMinusOne()
-    {
+    public void IndexOfDoubleCrlf_NotPresent_ReturnsMinusOne() {
         var bytes = Encoding.ASCII.GetBytes("no blank line here\r\nstill none");
         Assert.Equal(-1, LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length));
     }
 
-   
-   
+
+
     [Theory]
     [InlineData(SocketError.ConnectionReset)]
     [InlineData(SocketError.ConnectionAborted)]

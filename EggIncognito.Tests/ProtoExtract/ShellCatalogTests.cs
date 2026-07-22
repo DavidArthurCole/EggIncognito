@@ -1,22 +1,28 @@
-using Ei;
 using EggIncognito.Services.ProtoExtract;
+using Ei;
 using Google.Protobuf;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
 
-public class ShellCatalogTests
-{
+public class ShellCatalogTests {
     [Fact]
-    public void FromCatalog_ResolvesPrimaryPieceUrl()
-    {
+    public void FromCatalog_ResolvesPrimaryPieceUrl() {
         var cat = new DLCCatalog();
-        var shell = new ShellSpec { Identifier = "ei_depot_1_black_white", Name = "Black & White", ModifiedGeometry = true };
-        shell.PrimaryPiece = new ShellSpec.Types.ShellPiece
-        {
-            AssetType = ShellSpec.Types.AssetType.Depot1,
-            Dlc = new DLCItem { Name = "ei_depot_1_black_white", Directory = "shells", Ext = "rpo", Checksum = "abc",
-                Url = "https://www.auxbrain.com/dlc/shells/ei_depot_1_black_white_hash.rpoz" },
+        var shell = new ShellSpec {
+            Identifier = "ei_depot_1_black_white",
+            Name = "Black & White",
+            ModifiedGeometry = true,
+            PrimaryPiece = new ShellSpec.Types.ShellPiece {
+                AssetType = ShellSpec.Types.AssetType.Depot1,
+                Dlc = new DLCItem {
+                    Name = "ei_depot_1_black_white",
+                    Directory = "shells",
+                    Ext = "rpo",
+                    Checksum = "abc",
+                    Url = "https://www.auxbrain.com/dlc/shells/ei_depot_1_black_white_hash.rpoz"
+                },
+            }
         };
         cat.Shells.Add(shell);
 
@@ -29,8 +35,7 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void ForAssetType_FiltersByType()
-    {
+    public void ForAssetType_FiltersByType() {
         var cat = new DLCCatalog();
         cat.Shells.Add(Shell("a", ShellSpec.Types.AssetType.Chicken));
         cat.Shells.Add(Shell("b", ShellSpec.Types.AssetType.Depot1));
@@ -40,8 +45,7 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void ById_FindsShell()
-    {
+    public void ById_FindsShell() {
         var cat = new DLCCatalog();
         cat.Shells.Add(Shell("ei_silo_x", ShellSpec.Types.AssetType.Silo0Small));
         Assert.NotNull(ShellCatalog.ById(cat, "ei_silo_x"));
@@ -49,8 +53,7 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void ConfigJson_RoundTrip_PreservesDlcCatalog()
-    {
+    public void ConfigJson_RoundTrip_PreservesDlcCatalog() {
         var json = ConfigJson();
         if (json is null) return;
 
@@ -64,10 +67,9 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void InnerConfigProto_DirectParse_KeepsShells_WrappedAsAuthMsgIsHusk()
-    {
-       
-       
+    public void InnerConfigProto_DirectParse_KeepsShells_WrappedAsAuthMsgIsHusk() {
+
+
         var json = ConfigJson();
         if (json is null) return;
         var full = ConfigResponse.Parser.ParseJson(json);
@@ -80,14 +82,12 @@ public class ShellCatalogTests
 
         var wrapped = new Ei.AuthenticatedMessage { Message = Google.Protobuf.ByteString.CopyFrom(innerBytes) }.ToByteArray();
         ConfigResponse husk;
-        try { husk = ConfigResponse.Parser.ParseFrom(wrapped); }
-        catch { husk = new ConfigResponse(); }
+        try { husk = ConfigResponse.Parser.ParseFrom(wrapped); } catch { husk = new ConfigResponse(); }
         Assert.True((husk.DlcCatalog?.Shells.Count ?? 0) < fullShells, "wrapped bytes should not parse to the full catalog directly");
     }
 
     [Fact]
-    public void FromCatalog_RealConfig_HasManyShells()
-    {
+    public void FromCatalog_RealConfig_HasManyShells() {
         var json = ConfigJson();
         if (json is null) return;
 
@@ -100,8 +100,7 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void Objects_ResolvesChickenWithAnchorAndNoHatsFlag()
-    {
+    public void Objects_ResolvesChickenWithAnchorAndNoHatsFlag() {
         var cat = new DLCCatalog();
         var chicken = new ShellObjectSpec { Identifier = "ei_chicken_base", Name = "Base", AssetType = ShellSpec.Types.AssetType.Chicken, NoHats = false };
         chicken.Metadata.Add(new[] { 0.0, 0.5, -0.1, 1.2 });
@@ -119,8 +118,7 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void Chickens_And_Hats_FilterByAssetType()
-    {
+    public void Chickens_And_Hats_FilterByAssetType() {
         var cat = new DLCCatalog();
         cat.ShellObjects.Add(Obj("c1", ShellSpec.Types.AssetType.Chicken));
         cat.ShellObjects.Add(Obj("h1", ShellSpec.Types.AssetType.Hat));
@@ -130,8 +128,7 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void ObjectById_FindsObject()
-    {
+    public void ObjectById_FindsObject() {
         var cat = new DLCCatalog();
         cat.ShellObjects.Add(Obj("ei_hat_x", ShellSpec.Types.AssetType.Hat));
         Assert.NotNull(ShellCatalog.ObjectById(cat, "ei_hat_x"));
@@ -139,8 +136,7 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void NoHatsChicken_HasEmptyAnchor()
-    {
+    public void NoHatsChicken_HasEmptyAnchor() {
         var cat = new DLCCatalog();
         var polish = new ShellObjectSpec { Identifier = "ei_chicken_polish", AssetType = ShellSpec.Types.AssetType.Chicken, NoHats = true };
         polish.Pieces.Add(new ShellObjectSpec.Types.LODPiece { Lod = 0, Dlc = new DLCItem { Url = "https://www.auxbrain.com/dlc/shellobjects/polish.rpoz" } });
@@ -151,10 +147,9 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void HatWearingChicken_WithoutMetadata_GetsDefaultAnchor()
-    {
+    public void HatWearingChicken_WithoutMetadata_GetsDefaultAnchor() {
         var cat = new DLCCatalog();
-       
+
         cat.ShellObjects.Add(Obj("ei_chicken_skis", ShellSpec.Types.AssetType.Chicken));
         var o = Assert.Single(ShellCatalog.Chickens(cat));
         Assert.False(o.NoHats);
@@ -162,8 +157,7 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void RealConfig_HasChickensWithAnchors_AndHats()
-    {
+    public void RealConfig_HasChickensWithAnchors_AndHats() {
         var json = ConfigJson();
         if (json is null) return;
         var cfg = ConfigResponse.Parser.ParseJson(json);
@@ -176,16 +170,14 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void Shell_CarriesSetIdentifier()
-    {
+    public void Shell_CarriesSetIdentifier() {
         var cat = new DLCCatalog();
         cat.Shells.Add(SetShell("ei_depot_1_neon", ShellSpec.Types.AssetType.Depot1, "neon"));
         Assert.Equal("neon", ShellCatalog.FromCatalog(cat).Single().SetIdentifier);
     }
 
     [Fact]
-    public void Sets_GroupsMembersBySetIdentifier_WithSetName()
-    {
+    public void Sets_GroupsMembersBySetIdentifier_WithSetName() {
         var cat = new DLCCatalog();
         cat.ShellSets.Add(new ShellSetSpec { Identifier = "neon", Name = "Neon", Decorator = false });
         cat.Shells.Add(SetShell("ei_depot_1_neon", ShellSpec.Types.AssetType.Depot1, "neon"));
@@ -203,8 +195,7 @@ public class ShellCatalogTests
     }
 
     [Fact]
-    public void Decorators_AreSeparateFromSets()
-    {
+    public void Decorators_AreSeparateFromSets() {
         var cat = new DLCCatalog();
         cat.ShellSets.Add(new ShellSetSpec { Identifier = "neon", Name = "Neon" });
         cat.Decorators.Add(new ShellSetSpec { Identifier = "lights", Name = "Lights", Decorator = true });
@@ -221,44 +212,42 @@ public class ShellCatalogTests
         Assert.Single(deco.Members);
     }
 
-    private static ShellSpec SetShell(string id, ShellSpec.Types.AssetType type, string setId)
-    {
-        var s = new ShellSpec { Identifier = id, SetIdentifier = setId };
-        s.PrimaryPiece = new ShellSpec.Types.ShellPiece
-        {
-            AssetType = type,
-            Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shells/{id}.rpoz" },
+    private static ShellSpec SetShell(string id, ShellSpec.Types.AssetType type, string setId) {
+        var s = new ShellSpec {
+            Identifier = id,
+            SetIdentifier = setId,
+            PrimaryPiece = new ShellSpec.Types.ShellPiece {
+                AssetType = type,
+                Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shells/{id}.rpoz" },
+            }
         };
         return s;
     }
 
-    private static ShellObjectSpec Obj(string id, ShellSpec.Types.AssetType type)
-    {
+    private static ShellObjectSpec Obj(string id, ShellSpec.Types.AssetType type) {
         var o = new ShellObjectSpec { Identifier = id, AssetType = type };
         o.Pieces.Add(new ShellObjectSpec.Types.LODPiece { Lod = 0, Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shellobjects/{id}.rpoz" } });
         return o;
     }
 
-    private static ShellSpec Shell(string id, ShellSpec.Types.AssetType type)
-    {
-        var s = new ShellSpec { Identifier = id };
-        s.PrimaryPiece = new ShellSpec.Types.ShellPiece
-        {
-            AssetType = type,
-            Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shells/{id}.rpoz" },
+    private static ShellSpec Shell(string id, ShellSpec.Types.AssetType type) {
+        var s = new ShellSpec {
+            Identifier = id,
+            PrimaryPiece = new ShellSpec.Types.ShellPiece {
+                AssetType = type,
+                Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shells/{id}.rpoz" },
+            }
         };
         return s;
     }
 
-    private static string? ConfigJson()
-    {
+    private static string? ConfigJson() {
         var candidates = new[]
         {
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "captures", "config.json"),
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "captures", "config.json"),
         };
-        foreach (var c in candidates)
-        {
+        foreach (var c in candidates) {
             var full = Path.GetFullPath(c);
             if (File.Exists(full)) return File.ReadAllText(full);
         }

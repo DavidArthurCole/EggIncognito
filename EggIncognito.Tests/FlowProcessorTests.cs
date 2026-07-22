@@ -1,13 +1,12 @@
 using System.Text;
+using EggIncognito.Capture;
 using EggIncognito.Services;
 using Google.Protobuf;
-using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
 
-public class FlowProcessorTests
-{
+public class FlowProcessorTests {
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
     private const string Slug = "ei/get_periodicals";
 
@@ -24,16 +23,14 @@ needs_capture:
 
     private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-flowproc");
 
-    private static string WrappedResponseB64()
-    {
+    private static string WrappedResponseB64() {
         var inner = new Ei.PeriodicalsResponse();
         var outer = new Ei.AuthenticatedMessage { Message = inner.ToByteString(), Compressed = false };
         return Convert.ToBase64String(outer.ToByteArray());
     }
 
     [Fact]
-    public void Process_NewKnownEndpoint_YieldsWroteOutcomeAndKnownFlow()
-    {
+    public void Process_NewKnownEndpoint_YieldsWroteOutcomeAndKnownFlow() {
         var root = MakeRepo();
         var extractor = EndpointExtractor.ForRepo(root, eid: null, eidPlaceholder: "EI0000000000000000", overwrite: false);
         var decoder = new FlowDecoder(root);
@@ -51,14 +48,13 @@ needs_capture:
     }
 
     [Fact]
-    public void Process_SkippedFlow_FallsBackToNormalizedPathAndEmptyOutcome()
-    {
+    public void Process_SkippedFlow_FallsBackToNormalizedPathAndEmptyOutcome() {
         var root = MakeRepo();
         var extractor = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", false);
         var decoder = new FlowDecoder(root);
         var proc = new FlowProcessor(extractor, decoder, new HarWriter(), root);
 
-       
+
         var dash = proc.Process(new CapturedFlow(Url, "POST", 404, null, WrappedResponseB64()));
 
         Assert.Equal(Slug, dash.Path);
@@ -66,8 +62,7 @@ needs_capture:
     }
 
     [Fact]
-    public void OutcomeDelta_ReportsTheSingleChangedTally()
-    {
+    public void OutcomeDelta_ReportsTheSingleChangedTally() {
         var a = (wrote: 0, upd: 0, diff: 0, same: 0, loss: 0);
         Assert.Equal("wrote", FlowProcessor.OutcomeDelta(a, (1, 0, 0, 0, 0)));
         Assert.Equal("upd", FlowProcessor.OutcomeDelta(a, (0, 1, 0, 0, 0)));
@@ -78,10 +73,9 @@ needs_capture:
     }
 
     [Fact]
-    public void DiffCounts_CountsAddedAndRemovedLines_Multiset()
-    {
+    public void DiffCounts_CountsAddedAndRemovedLines_Multiset() {
         var root = MakeRepo();
-        var dir = (string sub) => Path.Combine(root, "Endpoints", sub);
+        string dir(string sub) => Path.Combine(root, "Endpoints", sub);
         var existing = Path.Combine(dir("default"), Slug + ".json");
         var staged = Path.Combine(dir("staged"), Slug + ".json");
         Directory.CreateDirectory(Path.GetDirectoryName(existing)!);
@@ -96,8 +90,7 @@ needs_capture:
     }
 
     [Fact]
-    public void DiffCounts_MissingFiles_ReturnsZero()
-    {
+    public void DiffCounts_MissingFiles_ReturnsZero() {
         var root = MakeRepo();
         Assert.Equal((0, 0), FlowProcessor.DiffCounts(root, Slug));
     }

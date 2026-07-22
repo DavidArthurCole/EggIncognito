@@ -113,6 +113,7 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 .auth-source-anchor { position: relative; display: inline-block; }
 .auth-source-menu {
   position: fixed; top: 0; left: 0; z-index: 1000; width: 200px; box-sizing: border-box;
+  visibility: hidden;
   display: flex; flex-direction: column; gap: 0.35rem;
   background: #23232a; border: 1px solid #3a3a44; border-radius: 8px; padding: 0.4rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);

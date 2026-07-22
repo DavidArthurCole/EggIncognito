@@ -1,22 +1,20 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-public static class ApkVersionCode
-{
-   
+public static class ApkVersionCode {
+
     private const ushort ResXmlType = 0x0003;
     private const ushort ResStringPoolType = 0x0001;
     private const ushort ResXmlStartElementType = 0x0102;
-   
+
     private const byte TypeIntDec = 0x10;
 
-    public static string? Read(byte[] apkZipBytes)
-    {
+    public static string? Read(byte[] apkZipBytes) {
         if (apkZipBytes is null || apkZipBytes.Length == 0) return null;
-        try
-        {
+        try {
             using var ms = new MemoryStream(apkZipBytes, writable: false);
             using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
             var entry = zip.GetEntry("AndroidManifest.xml");
@@ -25,19 +23,15 @@ public static class ApkVersionCode
             using var buf = new MemoryStream();
             es.CopyTo(buf);
             return ParseAxml(buf.ToArray());
-        }
-        catch
-        {
+        } catch {
             return null;
         }
     }
 
-   
-   
-    internal static string? ParseAxml(byte[] data)
-    {
-        try
-        {
+
+
+    internal static string? ParseAxml(byte[] data) {
+        try {
             if (data.Length < 8) return null;
             var fileType = ReadU16(data, 0);
             if (fileType != ResXmlType) return null;
@@ -45,19 +39,15 @@ public static class ApkVersionCode
             var pos = 8;
             string[]? strings = null;
 
-            while (pos + 8 <= data.Length)
-            {
+            while (pos + 8 <= data.Length) {
                 var type = ReadU16(data, pos);
                 var headerSize = ReadU16(data, pos + 2);
                 var size = (int)ReadU32(data, pos + 4);
                 if (size < 8 || pos + size > data.Length) break;
 
-                if (type == ResStringPoolType)
-                {
+                if (type == ResStringPoolType) {
                     strings = ReadStringPool(data, pos);
-                }
-                else if (type == ResXmlStartElementType && strings is not null)
-                {
+                } else if (type == ResXmlStartElementType && strings is not null) {
                     var code = ReadStartElementVersionCode(data, pos, headerSize, strings);
                     if (code is not null) return code;
                 }
@@ -65,52 +55,44 @@ public static class ApkVersionCode
                 pos += size;
             }
             return null;
-        }
-        catch
-        {
+        } catch {
             return null;
         }
     }
 
-   
-   
-    public static string? ReadVersionName(byte[] data)
-    {
-        try
-        {
+
+
+    public static string? ReadVersionName(byte[] data) {
+        try {
             if (data.Length < 8 || ReadU16(data, 0) != ResXmlType) return null;
             var pos = 8;
             string[]? strings = null;
-            while (pos + 8 <= data.Length)
-            {
+            while (pos + 8 <= data.Length) {
                 var type = ReadU16(data, pos);
                 var headerSize = ReadU16(data, pos + 2);
                 var size = (int)ReadU32(data, pos + 4);
                 if (size < 8 || pos + size > data.Length) break;
-                if (type == ResStringPoolType) strings = ReadStringPool(data, pos);
-                else if (type == ResXmlStartElementType && strings is not null)
-                {
+                if (type == ResStringPoolType) {
+                    strings = ReadStringPool(data, pos);
+                } else if (type == ResXmlStartElementType && strings is not null) {
                     var name = ReadStartElementStringAttr(data, pos, headerSize, strings, "versionName");
                     if (name is not null) return name;
                 }
                 pos += size;
             }
             return null;
-        }
-        catch { return null; }
+        } catch { return null; }
     }
 
-   
-    private static string? ReadStartElementStringAttr(byte[] data, int chunkPos, int headerSize, string[] strings, string attr)
-    {
+
+    private static string? ReadStartElementStringAttr(byte[] data, int chunkPos, int headerSize, string[] strings, string attr) {
         var ext = chunkPos + headerSize;
         if (ext + 20 > data.Length) return null;
         var attrStart = ReadU16(data, ext + 8);
         var attrCount = ReadU16(data, ext + 12);
         var baseAttr = ext + attrStart;
         const int attrRecordSize = 20;
-        for (var a = 0; a < attrCount; a++)
-        {
+        for (var a = 0; a < attrCount; a++) {
             var rec = baseAttr + a * attrRecordSize;
             if (rec + attrRecordSize > data.Length) break;
             var nameIdx = (int)ReadU32(data, rec + 4);
@@ -122,10 +104,9 @@ public static class ApkVersionCode
         return null;
     }
 
-   
-   
-    private static string? ReadStartElementVersionCode(byte[] data, int chunkPos, int headerSize, string[] strings)
-    {
+
+
+    private static string? ReadStartElementVersionCode(byte[] data, int chunkPos, int headerSize, string[] strings) {
         var ext = chunkPos + headerSize;
         if (ext + 20 > data.Length) return null;
         var attrStart = ReadU16(data, ext + 8);
@@ -133,8 +114,7 @@ public static class ApkVersionCode
 
         var baseAttr = ext + attrStart;
         const int attrRecordSize = 20;
-        for (var a = 0; a < attrCount; a++)
-        {
+        for (var a = 0; a < attrCount; a++) {
             var rec = baseAttr + a * attrRecordSize;
             if (rec + attrRecordSize > data.Length) break;
             var nameIdx = (int)ReadU32(data, rec + 4);
@@ -144,15 +124,14 @@ public static class ApkVersionCode
 
             var name = nameIdx >= 0 && nameIdx < strings.Length ? strings[nameIdx] : null;
             if (name == "versionCode" && dataType == TypeIntDec)
-                return dataVal.ToString();
+                return dataVal.ToString(CultureInfo.InvariantCulture);
         }
         return null;
     }
 
-   
-   
-    private static string[] ReadStringPool(byte[] data, int chunkPos)
-    {
+
+
+    private static string[] ReadStringPool(byte[] data, int chunkPos) {
         var stringCount = (int)ReadU32(data, chunkPos + 8);
         var flags = ReadU32(data, chunkPos + 16);
         var stringsStart = (int)ReadU32(data, chunkPos + 20);
@@ -162,8 +141,7 @@ public static class ApkVersionCode
         var offsetsBase = chunkPos + 28;
         var dataBase = chunkPos + stringsStart;
 
-        for (var i = 0; i < stringCount; i++)
-        {
+        for (var i = 0; i < stringCount; i++) {
             var off = (int)ReadU32(data, offsetsBase + i * 4);
             var strPos = dataBase + off;
             result[i] = isUtf8 ? ReadUtf8String(data, strPos) : ReadUtf16String(data, strPos);
@@ -171,38 +149,33 @@ public static class ApkVersionCode
         return result;
     }
 
-   
-   
-    private static string ReadUtf8String(byte[] data, int pos)
-    {
+
+
+    private static string ReadUtf8String(byte[] data, int pos) {
         var p = pos;
         p = SkipUtf8Len(data, p);
         var (byteLen, next) = ReadUtf8Len(data, p);
         return Encoding.UTF8.GetString(data, next, byteLen);
     }
 
-    private static int SkipUtf8Len(byte[] data, int pos)
-    {
+    private static int SkipUtf8Len(byte[] data, int pos) {
         var (_, next) = ReadUtf8Len(data, pos);
         return next;
     }
 
-    private static (int Len, int Next) ReadUtf8Len(byte[] data, int pos)
-    {
+    private static (int Len, int Next) ReadUtf8Len(byte[] data, int pos) {
         int b = data[pos];
         if ((b & 0x80) != 0)
             return (((b & 0x7F) << 8) | data[pos + 1], pos + 2);
         return (b, pos + 1);
     }
 
-   
-   
-    private static string ReadUtf16String(byte[] data, int pos)
-    {
+
+
+    private static string ReadUtf16String(byte[] data, int pos) {
         int len = ReadU16(data, pos);
         var p = pos + 2;
-        if ((len & 0x8000) != 0)
-        {
+        if ((len & 0x8000) != 0) {
             len = ((len & 0x7FFF) << 16) | ReadU16(data, p);
             p += 2;
         }

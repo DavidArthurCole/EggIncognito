@@ -1,14 +1,12 @@
 using System.Net;
 using EggIncognito.Data.Models;
-using SyncKit.Contract;
 using EggIncognito.Services;
+using SyncKit.Contract;
 
 namespace EggIncognito.Tests;
 
-public class SealedProxyTests
-{
-    private sealed class FakeUser(bool authed, bool supporter, string? id = "tester") : ICurrentUser
-    {
+public class SealedProxyTests {
+    private sealed class FakeUser(bool authed, bool supporter, string? id = "tester") : ICurrentUser {
         public bool IsAuthenticated => authed;
         public Guid? UserId => null;
         public string? DiscordId => authed ? id : null;
@@ -20,18 +18,15 @@ public class SealedProxyTests
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(UserRole.Viewer, need);
     }
 
-    private sealed class FakeSupporters(bool result) : ISupporterStatus
-    {
+    private sealed class FakeSupporters(bool result) : ISupporterStatus {
         public int Calls { get; private set; }
-        public Task<bool> CheckAsync(string discordId, CancellationToken ct = default)
-        {
+        public Task<bool> CheckAsync(string discordId, CancellationToken ct = default) {
             Calls++;
             return Task.FromResult(result);
         }
     }
 
-    private sealed class StubHttpFactory : IHttpClientFactory
-    {
+    private sealed class StubHttpFactory : IHttpClientFactory {
         public string? LastName { get; private set; }
         public HttpClient CreateClient(string name) { LastName = name; return new HttpClient(); }
     }
@@ -40,8 +35,7 @@ public class SealedProxyTests
         IHttpClientFactory? factory = null)
         => new(options, factory ?? new StubHttpFactory(), supporters);
 
-    private static SealedProxyOptions Configured(string? user = null, string? pass = null) => new()
-    {
+    private static SealedProxyOptions Configured(string? user = null, string? pass = null) => new() {
         UpstreamUrl = "http://proxy.internal:8888",
         Username = user,
         Password = pass,
@@ -56,8 +50,7 @@ public class SealedProxyTests
         => Assert.True(NewProxy(Configured(), new FakeSupporters(true)).IsConfigured);
 
     [Fact]
-    public async Task CanUse_Unconfigured_False()
-    {
+    public async Task CanUse_Unconfigured_False() {
         var supporters = new FakeSupporters(true);
         var proxy = NewProxy(new SealedProxyOptions(), supporters);
         Assert.False(await proxy.CanUseAsync(new FakeUser(authed: true, supporter: true)));
@@ -65,8 +58,7 @@ public class SealedProxyTests
     }
 
     [Fact]
-    public async Task CanUse_Anonymous_False()
-    {
+    public async Task CanUse_Anonymous_False() {
         var supporters = new FakeSupporters(true);
         var proxy = NewProxy(Configured(), supporters);
         Assert.False(await proxy.CanUseAsync(new FakeUser(authed: false, supporter: false)));
@@ -74,8 +66,7 @@ public class SealedProxyTests
     }
 
     [Fact]
-    public async Task CanUse_NonSupporter_False()
-    {
+    public async Task CanUse_NonSupporter_False() {
         var supporters = new FakeSupporters(true);
         var proxy = NewProxy(Configured(), supporters);
         Assert.False(await proxy.CanUseAsync(new FakeUser(authed: true, supporter: false)));
@@ -83,8 +74,7 @@ public class SealedProxyTests
     }
 
     [Fact]
-    public async Task CanUse_SupporterClaimButLiveCheckFails_False()
-    {
+    public async Task CanUse_SupporterClaimButLiveCheckFails_False() {
         var supporters = new FakeSupporters(false);
         var proxy = NewProxy(Configured(), supporters);
         Assert.False(await proxy.CanUseAsync(new FakeUser(authed: true, supporter: true)));
@@ -92,8 +82,7 @@ public class SealedProxyTests
     }
 
     [Fact]
-    public async Task CanUse_SupporterAndLiveCheckPasses_True()
-    {
+    public async Task CanUse_SupporterAndLiveCheckPasses_True() {
         var supporters = new FakeSupporters(true);
         var proxy = NewProxy(Configured(), supporters);
         Assert.True(await proxy.CanUseAsync(new FakeUser(authed: true, supporter: true)));
@@ -101,8 +90,7 @@ public class SealedProxyTests
     }
 
     [Fact]
-    public void CreateEgressClient_UsesNamedEgressClient()
-    {
+    public void CreateEgressClient_UsesNamedEgressClient() {
         var factory = new StubHttpFactory();
         var proxy = NewProxy(Configured(), new FakeSupporters(true), factory);
         _ = proxy.CreateEgressClient();
@@ -118,16 +106,14 @@ public class SealedProxyTests
         => Assert.Null(SealedProxy.BuildProxy(new SealedProxyOptions { UpstreamUrl = "not a url" }));
 
     [Fact]
-    public void BuildProxy_ValidUrl_NoCreds_ProxyWithoutCredentials()
-    {
+    public void BuildProxy_ValidUrl_NoCreds_ProxyWithoutCredentials() {
         var proxy = Assert.IsType<WebProxy>(SealedProxy.BuildProxy(Configured()));
         Assert.Null(proxy.Credentials);
         Assert.Equal("http://proxy.internal:8888/", proxy.Address?.ToString());
     }
 
     [Fact]
-    public void BuildProxy_ValidUrl_WithCreds_ProxyCarriesCredentials()
-    {
+    public void BuildProxy_ValidUrl_WithCreds_ProxyCarriesCredentials() {
         var proxy = Assert.IsType<WebProxy>(SealedProxy.BuildProxy(Configured("user", "pass")));
         var cred = Assert.IsType<NetworkCredential>(proxy.Credentials);
         Assert.Equal("user", cred.UserName);

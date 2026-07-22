@@ -1,9 +1,9 @@
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
+
 [Table("feed_subscriptions")]
-public sealed class FeedSubscription
-{
+public sealed class FeedSubscription {
     [Column("id")] public int Id { get; set; }
     [Column("kind")] public string Kind { get; set; } = "discord";
     [Column("target_url")] public string TargetUrl { get; set; } = "";
@@ -12,7 +12,7 @@ public sealed class FeedSubscription
     [Column("trigger")] public string Trigger { get; set; } = "proto_changed";
     [Column("secret")] public string? Secret { get; set; }
     [Column("label")] public string? Label { get; set; }
-   
+
     [Column("message_template")] public string? MessageTemplate { get; set; }
     [Column("owner_user_id")] public Guid? OwnerUserId { get; set; }
     [Column("created_at")] public DateTimeOffset CreatedAt { get; set; }

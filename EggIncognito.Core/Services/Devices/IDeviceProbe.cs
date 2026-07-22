@@ -1,7 +1,6 @@
 namespace EggIncognito.Core.Services.Devices;
 
-public interface IDeviceProbe
-{
+public interface IDeviceProbe {
     Task<DeviceProbeResult> ProbeAsync(CancellationToken ct);
 }
 

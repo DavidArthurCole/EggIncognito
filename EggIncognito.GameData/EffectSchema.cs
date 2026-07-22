@@ -1,7 +1,6 @@
 namespace EggIncognito.GameData;
 
-public enum EffectFieldType
-{
+public enum EffectFieldType {
     Double,
     Int,
     String,
@@ -10,8 +9,7 @@ public enum EffectFieldType
 
 public sealed record EffectField(string Name, EffectFieldType Type, bool Required = true);
 
-public sealed record EffectSchema(IReadOnlyList<EffectField> Fields)
-{
+public sealed record EffectSchema(IReadOnlyList<EffectField> Fields) {
     private readonly Dictionary<string, EffectField> _byName =
         Fields.ToDictionary(f => f.Name, StringComparer.Ordinal);
 

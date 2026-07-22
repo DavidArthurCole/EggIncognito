@@ -1,12 +1,11 @@
 namespace EggIncognito.Core.Services.Devices;
 
 
-public interface IDeviceCaInstaller
-{
-   
+public interface IDeviceCaInstaller {
+
     string Platform { get; }
 
-   
+
     Task<(bool Ok, string? Note)> InstallAsync(DeviceCaTarget device, string caPath, CancellationToken ct);
 }
 

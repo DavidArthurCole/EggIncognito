@@ -2,30 +2,27 @@ using Ei;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-public static class ShellCatalog
-{
+public static class ShellCatalog {
     private const string CdnBase = "https://www.auxbrain.com/dlc";
 
-   
-   
-   
+
+
+
     public sealed record Shell(string Identifier, string? Name, string AssetType, string Url, string? Checksum, bool ModifiedGeometry, string? SetIdentifier = null);
 
-   
-   
+
+
     public sealed record ShellObject(
         string Identifier, string? Name, string AssetType, string Url, string? Checksum,
         IReadOnlyList<double> Anchor, bool NoHats);
 
-   
-   
-    public static IReadOnlyList<Shell> FromCatalog(DLCCatalog catalog)
-    {
+
+
+    public static IReadOnlyList<Shell> FromCatalog(DLCCatalog catalog) {
         var shells = new List<Shell>();
         if (catalog is null) return shells;
 
-        foreach (var s in catalog.Shells)
-        {
+        foreach (var s in catalog.Shells) {
             var piece = s.PrimaryPiece ?? s.Pieces.FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
             var url = Url(dlc);
@@ -34,9 +31,8 @@ public static class ShellCatalog
                 url, NullIfEmpty(dlc.Checksum), s.ModifiedGeometry, NullIfEmpty(s.SetIdentifier)));
         }
 
-        foreach (var o in catalog.ShellObjects)
-        {
-           
+        foreach (var o in catalog.ShellObjects) {
+
             var piece = o.Pieces.Where(p => p.Dlc is not null).OrderBy(p => p.Lod).FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
             var url = Url(dlc);
@@ -48,23 +44,21 @@ public static class ShellCatalog
         return shells;
     }
 
-   
+
     public static IReadOnlyList<Shell> ForAssetType(DLCCatalog catalog, string assetType) =>
         FromCatalog(catalog).Where(s => string.Equals(s.AssetType, assetType, StringComparison.OrdinalIgnoreCase)).ToList();
 
-   
+
     public static Shell? ById(DLCCatalog catalog, string identifier) =>
         FromCatalog(catalog).FirstOrDefault(s => string.Equals(s.Identifier, identifier, StringComparison.Ordinal));
 
-   
-    public static readonly IReadOnlyList<double> DefaultChickenAnchor = new[] { 0.0, 0.428, -0.11, 1.06 };
 
-    public static IReadOnlyList<ShellObject> Objects(DLCCatalog catalog)
-    {
+    public static readonly IReadOnlyList<double> DefaultChickenAnchor = [0.0, 0.428, -0.11, 1.06];
+
+    public static IReadOnlyList<ShellObject> Objects(DLCCatalog catalog) {
         var objs = new List<ShellObject>();
         if (catalog is null) return objs;
-        foreach (var o in catalog.ShellObjects)
-        {
+        foreach (var o in catalog.ShellObjects) {
             var piece = o.Pieces.Where(p => p.Dlc is not null).OrderBy(p => p.Lod).FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
             var url = Url(dlc);
@@ -88,23 +82,21 @@ public static class ShellCatalog
     public static ShellObject? ObjectById(DLCCatalog catalog, string identifier) =>
         Objects(catalog).FirstOrDefault(o => string.Equals(o.Identifier, identifier, StringComparison.Ordinal));
 
-   
-   
+
+
     public sealed record ShellSet(string Identifier, string? Name, bool Decorator, IReadOnlyList<Shell> Members);
 
     public static IReadOnlyList<ShellSet> Sets(DLCCatalog catalog) => BuildSets(catalog, catalog?.ShellSets, decorator: false);
     public static IReadOnlyList<ShellSet> Decorators(DLCCatalog catalog) => BuildSets(catalog, catalog?.Decorators, decorator: true);
 
-    private static IReadOnlyList<ShellSet> BuildSets(DLCCatalog? catalog, IEnumerable<ShellSetSpec>? specs, bool decorator)
-    {
+    private static IReadOnlyList<ShellSet> BuildSets(DLCCatalog? catalog, IEnumerable<ShellSetSpec>? specs, bool decorator) {
         var result = new List<ShellSet>();
         if (catalog is null || specs is null) return result;
         var bySet = FromCatalog(catalog)
             .Where(s => !string.IsNullOrEmpty(s.SetIdentifier))
             .GroupBy(s => s.SetIdentifier!, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<Shell>)g.ToList(), StringComparer.Ordinal);
-        foreach (var spec in specs)
-        {
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<Shell>)[.. g], StringComparer.Ordinal);
+        foreach (var spec in specs) {
             var id = spec.Identifier ?? "";
             if (id.Length == 0) continue;
             var members = bySet.TryGetValue(id, out var m) ? m : [];
@@ -113,8 +105,7 @@ public static class ShellCatalog
         return result;
     }
 
-    private static string? Url(DLCItem dlc)
-    {
+    private static string? Url(DLCItem dlc) {
         if (!string.IsNullOrEmpty(dlc.Url)) return dlc.Url;
         if (string.IsNullOrEmpty(dlc.Directory) || string.IsNullOrEmpty(dlc.Name)) return null;
         var ext = string.IsNullOrEmpty(dlc.Ext) ? "rpoz" : dlc.Ext;

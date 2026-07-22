@@ -2,9 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
+
 [Table("subject_tags")]
-public class SubjectTag
-{
+public class SubjectTag {
     [Key]
     [Column("id")]
     public long Id { get; set; }

@@ -1,22 +1,20 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 
-public static class FunctionConstantExtractor
-{
+public static class FunctionConstantExtractor {
     public readonly record struct ExtractResult(bool Ok, string FunctionName, IReadOnlyList<double> Floats,
         IReadOnlyList<string> Calls, string Diagnostics);
 
-    public static ExtractResult Extract(byte[] bin, string[] nameNeedles)
-    {
-        if (bin is null || bin.Length < 64) return new(false, "", [], [], "binary too short");
-        return ExtractWith(bin, MachoSymbols.Read(bin), nameNeedles);
+    public static ExtractResult Extract(byte[] bin, string[] nameNeedles) {
+        return bin is null || bin.Length < 64
+            ? new(false, "", [], [], "binary too short")
+            : ExtractWith(bin, MachoSymbols.Read(bin), nameNeedles);
     }
 
-   
-   
-   
-    public static ExtractResult ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string[] nameNeedles)
-    {
+
+
+
+    public static ExtractResult ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string[] nameNeedles) {
         if (bin is null || bin.Length < 64) return new(false, "", [], [], "binary too short");
         if (!MachoText.TryFindText(bin, out var textFileOff, out _, out var textVmAddr))
             return new(false, "", [], [], "no __text section");
@@ -30,14 +28,12 @@ public static class FunctionConstantExtractor
         return new(true, fn.Name, floats, calls, "ok");
     }
 
-   
-   
-    public static string ResolveCallName(IReadOnlyList<MachoSymbols.Symbol> syms, ulong target)
-    {
+
+
+    public static string ResolveCallName(IReadOnlyList<MachoSymbols.Symbol> syms, ulong target) {
         string? best = null;
         ulong bestAddr = 0;
-        foreach (var s in syms)
-        {
+        foreach (var s in syms) {
             if (s.Value == 0 || string.IsNullOrEmpty(s.Name)) continue;
             if (s.Value <= target && s.Value >= bestAddr) { bestAddr = s.Value; best = s.Name; }
         }

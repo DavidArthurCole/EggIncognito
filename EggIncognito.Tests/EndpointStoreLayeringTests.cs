@@ -6,21 +6,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-public class EndpointStoreLayeringTests
-{
-    private sealed class FakeSource(Dictionary<string, string> map, int prio) : IEndpointSource
-    {
+public class EndpointStoreLayeringTests {
+    private sealed class FakeSource(Dictionary<string, string> map, int prio) : IEndpointSource {
         public int Priority => prio;
         public byte[]? Lookup(string path, string? eid)
             => map.TryGetValue(eid is null ? path : $"{eid}:{path}", out var v) ? Encoding.UTF8.GetBytes(v) : null;
     }
 
-   
-    private static EndpointStore Store(IEndpointSource file, IEndpointSource? db)
-    {
+
+    private static EndpointStore Store(IEndpointSource file, IEndpointSource? db) {
         IServiceScopeFactory? factory = null;
-        if (db is not null)
-        {
+        if (db is not null) {
             var services = new ServiceCollection();
             services.AddScoped(_ => new DbEndpointSourceMarker(db));
             factory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
@@ -29,8 +25,7 @@ public class EndpointStoreLayeringTests
     }
 
     [Fact]
-    public void FileOnly_BehavesAsBefore()
-    {
+    public void FileOnly_BehavesAsBefore() {
         var file = new FakeSource(new() { ["ei/x"] = "{}" }, 0);
         var store = Store(file, db: null);
         var msg = store.Get<Ei.PeriodicalsResponse>("ei/x");
@@ -38,8 +33,7 @@ public class EndpointStoreLayeringTests
     }
 
     [Fact]
-    public void Db_Overrides_File_ForSameKey()
-    {
+    public void Db_Overrides_File_ForSameKey() {
         var file = new FakeSource(new() { ["ei/x"] = "{}" }, 0);
         var db = new FakeSource(new() { ["ei/x"] = "{\"userId\":\"FROM_DB\"}" }, 100);
         var store = Store(file, db);
@@ -48,8 +42,7 @@ public class EndpointStoreLayeringTests
     }
 
     [Fact]
-    public void NonGeneric_Get_ByType()
-    {
+    public void NonGeneric_Get_ByType() {
         var file = new FakeSource(new() { ["ei/x"] = "{}" }, 0);
         var store = Store(file, db: null);
         var msg = store.Get(typeof(Ei.AuthenticatedMessage), "ei/x", null);
@@ -57,8 +50,7 @@ public class EndpointStoreLayeringTests
     }
 
     [Fact]
-    public void NonGeneric_Get_AppliesDbOverlay()
-    {
+    public void NonGeneric_Get_AppliesDbOverlay() {
         var file = new FakeSource(new() { ["ei/x"] = "{}" }, 0);
         var db = new FakeSource(new() { ["ei/x"] = "{\"userId\":\"FROM_DB\"}" }, 100);
         var store = Store(file, db);
@@ -67,21 +59,18 @@ public class EndpointStoreLayeringTests
     }
 
     [Fact]
-    public void Miss_ReturnsDefaultInstance()
-    {
-        var file = new FakeSource(new(), 0);
+    public void Miss_ReturnsDefaultInstance() {
+        var file = new FakeSource([], 0);
         var store = Store(file, db: null);
         Assert.NotNull(store.Get<Ei.PeriodicalsResponse>("ei/none"));
     }
 
-    private sealed class ThrowingSource : IEndpointSource
-    {
+    private sealed class ThrowingSource : IEndpointSource {
         public int Priority => 100;
         public byte[]? Lookup(string path, string? eid) => throw new InvalidOperationException("db down");
     }
 
-    private sealed class CollectingLogger : ILogger<EndpointStore>
-    {
+    private sealed class CollectingLogger : ILogger<EndpointStore> {
         public List<LogLevel> Levels { get; } = [];
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
@@ -90,8 +79,7 @@ public class EndpointStoreLayeringTests
     }
 
     [Fact]
-    public void Db_Throws_FallsBackToFileDefault_AndLogsWarning()
-    {
+    public void Db_Throws_FallsBackToFileDefault_AndLogsWarning() {
         var file = new FakeSource(new() { ["ei/x"] = "{\"userId\":\"FROM_FILE\"}" }, 0);
         var services = new ServiceCollection();
         services.AddScoped(_ => new DbEndpointSourceMarker(new ThrowingSource()));

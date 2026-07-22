@@ -1,16 +1,14 @@
-using Google.Protobuf;
 using EggIncognito.Capture;
+using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
-public class CaptureDashboardTests
-{
+public class CaptureDashboardTests {
     private static DashboardFlow F(string path = "ei/x") =>
         new(0, "", path, "POST", 200, null, null, "AAEC", null);
 
     [Fact]
-    public void Publish_AssignsMonotonicIds_StartingAtOne()
-    {
+    public void Publish_AssignsMonotonicIds_StartingAtOne() {
         var hub = new CaptureHub();
         var first = hub.Publish(F(), "t1");
         var second = hub.Publish(F(), "t2");
@@ -22,8 +20,7 @@ public class CaptureDashboardTests
     }
 
     [Fact]
-    public void Publish_StampsProvidedTimestamp()
-    {
+    public void Publish_StampsProvidedTimestamp() {
         var hub = new CaptureHub();
         var stored = hub.Publish(F(), "2026-06-06T00:00:00Z");
 
@@ -32,8 +29,7 @@ public class CaptureDashboardTests
     }
 
     [Fact]
-    public void Snapshot_ReturnsPublishedFlows_OldestFirst()
-    {
+    public void Snapshot_ReturnsPublishedFlows_OldestFirst() {
         var hub = new CaptureHub();
         hub.Publish(F("ei/a"), "t1");
         hub.Publish(F("ei/b"), "t2");
@@ -47,8 +43,7 @@ public class CaptureDashboardTests
     }
 
     [Fact]
-    public void MarkSaved_FlipsBufferedFlow_SoRefreshDoesNotRePrompt()
-    {
+    public void MarkSaved_FlipsBufferedFlow_SoRefreshDoesNotRePrompt() {
         var hub = new CaptureHub();
         var stored = hub.Publish(F("ei/bot_first_contact"), "t1");
         Assert.NotNull(stored);
@@ -61,8 +56,7 @@ public class CaptureDashboardTests
     }
 
     [Fact]
-    public void Publish_WhenPaused_ReturnsNull_AndDoesNotBuffer()
-    {
+    public void Publish_WhenPaused_ReturnsNull_AndDoesNotBuffer() {
         var hub = new CaptureHub();
         hub.Publish(F(), "t1");
         var before = hub.Snapshot().Count;
@@ -75,8 +69,7 @@ public class CaptureDashboardTests
     }
 
     [Fact]
-    public void Clear_EmptiesBuffer()
-    {
+    public void Clear_EmptiesBuffer() {
         var hub = new CaptureHub();
         hub.Publish(F(), "t1");
         hub.Publish(F(), "t2");
@@ -87,8 +80,7 @@ public class CaptureDashboardTests
     }
 
     [Fact]
-    public void Find_ReturnsMatchingFlow_NullForMissing()
-    {
+    public void Find_ReturnsMatchingFlow_NullForMissing() {
         var hub = new CaptureHub();
         var stored = hub.Publish(F("ei/found"), "t1");
 
@@ -102,8 +94,7 @@ public class CaptureDashboardTests
     }
 
     [Fact]
-    public void Subscribe_DeliversPublishedFlow_ThenStopsAfterDispose()
-    {
+    public void Subscribe_DeliversPublishedFlow_ThenStopsAfterDispose() {
         var hub = new CaptureHub();
         var (reader, subscription) = hub.Subscribe();
 
@@ -117,18 +108,18 @@ public class CaptureDashboardTests
         Assert.DoesNotContain("ei/after", flowsAfter);
     }
 
-    private static List<string> DrainFlowPaths(System.Threading.Channels.ChannelReader<CaptureEnvelope> reader)
-    {
+    private static List<string> DrainFlowPaths(System.Threading.Channels.ChannelReader<CaptureEnvelope> reader) {
         var paths = new List<string>();
-        while (reader.TryRead(out var env))
+        while (reader.TryRead(out var env)) {
             if (env.Kind == "flow" && env.Flow is not null)
                 paths.Add(env.Flow.Path);
+        }
+
         return paths;
     }
 
     [Fact]
-    public void RingBuffer_CapsAt500_DroppingOldest()
-    {
+    public void RingBuffer_CapsAt500_DroppingOldest() {
         var hub = new CaptureHub();
         for (int i = 0; i < 600; i++)
             hub.Publish(F("ei/x"), "t");
@@ -152,16 +143,14 @@ routes:
 
     private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-dash");
 
-    private static string WrappedResponseB64()
-    {
+    private static string WrappedResponseB64() {
         var inner = new Ei.PeriodicalsResponse();
         var outer = new Ei.AuthenticatedMessage { Message = inner.ToByteString(), Compressed = false };
         return Convert.ToBase64String(outer.ToByteArray());
     }
 
     [Fact]
-    public void DecodeResponse_KnownType_ReturnsJsonAndKnownType()
-    {
+    public void DecodeResponse_KnownType_ReturnsJsonAndKnownType() {
         var repo = MakeRepo();
         var decoder = new FlowDecoder(repo);
 
@@ -173,8 +162,7 @@ routes:
     }
 
     [Fact]
-    public void DecodeResponse_PlainTextAck_SurfacedAsText()
-    {
+    public void DecodeResponse_PlainTextAck_SurfacedAsText() {
         var repo = MakeRepo();
         var decoder = new FlowDecoder(repo);
 
@@ -188,8 +176,7 @@ routes:
     }
 
     [Fact]
-    public void DecodeResponse_GarbageBase64_ReturnsNullJson()
-    {
+    public void DecodeResponse_GarbageBase64_ReturnsNullJson() {
         var repo = MakeRepo();
         var decoder = new FlowDecoder(repo);
 
@@ -199,8 +186,7 @@ routes:
     }
 
     [Fact]
-    public void DecodeRequest_Null_ReturnsNullJson()
-    {
+    public void DecodeRequest_Null_ReturnsNullJson() {
         var repo = MakeRepo();
         var decoder = new FlowDecoder(repo);
 
@@ -208,8 +194,7 @@ routes:
     }
 
     [Fact]
-    public void StatsSnapshot_FreshHub_CertWaiting_AllZero()
-    {
+    public void StatsSnapshot_FreshHub_CertWaiting_AllZero() {
         var hub = new CaptureHub();
         var s = hub.StatsSnapshot();
 
@@ -229,8 +214,7 @@ routes:
     }
 
     [Fact]
-    public void RecordConnection_NewIp_TracksDevice_ButStaysWaiting()
-    {
+    public void RecordConnection_NewIp_TracksDevice_ButStaysWaiting() {
         var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
 
@@ -242,8 +226,7 @@ routes:
     }
 
     [Fact]
-    public void RecordAuxbrainConnect_FreshHub_StaysWaiting()
-    {
+    public void RecordAuxbrainConnect_FreshHub_StaysWaiting() {
         var hub = new CaptureHub();
         hub.RecordAuxbrainConnect();
 
@@ -251,8 +234,7 @@ routes:
     }
 
     [Fact]
-    public void Publish_Auxbrain_FlipsToTrusted_AndCountsCapture()
-    {
+    public void Publish_Auxbrain_FlipsToTrusted_AndCountsCapture() {
         var hub = new CaptureHub();
         hub.Publish(F("ei/x"), "t", isAuxbrain: true);
 
@@ -264,8 +246,7 @@ routes:
     }
 
     [Fact]
-    public void CertState_DoesNotDowngrade_OnceTrusted()
-    {
+    public void CertState_DoesNotDowngrade_OnceTrusted() {
         var hub = new CaptureHub();
         hub.Publish(F("ei/x"), "t", isAuxbrain: true);
         hub.RecordDecryptError("x", "t");
@@ -277,8 +258,7 @@ routes:
     }
 
     [Fact]
-    public void RecordDecryptError_AfterConnection_FlipsToUntrusted()
-    {
+    public void RecordDecryptError_AfterConnection_FlipsToUntrusted() {
         var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
         hub.RecordDecryptError("boom", "t");
@@ -290,8 +270,7 @@ routes:
     }
 
     [Fact]
-    public void Publish_Passthrough_ReturnsNull_CountsPassthrough_NotBuffered()
-    {
+    public void Publish_Passthrough_ReturnsNull_CountsPassthrough_NotBuffered() {
         var hub = new CaptureHub();
         var result = hub.Publish(F("ei/x"), "t", isAuxbrain: false);
 
@@ -303,8 +282,7 @@ routes:
     }
 
     [Fact]
-    public void UniqueEndpoints_CountsDistinctPaths()
-    {
+    public void UniqueEndpoints_CountsDistinctPaths() {
         var hub = new CaptureHub();
         hub.Publish(F("ei/a"), "t", isAuxbrain: true);
         hub.Publish(F("ei/a"), "t", isAuxbrain: true);
@@ -314,8 +292,7 @@ routes:
     }
 
     [Fact]
-    public void Bytes_TrackedPerEndpoint_BiggestReflectsPath()
-    {
+    public void Bytes_TrackedPerEndpoint_BiggestReflectsPath() {
         var hub = new CaptureHub();
         hub.Publish(F("ei/big"), "t", isAuxbrain: true);
 
@@ -325,8 +302,7 @@ routes:
     }
 
     [Fact]
-    public void RecordConnection_SameIpTwice_DeviceCountStaysOne()
-    {
+    public void RecordConnection_SameIpTwice_DeviceCountStaysOne() {
         var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
         hub.RecordConnection(1, "192.168.1.5", "t");
@@ -335,8 +311,7 @@ routes:
     }
 
     [Fact]
-    public void Device_TracksFirstLastSeenAndConnectionCount()
-    {
+    public void Device_TracksFirstLastSeenAndConnectionCount() {
         var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "10:00:00");
         hub.RecordConnection(2, "192.168.1.5", "10:00:05");
@@ -349,14 +324,12 @@ routes:
     }
 
     private static DashboardFlow FlowWithRInfo(string platform, string version) =>
-        F("ei/x") with
-        {
+        F("ei/x") with {
             RequestJson = $"{{\"rinfo\":{{\"platform\":\"{platform}\",\"version\":\"{version}\"}}}}",
         };
 
     [Fact]
-    public void Device_SingleDevice_GetsOsAndGameVersion()
-    {
+    public void Device_SingleDevice_GetsOsAndGameVersion() {
         var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
         hub.Publish(FlowWithRInfo("IOS", "1.35.6"), "t");
@@ -367,8 +340,7 @@ routes:
     }
 
     [Fact]
-    public void Device_MultipleDevices_NoOsAttribution()
-    {
+    public void Device_MultipleDevices_NoOsAttribution() {
         var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.5", "t");
         hub.RecordConnection(2, "192.168.1.6", "t");

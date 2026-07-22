@@ -2,8 +2,7 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-public sealed class FakeCaptureProxy : ICaptureProxy
-{
+public sealed class FakeCaptureProxy : ICaptureProxy {
     public int StartCount { get; private set; }
     public int StopCount { get; private set; }
     public int DisposeCount { get; private set; }
@@ -17,6 +16,7 @@ public sealed class FakeCaptureProxy : ICaptureProxy
     public event Action<int, string?>? ClientDisconnected;
     public event Action? AuxbrainConnect;
     public event Action<string>? DecryptError;
+    public event Action? TrustRestored;
     public event Action<string, bool>? ConnectSeen;
     public event Action<string>? Trace;
 #pragma warning restore CS0067
@@ -25,26 +25,21 @@ public sealed class FakeCaptureProxy : ICaptureProxy
     public bool FreshCa => false;
     public string? RootThumbprint => "FAKE-THUMB";
 
-    public Task StartAsync(int port, string caPath, CancellationToken ct)
-    {
+    public Task StartAsync(int port, string caPath, CancellationToken ct) {
         StartCount++;
         LastPort = port;
-        if (ThrowOnStart) throw new InvalidOperationException("fake proxy start failure");
-        return Task.CompletedTask;
+        return ThrowOnStart ? throw new InvalidOperationException("fake proxy start failure") : Task.CompletedTask;
     }
 
-    public Task StopAsync()
-    {
+    public Task StopAsync() {
         StopCount++;
-        if (ThrowOnStop) throw new InvalidOperationException("fake proxy stop failure");
-        return Task.CompletedTask;
+        return ThrowOnStop ? throw new InvalidOperationException("fake proxy stop failure") : Task.CompletedTask;
     }
 
     public void EmitFlow(CapturedFlow flow) => FlowCaptured?.Invoke(flow);
     public void EmitConnect(int count, string? ip) => ClientConnected?.Invoke(count, ip);
 
-    public ValueTask DisposeAsync()
-    {
+    public ValueTask DisposeAsync() {
         DisposeCount++;
         return ValueTask.CompletedTask;
     }

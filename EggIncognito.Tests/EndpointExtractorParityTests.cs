@@ -5,8 +5,7 @@ using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
-public class EndpointExtractorParityTests
-{
+public class EndpointExtractorParityTests {
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
     private const string Slug = "ei/get_periodicals";
 
@@ -22,8 +21,7 @@ needs_capture:
 
     private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-extract");
 
-    private static string WrappedResponseB64()
-    {
+    private static string WrappedResponseB64() {
         var inner = new Ei.PeriodicalsResponse();
         var outer = new Ei.AuthenticatedMessage { Message = inner.ToByteString(), Compressed = false };
         return Convert.ToBase64String(outer.ToByteArray());
@@ -33,8 +31,7 @@ needs_capture:
         Path.Combine(root, "Endpoints", "default", Slug + ".json");
 
     [Fact]
-    public void ProcessFlow_MatchesHarPath_ByteForByte()
-    {
+    public void ProcessFlow_MatchesHarPath_ByteForByte() {
         var responseB64 = WrappedResponseB64();
 
         var inProcRoot = MakeRepo();
@@ -63,8 +60,7 @@ needs_capture:
     }
 
     [Fact]
-    public void ProcessFlow_SkipsNonPostAndNon200()
-    {
+    public void ProcessFlow_SkipsNonPostAndNon200() {
         var responseB64 = WrappedResponseB64();
         var root = MakeRepo();
         var ex = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", false);
@@ -75,8 +71,7 @@ needs_capture:
     }
 
     [Fact]
-    public void ProcessFlow_DedupesRepeatedFlow()
-    {
+    public void ProcessFlow_DedupesRepeatedFlow() {
         var responseB64 = WrappedResponseB64();
         var root = MakeRepo();
         var ex = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", false);
@@ -87,8 +82,7 @@ needs_capture:
     }
 
     [Fact]
-    public void ForceWriteEndpoint_BypassesDedupAndOverwrites()
-    {
+    public void ForceWriteEndpoint_BypassesDedupAndOverwrites() {
         var responseB64 = WrappedResponseB64();
         var root = MakeRepo();
         var ex = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", overwrite: false);
@@ -101,8 +95,7 @@ needs_capture:
     }
 
     [Fact]
-    public void ForceWriteEndpoint_RegistersUnmappedRequestType()
-    {
+    public void ForceWriteEndpoint_RegistersUnmappedRequestType() {
         var root = Path.Combine(Path.GetTempPath(), $"ei-reg-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
         File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
@@ -114,11 +107,15 @@ routes:
 """);
         var ex = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", overwrite: false);
 
-        var reqMsg = new Ei.GetPeriodicalsRequest
-        {
-            UserId = "EI123", CurrentClientVersion = 72, Debug = false,
-            SoulEggs = 1_000_000_000.0, PiggyFull = true, PiggyFoundFull = true,
-            SecondsFullRealtime = 25_000_000, SecondsFullGametime = 400_000,
+        var reqMsg = new Ei.GetPeriodicalsRequest {
+            UserId = "EI123",
+            CurrentClientVersion = 72,
+            Debug = false,
+            SoulEggs = 1_000_000_000.0,
+            PiggyFull = true,
+            PiggyFoundFull = true,
+            SecondsFullRealtime = 25_000_000,
+            SecondsFullGametime = 400_000,
         };
         var reqB64 = Convert.ToBase64String(reqMsg.ToByteArray());
         ex.ForceWriteEndpoint(Url, "POST", 200, reqB64, WrappedResponseB64());
@@ -130,8 +127,7 @@ routes:
     }
 
     [Fact]
-    public void ForceWriteEndpoint_RejectsNonPostOrNon200()
-    {
+    public void ForceWriteEndpoint_RejectsNonPostOrNon200() {
         var responseB64 = WrappedResponseB64();
         var root = MakeRepo();
         var ex = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", false);
@@ -140,12 +136,9 @@ routes:
         Assert.Null(ex.ForceWriteEndpoint(Url, "POST", 500, null, responseB64));
     }
 
-    private static string BuildHar(string url, string responseBodyB64)
-    {
-        var har = new
-        {
-            log = new
-            {
+    private static string BuildHar(string url, string responseBodyB64) {
+        var har = new {
+            log = new {
                 version = "1.2",
                 entries = new[]
                 {

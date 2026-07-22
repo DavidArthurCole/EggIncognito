@@ -21,46 +21,41 @@ public sealed record SchemaField(
 
 public sealed record SchemaMessage(string Name, IReadOnlyList<SchemaField> Fields);
 
-public interface IProtoReflection
-{
+public interface IProtoReflection {
     MessageDescriptor? FindMessage(string typeName);
     MessageParser? FindParser(string typeName);
     SchemaMessage? Schema(string typeName);
-   
-   
+
+
     IReadOnlyList<string> AllMessageTypeNames();
 }
 
-public sealed class ProtoReflection : IProtoReflection
-{
+public sealed class ProtoReflection : IProtoReflection {
     private static readonly Assembly EiAssembly = typeof(Ei.AuthenticatedMessage).Assembly;
 
-   
+
     private static string Short(string typeName) =>
         typeName.StartsWith("Ei.", StringComparison.Ordinal) ? typeName[3..] : typeName;
 
-   
+
     private static readonly ConcurrentDictionary<string, (MessageDescriptor Descriptor, MessageParser Parser)> Cache =
         new(StringComparer.Ordinal);
 
-    private static (MessageDescriptor Descriptor, MessageParser Parser)? Resolve(string typeName)
-    {
+    private static (MessageDescriptor Descriptor, MessageParser Parser)? Resolve(string typeName) {
         var key = Short(typeName);
         if (Cache.TryGetValue(key, out var hit)) return hit;
 
         var clr = EiAssembly.GetType("Ei." + key);
-        var descriptor = clr?.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null) as MessageDescriptor;
-        var parser = clr?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null) as MessageParser;
-        if (descriptor is null || parser is null) return null;
+        if (clr?.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static)
+            ?.GetValue(null) is not MessageDescriptor descriptor || clr?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
+            ?.GetValue(null) is not MessageParser parser) return null;
 
         Cache.TryAdd(key, (descriptor, parser));
         return (descriptor, parser);
     }
 
-   
-   
+
+
     private static readonly Lazy<IReadOnlyList<string>> AllNames = new(() =>
         EiAssembly.GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false, DeclaringType: null }
@@ -78,8 +73,7 @@ public sealed class ProtoReflection : IProtoReflection
 
     public MessageParser? FindParser(string typeName) => Resolve(typeName)?.Parser;
 
-    public SchemaMessage? Schema(string typeName)
-    {
+    public SchemaMessage? Schema(string typeName) {
         var desc = FindMessage(typeName);
         if (desc is null) return null;
 
@@ -87,19 +81,15 @@ public sealed class ProtoReflection : IProtoReflection
         return new SchemaMessage(desc.Name, fields);
     }
 
-    private static SchemaField ToSchemaField(FieldDescriptor f)
-    {
+    private static SchemaField ToSchemaField(FieldDescriptor f) {
         string type = f.FieldType.ToString().ToLowerInvariant();
         string? messageType = null;
         IReadOnlyList<SchemaEnumValue>? enumValues = null;
 
-        if (f.FieldType == FieldType.Message || f.FieldType == FieldType.Group)
-        {
+        if (f.FieldType is FieldType.Message or FieldType.Group) {
             type = "message";
             messageType = f.MessageType.Name;
-        }
-        else if (f.FieldType == FieldType.Enum)
-        {
+        } else if (f.FieldType == FieldType.Enum) {
             type = "enum";
             enumValues = f.EnumType.Values
                 .Select(v => new SchemaEnumValue(v.Name, v.Number))

@@ -3,11 +3,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Tests;
 
-public class RateLimitOptionsTests
-{
+public class RateLimitOptionsTests {
     [Fact]
-    public void Defaults_AreEnabled_WithSaneValues()
-    {
+    public void Defaults_AreEnabled_WithSaneValues() {
         var o = RateLimitOptions.Defaults();
         Assert.True(o.Enabled);
         Assert.True(o.Tiers["Anon"].PermitLimit < o.Tiers["Viewer"].PermitLimit);
@@ -16,10 +14,8 @@ public class RateLimitOptionsTests
     }
 
     [Fact]
-    public void Bind_OverridesDefaults_FromConfig()
-    {
-        var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
+    public void Bind_OverridesDefaults_FromConfig() {
+        var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
             ["RateLimiting:Enabled"] = "false",
             ["RateLimiting:Tiers:Anon:PermitLimit"] = "7",
             ["RateLimiting:Tiers:Anon:WindowSeconds"] = "60",

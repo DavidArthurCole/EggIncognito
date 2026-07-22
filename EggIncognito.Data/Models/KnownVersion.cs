@@ -3,8 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace EggIncognito.Data.Models;
 
 [Table("known_versions")]
-public sealed class KnownVersion
-{
+public sealed class KnownVersion {
     [Column("id")] public int Id { get; set; }
     [Column("platform")] public string Platform { get; set; } = "android";
     [Column("app_version")] public string AppVersion { get; set; } = "";

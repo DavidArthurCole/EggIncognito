@@ -2,8 +2,8 @@ using EggIncognito.Services.Devices;
 using Xunit;
 
 namespace EggIncognito.Tests.Devices;
-public class StoreAheadCheckTests
-{
+
+public class StoreAheadCheckTests {
     [Theory]
     [InlineData("1.36", "1.35.8", true)]
     [InlineData("1.36.0.2", "1.35.8", true)]

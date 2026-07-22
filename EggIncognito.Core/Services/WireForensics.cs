@@ -3,13 +3,12 @@ using Google.Protobuf.Reflection;
 namespace EggIncognito.Services;
 
 
-public static class WireForensics
-{
+public static class WireForensics {
     public sealed record WireError(int Offset, string Path, string? ResolvedPath, string Message);
     public sealed record HexWindow(int From, int To, int ErrorIndexInWindow, string Hex);
     public sealed record SalvagedString(int Offset, string Text);
 
-   
+
     public sealed record WireNode(
         string Path,
         string? ResolvedName,
@@ -22,10 +21,10 @@ public static class WireForensics
         bool SchemaMismatch,
         IReadOnlyList<WireNode> Children);
 
-   
+
     public sealed record RecoveredField(int Field, string? ResolvedName, string Wire, string Value, bool Bad);
 
-   
+
     public sealed record Recovery(
         int AlignedAt,
         int SkippedBytes,
@@ -42,31 +41,27 @@ public static class WireForensics
         IReadOnlyList<WireNode> Tree,
         Recovery? Recovered);
 
-    static readonly string[] WireNames = ["varint", "i64", "len", "sgroup", "egroup", "i32", "?6", "?7"];
+    private static readonly string[] WireNames = ["varint", "i64", "len", "sgroup", "egroup", "i32", "?6", "?7"];
 
-    const int MaxDepth = 64;
-    const int MaxNodes = 200_000;
+    private const int MaxDepth = 64;
+    private const int MaxNodes = 200_000;
 
-    sealed class Ctx
-    {
+    private sealed class Ctx {
         public readonly List<WireError> Errors = [];
         public int NodeCount;
         public void Record(string path, string? resolved, int offset, string message) =>
             Errors.Add(new WireError(offset, path, resolved, message));
     }
 
-    sealed class WireException(string message, int offset) : System.Exception(message)
-    {
+    private sealed class WireException(string message, int offset) : System.Exception(message) {
         public int Offset { get; } = offset;
     }
 
-    static (ulong Value, int Next) ReadVarint(ReadOnlySpan<byte> buf, int pos)
-    {
+    private static (ulong Value, int Next) ReadVarint(ReadOnlySpan<byte> buf, int pos) {
         ulong result = 0;
         int shift = 0;
         int start = pos;
-        while (pos < buf.Length)
-        {
+        while (pos < buf.Length) {
             byte b = buf[pos++];
             result |= (ulong)(b & 0x7f) << shift;
             if ((b & 0x80) == 0) return (result, pos);
@@ -76,26 +71,22 @@ public static class WireForensics
         throw new WireException("truncated varint (hit end of buffer)", start);
     }
 
-   
-    static bool LenFits(ulong declaredLen, int pos, int end) =>
+
+    private static bool LenFits(ulong declaredLen, int pos, int end) =>
         pos <= end && declaredLen <= (ulong)(end - pos);
 
-   
-    static bool LooksLikeMessage(ReadOnlySpan<byte> buf, int start, int end)
-    {
+
+    private static bool LooksLikeMessage(ReadOnlySpan<byte> buf, int start, int end) {
         if (start == end) return false;
         int pos = start;
-        try
-        {
-            while (pos < end)
-            {
+        try {
+            while (pos < end) {
                 var (tag, next) = ReadVarint(buf, pos);
                 pos = next;
                 int wire = (int)(tag & 0x7);
                 int field = (int)(tag >> 3);
                 if (field == 0) return false;
-                switch (wire)
-                {
+                switch (wire) {
                     case 0: pos = ReadVarint(buf, pos).Next; break;
                     case 1: pos += 8; break;
                     case 5: pos += 4; break;
@@ -109,34 +100,28 @@ public static class WireForensics
                 if (pos > end) return false;
             }
             return pos == end;
-        }
-        catch { return false; }
+        } catch { return false; }
     }
 
-    static List<WireNode> WalkMessage(ReadOnlySpan<byte> buf, int start, int end, string path, int depth, Ctx ctx)
-    {
+    private static List<WireNode> WalkMessage(ReadOnlySpan<byte> buf, int start, int end, string path, int depth, Ctx ctx) {
         var nodes = new List<WireNode>();
         int pos = start;
-        while (pos < end)
-        {
+        while (pos < end) {
             int fieldOffset = pos;
             ulong tag;
-            try { (tag, pos) = ReadVarint(buf, pos); }
-            catch (WireException e) { ctx.Record(path, null, e.Offset, e.Message); break; }
+            try { (tag, pos) = ReadVarint(buf, pos); } catch (WireException e) { ctx.Record(path, null, e.Offset, e.Message); break; }
 
             int wire = (int)(tag & 0x7);
             int field = (int)(tag >> 3);
-            string fieldPath = path.Length == 0 ? field.ToString() : $"{path}.{field}";
+            string fieldPath = path.Length == 0 ? field.ToString(System.Globalization.CultureInfo.InvariantCulture) : $"{path}.{field}";
 
             if (field == 0) { ctx.Record(fieldPath, null, fieldOffset, "field number 0 (illegal)"); break; }
 
             int? len = null;
             int? dataStart = null, dataEnd = null;
             List<WireNode> children = [];
-            try
-            {
-                switch (wire)
-                {
+            try {
+                switch (wire) {
                     case 0: pos = ReadVarint(buf, pos).Next; break;
                     case 1:
                         pos += 8;
@@ -161,9 +146,7 @@ public static class WireForensics
                     default:
                         throw new WireException($"illegal wire type {wire}", fieldOffset);
                 }
-            }
-            catch (WireException e)
-            {
+            } catch (WireException e) {
                 ctx.Record(fieldPath, null, e.Offset, e.Message);
                 nodes.Add(new WireNode(fieldPath, null, field, WireNames[wire], fieldOffset, len, dataStart, dataEnd, false, children));
                 break;
@@ -176,22 +159,19 @@ public static class WireForensics
         return nodes;
     }
 
-    static HexWindow BuildHexWindow(ReadOnlySpan<byte> buf, int errorOffset)
-    {
+    private static HexWindow BuildHexWindow(ReadOnlySpan<byte> buf, int errorOffset) {
         int lo = System.Math.Max(0, errorOffset - 16);
         int hi = System.Math.Min(buf.Length, errorOffset + 16);
         return new HexWindow(lo, hi, errorOffset - lo, System.Convert.ToHexString(buf[lo..hi]).ToLowerInvariant());
     }
 
-   
-   
-    static List<SalvagedString> SalvageStrings(ReadOnlySpan<byte> buf, int start, int end, int minLen = 4)
-    {
+
+
+    private static List<SalvagedString> SalvageStrings(ReadOnlySpan<byte> buf, int start, int end, int minLen = 4) {
         var outp = new List<SalvagedString>();
         int runLen = 0;
         int from = System.Math.Max(0, start), to = System.Math.Min(buf.Length, end);
-        for (int i = from; i <= to; i++)
-        {
+        for (int i = from; i <= to; i++) {
             bool printable = i < to && buf[i] >= 0x20 && buf[i] <= 0x7e;
             if (printable) { runLen++; continue; }
             if (runLen >= minLen)
@@ -201,8 +181,7 @@ public static class WireForensics
         return outp;
     }
 
-    public static DiagnoseResult Diagnose(ReadOnlySpan<byte> bytes, string? rootTypeName, IProtoReflection? reflection)
-    {
+    public static DiagnoseResult Diagnose(ReadOnlySpan<byte> bytes, string? rootTypeName, IProtoReflection? reflection) {
         var ctx = new Ctx();
         IReadOnlyList<WireNode> tree = WalkMessage(bytes, 0, bytes.Length, "", 0, ctx);
 
@@ -213,34 +192,29 @@ public static class WireForensics
         HexWindow? hex = first is null ? null : BuildHexWindow(bytes, first.Offset);
 
         List<SalvagedString> salvaged = [];
-        if (first is not null)
-        {
+        if (first is not null) {
             int lo = System.Math.Max(0, first.Offset - 64);
             int hi = System.Math.Min(bytes.Length, first.Offset + 256);
             salvaged = SalvageStrings(bytes, lo, hi);
         }
 
         MessageDescriptor? rootDesc = null;
-        if (rootTypeName is not null && reflection is not null)
-        {
+        if (rootTypeName is not null && reflection is not null) {
             rootDesc = reflection.FindMessage(rootTypeName);
             tree = ResolveSchema(tree, rootTypeName, reflection);
-            if (first is not null)
-            {
+            if (first is not null) {
                 var resolvedPath = FindResolvedPath(tree, first.Path);
                 if (resolvedPath is not null) first = first with { ResolvedPath = resolvedPath };
             }
         }
 
-       
+
         Recovery? recovered = null;
-        if (first is not null)
-        {
+        if (first is not null) {
             int recoverStart = EnclosingRegionStart(tree, first.Offset, 0);
             int recoverEnd = System.Math.Min(bytes.Length, first.Offset + 4096);
             var (fields, aligned, skipped) = RecoverFields(bytes, recoverStart, recoverEnd);
-            if (fields.Count > 0)
-            {
+            if (fields.Count > 0) {
                 var resolved = ResolveRecovered(fields, first.Path, rootDesc);
                 recovered = new Recovery(aligned, skipped, resolved);
             }
@@ -258,33 +232,30 @@ public static class WireForensics
             Recovered: recovered);
     }
 
-   
-   
-    static int EnclosingRegionStart(IReadOnlyList<WireNode> tree, int errorOffset, int fallbackStart)
-    {
-        foreach (var n in tree)
-        {
+
+
+    private static int EnclosingRegionStart(IReadOnlyList<WireNode> tree, int errorOffset, int fallbackStart) {
+        foreach (var n in tree) {
             if (n.DataStart is int ds && n.DataEnd is int de && n.Children.Count > 0
-                && errorOffset >= ds && errorOffset < de)
+                && errorOffset >= ds && errorOffset < de) {
                 return EnclosingRegionStart(n.Children, errorOffset, ds);
+            }
         }
         return fallbackStart;
     }
 
-    static (RecoveredField Node, int Next)? TryField(ReadOnlySpan<byte> buf, int pos, int end)
-    {
+    private static (RecoveredField Node, int Next)? TryField(ReadOnlySpan<byte> buf, int pos, int end) {
         ulong tag;
         try { (tag, pos) = ReadVarint(buf, pos); } catch { return null; }
         int wire = (int)(tag & 0x7);
         int field = (int)(tag >> 3);
-        if (field == 0 || field > 0x1fffffff) return null;
+        if (field is 0 or > 0x1fffffff) return null;
 
-        switch (wire)
-        {
+        switch (wire) {
             case 0:
                 ulong v;
                 try { (v, pos) = ReadVarint(buf, pos); } catch { return null; }
-                return (new RecoveredField(field, null, "varint", v.ToString(), false), pos);
+                return (new RecoveredField(field, null, "varint", v.ToString(System.Globalization.CultureInfo.InvariantCulture), false), pos);
             case 1:
                 if (pos + 8 > end) return null;
                 double d = System.BitConverter.ToDouble(buf.Slice(pos, 8));
@@ -309,24 +280,20 @@ public static class WireForensics
         }
     }
 
-    static bool IsPrintable(ReadOnlySpan<byte> s)
-    {
+    private static bool IsPrintable(ReadOnlySpan<byte> s) {
         foreach (var c in s)
-            if (!(c == 0x09 || c == 0x0a || (c >= 0x20 && c <= 0x7e))) return false;
+            if (c is not (0x09 or 0x0a or >= 0x20 and <= 0x7e)) return false;
         return true;
     }
 
-   
-    static (List<RecoveredField> Fields, int CleanPrefix, int Skipped) RecoverLinear(ReadOnlySpan<byte> buf, int from, int end)
-    {
+
+    private static (List<RecoveredField> Fields, int CleanPrefix, int Skipped) RecoverLinear(ReadOnlySpan<byte> buf, int from, int end) {
         var fields = new List<RecoveredField>();
         int pos = from, skip = 0, cleanPrefix = 0;
         bool sawSkip = false;
-        while (pos < end)
-        {
+        while (pos < end) {
             var r = TryField(buf, pos, end);
-            if (r is { } hit)
-            {
+            if (r is { } hit) {
                 fields.Add(hit.Node);
                 if (!sawSkip) cleanPrefix++;
                 pos = hit.Next;
@@ -339,14 +306,12 @@ public static class WireForensics
         return (fields, cleanPrefix, skip);
     }
 
-   
-   
-    static (IReadOnlyList<RecoveredField> Fields, int AlignedAt, int Skipped) RecoverFields(ReadOnlySpan<byte> buf, int start, int end, int maxProbe = 8)
-    {
+
+
+    private static (IReadOnlyList<RecoveredField> Fields, int AlignedAt, int Skipped) RecoverFields(ReadOnlySpan<byte> buf, int start, int end, int maxProbe = 8) {
         (List<RecoveredField> f, int prefix, int skip, int off)? best = null;
         int hi = System.Math.Min(start + maxProbe, end - 1);
-        for (int off = start; off <= hi; off++)
-        {
+        for (int off = start; off <= hi; off++) {
             var (f, prefix, skip) = RecoverLinear(buf, off, end);
             int score = prefix * 1000 - off;
             int bestScore = best is { } b ? b.prefix * 1000 - b.off : int.MinValue;
@@ -355,33 +320,29 @@ public static class WireForensics
         return best is { } bb ? (bb.f, bb.off, bb.skip) : ([], start, 0);
     }
 
-   
-    static IReadOnlyList<RecoveredField> ResolveRecovered(IReadOnlyList<RecoveredField> fields, string brokenPath, MessageDescriptor? rootDesc)
-    {
+
+    private static IReadOnlyList<RecoveredField> ResolveRecovered(IReadOnlyList<RecoveredField> fields, string brokenPath, MessageDescriptor? rootDesc) {
         if (rootDesc is null) return fields;
-       
-        var segs = brokenPath.Split('.').Select(int.Parse).ToArray();
+
+        var segs = brokenPath.Split('.').Select(s => int.Parse(s, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
         var desc = rootDesc;
-        for (int i = 0; i < segs.Length - 1 && desc is not null; i++)
-        {
+        for (int i = 0; i < segs.Length - 1 && desc is not null; i++) {
             var fd = desc.Fields.InFieldNumberOrder().FirstOrDefault(f => f.FieldNumber == segs[i]);
             desc = fd is { FieldType: FieldType.Message or FieldType.Group } ? fd.MessageType : null;
         }
         if (desc is null) return fields;
         var parent = desc;
-        return fields.Select(rf =>
-        {
+        return fields.Select(rf => {
             var fd = parent.Fields.InFieldNumberOrder().FirstOrDefault(f => f.FieldNumber == rf.Field);
             return rf with { ResolvedName = fd?.Name };
         }).ToList();
     }
 
-   
-    static int ExpectedWire(FieldDescriptor f)
-    {
-        if (f.IsRepeated && f.IsPacked) return 2;
-        return f.FieldType switch
-        {
+
+    private static int ExpectedWire(FieldDescriptor f) {
+        return f.IsRepeated && f.IsPacked
+            ? 2
+            : f.FieldType switch {
             FieldType.Int32 or FieldType.Int64 or FieldType.UInt32 or FieldType.UInt64
                 or FieldType.SInt32 or FieldType.SInt64 or FieldType.Bool or FieldType.Enum => 0,
             FieldType.Fixed64 or FieldType.SFixed64 or FieldType.Double => 1,
@@ -391,17 +352,14 @@ public static class WireForensics
         };
     }
 
-    static int WireIndex(string wireName) => System.Array.IndexOf(WireNames, wireName);
+    private static int WireIndex(string wireName) => System.Array.IndexOf(WireNames, wireName);
 
-    static IReadOnlyList<WireNode> ResolveSchema(IReadOnlyList<WireNode> tree, string rootTypeName, IProtoReflection reflection)
-    {
+    private static IReadOnlyList<WireNode> ResolveSchema(IReadOnlyList<WireNode> tree, string rootTypeName, IProtoReflection reflection) {
         var rootDesc = reflection.FindMessage(rootTypeName);
-        if (rootDesc is null) return tree;
-        return tree.Select(n => ResolveNode(n, rootDesc)).ToList();
+        return rootDesc is null ? tree : tree.Select(n => ResolveNode(n, rootDesc)).ToList();
     }
 
-    static WireNode ResolveNode(WireNode node, MessageDescriptor desc)
-    {
+    private static WireNode ResolveNode(WireNode node, MessageDescriptor desc) {
         var fd = desc.Fields.InFieldNumberOrder().FirstOrDefault(f => f.FieldNumber == node.Field);
         if (fd is null)
             return node with { ResolvedName = "<unknown>" };
@@ -411,8 +369,7 @@ public static class WireForensics
         bool mismatch = expected >= 0 && actual >= 0 && expected != actual;
 
         IReadOnlyList<WireNode> children = node.Children;
-        if (node.Children.Count > 0 && (fd.FieldType == FieldType.Message || fd.FieldType == FieldType.Group))
-        {
+        if (node.Children.Count > 0 && (fd.FieldType == FieldType.Message || fd.FieldType == FieldType.Group)) {
             var childDesc = fd.MessageType;
             children = node.Children.Select(c => ResolveNode(c, childDesc)).ToList();
         }
@@ -420,10 +377,8 @@ public static class WireForensics
         return node with { ResolvedName = fd.Name, SchemaMismatch = mismatch, Children = children };
     }
 
-    static string? FindResolvedPath(IReadOnlyList<WireNode> tree, string numericPath)
-    {
-        foreach (var n in tree)
-        {
+    private static string? FindResolvedPath(IReadOnlyList<WireNode> tree, string numericPath) {
+        foreach (var n in tree) {
             if (n.Path == numericPath) return n.ResolvedName;
             var deeper = FindResolvedPath(n.Children, numericPath);
             if (deeper is not null)

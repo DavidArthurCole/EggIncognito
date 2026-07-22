@@ -3,14 +3,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace EggIncognito.Tests;
 
 [Collection(SharedAppCollection.Name)]
-public class BlazorShellTests
-{
-    private readonly WebApplicationFactory<Program> _f;
-    public BlazorShellTests(SharedAppFactory f) => _f = f;
+public class BlazorShellTests(SharedAppFactory f) {
+    private readonly WebApplicationFactory<Program> _f = f;
 
     [Fact]
-    public async Task Home_RendersBlazorShell()
-    {
+    public async Task Home_RendersBlazorShell() {
         var c = _f.CreateClient();
         var r = await c.GetAsync("/");
         Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);

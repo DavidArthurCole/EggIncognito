@@ -3,29 +3,10 @@ using Xunit;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class HabCapacityExtractorTests
-{
-    private static byte[]? Bin()
-    {
-        foreach (var rel in new[] { "../../../../captures/ipas", "../../../../../captures/ipas" })
-        {
-            var full = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, rel));
-            if (!Directory.Exists(full)) continue;
-            var store = new SymbolizedBinaryStore(full);
-            foreach (var v in new[] { "1.35.6", "1.35.7", "1.35.5" })
-            {
-                var r = store.Get(v);
-                if (r.Ok && r.Bytes is not null) return r.Bytes;
-            }
-        }
-        return null;
-    }
-
+public class HabCapacityExtractorTests {
     [Fact]
-    public void Extracts_full_hab_capacity_sequence_from_binary()
-    {
-        var bin = Bin();
-        if (bin is null) return;
+    public void Extracts_full_hab_capacity_sequence_from_binary() {
+        if (!BinaryFixture.TryLoad(out var bin)) return;
 
         var r = HabCapacityExtractor.Extract(bin);
         Assert.True(r.Ok, r.Diagnostics);

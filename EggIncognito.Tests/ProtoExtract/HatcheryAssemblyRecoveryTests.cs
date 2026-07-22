@@ -4,18 +4,15 @@ using Xunit;
 namespace EggIncognito.Tests.ProtoExtract;
 
 
-public class HatcheryAssemblyRecoveryTests
-{
+public class HatcheryAssemblyRecoveryTests {
     [Fact]
-    public void Recover_ShortBinary_NotOk()
-    {
+    public void Recover_ShortBinary_NotOk() {
         var a = HatcheryAssemblyRecovery.Recover(new byte[16]);
         Assert.False(a.Ok);
     }
 
     [Fact]
-    public void Mat4_Translation_ReadsCells12_13_14()
-    {
+    public void Mat4_Translation_ReadsCells12_13_14() {
         var cells = new ExprNode?[16];
         cells[12] = new Const(13.651);
         cells[13] = new Const(4.342);
@@ -29,15 +26,13 @@ public class HatcheryAssemblyRecoveryTests
     }
 
     [Fact]
-    public void Mat4_Translation_NullWhenCellsMissing()
-    {
+    public void Mat4_Translation_NullWhenCellsMissing() {
         var m = new HatcheryAssemblyRecovery.Mat4(true, "$_3", new ExprNode?[16], 0, "ok");
         Assert.Null(m.Translation());
     }
 
     [Fact]
-    public void Mat4_ToJson_ShapesTranslation()
-    {
+    public void Mat4_ToJson_ShapesTranslation() {
         var cells = new ExprNode?[16];
         cells[12] = new Const(1); cells[13] = new Const(2); cells[14] = new Const(3);
         var json = new HatcheryAssemblyRecovery.Mat4(true, "$_2", cells, 1, "ok").ToJson();
@@ -47,8 +42,7 @@ public class HatcheryAssemblyRecoveryTests
     }
 
     [Fact]
-    public void Timing_ToJson_CarriesTweenArgs()
-    {
+    public void Timing_ToJson_CarriesTweenArgs() {
         var json = new HatcheryAssemblyRecovery.Timing(0.5f, false, 30f, 3, "ok").ToJson();
         Assert.Equal(0.5f, (float)json["waitFor"]!, 3);
         Assert.False((bool)json["waitForRandom"]!);
@@ -57,8 +51,7 @@ public class HatcheryAssemblyRecoveryTests
     }
 
     [Fact]
-    public void Timing_ToJson_NullArgsSurviveSerialization()
-    {
+    public void Timing_ToJson_NullArgsSurviveSerialization() {
         var json = new HatcheryAssemblyRecovery.Timing(null, false, null, 0, "no tween args resolved").ToJson();
         Assert.Null(json["waitFor"]);
         Assert.Null(json["smoothDuration"]);
@@ -66,17 +59,15 @@ public class HatcheryAssemblyRecoveryTests
     }
 
     [Fact]
-    public void Timing_ToJson_FlagsRandomFireDelay()
-    {
-       
+    public void Timing_ToJson_FlagsRandomFireDelay() {
+
         var json = new HatcheryAssemblyRecovery.Timing(null, true, 0.5f, 3, "ok").ToJson();
         Assert.Null(json["waitFor"]);
         Assert.True((bool)json["waitForRandom"]!);
     }
 
     [Fact]
-    public void Assembly_ToJson_IncludesTimingObject()
-    {
+    public void Assembly_ToJson_IncludesTimingObject() {
         var timing = new HatcheryAssemblyRecovery.Timing(0.5f, false, 30f, 3, "ok");
         var asm = new HatcheryAssemblyRecovery.Assembly(true, [11.319f, 2.15f, 2.997f], [], timing, "ok");
         var json = asm.ToJson();

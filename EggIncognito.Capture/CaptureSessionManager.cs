@@ -1,17 +1,15 @@
 namespace EggIncognito.Capture;
+
 public sealed class CaptureCapacityException()
     : Exception("capture session capacity reached");
 
-public sealed class CaptureSessionManager(HostedCaptureOptions opts, Func<string, int, CaptureSession> factory)
-{
+public sealed class CaptureSessionManager(HostedCaptureOptions opts, Func<string, int, CaptureSession> factory) {
     public const string LocalKey = "__local";
-    private readonly Dictionary<string, CaptureSession> _sessions = new();
-    private readonly object _lock = new();
+    private readonly Dictionary<string, CaptureSession> _sessions = [];
+    private readonly Lock _lock = new();
 
-    public CaptureSession GetOrCreate(string key)
-    {
-        lock (_lock)
-        {
+    public CaptureSession GetOrCreate(string key) {
+        lock (_lock) {
             if (_sessions.TryGetValue(key, out var s)) return s;
             if (_sessions.Count >= opts.MaxConcurrentSessions && key != LocalKey)
                 throw new CaptureCapacityException();
@@ -24,15 +22,13 @@ public sealed class CaptureSessionManager(HostedCaptureOptions opts, Func<string
 
     public CaptureSession? Get(string key) { lock (_lock) return _sessions.GetValueOrDefault(key); }
 
-    public IReadOnlyList<(string Key, CaptureSession Session)> All()
-    {
+    public IReadOnlyList<(string Key, CaptureSession Session)> All() {
         lock (_lock) return _sessions.Select(kv => (kv.Key, kv.Value)).ToList();
     }
 
     public void Remove(string key) { lock (_lock) _sessions.Remove(key); }
 
-    private int NextFreeBasePort()
-    {
+    private int NextFreeBasePort() {
         var used = _sessions.Values.Select(s => s.Port).ToHashSet();
         for (var p = opts.PortPoolBase; ; p += 3)
             if (!used.Contains(p)) return p;

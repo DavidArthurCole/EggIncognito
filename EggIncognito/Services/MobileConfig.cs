@@ -4,12 +4,10 @@ using System.Text;
 namespace EggIncognito.Services;
 
 
-public static class MobileConfig
-{
-   
-   
-    public static byte[] BuildCaProfile(byte[] cerDer, string stableId)
-    {
+public static class MobileConfig {
+
+
+    public static byte[] BuildCaProfile(byte[] cerDer, string stableId) {
         var idSeed = Encoding.UTF8.GetBytes(stableId);
         var profileUuid = DeterministicUuid(idSeed, "profile");
         var certUuid = DeterministicUuid(idSeed, "cert");
@@ -67,9 +65,8 @@ public static class MobileConfig
         return Encoding.UTF8.GetBytes(xml);
     }
 
-   
-    internal static string DeterministicUuid(byte[] seed, string role)
-    {
+
+    internal static string DeterministicUuid(byte[] seed, string role) {
         var hash = SHA256.HashData([.. seed, .. Encoding.UTF8.GetBytes(role)]);
         var g = new byte[16];
         Array.Copy(hash, g, 16);

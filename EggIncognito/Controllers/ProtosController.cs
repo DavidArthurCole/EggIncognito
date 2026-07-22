@@ -10,65 +10,73 @@ namespace EggIncognito.Controllers;
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 
 [EnableRateLimiting("fetch")]
-public sealed class ProtosController(IServiceProvider services) : ControllerBase
-{
+public sealed class ProtosController(IServiceProvider services) : ControllerBase {
     private ProtoRegistryStore? Store =>
         services.GetService(typeof(ProtoRegistryStore)) as ProtoRegistryStore;
 
     [HttpGet("versions")]
-    public async Task<IActionResult> Versions([FromQuery] string? platform, CancellationToken ct)
-    {
+    public async Task<IActionResult> Versions([FromQuery] string? platform, CancellationToken ct) {
         if (Store is null) return Ok(Array.Empty<object>());
         var rows = await Store.ListAsync(platform, ct);
-       
-       
-        return Ok(rows.Select(r => new
-        {
-            r.Id, r.CanonicalId, r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.Package,
-            r.ProtoSha, r.DetectedAt,
+
+
+        return Ok(rows.Select(r => new {
+            r.Id,
+            r.CanonicalId,
+            r.Platform,
+            r.AppVersion,
+            r.Build,
+            r.ClientVersion,
+            r.Source,
+            r.Package,
+            r.ProtoSha,
+            r.DetectedAt,
             buildFlag = ProtoVersionQuality.BuildQualityFlag(r.Platform, r.Build),
         }));
     }
 
     [HttpGet("versions/{platform}/{build}")]
-    public async Task<IActionResult> Get(string platform, string build, CancellationToken ct)
-    {
+    public async Task<IActionResult> Get(string platform, string build, CancellationToken ct) {
         if (Store is null) return NotFound();
         var row = await Store.GetAsync(platform, build, ct);
         if (row is null) return NotFound();
         var pp = await Store.GetProtoAsync(row.Id, ct);
-        return Ok(new { row.Platform, row.AppVersion, row.Build, row.ClientVersion, row.Source, row.Package,
-            row.ProtoSha, row.DetectedAt,
-            messages = pp is null ? "[]" : pp.MessageIndex, hasProto = pp is not null });
+        return Ok(new {
+            row.Platform,
+            row.AppVersion,
+            row.Build,
+            row.ClientVersion,
+            row.Source,
+            row.Package,
+            row.ProtoSha,
+            row.DetectedAt,
+            messages = pp is null ? "[]" : pp.MessageIndex,
+            hasProto = pp is not null
+        });
     }
 
     [HttpGet("versions/{platform}/{build}/proto")]
-    public async Task<IActionResult> Proto(string platform, string build, CancellationToken ct)
-    {
+    public async Task<IActionResult> Proto(string platform, string build, CancellationToken ct) {
         if (Store is null) return NotFound();
         var row = await Store.GetAsync(platform, build, ct);
         if (row is null) return NotFound();
         var pp = await Store.GetProtoAsync(row.Id, ct);
-        if (pp is null) return NotFound();
-        return Content(pp.ProtoText, "text/plain");
+        return pp is null ? NotFound() : Content(pp.ProtoText, "text/plain");
     }
 
-   
-   
+
+
     [HttpGet("sources")]
-    public async Task<IActionResult> Sources(CancellationToken ct)
-    {
-        if (Store is null) return Ok(new Dictionary<string, int>());
-        return Ok(await Store.SourceCountsAsync(ct));
+    public async Task<IActionResult> Sources(CancellationToken ct) {
+        return Store is null ? Ok(new Dictionary<string, int>()) : Ok(await Store.SourceCountsAsync(ct));
     }
 
     [HttpGet("latest")]
-    public async Task<IActionResult> Latest([FromQuery] string platform = "android", CancellationToken ct = default)
-    {
+    public async Task<IActionResult> Latest([FromQuery] string platform = "android", CancellationToken ct = default) {
         if (Store is null) return NotFound();
         var rows = await Store.ListAsync(platform, ct);
-       
-       
+
+
         var r = rows
             .OrderByDescending(p => ProtoVersionQuality.LatestSortKey(p.Platform, p.Build, p.AppVersion))
             .ThenByDescending(p => p.CreatedAt)
@@ -77,26 +85,22 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
             : Ok(new { r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.ProtoSha, r.DetectedAt });
     }
 
-   
-   
+
+
     [HttpGet("diff")]
     public async Task<IActionResult> Diff(
         [FromQuery] string from, [FromQuery] string to, [FromQuery] string platform = "android",
-        CancellationToken ct = default)
-    {
+        CancellationToken ct = default) {
         if (Store is null) return NotFound();
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
             return BadRequest(new { error = "from and to required" });
 
         var fromText = await LoadProtoText(platform, from, ct);
         var toText = await LoadProtoText(platform, to, ct);
-        if (fromText is null || toText is null) return NotFound();
-
-        return Content(ProtoDiff.Diff(fromText, toText), "text/plain");
+        return fromText is null || toText is null ? NotFound() : Content(ProtoDiff.Diff(fromText, toText), "text/plain");
     }
 
-    private async Task<string?> LoadProtoText(string platform, string build, CancellationToken ct)
-    {
+    private async Task<string?> LoadProtoText(string platform, string build, CancellationToken ct) {
         var row = await Store!.GetAsync(platform, build, ct);
         if (row is null) return null;
         var pp = await Store.GetProtoAsync(row.Id, ct);

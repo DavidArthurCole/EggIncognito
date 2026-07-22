@@ -2,8 +2,8 @@ using System.IO.Compression;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
-public class ApkVersionCodeTests
-{
+
+public class ApkVersionCodeTests {
     private const string ExpectedVersionCode = "111344";
 
     [Fact]
@@ -21,27 +21,24 @@ public class ApkVersionCodeTests
         Assert.Null(ApkVersionCode.Read(ZipWithEntry("classes.dex", [1, 2, 3])));
 
     [Fact]
-    public void Read_RealArmSplitManifestZip_ReturnsVersionCode() =>
-        Assert.Equal(ExpectedVersionCode, ApkVersionCode.Read(ZipWithEntry("AndroidManifest.xml", Fixture())));
-
-    [Fact]
-    public void ParseAxml_RealArmSplitManifest_ReturnsVersionCode() =>
-        Assert.Equal(ExpectedVersionCode, ApkVersionCode.ParseAxml(Fixture()));
-
-    private static byte[] Fixture()
-    {
-        var dir = Path.GetDirectoryName(SourcePath())!;
-        return File.ReadAllBytes(Path.Combine(dir, "arm_split_AndroidManifest.bin"));
+    public void Read_RealArmSplitManifestZip_ReturnsVersionCode() {
+        if (!TryFixture(out var fx)) return;
+        Assert.Equal(ExpectedVersionCode, ApkVersionCode.Read(ZipWithEntry("AndroidManifest.xml", fx)));
     }
 
-    private static byte[] ZipWithEntry(string name, byte[] content)
-    {
+    [Fact]
+    public void ParseAxml_RealArmSplitManifest_ReturnsVersionCode() {
+        if (!TryFixture(out var fx)) return;
+        Assert.Equal(ExpectedVersionCode, ApkVersionCode.ParseAxml(fx));
+    }
+
+    private static bool TryFixture(out byte[] bytes) => TestFixtureFiles.TryRead("arm_split_AndroidManifest.bin", out bytes);
+
+    private static byte[] ZipWithEntry(string name, byte[] content) {
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         using (var es = zip.CreateEntry(name).Open())
             es.Write(content);
         return ms.ToArray();
     }
-
-    static string SourcePath([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 }

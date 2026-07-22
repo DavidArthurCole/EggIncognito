@@ -2,23 +2,19 @@ using System.IO.Compression;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-public static class ApkTextureLister
-{
+public static class ApkTextureLister {
     public const string TextureDir = "assets/textures-etc1png-med/";
     private const long MaxEntryBytes = 20_000_000L;
 
-    public static IReadOnlyList<string> ListStems(byte[] apkZipBytes)
-    {
+    public static IReadOnlyList<string> ListStems(byte[] apkZipBytes) {
         var stems = new SortedSet<string>(StringComparer.Ordinal);
         ForEachPng(apkZipBytes, (stem, _) => { stems.Add(stem); return false; });
         return stems.ToList();
     }
 
-    public static byte[]? ReadStem(byte[] apkZipBytes, string stem)
-    {
+    public static byte[]? ReadStem(byte[] apkZipBytes, string stem) {
         byte[]? found = null;
-        ForEachPng(apkZipBytes, (s, read) =>
-        {
+        ForEachPng(apkZipBytes, (s, read) => {
             if (!string.Equals(s, stem, StringComparison.Ordinal)) return false;
             found = read();
             return true;
@@ -26,25 +22,20 @@ public static class ApkTextureLister
         return found;
     }
 
-    private static void ForEachPng(byte[] zipBytes, Func<string, Func<byte[]>, bool> visit)
-    {
+    private static void ForEachPng(byte[] zipBytes, Func<string, Func<byte[]>, bool> visit) {
         if (zipBytes is null || zipBytes.Length == 0) return;
         ZipArchive zip;
-        try { zip = new ZipArchive(new MemoryStream(zipBytes, writable: false), ZipArchiveMode.Read); }
-        catch { return; }
+        try { zip = new ZipArchive(new MemoryStream(zipBytes, writable: false), ZipArchiveMode.Read); } catch { return; }
 
-        using (zip)
-        {
-            foreach (var entry in zip.Entries)
-            {
+        using (zip) {
+            foreach (var entry in zip.Entries) {
                 var name = entry.FullName;
                 if (!name.StartsWith(TextureDir, StringComparison.OrdinalIgnoreCase)) continue;
                 if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) continue;
                 if (entry.Length is <= 0 or > MaxEntryBytes) continue;
 
                 var stem = Stem(name);
-                byte[] Read()
-                {
+                byte[] Read() {
                     using var es = entry.Open();
                     using var buf = new MemoryStream();
                     es.CopyTo(buf);
@@ -55,8 +46,7 @@ public static class ApkTextureLister
         }
     }
 
-    private static string Stem(string fullName)
-    {
+    private static string Stem(string fullName) {
         var slash = fullName.LastIndexOfAny(['/', '\\']);
         var name = slash >= 0 ? fullName[(slash + 1)..] : fullName;
         var dot = name.LastIndexOf('.');

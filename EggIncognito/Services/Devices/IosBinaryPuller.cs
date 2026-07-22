@@ -3,10 +3,8 @@ using EggIncognito.Core.Services.Devices;
 namespace EggIncognito.Services.Devices;
 
 
-public sealed class IosBinaryPuller(IProcessRunner runner, string sshHost, string sshPort, string sshKeyPath)
-{
-    public async Task<byte[]?> PullBinaryAsync(string bundleId, CancellationToken ct)
-    {
+public sealed class IosBinaryPuller(IProcessRunner runner, string sshHost, string sshPort, string sshKeyPath) {
+    public async Task<byte[]?> PullBinaryAsync(string bundleId, CancellationToken ct) {
         var locate = await Ssh(
             $"for app in /private/var/containers/Bundle/Application/*/*.app; do " +
             $"if grep -qa {Shell(bundleId)} \"$app/Info.plist\" 2>/dev/null; then " +
@@ -19,16 +17,12 @@ public sealed class IosBinaryPuller(IProcessRunner runner, string sshHost, strin
         if (string.IsNullOrEmpty(binPath)) return null;
 
         var dest = Path.Combine(Path.GetTempPath(), $"egi-ios-{Guid.NewGuid():N}.bin");
-        try
-        {
+        try {
             var scp = await runner.RunAsync("scp",
                 ["-P", sshPort, "-i", sshKeyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
                  $"root@{sshHost}:{binPath}", dest], ct);
-            if (scp.ExitCode != 0 || !File.Exists(dest)) return null;
-            return await File.ReadAllBytesAsync(dest, ct);
-        }
-        finally
-        {
+            return scp.ExitCode != 0 || !File.Exists(dest) ? null : await File.ReadAllBytesAsync(dest, ct);
+        } finally {
             try { if (File.Exists(dest)) File.Delete(dest); } catch { }
         }
     }

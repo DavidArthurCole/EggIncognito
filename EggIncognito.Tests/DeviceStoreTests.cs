@@ -2,24 +2,18 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-public class DeviceStoreTests
-{
-    private static string TempDir()
-    {
+public class DeviceStoreTests {
+    private static string TempDir() {
         var d = Path.Combine(Path.GetTempPath(), "egi-dev-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(d);
         return d;
     }
 
     [Fact]
-    public void Load_MissingFile_ReturnsEmpty()
-    {
-        Assert.Empty(new DeviceStore(TempDir()).Load());
-    }
+    public void Load_MissingFile_ReturnsEmpty() => Assert.Empty(new DeviceStore(TempDir()).Load());
 
     [Fact]
-    public void SaveThenLoad_RoundTrips()
-    {
+    public void SaveThenLoad_RoundTrips() {
         var dir = TempDir();
         var store = new DeviceStore(dir);
         var devices = new[]
@@ -39,8 +33,7 @@ public class DeviceStoreTests
     }
 
     [Fact]
-    public void Save_CapsAtMostRecentByLastSeen()
-    {
+    public void Save_CapsAtMostRecentByLastSeen() {
         var dir = TempDir();
         var devices = Enumerable.Range(1, 60)
             .Select(i => new RememberedDevice($"10.0.0.{i}", null, null, null, "t", $"{i:D4}", 1))
@@ -54,8 +47,7 @@ public class DeviceStoreTests
     }
 
     [Fact]
-    public void Load_CorruptFile_ReturnsEmpty()
-    {
+    public void Load_CorruptFile_ReturnsEmpty() {
         var dir = TempDir();
         File.WriteAllText(Path.Combine(dir, "devices.json"), "{ not json");
         Assert.Empty(new DeviceStore(dir).Load());

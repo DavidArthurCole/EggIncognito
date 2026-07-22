@@ -2,9 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
+
 [Table("stored_routes")]
-public class StoredRoute
-{
+public class StoredRoute {
     [Key]
     [Column("id")]
     public long Id { get; set; }

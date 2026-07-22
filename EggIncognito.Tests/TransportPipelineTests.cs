@@ -1,14 +1,12 @@
 using System.IO.Compression;
+using EggIncognito.Services;
 using Google.Protobuf;
 using Microsoft.Extensions.Configuration;
-using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class TransportPipelineTests
-{
-    private static TransportPipeline Build(string? salt = null)
-    {
+public class TransportPipelineTests {
+    private static TransportPipeline Build(string? salt = null) {
         var dict = new Dictionary<string, string?>();
         if (salt is not null) dict["EGG_INC_API_SALT"] = salt;
         var config = new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
@@ -16,8 +14,7 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Build_Unwrapped_PassesThroughWithRealBytes()
-    {
+    public void Build_Unwrapped_PassesThroughWithRealBytes() {
         var pipe = Build();
         var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
 
@@ -25,9 +22,8 @@ public class TransportPipelineTests
 
         Assert.Collection(result.Stages,
             s => Assert.Equal("proto-encode", s.Name),
-            s =>
-            {
-               
+            s => {
+
                 Assert.Equal("passthrough", s.Name);
                 Assert.Equal("payload", s.Role);
                 Assert.False(s.Skipped);
@@ -41,8 +37,7 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Build_WrappedWithSalt_ProducesSignedAuthMessage()
-    {
+    public void Build_WrappedWithSalt_ProducesSignedAuthMessage() {
         var pipe = Build("test-salt");
         Assert.True(pipe.CanSign);
         var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
@@ -51,9 +46,9 @@ public class TransportPipelineTests
 
         var authStage = result.Stages.Single(s => s.Name == "authenticated-message");
         Assert.Equal("envelope", authStage.Role);
-       
+
         Assert.DoesNotContain("UNSIGNED", authStage.Note);
-       
+
         var wrapped = Convert.FromBase64String(authStage.Base64!);
         var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(wrapped);
         Assert.False(string.IsNullOrEmpty(msg.Code));
@@ -61,11 +56,10 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Build_WrappedWithSalt_CodeMatchesSeederAlgorithm()
-    {
-       
-       
-       
+    public void Build_WrappedWithSalt_CodeMatchesSeederAlgorithm() {
+
+
+
         const string salt = "parity-salt";
         var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
 
@@ -77,10 +71,9 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Build_WithPerRequestSalt_MatchesInstanceSaltResult()
-    {
-       
-       
+    public void Build_WithPerRequestSalt_MatchesInstanceSaltResult() {
+
+
         const string salt = "per-request-salt";
         var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
 
@@ -91,21 +84,19 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Build_WithPerRequestSalt_EmptyMeansUnsigned()
-    {
+    public void Build_WithPerRequestSalt_EmptyMeansUnsigned() {
         var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
-       
+
         var viaInstance = Build(null).Build(inner, wrap: true);
         var viaPerRequest = Build(null).Build(inner, wrap: true, salt: null);
         Assert.Equal(viaInstance.FinalBase64, viaPerRequest.FinalBase64);
     }
 
     [Fact]
-    public void Build_WrappedEmptyMessageWithSalt_DoesNotThrow()
-    {
-       
-       
-       
+    public void Build_WrappedEmptyMessageWithSalt_DoesNotThrow() {
+
+
+
         var empty = new Ei.ContractsInfoRequest().ToByteArray();
         Assert.Empty(empty);
 
@@ -113,14 +104,13 @@ public class TransportPipelineTests
         var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(
             Convert.FromBase64String(result.Stages.Single(s => s.Name == "authenticated-message").Base64!));
 
-       
+
         Assert.False(string.IsNullOrEmpty(msg.Code));
     }
 
-   
-   
-    private static string ExpectedCode(byte[] messageBytes, string phrase)
-    {
+
+
+    private static string ExpectedCode(byte[] messageBytes, string phrase) {
         var phraseHash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(phrase));
         var saltBytes = System.Text.Encoding.ASCII.GetBytes(Convert.ToHexString(phraseHash).ToLowerInvariant());
         const uint magic = 0x3b9af419;
@@ -133,8 +123,7 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Build_WrappedWithoutSalt_FlagsUnsigned()
-    {
+    public void Build_WrappedWithoutSalt_FlagsUnsigned() {
         var pipe = Build();
         Assert.False(pipe.CanSign);
         var inner = new Ei.ContractsInfoRequest().ToByteArray();
@@ -146,11 +135,9 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Decode_UnwrappedMockResponse_ParsesDirectly()
-    {
+    public void Decode_UnwrappedMockResponse_ParsesDirectly() {
         var pipe = Build();
-        var response = new Ei.ContractsInfoResponse
-        {
+        var response = new Ei.ContractsInfoResponse {
             ServerTime = 123.0,
             Contracts = { new Ei.Contract { Identifier = "spring-2025" } },
         };
@@ -165,12 +152,10 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Decode_WrappedRealResponse_UnwrapsThenParses()
-    {
+    public void Decode_WrappedRealResponse_UnwrapsThenParses() {
         var pipe = Build();
         var response = new Ei.ContractsInfoResponse { ServerTime = 99.0 };
-        var wrapped = new Ei.AuthenticatedMessage
-        {
+        var wrapped = new Ei.AuthenticatedMessage {
             Message = ByteString.CopyFrom(response.ToByteArray()),
         };
         var b64 = Convert.ToBase64String(wrapped.ToByteArray());
@@ -183,19 +168,16 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Decode_WrappedCompressedResponse_InflatesThenParses()
-    {
+    public void Decode_WrappedCompressedResponse_InflatesThenParses() {
         var pipe = Build();
         var response = new Ei.ContractsInfoResponse { ServerTime = 42.0 };
         byte[] gz;
-        using (var ms = new MemoryStream())
-        {
+        using (var ms = new MemoryStream()) {
             using (var z = new GZipStream(ms, CompressionMode.Compress))
                 z.Write(response.ToByteArray());
             gz = ms.ToArray();
         }
-        var wrapped = new Ei.AuthenticatedMessage
-        {
+        var wrapped = new Ei.AuthenticatedMessage {
             Message = ByteString.CopyFrom(gz),
             Compressed = true,
         };
@@ -210,18 +192,16 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Decode_UnwrappedResponseResemblingEnvelope_PrefersDirectParse()
-    {
-       
-       
-       
-       
+    public void Decode_UnwrappedResponseResemblingEnvelope_PrefersDirectParse() {
+
+
+
+
         var pipe = Build();
-        var response = new Ei.ContractsInfoResponse
-        {
+        var response = new Ei.ContractsInfoResponse {
             ServerTime = 1.5,
-           
-           
+
+
             Contracts = { new Ei.Contract { Identifier = "" } },
         };
         var b64 = Convert.ToBase64String(response.ToByteArray());
@@ -235,15 +215,13 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Decode_ResponseWrappedFalse_ForcesDirectEvenWhenBytesResembleEnvelope()
-    {
-       
-       
-       
-       
+    public void Decode_ResponseWrappedFalse_ForcesDirectEvenWhenBytesResembleEnvelope() {
+
+
+
+
         var pipe = Build();
-        var response = new Ei.EggIncFirstContactResponse
-        {
+        var response = new Ei.EggIncFirstContactResponse {
             EiUserId = "oBlazin",
             Backup = new Ei.Backup { UserName = "player" },
         };
@@ -258,10 +236,9 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Decode_ResponseWrappedTrue_ForcesWrappedEvenIfHeuristicWouldReject()
-    {
-       
-       
+    public void Decode_ResponseWrappedTrue_ForcesWrappedEvenIfHeuristicWouldReject() {
+
+
         var pipe = Build();
         var inner = new Ei.ContractsInfoResponse { ServerTime = 7.0 };
         var wrapped = new Ei.AuthenticatedMessage { Message = ByteString.CopyFrom(inner.ToByteArray()) };
@@ -275,14 +252,12 @@ public class TransportPipelineTests
     }
 
     [Fact]
-    public void Decode_WrappedPath_SwallowsOnlyProtoAndDataExceptions()
-    {
-       
-       
-       
+    public void Decode_WrappedPath_SwallowsOnlyProtoAndDataExceptions() {
+
+
+
         var pipe = Build();
-        var wrapped = new Ei.AuthenticatedMessage
-        {
+        var wrapped = new Ei.AuthenticatedMessage {
             Message = ByteString.CopyFrom(new Ei.ContractsInfoResponse { ServerTime = 1.0 }.ToByteArray()),
         };
         var b64 = Convert.ToBase64String(wrapped.ToByteArray());
@@ -294,8 +269,7 @@ public class TransportPipelineTests
     }
 }
 
-public class RouteCatalogTests
-{
+public class RouteCatalogTests {
     private const string Yaml = """
 routes:
   - path: ei/first_contact_secure
@@ -327,25 +301,22 @@ endpoint_status:
     - ei/clean_accounts
 """;
 
-    private static RouteCatalog Build()
-    {
+    private static RouteCatalog Build() {
         var path = Path.GetTempFileName();
         File.WriteAllText(path, Yaml);
         return new RouteCatalog(path);
     }
 
     [Fact]
-    public void Parse_ReadsOnlyEndpointsSection()
-    {
+    public void Parse_ReadsOnlyEndpointsSection() {
         var cat = Build();
-       
+
         Assert.Null(cat.Get("ei/kb"));
         Assert.Equal(5, cat.All().Count);
     }
 
     [Fact]
-    public void Parse_NewContractsInfoEndpoint_HasCorrectTypes()
-    {
+    public void Parse_NewContractsInfoEndpoint_HasCorrectTypes() {
         var e = Build().Get("ei_ctx/get_contracts_info");
         Assert.NotNull(e);
         Assert.Equal("ContractsInfoRequest", e!.Request);
@@ -355,16 +326,14 @@ endpoint_status:
     }
 
     [Fact]
-    public void Parse_FirstContact_IsMarkedRequestWrapped()
-    {
+    public void Parse_FirstContact_IsMarkedRequestWrapped() {
         var e = Build().Get("ei/first_contact_secure")!;
         Assert.True(e.RequestWrapped);
         Assert.True(e.ResponseWrapped);
     }
 
     [Fact]
-    public void Parse_SubscriptionStatus_IsPathParamOnlyWithKnownResponse()
-    {
+    public void Parse_SubscriptionStatus_IsPathParamOnlyWithKnownResponse() {
         var e = Build().Get("ei_srv/subscription_status")!;
         Assert.True(e.PathParamOnly);
         Assert.True(e.PathParam);
@@ -374,9 +343,8 @@ endpoint_status:
     }
 
     [Fact]
-    public void Parse_LegacyAuthenticatedMessageRequest_NormalizesToWrapped()
-    {
-       
+    public void Parse_LegacyAuthenticatedMessageRequest_NormalizesToWrapped() {
+
         var e = Build().Get("ei_ctx/get_contract_evaluation")!;
         Assert.Null(e.Request);
         Assert.True(e.RequestWrapped);
@@ -384,19 +352,16 @@ endpoint_status:
     }
 
     [Fact]
-    public void Parse_PathParamAndRawResponse_Captured()
-    {
+    public void Parse_PathParamAndRawResponse_Captured() {
         var cat = Build();
         Assert.True(cat.Get("ei_ctx/get_contract_evaluation")!.PathParam);
         Assert.Equal("OK", cat.Get("ei/process_shells_actions")!.RawResponse);
     }
 }
 
-public class ProtoReflectionTests
-{
+public class ProtoReflectionTests {
     [Fact]
-    public void Schema_ContractsInfoRequest_ListsFields()
-    {
+    public void Schema_ContractsInfoRequest_ListsFields() {
         var schema = new ProtoReflection().Schema("ContractsInfoRequest");
         Assert.NotNull(schema);
         var byName = schema!.Fields.ToDictionary(f => f.Name);
@@ -408,30 +373,25 @@ public class ProtoReflectionTests
     }
 
     [Fact]
-    public void FindParser_UnknownType_ReturnsNull()
-    {
-        Assert.Null(new ProtoReflection().FindParser("NotARealType"));
-    }
+    public void FindParser_UnknownType_ReturnsNull() => Assert.Null(new ProtoReflection().FindParser("NotARealType"));
 
     [Fact]
-    public void Find_RepeatedLookups_ReturnSameCachedInstances()
-    {
+    public void Find_RepeatedLookups_ReturnSameCachedInstances() {
         var reflection = new ProtoReflection();
         var parser = reflection.FindParser("ContractsInfoRequest");
         var descriptor = reflection.FindMessage("ContractsInfoRequest");
         Assert.NotNull(parser);
         Assert.NotNull(descriptor);
 
-       
-       
+
+
         Assert.Same(parser, reflection.FindParser("ContractsInfoRequest"));
         Assert.Same(parser, reflection.FindParser("Ei.ContractsInfoRequest"));
         Assert.Same(descriptor, new ProtoReflection().FindMessage("ContractsInfoRequest"));
     }
 
     [Fact]
-    public void FindParser_UnknownType_StaysNullOnRepeatedProbes()
-    {
+    public void FindParser_UnknownType_StaysNullOnRepeatedProbes() {
         var reflection = new ProtoReflection();
         Assert.Null(reflection.FindParser("StillNotARealType"));
         Assert.Null(reflection.FindParser("StillNotARealType"));

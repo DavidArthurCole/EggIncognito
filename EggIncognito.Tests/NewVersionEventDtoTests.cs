@@ -3,11 +3,9 @@ using SyncKit.Contract;
 
 namespace EggIncognito.Tests;
 
-public class NewVersionEventDtoTests
-{
+public class NewVersionEventDtoTests {
     [Fact]
-    public void Decodes_Frozen_Wire_Names()
-    {
+    public void Decodes_Frozen_Wire_Names() {
         var json = "{\"package\":\"com.auxbrain.egginc\",\"version\":\"1.34\",\"apkRef\":\"/x/base.apk\",\"protoSha\":\"deadbeef\",\"detectedAt\":\"2026-06-10T00:00:00Z\"}";
         var evt = JsonSerializer.Deserialize<NewVersionEvent>(json)!;
         Assert.Equal("com.auxbrain.egginc", evt.Package);
@@ -18,10 +16,9 @@ public class NewVersionEventDtoTests
     }
 
     [Fact]
-    public void Deserialize_PlatformIsNull_WhenAbsent()
-    {
-       
-       
+    public void Deserialize_PlatformIsNull_WhenAbsent() {
+
+
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"package":"com.auxbrain.egginc","version":"1.0","apkRef":"a","protoSha":"s","detectedAt":"t"}""");
         Assert.Null(e!.Platform);
@@ -29,8 +26,7 @@ public class NewVersionEventDtoTests
     }
 
     [Fact]
-    public void Deserialize_ReadsPlatformAndProtoText()
-    {
+    public void Deserialize_ReadsPlatformAndProtoText() {
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"version":"1.0","platform":"ios","protoTextB64":"aGk="}""");
         Assert.Equal("ios", e!.Platform);
@@ -38,8 +34,7 @@ public class NewVersionEventDtoTests
     }
 
     [Fact]
-    public void Deserialize_ReadsThreeVersionFields()
-    {
+    public void Deserialize_ReadsThreeVersionFields() {
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"appVersion":"1.35.7","build":"111343","clientVersion":"72"}""");
         Assert.Equal("1.35.7", e!.AppVersion);
@@ -48,9 +43,8 @@ public class NewVersionEventDtoTests
     }
 
     [Fact]
-    public void Deserialize_OldEmitter_OmitsNewFields()
-    {
-       
+    public void Deserialize_OldEmitter_OmitsNewFields() {
+
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"version":"1.34","build":"","clientVersion":null}""");
         Assert.Equal("1.34", e!.Version);

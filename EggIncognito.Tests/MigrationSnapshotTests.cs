@@ -3,11 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Tests;
 
-public class MigrationSnapshotTests
-{
+public class MigrationSnapshotTests {
     [Fact]
-    public void Context_BuildsModel_WithBothTables()
-    {
+    public void Context_BuildsModel_WithBothTables() {
         var options = new DbContextOptionsBuilder<EggIncognitoDbContext>()
             .UseNpgsql("Host=localhost;Database=designtime").Options;
         using var ctx = new EggIncognitoDbContext(options);

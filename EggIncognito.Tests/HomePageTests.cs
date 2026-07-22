@@ -1,15 +1,13 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
+
 [Collection(SharedAppCollection.Name)]
-public class HomePageTests
-{
-    private readonly WebApplicationFactory<Program> _factory;
-    public HomePageTests(SharedAppFactory f) => _factory = f;
+public class HomePageTests(SharedAppFactory f) {
+    private readonly WebApplicationFactory<Program> _factory = f;
 
     [Fact]
-    public async Task Home_RendersHeaderAndSupportLink()
-    {
+    public async Task Home_RendersHeaderAndSupportLink() {
         using var client = _factory.CreateClient();
         var res = await client.GetAsync("/");
         res.EnsureSuccessStatusCode();

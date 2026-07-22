@@ -4,22 +4,18 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-public sealed class EggIncApiFactory : WebApplicationFactory<Program>
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-       
-       
+public sealed class EggIncApiFactory : WebApplicationFactory<Program> {
+    protected override void ConfigureWebHost(IWebHostBuilder builder) {
+
+
         builder.UseEnvironment("Testing");
         builder.UseSetting("EndpointsPath", FindEndpointsPath());
         builder.UseSetting("NoBrowser", "true");
     }
 
-    private static string FindEndpointsPath()
-    {
+    private static string FindEndpointsPath() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
+        while (dir is not null) {
             if (dir.GetFiles("*.slnx").Length > 0 || dir.GetFiles("*.sln").Length > 0)
                 return Path.Combine(dir.FullName, "EggIncognito.Tests", "TestFixtures");
             dir = dir.Parent;
@@ -28,25 +24,17 @@ public sealed class EggIncApiFactory : WebApplicationFactory<Program>
     }
 }
 
-public class IntegrationTests : IClassFixture<EggIncApiFactory>
-{
-    private readonly HttpClient _client;
-
-    public IntegrationTests(EggIncApiFactory factory)
-    {
-        _client = factory.CreateClient();
-    }
+public class IntegrationTests(EggIncApiFactory factory) : IClassFixture<EggIncApiFactory> {
+    private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task Response_HasTextHtmlContentType()
-    {
+    public async Task Response_HasTextHtmlContentType() {
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent(null));
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
-    public async Task FirstContactSecure_NoEid_ReturnsDefaultEndpoint()
-    {
+    public async Task FirstContactSecure_NoEid_ReturnsDefaultEndpoint() {
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent(null));
         response.EnsureSuccessStatusCode();
 
@@ -58,8 +46,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task FirstContactSecure_WithKnownEid_ReturnsEidEndpoint()
-    {
+    public async Task FirstContactSecure_WithKnownEid_ReturnsEidEndpoint() {
         const string eid = "EI0000000000000002";
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent(eid));
         response.EnsureSuccessStatusCode();
@@ -72,8 +59,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task FirstContactSecure_WithUnknownEid_FallsBackToDefaultEndpoint()
-    {
+    public async Task FirstContactSecure_WithUnknownEid_FallsBackToDefaultEndpoint() {
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent("EI9999999999999999"));
         response.EnsureSuccessStatusCode();
 
@@ -83,8 +69,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task GetPeriodicals_DefaultEndpoint_ReturnsTwoEvents()
-    {
+    public async Task GetPeriodicals_DefaultEndpoint_ReturnsTwoEvents() {
         var response = await _client.PostAsync("/ei/get_periodicals", MakeFormContent(null));
         response.EnsureSuccessStatusCode();
 
@@ -94,8 +79,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task GetPeriodicals_WithKnownEid_ReturnsThreeEvents()
-    {
+    public async Task GetPeriodicals_WithKnownEid_ReturnsThreeEvents() {
         var response = await _client.PostAsync("/ei/get_periodicals", MakeFormContent("EI0000000000000002"));
         response.EnsureSuccessStatusCode();
 
@@ -105,8 +89,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task LaunchMission_ReturnsHenerpriseShip()
-    {
+    public async Task LaunchMission_ReturnsHenerpriseShip() {
         var response = await _client.PostAsync("/ei_afx/launch_mission", MakeFormContent(null));
         response.EnsureSuccessStatusCode();
 
@@ -118,8 +101,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task GetContracts_ReturnsActiveContracts()
-    {
+    public async Task GetContracts_ReturnsActiveContracts() {
         var response = await _client.PostAsync("/ei/get_contracts", MakeFormContent(null));
         response.EnsureSuccessStatusCode();
 
@@ -129,8 +111,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task AllEndpoints_DoNotReturn500()
-    {
+    public async Task AllEndpoints_DoNotReturn500() {
         string[] paths =
         [
             "/ei/first_contact_secure",
@@ -143,8 +124,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
             "/ei/coop_status",
         ];
 
-        foreach (var path in paths)
-        {
+        foreach (var path in paths) {
             var response = await _client.PostAsync(path, MakeFormContent("EI0000000000000002"));
             Assert.True(
                 (int)response.StatusCode < 500,
@@ -153,15 +133,13 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task Sim_ServerError_Returns500()
-    {
+    public async Task Sim_ServerError_Returns500() {
         var response = await _client.PostAsync("/ei/first_contact_secure?sim=server_error", MakeFormContent(null));
         Assert.Equal(500, (int)response.StatusCode);
     }
 
     [Fact]
-    public async Task Sim_Empty_Returns200WithValidBase64Proto()
-    {
+    public async Task Sim_Empty_Returns200WithValidBase64Proto() {
         var response = await _client.PostAsync("/ei/first_contact_secure?sim=empty", MakeFormContent(null));
         Assert.Equal(200, (int)response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
@@ -171,8 +149,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task Sim_Corrupt_Returns200WithInvalidBase64()
-    {
+    public async Task Sim_Corrupt_Returns200WithInvalidBase64() {
         var response = await _client.PostAsync("/ei/first_contact_secure?sim=corrupt", MakeFormContent(null));
         Assert.Equal(200, (int)response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
@@ -180,8 +157,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task Sim_RateLimited_Returns429WithRetryAfterHeader()
-    {
+    public async Task Sim_RateLimited_Returns429WithRetryAfterHeader() {
         var response = await _client.PostAsync("/ei/first_contact_secure?sim=rate_limited", MakeFormContent(null));
         Assert.Equal(429, (int)response.StatusCode);
         Assert.True(response.Headers.Contains("Retry-After"));
@@ -189,8 +165,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task Sim_UnknownName_Returns400WithErrorJson()
-    {
+    public async Task Sim_UnknownName_Returns400WithErrorJson() {
         var response = await _client.PostAsync("/ei/first_contact_secure?sim=not_a_real_behavior", MakeFormContent(null));
         Assert.Equal(400, (int)response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
@@ -199,8 +174,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task Options_Root_Returns200WithAllBehaviors()
-    {
+    public async Task Options_Root_Returns200WithAllBehaviors() {
         var request = new HttpRequestMessage(HttpMethod.Options, "/");
         var response = await _client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -212,8 +186,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     [Fact]
-    public async Task Options_Slug_Returns200WithApplicableBehaviors()
-    {
+    public async Task Options_Slug_Returns200WithApplicableBehaviors() {
         var request = new HttpRequestMessage(HttpMethod.Options, "/ei/first_contact_secure");
         var response = await _client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -221,8 +194,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
         Assert.Contains("server_error", body);
     }
 
-    private static FormUrlEncodedContent MakeFormContent(string? eid)
-    {
+    private static FormUrlEncodedContent MakeFormContent(string? eid) {
         var msg = new Ei.AuthenticatedMessage();
         if (!string.IsNullOrEmpty(eid))
             msg.UserId = eid;
@@ -231,8 +203,7 @@ public class IntegrationTests : IClassFixture<EggIncApiFactory>
     }
 
     private static async Task<T> DecodeResponse<T>(HttpResponseMessage response)
-        where T : IMessage<T>, new()
-    {
+        where T : IMessage<T>, new() {
         var body = await response.Content.ReadAsStringAsync();
         var bytes = Convert.FromBase64String(body);
         return new MessageParser<T>(() => new T()).ParseFrom(bytes);

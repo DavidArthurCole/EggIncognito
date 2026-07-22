@@ -8,40 +8,35 @@ using Microsoft.Extensions.DependencyInjection;
 namespace EggIncognito.Tests;
 
 
-public class InspectorPageTests
-{
-   
+public class InspectorPageTests {
+
     [Collection(SharedAppCollection.Name)]
-    public class Integration
-    {
-        private readonly WebApplicationFactory<Program> _f;
-        public Integration(SharedAppFactory f) => _f = f;
+    public class Integration(SharedAppFactory f) {
+        private readonly WebApplicationFactory<Program> _f = f;
 
         [Fact]
-        public async Task Inspector_RendersShell()
-        {
+        public async Task Inspector_RendersShell() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/inspector");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
             var html = await r.Content.ReadAsStringAsync();
-           
+
             Assert.Contains(">Inspector</a>", html);
             Assert.Contains("list-switch", html);
             Assert.Contains("Pipeline", html);
-           
+
             Assert.Contains("target-toggle", html);
             Assert.Contains(">Build</button>", html);
             Assert.Contains(">Send</button>", html);
-           
+
             Assert.Contains("Live API", html);
         }
     }
 
-   
-   
-   
-    public class FieldTreeComponent : BunitContext
-    {
+
+
+
+    public class FieldTreeComponent : BunitContext {
         private static SchemaMessage Inner() => new("Inner", new List<SchemaField>
         {
             new("flag", "flag", 1, "bool", false, false, null, null),
@@ -57,26 +52,24 @@ public class InspectorPageTests
         });
 
         [Fact]
-        public void FieldTree_RendersAllFieldKinds()
-        {
+        public void FieldTree_RendersAllFieldKinds() {
             var nodes = FieldTreeBuilder.Build(Root(),
                 t => t == "Inner" ? Inner() : null);
             var cut = Render<FieldTree>(p => p.Add(c => c.Nodes, nodes));
 
-           
+
             Assert.NotEmpty(cut.FindAll("input.field-input"));
             Assert.NotEmpty(cut.FindAll("select.field-input"));
             Assert.Contains("+ add", cut.Markup);
-           
+
             Assert.Contains("flag", cut.Markup);
         }
 
         [Fact]
-        public void Collect_WalksEditedTreeIntoProtoJson()
-        {
+        public void Collect_WalksEditedTreeIntoProtoJson() {
             var nodes = FieldTreeBuilder.Build(Root(),
                 t => t == "Inner" ? Inner() : null);
-           
+
             nodes.First(n => n.Field.JsonName == "name").Value = "hi";
             nodes.First(n => n.Field.JsonName == "inner").Children
                 .First(c => c.Field.JsonName == "flag").Value = "true";
@@ -89,11 +82,10 @@ public class InspectorPageTests
             Assert.Contains("\"ids\":[7]", json);
         }
 
-       
-       
+
+
         [Fact]
-        public void Apply_MapsRawJsonBackOntoTree()
-        {
+        public void Apply_MapsRawJsonBackOntoTree() {
             var nodes = FieldTreeBuilder.Build(Root(),
                 t => t == "Inner" ? Inner() : null);
             var obj = (JsonObject)JsonNode.Parse("{\"name\":\"hi\",\"ids\":[3,4],\"inner\":{\"flag\":true}}")!;
@@ -105,8 +97,8 @@ public class InspectorPageTests
             Assert.Equal("true", nodes.First(n => n.Field.JsonName == "inner").Children
                 .First(c => c.Field.JsonName == "flag").Value);
 
-           
-            FieldTreeBuilder.Apply(nodes, new JsonObject());
+
+            FieldTreeBuilder.Apply(nodes, []);
             Assert.Equal("", nodes.First(n => n.Field.JsonName == "name").Value);
             Assert.Empty(nodes.First(n => n.Field.JsonName == "ids").Items);
             Assert.Equal("", nodes.First(n => n.Field.JsonName == "inner").Children

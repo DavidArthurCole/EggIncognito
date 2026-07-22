@@ -2,22 +2,18 @@ using System.Globalization;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-public static class StaticInitDoubleExtractor
-{
+public static class StaticInitDoubleExtractor {
     public readonly record struct Result(bool Ok, IReadOnlyList<double> Values, string Symbol, string Diagnostics);
 
     public static Result Extract(byte[] bin, string symbol, int maxInsns = 6000)
         => ExtractWith(bin, MachoSymbols.Read(bin), symbol, maxInsns);
 
-    public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string symbol, int maxInsns = 6000)
-    {
+    public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string symbol, int maxInsns = 6000) {
         var lst = Arm64DataTableReader.ListWith(bin, syms, [symbol], maxInsns);
-        if (!lst.Ok) return new(false, [], symbol, lst.Diagnostics);
-        return Decode(bin, lst.Instructions, symbol);
+        return !lst.Ok ? new(false, [], symbol, lst.Diagnostics) : Decode(bin, lst.Instructions, symbol);
     }
 
-    public static Result ExtractRange(byte[] bin, ulong startVa, ulong endVa, int maxInsns = 60000)
-    {
+    public static Result ExtractRange(byte[] bin, ulong startVa, ulong endVa, int maxInsns = 60000) {
         if (!MachoText.TryFindText(bin, out var textFileOff, out _, out var textVmAddr))
             return new(false, [], "range", "no __text");
         var slide = textVmAddr - (ulong)textFileOff;
@@ -31,52 +27,44 @@ public static class StaticInitDoubleExtractor
         using var cs = Gee.External.Capstone.CapstoneDisassembler.CreateArm64Disassembler(
             Gee.External.Capstone.Arm64.Arm64DisassembleMode.LittleEndian);
         var insns = new List<Arm64DataTableReader.Insn>();
-        foreach (var ins in cs.Disassemble(code, (long)startVa))
-        {
+        foreach (var ins in cs.Disassemble(code, (long)startVa)) {
             insns.Add(new Arm64DataTableReader.Insn((ulong)ins.Address, ins.Mnemonic ?? "", ins.Operand ?? ""));
             if (insns.Count >= maxInsns) break;
         }
         return Decode(bin, insns, "range");
     }
 
-    private static Result Decode(byte[] bin, IReadOnlyList<Arm64DataTableReader.Insn> insns, string symbol)
-    {
+    private static Result Decode(byte[] bin, IReadOnlyList<Arm64DataTableReader.Insn> insns, string symbol) {
         var sections = MachoSections.Read(bin);
         var seen = new HashSet<long>();
         var outp = new List<double>();
         var page = new Dictionary<string, ulong>();
 
-        void Emit(long bits)
-        {
+        void Emit(long bits) {
             var d = BitConverter.Int64BitsToDouble(bits);
             if (!IsValue(d)) return;
             var key = BitConverter.DoubleToInt64Bits(d);
             if (seen.Add(key)) outp.Add(d);
         }
 
-        for (var i = 0; i < insns.Count; i++)
-        {
+        for (var i = 0; i < insns.Count; i++) {
             var m = insns[i].Mnemonic;
             var ops = insns[i].Operands;
 
-            if (m == "adrp" && TryReg(ops, out var ar) && TryLastImm(ops, out var apage))
-            {
+            if (m == "adrp" && TryReg(ops, out var ar) && TryLastImm(ops, out var apage)) {
                 page[ar] = (ulong)apage;
                 continue;
             }
-            if (m == "add" && TryReg(ops, out var dr) && TryAddBase(ops, page, out var full))
-            {
+            if (m == "add" && TryReg(ops, out var dr) && TryAddBase(ops, page, out var full)) {
                 page[dr] = full;
                 continue;
             }
 
-            if ((m == "movz" || m == "orr") && TryComposeStart(m, ops, out var reg, out var acc))
-            {
+            if ((m == "movz" || m == "orr") && TryComposeStart(m, ops, out var reg, out var acc)) {
                 var bits = acc;
                 var j = i + 1;
                 while (j < insns.Count && insns[j].Mnemonic == "movk"
-                       && TryMovk(insns[j].Operands, reg, out var part, out var laneShift))
-                {
+                       && TryMovk(insns[j].Operands, reg, out var part, out var laneShift)) {
                     var lane = 0xFFFFL << laneShift;
                     bits = (bits & ~lane) | part;
                     j++;
@@ -85,17 +73,12 @@ public static class StaticInitDoubleExtractor
                 continue;
             }
 
-            if ((m == "ldr" || m == "ldur") && TryMemLoad(ops, page, out var va, out var isWide))
-            {
-                if (MachoSections.TryVaToFileOffset(sections, va, out var fo, out _))
-                {
-                    if (isWide && fo + 16 <= bin.Length)
-                    {
+            if ((m == "ldr" || m == "ldur") && TryMemLoad(ops, page, out var va, out var isWide)) {
+                if (MachoSections.TryVaToFileOffset(sections, va, out var fo, out _)) {
+                    if (isWide && fo + 16 <= bin.Length) {
                         Emit(BitConverter.ToInt64(bin, fo));
                         Emit(BitConverter.ToInt64(bin, fo + 8));
-                    }
-                    else if (!isWide && fo + 8 <= bin.Length)
-                    {
+                    } else if (!isWide && fo + 8 <= bin.Length) {
                         Emit(BitConverter.ToInt64(bin, fo));
                     }
                 }
@@ -108,8 +91,7 @@ public static class StaticInitDoubleExtractor
     private static bool IsValue(double d)
         => double.IsFinite(d) && Math.Abs(d) >= 1e-6 && Math.Abs(d) <= 1e12;
 
-    private static bool TryReg(string ops, out string reg)
-    {
+    private static bool TryReg(string ops, out string reg) {
         reg = "";
         var p = ops.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (p.Length == 0) return false;
@@ -117,8 +99,7 @@ public static class StaticInitDoubleExtractor
         return reg.Length > 0;
     }
 
-    private static bool TryLastImm(string ops, out long imm)
-    {
+    private static bool TryLastImm(string ops, out long imm) {
         imm = 0;
         var p = ops.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         for (var k = p.Length - 1; k >= 0; k--)
@@ -126,8 +107,7 @@ public static class StaticInitDoubleExtractor
         return false;
     }
 
-    private static bool TryAddBase(string ops, Dictionary<string, ulong> page, out ulong full)
-    {
+    private static bool TryAddBase(string ops, Dictionary<string, ulong> page, out ulong full) {
         full = 0;
         var p = ops.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (p.Length < 3) return false;
@@ -137,15 +117,13 @@ public static class StaticInitDoubleExtractor
         return true;
     }
 
-    private static bool TryComposeStart(string mnemonic, string ops, out string reg, out long acc)
-    {
+    private static bool TryComposeStart(string mnemonic, string ops, out string reg, out long acc) {
         reg = ""; acc = 0;
         var p = ops.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (p.Length < 2) return false;
         reg = p[0];
 
-        if (mnemonic == "orr")
-        {
+        if (mnemonic == "orr") {
             if (p.Length < 3) return false;
             if (p[1] is not ("xzr" or "wzr")) return false;
             if (!p[2].StartsWith('#') || !ParseImm(p[2], out var mask)) return false;
@@ -161,8 +139,7 @@ public static class StaticInitDoubleExtractor
         return true;
     }
 
-    private static bool TryMovk(string ops, string reg, out long part, out int shift)
-    {
+    private static bool TryMovk(string ops, string reg, out long part, out int shift) {
         part = 0; shift = 0;
         var p = ops.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (p.Length < 2 || p[0] != reg) return false;
@@ -173,8 +150,7 @@ public static class StaticInitDoubleExtractor
         return true;
     }
 
-    private static bool TryMemLoad(string ops, Dictionary<string, ulong> page, out ulong va, out bool isWide)
-    {
+    private static bool TryMemLoad(string ops, Dictionary<string, ulong> page, out ulong va, out bool isWide) {
         va = 0; isWide = false;
         var p = ops.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (p.Length < 2) return false;
@@ -193,14 +169,12 @@ public static class StaticInitDoubleExtractor
         return true;
     }
 
-    private static int ParseShift(string tok)
-    {
+    private static int ParseShift(string tok) {
         var sh = tok.Split('#', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        return sh.Length == 2 && int.TryParse(sh[1], out var s) ? s : 0;
+        return sh.Length == 2 && int.TryParse(sh[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var s) ? s : 0;
     }
 
-    private static bool ParseImm(string tok, out long imm)
-    {
+    private static bool ParseImm(string tok, out long imm) {
         imm = 0;
         var t = tok.StartsWith('#') ? tok[1..] : tok;
         var neg = false;

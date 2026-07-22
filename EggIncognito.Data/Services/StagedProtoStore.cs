@@ -3,10 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStore registry)
-{
+public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStore registry) {
     public enum OfferResult { Staged, AlreadyPending, AlreadyInRegistry }
-   
+
     public enum ApproveResult { Ok, Merged, NotFound, MissingBuild }
 
     private async Task<bool> ShaInRegistryAsync(string sha, CancellationToken ct) =>
@@ -15,7 +14,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     private async Task<bool> ShaPendingAsync(string sha, CancellationToken ct) =>
         await db.StagedProtos.AnyAsync(s => s.ProtoSha == sha && s.Status == "pending", ct);
 
-   
+
     private static int FieldScore(string? appVersion, string? build, string? clientVersion) =>
         (string.IsNullOrWhiteSpace(appVersion) ? 0 : 1)
         + (string.IsNullOrWhiteSpace(build) ? 0 : 1)
@@ -27,8 +26,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         string platform, string? appVersion, string? build, string? clientVersion, string? package,
         string protoSha, string protoText, string? messageIndex, string source, string? submittedBy,
         string? originRepo, string? originCommit, DateTimeOffset? originDate, string? confidence,
-        CancellationToken ct)
-    {
+        CancellationToken ct) {
         if (await ShaInRegistryAsync(protoSha, ct)) return StageOutcome.AlreadyInRegistry;
         if (await ShaPendingAsync(protoSha, ct)) return StageOutcome.AlreadyPending;
 
@@ -38,8 +36,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         var rejected = await db.StagedProtos
             .Where(s => s.ProtoSha == protoSha && s.Status == "rejected")
             .OrderByDescending(s => s.ReviewedAt).FirstOrDefaultAsync(ct);
-        if (rejected is not null)
-        {
+        if (rejected is not null) {
             if (incomingScore <= FieldScore(rejected.AppVersion, rejected.Build, rejected.ClientVersion))
                 return StageOutcome.StaleRejected;
             rejected.AppVersion = string.IsNullOrWhiteSpace(rejected.AppVersion) ? appVersion : rejected.AppVersion;
@@ -57,12 +54,23 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
             return StageOutcome.Revived;
         }
 
-        db.StagedProtos.Add(new StagedProto
-        {
-            Platform = platform, AppVersion = appVersion, Build = build, ClientVersion = clientVersion,
-            Package = package, ProtoSha = protoSha, ProtoText = protoText, MessageIndex = messageIndex,
-            Source = source, Status = "pending", SubmittedBy = submittedBy, SubmittedAt = now,
-            OriginRepo = originRepo, OriginCommit = originCommit, OriginDate = originDate, Confidence = confidence,
+        db.StagedProtos.Add(new StagedProto {
+            Platform = platform,
+            AppVersion = appVersion,
+            Build = build,
+            ClientVersion = clientVersion,
+            Package = package,
+            ProtoSha = protoSha,
+            ProtoText = protoText,
+            MessageIndex = messageIndex,
+            Source = source,
+            Status = "pending",
+            SubmittedBy = submittedBy,
+            SubmittedAt = now,
+            OriginRepo = originRepo,
+            OriginCommit = originCommit,
+            OriginDate = originDate,
+            Confidence = confidence,
         });
         await db.SaveChangesAsync(ct);
         return StageOutcome.Staged;
@@ -70,12 +78,10 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
 
     public async Task<OfferResult> OfferAsync(
         string platform, string? appVersion, string? build, string? clientVersion, string? package,
-        string protoSha, string protoText, string? messageIndex, string? submittedBy, CancellationToken ct)
-    {
+        string protoSha, string protoText, string? messageIndex, string? submittedBy, CancellationToken ct) {
         var outcome = await StageOrReviveAsync(platform, appVersion, build, clientVersion, package, protoSha,
             protoText, messageIndex, "offer", submittedBy, null, null, null, null, ct);
-        return outcome switch
-        {
+        return outcome switch {
             StageOutcome.AlreadyInRegistry => OfferResult.AlreadyInRegistry,
             StageOutcome.AlreadyPending or StageOutcome.StaleRejected => OfferResult.AlreadyPending,
             _ => OfferResult.Staged,
@@ -83,11 +89,9 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     }
 
     public async Task<(int staged, int skipped)> ImportCrawlAsync(
-        IReadOnlyList<EggIncognito.Core.Services.Protos.CrawlManifestReader.CrawlRecord> records, CancellationToken ct)
-    {
+        IReadOnlyList<EggIncognito.Core.Services.Protos.CrawlManifestReader.CrawlRecord> records, CancellationToken ct) {
         int staged = 0, skipped = 0;
-        foreach (var r in records)
-        {
+        foreach (var r in records) {
             var outcome = await StageOrReviveAsync(r.Platform, r.AppVersion, r.Build, r.ClientVersion, null,
                 r.ProtoSha, r.ProtoText, null, "crawl", null, r.OriginRepo, r.OriginCommit, r.OriginDate, r.Confidence, ct);
             if (outcome is StageOutcome.Staged or StageOutcome.Revived) staged++;
@@ -104,8 +108,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         db.StagedProtos.CountAsync(s => s.Status == "pending", ct);
 
     public async Task<(bool inRegistry, bool pending)> CheckAsync(
-        string platform, string? appVersion, string protoSha, CancellationToken ct)
-    {
+        string platform, string? appVersion, string protoSha, CancellationToken ct) {
         var inReg = await ShaInRegistryAsync(protoSha, ct);
         var pending = await db.StagedProtos.AnyAsync(s => s.ProtoSha == protoSha && s.Status == "pending", ct);
         return (inReg, pending);
@@ -113,8 +116,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
 
     public async Task<ApproveResult> ApproveAsync(
         int id, string? platform, string? appVersion, string? build, string? clientVersion,
-        string reviewedBy, CancellationToken ct)
-    {
+        string reviewedBy, CancellationToken ct) {
         var row = await db.StagedProtos.FirstOrDefaultAsync(s => s.Id == id && s.Status == "pending", ct);
         if (row is null) return ApproveResult.NotFound;
 
@@ -127,16 +129,13 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         var existing = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == plat && p.Build == bld, ct);
         var result = existing is null ? ApproveResult.Ok : ApproveResult.Merged;
 
-        if (existing is null)
-        {
+        if (existing is null) {
             await registry.UpsertAsync(plat, appV!, bld!, cv, package: row.Package ?? "",
                 protoSha: row.ProtoSha, apkRef: $"staged:{row.Id}", detectedAt: DateTimeOffset.UtcNow,
                 detectedBy: $"staged-approve:{reviewedBy}", protoText: row.ProtoText, source: row.Source,
                 resurrect: true, ct: ct);
-        }
-        else
-        {
-           
+        } else {
+
             var hasProto = await db.ProtoProtos.AnyAsync(x => x.ProtoVersionId == existing.Id, ct);
             await registry.BackfillUpsertAsync(plat, appV!, bld!, cv, package: row.Package ?? "",
                 protoText: row.ProtoText, protoSha: row.ProtoSha, messageIndex: row.MessageIndex,
@@ -149,8 +148,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         return result;
     }
 
-    public async Task<bool> RejectAsync(int id, string? note, string reviewedBy, CancellationToken ct)
-    {
+    public async Task<bool> RejectAsync(int id, string? note, string reviewedBy, CancellationToken ct) {
         var row = await db.StagedProtos.FirstOrDefaultAsync(s => s.Id == id && s.Status == "pending", ct);
         if (row is null) return false;
         row.Status = "rejected"; row.ReviewNote = note; row.ReviewedBy = reviewedBy;
@@ -163,14 +161,11 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     public readonly record struct BulkApproveResult(int Approved, int Skipped, int Failed);
 
     public async Task<BulkApproveResult> BulkApproveAsync(
-        IReadOnlyList<ApproveItem> items, string reviewedBy, CancellationToken ct)
-    {
+        IReadOnlyList<ApproveItem> items, string reviewedBy, CancellationToken ct) {
         int ok = 0, skipped = 0, failed = 0;
-        foreach (var it in items)
-        {
+        foreach (var it in items) {
             var r = await ApproveAsync(it.Id, it.Platform, it.AppVersion, it.Build, it.ClientVersion, reviewedBy, ct);
-            switch (r)
-            {
+            switch (r) {
                 case ApproveResult.Ok or ApproveResult.Merged: ok++; break;
                 case ApproveResult.MissingBuild: skipped++; break;
                 default: failed++; break;
@@ -179,12 +174,10 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         return new BulkApproveResult(ok, skipped, failed);
     }
 
-    public async Task<int> BulkRejectAsync(IReadOnlyList<int> ids, string? note, string reviewedBy, CancellationToken ct)
-    {
+    public async Task<int> BulkRejectAsync(IReadOnlyList<int> ids, string? note, string reviewedBy, CancellationToken ct) {
         var now = DateTimeOffset.UtcNow;
         var rows = await db.StagedProtos.Where(s => ids.Contains(s.Id) && s.Status == "pending").ToListAsync(ct);
-        foreach (var row in rows)
-        {
+        foreach (var row in rows) {
             row.Status = "rejected"; row.ReviewNote = note; row.ReviewedBy = reviewedBy; row.ReviewedAt = now;
         }
         if (rows.Count > 0) await db.SaveChangesAsync(ct);

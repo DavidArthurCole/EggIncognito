@@ -1,9 +1,9 @@
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
+
 [Table("backfill_jobs")]
-public sealed class BackfillJob
-{
+public sealed class BackfillJob {
     [Column("id")] public int Id { get; set; }
     [Column("source")] public string Source { get; set; } = "";
     [Column("status")] public string Status { get; set; } = "running";

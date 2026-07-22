@@ -3,12 +3,9 @@ using Microsoft.AspNetCore.Authentication;
 
 namespace EggIncognito.Services.Auth;
 
-public sealed class ApiKeyResolutionMiddleware(RequestDelegate next)
-{
-    public async Task Invoke(HttpContext ctx)
-    {
-        if (ctx.User.Identity?.IsAuthenticated != true && HasKeyHeader(ctx))
-        {
+public sealed class ApiKeyResolutionMiddleware(RequestDelegate next) {
+    public async Task Invoke(HttpContext ctx) {
+        if (ctx.User.Identity?.IsAuthenticated != true && HasKeyHeader(ctx)) {
             var result = await ctx.AuthenticateAsync(ApiKeyGen.SchemeName);
             if (result.Succeeded && result.Principal is not null)
                 ctx.User = result.Principal;

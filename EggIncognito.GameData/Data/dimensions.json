@@ -1,0 +1,20 @@
+{
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "identity": {
+      "origin": "binary",
+      "locator": "boostmanager"
+    }
+  },
+  "dimensions": [
+    "bd-earnings",
+    "bd-internal-hatchery",
+    "bd-soul-eggs",
+    "bd-hatchery",
+    "bd-auto-hatchery",
+    "bd-soul-power",
+    "bd-drone-rewards",
+    "bd-coop-earnings",
+    "bd-coop-egglayingrate"
+  ]
+}

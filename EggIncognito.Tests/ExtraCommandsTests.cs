@@ -4,39 +4,33 @@ using Xunit;
 
 namespace EggIncognito.Tests;
 
-public class ExtraCommandsTests
-{
+public class ExtraCommandsTests {
     [Fact]
-    public void HealthCommand_HasExpectedName()
-    {
+    public void HealthCommand_HasExpectedName() {
         var cmd = ExtraCommands.HealthCommand(DateTimeOffset.UtcNow);
         Assert.Equal("health", cmd.Name);
     }
 
     [Fact]
-    public void StatusCommand_HasExpectedName()
-    {
+    public void StatusCommand_HasExpectedName() {
         var cmd = ExtraCommands.StatusCommand(new FakeStatusProvider());
         Assert.Equal("status", cmd.Name);
     }
 
     [Fact]
-    public void EndpointsCommand_HasExpectedName()
-    {
+    public void EndpointsCommand_HasExpectedName() {
         var cmd = ExtraCommands.EndpointsCommand(new FakeStatusProvider());
         Assert.Equal("endpoints", cmd.Name);
     }
 
     [Fact]
-    public void ProtoCommand_HasExpectedNameAndAutocompleteHandler()
-    {
+    public void ProtoCommand_HasExpectedNameAndAutocompleteHandler() {
         var cmd = ExtraCommands.ProtoCommand(new FakeProtoReflection());
         Assert.Equal("proto", cmd.Name);
         Assert.NotNull(cmd.AutocompleteHandler);
     }
 
-    internal sealed class FakeStatusProvider : IStatusProvider
-    {
+    internal sealed class FakeStatusProvider : IStatusProvider {
         public StatusSnapshot Build() => new(
             Mode: "Local", CanCapture: true, CanWrite: true, CaptureState: "Idle",
             CaptureRunning: false, FlowsCaptured: 0, DeviceCount: 0, BytesCaptured: 0,
@@ -45,8 +39,7 @@ public class ExtraCommandsTests
             EndpointsOk: 0, EndpointsEmpty: 0, EndpointsMissing: 0);
     }
 
-    internal sealed class FakeProtoReflection : IProtoReflection
-    {
+    internal sealed class FakeProtoReflection : IProtoReflection {
         public Google.Protobuf.Reflection.MessageDescriptor? FindMessage(string typeName) => null;
         public Google.Protobuf.MessageParser? FindParser(string typeName) => null;
         public SchemaMessage? Schema(string typeName) => null;

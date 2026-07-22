@@ -1,7 +1,7 @@
+using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.RateLimiting;
-using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
@@ -10,11 +10,9 @@ namespace EggIncognito.Controllers;
 [Route("api/console")]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Admin)]
 [EnableRateLimiting("read")]
-public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider explorer, ICurrentUser currentUser) : ControllerBase
-{
+public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider explorer, ICurrentUser currentUser) : ControllerBase {
     [HttpGet("endpoints")]
-    public IActionResult Endpoints()
-    {
+    public IActionResult Endpoints() {
         if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
@@ -22,8 +20,7 @@ public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider 
             .SelectMany(g => g.Items)
             .Where(d => d.RelativePath is not null && d.RelativePath.StartsWith("api/", StringComparison.OrdinalIgnoreCase))
             .Where(d => !d.RelativePath!.StartsWith("api/console", StringComparison.OrdinalIgnoreCase))
-            .Select(d => new
-            {
+            .Select(d => new {
                 method = d.HttpMethod ?? "GET",
                 route = "/" + d.RelativePath,
                 query = d.ParameterDescriptions
@@ -42,8 +39,7 @@ public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider 
         return Ok(new { count = endpoints.Count, endpoints });
     }
 
-    private static string TypeName(Type? t)
-    {
+    private static string TypeName(Type? t) {
         if (t is null) return "string";
         var u = Nullable.GetUnderlyingType(t) ?? t;
         return u.Name;

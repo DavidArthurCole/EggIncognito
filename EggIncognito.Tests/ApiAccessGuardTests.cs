@@ -6,18 +6,15 @@ using Xunit;
 
 namespace EggIncognito.Tests;
 
-public class ApiAccessGuardTests
-{
+public class ApiAccessGuardTests {
     [Fact]
-    public void EveryController_DeclaresApiAccessPolicy()
-    {
+    public void EveryController_DeclaresApiAccessPolicy() {
         var asm = typeof(Program).Assembly;
         var controllers = asm.GetTypes()
             .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && t.IsClass && !t.IsAbstract);
 
         var missing = new List<string>();
-        foreach (var t in controllers)
-        {
+        foreach (var t in controllers) {
             if (t.GetCustomAttributes(typeof(ApiAccessAttribute), inherit: true).Length > 0) continue;
 
             var actions = t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
@@ -25,8 +22,9 @@ public class ApiAccessGuardTests
                 .ToArray();
 
             if (actions.Length > 0 &&
-                actions.All(m => m.GetCustomAttributes(typeof(ApiAccessAttribute), inherit: true).Length > 0))
+                actions.All(m => m.GetCustomAttributes(typeof(ApiAccessAttribute), inherit: true).Length > 0)) {
                 continue;
+            }
 
             missing.Add(t.Name);
         }

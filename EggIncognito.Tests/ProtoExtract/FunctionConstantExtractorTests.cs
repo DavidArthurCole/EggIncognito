@@ -2,11 +2,9 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class FunctionConstantExtractorTests
-{
+public class FunctionConstantExtractorTests {
     [Fact]
-    public void ResolveCallName_PicksNearestSymbolAtOrBelowTarget()
-    {
+    public void ResolveCallName_PicksNearestSymbolAtOrBelowTarget() {
         var syms = new List<MachoSymbols.Symbol>
         {
             new("__ZN3FooC1Ev", 0x1000, 0, 1),
@@ -18,12 +16,11 @@ public class FunctionConstantExtractorTests
     }
 
     [Fact]
-    public void Extract_RealBinary_SiloConstants_Regression()
-    {
+    public void Extract_RealBinary_SiloConstants_Regression() {
         var bin = TestBinary();
         if (bin is null) return;
 
-       
+
         var res = FunctionConstantExtractor.Extract(bin, ["FarmScene10updateSilo"]);
         Assert.True(res.Ok, res.Diagnostics);
         Assert.Contains(res.Floats, f => Math.Abs(f - 5.5) < 0.01);
@@ -31,14 +28,13 @@ public class FunctionConstantExtractorTests
     }
 
     [Fact]
-    public void Extract_RealBinary_GalaxyParticle_HasConstants()
-    {
+    public void Extract_RealBinary_GalaxyParticle_HasConstants() {
         var bin = TestBinary();
         if (bin is null) return;
 
-       
-       
-       
+
+
+
         var onBirth = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle7onBirth"]);
         var update = FunctionConstantExtractor.Extract(bin, ["GalaxyParticle6update"]);
         Assert.True(onBirth.Ok, onBirth.Diagnostics);
@@ -46,11 +42,9 @@ public class FunctionConstantExtractorTests
         Assert.True(onBirth.Floats.Count + update.Floats.Count > 0, "no orbit constants recovered");
     }
 
-   
-    private static byte[]? TestBinary()
-    {
-        foreach (var rel in new[] { "../../../../captures/egginc", "../../../../../captures/egginc", "../../../../EggIncognito/captures/egginc" })
-        {
+
+    private static byte[]? TestBinary() {
+        foreach (var rel in new[] { "../../../../captures/egginc", "../../../../../captures/egginc", "../../../../EggIncognito/captures/egginc" }) {
             var full = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, rel));
             if (File.Exists(full)) return File.ReadAllBytes(full);
         }

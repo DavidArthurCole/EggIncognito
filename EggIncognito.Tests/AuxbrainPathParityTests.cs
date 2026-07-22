@@ -4,13 +4,10 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public sealed class AuxbrainPathParityTests
-{
-    private static string RepoRoot()
-    {
+public sealed class AuxbrainPathParityTests {
+    private static string RepoRoot() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
+        while (dir is not null) {
             if (dir.GetFiles("*.slnx").Length > 0 || dir.GetFiles("*.sln").Length > 0)
                 return dir.FullName;
             dir = dir.Parent;
@@ -22,8 +19,7 @@ public sealed class AuxbrainPathParityTests
         Path.Combine(RepoRoot(), "EggIncognito", "RouteMap", name);
 
     [Fact]
-    public void EveryRoutesYamlPath_IsAKeyIn_AuxbrainPathsJson()
-    {
+    public void EveryRoutesYamlPath_IsAKeyIn_AuxbrainPathsJson() {
         var yamlPath = RouteMapFile("routes.yaml");
         var jsonPath = RouteMapFile("auxbrain-paths.json");
         Assert.True(File.Exists(yamlPath), $"routes.yaml not found at {yamlPath}");
@@ -38,16 +34,14 @@ public sealed class AuxbrainPathParityTests
     }
 
     [Fact]
-    public void AuxbrainPathsJson_KeysAreSorted()
-    {
+    public void AuxbrainPathsJson_KeysAreSorted() {
         using var doc = JsonDocument.Parse(File.ReadAllText(RouteMapFile("auxbrain-paths.json")));
         var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
         Assert.Equal(keys.OrderBy(k => k, StringComparer.Ordinal), keys);
     }
 
     [Fact]
-    public void Aliases_ParsedByCatalog_IgnoredByGenerator()
-    {
+    public void Aliases_ParsedByCatalog_IgnoredByGenerator() {
         const string yaml = """
             routes:
               - path: ei/update_coop_status
@@ -75,8 +69,7 @@ public sealed class AuxbrainPathParityTests
     }
 
     [Fact]
-    public void AliasListItems_DoNotBleedInto_NextRouteOrKeys()
-    {
+    public void AliasListItems_DoNotBleedInto_NextRouteOrKeys() {
         const string yaml = """
             routes:
               - path: ei/a
@@ -103,8 +96,7 @@ public sealed class AuxbrainPathParityTests
     }
 
     [Fact]
-    public void RealRoutesYaml_HasAliasForRenamedCoopStatusUpdate()
-    {
+    public void RealRoutesYaml_HasAliasForRenamedCoopStatusUpdate() {
         var routes = RouteCatalog.Parse(File.ReadAllText(RouteMapFile("routes.yaml")));
         var renamed = routes.Single(r => r.Path == "ei/update_coop_status");
         Assert.Contains("ei/update_coop_status_secure", renamed.Aliases);
@@ -112,8 +104,7 @@ public sealed class AuxbrainPathParityTests
     }
 
     [Fact]
-    public void RenamedEndpointJson_LoadsUnderNewPath()
-    {
+    public void RenamedEndpointJson_LoadsUnderNewPath() {
         var src = new FileEndpointSource(Path.Combine(RepoRoot(), "EggIncognito", "Endpoints"));
         Assert.NotNull(src.Lookup("ei/update_coop_status", null));
     }

@@ -4,17 +4,14 @@ namespace EggIncognito.Tests;
 
 
 [Collection(SharedAppCollection.Name)]
-public class LegalPagesTests
-{
+public class LegalPagesTests(SharedAppFactory f) {
     private const string Disclaimer =
         "EggIncognito is an independent, fan-made tool and is not affiliated with, endorsed by, or";
 
-    private readonly WebApplicationFactory<Program> _factory;
-    public LegalPagesTests(SharedAppFactory f) => _factory = f;
+    private readonly WebApplicationFactory<Program> _factory = f;
 
     [Fact]
-    public async Task TermsPage_Renders_WithDisclaimer()
-    {
+    public async Task TermsPage_Renders_WithDisclaimer() {
         using var client = _factory.CreateClient();
         var res = await client.GetAsync("/terms");
         res.EnsureSuccessStatusCode();
@@ -24,8 +21,7 @@ public class LegalPagesTests
     }
 
     [Fact]
-    public async Task PrivacyPage_Renders_WithDisclaimer()
-    {
+    public async Task PrivacyPage_Renders_WithDisclaimer() {
         using var client = _factory.CreateClient();
         var res = await client.GetAsync("/privacy");
         res.EnsureSuccessStatusCode();
@@ -35,8 +31,7 @@ public class LegalPagesTests
     }
 
     [Fact]
-    public async Task AboutPage_HoldsDisclaimer_AndLegalLinks()
-    {
+    public async Task AboutPage_HoldsDisclaimer_AndLegalLinks() {
         using var client = _factory.CreateClient();
         var html = await client.GetStringAsync("/about");
         Assert.Contains("href=\"/terms\"", html);
@@ -45,8 +40,7 @@ public class LegalPagesTests
     }
 
     [Fact]
-    public async Task Home_DoesNotPlasterTheFooter()
-    {
+    public async Task Home_DoesNotPlasterTheFooter() {
         using var client = _factory.CreateClient();
         var html = await client.GetStringAsync("/");
         Assert.DoesNotContain("site-footer", html);

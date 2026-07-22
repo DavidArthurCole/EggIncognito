@@ -2,11 +2,9 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class ProtoTextIndexTests
-{
+public class ProtoTextIndexTests {
     [Fact]
-    public void Extracts_MessagesAndEnums()
-    {
+    public void Extracts_MessagesAndEnums() {
         var proto = "syntax=\"proto2\";\nmessage Foo { }\nenum Bar { A=0; }\nmessage Baz{}";
         var names = ProtoTextIndex.Names(proto);
         Assert.Contains("Foo", names);

@@ -11,14 +11,12 @@ public sealed record DeviceTrigger(string AndroidRecipe, string IosRecipe);
 
 public sealed record DataRefresh(bool Egress, DeviceTrigger? Device = null);
 
-public sealed record DataPayload(byte[] Bytes, string ContentType)
-{
+public sealed record DataPayload(byte[] Bytes, string ContentType) {
     public static DataPayload Json(string json) => new(Encoding.UTF8.GetBytes(json), "application/json");
     public static DataPayload Png(byte[] bytes) => new(bytes, "image/png");
 }
 
-public sealed record DataProduceContext(HttpContext Http, string? Name)
-{
+public sealed record DataProduceContext(HttpContext Http, string? Name) {
     public IServiceProvider Services => Http.RequestServices;
 }
 

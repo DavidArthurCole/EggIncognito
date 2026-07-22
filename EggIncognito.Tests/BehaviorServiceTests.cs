@@ -2,13 +2,11 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class BehaviorServiceTests
-{
+public class BehaviorServiceTests {
     private static IBehaviorService Build() => new BehaviorService();
 
     [Fact]
-    public void Get_KnownName_ReturnsBehavior()
-    {
+    public void Get_KnownName_ReturnsBehavior() {
         var svc = Build();
         var b = svc.Get("server_error");
         Assert.NotNull(b);
@@ -17,30 +15,26 @@ public class BehaviorServiceTests
     }
 
     [Fact]
-    public void Get_CaseInsensitive_ReturnsBehavior()
-    {
+    public void Get_CaseInsensitive_ReturnsBehavior() {
         var svc = Build();
         Assert.NotNull(svc.Get("SERVER_ERROR"));
         Assert.NotNull(svc.Get("Server_Error"));
     }
 
     [Fact]
-    public void Get_UnknownName_ReturnsNull()
-    {
+    public void Get_UnknownName_ReturnsNull() {
         var svc = Build();
         Assert.Null(svc.Get("does_not_exist"));
     }
 
     [Fact]
-    public void All_ReturnsAllSevenBehaviors()
-    {
+    public void All_ReturnsAllSevenBehaviors() {
         var svc = Build();
         Assert.Equal(7, svc.All().Count);
     }
 
     [Fact]
-    public void All_ContainsExpectedNames()
-    {
+    public void All_ContainsExpectedNames() {
         var svc = Build();
         var names = svc.All().Select(b => b.Name).ToHashSet();
         foreach (var expected in new[] { "server_error", "maintenance", "not_found", "unauthorized", "rate_limited", "empty", "corrupt" })
@@ -48,8 +42,7 @@ public class BehaviorServiceTests
     }
 
     [Fact]
-    public void ForEndpoint_UniversalBehaviors_ReturnedForAnySlug()
-    {
+    public void ForEndpoint_UniversalBehaviors_ReturnedForAnySlug() {
         var svc = Build();
         var results = svc.ForEndpoint("ei/first_contact_secure");
         Assert.Contains(results, b => b.Name == "server_error");
@@ -57,8 +50,7 @@ public class BehaviorServiceTests
     }
 
     [Fact]
-    public void ForEndpoint_EndpointRestricted_ReturnedOnlyForMatchingSlug()
-    {
+    public void ForEndpoint_EndpointRestricted_ReturnedOnlyForMatchingSlug() {
         var restricted = new SimulationBehavior("test_only", "Test", 200, Endpoints: ["ei/test"]);
         var testSvc = new BehaviorService(new[] { restricted });
         Assert.Single(testSvc.ForEndpoint("ei/test"));
@@ -66,8 +58,7 @@ public class BehaviorServiceTests
     }
 
     [Fact]
-    public void RateLimited_HasRetryAfterHeader()
-    {
+    public void RateLimited_HasRetryAfterHeader() {
         var svc = Build();
         var b = svc.Get("rate_limited");
         Assert.NotNull(b?.ExtraHeaders);
@@ -75,8 +66,7 @@ public class BehaviorServiceTests
     }
 
     [Fact]
-    public void Empty_BodyDecodesToValidProto()
-    {
+    public void Empty_BodyDecodesToValidProto() {
         var svc = Build();
         var b = svc.Get("empty");
         Assert.NotNull(b?.Body);
@@ -86,8 +76,7 @@ public class BehaviorServiceTests
     }
 
     [Fact]
-    public void Corrupt_BodyIsInvalidBase64()
-    {
+    public void Corrupt_BodyIsInvalidBase64() {
         var svc = Build();
         var b = svc.Get("corrupt");
         Assert.NotNull(b?.Body);

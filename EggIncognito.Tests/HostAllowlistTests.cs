@@ -3,8 +3,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class HostAllowlistTests
-{
+public class HostAllowlistTests {
     [Theory]
     [InlineData("localhost")]
     [InlineData("127.0.0.1")]
@@ -25,9 +24,9 @@ public class HostAllowlistTests
     public void Rejects_BadHosts(string host) =>
         Assert.False(InspectorApiController.IsAllowedHost(host));
 
-   
-   
-   
+
+
+
     [Theory]
     [InlineData("www.auxbrain.com")]
     [InlineData("auxbrain.com")]
@@ -42,17 +41,15 @@ public class HostAllowlistTests
     [Theory]
     [InlineData("localhost")]
     [InlineData("127.0.0.1")]
-    public void Localhost_IsAllowed_ButNotAuxbrain(string host)
-    {
+    public void Localhost_IsAllowed_ButNotAuxbrain(string host) {
         Assert.True(InspectorApiController.IsAllowedHost(host));
         Assert.False(AuxbrainHosts.IsAuxbrain(host));
     }
 
-   
-   
+
+
     [Fact]
-    public void SelfHost_IsAllowed_OnlyWhenItMatches()
-    {
+    public void SelfHost_IsAllowed_OnlyWhenItMatches() {
         const string self = "eggincognito.davidarthurcole.me";
         Assert.True(InspectorApiController.IsAllowedHost(self, self));
         Assert.True(InspectorApiController.IsAllowedHost("EggIncognito.DavidArthurCole.ME", self));

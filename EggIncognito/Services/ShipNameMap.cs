@@ -2,10 +2,9 @@ namespace EggIncognito.Services;
 
 
 //
-public static class ShipNameMap
-{
-   
-   
+public static class ShipNameMap {
+
+
     public sealed record Ship(int Tier, string EnumName, string Display, string? BundleStem, string? ShellAsset);
 
     public static readonly IReadOnlyList<Ship> All =
@@ -23,7 +22,7 @@ public static class ShipNameMap
         new(10, "Atreggies", "Atreggies Henliner", "ei_ship_atreggies_shuttle", "afx_ship_atreggies"),
     ];
 
-   
+
     private static readonly Dictionary<string, string> StemToEnum =
         All.Where(s => s.BundleStem is not null)
            .ToDictionary(s => s.BundleStem!, s => s.EnumName, StringComparer.OrdinalIgnoreCase);
@@ -31,6 +30,6 @@ public static class ShipNameMap
     public static string? EnumNameForStem(string stem) =>
         StemToEnum.TryGetValue(stem, out var e) ? e : null;
 
-   
+
     public static bool IsBundledShip(string stem) => StemToEnum.ContainsKey(stem);
 }

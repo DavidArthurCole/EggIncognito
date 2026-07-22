@@ -1,9 +1,9 @@
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EggIncognito.Data.Models;
+
 [Table("device_updates")]
-public sealed class DeviceUpdate
-{
+public sealed class DeviceUpdate {
     [Column("id")] public int Id { get; set; }
     [Column("device_id")] public string DeviceId { get; set; } = "";
     [Column("attempted_at")] public DateTimeOffset AttemptedAt { get; set; }

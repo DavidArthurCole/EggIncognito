@@ -12,7 +12,7 @@ public sealed record DeviceInfo(
     string LastSeen,
     string? Os,
     string? GameVersion,
-   
+
     bool Online = true,
     int TotalConnections = 0);
 
@@ -30,8 +30,8 @@ public sealed record CaptureStats(
     string? BiggestEndpoint,
     long BiggestEndpointBytes,
     string CertState,
-   
-   
+
+
     bool Running = false,
     int Port = 0);
 

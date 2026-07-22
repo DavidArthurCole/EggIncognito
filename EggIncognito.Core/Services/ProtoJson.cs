@@ -6,22 +6,19 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services;
 
-public static class ProtoJson
-{
-   
-   
-    public static string NormalizeFloats(string json) =>
-        Regex.Replace(json, @"(?<=[:\[,\s])(-?\d+)\.0(?=[,\}\]\s\r\n])", "$1");
+public static partial class ProtoJson {
 
-   
-   
-    public static string PrettyPrint(string json)
-    {
+
+    public static string NormalizeFloats(string json) =>
+        FloatZeroRegex().Replace(json, "$1");
+
+
+
+    public static string PrettyPrint(string json) {
         var sb = new StringBuilder(json.Length * 2);
         int depth = 0, i = 0;
         bool inString = false, escape = false;
-        while (i < json.Length)
-        {
+        while (i < json.Length) {
             char c = json[i++];
             if (escape) { sb.Append(c); escape = false; continue; }
             if (inString) { AppendInString(sb, c, ref inString, ref escape); continue; }
@@ -30,17 +27,14 @@ public static class ProtoJson
         return sb.ToString();
     }
 
-    private static void AppendInString(StringBuilder sb, char c, ref bool inString, ref bool escape)
-    {
+    private static void AppendInString(StringBuilder sb, char c, ref bool inString, ref bool escape) {
         sb.Append(c);
         if (c == '\\') escape = true;
         else if (c == '"') inString = false;
     }
 
-    private static void AppendStructural(StringBuilder sb, string json, char c, ref int i, ref int depth, ref bool inString)
-    {
-        switch (c)
-        {
+    private static void AppendStructural(StringBuilder sb, string json, char c, ref int i, ref int depth, ref bool inString) {
+        switch (c) {
             case ' ': case '\t': case '\r': case '\n': break;
             case '"': inString = true; sb.Append(c); break;
             case '{': case '[': AppendOpen(sb, json, c, ref i, ref depth); break;
@@ -51,20 +45,19 @@ public static class ProtoJson
         }
     }
 
-    private static void AppendOpen(StringBuilder sb, string json, char open, ref int i, ref int depth)
-    {
+    private static void AppendOpen(StringBuilder sb, string json, char open, ref int i, ref int depth) {
         sb.Append(open);
         int j = i;
         while (j < json.Length && char.IsWhiteSpace(json[j])) j++;
-        if (j < json.Length && (json[j] == '}' || json[j] == ']'))
-        {
+        if (j < json.Length && (json[j] == '}' || json[j] == ']')) {
             sb.Append(json[j]);
             i = j + 1;
-        }
-        else
-        {
+        } else {
             sb.AppendLine();
             sb.Append(' ', ++depth * 2);
         }
     }
+
+    [GeneratedRegex(@"(?<=[:\[,\s])(-?\d+)\.0(?=[,\}\]\s\r\n])")]
+    private static partial Regex FloatZeroRegex();
 }

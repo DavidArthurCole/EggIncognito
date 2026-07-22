@@ -1,6 +1,5 @@
 namespace EggIncognito.Services;
 
-public interface IEndpointWriteObserver
-{
+public interface IEndpointWriteObserver {
     void OnEndpointWritten(string routePath, string json);
 }

@@ -6,26 +6,21 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
-public class DocsHubTests
-{
-    [Collection(SharedAppCollection.Name)]
-    public class Integration
-    {
-        private readonly WebApplicationFactory<Program> _f;
-        public Integration(SharedAppFactory f) => _f = f;
 
-       
+public class DocsHubTests {
+    [Collection(SharedAppCollection.Name)]
+    public class Integration(SharedAppFactory f) {
+        private readonly WebApplicationFactory<Program> _f = f;
+
         [Fact]
-        public async Task DocsRoute_StillResponds()
-        {
+        public async Task DocsRoute_StillResponds() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/docs");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
         }
 
         [Fact]
-        public async Task SubjectTags_ConfigKind_Accepted()
-        {
+        public async Task SubjectTags_ConfigKind_Accepted() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/api/docs/subject-tags/config/AppMode");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
@@ -34,20 +29,16 @@ public class DocsHubTests
         }
     }
 
-    public class MarkdownComponent : BunitContext
-    {
+    public class MarkdownComponent : BunitContext {
         [Fact]
-        public void Markdown_RendersBold()
-        {
+        public void Markdown_RendersBold() {
             var cut = Render<Markdown>(p => p.Add(c => c.Body, "**hi**"));
             Assert.Contains("<strong>hi</strong>", cut.Markup);
         }
     }
 
-    public class DocHelpComponent : BunitContext
-    {
-        private void Wire()
-        {
+    public class DocHelpComponent : BunitContext {
+        private void Wire() {
             Services.AddSingleton<IProtoReflection, ProtoReflection>();
             Services.AddSingleton<IRouteCatalog>(new RouteCatalog("__no_routes_yaml__"));
             Services.AddSingleton<IDocRegistry, DocRegistry>();
@@ -56,8 +47,7 @@ public class DocsHubTests
         }
 
         [Fact]
-        public void DocHelp_KnownConfigKey_RendersAffordance()
-        {
+        public void DocHelp_KnownConfigKey_RendersAffordance() {
             Wire();
             var cut = Render<DocHelp>(p => p
                 .Add(c => c.Kind, "config")
@@ -66,8 +56,7 @@ public class DocsHubTests
         }
 
         [Fact]
-        public void DocHelp_UnknownSubject_RendersNothing()
-        {
+        public void DocHelp_UnknownSubject_RendersNothing() {
             Wire();
             var cut = Render<DocHelp>(p => p
                 .Add(c => c.Kind, "config")

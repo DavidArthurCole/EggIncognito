@@ -10,17 +10,13 @@ namespace EggIncognito.Controllers;
 [ApiController]
 [Route("api/v1/data")]
 [ApiAccess(ApiAccessLevel.Public)]
-public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentUser) : ControllerBase
-{
+public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentUser) : ControllerBase {
     [HttpGet]
     [EnableRateLimiting("read")]
-    public async Task<IActionResult> Index(CancellationToken ct)
-    {
+    public async Task<IActionResult> Index(CancellationToken ct) {
         var items = new List<object>(catalog.Sources.Count);
-        foreach (var s in catalog.Sources)
-        {
-            items.Add(new
-            {
+        foreach (var s in catalog.Sources) {
+            items.Add(new {
                 s.Id,
                 s.Group,
                 url = catalog.UrlFor(s),
@@ -38,39 +34,32 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
         return Ok(new { count = catalog.Sources.Count, sources = items });
     }
 
-    private async Task<long?> SizeOf(DataSource s, CancellationToken ct)
-    {
+    private async Task<long?> SizeOf(DataSource s, CancellationToken ct) {
         if (s.AcceptsName) return null;
-        try
-        {
+        try {
             var payload = await s.Produce(new DataProduceContext(HttpContext, null), ct);
             return payload?.Bytes.LongLength;
-        }
-        catch { return null; }
+        } catch { return null; }
     }
 
     [HttpGet("{group}/{id}")]
     [EnableRateLimiting("data")]
-    public async Task<IActionResult> Get(string group, string id, [FromQuery] string? name, CancellationToken ct)
-    {
+    public async Task<IActionResult> Get(string group, string id, [FromQuery] string? name, CancellationToken ct) {
         var src = catalog.ById(group, id);
         if (src is null) return NotFound(new { error = "unknown data source", group, id });
-        if (src.Extends is not null)
-            return NotFound(new { error = "this is an extension dataset", url = catalog.UrlFor(src) });
-        return await Serve(src, name, ct);
+        return src.Extends is not null
+            ? NotFound(new { error = "this is an extension dataset", url = catalog.UrlFor(src) })
+            : await Serve(src, name, ct);
     }
 
     [HttpGet("{group}/{parent}/{sub}")]
     [EnableRateLimiting("data")]
-    public async Task<IActionResult> GetExtension(string group, string parent, string sub, [FromQuery] string? name, CancellationToken ct)
-    {
+    public async Task<IActionResult> GetExtension(string group, string parent, string sub, [FromQuery] string? name, CancellationToken ct) {
         var src = catalog.ByChild(group, parent, sub);
-        if (src is null) return NotFound(new { error = "unknown extension dataset", group, parent, sub });
-        return await Serve(src, name, ct);
+        return src is null ? NotFound(new { error = "unknown extension dataset", group, parent, sub }) : await Serve(src, name, ct);
     }
 
-    private async Task<IActionResult> Serve(DataSource src, string? name, CancellationToken ct)
-    {
+    private async Task<IActionResult> Serve(DataSource src, string? name, CancellationToken ct) {
         if (src.Access == DataAccess.Authenticated && !currentUser.IsAuthenticated)
             return StatusCode(401, new { error = "authentication required", hint = "mint an API key at /api/v1/keys or log in" });
 

@@ -2,14 +2,12 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-public class CaptureHubKnownDevicesTests
-{
+public class CaptureHubKnownDevicesTests {
     private static RememberedDevice Known(string ip) =>
         new(ip, "phone.local", "iOS", "1.35.6", "09:00:00", "09:30:00", 5);
 
     [Fact]
-    public void SeededKnownDevice_AppearsOfflineUntilItConnects()
-    {
+    public void SeededKnownDevice_AppearsOfflineUntilItConnects() {
         var hub = new CaptureHub();
         hub.SeedKnownDevices([Known("192.168.1.5")]);
 
@@ -21,8 +19,7 @@ public class CaptureHubKnownDevicesTests
     }
 
     [Fact]
-    public void Connect_FlipsKnownDeviceOnline_AndBumpsLifetimeCount()
-    {
+    public void Connect_FlipsKnownDeviceOnline_AndBumpsLifetimeCount() {
         var hub = new CaptureHub();
         hub.SeedKnownDevices([Known("192.168.1.5")]);
 
@@ -36,8 +33,7 @@ public class CaptureHubKnownDevicesTests
     }
 
     [Fact]
-    public void Disconnect_AllGone_MarksDeviceOffline()
-    {
+    public void Disconnect_AllGone_MarksDeviceOffline() {
         var hub = new CaptureHub();
         hub.RecordConnection(1, "192.168.1.7", "10:00:00");
         Assert.True(Assert.Single(hub.StatsSnapshot().Devices).Online);
@@ -47,8 +43,7 @@ public class CaptureHubKnownDevicesTests
     }
 
     [Fact]
-    public void Snapshot_MergesLiveAndRememberedOnly()
-    {
+    public void Snapshot_MergesLiveAndRememberedOnly() {
         var hub = new CaptureHub();
         hub.SeedKnownDevices([Known("192.168.1.5"), Known("192.168.1.6")]);
         hub.RecordConnection(1, "192.168.1.5", "10:00:00");
@@ -60,8 +55,7 @@ public class CaptureHubKnownDevicesTests
     }
 
     [Fact]
-    public void DevicesChanged_FiresOnConnect()
-    {
+    public void DevicesChanged_FiresOnConnect() {
         var hub = new CaptureHub();
         var fired = 0;
         hub.DevicesChanged = () => fired++;

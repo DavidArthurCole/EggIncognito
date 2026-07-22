@@ -4,10 +4,8 @@ using Microsoft.AspNetCore.Http;
 
 namespace EggIncognito.Tests;
 
-public class CurrentUserTests
-{
-    private static CurrentUser Make(ClaimsPrincipal? principal)
-    {
+public class CurrentUserTests {
+    private static CurrentUser Make(ClaimsPrincipal? principal) {
         var ctx = new DefaultHttpContext();
         if (principal is not null) ctx.User = principal;
         var accessor = new HttpContextAccessor { HttpContext = ctx };
@@ -15,16 +13,14 @@ public class CurrentUserTests
     }
 
     [Fact]
-    public void Anonymous_IsNotAuthenticated()
-    {
+    public void Anonymous_IsNotAuthenticated() {
         var u = Make(null);
         Assert.False(u.IsAuthenticated);
         Assert.Null(u.DiscordId);
     }
 
     [Fact]
-    public void Authenticated_ExposesClaims()
-    {
+    public void Authenticated_ExposesClaims() {
         var id = new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(ClaimTypes.Name, "alice"),
              new Claim("urn:discord:avatar:hash", "abc")], "Discord");
@@ -37,8 +33,7 @@ public class CurrentUserTests
     }
 
     [Fact]
-    public void AvatarUrl_AlreadyFullUrl_PassedThroughUnwrapped()
-    {
+    public void AvatarUrl_AlreadyFullUrl_PassedThroughUnwrapped() {
         var id = new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(ClaimTypes.Name, "alice"),
              new Claim("urn:discord:avatar:hash", "https://cdn.discordapp.com/avatars/123/abc.png")], "Discord");
@@ -47,8 +42,7 @@ public class CurrentUserTests
     }
 
     [Fact]
-    public void Authenticated_ExposesUserId()
-    {
+    public void Authenticated_ExposesUserId() {
         var guid = Guid.NewGuid();
         var id = new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(EggIncognito.Data.Services.AuthClaims.UserIdClaim, guid.ToString())], "Discord");
@@ -57,8 +51,7 @@ public class CurrentUserTests
     }
 
     [Fact]
-    public void Authenticated_NoUserIdClaim_UserIdIsNull()
-    {
+    public void Authenticated_NoUserIdClaim_UserIdIsNull() {
         var id = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "123")], "Discord");
         var u = Make(new ClaimsPrincipal(id));
         Assert.Null(u.UserId);

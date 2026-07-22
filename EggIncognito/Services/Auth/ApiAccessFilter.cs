@@ -5,23 +5,19 @@ using SyncKit.Contract;
 
 namespace EggIncognito.Services.Auth;
 
-public sealed class ApiAccessFilter : IAsyncAuthorizationFilter
-{
-    public Task OnAuthorizationAsync(AuthorizationFilterContext context)
-    {
+public sealed class ApiAccessFilter : IAsyncAuthorizationFilter {
+    public Task OnAuthorizationAsync(AuthorizationFilterContext context) {
         if (!context.HttpContext.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
             return Task.CompletedTask;
 
         var attr = context.ActionDescriptor.EndpointMetadata.OfType<ApiAccessAttribute>().LastOrDefault();
-        if (attr is null)
-        {
+        if (attr is null) {
             context.Result = Deny(500, "endpoint missing access policy");
             return Task.CompletedTask;
         }
 
         var user = context.HttpContext.RequestServices.GetRequiredService<ICurrentUser>();
-        switch (attr.Level)
-        {
+        switch (attr.Level) {
             case ApiAccessLevel.Public:
                 break;
             case ApiAccessLevel.Authenticated:

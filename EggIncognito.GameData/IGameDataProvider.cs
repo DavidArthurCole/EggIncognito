@@ -1,9 +1,13 @@
 namespace EggIncognito.GameData;
 
-public interface IGameDataProvider
-{
+public interface IGameDataProvider {
     IReadOnlyList<IEffectFamily> Families { get; }
     IColleggtibleCatalog Colleggtibles { get; }
+    IBoostCatalog BoostCatalog { get; }
+    IEggCatalog EggCatalog { get; }
+    IDimensionCatalog Dimensions { get; }
+    IMissionCatalog Missions { get; }
+    IVehicleCatalog Vehicles { get; }
     IEffectFamily? Family(string key);
     Effect? Resolve(string family, string id);
     bool TryResolve(string family, string id, out Effect effect);

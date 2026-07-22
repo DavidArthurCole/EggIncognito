@@ -7,18 +7,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace EggIncognito.Tests;
 
 
-public class ImportPageTests
-{
-   
+public class ImportPageTests {
+
     [Collection(SharedAppCollection.Name)]
-    public class Integration
-    {
-        private readonly WebApplicationFactory<Program> _f;
-        public Integration(SharedAppFactory f) => _f = f;
+    public class Integration(SharedAppFactory f) {
+        private readonly WebApplicationFactory<Program> _f = f;
 
         [Fact]
-        public async Task Import_RendersDropzoneShell()
-        {
+        public async Task Import_RendersDropzoneShell() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/import");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
@@ -31,12 +27,10 @@ public class ImportPageTests
         }
     }
 
-   
-    public class Component : BunitContext
-    {
+
+    public class Component : BunitContext {
         [Fact]
-        public void Import_StartsWithDisabledButton_AndDropzone()
-        {
+        public void Import_StartsWithDisabledButton_AndDropzone() {
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddHttpClient();
             var cut = Render<Import>();

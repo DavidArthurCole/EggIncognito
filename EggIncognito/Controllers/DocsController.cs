@@ -1,8 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SyncKit.Contract;
 
@@ -12,8 +12,7 @@ namespace EggIncognito.Controllers;
 [Route("api/docs")]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("write")]
-public sealed class DocsController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
-{
+public sealed class DocsController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase {
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
     private IActionResult? RequireContributor() =>
@@ -21,23 +20,22 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             ? null
             : StatusCode(403, new { error = "contributor role required to edit documentation" });
 
-   
+
     private static bool ValidKind(string kind) =>
         kind is "message" or "endpoint" or "route" or "config" or "control";
 
-   
-   
+
+
     private void CacheFor(int seconds) =>
         Response.Headers.CacheControl = $"private, max-age={seconds}";
 
     public sealed record UpsertDoc(string SubjectKind, string SubjectKey, string BodyMd);
     public sealed record SetSubjectTags(string SubjectKind, string SubjectKey, long[] TagIds);
 
-   
-   
+
+
     [HttpGet("doc/{kind}/{**key}")]
-    public async Task<IActionResult> GetDoc(string kind, string key)
-    {
+    public async Task<IActionResult> GetDoc(string kind, string key) {
         if (!ValidKind(kind)) return BadRequest(new { error = "invalid subject kind" });
         var db = Db;
         if (db is null) return Ok(new { bodyMd = (string?)null });
@@ -48,10 +46,9 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             : new { bodyMd = doc.BodyMd, updatedAt = (object)doc.UpdatedAt, owner = (object?)doc.OwnerUserId });
     }
 
-   
+
     [HttpPost("doc")]
-    public async Task<IActionResult> UpsertDocAsync([FromBody] UpsertDoc body)
-    {
+    public async Task<IActionResult> UpsertDocAsync([FromBody] UpsertDoc body) {
         if (RequireContributor() is { } no) return no;
         if (!ValidKind(body.SubjectKind)) return BadRequest(new { error = "invalid subject kind" });
         var db = Db;
@@ -61,21 +58,17 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             .FirstOrDefaultAsync(d => d.SubjectKind == body.SubjectKind && d.SubjectKey == body.SubjectKey);
         var empty = string.IsNullOrWhiteSpace(body.BodyMd);
 
-        if (existing is null)
-        {
+        if (existing is null) {
             if (empty) return Ok(new { saved = false });
-            db.Docs.Add(new Doc
-            {
-                SubjectKind = body.SubjectKind, SubjectKey = body.SubjectKey,
-                BodyMd = body.BodyMd, OwnerUserId = currentUser.UserId,
+            db.Docs.Add(new Doc {
+                SubjectKind = body.SubjectKind,
+                SubjectKey = body.SubjectKey,
+                BodyMd = body.BodyMd,
+                OwnerUserId = currentUser.UserId,
             });
-        }
-        else if (empty)
-        {
+        } else if (empty) {
             db.Docs.Remove(existing);
-        }
-        else
-        {
+        } else {
             existing.BodyMd = body.BodyMd;
             existing.UpdatedAt = System.DateTimeOffset.UtcNow;
         }
@@ -83,10 +76,9 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(new { saved = !empty });
     }
 
-   
+
     [HttpGet("tags")]
-    public async Task<IActionResult> GetTags()
-    {
+    public async Task<IActionResult> GetTags() {
         var db = Db;
         if (db is null) return Ok(System.Array.Empty<object>());
         var rows = await db.Tags.AsNoTracking().OrderBy(t => t.Label)
@@ -95,10 +87,9 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(rows);
     }
 
-   
+
     [HttpGet("subject-tags/{kind}/{**key}")]
-    public async Task<IActionResult> GetSubjectTags(string kind, string key)
-    {
+    public async Task<IActionResult> GetSubjectTags(string kind, string key) {
         if (!ValidKind(kind)) return BadRequest(new { error = "invalid subject kind" });
         var db = Db;
         if (db is null) return Ok(System.Array.Empty<object>());
@@ -112,21 +103,19 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(rows);
     }
 
-   
+
     [HttpPost("subject-tags")]
-    public async Task<IActionResult> SetSubjectTagsAsync([FromBody] SetSubjectTags body)
-    {
+    public async Task<IActionResult> SetSubjectTagsAsync([FromBody] SetSubjectTags body) {
         if (RequireContributor() is { } no) return no;
         if (!ValidKind(body.SubjectKind)) return BadRequest(new { error = "invalid subject kind" });
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
 
         var wanted = (body.TagIds ?? []).Distinct().ToHashSet();
-       
-        if (wanted.Count > 0)
-        {
+
+        if (wanted.Count > 0) {
             var real = await db.Tags.Where(t => wanted.Contains(t.Id)).Select(t => t.Id).ToListAsync();
-            wanted = real.ToHashSet();
+            wanted = [.. real];
         }
 
         var current = await db.SubjectTags
@@ -142,11 +131,10 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(new { tagIds = wanted });
     }
 
-   
-   
+
+
     [HttpGet("tags-map")]
-    public async Task<IActionResult> GetTagsMap()
-    {
+    public async Task<IActionResult> GetTagsMap() {
         var db = Db;
         if (db is null) return Ok(new Dictionary<string, object>());
         var rows = await (
@@ -164,18 +152,17 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(map);
     }
 
-   
-   
+
+
 
     private const int MaxImageBytes = 4 * 1024 * 1024;
-   
+
     private static readonly HashSet<string> AllowedImageTypes =
         new(StringComparer.OrdinalIgnoreCase) { "image/png", "image/jpeg", "image/gif", "image/webp" };
 
-   
-   
-    internal static bool MagicMatches(byte[] b, string contentType) => contentType.ToLowerInvariant() switch
-    {
+
+
+    internal static bool MagicMatches(byte[] b, string contentType) => contentType.ToLowerInvariant() switch {
         "image/png" => b.Length >= 8
             && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47
             && b[4] == 0x0D && b[5] == 0x0A && b[6] == 0x1A && b[7] == 0x0A,
@@ -189,11 +176,10 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         _ => false,
     };
 
-   
+
     [HttpPost("image")]
     [RequestSizeLimit(MaxImageBytes + 64 * 1024)]
-    public async Task<IActionResult> UploadImageAsync(IFormFile? file)
-    {
+    public async Task<IActionResult> UploadImageAsync(IFormFile? file) {
         if (RequireContributor() is { } no) return no;
         if (file is null || file.Length == 0) return BadRequest(new { error = "no file" });
         if (file.Length > MaxImageBytes) return BadRequest(new { error = $"image exceeds {MaxImageBytes / (1024 * 1024)} MB" });
@@ -209,9 +195,10 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         if (!MagicMatches(bytes, ct))
             return BadRequest(new { error = $"file bytes do not match the declared type '{ct}'" });
 
-        var img = new DocImage
-        {
-            ContentType = ct, Bytes = bytes, ByteSize = bytes.Length,
+        var img = new DocImage {
+            ContentType = ct,
+            Bytes = bytes,
+            ByteSize = bytes.Length,
             OwnerUserId = currentUser.UserId,
         };
         db.DocImages.Add(img);
@@ -219,25 +206,23 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(new { id = img.Id, url = $"/api/docs/image/{img.Id}" });
     }
 
-   
+
     [HttpGet("image/{id:long}")]
-    public async Task<IActionResult> GetImage(long id)
-    {
+    public async Task<IActionResult> GetImage(long id) {
         var db = Db;
         if (db is null) return NotFound();
         var img = await db.DocImages.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id);
         if (img is null) return NotFound();
-       
-        Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+        Response.Headers.XContentTypeOptions = "nosniff";
         Response.Headers.CacheControl = "public, max-age=31536000, immutable";
         return File(img.Bytes, img.ContentType);
     }
 
-   
-   
+
+
     [HttpGet("has")]
-    public async Task<IActionResult> GetHasDocs()
-    {
+    public async Task<IActionResult> GetHasDocs() {
         var db = Db;
         if (db is null) return Ok(new Dictionary<string, bool>());
         var keys = await db.Docs.AsNoTracking()

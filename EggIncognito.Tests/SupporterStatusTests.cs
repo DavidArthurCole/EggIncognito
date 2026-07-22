@@ -3,20 +3,17 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class SupporterStatusTests
-{
+public class SupporterStatusTests {
     private const string RoleId = "1514877193162068018";
 
     [Fact]
-    public void ParseHasRole_RolePresent_True()
-    {
+    public void ParseHasRole_RolePresent_True() {
         var json = $$"""{"user":{"id":"1"},"roles":["111","{{RoleId}}","222"]}""";
         Assert.True(SupporterStatus.ParseHasRole(json, RoleId));
     }
 
     [Fact]
-    public void ParseHasRole_RoleAbsent_False()
-    {
+    public void ParseHasRole_RoleAbsent_False() {
         var json = """{"roles":["111","222"]}""";
         Assert.False(SupporterStatus.ParseHasRole(json, RoleId));
     }
@@ -30,16 +27,14 @@ public class SupporterStatusTests
         => Assert.False(SupporterStatus.ParseHasRole("not json", RoleId));
 
     [Fact]
-    public void Stamp_AddsClaim()
-    {
+    public void Stamp_AddsClaim() {
         var identity = new ClaimsIdentity("test");
         SupporterClaims.Stamp(identity, true);
         Assert.Equal("true", identity.FindFirst(SupporterClaims.ClaimType)?.Value);
     }
 
     [Fact]
-    public void Stamp_ReplacesExistingClaim()
-    {
+    public void Stamp_ReplacesExistingClaim() {
         var identity = new ClaimsIdentity("test");
         SupporterClaims.Stamp(identity, true);
         SupporterClaims.Stamp(identity, false);

@@ -3,19 +3,17 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class SymbolRecoveryTests
-{
-   
+public class SymbolRecoveryTests {
+
     private static uint Bl(long pc, long target) => 0x94000000u | (uint)(((target - pc) >> 2) & 0x03FFFFFF);
     private static uint Nop() => 0xD503201Fu;
     private static uint Ret() => 0xD65F03C0u;
     private static uint MovZ(int rd, uint imm16) => 0xD2800000u | ((imm16 & 0xFFFF) << 5) | (uint)(rd & 0x1F);
 
-    private static byte[] Words(params uint[] ws) => ws.SelectMany(BitConverter.GetBytes).ToArray();
+    private static byte[] Words(params uint[] ws) => [.. ws.SelectMany(BitConverter.GetBytes)];
 
     [Fact]
-    public void Recover_Tier0_TransplantsAllSymbols_WhenTextIdentical()
-    {
+    public void Recover_Tier0_TransplantsAllSymbols_WhenTextIdentical() {
         var text = Words(MovZ(0, 1), MovZ(1, 2), Ret(), MovZ(2, 3), Ret());
         var vm = SyntheticMacho.TextVm;
         var syms = new[]
@@ -35,11 +33,10 @@ public class SymbolRecoveryTests
     }
 
     [Fact]
-    public void Recover_Tier1_RecoversRelocatedUnchangedFunction_NotChangedOne()
-    {
+    public void Recover_Tier1_RecoversRelocatedUnchangedFunction_NotChangedOne() {
         var vm = SyntheticMacho.TextVm;
 
-       
+
         var refFuncA = Words(Bl((long)vm, (long)vm + 0x500), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         var refFuncB = Words(MovZ(0, 7), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         var refText = refFuncA.Concat(refFuncB).ToArray();
@@ -49,8 +46,8 @@ public class SymbolRecoveryTests
             new SyntheticMacho.Sym("__ZN6FuncB2goEv", vm + (ulong)refFuncA.Length),
         });
 
-       
-       
+
+
         var pad = Words(Nop(), Nop());
         var tgtFuncA = Words(Bl((long)vm + 8, (long)vm + 0x900), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         var tgtFuncBChanged = Words(MovZ(0, 9), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
@@ -69,8 +66,7 @@ public class SymbolRecoveryTests
     }
 
     [Fact]
-    public void Recover_None_WhenTargetHasNoText()
-    {
+    public void Recover_None_WhenTargetHasNoText() {
         var refb = SyntheticMacho.Build(Words(Ret()), new[] { new SyntheticMacho.Sym("__ZN1A1fEv", SyntheticMacho.TextVm) });
         var r = SymbolRecovery.Recover(refb, new byte[64], ["A1f"]);
         Assert.Equal("none", r.Tier);
@@ -78,8 +74,7 @@ public class SymbolRecoveryTests
     }
 
     [Fact]
-    public void Recover_Real_SelfRecovery_IsExactTransplant()
-    {
+    public void Recover_Real_SelfRecovery_IsExactTransplant() {
         var refb = RealSymbolized();
         if (refb is null) return;
         var r = SymbolRecovery.Recover(refb, refb, ["FarmScene10updateSilo", "GalaxyParticle7onBirth"]);
@@ -89,11 +84,10 @@ public class SymbolRecoveryTests
         Assert.Empty(r.RequestedMissing);
     }
 
-   
-   
+
+
     [Fact]
-    public void Recover_Real_AdjacentVersion_RecoversManyIncludingRealTargets()
-    {
+    public void Recover_Real_AdjacentVersion_RecoversManyIncludingRealTargets() {
         var refb = RealSymbolized();
         var tgt = RealStrippedAdjacent();
         if (refb is null || tgt is null) return;
@@ -103,15 +97,14 @@ public class SymbolRecoveryTests
         Assert.True(r.Recovered > 10_000, $"recovered={r.Recovered}");
 
         Assert.Contains(r.Symbols, s => s.Name == "__ZN14GalaxyParticle6updateEP14ParticleSystemf");
-       
-       
+
+
         Assert.DoesNotContain(r.Symbols, s => s.Name == "__ZN9FarmScene10updateSiloEP14GameControlleri");
     }
 
-   
+
     [Fact]
-    public void ExtractWith_RecoveredSymbols_PullsConstantsFromStrippedBinary()
-    {
+    public void ExtractWith_RecoveredSymbols_PullsConstantsFromStrippedBinary() {
         var refb = RealSymbolized();
         var tgt = RealStrippedAdjacent();
         if (refb is null || tgt is null) return;
@@ -129,11 +122,9 @@ public class SymbolRecoveryTests
     private static byte[]? RealSymbolized() => ExecFromIpa("com.auxbrain.egginc_1.35.6_und3fined.ipa");
     private static byte[]? RealStrippedAdjacent() => ExecFromIpa("Egg-Inc-IPAOMTK.COM_latest.ipa");
 
-    private static byte[]? ExecFromIpa(string fileName)
-    {
+    private static byte[]? ExecFromIpa(string fileName) {
         string? dir = null;
-        foreach (var rel in new[] { "../../../../captures/ipas", "../../../../../captures/ipas" })
-        {
+        foreach (var rel in new[] { "../../../../captures/ipas", "../../../../../captures/ipas" }) {
             var full = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, rel));
             if (Directory.Exists(full)) { dir = full; break; }
         }
@@ -141,8 +132,7 @@ public class SymbolRecoveryTests
         var path = Path.Combine(dir, fileName);
         if (!File.Exists(path)) return null;
         using var zip = ZipFile.OpenRead(path);
-        var e = zip.Entries.FirstOrDefault(en =>
-        {
+        var e = zip.Entries.FirstOrDefault(en => {
             var f = en.FullName;
             if (!f.StartsWith("Payload/", StringComparison.OrdinalIgnoreCase)) return false;
             var i = f.IndexOf(".app/", StringComparison.OrdinalIgnoreCase);

@@ -6,60 +6,50 @@ namespace EggIncognito.Services.Assets;
 
 //
 
-public static class GltfAnimator
-{
-    public enum AnimationKind
-    {
-       
+public static class GltfAnimator {
+    public enum AnimationKind {
+
         SpinY,
-       
+
         SpinZ,
-       
+
         HoverSpin,
     }
 
-    public sealed record Options(AnimationKind Kind = AnimationKind.SpinY, float DurationSeconds = 6f, float BobAmplitude = 0.15f)
-    {
+    public sealed record Options(AnimationKind Kind = AnimationKind.SpinY, float DurationSeconds = 6f, float BobAmplitude = 0.15f) {
         public static Options Spin(float seconds = 6f) => new(AnimationKind.SpinY, seconds);
     }
 
     public sealed record Result(bool Ok, byte[]? Glb, string Diagnostics, string AnimationName, float DurationSeconds);
 
-   
-   
-    public static Result Animate(byte[] glb, Options? options = null)
-    {
+
+
+    public static Result Animate(byte[] glb, Options? options = null) {
         var opts = options ?? new Options();
         if (glb is null || glb.Length < 12) return Fail("input glb too short", opts);
 
         ModelRoot model;
-        try { model = ModelRoot.ParseGLB(glb); }
-        catch (Exception ex) { return Fail($"not a valid glb: {ex.Message}", opts); }
+        try { model = ModelRoot.ParseGLB(glb); } catch (Exception ex) { return Fail($"not a valid glb: {ex.Message}", opts); }
 
         var node = TargetNode(model);
         if (node is null) return Fail("glb has no node to animate", opts);
 
         var name = opts.Kind.ToString();
-        try
-        {
+        try {
             ApplyAnimation(node, opts, name);
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             return Fail($"animation authoring failed: {ex.Message}", opts);
         }
 
         byte[] outGlb;
-        try { outGlb = model.WriteGLB().ToArray(); }
-        catch (Exception ex) { return Fail($"glb write failed: {ex.Message}", opts); }
+        try { outGlb = [.. model.WriteGLB()]; } catch (Exception ex) { return Fail($"glb write failed: {ex.Message}", opts); }
 
         return new Result(true, outGlb, "ok", name, opts.DurationSeconds);
     }
 
-   
-   
-    private static Node? TargetNode(ModelRoot model)
-    {
+
+
+    private static Node? TargetNode(ModelRoot model) {
         var scene = model.DefaultScene ?? model.LogicalScenes.FirstOrDefault();
         var fromScene = scene?.VisualChildren.FirstOrDefault(n => n.Mesh is not null)
                         ?? scene?.VisualChildren.FirstOrDefault();
@@ -68,16 +58,14 @@ public static class GltfAnimator
                ?? model.LogicalNodes.FirstOrDefault();
     }
 
-    private static void ApplyAnimation(Node node, Options opts, string name)
-    {
+    private static void ApplyAnimation(Node node, Options opts, string name) {
         var d = opts.DurationSeconds <= 0 ? 6f : opts.DurationSeconds;
 
-       
-       
+
+
         var pivot = RepivotToCenter(node);
 
-        switch (opts.Kind)
-        {
+        switch (opts.Kind) {
             case AnimationKind.SpinY:
                 pivot.WithRotationAnimation(name, SpinKeys(Vector3.UnitY, d));
                 break;
@@ -94,11 +82,10 @@ public static class GltfAnimator
         }
     }
 
-   
-   
-   
-    private static Node RepivotToCenter(Node node)
-    {
+
+
+
+    private static Node RepivotToCenter(Node node) {
         if (node.Mesh is null) return node;
         var center = MeshCenter(node.Mesh);
         if (center is null) return node;
@@ -117,18 +104,15 @@ public static class GltfAnimator
         return node;
     }
 
-   
-    private static Vector3? MeshCenter(Mesh mesh)
-    {
+
+    private static Vector3? MeshCenter(Mesh mesh) {
         var min = new Vector3(float.MaxValue);
         var max = new Vector3(float.MinValue);
         var any = false;
-        foreach (var prim in mesh.Primitives)
-        {
+        foreach (var prim in mesh.Primitives) {
             var pos = prim.GetVertexAccessor("POSITION");
             if (pos is null) continue;
-            foreach (var v in pos.AsVector3Array())
-            {
+            foreach (var v in pos.AsVector3Array()) {
                 any = true;
                 min = Vector3.Min(min, v);
                 max = Vector3.Max(max, v);
@@ -137,15 +121,13 @@ public static class GltfAnimator
         return any ? (min + max) * 0.5f : null;
     }
 
-   
-   
-    private static (float, Quaternion)[] SpinKeys(Vector3 axis, float duration)
-    {
+
+
+    private static (float, Quaternion)[] SpinKeys(Vector3 axis, float duration) {
         var a = Vector3.Normalize(axis);
         const int steps = 4;
         var keys = new (float, Quaternion)[steps + 1];
-        for (var i = 0; i <= steps; i++)
-        {
+        for (var i = 0; i <= steps; i++) {
             var t = duration * i / steps;
             var angle = MathF.PI * 2f * i / steps;
             keys[i] = (t, Quaternion.CreateFromAxisAngle(a, angle));
@@ -153,10 +135,9 @@ public static class GltfAnimator
         return keys;
     }
 
-   
-   
-    private static (float, Vector3)[] BobKeys(float amplitude, float duration, Vector3 baseTranslation)
-    {
+
+
+    private static (float, Vector3)[] BobKeys(float amplitude, float duration, Vector3 baseTranslation) {
         var half = duration / 2f;
         return
         [
@@ -169,7 +150,7 @@ public static class GltfAnimator
     private static Result Fail(string why, Options opts) =>
         new(false, null, why, opts.Kind.ToString(), opts.DurationSeconds);
 
-   
+
     public static AnimationKind ParseKind(string? s) =>
         Enum.TryParse<AnimationKind>(s, ignoreCase: true, out var k) ? k : AnimationKind.SpinY;
 }

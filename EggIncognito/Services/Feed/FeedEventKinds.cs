@@ -6,8 +6,7 @@ public sealed record FeedEventKindInfo(
     string Key, string Label, IReadOnlyList<FeedTriggerOption> Triggers,
     IReadOnlyList<string> Vars, string DefaultTrigger, bool PlatformScoped);
 
-public static class FeedEventKinds
-{
+public static class FeedEventKinds {
     public const string ProtoBuild = "proto_build";
     public const string PeriodicalsChanged = "periodicals_changed";
 
@@ -36,8 +35,7 @@ public static class FeedEventKinds
 
     public static string Normalize(string? key) => IsValid(key) ? key! : ProtoBuild;
 
-    public static string NormalizeTrigger(string kind, string? trigger)
-    {
+    public static string NormalizeTrigger(string kind, string? trigger) {
         var info = Find(kind) ?? Proto;
         return info.Triggers.Any(t => t.Value == trigger) ? trigger! : info.DefaultTrigger;
     }

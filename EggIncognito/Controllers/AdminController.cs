@@ -16,8 +16,12 @@ namespace EggIncognito.Controllers;
 [Route("api/admin")]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Admin)]
 [EnableRateLimiting("write")]
-public sealed class AdminController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
-{
+public sealed class AdminController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase {
+    private static readonly System.Text.Json.JsonSerializerOptions ProvenanceJson = new() {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
+
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
     private IdentityApiClient? Identity => services.GetService(typeof(IdentityApiClient)) as IdentityApiClient;
 
@@ -29,8 +33,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     public sealed record SetRole(string Role);
 
     [HttpGet("users")]
-    public async Task<IActionResult> Users()
-    {
+    public async Task<IActionResult> Users() {
         if (RequireAdmin() is { } no) return no;
         var identity = Identity; if (identity is null) return StatusCode(503, new { error = "identity api not configured" });
         var users = await identity.ListAdminUsersAsync(HttpContext.RequestAborted);
@@ -40,21 +43,26 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
     [HttpGet("api-keys")]
     [EnableRateLimiting("read")]
-    public async Task<IActionResult> ApiKeys(CancellationToken ct)
-    {
+    public async Task<IActionResult> ApiKeys(CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var store = Keys;
         if (store is null) return Ok(Array.Empty<object>());
         var rows = await store.AllAsync(ct);
-        return Ok(rows.Select(k => new
-        {
-            k.Id, k.Name, k.Prefix, k.OwnerUserId, k.CreatedAt, k.LastUsedAt, k.RequestCount, k.Revoked, k.RevokedAt,
+        return Ok(rows.Select(k => new {
+            k.Id,
+            k.Name,
+            k.Prefix,
+            k.OwnerUserId,
+            k.CreatedAt,
+            k.LastUsedAt,
+            k.RequestCount,
+            k.Revoked,
+            k.RevokedAt,
         }));
     }
 
     [HttpDelete("api-keys/{id:int}")]
-    public async Task<IActionResult> RevokeApiKey(int id, CancellationToken ct)
-    {
+    public async Task<IActionResult> RevokeApiKey(int id, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var store = Keys;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
@@ -64,8 +72,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     }
 
     [HttpDelete("api-keys/{id:int}/purge")]
-    public async Task<IActionResult> DeleteApiKey(int id, CancellationToken ct)
-    {
+    public async Task<IActionResult> DeleteApiKey(int id, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var store = Keys;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
@@ -77,19 +84,15 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
     [HttpGet("sessions")]
     [EnableRateLimiting("read")]
-    public IActionResult Sessions()
-    {
+    public IActionResult Sessions() {
         if (RequireAdmin() is { } no) return no;
         var rows = new List<object>();
 
         if (services.GetService(typeof(EggIncognito.Capture.CaptureSessionManager))
-            is EggIncognito.Capture.CaptureSessionManager mgr)
-        {
-            rows.AddRange(mgr.All().Select(x =>
-            {
+            is EggIncognito.Capture.CaptureSessionManager mgr) {
+            rows.AddRange(mgr.All().Select(x => {
                 var s = x.Session.Hub.StatsSnapshot();
-                return (object)new
-                {
+                return (object)new {
                     key = x.Key,
                     kind = x.Key == EggIncognito.Capture.CaptureSessionManager.LocalKey ? "local" : "user",
                     killable = true,
@@ -107,14 +110,11 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         if (services.GetService(typeof(EggIncognito.Services.Devices.DeviceCaptureManager))
                 is EggIncognito.Services.Devices.DeviceCaptureManager dcm
             && services.GetService(typeof(EggIncognito.Services.Devices.DeviceConfig))
-                is EggIncognito.Services.Devices.DeviceConfig devCfg)
-        {
-            rows.AddRange(devCfg.Devices.Select(d =>
-            {
+                is EggIncognito.Services.Devices.DeviceConfig devCfg) {
+            rows.AddRange(devCfg.Devices.Select(d => {
                 var diag = dcm.DiagFor(d.Id);
                 var port = dcm.PortFor(d.Id);
-                return (object)new
-                {
+                return (object)new {
                     key = $"device:{d.Id}",
                     kind = "device",
                     killable = false,
@@ -134,57 +134,47 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
     [HttpGet("data-status")]
     [EnableRateLimiting("read")]
-    public IActionResult DataStatus()
-    {
+    public IActionResult DataStatus() {
         if (RequireAdmin() is { } no) return no;
 
         var gameData = new List<object>();
-        if (services.GetService(typeof(IGameDataProvider)) is IGameDataProvider provider)
-        {
-            foreach (var f in provider.Families)
-                gameData.Add(new
-                {
+        if (services.GetService(typeof(IGameDataProvider)) is IGameDataProvider provider) {
+            foreach (var f in provider.Families) {
+                gameData.Add(new {
                     key = f.Key,
                     count = f.Effects.Count,
-                    provenance = (f as EmbeddedEffectFamily)?.Status ?? "",
+                    provenance = System.Text.Json.JsonSerializer.Serialize(f.Provenance, ProvenanceJson),
                 });
+            }
+
             var col = provider.Colleggtibles;
-            gameData.Add(new
-            {
+            gameData.Add(new {
                 key = "colleggtibles",
                 count = col.Eggs.Count,
-                provenance = string.IsNullOrEmpty(col.BinaryVersion) ? col.Status : col.BinaryVersion,
+                gameVersion = col.GameVersion,
+                provenance = System.Text.Json.JsonSerializer.Serialize(col.Provenance, ProvenanceJson),
             });
         }
 
         var platforms = Array.Empty<object>();
         var configEnabled = false;
-        if (services.GetService(typeof(GameConfigStore)) is GameConfigStore store)
-        {
+        if (services.GetService(typeof(GameConfigStore)) is GameConfigStore store) {
             configEnabled = store.Enabled;
-            platforms = store.List()
-                .Select(c => (object)new { platform = c.Platform, savedAt = c.SavedAt, bytes = c.Bytes })
-                .ToArray();
+            platforms = [.. store.List().Select(c => (object)new { platform = c.Platform, savedAt = c.SavedAt, bytes = c.Bytes })];
         }
 
         var fixtures = new List<object>();
-        if (services.GetService(typeof(IConfiguration)) is IConfiguration cfg)
-        {
+        if (services.GetService(typeof(IConfiguration)) is IConfiguration cfg) {
             var eiDir = Path.Combine(ContentRoot.Resolve(cfg["ContentRoot"]), "Endpoints", "default", "ei");
-            if (Directory.Exists(eiDir))
-            {
-                foreach (var path in Directory.EnumerateFiles(eiDir, "*.json").OrderBy(p => p, StringComparer.Ordinal))
-                {
+            if (Directory.Exists(eiDir)) {
+                foreach (var path in Directory.EnumerateFiles(eiDir, "*.json").OrderBy(p => p, StringComparer.Ordinal)) {
                     var info = new FileInfo(path);
                     string status;
-                    try
-                    {
+                    try {
                         var trimmed = System.IO.File.ReadAllText(path).Trim();
                         status = trimmed.Length == 0 || trimmed == "{}" ? "empty" : "ok";
-                    }
-                    catch { status = "unreadable"; }
-                    fixtures.Add(new
-                    {
+                    } catch { status = "unreadable"; }
+                    fixtures.Add(new {
                         name = Path.GetFileNameWithoutExtension(info.Name),
                         bytes = info.Length,
                         updatedAt = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
@@ -200,12 +190,9 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
 
     [HttpDelete("sessions/{key}")]
-    public async Task<IActionResult> KillSession(string key)
-    {
+    public async Task<IActionResult> KillSession(string key) {
         if (RequireAdmin() is { } no) return no;
-        var mgr = services.GetService(typeof(EggIncognito.Capture.CaptureSessionManager))
-            as EggIncognito.Capture.CaptureSessionManager;
-        if (mgr is null) return StatusCode(503, new { error = "capture not configured" });
+        if (services.GetService(typeof(EggIncognito.Capture.CaptureSessionManager)) is not EggIncognito.Capture.CaptureSessionManager mgr) return StatusCode(503, new { error = "capture not configured" });
         var session = mgr.Get(key);
         if (session is null) return NotFound(new { error = "session not found" });
         await session.StopAsync();
@@ -214,8 +201,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     }
 
     [HttpPost("users/{discordId}/role")]
-    public async Task<IActionResult> SetUserRole(string discordId, [FromBody] SetRole body)
-    {
+    public async Task<IActionResult> SetUserRole(string discordId, [FromBody] SetRole body) {
         if (RequireAdmin() is { } no) return no;
         var role = (body.Role ?? "").Trim().ToLowerInvariant();
         if (role is not ("viewer" or "contributor" or "admin"))
@@ -231,11 +217,10 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { discordId, role });
     }
 
-   
-   
+
+
     [HttpPost("backfill-capture-user-ids")]
-    public async Task<IActionResult> BackfillCaptureUserIds(CancellationToken ct)
-    {
+    public async Task<IActionResult> BackfillCaptureUserIds(CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
         var identity = Identity; if (identity is null) return StatusCode(503, new { error = "identity api not configured" });
@@ -243,12 +228,11 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { updated });
     }
 
-   
-   
-   
+
+
+
     [HttpPost("backfill-owner-author-user-ids")]
-    public async Task<IActionResult> BackfillOwnerAuthorUserIds(CancellationToken ct)
-    {
+    public async Task<IActionResult> BackfillOwnerAuthorUserIds(CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
         var identity = Identity; if (identity is null) return StatusCode(503, new { error = "identity api not configured" });
@@ -257,8 +241,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     }
 
     [HttpDelete("endpoint/{id:long}")]
-    public async Task<IActionResult> DeleteEndpoint(long id)
-    {
+    public async Task<IActionResult> DeleteEndpoint(long id) {
         if (RequireAdmin() is { } no) return no;
         var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
         var row = await db.StoredEndpoints.FindAsync(id);
@@ -269,8 +252,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     }
 
     [HttpDelete("route/{id:long}")]
-    public async Task<IActionResult> DeleteRoute(long id)
-    {
+    public async Task<IActionResult> DeleteRoute(long id) {
         if (RequireAdmin() is { } no) return no;
         var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
         var row = await db.StoredRoutes.FindAsync(id);
@@ -283,10 +265,9 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
     public sealed record AddTag(string Slug, string Label, string? Color);
 
-   
+
     [HttpPost("tag")]
-    public async Task<IActionResult> AddTagAsync([FromBody] AddTag body)
-    {
+    public async Task<IActionResult> AddTagAsync([FromBody] AddTag body) {
         if (RequireAdmin() is { } no) return no;
         var slug = (body.Slug ?? "").Trim().ToLowerInvariant();
         var label = (body.Label ?? "").Trim();
@@ -301,10 +282,9 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { tag.Id, tag.Slug, tag.Label, tag.Color });
     }
 
-   
+
     [HttpDelete("tag/{id:long}")]
-    public async Task<IActionResult> DeleteTag(long id)
-    {
+    public async Task<IActionResult> DeleteTag(long id) {
         if (RequireAdmin() is { } no) return no;
         var db = Db; if (db is null) return StatusCode(503, new { error = "no database configured" });
         var tag = await db.Tags.FindAsync(id);

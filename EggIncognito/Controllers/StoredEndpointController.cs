@@ -1,8 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SyncKit.Contract;
 
@@ -12,8 +12,7 @@ namespace EggIncognito.Controllers;
 [Route("api/db")]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("write")]
-public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase
-{
+public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase {
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
     private IActionResult? RequireContributor() =>
@@ -27,8 +26,7 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
 
     [HttpPost("endpoint")]
     public async Task<IActionResult> UpsertEndpointAsync([FromBody] UpsertEndpoint body,
-        [FromServices] IRouteCatalog routes)
-    {
+        [FromServices] IRouteCatalog routes) {
         if (RequireContributor() is { } no) return no;
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
@@ -36,20 +34,18 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
 
         var existing = await db.StoredEndpoints
             .FirstOrDefaultAsync(e => e.Path == body.Path && e.Eid == body.Eid);
-        if (existing is null)
-        {
-            db.StoredEndpoints.Add(new StoredEndpoint
-            {
-                Path = body.Path, Eid = body.Eid,
-                ResponseJson = body.ResponseJson, ResponseType = body.ResponseType,
+        if (existing is null) {
+            db.StoredEndpoints.Add(new StoredEndpoint {
+                Path = body.Path,
+                Eid = body.Eid,
+                ResponseJson = body.ResponseJson,
+                ResponseType = body.ResponseType,
                 OwnerUserId = currentUser.UserId,
             });
-        }
-        else
-        {
+        } else {
             existing.ResponseJson = body.ResponseJson;
             existing.ResponseType = body.ResponseType;
-           
+
             existing.UpdatedAt = System.DateTimeOffset.UtcNow;
         }
         await db.SaveChangesAsync();
@@ -57,27 +53,30 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
     }
 
     [HttpPost("route")]
-    public async Task<IActionResult> AddRouteAsync([FromBody] AddRoute body, [FromServices] IRouteCatalog routes)
-    {
+    public async Task<IActionResult> AddRouteAsync([FromBody] AddRoute body, [FromServices] IRouteCatalog routes) {
         if (RequireContributor() is { } no) return no;
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
         if (routes.Get(body.Path) is not null) return Conflict(new { error = $"route {body.Path} already exists" });
 
-        db.StoredRoutes.Add(new StoredRoute
-        {
-            Path = body.Path, RequestType = body.RequestType, ResponseType = body.ResponseType,
-            RequestWrapped = body.RequestWrapped, ResponseWrapped = body.ResponseWrapped,
-            RawResponse = body.RawResponse, PathParam = body.PathParam, PathParamOnly = body.PathParamOnly,
-            Source = "db", OwnerUserId = currentUser.UserId,
+        db.StoredRoutes.Add(new StoredRoute {
+            Path = body.Path,
+            RequestType = body.RequestType,
+            ResponseType = body.ResponseType,
+            RequestWrapped = body.RequestWrapped,
+            ResponseWrapped = body.ResponseWrapped,
+            RawResponse = body.RawResponse,
+            PathParam = body.PathParam,
+            PathParamOnly = body.PathParamOnly,
+            Source = "db",
+            OwnerUserId = currentUser.UserId,
         });
         await db.SaveChangesAsync();
         return Ok(new { added = body.Path });
     }
 
     [HttpGet("endpoints")]
-    public async Task<IActionResult> ListEndpointsAsync()
-    {
+    public async Task<IActionResult> ListEndpointsAsync() {
         var db = Db;
         if (db is null) return Ok(System.Array.Empty<object>());
         var rows = await db.StoredEndpoints.AsNoTracking()
@@ -86,8 +85,7 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
     }
 
     [HttpGet("routes")]
-    public async Task<IActionResult> ListRoutesAsync()
-    {
+    public async Task<IActionResult> ListRoutesAsync() {
         var db = Db;
         if (db is null) return Ok(System.Array.Empty<object>());
         var rows = await db.StoredRoutes.AsNoTracking().Where(r => r.Source == "db")

@@ -1,25 +1,27 @@
 {
   "binaryVersion": "egginc-1.35.6",
-  "status": "extracted@egginc-1.35.6, positional (ordered movz decode)",
+  "provenance": {
+    "capacity": { "origin": "binary", "locator": "habdata", "method": "decoded" }
+  },
   "rows": [
-    { "id": "COOP", "target": "HabCapacity", "combineMode": "Add", "magnitude": 250, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 0, "name": "Coop" } },
-    { "id": "SHACK", "target": "HabCapacity", "combineMode": "Add", "magnitude": 500, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 1, "name": "Shack" } },
-    { "id": "SUPER_SHACK", "target": "HabCapacity", "combineMode": "Add", "magnitude": 1000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 2, "name": "Super Shack" } },
-    { "id": "SHORT_HOUSE", "target": "HabCapacity", "combineMode": "Add", "magnitude": 2000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 3, "name": "Short House" } },
-    { "id": "THE_STANDARD", "target": "HabCapacity", "combineMode": "Add", "magnitude": 5000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 4, "name": "The Standard" } },
-    { "id": "LONG_HOUSE", "target": "HabCapacity", "combineMode": "Add", "magnitude": 10000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 5, "name": "Long House" } },
-    { "id": "DOUBLE_DECKER", "target": "HabCapacity", "combineMode": "Add", "magnitude": 20000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 6, "name": "Double Decker" } },
-    { "id": "WAREHOUSE", "target": "HabCapacity", "combineMode": "Add", "magnitude": 50000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 7, "name": "Warehouse" } },
-    { "id": "CENTER", "target": "HabCapacity", "combineMode": "Add", "magnitude": 100000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 8, "name": "Center" } },
-    { "id": "BUNKER", "target": "HabCapacity", "combineMode": "Add", "magnitude": 200000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 9, "name": "Bunker" } },
-    { "id": "EGGKEA", "target": "HabCapacity", "combineMode": "Add", "magnitude": 500000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 10, "name": "Eggkea" } },
-    { "id": "HAB_1K", "target": "HabCapacity", "combineMode": "Add", "magnitude": 1000000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 11, "name": "HAB 1000" } },
-    { "id": "HANGAR", "target": "HabCapacity", "combineMode": "Add", "magnitude": 2000000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 12, "name": "Hangar" } },
-    { "id": "TOWER", "target": "HabCapacity", "combineMode": "Add", "magnitude": 5000000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 13, "name": "Tower" } },
-    { "id": "HAB_10K", "target": "HabCapacity", "combineMode": "Add", "magnitude": 10000000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 14, "name": "HAB 10,000" } },
-    { "id": "EGGTOPIA", "target": "HabCapacity", "combineMode": "Add", "magnitude": 25000000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 15, "name": "Eggtopia" } },
-    { "id": "MONOLITH", "target": "HabCapacity", "combineMode": "Add", "magnitude": 50000000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 16, "name": "Monolith" } },
-    { "id": "PLANET_PORTAL", "target": "HabCapacity", "combineMode": "Add", "magnitude": 100000000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 17, "name": "Planet Portal" } },
-    { "id": "CHICKEN_UNIVERSE", "target": "HabCapacity", "combineMode": "Add", "magnitude": 600000000, "source": "extracted@egginc-1.35.6:__GLOBAL__sub_I_habdata.cpp", "meta": { "habId": 18, "name": "Chicken Universe" } }
+    { "id": "COOP", "target": "HabCapacity", "combineMode": "Add", "magnitude": 250, "meta": { "habId": 0, "name": "Coop" } },
+    { "id": "SHACK", "target": "HabCapacity", "combineMode": "Add", "magnitude": 500, "meta": { "habId": 1, "name": "Shack" } },
+    { "id": "SUPER_SHACK", "target": "HabCapacity", "combineMode": "Add", "magnitude": 1000, "meta": { "habId": 2, "name": "Super Shack" } },
+    { "id": "SHORT_HOUSE", "target": "HabCapacity", "combineMode": "Add", "magnitude": 2000, "meta": { "habId": 3, "name": "Short House" } },
+    { "id": "THE_STANDARD", "target": "HabCapacity", "combineMode": "Add", "magnitude": 5000, "meta": { "habId": 4, "name": "The Standard" } },
+    { "id": "LONG_HOUSE", "target": "HabCapacity", "combineMode": "Add", "magnitude": 10000, "meta": { "habId": 5, "name": "Long House" } },
+    { "id": "DOUBLE_DECKER", "target": "HabCapacity", "combineMode": "Add", "magnitude": 20000, "meta": { "habId": 6, "name": "Double Decker" } },
+    { "id": "WAREHOUSE", "target": "HabCapacity", "combineMode": "Add", "magnitude": 50000, "meta": { "habId": 7, "name": "Warehouse" } },
+    { "id": "CENTER", "target": "HabCapacity", "combineMode": "Add", "magnitude": 100000, "meta": { "habId": 8, "name": "Center" } },
+    { "id": "BUNKER", "target": "HabCapacity", "combineMode": "Add", "magnitude": 200000, "meta": { "habId": 9, "name": "Bunker" } },
+    { "id": "EGGKEA", "target": "HabCapacity", "combineMode": "Add", "magnitude": 500000, "meta": { "habId": 10, "name": "Eggkea" } },
+    { "id": "HAB_1K", "target": "HabCapacity", "combineMode": "Add", "magnitude": 1000000, "meta": { "habId": 11, "name": "HAB 1000" } },
+    { "id": "HANGAR", "target": "HabCapacity", "combineMode": "Add", "magnitude": 2000000, "meta": { "habId": 12, "name": "Hangar" } },
+    { "id": "TOWER", "target": "HabCapacity", "combineMode": "Add", "magnitude": 5000000, "meta": { "habId": 13, "name": "Tower" } },
+    { "id": "HAB_10K", "target": "HabCapacity", "combineMode": "Add", "magnitude": 10000000, "meta": { "habId": 14, "name": "HAB 10,000" } },
+    { "id": "EGGTOPIA", "target": "HabCapacity", "combineMode": "Add", "magnitude": 25000000, "meta": { "habId": 15, "name": "Eggtopia" } },
+    { "id": "MONOLITH", "target": "HabCapacity", "combineMode": "Add", "magnitude": 50000000, "meta": { "habId": 16, "name": "Monolith" } },
+    { "id": "PLANET_PORTAL", "target": "HabCapacity", "combineMode": "Add", "magnitude": 100000000, "meta": { "habId": 17, "name": "Planet Portal" } },
+    { "id": "CHICKEN_UNIVERSE", "target": "HabCapacity", "combineMode": "Add", "magnitude": 600000000, "meta": { "habId": 18, "name": "Chicken Universe" } }
   ]
 }

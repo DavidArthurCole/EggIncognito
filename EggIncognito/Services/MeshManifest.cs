@@ -3,16 +3,12 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
 
-public static class MeshManifest
-{
-    public static object From(RpoAssetExtractor.ExtractResult r)
-    {
-        var ships = r.Assets.Where(a => a.Decode.Ok).Select(a =>
-        {
+public static class MeshManifest {
+    public static object From(RpoAssetExtractor.ExtractResult r) {
+        var ships = r.Assets.Where(a => a.Decode.Ok).Select(a => {
             var glb = a.Decode.Glb!;
             var b = a.Decode.Bounds!;
-            return new
-            {
+            return new {
                 key = a.Key,
                 source = a.SourceEntry,
                 vertexCount = a.Decode.VertexCount,
@@ -30,14 +26,12 @@ public static class MeshManifest
         return new { ok = r.Ok, diagnostics = r.Diagnostics, count = ships.Count, ships, failed };
     }
 
-   
-   
+
+
     public static object Ships(RpoAssetExtractor.ExtractResult r, string? build, bool wroteToDisk, string? outputDir,
-        EggIncognito.Services.Assets.GltfAnimator.Options? animate = null)
-    {
+        EggIncognito.Services.Assets.GltfAnimator.Options? animate = null) {
         var export = ShipAssetExporter.Build(r, build, animate);
-        var ships = export.Ships.Select(s => new
-        {
+        var ships = export.Ships.Select(s => new {
             enumName = s.EnumName,
             file = s.Entry.File,
             sha256 = s.Entry.Sha256,
@@ -45,8 +39,7 @@ public static class MeshManifest
             glbBase64 = Convert.ToBase64String(s.Glb),
         }).ToList();
 
-        return new
-        {
+        return new {
             ok = ships.Count > 0,
             count = ships.Count,
             manifest = export.Manifest,

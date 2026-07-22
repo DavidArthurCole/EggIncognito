@@ -6,13 +6,11 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public class RpoMeshDecoderTests
-{
+public class RpoMeshDecoderTests {
     private static byte[] BuildRpo() => SampleRpo.Build();
 
     [Fact]
-    public void Decode_SyntheticTriangle_ParsesCountsAndBounds()
-    {
+    public void Decode_SyntheticTriangle_ParsesCountsAndBounds() {
         var r = RpoMeshDecoder.Decode(BuildRpo());
         Assert.True(r.Ok, r.Diagnostics);
         Assert.Equal(3, r.VertexCount);
@@ -25,8 +23,7 @@ public class RpoMeshDecoderTests
     }
 
     [Fact]
-    public void Decode_PreservesEmissionAsColor0()
-    {
+    public void Decode_PreservesEmissionAsColor0() {
         var r = RpoMeshDecoder.Decode(BuildRpo());
         Assert.True(r.HasEmission, "emission (COLOR_0) must survive into the glb");
 
@@ -37,8 +34,7 @@ public class RpoMeshDecoderTests
     }
 
     [Fact]
-    public void Decode_ProducesValidGlbContainer()
-    {
+    public void Decode_ProducesValidGlbContainer() {
         var glb = RpoMeshDecoder.Decode(BuildRpo()).Glb!;
         Assert.Equal((uint)0x46546C67, BinaryPrimitives.ReadUInt32LittleEndian(glb));
         Assert.Equal((uint)2, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(4)));
@@ -48,8 +44,7 @@ public class RpoMeshDecoderTests
     }
 
     [Fact]
-    public void Decode_Rpoz_ZlibWrapped_RoundTrips()
-    {
+    public void Decode_Rpoz_ZlibWrapped_RoundTrips() {
         var rpoz = ZlibWrap(BuildRpo());
         var r = RpoMeshDecoder.Decode(rpoz);
         Assert.True(r.Ok, r.Diagnostics);
@@ -58,8 +53,7 @@ public class RpoMeshDecoderTests
     }
 
     [Fact]
-    public void Decode_BadMagic_FailsCleanly()
-    {
+    public void Decode_BadMagic_FailsCleanly() {
         var junk = new byte[64];
         junk[0] = 0xDE; junk[1] = 0xAD;
         var r = RpoMeshDecoder.Decode(junk);
@@ -71,11 +65,9 @@ public class RpoMeshDecoderTests
     public void Decode_Empty_FailsCleanly() => Assert.False(RpoMeshDecoder.Decode([]).Ok);
 
     [Fact]
-    public void Extract_ZipWithRpo_DecodesNamedByEntry()
-    {
+    public void Extract_ZipWithRpo_DecodesNamedByEntry() {
         using var ms = new MemoryStream();
-        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
-        {
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true)) {
             using var es = zip.CreateEntry("assets/rpos/Henerprise.rpo").Open();
             es.Write(BuildRpo());
         }
@@ -87,11 +79,9 @@ public class RpoMeshDecoderTests
     }
 
     [Fact]
-    public void Extract_NoMeshEntries_ReportsNotFound()
-    {
+    public void Extract_NoMeshEntries_ReportsNotFound() {
         using var ms = new MemoryStream();
-        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
-        {
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true)) {
             using var es = zip.CreateEntry("AndroidManifest.xml").Open();
             es.Write([1, 2, 3]);
         }
@@ -100,21 +90,19 @@ public class RpoMeshDecoderTests
         Assert.Empty(r.Assets);
     }
 
-    private static byte[] ZlibWrap(byte[] data)
-    {
+    private static byte[] ZlibWrap(byte[] data) {
         using var ms = new MemoryStream();
         ms.WriteByte(0x78);
         ms.WriteByte(0x9C);
-       
+
         ms.SetLength(0);
         using (var zl = new ZLibStream(ms, CompressionLevel.Optimal, leaveOpen: true))
             zl.Write(data);
         return ms.ToArray();
     }
 
-   
-    private static Dictionary<string, JsonElement> PrimitiveAttributes(byte[] glb)
-    {
+
+    private static Dictionary<string, JsonElement> PrimitiveAttributes(byte[] glb) {
         var jsonLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12));
         var json = Encoding.UTF8.GetString(glb, 20, jsonLen);
         using var doc = JsonDocument.Parse(json);

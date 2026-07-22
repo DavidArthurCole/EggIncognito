@@ -3,8 +3,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Tests;
 
-public sealed class AuxbrainCatalogTests
-{
+public sealed class AuxbrainCatalogTests {
     private static RouteInfo Route(
         string path,
         string? request = "ConfigRequest",
@@ -13,8 +12,7 @@ public sealed class AuxbrainCatalogTests
         bool responseWrapped = false,
         bool pathParam = false,
         IReadOnlyList<string>? aliases = null) =>
-        new(path, request, response, requestWrapped, responseWrapped, null, pathParam, false)
-        { Aliases = aliases ?? [] };
+        new(path, request, response, requestWrapped, responseWrapped, null, pathParam, false) { Aliases = aliases ?? [] };
 
     private static CanonicalPath Canonical(
         string? request = "ConfigRequest",
@@ -29,11 +27,9 @@ public sealed class AuxbrainCatalogTests
         new(ok ?? [], empty ?? [], missing ?? []);
 
     [Fact]
-    public void Build_UnionsMockOnly_Matched_AndRealUnmocked()
-    {
+    public void Build_UnionsMockOnly_Matched_AndRealUnmocked() {
         var routes = new[] { Route("ei/mock_only"), Route("ei/matched") };
-        var canonical = new Dictionary<string, CanonicalPath>
-        {
+        var canonical = new Dictionary<string, CanonicalPath> {
             ["ei/matched"] = Canonical(),
             ["ei/real_only"] = Canonical("FooRequest", "FooResponse", requestWrapped: true),
         };
@@ -52,8 +48,7 @@ public sealed class AuxbrainCatalogTests
     }
 
     [Fact]
-    public void Build_MapsEndpointStatusBuckets()
-    {
+    public void Build_MapsEndpointStatusBuckets() {
         var routes = new[] { Route("ei/a"), Route("ei/b"), Route("ei/c") };
         var status = Status(ok: ["ei/a"], empty: ["ei/b"], missing: ["ei/c"]);
 
@@ -65,19 +60,16 @@ public sealed class AuxbrainCatalogTests
     }
 
     [Fact]
-    public void Build_RouteNotInStatusResult_CountsAsOk()
-    {
+    public void Build_RouteNotInStatusResult_CountsAsOk() {
         var entries = AuxbrainCatalog.Build(
             [Route("ei/raw")], new Dictionary<string, CanonicalPath>(), Status());
         Assert.Equal(AuxbrainStatus.Ok, entries.Single().Status);
     }
 
     [Fact]
-    public void Build_MatchedPath_UsesRouteShapeNotCanonical()
-    {
+    public void Build_MatchedPath_UsesRouteShapeNotCanonical() {
         var routes = new[] { Route("ei/coop_status", responseWrapped: false) };
-        var canonical = new Dictionary<string, CanonicalPath>
-        {
+        var canonical = new Dictionary<string, CanonicalPath> {
             ["ei/coop_status"] = Canonical(responseWrapped: true),
         };
 
@@ -86,11 +78,9 @@ public sealed class AuxbrainCatalogTests
     }
 
     [Fact]
-    public void Build_PassesAliasesThrough_AndSkipsAliasCoveredCanonicalKeys()
-    {
+    public void Build_PassesAliasesThrough_AndSkipsAliasCoveredCanonicalKeys() {
         var routes = new[] { Route("ei/new_name", aliases: ["ei/old_name"]) };
-        var canonical = new Dictionary<string, CanonicalPath>
-        {
+        var canonical = new Dictionary<string, CanonicalPath> {
             ["ei/new_name"] = Canonical(),
             ["ei/old_name"] = Canonical(),
         };
@@ -103,8 +93,7 @@ public sealed class AuxbrainCatalogTests
     }
 
     [Fact]
-    public void Build_ExtractsNamespaceFromFirstSegment()
-    {
+    public void Build_ExtractsNamespaceFromFirstSegment() {
         var entries = AuxbrainCatalog.Build(
             [Route("ei_ctx/get_leaderboard"), Route("ei/get_config")],
             new Dictionary<string, CanonicalPath>(), Status());
@@ -114,8 +103,7 @@ public sealed class AuxbrainCatalogTests
     }
 
     [Fact]
-    public void Label_CoversAllStatuses()
-    {
+    public void Label_CoversAllStatuses() {
         Assert.Equal("ok", AuxbrainCatalog.Label(AuxbrainStatus.Ok));
         Assert.Equal("empty", AuxbrainCatalog.Label(AuxbrainStatus.Empty));
         Assert.Equal("missing", AuxbrainCatalog.Label(AuxbrainStatus.Missing));
@@ -123,8 +111,7 @@ public sealed class AuxbrainCatalogTests
     }
 
     [Fact]
-    public void ResolveJsonPath_FindsRepoFile_AndLoadCanonicalParsesIt()
-    {
+    public void ResolveJsonPath_FindsRepoFile_AndLoadCanonicalParsesIt() {
         var path = AuxbrainCatalog.ResolveJsonPath(new ConfigurationBuilder().Build());
         Assert.True(File.Exists(path), $"auxbrain-paths.json not found at {path}");
 
@@ -140,22 +127,18 @@ public sealed class AuxbrainCatalogTests
     }
 
     [Fact]
-    public void ResolveJsonPath_ConfigOverrideWins()
-    {
+    public void ResolveJsonPath_ConfigOverrideWins() {
         var tmp = Path.Combine(Path.GetTempPath(), "egi-axp-" + Guid.NewGuid().ToString("N") + ".json");
         File.WriteAllText(tmp, "{}");
-        try
-        {
+        try {
             var config = new ConfigurationBuilder().AddInMemoryCollection(
                 new Dictionary<string, string?> { ["AuxbrainPathsPath"] = tmp }).Build();
             Assert.Equal(tmp, AuxbrainCatalog.ResolveJsonPath(config));
-        }
-        finally { File.Delete(tmp); }
+        } finally { File.Delete(tmp); }
     }
 
     [Fact]
-    public void LoadCanonical_MissingFile_ReturnsEmpty()
-    {
+    public void LoadCanonical_MissingFile_ReturnsEmpty() {
         var canonical = AuxbrainCatalog.LoadCanonical(
             Path.Combine(Path.GetTempPath(), "egi-axp-none-" + Guid.NewGuid().ToString("N") + ".json"));
         Assert.Empty(canonical);

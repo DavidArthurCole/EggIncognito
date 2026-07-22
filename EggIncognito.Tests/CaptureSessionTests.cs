@@ -2,10 +2,8 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-public class CaptureSessionTests
-{
-    private static CaptureSession NewSession(out FakeCaptureProxy fake)
-    {
+public class CaptureSessionTests {
+    private static CaptureSession NewSession(out FakeCaptureProxy fake) {
         var f = new FakeCaptureProxy();
         fake = f;
         var contentRoot = RealContentRoot();
@@ -16,11 +14,9 @@ public class CaptureSessionTests
         return new CaptureSession(contentRoot, opts, _ => f);
     }
 
-    private static string RealContentRoot()
-    {
+    private static string RealContentRoot() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
+        while (dir is not null) {
             var candidate = Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
             if (File.Exists(candidate)) return Path.Combine(dir.FullName, "EggIncognito");
             dir = dir.Parent;
@@ -29,8 +25,7 @@ public class CaptureSessionTests
     }
 
     [Fact]
-    public async Task Start_SetsRunning_AndStartsProxyOnce()
-    {
+    public async Task Start_SetsRunning_AndStartsProxyOnce() {
         var s = NewSession(out var fake);
         var result = await s.StartAsync(CancellationToken.None);
         Assert.True(s.Status.Running);
@@ -40,8 +35,7 @@ public class CaptureSessionTests
     }
 
     [Fact]
-    public async Task Start_IsIdempotent()
-    {
+    public async Task Start_IsIdempotent() {
         var s = NewSession(out var fake);
         await s.StartAsync(CancellationToken.None);
         await s.StartAsync(CancellationToken.None);
@@ -50,8 +44,7 @@ public class CaptureSessionTests
     }
 
     [Fact]
-    public async Task Stop_IsIdempotent_AndStopsProxy()
-    {
+    public async Task Stop_IsIdempotent_AndStopsProxy() {
         var s = NewSession(out var fake);
         await s.StartAsync(CancellationToken.None);
         await s.StopAsync();
@@ -61,8 +54,7 @@ public class CaptureSessionTests
     }
 
     [Fact]
-    public async Task StartStopStart_RoundTrips()
-    {
+    public async Task StartStopStart_RoundTrips() {
         var s = NewSession(out var fake);
         await s.StartAsync(CancellationToken.None);
         await s.StopAsync();
@@ -73,8 +65,7 @@ public class CaptureSessionTests
     }
 
     [Fact]
-    public async Task Start_ProxyStartThrows_ResetsToStopped_AndRemainsRestartable()
-    {
+    public async Task Start_ProxyStartThrows_ResetsToStopped_AndRemainsRestartable() {
         var s = NewSession(out var fake);
         fake.ThrowOnStart = true;
         await Assert.ThrowsAsync<InvalidOperationException>(() => s.StartAsync(CancellationToken.None));
@@ -90,8 +81,7 @@ public class CaptureSessionTests
     }
 
     [Fact]
-    public async Task Stop_ProxyStopThrows_StillResetsToStopped()
-    {
+    public async Task Stop_ProxyStopThrows_StillResetsToStopped() {
         var s = NewSession(out var fake);
         await s.StartAsync(CancellationToken.None);
         fake.ThrowOnStop = true;
@@ -107,8 +97,7 @@ public class CaptureSessionTests
     }
 
     [Fact]
-    public async Task Stop_ClearsDevicesChangedSubscription()
-    {
+    public async Task Stop_ClearsDevicesChangedSubscription() {
         var s = NewSession(out _);
         await s.StartAsync(CancellationToken.None);
         Assert.NotNull(s.Hub.DevicesChanged);
@@ -117,8 +106,7 @@ public class CaptureSessionTests
     }
 
     [Fact]
-    public async Task Status_ReflectsActiveClients_AndResetsOnStop()
-    {
+    public async Task Status_ReflectsActiveClients_AndResetsOnStop() {
         var s = NewSession(out var fake);
         await s.StartAsync(CancellationToken.None);
         fake.EmitConnect(3, "192.168.1.50");

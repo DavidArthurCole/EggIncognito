@@ -1,18 +1,16 @@
 using EggIncognito.Controllers;
 using EggIncognito.Data.Models;
-using SyncKit.Contract;
 using EggIncognito.Services;
 using EggIncognito.Services.Devices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using SyncKit.Contract;
 using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 
-public class DevicesControllerTests
-{
-    sealed class FakeUser(UserRole role) : ICurrentUser
-    {
+public class DevicesControllerTests {
+    private sealed class FakeUser(UserRole role) : ICurrentUser {
         public bool IsAuthenticated => true;
         public Guid? UserId => null;
         public string? DiscordId => "123";
@@ -24,14 +22,13 @@ public class DevicesControllerTests
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(Role, need);
     }
 
-    static DevicesController Make(UserRole role, IServiceProvider sp, IDeviceJobTracker? jobs = null) =>
+    private static DevicesController Make(UserRole role, IServiceProvider sp, IDeviceJobTracker? jobs = null) =>
         new(new FakeUser(role), sp,
             sp.GetService<IServiceScopeFactory>() ?? new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
             jobs ?? new DeviceJobTracker(TimeProvider.System));
 
     [Fact]
-    public async Task Refresh_NonAdmin_403()
-    {
+    public async Task Refresh_NonAdmin_403() {
         var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Contributor, sp);
         var r = await c.Refresh("frame-android");
@@ -40,8 +37,7 @@ public class DevicesControllerTests
     }
 
     [Fact]
-    public async Task Refresh_Admin_NoDb_503()
-    {
+    public async Task Refresh_Admin_NoDb_503() {
         var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Admin, sp);
         var r = await c.Refresh("frame-android");
@@ -50,8 +46,7 @@ public class DevicesControllerTests
     }
 
     [Fact]
-    public async Task Status_NoDb_ReturnsEmptyArray()
-    {
+    public async Task Status_NoDb_ReturnsEmptyArray() {
         var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Viewer, sp);
         var r = await c.Status();
@@ -60,8 +55,7 @@ public class DevicesControllerTests
     }
 
     [Fact]
-    public async Task CheckUpdate_NonAdmin_403()
-    {
+    public async Task CheckUpdate_NonAdmin_403() {
         var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Contributor, sp);
         var r = await c.CheckUpdate("frame-android");
@@ -70,8 +64,7 @@ public class DevicesControllerTests
     }
 
     [Fact]
-    public async Task CheckUpdate_Admin_NoDb_503()
-    {
+    public async Task CheckUpdate_Admin_NoDb_503() {
         var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Admin, sp);
         var r = await c.CheckUpdate("frame-android");
@@ -80,8 +73,7 @@ public class DevicesControllerTests
     }
 
     [Fact]
-    public void CheckStatus_NonAdmin_403()
-    {
+    public void CheckStatus_NonAdmin_403() {
         var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Viewer, sp);
         var r = c.CheckStatus("frame-android");
@@ -90,8 +82,7 @@ public class DevicesControllerTests
     }
 
     [Fact]
-    public void CheckStatus_Admin_NoJob_Idle()
-    {
+    public void CheckStatus_Admin_NoJob_Idle() {
         var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Admin, sp, new DeviceJobTracker(TimeProvider.System));
         var r = c.CheckStatus("frame-android");
@@ -100,8 +91,7 @@ public class DevicesControllerTests
     }
 
     [Fact]
-    public void CheckStatus_Admin_RunningJob_ReportsRunning()
-    {
+    public void CheckStatus_Admin_RunningJob_ReportsRunning() {
         var jobs = new DeviceJobTracker(TimeProvider.System);
         jobs.TryStart("frame-android", "checking store...");
         var sp = new ServiceCollection().BuildServiceProvider();

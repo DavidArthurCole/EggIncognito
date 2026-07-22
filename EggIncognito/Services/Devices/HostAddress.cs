@@ -4,19 +4,15 @@ using System.Net.Sockets;
 
 namespace EggIncognito.Services.Devices;
 
-public static class HostAddress
-{
+public static class HostAddress {
     public sealed record Nic(string Name, bool IsUp, bool IsLoopback, IReadOnlyList<string> IPv4Addresses);
 
-    public static string? Resolve(string? configured, IReadOnlyList<Nic>? nics = null)
-    {
-        if (!string.IsNullOrWhiteSpace(configured)) return configured.Trim();
-        return Pick(nics ?? Enumerate());
+    public static string? Resolve(string? configured, IReadOnlyList<Nic>? nics = null) {
+        return !string.IsNullOrWhiteSpace(configured) ? configured.Trim() : Pick(nics ?? Enumerate());
     }
 
-   
-    public static string? Pick(IReadOnlyList<Nic> nics)
-    {
+
+    public static string? Pick(IReadOnlyList<Nic> nics) {
         var usable = nics
             .Where(n => n.IsUp && !n.IsLoopback && !IsVirtual(n.Name))
             .SelectMany(n => n.IPv4Addresses)
@@ -25,22 +21,20 @@ public static class HostAddress
         return usable.FirstOrDefault(IsPrivate) ?? usable.FirstOrDefault();
     }
 
-    private static bool IsVirtual(string name)
-    {
+    private static bool IsVirtual(string name) {
         var n = name.ToLowerInvariant();
-        return n.StartsWith("docker") || n.StartsWith("veth") || n.StartsWith("br-")
-            || n.StartsWith("vmnet") || n.StartsWith("vbox") || n == "lo" || n.StartsWith("tun")
-            || n.StartsWith("tap") || n.StartsWith("wg");
+        return n.StartsWith("docker", StringComparison.Ordinal) || n.StartsWith("veth", StringComparison.Ordinal) || n.StartsWith("br-", StringComparison.Ordinal)
+            || n.StartsWith("vmnet", StringComparison.Ordinal) || n.StartsWith("vbox", StringComparison.Ordinal) || n == "lo" || n.StartsWith("tun", StringComparison.Ordinal)
+            || n.StartsWith("tap", StringComparison.Ordinal) || n.StartsWith("wg", StringComparison.Ordinal);
     }
 
     private static bool IsRoutableV4(string ip) =>
         IPAddress.TryParse(ip, out var a)
         && a.AddressFamily == AddressFamily.InterNetwork
         && !IPAddress.IsLoopback(a)
-        && !ip.StartsWith("169.254.");
+        && !ip.StartsWith("169.254.", StringComparison.Ordinal);
 
-    private static bool IsPrivate(string ip)
-    {
+    private static bool IsPrivate(string ip) {
         if (!IPAddress.TryParse(ip, out var a) || a.AddressFamily != AddressFamily.InterNetwork) return false;
         var b = a.GetAddressBytes();
         return b[0] == 10
@@ -48,10 +42,8 @@ public static class HostAddress
             || (b[0] == 192 && b[1] == 168);
     }
 
-    private static IReadOnlyList<Nic> Enumerate()
-    {
-        try
-        {
+    private static IReadOnlyList<Nic> Enumerate() {
+        try {
             return NetworkInterface.GetAllNetworkInterfaces()
                 .Select(ni => new Nic(
                     ni.Name,
@@ -62,9 +54,7 @@ public static class HostAddress
                         .Select(u => u.Address.ToString())
                         .ToList()))
                 .ToList();
-        }
-        catch
-        {
+        } catch {
             return [];
         }
     }

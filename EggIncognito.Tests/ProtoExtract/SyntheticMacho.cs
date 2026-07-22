@@ -1,20 +1,17 @@
 namespace EggIncognito.Tests.ProtoExtract;
 
 
-public static class SyntheticMacho
-{
+public static class SyntheticMacho {
     public const ulong TextVm = 0x100004000;
 
     public readonly record struct Sym(string Name, ulong Value);
 
-    public static byte[] Build(byte[] text, IEnumerable<Sym> syms)
-    {
+    public static byte[] Build(byte[] text, IEnumerable<Sym> syms) {
         var symList = syms.ToList();
 
         var strtab = new List<byte> { 0 };
         var strx = new Dictionary<string, uint>();
-        foreach (var s in symList)
-        {
+        foreach (var s in symList) {
             if (strx.ContainsKey(s.Name)) continue;
             strx[s.Name] = (uint)strtab.Count;
             strtab.AddRange(System.Text.Encoding.UTF8.GetBytes(s.Name));
@@ -77,8 +74,7 @@ public static class SyntheticMacho
 
         Array.Copy(text, 0, bin, textFileOff, text.Length);
 
-        for (int i = 0; i < nsyms; i++)
-        {
+        for (int i = 0; i < nsyms; i++) {
             int e = symoff + i * 16;
             WU32(bin, e, strx[symList[i].Name]);
             bin[e + 4] = 0x0E;
@@ -93,13 +89,11 @@ public static class SyntheticMacho
     }
 
     private static void WU16(byte[] b, int o, ushort v) { b[o] = (byte)v; b[o + 1] = (byte)(v >> 8); }
-    private static void WU32(byte[] b, int o, uint v)
-    {
+    private static void WU32(byte[] b, int o, uint v) {
         b[o] = (byte)v; b[o + 1] = (byte)(v >> 8); b[o + 2] = (byte)(v >> 16); b[o + 3] = (byte)(v >> 24);
     }
     private static void WU64(byte[] b, int o, ulong v) { for (int k = 0; k < 8; k++) b[o + k] = (byte)(v >> (k * 8)); }
-    private static void WStr16(byte[] b, int o, string s)
-    {
+    private static void WStr16(byte[] b, int o, string s) {
         var bytes = System.Text.Encoding.ASCII.GetBytes(s);
         Array.Copy(bytes, 0, b, o, Math.Min(bytes.Length, 16));
     }

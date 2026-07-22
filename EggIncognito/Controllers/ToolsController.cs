@@ -1,8 +1,8 @@
 using System.Text;
+using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
-using EggIncognito.Services;
 
 namespace EggIncognito.Controllers;
 
@@ -10,27 +10,24 @@ namespace EggIncognito.Controllers;
 [Route("api/tools")]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
-public sealed class ToolsController(IConfiguration config, IProtoReflection reflection) : ControllerBase
-{
+public sealed class ToolsController(IConfiguration config, IProtoReflection reflection) : ControllerBase {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
     private string YamlPath => Path.Combine(Root, "RouteMap", "routes.yaml");
     private string DefaultsDir => Path.Combine(Root, "Endpoints", "default");
     private string CapturePath => config["CapturePath"] ?? Path.Combine(Root, "captures");
 
-   
-   
-   
+
+
+
     [HttpGet("live-version")]
-    public IActionResult LiveVersion([FromQuery] string platform = "ios")
-    {
+    public IActionResult LiveVersion([FromQuery] string platform = "ios") {
         var v = new Capture.LiveVersionStore(CapturePath).Latest(platform);
         if (v is null) return Ok(new { found = false });
         return Ok(new { found = true, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen });
     }
 
     [HttpGet("postman-collection")]
-    public IActionResult PostmanCollection()
-    {
+    public IActionResult PostmanCollection() {
         var json = Services.PostmanCollection.BuildJson(YamlPath);
         return File(Encoding.UTF8.GetBytes(json), "application/json", "EggIncognito.postman_collection.json");
     }
@@ -38,91 +35,76 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
     public sealed record DecodeRequest(string Base64);
 
     [HttpPost("decode")]
-    public IActionResult Decode([FromBody] DecodeRequest body)
-    {
+    public IActionResult Decode([FromBody] DecodeRequest body) {
         var r = BlobDecoder.Decode(body.Base64 ?? "");
         return Ok(new { type = r.Type, json = r.Json, wrapped = r.Wrapped, confidence = r.Confidence });
     }
 
     [HttpGet("endpoint-status")]
-    public IActionResult Status()
-    {
+    public IActionResult Status() {
         var r = EndpointStatus.Classify(YamlPath, DefaultsDir);
         return Ok(new { ok = r.Ok, empty = r.Empty, missing = r.Missing });
     }
 
     [HttpGet("boost-costs")]
-    public IActionResult BoostCosts()
-    {
+    public IActionResult BoostCosts() {
         var path = Path.Combine(DefaultsDir, "ei", "get_config.json");
         if (!System.IO.File.Exists(path)) return NotFound(new { error = "no get_config capture" });
-        try
-        {
+        try {
             var json = System.IO.File.ReadAllText(path);
             var costs = EggIncognito.Services.BoostCostExtractor.FromConfigJson(json);
-            return Ok(new
-            {
+            return Ok(new {
                 count = costs.Count,
                 costs = costs.Select(kv => new { boostId = kv.Key, kv.Value.Price, kv.Value.TokenPrice, kv.Value.SeRequired })
             });
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             return Ok(new { count = 0, error = ex.Message });
         }
     }
 
     [HttpGet("colleggtibles")]
-    public IActionResult Colleggtibles()
-    {
+    public IActionResult Colleggtibles() {
         var path = Path.Combine(DefaultsDir, "ei", "get_periodicals.json");
         if (!System.IO.File.Exists(path)) return NotFound(new { error = "no get_periodicals capture" });
-        try
-        {
+        try {
             var json = System.IO.File.ReadAllText(path);
             var extract = EggIncognito.Services.ColleggtibleExtractor.FromPeriodicalsJson(json);
-            return Ok(new
-            {
+            return Ok(new {
                 count = extract.Eggs.Count,
                 eggs = extract.Eggs.Select(e => new { e.Identifier, e.Dimension, e.TierValues }),
                 contractEggMap = extract.ContractEggMap
             });
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             return Ok(new { count = 0, error = ex.Message });
         }
     }
 
     public sealed record ExtractIosProtoRequest(string BinaryBase64);
 
-   
-   
-   
+
+
+
     [HttpPost("extract-ios-proto")]
-    public IActionResult ExtractIosProto([FromBody] ExtractIosProtoRequest body)
-    {
+    public IActionResult ExtractIosProto([FromBody] ExtractIosProtoRequest body) {
         byte[] macho;
-        try { macho = Convert.FromBase64String(body.BinaryBase64 ?? ""); }
-        catch { return Ok(new { ok = false, diagnostics = "input is not valid base64" }); }
+        try { macho = Convert.FromBase64String(body.BinaryBase64 ?? ""); } catch { return Ok(new { ok = false, diagnostics = "input is not valid base64" }); }
         return ExtractResultJson(Services.ProtoExtract.DescriptorProtoCarver.Extract(macho));
     }
 
-   
-   
-   
+
+
+
     [HttpPost("extract-proto")]
     [RequestSizeLimit(200_000_000)]
-    public async Task<IActionResult> ExtractProto(IFormFile file, CancellationToken ct)
-    {
+    public async Task<IActionResult> ExtractProto(IFormFile file, CancellationToken ct) {
         if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
-       
-       
+
+
         var bytes = new byte[file.Length];
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
 
-       
-       
+
+
         bool isZip = bytes.Length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04;
         var r = isZip
             ? Services.ProtoExtract.ArchiveProtoExtractor.Extract(bytes)
@@ -130,13 +112,12 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         return ExtractResultJson(r);
     }
 
-   
-   
-   
+
+
+
     [HttpPost("extract-meshes")]
     [RequestSizeLimit(200_000_000)]
-    public async Task<IActionResult> ExtractMeshes(IFormFile file, CancellationToken ct)
-    {
+    public async Task<IActionResult> ExtractMeshes(IFormFile file, CancellationToken ct) {
         if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
         var bytes = new byte[file.Length];
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
@@ -145,15 +126,14 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         return Ok(Services.MeshManifest.From(r));
     }
 
-   
-   
-   
-   
+
+
+
+
     [HttpPost("export-ships")]
     [RequestSizeLimit(200_000_000)]
     public async Task<IActionResult> ExportShips(IFormFile file, [FromQuery] string? build, [FromQuery] bool write,
-        [FromQuery] string? animate, [FromQuery] float seconds, CancellationToken ct)
-    {
+        [FromQuery] string? animate, [FromQuery] float seconds, CancellationToken ct) {
         if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
         var bytes = new byte[file.Length];
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
@@ -166,12 +146,11 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         return Ok(Services.MeshManifest.Ships(r, build, wrote, dir, anim));
     }
 
-   
-   
+
+
     private async Task<(bool, string?)> MaybeWriteAsync(
         Services.ProtoExtract.RpoAssetExtractor.ExtractResult r, string? build, bool write,
-        Services.Assets.GltfAnimator.Options? animate, CancellationToken ct)
-    {
+        Services.Assets.GltfAnimator.Options? animate, CancellationToken ct) {
         if (!write) return (false, null);
         var dir = config["ShipAssets:OutputDir"];
         if (string.IsNullOrEmpty(dir)) return (false, null);
@@ -181,13 +160,12 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         return (true, dir);
     }
 
-   
-   
-   
+
+
+
     [HttpPost("animate-glb")]
     [RequestSizeLimit(100_000_000)]
-    public async Task<IActionResult> AnimateGlb(IFormFile file, [FromQuery] string? kind, [FromQuery] float seconds, CancellationToken ct)
-    {
+    public async Task<IActionResult> AnimateGlb(IFormFile file, [FromQuery] string? kind, [FromQuery] float seconds, CancellationToken ct) {
         if (file is null || file.Length == 0) return BadRequest(new { ok = false, diagnostics = "no file uploaded" });
         var bytes = new byte[file.Length];
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
@@ -202,21 +180,26 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
     }
 
     private IActionResult ExtractResultJson(Services.ProtoExtract.DescriptorProtoCarver.ExtractResult r) =>
-        Ok(new { ok = r.Ok, proto = r.Proto, diagnostics = r.Diagnostics, protoSha = r.ProtoSha,
-            messages = r.Messages, appVersion = r.AppVersion, build = r.Build });
+        Ok(new {
+            ok = r.Ok,
+            proto = r.Proto,
+            diagnostics = r.Diagnostics,
+            protoSha = r.ProtoSha,
+            messages = r.Messages,
+            appVersion = r.AppVersion,
+            build = r.Build
+        });
 
     public sealed record DiagnoseRequest(string Base64, string? RootType);
 
-   
-   
-    [HttpPost("diagnose")]
-    public IActionResult Diagnose([FromBody] DiagnoseRequest body)
-    {
-        byte[] bytes;
-        try { bytes = ProtoFraming.FromBase64Loose(body.Base64 ?? ""); }
-        catch { return Ok(new { error = "input is not valid base64" }); }
 
-       
+
+    [HttpPost("diagnose")]
+    public IActionResult Diagnose([FromBody] DiagnoseRequest body) {
+        byte[] bytes;
+        try { bytes = ProtoFraming.FromBase64Loose(body.Base64 ?? ""); } catch { return Ok(new { error = "input is not valid base64" }); }
+
+
         var inner = ProtoFraming.TryUnwrap(bytes) ?? bytes;
         var result = WireForensics.Diagnose(inner, body.RootType, reflection);
         return Ok(result);

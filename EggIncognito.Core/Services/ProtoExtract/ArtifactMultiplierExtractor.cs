@@ -1,7 +1,6 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-public static class ArtifactMultiplierExtractor
-{
+public static class ArtifactMultiplierExtractor {
     public static readonly double[] TierMultipliers =
         [1.05, 1.08, 1.10, 1.12, 1.13, 1.15, 1.16, 1.17, 1.19, 1.20, 1.22, 1.23, 1.25, 1.28, 1.30];
 
@@ -14,19 +13,16 @@ public static class ArtifactMultiplierExtractor
 
     public static Result Locate(byte[] bin) => LocateWith(bin, MachoSections.Read(bin));
 
-    public static Result LocateWith(byte[] bin, IReadOnlyList<MachoSections.Section> sections)
-    {
+    public static Result LocateWith(byte[] bin, IReadOnlyList<MachoSections.Section> sections) {
         if (bin is null || bin.Length < 64) return new(false, [], TierMultipliers, "binary too short");
 
         var located = new List<ConstHit>();
         var missing = new List<double>();
 
-        foreach (var t in TierMultipliers)
-        {
+        foreach (var t in TierMultipliers) {
             var pat = BitConverter.GetBytes(t);
             var before = located.Count;
-            for (var i = 0; i <= bin.Length - 8; i++)
-            {
+            for (var i = 0; i <= bin.Length - 8; i++) {
                 var match = true;
                 for (var k = 0; k < 8; k++)
                     if (bin[i + k] != pat[k]) { match = false; break; }
@@ -46,13 +42,10 @@ public static class ArtifactMultiplierExtractor
         return new(false, located, missing, diag);
     }
 
-    private static bool TryFileOffToVa(IReadOnlyList<MachoSections.Section> sections, int fileOff, out ulong va, out MachoSections.Section owner)
-    {
-        foreach (var s in sections)
-        {
+    private static bool TryFileOffToVa(IReadOnlyList<MachoSections.Section> sections, int fileOff, out ulong va, out MachoSections.Section owner) {
+        foreach (var s in sections) {
             if (s.VmSize == 0) continue;
-            if (fileOff >= s.FileOff && fileOff < s.FileOff + (long)s.VmSize)
-            {
+            if (fileOff >= s.FileOff && fileOff < s.FileOff + (long)s.VmSize) {
                 va = s.VmAddr + (ulong)(fileOff - s.FileOff);
                 owner = s;
                 return true;

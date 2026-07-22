@@ -2,8 +2,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class AuxbrainHostNormalizationTests
-{
+public class AuxbrainHostNormalizationTests {
     [Theory]
     [InlineData("www.auxbrain.com", "www.auxbrain.com")]
     [InlineData("www.auxbrain.com:443", "www.auxbrain.com")]

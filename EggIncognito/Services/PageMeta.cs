@@ -1,18 +1,17 @@
 namespace EggIncognito.Services;
 
-public static class PageMeta
-{
+public static class PageMeta {
     public readonly record struct Meta(string Title, string Description);
 
-   
+
     public static readonly Meta Default = new(
         "EggIncognito - a toolkit for the Egg, Inc. API",
         "A toolkit for the Egg, Inc. API: a byte-identical mock server, a request inspector, a live " +
         "capture proxy, a versioned proto registry, and a physical device farm. Test tooling without real " +
         "accounts or rate limits.");
 
-   
-    static readonly (string Prefix, Meta Meta)[] Routes =
+
+    private static readonly (string Prefix, Meta Meta)[] Routes =
     [
         ("/inspector", new(
             "EggIncognito - Inspector",
@@ -38,17 +37,14 @@ public static class PageMeta
             "User roles and shared-store review for the EggIncognito registry.")),
     ];
 
-    public static Meta For(string? path)
-    {
+    public static Meta For(string? path) {
         if (string.IsNullOrEmpty(path)) return Default;
         Meta best = Default;
         var bestLen = -1;
-        foreach (var (prefix, meta) in Routes)
-        {
+        foreach (var (prefix, meta) in Routes) {
             if ((path.Equals(prefix, StringComparison.OrdinalIgnoreCase)
                  || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
-                && prefix.Length > bestLen)
-            {
+                && prefix.Length > bestLen) {
                 best = meta;
                 bestLen = prefix.Length;
             }

@@ -2,8 +2,7 @@ using System.Buffers.Binary;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-public static class SampleRpo
-{
+public static class SampleRpo {
     public static readonly int[] Strides = [3, 4, 3];
 
     public static readonly float[][] Positions =
@@ -26,8 +25,7 @@ public static class SampleRpo
     ];
     public static readonly ushort[] Indices = [0, 1, 2, 2, 1, 0];
 
-    public static byte[] Build()
-    {
+    public static byte[] Build() {
         var indexCount = Indices.Length;
         using var ms = new MemoryStream();
         var u32 = new byte[4];
@@ -39,8 +37,7 @@ public static class SampleRpo
         W32((uint)Positions.Length);
         W32((uint)(indexCount * 2));
 
-        foreach (var s in Strides)
-        {
+        foreach (var s in Strides) {
             ms.WriteByte((byte)s);
             ms.WriteByte(0); ms.WriteByte(0); ms.WriteByte(0);
             ms.WriteByte(0x06); ms.WriteByte(0x14); ms.WriteByte(0x00); ms.WriteByte(0x00);
@@ -48,8 +45,7 @@ public static class SampleRpo
 
         W32((uint)indexCount);
 
-        for (var v = 0; v < Positions.Length; v++)
-        {
+        for (var v = 0; v < Positions.Length; v++) {
             foreach (var f in Positions[v]) WF(f);
             foreach (var f in Colors[v]) WF(f);
             foreach (var f in Normals[v]) WF(f);

@@ -3,11 +3,9 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class PostmanCollectionTests
-{
+public class PostmanCollectionTests {
     [Fact]
-    public void BuildJson_ProducesNamespaceFoldersAndSimulation()
-    {
+    public void BuildJson_ProducesNamespaceFoldersAndSimulation() {
         var dir = Path.Combine(Path.GetTempPath(), "egi-pm-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "routes.yaml"), """

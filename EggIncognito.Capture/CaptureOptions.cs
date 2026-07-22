@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace EggIncognito.Capture;
-public sealed record CaptureOptions(
+
+public sealed partial record CaptureOptions(
     int Port,
     int DashboardPort,
     string? Eid,
@@ -10,8 +12,7 @@ public sealed record CaptureOptions(
     bool Verbose,
     bool NoDashboard,
     bool NoOpen,
-    bool ForceOpen)
-{
+    bool ForceOpen) {
     public static CaptureOptions Parse(string[] args) => new(
         Port: GetIntOption(args, "--port") ?? 8080,
         DashboardPort: GetIntOption(args, "--dashboard-port") ?? 8090,
@@ -23,23 +24,26 @@ public sealed record CaptureOptions(
         NoOpen: args.Contains("--no-open"),
         ForceOpen: args.Contains("--open"));
 
-   
-    public string HarFileName()
-    {
+
+    public string HarFileName() {
         var name = "session";
         if (!string.IsNullOrEmpty(Label)) name += "_" + Sanitize(Label);
-        if (!string.IsNullOrEmpty(Eid) && Regex.IsMatch(Eid, @"^EI\d{16,}$")) name += "_" + Eid;
+        if (!string.IsNullOrEmpty(Eid) && EidRegex().IsMatch(Eid)) name += "_" + Eid;
         return name + ".har";
     }
 
-    private static string Sanitize(string s) => Regex.Replace(s, @"[^A-Za-z0-9._-]", "_");
+    private static string Sanitize(string s) => SanitizeRegex().Replace(s, "_");
 
-    private static string? GetOption(string[] args, string name)
-    {
+    private static string? GetOption(string[] args, string name) {
         var i = Array.IndexOf(args, name);
         return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
     }
 
     private static int? GetIntOption(string[] args, string name) =>
-        int.TryParse(GetOption(args, name), out var v) ? v : null;
+        int.TryParse(GetOption(args, name), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
+    [GeneratedRegex(@"[^A-Za-z0-9._-]")]
+    private static partial Regex SanitizeRegex();
+
+    [GeneratedRegex(@"^EI\d{16,}$")]
+    private static partial Regex EidRegex();
 }

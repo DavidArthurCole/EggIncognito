@@ -3,10 +3,8 @@ using System.Text;
 namespace EggIncognito.Services;
 
 
-public static class TnetString
-{
-    public static (object? value, int next) Decode(byte[] data, int offset)
-    {
+public static class TnetString {
+    public static (object? value, int next) Decode(byte[] data, int offset) {
         var colon = Array.IndexOf(data, (byte)':', offset);
         if (colon < 0) throw new FormatException("tnetstring: missing length delimiter");
 
@@ -19,10 +17,9 @@ public static class TnetString
         var next = tagIndex + 1;
         var payload = new ReadOnlySpan<byte>(data, payloadStart, len);
 
-        return tag switch
-        {
+        return tag switch {
             ',' or ';' => (payload.ToArray(), next),
-            '#' => (long.Parse(Encoding.ASCII.GetString(payload)), next),
+            '#' => (long.Parse(Encoding.ASCII.GetString(payload), System.Globalization.CultureInfo.InvariantCulture), next),
             '^' => (double.Parse(Encoding.ASCII.GetString(payload),
                         System.Globalization.CultureInfo.InvariantCulture), next),
             '!' => (Encoding.ASCII.GetString(payload) == "true", next),
@@ -33,13 +30,11 @@ public static class TnetString
         };
     }
 
-    private static List<object?> DecodeList(byte[] data, int start, int len)
-    {
+    private static List<object?> DecodeList(byte[] data, int start, int len) {
         var items = new List<object?>();
         var end = start + len;
         var pos = start;
-        while (pos < end)
-        {
+        while (pos < end) {
             var (value, next) = Decode(data, pos);
             items.Add(value);
             pos = next;
@@ -47,14 +42,12 @@ public static class TnetString
         return items;
     }
 
-   
-    private static Dictionary<string, object?> DecodeDict(byte[] data, int start, int len)
-    {
+
+    private static Dictionary<string, object?> DecodeDict(byte[] data, int start, int len) {
         var dict = new Dictionary<string, object?>(StringComparer.Ordinal);
         var end = start + len;
         var pos = start;
-        while (pos < end)
-        {
+        while (pos < end) {
             var (keyObj, afterKey) = Decode(data, pos);
             var (value, afterValue) = Decode(data, afterKey);
             dict[KeyToString(keyObj)] = value;
@@ -63,18 +56,15 @@ public static class TnetString
         return dict;
     }
 
-    private static string KeyToString(object? key) => key switch
-    {
+    private static string KeyToString(object? key) => key switch {
         byte[] b => Encoding.UTF8.GetString(b),
         string s => s,
         _ => throw new FormatException("tnetstring: non-string dict key"),
     };
 
-    private static int ParseLength(byte[] data, int start, int colon)
-    {
+    private static int ParseLength(byte[] data, int start, int colon) {
         var len = 0;
-        for (var i = start; i < colon; i++)
-        {
+        for (var i = start; i < colon; i++) {
             var d = data[i] - '0';
             if (d is < 0 or > 9) throw new FormatException("tnetstring: non-digit in length");
             len = len * 10 + d;

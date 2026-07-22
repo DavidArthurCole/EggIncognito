@@ -9,19 +9,16 @@ namespace EggIncognito.Services;
 
 
 public sealed class GameBinaryProvider(
-    IServiceProvider services, IConfiguration config, ILogger<GameBinaryProvider> logger)
-{
+    IServiceProvider services, IConfiguration config, ILogger<GameBinaryProvider> logger) {
     private const string BundleId = "com.auxbrain.egginc";
-    private static readonly object LiveGate = new();
+    private static readonly Lock LiveGate = new();
     private static (string Sha, byte[] Bytes, IReadOnlyList<MachoSymbols.Symbol> Syms, bool Grafted, DateTimeOffset Pulled)? _liveCache;
 
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
 
-    public async Task<(bool Ok, byte[]? Bytes, string? Diagnostics)> GetBinaryAsync(string? deviceId, CancellationToken ct)
-    {
+    public async Task<(bool Ok, byte[]? Bytes, string? Diagnostics)> GetBinaryAsync(string? deviceId, CancellationToken ct) {
         var overridePath = config["Decomp:BinaryPath"];
-        if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath))
-        {
+        if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath)) {
             var bytes = await File.ReadAllBytesAsync(overridePath, ct);
             return (true, bytes, null);
         }
@@ -40,8 +37,7 @@ public sealed class GameBinaryProvider(
     }
 
     public async Task<(bool Ok, byte[]? Bytes, IReadOnlyList<MachoSymbols.Symbol>? Symbols, bool Grafted, string? Diagnostics)>
-        GetLiveBinaryAsync(CancellationToken ct)
-    {
+        GetLiveBinaryAsync(CancellationToken ct) {
         if (!config.GetValue("Decomp:LiveDevicePull", false))
             return (false, null, null, false, "live device pull disabled (set Decomp:LiveDevicePull=true)");
 
@@ -50,37 +46,31 @@ public sealed class GameBinaryProvider(
             return (false, null, null, false, "ios ssh not configured (DeviceCapture:Ios:SshHost + SshKeyPath)");
 
         int ttlSeconds = config.GetValue("Decomp:LiveCacheSeconds", 900);
-        lock (LiveGate)
-        {
+        lock (LiveGate) {
             if (_liveCache is { } c && DateTimeOffset.UtcNow - c.Pulled < TimeSpan.FromSeconds(ttlSeconds))
                 return (true, c.Bytes, c.Syms, c.Grafted, $"cached live pull (sha {c.Sha[..12]})");
         }
 
-        var runner = services.GetService(typeof(IProcessRunner)) as IProcessRunner;
-        if (runner is null) return (false, null, null, false, "no process runner");
+        if (services.GetService(typeof(IProcessRunner)) is not IProcessRunner runner) return (false, null, null, false, "no process runner");
 
         var puller = new IosBinaryPuller(runner, cfg.IosSshHost!, cfg.IosSshPort, cfg.IosSshKeyPath!);
         byte[]? pulled;
-        try { pulled = await puller.PullBinaryAsync(BundleId, ct); }
-        catch (Exception ex) { return (false, null, null, false, "pull failed: " + ex.Message); }
+        try { pulled = await puller.PullBinaryAsync(BundleId, ct); } catch (Exception ex) { return (false, null, null, false, "pull failed: " + ex.Message); }
         if (pulled is null || pulled.Length < 1024) return (false, null, null, false, "pull returned no binary");
 
-        var sha = Convert.ToHexString(SHA256.HashData(pulled)).ToLowerInvariant();
+        var sha = Convert.ToHexStringLower(SHA256.HashData(pulled));
 
         var syms = MachoSymbols.Read(pulled);
         bool grafted = false;
         string note = $"live pull sha {sha[..12]}, {syms.Count} native symbols";
 
-        if (syms.Count < 50_000)
-        {
+        if (syms.Count < 50_000) {
             var dir = config["Decomp:SymbolizedIpaDir"];
             if (string.IsNullOrEmpty(dir)) dir = Path.Combine("captures", "ipas");
             var refr = new SymbolizedBinaryStore(dir).Get(null);
-            if (refr.Ok && refr.Bytes is not null)
-            {
+            if (refr.Ok && refr.Bytes is not null) {
                 var report = SymbolRecovery.Recover(refr.Bytes, pulled, []);
-                if (report.Symbols.Count > syms.Count)
-                {
+                if (report.Symbols.Count > syms.Count) {
                     syms = report.Symbols;
                     grafted = true;
                     note = $"live pull sha {sha[..12]} stripped; grafted {report.Recovered} symbols from {refr.Version} ({report.Tier})";
@@ -92,11 +82,10 @@ public sealed class GameBinaryProvider(
         return (true, pulled, syms, grafted, note);
     }
 
-   
-   
+
+
     public async Task<(bool Ok, byte[]? RefBytes, byte[]? TargetBytes, string? Diagnostics)> GetRecoveryInputsAsync(
-        string? refVersion, string? targetPathOverride, CancellationToken ct)
-    {
+        string? refVersion, string? targetPathOverride, CancellationToken ct) {
         var dir = config["Decomp:SymbolizedIpaDir"];
         if (string.IsNullOrEmpty(dir)) dir = Path.Combine("captures", "ipas");
         var store = new SymbolizedBinaryStore(dir);
@@ -111,18 +100,15 @@ public sealed class GameBinaryProvider(
         return (true, refr.Bytes, targetBytes, null);
     }
 
-    private async Task<string?> DeviceVersionAsync(string? deviceId, CancellationToken ct)
-    {
+    private async Task<string?> DeviceVersionAsync(string? deviceId, CancellationToken ct) {
         var store = Store;
         if (store is null) return null;
-        try
-        {
+        try {
             var latest = await store.LatestPerDeviceAsync(ct);
             DeviceProbe? row = deviceId is null
                 ? latest.FirstOrDefault(p => !string.IsNullOrEmpty(p.InstalledAppVersion))
                 : latest.FirstOrDefault(p => p.DeviceId == deviceId);
             return row?.InstalledAppVersion;
-        }
-        catch { return null; }
+        } catch { return null; }
     }
 }

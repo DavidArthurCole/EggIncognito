@@ -7,9 +7,8 @@ using Microsoft.CodeAnalysis.Text;
 namespace EggIncognito.RouteGenerator;
 
 [Generator]
-public sealed class RouteSourceGenerator : IIncrementalGenerator
-{
-   
+public sealed class RouteSourceGenerator : IIncrementalGenerator {
+
 #pragma warning disable RS2008
     private static readonly DiagnosticDescriptor InvalidIdentifier = new(
         id: "EGI001",
@@ -20,25 +19,21 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator
         isEnabledByDefault: true);
 #pragma warning restore RS2008
 
-    public void Initialize(IncrementalGeneratorInitializationContext context)
-    {
+    public void Initialize(IncrementalGeneratorInitializationContext context) {
         var routes = context.AdditionalTextsProvider
             .Where(static f => f.Path.EndsWith("routes.yaml", System.StringComparison.OrdinalIgnoreCase))
             .Select(static (f, ct) => f.GetText(ct)?.ToString())
-            .Select(static (content, _) => content is null ? new List<RouteModel>() : RouteParser.Parse(content))
+            .Select(static (content, _) => content is null ? [] : RouteParser.Parse(content))
             .WithComparer(RouteListComparer.Instance);
 
-        context.RegisterSourceOutput(routes, static (ctx, routeList) =>
-        {
-            foreach (var route in routeList)
-            {
+        context.RegisterSourceOutput(routes, static (ctx, routeList) => {
+            foreach (var route in routeList) {
                 var className = ToClassName(route.Path);
                 var bad =
                     !SyntaxFacts.IsValidIdentifier(className) ? className
                     : !SyntaxFacts.IsValidIdentifier(route.MockResponseType) ? route.MockResponseType
                     : null;
-                if (bad is not null)
-                {
+                if (bad is not null) {
                     ctx.ReportDiagnostic(Diagnostic.Create(InvalidIdentifier, Location.None, route.Path, bad));
                     continue;
                 }
@@ -51,8 +46,7 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator
 
     public static string ToClassName(string path) => RouteParser.ToClassName(path);
 
-    private static string GenerateController(string className, RouteModel route)
-    {
+    private static string GenerateController(string className, RouteModel route) {
         var pathLiteral = SymbolDisplay.FormatLiteral(route.Path, quote: true);
 
         var handler = route.RawResponse is not null

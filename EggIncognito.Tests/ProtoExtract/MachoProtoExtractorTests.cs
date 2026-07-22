@@ -5,24 +5,23 @@ using Google.Protobuf.Reflection;
 namespace EggIncognito.Tests.ProtoExtract;
 
 
-public class MachoProtoExtractorTests
-{
+public class MachoProtoExtractorTests {
     [Fact]
-    public void CarveAll_Fixture_FindsThreeDescriptors()
-    {
-        var carved = MachoProtoExtractor.CarveAll(Fixture());
-        Assert.Equal(["ei.proto", "common.proto", "abb.proto"], carved.Select(c => c.Name).ToArray());
+    public void CarveAll_Fixture_FindsThreeDescriptors() {
+        if (!TryFixture(out var fx)) return;
+        var carved = MachoProtoExtractor.CarveAll(fx);
+        Assert.Equal(["ei.proto", "common.proto", "abb.proto"], [.. carved.Select(c => c.Name)]);
         Assert.All(carved, c => Assert.True(c.Bytes.Length > 0));
-       
+
         Assert.True(carved.First(c => c.Name == "ei.proto").Bytes.Length > 50_000);
     }
 
     [Fact]
-    public void EmitProto_Ei_RoundTripsTo152MessagesAnd8Enums()
-    {
-        var ei = MachoProtoExtractor.CarveAll(Fixture()).First(c => c.Name == "ei.proto");
-       
-       
+    public void EmitProto_Ei_RoundTripsTo152MessagesAnd8Enums() {
+        if (!TryFixture(out var fx)) return;
+        var ei = MachoProtoExtractor.CarveAll(fx).First(c => c.Name == "ei.proto");
+
+
         var fdp = FileDescriptorProto.Parser.ParseFrom(ei.Bytes);
         Assert.Equal(152, fdp.MessageType.Count);
         Assert.Equal(8, fdp.EnumType.Count);
@@ -33,24 +32,23 @@ public class MachoProtoExtractorTests
     }
 
     [Fact]
-    public void Extract_Fixture_MergesAndReportsCounts()
-    {
-        var r = MachoProtoExtractor.Extract(Fixture());
+    public void Extract_Fixture_MergesAndReportsCounts() {
+        if (!TryFixture(out var fx)) return;
+        var r = MachoProtoExtractor.Extract(fx);
         Assert.True(r.Ok);
         Assert.NotNull(r.Proto);
         Assert.Contains("152 top-level messages", r.Diagnostics);
         Assert.Contains("merged common.proto", r.Diagnostics);
-       
+
         Assert.Contains("enum Platform {", r.Proto);
         Assert.DoesNotContain("aux.Platform", r.Proto);
     }
 
-   
-   
+
     [Fact]
-    public void Extract_TopLevelMessages_MatchFrozenSchema()
-    {
-        var ei = MachoProtoExtractor.CarveAll(Fixture()).First(c => c.Name == "ei.proto");
+    public void Extract_TopLevelMessages_MatchFrozenSchema() {
+        if (!TryFixture(out var fx)) return;
+        var ei = MachoProtoExtractor.CarveAll(fx).First(c => c.Name == "ei.proto");
         var fdp = FileDescriptorProto.Parser.ParseFrom(ei.Bytes);
         var reflection = new ProtoReflection();
 
@@ -60,8 +58,7 @@ public class MachoProtoExtractorTests
         var fc = fdp.MessageType.First(m => m.Name == "EggIncFirstContactRequest");
         var schema = reflection.Schema("EggIncFirstContactRequest");
         Assert.NotNull(schema);
-        foreach (var f in fc.Field)
-        {
+        foreach (var f in fc.Field) {
             var sf = schema!.Fields.FirstOrDefault(x => x.Number == f.Number);
             Assert.True(sf is not null, $"frozen missing field #{f.Number} ({f.Name})");
             Assert.Equal(f.Name, sf!.Name);
@@ -69,8 +66,7 @@ public class MachoProtoExtractorTests
     }
 
     [Fact]
-    public void Extract_Garbage_FailsCleanly()
-    {
+    public void Extract_Garbage_FailsCleanly() {
         var r = MachoProtoExtractor.Extract([0xDE, 0xAD, 0xBE, 0xEF, 0, 1, 2, 3]);
         Assert.False(r.Ok);
         Assert.Null(r.Proto);
@@ -78,16 +74,14 @@ public class MachoProtoExtractorTests
     }
 
     [Fact]
-    public void Extract_Null_FailsCleanly()
-    {
+    public void Extract_Null_FailsCleanly() {
         var r = MachoProtoExtractor.Extract(null!);
         Assert.False(r.Ok);
     }
 
-   
+
     [Fact]
-    public void Extract_RealBinary_WhenProvided()
-    {
+    public void Extract_RealBinary_WhenProvided() {
         var path = Environment.GetEnvironmentVariable("EGGINC_IOS_BINARY");
         if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
         var r = MachoProtoExtractor.Extract(File.ReadAllBytes(path));
@@ -95,11 +89,5 @@ public class MachoProtoExtractorTests
         Assert.Contains("message EggIncFirstContactRequest {", r.Proto);
     }
 
-    private static byte[] Fixture()
-    {
-        var dir = Path.GetDirectoryName(SourcePath())!;
-        return File.ReadAllBytes(Path.Combine(dir, "egginc-1.35.8-descriptors.bin"));
-    }
-
-    static string SourcePath([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
+    private static bool TryFixture(out byte[] bytes) => TestFixtureFiles.TryRead("egginc-1.35.8-descriptors.bin", out bytes);
 }

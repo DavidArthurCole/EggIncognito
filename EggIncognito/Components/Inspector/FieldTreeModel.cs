@@ -4,21 +4,20 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Components.Inspector;
 
-public sealed class FieldNode
-{
+public sealed class FieldNode {
     public required SchemaField Field { get; init; }
-   
+
     public required string PathKey { get; init; }
 
-   
+
     public string Value { get; set; } = "";
-   
+
     public List<string> Items { get; set; } = [];
-   
+
     public List<FieldNode> Children { get; set; } = [];
 
-   
-   
+
+
     public bool Locked { get; set; }
 
     public bool IsMessage => Field.Type == "message";
@@ -30,71 +29,57 @@ public sealed class FieldNode
     public void RemoveItem(int i) { if (i >= 0 && i < Items.Count) Items.RemoveAt(i); }
 }
 
-public static class FieldTreeBuilder
-{
-   
-   
+public static class FieldTreeBuilder {
+
+
     public static List<FieldNode> Build(SchemaMessage schema, Func<string, SchemaMessage?> schemaOf) =>
-        schema.Fields.Select(f => BuildNode(f, [], schemaOf)).ToList();
+        [.. schema.Fields.Select(f => BuildNode(f, [], schemaOf))];
 
     private static FieldNode BuildNode(SchemaField f, IReadOnlyList<string> path,
-        Func<string, SchemaMessage?> schemaOf)
-    {
+        Func<string, SchemaMessage?> schemaOf) {
         var chain = path.Append(f.JsonName).ToList();
         var node = new FieldNode { Field = f, PathKey = string.Join(".", chain) };
-        if (f.Type == "message" && f.MessageType is not null)
-        {
+        if (f.Type == "message" && f.MessageType is not null) {
             var sub = schemaOf(f.MessageType);
             if (sub is not null)
-                node.Children = sub.Fields.Select(cf => BuildNode(cf, chain, schemaOf)).ToList();
+                node.Children = [.. sub.Fields.Select(cf => BuildNode(cf, chain, schemaOf))];
         }
         return node;
     }
 
-   
+
     private static readonly HashSet<string> Int32 =
         ["int32", "uint32", "sint32", "fixed32", "sfixed32"];
     private static readonly HashSet<string> Int64 =
         ["int64", "uint64", "sint64", "fixed64", "sfixed64"];
     private static readonly HashSet<string> Floats = ["double", "float"];
 
-   
-   
-    private static JsonNode? Coerce(string raw, string ptype)
-    {
+
+
+    private static JsonNode? Coerce(string raw, string ptype) {
         if (string.IsNullOrEmpty(raw)) return null;
         if (ptype == "bool") return JsonValue.Create(raw == "true");
         if (Int32.Contains(ptype))
             return int.TryParse(raw, out var i) ? JsonValue.Create(i) : JsonValue.Create(raw);
         if (Int64.Contains(ptype)) return JsonValue.Create(raw);
-        if (Floats.Contains(ptype))
-            return double.TryParse(raw, out var d) ? JsonValue.Create(d) : JsonValue.Create(raw);
-        return JsonValue.Create(raw);
+        return Floats.Contains(ptype) ? double.TryParse(raw, out var d) ? JsonValue.Create(d) : JsonValue.Create(raw) : JsonValue.Create(raw);
     }
 
-   
-    public static JsonObject Collect(IReadOnlyList<FieldNode> nodes)
-    {
+
+    public static JsonObject Collect(IReadOnlyList<FieldNode> nodes) {
         var obj = new JsonObject();
-        foreach (var n in nodes)
-        {
-            if (n.IsMessage)
-            {
+        foreach (var n in nodes) {
+            if (n.IsMessage) {
                 var child = Collect(n.Children);
                 if (child.Count > 0) obj[n.Field.JsonName] = child;
-            }
-            else if (n.Field.Repeated)
-            {
+            } else if (n.Field.Repeated) {
                 var arr = new JsonArray();
-                foreach (var item in n.Items)
-                {
+                foreach (var item in n.Items) {
                     var v = Coerce(item, n.Field.Type);
                     if (v is not null) arr.Add(v);
                 }
                 if (arr.Count > 0) obj[n.Field.JsonName] = arr;
-            }
-            else
-            {
+            } else {
                 var v = Coerce(n.Value, n.Field.Type);
                 if (v is not null) obj[n.Field.JsonName] = v;
             }
@@ -102,62 +87,47 @@ public static class FieldTreeBuilder
         return obj;
     }
 
-   
-   
-    public static void Apply(IReadOnlyList<FieldNode> nodes, JsonObject obj)
-    {
-        foreach (var n in nodes)
-        {
+
+
+    public static void Apply(IReadOnlyList<FieldNode> nodes, JsonObject obj) {
+        foreach (var n in nodes) {
             obj.TryGetPropertyValue(n.Field.JsonName, out var v);
-            if (n.IsMessage)
-            {
-                Apply(n.Children, v as JsonObject ?? new JsonObject());
-            }
-            else if (n.Field.Repeated)
-            {
-                n.Items = v is JsonArray arr ? arr.Select(ValueText).ToList() : [];
-            }
-            else
-            {
+            if (n.IsMessage) {
+                Apply(n.Children, v as JsonObject ?? []);
+            } else if (n.Field.Repeated) {
+                n.Items = v is JsonArray arr ? [.. arr.Select(ValueText)] : [];
+            } else {
                 n.Value = ValueText(v);
             }
         }
     }
 
-   
-    private static string ValueText(JsonNode? v) => v switch
-    {
+
+    private static string ValueText(JsonNode? v) => v switch {
         null => "",
         JsonValue jv when jv.TryGetValue(out string? s) => s ?? "",
         _ => v.ToJsonString(),
     };
 
-   
-   
-    public static void ApplyEnvLock(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env)
-    {
+
+
+    public static void ApplyEnvLock(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env) {
         var rinfo = nodes.FirstOrDefault(n => n.Field.JsonName == "rinfo" && n.IsMessage);
         if (rinfo is null) return;
-        foreach (var child in rinfo.Children)
-        {
-            if (env.TryGetValue(child.Field.JsonName, out var v) && !string.IsNullOrEmpty(v))
-            {
+        foreach (var child in rinfo.Children) {
+            if (env.TryGetValue(child.Field.JsonName, out var v) && !string.IsNullOrEmpty(v)) {
                 child.Value = v;
                 child.Locked = true;
-            }
-            else
-            {
+            } else {
                 child.Locked = false;
             }
         }
     }
 
-   
-   
-    public static void ApplyEnvDefaults(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env)
-    {
-        foreach (var n in nodes)
-        {
+
+
+    public static void ApplyEnvDefaults(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env) {
+        foreach (var n in nodes) {
             if (n.Field.JsonName == "rinfo") continue;
             if (n.IsMessage || n.Field.Repeated) continue;
             if (!string.IsNullOrEmpty(n.Value)) continue;
@@ -167,44 +137,41 @@ public static class FieldTreeBuilder
     }
 }
 
-public sealed class EnvRow
-{
+public sealed partial class EnvRow {
     public required string Key { get; init; }
     public required string ValueType { get; init; }
     public string Value { get; set; } = "";
-   
+
     public string Editor { get; init; } = "text";
-   
+
     public IReadOnlyList<string>? Options { get; init; }
-   
+
     public string? Hint { get; init; }
 
-   
-    public bool IsInvalid()
-    {
-        if (string.IsNullOrEmpty(Value)) return false;
-        return Editor switch
-        {
+
+    public bool IsInvalid() {
+        return string.IsNullOrEmpty(Value)
+            ? false
+            : Editor switch {
             "int" => !int.TryParse(Value, out _),
-            "version" => !System.Text.RegularExpressions.Regex.IsMatch(Value, @"^\d+(\.\d+){1,3}$"),
+            "version" => !VersionRegex().IsMatch(Value),
             "code" => !System.Text.RegularExpressions.Regex.IsMatch(Value, "^[A-Za-z]{2,3}$"),
             "select" => Options is not null && !Options.Contains(Value),
             "eid" => !System.Text.RegularExpressions.Regex.IsMatch(Value, @"^EI\d{10,}$"),
             _ => false,
         };
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\d+(\.\d+){1,3}$")]
+    private static partial System.Text.RegularExpressions.Regex VersionRegex();
 }
 
-public static class EnvCollector
-{
-   
-    public static Dictionary<string, object?> Collect(IEnumerable<EnvRow> rows)
-    {
+public static class EnvCollector {
+
+    public static Dictionary<string, object?> Collect(IEnumerable<EnvRow> rows) {
         var env = new Dictionary<string, object?>();
-        foreach (var r in rows)
-        {
-            object? v = r.ValueType switch
-            {
+        foreach (var r in rows) {
+            object? v = r.ValueType switch {
                 "number" => int.TryParse(r.Value, out var i) ? i : (object?)r.Value,
                 "boolean" => r.Value == "true",
                 _ => r.Value,

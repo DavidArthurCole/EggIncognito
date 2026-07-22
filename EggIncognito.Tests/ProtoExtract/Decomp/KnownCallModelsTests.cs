@@ -2,25 +2,19 @@ using EggIncognito.Services.ProtoExtract.Decomp;
 
 namespace EggIncognito.Tests.ProtoExtract.Decomp;
 
-public class KnownCallModelsTests
-{
+public class KnownCallModelsTests {
     [Fact]
-    public void Sinf_MapsToSinUnary()
-    {
+    public void Sinf_MapsToSinUnary() {
         var u = Assert.IsType<Unary>(KnownCallModels.Resolve("_sinf", [new Input("t")]));
         Assert.Equal(UnOp.Sin, u.Op);
         Assert.Equal(new Input("t"), u.X);
     }
 
     [Fact]
-    public void Cosf_MapsToCosUnary()
-    {
-        Assert.Equal(UnOp.Cos, Assert.IsType<Unary>(KnownCallModels.Resolve("_cosf", [new Input("t")])).Op);
-    }
+    public void Cosf_MapsToCosUnary() => Assert.Equal(UnOp.Cos, Assert.IsType<Unary>(KnownCallModels.Resolve("_cosf", [new Input("t")])).Op);
 
     [Fact]
-    public void AddParticle_IsSink_CapturesFirstArg()
-    {
+    public void AddParticle_IsSink_CapturesFirstArg() {
         var transform = new Input("placement");
         var o = Assert.IsType<Opaque>(KnownCallModels.Resolve(
             "__ZN19ParticleBatchedMesh11addParticleEN5Eigen9TransformIfLi3ELi2ELi0EEEf", [transform, new Const(1)]));
@@ -29,8 +23,5 @@ public class KnownCallModelsTests
     }
 
     [Fact]
-    public void Unknown_ReturnsNull()
-    {
-        Assert.Null(KnownCallModels.Resolve("__ZN3Foo3barEv", [new Const(1)]));
-    }
+    public void Unknown_ReturnsNull() => Assert.Null(KnownCallModels.Resolve("__ZN3Foo3barEv", [new Const(1)]));
 }

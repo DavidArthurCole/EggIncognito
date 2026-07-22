@@ -4,25 +4,21 @@ using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 
-public class DeviceConfigTests
-{
-    static IConfiguration Cfg(Dictionary<string, string?> d) =>
+public class DeviceConfigTests {
+    private static IConfiguration Cfg(Dictionary<string, string?> d) =>
         new ConfigurationBuilder().AddInMemoryCollection(d).Build();
 
     [Fact]
-    public void Bind_Empty_NoDevicesDefaultsOn()
-    {
-        var c = DeviceConfig.Bind(Cfg(new()));
+    public void Bind_Empty_NoDevicesDefaultsOn() {
+        var c = DeviceConfig.Bind(Cfg([]));
         Assert.True(c.Enabled);
         Assert.Equal(30, c.IntervalMinutes);
         Assert.Empty(c.Devices);
     }
 
     [Fact]
-    public void Bind_TwoDevices_ParsesAll()
-    {
-        var c = DeviceConfig.Bind(Cfg(new()
-        {
+    public void Bind_TwoDevices_ParsesAll() {
+        var c = DeviceConfig.Bind(Cfg(new() {
             ["DevicePolling:Enabled"] = "true",
             ["DevicePolling:IntervalMinutes"] = "15",
             ["Devices:0:Id"] = "frame-android",
@@ -43,10 +39,8 @@ public class DeviceConfigTests
     }
 
     [Fact]
-    public void Bind_DropsEntriesMissingIdOrTarget()
-    {
-        var c = DeviceConfig.Bind(Cfg(new()
-        {
+    public void Bind_DropsEntriesMissingIdOrTarget() {
+        var c = DeviceConfig.Bind(Cfg(new() {
             ["Devices:0:Platform"] = "android",
             ["Devices:1:Id"] = "ok",
             ["Devices:1:Platform"] = "ios",
@@ -57,8 +51,7 @@ public class DeviceConfigTests
     }
 
     [Fact]
-    public void Bind_ReadsDeviceFilesFromDirInIndexOrder()
-    {
+    public void Bind_ReadsDeviceFilesFromDirInIndexOrder() {
         using var tmp = new TempDir();
         tmp.Write("ios.egidevice.1", "Id=frame-iphone\nPlatform=ios\nLabel=iPhone 8\nTarget=udid");
         tmp.Write("android.egidevice.0", "Id=frame-android\nPlatform=android\nLabel=A15\nTarget=RF8X20GLYDY");
@@ -73,10 +66,8 @@ public class DeviceConfigTests
     }
 
     [Fact]
-    public void Bind_MissingDirFallsBackToInline()
-    {
-        var c = DeviceConfig.Bind(Cfg(new()
-        {
+    public void Bind_MissingDirFallsBackToInline() {
+        var c = DeviceConfig.Bind(Cfg(new() {
             ["Devices:Dir"] = "/no/such/dir",
             ["Devices:0:Id"] = "inline",
             ["Devices:0:Target"] = "t",
@@ -86,13 +77,11 @@ public class DeviceConfigTests
     }
 
     [Fact]
-    public void Bind_InlineOverridesDirOnIdCollision()
-    {
+    public void Bind_InlineOverridesDirOnIdCollision() {
         using var tmp = new TempDir();
         tmp.Write("android.egidevice.0", "Id=dev\nPlatform=android\nTarget=from-file");
 
-        var c = DeviceConfig.Bind(Cfg(new()
-        {
+        var c = DeviceConfig.Bind(Cfg(new() {
             ["Devices:Dir"] = tmp.Path,
             ["Devices:0:Id"] = "dev",
             ["Devices:0:Target"] = "from-inline",
@@ -103,13 +92,11 @@ public class DeviceConfigTests
     }
 
     [Fact]
-    public void Bind_DirAndInlineMergeDistinctIds()
-    {
+    public void Bind_DirAndInlineMergeDistinctIds() {
         using var tmp = new TempDir();
         tmp.Write("android.egidevice.0", "Id=from-file\nTarget=t");
 
-        var c = DeviceConfig.Bind(Cfg(new()
-        {
+        var c = DeviceConfig.Bind(Cfg(new() {
             ["Devices:Dir"] = tmp.Path,
             ["Devices:0:Id"] = "from-inline",
             ["Devices:0:Target"] = "t",
@@ -120,8 +107,7 @@ public class DeviceConfigTests
         Assert.Contains(c.Devices, d => d.Id == "from-inline");
     }
 
-    sealed class TempDir : IDisposable
-    {
+    private sealed class TempDir : IDisposable {
         public string Path { get; } =
             System.IO.Path.Combine(System.IO.Path.GetTempPath(), "egi-dev-" + Guid.NewGuid().ToString("N"));
         public TempDir() => Directory.CreateDirectory(Path);

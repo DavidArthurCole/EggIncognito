@@ -4,10 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
 
-public static class RouteSeeder
-{
-    public static StoredRoute ToYamlRow(RouteInfo r) => new()
-    {
+public static class RouteSeeder {
+    public static StoredRoute ToYamlRow(RouteInfo r) => new() {
         Path = r.Path,
         RequestType = r.Request,
         ResponseType = r.Response,
@@ -28,8 +26,7 @@ public static class RouteSeeder
         || existing.PathParam != r.PathParam
         || existing.PathParamOnly != r.PathParamOnly;
 
-    public static void Apply(StoredRoute row, RouteInfo r)
-    {
+    public static void Apply(StoredRoute row, RouteInfo r) {
         row.RequestType = r.Request;
         row.ResponseType = r.Response;
         row.RequestWrapped = r.RequestWrapped;
@@ -39,26 +36,20 @@ public static class RouteSeeder
         row.PathParamOnly = r.PathParamOnly;
     }
 
-    public static List<StoredRoute> Plan(IEnumerable<StoredRoute> existingRows, IEnumerable<RouteInfo> catalog)
-    {
+    public static List<StoredRoute> Plan(IEnumerable<StoredRoute> existingRows, IEnumerable<RouteInfo> catalog) {
         var yaml = existingRows.Where(r => r.Source == "yaml").ToDictionary(r => r.Path);
         var toAdd = new List<StoredRoute>();
-        foreach (var info in catalog)
-        {
-            if (yaml.TryGetValue(info.Path, out var row))
-            {
+        foreach (var info in catalog) {
+            if (yaml.TryGetValue(info.Path, out var row)) {
                 if (NeedsUpdate(row, info)) Apply(row, info);
-            }
-            else
-            {
+            } else {
                 toAdd.Add(ToYamlRow(info));
             }
         }
         return toAdd;
     }
 
-    public static async Task SeedAsync(EggIncognitoDbContext db, IRouteCatalog yamlCatalog, CancellationToken ct = default)
-    {
+    public static async Task SeedAsync(EggIncognitoDbContext db, IRouteCatalog yamlCatalog, CancellationToken ct = default) {
         var existing = await db.StoredRoutes
             .Where(r => r.Source == "yaml")
             .ToListAsync(ct);

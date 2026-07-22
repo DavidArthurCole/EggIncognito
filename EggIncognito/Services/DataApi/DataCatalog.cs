@@ -7,51 +7,46 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Services.DataApi;
 
-public sealed class DataCatalog
-{
-    private static readonly JsonSerializerOptions SnakeJson = new()
-    {
+public sealed class DataCatalog {
+    private static readonly JsonSerializerOptions SnakeJson = new() {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = true,
     };
-
-    private readonly IReadOnlyList<DataSource> _sources;
     private readonly Dictionary<string, DataSource> _byRoute;
 
-    public DataCatalog()
-    {
-        _sources = Build();
-        _byRoute = _sources
+    public DataCatalog() {
+        Sources = Build();
+        _byRoute = Sources
             .Where(s => s.WireRoute is not null && s.Provenance == DataProvenance.WireFixture)
             .ToDictionary(s => s.WireRoute!, StringComparer.Ordinal);
     }
 
-    public IReadOnlyList<DataSource> Sources => _sources;
+    public IReadOnlyList<DataSource> Sources { get; }
 
     public DataSource? ById(string group, string id) =>
-        _sources.FirstOrDefault(s =>
+        Sources.FirstOrDefault(s =>
             string.Equals(s.Group, group, StringComparison.Ordinal) &&
             string.Equals(s.Id, id, StringComparison.Ordinal));
 
     public DataSource? ByChild(string group, string parentId, string subId) =>
-        _sources.FirstOrDefault(s =>
+        Sources.FirstOrDefault(s =>
             string.Equals(s.Group, group, StringComparison.Ordinal) &&
             string.Equals(s.Extends, parentId, StringComparison.Ordinal) &&
             string.Equals(s.Id, subId, StringComparison.Ordinal));
 
     public IReadOnlyList<DataSource> Children(DataSource parent) =>
-        _sources.Where(s => string.Equals(s.Extends, parent.Id, StringComparison.Ordinal)).ToArray();
+        Sources.Where(s => string.Equals(s.Extends, parent.Id, StringComparison.Ordinal)).ToArray();
 
     public DataSource? ByWireRoute(string route) => _byRoute.GetValueOrDefault(route);
 
     public IReadOnlyList<DataSource> ByGroup(string group) =>
-        _sources.Where(s => string.Equals(s.Group, group, StringComparison.Ordinal)).ToArray();
+        Sources.Where(s => string.Equals(s.Group, group, StringComparison.Ordinal)).ToArray();
 
     public IReadOnlyList<DataSource> EgressSources() =>
-        _sources.Where(s => s.Refresh.Egress && s.WireRoute is not null).ToArray();
+        Sources.Where(s => s.Refresh.Egress && s.WireRoute is not null).ToArray();
 
     public IReadOnlyList<string> PeriodicalFeeds() =>
-        _sources
+        Sources
             .Where(s => string.Equals(s.Group, "periodical", StringComparison.Ordinal) && s.Feed is not null)
             .Select(s => s.Feed!)
             .Distinct(StringComparer.Ordinal)
@@ -82,7 +77,7 @@ public sealed class DataCatalog
             "Custom-egg buff defs extracted from get_periodicals.",
             DataProvenance.GameDataEmbedded, DataAccess.Public,
             null, null, new DataRefresh(false), false,
-            (ctx, ct) => Task.FromResult(EmbeddedJson("colleggtibles.json")),
+            (_, _) => Task.FromResult(EmbeddedJson("colleggtibles.json")),
             Extends: "get_periodicals"),
         new DataSource("eiafx", "periodical", "eiafx data",
             "Artifact families/tiers extracted from ei_afx/config + get_config icons.",
@@ -91,6 +86,11 @@ public sealed class DataCatalog
             ProduceEiAfx, Extends: "afx-config"),
 
         Embedded("boost", "Boosts", "boosts.json", "boosts.json"),
+        Embedded("boost-catalog", "Boost catalog", "All 33 boosts: identity + costs, extracted from boostmanager + get_config.", "boost-catalog.json"),
+        Embedded("egg-catalog", "Egg catalog", "Egg names and base values extracted from eggdata.", "eggs.json"),
+        Embedded("dimension", "Boost dimensions", "Boost dimension ids extracted from boostmanager.", "dimensions.json"),
+        Embedded("mission", "Missions", "Home-screen mission goals extracted from missiondata.", "missions.json"),
+        Embedded("vehicle", "Vehicles", "Vehicle names and shipping capacities extracted from vehicledata.", "vehicles.json"),
         Embedded("research", "Research", "research.json", "research.json"),
         Embedded("hab", "Habs", "habs.json", "habs.json"),
         Embedded("artifact", "Artifacts", "artifacts.json", "artifacts.json"),
@@ -103,41 +103,36 @@ public sealed class DataCatalog
         Func<string, byte[]> egressRequest) =>
         new(id, "periodical", display, desc, DataProvenance.WireFixture, DataAccess.Authenticated,
             route, feed, new DataRefresh(true), false,
-            (ctx, ct) => Task.FromResult(FixtureJson(ctx, route)), egressRequest);
+            (ctx, _) => Task.FromResult(FixtureJson(ctx, route)), egressRequest);
 
     private static DataSource Embedded(string id, string display, string desc, string resource) =>
         new(id, "gamedata", display, desc, DataProvenance.GameDataEmbedded, DataAccess.Public,
             null, null, new DataRefresh(false), false,
-            (ctx, ct) => Task.FromResult(EmbeddedJson(resource)));
+            (_, _) => Task.FromResult(EmbeddedJson(resource)));
 
-    private static string DefaultsDir(DataProduceContext ctx)
-    {
+    private static string DefaultsDir(DataProduceContext ctx) {
         var config = ctx.Services.GetRequiredService<IConfiguration>();
         var root = ContentRoot.Resolve(config["ContentRoot"]);
         return Path.Combine(root, "Endpoints", "default");
     }
 
-    private static string FixturePath(DataProduceContext ctx, string route)
-    {
+    private static string FixturePath(DataProduceContext ctx, string route) {
         var parts = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var file = parts[^1] + ".json";
         return Path.Combine(DefaultsDir(ctx), Path.Combine(parts[..^1]), file);
     }
 
-    private static DataPayload? FixtureJson(DataProduceContext ctx, string route)
-    {
+    private static DataPayload? FixtureJson(DataProduceContext ctx, string route) {
         var path = FixturePath(ctx, route);
         return File.Exists(path) ? DataPayload.Json(File.ReadAllText(path)) : null;
     }
 
-    private static string? FixtureText(DataProduceContext ctx, string route)
-    {
+    private static string? FixtureText(DataProduceContext ctx, string route) {
         var path = FixturePath(ctx, route);
         return File.Exists(path) ? File.ReadAllText(path) : null;
     }
 
-    private static DataPayload? EmbeddedJson(string resource)
-    {
+    private static DataPayload? EmbeddedJson(string resource) {
         var asm = typeof(ColleggtibleCatalog).Assembly;
         var full = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(resource, StringComparison.Ordinal));
         if (full is null) return null;
@@ -146,28 +141,23 @@ public sealed class DataCatalog
         return DataPayload.Json(reader.ReadToEnd());
     }
 
-    private static Task<DataPayload?> ProduceEiAfx(DataProduceContext ctx, CancellationToken ct)
-    {
+    private static Task<DataPayload?> ProduceEiAfx(DataProduceContext ctx, CancellationToken ct) {
         var afx = FixtureText(ctx, "ei_afx/config");
         if (afx is null) return Task.FromResult<DataPayload?>(null);
         var configJson = FixtureText(ctx, "ei/get_config");
         IReadOnlyDictionary<string, string> icons = new Dictionary<string, string>();
-        if (configJson is not null)
-        {
-            try { icons = DlcArtifactIcons.FromConfigJson(configJson); }
-            catch { icons = new Dictionary<string, string>(); }
+        if (configJson is not null) {
+            try { icons = DlcArtifactIcons.FromConfigJson(configJson); } catch { icons = new Dictionary<string, string>(); }
         }
-        var data = EiAfxDataBuilder.BuildFromJson(afx, icons, "captured@ei_afx/config + get_config");
+        var data = EiAfxDataBuilder.BuildFromJson(afx, icons);
         return Task.FromResult<DataPayload?>(DataPayload.Json(JsonSerializer.Serialize(data, SnakeJson)));
     }
 
-    private static async Task<DataPayload?> ProduceIcon(DataProduceContext ctx, CancellationToken ct)
-    {
+    private static async Task<DataPayload?> ProduceIcon(DataProduceContext ctx, CancellationToken ct) {
         var name = ctx.Name;
         if (string.IsNullOrEmpty(name) || name.IndexOfAny(['/', '\\', '.', ' ']) >= 0) return null;
         var assets = ctx.Services.GetRequiredService<GameAssetProvider>();
         var result = await assets.GetAsync(new GameAssetKey("icon", null, name), ct);
-        if (!result.Ok || result.Asset is null) return null;
-        return new DataPayload(result.Asset.Bytes, result.Asset.ContentType);
+        return !result.Ok || result.Asset is null ? null : new DataPayload(result.Asset.Bytes, result.Asset.ContentType);
     }
 }

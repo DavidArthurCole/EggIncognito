@@ -6,9 +6,8 @@ using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services;
 
-public static class Redactor
-{
-   
+public static class Redactor {
+
     private static readonly string[] SensitiveFields =
     [
         "transactionId", "originalTransactionId", "linkedTransactionId",
@@ -19,21 +18,21 @@ public static class Redactor
         "userName", "requestingUserName", "username", "alias",
     ];
 
-   
+
     private static readonly Regex FieldRegex = new(
         "\"(" + string.Join('|', SensitiveFields) + ")\":\\s*\"((?:[^\"\\\\]|\\\\.)+)\"",
         RegexOptions.Compiled);
 
-   
-   
+
+
     public static IReadOnlyList<string> SensitiveFieldNames => SensitiveFields;
 
-   
-   
+
+
     public static string Redact(string json) =>
         FieldRegex.Replace(json, m => $"\"{m.Groups[1].Value}\": \"{Token(m.Groups[2].Value)}\"");
 
-   
+
     private static string Token(string value) =>
         "redacted-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..12].ToLowerInvariant();
 }

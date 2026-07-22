@@ -18,8 +18,12 @@ public sealed class PeriodicalsController(
     ICurrentUser currentUser,
     IConfiguration config,
     DataCatalog catalog,
-    IServiceProvider services) : ControllerBase
-{
+    IServiceProvider services) : ControllerBase {
+    private static readonly System.Text.Json.JsonSerializerOptions ProvenanceJson = new() {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
+
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
     private string DefaultsDir => Path.Combine(Root, "Endpoints", "default");
 
@@ -30,30 +34,27 @@ public sealed class PeriodicalsController(
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
 
     [HttpGet("summary")]
-    public IActionResult Summary()
-    {
+    public IActionResult Summary() {
         if (RequireAdmin() is { } no) return no;
 
         var extracted = new List<object>();
         object? colleggtibles = null;
-        if (services.GetService(typeof(IGameDataProvider)) is IGameDataProvider provider)
-        {
-            foreach (var f in provider.Families)
-                extracted.Add(new
-                {
+        if (services.GetService(typeof(IGameDataProvider)) is IGameDataProvider provider) {
+            foreach (var f in provider.Families) {
+                extracted.Add(new {
                     key = f.Key,
                     count = f.Effects.Count,
-                    provenance = (f as EmbeddedEffectFamily)?.Status ?? "",
+                    provenance = System.Text.Json.JsonSerializer.Serialize(f.Provenance, ProvenanceJson),
                 });
+            }
 
             var col = provider.Colleggtibles;
             var icons = LoadColleggtibleIcons();
-            colleggtibles = new
-            {
+            colleggtibles = new {
                 count = col.Eggs.Count,
-                provenance = string.IsNullOrEmpty(col.BinaryVersion) ? col.Status : col.BinaryVersion,
-                eggs = col.Eggs.Select(e => new
-                {
+                gameVersion = col.GameVersion,
+                provenance = System.Text.Json.JsonSerializer.Serialize(col.Provenance, ProvenanceJson),
+                eggs = col.Eggs.Select(e => new {
                     e.Identifier,
                     dimension = DimensionName(e.Dimension),
                     e.TierValues,
@@ -64,16 +65,12 @@ public sealed class PeriodicalsController(
 
         var platforms = Array.Empty<object>();
         var configEnabled = false;
-        if (services.GetService(typeof(GameConfigStore)) is GameConfigStore store)
-        {
+        if (services.GetService(typeof(GameConfigStore)) is GameConfigStore store) {
             configEnabled = store.Enabled;
-            platforms = store.List()
-                .Select(c => (object)new { platform = c.Platform, savedAt = c.SavedAt, bytes = c.Bytes })
-                .ToArray();
+            platforms = [.. store.List().Select(c => (object)new { platform = c.Platform, savedAt = c.SavedAt, bytes = c.Bytes })];
         }
 
-        return Ok(new
-        {
+        return Ok(new {
             extracted,
             colleggtibles,
             config = new { enabled = configEnabled, platforms },
@@ -82,64 +79,59 @@ public sealed class PeriodicalsController(
     }
 
     [HttpGet("feed/{name}")]
-    public async Task<IActionResult> Feed(string name, CancellationToken ct)
-    {
+    public async Task<IActionResult> Feed(string name, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var src = WireSources.FirstOrDefault(s => string.Equals(s.Feed, name, StringComparison.Ordinal));
         if (src is null) return NotFound(new { error = "unknown feed" });
 
         var payload = await src.Produce(new DataProduceContext(HttpContext, null), ct);
-        if (payload is null) return NotFound(new { error = "no capture on disk" });
-        return Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
+        return payload is null
+            ? NotFound(new { error = "no capture on disk" })
+            : Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
     }
 
     [HttpGet("gamedata/{key}")]
-    public async Task<IActionResult> GameData(string key, CancellationToken ct)
-    {
+    public async Task<IActionResult> GameData(string key, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var src = catalog.ById("gamedata", key);
         if (src is null) return NotFound(new { error = "unknown dataset" });
 
         var payload = await src.Produce(new DataProduceContext(HttpContext, null), ct);
-        if (payload is null) return NotFound(new { error = "resource not found" });
-        return Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
+        return payload is null
+            ? NotFound(new { error = "resource not found" })
+            : Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
     }
 
     [HttpGet("eiafx-data")]
-    public async Task<IActionResult> EiAfxData(CancellationToken ct)
-    {
+    public async Task<IActionResult> EiAfxData(CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var src = catalog.ByChild("periodical", "afx-config", "eiafx");
         if (src is null) return NotFound(new { error = "eiafx source missing" });
 
         var payload = await src.Produce(new DataProduceContext(HttpContext, null), ct);
-        if (payload is null) return NotFound(new { error = "no ei_afx/config capture" });
-        return Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
+        return payload is null
+            ? NotFound(new { error = "no ei_afx/config capture" })
+            : Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
     }
 
-    private IReadOnlyDictionary<string, string> LoadColleggtibleIcons()
-    {
+    private IReadOnlyDictionary<string, string> LoadColleggtibleIcons() {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
         var route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
         if (route is null) return map;
         var path = FixturePath(route);
         if (!System.IO.File.Exists(path)) return map;
-        try
-        {
+        try {
             var per = Ei.PeriodicalsResponse.Parser.ParseJson(System.IO.File.ReadAllText(path));
-            foreach (var egg in per.Contracts?.CustomEggs ?? Enumerable.Empty<Ei.CustomEgg>())
-            {
+            foreach (var egg in per.Contracts?.CustomEggs ?? []) {
                 var url = egg.Icon?.Url;
                 if (!string.IsNullOrEmpty(egg.Identifier) && !string.IsNullOrEmpty(url))
                     map[egg.Identifier] = url;
             }
-        }
-        catch { }
+        } catch { }
         return map;
     }
 
-    private string FixturePath(string route)
-    {
+    private string FixturePath(string route) {
         var parts = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var file = parts[^1] + ".json";
         return Path.Combine(DefaultsDir, Path.Combine(parts[..^1]), file);
@@ -148,15 +140,13 @@ public sealed class PeriodicalsController(
     private static readonly IReadOnlyDictionary<int, string> DimNames =
         ColleggtibleCatalog.DimensionCodes.ToDictionary(kv => kv.Value, kv => kv.Key);
 
-    private static string DimensionName(int code) => DimNames.TryGetValue(code, out var n) ? n : code.ToString();
+    private static string DimensionName(int code) => DimNames.TryGetValue(code, out var n) ? n : code.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    private object FeedInfo(DataSource src)
-    {
+    private object FeedInfo(DataSource src) {
         var route = src.WireRoute!;
         var path = FixturePath(route);
         var exists = System.IO.File.Exists(path);
-        return new
-        {
+        return new {
             name = src.Feed,
             path = route,
             present = exists,

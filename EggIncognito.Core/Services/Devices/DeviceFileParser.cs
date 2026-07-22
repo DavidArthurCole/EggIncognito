@@ -1,18 +1,18 @@
+using System.Globalization;
+
 namespace EggIncognito.Core.Services.Devices;
 
 
-public static class DeviceFileParser
-{
+public static class DeviceFileParser {
     public sealed record ParsedDevice(
         int Order, string? Id, string? Platform, string? Label, string? Target, string? Package);
 
     public static bool IsDeviceFile(string fileName) =>
         fileName.Contains(".egidevice.", StringComparison.OrdinalIgnoreCase);
 
-   
-   
-    public static ParsedDevice? Parse(string fileName, string content)
-    {
+
+
+    public static ParsedDevice? Parse(string fileName, string content) {
         if (!IsDeviceFile(fileName)) return null;
 
         var (filePlatform, order) = SplitName(fileName);
@@ -27,20 +27,17 @@ public static class DeviceFileParser
             Package: Nz(Get(kv, "Package")));
     }
 
-   
-    private static (string? Platform, int Order) SplitName(string fileName)
-    {
+
+    private static (string? Platform, int Order) SplitName(string fileName) {
         var idx = fileName.IndexOf(".egidevice.", StringComparison.OrdinalIgnoreCase);
         var platform = idx > 0 ? fileName[..idx] : null;
         var suffix = fileName[(idx + ".egidevice.".Length)..];
-        return (platform, int.TryParse(suffix, out var n) ? n : int.MaxValue);
+        return (platform, int.TryParse(suffix, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : int.MaxValue);
     }
 
-    private static Dictionary<string, string> ParseDotenv(string content)
-    {
+    private static Dictionary<string, string> ParseDotenv(string content) {
         var kv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var raw in content.Split('\n'))
-        {
+        foreach (var raw in content.Split('\n')) {
             var line = raw.Trim();
             if (line.Length == 0 || line[0] == '#') continue;
             var eq = line.IndexOf('=');

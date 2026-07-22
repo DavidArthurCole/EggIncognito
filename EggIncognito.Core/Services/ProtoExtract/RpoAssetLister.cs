@@ -2,24 +2,20 @@ using System.IO.Compression;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-public static class RpoAssetLister
-{
+public static class RpoAssetLister {
     private const long MaxEntryBytes = 50_000_000L;
 
-   
-    public static IReadOnlyList<string> ListStems(byte[] archiveZipBytes)
-    {
+
+    public static IReadOnlyList<string> ListStems(byte[] archiveZipBytes) {
         var stems = new SortedSet<string>(StringComparer.Ordinal);
         ForEachRpoEntry(archiveZipBytes, (stem, _) => { stems.Add(stem); return false; });
         return stems.ToList();
     }
 
-   
-    public static byte[]? ReadStem(byte[] archiveZipBytes, string stem)
-    {
+
+    public static byte[]? ReadStem(byte[] archiveZipBytes, string stem) {
         byte[]? found = null;
-        ForEachRpoEntry(archiveZipBytes, (s, read) =>
-        {
+        ForEachRpoEntry(archiveZipBytes, (s, read) => {
             if (!string.Equals(s, stem, StringComparison.Ordinal)) return false;
             found = read();
             return true;
@@ -27,27 +23,25 @@ public static class RpoAssetLister
         return found;
     }
 
-   
-   
-    private static void ForEachRpoEntry(byte[] zipBytes, Func<string, Func<byte[]>, bool> visit)
-    {
+
+
+    private static void ForEachRpoEntry(byte[] zipBytes, Func<string, Func<byte[]>, bool> visit) {
         if (zipBytes is null || zipBytes.Length == 0) return;
         ZipArchive zip;
-        try { zip = new ZipArchive(new MemoryStream(zipBytes, writable: false), ZipArchiveMode.Read); }
-        catch { return; }
+        try { zip = new ZipArchive(new MemoryStream(zipBytes, writable: false), ZipArchiveMode.Read); } catch { return; }
 
-        using (zip)
-        {
-            foreach (var entry in zip.Entries)
-            {
+        using (zip) {
+            foreach (var entry in zip.Entries) {
                 var name = entry.FullName;
                 if (!name.EndsWith(".rpo", StringComparison.OrdinalIgnoreCase)
-                    && !name.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase)) continue;
+                    && !name.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
                 if (entry.Length is <= 0 or > MaxEntryBytes) continue;
 
                 var stem = Stem(name);
-                byte[] Read()
-                {
+                byte[] Read() {
                     using var es = entry.Open();
                     using var buf = new MemoryStream();
                     es.CopyTo(buf);
@@ -58,8 +52,7 @@ public static class RpoAssetLister
         }
     }
 
-    private static string Stem(string fullName)
-    {
+    private static string Stem(string fullName) {
         var slash = fullName.LastIndexOfAny(['/', '\\']);
         var name = slash >= 0 ? fullName[(slash + 1)..] : fullName;
         var dot = name.LastIndexOf('.');

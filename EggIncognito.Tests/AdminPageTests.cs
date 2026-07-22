@@ -1,52 +1,46 @@
 using Bunit;
 using EggIncognito.Components.Pages;
 using EggIncognito.Data.Models;
-using SyncKit.Contract;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using SyncKit.Contract;
 
 namespace EggIncognito.Tests;
-public class AdminPageTests
-{
+
+public class AdminPageTests {
     [Collection(SharedAppCollection.Name)]
-    public class Integration
-    {
-        private readonly WebApplicationFactory<Program> _f;
-        public Integration(SharedAppFactory f) => _f = f;
+    public class Integration(SharedAppFactory f) {
+        private readonly WebApplicationFactory<Program> _f = f;
 
         [Fact]
-        public async Task Admin_Anonymous_RendersDeniedState()
-        {
+        public async Task Admin_Anonymous_RendersDeniedState() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/admin");
             Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
             var html = await r.Content.ReadAsStringAsync();
             Assert.Contains("adminMain", html);
             Assert.Contains("id=\"denied\"", html);
-           
+
             Assert.Contains("Login unavailable", html);
             Assert.DoesNotContain("<h2>Users</h2>", html);
         }
     }
 
-   
-    public class Component : BunitContext
-    {
-        private void Wire(UserRole role)
-        {
+
+    public class Component : BunitContext {
+        private void Wire(UserRole role) {
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton(new AuthState(IdentityApiEnabled: false));
             Services.AddHttpClient();
-           
-           
+
+
         }
 
         [Fact]
-        public void Anonymous_ShowsDenied_NotPanel()
-        {
+        public void Anonymous_ShowsDenied_NotPanel() {
             Wire(UserRole.Viewer);
             var cut = Render<Admin>();
             Assert.NotNull(cut.Find("#denied"));
@@ -54,8 +48,7 @@ public class AdminPageTests
         }
 
         [Fact]
-        public void Admin_ShowsPanel_NotDenied()
-        {
+        public void Admin_ShowsPanel_NotDenied() {
             Wire(UserRole.Admin);
             var cut = Render<Admin>();
             Assert.Empty(cut.FindAll("#denied"));
@@ -64,8 +57,7 @@ public class AdminPageTests
         }
     }
 
-    private sealed class FakeUser(UserRole role) : ICurrentUser
-    {
+    private sealed class FakeUser(UserRole role) : ICurrentUser {
         public bool IsAuthenticated => role != UserRole.Viewer;
         public Guid? UserId => null;
         public string? DiscordId => IsAuthenticated ? "fake" : null;

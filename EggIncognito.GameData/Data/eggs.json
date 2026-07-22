@@ -1,0 +1,106 @@
+{
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "identity": {
+      "origin": "binary",
+      "locator": "eggdata",
+      "method": "decoded"
+    },
+    "baseValue": {
+      "origin": "binary",
+      "locator": "eggdata",
+      "method": "decoded"
+    }
+  },
+  "eggs": [
+    {
+      "index": 0,
+      "baseValue": 0.25
+    },
+    {
+      "index": 1,
+      "name": "MEDICAL",
+      "baseValue": 6.25
+    },
+    {
+      "index": 2,
+      "name": "ROCKET FUEL",
+      "baseValue": 30
+    },
+    {
+      "index": 3,
+      "name": "SUPER MATERIAL",
+      "baseValue": 150
+    },
+    {
+      "index": 4,
+      "name": "FUSION",
+      "baseValue": 700
+    },
+    {
+      "index": 5,
+      "name": "QUANTUM",
+      "baseValue": 3000
+    },
+    {
+      "index": 6,
+      "name": "CRISPR",
+      "baseValue": 12500
+    },
+    {
+      "index": 7,
+      "name": "TACHYON",
+      "baseValue": 50000
+    },
+    {
+      "index": 8,
+      "name": "GRAVITON",
+      "baseValue": 175000
+    },
+    {
+      "index": 9,
+      "name": "DILITHIUM",
+      "baseValue": 525000
+    },
+    {
+      "index": 10,
+      "name": "PRODIGY",
+      "baseValue": 1500000
+    },
+    {
+      "index": 11,
+      "name": "TERRAFORM",
+      "baseValue": 10000000
+    },
+    {
+      "index": 12,
+      "name": "ANTIMATTER",
+      "baseValue": 1000000000
+    },
+    {
+      "index": 13,
+      "name": "DARK MATTER",
+      "baseValue": 100000000000
+    },
+    {
+      "index": 14,
+      "name": "A.I.",
+      "baseValue": 1000000000000
+    },
+    {
+      "index": 15,
+      "name": "NEBULA",
+      "baseValue": 15000000000000
+    },
+    {
+      "index": 16,
+      "name": "UNIVERSE",
+      "baseValue": 100000000000000
+    },
+    {
+      "index": 17,
+      "name": "ENLIGHTENMENT",
+      "baseValue": 1E-07
+    }
+  ]
+}

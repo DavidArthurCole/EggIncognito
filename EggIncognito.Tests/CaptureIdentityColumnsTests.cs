@@ -3,11 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Tests;
 
-public class CaptureIdentityColumnsTests
-{
+public class CaptureIdentityColumnsTests {
     [Fact]
-    public void CaptureProxyAddrAndCaptureUserCa_HaveUserIdPrimaryKey()
-    {
+    public void CaptureProxyAddrAndCaptureUserCa_HaveUserIdPrimaryKey() {
         var options = new DbContextOptionsBuilder<EggIncognitoDbContext>()
             .UseNpgsql("Host=localhost;Database=designtime").Options;
         using var ctx = new EggIncognitoDbContext(options);

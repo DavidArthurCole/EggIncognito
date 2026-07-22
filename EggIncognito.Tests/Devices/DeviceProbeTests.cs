@@ -3,18 +3,14 @@ using Xunit;
 
 namespace EggIncognito.Tests.Devices;
 
-public class DeviceProbeTests
-{
-    sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner
-    {
+public class DeviceProbeTests {
+    private sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner {
         public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) => Task.FromResult(fn(exe, args));
     }
 
     [Fact]
-    public async Task Adb_Reachable_ReturnsVersionAndBuild()
-    {
-        var runner = new FakeRunner((exe, args) =>
-        {
+    public async Task Adb_Reachable_ReturnsVersionAndBuild() {
+        var runner = new FakeRunner((exe, args) => {
             Assert.Equal("adb", exe);
             Assert.Contains("RF8X20GLYDY", args);
             Assert.Contains("com.auxbrain.egginc", args);
@@ -28,8 +24,7 @@ public class DeviceProbeTests
     }
 
     [Fact]
-    public async Task Adb_NoDevice_NotReachable()
-    {
+    public async Task Adb_NoDevice_NotReachable() {
         var runner = new FakeRunner((_, _) => new ProcessResult(1, "", "error: device 'RF8X20GLYDY' not found"));
         var probe = new AdbDeviceProbe(runner, "RF8X20GLYDY", "com.auxbrain.egginc");
         var r = await probe.ProbeAsync(default);
@@ -37,7 +32,7 @@ public class DeviceProbeTests
         Assert.NotNull(r.Note);
     }
 
-    const string Plist = """
+    private const string Plist = """
         <?xml version="1.0"?><plist version="1.0"><array>
         <dict><key>CFBundleIdentifier</key><string>com.auxbrain.egginc</string>
         <key>CFBundleShortVersionString</key><string>1.35.8</string></dict>
@@ -45,10 +40,8 @@ public class DeviceProbeTests
         """;
 
     [Fact]
-    public async Task Ios_Reachable_ReturnsAppVersionNullBuild()
-    {
-        var runner = new FakeRunner((exe, args) =>
-        {
+    public async Task Ios_Reachable_ReturnsAppVersionNullBuild() {
+        var runner = new FakeRunner((exe, args) => {
             Assert.Equal("ideviceinstaller", exe);
             Assert.Contains("3489c6b0", args);
             Assert.Contains("-l", args);
@@ -62,8 +55,7 @@ public class DeviceProbeTests
     }
 
     [Fact]
-    public async Task Ios_CsvFallback_AlsoParses()
-    {
+    public async Task Ios_CsvFallback_AlsoParses() {
         const string csv = "com.auxbrain.egginc, \"1.35.8\", \"Egg, Inc.\"\n";
         var runner = new FakeRunner((_, _) => new ProcessResult(0, csv, ""));
         var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
@@ -72,8 +64,7 @@ public class DeviceProbeTests
     }
 
     [Fact]
-    public async Task Ios_AppNotInstalled_ReachableButNoVersion()
-    {
+    public async Task Ios_AppNotInstalled_ReachableButNoVersion() {
         const string empty = """<?xml version="1.0"?><plist version="1.0"><array></array></plist>""";
         var runner = new FakeRunner((_, _) => new ProcessResult(0, empty, ""));
         var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
@@ -84,8 +75,7 @@ public class DeviceProbeTests
     }
 
     [Fact]
-    public async Task Ios_ToolMissing_NotReachable()
-    {
+    public async Task Ios_ToolMissing_NotReachable() {
         var runner = new FakeRunner((_, _) => new ProcessResult(-1, "", "ideviceinstaller: not found"));
         var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
         var r = await probe.ProbeAsync(default);

@@ -5,19 +5,16 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EggIncognito.Tests;
 
-public class ControllerPolicyAttributeTests
-{
+public class ControllerPolicyAttributeTests {
     [Fact]
-    public void ToolsController_HasReadRateLimitPolicy()
-    {
+    public void ToolsController_HasReadRateLimitPolicy() {
         var attr = typeof(ToolsController).GetCustomAttribute<EnableRateLimitingAttribute>();
         Assert.NotNull(attr);
         Assert.Equal("read", attr!.PolicyName);
     }
 
     [Fact]
-    public void ImportHar_HasRequestSizeLimit()
-    {
+    public void ImportHar_HasRequestSizeLimit() {
         var attr = typeof(ImportController).GetMethod("Har")!
             .GetCustomAttribute<RequestSizeLimitAttribute>();
         Assert.NotNull(attr);

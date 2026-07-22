@@ -6,9 +6,8 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Services;
 
 
-public static class ShipAssetExporter
-{
-   
+public static class ShipAssetExporter {
+
     public sealed record Manifest(
         [property: JsonPropertyName("version")] string Version,
         [property: JsonPropertyName("generatedFromBuild")] string? GeneratedFromBuild,
@@ -27,24 +26,21 @@ public static class ShipAssetExporter
 
     public sealed record Result(Manifest Manifest, IReadOnlyList<Exported> Ships, IReadOnlyList<string> SkippedShips);
 
-   
-   
+
+
     public static Result Build(RpoAssetExtractor.ExtractResult extract, string? generatedFromBuild,
-        EggIncognito.Services.Assets.GltfAnimator.Options? animate = null)
-    {
+        EggIncognito.Services.Assets.GltfAnimator.Options? animate = null) {
         var exported = new List<Exported>();
         var entries = new Dictionary<string, ShipEntry>(StringComparer.Ordinal);
 
-        foreach (var asset in extract.Assets)
-        {
+        foreach (var asset in extract.Assets) {
             if (!asset.Decode.Ok) continue;
             var enumName = ShipNameMap.EnumNameForStem(asset.Key);
             if (enumName is null) continue;
 
             var glb = asset.Decode.Glb!;
-           
-            if (animate is not null)
-            {
+
+            if (animate is not null) {
                 var anim = EggIncognito.Services.Assets.GltfAnimator.Animate(glb, animate);
                 if (anim.Ok) glb = anim.Glb!;
             }
@@ -65,9 +61,8 @@ public static class ShipAssetExporter
         return new Result(manifest, exported, skipped);
     }
 
-   
-    public static async Task WriteToAsync(Result result, string outputDir, CancellationToken ct)
-    {
+
+    public static async Task WriteToAsync(Result result, string outputDir, CancellationToken ct) {
         var shipsDir = Path.Combine(outputDir, "ships");
         Directory.CreateDirectory(shipsDir);
         foreach (var s in result.Ships)

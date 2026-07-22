@@ -3,10 +3,8 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class FileEndpointSourceTests
-{
-    private static string MakeDir(out string root)
-    {
+public class FileEndpointSourceTests {
+    private static string MakeDir(out string root) {
         root = Path.Combine(Path.GetTempPath(), $"ei-fsrc-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(root, "default", "ei"));
         Directory.CreateDirectory(Path.Combine(root, "eids", "EI123", "ei"));
@@ -16,24 +14,21 @@ public class FileEndpointSourceTests
     }
 
     [Fact]
-    public void Default_Hit_ReturnsBytes()
-    {
+    public void Default_Hit_ReturnsBytes() {
         MakeDir(out var root);
         var src = new FileEndpointSource(root);
         Assert.Equal("{}", Encoding.UTF8.GetString(src.Lookup("ei/get_periodicals", null)!));
     }
 
     [Fact]
-    public void Eid_Beats_Default()
-    {
+    public void Eid_Beats_Default() {
         MakeDir(out var root);
         var src = new FileEndpointSource(root);
         Assert.Equal("{\"a\":1}", Encoding.UTF8.GetString(src.Lookup("ei/get_periodicals", "EI123")!));
     }
 
     [Fact]
-    public void PathParam_FallsBackToParent()
-    {
+    public void PathParam_FallsBackToParent() {
         MakeDir(out var root);
         Directory.CreateDirectory(Path.Combine(root, "default", "ei_ctx"));
         File.WriteAllText(Path.Combine(root, "default", "ei_ctx", "get_eval.json"), "{}");
@@ -42,17 +37,15 @@ public class FileEndpointSourceTests
     }
 
     [Fact]
-    public void Miss_ReturnsNull()
-    {
+    public void Miss_ReturnsNull() {
         MakeDir(out var root);
         Assert.Null(new FileEndpointSource(root).Lookup("ei/nope", null));
     }
 
     [Fact]
-    public void Priority_IsZero()
-    {
-       
-       
+    public void Priority_IsZero() {
+
+
         MakeDir(out var root);
         Assert.Equal(0, new FileEndpointSource(root).Priority);
     }

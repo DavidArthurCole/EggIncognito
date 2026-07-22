@@ -2,8 +2,7 @@ using SyncKit.Contract;
 
 namespace EggIncognito.Services;
 
-public interface ICurrentUser
-{
+public interface ICurrentUser {
     bool IsAuthenticated { get; }
     Guid? UserId { get; }
     string? DiscordId { get; }

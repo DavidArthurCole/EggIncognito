@@ -2,16 +2,18 @@ using Discord;
 using EggIncognito.Services;
 
 namespace EggIncognito.Bot;
-public static class BotEmbeds
-{
+
+public static class BotEmbeds {
     private const uint Accent = 0xEF7559;
-    private static string Bytes(long n) =>
-        n < 1024 ? $"{n} B" : n < 1024 * 1024 ? $"{n / 1024.0:0.0} KB" : $"{n / (1024.0 * 1024):0.0} MB";
+    private static string Bytes(long n) => n switch {
+        < 1024 => $"{n} B",
+        < 1024 * 1024 => $"{n / 1024.0:0.0} KB",
+        _ => $"{n / (1024.0 * 1024):0.0} MB",
+    };
     private static string Up(TimeSpan t) =>
         t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes}m" : $"{t.Minutes}m {t.Seconds}s";
 
-    public static Embed Status(StatusSnapshot s)
-    {
+    public static Embed Status(StatusSnapshot s) {
         var b = new EmbedBuilder()
             .WithTitle("EggIncognito - status")
             .WithColor(new Color(Accent))
@@ -20,8 +22,7 @@ public static class BotEmbeds
             .AddField("Signing", s.SigningReady ? "ready" : "disabled", inline: true)
             .AddField("Capture", s.CaptureState, inline: true)
             .AddField("Uptime", Up(s.Uptime), inline: true);
-        if (s.CaptureRunning)
-        {
+        if (s.CaptureRunning) {
             b.AddField("Flows", s.FlowsCaptured.ToString(), inline: true)
              .AddField("Devices", s.DeviceCount.ToString(), inline: true)
              .AddField("Captured", Bytes(s.BytesCaptured), inline: true);

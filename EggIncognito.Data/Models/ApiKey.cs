@@ -3,8 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace EggIncognito.Data.Models;
 
 [Table("api_keys")]
-public sealed class ApiKey
-{
+public sealed class ApiKey {
     [Column("id")] public int Id { get; set; }
     [Column("key_hash")] public string KeyHash { get; set; } = "";
     [Column("prefix")] public string Prefix { get; set; } = "";

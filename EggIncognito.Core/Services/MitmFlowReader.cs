@@ -2,21 +2,17 @@ using System.Text;
 
 namespace EggIncognito.Services;
 
-public static class MitmFlowReader
-{
+public static class MitmFlowReader {
     public sealed record MitmFlow(string Url, string Method, int Status, string? RequestDataB64, string ResponseBodyB64);
 
-   
-   
-    public static IEnumerable<MitmFlow> Read(byte[] fileBytes)
-    {
+
+
+    public static IEnumerable<MitmFlow> Read(byte[] fileBytes) {
         var pos = 0;
-        while (pos < fileBytes.Length)
-        {
+        while (pos < fileBytes.Length) {
             object? value;
             int next;
-            try { (value, next) = TnetString.Decode(fileBytes, pos); }
-            catch (FormatException) { yield break; }
+            try { (value, next) = TnetString.Decode(fileBytes, pos); } catch (FormatException) { yield break; }
 
             pos = next;
             if (value is not Dictionary<string, object?> flow) continue;
@@ -39,8 +35,7 @@ public static class MitmFlowReader
         }
     }
 
-    private static string? BuildUrl(Dictionary<string, object?> req)
-    {
+    private static string? BuildUrl(Dictionary<string, object?> req) {
         var scheme = AsString(req.GetValueOrDefault("scheme")) ?? "https";
         var host = AsString(req.GetValueOrDefault("host"));
         var path = AsString(req.GetValueOrDefault("path")) ?? "/";
@@ -50,13 +45,11 @@ public static class MitmFlowReader
         return $"{scheme}://{authority}{path}";
     }
 
-   
-    private static string? ReadDataParam(byte[]? content)
-    {
+
+    private static string? ReadDataParam(byte[]? content) {
         if (content is null || content.Length == 0) return null;
         var body = Encoding.UTF8.GetString(content);
-        foreach (var pair in body.Split('&'))
-        {
+        foreach (var pair in body.Split('&')) {
             var eq = pair.IndexOf('=');
             if (eq < 0 || pair[..eq] != "data") continue;
             return Uri.UnescapeDataString(pair[(eq + 1)..].Replace("+", "%2B"));
@@ -64,22 +57,19 @@ public static class MitmFlowReader
         return null;
     }
 
-    private static string? AsString(object? v) => v switch
-    {
+    private static string? AsString(object? v) => v switch {
         byte[] b => Encoding.UTF8.GetString(b),
         string s => s,
         _ => null,
     };
 
-    private static byte[]? AsBytes(object? v) => v switch
-    {
+    private static byte[]? AsBytes(object? v) => v switch {
         byte[] b => b,
         string s => Encoding.UTF8.GetBytes(s),
         _ => null,
     };
 
-    private static int? AsInt(object? v) => v switch
-    {
+    private static int? AsInt(object? v) => v switch {
         long l => (int)l,
         int i => i,
         _ => null,

@@ -2,17 +2,14 @@ using System.Text.Json;
 
 namespace EggIncognito.Services.Feed;
 
-public static class DiscordFeedPayload
-{
-   
-   
-   
+public static class DiscordFeedPayload {
+
+
+
     public static string Build(
         string platform, string appVersion, string build, string? clientVersion, string protoSha,
-        bool protoChanged, string pageUrl, string? messageTemplate = null)
-    {
-        if (!string.IsNullOrWhiteSpace(messageTemplate))
-        {
+        bool protoChanged, string pageUrl, string? messageTemplate = null) {
+        if (!string.IsNullOrWhiteSpace(messageTemplate)) {
             var vars = FeedTemplate.BuildVars(platform, appVersion, build, clientVersion, protoSha, protoChanged, pageUrl);
             return JsonSerializer.Serialize(new { content = FeedTemplate.Render(messageTemplate, vars) });
         }
@@ -25,8 +22,7 @@ public static class DiscordFeedPayload
         if (!string.IsNullOrEmpty(clientVersion))
             fields.Add(new { name = "Client", value = clientVersion, inline = true });
 
-        var embed = new
-        {
+        var embed = new {
             title = $"Egg, Inc. {appVersion} (build {build}, {platform})",
             url = pageUrl,
             color = protoChanged ? 0xef7559 : 0x5aa9e6,
@@ -35,16 +31,13 @@ public static class DiscordFeedPayload
         return JsonSerializer.Serialize(new { embeds = new[] { embed } });
     }
 
-    public static string BuildPeriodicals(string feed, string sha, string pageUrl, string? messageTemplate = null)
-    {
-        if (!string.IsNullOrWhiteSpace(messageTemplate))
-        {
+    public static string BuildPeriodicals(string feed, string sha, string pageUrl, string? messageTemplate = null) {
+        if (!string.IsNullOrWhiteSpace(messageTemplate)) {
             var vars = FeedTemplate.PeriodicalsVars(feed, sha, pageUrl);
             return JsonSerializer.Serialize(new { content = FeedTemplate.Render(messageTemplate, vars) });
         }
 
-        var embed = new
-        {
+        var embed = new {
             title = $"Egg, Inc. periodicals changed: {feed}",
             url = pageUrl,
             color = 0x8b5cf6,
