@@ -1,5 +1,3 @@
-using System.Reflection;
-
 namespace EggIncognito.DeviceTools;
 
 public static class DeviceScripts {

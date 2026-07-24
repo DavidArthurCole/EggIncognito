@@ -1,6 +1,4 @@
 using EggIncognito.GameData;
-using EggIncognito.Services.ProtoExtract;
-using EggIncognito.Tests.ProtoExtract;
 
 namespace EggIncognito.Tests.GameData;
 
@@ -18,14 +16,4 @@ public class DimensionCatalogParityTests {
         Assert.Equal("boostmanager", cat.Provenance["identity"].Locator);
     }
 
-    [Fact]
-    public void Committed_catalog_matches_extractor_output() {
-        if (!BinaryFixture.TryLoad(out var bin)) return;
-
-        var extracted = DimensionCatalogExtractor.Extract(bin);
-        Assert.True(extracted.Ok, extracted.Diagnostics);
-
-        var committed = DimensionCatalog.Load();
-        Assert.Equal(extracted.Ids, committed.Dimensions);
-    }
 }

@@ -1,13 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-public class AppModeGateTests(WebApplicationFactory<Program> f) : IClassFixture<WebApplicationFactory<Program>> {
-    private readonly WebApplicationFactory<Program> _factory = f.WithWebHostBuilder(b => b
-            .UseSetting("AppMode", "Hosted")
-            .UseSetting("NoBrowser", "true"));
+[Collection(HostedAppCollection.Name)]
+public class AppModeGateTests(HostedAppFactory f) {
+    private readonly HostedAppFactory _factory = f;
 
     [Fact]
     public async Task Hosted_CaptureStart_Is403() {

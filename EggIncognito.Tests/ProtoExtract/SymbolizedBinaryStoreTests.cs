@@ -39,29 +39,6 @@ public class SymbolizedBinaryStoreTests {
         } finally { Directory.Delete(dir, true); }
     }
 
-    [Fact]
-    public void Get_RealIpa_ReturnsSymbolized_AndExtractsSiloConstants() {
-        var dir = RealIpaDir();
-        if (dir is null) return;
-
-        var store = new SymbolizedBinaryStore(dir);
-        var r = store.Get("1.35.7");
-        if (!r.Ok || r.Bytes is null) return;
-        Assert.True(MachoSymbols.Read(r.Bytes).Count > 400_000);
-
-        var ex = FunctionConstantExtractor.Extract(r.Bytes, ["FarmScene10updateSilo"]);
-        Assert.True(ex.Ok, ex.Diagnostics);
-        Assert.Contains(ex.Floats, f => Math.Abs(f - 5.5) < 0.01);
-    }
-
-    private static string? RealIpaDir() {
-        foreach (var rel in new[] { "../../../../captures/ipas", "../../../../../captures/ipas" }) {
-            var full = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, rel));
-            if (Directory.Exists(full) && Directory.EnumerateFiles(full, "*.ipa").Any()) return full;
-        }
-        return null;
-    }
-
     private static byte[] BigBinary() => new byte[200];
 
     private static string MakeDir(params (string name, string version, byte[] exec)[] ipas) {

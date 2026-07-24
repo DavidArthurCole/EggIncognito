@@ -1,16 +1,12 @@
 using Google.Protobuf;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-public sealed class EggIncApiFactory : WebApplicationFactory<Program> {
-    protected override void ConfigureWebHost(IWebHostBuilder builder) {
-
-
+public sealed class EggIncApiFactory : EgiTestFactory {
+    protected override void Configure(IWebHostBuilder builder) {
         builder.UseEnvironment("Testing");
         builder.UseSetting("EndpointsPath", FindEndpointsPath());
-        builder.UseSetting("NoBrowser", "true");
     }
 
     private static string FindEndpointsPath() {
@@ -24,7 +20,8 @@ public sealed class EggIncApiFactory : WebApplicationFactory<Program> {
     }
 }
 
-public class IntegrationTests(EggIncApiFactory factory) : IClassFixture<EggIncApiFactory> {
+[Collection(EggIncApiCollection.Name)]
+public class IntegrationTests(EggIncApiFactory factory) {
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]

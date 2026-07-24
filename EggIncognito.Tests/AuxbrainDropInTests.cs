@@ -6,7 +6,8 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EggIncognito.Tests;
 
-public class AuxbrainDropInTests(EggIncApiFactory factory) : IClassFixture<EggIncApiFactory> {
+[Collection(EggIncApiCollection.Name)]
+public class AuxbrainDropInTests(EggIncApiFactory factory) {
     private readonly HttpClient _client = factory.CreateClient();
 
     private static FormUrlEncodedContent EmptyForm() {

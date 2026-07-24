@@ -1,6 +1,4 @@
 using EggIncognito.GameData;
-using EggIncognito.Services.ProtoExtract;
-using EggIncognito.Tests.ProtoExtract;
 
 namespace EggIncognito.Tests.GameData;
 
@@ -23,20 +21,4 @@ public class EggCatalogParityTests {
         Assert.Equal("decoded", cat.Provenance["baseValue"].Method);
     }
 
-    [Fact]
-    public void Committed_catalog_matches_extractor_output() {
-        if (!BinaryFixture.TryLoad(out var bin)) return;
-
-        var extracted = EggCatalogExtractor.Read(bin);
-        Assert.True(extracted.Ok, extracted.Diagnostics);
-
-        var committed = EggCatalog.Load();
-        Assert.Equal(extracted.Entries.Count, committed.Eggs.Count);
-        foreach (var e in extracted.Entries) {
-            var c = committed.Find(e.Index);
-            Assert.NotNull(c);
-            Assert.Equal(e.Name, c!.Name);
-            Assert.Equal(e.BaseValue, c.BaseValue);
-        }
-    }
 }

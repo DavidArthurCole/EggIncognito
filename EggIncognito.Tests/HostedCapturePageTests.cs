@@ -4,7 +4,6 @@ using EggIncognito.Controllers;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SyncKit.Contract;
@@ -51,36 +50,26 @@ public class HostedCapturePageTests {
                 key == CaptureSessionManager.LocalKey ? 18080 : basePort));
 
 
-    public class Integration(WebApplicationFactory<Program> f) : IClassFixture<WebApplicationFactory<Program>> {
-        private readonly WebApplicationFactory<Program> _base = f;
-
-        private WebApplicationFactory<Program> Hosted(bool enabled) =>
-            _base.WithWebHostBuilder(b => {
-                b.UseSetting("NoBrowser", "true");
-                b.UseSetting("AppMode", "Hosted");
-                if (enabled) {
-                    b.UseSetting("HostedCaptureEnabled", "true");
-                    b.UseSetting("Capture:FrontDoorPort", "0");
-                    b.UseSetting("Capture:AddressSecret", "test-secret");
-                }
-            });
-
+    [Collection(HostedAppCollection.Name)]
+    public class HostedDefault(HostedAppFactory f) {
         [Fact]
         public async Task Mode_Hosted_Default_ReportsHostedCaptureFalse() {
-            var json = await Hosted(enabled: false).CreateClient().GetStringAsync("/api/app/mode");
+            var json = await f.CreateClient().GetStringAsync("/api/app/mode");
             Assert.Contains("\"hostedCapture\":false", json);
         }
+    }
 
+    [Collection(HostedCaptureAppCollection.Name)]
+    public class CaptureEnabled(HostedCaptureAppFactory f) {
         [Fact]
         public async Task Mode_Hosted_Enabled_ReportsHostedCaptureTrue() {
-            var json = await Hosted(enabled: true).CreateClient().GetStringAsync("/api/app/mode");
+            var json = await f.CreateClient().GetStringAsync("/api/app/mode");
             Assert.Contains("\"hostedCapture\":true", json);
         }
 
         [Fact]
         public async Task CapturePage_HostedEnabled_Anonymous_ShowsLoginPrompt() {
-            var c = Hosted(enabled: true).CreateClient();
-            var html = await c.GetStringAsync("/capture");
+            var html = await f.CreateClient().GetStringAsync("/capture");
             Assert.Contains("id=\"hostedLogin\"", html);
 
             Assert.Contains("Login unavailable", html);
@@ -89,8 +78,7 @@ public class HostedCapturePageTests {
 
         [Fact]
         public async Task CaptureStart_HostedEnabled_Anonymous_Is401() {
-            var c = Hosted(enabled: true).CreateClient();
-            var r = await c.PostAsync("/api/capture/start", null);
+            var r = await f.CreateClient().PostAsync("/api/capture/start", null);
             Assert.Equal(System.Net.HttpStatusCode.Unauthorized, r.StatusCode);
         }
     }

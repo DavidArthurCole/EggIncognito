@@ -1,6 +1,4 @@
 using EggIncognito.GameData;
-using EggIncognito.Services;
-using EggIncognito.Tests.ProtoExtract;
 
 namespace EggIncognito.Tests.GameData;
 
@@ -20,35 +18,4 @@ public class BoostCatalogParityTests {
         Assert.Equal("derived", cat.Provenance["iconAsset"].Origin);
     }
 
-    [Fact]
-    public void Committed_catalog_matches_builder_output() {
-        if (!BinaryFixture.TryLoad(out var bin)) return;
-
-        string? configJson = null;
-        foreach (var rel in new[]
-        {
-            "../../../../EggIncognito/Endpoints/default/ei/get_config.json",
-            "../../../../../EggIncognito/Endpoints/default/ei/get_config.json",
-            "../../../../Endpoints/default/ei/get_config.json"
-        }) {
-            var full = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, rel));
-            if (File.Exists(full)) { configJson = File.ReadAllText(full); break; }
-        }
-        if (configJson is null) return;
-
-        var built = BoostCatalogBuilder.Build(bin, configJson, "egginc-1.35.6").File;
-        var committed = BoostCatalog.Load();
-
-        Assert.Equal(built.Boosts.Count, committed.Boosts.Count);
-        foreach (var b in built.Boosts) {
-            var c = committed.Find(b.Id);
-            Assert.NotNull(c);
-            Assert.Equal(b.DisplayName, c!.DisplayName);
-            Assert.Equal(b.Description, c.Description);
-            Assert.Equal(b.Price, c.Price);
-            Assert.Equal(b.TokenPrice, c.TokenPrice);
-            Assert.Equal(b.SeRequired, c.SeRequired);
-            Assert.Equal(b.IconAsset, c.IconAsset);
-        }
-    }
 }

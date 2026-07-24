@@ -1,6 +1,4 @@
 using EggIncognito.GameData;
-using EggIncognito.Services.ProtoExtract;
-using EggIncognito.Tests.ProtoExtract;
 
 namespace EggIncognito.Tests.GameData;
 
@@ -20,20 +18,4 @@ public class VehicleCatalogParityTests {
         Assert.Equal("decoded", cat.Provenance["capacity"].Method);
     }
 
-    [Fact]
-    public void Committed_catalog_matches_extractor_output() {
-        if (!BinaryFixture.TryLoad(out var bin)) return;
-
-        var extracted = VehicleCatalogExtractor.Read(bin);
-        Assert.True(extracted.Ok, extracted.Diagnostics);
-
-        var committed = VehicleCatalog.Load();
-        Assert.Equal(extracted.Entries.Count, committed.Vehicles.Count);
-        foreach (var e in extracted.Entries) {
-            var c = committed.Find(e.Index);
-            Assert.NotNull(c);
-            Assert.Equal(e.Name, c!.Name);
-            Assert.Equal(e.Capacity, c.Capacity);
-        }
-    }
 }

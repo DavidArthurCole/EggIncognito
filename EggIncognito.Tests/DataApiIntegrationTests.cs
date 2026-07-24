@@ -2,7 +2,8 @@ using System.Net;
 
 namespace EggIncognito.Tests;
 
-public class DataApiIntegrationTests(EggIncApiFactory factory) : IClassFixture<EggIncApiFactory> {
+[Collection(EggIncApiCollection.Name)]
+public class DataApiIntegrationTests(EggIncApiFactory factory) {
     private readonly EggIncApiFactory _factory = factory;
 
     private HttpClient Client(string ip) {

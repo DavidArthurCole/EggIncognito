@@ -22,3 +22,4 @@ EggIncognito/Endpoints/requests/
 *.rpoz
 dist/
 EggIncognito.ExtractMcp/
+*.trx

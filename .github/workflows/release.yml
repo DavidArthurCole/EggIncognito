@@ -17,7 +17,7 @@ jobs:
           generate_release_notes: true
 
   nuget:
-    uses: DavidArthurCole/EggBasket/.github/workflows/nuget-publish.yml@v1
+    uses: DavidArthurCole/EggBasket/.github/workflows/nuget-publish.yml@master
     permissions:
       contents: read
       packages: write
@@ -110,7 +110,7 @@ jobs:
           files: SHA256SUMS
 
   docker:
-    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@v1
+    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@master
     permissions:
       contents: read
       packages: write
@@ -122,7 +122,7 @@ jobs:
     secrets: inherit
 
   docker-runner:
-    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@v1
+    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@master
     permissions:
       contents: read
       packages: write

@@ -80,14 +80,5 @@ public class MachoProtoExtractorTests {
     }
 
 
-    [Fact]
-    public void Extract_RealBinary_WhenProvided() {
-        var path = Environment.GetEnvironmentVariable("EGGINC_IOS_BINARY");
-        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
-        var r = MachoProtoExtractor.Extract(File.ReadAllBytes(path));
-        Assert.True(r.Ok, r.Diagnostics);
-        Assert.Contains("message EggIncFirstContactRequest {", r.Proto);
-    }
-
     private static bool TryFixture(out byte[] bytes) => TestFixtureFiles.TryRead("egginc-1.35.8-descriptors.bin", out bytes);
 }

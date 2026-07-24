@@ -1,13 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
 
-public class StoredEndpointGateTests(WebApplicationFactory<Program> f) : IClassFixture<WebApplicationFactory<Program>> {
-    private readonly WebApplicationFactory<Program> _factory = f.WithWebHostBuilder(b => b
-            .UseSetting("AppMode", "Hosted")
-            .UseSetting("NoBrowser", "true"));
+[Collection(HostedAppCollection.Name)]
+public class StoredEndpointGateTests(HostedAppFactory f) {
+    private readonly HostedAppFactory _factory = f;
 
     [Fact]
     public async Task Hosted_UpsertEndpoint_Is403() {
