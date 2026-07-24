@@ -101,7 +101,7 @@ public sealed class DocRegistry : IDocRegistry {
         new("ConnectionStrings:Postgres", "unset", "When set, enables the Postgres data layer and applies migrations at startup", "data"),
         new("Identity:ApiUrl", "unset", "Internal SyncKit Identity API base url; login wires when ApiUrl + ApiSecret are both set", "auth"),
         new("Identity:ApiSecret", "unset", "Bearer secret for the SyncKit Identity API", "auth"),
-        new("Identity:WidgetUrl", "unset", "Public SyncKit Identity host url; required for the native login buttons (/login/sources)", "auth"),
+        new("Identity:WidgetUrl", "unset", "Public SyncKit Identity host url; required for the native login buttons (/auth/sources)", "auth"),
         new("Discord:BotToken", "unset", "When set, starts the optional Discord bot", "bot"),
         new("Discord:GuildId", "unset", "Optional; enables instant guild command registration for the bot", "bot"),
         new("SHARED_ROLE_ID", "unset", "Optional; snowflake of a role the bot self-assigns on Ready. Shared with EggLedger in the same stack. Falls back to Discord:SharedRoleId", "bot"),

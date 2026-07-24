@@ -3,6 +3,7 @@
 @inject ICurrentUser User
 @inject NavigationManager Nav
 @inject IHttpContextAccessor HttpContextAccessor
+@inject SyncKit.Identity.Client.IdentityApiClient Identity
 @using System.Globalization
 @using SyncKit.Identity.AdminUi
 
@@ -69,7 +70,7 @@
                     <tr>
                       <td class="py-2 pr-2 border-b border-border align-middle w-32">
                         <span class="flex items-center gap-2 font-medium">
-                          <img class="acct-prov-icon" src="@LinkHref($"/login/icons/{item.Provider}")" alt="" loading="lazy" />
+                          <img class="acct-prov-icon" src="@LinkHref(Identity.IconUrl(item.Provider))" alt="" loading="lazy" />
                           @Cap(item.Provider)
                         </span>
                       </td>
@@ -92,24 +93,37 @@
                           <span class="text-xs text-muted">Not linked</span>
                         }
                       </td>
-                      <td class="py-2 pl-2 border-b border-border align-middle w-20 text-right">
+                      <td class="py-2 pl-2 border-b border-border align-middle whitespace-nowrap text-right">
                         @if (!item.Linked)
                         {
                           <a class="btn-mini" href="@LinkHref(item.LinkUrl)">Link</a>
                         }
-                        else if (item.CanUnlink)
-                        {
-                          <button type="button" class="btn-mini" @onclick="item.OnUnlink">Unlink</button>
-                        }
                         else
                         {
-                          <button type="button" class="btn-mini" disabled title="Cannot unlink the last login">Linked</button>
+                          <span class="inline-flex items-center gap-1">
+                            <a class="btn-mini" href="@LinkHref(item.RelinkUrl)" title="@RelinkTitle(item.Provider)">Link another</a>
+                            @if (item.CanUnlink)
+                            {
+                              <button type="button" class="btn-mini" @onclick="item.OnUnlink">Unlink</button>
+                            }
+                            else
+                            {
+                              <button type="button" class="btn-mini" disabled title="Cannot unlink the last login">Linked</button>
+                            }
+                          </span>
                         }
                       </td>
                     </tr>
                   }
                 </tbody>
               </table>
+              <div class="flex items-center gap-3 mt-2 text-xs">
+                <a href="@LinkHref(Identity.SyncUrl(_returnUrl))" title="Refresh connections">Sync connections</a>
+                @if (_authentikSettingsUrl is not null)
+                {
+                  <a href="@_authentikSettingsUrl" target="_blank" rel="noopener">Manage connections in Authentik</a>
+                }
+              </div>
             </ProvidersTemplate>
           </ProfilePanel>
         }
@@ -126,11 +140,12 @@
     string _sessionToken = "";
     string _returnUrl = "";
     string? _linkMessage;
+    string? _authentikSettingsUrl;
     bool _linkOk;
     bool _open;
     bool _stripQuery;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _sessionToken = HttpContextAccessor.HttpContext?.Request.Cookies[Auth.SessionCookieName] ?? "";
         var uri = Nav.ToAbsoluteUri(Nav.Uri);
@@ -153,6 +168,7 @@
         {
             _open = true;
             _stripQuery = true;
+            await LoadAuthentikSettingsAsync();
         }
     }
 
@@ -165,7 +181,18 @@
         }
     }
 
-    void Open() { _open = true; }
+    async Task Open()
+    {
+        _open = true;
+        await LoadAuthentikSettingsAsync();
+    }
+
+    async Task LoadAuthentikSettingsAsync()
+    {
+        if (string.IsNullOrEmpty(_sessionToken) || _authentikSettingsUrl is not null) return;
+        var profile = await Identity.GetProfileAsync(_sessionToken, CancellationToken.None);
+        _authentikSettingsUrl = profile?.AuthentikSettingsUrl;
+    }
 
     void Close()
     {
@@ -179,6 +206,9 @@
     }
 
     static string Cap(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
+
+    static string RelinkTitle(string provider) =>
+        $"Link a different {Cap(provider)} account. Signs you out of the identity provider first.";
 
     string LinkHref(string url) =>
         url.StartsWith("http", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(Auth.IdentityHostUrl)

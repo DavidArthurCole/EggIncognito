@@ -113,7 +113,7 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 }
 .auth-nav a.auth-btn:hover, .auth-nav button.auth-btn:hover { filter: brightness(1.07); }
 /* Native federated login: the "Log in" button reveals a dropdown of one <a> per provider fetched from
-   /login/sources. The menu is position:fixed and placed by loginMenu.js so it escapes any
+   /auth/sources. The menu is position:fixed and placed by loginMenu.js so it escapes any
    overflow-clipped ancestor (e.g. the /protos modal card) and sits above all app chrome. */
 .auth-source-anchor { position: relative; display: inline-block; }
 .auth-source-menu {

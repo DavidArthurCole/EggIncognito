@@ -1,5 +1,5 @@
 @* Interactive login CTA. Click reveals the native provider buttons fetched from SyncKit's
-   /login/sources; each is a plain top-level <a> into SyncKit's /login/go/{provider} (mode=redirect),
+   /auth/sources; each is a plain top-level <a> into SyncKit's /auth/go/{provider} (mode=redirect),
    which returns the browser to this exact page with ?code appended. No popup, no iframe, no app-side
    return-path handling: SyncKit round-trips the full returnUrl. The menu is fixed-positioned by
    loginMenu.js so it escapes any overflow-clipped container (e.g. the /protos modal). *@
