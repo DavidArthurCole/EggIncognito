@@ -1,102 +1,102 @@
-@using System.Net.Http.Json
 @using System.Text.Json
 @using EggIncognito.Components.Capture
-@using EggIncognito.Components.Shared
 @inject ICurrentUser User
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 
-@if (!_isAdmin)
-{
-  <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft" /></div>
-}
-else if (_summary is null && _catalog is null)
-{
-  <div class="panel text-muted text-sm">Loading…</div>
-}
-else
-{
-  <div class="flex flex-col gap-6">
-    @if (_catalog is not null)
-    {
-      var ix = 0;
-      var firstGroup = true;
-      <section class="panel">
-        <h3 class="text-sm font-semibold mt-0 mb-3">Data</h3>
-        <div class="flex flex-col gap-0.5">
-          @foreach (var grp in Groups)
-          {
-            var rows = _catalog.Sources.Where(s => s.Group == grp.Key && s.Extends is null).ToList();
-            if (rows.Count == 0) { continue; }
-            if (!firstGroup) { <hr class="my-2 border-0 border-t border-border" /> }
-            firstGroup = false;
-            @foreach (var s in rows)
-            {
-              var kids = _catalog.Sources.Where(k => k.Group == grp.Key && k.Extends == s.Id).ToList();
-              <div>
-                <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
-                                   DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
-                                   RowClass="@Stripe(ix++)">
-                  <Badges>
-                    @if (s.Bytes is { } b) { <span class="mono text-muted text-xs">@Kb(b)</span> }
-                  </Badges>
-                </PeriodicalDataset>
-                @if (kids.Count > 0)
-                {
-                  <div class="ds-children">
-                    @foreach (var k in kids)
-                    {
-                      <PeriodicalDataset Title="@k.DisplayName" Endpoint="@k.Url" Nested="true"
-                                         DownloadName="@($"{k.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
-                                         RowClass="@Stripe(ix++)">
-                        <Badges>
-                          @if (k.Bytes is { } kb) { <span class="mono text-muted text-xs">@Kb(kb)</span> }
-                        </Badges>
-                      </PeriodicalDataset>
+@if (!_isAdmin) {
+    <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft"/></div>
+} else if (_summary is null && _catalog is null) {
+    <div class="panel text-muted text-sm">Loading…</div>
+} else {
+    <div class="flex flex-col gap-6">
+        @if (_catalog is not null) {
+            var ix = 0;
+            var firstGroup = true;
+            <section class="panel">
+                <h3 class="text-sm font-semibold mt-0 mb-3">Data</h3>
+                <div class="flex flex-col gap-0.5">
+                    @foreach (var grp in Groups) {
+                        var rows = _catalog.Sources.Where(s => s.Group == grp.Key && s.Extends is null).ToList();
+                        if (rows.Count == 0) {
+                            continue;
+                        }
+
+                        if (!firstGroup) {
+                            <hr class="my-2 border-0 border-t border-border"/>
+                        }
+
+                        firstGroup = false;
+                        @foreach (var s in rows) {
+                            var kids = _catalog.Sources.Where(k => k.Group == grp.Key && k.Extends == s.Id).ToList();
+                            <div>
+                                <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
+                                                   DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
+                                                   RowClass="@Stripe(ix++)">
+                                    <Badges>
+                                        @if (s.Bytes is { } b) {
+                                            <span class="mono text-muted text-xs">@Kb(b)</span>
+                                        }
+                                    </Badges>
+                                </PeriodicalDataset>
+                                @if (kids.Count > 0) {
+                                    <div class="ds-children">
+                                        @foreach (var k in kids) {
+                                            <PeriodicalDataset Title="@k.DisplayName" Endpoint="@k.Url" Nested="true"
+                                                               DownloadName="@($"{k.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
+                                                               RowClass="@Stripe(ix++)">
+                                                <Badges>
+                                                    @if (k.Bytes is { } kb) {
+                                                        <span class="mono text-muted text-xs">@Kb(kb)</span>
+                                                    }
+                                                </Badges>
+                                            </PeriodicalDataset>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
                     }
-                  </div>
-                }
-              </div>
-            }
-          }
-        </div>
-      </section>
-    }
+                </div>
+            </section>
+        }
 
-    @if (_summary?.Colleggtibles is { } c)
-    {
-      <section class="panel">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
-          <a class="reg-edit-btn" href="/api/v1/data/periodical/get_periodicals/colleggtibles" download="colleggtibles.json" title="Download JSON" aria-label="Download JSON"><Icon Name="download" /></a>
-        </div>
-        <table class="reg-table">
-          <thead><tr><th class="w-8"></th><th>Identifier</th><th>Dimension</th><th>Tier values</th></tr></thead>
-          <tbody>
-            @foreach (var e in c.Eggs)
-            {
-              <tr>
-                <td>
-                  @if (!string.IsNullOrEmpty(e.Icon))
-                  {
-                    <img class="w-[1.875rem] h-[1.875rem] object-contain" src="@e.Icon" alt="" loading="lazy" />
-                  }
-                </td>
-                <td class="font-mono text-accent">@e.Identifier</td>
-                <td class="mono text-muted text-xs">@e.Dimension</td>
-                <td class="mono text-xs">@string.Join(", ", e.TierValues)</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </section>
-    }
+        @if (_summary?.Colleggtibles is { } c) {
+            <section class="panel">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
+                    <a class="reg-edit-btn" href="/api/v1/data/periodical/get_periodicals/colleggtibles" download="colleggtibles.json" title="Download JSON" aria-label="Download JSON">
+                        <Icon Name="download"/>
+                    </a>
+                </div>
+                <table class="reg-table">
+                    <thead>
+                    <tr>
+                        <th class="w-8"></th><th>Identifier</th><th>Dimension</th><th>Tier values</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var e in c.Eggs) {
+                        <tr>
+                            <td>
+                                @if (!string.IsNullOrEmpty(e.Icon)) {
+                                    <img class="w-[1.875rem] h-[1.875rem] object-contain" src="@e.Icon" alt="" loading="lazy"/>
+                                }
+                            </td>
+                            <td class="font-mono text-accent">@e.Identifier</td>
+                            <td class="mono text-muted text-xs">@e.Dimension</td>
+                            <td class="mono text-xs">@string.Join(", ", e.TierValues)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </section>
+        }
 
-    @if (_catalogError is not null)
-    {
-      <div class="panel text-err text-sm">Could not load the source catalog: @_catalogError</div>
-    }
-  </div>
+        @if (_catalogError is not null) {
+            <div class="panel text-err text-sm">Could not load the source catalog: @_catalogError</div>
+        }
+    </div>
 }
 
 @code {
@@ -111,77 +111,99 @@ else
     string _baseAddress = "";
     string? _cookie;
 
-    static readonly (string Key, string Label)[] Groups =
-    [
+    static readonly (string Key, string Label)[] Groups = [
         ("periodical", "Periodical"),
-        ("gamedata", "Game data"),
+        ("gamedata", "Game data")
     ];
 
-    protected override async Task OnInitializedAsync()
-    {
+    protected override async Task OnInitializedAsync() {
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
+
         if (!_isAdmin) return;
 
-        try
-        {
+        try {
             var fetched = await Client().GetFromJsonAsync<Summary>("/api/periodicals/summary", JsonOpts);
-            if (fetched is not null)
-            {
+            if (fetched is not null) {
                 _summary = fetched;
             }
         }
-        catch { }
-
-        try
-        {
-            var res = await Client().GetAsync("/api/v1/data");
-            if (res.IsSuccessStatusCode)
-            {
-                var cat = await res.Content.ReadFromJsonAsync<DataResponse>(JsonOpts);
-                if (cat is not null) { _catalog = cat; _catalogError = null; }
-            }
-            else { _catalogError = $"HTTP {(int)res.StatusCode}"; }
+        catch {
         }
-        catch (Exception ex) { _catalogError = ex.Message; }
+
+        try {
+            var res = await Client().GetAsync("/api/v1/data");
+            if (res.IsSuccessStatusCode) {
+                var cat = await res.Content.ReadFromJsonAsync<DataResponse>(JsonOpts);
+                if (cat is not null) {
+                    _catalog = cat;
+                    _catalogError = null;
+                }
+            } else {
+                _catalogError = $"HTTP {(int)res.StatusCode}";
+            }
+        }
+        catch (Exception ex) {
+            _catalogError = ex.Message;
+        }
     }
 
-    HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
+    HttpClient Client() {
+        return SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
+    }
 
-    async Task<string> Fetch(string route)
-    {
-        try
-        {
+    async Task<string> Fetch(string route) {
+        try {
             var res = await Client().GetAsync(route);
             var body = await res.Content.ReadAsStringAsync();
             return res.IsSuccessStatusCode ? body : $"HTTP {(int)res.StatusCode}: {body}";
         }
-        catch (Exception ex) { return ex.Message; }
+        catch (Exception ex) {
+            return ex.Message;
+        }
     }
 
-    static string Kb(long bytes)
-    {
+    static string Kb(long bytes) {
         if (bytes < 1024) return $"{bytes}B";
         var kb = bytes / 1024;
         return kb >= 1000 ? $"{kb / 1000}MB" : $"{kb}KB";
     }
 
-    static string Stripe(int ix) => "ds-cell" + (ix % 2 == 1 ? " ds-stripe" : "");
+    static string Stripe(int ix) {
+        return "ds-cell" + (ix % 2 == 1 ? " ds-stripe" : "");
+    }
 
     record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config, List<FeedInfo> Feeds);
+
     record ExtractedRow(string Key, int Count, string Provenance);
+
     record ColleggtiblesInfo(int Count, string Provenance, List<EggRow> Eggs);
+
     record EggRow(string Identifier, string Dimension, List<double> TierValues, string? Icon);
+
     record ConfigInfo(bool Enabled, List<PlatformRow> Platforms);
+
     record PlatformRow(string Platform, DateTimeOffset SavedAt, long Bytes);
+
     record FeedInfo(string Name, string Path, bool Present, long Bytes);
 
     record DataResponse(int Count, List<Source> Sources);
-    record Source(string Id, string Group, string Url, string DisplayName, string? Description,
-        string Provenance, string Access, string? Feed, string? Extends, bool AcceptsName, long? Bytes);
+
+    record Source(
+        string Id,
+        string Group,
+        string Url,
+        string DisplayName,
+        string? Description,
+        string Provenance,
+        string Access,
+        string? Feed,
+        string? Extends,
+        bool AcceptsName,
+        long? Bytes);
+
 }

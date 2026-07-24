@@ -39,29 +39,8 @@ public sealed class AndroidPlayStoreChecker(
 
         progress?.Invoke($"Update tapped; waiting for Play to install (up to {opts.PollAttempts * opts.PollSeconds}s)…");
         try {
-            for (var attempt = 0; attempt < opts.PollAttempts; attempt++) {
-                if (ct.IsCancellationRequested) break;
-                try { await Task.Delay(TimeSpan.FromSeconds(opts.PollSeconds), ct); } catch (OperationCanceledException) { break; }
-
-                var now = await ReadInstalledAsync(device, ct);
-                var n = attempt + 1;
-                var elapsed = n * opts.PollSeconds;
-                logger.LogInformation("device check-update: {Id} android poll {N}/{Max} installed={Ver}",
-                    device.Id, n, opts.PollAttempts, now ?? "?");
-                if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0) {
-                    progress?.Invoke($"Play installed {now} (was {before})");
-                    logger.LogInformation("device check-update: {Id} android climb {Before} -> {After}", device.Id, before, now);
-                    return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
-                }
-                progress?.Invoke($"waiting for Play install… {elapsed}s elapsed (no change yet)");
-            }
-
-
-            var last = await ReadInstalledAsync(device, ct);
-            logger.LogInformation("device check-update: {Id} android up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
-                device.Id, last ?? "?", opts.PollAttempts, opts.PollSeconds);
-            return new StoreCheckResult(true, before, last, false, false, "up_to_date",
-                $"no update applied in {opts.PollAttempts * opts.PollSeconds}s (already current, or download still in flight)");
+            return await StorePoll.WaitForClimbAsync(device.Id, "android", "Play", before,
+                c => ReadInstalledAsync(device, c), opts.PollSeconds, opts.PollAttempts, logger, progress, ct);
         } finally {
             await SleepDeviceAsync(device, CancellationToken.None);
         }

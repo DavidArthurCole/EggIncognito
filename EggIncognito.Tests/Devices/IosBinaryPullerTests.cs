@@ -15,19 +15,22 @@ public class IosBinaryPullerTests {
     private const string BundleId = "com.auxbrain.egginc";
     private const string BinPath = "/private/var/containers/Bundle/Application/ABC/egginc.app/egginc";
 
+    private static IosBinaryPuller Puller(IProcessRunner runner, string host) =>
+        new(new SshDeviceConnection(runner, new SshEndpoint(host, "2222", "/key")));
+
     [Fact]
     public async Task Pull_LocateFails_ReturnsNull() {
         var runner = new FakeRunner((exe, _) => exe == "ssh"
             ? new ProcessResult(255, "", "ssh: connect to host port 2222: Connection refused")
             : new ProcessResult(0, "", ""));
-        var puller = new IosBinaryPuller(runner, "1.2.3.4", "2222", "/key");
+        var puller = Puller(runner, "1.2.3.4");
         Assert.Null(await puller.PullBinaryAsync(BundleId, default));
     }
 
     [Fact]
     public async Task Pull_LocateEmpty_ReturnsNull() {
         var runner = new FakeRunner((exe, _) => new ProcessResult(0, "", ""));
-        var puller = new IosBinaryPuller(runner, "1.2.3.4", "2222", "/key");
+        var puller = Puller(runner, "1.2.3.4");
         Assert.Null(await puller.PullBinaryAsync(BundleId, default));
     }
 
@@ -36,7 +39,7 @@ public class IosBinaryPullerTests {
         var runner = new FakeRunner((exe, _) => exe == "ssh"
             ? new ProcessResult(0, BinPath + "\n", "")
             : new ProcessResult(1, "", "scp: no such file"));
-        var puller = new IosBinaryPuller(runner, "1.2.3.4", "2222", "/key");
+        var puller = Puller(runner, "1.2.3.4");
         Assert.Null(await puller.PullBinaryAsync(BundleId, default));
     }
 
@@ -48,7 +51,7 @@ public class IosBinaryPullerTests {
             File.WriteAllBytes(args[^1], payload);
             return new ProcessResult(0, "", "");
         });
-        var puller = new IosBinaryPuller(runner, "phone.local", "2222", "/key");
+        var puller = Puller(runner, "phone.local");
 
         var bytes = await puller.PullBinaryAsync(BundleId, default);
 
@@ -67,7 +70,7 @@ public class IosBinaryPullerTests {
             File.WriteAllBytes(args[^1], [1]);
             return new ProcessResult(0, "", "");
         });
-        var puller = new IosBinaryPuller(runner, "h", "2222", "/key");
+        var puller = Puller(runner, "h");
         await puller.PullBinaryAsync(BundleId, default);
         var scp = runner.Calls.Single(c => c.exe == "scp");
         Assert.Contains(scp.args, a => a == $"root@h:{BinPath}");

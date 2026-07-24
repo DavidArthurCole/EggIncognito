@@ -1,48 +1,47 @@
 @page "/import"
+@using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
-@using System.Net.Http.Json
-@using System.Text.Json
 
 <PageTitle>EggIncognito - Import</PageTitle>
 <main class="min-h-[calc(100vh-theme(spacing.nav))] px-8 py-10 flex flex-col items-center">
-  <div class="w-full max-w-[640px]">
-    <header class="mb-6">
-      <h1 class="text-[1.4rem] m-0 mb-2 font-sans font-bold">Import a capture</h1>
-      <p class="lead text-muted m-0 leading-[1.55] text-[0.95rem]">Load a HAR or mitmproxy .mitm file. Diffs against existing fixtures are staged for review unless you overwrite.</p>
-    </header>
+    <div class="w-full max-w-[640px]">
+        <header class="mb-6">
+            <h1 class="text-[1.4rem] m-0 mb-2 font-sans font-bold">Import a capture</h1>
+            <p class="lead text-muted m-0 leading-[1.55] text-[0.95rem]">Load a HAR or mitmproxy .mitm file. Diffs against existing fixtures are staged for review unless you overwrite.</p>
+        </header>
 
-    <div class="panel">
-      <label id="dropZone" class="dropzone @(_dragging ? "dragging" : "")"
-             @ondragenter="() => _dragging = true"
-             @ondragleave="() => _dragging = false"
-             @ondragover:preventDefault="true"
-             @ondrop="() => _dragging = false">
-        <InputFile id="harFile" accept=".har,.mitm,application/json" hidden="hidden" OnChange="OnFileSelected" />
-        <div class="text-accent" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-               stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
-            <path d="M12 16V4" /><path d="M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
-          </svg>
+        <div class="panel">
+            <label id="dropZone" class="dropzone @(_dragging ? "dragging" : "")"
+                   @ondragenter="() => _dragging = true"
+                   @ondragleave="() => _dragging = false"
+                   @ondragover:preventDefault="true"
+                   @ondrop="() => _dragging = false">
+                <InputFile id="harFile" accept=".har,.mitm,application/json" hidden="hidden" OnChange="OnFileSelected"/>
+                <div class="text-accent" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                         stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
+                        <path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+                    </svg>
+                </div>
+                <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop a HAR or .mitm file here</strong> or click to browse</div>
+                <div id="fileName" class="font-mono text-xs @(_file is null ? "text-muted muted" : "")">@(_file?.Name ?? "No file selected.")</div>
+            </label>
+
+            <div class="flex items-center justify-between gap-3 mt-4 flex-wrap">
+                <label class="inline-flex items-center gap-[0.4rem] cursor-pointer text-[0.9rem] text-[#c7c7cf]"><input type="checkbox" id="overwrite" @bind="_overwrite"/> overwrite existing</label>
+                <button id="importBtn" class="btn-primary" disabled="@(_file is null || _busy)" @onclick="DoImport">Import</button>
+            </div>
+
+            <pre id="importResult" class="result-pre">@_result</pre>
         </div>
-        <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop a HAR or .mitm file here</strong> or click to browse</div>
-        <div id="fileName" class="font-mono text-xs @(_file is null ? "text-muted muted" : "")">@(_file?.Name ?? "No file selected.")</div>
-      </label>
-
-      <div class="flex items-center justify-between gap-3 mt-4 flex-wrap">
-        <label class="inline-flex items-center gap-[0.4rem] cursor-pointer text-[0.9rem] text-[#c7c7cf]"><input type="checkbox" id="overwrite" @bind="_overwrite" /> overwrite existing</label>
-        <button id="importBtn" class="btn-primary" disabled="@(_file is null || _busy)" @onclick="DoImport">Import</button>
-      </div>
-
-      <pre id="importResult" class="result-pre">@_result</pre>
     </div>
-  </div>
 </main>
 
 @code {
-   
-   
+
+
     const long MaxUploadBytes = 104_857_600;
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -52,40 +51,39 @@
     string _result = "";
     IBrowserFile? _file;
 
-   
-   
+
     string _baseAddress = "";
     string? _cookie;
 
-    protected override void OnInitialized()
-    {
+    protected override void OnInitialized() {
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
     }
 
-    void OnFileSelected(InputFileChangeEventArgs e) => _file = e.FileCount > 0 ? e.File : null;
+    void OnFileSelected(InputFileChangeEventArgs e) {
+        _file = e.FileCount > 0 ? e.File : null;
+    }
 
-   
-   
-    HttpClient Client()
-    {
+
+    HttpClient Client() {
         var c = HttpFactory.CreateClient();
         if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
         if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
         return c;
     }
 
-    async Task DoImport()
-    {
-        if (_file is null) { _result = "Choose a .har or .mitm file first."; return; }
+    async Task DoImport() {
+        if (_file is null) {
+            _result = "Choose a .har or .mitm file first.";
+            return;
+        }
+
         _busy = true;
         _result = "Importing...";
-        try
-        {
+        try {
             using var content = new MultipartFormDataContent();
             using var stream = _file.OpenReadStream(MaxUploadBytes);
             var part = new StreamContent(stream);
@@ -95,23 +93,25 @@
             var data = await ReadResult(res);
             _result = res.IsSuccessStatusCode
                 ? $"new={data?.Wrote}  upd={data?.Upd}  diff={data?.Diff}  same={data?.Same}  loss={data?.Loss}  err={data?.Err}"
-                : (data?.Error ?? $"HTTP {(int)res.StatusCode}");
+                : data?.Error ?? $"HTTP {(int)res.StatusCode}";
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _result = $"Request failed: {ex}";
         }
-        finally
-        {
+        finally {
             _busy = false;
         }
     }
 
-    static async Task<ImportResult?> ReadResult(HttpResponseMessage res)
-    {
-        try { return await res.Content.ReadFromJsonAsync<ImportResult>(JsonOpts); }
-        catch { return null; }
+    static async Task<ImportResult?> ReadResult(HttpResponseMessage res) {
+        try {
+            return await res.Content.ReadFromJsonAsync<ImportResult>(JsonOpts);
+        }
+        catch {
+            return null;
+        }
     }
 
     record ImportResult(int Wrote, int Upd, int Diff, int Same, int Loss, int Err, string? Error);
+
 }

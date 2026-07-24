@@ -8,6 +8,7 @@ public sealed class DeviceProxyPusher(
     DeviceCaptureManager manager,
     DeviceCaptureConfig config,
     IProcessRunner runner,
+    IDeviceConnectionFactory connections,
     IEnumerable<IDeviceProxyConfigurator> configurators,
     ILogger<DeviceProxyPusher> logger) {
     private readonly Dictionary<string, IDeviceProxyConfigurator> _byPlatform =
@@ -91,27 +92,23 @@ public sealed class DeviceProxyPusher(
         const string remote =
             "/bin/sh -c 'for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | " +
             "while read pid rest; do echo $pid; done); do kill -9 $p 2>/dev/null; done; echo killed'";
-        await runner.RunAsync("ssh",
-            ["-p", config.IosSshPort, "-i", config.IosSshKeyPath!, "-o", "StrictHostKeyChecking=no",
-             "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
+        if (connections.Ios() is { } conn) await conn.ShellAsync(remote, ct);
     }
 
 
 
     private async Task<bool?> IosLockstateAsync(CancellationToken ct) {
-        var r = await runner.RunAsync("ssh",
-            ["-p", config.IosSshPort, "-i", config.IosSshKeyPath!, "-o", "StrictHostKeyChecking=no",
-             "-o", "BatchMode=yes", $"root@{config.IosSshHost}", "lockstate"], ct);
+        if (connections.Ios() is not { } conn) return null;
+        var r = await conn.ShellAsync("lockstate", ct);
         if (r.Stdout.Contains("locked=1")) return true;
         return r.Stdout.Contains("locked=0") ? false : r.ExitCode switch { 10 => true, 0 => false, _ => (bool?)null };
     }
 
 
     private async Task<(bool Ok, string? Note)> IosSendCmdAsync(string cmd, CancellationToken ct) {
+        if (connections.Ios() is not { } conn) return (false, "ios ssh not configured");
         var remote = $"/bin/sh -c 'printf %s {cmd} > /tmp/ehp.cmd; chmod 666 /tmp/ehp.cmd; echo sent'";
-        var r = await runner.RunAsync("ssh",
-            ["-p", config.IosSshPort, "-i", config.IosSshKeyPath!, "-o", "StrictHostKeyChecking=no",
-             "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
+        var r = await conn.ShellAsync(remote, ct);
         return r.ExitCode == 0 ? (true, null)
                                : (false, EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(r.Stderr + r.Stdout));
     }
@@ -166,9 +163,8 @@ public sealed class DeviceProxyPusher(
                       "if ps ax 2>/dev/null | grep -i egg | grep -v grep; then echo \"diag RESULT: running\"; else echo \"diag RESULT: NOT running\"; fi" +
                       "'"
                     : config.IosRestartCommand.Replace("{bundle}", bundle).Replace("{proc}", proc);
-                var r = await runner.RunAsync("ssh",
-                    ["-p", config.IosSshPort, "-i", config.IosSshKeyPath, "-o", "StrictHostKeyChecking=no",
-                     "-o", "BatchMode=yes", $"root@{config.IosSshHost}", remote], ct);
+                if (connections.Ios() is not { } conn) return (false, "ios ssh not configured");
+                var r = await conn.ShellAsync(remote, ct);
                 var diag = EggIncognito.Core.Services.Devices.DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
                 var launched = r.Stdout.Contains("diag RESULT: running");
                 logger.LogInformation("device capture: {Id} ios restart (running-after={Ok}): {Diag}", d.Id, launched, diag);

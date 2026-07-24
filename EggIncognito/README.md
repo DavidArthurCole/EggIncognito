@@ -115,17 +115,15 @@ The former PowerShell scripts and CLI subcommands are gone. Their behavior is no
 | Inspector Tools -> `POST /api/tools/decode` | Auto-detect the proto type of an arbitrary base64 blob (was `decode`) |
 | Import tab -> `POST /api/import/har` (Local) | Import a HAR into the default endpoint store (staged unless `?overwrite=true`) (was `from-har`) |
 | `EmitDashboardTypes` MSBuild target | Regenerate the capture dashboard type declarations from the capture records on every build (was `emit-types`) |
-| `BuildTailwind` MSBuild target | Compile the Tailwind source sheet into the served stylesheet with the standalone Tailwind CLI. See below. |
+| `BuildTailwind` MSBuild target | Opt-in (`-p:BuildTailwindCss=true`): recompile the served stylesheet from the Tailwind source sheet. See below. |
 
-`BuildTailwind` details:
+Tailwind details:
 
-- No Node. The standalone Tailwind CLI is fetched to a local tools dir on first build (gitignored).
+- The served sheet `wwwroot/tailwind.css` is a committed, tracked artifact. Normal builds, CI, Docker, and release ship it as-is. No Tailwind CLI download in any automated build.
+- To restyle: edit `wwwroot/app.tailwind.css` (or a Razor class), then regenerate with `dotnet build -p:BuildTailwindCss=true` and commit the updated `wwwroot/tailwind.css`. The opt-in build fetches the standalone CLI once into `obj/tailwind/` (gitignored, RID-aware).
 - Tokens live only in the Tailwind config. All chrome is one canonical `@layer components` block in the Tailwind source.
 - The Razor components emit semantic class names; the `@layer components` block defines them. Add a missing class to the component layer rather than inlining utilities in markup.
-- Skip with `-p:BuildTailwindCss=false`.
-- Gotcha: the target runs `AfterTargets="Build"`, so a static-asset-only incremental build does not recompile. Run `dotnet build -t:BuildTailwind`.
 - Gotcha: `@apply hidden` inside `@layer components` is a circular-dependency error. Use raw `display:none`.
-- The fetch is RID-aware (right asset per OS + arch), so Linux/macOS CI compiles the sheet natively.
 
 The live-API batch seed (former `seed` subcommand) is not yet web-ported. Recover it from git history if a Local seeding flow is needed.
 

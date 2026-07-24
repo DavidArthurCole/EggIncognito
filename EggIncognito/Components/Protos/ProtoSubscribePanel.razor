@@ -1,172 +1,184 @@
+@using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
-@using System.Net.Http.Json
-@using EggIncognito.Components.Shared
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
 
 <p class="text-muted text-xs mb-3">A test message is sent to the webhook on save.</p>
 
-@if (!_isAuthed)
-{
-  <div class="sub-login-note">
-    <p class="text-muted text-sm m-0 mb-2">Subscriptions are tied to your account. Log in to create and
-      manage webhook notifications.</p>
-    <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right" />
-  </div>
-}
-else if (_done is not null)
-{
-  <div class="sub-done">
-    <div class="sub-done-icon"><Icon Name="check" /></div>
-    <div>
-      <div class="font-semibold mb-1">Subscribed</div>
-      <p class="text-muted text-sm m-0">Test message sent. You will be notified for
-        <span class="code-chip">@_done.Kind</span> on <span class="code-chip">@_done.Trigger</span>.</p>
+@if (!_isAuthed) {
+    <div class="sub-login-note">
+        <p class="text-muted text-sm m-0 mb-2">
+            Subscriptions are tied to your account. Log in to create and
+            manage webhook notifications.
+        </p>
+        <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
     </div>
-  </div>
-  <button type="button" class="btn-primary mt-4" @onclick="Reset">Add another</button>
-}
-else
-{
-  <div class="sub-form">
-    <label class="sub-field">
-      <span class="sub-field-label">Discord webhook URL</span>
-      <input class="field-input w-full" placeholder="https://discord.com/api/webhooks/..."
-             @bind="_url" @bind:event="oninput" />
-    </label>
-
-    <label class="sub-field">
-      <span class="sub-field-label">Notify about</span>
-      <select class="field-input w-full" @bind="_eventKind" @bind:after="OnKindChanged">
-        @foreach (var k in _kinds) { <option value="@k.Key">@k.Label</option> }
-      </select>
-    </label>
-
-    <div class="sub-grid">
-      @if (CurrentKind?.PlatformScoped == true)
-      {
-        <fieldset class="sub-field border-0 p-0 m-0">
-          <legend class="sub-field-label p-0">Platforms</legend>
-          <div class="sub-checks">
-            <label class="settings-check"><input type="checkbox" @bind="_android" /> Android</label>
-            <label class="settings-check"><input type="checkbox" @bind="_ios" /> iOS</label>
-          </div>
-        </fieldset>
-      }
-
-      <fieldset class="sub-field border-0 p-0 m-0">
-        <legend class="sub-field-label p-0">Trigger</legend>
-        <select class="field-input" @bind="_trigger">
-          @foreach (var t in CurrentTriggers) { <option value="@t.Value">@t.Label</option> }
-        </select>
-      </fieldset>
+} else if (_done is not null) {
+    <div class="sub-done">
+        <div class="sub-done-icon">
+            <Icon Name="check"/>
+        </div>
+        <div>
+            <div class="font-semibold mb-1">Subscribed</div>
+            <p class="text-muted text-sm m-0">
+                Test message sent. You will be notified for
+                <span class="code-chip">@_done.Kind</span> on <span class="code-chip">@_done.Trigger</span>.
+            </p>
+        </div>
     </div>
+    <button type="button" class="btn-primary mt-4" @onclick="Reset">Add another</button>
+} else {
+    <div class="sub-form">
+        <label class="sub-field">
+            <span class="sub-field-label">Discord webhook URL</span>
+            <input class="field-input w-full" placeholder="https://discord.com/api/webhooks/..."
+                   @bind="_url" @bind:event="oninput"/>
+        </label>
 
-    <label class="sub-field">
-      <span class="sub-field-label">Custom message (optional)</span>
-      <textarea class="field-input w-full font-mono text-xs" rows="3"
+        <label class="sub-field">
+            <span class="sub-field-label">Notify about</span>
+            <select class="field-input w-full" @bind="_eventKind" @bind:after="OnKindChanged">
+                @foreach (var k in _kinds) {
+                    <option value="@k.Key">@k.Label</option>
+                }
+            </select>
+        </label>
+
+        <div class="sub-grid">
+            @if (CurrentKind?.PlatformScoped == true) {
+                <fieldset class="sub-field border-0 p-0 m-0">
+                    <legend class="sub-field-label p-0">Platforms</legend>
+                    <div class="sub-checks">
+                        <label class="settings-check"><input type="checkbox" @bind="_android"/> Android</label>
+                        <label class="settings-check"><input type="checkbox" @bind="_ios"/> iOS</label>
+                    </div>
+                </fieldset>
+            }
+
+            <fieldset class="sub-field border-0 p-0 m-0">
+                <legend class="sub-field-label p-0">Trigger</legend>
+                <select class="field-input" @bind="_trigger">
+                    @foreach (var t in CurrentTriggers) {
+                        <option value="@t.Value">@t.Label</option>
+                    }
+                </select>
+            </fieldset>
+        </div>
+
+        <label class="sub-field">
+            <span class="sub-field-label">Custom message (optional)</span>
+            <textarea class="field-input w-full font-mono text-xs" rows="3"
                 placeholder="@Placeholder" @bind="_messageTemplate" @bind:event="oninput"></textarea>
-      <span class="text-muted text-xs">Leave blank for the default embed. Variables:
-        @foreach (var v in CurrentVars) { <span class="code-chip">@Tok(v)</span> <text> </text> }
-      </span>
-    </label>
+            <span class="text-muted text-xs">
+                Leave blank for the default embed. Variables:
+                @foreach (var v in CurrentVars) {
+                    <span class="code-chip">@Tok(v)</span>
+                    <text> </text>
+                }
+            </span>
+        </label>
 
-    <div class="flex items-center gap-3">
-      <button type="button" class="btn-primary" disabled="@_busy" @onclick="Submit">
-        @(_busy ? "Sending test..." : "Subscribe")
-      </button>
-      @if (_error is not null) { <span class="text-err text-sm">@_error</span> }
+        <div class="flex items-center gap-3">
+            <button type="button" class="btn-primary" disabled="@_busy" @onclick="Submit">
+                @(_busy ? "Sending test..." : "Subscribe")
+            </button>
+            @if (_error is not null) {
+                <span class="text-err text-sm">@_error</span>
+            }
+        </div>
     </div>
-  </div>
 }
 
-<hr class="settings-divider my-5" />
+<hr class="settings-divider my-5"/>
 
 <div class="sub-manage">
-  <div class="sub-section-head mb-2">Your subscriptions</div>
-  @if (!_isAuthed)
-  {
-    <p class="text-muted text-sm m-0">Log in to manage your subscriptions.</p>
-  }
-  else if (_subs is null)
-  {
-    <p class="text-muted text-sm m-0">Loading...</p>
-  }
-  else if (_subs.Count == 0)
-  {
-    <p class="text-muted text-sm m-0">No subscriptions yet.</p>
-  }
-  else
-  {
-    @if (_deleted) { <p class="text-muted text-sm mb-2">Subscription deleted.</p> }
-    @if (_testMsg is not null) { <p class="text-sm mb-2 @(_testOk ? "text-green-400" : "text-err")">@_testMsg</p> }
-    <div class="sub-list">
-      @foreach (var s in _subs)
-      {
-        <div class="sub-item">
-          <div class="sub-item-hook">
-            <span class="font-mono text-xs truncate" title="@s.UrlMasked">@s.UrlMasked</span>
-            @if (!string.IsNullOrWhiteSpace(s.Label)) { <span class="text-muted text-xs">(@s.Label)</span> }
-          </div>
-          @if (_editId == s.Id)
-          {
-            <div class="sub-item-edit">
-              <div class="sub-checks-row">
-                @if (KindOf(s.EventKind)?.PlatformScoped == true)
-                {
-                  <label class="settings-check"><input type="checkbox" @bind="_editAndroid" /> Android</label>
-                  <label class="settings-check"><input type="checkbox" @bind="_editIos" /> iOS</label>
-                }
-                <label class="settings-check"><input type="checkbox" @bind="_editActive" /> active</label>
-              </div>
-              <select class="field-input" @bind="_editTrigger">
-                @foreach (var t in TriggersOf(s.EventKind)) { <option value="@t.Value">@t.Label</option> }
-              </select>
-              <textarea class="field-input w-full font-mono text-xs mt-2" rows="3"
+    <div class="sub-section-head mb-2">Your subscriptions</div>
+    @if (!_isAuthed) {
+        <p class="text-muted text-sm m-0">Log in to manage your subscriptions.</p>
+    } else if (_subs is null) {
+        <p class="text-muted text-sm m-0">Loading...</p>
+    } else if (_subs.Count == 0) {
+        <p class="text-muted text-sm m-0">No subscriptions yet.</p>
+    } else {
+        @if (_deleted) {
+            <p class="text-muted text-sm mb-2">Subscription deleted.</p>
+        }
+
+        @if (_testMsg is not null) {
+            <p class="text-sm mb-2 @(_testOk ? "text-green-400" : "text-err")">@_testMsg</p>
+        }
+
+        <div class="sub-list">
+            @foreach (var s in _subs) {
+                <div class="sub-item">
+                    <div class="sub-item-hook">
+                        <span class="font-mono text-xs truncate" title="@s.UrlMasked">@s.UrlMasked</span>
+                        @if (!string.IsNullOrWhiteSpace(s.Label)) {
+                            <span class="text-muted text-xs">(@s.Label)</span>
+                        }
+                    </div>
+                    @if (_editId == s.Id) {
+                        <div class="sub-item-edit">
+                            <div class="sub-checks-row">
+                                @if (KindOf(s.EventKind)?.PlatformScoped == true) {
+                                    <label class="settings-check"><input type="checkbox" @bind="_editAndroid"/> Android</label>
+                                    <label class="settings-check"><input type="checkbox" @bind="_editIos"/> iOS</label>
+                                }
+                                <label class="settings-check"><input type="checkbox" @bind="_editActive"/> active</label>
+                            </div>
+                            <select class="field-input" @bind="_editTrigger">
+                                @foreach (var t in TriggersOf(s.EventKind)) {
+                                    <option value="@t.Value">@t.Label</option>
+                                }
+                            </select>
+                            <textarea class="field-input w-full font-mono text-xs mt-2" rows="3"
                         placeholder="Custom message (blank = default embed)"
                         @bind="_editMessageTemplate" @bind:event="oninput"></textarea>
-              <div class="sub-item-actions">
-                <button type="button" class="btn-mini" disabled="@_saving" @onclick="() => SaveEdit(s.Id)">Save</button>
-                <button type="button" class="btn-mini" disabled="@_saving" @onclick="CancelEdit">Cancel</button>
-              </div>
-            </div>
-          }
-          else
-          {
-            <div class="sub-item-meta">
-              <span>@KindLabel(s.EventKind)</span>
-              <span class="text-muted">@TriggerLabel(s.EventKind, s.Trigger)</span>
-              @if (KindOf(s.EventKind)?.PlatformScoped == true) { <span>@string.Join(", ", s.Platforms)</span> }
-              <span class="@(s.Active ? "text-green-400" : "text-muted")">@(s.Active ? "active" : "paused")</span>
-              <span class="text-muted">last @(s.LastDeliveryAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "never")</span>
-              @if (s.FailCount > 0) { <span class="text-err">@s.FailCount fails</span> }
-            </div>
-            <div class="sub-item-actions">
-              <button type="button" class="btn-mini" disabled="@_busyRow" @onclick="() => TestSub(s.Id)">Test</button>
-              <button type="button" class="btn-mini" disabled="@_busyRow" @onclick="() => StartEdit(s)">Edit</button>
-              <button type="button" class="btn-mini" disabled="@_busyRow" @onclick="() => DeleteSub(s.Id)">Delete</button>
-            </div>
-          }
+                            <div class="sub-item-actions">
+                                <button type="button" class="btn-mini" disabled="@_saving" @onclick="() => SaveEdit(s.Id)">Save</button>
+                                <button type="button" class="btn-mini" disabled="@_saving" @onclick="CancelEdit">Cancel</button>
+                            </div>
+                        </div>
+                    } else {
+                        <div class="sub-item-meta">
+                            <span>@KindLabel(s.EventKind)</span>
+                            <span class="text-muted">@TriggerLabel(s.EventKind, s.Trigger)</span>
+                            @if (KindOf(s.EventKind)?.PlatformScoped == true) {
+                                <span>@string.Join(", ", s.Platforms)</span>
+                            }
+                            <span class="@(s.Active ? "text-green-400" : "text-muted")">@(s.Active ? "active" : "paused")</span>
+                            <span class="text-muted">last @(s.LastDeliveryAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "never")</span>
+                            @if (s.FailCount > 0) {
+                                <span class="text-err">@s.FailCount fails</span>
+                            }
+                        </div>
+                        <div class="sub-item-actions">
+                            <button type="button" class="btn-mini" disabled="@_busyRow" @onclick="() => TestSub(s.Id)">Test</button>
+                            <button type="button" class="btn-mini" disabled="@_busyRow" @onclick="() => StartEdit(s)">Edit</button>
+                            <button type="button" class="btn-mini" disabled="@_busyRow" @onclick="() => DeleteSub(s.Id)">Delete</button>
+                        </div>
+                    }
+                </div>
+            }
         </div>
-      }
-    </div>
-  }
+    }
 </div>
 
 @code {
-    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    static readonly List<KindInfo> DefaultKinds =
-    [
+    static readonly List<KindInfo> DefaultKinds = [
         new("proto_build", "Proto build",
-            [new("proto_changed", "Proto changed"), new("new_version", "Any new version")],
+            [new TriggerOpt("proto_changed", "Proto changed"), new TriggerOpt("new_version", "Any new version")],
             ["platform", "appVersion", "build", "clientVersion", "protoSha", "protoChanged", "pageUrl"],
             "proto_changed", true),
         new("periodicals_changed", "Periodicals changed",
-            [new("any", "Any feed"), new("periodicals", "get_periodicals"),
-             new("afx-config", "ei_afx/config"), new("season-infos", "get_season_infos_v2")],
-            ["feed", "sha", "pageUrl"], "any", false),
+            [
+                new TriggerOpt("any", "Any feed"), new TriggerOpt("periodicals", "get_periodicals"),
+                new TriggerOpt("afx-config", "ei_afx/config"), new TriggerOpt("season-infos", "get_season_infos_v2")
+            ],
+            ["feed", "sha", "pageUrl"], "any", false)
     ];
 
     List<KindInfo> _kinds = DefaultKinds;
@@ -204,68 +216,75 @@ else
     KindInfo? CurrentKind => KindOf(_eventKind);
     IReadOnlyList<TriggerOpt> CurrentTriggers => CurrentKind?.Triggers ?? [];
     IReadOnlyList<string> CurrentVars => CurrentKind?.Vars ?? [];
+
     string Placeholder => _eventKind == "periodicals_changed"
         ? "{{feed}} changed (hash {{sha}}) - see {{pageUrl}}"
         : "New build {{appVersion}} ({{build}}) is up on {{platform}}!";
 
-    static string Tok(string v) => "{{" + v + "}}";
+    static string Tok(string v) {
+        return "{{" + v + "}}";
+    }
 
-    KindInfo? KindOf(string? key) => _kinds.FirstOrDefault(k => k.Key == key);
-    IReadOnlyList<TriggerOpt> TriggersOf(string? key) => KindOf(key)?.Triggers ?? [];
-    string KindLabel(string? key) => KindOf(key)?.Label ?? key ?? "";
-    string TriggerLabel(string? kind, string trigger) =>
-        TriggersOf(kind).FirstOrDefault(t => t.Value == trigger)?.Label ?? trigger;
+    KindInfo? KindOf(string? key) {
+        return _kinds.FirstOrDefault(k => k.Key == key);
+    }
 
-    void OnKindChanged()
-    {
+    IReadOnlyList<TriggerOpt> TriggersOf(string? key) {
+        return KindOf(key)?.Triggers ?? [];
+    }
+
+    string KindLabel(string? key) {
+        return KindOf(key)?.Label ?? key ?? "";
+    }
+
+    string TriggerLabel(string? kind, string trigger) {
+        return TriggersOf(kind).FirstOrDefault(t => t.Value == trigger)?.Label ?? trigger;
+    }
+
+    void OnKindChanged() {
         _trigger = CurrentKind?.DefaultTrigger ?? "proto_changed";
     }
 
-    protected override void OnInitialized()
-    {
+    protected override void OnInitialized() {
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
+
         _isAuthed = User.IsAuthenticated;
     }
 
-    protected override async Task OnInitializedAsync()
-    {
+    protected override async Task OnInitializedAsync() {
         await LoadKinds();
         if (_isAuthed) await LoadSubs();
     }
 
-    async Task LoadKinds()
-    {
-        try
-        {
+    async Task LoadKinds() {
+        try {
             var res = await Client().GetAsync("/api/protos/feed/kinds");
-            if (res.IsSuccessStatusCode)
-            {
+            if (res.IsSuccessStatusCode) {
                 var kinds = await res.Content.ReadFromJsonAsync<List<KindInfo>>(JsonOpts);
                 if (kinds is { Count: > 0 }) _kinds = kinds;
             }
         }
-        catch { }
+        catch {
+        }
     }
 
-    async Task LoadSubs()
-    {
-        try
-        {
+    async Task LoadSubs() {
+        try {
             var res = await Client().GetAsync("/api/protos/feed/mine");
             _subs = res.IsSuccessStatusCode
                 ? await res.Content.ReadFromJsonAsync<List<Sub>>(JsonOpts) ?? []
                 : [];
         }
-        catch { _subs = []; }
+        catch {
+            _subs = [];
+        }
     }
 
-    void StartEdit(Sub s)
-    {
+    void StartEdit(Sub s) {
         _editId = s.Id;
         _editAndroid = s.Platforms.Contains("android");
         _editIos = s.Platforms.Contains("ios");
@@ -275,65 +294,72 @@ else
         _deleted = false;
     }
 
-    void CancelEdit() => _editId = null;
+    void CancelEdit() {
+        _editId = null;
+    }
 
-    async Task SaveEdit(int id)
-    {
+    async Task SaveEdit(int id) {
         _saving = true;
-        try
-        {
+        try {
             var platforms = new List<string>();
             if (_editAndroid) platforms.Add("android");
             if (_editIos) platforms.Add("ios");
-            var body = new
-            {
+            var body = new {
                 platforms = platforms.ToArray(), trigger = _editTrigger, active = _editActive,
-                messageTemplate = string.IsNullOrWhiteSpace(_editMessageTemplate) ? null : _editMessageTemplate,
+                messageTemplate = string.IsNullOrWhiteSpace(_editMessageTemplate) ? null : _editMessageTemplate
             };
             var res = await Client().PatchAsJsonAsync($"/api/protos/feed/{id}", body, JsonOpts);
-            if (res.IsSuccessStatusCode) { _editId = null; await LoadSubs(); }
+            if (res.IsSuccessStatusCode) {
+                _editId = null;
+                await LoadSubs();
+            }
         }
-        catch { }
+        catch {
+        }
+
         _saving = false;
     }
 
-    async Task TestSub(int id)
-    {
+    async Task TestSub(int id) {
         _testing = true;
         _testMsg = null;
-        try
-        {
+        try {
             var res = await Client().PostAsync($"/api/protos/feed/{id}/test", null);
             _testOk = res.IsSuccessStatusCode;
             _testMsg = _testOk ? "Test message sent." : "Webhook rejected the test.";
         }
-        catch { _testOk = false; _testMsg = "Test failed."; }
+        catch {
+            _testOk = false;
+            _testMsg = "Test failed.";
+        }
+
         _testing = false;
     }
 
-    async Task DeleteSub(int id)
-    {
+    async Task DeleteSub(int id) {
         _deleting = true;
         _deleted = false;
-        try
-        {
+        try {
             var res = await Client().DeleteAsync($"/api/protos/feed/{id}");
-            if (res.IsSuccessStatusCode) { _subs?.RemoveAll(s => s.Id == id); _deleted = true; }
+            if (res.IsSuccessStatusCode) {
+                _subs?.RemoveAll(s => s.Id == id);
+                _deleted = true;
+            }
         }
-        catch { }
+        catch {
+        }
+
         _deleting = false;
     }
 
-    HttpClient Client()
-    {
+    HttpClient Client() {
         var c = HttpFactory.CreateClient();
         if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
         if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
         return c;
     }
 
-    void Reset()
-    {
+    void Reset() {
         _done = null;
         _error = null;
         _url = "";
@@ -344,43 +370,59 @@ else
         _messageTemplate = "";
     }
 
-    async Task Submit()
-    {
+    async Task Submit() {
         _busy = true;
         _error = null;
-        try
-        {
+        try {
             var platforms = new List<string>();
             if (_android) platforms.Add("android");
             if (_ios) platforms.Add("ios");
-            var body = new
-            {
+            var body = new {
                 webhookUrl = _url, eventKind = _eventKind, platforms = platforms.ToArray(),
                 trigger = _trigger, label = (string?)null,
-                messageTemplate = string.IsNullOrWhiteSpace(_messageTemplate) ? null : _messageTemplate,
+                messageTemplate = string.IsNullOrWhiteSpace(_messageTemplate) ? null : _messageTemplate
             };
             var res = await Client().PostAsJsonAsync("/api/protos/feed", body, JsonOpts);
-            if (res.IsSuccessStatusCode)
-            {
+            if (res.IsSuccessStatusCode) {
                 _done = new Confirmation(KindLabel(_eventKind), TriggerLabel(_eventKind, _trigger));
                 if (_isAuthed) await LoadSubs();
-            }
-            else
-            {
+            } else {
                 var err = await res.Content.ReadFromJsonAsync<ErrorBody>(JsonOpts);
                 _error = err?.Error ?? $"Subscription failed ({(int)res.StatusCode}).";
             }
         }
-        catch (Exception ex) { _error = $"Subscription failed: {ex.Message}"; }
+        catch (Exception ex) {
+            _error = $"Subscription failed: {ex.Message}";
+        }
+
         _busy = false;
     }
 
     record Confirmation(string Kind, string Trigger);
+
     record ErrorBody(string? Error);
+
     record TriggerOpt(string Value, string Label);
-    record KindInfo(string Key, string Label, List<TriggerOpt> Triggers, List<string> Vars,
-        string DefaultTrigger, bool PlatformScoped);
-    record Sub(int Id, string? Label, string EventKind, string[] Platforms, string Trigger, bool Active,
-        DateTimeOffset CreatedAt, DateTimeOffset? LastDeliveryAt, int FailCount, string? MessageTemplate,
+
+    record KindInfo(
+        string Key,
+        string Label,
+        List<TriggerOpt> Triggers,
+        List<string> Vars,
+        string DefaultTrigger,
+        bool PlatformScoped);
+
+    record Sub(
+        int Id,
+        string? Label,
+        string EventKind,
+        string[] Platforms,
+        string Trigger,
+        bool Active,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? LastDeliveryAt,
+        int FailCount,
+        string? MessageTemplate,
         string UrlMasked);
+
 }

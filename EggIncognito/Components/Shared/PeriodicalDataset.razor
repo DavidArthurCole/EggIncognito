@@ -1,35 +1,34 @@
-@using EggIncognito.Capture
 @using EggIncognito.Components.Capture
 @inject IJSRuntime JS
 
 <div class="@RowClass">
-  <div class="ds-head flex items-center justify-between gap-3 cursor-pointer" @onclick="Toggle">
-    <div class="flex items-center gap-2 min-w-0">
-      @if (Nested) { <span class="ds-elbow" aria-hidden="true"></span> }
-      <span class="font-medium truncate" title="@Endpoint">@Title</span>
-      @Badges
+    <div class="ds-head flex items-center justify-between gap-3 cursor-pointer" @onclick="Toggle">
+        <div class="flex items-center gap-2 min-w-0">
+            @if (Nested) {
+                <span class="ds-elbow" aria-hidden="true"></span>
+            }
+            <span class="font-medium truncate" title="@Endpoint">@Title</span>
+            @Badges
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button" class="reg-edit-btn" title="@CopyTitle" aria-label="Copy endpoint path" @onclick="CopyPath" @onclick:stopPropagation="true">
+                <Icon Name="@(_copied ? "check" : "copy")"/>
+            </button>
+            <a class="reg-edit-btn" href="@Endpoint" download="@DownloadName" target="_blank" rel="noopener" title="Download JSON" aria-label="Download JSON" @onclick:stopPropagation="true">
+                <Icon Name="download"/>
+            </a>
+            <button type="button" class="reg-view-btn" @onclick="Toggle" @onclick:stopPropagation="true">@(_open ? "Hide" : "View")</button>
+        </div>
     </div>
-    <div class="flex items-center gap-1.5 shrink-0">
-      <button type="button" class="reg-edit-btn" title="@CopyTitle" aria-label="Copy endpoint path" @onclick="CopyPath" @onclick:stopPropagation="true">
-        <Icon Name="@(_copied ? "check" : "copy")" />
-      </button>
-      <a class="reg-edit-btn" href="@Endpoint" download="@DownloadName" target="_blank" rel="noopener" title="Download JSON" aria-label="Download JSON" @onclick:stopPropagation="true"><Icon Name="download" /></a>
-      <button type="button" class="reg-view-btn" @onclick="Toggle" @onclick:stopPropagation="true">@(_open ? "Hide" : "View")</button>
-    </div>
-  </div>
-  @if (_open)
-  {
-    <div class="mt-2">
-      @if (_json is null)
-      {
-        <div class="text-muted text-xs">Loading…</div>
-      }
-      else
-      {
-        <FormatView Label="" JsonStr="@_json" View="View" FormatChoice="FormatChoice" />
-      }
-    </div>
-  }
+    @if (_open) {
+        <div class="mt-2">
+            @if (_json is null) {
+                <div class="text-muted text-xs">Loading…</div>
+            } else {
+                <FormatView Label="" JsonStr="@_json" View="View" FormatChoice="FormatChoice"/>
+            }
+        </div>
+    }
 </div>
 
 @code {
@@ -50,16 +49,13 @@
 
     string CopyTitle => _copied ? "Copied" : Endpoint;
 
-    async Task Toggle()
-    {
+    async Task Toggle() {
         _open = !_open;
         if (_open && _json is null && Fetch is not null) _json = await Fetch(Endpoint);
     }
 
-    async Task CopyPath()
-    {
-        try
-        {
+    async Task CopyPath() {
+        try {
             _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
             await _copy.InvokeAsync<bool>("writeText", Endpoint);
             _copied = true;
@@ -67,6 +63,8 @@
             await Task.Delay(1200);
             _copied = false;
         }
-        catch { }
+        catch {
+        }
     }
+
 }

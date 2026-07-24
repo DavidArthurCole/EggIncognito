@@ -1,9 +1,0 @@
-Package: me.eggincognito.eggnoop
-Name: EggNoop
-Version: 0.1.0
-Architecture: iphoneos-arm
-Description: Phase-B no-op validation tweak for EggIncognito iOS auto-update.
-Maintainer: David Cole
-Author: David Cole
-Section: Tweaks
-Depends: ellekit

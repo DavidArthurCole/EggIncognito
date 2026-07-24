@@ -1,8 +1,3 @@
-/* Shared top-nav for the EggIncognito app shell (landing + Inspector + Capture).
-   Self-contained (no dependency on a page's CSS vars) so it looks identical on every tab.
-   This is the ONE header on every page: left = page links, right = the per-page controls slot
-   (.app-nav-tools), into which each SPA mounts its own toolbar. Fixed height so the SPA layouts
-   can size `main` with calc(100vh - var(--nav-h)). */
 :root { --nav-h: 48px; --gutter-w: 4px; }
 .app-nav {
   display: flex;
@@ -17,9 +12,6 @@
   font-family: system-ui, -apple-system, Segoe UI, sans-serif;
   font-size: 14px;
   box-sizing: border-box;
-  /* Visible overflow so the projected per-page toolbar's popovers (Capture notifications/settings)
-     drop below the nav instead of being clipped. Narrow screens shrink the tab gaps rather than
-     scroll; the fixed height that page main relies on (calc(100vh - --nav-h)) is preserved. */
   overflow: visible;
 }
 .app-nav > * { flex: none; }
@@ -28,7 +20,6 @@
   .app-nav-brand { margin-right: 0.4rem; }
   .app-nav-brand img { height: 26px; }
 }
-/* Brand lockup at the far left: the combined icon + wordmark, linking home. Sits before the tabs. */
 .app-nav-brand {
   display: inline-flex;
   align-items: center;
@@ -54,50 +45,33 @@
   font-weight: 600;
   box-shadow: 0 2px 10px -2px rgba(239, 117, 89, .5);
 }
-/* The brand link is never a "tab", so it must not take the active fill (the router marks the
-   matching link active on the landing route, which would otherwise highlight the logo). */
 .app-nav a.app-nav-brand.active {
   color: inherit;
   background: none;
   font-weight: normal;
 }
-/* Gated nav links start hidden and are revealed by nav.js once /api/app/mode resolves, so they
-   never flash for users who shouldn't see them. */
 .nav-gated-admin, .nav-gated-capture, .nav-gated-write { display: none; }
 .nav-gated-admin.nav-show, .nav-gated-capture.nav-show, .nav-gated-write.nav-show { display: inline-block; }
 
-/* Right cluster: per-page tools + the auth slot, pinned to the far right by a single margin-left:auto.
-   Keeping ONE auto here (not one per child) stops a stray gap from stranding the tools mid-bar. */
 .nav-right {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
 }
-/* Per-page controls (Inspector Postman + salt badge). No own auto margin now - the .nav-right cluster
-   positions it, just left of the auth slot. */
 .app-nav-tools {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-/* Shared spin animation for refresh-style icons (Inspector endpoint reload, etc.). A `.spinning`
-   class on the SVG (or its button) drives one rotation; remove it when the action completes. */
 @keyframes egi-spin { to { transform: rotate(360deg); } }
 .icon.spinning, .spinning .icon { animation: egi-spin 0.6s linear infinite; transform-origin: 50% 50%; }
 
-/* Tab transition: when the client router swaps in a new page's <main> it adds .router-fade so the new
-   content eases in instead of hard-cutting. Scoped to ROUTER navigations only - a normal page load is
-   NOT faded (fading every cold load is what read as "flashing"). Respects reduced-motion. */
 @keyframes egi-fade-in { from { opacity: 0; } to { opacity: 1; } }
 main.router-fade { animation: egi-fade-in 0.14s ease both; }
 @media (prefers-reduced-motion: reduce) { main.router-fade { animation: none; } }
 
-/* Auth affordance at the right of the nav (Discord login state; only rendered when auth is wired).
-   On pages with an .app-nav-tools cluster (margin-left:auto) it sits inside that cluster at the far
-   right; on the simple navs it gets pushed right by its own margin-left:auto. */
-/* Auth slot sits inside .nav-right, so no own auto margin; the cluster places it at the far right. */
 .auth-nav { display: inline-flex; align-items: center; gap: 0.4rem; }
 .auth-nav .auth-avatar { width: 22px; height: 22px; border-radius: 50%; display: block; }
 .auth-nav .auth-name { color: #c7c7cf; font-size: 13px; }
@@ -112,9 +86,6 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
   text-decoration: none;
 }
 .auth-nav a.auth-btn:hover, .auth-nav button.auth-btn:hover { filter: brightness(1.07); }
-/* Native federated login: the "Log in" button reveals a dropdown of one <a> per provider fetched from
-   /auth/sources. The menu is position:fixed and placed by loginMenu.js so it escapes any
-   overflow-clipped ancestor (e.g. the /protos modal card) and sits above all app chrome. */
 .auth-source-anchor { position: relative; display: inline-block; }
 .auth-source-menu {
   position: fixed; top: 0; left: 0; z-index: 1000; width: 200px; box-sizing: border-box;
@@ -132,8 +103,6 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 .auth-source-btn:hover { filter: brightness(1.07); }
 .auth-source-logo { width: 16px; height: 16px; display: block; flex: none; }
 
-/* Column resize gutter between resizable panels (see resize.js). A thin grab strip with a centered
-   handle that brightens on hover/drag. --gutter-w is the track width the grid reserves for it. */
 .col-gutter {
   cursor: col-resize;
   align-self: stretch;
@@ -155,10 +124,6 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 }
 .col-gutter:hover::before, .col-gutter.dragging::before { background: #ef7559; height: 44px; }
 
-/* Blazor reconnect overlay (.NET 10 contract; replaces the default modal). Blazor toggles one of the
-   components-reconnect-*-visible classes on #components-reconnect-modal per state. The dialog is hidden
-   until one is present, then becomes a centered dark overlay. Each message + button is gated by the
-   active state class so the right text shows and it never flashes white. */
 #components-reconnect-modal {
   display: none;
   position: fixed;
@@ -176,7 +141,6 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
   justify-content: center;
   font-family: system-ui, -apple-system, Segoe UI, sans-serif;
 }
-/* Any active reconnect state makes the overlay a centered flex container. */
 #components-reconnect-modal.components-reconnect-first-attempt-visible,
 #components-reconnect-modal.components-reconnect-repeated-attempt-visible,
 #components-reconnect-modal.components-reconnect-failed-visible,
@@ -192,14 +156,12 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
   color: #e7e7ea;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
-/* Each message hidden by default; the active state class reveals exactly one. */
 .reconnect-msg { display: none; margin: 0.25rem 0 1rem; color: #c7c7cf; font-size: 14px; line-height: 1.5; }
 .components-reconnect-first-attempt-visible .reconnect-first { display: block; }
 .components-reconnect-repeated-attempt-visible .reconnect-repeated { display: block; }
 .components-reconnect-failed-visible .reconnect-failed { display: block; }
 .components-pause-visible .reconnect-pause { display: block; }
 .components-resume-failed-visible .reconnect-resume-failed { display: block; }
-/* The spinner spins only while actively trying (first/repeated/pause), not on a terminal failure. */
 .reconnect-spinner { display: none; width: 26px; height: 26px; margin: 0 auto 0.75rem; border-radius: 50%;
   border: 3px solid #3a3a44; border-top-color: #ef7559; }
 .components-reconnect-first-attempt-visible .reconnect-spinner,
@@ -207,7 +169,6 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 .components-pause-visible .reconnect-spinner { display: block; animation: reconnect-spin 0.7s linear infinite; }
 @keyframes reconnect-spin { to { transform: rotate(360deg); } }
 .reconnect-actions { display: flex; gap: 0.5rem; justify-content: center; }
-/* Try again shows only on a failed reconnect; Reload only on a failed resume. Both hidden otherwise. */
 #components-reconnect-button, #components-resume-button { display: none; }
 .components-reconnect-failed-visible #components-reconnect-button { display: inline-flex; }
 .components-resume-failed-visible #components-resume-button { display: inline-flex; }

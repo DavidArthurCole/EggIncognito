@@ -1,126 +1,139 @@
 @* Admin oversight of active capture sessions: list + a kill button per row, polling /api/admin/sessions. *@
 @rendermode @(RenderMode.InteractiveServer)
-@using System.Net.Http.Json
-@using EggIncognito.Components.Shared
-@using Microsoft.JSInterop
 @inject IJSRuntime JS
+@using System.Text.Json
 @implements IDisposable
 
 <section class="panel mb-4">
-  <div class="admin-panel-head">
-    <h2 class="admin-panel-title">Capture sessions</h2>
-    <span class="text-muted text-xs">@_rows.Count active</span>
-  </div>
-  @if (_rows.Count == 0)
-  {
-    <p class="text-muted text-sm m-0">No active capture sessions.</p>
-  }
-  else
-  {
-    <div class="reg-wrap">
-      <table class="reg-table">
-        <thead>
-          <tr><th>Session</th><th>Kind</th><th>State</th><th>Port</th><th>Flows</th><th>Conns</th><th>Devices</th><th>Decrypt</th><th></th></tr>
-        </thead>
-        <tbody>
-          @foreach (var s in _rows)
-          {
-            <tr>
-              <td class="mono text-xs">@Label(s.Key)</td>
-              <td><span class="sess-kind @KindClass(s.Kind)">@s.Kind</span></td>
-              <td><span class="@(s.Running ? "text-green-400" : "text-muted")">@(s.Running ? "running" : "stopped")</span></td>
-              <td class="mono text-xs">@s.Port</td>
-              <td class="mono text-xs">@s.Flows</td>
-              <td class="mono text-xs">@s.Connections</td>
-              <td class="mono text-xs">@s.Devices</td>
-              <td class="mono text-xs">@s.DecryptOk ok / <span class="@(s.DecryptErr > 0 ? "text-err" : "")">@s.DecryptErr err</span></td>
-              <td>
-                @if (s.Kind == "device")
-                {
-                  <a class="btn-mini no-underline" href="/capture/device/@DeviceId(s.Key)" title="Open read-only live view">View</a>
-                }
-                else if (s.Killable)
-                {
-                  <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Kill(s.Key)">Kill</button>
-                }
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Capture sessions</h2>
+        <span class="text-muted text-xs">@_rows.Count active</span>
     </div>
-  }
-  @if (_msg is not null) { <p class="text-xs text-muted mt-2 mb-0">@_msg</p> }
+    @if (_rows.Count == 0) {
+        <p class="text-muted text-sm m-0">No active capture sessions.</p>
+    } else {
+        <div class="reg-wrap">
+            <table class="reg-table">
+                <thead>
+                <tr>
+                    <th>Session</th><th>Kind</th><th>State</th><th>Port</th><th>Flows</th><th>Conns</th><th>Devices</th><th>Decrypt</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var s in _rows) {
+                    <tr>
+                        <td class="mono text-xs">@Label(s.Key)</td>
+                        <td>
+                            <span class="sess-kind @KindClass(s.Kind)">@s.Kind</span>
+                        </td>
+                        <td>
+                            <span class="@(s.Running ? "text-green-400" : "text-muted")">@(s.Running ? "running" : "stopped")</span>
+                        </td>
+                        <td class="mono text-xs">@s.Port</td>
+                        <td class="mono text-xs">@s.Flows</td>
+                        <td class="mono text-xs">@s.Connections</td>
+                        <td class="mono text-xs">@s.Devices</td>
+                        <td class="mono text-xs">@s.DecryptOk ok / <span class="@(s.DecryptErr > 0 ? "text-err" : "")">@s.DecryptErr err</span></td>
+                        <td>
+                            @if (s.Kind == "device") {
+                                <a class="btn-mini no-underline" href="/capture/device/@DeviceId(s.Key)" title="Open read-only live view">View</a>
+                            } else if (s.Killable) {
+                                <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Kill(s.Key)">Kill</button>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    @if (_msg is not null) {
+        <p class="text-xs text-muted mt-2 mb-0">@_msg</p>
+    }
 </section>
 
 @code {
     [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
 
-    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     List<Row> _rows = [];
     bool _busy;
     string? _msg;
-    System.Threading.Timer? _timer;
+    Timer? _timer;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync() {
+        await Load();
+    }
 
-    protected override void OnAfterRender(bool firstRender)
-    {
+    protected override void OnAfterRender(bool firstRender) {
         if (firstRender)
-            _timer = new System.Threading.Timer(async _ => await InvokeAsync(async () => { if (!await PageVisibleAsync()) return; await Load(); StateHasChanged(); }),
+            _timer = new Timer(async _ => await InvokeAsync(async () => {
+                    if (!await PageVisibleAsync()) return;
+                    await Load();
+                    StateHasChanged();
+                }),
                 null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
     IJSObjectReference? _vis;
 
-    async Task<bool> PageVisibleAsync()
-    {
-        try
-        {
+    async Task<bool> PageVisibleAsync() {
+        try {
             _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/visibility.js");
             return await _vis.InvokeAsync<bool>("isVisible");
         }
-        catch { return true; }
+        catch {
+            return true;
+        }
     }
 
-    async Task Load()
-    {
+    async Task Load() {
         if (ClientFactory is null) return;
-        try { _rows = await ClientFactory().GetFromJsonAsync<List<Row>>("/api/admin/sessions", JsonOpts) ?? []; }
-        catch { }
+        try {
+            _rows = await ClientFactory().GetFromJsonAsync<List<Row>>("/api/admin/sessions", JsonOpts) ?? [];
+        }
+        catch {
+        }
     }
 
-    async Task Kill(string key)
-    {
+    async Task Kill(string key) {
         if (ClientFactory is null) return;
-        _busy = true; _msg = null;
-        try
-        {
+        _busy = true;
+        _msg = null;
+        try {
             var res = await ClientFactory().DeleteAsync($"/api/admin/sessions/{Uri.EscapeDataString(key)}");
             _msg = res.IsSuccessStatusCode ? $"killed {Label(key)}" : $"kill failed ({(int)res.StatusCode})";
             await Load();
         }
-        catch (Exception ex) { _msg = $"kill error: {ex.Message}"; }
+        catch (Exception ex) {
+            _msg = $"kill error: {ex.Message}";
+        }
+
         _busy = false;
     }
 
-    static string Label(string key) => key == "__local" ? "local (anonymous)" : key;
+    static string Label(string key) {
+        return key == "__local" ? "local (anonymous)" : key;
+    }
 
-    static string DeviceId(string key) => key.StartsWith("device:", StringComparison.Ordinal) ? key["device:".Length..] : key;
+    static string DeviceId(string key) {
+        return key.StartsWith("device:", StringComparison.Ordinal) ? key["device:".Length..] : key;
+    }
 
-    static string KindClass(string kind) => kind switch
-    {
-        "user" => "sess-kind-user",
-        "device" => "sess-kind-device",
-        _ => "sess-kind-local",
-    };
+    static string KindClass(string kind) {
+        return kind switch {
+            "user" => "sess-kind-user",
+            "device" => "sess-kind-device",
+            _ => "sess-kind-local"
+        };
+    }
 
-    public void Dispose()
-    {
+    public void Dispose() {
         _timer?.Dispose();
         _ = _vis?.DisposeAsync();
     }
 
     record Row(string Key, string Kind, bool Killable, bool Running, int Port, long Flows, long Connections, int Devices, long DecryptOk, int DecryptErr);
+
 }

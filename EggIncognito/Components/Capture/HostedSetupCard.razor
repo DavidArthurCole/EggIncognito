@@ -1,105 +1,112 @@
 @using System.Text.Json
-@using System.Net.Http.Json
-
 @* Hosted-capture connection card: the caller's per-user IPv6 proxy host, the port, and the CA install
    steps. The front door identifies the user by destination address, so the proxy uses no auth. *@
 <section id="hostedSetupCard" class="panel">
-  <h2 class="text-base mt-0 mb-3 text-fg">Hosted proxy setup</h2>
+    <h2 class="text-base mt-0 mb-3 text-fg">Hosted proxy setup</h2>
 
-  <div class="setup-coords mb-3">
-    <div class="setup-coord"><span class="text-muted text-xs">Server</span>
-      <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span></div>
-    <div class="setup-coord"><span class="text-muted text-xs">Port</span>
-      <span class="code-chip">@Port</span></div>
-    <div class="setup-coord"><span class="text-muted text-xs">Auth</span>
-      <span class="code-chip">off</span></div>
-    @if (_rotated)
-    {
-      <p class="text-muted text-xs mt-1 mb-0 basis-full" id="rotatedNotice">New address issued. Update your
-        device's proxy Server to the value above.</p>
+    <div class="setup-coords mb-3">
+        <div class="setup-coord">
+            <span class="text-muted text-xs">Server</span>
+            <span class="code-chip" id="proxyHost">@(_proxyHost ?? "loading...")</span>
+        </div>
+        <div class="setup-coord">
+            <span class="text-muted text-xs">Port</span>
+            <span class="code-chip">@Port</span>
+        </div>
+        <div class="setup-coord">
+            <span class="text-muted text-xs">Auth</span>
+            <span class="code-chip">off</span>
+        </div>
+        @if (_rotated) {
+            <p class="text-muted text-xs mt-1 mb-0 basis-full" id="rotatedNotice">
+                New address issued. Update your
+                device's proxy Server to the value above.
+            </p>
+        }
+    </div>
+
+    @if (_caDmFailed) {
+        <p class="text-muted text-xs mb-3" id="caDmFailedNotice">
+            Could not DM you the CA. You may not be in the
+            Discord server, or your member DMs are off (Settings &gt; Privacy &amp; Safety).
+            @if (!string.IsNullOrWhiteSpace(InviteUrl)) {
+                <span>Join: <a href="@InviteUrl" target="_blank" rel="noopener" class="text-accent underline">@InviteUrl</a>, enable DMs, then re-send the config from Controls.</span>
+            } else {
+                <span>Enable DMs, then re-send the config from Controls.</span>
+            }
+        </p>
     }
-  </div>
 
-  @if (_caDmFailed)
-  {
-    <p class="text-muted text-xs mb-3" id="caDmFailedNotice">Could not DM you the CA. You may not be in the
-      Discord server, or your member DMs are off (Settings &gt; Privacy &amp; Safety).
-      @if (!string.IsNullOrWhiteSpace(InviteUrl))
-      {
-        <span>Join: <a href="@InviteUrl" target="_blank" rel="noopener" class="text-accent underline">@InviteUrl</a>, enable DMs, then re-send the config from Controls.</span>
-      }
-      else
-      {
-        <span>Enable DMs, then re-send the config from Controls.</span>
-      }
-    </p>
-  }
-
-  <ol class="setup-list">
-    <li>Set your Wi-Fi proxy to <strong>Manual</strong> using the Server + Port above (auth off).</li>
-    <li>Install + trust the DM'd CA:
-      <ul class="setup-sublist">
-        <li><strong>iOS</strong>: open the CA profile, install it, then full-trust under Settings &gt;
-          General &gt; About &gt; Certificate Trust Settings.</li>
-        <li><strong>Android</strong>: needs a rooted phone with the CA in the system trust store (Android
-          7+ ignores user CAs), e.g. a Magisk cert module.</li>
-      </ul>
-    </li>
-    <li>Open Egg, Inc. Flows appear live below. Only Egg, Inc. traffic is decrypted; everything else
-      passes through untouched.</li>
-  </ol>
+    <ol class="setup-list">
+        <li>Set your Wi-Fi proxy to <strong>Manual</strong> using the Server + Port above (auth off).</li>
+        <li>
+            Install + trust the DM'd CA:
+            <ul class="setup-sublist">
+                <li>
+                    <strong>iOS</strong>: open the CA profile, install it, then full-trust under Settings &gt;
+                    General &gt; About &gt; Certificate Trust Settings.
+                </li>
+                <li>
+                    <strong>Android</strong>: needs a rooted phone with the CA in the system trust store (Android
+                    7+ ignores user CAs), e.g. a Magisk cert module.
+                </li>
+            </ul>
+        </li>
+        <li>
+            Open Egg, Inc. Flows appear live below. Only Egg, Inc. traffic is decrypted; everything else
+            passes through untouched.
+        </li>
+    </ol>
 </section>
 
 @code {
     [Parameter] public int Port { get; set; }
     [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
-   
+
     [Parameter] public string? InviteUrl { get; set; }
 
     string? _proxyHost;
     bool _caDmFailed;
     bool _rotated;
 
-   
+
     [Parameter] public string? HostOverride { get; set; }
 
-    protected override void OnParametersSet()
-    {
-        if (!string.IsNullOrEmpty(HostOverride) && HostOverride != _proxyHost)
-        {
+    protected override void OnParametersSet() {
+        if (!string.IsNullOrEmpty(HostOverride) && HostOverride != _proxyHost) {
             _proxyHost = HostOverride;
             _rotated = true;
         }
     }
 
-   
-   
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (!firstRender || ClientFactory is null) return;
-        try
-        {
+        try {
             var res = await ClientFactory().GetAsync("/api/capture/proxy-address");
-            if (res.IsSuccessStatusCode)
-            {
+            if (res.IsSuccessStatusCode) {
                 using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
                 _proxyHost = doc.RootElement.GetProperty("host").GetString();
                 StateHasChanged();
             }
         }
-        catch { /* address unavailable (no session / prerender); the placeholder stays */ }
-        try
-        {
+        catch {
+            /* address unavailable (no session / prerender); the placeholder stays */
+        }
+
+        try {
             var res = await ClientFactory().GetAsync("/api/capture/status");
             if (!res.IsSuccessStatusCode) return;
             using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
             if (doc.RootElement.TryGetProperty("caDmFailed", out var f)
-                && f.ValueKind == JsonValueKind.True)
-            {
+                && f.ValueKind == JsonValueKind.True) {
                 _caDmFailed = true;
                 StateHasChanged();
             }
         }
-        catch { /* status unavailable (no session / prerender); the download button stays the fallback */ }
+        catch {
+            /* status unavailable (no session / prerender); the download button stays the fallback */
+        }
     }
+
 }

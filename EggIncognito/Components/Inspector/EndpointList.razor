@@ -4,60 +4,58 @@
 @inject IProtoReflection Reflection
 
 <div class="panel-head" style="position: relative;">
-  <div class="list-switch" role="tablist" aria-label="Left list">
-    <button type="button" class="list-switch-opt @(Mode == "endpoints" ? "active" : "")"
-            role="tab" @onclick="@(() => SetMode("endpoints"))">Endpoints</button>
-    <button type="button" class="list-switch-opt @(Mode == "objects" ? "active" : "")"
-            role="tab" @onclick="@(() => SetMode("objects"))">Objects</button>
-  </div>
-  @if (Mode == "endpoints")
-  {
-    <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
-            title="@(string.IsNullOrEmpty(StatusCounts) ? "Endpoint status" : $"Endpoint status {StatusCounts}")"
-            aria-label="Endpoint status" @onclick="OnToggleStatus"><Icon Name="refresh" /></button>
-  }
+    <div class="list-switch" role="tablist" aria-label="Left list">
+        <button type="button" class="list-switch-opt @(Mode == "endpoints" ? "active" : "")"
+                role="tab" @onclick="@(() => SetMode("endpoints"))">
+            Endpoints
+        </button>
+        <button type="button" class="list-switch-opt @(Mode == "objects" ? "active" : "")"
+                role="tab" @onclick="@(() => SetMode("objects"))">
+            Objects
+        </button>
+    </div>
+    @if (Mode == "endpoints") {
+        <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
+                title="@(string.IsNullOrEmpty(StatusCounts) ? "Endpoint status" : $"Endpoint status {StatusCounts}")"
+                aria-label="Endpoint status" @onclick="OnToggleStatus">
+            <Icon Name="refresh"/>
+        </button>
+    }
 </div>
 <input id="endpointFilter" type="search" placeholder="@(Mode == "objects" ? "filter objects..." : "filter...")"
        autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-       value="@_filter" @oninput="OnFilter" />
+       value="@_filter" @oninput="OnFilter"/>
 
-@if (Mode == "endpoints")
-{
-  <div id="endpoints">
-    @foreach (var grp in Groups())
-    {
-      var ns = grp.Key;
-      var collapsed = _collapsed.Contains(ns);
-      <div class="ep-group @(collapsed ? "collapsed" : "")">
-        <div class="ep-ns" @onclick="() => ToggleGroup(ns)">
-          <span class="ep-caret"></span>@(ns.ToLowerInvariant())/
-        </div>
-        <div class="ep-group-body">
-          @foreach (var e in grp)
-          {
-            <div class="ep @(Selected?.Path == e.Path ? "active" : "")" @onclick="() => OnSelectEndpoint.InvokeAsync(e)">
-              <span class="ep-name">@(e.Path[(ns.Length + 1)..])</span>
-              @if (e.RequestWrapped)
-              {
-                <span class="wrap-flag" title="wrapped + signed in an AuthenticatedMessage">signed</span>
-              }
+@if (Mode == "endpoints") {
+    <div id="endpoints">
+        @foreach (var grp in Groups()) {
+            var ns = grp.Key;
+            var collapsed = _collapsed.Contains(ns);
+            <div class="ep-group @(collapsed ? "collapsed" : "")">
+                <div class="ep-ns" @onclick="() => ToggleGroup(ns)">
+                    <span class="ep-caret"></span>@(ns.ToLowerInvariant())/
+                </div>
+                <div class="ep-group-body">
+                    @foreach (var e in grp) {
+                        <div class="ep @(Selected?.Path == e.Path ? "active" : "")" @onclick="() => OnSelectEndpoint.InvokeAsync(e)">
+                            <span class="ep-name">@(e.Path[(ns.Length + 1)..])</span>
+                            @if (e.RequestWrapped) {
+                                <span class="wrap-flag" title="wrapped + signed in an AuthenticatedMessage">signed</span>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
-          }
-        </div>
-      </div>
-    }
-  </div>
-}
-else
-{
-  <div id="objects">
-    @foreach (var name in FilteredMessages())
-    {
-      <div class="ep obj-row @(SelectedObject == name ? "active" : "")" @onclick="() => OnSelectObject.InvokeAsync(name)">
-        <span class="obj-name">@name</span>
-      </div>
-    }
-  </div>
+        }
+    </div>
+} else {
+    <div id="objects">
+        @foreach (var name in FilteredMessages()) {
+            <div class="ep obj-row @(SelectedObject == name ? "active" : "")" @onclick="() => OnSelectObject.InvokeAsync(name)">
+                <span class="obj-name">@name</span>
+            </div>
+        }
+    </div>
 }
 
 @code {
@@ -68,8 +66,7 @@ else
     [Parameter] public EventCallback<RouteInfo> OnSelectEndpoint { get; set; }
     [Parameter] public EventCallback<string> OnSelectObject { get; set; }
 
-   
-   
+
     [Parameter] public bool StatusLoading { get; set; }
     [Parameter] public string StatusCounts { get; set; } = "";
     [Parameter] public string StatusOut { get; set; } = "";
@@ -79,37 +76,39 @@ else
     string _filter = "";
     readonly HashSet<string> _collapsed = [];
 
-   
-   
+
     List<RouteInfo>? _routes;
     List<IGrouping<string, RouteInfo>>? _grouped;
     List<string>? _messages;
 
-    void OnFilter(ChangeEventArgs e) => _filter = e.Value?.ToString() ?? "";
+    void OnFilter(ChangeEventArgs e) {
+        _filter = e.Value?.ToString() ?? "";
+    }
 
-    Task SetMode(string m) => ModeChanged.InvokeAsync(m);
+    Task SetMode(string m) {
+        return ModeChanged.InvokeAsync(m);
+    }
 
-    void ToggleGroup(string ns)
-    {
+    void ToggleGroup(string ns) {
         if (!_collapsed.Remove(ns)) _collapsed.Add(ns);
     }
 
-    IEnumerable<IGrouping<string, RouteInfo>> Groups()
-    {
+    IEnumerable<IGrouping<string, RouteInfo>> Groups() {
         _routes ??= Catalog.All().ToList();
         if (string.IsNullOrEmpty(_filter))
             return _grouped ??= GroupRoutes(_routes).ToList();
         return GroupRoutes(_routes.Where(e => e.Path.Contains(_filter, StringComparison.OrdinalIgnoreCase)));
     }
 
-    static IEnumerable<IGrouping<string, RouteInfo>> GroupRoutes(IEnumerable<RouteInfo> routes) =>
-        routes.GroupBy(e => e.Path.Split('/')[0])
+    static IEnumerable<IGrouping<string, RouteInfo>> GroupRoutes(IEnumerable<RouteInfo> routes) {
+        return routes.GroupBy(e => e.Path.Split('/')[0])
             .OrderBy(g => g.Key, StringComparer.Ordinal);
+    }
 
-    IEnumerable<string> FilteredMessages()
-    {
+    IEnumerable<string> FilteredMessages() {
         _messages ??= Reflection.AllMessageTypeNames().ToList();
         if (string.IsNullOrEmpty(_filter)) return _messages;
         return _messages.Where(n => n.Contains(_filter, StringComparison.OrdinalIgnoreCase));
     }
+
 }

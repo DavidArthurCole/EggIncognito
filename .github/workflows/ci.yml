@@ -14,6 +14,8 @@ jobs:
     with:
       solution: EggIncognito.slnx
       packages-auth: true
+      format-gate: true
+      razor-include: "EggIncognito/**/*.razor"
     secrets: inherit
 
   seed-app-image-cache:

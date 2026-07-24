@@ -382,16 +382,11 @@ public sealed class DevicesController(
             return (new CarveResult(carved.Proto, probe.InstalledBuild!), null);
         }
 
-        var s = (services.GetRequiredService(typeof(IConfiguration)) as IConfiguration)!
-            .GetSection("DeviceUpdate").GetSection("Ios");
-        var host = string.IsNullOrEmpty(s["SshHost"]) ? device.Target : s["SshHost"]!;
-        var port = s["SshPort"] ?? "2222";
-        var key = s["SshKeyPath"];
-        if (string.IsNullOrEmpty(key)) {
+        if (IosConn(device) is not { } conn) {
             logger.LogWarning("device save: {Id} aborted: ios ssh key not configured (DeviceUpdate:Ios:SshKeyPath)", device.Id);
             return (null, StatusCode(503, new { error = "ios extraction needs DeviceUpdate:Ios:SshKeyPath configured" }));
         }
-        var bin = await new IosBinaryPuller(runner, host, port, key).PullBinaryAsync(device.Package, HttpContext.RequestAborted);
+        var bin = await new IosBinaryPuller(conn).PullBinaryAsync(device.Package, HttpContext.RequestAborted);
         if (bin is null) {
             logger.LogWarning("device save: {Id} aborted: ios binary pull failed", device.Id);
             return (null, StatusCode(502, new { error = "could not pull the egginc binary from the device over ssh" }));
@@ -430,14 +425,8 @@ public sealed class DevicesController(
 
 
 
-    private (string Host, string Port, string Key)? IosSsh(Device device) {
-        var cfg = (services.GetService(typeof(IConfiguration)) as IConfiguration)!
-            .GetSection("DeviceUpdate").GetSection("Ios");
-        var key = cfg["SshKeyPath"];
-        if (string.IsNullOrEmpty(key)) return null;
-        var host = string.IsNullOrEmpty(cfg["SshHost"]) ? device.Target : cfg["SshHost"]!;
-        return (host, cfg["SshPort"] ?? "2222", key);
-    }
+    private EggIncognito.Core.Services.Devices.SshDeviceConnection? IosConn(Device device) =>
+        ((IDeviceConnectionFactory)services.GetRequiredService(typeof(IDeviceConnectionFactory))).Ios(device.Target);
 
 
 
@@ -463,9 +452,9 @@ public sealed class DevicesController(
             if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
             extract = Services.ProtoExtract.RpoAssetExtractor.Extract(apk);
         } else {
-            if (IosSsh(device) is not { } ssh)
+            if (IosConn(device) is not { } conn)
                 return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
-            var tar = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullRposTarAsync(device.Package, ct);
+            var tar = await new IosAssetPuller(conn).PullRposTarAsync(device.Package, ct);
             if (tar is null) return StatusCode(502, new { error = "could not pull the rpos meshes from the device over ssh" });
             var entries = Services.ProtoExtract.TarReader.Read(tar)
                 .Select(e => (e.Name, e.Bytes));
@@ -491,9 +480,9 @@ public sealed class DevicesController(
         var ct = HttpContext.RequestAborted;
 
         if (device.Platform == PlatformIos) {
-            if (IosSsh(device) is not { } ssh)
+            if (IosConn(device) is not { } conn)
                 return StatusCode(503, new { error = "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured" });
-            var names = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).ListRposAsync(device.Package, ct);
+            var names = await new IosAssetPuller(conn).ListRposAsync(device.Package, ct);
             return Ok(new { meshes = names });
         }
         if (device.Platform == PlatformAndroid) {
@@ -551,9 +540,9 @@ public sealed class DevicesController(
             if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
             extract = Services.ProtoExtract.RpoAssetExtractor.Extract(apk);
         } else if (device.Platform == PlatformIos) {
-            if (IosSsh(device) is not { } ssh)
+            if (IosConn(device) is not { } conn)
                 return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
-            var tar = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullRposTarAsync(device.Package, ct);
+            var tar = await new IosAssetPuller(conn).PullRposTarAsync(device.Package, ct);
             if (tar is null) return StatusCode(502, new { error = "could not pull the rpos meshes over ssh" });
             extract = Services.ProtoExtract.RpoAssetExtractor.FromEntries(
                 Services.ProtoExtract.TarReader.Read(tar).Select(e => (e.Name, e.Bytes)));

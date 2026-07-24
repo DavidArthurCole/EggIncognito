@@ -2,13 +2,10 @@
    no raw Discord/Authentik redirect is ever rendered client-facing. *@
 @inject AuthState Auth
 
-@if (Auth.Enabled)
-{
-  <LoginWidgetButton CssClass="@CssClass" Label="@Label" Placement="@Placement" />
-}
-else
-{
-  <span class="@CssClass" style="opacity:0.6;cursor:not-allowed;">Login unavailable</span>
+@if (Auth.Enabled) {
+    <LoginWidgetButton CssClass="@CssClass" Label="@Label" Placement="@Placement"/>
+} else {
+    <span class="@CssClass" style="opacity:0.6;cursor:not-allowed;">Login unavailable</span>
 }
 
 @code {

@@ -1,23 +1,22 @@
 using System.Security.Cryptography;
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Runner.Adb;
 using EggIncognito.Runner.Extract;
 using EggIncognito.Runner.State;
 using SyncKit.Contract;
 
 namespace EggIncognito.Runner.Runners;
+
 public sealed class AndroidRunner(
     IAdbClient adb, IProtoExtractor proto, VersionState state, IClientVersionReader clientVersion,
     ClientVersionState cvState, string package, string apkStashDir,
-    Action<NewVersionEvent> onNewVersion) : IDeviceRunner
-{
+    Action<NewVersionEvent> onNewVersion) : IDeviceRunner {
     public string Platform => "android";
 
-    public RunOutcome RunOnce(bool force)
-    {
+    public RunOutcome RunOnce(bool force) {
         var dumpsys = adb.DumpsysPackage(package);
-        var appVersion = AdbClient.ParseVersionName(dumpsys);
-        var build = AdbClient.ParseVersionCode(dumpsys);
-        if (build == "")
+        var (appVersion, build) = DeviceParsing.AndroidVersion(dumpsys);
+        if (string.IsNullOrEmpty(build))
             return new RunOutcome(false, null, null, "no versionCode in dumpsys");
         if (!force && build == state.LastSeen())
             return new RunOutcome(false, build, null, "build already seen");
@@ -31,11 +30,10 @@ public sealed class AndroidRunner(
         var cv = clientVersion.Read(apkPath, cvState.Last());
         if (cv is not null && int.TryParse(cv, out var cvNum)) cvState.Save(cvNum);
 
-        onNewVersion(new NewVersionEvent
-        {
+        onNewVersion(new NewVersionEvent {
             Package = package,
-            Version = appVersion,
-            AppVersion = appVersion,
+            Version = appVersion ?? "",
+            AppVersion = appVersion ?? "",
             Build = build,
             ClientVersion = cv,
             ApkRef = apkPath,

@@ -1,62 +1,51 @@
-@* The detail pane: header (path + status), the known-endpoint card or save-as-endpoint bar + type
-   lines, then Request/Response tabs carrying the body (FormatView), URL params, and optional headers. *@
-@using System.Net.Http.Json
 @using System.Text.Json
 @using EggIncognito.Capture
-@using EggIncognito.Components.Capture
+@* The detail pane: header (path + status), the known-endpoint card or save-as-endpoint bar + type
+   lines, then Request/Response tabs carrying the body (FormatView), URL params, and optional headers. *@
 
-@if (Flow is null)
-{
-  <div class="muted">Select a request to inspect it.</div>
-}
-else
-{
-  <div class="detail-head">
-    <span class="dpath">@Flow.Path</span>
-    <span class="dstatus status-badge @CaptureHelpers.StatusClass(Flow.Status)">@Flow.Status</span>
-  </div>
+@if (Flow is null) {
+    <div class="muted">Select a request to inspect it.</div>
+} else {
+    <div class="detail-head">
+        <span class="dpath">@Flow.Path</span>
+        <span class="dstatus status-badge @CaptureHelpers.StatusClass(Flow.Status)">@Flow.Status</span>
+    </div>
 
-  @if (Flow.Known)
-  {
-    @KnownCard()
-  }
-  else
-  {
-    <div class="detail-types">
-      @TypeLine("Request type", Flow.RequestType)
-      @TypeLine("Response type", Flow.ResponseType)
-    </div>
-    <div class="save-bar">
-      @if (Flow.Saved)
-      {
-        <span class="save-result ok">Saved as endpoint</span>
-        <button class="btn-mini" type="button" @onclick="Save">Save again</button>
-        <span class="save-result @_saveCls">@_saveMsg</span>
-      }
-      else
-      {
-        <button id="saveBtn" type="button" @onclick="Save">Save as endpoint</button>
-        <span class="save-result @_saveCls">@_saveMsg</span>
-      }
-    </div>
-  }
+    @if (Flow.Known) {
+        @KnownCard()
+    } else {
+        <div class="detail-types">
+            @TypeLine("Request type", Flow.RequestType)
+            @TypeLine("Response type", Flow.ResponseType)
+        </div>
+        <div class="save-bar">
+            @if (Flow.Saved) {
+                <span class="save-result ok">Saved as endpoint</span>
+                <button class="btn-mini" type="button" @onclick="Save">Save again</button>
+                <span class="save-result @_saveCls">@_saveMsg</span>
+            } else {
+                <button id="saveBtn" type="button" @onclick="Save">Save as endpoint</button>
+                <span class="save-result @_saveCls">@_saveMsg</span>
+            }
+        </div>
+    }
 
-  <div class="detail-tabs">
-    <div class="tab-bar detail-tabs-bar">
-      <button type="button" class="tab-btn @(_tab == 0 ? "active" : "")" @onclick="@(() => _tab = 0)">Request</button>
-      <button type="button" class="tab-btn @(_tab == 1 ? "active" : "")" @onclick="@(() => _tab = 1)">Response</button>
+    <div class="detail-tabs">
+        <div class="tab-bar detail-tabs-bar">
+            <button type="button" class="tab-btn @(_tab == 0 ? "active" : "")" @onclick="@(() => _tab = 0)">Request</button>
+            <button type="button" class="tab-btn @(_tab == 1 ? "active" : "")" @onclick="@(() => _tab = 1)">Response</button>
+        </div>
+        <div class="detail-panes">
+            <div class="detail-pane @(_tab == 0 ? "pane-active" : "")">
+                <div class="detail-pane-title">Request</div>
+                @RequestPane()
+            </div>
+            <div class="detail-pane @(_tab == 1 ? "pane-active" : "")">
+                <div class="detail-pane-title">Response</div>
+                @ResponsePane()
+            </div>
+        </div>
     </div>
-    <div class="detail-panes">
-      <div class="detail-pane @(_tab == 0 ? "pane-active" : "")">
-        <div class="detail-pane-title">Request</div>
-        @RequestPane()
-      </div>
-      <div class="detail-pane @(_tab == 1 ? "pane-active" : "")">
-        <div class="detail-pane-title">Response</div>
-        @ResponsePane()
-      </div>
-    </div>
-  </div>
 }
 
 @code {
@@ -71,14 +60,13 @@ else
     string _saveMsg = "";
     string _saveCls = "";
 
-   
+
     readonly HashSet<string> _revealed = new(StringComparer.Ordinal);
 
     long _renderedFlowId = -1;
-    protected override void OnParametersSet()
-    {
-        if (Flow is not null && Flow.Id != _renderedFlowId)
-        {
+
+    protected override void OnParametersSet() {
+        if (Flow is not null && Flow.Id != _renderedFlowId) {
             _renderedFlowId = Flow.Id;
             _saveMsg = "";
             _saveCls = "";
@@ -86,86 +74,78 @@ else
         }
     }
 
-    void ToggleReveal(string key)
-    {
+    void ToggleReveal(string key) {
         if (!_revealed.Remove(key)) _revealed.Add(key);
     }
 
     string RevealCls(string key) => _revealed.Contains(key) ? "revealed" : "";
 
-    async Task Save()
-    {
+    async Task Save() {
         if (Flow is null) return;
         _saveCls = "muted";
         _saveMsg = "Saving...";
         StateHasChanged();
-        try
-        {
+        try {
             var res = await ClientFactory().PostAsJsonAsync("/api/capture/save-endpoint", new { id = Flow.Id }, JsonOpts);
             var data = await res.Content.ReadFromJsonAsync<SaveResult>(JsonOpts);
-            if (res.IsSuccessStatusCode && data?.Saved is not null)
-            {
+            if (res.IsSuccessStatusCode && data?.Saved is not null) {
                 _saveCls = "ok";
                 _saveMsg = "Saved " + data.Saved;
-            }
-            else
-            {
+            } else {
                 _saveCls = "err";
                 _saveMsg = data?.Error ?? "Save failed";
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _saveCls = "err";
             _saveMsg = "Save failed: " + ex.Message;
         }
     }
 
-    RenderFragment TypeLine(string label, string? value) =>@<div class="detail-type-line">
-        <span class="detail-type-label">@(label + ": ")</span>
-        <span class="detail-type-val @(value is null ? "unknown" : "")">@(value ?? "unknown")</span>
-      </div>;
+    RenderFragment TypeLine(string label, string? value) => @<div class="detail-type-line">
+                                                                <span class="detail-type-label">@(label + ": ")</span>
+                                                                <span class="detail-type-val @(value is null ? "unknown" : "")">@(value ?? "unknown")</span>
+                                                            </div>;
 
-    RenderFragment KnownCard() =>@<div class="known-card">
-        <div class="known-card-title">Known endpoint</div>
-        @KnownRow("Request type", Flow!.RequestType ?? "none", Flow!.RequestType is null)
-        @KnownRow("Response type", Flow!.ResponseType ?? "none", Flow!.ResponseType is null)
-        @{ var meta = View.CompareToKnown ? CaptureHelpers.Outcome(Flow!.Outcome) : null; }
-        @if (meta is not null)
-        {
-          <div class="known-card-line">
-            <span class="known-card-label">Comparison</span>
-            <span class="known-card-val outcome-text outcome-@meta.Kind">
-              @if (CaptureHelpers.HasDiffCounts(Flow!.Outcome, Flow!.DiffAdded, Flow!.DiffRemoved))
-              {
-                <text>@(meta.Label + " (")@DiffCounts(Flow!.DiffAdded, Flow!.DiffRemoved)@(")")</text>
-              }
-              else
-              {
-                @meta.Label
-              }
-            </span>
-          </div>
-          <div class="known-card-explain muted">@meta.Desc</div>
-        }
-      </div>;
+    RenderFragment KnownCard() => @<div class="known-card">
+                                      <div class="known-card-title">Known endpoint</div>
+                                      @KnownRow("Request type", Flow!.RequestType ?? "none", Flow!.RequestType is null)
+                                      @KnownRow("Response type", Flow!.ResponseType ?? "none", Flow!.ResponseType is null)
+                                      @{ var meta = View.CompareToKnown ? CaptureHelpers.Outcome(Flow!.Outcome) : null; }
+                                      @if (meta is not null) {
+                                          <div class="known-card-line">
+                                              <span class="known-card-label">Comparison</span>
+                                              <span class="known-card-val outcome-text outcome-@meta.Kind">
+                                                  @if (CaptureHelpers.HasDiffCounts(Flow!.Outcome, Flow!.DiffAdded, Flow!.DiffRemoved)) {
+                                                      <text>@(meta.Label + " (")@DiffCounts(Flow!.DiffAdded, Flow!.DiffRemoved)@(")")</text>
+                                                  } else {
+                                                      @meta.Label
+                                                  }
+                                              </span>
+                                          </div>
+                                          <div class="known-card-explain muted">@meta.Desc</div>
+                                      }
+                                  </div>;
 
-    RenderFragment KnownRow(string label, string value, bool unknown) =>@<div class="known-card-line">
-        <span class="known-card-label">@label</span>
-        <span class="known-card-val @(unknown ? "unknown" : "")">@value</span>
-      </div>;
+    RenderFragment KnownRow(string label, string value, bool unknown) => @<div class="known-card-line">
+                                                                             <span class="known-card-label">@label</span>
+                                                                             <span class="known-card-val @(unknown ? "unknown" : "")">@value</span>
+                                                                         </div>;
 
-   
-    RenderFragment DiffCounts(int added, int removed) =>@<text>@if (added > 0)
-        {<span class="diff-add">@("+" + added)</span>}@if (removed > 0)
-        {<span class="diff-del">@("-" + removed)</span>}</text>;
 
-    RenderFragment RequestPane() => builder =>
-    {
+    RenderFragment DiffCounts(int added, int removed) => @<text>
+                                                              @if (added > 0) {
+                                                                  <span class="diff-add">@("+" + added)</span>
+                                                              }
+                                                              @if (removed > 0) {
+                                                                  <span class="diff-del">@("-" + removed)</span>
+                                                              }
+                                                          </text>;
+
+    RenderFragment RequestPane() => builder => {
         var f = Flow!;
         var seq = 0;
-        if (View.ShowHeaders)
-        {
+        if (View.ShowHeaders) {
             var sec = BuildHeaders("request", f.RequestHeaders, f.RequestHeadersRaw);
             if (sec is not null) builder.AddContent(seq++, sec);
         }
@@ -176,56 +156,41 @@ else
         builder.AddContent(seq++, RequestBodySection(f));
     };
 
-    RenderFragment RequestBodySection(DashboardFlow f)
-    {
+    RenderFragment RequestBodySection(DashboardFlow f) {
         var hasBody = !string.IsNullOrEmpty(f.RequestJson)
-            || !string.IsNullOrEmpty(f.RequestJsonRaw)
-            || !string.IsNullOrEmpty(f.RequestDataB64);
+                      || !string.IsNullOrEmpty(f.RequestJsonRaw)
+                      || !string.IsNullOrEmpty(f.RequestDataB64);
         return @<text>
-            @if (hasBody)
-            {
-              <FormatView Label="Request" ShowLabel="false"
-                          JsonStr="@View.PickJson(f.RequestJson, f.RequestJsonRaw)"
-                          RawB64="@f.RequestDataB64"
-                          EmptyNote="@(!string.IsNullOrEmpty(f.RequestDataB64) ? "(no decoded JSON)" : "No request body")"
-                          View="View" FormatChoice="_formatChoice" />
-            }
-            else
-            {
-              <div class="empty-box">No request body</div>
-            }
-          </text>;
+                    @if (hasBody) {
+                        <FormatView Label="Request" ShowLabel="false"
+                                    JsonStr="@View.PickJson(f.RequestJson, f.RequestJsonRaw)"
+                                    RawB64="@f.RequestDataB64"
+                                    EmptyNote="@(!string.IsNullOrEmpty(f.RequestDataB64) ? "(no decoded JSON)" : "No request body")"
+                                    View="View" FormatChoice="_formatChoice"/>
+                    } else {
+                        <div class="empty-box">No request body</div>
+                    }
+                </text>;
     }
 
-    RenderFragment ResponsePane() => builder =>
-    {
+    RenderFragment ResponsePane() => builder => {
         var f = Flow!;
         var seq = 0;
-        if (View.ShowHeaders)
-        {
+        if (View.ShowHeaders) {
             var hdr = BuildHeaders("response", f.ResponseHeaders, f.ResponseHeadersRaw);
             if (hdr is not null) builder.AddContent(seq++, hdr);
         }
 
-        if (f.ResponseText is not null)
-        {
+        if (f.ResponseText is not null) {
             builder.AddContent(seq++, TextResponseSection(f.ResponseText, f.ResponseIsAck));
-        }
-        else if (f.ResponseIsAck)
-        {
+        } else if (f.ResponseIsAck) {
             builder.OpenElement(seq++, "div");
             builder.AddAttribute(seq++, "class", "no-json");
             builder.AddContent(seq++, "Acknowledgement - this endpoint returns a short non-protobuf ack.");
             builder.CloseElement();
-        }
-        else if (ImageMime(f) is { } mime && !string.IsNullOrEmpty(f.ResponseB64))
-        {
-           
-           
+        } else if (ImageMime(f) is { } mime && !string.IsNullOrEmpty(f.ResponseB64)) {
             builder.AddContent(seq++, ImageResponseSection(mime, f.ResponseB64!));
-        }
-        else
-        {
+        } else {
             builder.OpenComponent<FormatView>(seq++);
             builder.AddComponentParameter(seq++, nameof(FormatView.Label), "Response");
             builder.AddComponentParameter(seq++, nameof(FormatView.ShowLabel), false);
@@ -235,29 +200,32 @@ else
             builder.AddComponentParameter(seq++, nameof(FormatView.FormatChoice), _formatChoice);
             builder.CloseComponent();
         }
-
     };
 
-    RenderFragment TextResponseSection(string text, bool isAck) =>@<div>
-        @if (isAck)
-        {
-          <div class="section-head"><span class="ack-tag">acknowledgement</span></div>
-        }
-        <pre class="data-text">@text</pre>
-      </div>;
+    RenderFragment TextResponseSection(string text, bool isAck) => @<div>
+                                                                       @if (isAck) {
+                                                                           <div class="section-head">
+                                                                               <span class="ack-tag">acknowledgement</span>
+                                                                           </div>
+                                                                       }
+                                                                       <pre class="data-text">@text</pre>
+                                                                   </div>;
 
-   
-   
-    static string? ImageMime(DashboardFlow f)
-    {
+
+    static string? ImageMime(DashboardFlow f) {
         var b64 = f.ResponseB64;
         if (string.IsNullOrEmpty(b64)) return null;
         Span<byte> head = stackalloc byte[12];
-       
+
         var prefix = b64.Length >= 16 ? b64[..16] : b64;
         int n;
-        try { if (!Convert.TryFromBase64String(prefix.PadRight((prefix.Length + 3) / 4 * 4, '='), head, out n)) return null; }
-        catch { return null; }
+        try {
+            if (!Convert.TryFromBase64String(prefix.PadRight((prefix.Length + 3) / 4 * 4, '='), head, out n)) return null;
+        }
+        catch {
+            return null;
+        }
+
         var b = head[..n];
         if (b.Length >= 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) return "image/png";
         if (b.Length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) return "image/jpeg";
@@ -267,8 +235,7 @@ else
         return null;
     }
 
-    RenderFragment ImageResponseSection(string mime, string b64) => builder =>
-    {
+    RenderFragment ImageResponseSection(string mime, string b64) => builder => {
         var seq = 0;
         var bytes = (b64.Length * 3) / 4;
         builder.OpenElement(seq++, "div");
@@ -294,10 +261,8 @@ else
         n >= 1024 * 1024 ? $"{n / (1024.0 * 1024):0.#} MB" :
         n >= 1024 ? $"{n / 1024.0:0.#} KB" : $"{n} B";
 
-   
-   
-    RenderFragment? BuildParams(DashboardFlow flow)
-    {
+
+    RenderFragment? BuildParams(DashboardFlow flow) {
         var parsed = ParseFlowUrl(flow);
         if (parsed is null) return null;
         var (path, query, pathParams) = parsed.Value;
@@ -307,72 +272,66 @@ else
         var basePath = StripPathParams(path, pathParams);
         var showPath = !string.Equals(basePath, generalPath, StringComparison.Ordinal);
         return @<div>
-            <div class="section-head"><h3>Query</h3></div>
-            <div class="params-box">
-              @if (showPath)
-              {
-                @ParamRow("path", PathFragment(basePath))
-              }
-              @foreach (var p in pathParams)
-              {
-                @ParamRow("query", ParamValueFragment(p))
-              }
-              @foreach (var (k, v) in query)
-              {
-                @ParamRow(k, ParamValueFragment(v))
-              }
-            </div>
-          </div>;
+                   <div class="section-head">
+                       <h3>Query</h3>
+                   </div>
+                   <div class="params-box">
+                       @if (showPath) {
+                           @ParamRow("path", PathFragment(basePath))
+                       }
+                       @foreach (var p in pathParams) {
+                           @ParamRow("query", ParamValueFragment(p))
+                       }
+                       @foreach (var (k, v) in query) {
+                           @ParamRow(k, ParamValueFragment(v))
+                       }
+                   </div>
+               </div>;
     }
 
-    RenderFragment ParamRow(string label, RenderFragment value) =>@<div class="param-row">
-        <span class="param-label">@label</span>
-        <span class="param-val">@value</span>
-      </div>;
+    RenderFragment ParamRow(string label, RenderFragment value) => @<div class="param-row">
+                                                                       <span class="param-label">@label</span>
+                                                                       <span class="param-val">@value</span>
+                                                                   </div>;
 
-    RenderFragment PathFragment(string path) =>@<text>@foreach (var (text, blur) in View.RenderRedactedPath(path))
-        {
-          if (blur)
-          {
-            var key = "path:" + text;
-            <span class="blurred @RevealCls(key)" title="Click to reveal" @onclick="() => ToggleReveal(key)">@text</span>
-          }
-          else
-          {
-            @text
-          }
-        }</text>;
+    RenderFragment PathFragment(string path) => @<text>
+                                                     @foreach (var (text, blur) in View.RenderRedactedPath(path)) {
+                                                         if (blur) {
+                                                             var key = "path:" + text;
+                                                             <span class="blurred @RevealCls(key)" title="Click to reveal" @onclick="() => ToggleReveal(key)">@text</span>
+                                                         } else {
+                                                             @text
+                                                         }
+                                                     }
+                                                 </text>;
 
-    RenderFragment ParamValueFragment(string value) =>@<text>@{ var (text, blur) = View.RedactParamValue(value); }@if (blur)
-        {
-          var key = "param:" + text;
-          <span class="blurred @RevealCls(key)" title="Click to reveal" @onclick="() => ToggleReveal(key)">@text</span>
-        }
-        else
-        {
-          @text
-        }</text>;
+    RenderFragment ParamValueFragment(string value) => @<text>
+                                                            @{ var (text, blur) = View.RedactParamValue(value); }
+                                                            @if (blur) {
+                                                                var key = "param:" + text;
+                                                                <span class="blurred @RevealCls(key)" title="Click to reveal" @onclick="() => ToggleReveal(key)">@text</span>
+                                                            } else {
+                                                                @text
+                                                            }
+                                                        </text>;
 
-    static string StripPathParams(string path, List<string> pathParams)
-    {
+    static string StripPathParams(string path, List<string> pathParams) {
         var result = path;
-        for (var i = pathParams.Count - 1; i >= 0; i--)
-        {
+        for (var i = pathParams.Count - 1; i >= 0; i--) {
             var suffix = "/" + pathParams[i];
             if (result.EndsWith(suffix, StringComparison.Ordinal))
                 result = result[..^suffix.Length];
         }
+
         return result.Length == 0 ? "/" : result;
     }
 
-    (string Path, List<(string, string)> Query, List<string> PathParams)? ParseFlowUrl(DashboardFlow flow)
-    {
+    (string Path, List<(string, string)> Query, List<string> PathParams)? ParseFlowUrl(DashboardFlow flow) {
         var raw = flow.Url ?? "";
         if (string.IsNullOrEmpty(raw)) return null;
         var pathAndQuery = raw;
         var schemeIdx = raw.IndexOf("://", StringComparison.Ordinal);
-        if (schemeIdx >= 0)
-        {
+        if (schemeIdx >= 0) {
             var rest = raw[(schemeIdx + 3)..];
             var slash = rest.IndexOf('/');
             pathAndQuery = slash >= 0 ? rest[slash..] : "/";
@@ -381,18 +340,20 @@ else
         var path = pathAndQuery;
         var query = new List<(string, string)>();
         var qIdx = pathAndQuery.IndexOf('?');
-        if (qIdx >= 0)
-        {
+        if (qIdx >= 0) {
             path = pathAndQuery[..qIdx];
             var qs = pathAndQuery[(qIdx + 1)..];
-            foreach (var pair in qs.Split('&'))
-            {
+            foreach (var pair in qs.Split('&')) {
                 if (pair.Length == 0) continue;
                 var eq = pair.IndexOf('=');
                 var k = eq >= 0 ? pair[..eq] : pair;
                 var v = eq >= 0 ? pair[(eq + 1)..] : "";
-                try { query.Add((Uri.UnescapeDataString(k), Uri.UnescapeDataString(v))); }
-                catch { query.Add((k, v)); }
+                try {
+                    query.Add((Uri.UnescapeDataString(k), Uri.UnescapeDataString(v)));
+                }
+                catch {
+                    query.Add((k, v));
+                }
             }
         }
 
@@ -402,41 +363,38 @@ else
         IEnumerable<string> extra = [];
         if (known.Length > 0 && segments.Length > known.Length)
             extra = segments.Skip(known.Length);
-        else
-        {
+        else {
             var last = segments.Length > 0 ? segments[^1] : null;
             if (last is not null && CaptureViewState.EidRe.IsMatch(last)) extra = [last];
         }
+
         pathParams.AddRange(extra);
 
         return (path, query, pathParams);
     }
 
-   
-   
-    RenderFragment? BuildHeaders(string keyPrefix, IReadOnlyList<DashboardHeader>? redacted, IReadOnlyList<DashboardHeader>? raw)
-    {
+
+    RenderFragment? BuildHeaders(string keyPrefix, IReadOnlyList<DashboardHeader>? redacted, IReadOnlyList<DashboardHeader>? raw) {
         var headers = View.IsBlurMode || View.ShowRawHeaders ? raw ?? redacted ?? [] : redacted ?? [];
         if (headers.Count == 0) return null;
 
         return @<div class="headers-box">
-            @foreach (var h in headers)
-            {
-              var blur = View.IsBlurMode && h.Sensitive;
-              var key = "hdr:" + keyPrefix + ":" + h.Name + ":" + h.Value;
-              <span class="h-name">@h.Name</span>
-              @if (blur)
-              {
-                <span class="h-val blurred @RevealCls(key)" title="Click to reveal"
-                      @onclick="() => ToggleReveal(key)">@h.Value</span>
-              }
-              else
-              {
-                <span class="h-val">@h.Value</span>
-              }
-            }
-          </div>;
+                   @foreach (var h in headers) {
+                       var blur = View.IsBlurMode && h.Sensitive;
+                       var key = "hdr:" + keyPrefix + ":" + h.Name + ":" + h.Value;
+                       <span class="h-name">@h.Name</span>
+                       @if (blur) {
+                           <span class="h-val blurred @RevealCls(key)" title="Click to reveal"
+                                 @onclick="() => ToggleReveal(key)">
+                               @h.Value
+                           </span>
+                       } else {
+                           <span class="h-val">@h.Value</span>
+                       }
+                   }
+               </div>;
     }
 
     sealed record SaveResult(string? Saved, string? Error);
+
 }

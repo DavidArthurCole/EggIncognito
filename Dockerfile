@@ -30,20 +30,6 @@ RUN --mount=type=secret,id=github_token \
       --configfile nuget.config \
     && dotnet restore EggIncognito/EggIncognito.csproj
 
-# Fetch Tailwind CLI before source COPYs so the download caches independently of source edits.
-ARG TAILWIND_VERSION=v3.4.17
-RUN set -eux; \
-    arch="$(uname -m)"; \
-    case "$arch" in \
-      x86_64) tw=linux-x64 ;; \
-      aarch64|arm64) tw=linux-arm64 ;; \
-      *) echo "unsupported arch $arch" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL \
-      "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-${tw}" \
-      -o /usr/local/bin/tailwindcss; \
-    chmod +x /usr/local/bin/tailwindcss
-
 COPY EggIncognito.Core/ EggIncognito.Core/
 COPY EggIncognito.Capture/ EggIncognito.Capture/
 COPY EggIncognito.Data/ EggIncognito.Data/
@@ -52,22 +38,12 @@ COPY EggIncognito.RouteGenerator/ EggIncognito.RouteGenerator/
 COPY EggIncognito.GameData/ EggIncognito.GameData/
 COPY EggIncognito/ EggIncognito/
 
-# Compile Tailwind here, not via the MSBuild hook: the hook's ContinueOnError can silently ship an
-# unstyled image on a flaky network. Explicit + no ContinueOnError fails the build loud instead.
 RUN set -eux; \
-    cd EggIncognito; \
-    tailwindcss -c tailwind.config.js \
-      -i wwwroot/app.tailwind.css \
-      -o wwwroot/tailwind.css --minify 2>&1 | tee /tmp/tw.log; \
-    grep -q "No utility classes were detected" /tmp/tw.log \
-      && { echo "Tailwind scanned no classes - content globs wrong, refusing to ship unstyled" >&2; exit 1; } \
-      || true; \
-    test -s wwwroot/tailwind.css; \
-    grep -q "btn-primary" wwwroot/tailwind.css
+    test -s EggIncognito/wwwroot/tailwind.css; \
+    grep -q "btn-primary" EggIncognito/wwwroot/tailwind.css
 
 # Publish WITH restore: --no-restore against the csproj-only restore leaves the static-web-assets
 # manifest stale and drops wwwroot/_framework (blazor.web.js). Re-restore is cheap (cached above).
-# EmitTypes=false skips typedef regen. BuildTailwindCss=false skips the hook (sheet compiled above).
 ARG GIT_SHA
 ARG APP_VERSION
 RUN --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
@@ -76,7 +52,7 @@ RUN --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
     [ -n "$GIT_SHA" ] && STAMP="$STAMP -p:SourceRevisionId=$GIT_SHA"; \
     [ -n "$APP_VERSION" ] && STAMP="$STAMP -p:Version=$APP_VERSION"; \
     dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
-        -p:EmitTypes=false -p:BuildTailwindCss=false $STAMP; \
+        -p:EmitTypes=false $STAMP; \
     test -s /app/publish/wwwroot/tailwind.css; \
     test -s /app/publish/wwwroot/_framework/blazor.web.js
 

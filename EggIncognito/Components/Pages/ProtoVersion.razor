@@ -1,142 +1,137 @@
 @page "/protos/{Platform}/{Build}"
+@using System.Net
+@using System.Text
+@using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
-@using System.Net.Http.Json
-@using EggIncognito.Components.Layout
-@using Microsoft.JSInterop
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
 
 <PageTitle>EggIncognito - @Platform build @Build</PageTitle>
 
-@if (_detail?.HasProto == true)
-{
-  <SectionContent SectionName="@NavSections.Toolbar">
-    <div class="toolbar">
-      <button type="button" class="btn-mini @(_showProto ? "active" : "")" @onclick="ToggleProto">
-        @(_showProto ? "Hide" : "View") .proto
-      </button>
-      <a class="icon-btn" href="@ProtoUrl" download="@($"{Platform}-{Build}.proto")"
-         title="Download .proto" aria-label="Download .proto">
-        <Icon Name="download" />
-      </a>
-    </div>
-  </SectionContent>
+@if (_detail?.HasProto == true) {
+    <SectionContent SectionName="@NavSections.Toolbar">
+        <div class="toolbar">
+            <button type="button" class="btn-mini @(_showProto ? "active" : "")" @onclick="ToggleProto">
+                @(_showProto ? "Hide" : "View") .proto
+            </button>
+            <a class="icon-btn" href="@ProtoUrl" download="@($"{Platform}-{Build}.proto")"
+               title="Download .proto" aria-label="Download .proto">
+                <Icon Name="download"/>
+            </a>
+        </div>
+    </SectionContent>
 }
 
 <main class="px-4 sm:px-8 pt-6 pb-8">
-  <a href="/protos" class="text-muted">&larr; All versions</a>
-  @if (_loading)
-  {
-    <p class="text-muted">Loading...</p>
-  }
-  else if (_detail is null)
-  {
-    <div class="empty-state">Version not found.</div>
-  }
-  else
-  {
-    <h1 class="text-[1.3rem] mt-2 mb-1"><span class="code-chip">@_detail.Platform</span> @_detail.AppVersion</h1>
-    <dl class="proto-meta">
-      <div><dt>Build</dt><dd class="mono">@_detail.Build</dd></div>
-      <div><dt>Client</dt><dd class="mono">@(string.IsNullOrEmpty(_detail.ClientVersion) ? "unknown" : _detail.ClientVersion)</dd></div>
-      <div><dt>Source</dt><dd><span class="code-chip">@(string.IsNullOrEmpty(_detail.Source) ? "unknown" : _detail.Source)</span></dd></div>
-      <div><dt>Detected</dt><dd class="text-muted">@_detail.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
-      <div class="proto-meta-sha"><dt>Proto SHA</dt><dd><button type="button" class="code-chip proto-sha-copy" title="Click to copy" @onclick="CopySha">@_detail.ProtoSha</button></dd></div>
-    </dl>
+    <a href="/protos" class="text-muted">&larr; All versions</a>
+    @if (_loading) {
+        <p class="text-muted">Loading...</p>
+    } else if (_detail is null) {
+        <div class="empty-state">Version not found.</div>
+    } else {
+        <h1 class="text-[1.3rem] mt-2 mb-1">
+            <span class="code-chip">@_detail.Platform</span> @_detail.AppVersion
+        </h1>
+        <dl class="proto-meta">
+            <div>
+                <dt>Build</dt><dd class="mono">@_detail.Build</dd>
+            </div>
+            <div>
+                <dt>Client</dt><dd class="mono">@(string.IsNullOrEmpty(_detail.ClientVersion) ? "unknown" : _detail.ClientVersion)</dd>
+            </div>
+            <div>
+                <dt>Source</dt>
+                <dd>
+                    <span class="code-chip">@(string.IsNullOrEmpty(_detail.Source) ? "unknown" : _detail.Source)</span>
+                </dd>
+            </div>
+            <div>
+                <dt>Detected</dt><dd class="text-muted">@_detail.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</dd>
+            </div>
+            <div class="proto-meta-sha">
+                <dt>Proto SHA</dt>
+                <dd>
+                    <button type="button" class="code-chip proto-sha-copy" title="Click to copy" @onclick="CopySha">@_detail.ProtoSha</button>
+                </dd>
+            </div>
+        </dl>
 
-    <section class="panel mb-4">
-      <h2 class="text-base mt-0 mb-2">Proto changes</h2>
-      @if (_messages.Count == 0)
-      {
-        <p class="text-muted">No proto text stored for this version yet.</p>
-      }
-      else if (_prevBuild is null)
-      {
-        <p class="proto-cmp-line">@_messages.Count messages. Earliest stored version, nothing to compare.</p>
-        <ul class="proto-msg-list">
-          @foreach (var m in _messages)
-          {
-            <li class="code-chip">@m</li>
-          }
-        </ul>
-      }
-      else
-      {
-        <p class="proto-cmp-line">
-          @_messages.Count messages.
-          @if (HasChanges)
-          {
-            <span class="proto-cmp-add">@_added.Count message@(_added.Count == 1 ? "" : "s") added</span>
-            <text>, </text>
-            <span class="proto-cmp-rem">@_removed.Count removed</span>
-            @(_lineAdds + _lineRems > 0
-              ? $", {_lineAdds + _lineRems} field change{(_lineAdds + _lineRems == 1 ? "" : "s")}" : "")
-            <text> vs build </text>
-          }
-          else
-          {
-            <text> Identical to build </text>
-          }
-          <a class="proto-version mono" href="/protos/@Platform/@Uri.EscapeDataString(_prevBuild!)">@_prevBuild</a>@(string.IsNullOrEmpty(_prevAppVersion) ? "" : $" ({_prevAppVersion})").
-        </p>
+        <section class="panel mb-4">
+            <h2 class="text-base mt-0 mb-2">Proto changes</h2>
+            @if (_messages.Count == 0) {
+                <p class="text-muted">No proto text stored for this version yet.</p>
+            } else if (_prevBuild is null) {
+                <p class="proto-cmp-line">@_messages.Count messages. Earliest stored version, nothing to compare.</p>
+                <ul class="proto-msg-list">
+                    @foreach (var m in _messages) {
+                        <li class="code-chip">@m</li>
+                    }
+                </ul>
+            } else {
+                <p class="proto-cmp-line">
+                    @_messages.Count messages.
+                    @if (HasChanges) {
+                        <span class="proto-cmp-add">@_added.Count message@(_added.Count == 1 ? "" : "s") added</span>
+                        <text>, </text>
+                        <span class="proto-cmp-rem">@_removed.Count removed</span>
+                        @(_lineAdds + _lineRems > 0
+                            ? $", {_lineAdds + _lineRems} field change{(_lineAdds + _lineRems == 1 ? "" : "s")}"
+                            : "")
+                        <text> vs build </text>
+                    } else {
+                        <text> Identical to build </text>
+                    }
+                    <a class="proto-version mono" href="/protos/@Platform/@Uri.EscapeDataString(_prevBuild!)">@_prevBuild</a>@(string.IsNullOrEmpty(_prevAppVersion) ? "" : $" ({_prevAppVersion})").
+                </p>
 
-        @if (_added.Count > 0)
-        {
-          <div class="proto-cmp-chips">
-            @foreach (var m in _added.Take(30))
-            {
-              <span class="code-chip proto-chip-add">+@m</span>
+                @if (_added.Count > 0) {
+                    <div class="proto-cmp-chips">
+                        @foreach (var m in _added.Take(30)) {
+                            <span class="code-chip proto-chip-add">+@m</span>
+                        }
+                        @if (_added.Count > 30) {
+                            <span class="text-muted text-xs">+@(_added.Count - 30) more</span>
+                        }
+                    </div>
+                }
+
+                @if (_removed.Count > 0) {
+                    <div class="proto-cmp-chips">
+                        @foreach (var m in _removed.Take(30)) {
+                            <span class="code-chip proto-chip-rem">-@m</span>
+                        }
+                        @if (_removed.Count > 30) {
+                            <span class="text-muted text-xs">-@(_removed.Count - 30) more</span>
+                        }
+                    </div>
+                }
+
+                @if (_detail.HasProto && HasChanges) {
+                    <button type="button" class="btn-mini mt-2 @(_showDiff ? "active" : "")" @onclick="ToggleDiff">
+                        @(_showDiff ? "Hide diff" : "View diff")
+                    </button>
+                    @if (_showDiff) {
+                        <pre class="result-pre proto-diff mt-2">@_diffMarkup</pre>
+                    }
+                }
             }
-            @if (_added.Count > 30)
-            {
-              <span class="text-muted text-xs">+@(_added.Count - 30) more</span>
-            }
-          </div>
+        </section>
+
+        @if (_detail.HasProto && _showProto) {
+            <section class="panel">
+                <pre class="result-pre">@_protoText</pre>
+            </section>
         }
-        @if (_removed.Count > 0)
-        {
-          <div class="proto-cmp-chips">
-            @foreach (var m in _removed.Take(30))
-            {
-              <span class="code-chip proto-chip-rem">-@m</span>
-            }
-            @if (_removed.Count > 30)
-            {
-              <span class="text-muted text-xs">-@(_removed.Count - 30) more</span>
-            }
-          </div>
-        }
-
-        @if (_detail.HasProto && HasChanges)
-        {
-          <button type="button" class="btn-mini mt-2 @(_showDiff ? "active" : "")" @onclick="ToggleDiff">
-            @(_showDiff ? "Hide diff" : "View diff")
-          </button>
-          @if (_showDiff)
-          {
-            <pre class="result-pre proto-diff mt-2">@_diffMarkup</pre>
-          }
-        }
-      }
-    </section>
-
-    @if (_detail.HasProto && _showProto)
-    {
-      <section class="panel">
-        <pre class="result-pre">@_protoText</pre>
-      </section>
     }
-  }
 </main>
 
-@if (_copiedToast)
-{
-  <div class="copy-toast">Copied SHA to clipboard</div>
+@if (_copiedToast) {
+    <div class="copy-toast">Copied SHA to clipboard</div>
 }
 
 @code {
-    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     [Parameter] public string Platform { get; set; } = "";
     [Parameter] public string Build { get; set; } = "";
@@ -151,8 +146,8 @@
     string? _prevAppVersion;
     List<string> _added = [];
     List<string> _removed = [];
-   
-   
+
+
     int _lineAdds;
     int _lineRems;
 
@@ -167,18 +162,15 @@
 
     string ProtoUrl => $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(Build)}/proto";
 
-    protected override void OnInitialized()
-    {
+    protected override void OnInitialized() {
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
     }
 
-    protected override async Task OnParametersSetAsync()
-    {
+    protected override async Task OnParametersSetAsync() {
         _loading = true;
         _showProto = false;
         _protoText = null;
@@ -192,42 +184,39 @@
         _showDiff = false;
         _diffLoaded = false;
         _diffMarkup = default;
-        try
-        {
+        try {
             _detail = await Client().GetFromJsonAsync<Detail>(
                 $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(Build)}", JsonOpts);
-            if (_detail is not null && !string.IsNullOrEmpty(_detail.Messages))
-            {
+            if (_detail is not null && !string.IsNullOrEmpty(_detail.Messages)) {
                 _messages = ParseMessages(_detail.Messages);
             }
+
             if (_detail is not null) await LoadComparison();
         }
-        catch { _detail = null; }
+        catch {
+            _detail = null;
+        }
+
         _loading = false;
     }
 
-   
-   
-   
-    async Task LoadComparison()
-    {
-        try
-        {
+
+    async Task LoadComparison() {
+        try {
             var versions = await Client().GetFromJsonAsync<List<VersionRow>>(
                 $"/api/protos/versions?platform={Platform}", JsonOpts) ?? [];
-           
-            int Cmp(string aApp, string aBuild, string bApp, string bBuild)
-            {
+
+            int Cmp(string aApp, string aBuild, string bApp, string bBuild) {
                 var s = CompareSemver(aApp, bApp);
                 return s != 0 ? s : CompareBuild(aBuild, bBuild);
             }
+
             VersionRow? prev = null;
-            foreach (var v in versions)
-            {
-               
+            foreach (var v in versions) {
                 if (Cmp(v.AppVersion, v.Build, _detail?.AppVersion ?? "", Build) >= 0) continue;
                 if (prev is null || Cmp(v.AppVersion, v.Build, prev.AppVersion, prev.Build) > 0) prev = v;
             }
+
             if (prev is null) return;
             _prevBuild = prev.Build;
             _prevAppVersion = prev.AppVersion;
@@ -235,113 +224,121 @@
             var prevDetail = await Client().GetFromJsonAsync<Detail>(
                 $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(prev.Build)}", JsonOpts);
             var prevMsgs = prevDetail is not null && !string.IsNullOrEmpty(prevDetail.Messages)
-                ? ParseMessages(prevDetail.Messages) : [];
+                ? ParseMessages(prevDetail.Messages)
+                : [];
             var prevSet = new HashSet<string>(prevMsgs);
             var thisSet = new HashSet<string>(_messages);
             _added = _messages.Where(m => !prevSet.Contains(m)).ToList();
             _removed = prevMsgs.Where(m => !thisSet.Contains(m)).ToList();
 
-           
-           
-            try
-            {
+
+            try {
                 var diff = await Client().GetStringAsync(
                     $"/api/protos/diff?from={Uri.EscapeDataString(_prevBuild!)}&to={Uri.EscapeDataString(Build)}&platform={Platform}");
-                foreach (var line in diff.Split('\n'))
-                {
+                foreach (var line in diff.Split('\n')) {
                     if (line.StartsWith("+++") || line.StartsWith("---")) continue;
                     if (line.StartsWith('+')) _lineAdds++;
                     else if (line.StartsWith('-')) _lineRems++;
                 }
             }
-            catch { /* diff unavailable; message-level counts still show */ }
+            catch {
+                /* diff unavailable; message-level counts still show */
+            }
         }
-        catch { }
+        catch {
+        }
     }
 
-   
-    static int CompareSemver(string a, string b)
-    {
+
+    static int CompareSemver(string a, string b) {
         var ap = (a ?? "").Split('.');
         var bp = (b ?? "").Split('.');
-        for (var i = 0; i < Math.Max(ap.Length, bp.Length); i++)
-        {
+        for (var i = 0; i < Math.Max(ap.Length, bp.Length); i++) {
             var av = i < ap.Length && long.TryParse(ap[i], out var x) ? x : 0;
             var bv = i < bp.Length && long.TryParse(bp[i], out var y) ? y : 0;
             if (av != bv) return av.CompareTo(bv);
         }
+
         return 0;
     }
 
-   
-    static int CompareBuild(string a, string b)
-    {
+
+    static int CompareBuild(string a, string b) {
         if (long.TryParse(a, out var al) && long.TryParse(b, out var bl)) return al.CompareTo(bl);
         return CompareSemver(a, b);
     }
 
-    static List<string> ParseMessages(string json) =>
-        System.Text.Json.JsonSerializer.Deserialize<List<string>>(json, JsonOpts) ?? [];
+    static List<string> ParseMessages(string json) {
+        return JsonSerializer.Deserialize<List<string>>(json, JsonOpts) ?? [];
+    }
 
-    HttpClient Client()
-    {
+    HttpClient Client() {
         var c = HttpFactory.CreateClient();
         if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
         if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
         return c;
     }
 
-    async Task ToggleProto()
-    {
-        if (_showProto) { _showProto = false; return; }
-        if (_protoText is null)
-        {
-            try { _protoText = await Client().GetStringAsync(ProtoUrl); }
-            catch { _protoText = "(failed to load)"; }
+    async Task ToggleProto() {
+        if (_showProto) {
+            _showProto = false;
+            return;
         }
+
+        if (_protoText is null) {
+            try {
+                _protoText = await Client().GetStringAsync(ProtoUrl);
+            }
+            catch {
+                _protoText = "(failed to load)";
+            }
+        }
+
         _showProto = true;
     }
 
-    async Task ToggleDiff()
-    {
-        if (_showDiff) { _showDiff = false; return; }
-        if (!_diffLoaded)
-        {
-            try
-            {
+    async Task ToggleDiff() {
+        if (_showDiff) {
+            _showDiff = false;
+            return;
+        }
+
+        if (!_diffLoaded) {
+            try {
                 var text = await Client().GetStringAsync(
                     $"/api/protos/diff?from={Uri.EscapeDataString(_prevBuild!)}&to={Uri.EscapeDataString(Build)}&platform={Platform}");
                 _diffMarkup = ColorizeDiff(text);
             }
-            catch { _diffMarkup = (MarkupString)"(failed to load diff)"; }
+            catch {
+                _diffMarkup = (MarkupString)"(failed to load diff)";
+            }
+
             _diffLoaded = true;
         }
+
         _showDiff = true;
     }
 
-   
-    static MarkupString ColorizeDiff(string text)
-    {
-        var sb = new System.Text.StringBuilder();
-        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
-        {
-            var esc = System.Net.WebUtility.HtmlEncode(line);
+
+    static MarkupString ColorizeDiff(string text) {
+        var sb = new StringBuilder();
+        foreach (var line in text.Replace("\r\n", "\n").Split('\n')) {
+            var esc = WebUtility.HtmlEncode(line);
             if (line.StartsWith('+')) sb.Append("<span class=\"diff-add\">").Append(esc).Append("</span>");
             else if (line.StartsWith('-')) sb.Append("<span class=\"diff-rem\">").Append(esc).Append("</span>");
             else if (line.StartsWith("@@")) sb.Append("<span class=\"diff-hunk\">").Append(esc).Append("</span>");
             else sb.Append(esc);
             sb.Append('\n');
         }
+
         return (MarkupString)sb.ToString();
     }
 
     bool _copiedToast;
 
-    async Task CopySha()
-    {
+    async Task CopySha() {
         if (_detail is null || string.IsNullOrEmpty(_detail.ProtoSha)) return;
-        try
-        {
+        try {
             _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
             await _copy.InvokeAsync<bool>("writeText", _detail.ProtoSha);
             _copiedToast = true;
@@ -350,12 +347,29 @@
             _copiedToast = false;
             StateHasChanged();
         }
-        catch { }
+        catch {
+        }
     }
 
-    record Detail(string Platform, string AppVersion, string Build, string? ClientVersion, string Package,
-        string ProtoSha, DateTimeOffset DetectedAt, string Messages, bool HasProto, string? Source);
+    record Detail(
+        string Platform,
+        string AppVersion,
+        string Build,
+        string? ClientVersion,
+        string Package,
+        string ProtoSha,
+        DateTimeOffset DetectedAt,
+        string Messages,
+        bool HasProto,
+        string? Source);
 
-    record VersionRow(string Platform, string AppVersion, string Build, string? ClientVersion,
-        string Package, string ProtoSha, DateTimeOffset DetectedAt);
+    record VersionRow(
+        string Platform,
+        string AppVersion,
+        string Build,
+        string? ClientVersion,
+        string Package,
+        string ProtoSha,
+        DateTimeOffset DetectedAt);
+
 }

@@ -1,56 +1,46 @@
-using EggIncognito.Runner.Adb;
+using EggIncognito.Core.Services.Devices;
 using Xunit;
 
 namespace EggIncognito.Runner.Tests;
 
-public class AdbParseTests
-{
+public class AdbParseTests {
     [Fact]
-    public void ParseVersionName_PullsVersionNameToken()
-    {
+    public void AndroidVersion_PullsVersionNameToken() {
         var dumpsys = "    versionCode=111343 minSdk=24 targetSdk=34\n    versionName=1.35.7\n";
-        Assert.Equal("1.35.7", AdbClient.ParseVersionName(dumpsys));
+        Assert.Equal("1.35.7", DeviceParsing.AndroidVersion(dumpsys).AppVersion);
     }
 
     [Fact]
-    public void ParseVersionCode_PullsMonotonicBuild()
-    {
+    public void AndroidVersion_PullsMonotonicBuild() {
         var dumpsys = "    versionCode=111343 minSdk=24\n    versionName=1.35.7\n";
-        Assert.Equal("111343", AdbClient.ParseVersionCode(dumpsys));
+        Assert.Equal("111343", DeviceParsing.AndroidVersion(dumpsys).Build);
     }
 
     [Fact]
-    public void ParseVersionName_MissingReturnsEmpty()
-    {
-        Assert.Equal("", AdbClient.ParseVersionName("no version here"));
+    public void AndroidVersion_MissingReturnsNull() {
+        Assert.Null(DeviceParsing.AndroidVersion("no version here").AppVersion);
     }
 
     [Fact]
-    public void ParseApkPaths_ExtractsPathAfterColon()
-    {
+    public void ApkPaths_ExtractsPathAfterColon() {
         var pm = "package:/data/app/~~a==/com.auxbrain.egginc-b==/base.apk\n"
                + "package:/data/app/~~a==/com.auxbrain.egginc-b==/split_config.arm64_v8a.apk\n";
-        var paths = AdbClient.ParseApkPaths(pm);
+        var paths = DeviceParsing.ApkPaths(pm);
         Assert.Equal(2, paths.Count);
         Assert.Contains("/base.apk", paths[0]);
         Assert.EndsWith("split_config.arm64_v8a.apk", paths[1]);
     }
 
     [Fact]
-    public void SelectArmApk_PicksArmSplit()
-    {
-        var paths = new[]
-        {
-            "/data/app/x/base.apk",
-            "/data/app/x/split_config.arm64_v8a.apk",
-            "/data/app/x/split_config.en.apk",
-        };
-        Assert.EndsWith("arm64_v8a.apk", AdbClient.SelectArmApk(paths));
+    public void SelectArmSplit_PicksArmSplit() {
+        var pm = "package:/data/app/x/base.apk\n"
+               + "package:/data/app/x/split_config.arm64_v8a.apk\n"
+               + "package:/data/app/x/split_config.en.apk\n";
+        Assert.EndsWith("arm64_v8a.apk", DeviceParsing.SelectArmSplit(pm));
     }
 
     [Fact]
-    public void SelectArmApk_NoneReturnsEmpty()
-    {
-        Assert.Equal("", AdbClient.SelectArmApk(new[] { "/data/app/x/base.apk" }));
+    public void SelectArmSplit_NoneReturnsNull() {
+        Assert.Null(DeviceParsing.SelectArmSplit("package:/data/app/x/base.apk\n"));
     }
 }

@@ -57,9 +57,7 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
     private async Task<(bool Ok, string? Note)> Ssh(string remoteCmd, CancellationToken ct) {
         if (string.IsNullOrEmpty(ssh.Host) || string.IsNullOrEmpty(ssh.KeyPath))
             return (false, "ios ssh host/key not configured");
-        var r = await runner.RunAsync("ssh",
-            ["-p", ssh.Port, "-i", ssh.KeyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
-             $"root@{ssh.Host}", remoteCmd], ct);
+        var r = await runner.RunAsync("ssh", new SshEndpoint(ssh.Host, ssh.Port, ssh.KeyPath).SshArgs(remoteCmd), ct);
         return r.ExitCode == 0 ? (true, null) : (false, DeviceParsing.TrimNote(r.Stderr + r.Stdout));
     }
 }

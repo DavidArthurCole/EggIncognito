@@ -1,33 +1,35 @@
-@using EggIncognito.Components.Shared
 @inject IAppMode AppMode
 @inject ICurrentUser User
 @inject AuthState Auth
 <nav class="app-nav">
-  <a href="/" class="app-nav-brand" title="EggIncognito"><img src="/brand/logo.png" alt="EggIncognito" /></a>
-  <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
-  <NavLink href="protodata" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos & Data</NavLink>
-  @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="playground" ActiveClass="active">Playground</NavLink> }
-  <NavLink href="capture" ActiveClass="active">Capture</NavLink>
-  @if (AppMode.CanWrite) { <NavLink href="import" ActiveClass="active">Import</NavLink> }
-  @if (User.IsAtLeast(UserRole.Admin)) { <NavLink href="admin" ActiveClass="active">Admin</NavLink> }
-  <div class="nav-right">
-    <NavToolbarOutlet />
-    @if (Auth.Enabled)
-    {
-      <span class="auth-nav">
-        @if (User.IsAuthenticated)
-        {
-          <AccountModal />
-          <form method="post" action="/logout" style="margin:0;">
-            <button type="submit" class="auth-btn">Log out</button>
-          </form>
-        }
-        else if (Auth.WidgetEnabled)
-        {
-          <LoginButton CssClass="auth-btn" Label="Log in" />
-        }
-      </span>
+    <a href="/" class="app-nav-brand" title="EggIncognito">
+        <img src="/brand/logo.png" alt="EggIncognito"/>
+    </a>
+    <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
+    <NavLink href="protodata" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos & Data</NavLink>
+    @if (User.IsAtLeast(UserRole.Admin)) {
+        <NavLink href="playground" ActiveClass="active">Playground</NavLink>
     }
-  </div>
+    <NavLink href="capture" ActiveClass="active">Capture</NavLink>
+    @if (AppMode.CanWrite) {
+        <NavLink href="import" ActiveClass="active">Import</NavLink>
+    }
+    @if (User.IsAtLeast(UserRole.Admin)) {
+        <NavLink href="admin" ActiveClass="active">Admin</NavLink>
+    }
+    <div class="nav-right">
+        <NavToolbarOutlet/>
+        @if (Auth.Enabled) {
+            <span class="auth-nav">
+                @if (User.IsAuthenticated) {
+                    <AccountModal/>
+                    <form method="post" action="/logout" style="margin:0;">
+                        <button type="submit" class="auth-btn">Log out</button>
+                    </form>
+                } else if (Auth.WidgetEnabled) {
+                    <LoginButton CssClass="auth-btn" Label="Log in"/>
+                }
+            </span>
+        }
+    </div>
 </nav>
-

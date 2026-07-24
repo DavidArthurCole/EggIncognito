@@ -2,6 +2,11 @@
 @inject NavigationManager Nav
 
 @* About content folded into the homepage footer. This legacy route redirects so old links keep working. *@
+
 @code {
-    protected override void OnInitialized() => Nav.NavigateTo("/", replace: true);
+
+    protected override void OnInitialized() {
+        Nav.NavigateTo("/", replace: true);
+    }
+
 }

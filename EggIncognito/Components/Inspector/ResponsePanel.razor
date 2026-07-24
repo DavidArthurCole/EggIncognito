@@ -1,50 +1,44 @@
+@using EggIncognito.Components.Capture
 @* Decoded response view: an HTTP status badge, the decode stages (a slim Pipeline), an inline error
    box with a "Possible fix" line, and the response body via the shared Capture FormatView (JSON tree +
    format toggle + copy + filter, scrollable). *@
-@using EggIncognito.Components.Capture
 
-@if (Response is null)
-{
-  <div class="muted">No response yet.</div>
-}
-else if (Response.Error is not null && (Response.Stages is null || Response.Stages.Count == 0)
-         && Response.Status is null)
-{
-  <div class="error-box">@Response.Error</div>
-  @if (!string.IsNullOrEmpty(Response.Resolution))
-  {
-    <div class="error-fix"><span class="fix-label">Possible fix:</span> @Response.Resolution</div>
-  }
-}
-else
-{
-  var ok = Response.Status is >= 200 and < 300;
-  <div class="resp-status @(ok ? "ok" : "bad")">HTTP @(Response.Status?.ToString() ?? "?")</div>
-
-  @if (Response.Stages is { Count: > 0 })
-  {
-    <Pipeline Stages="Response.Stages" />
-  }
-
-  @if (Response.Error is not null)
-  {
+@if (Response is null) {
+    <div class="muted">No response yet.</div>
+} else if (Response.Error is not null && (Response.Stages is null || Response.Stages.Count == 0)
+                                      && Response.Status is null) {
     <div class="error-box">@Response.Error</div>
-    @if (!string.IsNullOrEmpty(Response.Resolution))
-    {
-      <div class="error-fix"><span class="fix-label">Possible fix:</span> @Response.Resolution</div>
+    @if (!string.IsNullOrEmpty(Response.Resolution)) {
+        <div class="error-fix">
+            <span class="fix-label">Possible fix:</span> @Response.Resolution
+        </div>
     }
-  }
+} else {
+    var ok = Response.Status is >= 200 and < 300;
+    <div class="resp-status @(ok ? "ok" : "bad")">HTTP @(Response.Status?.ToString() ?? "?")</div>
 
-  @if (!string.IsNullOrEmpty(Response.Json) || !string.IsNullOrEmpty(Response.RawBase64))
-  {
-    <FormatView Label="Response" JsonStr="@Response.Json" RawB64="@Response.RawBase64"
-                View="_view" FormatChoice="_formatChoice" EmptyNote="(no decoded response body)" />
-  }
+    @if (Response.Stages is { Count: > 0 }) {
+        <Pipeline Stages="Response.Stages"/>
+    }
+
+    @if (Response.Error is not null) {
+        <div class="error-box">@Response.Error</div>
+        @if (!string.IsNullOrEmpty(Response.Resolution)) {
+            <div class="error-fix">
+                <span class="fix-label">Possible fix:</span> @Response.Resolution
+            </div>
+        }
+    }
+
+    @if (!string.IsNullOrEmpty(Response.Json) || !string.IsNullOrEmpty(Response.RawBase64)) {
+        <FormatView Label="Response" JsonStr="@Response.Json" RawB64="@Response.RawBase64"
+                    View="_view" FormatChoice="_formatChoice" EmptyNote="(no decoded response body)"/>
+    }
 }
 
 @code {
     [Parameter] public SendResponse? Response { get; set; }
 
-    readonly EggIncognito.Components.Capture.CaptureViewState _view = new();
+    readonly CaptureViewState _view = new();
     readonly Dictionary<string, string> _formatChoice = new();
 }

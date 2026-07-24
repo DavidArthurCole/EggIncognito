@@ -1,4 +1,3 @@
-using EggIncognito.Core.Services.Devices;
 using EggIncognito.Services;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.ProtoExtract;
@@ -12,8 +11,8 @@ namespace EggIncognito.Controllers;
 [Route("api/decomp")]
 [EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Admin)]
 public sealed class DecompController(
-    GameBinaryProvider binaries, ICurrentUser currentUser, DeviceCaptureConfig capture,
-    IProcessRunner runner, IWebHostEnvironment env) : ControllerBase {
+    GameBinaryProvider binaries, ICurrentUser currentUser,
+    IDeviceConnectionFactory connections) : ControllerBase {
 
 
     [HttpGet("symbols")]
@@ -256,19 +255,11 @@ public sealed class DecompController(
         if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
-        var host = capture.IosSshHost;
-        var key = capture.IosSshKeyPath;
-        if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(key))
+        if (connections.Ios() is not { } conn)
             return StatusCode(503, new { ok = false, diagnostics = "ios ssh not configured (DeviceCapture:Ios:SshHost + SshKeyPath)" });
 
-        var script = Path.Combine(env.ContentRootPath, "..", "tools", "ios-frida", "particle-capture.js");
-        if (!System.IO.File.Exists(script))
-            script = Path.Combine(env.ContentRootPath, "tools", "ios-frida", "particle-capture.js");
-        if (!System.IO.File.Exists(script))
-            return StatusCode(500, new { ok = false, diagnostics = "particle-capture.js not found under tools/ios-frida" });
-
         try {
-            var capturer = new IosParticleCapturer(runner, host, capture.IosSshPort, key, script, addrOffset);
+            var capturer = new IosParticleCapturer(conn, EggIncognito.DeviceTools.DeviceScripts.ParticleCapture, addrOffset);
             var model = await capturer.CaptureAsync(ct);
             return model is null
                 ? Ok(new { ok = false, diagnostics = "capture failed (scp/frida)" })

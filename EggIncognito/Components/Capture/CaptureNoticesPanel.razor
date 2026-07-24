@@ -1,49 +1,42 @@
-@using EggIncognito.Capture
-@using EggIncognito.Components.Shared
-
 <div class="settings-wrap capture-notices">
-  @if (_open)
-  {
-    <div class="popover-backdrop" @onclick="@(() => _open = false)"></div>
-  }
-  <button type="button" class="icon-btn notices-btn" title="Notifications"
-          aria-haspopup="true" aria-expanded="@_open" @onclick="ToggleOpen">
-    <Icon Name="bell" />
-  </button>
-  @if (Unread > 0)
-  {
-    <span class="notices-badge">@(Unread > 99 ? "99+" : Unread.ToString())</span>
-  }
+    @if (_open) {
+        <div class="popover-backdrop" @onclick="@(() => _open = false)"></div>
+    }
+    <button type="button" class="icon-btn notices-btn" title="Notifications"
+            aria-haspopup="true" aria-expanded="@_open" @onclick="ToggleOpen">
+        <Icon Name="bell"/>
+    </button>
+    @if (Unread > 0) {
+        <span class="notices-badge">@(Unread > 99 ? "99+" : Unread.ToString())</span>
+    }
 
-  <div class="settings-menu settings-menu-lg notices-menu @(_open ? "open" : "")">
-    <div class="flex items-center justify-between mb-2">
-      <div class="settings-title m-0">Notifications</div>
-      @if (Notices.Count > 0)
-      {
-        <button type="button" class="btn-mini" @onclick="ClearAllNotices">Clear all</button>
-      }
-    </div>
-    <div class="notif-list">
-      @foreach (var n in Notices)
-      {
-        <div class="notif-item notif-@n.Severity">
-          <div class="notif-body">
-            <div class="notif-msg">@n.Message</div>
-            @if (!string.IsNullOrEmpty(n.Timestamp))
-            {
-              <div class="notif-time">@n.Timestamp</div>
+    <div class="settings-menu settings-menu-lg notices-menu @(_open ? "open" : "")">
+        <div class="flex items-center justify-between mb-2">
+            <div class="settings-title m-0">Notifications</div>
+            @if (Notices.Count > 0) {
+                <button type="button" class="btn-mini" @onclick="ClearAllNotices">Clear all</button>
             }
-          </div>
-          <button class="notif-dismiss" title="Dismiss" aria-label="Dismiss notification"
-                  @onclick="@(() => DismissNotice(n.Id))"><Icon Name="x" Class="icon-sm" /></button>
         </div>
-      }
-      @if (Notices.Count == 0)
-      {
-        <div class="notif-empty">No notifications.</div>
-      }
+        <div class="notif-list">
+            @foreach (var n in Notices) {
+                <div class="notif-item notif-@n.Severity">
+                    <div class="notif-body">
+                        <div class="notif-msg">@n.Message</div>
+                        @if (!string.IsNullOrEmpty(n.Timestamp)) {
+                            <div class="notif-time">@n.Timestamp</div>
+                        }
+                    </div>
+                    <button class="notif-dismiss" title="Dismiss" aria-label="Dismiss notification"
+                            @onclick="@(() => DismissNotice(n.Id))">
+                        <Icon Name="x" Class="icon-sm"/>
+                    </button>
+                </div>
+            }
+            @if (Notices.Count == 0) {
+                <div class="notif-empty">No notifications.</div>
+            }
+        </div>
     </div>
-  </div>
 </div>
 
 @code {
@@ -55,14 +48,19 @@
 
     bool _open;
 
-    async Task ToggleOpen()
-    {
+    async Task ToggleOpen() {
         _open = !_open;
         if (_open) await OnNoticesRead.InvokeAsync();
     }
 
-    Task DismissNotice(int id) => OnDismissNotice.InvokeAsync(id);
-    Task ClearAllNotices() => OnClearNotices.InvokeAsync();
+    Task DismissNotice(int id) {
+        return OnDismissNotice.InvokeAsync(id);
+    }
+
+    Task ClearAllNotices() {
+        return OnClearNotices.InvokeAsync();
+    }
 
     public sealed record NoticeItem(int Id, string Severity, string Message, string Timestamp);
+
 }

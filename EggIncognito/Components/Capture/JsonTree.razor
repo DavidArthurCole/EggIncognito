@@ -1,22 +1,20 @@
 @* Collapsible, searchable JSON tree viewer. The whole value is parsed once into TreeNode; expand/collapse
    toggles per-node state, search force-expands ancestor chains and dims non-matches. *@
-@using EggIncognito.Components.Capture
 @implements IDisposable
 
 <div class="jtree-viewer">
-  <div class="jtree-tools">
-    @Tools
-    <button class="btn-mini" type="button" @onclick="ExpandAll">Expand all</button>
-    <button class="btn-mini" type="button" @onclick="CollapseAll">Collapse all</button>
-    <input type="search" class="jtree-search" placeholder="Filter keys / values..."
-           autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-           value="@_search" @oninput="OnSearchInput" />
-    <span class="jtree-search-count">@_count</span>
-  </div>
-  @if (Root is not null)
-  {
-    <TreeNodeView Node="Root" View="View" Search="@_needle" IsRoot="true" />
-  }
+    <div class="jtree-tools">
+        @Tools
+        <button class="btn-mini" type="button" @onclick="ExpandAll">Expand all</button>
+        <button class="btn-mini" type="button" @onclick="CollapseAll">Collapse all</button>
+        <input type="search" class="jtree-search" placeholder="Filter keys / values..."
+               autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+               value="@_search" @oninput="OnSearchInput"/>
+        <span class="jtree-search-count">@_count</span>
+    </div>
+    @if (Root is not null) {
+        <TreeNodeView Node="Root" View="View" Search="@_needle" IsRoot="true"/>
+    }
 </div>
 
 @code {
@@ -29,68 +27,71 @@
     string _count = "";
     CancellationTokenSource? _debounceCts;
 
-   
-   
-    async Task OnSearchInput(ChangeEventArgs e)
-    {
+
+    async Task OnSearchInput(ChangeEventArgs e) {
         _search = e.Value?.ToString() ?? "";
         _debounceCts?.Cancel();
         var cts = _debounceCts = new CancellationTokenSource();
-        try { await Task.Delay(250, cts.Token); }
-        catch (TaskCanceledException) { return; }
+        try {
+            await Task.Delay(250, cts.Token);
+        }
+        catch (TaskCanceledException) {
+            return;
+        }
+
         ApplySearch(_search);
         StateHasChanged();
     }
 
-    public void Dispose() => _debounceCts?.Cancel();
-
-    void ExpandAll()
-    {
+    public void Dispose() {
         _debounceCts?.Cancel();
-        _search = ""; _needle = ""; _count = "";
+    }
+
+    void ExpandAll() {
+        _debounceCts?.Cancel();
+        _search = "";
+        _needle = "";
+        _count = "";
         if (Root is null) return;
         SetExpansion(Root, true);
         ClearMarks(Root);
     }
 
-    void CollapseAll()
-    {
+    void CollapseAll() {
         _debounceCts?.Cancel();
-        _search = ""; _needle = ""; _count = "";
+        _search = "";
+        _needle = "";
+        _count = "";
         if (Root is null) return;
         ClearMarks(Root);
         SetExpansion(Root, false);
         Root.Expanded = true;
     }
 
-    static void SetExpansion(TreeNode node, bool expand)
-    {
+    static void SetExpansion(TreeNode node, bool expand) {
         if (node.IsContainer) node.Expanded = expand;
         foreach (var c in node.Children) SetExpansion(c, expand);
     }
 
-    static void ClearMarks(TreeNode node)
-    {
+    static void ClearMarks(TreeNode node) {
         node.Dim = false;
         node.SelfMatch = false;
         foreach (var c in node.Children) ClearMarks(c);
     }
 
-    void ApplySearch(string query)
-    {
+    void ApplySearch(string query) {
         var needle = query.Trim().ToLowerInvariant();
         if (needle == _needle && Root is not null) return;
         _needle = needle;
         if (Root is null) return;
-        if (needle.Length == 0)
-        {
+        if (needle.Length == 0) {
             ResetToDefault(Root);
             _count = "";
             return;
         }
 
         var matches = 0;
-       
+
         foreach (var c in Root.Children) Visit(c, needle, ref matches);
         Root.Dim = false;
         Root.SelfMatch = false;
@@ -98,10 +99,8 @@
         _count = matches + (matches == 1 ? " match" : " matches");
     }
 
-   
-   
-    static bool Visit(TreeNode node, string needle, ref int matches)
-    {
+
+    static bool Visit(TreeNode node, string needle, ref int matches) {
         var selfMatch = false;
         if (node.KeyTextLower is not null && node.KeyTextLower.Contains(needle))
             selfMatch = true;
@@ -110,7 +109,8 @@
 
         var childMatch = false;
         foreach (var c in node.Children)
-            if (Visit(c, needle, ref matches)) childMatch = true;
+            if (Visit(c, needle, ref matches))
+                childMatch = true;
 
         var matched = selfMatch || childMatch;
         node.SelfMatch = selfMatch;
@@ -120,11 +120,11 @@
         return matched;
     }
 
-    static void ResetToDefault(TreeNode node)
-    {
+    static void ResetToDefault(TreeNode node) {
         if (node.IsContainer) node.Expanded = node.ShouldDefaultExpand();
         node.Dim = false;
         node.SelfMatch = false;
         foreach (var c in node.Children) ResetToDefault(c);
     }
+
 }

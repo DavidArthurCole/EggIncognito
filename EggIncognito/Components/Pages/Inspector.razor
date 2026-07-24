@@ -1,12 +1,13 @@
 @page "/inspector"
 @rendermode @(RenderMode.InteractiveServer)
-@implements IAsyncDisposable
-@using System.Net.Http.Json
+@using System.Net
 @using System.Reflection
 @using System.Text.Json
 @using System.Text.Json.Nodes
-@using Microsoft.JSInterop
 @using EggIncognito.Components.Inspector
+@using Ei
+@using Google.Protobuf.Reflection
+@implements IAsyncDisposable
 @inject IRouteCatalog Catalog
 @inject IProtoReflection Reflection
 @inject IAppMode AppMode
@@ -22,302 +23,300 @@
    become the fixed 240px endpoint list + two equal builder/response columns filling the viewport. The
    left column carries the controls (Postman download + salt) above the endpoint/object explorer. *@
 <main class="inspector-main grid gap-3 p-3 min-h-0">
-  <div class="inspector-side flex flex-col gap-3 min-h-0">
-    <section class="panel inspector-controls shrink-0">
-      <h3 class="text-sm font-semibold mt-0 mb-2">Controls</h3>
-      <div class="flex items-center gap-1.5">
-        <a class="icon-btn" href="/api/tools/postman-collection" download
-           title="Download Postman collection" aria-label="Download Postman collection"><Icon Name="postman" /></a>
-        <button type="button" class="badge @(_hasSalt ? "signed" : "unsigned")"
-                title="@(_hasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
-                @onclick="OpenSaltModal">@(_hasSalt ? "Salt Set" : "Salt Unset")</button>
-        <button type="button" class="icon-btn ml-auto" title="Inspector settings" aria-label="Inspector settings"
-                @onclick="@(() => _settingsModalOpen = true)"><Icon Name="gear" /></button>
-      </div>
-    </section>
-    <HistoryPanel HistoryEnabled="_historyEnabled" History="_history"
-                  OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory" OnClearHistory="ClearHistory" />
-    <aside class="panel min-h-0 flex-1 overflow-auto">
-      <EndpointList Mode="@_listMode" ModeChanged="SetListMode"
-                    Selected="@_selected" SelectedObject="@_selectedObject"
-                    OnSelectEndpoint="SelectEndpoint" OnSelectObject="SelectObject"
-                    StatusLoading="@_statusLoading"
-                    StatusCounts="@_statusCounts" StatusOut="@_statusOut"
-                    OnToggleStatus="ToggleStatus" OnRefreshStatus="RefreshStatus" />
-    </aside>
-  </div>
+    <div class="inspector-side flex flex-col gap-3 min-h-0">
+        <section class="panel inspector-controls shrink-0">
+            <h3 class="text-sm font-semibold mt-0 mb-2">Controls</h3>
+            <div class="flex items-center gap-1.5">
+                <a class="icon-btn" href="/api/tools/postman-collection" download
+                   title="Download Postman collection" aria-label="Download Postman collection">
+                    <Icon Name="postman"/>
+                </a>
+                <button type="button" class="badge @(_hasSalt ? "signed" : "unsigned")"
+                        title="@(_hasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
+                        @onclick="OpenSaltModal">
+                    @(_hasSalt ? "Salt Set" : "Salt Unset")
+                </button>
+                <button type="button" class="icon-btn ml-auto" title="Inspector settings" aria-label="Inspector settings"
+                        @onclick="@(() => _settingsModalOpen = true)">
+                    <Icon Name="gear"/>
+                </button>
+            </div>
+        </section>
+        <HistoryPanel HistoryEnabled="_historyEnabled" History="_history"
+                      OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory" OnClearHistory="ClearHistory"/>
+        <aside class="panel min-h-0 flex-1 overflow-auto">
+            <EndpointList Mode="@_listMode" ModeChanged="SetListMode"
+                          Selected="@_selected" SelectedObject="@_selectedObject"
+                          OnSelectEndpoint="SelectEndpoint" OnSelectObject="SelectObject"
+                          StatusLoading="@_statusLoading"
+                          StatusCounts="@_statusCounts" StatusOut="@_statusOut"
+                          OnToggleStatus="ToggleStatus" OnRefreshStatus="RefreshStatus"/>
+        </aside>
+    </div>
 
-  <section class="panel">
-    <div class="@(_listMode == "endpoints" ? "" : "hidden")">
-      <h2>Request <span class="muted">@(_selected is null ? "" : $"({ReqTypeLabel(_selected)})")</span></h2>
+    <section class="panel">
+        <div class="@(_listMode == "endpoints" ? "" : "hidden")">
+            <h2>Request <span class="muted">@(_selected is null ? "" : $"({ReqTypeLabel(_selected)})")</span></h2>
 
-      <div class="env-box">
-        <div class="env-box-title">Environment (BasicRequestInfo overrides)</div>
-        <div class="env-rowgroup">
-          @EnvField("eiUserId", "env-w-eid")
-          @EnvField("debug", "env-w-bool")
-        </div>
-        <div class="env-rowgroup">
-          @EnvField("clientVersion", "env-w-tiny")
-          @EnvField("version", "env-w-sm")
-          @EnvField("build", "env-w-sm")
-        </div>
-        <div class="env-rowgroup">
-          @EnvField("platform", "env-w-sm")
-          @EnvField("country", "env-w-tiny")
-          @EnvField("language", "env-w-tiny")
-        </div>
-      </div>
+            <div class="env-box">
+                <div class="env-box-title">Environment (BasicRequestInfo overrides)</div>
+                <div class="env-rowgroup">
+                    @EnvField("eiUserId", "env-w-eid")
+                    @EnvField("debug", "env-w-bool")
+                </div>
+                <div class="env-rowgroup">
+                    @EnvField("clientVersion", "env-w-tiny")
+                    @EnvField("version", "env-w-sm")
+                    @EnvField("build", "env-w-sm")
+                </div>
+                <div class="env-rowgroup">
+                    @EnvField("platform", "env-w-sm")
+                    @EnvField("country", "env-w-tiny")
+                    @EnvField("language", "env-w-tiny")
+                </div>
+            </div>
 
-      @if (_selected?.PathParam == true)
-      {
-        <div class="path-param-row">
-          <label>URL path parameter (e.g. EID)
-            <button type="button" class="forget-eids" title="Clear remembered EIDs" @onclick="ForgetEids">forget</button>
-          </label>
-          <input list="recentEids" placeholder="EI1234567890123456" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" @bind="_pathParam" @bind:event="oninput" />
-        </div>
-      }
-      <datalist id="recentEids">
-        @foreach (var eid in _recentEids)
-        {
-          <option value="@eid" />
-        }
-      </datalist>
+            @if (_selected?.PathParam == true) {
+                <div class="path-param-row">
+                    <label>
+                        URL path parameter (e.g. EID)
+                        <button type="button" class="forget-eids" title="Clear remembered EIDs" @onclick="ForgetEids">forget</button>
+                    </label>
+                    <input list="recentEids" placeholder="EI1234567890123456" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" @bind="_pathParam" @bind:event="oninput"/>
+                </div>
+            }
+            <datalist id="recentEids">
+                @foreach (var eid in _recentEids) {
+                    <option value="@eid"/>
+                }
+            </datalist>
 
-      <div class="tree-head">
-        <span>Body</span>
-        <label class="raw-toggle"><input type="checkbox" checked="@_rawMode" @onchange="ToggleRaw" /> raw JSON</label>
-      </div>
+            <div class="tree-head">
+                <span>Body</span>
+                <label class="raw-toggle"><input type="checkbox" checked="@_rawMode" @onchange="ToggleRaw"/> raw JSON</label>
+            </div>
 
-      @if (_selected is null)
-      {
-        <div class="fields"><span class="muted">Select an endpoint on the left.</span></div>
-      }
-      else if (_rawMode)
-      {
-        <textarea class="raw-json" spellcheck="false" style="width: 100%; min-height: 200px;"
+            @if (_selected is null) {
+                <div class="fields">
+                    <span class="muted">Select an endpoint on the left.</span>
+                </div>
+            } else if (_rawMode) {
+                <textarea class="raw-json" spellcheck="false" style="width: 100%; min-height: 200px;"
                   autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                   @bind="_rawJson" @bind:event="oninput"></textarea>
-        @if (_rawError is not null)
-        {
-          <div class="muted">@_rawError</div>
-        }
-      }
-      else
-      {
-        <div class="fields">
-          @if (_selected.PathParamOnly)
-          {
-            <span class="muted">No request body. Identity (EID) is supplied via the URL path parameter; nothing to fill in here.</span>
-          }
-          else if (_selected.Request is null)
-          {
-            @if (_hosted)
-            {
-              <span class="muted">No known request type for this endpoint. An admin needs to map a <code>request:</code> type for this route.</span>
-            }
-            else
-            {
-              <span class="muted">No known request type for this endpoint. Add a <code>request:</code> type in routes.yaml.</span>
-            }
-          }
-          else
-          {
-            @if (_selected.RequestWrapped)
-            {
-              <div class="wrap-note">These are the inner request fields. On Build they will be wrapped and signed in an AuthenticatedMessage.</div>
-            }
-            @if (_fieldNodes is null)
-            {
-              <span class="muted">no schema for @_selected.Request</span>
-            }
-            else if (NoFillableFields)
-            {
-              <div class="no-fields-note">This request needs no extra fields. Every value it carries is
-                already supplied by the Environment above, so just hit Build.</div>
-            }
-            else
-            {
-              <div class="fields-body"><FieldTree Nodes="_fieldNodes" OnChanged="OnTreeChanged" /></div>
-            }
-          }
-        </div>
-      }
+                @if (_rawError is not null) {
+                    <div class="muted">@_rawError</div>
+                }
+            } else {
+                <div class="fields">
+                    @if (_selected.PathParamOnly) {
+                        <span class="muted">No request body. Identity (EID) is supplied via the URL path parameter; nothing to fill in here.</span>
+                    } else if (_selected.Request is null) {
+                        @if (_hosted) {
+                            <span class="muted">No known request type for this endpoint. An admin needs to map a <code>request:</code> type for this route.</span>
+                        } else {
+                            <span class="muted">No known request type for this endpoint. Add a <code>request:</code> type in routes.yaml.</span>
+                        }
+                    } else {
+                        @if (_selected.RequestWrapped) {
+                            <div class="wrap-note">These are the inner request fields. On Build they will be wrapped and signed in an AuthenticatedMessage.</div>
+                        }
 
-      <div class="sendbar">
-        <div class="target-toggle" role="radiogroup" aria-label="Target">
-          <button type="button" class="target-opt @(_target is "mock" ? "active" : "")"
-                  @onclick="@(() => SelectTarget("mock"))">Mock</button>
-          <button type="button"
-                  class="target-opt @(_target is "real" or "custom" ? "active" : "") @(_liveDisabled ? "target-opt-disabled" : "")"
-                  disabled="@_liveDisabled"
-                  title="@(_liveDisabled ? "Log in to use Live API" : "")"
-                  @onclick="@(() => RequestTarget("real"))">Live API <DocHelp Kind="endpoint" Key="__live_api" /></button>
-        </div>
-        <div class="sendbar-actions">
-          <button class="btn-info" disabled="@(_selected is null || _busy)" @onclick="Build">Build</button>
-          <button class="btn-primary" disabled="@(_lastBuild is null || _busy)" @onclick="Send">Send</button>
-        </div>
-      </div>
+                        @if (_fieldNodes is null) {
+                            <span class="muted">no schema for @_selected.Request</span>
+                        } else if (NoFillableFields) {
+                            <div class="no-fields-note">
+                                This request needs no extra fields. Every value it carries is
+                                already supplied by the Environment above, so just hit Build.
+                            </div>
+                        } else {
+                            <div class="fields-body">
+                                <FieldTree Nodes="_fieldNodes" OnChanged="OnTreeChanged"/>
+                            </div>
+                        }
+                    }
+                </div>
+            }
 
-      @if (_target is "real" or "custom")
-      {
-        <div class="live-suboptions">
-          <div class="live-route" role="radiogroup" aria-label="Live route">
-            <span class="text-xs text-muted mr-1">Route via</span>
-            <button type="button" class="seg-btn @(_target == "real" ? "active" : "")"
-                    @onclick="@(() => SelectTarget("real"))">This server</button>
-            <button type="button" class="seg-btn @(_target == "custom" ? "active" : "")"
-                    @onclick="@(() => SelectTarget("custom"))">Custom proxy</button>
-          </div>
-
-          @if (_target == "custom")
-          {
-            <div class="custom-config">
-              <label>Custom proxy URL</label>
-              <input type="url" placeholder="https://your-proxy.example/" spellcheck="false"
-                     autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-                     value="@_customTarget" @oninput="OnCustomTargetInput" />
-              <span class="muted">Your browser posts the built request directly to this URL (this server is
-                bypassed); the proxy must reach auxbrain and allow this origin (CORS).</span>
+            <div class="sendbar">
+                <div class="target-toggle" role="radiogroup" aria-label="Target">
+                    <button type="button" class="target-opt @(_target is "mock" ? "active" : "")"
+                            @onclick="@(() => SelectTarget("mock"))">
+                        Mock
+                    </button>
+                    <button type="button"
+                            class="target-opt @(_target is "real" or "custom" ? "active" : "") @(_liveDisabled ? "target-opt-disabled" : "")"
+                            disabled="@_liveDisabled"
+                            title="@(_liveDisabled ? "Log in to use Live API" : "")"
+                            @onclick="@(() => RequestTarget("real"))">
+                        Live API <DocHelp Kind="endpoint" Key="__live_api"/>
+                    </button>
+                </div>
+                <div class="sendbar-actions">
+                    <button class="btn-info" disabled="@(_selected is null || _busy)" @onclick="Build">Build</button>
+                    <button class="btn-primary" disabled="@(_lastBuild is null || _busy)" @onclick="Send">Send</button>
+                </div>
             </div>
-          }
 
-          @if (_target == "real" && _sealedAvailable)
-          {
-            <div class="sealed-config">
-              <label class="settings-check">
-                <input type="checkbox" checked="@_sealed" @onchange="OnSealedToggle" />
-                Sealed API proxy
-              </label>
-              <span class="muted">Routes this send through an authenticated tunnel that hides your identity
-                from the Live API. Supporter perk.</span>
-            </div>
-          }
+            @if (_target is "real" or "custom") {
+                <div class="live-suboptions">
+                    <div class="live-route" role="radiogroup" aria-label="Live route">
+                        <span class="text-xs text-muted mr-1">Route via</span>
+                        <button type="button" class="seg-btn @(_target == "real" ? "active" : "")"
+                                @onclick="@(() => SelectTarget("real"))">
+                            This server
+                        </button>
+                        <button type="button" class="seg-btn @(_target == "custom" ? "active" : "")"
+                                @onclick="@(() => SelectTarget("custom"))">
+                            Custom proxy
+                        </button>
+                    </div>
+
+                    @if (_target == "custom") {
+                        <div class="custom-config">
+                            <label>Custom proxy URL</label>
+                            <input type="url" placeholder="https://your-proxy.example/" spellcheck="false"
+                                   autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                                   value="@_customTarget" @oninput="OnCustomTargetInput"/>
+                            <span class="muted">
+                                Your browser posts the built request directly to this URL (this server is
+                                bypassed); the proxy must reach auxbrain and allow this origin (CORS).
+                            </span>
+                        </div>
+                    }
+
+                    @if (_target == "real" && _sealedAvailable) {
+                        <div class="sealed-config">
+                            <label class="settings-check">
+                                <input type="checkbox" checked="@_sealed" @onchange="OnSealedToggle"/>
+                                Sealed API proxy
+                            </label>
+                            <span class="muted">
+                                Routes this send through an authenticated tunnel that hides your identity
+                                from the Live API. Supporter perk.
+                            </span>
+                        </div>
+                    }
+                </div>
+            }
         </div>
-      }
-    </div>
 
-    @if (_listMode == "objects")
-    {
-      <ObjectView Name="@_selectedObject" OnSelectEndpoint="SelectFromObject" />
-    }
-  </section>
+        @if (_listMode == "objects") {
+            <ObjectView Name="@_selectedObject" OnSelectEndpoint="SelectFromObject"/>
+        }
+    </section>
 
-  <section class="panel insp-result">
-    <div class="detail-tabs insp-tabs">
-      <div class="tab-bar">
-        <button type="button" class="tab-btn @(_resultTab == 0 ? "active" : "")" @onclick="@(() => _resultTab = 0)">Pipeline</button>
-        <button type="button" class="tab-btn @(_resultTab == 1 ? "active" : "")" @onclick="@(() => _resultTab = 1)">Response</button>
-        <button type="button" class="tab-btn @(_resultTab == 2 ? "active" : "")" @onclick="@(() => _resultTab = 2)">Diagnose</button>
-        <button type="button" class="tab-btn @(_resultTab == 3 ? "active" : "")" @onclick="@(() => _resultTab = 3)">Docs</button>
-        @if (_resultTab == 1 && _canSaveDb && _response?.Json is not null)
-        {
-          <button type="button" class="btn-mini ml-auto" title="Save this response as a stored endpoint" @onclick="SaveToDb">Save to DB</button>
-        }
-      </div>
-      <div class="tab-body insp-tab-body">
-        @if (_resultTab == 0)
-        {
-          <Pipeline Stages="_buildStages" />
-        }
-        else if (_resultTab == 1)
-        {
-          <ResponsePanel Response="_response" />
-          <pre class="settings-out">@_saveOut</pre>
-        }
-        else if (_resultTab == 2)
-        {
-          <Forensics Result="_diagnosis" RootType="@(_selected?.Response)" ClientFactory="Client" />
-        }
-        else
-        {
-          <EndpointDocsView Route="_selected" OnSelectObject="SelectObjectFromDocs" />
-        }
-      </div>
-    </div>
-  </section>
+    <section class="panel insp-result">
+        <div class="detail-tabs insp-tabs">
+            <div class="tab-bar">
+                <button type="button" class="tab-btn @(_resultTab == 0 ? "active" : "")" @onclick="@(() => _resultTab = 0)">Pipeline</button>
+                <button type="button" class="tab-btn @(_resultTab == 1 ? "active" : "")" @onclick="@(() => _resultTab = 1)">Response</button>
+                <button type="button" class="tab-btn @(_resultTab == 2 ? "active" : "")" @onclick="@(() => _resultTab = 2)">Diagnose</button>
+                <button type="button" class="tab-btn @(_resultTab == 3 ? "active" : "")" @onclick="@(() => _resultTab = 3)">Docs</button>
+                @if (_resultTab == 1 && _canSaveDb && _response?.Json is not null) {
+                    <button type="button" class="btn-mini ml-auto" title="Save this response as a stored endpoint" @onclick="SaveToDb">Save to DB</button>
+                }
+            </div>
+            <div class="tab-body insp-tab-body">
+                @if (_resultTab == 0) {
+                    <Pipeline Stages="_buildStages"/>
+                } else if (_resultTab == 1) {
+                    <ResponsePanel Response="_response"/>
+                    <pre class="settings-out">@_saveOut</pre>
+                } else if (_resultTab == 2) {
+                    <Forensics Result="_diagnosis" RootType="@(_selected?.Response)" ClientFactory="Client"/>
+                } else {
+                    <EndpointDocsView Route="_selected" OnSelectObject="SelectObjectFromDocs"/>
+                }
+            </div>
+        </div>
+    </section>
 </main>
 
-@if (_saltModalOpen)
-{
-  <div class="modal-overlay" @onkeydown="OnModalKeyDown">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saltModalTitle">
-      <h3 id="saltModalTitle">Signing salt</h3>
-      <p>Signs requests. Stored in this browser only; never sent to the server beyond the build request.</p>
-      <input type="password" placeholder="EGG_INC_API_SALT value" autocomplete="off" spellcheck="false"
-             data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-             class="settings-input" @ref="_saltInputRef" @bind="_saltInput" @bind:event="oninput" />
-      <div class="modal-actions">
-        <button type="button" class="btn-secondary" @onclick="@(() => _saltModalOpen = false)">Cancel</button>
-        <button type="button" class="btn-primary" @onclick="SaveSalt">Save salt</button>
-      </div>
+@if (_saltModalOpen) {
+    <div class="modal-overlay" @onkeydown="OnModalKeyDown">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saltModalTitle">
+            <h3 id="saltModalTitle">Signing salt</h3>
+            <p>Signs requests. Stored in this browser only; never sent to the server beyond the build request.</p>
+            <input type="password" placeholder="EGG_INC_API_SALT value" autocomplete="off" spellcheck="false"
+                   data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                   class="settings-input" @ref="_saltInputRef" @bind="_saltInput" @bind:event="oninput"/>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" @onclick="@(() => _saltModalOpen = false)">Cancel</button>
+                <button type="button" class="btn-primary" @onclick="SaveSalt">Save salt</button>
+            </div>
+        </div>
     </div>
-  </div>
 }
 
-@if (_liveConsentOpen)
-{
-  <div class="modal-overlay" @onkeydown="OnModalKeyDown">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="liveConsentTitle">
-      <h3 id="liveConsentTitle">Live API mode</h3>
-      <p>This sends real requests to the Egg, Inc. API (auxbrain.com) using the values you provide.
-         You are solely responsible for how you use it. The developers of EggIncognito accept no
-         responsibility for any misuse or for any consequences of that use.</p>
-      <div class="modal-actions">
-        <button type="button" class="btn-secondary" @ref="_consentCancelRef" @onclick="@(() => _liveConsentOpen = false)">Cancel</button>
-        <button type="button" class="btn-primary" @onclick="AcceptLiveConsent">I understand, enable Live API</button>
-      </div>
+@if (_liveConsentOpen) {
+    <div class="modal-overlay" @onkeydown="OnModalKeyDown">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="liveConsentTitle">
+            <h3 id="liveConsentTitle">Live API mode</h3>
+            <p>
+                This sends real requests to the Egg, Inc. API (auxbrain.com) using the values you provide.
+                You are solely responsible for how you use it. The developers of EggIncognito accept no
+                responsibility for any misuse or for any consequences of that use.
+            </p>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" @ref="_consentCancelRef" @onclick="@(() => _liveConsentOpen = false)">Cancel</button>
+                <button type="button" class="btn-primary" @onclick="AcceptLiveConsent">I understand, enable Live API</button>
+            </div>
+        </div>
     </div>
-  </div>
 }
 
-@if (_settingsModalOpen)
-{
-  <div class="modal-overlay" @onkeydown="OnModalKeyDown" @onclick="@(() => _settingsModalOpen = false)">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" @onclick:stopPropagation="true">
-      <h3 id="settingsTitle">Inspector settings</h3>
-      <label class="settings-check">
-        <input type="checkbox" checked="@_historyEnabled" @onchange="ToggleHistoryEnabled" />
-        Save request history
-      </label>
-      <p class="text-muted text-sm mt-1 mb-0">Keeps a client-side list of built requests for quick re-use
-        (stored only in this browser). Turn off to stop saving; existing history stays until cleared.</p>
-      <div class="modal-actions">
-        <button type="button" class="btn-primary" @onclick="@(() => _settingsModalOpen = false)">Done</button>
-      </div>
+@if (_settingsModalOpen) {
+    <div class="modal-overlay" @onkeydown="OnModalKeyDown" @onclick="@(() => _settingsModalOpen = false)">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" @onclick:stopPropagation="true">
+            <h3 id="settingsTitle">Inspector settings</h3>
+            <label class="settings-check">
+                <input type="checkbox" checked="@_historyEnabled" @onchange="ToggleHistoryEnabled"/>
+                Save request history
+            </label>
+            <p class="text-muted text-sm mt-1 mb-0">
+                Keeps a client-side list of built requests for quick re-use
+                (stored only in this browser). Turn off to stop saving; existing history stays until cleared.
+            </p>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary" @onclick="@(() => _settingsModalOpen = false)">Done</button>
+            </div>
+        </div>
     </div>
-  </div>
 }
 
-@if (_historyNoticeOpen)
-{
-  <div class="modal-overlay" @onkeydown="OnModalKeyDown" @onclick="@(() => _historyNoticeOpen = false)">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="histNoticeTitle" @onclick:stopPropagation="true">
-      <h3 id="histNoticeTitle">Request history is on</h3>
-      <p>Built requests are now saved to a client-side History tab for quick swapping. It is stored only in
-        this browser. You can turn this off any time in Controls &rarr; settings.</p>
-      <div class="modal-actions">
-        <button type="button" class="btn-secondary" @onclick="@(() => { _historyNoticeOpen = false; _settingsModalOpen = true; })">Open settings</button>
-        <button type="button" class="btn-primary" @onclick="@(() => _historyNoticeOpen = false)">Got it</button>
-      </div>
+@if (_historyNoticeOpen) {
+    <div class="modal-overlay" @onkeydown="OnModalKeyDown" @onclick="@(() => _historyNoticeOpen = false)">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="histNoticeTitle" @onclick:stopPropagation="true">
+            <h3 id="histNoticeTitle">Request history is on</h3>
+            <p>
+                Built requests are now saved to a client-side History tab for quick swapping. It is stored only in
+                this browser. You can turn this off any time in Controls &rarr; settings.
+            </p>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" @onclick="@(() => {
+                                                                          _historyNoticeOpen = false;
+                                                                          _settingsModalOpen = true;
+                                                                      })">
+                    Open settings
+                </button>
+                <button type="button" class="btn-primary" @onclick="@(() => _historyNoticeOpen = false)">Got it</button>
+            </div>
+        </div>
     </div>
-  </div>
 }
 
-@if (_statusModalOpen)
-{
-  <div class="modal-overlay" @onkeydown="OnModalKeyDown" @onclick="@(() => _statusModalOpen = false)">
-    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="statusTitle" @onclick:stopPropagation="true">
-      <h3 id="statusTitle">Endpoint status <span class="muted text-sm">@_statusCounts</span></h3>
-      <pre class="result-pre max-h-[50vh] overflow-auto">@_statusOut</pre>
-      <div class="modal-actions">
-        <button type="button" class="btn-secondary" disabled="@_statusLoading" @onclick="RefreshStatus">@(_statusLoading ? "Refreshing..." : "Refresh")</button>
-        <button type="button" class="btn-primary" @onclick="@(() => _statusModalOpen = false)">Close</button>
-      </div>
+@if (_statusModalOpen) {
+    <div class="modal-overlay" @onkeydown="OnModalKeyDown" @onclick="@(() => _statusModalOpen = false)">
+        <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="statusTitle" @onclick:stopPropagation="true">
+            <h3 id="statusTitle">Endpoint status <span class="muted text-sm">@_statusCounts</span></h3>
+            <pre class="result-pre max-h-[50vh] overflow-auto">@_statusOut</pre>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" disabled="@_statusLoading" @onclick="RefreshStatus">@(_statusLoading ? "Refreshing..." : "Refresh")</button>
+                <button type="button" class="btn-primary" @onclick="@(() => _statusModalOpen = false)">Close</button>
+            </div>
+        </div>
     </div>
-  </div>
 }
 
 @code {
@@ -351,11 +350,11 @@
     bool _settingsModalOpen;
     bool _historyNoticeOpen;
 
-   
+
     bool _historyEnabled = true;
     List<InspectorHistoryEntry> _history = [];
     bool _statusModalOpen;
-   
+
     ElementReference _saltInputRef;
     ElementReference _consentCancelRef;
     bool _focusSaltModal;
@@ -372,61 +371,65 @@
     bool _canSaveDb;
     bool _hosted;
 
-   
-   
+
     bool _sealedAvailable;
     bool _sealed;
 
-   
-   
 
     string _baseAddress = "";
     string? _cookie;
     IJSObjectReference? _store;
 
-    protected override void OnInitialized()
-    {
+    protected override void OnInitialized() {
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
-       
-       
-        _hosted = AppMode.Mode == EggIncognito.Services.AppMode.Hosted;
+
+
+        _hosted = AppMode.Mode == Services.AppMode.Hosted;
         _liveDisabled = _hosted && !User.IsAuthenticated;
-       
-       
-        _canSaveDb = AppMode.Mode != EggIncognito.Services.AppMode.Hosted
-            || User.IsAtLeast(UserRole.Contributor);
-       
-       
+
+
+        _canSaveDb = AppMode.Mode != Services.AppMode.Hosted
+                     || User.IsAtLeast(UserRole.Contributor);
+
+
         _sealedAvailable = SealedProxy.IsConfigured && User.IsSupporter;
-       
-       
+
+
         SeedEnvRows();
     }
 
-   
-   
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-       
-       
-        if (_focusSaltModal)
-        {
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (_focusSaltModal) {
             _focusSaltModal = false;
-            try { await _saltInputRef.FocusAsync(); } catch { }
+            try {
+                await _saltInputRef.FocusAsync();
+            }
+            catch {
+            }
         }
-        if (_focusConsentModal)
-        {
+
+        if (_focusConsentModal) {
             _focusConsentModal = false;
-            try { await _consentCancelRef.FocusAsync(); } catch { }
+            try {
+                await _consentCancelRef.FocusAsync();
+            }
+            catch {
+            }
         }
+
         if (!firstRender) return;
-        try { _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js"); }
-        catch { return; }
+        try {
+            _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js");
+        }
+        catch {
+            return;
+        }
+
         _rinfo = await InvokeOr("getRinfoDefaults", _rinfo);
         _hasSalt = !string.IsNullOrEmpty(await InvokeOr("getSalt", ""));
         _customTarget = await InvokeOr("getCustomTarget", "");
@@ -437,23 +440,30 @@
         StateHasChanged();
     }
 
-    async Task<T> InvokeOr<T>(string fn, T fallback, params object?[] args)
-    {
+    async Task<T> InvokeOr<T>(string fn, T fallback, params object?[] args) {
         if (_store is null) return fallback;
-        try { return await _store.InvokeAsync<T>(fn, args); }
-        catch { return fallback; }
+        try {
+            return await _store.InvokeAsync<T>(fn, args);
+        }
+        catch {
+            return fallback;
+        }
     }
 
-    async Task InvokeVoid(string fn, params object?[] args)
-    {
+    async Task InvokeVoid(string fn, params object?[] args) {
         if (_store is null) return;
-        try { await _store.InvokeVoidAsync(fn, args); } catch { }
+        try {
+            await _store.InvokeVoidAsync(fn, args);
+        }
+        catch {
+        }
     }
 
-    void SetListMode(string m) => _listMode = m;
+    void SetListMode(string m) {
+        _listMode = m;
+    }
 
-    async Task SelectEndpoint(RouteInfo e)
-    {
+    async Task SelectEndpoint(RouteInfo e) {
         _selected = e;
         _lastBuild = null;
         _buildStages = null;
@@ -466,46 +476,40 @@
         await BuildFieldTree();
     }
 
-    void SelectObject(string name)
-    {
+    void SelectObject(string name) {
         _selectedObject = name;
     }
 
-   
-    void SelectObjectFromDocs(string name)
-    {
+
+    void SelectObjectFromDocs(string name) {
         _listMode = "objects";
         _selectedObject = name;
     }
 
-   
-    async Task SelectFromObject(RouteInfo e)
-    {
+
+    async Task SelectFromObject(RouteInfo e) {
         _listMode = "endpoints";
         await SelectEndpoint(e);
     }
 
-    static string ReqTypeLabel(RouteInfo e)
-    {
+    static string ReqTypeLabel(RouteInfo e) {
         if (e.PathParamOnly) return "no request body - identity via URL path param";
         var t = e.Request ?? "no request type";
         return e.RequestWrapped ? $"{t}, signed (AuthenticatedMessage)" : t;
     }
 
-   
-    SchemaMessage? Schema(string? typeName)
-    {
+
+    SchemaMessage? Schema(string? typeName) {
         if (string.IsNullOrEmpty(typeName)) return null;
-        if (!_schemaCache.TryGetValue(typeName, out var s))
-        {
+        if (!_schemaCache.TryGetValue(typeName, out var s)) {
             s = Reflection.Schema(typeName);
             _schemaCache[typeName] = s;
         }
+
         return s;
     }
 
-    Task BuildFieldTree()
-    {
+    Task BuildFieldTree() {
         _fieldNodes = null;
         if (_selected is null || _selected.PathParamOnly || _selected.Request is null) return Task.CompletedTask;
         var s = Schema(_selected.Request);
@@ -515,10 +519,8 @@
         return Task.CompletedTask;
     }
 
-    void SeedEnvRows()
-    {
-        _envRows =
-        [
+    void SeedEnvRows() {
+        _envRows = [
             new EnvRow { Key = "eiUserId", ValueType = "string", Editor = "eid", Hint = "EI...", Value = _rinfo.EiUserId },
             new EnvRow { Key = "clientVersion", ValueType = "number", Editor = "int", Hint = "int", Value = _rinfo.ClientVersion.ToString() },
             new EnvRow { Key = "version", ValueType = "string", Editor = "version", Hint = "1.35.8", Value = _rinfo.Version },
@@ -526,80 +528,74 @@
             new EnvRow { Key = "platform", ValueType = "string", Editor = "select", Options = PlatformOptions, Value = _rinfo.Platform },
             new EnvRow { Key = "country", ValueType = "string", Editor = "code", Hint = "US", Value = _rinfo.Country },
             new EnvRow { Key = "language", ValueType = "string", Editor = "code", Hint = "en", Value = _rinfo.Language },
-            new EnvRow { Key = "debug", ValueType = "boolean", Editor = "bool", Value = _rinfo.Debug ? "true" : "false" },
+            new EnvRow { Key = "debug", ValueType = "boolean", Editor = "bool", Value = _rinfo.Debug ? "true" : "false" }
         ];
     }
 
-   
-   
-    RenderFragment EnvField(string key, string widthClass) => builder =>
-    {
-        var r = _envRows.FirstOrDefault(x => x.Key == key);
-        if (r is null) return;
-        var invalid = r.IsInvalid();
-        var seq = 0;
-        builder.OpenElement(seq++, "label");
-        builder.AddAttribute(seq++, "class", $"env-cell {widthClass}");
-        builder.AddAttribute(seq++, "title", r.Key);
-        builder.OpenElement(seq++, "span");
-        builder.AddAttribute(seq++, "class", "env-key");
-        builder.AddContent(seq++, r.Key);
-        builder.CloseElement();
-        if (r.Editor == "select")
-        {
-            builder.OpenElement(seq++, "select");
-            builder.AddAttribute(seq++, "class", "env-input");
-            builder.AddAttribute(seq++, "value", r.Value);
-            builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvInput(r, e.Value?.ToString())));
-            foreach (var opt in r.Options ?? [])
-            {
-                builder.OpenElement(seq++, "option");
-                builder.AddAttribute(seq++, "value", opt);
-                builder.AddContent(seq++, opt);
+
+    RenderFragment EnvField(string key, string widthClass) {
+        return builder => {
+            var r = _envRows.FirstOrDefault(x => x.Key == key);
+            if (r is null) return;
+            var invalid = r.IsInvalid();
+            var seq = 0;
+            builder.OpenElement(seq++, "label");
+            builder.AddAttribute(seq++, "class", $"env-cell {widthClass}");
+            builder.AddAttribute(seq++, "title", r.Key);
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "env-key");
+            builder.AddContent(seq++, r.Key);
+            builder.CloseElement();
+            if (r.Editor == "select") {
+                builder.OpenElement(seq++, "select");
+                builder.AddAttribute(seq++, "class", "env-input");
+                builder.AddAttribute(seq++, "value", r.Value);
+                builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvInput(r, e.Value?.ToString())));
+                foreach (var opt in r.Options ?? []) {
+                    builder.OpenElement(seq++, "option");
+                    builder.AddAttribute(seq++, "value", opt);
+                    builder.AddContent(seq++, opt);
+                    builder.CloseElement();
+                }
+
+                builder.CloseElement();
+            } else if (r.Editor == "bool") {
+                builder.OpenElement(seq++, "input");
+                builder.AddAttribute(seq++, "class", "env-check");
+                builder.AddAttribute(seq++, "type", "checkbox");
+                builder.AddAttribute(seq++, "checked", r.Value == "true");
+                builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvBool(r, e)));
+                builder.CloseElement();
+            } else {
+                builder.OpenElement(seq++, "input");
+                builder.AddAttribute(seq++, "class", $"env-input {(invalid ? "env-invalid" : "")}");
+                if (r.Editor == "eid") builder.AddAttribute(seq++, "list", "recentEids");
+                builder.AddAttribute(seq++, "value", r.Value);
+                builder.AddAttribute(seq++, "placeholder", r.Hint);
+                builder.AddAttribute(seq++, "autocomplete", "off");
+                builder.AddAttribute(seq++, "oninput", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvInput(r, e.Value?.ToString())));
                 builder.CloseElement();
             }
-            builder.CloseElement();
-        }
-        else if (r.Editor == "bool")
-        {
-            builder.OpenElement(seq++, "input");
-            builder.AddAttribute(seq++, "class", "env-check");
-            builder.AddAttribute(seq++, "type", "checkbox");
-            builder.AddAttribute(seq++, "checked", r.Value == "true");
-            builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvBool(r, e)));
-            builder.CloseElement();
-        }
-        else
-        {
-            builder.OpenElement(seq++, "input");
-            builder.AddAttribute(seq++, "class", $"env-input {(invalid ? "env-invalid" : "")}");
-            if (r.Editor == "eid") builder.AddAttribute(seq++, "list", "recentEids");
-            builder.AddAttribute(seq++, "value", r.Value);
-            builder.AddAttribute(seq++, "placeholder", r.Hint);
-            builder.AddAttribute(seq++, "autocomplete", "off");
-            builder.AddAttribute(seq++, "oninput", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvInput(r, e.Value?.ToString())));
-            builder.CloseElement();
-        }
-        builder.CloseElement();
-    };
 
-    Task OnEnvBool(EnvRow row, ChangeEventArgs e) =>
-        OnEnvInput(row, e.Value is bool b && b ? "true" : "false");
+            builder.CloseElement();
+        };
+    }
 
-    async Task OnEnvInput(EnvRow row, string? value)
-    {
+    Task OnEnvBool(EnvRow row, ChangeEventArgs e) {
+        return OnEnvInput(row, e.Value is bool b && b ? "true" : "false");
+    }
+
+    async Task OnEnvInput(EnvRow row, string? value) {
         row.Value = value ?? "";
         SyncRinfoFromRow(row);
         ApplyEnvLock();
-       
+
         await InvokeVoid("setRinfoDefaults", _rinfo);
     }
 
-   
-    void SyncRinfoFromRow(EnvRow row)
-    {
-        switch (row.Key)
-        {
+
+    void SyncRinfoFromRow(EnvRow row) {
+        switch (row.Key) {
             case "eiUserId": _rinfo.EiUserId = row.Value; break;
             case "clientVersion": _rinfo.ClientVersion = int.TryParse(row.Value, out var cv) ? cv : _rinfo.ClientVersion; break;
             case "version": _rinfo.Version = row.Value; break;
@@ -611,93 +607,95 @@
         }
     }
 
-    void ApplyEnvLock()
-    {
+    void ApplyEnvLock() {
         if (_fieldNodes is null) return;
         var env = EnvCollector.AsStrings(_envRows);
         FieldTreeBuilder.ApplyEnvLock(_fieldNodes, env);
-       
-       
+
+
         FieldTreeBuilder.ApplyEnvDefaults(_fieldNodes, env);
     }
 
-    void OnTreeChanged() { /* re-render; raw JSON is re-derived on toggle */ }
+    void OnTreeChanged() {
+        /* re-render; raw JSON is re-derived on toggle */
+    }
 
-   
-   
+
     bool NoFillableFields =>
         _fieldNodes is { Count: > 0 } && _fieldNodes.All(n => n.Locked);
 
-    void ToggleRaw(ChangeEventArgs e)
-    {
+    void ToggleRaw(ChangeEventArgs e) {
         var on = e.Value is bool b && b;
-        if (on)
-        {
+        if (on) {
             _rawError = null;
             _rawMode = true;
             if (_fieldNodes is not null)
                 _rawJson = FieldTreeBuilder.Collect(_fieldNodes).ToJsonString(new JsonSerializerOptions { WriteIndented = true });
             return;
         }
-       
-       
-        if (_fieldNodes is not null)
-        {
-            try
-            {
+
+
+        if (_fieldNodes is not null) {
+            try {
                 var obj = JsonNode.Parse(string.IsNullOrWhiteSpace(_rawJson) ? "{}" : _rawJson) as JsonObject
-                    ?? throw new FormatException("raw body must be a JSON object");
+                          ?? throw new FormatException("raw body must be a JSON object");
                 FieldTreeBuilder.Apply(_fieldNodes, obj);
                 ApplyEnvLock();
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _rawError = "Raw JSON does not parse, so it was not applied to the tree. Fix it or switch back: " + ex.Message;
                 _rawMode = true;
                 return;
             }
         }
+
         _rawError = null;
         _rawMode = false;
     }
 
-   
-    async Task ToggleStatus()
-    {
+
+    async Task ToggleStatus() {
         _statusModalOpen = true;
         if (string.IsNullOrEmpty(_statusCounts)) await RefreshStatus();
     }
 
-    async Task RefreshStatus()
-    {
+    async Task RefreshStatus() {
         _statusLoading = true;
         _statusOut = "Loading...";
-        try
-        {
+        try {
             var r = await Client().GetFromJsonAsync<StatusResult>("/api/tools/endpoint-status", JsonOpts);
-            if (r is not null)
-            {
+            if (r is not null) {
                 _statusCounts = $"(ok {r.Ok.Count} / empty {r.Empty.Count} / missing {r.Missing.Count})";
                 var lines = new List<string>();
-                if (r.Empty.Count > 0) { lines.Add("empty:"); lines.AddRange(r.Empty.Select(p => "  " + p)); }
-                if (r.Missing.Count > 0) { lines.Add("missing:"); lines.AddRange(r.Missing.Select(p => "  " + p)); }
+                if (r.Empty.Count > 0) {
+                    lines.Add("empty:");
+                    lines.AddRange(r.Empty.Select(p => "  " + p));
+                }
+
+                if (r.Missing.Count > 0) {
+                    lines.Add("missing:");
+                    lines.AddRange(r.Missing.Select(p => "  " + p));
+                }
+
                 _statusOut = lines.Count > 0 ? string.Join("\n", lines) : "All mapped routes have a fixture.";
             }
         }
-        catch (Exception ex) { _statusOut = $"Request failed: {ex.Message}"; }
-        finally { _statusLoading = false; }
+        catch (Exception ex) {
+            _statusOut = $"Request failed: {ex.Message}";
+        }
+        finally {
+            _statusLoading = false;
+        }
     }
 
-    void OpenSaltModal()
-    {
+    void OpenSaltModal() {
         _saltInput = "";
         _saltModalOpen = true;
         _focusSaltModal = true;
     }
 
-   
-    void OnModalKeyDown(KeyboardEventArgs e)
-    {
+
+    void OnModalKeyDown(KeyboardEventArgs e) {
         if (e.Key != "Escape") return;
         _saltModalOpen = false;
         _liveConsentOpen = false;
@@ -706,82 +704,80 @@
         _statusModalOpen = false;
     }
 
-    async Task SaveSalt()
-    {
+    async Task SaveSalt() {
         await InvokeVoid("setSalt", _saltInput);
         _hasSalt = !string.IsNullOrEmpty(_saltInput);
         _saltInput = "";
         _saltModalOpen = false;
     }
 
-    void SelectTarget(string t)
-    {
+    void SelectTarget(string t) {
         _target = t;
     }
 
-   
-    async Task RequestTarget(string t)
-    {
+
+    async Task RequestTarget(string t) {
         if (_liveDisabled) return;
-        if (t == "real" && !await InvokeOr("getLiveConsent", false))
-        {
+        if (t == "real" && !await InvokeOr("getLiveConsent", false)) {
             _liveConsentOpen = true;
             _focusConsentModal = true;
             return;
         }
+
         SelectTarget(t);
     }
 
-    async Task AcceptLiveConsent()
-    {
+    async Task AcceptLiveConsent() {
         await InvokeVoid("setLiveConsent");
         _liveConsentOpen = false;
         SelectTarget("real");
     }
 
-    void OnCustomTargetInput(ChangeEventArgs e)
-    {
+    void OnCustomTargetInput(ChangeEventArgs e) {
         _customTarget = e.Value?.ToString() ?? "";
         _ = InvokeVoid("setCustomTarget", _customTarget);
     }
 
-    void OnSealedToggle(ChangeEventArgs e) => _sealed = e.Value is bool b && b;
-
-   
-   
-   
-
-    async Task Build()
-    {
-        if (_busy) return;
-        _busy = true;
-        try { await BuildCore(); }
-        finally { _busy = false; }
+    void OnSealedToggle(ChangeEventArgs e) {
+        _sealed = e.Value is bool b && b;
     }
 
-    async Task Send()
-    {
+
+    async Task Build() {
         if (_busy) return;
         _busy = true;
-        try { await SendCore(); }
-        finally { _busy = false; }
+        try {
+            await BuildCore();
+        }
+        finally {
+            _busy = false;
+        }
     }
 
-    async Task BuildCore()
-    {
+    async Task Send() {
+        if (_busy) return;
+        _busy = true;
+        try {
+            await SendCore();
+        }
+        finally {
+            _busy = false;
+        }
+    }
+
+    async Task BuildCore() {
         var e = _selected;
         if (e is null) return;
         _response = null;
         _resultTab = 0;
 
-        if (e.PathParamOnly)
-        {
+        if (e.PathParamOnly) {
             _lastBuild = new BuildResponse(null, "", "", false, null, null, null);
             _buildStages = null;
             return;
         }
-        if (e.Request is null)
-        {
+
+        if (e.Request is null) {
             _buildStages = null;
             _response = new SendResponse(null, null, null, null,
                 "no request type for this endpoint",
@@ -792,304 +788,291 @@
         }
 
         JsonNode? fields;
-        try
-        {
+        try {
             fields = _rawMode
                 ? JsonNode.Parse(string.IsNullOrWhiteSpace(_rawJson) ? "{}" : _rawJson)
                 : FieldTreeBuilder.Collect(_fieldNodes ?? []);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _response = new SendResponse(null, null, null, null, "invalid raw JSON: " + ex.Message, null);
             return;
         }
 
-       
-       
+
         var salt = await InvokeOr<string?>("getSalt", null);
 
-        var body = new
-        {
+        var body = new {
             path = e.Path,
             requestType = e.Request,
             wrap = e.RequestWrapped,
             fields,
             env = EnvCollector.Collect(_envRows),
-            salt,
+            salt
         };
 
-        try
-        {
+        try {
             var res = await Client().PostAsJsonAsync("/api/inspector/build", body, JsonOpts);
             var data = await res.Content.ReadFromJsonAsync<BuildResponse>(JsonOpts);
-            if (data?.Error is not null)
-            {
+            if (data?.Error is not null) {
                 _buildStages = null;
                 _response = new SendResponse(null, null, null, null, data.Error, data.Resolution);
                 _lastBuild = null;
                 return;
             }
+
             _lastBuild = data;
             _buildStages = data?.Stages;
             await SaveToHistory(e, fields);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _response = new SendResponse(null, null, null, null, "build failed: " + ex.Message, null);
         }
     }
 
-   
-   
-    async Task SaveToHistory(RouteInfo e, JsonNode? fields)
-    {
+
+    async Task SaveToHistory(RouteInfo e, JsonNode? fields) {
         if (!_historyEnabled || _store is null) return;
         var env = EnvCollector.AsStrings(_envRows);
         var fieldsJson = fields?.ToJsonString() ?? "{}";
         var entry = new InspectorHistoryEntry(
-            Id: Guid.NewGuid().ToString("n"),
-            Path: e.Path,
-            Summary: HistorySummary(e),
-            Env: env,
-            FieldsJson: fieldsJson,
-            PathParam: string.IsNullOrWhiteSpace(_pathParam) ? null : _pathParam.Trim(),
-            Target: _target,
-            Order: 0);
-        try { _history = await _store.InvokeAsync<List<InspectorHistoryEntry>>("saveHistory", entry); }
-        catch { return; }
+            Guid.NewGuid().ToString("n"),
+            e.Path,
+            HistorySummary(e),
+            env,
+            fieldsJson,
+            string.IsNullOrWhiteSpace(_pathParam) ? null : _pathParam.Trim(),
+            _target,
+            0);
+        try {
+            _history = await _store.InvokeAsync<List<InspectorHistoryEntry>>("saveHistory", entry);
+        }
+        catch {
+            return;
+        }
+
         var unseen = await InvokeOr("historyNoticeUnseen", false);
         if (unseen) _historyNoticeOpen = true;
     }
 
-    string HistorySummary(RouteInfo e)
-    {
+    string HistorySummary(RouteInfo e) {
         var bits = new List<string>();
         if (e.PathParam && !string.IsNullOrWhiteSpace(_pathParam)) bits.Add(_pathParam.Trim());
         bits.Add(_target);
         return string.Join(" · ", bits);
     }
 
-   
-   
-    async Task RestoreHistory(InspectorHistoryEntry h)
-    {
+
+    async Task RestoreHistory(InspectorHistoryEntry h) {
         var route = Catalog.All().FirstOrDefault(r => r.Path == h.Path);
         if (route is null) return;
         await SelectEndpoint(route);
-       
+
         foreach (var row in _envRows)
-            if (h.Env.TryGetValue(row.Key, out var v)) { row.Value = v; SyncRinfoFromRow(row); }
+            if (h.Env.TryGetValue(row.Key, out var v)) {
+                row.Value = v;
+                SyncRinfoFromRow(row);
+            }
+
         if (!string.IsNullOrEmpty(h.PathParam)) _pathParam = h.PathParam;
         _target = h.Target;
-       
-        if (_fieldNodes is not null)
-        {
-            try
-            {
+
+        if (_fieldNodes is not null) {
+            try {
                 var obj = JsonNode.Parse(string.IsNullOrWhiteSpace(h.FieldsJson) ? "{}" : h.FieldsJson) as JsonObject;
                 if (obj is not null) FieldTreeBuilder.Apply(_fieldNodes, obj);
             }
-            catch { /* malformed saved body; leave the freshly-seeded tree */ }
+            catch {
+                /* malformed saved body; leave the freshly-seeded tree */
+            }
         }
+
         ApplyEnvLock();
         _listMode = "endpoints";
     }
 
-    async Task DeleteHistory(string id) => _history = await InvokeOr("deleteHistory", _history, id);
-    async Task ClearHistory() => _history = await InvokeOr("clearHistory", new List<InspectorHistoryEntry>());
+    async Task DeleteHistory(string id) {
+        _history = await InvokeOr("deleteHistory", _history, id);
+    }
 
-    async Task ToggleHistoryEnabled(ChangeEventArgs e)
-    {
+    async Task ClearHistory() {
+        _history = await InvokeOr("clearHistory", new List<InspectorHistoryEntry>());
+    }
+
+    async Task ToggleHistoryEnabled(ChangeEventArgs e) {
         _historyEnabled = e.Value is bool b && b;
         await InvokeVoid("setHistoryEnabled", _historyEnabled);
     }
 
-    async Task SendCore()
-    {
+    async Task SendCore() {
         var e = _selected;
         if (_lastBuild is null || e is null) return;
         _resultTab = 1;
 
-        if (_target == "custom")
-        {
+        if (_target == "custom") {
             await SendCustom(e);
             return;
         }
 
         var basis = _target == "mock"
             ? _baseAddress
-            : (e.Path.StartsWith("ei_ctx") || e.Path.StartsWith("ei_srv")
+            : e.Path.StartsWith("ei_ctx") || e.Path.StartsWith("ei_srv")
                 ? "https://ctx-dot-auxbrainhome.appspot.com"
-                : "https://www.auxbrain.com");
+                : "https://www.auxbrain.com";
 
         var url = $"{basis}/{e.Path}";
-        if (e.PathParam)
-        {
+        if (e.PathParam) {
             var param = _pathParam.Trim();
-            if (string.IsNullOrEmpty(param))
-            {
+            if (string.IsNullOrEmpty(param)) {
                 _response = new SendResponse(null, null, null, null,
                     "URL path parameter is required for this endpoint",
                     "Enter the EID (or other path value) in the field above the Build button.");
                 return;
             }
+
             url += "/" + Uri.EscapeDataString(param);
         }
 
         await RememberEnteredEids();
-        try
-        {
+        try {
             var res = await Client().PostAsJsonAsync("/api/inspector/send",
-                new { url, formBody = _lastBuild.FinalFormBody, responseType = e.Response,
-                      responseWrapped = e.ResponseWrapped,
-                      @sealed = _target == "real" && _sealed }, JsonOpts);
+                new {
+                    url, formBody = _lastBuild.FinalFormBody, responseType = e.Response,
+                    responseWrapped = e.ResponseWrapped,
+                    @sealed = _target == "real" && _sealed
+                }, JsonOpts);
             _response = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
             await MaybeDiagnose();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _response = new SendResponse(null, null, null, null, "send failed: " + ex.Message, null);
         }
     }
 
-   
-   
-    async Task MaybeDiagnose()
-    {
+
+    async Task MaybeDiagnose() {
         _diagnosis = null;
         if (_response?.Error is null || string.IsNullOrEmpty(_response.RawBase64)) return;
-        try
-        {
+        try {
             var res = await Client().PostAsJsonAsync("/api/tools/diagnose",
                 new { Base64 = _response.RawBase64, RootType = _selected?.Response }, JsonOpts);
             _diagnosis = await res.Content.ReadFromJsonAsync<DiagnoseDto>(JsonOpts);
             _resultTab = 2;
         }
-        catch { /* leave _diagnosis null; the Response tab still shows the error */ }
+        catch {
+            /* leave _diagnosis null; the Response tab still shows the error */
+        }
     }
 
-   
-   
-    async Task SendCustom(RouteInfo e)
-    {
-        if (string.IsNullOrEmpty(_customTarget))
-        {
+
+    async Task SendCustom(RouteInfo e) {
+        if (string.IsNullOrEmpty(_customTarget)) {
             _response = new SendResponse(null, null, null, null,
                 "no custom proxy URL set", "Set your Custom proxy URL above first.");
             return;
         }
+
         var proxyUrl = _customTarget.TrimEnd('/') + "/" + e.Path;
-        if (e.PathParam)
-        {
+        if (e.PathParam) {
             var param = _pathParam.Trim();
-            if (string.IsNullOrEmpty(param))
-            {
+            if (string.IsNullOrEmpty(param)) {
                 _response = new SendResponse(null, null, null, null,
                     "URL path parameter is required", "Enter the EID above Build.");
                 return;
             }
+
             proxyUrl += "/" + Uri.EscapeDataString(param);
         }
+
         await RememberEnteredEids();
 
-        if (_store is null)
-        {
+        if (_store is null) {
             _response = new SendResponse(null, null, null, null,
                 "custom send needs the browser interop", "Reload the page and try again.");
             return;
         }
+
         string raw;
-        try
-        {
+        try {
             raw = await _store.InvokeAsync<string>("postForm", proxyUrl, _lastBuild!.FinalFormBody);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _response = new SendResponse(null, null, null, null,
                 $"direct request to your proxy failed: {ex.Message}",
                 "Your proxy must be reachable from this browser and allow this origin (CORS).");
             return;
         }
-        try
-        {
+
+        try {
             var res = await Client().PostAsJsonAsync("/api/inspector/decode-response",
                 new { rawBase64 = raw, responseType = e.Response, responseWrapped = e.ResponseWrapped }, JsonOpts);
             var dec = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
             _response = new SendResponse(200, raw, dec?.Stages, dec?.Json, dec?.Error, null);
             await MaybeDiagnose();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _response = new SendResponse(null, null, null, null, "decode failed: " + ex.Message, null);
         }
     }
 
-    async Task RememberEnteredEids()
-    {
+    async Task RememberEnteredEids() {
         var candidates = new List<string?> { _pathParam };
         candidates.AddRange(_envRows.Select(r => r.Value));
         var present = candidates.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToArray();
         if (present.Length == 0) return;
-       
+
         _recentEids = await InvokeOr("rememberEids", _recentEids, new object?[] { present });
     }
 
-    async Task ForgetEids()
-    {
+    async Task ForgetEids() {
         _recentEids = await InvokeOr("forgetEids", Array.Empty<string>());
         _pathParam = "";
     }
 
-    void PrefillEid(Action<string> set)
-    {
+    void PrefillEid(Action<string> set) {
         var last = _recentEids.FirstOrDefault();
         if (!string.IsNullOrEmpty(last)) set(last);
     }
 
-    async Task SaveToDb()
-    {
+    async Task SaveToDb() {
         var e = _selected;
-        if (e is null || _response?.Json is null)
-        {
+        if (e is null || _response?.Json is null) {
             _saveOut = "Build + send a request first.";
             return;
         }
+
         _saveOut = "Saving...";
-        try
-        {
+        try {
             using var doc = JsonDocument.Parse(_response.Json);
-            var res = await Client().PostAsJsonAsync("/api/db/endpoint", new
-            {
+            var res = await Client().PostAsJsonAsync("/api/db/endpoint", new {
                 path = e.Path,
                 eid = string.IsNullOrWhiteSpace(_pathParam) ? null : _pathParam,
                 responseJson = doc.RootElement,
-                responseType = e.Response,
+                responseType = e.Response
             }, JsonOpts);
-            if (res.IsSuccessStatusCode)
-            {
+            if (res.IsSuccessStatusCode) {
                 _saveOut = $"Saved {e.Path}{(string.IsNullOrWhiteSpace(_pathParam) ? "" : $" ({_pathParam})")} to the shared DB.";
                 return;
             }
-            _saveOut = res.StatusCode == System.Net.HttpStatusCode.Forbidden
+
+            _saveOut = res.StatusCode == HttpStatusCode.Forbidden
                 ? "Not authorized to write to the shared DB."
                 : $"Save failed: HTTP {(int)res.StatusCode}";
         }
-        catch (Exception ex) { _saveOut = $"Request failed: {ex.Message}"; }
+        catch (Exception ex) {
+            _saveOut = $"Request failed: {ex.Message}";
+        }
     }
 
-   
-    HttpClient Client()
-    {
+
+    HttpClient Client() {
         var c = HttpFactory.CreateClient();
         if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
         if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
         return c;
     }
 
-   
-   
-    sealed class RinfoDefaults
-    {
+
+    sealed class RinfoDefaults {
         public string EiUserId { get; set; } = "";
         public int ClientVersion { get; set; } = 72;
         public string Version { get; set; } = "1.35.7";
@@ -1100,22 +1083,22 @@
         public bool Debug { get; set; }
     }
 
-   
-   
-   
-   
-    static readonly string[] PlatformOptions = typeof(Ei.Platform).GetFields()
+
+    static readonly string[] PlatformOptions = typeof(Platform).GetFields()
         .Where(f => f.IsLiteral)
-        .Select(f => f.GetCustomAttribute<Google.Protobuf.Reflection.OriginalNameAttribute>()?.Name ?? f.Name)
+        .Select(f => f.GetCustomAttribute<OriginalNameAttribute>()?.Name ?? f.Name)
         .ToArray();
 
     record StatusResult(List<string> Ok, List<string> Empty, List<string> Missing);
 
-    public async ValueTask DisposeAsync()
-    {
-        if (_store is not null)
-        {
-            try { await _store.DisposeAsync(); } catch { }
+    public async ValueTask DisposeAsync() {
+        if (_store is not null) {
+            try {
+                await _store.DisposeAsync();
+            }
+            catch {
+            }
         }
     }
+
 }

@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.Devices;
@@ -9,7 +8,8 @@ namespace EggIncognito.Services;
 
 
 public sealed class GameBinaryProvider(
-    IServiceProvider services, IConfiguration config, ILogger<GameBinaryProvider> logger) {
+    IServiceProvider services, IConfiguration config, Devices.IDeviceConnectionFactory connections,
+    ILogger<GameBinaryProvider> logger) {
     private const string BundleId = "com.auxbrain.egginc";
     private static readonly Lock LiveGate = new();
     private static (string Sha, byte[] Bytes, IReadOnlyList<MachoSymbols.Symbol> Syms, bool Grafted, DateTimeOffset Pulled)? _liveCache;
@@ -41,8 +41,7 @@ public sealed class GameBinaryProvider(
         if (!config.GetValue("Decomp:LiveDevicePull", false))
             return (false, null, null, false, "live device pull disabled (set Decomp:LiveDevicePull=true)");
 
-        var cfg = DeviceCaptureConfig.Bind(config);
-        if (string.IsNullOrEmpty(cfg.IosSshHost) || string.IsNullOrEmpty(cfg.IosSshKeyPath))
+        if (connections.Ios() is not { } conn)
             return (false, null, null, false, "ios ssh not configured (DeviceCapture:Ios:SshHost + SshKeyPath)");
 
         int ttlSeconds = config.GetValue("Decomp:LiveCacheSeconds", 900);
@@ -51,9 +50,7 @@ public sealed class GameBinaryProvider(
                 return (true, c.Bytes, c.Syms, c.Grafted, $"cached live pull (sha {c.Sha[..12]})");
         }
 
-        if (services.GetService(typeof(IProcessRunner)) is not IProcessRunner runner) return (false, null, null, false, "no process runner");
-
-        var puller = new IosBinaryPuller(runner, cfg.IosSshHost!, cfg.IosSshPort, cfg.IosSshKeyPath!);
+        var puller = new IosBinaryPuller(conn);
         byte[]? pulled;
         try { pulled = await puller.PullBinaryAsync(BundleId, ct); } catch (Exception ex) { return (false, null, null, false, "pull failed: " + ex.Message); }
         if (pulled is null || pulled.Length < 1024) return (false, null, null, false, "pull returned no binary");

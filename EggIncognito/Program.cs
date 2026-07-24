@@ -442,6 +442,8 @@ if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
 
 var deviceCaptureConfig = EggIncognito.Services.Devices.DeviceCaptureConfig.Bind(builder.Configuration);
 builder.Services.AddSingleton(deviceCaptureConfig);
+builder.Services.AddSingleton<EggIncognito.Services.Devices.IDeviceConnectionFactory,
+    EggIncognito.Services.Devices.DeviceConnectionFactory>();
 builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceProxyConfigurator,
     EggIncognito.Core.Services.Devices.AdbProxyConfigurator>();
 builder.Services.AddSingleton<EggIncognito.Core.Services.Devices.IDeviceProxyConfigurator>(sp =>

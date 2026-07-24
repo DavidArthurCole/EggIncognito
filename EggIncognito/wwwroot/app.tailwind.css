@@ -1,14 +1,7 @@
-/* Tailwind input file (compiled to wwwroot/tailwind.css by the build). NOT served directly.
-   This is the SINGLE source of the app's component vocabulary: every styled class the tabs' markup
-   and JS emit is defined ONCE here (via @apply + the token utilities), replacing the deleted per-tab
-   styles.css sheets. Tokens live in tailwind.config.js. Phase 3 unified Inspector + Capture onto this
-   layer; .btn-primary is orange (accent) everywhere, .btn-info is the secondary-orange (accent) variant. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Tailwind preflight is off (additive over the legacy look), so restore the global border-box the old
-   per-tab sheets set. Without it, w-full inputs with padding + border overflow their container. */
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
   body {
@@ -19,10 +12,6 @@
 }
 
 @layer components {
-  /* Surfaces */
-  /* Card chrome shared by every panel (Inspector left/builder/pipeline, Capture stats/flows/detail,
-     Import card). The SPA panels are flex columns that clip overflow; Import's one-off card overrides
-     padding with a `p-5` utility in its markup. */
   .panel {
     @apply border rounded-lg p-3 flex flex-col overflow-hidden;
     border-color: #40404b;
@@ -69,8 +58,6 @@
     @apply font-mono text-xs bg-bg border border-border rounded p-2 overflow-x-auto m-0 text-fg whitespace-pre-wrap [word-break:break-all];
   }
 
-  /* Buttons */
-  /* Primary action = orange (accent). Canonical across all tabs (Phase 2 + 3). */
   .btn-primary {
     @apply inline-block bg-accent text-bg border-0 rounded-md px-[1.4rem] py-2 font-semibold text-sm
            cursor-pointer no-underline;
@@ -78,7 +65,6 @@
   .btn-primary:disabled { @apply cursor-not-allowed; opacity: 0.4; }
   .btn-primary:hover:not(:disabled) { filter: brightness(1.07); box-shadow: 0 3px 12px -3px rgba(239, 117, 89, .45); }
 
-  /* Neutral outlined secondary. */
   .btn-secondary {
     @apply bg-panel2 text-fg border border-border rounded-md px-4 py-[0.45rem] font-semibold cursor-pointer;
   }
@@ -91,7 +77,6 @@
   .btn-info:disabled { @apply cursor-not-allowed; opacity: 0.4; }
   .btn-info:hover:not(:disabled) { filter: brightness(1.07); }
 
-  /* Compact button (toolbars, menu actions). */
   .btn-mini {
     @apply inline-flex items-center gap-1 h-7 box-border bg-panel2 border border-border text-fg
            rounded px-2.5 text-xs cursor-pointer leading-none;
@@ -101,23 +86,16 @@
   .btn-mini:disabled:hover { @apply border-border; }
   .btn-mini .icon, .btn-mini .icon-sm { @apply inline-block; }
 
-  /* Danger variant (Capture clear-list confirm). */
   .btn-danger { @apply border-err text-err; }
   .btn-danger:hover { @apply bg-err text-bg border-err; }
 
-  /* Right-aligned toolbar cluster in the nav. Pairs with .app-nav-tools (nav.css). */
   .toolbar { @apply ml-auto inline-flex items-center gap-1.5; }
 
-  /* Hosted-capture setup instructions: collapsible (auto-closed once a device connects), with iOS
-     vs Android as two side-by-side branches rather than a misleading numbered sequence. */
-  /* Hosted setup card: coordinates row + a single steps list (platform CA notes folded in, stacked). */
   .setup-coords { @apply flex flex-wrap items-center gap-x-4 gap-y-1; }
   .setup-coord { @apply flex items-center gap-1.5; }
   .setup-list { @apply text-muted text-sm leading-relaxed pl-5 mt-1 mb-0 list-decimal flex flex-col gap-1.5; }
   .setup-sublist { @apply list-disc pl-5 mt-1 flex flex-col gap-1; }
 
-  /* Icon-only square button. .active = accent ring (Inspector list reload, Capture pause/filter).
-     box-border + a fixed line-height keep <a> and <button> variants the same computed height. */
   .icon-btn {
     @apply bg-panel2 border border-border rounded text-fg cursor-pointer w-8 h-[30px] box-border
            inline-flex items-center justify-center p-0 no-underline text-[15px];
@@ -126,7 +104,6 @@
   .icon-btn:hover:not(:disabled) { @apply border-accent; }
   .icon-btn:disabled { @apply cursor-not-allowed opacity-40; }
   .icon-btn.active { @apply border-accent text-accent; }
-  /* Capture toggle: green play (start), red pause (stop). The icon inherits currentColor. */
   .icon-btn.capture-start { @apply border-ok text-ok; }
   .icon-btn.capture-start:hover { @apply border-ok; }
   .icon-btn.capture-stop { @apply border-err text-err; }
@@ -137,7 +114,6 @@
   .icon { @apply block w-4 h-4 flex-none; }
   .icon-sm { @apply w-3.5 h-3.5; }
 
-  /* Sign-status pill button (Inspector). */
   .badge {
     @apply text-xs px-2 py-0.5 rounded border border-border bg-transparent cursor-pointer
            leading-[1.4];
@@ -146,14 +122,11 @@
   .badge.unsigned { @apply text-err border-err; }
   .badge:hover { filter: brightness(1.15); }
 
-  /* underline-link button (Inspector "forget" eids). */
   .forget-eids {
     @apply bg-transparent border-0 text-accent cursor-pointer text-[11px] underline p-0 ml-1.5;
   }
   .forget-eids:hover { @apply text-fg; }
 
-  /* Status pills / badges */
-  /* Capture session pill (LIVE / PAUSED / STOPPED). */
   .pill {
     @apply inline-block text-xs font-semibold tracking-[0.05em] px-2.5 py-0.5 rounded-[12px]
            border border-border;
@@ -164,13 +137,11 @@
   .cert-untrusted { @apply text-err; }
   .cert-waiting { @apply text-muted; }
 
-  /* HTTP status badge (Capture flow rows). */
   .status-badge { @apply font-mono text-[11px] font-semibold px-1.5 py-px rounded border border-border; }
   .status-2xx { @apply text-ok border-ok; }
   .status-3xx { @apply text-info border-info; }
   .status-4xx, .status-5xx { @apply text-err border-err; }
 
-  /* Outcome tag (Capture compare-to-known). Semitransparent fills use arbitrary rgba. */
   .outcome-tag {
     @apply flex-none font-mono text-[10px] font-semibold leading-none px-1.5 py-0.5 rounded-[3px]
            border border-border lowercase;
@@ -188,7 +159,6 @@
   .outcome-text.outcome-bad { @apply text-err; }
   .outcome-text.outcome-same { @apply text-muted; }
 
-  /* OS badge + ack/tag pills (Capture devices). */
   .device-os {
     @apply text-[10px] font-bold uppercase tracking-[0.03em] px-[7px] py-px rounded-pill border;
     border-color: currentColor;
@@ -201,8 +171,6 @@
            px-[7px] py-px;
   }
 
-  /* Perk status chips (/support perks + home capability tags). self-start + w-fit stop the chip
-     stretching to the panel width: .panel is a flex column, so unsized children fill the cross axis. */
   .perk-chip {
     @apply inline-block self-start w-fit text-[10px] font-semibold leading-none uppercase
            tracking-[0.05em] rounded-pill px-2 py-1 align-middle;
@@ -211,11 +179,7 @@
   .perk-chip-soon { @apply bg-amber-900/60 text-amber-300; }
   .perk-chip-dev { @apply bg-sky-900/60 text-sky-300; }
 
-  /* A whole .panel used as an anchor (home feature grid). Preflight is off, so without this the
-     browser default link styling (underline + visited purple) paints the card's text content. */
 
-  /* /support page. Flat panels, outlined pills, mono chips, same vocabulary as the rest of
-     the app. No gradients, no filled color blobs, no brand dots. */
   .support-title { @apply text-[1.4rem] font-semibold leading-tight text-fg m-0 mb-2; }
   .support-lede { @apply text-sm text-muted leading-relaxed max-w-[64ch] m-0 mb-8; }
 
@@ -224,8 +188,6 @@
     @apply text-[13px] font-semibold uppercase tracking-[0.05em] text-muted mt-0 mb-3;
   }
 
-  /* Perk cards: 2-up grid of flat panels, status via an outlined pill. The live perk gets a left
-     accent border so it reads first, no fills. */
   .perk-list { @apply grid gap-2 sm:grid-cols-2; }
   .perk {
     @apply border border-border bg-panel rounded-lg px-4 py-3;
@@ -235,8 +197,6 @@
   .perk-name { @apply text-sm font-semibold text-fg m-0; }
   .perk-desc { @apply text-xs text-muted leading-snug m-0 mt-1; }
 
-  /* Rail cards: plain panels matching the home feature grid, accent border on hover. The platform
-     name carries identity, no colored dots. */
   .rail-grid { @apply grid gap-3 sm:grid-cols-3; }
   .rail {
     @apply flex flex-col border border-border bg-panel rounded-lg p-4 no-underline text-fg
@@ -248,7 +208,6 @@
   .rail-note { @apply text-xs text-muted leading-snug m-0 mb-3 flex-1; }
   .rail-go { @apply text-xs font-semibold text-accent; }
 
-  /* Connect row: one flat panel, supporter state shown via the .pill outline. */
   .connect-card {
     @apply flex items-center justify-between gap-4 flex-wrap border border-border bg-panel rounded-lg p-4;
   }
@@ -261,25 +220,19 @@
   .connect-prompt { @apply text-sm text-muted m-0; }
   .connect-hint { @apply text-xs text-muted mt-2 mb-0; }
 
-  /* FAQ: 2-up grid of flat panels. */
   .faq-list { @apply grid gap-2 sm:grid-cols-2; }
   .faq-item { @apply border border-border bg-panel rounded-lg px-4 py-3; }
   .faq-q { @apply font-semibold text-sm text-fg mb-1; }
   .faq-a { @apply text-xs text-muted leading-snug m-0; }
 
-  /* Legal links under the supporter content. */
   .support-legal-note { @apply text-xs text-muted leading-relaxed m-0 mt-2; }
 
-  /* Code / data boxes */
-  /* Inline mono code chip (Phase 2 + Inspector doc code). */
   .code-chip {
     @apply bg-bg border border-border rounded px-[0.3rem] py-[0.05rem] font-mono;
     font-size: 0.85em;
   }
-  /* Device status: single mono line "version | build N | client N" - no boxed chips, muted separators. */
   .dev-verline { @apply font-mono text-fg whitespace-nowrap; }
   .dev-versep { @apply text-muted opacity-50 mx-1; }
-  /* Device status: orange "NEW" pill (installed version can populate a registry row) + icon button. */
   .dev-badge-new {
     @apply inline-flex items-center rounded px-1.5 py-0.5 text-[0.65rem] font-bold tracking-wide uppercase whitespace-nowrap;
     background: var(--accent);
@@ -290,29 +243,24 @@
   }
   .btn-ghost-sm:hover:not(:disabled) { @apply text-fg; background: var(--bg); }
   .btn-ghost-sm:disabled { @apply cursor-not-allowed opacity-40; }
-  /* Pre-wrapped mono result box that hides when empty (Phase 2 Import result). */
   .result-pre {
     @apply bg-bg border border-border rounded-md px-4 py-3 font-mono text-xs text-fg whitespace-pre-wrap;
     min-height: 1.5rem;
   }
   .result-pre:empty { display: none; }
-  /* JSON pre block. */
   .json, pre.json {
     @apply font-mono text-xs bg-bg border border-border rounded p-2 pb-4 whitespace-pre-wrap
            [word-break:break-word] max-h-[360px] overflow-auto m-0;
   }
-  /* Plain text / base64 pre. */
   pre.data-text {
     @apply font-mono text-xs bg-bg border border-border rounded p-2 pb-4 whitespace-pre overflow-auto
            max-h-[360px] m-0;
   }
-  /* Image response preview: render the actual image instead of a hex dump. */
   .image-preview {
     @apply border border-border rounded bg-bg p-2 overflow-auto max-h-[480px] flex justify-center;
   }
   .image-preview img { @apply max-w-full h-auto object-contain; image-rendering: pixelated; }
   .image-meta { @apply text-xs mt-1; }
-  /* Raw envelope bytes. */
   .bytes, .raw-box {
     @apply font-mono text-[11px] bg-bg border border-border rounded p-1.5 [word-break:break-all]
            max-h-[120px] overflow-auto text-muted;
@@ -320,7 +268,6 @@
   .bytes-label { @apply text-muted text-[10px] uppercase mt-1 mb-0.5; }
   .no-json { @apply text-muted text-xs mb-1.5; }
   .empty-box { @apply border border-dashed border-border rounded-md bg-panel2 text-muted text-xs px-3 py-5 text-center; }
-  /* Boxed data wrapper with an inner toolbar. */
   .data-box { @apply border border-border rounded bg-bg; }
   .data-box .data-tools { @apply p-1.5 border-b border-border flex-wrap; }
   .data-box pre.data-text { @apply border-0 rounded-none bg-transparent; }
@@ -329,10 +276,8 @@
   .headers-box { @apply border border-border rounded-md bg-panel2 px-3 py-2 mb-3 grid gap-x-3 gap-y-1 text-xs; grid-template-columns: auto 1fr; }
   .h-name { @apply text-muted font-mono whitespace-nowrap; }
   .h-val { @apply text-fg font-mono [word-break:break-all] min-w-0; }
-  /* Plain content wrapper around a data view (Capture FormatView). Children carry their own chrome. */
   .data-body { @apply block; }
 
-  /* Data toolbar (request/response views) */
   .data-tools { @apply flex items-stretch gap-1.5; }
   .data-tools > * { @apply h-7 box-border; }
   .data-format { @apply bg-panel2 border border-border rounded text-fg text-xs px-2 cursor-pointer; }
@@ -340,8 +285,6 @@
   .data-format:focus, .data-filter:focus { @apply outline-none border-accent; }
   .data-copy { @apply inline-flex items-center gap-1 px-2.5; }
 
-  /* Segmented toggles */
-  /* Send-target toggle + left list switch (Inspector); redaction seg (Capture). */
   .target-toggle { @apply inline-flex border border-border rounded-lg overflow-hidden; }
   .target-opt { @apply bg-panel2 text-muted border-0 px-[0.9rem] py-[0.4rem] cursor-pointer text-[13px]; }
   .target-opt.active { @apply bg-accent text-bg font-semibold; }
@@ -355,7 +298,6 @@
   .seg-btn:hover { @apply text-fg; }
   .seg-btn.active { @apply bg-accent text-bg font-semibold; }
 
-  /* Popover system (settings / export / clear / notif menus) */
   .settings-wrap { @apply relative inline-flex; }
   .settings-menu {
     @apply absolute right-0 z-[1100] w-[240px] bg-panel0 border border-border rounded-md p-3
@@ -388,62 +330,9 @@
   }
   .confirm-menu { @apply w-[240px]; }
   .confirm-actions { @apply flex justify-end gap-2 mt-2.5; }
-  /* Capture controls is a narrow left-column .panel (overflow-hidden), which clipped its own popovers off
-     the left edge of the screen. Let the popovers escape the panel, and open them rightward (left-0) so the
-     240px menu drops into the page instead of off-screen. */
-  /* Styled file picker: the raw InputFile renders an unstyled UA button, so hide it and style the label. */
   .file-btn { @apply inline-flex items-center gap-2 cursor-pointer text-xs border border-border rounded-md bg-bg px-2 py-1 hover:border-accent/60; }
   .file-btn input[type="file"] { @apply hidden; }
 
-  /* API console. Endpoint rows are <button>s, so reset the UA light background explicitly to the app dark
-     palette; group headers per namespace; method chips colored by verb. The list scrolls inside its panel;
-     reserve a stable gutter + right padding so the scrollbar never overlaps the rows. */
-  .console-list { scrollbar-gutter: stable; @apply pr-2; }
-  .console-group-title { @apply text-[11px] font-semibold uppercase tracking-[0.06em] text-muted mt-3 mb-1 px-1; }
-  .console-ep {
-    @apply flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-md border border-border bg-bg
-           text-fg text-xs cursor-pointer transition-colors;
-  }
-  .console-ep:hover { @apply border-accent/60 bg-panel2; }
-  .console-ep.active { @apply border-accent bg-panel2; }
-  .console-route { @apply font-mono truncate text-fg; }
-  .console-method { @apply font-mono text-[10px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 w-[52px] text-center; }
-  .console-get { @apply bg-emerald-500/15 text-emerald-300 border border-emerald-500/30; }
-  .console-post { @apply bg-orange-500/15 text-orange-300 border border-orange-500/30; }
-  .console-put, .console-patch { @apply bg-sky-500/15 text-sky-300 border border-sky-500/30; }
-  .console-delete { @apply bg-red-500/15 text-red-300 border border-red-500/30; }
-  /* 3D playground canvas: fills its panel, fixed aspect-ish height, dark scene backdrop. */
-  .canvas-wrap { @apply w-full rounded-md overflow-hidden bg-bg; height: min(80vh, 820px); }
-  .canvas-wrap canvas { @apply w-full h-full block; }
-  .canvas-error-overlay { @apply absolute inset-0 flex items-center justify-center p-6; background: rgba(0,0,0,0.55); }
-  .canvas-error-box { @apply panel max-w-[420px] text-center border border-red-500/40; }
-  .capture-controls { @apply flex flex-wrap items-center gap-2 overflow-visible; }
-  .capture-controls .settings-menu { @apply left-0 right-auto; transform-origin: top left; }
-  .capture-controls .settings-menu.open::before { left: 12px; right: auto; }
-  .settings-title { @apply text-[13px] font-semibold text-fg mb-1; }
-  .settings-title .muted { @apply normal-case tracking-normal font-normal; }
-  .settings-hint { @apply text-xs leading-snug mb-2.5; color: var(--muted); opacity: .95; }
-  .settings-divider { @apply border-0 border-t border-border my-3.5; }
-  .settings-group { @apply border border-border rounded-md p-2 bg-bg flex flex-col gap-1.5; }
-  .settings-menu .set-row { @apply flex items-center justify-between gap-2 text-xs text-muted; }
-  .settings-menu .set-row input, .settings-menu .set-row select {
-    @apply w-[140px] bg-panel2 text-fg border border-border rounded px-1.5 py-[3px] text-xs;
-  }
-  .settings-input { @apply w-full box-border bg-bg text-fg border border-border rounded px-1.5 py-1 text-xs; }
-  .settings-save { @apply w-full; }
-  .settings-select { @apply w-full h-7 mt-0.5; }
-  .settings-check { @apply flex items-center gap-2 text-[13px] text-fg cursor-pointer; }
-  .settings-check input { @apply cursor-pointer; }
-  /* Dark-mode all checkboxes + radios inside panels (browser-default white box/circle otherwise).
-     accent-color only themes the CHECKED fill; the unchecked control stays white. Reset appearance + draw
-     our own dark control so BOTH states match the UI. Covers Notifications (subscribe), Inspector
-     env/raw/debug, settings checks, etc. */
-  .panel input[type="checkbox"], .panel input[type="radio"] {
-    @apply w-4 h-4 align-middle shrink-0 cursor-pointer relative bg-panel2;
-    -webkit-appearance: none;
-    appearance: none;
-    border: 1.5px solid #6b6b78; /* bright enough to read against the dark panel; border token is too dim */
-  }
   .panel input[type="checkbox"] { @apply rounded-sm; }
   .panel input[type="radio"] { @apply rounded-full; }
   .panel input[type="checkbox"]:hover, .panel input[type="radio"]:hover { @apply border-accent; }
@@ -466,7 +355,6 @@
   .export-item { @apply block px-2 py-[7px] rounded text-fg no-underline text-[13px]; }
   .export-item:hover { @apply bg-panel text-accent; }
 
-  /* Modal */
   .modal-overlay { @apply fixed inset-0 flex items-center justify-center z-[100]; background: rgba(0,0,0,.6); }
   .modal-overlay.hidden { display: none; }
   .modal { @apply bg-panel border border-border rounded-[10px] p-6 max-w-[460px]; }
@@ -474,7 +362,6 @@
   .modal p { @apply text-muted leading-normal m-0 mb-5; }
   .modal-actions { @apply flex justify-end gap-2.5 mt-4; }
 
-  /* Toasts (Capture) */
   .toast-container { @apply fixed right-0 flex flex-col gap-2.5 z-[1000] pointer-events-none; top: calc(theme(spacing.nav) + 10px); }
   .toast {
     @apply pointer-events-auto min-w-[240px] max-w-[360px] bg-panel2 border border-border px-3.5 py-2.5 cursor-pointer;
@@ -493,8 +380,6 @@
   .toast-certTrusted .toast-msg { @apply text-ok; }
   .toast-decryptError .toast-msg { @apply text-err; }
   .toast-info { @apply border-l-info; }
-  /* Legal pages (/terms, /privacy): readable long-form prose in the flat aesthetic. The disclaimer
-     box is the one bordered call-out; everything else is plain muted prose with clear headings. */
   .legal-title { @apply text-[1.4rem] font-semibold leading-tight text-fg m-0 mb-1; }
   .legal-updated { @apply text-xs text-muted m-0 mb-6; }
   .legal-disclaimer {
@@ -509,7 +394,6 @@
   .legal-link { @apply text-accent no-underline; }
   .legal-link:hover { @apply underline; }
 
-  /* Floating GitHub link, fixed in the lower-right on every shell page. */
   .gh-bubble {
     @apply fixed bottom-4 right-4 z-[900] w-11 h-11 inline-flex items-center justify-center
            rounded-full bg-panel2 border border-border text-muted no-underline;
@@ -519,7 +403,6 @@
   .gh-bubble:hover { @apply text-fg border-accent; transform: translateY(-2px); }
   .gh-bubble svg { @apply w-6 h-6; }
 
-  /* Support bubble: a second float above the GitHub one; hover reveals a compact card. */
   .support-bubble-wrap { @apply fixed right-4 bottom-[4.5rem] z-[900]; }
   .support-bubble {
     @apply w-11 h-11 inline-flex items-center justify-center rounded-full bg-panel2 border border-border
@@ -535,8 +418,6 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
     transition: opacity .12s, transform .12s, visibility .12s;
   }
-  /* Invisible hover bridge spanning the gap between the bubble and the pop, so moving the cursor left
-     into the card never crosses dead space (which would drop the hover and close it). */
   .support-pop::after {
     content: "";
     @apply absolute top-0 bottom-0 left-full w-3;
@@ -552,10 +433,8 @@
   }
   .support-pop-more { @apply text-xs text-accent no-underline hover:underline; }
 
-  /* Homepage About/legal footer (folded in from /about). */
   .home-footer { @apply mt-12 pt-6 border-t border-border; }
 
-  /* Import dropzone */
   .dropzone {
     @apply flex flex-col items-center justify-center gap-2 px-4 py-8 text-center cursor-pointer
            rounded-lg bg-bg text-muted;
@@ -565,73 +444,34 @@
   .dropzone:hover { @apply text-fg; border-color: theme(colors.accent); }
   .dropzone.dragging { @apply text-fg; border-color: theme(colors.accent); background: rgba(239, 117, 89, .06); }
 
-  /* Inspector: layout */
-  /* Note: `main` layout for the 3-pane Inspector is set inline on the shell's <main>. */
   #endpointFilter { @apply w-full mb-2 px-2 py-1.5 bg-panel2 border border-border rounded text-fg; }
   #endpointFilter:focus { @apply outline-none border-accent; }
-  /* The left-list scroll regions: reserve the scrollbar gutter + pad right so the bar never overlaps the
-     row text (the "scrollbar over text" bug). */
-  #endpoints, #objects, #history { @apply overflow-auto pr-2; scrollbar-gutter: stable; }
-  /* Right padding so field inputs do not touch the panel's right edge (the scrollbar gutter sits in
-     this space). */
   #builder, #pipeline { @apply overflow-auto pr-3; }
   .panel-head, .resp-head { @apply flex items-center justify-between gap-2; }
   .panel-head { @apply mb-2.5; }
   .panel-head h2, .resp-head h2 { @apply mb-0; }
   .resp-head { @apply my-3; }
 
-  /* Inspector: field tree */
-  /* Inspector layout: on phones the three panes stack and the page scrolls; on >=lg they are the
-     270px endpoint list + two equal columns filling the viewport, each pane scrolling on its own.
-     Inline grid styles cannot do media queries, so this lives here. */
-  .inspector-main { @apply grid-cols-1; }
-  .capture-body { @apply grid grid-cols-1 flex-1 min-h-0; }
-  .capture-topbar { @apply relative z-30 flex flex-row flex-wrap items-center gap-x-5 gap-y-3 overflow-visible; }
-  .capture-topbar-btns { @apply flex items-center gap-1.5; }
-  .capture-topbar-spacer { @apply flex-1 min-w-[1rem]; }
-  .capture-device { @apply flex flex-col leading-tight; }
-  .capture-device-tag { @apply text-[10px] uppercase tracking-wide text-accent font-semibold; }
-  .capture-device-name { @apply text-sm font-medium truncate max-w-[16rem]; }
-  @media (min-width: 1024px) {
-    .inspector-main {
-      grid-template-columns: 270px 1fr 1fr;
-      height: calc(100vh - var(--nav-h, 48px) - 2.75rem);
-    }
-    .capture-main { height: calc(100vh - var(--nav-h, 48px)); }
-    .capture-body { grid-template-columns: 2fr 3fr; }
-    .inspector-main > .panel, .capture-body > .panel { min-height: 0; overflow: auto; }
-    /* The result pane manages its own scrolling via the sub-tab body; keep the panel itself clipped. */
-    .inspector-main > .panel.insp-result { overflow: hidden; }
-  }
-  .fields { @apply flex flex-col gap-1; }
-  /* The editable body field tree: cap to a readable column width instead of stretching full-width, and
-     indent it slightly so it reads as nested under "Body". */
   .fields-body { @apply max-w-[34rem] ml-1; }
   .no-fields-note {
     @apply text-sm text-muted bg-panel2 border border-border rounded-md px-3 py-2 max-w-[34rem];
   }
-  /* Dark-mode the inline body/env checkboxes (browser-default white box otherwise). */
   .raw-toggle input[type="checkbox"], .insp-result input[type="checkbox"] {
     @apply w-4 h-4 align-middle; accent-color: var(--accent);
   }
-  /* Live API sub-options (routing choice + sealed toggle) shown only in Live API mode. */
   .live-suboptions { @apply mt-2 flex flex-col gap-2 border-t border-border pt-2; }
   .live-route { @apply flex items-center gap-1.5 flex-wrap; }
-  /* Request history list rows. */
   .hist-toolbar { @apply flex items-center gap-2 px-1 py-1; }
   .hist-empty { @apply text-xs text-muted px-2 py-3 leading-relaxed; }
   .hist-row { @apply flex items-center gap-2; }
   .hist-path { @apply min-w-0 truncate flex-1; }
   .hist-meta { @apply text-[10px] text-muted shrink-0; }
   .hist-del { @apply shrink-0 text-muted hover:text-fg; }
-  /* Endpoint docs tab: request/response type links. */
   .doc-types { @apply flex flex-col gap-1 mb-3; }
   .doc-type-row { @apply flex items-center gap-2; }
   .doc-type-link { @apply text-accent text-xs no-underline hover:underline cursor-pointer bg-transparent border-0 p-0; }
-  /* Environment section: a bordered box (no longer collapsible) grouping the BasicRequestInfo overrides. */
   .env-box { @apply border border-border rounded-md bg-panel2 p-2 my-2; }
   .env-box-title { @apply font-semibold text-xs text-fg mb-2; }
-  /* Three intentional row-groups; each field is sized to its data, not stretched to a grid cell. */
   .env-rowgroup { @apply flex flex-wrap items-end gap-x-3 gap-y-1.5 mb-1.5; }
   .env-rowgroup:last-child { @apply mb-0; }
   .env-cell { @apply flex flex-col gap-0.5 min-w-0; }
@@ -655,7 +495,6 @@
     @apply bg-panel2 border border-border rounded text-fg px-1.5 py-1 font-mono text-xs w-full;
   }
   .field-row input:focus, .field-row select:focus { @apply outline-none border-accent; }
-  /* Base text input (Notifications webhook, subscribe edit, etc). Was unstyled = browser-white. */
   .field-input {
     @apply bg-panel2 border border-border rounded-md text-fg px-2 py-1.5 text-sm w-full;
   }
@@ -669,7 +508,6 @@
   .path-param-row label { @apply text-xs text-muted flex items-center gap-2; }
   .path-param-row input { @apply bg-bg border border-border rounded px-1.5 py-1 font-mono text-xs; color: inherit; }
 
-  /* Inspector: transform stages */
   .stage { @apply border border-border rounded-md mb-2 overflow-hidden; }
   .stage.skipped { @apply opacity-55; }
   .stage-head { @apply flex items-center gap-2 px-2.5 py-1.5 bg-panel2 cursor-pointer; }
@@ -683,7 +521,6 @@
   .stage-desc { @apply text-muted mb-1.5; }
   .stage-note { @apply text-accent text-[11px] mb-1.5; }
 
-  /* Inspector: response / errors / misc */
   .resp-status { @apply font-mono mb-2; }
   .resp-status.ok { @apply text-ok; }
   .resp-status.bad { @apply text-err; }
@@ -706,7 +543,6 @@
   .raw-toggle { @apply text-xs text-muted cursor-pointer; }
   .muted { @apply text-muted; }
 
-  /* Inspector: endpoint list */
   .ep-group { @apply mb-2; }
   .ep-group > .ep-ns { @apply text-accent text-[11px] lowercase flex items-center gap-1.5 cursor-pointer select-none; margin: 6px 0 2px; }
   .ep-caret { @apply inline-block w-0 h-0; border: 4px solid transparent; border-left-color: currentColor; transition: transform .1s; }
@@ -715,11 +551,9 @@
   .ep { @apply px-2 py-1 rounded cursor-pointer font-mono text-xs flex items-center gap-1.5; }
   .ep:hover { @apply bg-panel2; }
   .ep.active { @apply bg-accent text-bg; }
-  /* Name truncates so a long route plus the signed badge never overflow the fixed-width list. */
   .ep .ep-name { @apply min-w-0 truncate; }
   .ep .wrap-flag { @apply flex-none text-accent text-[9px] uppercase tracking-[0.04em] border border-accent rounded-[3px] px-[3px]; }
 
-  /* Inspector: objects / docs / tags / markdown */
   #objects .obj-row { @apply flex items-center gap-1.5; }
   .obj-name { @apply font-mono text-xs min-w-0 overflow-hidden text-ellipsis whitespace-nowrap; }
   .obj-flag { @apply text-ok text-[9px] uppercase tracking-[0.04em] border border-ok rounded-[3px] px-[3px]; }
@@ -755,23 +589,11 @@
   .doc-usedby-role { @apply text-[10px] text-muted uppercase tracking-[0.04em]; }
   .md-editor { @apply border border-border rounded-md overflow-hidden mt-2 max-w-full; }
   .md-toolbar { @apply flex items-center gap-1 p-1.5 bg-panel2 border-b border-border flex-wrap; }
-  /* All toolbar buttons share one height + centered content, so B / link / upload line up uniformly
-     (single-char ones get min-width; multi-char ones just grow wider but keep the same height). */
-  .md-tb-btn {
-    @apply inline-flex items-center justify-center h-7 box-border min-w-[28px] px-2
-           bg-bg text-fg border border-border rounded cursor-pointer text-xs leading-none;
-  }
-  .md-tb-btn:hover { @apply border-accent; }
-  .md-toolbar .btn-primary { @apply h-7 box-border inline-flex items-center px-3 py-0 text-xs; }
-  /* Source + preview side by side on wide editors; stack on narrow ones (e.g. the Inspector Objects
-     pane). Both panes are a fixed height with their own scroll, so the editor never grows unbounded. */
-  /* Source textarea full-width (matches the toolbar above), preview stacked below in a dotted container. */
   .md-source {
     @apply block w-full box-border border-0 h-[240px] max-h-[50vh] p-2 bg-bg text-fg font-mono text-xs overflow-auto;
     resize: vertical; border-bottom: 1px solid theme(colors.border);
   }
   .md-source:focus { @apply outline-none; }
-  /* Preview container: the dotted "preview" look (same dashed border as the /protos dropzone). */
   .md-preview-wrap { @apply m-2 rounded-lg bg-bg; border: 1.5px dashed theme(colors.border); }
   .md-preview-label { @apply text-[10px] uppercase tracking-wide text-muted px-2 pt-1.5; }
   .md-preview { @apply p-2 overflow-auto text-[13px] leading-relaxed min-h-[80px] max-h-[40vh]; }
@@ -787,7 +609,6 @@
   .tag-editor { @apply my-2 p-2.5 border border-border rounded-md bg-panel2; }
   .tag-editor-row { @apply flex items-center gap-1.5 text-[13px] py-0.5 cursor-pointer; }
 
-  /* Capture: stats panel */
   .stats-panel { @apply overflow-auto; }
   .stats-grid { @apply flex flex-col gap-3.5; }
   .capture-stats { @apply flex flex-wrap items-center gap-x-7 gap-y-1.5; }
@@ -812,7 +633,6 @@
   .stat-last-error, .stat-biggest { @apply font-mono whitespace-nowrap overflow-hidden text-ellipsis max-w-full; }
   .stat-last-error { @apply text-err opacity-85; }
 
-  /* Capture: device cards */
   .device-rows { @apply grid gap-x-2.5 gap-y-0.5 mt-1.5 text-[11px]; grid-template-columns: auto 1fr; }
   .device-rows dt { @apply text-muted; }
   .device-rows dd { @apply m-0 font-mono text-fg; }
@@ -826,7 +646,6 @@
   .device-ip { @apply font-mono text-xs font-semibold text-accent; }
   .device-host { @apply text-[11px] text-muted; }
 
-  /* Capture: flow list + rows */
   .flow-head { @apply flex items-center gap-3 mb-2; }
   .flow-head h2 { @apply m-0 flex-none; }
   .flow-filters { @apply flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1.5 bg-panel2 border border-border rounded-md flex-wrap; }
@@ -850,8 +669,6 @@
   .empty-state { @apply h-full flex flex-col items-center justify-center text-center text-muted text-[13px] px-6; }
   .empty-hint { @apply mt-2 text-xs text-muted opacity-80 max-w-prose mx-auto leading-relaxed; }
 
-  /* Wire-forensics (Inspector Diagnose tab): paste input, first-break summary, salvaged strings, and the
-     walked field tree with mismatch/broken nodes flagged. */
   .forensics { @apply flex flex-col gap-2; }
   .forensics-input { @apply flex flex-col gap-1.5; }
   .forensics-break { @apply text-xs; }
@@ -878,7 +695,6 @@
   .flow-row .fmethod { @apply font-mono text-[11px] text-accent min-w-[38px]; }
   .flow-row .fpath { @apply font-mono text-xs flex-1 overflow-hidden text-ellipsis whitespace-nowrap; }
 
-  /* Capture: detail pane */
   #detail { @apply overflow-auto flex-1 pr-3; scrollbar-gutter: stable; }
   .detail-head { @apply font-mono text-[13px] mb-3; }
   .detail-head .dpath { @apply text-accent; }
@@ -921,15 +737,11 @@
   #detailPanel .detail-pane pre.data-text { white-space: pre-wrap; overflow-wrap: anywhere; }
   .jtree-flat { @apply font-mono text-xs px-2 py-1.5; }
 
-  /* Inspector result pane: Pipeline/Response sub-tabs fill the panel; the panel itself does not scroll
-     (its overflow:auto is overridden) so the active tab body owns the only scrollbar. Without this the
-     whole column scrolled as one and the build-pipeline stages got crushed against the JSON tree. */
   .insp-result { @apply overflow-hidden; }
   .insp-tabs { @apply mt-0 flex flex-col min-h-0 flex-1; }
   .insp-tabs > .tab-bar { @apply shrink-0; }
   .insp-tab-body { @apply flex-1 min-h-0 overflow-auto pr-1; }
 
-  /* Capture: known-endpoint card + save bar */
   .known-card { @apply border rounded-md px-3.5 py-2.5 flex flex-col gap-1; border-color: theme(colors.ok); background: rgba(94,194,126,.08); }
   .known-card-title { @apply flex items-center gap-1.5 text-[13px] font-semibold text-ok mb-0.5; }
   .known-card-title::before { content: ""; @apply w-2 h-2 rounded-full bg-ok; }
@@ -947,7 +759,6 @@
   .param-label { @apply text-muted flex-none min-w-[76px]; }
   .param-val { @apply text-fg font-mono [word-break:break-word]; }
 
-  /* Capture: notifications */
   .notif-list { @apply max-h-[360px] overflow-y-auto flex flex-col gap-1.5; }
   .notif-empty { @apply text-muted text-xs; padding: 6px 2px; }
   .notif-item { @apply flex items-start gap-2 p-2 border border-border rounded bg-panel; border-left: 3px solid theme(colors.border); }
@@ -961,7 +772,6 @@
   .notif-dismiss { @apply flex-none bg-none border-0 text-muted cursor-pointer p-0.5 rounded-[3px] inline-flex; }
   .notif-dismiss:hover { @apply text-fg bg-panel2; }
 
-  /* Capture: JSON tree viewer */
   .jtree-viewer { @apply border border-border rounded bg-bg; }
   .jtree-tools { @apply flex items-center gap-1.5 p-1.5 border-b border-border flex-wrap; }
   .jtree-tools .data-format, .jtree-tools .data-copy { @apply h-7 box-border; }
@@ -995,16 +805,12 @@
   .jtree-searching .jtree-dim > .jtree-row { @apply opacity-35; }
   .jtree-match > .jtree-row { background: rgba(239,117,89,.08); }
 
-  /* Admin: sections are .panel cards; tables are element-scoped under #adminMain. */
   #adminMain h2 { @apply text-base mt-0 mb-3 text-fg font-semibold; }
   #adminMain .mono { @apply font-mono text-xs; }
   #adminMain table { @apply w-full border-collapse text-[13px]; }
-  /* On phones the wide tables (long Discord IDs / paths) would overflow the card; let them scroll
-     horizontally instead. display:block turns the table into its own scroll container. */
   @media (max-width: 640px) {
     #adminMain table { display: block; overflow-x: auto; white-space: nowrap; }
   }
-  /* Header row: muted, uppercase-ish, a stronger bottom rule. Body rows: subtle separators, last has none. */
   #adminMain thead th { @apply text-left px-2.5 py-1.5 text-muted text-xs font-semibold border-b border-border; }
   #adminMain tbody td { @apply text-left px-2.5 py-2 border-b border-border align-middle; }
   #adminMain tbody tr:last-child td { @apply border-b-0; }
@@ -1015,15 +821,11 @@
   #adminMain select:hover, #adminMain button:hover { @apply border-accent; }
   #adminMain button.danger { background: #5a2330; border-color: #7a3040; }
   #adminMain button.danger:hover { background: #6e2a3b; border-color: #9a3c4f; }
-  /* Denied state reuses .panel chrome; this just tints the message. */
   #adminMain #denied { color: #d88; }
   #adminMain #log {
     @apply bg-panel2 border border-border rounded-md p-2 whitespace-pre-wrap text-xs text-muted mt-2;
   }
 
-  /* Docs hub (/docs): registry tree + subject detail. Stacked on phones, side-by-side on >=md. On
-     mobile the tree is a capped scrollbox so the (long) proto list does not bury the detail below it;
-     on desktop the columns fill the viewport height and each scrolls independently. */
   .docs-grid { @apply min-h-0 md:h-[calc(100vh-8rem)]; }
   .docs-tree { @apply overflow-auto gap-3 max-h-[45vh] md:max-h-none md:min-h-0; }
   .docs-detail { @apply overflow-auto min-h-0; }
@@ -1050,8 +852,6 @@
            bg-transparent whitespace-nowrap;
   }
 
-  /* DocHelp (<DocHelp>): an inline info affordance + popover. The pop only renders when open (Blazor
-     conditional), so no closed-state rule is needed; it just needs positioning + panel chrome. */
   .dochelp { @apply relative inline-flex align-middle; }
   .dochelp-btn {
     @apply w-[16px] h-[16px] inline-flex items-center justify-center rounded-full bg-panel2
@@ -1069,9 +869,6 @@
   .dochelp-link { @apply inline-block mt-2 text-accent text-xs no-underline; }
   .dochelp-link:hover { @apply text-fg; }
 
-  /* Markdown render output (<Markdown> wraps MarkdownRenderer.Render in .md-body). The renderer emits
-     md-h1/2/3, md-code, md-rule, md-quote, md-list; .md-body is the canonical wrapper for the docs hub
-     doc + DocHelp pop. (.doc-body + .md-preview keep their own copies above for the legacy contexts.) */
   .md-body { @apply text-[13px] leading-relaxed; }
   .md-body .md-h1 { @apply text-lg; }
   .md-body .md-h2 { @apply text-base; }
@@ -1092,11 +889,9 @@
   .md-body img { @apply max-w-full border border-border rounded-md my-1.5; }
   .md-body hr.md-rule { @apply border-0 border-t border-border my-3; }
 
-  /* Markdown editor extras (toolbar spacer + save status line). */
   .md-editor-spacer { @apply ml-auto; }
   .md-editor-status { @apply px-2 py-1 text-xs text-muted border-t border-border; }
 
-  /* Proto registry (/protos): platform/download chips, version timeline, message inventory. */
   .btn-chip { @apply inline-flex items-center px-3 h-7 box-border text-xs bg-panel2 border border-border rounded-md text-fg no-underline; }
   .btn-chip:hover { filter: brightness(1.1); }
   .btn-chip.active { @apply border-accent text-fg; }
@@ -1107,8 +902,6 @@
   .proto-detected { @apply text-xs; }
   .proto-msg-list { @apply flex flex-wrap gap-1.5; }
 
-  /* Version-detail header: stacked label/value rows in a responsive grid. SHA spans full width so
-     the full hash stays readable and breakable. */
   .proto-meta { @apply grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-x-6 gap-y-2 my-3; }
   .proto-meta > div { @apply flex flex-col gap-0.5; }
   .proto-meta dt { @apply text-muted text-xs uppercase tracking-wide; }
@@ -1118,7 +911,6 @@
   .proto-sha-copy { @apply cursor-pointer font-mono text-[0.8rem] bg-bg text-fg [word-break:break-all] text-left max-w-full; }
   .proto-sha-copy:hover { @apply border-accent; }
 
-  /* Version-detail comparison summary + diff. */
   .proto-cmp-line { @apply text-sm text-fg mb-2; }
   .proto-cmp-add { @apply text-accent; }
   .proto-cmp-rem { @apply text-muted; }
@@ -1130,9 +922,6 @@
   .proto-diff .diff-rem { @apply text-muted; }
   .proto-diff .diff-hunk { @apply text-fg font-semibold; }
 
-  /* Proto registry redesign: toolbar segment + filter, the real registry table, the admin backfill
-     panel, the sources grid, and the subscribe confirmation. Flat: bordered rows, muted header, no
-     zebra, no gradients, no colored dots. */
   .protos-toolbar { @apply gap-2; }
   .protos-seg { @apply w-auto; }
   .protos-seg .seg-btn { @apply px-2.5 flex-none; }
@@ -1144,12 +933,6 @@
   .protos-toolbar .protos-trigger { @apply w-full justify-start mb-1; }
   .protos-toolbar .protos-trigger:last-child { @apply mb-0; }
 
-  /* Registry table. bg-panel so the table area reads as a distinct shade from the page background
-     behind its border (was transparent = blended into the page). */
-  .reg-wrap { @apply border border-border rounded-md overflow-x-auto bg-panel; }
-  .reg-table { @apply w-full border-collapse text-[13px]; }
-  /* The label header row is the darkest band (bg-bg), distinct from the filter row (bg-panel2) below it,
-     so the column labels read as labels, not clickable controls. */
   .reg-table thead tr:first-child th {
     @apply text-left px-3 py-2 text-muted text-xs font-semibold border-b border-border bg-panel0;
   }
@@ -1164,13 +947,11 @@
   .reg-version { @apply font-mono text-accent; }
   .reg-sha { @apply cursor-pointer bg-bg text-fg text-[0.8rem]; }
   .reg-sha:hover { @apply border-accent; }
-  /* Computed bad-data warning chip (e.g. an iOS row carrying an Android integer build). */
   .reg-badwarn { @apply inline-block rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide bg-red-500/15 text-red-400 self-start; }
   .reg-empty { @apply flex flex-col items-center justify-center text-center text-muted text-[13px] px-6 py-12 gap-1; }
   .reg-empty-hint { @apply text-xs opacity-80 max-w-prose leading-relaxed; }
   .reg-page-head { @apply flex items-baseline justify-between gap-3 flex-wrap; }
 
-  /* Admin backfill panel (below the table, admin only) */
   .admin-panel { @apply mt-6 border border-border rounded-md bg-panel p-4; }
   .admin-panel-head { @apply flex items-center justify-between gap-3 mb-3; }
   .admin-panel-sub { @apply mt-5; }
@@ -1190,7 +971,6 @@
   .pill.done { @apply text-ok border-ok; }
   .pill.failed { @apply text-err border-err; }
 
-  /* Known-versions table: compact, content-width, not full-bleed. */
   .known-wrap { @apply mt-2 border border-border rounded-md overflow-x-auto max-w-3xl; }
   .known-table { @apply w-auto; }
   .known-table thead th { @apply px-2 py-1.5 whitespace-nowrap; }
@@ -1198,15 +978,11 @@
   .known-table tbody td:last-child { @apply flex items-center gap-2; }
   .known-pill { @apply text-[0.7rem]; }
 
-  /* Sources attribution grid (legacy page) */
-  /* Subscribe confirmation (legacy page bits still referenced) */
   .sub-section { @apply mb-0; }
   .sub-confirm { @apply flex flex-col gap-2; }
   .sub-confirm-row { @apply flex items-center gap-3; }
   .sub-confirm-label { @apply text-muted text-sm min-w-[80px]; }
 
-  /* Registry per-column filter row (ServiceNow-style: a control under each header). The whole row reads
-     as one banded toolbar (darker bg, bottom border) so the inputs sit ON it, not sunk into the table. */
   .reg-filter-row th { @apply px-3 py-1.5 bg-panel2 border-b border-border align-middle; }
   .reg-filter-input {
     @apply w-full bg-bg text-fg border border-border rounded px-2 py-1 text-xs font-mono;
@@ -1217,9 +993,6 @@
     @apply w-6 h-6 grid place-items-center rounded text-muted hover:text-fg hover:bg-panel text-base leading-none;
   }
 
-  /* Pencil edit button: dark, bordered, themed (browser-default white button otherwise). */
-  /* Action buttons sit in rows whose hover bg is panel2; use the darker bg fill + a readable border so the
-     buttons stay distinct from the row-hover (they were enveloped by it at bg-panel2). */
   .reg-edit-btn {
     @apply w-7 h-7 grid place-items-center rounded-md bg-bg text-muted cursor-pointer no-underline;
     border: 1px solid #4d4d59;
@@ -1233,22 +1006,12 @@
   .reg-edit-btn.active { @apply text-accent border-accent; }
   .reg-edit-row > td { @apply bg-panel2 p-3; }
   .reg-actions { @apply flex items-center gap-1.5; }
-  /* Transient "copied" bubble (SHA copy on the version detail page). */
   .copy-toast {
     @apply fixed left-1/2 bottom-6 z-[1000] -translate-x-1/2 px-3 py-2 rounded-md bg-panel2 border border-border
            text-fg text-sm;
     box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
   }
 
-  /* Dark-mode every checkbox in the registry table. accent-color only themes the CHECKED fill; the
-     unchecked box stays browser-white. Reset appearance + draw our own dark box so it matches the UI in
-     both states. */
-  .reg-table input[type="checkbox"] {
-    @apply w-4 h-4 align-middle cursor-pointer shrink-0 rounded-sm bg-bg relative;
-    -webkit-appearance: none;
-    appearance: none;
-    border: 1.5px solid #6b6b78; /* readable against both the row + row-hover backgrounds */
-  }
   .reg-table input[type="checkbox"]:hover { @apply border-accent; }
   .reg-table input[type="checkbox"]:checked { @apply bg-accent border-accent; }
   .reg-table input[type="checkbox"]:checked::after {
@@ -1257,7 +1020,6 @@
     transform: rotate(45deg);
   }
 
-  /* Admin metrics chart (hand-rolled inline SVG). */
   .metric-chart { @apply w-full h-20 block; }
   .metric-bar-total { fill: theme(colors.accent); opacity: 0.55; }
   .metric-bar-limited { fill: var(--err); }
@@ -1266,37 +1028,29 @@
   .metric-swatch { @apply inline-block w-2.5 h-2.5 rounded-sm; }
   .metric-swatch-total { background: theme(colors.accent); opacity: 0.55; }
   .metric-swatch-limited { background: var(--err); }
-  /* Admin user table reuses .reg-table; select sits inline. */
   .admin-users-table select { @apply w-auto; }
 
-  /* Admin two-column layout: narrow-ish left (bot config + users), fluid right (everything else). Single
-     column below lg. Panels inside each column keep their own .panel mb-4 stacking. */
   .admin-grid { @apply grid gap-4 items-start lg:grid-cols-2; }
   .admin-col-left, .admin-col-right { @apply min-w-0; }
 
-  /* API audit bucket summary tiles. */
   .audit-buckets { @apply grid grid-cols-3 gap-2; }
   .audit-bucket { @apply flex flex-col gap-0.5 rounded-md border border-border bg-panel2 px-3 py-2; }
   .audit-bucket-label { @apply text-xs text-muted; }
   .audit-bucket-val { @apply text-lg font-semibold text-fg font-mono; }
 
-  /* Session-kind chip. */
   .sess-kind { @apply inline-block rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide border; }
   .sess-kind-user { @apply text-accent border-accent; }
   .sess-kind-local { @apply text-muted border-border; }
   .sess-kind-device { @apply text-green-400 border-green-700; }
 
-  /* Hosted setup card: collapse + fade out once a device is connected (re-shows when stopped). */
   .setup-collapsible { @apply transition-all duration-300; }
   .setup-hidden { @apply opacity-0 max-h-0 overflow-hidden pointer-events-none p-0; }
 
-  /* Inline unread badge for the column notifications widget header. */
   .notif-badge-inline {
     @apply inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full
            bg-accent text-white text-[10px] font-semibold leading-none;
   }
 
-  /* Modal overlay (subscribe + any future /protos dialog). */
   .modal-backdrop {
     @apply fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 sm:p-8;
   }
@@ -1318,7 +1072,6 @@
     filter: brightness(0) invert(1);
   }
 
-  /* Subscribe panel (roomier than the old squished page). */
   .sub-section-head { @apply text-sm font-semibold text-fg; }
   .sub-form { @apply flex flex-col gap-4; }
   .sub-field { @apply flex flex-col gap-1; }
@@ -1330,7 +1083,6 @@
   .sub-done-icon { @apply text-ok shrink-0 mt-0.5; }
   .sub-manage { @apply mt-0; }
   .sub-login-note { @apply border border-border bg-panel2 rounded-md p-3; }
-  /* Subscription manager = a stacked card list (no wide table that clips out of the modal). */
   .sub-list { @apply flex flex-col gap-2; }
   .sub-item { @apply border border-border rounded-md bg-panel2 p-2.5 flex flex-col gap-1.5; }
   .sub-item-hook { @apply flex items-center gap-2 min-w-0; }
@@ -1338,7 +1090,6 @@
   .sub-item-edit { @apply flex flex-col gap-2; }
   .sub-item-actions { @apply flex flex-wrap gap-1.5; }
 
-  /* Playground compositor widgets: one card per source, a toggle, selectors, and live X/Y/Z offsets. */
   .widget-card { @apply panel p-3 flex flex-col gap-2; }
   .widget-head { @apply flex items-center justify-between; }
   .offset-row { @apply flex gap-2 mt-2; }
@@ -1352,7 +1103,6 @@
   .bg-picker input { @apply w-9 h-9 p-0 border border-border rounded-md bg-transparent cursor-pointer; }
   .bg-picker input:disabled { @apply opacity-40 cursor-not-allowed; }
 
-  /* Environment designer: collapsible labeled control sections + element list + picker. */
   .designer-section { @apply panel p-0 overflow-hidden; }
   .designer-section-head { @apply px-3 py-2 text-[12px] uppercase tracking-[0.05em] text-muted bg-panel2 border-b border-border; }
   .designer-section-body { @apply p-3; }

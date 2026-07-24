@@ -1,91 +1,79 @@
 @* The middle flow list: row construction (time, path, known dot, outcome tag, status badge, type
    chips), filters (group/path/type), select, and device-aware empty state. *@
 @using EggIncognito.Capture
-@using EggIncognito.Components.Capture
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
 <section id="flowsPanel" class="panel">
-  <div class="flow-head">
-    <h2>Requests</h2>
-    <div class="flow-filters">
-      <span class="flow-filters-label">Filters</span>
-      <select class="flow-filter-select" title="API group" value="@_group" @onchange="OnGroupChange">
-        <option value="">All groups</option>
-        <option value="ei">ei</option>
-        <option value="ei_afx">ei_afx</option>
-        <option value="ei_ctx">ei_ctx</option>
-        <option value="ei_data">ei_data</option>
-        <option value="ei_srv">ei_srv</option>
-      </select>
-      <div class="flow-combo">
-        <input class="flow-filter-input" type="search" placeholder="path..." autocomplete="off"
-               data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-               value="@_pathFilter" @oninput="OnPathInput"
-               @onfocus="@(() => _openCombo = "path")" @onblur="CloseCombo" />
-        @if (_openCombo == "path")
-        {
-          <div class="combo-menu">
-            @{ var pathOpts = PathOptions().ToList(); }
-            @if (pathOpts.Count == 0)
-            {
-              <div class="combo-empty">No matches</div>
-            }
-            @foreach (var p in pathOpts)
-            {
-              <button type="button" class="combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickPath(p))">@p</button>
-            }
-          </div>
-        }
-      </div>
-      <div class="flow-combo">
-        <input class="flow-filter-input" type="search" placeholder="request/response type..." autocomplete="off"
-               data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-               value="@_typeFilter" @oninput="OnTypeInput"
-               @onfocus="@(() => _openCombo = "type")" @onblur="CloseCombo" />
-        @if (_openCombo == "type")
-        {
-          <div class="combo-menu">
-            @{ var typeOpts = TypeOptions().ToList(); }
-            @if (typeOpts.Count == 0)
-            {
-              <div class="combo-empty">No matches</div>
-            }
-            @foreach (var t in typeOpts)
-            {
-              <button type="button" class="combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickType(t))">@t</button>
-            }
-          </div>
-        }
-      </div>
-      <button type="button" class="btn-mini" title="Reset all filters" @onclick="ClearFilters">Clear filters</button>
+    <div class="flow-head">
+        <h2>Requests</h2>
+        <div class="flow-filters">
+            <span class="flow-filters-label">Filters</span>
+            <select class="flow-filter-select" title="API group" value="@_group" @onchange="OnGroupChange">
+                <option value="">All groups</option>
+                <option value="ei">ei</option>
+                <option value="ei_afx">ei_afx</option>
+                <option value="ei_ctx">ei_ctx</option>
+                <option value="ei_data">ei_data</option>
+                <option value="ei_srv">ei_srv</option>
+            </select>
+            <div class="flow-combo">
+                <input class="flow-filter-input" type="search" placeholder="path..." autocomplete="off"
+                       data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                       value="@_pathFilter" @oninput="OnPathInput"
+                       @onfocus="@(() => _openCombo = "path")" @onblur="CloseCombo"/>
+                @if (_openCombo == "path") {
+                    <div class="combo-menu">
+                        @{ var pathOpts = PathOptions().ToList(); }
+                        @if (pathOpts.Count == 0) {
+                            <div class="combo-empty">No matches</div>
+                        }
+                        @foreach (var p in pathOpts) {
+                            <button type="button" class="combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickPath(p))">@p</button>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="flow-combo">
+                <input class="flow-filter-input" type="search" placeholder="request/response type..." autocomplete="off"
+                       data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                       value="@_typeFilter" @oninput="OnTypeInput"
+                       @onfocus="@(() => _openCombo = "type")" @onblur="CloseCombo"/>
+                @if (_openCombo == "type") {
+                    <div class="combo-menu">
+                        @{ var typeOpts = TypeOptions().ToList(); }
+                        @if (typeOpts.Count == 0) {
+                            <div class="combo-empty">No matches</div>
+                        }
+                        @foreach (var t in typeOpts) {
+                            <button type="button" class="combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickType(t))">@t</button>
+                        }
+                    </div>
+                }
+            </div>
+            <button type="button" class="btn-mini" title="Reset all filters" @onclick="ClearFilters">Clear filters</button>
+        </div>
     </div>
-  </div>
-  <div id="flowList" class="flow-list" @ref="_listRef">
-    @if (Flows.Count == 0)
-    {
-      <div class="empty-state">
-        @if (Connected)
-        {
-          @:No requests captured yet.
+    <div id="flowList" class="flow-list" @ref="_listRef">
+        @if (Flows.Count == 0) {
+            <div class="empty-state">
+                @if (Connected) {
+                    @:No requests captured yet.
+                } else {
+                    @:No device connected yet.
+                    <div class="empty-hint">
+                        Point the device's Wi-Fi proxy at this machine and install the CA cert.
+                        The device only registers once an app sends a request through the proxy - the Settings app
+                        alone usually sends nothing, so open a browser or Egg, Inc. to generate traffic.
+                    </div>
+                }
+            </div>
+        } else {
+            @foreach (var flow in Flows) {
+                @Row(flow)
+            }
         }
-        else
-        {
-          @:No device connected yet.
-          <div class="empty-hint">Point the device's Wi-Fi proxy at this machine and install the CA cert.
-            The device only registers once an app sends a request through the proxy - the Settings app
-            alone usually sends nothing, so open a browser or Egg, Inc. to generate traffic.</div>
-        }
-      </div>
-    }
-    else
-    {
-      @foreach (var flow in Flows)
-      {
-        @Row(flow)
-      }
-    }
-  </div>
+    </div>
 </section>
 
 @code {
@@ -104,145 +92,159 @@
     IJSObjectReference? _scroll;
     int _lastFlowCount;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            try { _scroll = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/scroll.js"); }
-            catch { /* JS unavailable (e.g. test prerender); auto-scroll is best-effort. */ }
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (firstRender) {
+            try {
+                _scroll = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/scroll.js");
+            }
+            catch {
+                /* JS unavailable (e.g. test prerender); auto-scroll is best-effort. */
+            }
         }
+
         var count = Flows.Count;
-        if (count > _lastFlowCount && View.AutoScroll && _scroll is not null)
-        {
-            try { await _scroll.InvokeVoidAsync("scrollToBottom", _listRef); } catch { }
+        if (count > _lastFlowCount && View.AutoScroll && _scroll is not null) {
+            try {
+                await _scroll.InvokeVoidAsync("scrollToBottom", _listRef);
+            }
+            catch {
+            }
         }
+
         _lastFlowCount = count;
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        if (_scroll is not null)
-        {
-            try { await _scroll.DisposeAsync(); } catch { }
+    public async ValueTask DisposeAsync() {
+        if (_scroll is not null) {
+            try {
+                await _scroll.DisposeAsync();
+            }
+            catch {
+            }
         }
     }
 
     void OnGroupChange(ChangeEventArgs e) => _group = e.Value?.ToString() ?? "";
     void OnPathInput(ChangeEventArgs e) => _pathFilter = (e.Value?.ToString() ?? "").Trim();
     void OnTypeInput(ChangeEventArgs e) => _typeFilter = (e.Value?.ToString() ?? "").Trim();
-    void ClearFilters() { _group = ""; _pathFilter = ""; _typeFilter = ""; }
+
+    void ClearFilters() {
+        _group = "";
+        _pathFilter = "";
+        _typeFilter = "";
+    }
 
     void CloseCombo() => _openCombo = null;
-    void PickPath(string p) { _pathFilter = p; _openCombo = null; }
-    void PickType(string t) { _typeFilter = t; _openCombo = null; }
 
-    IEnumerable<string> PathOptions()
-    {
+    void PickPath(string p) {
+        _pathFilter = p;
+        _openCombo = null;
+    }
+
+    void PickType(string t) {
+        _typeFilter = t;
+        _openCombo = null;
+    }
+
+    IEnumerable<string> PathOptions() {
         var seen = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var f in Flows) if (!string.IsNullOrEmpty(f.Path)) seen.Add(f.Path);
+        foreach (var f in Flows)
+            if (!string.IsNullOrEmpty(f.Path))
+                seen.Add(f.Path);
         var q = _pathFilter.ToLowerInvariant();
         return q.Length == 0 ? seen : seen.Where(p => p.ToLowerInvariant().Contains(q));
     }
 
-    IEnumerable<string> TypeOptions()
-    {
+    IEnumerable<string> TypeOptions() {
         var q = _typeFilter.ToLowerInvariant();
         return q.Length == 0 ? SeenTypes() : SeenTypes().Where(t => t.ToLowerInvariant().Contains(q));
     }
 
-    IEnumerable<string> SeenTypes()
-    {
+    IEnumerable<string> SeenTypes() {
         var set = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var f in Flows)
-        {
+        foreach (var f in Flows) {
             if (!string.IsNullOrEmpty(f.RequestType)) set.Add(f.RequestType);
             if (!string.IsNullOrEmpty(f.ResponseType)) set.Add(f.ResponseType);
         }
+
         return set;
     }
 
-    bool Matches(DashboardFlow flow)
-    {
+    bool Matches(DashboardFlow flow) {
         var path = (flow.Path ?? "").ToLowerInvariant();
         if (!string.IsNullOrEmpty(_group) && (flow.Path ?? "").Split('/')[0] != _group) return false;
         if (!string.IsNullOrEmpty(_pathFilter) && !path.Contains(_pathFilter.ToLowerInvariant())) return false;
-        if (!string.IsNullOrEmpty(_typeFilter))
-        {
+        if (!string.IsNullOrEmpty(_typeFilter)) {
             var t = ((flow.RequestType ?? "") + " " + (flow.ResponseType ?? "")).ToLowerInvariant();
             if (!t.Contains(_typeFilter.ToLowerInvariant())) return false;
         }
+
         return true;
     }
 
-    RenderFragment Row(DashboardFlow flow) =>@<div class="flow-row @(SelectedId == flow.Id ? "active" : "") @(Matches(flow) ? "" : "filtered-out")"
-         @onclick="@(() => OnSelect.InvokeAsync(flow.Id))">
-      <div class="frow-top">
-        @{
-          var noReqBody = string.IsNullOrEmpty(flow.RequestDataB64);
-          var outcome = View.CompareToKnown ? CaptureHelpers.Outcome(flow.Outcome) : null;
-        }
-        <span class="ftime">@flow.Timestamp</span>
-        <span class="fpath" title="@flow.Path">@flow.Path</span>
-        @if (flow.Known || flow.Saved)
-        {
-          <span class="known-dot" title="@KnownDotTitle(flow)"></span>
-        }
-        @if (outcome is not null)
-        {
-          @OutcomeTag(flow, outcome)
-        }
-        <span class="status-badge @CaptureHelpers.StatusClass(flow.Status)">@flow.Status</span>
-      </div>
-      <div class="frow-types">
-        <span class="type-chip @(flow.RequestType is null ? "unknown" : "")"
-              title="@(flow.RequestType ?? (noReqBody ? "no request body" : "unknown request type"))">
-          @(flow.RequestType ?? (noReqBody ? "(none)" : "(unknown)"))
-        </span>
-        <span class="type-arrow">›</span>
-        <span class="type-chip @(flow.ResponseType is null ? "unknown" : "")"
-              title="@(flow.ResponseType ?? "unknown response type")">
-          @(flow.ResponseType ?? "(unknown)")
-        </span>
-      </div>
-    </div>;
+    RenderFragment Row(DashboardFlow flow) => @<div class="flow-row @(SelectedId == flow.Id ? "active" : "") @(Matches(flow) ? "" : "filtered-out")"
+                                                    @onclick="@(() => OnSelect.InvokeAsync(flow.Id))">
+                                                  <div class="frow-top">
+                                                      @{
+                                                          var noReqBody = string.IsNullOrEmpty(flow.RequestDataB64);
+                                                          var outcome = View.CompareToKnown ? CaptureHelpers.Outcome(flow.Outcome) : null;
+                                                      }
+                                                      <span class="ftime">@flow.Timestamp</span>
+                                                      <span class="fpath" title="@flow.Path">@flow.Path</span>
+                                                      @if (flow.Known || flow.Saved) {
+                                                          <span class="known-dot" title="@KnownDotTitle(flow)"></span>
+                                                      }
+                                                      @if (outcome is not null) {
+                                                          @OutcomeTag(flow, outcome)
+                                                      }
+                                                      <span class="status-badge @CaptureHelpers.StatusClass(flow.Status)">@flow.Status</span>
+                                                  </div>
+                                                  <div class="frow-types">
+                                                      <span class="type-chip @(flow.RequestType is null ? "unknown" : "")"
+                                                            title="@(flow.RequestType ?? (noReqBody ? "no request body" : "unknown request type"))">
+                                                          @(flow.RequestType ?? (noReqBody ? "(none)" : "(unknown)"))
+                                                      </span>
+                                                      <span class="type-arrow">›</span>
+                                                      <span class="type-chip @(flow.ResponseType is null ? "unknown" : "")"
+                                                            title="@(flow.ResponseType ?? "unknown response type")">
+                                                          @(flow.ResponseType ?? "(unknown)")
+                                                      </span>
+                                                  </div>
+                                              </div>;
 
-    static string KnownDotTitle(DashboardFlow flow)
-    {
+    static string KnownDotTitle(DashboardFlow flow) {
         if (flow.Known)
             return "Known endpoint" + (flow.ResponseType is not null ? $" ({flow.ResponseType})" : "");
         return "Saved as endpoint";
     }
 
-   
-    RenderFragment OutcomeTag(DashboardFlow flow, CaptureHelpers.OutcomeMeta meta) => builder =>
-    {
+
+    RenderFragment OutcomeTag(DashboardFlow flow, CaptureHelpers.OutcomeMeta meta) => builder => {
         var seq = 0;
         var hasCounts = CaptureHelpers.HasDiffCounts(flow.Outcome, flow.DiffAdded, flow.DiffRemoved);
         builder.OpenElement(seq++, "span");
         builder.AddAttribute(seq++, "class", "outcome-tag outcome-" + meta.Kind + (hasCounts ? " outcome-diff-counts" : ""));
-        if (hasCounts)
-        {
+        if (hasCounts) {
             builder.AddAttribute(seq++, "title", $"endpoint: diff (+{flow.DiffAdded} -{flow.DiffRemoved})");
-            if (flow.DiffAdded > 0)
-            {
+            if (flow.DiffAdded > 0) {
                 builder.OpenElement(seq++, "span");
                 builder.AddAttribute(seq++, "class", "diff-add");
                 builder.AddContent(seq++, "+" + flow.DiffAdded);
                 builder.CloseElement();
             }
-            if (flow.DiffRemoved > 0)
-            {
+
+            if (flow.DiffRemoved > 0) {
                 builder.OpenElement(seq++, "span");
                 builder.AddAttribute(seq++, "class", "diff-del");
                 builder.AddContent(seq++, "-" + flow.DiffRemoved);
                 builder.CloseElement();
             }
-        }
-        else
-        {
+        } else {
             builder.AddAttribute(seq++, "title", "endpoint: " + meta.Label);
             builder.AddContent(seq++, meta.Label);
         }
+
         builder.CloseElement();
     };
+
 }

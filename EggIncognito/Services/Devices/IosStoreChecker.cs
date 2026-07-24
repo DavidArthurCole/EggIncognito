@@ -54,28 +54,8 @@ public sealed class IosStoreChecker(
 
         progress?.Invoke($"trigger fired; waiting for App Store to install (up to {pollAttempts * pollSeconds}s)…");
         try {
-            for (var attempt = 0; attempt < pollAttempts; attempt++) {
-                if (ct.IsCancellationRequested) break;
-                try { await Task.Delay(TimeSpan.FromSeconds(pollSeconds), ct); } catch (OperationCanceledException) { break; }
-
-                var now = await ReadInstalledAsync(device, ct);
-                var n = attempt + 1;
-                var elapsed = n * pollSeconds;
-                logger.LogInformation("device check-update: {Id} ios poll {N}/{Max} installed={Ver}",
-                    device.Id, n, pollAttempts, now ?? "?");
-                if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0) {
-                    progress?.Invoke($"App Store installed {now} (was {before})");
-                    logger.LogInformation("device check-update: {Id} ios climb {Before} -> {After}", device.Id, before, now);
-                    return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
-                }
-                progress?.Invoke($"waiting for App Store install… {elapsed}s elapsed (no change yet)");
-            }
-
-            var last = await ReadInstalledAsync(device, ct);
-            logger.LogInformation("device check-update: {Id} ios up_to_date installed={Ver} (no climb in {Max}x{Sec}s)",
-                device.Id, last ?? "?", pollAttempts, pollSeconds);
-            return new StoreCheckResult(true, before, last, false, false, "up_to_date",
-                $"no update applied in {pollAttempts * pollSeconds}s (already current, or App Store install still in flight)");
+            return await StorePoll.WaitForClimbAsync(device.Id, "ios", "App Store", before,
+                c => ReadInstalledAsync(device, c), pollSeconds, pollAttempts, logger, progress, ct);
         } finally {
             await SleepDeviceAsync(host!, port, key!, CancellationToken.None);
         }

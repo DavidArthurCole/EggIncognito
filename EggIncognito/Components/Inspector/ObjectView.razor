@@ -1,70 +1,63 @@
+@using System.Text.Json
 @* The Objects (Documentation) surface for a selected proto message type. Shows the rendered DB doc
    (reusing the shared <Markdown> + <MarkdownEditor> components from Phase 3), the subject's tags, and
    the endpoints that use the type as request/response (clicking one jumps the builder to it). Degrades
    to empty without a DB: the message list still renders (proto enumeration needs no DB), docs/tags come
    back empty. Mirrors wwwroot/inspector/docs.js. *@
-@using System.Net.Http.Json
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IRouteCatalog Catalog
 
-@if (string.IsNullOrEmpty(Name))
-{
-  <div class="empty-state">
-    No object selected.
-    <div class="empty-hint">Pick a proto message type from the list on the left to see its
-      documentation, its tags, and the endpoints that use it as a request or response. Objects are the
-      Egg, Inc. API's data shapes - the building blocks every request and response is made of.</div>
-  </div>
-}
-else
-{
-  <div class="doc-head">
-    <h2 class="doc-title">@Name</h2>
-    <span class="tag-chips">
-      @foreach (var t in _tags)
-      {
-        <span class="tag-chip" style="@TagStyle(t.Color)">@t.Label</span>
-      }
-    </span>
-  </div>
+@if (string.IsNullOrEmpty(Name)) {
+    <div class="empty-state">
+        No object selected.
+        <div class="empty-hint">
+            Pick a proto message type from the list on the left to see its
+            documentation, its tags, and the endpoints that use it as a request or response. Objects are the
+            Egg, Inc. API's data shapes - the building blocks every request and response is made of.
+        </div>
+    </div>
+} else {
+    <div class="doc-head">
+        <h2 class="doc-title">@Name</h2>
+        <span class="tag-chips">
+            @foreach (var t in _tags) {
+                <span class="tag-chip" style="@TagStyle(t.Color)">@t.Label</span>
+            }
+        </span>
+    </div>
 
-  <div class="doc-body">
-    @if (string.IsNullOrEmpty(_bodyMd))
-    {
-      <div class="muted">No documentation yet.</div>
-    }
-    else
-    {
-      <Markdown Body="@_bodyMd" />
-    }
-  </div>
-
-  <MarkdownEditor @key="@Name" Kind="message" Key="@Name" Initial="@_bodyMd" OnSaved="OnDocSaved" />
-
-  <div class="doc-usedby">
-    <div class="doc-section-title">Used by @(_using.Count) endpoint@(_using.Count == 1 ? "" : "s")</div>
-    @if (_using.Count > 0)
-    {
-      <div class="doc-usedby-list">
-        @foreach (var e in _using)
-        {
-          var role = e.Request == Name && e.Response == Name ? "req+resp"
-            : e.Request == Name ? "request" : "response";
-          <button type="button" class="doc-usedby-item" @onclick="() => OnSelectEndpoint.InvokeAsync(e)">
-            <span class="mono">@e.Path</span><span class="doc-usedby-role">@role</span>
-          </button>
+    <div class="doc-body">
+        @if (string.IsNullOrEmpty(_bodyMd)) {
+            <div class="muted">No documentation yet.</div>
+        } else {
+            <Markdown Body="@_bodyMd"/>
         }
-      </div>
-    }
-  </div>
+    </div>
+
+    <MarkdownEditor @key="@Name" Kind="message" Key="@Name" Initial="@_bodyMd" OnSaved="OnDocSaved"/>
+
+    <div class="doc-usedby">
+        <div class="doc-section-title">Used by @(_using.Count) endpoint@(_using.Count == 1 ? "" : "s")</div>
+        @if (_using.Count > 0) {
+            <div class="doc-usedby-list">
+                @foreach (var e in _using) {
+                    var role = e.Request == Name && e.Response == Name ? "req+resp"
+                        : e.Request == Name ? "request" : "response";
+                    <button type="button" class="doc-usedby-item" @onclick="() => OnSelectEndpoint.InvokeAsync(e)">
+                        <span class="mono">@e.Path</span><span class="doc-usedby-role">@role</span>
+                    </button>
+                }
+            </div>
+        }
+    </div>
 }
 
 @code {
     [Parameter] public string? Name { get; set; }
     [Parameter] public EventCallback<RouteInfo> OnSelectEndpoint { get; set; }
 
-    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     string? _bodyMd;
     List<TagRow> _tags = [];
@@ -74,18 +67,15 @@ else
     string _baseAddress = "";
     string? _cookie;
 
-    protected override void OnInitialized()
-    {
+    protected override void OnInitialized() {
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
     }
 
-    protected override async Task OnParametersSetAsync()
-    {
+    protected override async Task OnParametersSetAsync() {
         if (string.IsNullOrEmpty(Name) || Name == _loadedFor) return;
         _loadedFor = Name;
         _bodyMd = null;
@@ -95,44 +85,45 @@ else
         await LoadTags();
     }
 
-    HttpClient Client()
-    {
+    HttpClient Client() {
         var c = HttpFactory.CreateClient();
         if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
         if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
         return c;
     }
 
-    async Task LoadDoc()
-    {
-        try
-        {
+    async Task LoadDoc() {
+        try {
             var doc = await Client().GetFromJsonAsync<DocResult>(
                 $"/api/docs/doc/message/{Uri.EscapeDataString(Name!)}", JsonOpts);
             _bodyMd = doc?.BodyMd;
         }
-        catch { _bodyMd = null; }
+        catch {
+            _bodyMd = null;
+        }
     }
 
-    async Task LoadTags()
-    {
-        try
-        {
+    async Task LoadTags() {
+        try {
             _tags = await Client().GetFromJsonAsync<List<TagRow>>(
                 $"/api/docs/subject-tags/message/{Uri.EscapeDataString(Name!)}", JsonOpts) ?? [];
         }
-        catch { _tags = []; }
+        catch {
+            _tags = [];
+        }
     }
 
-    Task OnDocSaved(string body)
-    {
+    Task OnDocSaved(string body) {
         _bodyMd = string.IsNullOrWhiteSpace(body) ? null : body;
         return Task.CompletedTask;
     }
 
-    static string TagStyle(string? color) =>
-        string.IsNullOrEmpty(color) ? "" : $"border-color: {color}; color: {color};";
+    static string TagStyle(string? color) {
+        return string.IsNullOrEmpty(color) ? "" : $"border-color: {color}; color: {color};";
+    }
 
     record DocResult(string? BodyMd);
+
     record TagRow(long Id, string Slug, string Label, string? Color);
+
 }

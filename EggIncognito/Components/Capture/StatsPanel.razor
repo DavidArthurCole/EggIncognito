@@ -1,12 +1,18 @@
 @using EggIncognito.Capture
-@using EggIncognito.Components.Capture
-
 <div id="statsPanel" class="capture-stats">
-  <span class="pill @(Running ? "live" : "paused")">@StatusText</span>
-  <span class="cap-stat"><span class="cap-stat-k">Flows</span><span class="cap-stat-v">@(Stats?.CapturedAuxbrain ?? 0)</span></span>
-  <span class="cap-stat"><span class="cap-stat-k">Endpoints</span><span class="cap-stat-v">@(Stats?.UniqueEndpoints ?? 0)</span></span>
-  <span class="cap-stat"><span class="cap-stat-k">Bytes</span><span class="cap-stat-v">@CaptureHelpers.FormatBytes(Stats?.BytesCaptured ?? 0)</span></span>
-  <span class="cap-stat"><span class="cap-stat-k">Decrypt</span><span class="cap-stat-v"><span class="ok">@(Stats?.DecryptOk ?? 0)</span> ok / <span class="err">@(Stats?.DecryptErrors ?? 0)</span> err</span></span>
+    <span class="pill @(Running ? "live" : "paused")">@StatusText</span>
+    <span class="cap-stat">
+        <span class="cap-stat-k">Flows</span><span class="cap-stat-v">@(Stats?.CapturedAuxbrain ?? 0)</span>
+    </span>
+    <span class="cap-stat">
+        <span class="cap-stat-k">Endpoints</span><span class="cap-stat-v">@(Stats?.UniqueEndpoints ?? 0)</span>
+    </span>
+    <span class="cap-stat">
+        <span class="cap-stat-k">Bytes</span><span class="cap-stat-v">@CaptureHelpers.FormatBytes(Stats?.BytesCaptured ?? 0)</span>
+    </span>
+    <span class="cap-stat">
+        <span class="cap-stat-k">Decrypt</span><span class="cap-stat-v"><span class="ok">@(Stats?.DecryptOk ?? 0)</span> ok / <span class="err">@(Stats?.DecryptErrors ?? 0)</span> err</span>
+    </span>
 </div>
 
 @code {
@@ -15,5 +21,5 @@
     [Parameter] public bool Running { get; set; }
     [Parameter] public int Port { get; set; }
 
-    string StatusText => Running ? (Port > 0 ? $"RUNNING : {Port}" : "RUNNING") : "STOPPED";
+    string StatusText => Running ? Port > 0 ? $"RUNNING : {Port}" : "RUNNING" : "STOPPED";
 }

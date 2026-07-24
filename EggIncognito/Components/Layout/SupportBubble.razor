@@ -1,21 +1,22 @@
 @* Floating Support bubble (mirrors the GitHub bubble). Hover reveals a compact card with the support
    rails + a link to the full /support page. Pure CSS hover; no circuit needed, so it works on every
    page including static ones. *@
-@using EggIncognito.Components.Shared
 
 <div class="support-bubble-wrap">
-  <button type="button" class="support-bubble" title="Support the project" aria-label="Support the project">
-    <Icon Name="heart" />
-  </button>
-  <div class="support-pop" role="dialog" aria-label="Support">
-    <div class="support-pop-head">Support the project</div>
-    <p class="support-pop-lede">Covers server + cert costs and unlocks supporter perks (higher rate
-      limits, hosted Capture, sealed proxy).</p>
-    <div class="support-pop-rails">
-      <a class="support-pop-rail" href="https://github.com/sponsors/DavidArthurCole" target="_blank" rel="noopener">GitHub Sponsors</a>
-      <a class="support-pop-rail" href="https://www.patreon.com/c/DavidArthurCole" target="_blank" rel="noopener">Patreon</a>
-      <a class="support-pop-rail" href="https://buymeacoffee.com/davidarthurcole" target="_blank" rel="noopener">Buy Me a Coffee</a>
+    <button type="button" class="support-bubble" title="Support the project" aria-label="Support the project">
+        <Icon Name="heart"/>
+    </button>
+    <div class="support-pop" role="dialog" aria-label="Support">
+        <div class="support-pop-head">Support the project</div>
+        <p class="support-pop-lede">
+            Covers server + cert costs and unlocks supporter perks (higher rate
+            limits, hosted Capture, sealed proxy).
+        </p>
+        <div class="support-pop-rails">
+            <a class="support-pop-rail" href="https://github.com/sponsors/DavidArthurCole" target="_blank" rel="noopener">GitHub Sponsors</a>
+            <a class="support-pop-rail" href="https://www.patreon.com/c/DavidArthurCole" target="_blank" rel="noopener">Patreon</a>
+            <a class="support-pop-rail" href="https://buymeacoffee.com/davidarthurcole" target="_blank" rel="noopener">Buy Me a Coffee</a>
+        </div>
+        <a class="support-pop-more" href="/support">Details + claim your role →</a>
     </div>
-    <a class="support-pop-more" href="/support">Details + claim your role →</a>
-  </div>
 </div>

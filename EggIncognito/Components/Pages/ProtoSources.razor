@@ -3,6 +3,11 @@
 
 @* Sources is now a modal overlay on /protos (ProtoSourcesPanel). This legacy route redirects there so
    old bookmarks keep working. *@
+
 @code {
-    protected override void OnInitialized() => Nav.NavigateTo("/protos", replace: true);
+
+    protected override void OnInitialized() {
+        Nav.NavigateTo("/protos", replace: true);
+    }
+
 }

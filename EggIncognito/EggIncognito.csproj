@@ -20,6 +20,7 @@
     <ProjectReference Include="..\EggIncognito.GameData\EggIncognito.GameData.csproj" />
     <ProjectReference Include="..\EggIncognito.Capture\EggIncognito.Capture.csproj" />
     <ProjectReference Include="..\EggIncognito.Data\EggIncognito.Data.csproj" />
+    <ProjectReference Include="..\EggIncognito.DeviceTools\EggIncognito.DeviceTools.csproj" />
     <ProjectReference Include="..\EggIncognito.Bot\EggIncognito.Bot.csproj" />
     <ProjectReference Include="..\EggIncognito.RouteGenerator\EggIncognito.RouteGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
@@ -29,7 +30,7 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <TailwindDir>$(MSBuildProjectDirectory)/../tools/tailwind</TailwindDir>
+    <TailwindDir>$(MSBuildProjectDirectory)/obj/tailwind</TailwindDir>
     <TailwindVersion>v3.4.17</TailwindVersion>
     <TailwindIsWindows>$([MSBuild]::IsOSPlatform('Windows'))</TailwindIsWindows>
     <TailwindIsMac>$([MSBuild]::IsOSPlatform('OSX'))</TailwindIsMac>
@@ -45,7 +46,7 @@
     <TailwindUrl>https://github.com/tailwindlabs/tailwindcss/releases/download/$(TailwindVersion)/$(TailwindAsset)</TailwindUrl>
   </PropertyGroup>
   <Target Name="FetchTailwindCli"
-          Condition="'$(BuildTailwindCss)' != 'false' AND !Exists('$(TailwindExe)')">
+          Condition="'$(BuildTailwindCss)' == 'true' AND !Exists('$(TailwindExe)')">
     <MakeDir Directories="$(TailwindDir)" />
     <Message Importance="high" Text="Fetching standalone Tailwind CLI $(TailwindVersion) ($(TailwindAsset))..." />
     <Exec Condition="'$(TailwindIsWindows)' == 'true'"
@@ -54,7 +55,7 @@
           Command="curl -fsSL '$(TailwindUrl)' -o '$(TailwindExe)' &amp;&amp; chmod +x '$(TailwindExe)'" />
   </Target>
   <Target Name="BuildTailwind" BeforeTargets="ResolveStaticWebAssetsInputs;AssignTargetPaths;Compile" DependsOnTargets="FetchTailwindCli"
-          Condition="'$(BuildTailwindCss)' != 'false'">
+          Condition="'$(BuildTailwindCss)' == 'true'">
     <Exec Command="&quot;$(TailwindExe)&quot; -c &quot;$(MSBuildProjectDirectory)/tailwind.config.js&quot; -i &quot;$(MSBuildProjectDirectory)/wwwroot/app.tailwind.css&quot; -o &quot;$(MSBuildProjectDirectory)/wwwroot/tailwind.css&quot; --minify" />
   </Target>
 </Project>

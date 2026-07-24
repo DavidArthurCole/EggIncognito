@@ -1,80 +1,74 @@
 @page "/admin"
+@using System.Text.Json
+@using SyncKit.Bot.AdminUi
 @rendermode @(RenderMode.InteractiveServer)
 @inject ICurrentUser User
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
-@using System.Net.Http.Json
-@using System.Text.Json
-@using EggIncognito.Components.Shared
-@using SyncKit.Bot.AdminUi
 
 <PageTitle>EggIncognito - Admin</PageTitle>
 <main id="adminMain" class="px-8 pt-6 pb-8">
-  <h1 class="text-[1.3rem] mt-0 mb-4">Admin</h1>
-  @if (!_isAdmin)
-  {
-    <div class="panel" id="denied">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft" /></div>
-  }
-  else
-  {
-  <div class="admin-grid">
-    <div class="admin-col-left">
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Bot configuration</h2>
-      </div>
-      <MessageConfigEditor />
-    </section>
+    <h1 class="text-[1.3rem] mt-0 mb-4">Admin</h1>
+    @if (!_isAdmin) {
+        <div class="panel" id="denied">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft"/></div>
+    } else {
+        <div class="admin-grid">
+            <div class="admin-col-left">
+                <section class="panel mb-4">
+                    <div class="admin-panel-head">
+                        <h2 class="admin-panel-title">Bot configuration</h2>
+                    </div>
+                    <MessageConfigEditor/>
+                </section>
 
-    <section class="panel mb-4">
-      <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Users</h2>
-        <span class="text-muted text-xs">@_users.Count total</span>
-      </div>
-      <div class="reg-wrap">
-        <table class="reg-table admin-users-table">
-          <thead>
-            <tr><th>User</th><th>Discord ID</th><th>Role</th><th>Last login</th></tr>
-          </thead>
-          <tbody>
-            @foreach (var u in _users)
-            {
-              <tr>
-                <td class="font-medium">@u.Username</td>
-                <td class="mono text-muted text-xs">@u.DiscordId</td>
-                <td>
-                  <select class="reg-filter-input w-auto" value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
-                    @foreach (var role in Roles)
-                    {
-                      <option value="@role">@role</option>
-                    }
-                  </select>
-                </td>
-                <td class="text-muted text-xs">@u.LastLoginAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </section>
-    </div>
+                <section class="panel mb-4">
+                    <div class="admin-panel-head">
+                        <h2 class="admin-panel-title">Users</h2>
+                        <span class="text-muted text-xs">@_users.Count total</span>
+                    </div>
+                    <div class="reg-wrap">
+                        <table class="reg-table admin-users-table">
+                            <thead>
+                            <tr>
+                                <th>User</th><th>Discord ID</th><th>Role</th><th>Last login</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var u in _users) {
+                                <tr>
+                                    <td class="font-medium">@u.Username</td>
+                                    <td class="mono text-muted text-xs">@u.DiscordId</td>
+                                    <td>
+                                        <select class="reg-filter-input w-auto" value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
+                                            @foreach (var role in Roles) {
+                                                <option value="@role">@role</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td class="text-muted text-xs">@u.LastLoginAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
 
-    <div class="admin-col-right">
-    <TrafficPanel RefreshIntervalSeconds="5" />
+            <div class="admin-col-right">
+                <TrafficPanel RefreshIntervalSeconds="5"/>
 
-    <AdminSessionsPanel ClientFactory="Client" />
+                <AdminSessionsPanel ClientFactory="Client"/>
 
-    <AdminApiKeysPanel ClientFactory="Client" />
+                <AdminApiKeysPanel ClientFactory="Client"/>
 
-    <AdminConsolePanel ClientFactory="Client" />
+                <AdminConsolePanel ClientFactory="Client"/>
 
-    @if (!string.IsNullOrEmpty(_log))
-    {
-      <pre id="log" class="result-pre">@_log</pre>
+                @if (!string.IsNullOrEmpty(_log)) {
+                    <pre id="log" class="result-pre">@_log</pre>
+                }
+            </div>
+        </div>
     }
-    </div>
-  </div>
-  }
 </main>
 
 @code {
@@ -86,71 +80,72 @@
     List<UserRow> _users = [];
 
 
-
     string _baseAddress = "";
     string? _cookie;
 
-    protected override async Task OnInitializedAsync()
-    {
+    protected override async Task OnInitializedAsync() {
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
+
         if (!_isAdmin) return;
         await LoadUsers();
     }
 
 
-    HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
+    HttpClient Client() {
+        return SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
+    }
 
-    async Task LoadUsers()
-    {
-        try
-        {
+    async Task LoadUsers() {
+        try {
             var res = await Client().GetAsync("/api/admin/users");
             _users = res.IsSuccessStatusCode
                 ? await res.Content.ReadFromJsonAsync<List<UserRow>>(JsonOpts) ?? []
                 : [];
         }
-        catch (Exception ex) { _users = []; _log = $"load users failed: {ex.Message}"; }
+        catch (Exception ex) {
+            _users = [];
+            _log = $"load users failed: {ex.Message}";
+        }
     }
 
-    async Task SetRole(string discordId, string? role)
-    {
+    async Task SetRole(string discordId, string? role) {
         if (string.IsNullOrEmpty(role)) return;
-        try
-        {
+        try {
             var res = await Client().PostAsJsonAsync($"/api/admin/users/{discordId}/role", new { role });
-            if (res.IsSuccessStatusCode)
-            {
+            if (res.IsSuccessStatusCode) {
                 var d = await res.Content.ReadFromJsonAsync<SetRoleResult>(JsonOpts);
                 var i = _users.FindIndex(x => x.DiscordId == discordId);
                 if (i >= 0 && d is not null) _users[i] = _users[i] with { Role = d.Role };
                 _log = $"set {discordId} -> {d?.Role}";
-            }
-            else
-            {
+            } else {
                 var d = await ReadError(res);
                 _log = d ?? $"HTTP {(int)res.StatusCode}";
             }
         }
-        catch (Exception ex) { _log = ex.Message; }
+        catch (Exception ex) {
+            _log = ex.Message;
+        }
     }
 
-    static async Task<string?> ReadError(HttpResponseMessage res)
-    {
-        try
-        {
+    static async Task<string?> ReadError(HttpResponseMessage res) {
+        try {
             var d = await res.Content.ReadFromJsonAsync<ErrorResult>(JsonOpts);
             return d?.Error;
         }
-        catch { return null; }
+        catch {
+            return null;
+        }
     }
 
     record UserRow(string DiscordId, string Username, string Role, DateTimeOffset LastLoginAt);
+
     record SetRoleResult(string DiscordId, string Role);
+
     record ErrorResult(string Error);
+
 }

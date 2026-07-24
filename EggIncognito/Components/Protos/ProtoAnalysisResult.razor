@@ -3,85 +3,90 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
-@implements IAsyncDisposable
-@using System.Net.Http.Json
+@using System.Net
 @using System.Text.Json
+@implements IAsyncDisposable
 
-@if (Result is { Ok: true })
-{
-  <div class="panel">
-    <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-      <h2 class="text-[1.05rem] m-0">Analysis: <span class="font-mono text-fg">@Result.FileName</span></h2>
-      <span class="text-muted text-xs">@Result.Diagnostics</span>
-    </div>
-
-    <div class="flex gap-2 flex-wrap mb-3 text-xs">
-      <span class="code-chip">@(Result.Messages.Count) messages</span>
-      <button type="button" class="code-chip" title="@Result.ProtoSha" @onclick="@(() => Copy(Result.ProtoSha))">
-        sha @Short(Result.ProtoSha)
-      </button>
-    </div>
-
-    <div class="flex gap-2 flex-wrap mb-3">
-      <button type="button" class="btn-mini" @onclick="Download">Download .proto</button>
-      <button type="button" class="btn-mini" disabled="@_comparing" @onclick="CompareToLatest">
-        @(_comparing ? "Comparing..." : "Compare to latest")</button>
-      @if (CanWrite)
-      {
-        <button type="button" class="btn-mini" @onclick="@(() => _showSave = !_showSave)">Save to registry</button>
-      }
-      @if (_offerable || _offered)
-      {
-        <button type="button" class="btn-mini" disabled="@(_offerBusy || _offered)" @onclick="Offer">
-          @(_offered ? "Offered, pending review" : "Offer to registry")
-        </button>
-      }
-    </div>
-
-    @if (_compareMsg is not null)
-    {
-      <div class="panel mb-3 text-xs">
-        <div class="text-muted mb-1">@_compareMsg</div>
-        @if (_added.Count > 0)
-        {
-          <div class="mb-1"><span class="text-accent">+ added (@_added.Count):</span> <span class="font-mono">@string.Join(", ", _added)</span></div>
-        }
-        @if (_removed.Count > 0)
-        {
-          <div><span class="text-muted">- removed (@_removed.Count):</span> <span class="font-mono">@string.Join(", ", _removed)</span></div>
-        }
-        @if (_added.Count == 0 && _removed.Count == 0)
-        {
-          <div class="text-accent">No message-level differences vs latest.</div>
-        }
-      </div>
-    }
-
-    @if (_showSave && CanWrite)
-    {
-      <div class="panel mb-3">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-          <label class="text-xs text-muted">Platform
-            <select class="protos-filter w-full" @bind="_savePlatform">
-              <option value="ios">ios</option>
-              <option value="android">android</option>
-            </select></label>
-          <label class="text-xs text-muted">App version
-            <input class="protos-filter w-full" @bind="_saveAppVersion" placeholder="1.35.8" /></label>
-          <label class="text-xs text-muted">Build
-            <input class="protos-filter w-full" @bind="_saveBuild" placeholder="versionCode / build id" /></label>
-          <label class="text-xs text-muted">Client version
-            <input class="protos-filter w-full" @bind="_saveClientVersion" placeholder="optional" /></label>
+@if (Result is { Ok: true }) {
+    <div class="panel">
+        <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <h2 class="text-[1.05rem] m-0">Analysis: <span class="font-mono text-fg">@Result.FileName</span></h2>
+            <span class="text-muted text-xs">@Result.Diagnostics</span>
         </div>
-        <div class="flex items-center gap-2">
-          <button type="button" class="btn-primary" disabled="@_saving" @onclick="Save">@(_saving ? "Saving..." : "Save")</button>
-          <span class="text-xs @(_saveMsg.StartsWith("saved") ? "text-accent" : "text-muted")">@_saveMsg</span>
-        </div>
-      </div>
-    }
 
-    <pre class="result-pre max-h-[420px] overflow-auto">@Result.Proto</pre>
-  </div>
+        <div class="flex gap-2 flex-wrap mb-3 text-xs">
+            <span class="code-chip">@(Result.Messages.Count) messages</span>
+            <button type="button" class="code-chip" title="@Result.ProtoSha" @onclick="@(() => Copy(Result.ProtoSha))">
+                sha @Short(Result.ProtoSha)
+            </button>
+        </div>
+
+        <div class="flex gap-2 flex-wrap mb-3">
+            <button type="button" class="btn-mini" @onclick="Download">Download .proto</button>
+            <button type="button" class="btn-mini" disabled="@_comparing" @onclick="CompareToLatest">
+                @(_comparing ? "Comparing..." : "Compare to latest")
+            </button>
+            @if (CanWrite) {
+                <button type="button" class="btn-mini" @onclick="@(() => _showSave = !_showSave)">Save to registry</button>
+            }
+            @if (_offerable || _offered) {
+                <button type="button" class="btn-mini" disabled="@(_offerBusy || _offered)" @onclick="Offer">
+                    @(_offered ? "Offered, pending review" : "Offer to registry")
+                </button>
+            }
+        </div>
+
+        @if (_compareMsg is not null) {
+            <div class="panel mb-3 text-xs">
+                <div class="text-muted mb-1">@_compareMsg</div>
+                @if (_added.Count > 0) {
+                    <div class="mb-1">
+                        <span class="text-accent">+ added (@_added.Count):</span> <span class="font-mono">@string.Join(", ", _added)</span>
+                    </div>
+                }
+                @if (_removed.Count > 0) {
+                    <div>
+                        <span class="text-muted">- removed (@_removed.Count):</span> <span class="font-mono">@string.Join(", ", _removed)</span>
+                    </div>
+                }
+                @if (_added.Count == 0 && _removed.Count == 0) {
+                    <div class="text-accent">No message-level differences vs latest.</div>
+                }
+            </div>
+        }
+
+        @if (_showSave && CanWrite) {
+            <div class="panel mb-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                    <label class="text-xs text-muted">
+                        Platform
+                        <select class="protos-filter w-full" @bind="_savePlatform">
+                            <option value="ios">ios</option>
+                            <option value="android">android</option>
+                        </select>
+                    </label>
+                    <label class="text-xs text-muted">
+                        App version
+                        <input class="protos-filter w-full" @bind="_saveAppVersion" placeholder="1.35.8"/>
+                    </label>
+                    <label class="text-xs text-muted">
+                        Build
+                        <input class="protos-filter w-full" @bind="_saveBuild" placeholder="versionCode / build id"/>
+                    </label>
+                    <label class="text-xs text-muted">
+                        Client version
+                        <input class="protos-filter w-full" @bind="_saveClientVersion" placeholder="optional"/>
+                    </label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" class="btn-primary" disabled="@_saving" @onclick="Save">@(_saving ? "Saving..." : "Save")</button>
+                    <span class="text-xs @(_saveMsg.StartsWith("saved") ? "text-accent" : "text-muted")">@_saveMsg</span>
+                </div>
+            </div>
+        }
+
+        <pre class="result-pre max-h-[420px] overflow-auto">@Result.Proto</pre>
+    </div>
 }
 
 @code {
@@ -106,21 +111,16 @@
 
     ProtoDropZone.ExtractResult? _seededFor;
 
-    protected override void OnInitialized()
-    {
+    protected override void OnInitialized() {
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
     }
 
-   
-   
-   
-    protected override async Task OnParametersSetAsync()
-    {
+
+    protected override async Task OnParametersSetAsync() {
         if (Result is null || ReferenceEquals(Result, _seededFor)) return;
         _seededFor = Result;
         _savePlatform = (Result.FileName ?? "").EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? "android" : "ios";
@@ -133,31 +133,31 @@
         await CheckOfferable();
     }
 
-   
-   
+
     bool _offerable, _offered, _offerBusy;
 
-    async Task CheckOfferable()
-    {
-        if (Result?.ProtoSha is not { Length: > 0 } sha) { _offerable = false; return; }
-        try
-        {
+    async Task CheckOfferable() {
+        if (Result?.ProtoSha is not { Length: > 0 } sha) {
+            _offerable = false;
+            return;
+        }
+
+        try {
             var r = await Client().GetFromJsonAsync<CheckResp>(
                 $"/api/protos/staged/check?platform={_savePlatform}&appVersion={Uri.EscapeDataString(_saveAppVersion)}&protoSha={Uri.EscapeDataString(sha)}",
                 JsonOpts);
             _offerable = r is { InRegistry: false, Pending: false };
         }
-        catch { _offerable = false; }
+        catch {
+            _offerable = false;
+        }
     }
 
-    async Task Offer()
-    {
+    async Task Offer() {
         if (Result?.Proto is null || Result.ProtoSha is null) return;
         _offerBusy = true;
-        try
-        {
-            var body = new
-            {
+        try {
+            var body = new {
                 platform = _savePlatform,
                 appVersion = string.IsNullOrWhiteSpace(_saveAppVersion) ? null : _saveAppVersion,
                 build = string.IsNullOrWhiteSpace(_saveBuild) ? null : _saveBuild,
@@ -165,163 +165,173 @@
                 package = (string?)null,
                 protoSha = Result.ProtoSha,
                 protoText = Result.Proto,
-                messageIndex = (string?)null,
+                messageIndex = (string?)null
             };
             var resp = await Client().PostAsJsonAsync("/api/protos/staged/offer", body, JsonOpts);
             _offered = resp.IsSuccessStatusCode;
             if (_offered) _offerable = false;
         }
-        catch { }
-        finally { _offerBusy = false; }
+        catch {
+        }
+        finally {
+            _offerBusy = false;
+        }
     }
 
     sealed record CheckResp(bool InRegistry, bool Pending);
 
-   
-   
-   
-   
-   
-    async Task BackfillBuildAndClientVersion()
-    {
-        try
-        {
+
+    async Task BackfillBuildAndClientVersion() {
+        try {
             var live = await Client().GetFromJsonAsync<LiveVersionDto>(
                 $"/api/tools/live-version?platform={_savePlatform}", JsonOpts);
-            if (live is { Found: true })
-            {
+            if (live is { Found: true }) {
                 if (string.IsNullOrWhiteSpace(_saveBuild) && !string.IsNullOrWhiteSpace(live.Build)) _saveBuild = live.Build!;
                 if (string.IsNullOrWhiteSpace(_saveClientVersion) && live.ClientVersion is int cv) _saveClientVersion = cv.ToString();
             }
         }
-        catch { /* live store is best-effort; fall through to registry */ }
+        catch {
+            /* live store is best-effort; fall through to registry */
+        }
 
         if ((string.IsNullOrWhiteSpace(_saveBuild) || string.IsNullOrWhiteSpace(_saveClientVersion))
-            && !string.IsNullOrWhiteSpace(_saveAppVersion))
-        {
-            try
-            {
-               
+            && !string.IsNullOrWhiteSpace(_saveAppVersion)) {
+            try {
                 var all = await Client().GetFromJsonAsync<List<RegRowDto>>("/api/protos/versions", JsonOpts) ?? [];
                 var sameApp = all.Where(r => string.Equals(r.AppVersion, _saveAppVersion, StringComparison.OrdinalIgnoreCase)).ToList();
-               
-                if (string.IsNullOrWhiteSpace(_saveClientVersion))
-                {
+
+                if (string.IsNullOrWhiteSpace(_saveClientVersion)) {
                     var cv = sameApp.Select(r => r.ClientVersion).FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
                     if (!string.IsNullOrWhiteSpace(cv)) _saveClientVersion = cv!;
                 }
-               
-                if (string.IsNullOrWhiteSpace(_saveBuild))
-                {
+
+                if (string.IsNullOrWhiteSpace(_saveBuild)) {
                     var b = sameApp.Where(r => string.Equals(r.Platform, _savePlatform, StringComparison.OrdinalIgnoreCase))
-                                   .Select(r => r.Build).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+                        .Select(r => r.Build).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
                     if (!string.IsNullOrWhiteSpace(b)) _saveBuild = b!;
                 }
             }
-            catch { /* registry optional / no DB; leave blank for manual entry */ }
+            catch {
+                /* registry optional / no DB; leave blank for manual entry */
+            }
         }
     }
 
-    HttpClient Client()
-    {
+    HttpClient Client() {
         var c = HttpFactory.CreateClient();
         if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
         if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
         return c;
     }
 
-    async Task Download()
-    {
+    async Task Download() {
         if (Result?.Proto is null) return;
         _download ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/download.js");
         await _download.InvokeVoidAsync("text", "ei.proto", Result.Proto);
     }
 
-    async Task Copy(string? sha)
-    {
+    async Task Copy(string? sha) {
         if (string.IsNullOrEmpty(sha)) return;
-        try
-        {
+        try {
             _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
             await _copy.InvokeAsync<bool>("writeText", sha);
         }
-        catch { }
+        catch {
+        }
     }
 
-    async Task Save()
-    {
+    async Task Save() {
         if (Result?.Proto is null) return;
-        if (string.IsNullOrWhiteSpace(_saveAppVersion) || string.IsNullOrWhiteSpace(_saveBuild))
-        {
+        if (string.IsNullOrWhiteSpace(_saveAppVersion) || string.IsNullOrWhiteSpace(_saveBuild)) {
             _saveMsg = "app version + build required";
             return;
         }
+
         _saving = true;
         _saveMsg = "";
-        try
-        {
-            var body = new
-            {
+        try {
+            var body = new {
                 platform = _savePlatform,
                 appVersion = _saveAppVersion,
                 build = _saveBuild,
                 clientVersion = string.IsNullOrWhiteSpace(_saveClientVersion) ? null : _saveClientVersion,
                 proto = Result.Proto,
-                source = "upload",
+                source = "upload"
             };
             var res = await Client().PostAsJsonAsync("/api/protos/versions", body, JsonOpts);
-            if (res.IsSuccessStatusCode)
-            {
+            if (res.IsSuccessStatusCode) {
                 _saveMsg = "saved";
                 await OnSaved.InvokeAsync();
-            }
-            else
-            {
-                _saveMsg = res.StatusCode == System.Net.HttpStatusCode.Forbidden ? "not allowed (need contributor+)" : $"HTTP {(int)res.StatusCode}";
+            } else {
+                _saveMsg = res.StatusCode == HttpStatusCode.Forbidden ? "not allowed (need contributor+)" : $"HTTP {(int)res.StatusCode}";
             }
         }
-        catch (Exception ex) { _saveMsg = ex.Message; }
-        finally { _saving = false; }
+        catch (Exception ex) {
+            _saveMsg = ex.Message;
+        }
+        finally {
+            _saving = false;
+        }
     }
 
-   
-   
-    async Task CompareToLatest()
-    {
+
+    async Task CompareToLatest() {
         _comparing = true;
         _compareMsg = null;
         _added.Clear();
         _removed.Clear();
-        try
-        {
+        try {
             var platform = (Result?.FileName ?? "").EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? "android" : "ios";
             var latest = await Client().GetFromJsonAsync<LatestDto>($"/api/protos/latest?platform={platform}", JsonOpts);
-            if (latest is null) { _compareMsg = $"No stored {platform} version to compare against."; return; }
+            if (latest is null) {
+                _compareMsg = $"No stored {platform} version to compare against.";
+                return;
+            }
+
             var stored = await Client().GetFromJsonAsync<VersionDto>(
                 $"/api/protos/versions/{platform}/{Uri.EscapeDataString(latest.Build)}", JsonOpts);
             var storedNames = stored?.Messages is { } mi
-                ? (JsonSerializer.Deserialize<List<string>>(mi) ?? []) : [];
+                ? JsonSerializer.Deserialize<List<string>>(mi) ?? []
+                : [];
             var uploaded = Result?.Messages ?? [];
             _added.AddRange(uploaded.Where(m => !storedNames.Contains(m)).OrderBy(m => m));
             _removed.AddRange(storedNames.Where(m => !uploaded.Contains(m)).OrderBy(m => m));
             _compareMsg = $"vs latest {platform} {latest.AppVersion} (build {latest.Build})";
         }
-        catch (Exception ex) { _compareMsg = $"compare failed: {ex.Message}"; }
-        finally { _comparing = false; }
+        catch (Exception ex) {
+            _compareMsg = $"compare failed: {ex.Message}";
+        }
+        finally {
+            _comparing = false;
+        }
     }
 
     sealed record LatestDto(string Platform, string AppVersion, string Build);
+
     sealed record VersionDto(string? Messages);
+
     sealed record LiveVersionDto(bool Found, string? Platform, string? Version, string? Build, int? ClientVersion);
+
     sealed record RegRowDto(string Platform, string AppVersion, string Build, string? ClientVersion);
 
-    static string Short(string? sha) => string.IsNullOrEmpty(sha) ? "" : (sha.Length <= 12 ? sha : sha[..12]);
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_download is not null)
-            try { await _download.DisposeAsync(); } catch { }
-        if (_copy is not null)
-            try { await _copy.DisposeAsync(); } catch { }
+    static string Short(string? sha) {
+        return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
     }
+
+    public async ValueTask DisposeAsync() {
+        if (_download is not null)
+            try {
+                await _download.DisposeAsync();
+            }
+            catch {
+            }
+
+        if (_copy is not null)
+            try {
+                await _copy.DisposeAsync();
+            }
+            catch {
+            }
+    }
+
 }

@@ -1,43 +1,49 @@
 @* Inline metadata editor for one registry release (contributor+). A release is one or more platform rows;
    the dialog shows an editable section per platform member and PATCHes each. *@
 
-@if (Targets is { Count: > 0 })
-{
-  <div class="panel mb-3">
-    <div class="flex items-center justify-between mb-2">
-      <h3 class="text-sm m-0">Edit <span class="font-mono">@_appVersion</span></h3>
-      <button type="button" class="btn-mini" @onclick="@(() => OnClose.InvokeAsync())">Close</button>
-    </div>
-
-    <label class="text-xs text-muted block mb-2">App version
-      <input class="protos-filter w-full" @bind="_appVersion" /></label>
-
-    @foreach (var f in _fields)
-    {
-      <div class="border-t border-border pt-2 mb-2">
-        <div class="text-xs font-semibold mb-1 flex items-center gap-1.5">
-          <span class="code-chip">@f.Platform</span>
+@if (Targets is { Count: > 0 }) {
+    <div class="panel mb-3">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm m-0">Edit <span class="font-mono">@_appVersion</span></h3>
+            <button type="button" class="btn-mini" @onclick="@(() => OnClose.InvokeAsync())">Close</button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <label class="text-xs text-muted">Build (row key)
-            <input class="protos-filter w-full" @bind="f.Build" /></label>
-          <label class="text-xs text-muted">Client version
-            <input class="protos-filter w-full" @bind="f.ClientVersion" /></label>
-          <label class="text-xs text-muted">Source
-            <input class="protos-filter w-full" @bind="f.Source" /></label>
-        </div>
-      </div>
-    }
 
-    <div class="flex items-center gap-2">
-      <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">@(_busy ? "Saving..." : "Save")</button>
-      <span class="text-xs @(_msg == "saved" ? "text-accent" : "text-muted")">@_msg</span>
+        <label class="text-xs text-muted block mb-2">
+            App version
+            <input class="protos-filter w-full" @bind="_appVersion"/>
+        </label>
+
+        @foreach (var f in _fields) {
+            <div class="border-t border-border pt-2 mb-2">
+                <div class="text-xs font-semibold mb-1 flex items-center gap-1.5">
+                    <span class="code-chip">@f.Platform</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <label class="text-xs text-muted">
+                        Build (row key)
+                        <input class="protos-filter w-full" @bind="f.Build"/>
+                    </label>
+                    <label class="text-xs text-muted">
+                        Client version
+                        <input class="protos-filter w-full" @bind="f.ClientVersion"/>
+                    </label>
+                    <label class="text-xs text-muted">
+                        Source
+                        <input class="protos-filter w-full" @bind="f.Source"/>
+                    </label>
+                </div>
+            </div>
+        }
+
+        <div class="flex items-center gap-2">
+            <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">@(_busy ? "Saving..." : "Save")</button>
+            <span class="text-xs @(_msg == "saved" ? "text-accent" : "text-muted")">@_msg</span>
+        </div>
     </div>
-  </div>
 }
 
 @code {
-   
+
     [Parameter] public IReadOnlyList<Row>? Targets { get; set; }
     [Parameter] public Func<string, object, Task<bool>> Patch { get; set; } = (_, _) => Task.FromResult(false);
     [Parameter] public EventCallback OnChanged { get; set; }
@@ -50,9 +56,8 @@
 
     public sealed record Row(string Platform, string Build, string AppVersion, string? ClientVersion, string Source);
 
-   
-    sealed class MemberField
-    {
+
+    sealed class MemberField {
         public string Platform = "";
         public string OriginalBuild = "";
         public string Build = "";
@@ -60,44 +65,41 @@
         public string Source = "";
     }
 
-    protected override void OnParametersSet()
-    {
+    protected override void OnParametersSet() {
         if (Targets is not { Count: > 0 }) return;
         _appVersion = Targets[0].AppVersion;
-        _fields = Targets.Select(t => new MemberField
-        {
+        _fields = Targets.Select(t => new MemberField {
             Platform = t.Platform,
             OriginalBuild = t.Build,
             Build = t.Build,
             ClientVersion = t.ClientVersion ?? "",
-            Source = t.Source,
+            Source = t.Source
         }).ToList();
         _msg = "";
     }
 
-    async Task Save()
-    {
+    async Task Save() {
         if (_fields.Count == 0) return;
-        _busy = true; _msg = "";
+        _busy = true;
+        _msg = "";
         var allOk = true;
-        foreach (var f in _fields)
-        {
-           
+        foreach (var f in _fields) {
             var newBuild = string.IsNullOrWhiteSpace(f.Build) || f.Build == f.OriginalBuild ? null : f.Build.Trim();
-            var body = new
-            {
+            var body = new {
                 appVersion = _appVersion,
                 clientVersion = string.IsNullOrWhiteSpace(f.ClientVersion) ? null : f.ClientVersion,
                 source = f.Source,
-                build = newBuild,
+                build = newBuild
             };
-           
+
             var ok = await Patch($"/api/protos/versions/{f.Platform}/{Uri.EscapeDataString(f.OriginalBuild)}", body);
             if (ok) f.OriginalBuild = f.Build;
             allOk &= ok;
         }
+
         _msg = allOk ? "saved" : "failed (build taken? contributor+?)";
         _busy = false;
         if (allOk) await OnChanged.InvokeAsync();
     }
+
 }

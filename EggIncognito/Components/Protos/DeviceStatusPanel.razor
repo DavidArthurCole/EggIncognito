@@ -1,11 +1,10 @@
-@using System.Net.Http.Json
-@using System.Text.Json
-@using EggIncognito.Services
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
 @inject IJSRuntime JS
-@using Microsoft.JSInterop
+@using System.Net
+@using System.Text.Json
+@using EggIncognito.Core.Services.Devices
 @implements IDisposable
 
 <div class="panel">
@@ -13,68 +12,58 @@
         <h3 class="text-sm font-semibold m-0">Devices</h3>
         <span class="text-muted text-xs">@(_devices.Count == 0 ? "none configured" : $"{_devices.Count} connected")</span>
     </div>
-    @if (_devices.Count == 0)
-    {
+    @if (_devices.Count == 0) {
         <p class="text-muted text-xs">No devices declared on this host.</p>
-    }
-    else
-    {
+    } else {
         <div class="flex flex-col divide-y divide-border">
-            @foreach (var d in _devices)
-            {
+            @foreach (var d in _devices) {
                 var act = State(d.Id);
                 <div class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
                     <span class="@(d.Reachable ? "text-green-500" : "text-red-500") shrink-0" title="@(d.Reachable ? "reachable" : "unreachable")">
-                        <Icon Name="@PlatformIcon(d.Platform)" />
+                        <Icon Name="@PlatformIcon(d.Platform)"/>
                     </span>
                     <div class="min-w-0 flex-1 max-w-[19rem]">
                         <div class="flex items-baseline gap-2">
                             <span class="text-sm font-medium truncate">@d.Label</span>
                             <span class="text-xs text-muted opacity-60 whitespace-nowrap shrink-0" title="@d.ProbedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")">@Ago(d.ProbedAt)</span>
-                            @if (d.Result == "new_version")
-                            {
+                            @if (d.Result == "new_version") {
                                 <span class="dev-badge-new" title="Installed version can populate new registry version">NEW</span>
                             }
                         </div>
                         <div class="text-xs mt-0.5 flex items-center gap-2">
-                            @if (act.Message is not null)
-                            {
+                            @if (act.Message is not null) {
                                 <span class="@(act.IsError ? "text-red-400" : "text-green-400")">@act.Message</span>
-                            }
-                            else
-                            {
+                            } else {
                                 <span class="dev-verline">
                                     @(d.InstalledAppVersion ?? "?")
                                     <span class="dev-versep">|</span> @(d.InstalledBuild ?? "?")
-                                    @if (_clientVersion.GetValueOrDefault(d.Id) is int cv)
-                                    {
-                                        <span class="dev-versep">|</span><text> @cv</text>
+                                    @if (_clientVersion.GetValueOrDefault(d.Id) is int cv) {
+                                        <span class="dev-versep">|</span>
+                                        <text> @cv</text>
                                     }
                                 </span>
                             }
                         </div>
                         @{ var cap = Capture(d.Id); }
-                        @if (cap is not null)
-                        {
+                        @if (cap is not null) {
                             var v = CaptureVerdict(cap);
                             <div class="text-xs mt-0.5 flex items-center gap-1.5" title="@v.Detail">
                                 <span class="@v.Color">capture: @v.Label</span>
                             </div>
                         }
                     </div>
-                    @if (_isAdmin)
-                    {
-                        @if (d.Result == "new_version")
-                        {
+                    @if (_isAdmin) {
+                        @if (d.Result == "new_version") {
                             <button class="icon-btn icon-btn-sm" disabled="@act.Busy" title="Install this version into the proto registry" @onclick="() => Save(d.Id)">
-                                <Icon Name="@(act.Busy ? "clock" : "download")" />
+                                <Icon Name="@(act.Busy ? "clock" : "download")"/>
                             </button>
                         }
+
                         <button class="icon-btn icon-btn-sm" disabled="@act.Busy" title="Check this device's store for an update now" @onclick="() => CheckUpdate(d.Id)">
-                            <Icon Name="@(act.Busy ? "clock" : "refresh")" />
+                            <Icon Name="@(act.Busy ? "clock" : "refresh")"/>
                         </button>
                         <button class="icon-btn icon-btn-sm" disabled="@act.Busy" title="Force-restart Egg Inc to trigger an auxbrain call + capture clientVersion" @onclick="() => RestartApp(d.Id)">
-                            <Icon Name="@(act.Busy ? "clock" : "play")" />
+                            <Icon Name="@(act.Busy ? "clock" : "play")"/>
                         </button>
                     }
                 </div>
@@ -85,19 +74,39 @@
 </div>
 
 @code {
-    sealed record DeviceStatus(string Id, string Platform, string Label, bool Reachable,
-        string? InstalledAppVersion, string? InstalledBuild,
-        string? LatestAvailable, string? StoreLatest, bool StoreAhead,
-        string Result, string? Note, DateTimeOffset ProbedAt);
 
-   
-   
-    sealed class ActionState { public bool Busy; public string? Message; public bool IsError; }
+    sealed record DeviceStatus(
+        string Id,
+        string Platform,
+        string Label,
+        bool Reachable,
+        string? InstalledAppVersion,
+        string? InstalledBuild,
+        string? LatestAvailable,
+        string? StoreLatest,
+        bool StoreAhead,
+        string Result,
+        string? Note,
+        DateTimeOffset ProbedAt);
 
-   
-   
-    sealed record CaptureBlock(bool Listening, int Port, long ClientConnects, long AuxbrainConnects,
-        long Flows, long RinfoHarvests, string? LastDecryptError, List<string>? RecentConnects);
+
+    sealed class ActionState {
+        public bool Busy;
+        public string? Message;
+        public bool IsError;
+    }
+
+
+    sealed record CaptureBlock(
+        bool Listening,
+        int Port,
+        long ClientConnects,
+        long AuxbrainConnects,
+        long Flows,
+        long RinfoHarvests,
+        string? LastDecryptError,
+        List<string>? RecentConnects);
+
     sealed record LiveResponse(bool Found, int? ClientVersion, CaptureBlock? Capture);
 
     List<DeviceStatus> _devices = [];
@@ -105,291 +114,310 @@
     readonly Dictionary<string, int?> _clientVersion = new();
     readonly Dictionary<string, ActionState> _actions = new();
 
-    CaptureBlock? Capture(string id) => _capture.GetValueOrDefault(id);
+    CaptureBlock? Capture(string id) {
+        return _capture.GetValueOrDefault(id);
+    }
 
-   
-    static EggIncognito.Core.Services.Devices.DeviceCaptureVerdict.Verdict CaptureVerdict(CaptureBlock c) =>
-        EggIncognito.Core.Services.Devices.DeviceCaptureVerdict.For(
-            new EggIncognito.Core.Services.Devices.DeviceCaptureVerdict.Counters(
+
+    static DeviceCaptureVerdict.Verdict CaptureVerdict(CaptureBlock c) {
+        return DeviceCaptureVerdict.For(
+            new DeviceCaptureVerdict.Counters(
                 c.Listening, c.Port, c.ClientConnects, c.AuxbrainConnects, c.Flows, c.RinfoHarvests, c.LastDecryptError));
+    }
+
     bool _isAdmin;
     bool _disposed;
     Timer? _timer;
     string _baseAddress = "";
     string? _cookie;
 
-    ActionState State(string id) => _actions.TryGetValue(id, out var s) ? s : new ActionState();
+    ActionState State(string id) {
+        return _actions.TryGetValue(id, out var s) ? s : new ActionState();
+    }
 
-    protected override async Task OnInitializedAsync()
-    {
+    protected override async Task OnInitializedAsync() {
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
+
         await LoadAsync();
-       
-       
+
+
         _timer = new Timer(async _ => await InvokeAsync(TickAsync), null, 30_000, 30_000);
     }
 
-    HttpClient Client() => EggIncognito.Services.SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
+    HttpClient Client() {
+        return SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
+    }
 
     IJSObjectReference? _vis;
 
-    async Task<bool> PageVisibleAsync()
-    {
-        try
-        {
+    async Task<bool> PageVisibleAsync() {
+        try {
             _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/visibility.js");
             return await _vis.InvokeAsync<bool>("isVisible");
         }
-        catch { return true; }
+        catch {
+            return true;
+        }
     }
 
-    async Task TickAsync()
-    {
+    async Task TickAsync() {
         if (_disposed || !await PageVisibleAsync()) return;
         await LoadAsync();
     }
 
-    async Task LoadAsync()
-    {
-        try
-        {
+    async Task LoadAsync() {
+        try {
             var rows = await Client().GetFromJsonAsync<List<DeviceStatus>>("/api/devices/status");
             _devices = rows ?? [];
             StateHasChanged();
             await LoadCaptureAsync();
             await ReprobeStaleAsync();
         }
-        catch { /* transient; keep last good */ }
+        catch {
+            /* transient; keep last good */
+        }
     }
 
     bool _reprobing;
 
-   
-   
-    async Task ReprobeStaleAsync()
-    {
+
+    async Task ReprobeStaleAsync() {
         if (!_isAdmin || _reprobing) return;
         var stale = _devices.Where(d => !d.Reachable).Select(d => d.Id).ToList();
         if (stale.Count == 0) return;
         _reprobing = true;
-        try
-        {
-            foreach (var id in stale)
-            {
-                try { await Client().PostAsync($"/api/devices/{id}/refresh", null); }
-                catch { /* device still down; ignore */ }
+        try {
+            foreach (var id in stale) {
+                try {
+                    await Client().PostAsync($"/api/devices/{id}/refresh", null);
+                }
+                catch {
+                    /* device still down; ignore */
+                }
             }
-           
+
             var rows = await Client().GetFromJsonAsync<List<DeviceStatus>>("/api/devices/status");
-            if (rows is not null) { _devices = rows; await InvokeAsync(StateHasChanged); }
+            if (rows is not null) {
+                _devices = rows;
+                await InvokeAsync(StateHasChanged);
+            }
         }
-        finally { _reprobing = false; }
+        finally {
+            _reprobing = false;
+        }
     }
 
-   
-   
-    async Task LoadCaptureAsync()
-    {
-        foreach (var d in _devices.ToList())
-        {
-            try
-            {
+
+    async Task LoadCaptureAsync() {
+        foreach (var d in _devices.ToList()) {
+            try {
                 var live = await Client().GetFromJsonAsync<LiveResponse>($"/api/devices/{d.Id}/live");
                 if (live?.Capture is { } cap) _capture[d.Id] = cap;
                 else _capture.Remove(d.Id);
                 _clientVersion[d.Id] = live?.ClientVersion;
             }
-            catch { /* transient / capture off: keep last known, chip hides if never set */ }
+            catch {
+                /* transient / capture off: keep last known, chip hides if never set */
+            }
         }
+
         await InvokeAsync(StateHasChanged);
     }
 
     [Parameter] public EventCallback OnSaved { get; set; }
 
-    Task Save(string id) => Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "installed to registry", OnSaved);
+    Task Save(string id) {
+        return Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "installed to registry", OnSaved);
+    }
 
-   
-   
-    async Task RestartApp(string id)
-    {
+
+    async Task RestartApp(string id) {
         var s = _actions[id] = new ActionState { Busy = true, Message = "restarting app..." };
         StateHasChanged();
-        try
-        {
+        try {
             var resp = await Client().PostAsync($"/api/devices/{id}/restart-app", null);
-            if (resp.IsSuccessStatusCode)
-            {
+            if (resp.IsSuccessStatusCode) {
                 s.Message = "launched, waiting for API call...";
-               
-               
-                for (var i = 0; i < 8 && !_disposed; i++)
-                {
+
+
+                for (var i = 0; i < 8 && !_disposed; i++) {
                     await Task.Delay(2000);
                     await LoadCaptureAsync();
-                    if (_clientVersion.GetValueOrDefault(id) is not null) { s.Message = "clientVersion captured"; break; }
+                    if (_clientVersion.GetValueOrDefault(id) is not null) {
+                        s.Message = "clientVersion captured";
+                        break;
+                    }
                 }
-            }
-            else { s.Message = await ReadError(resp); s.IsError = true; }
-        }
-        catch (Exception ex) { s.Message = ex.Message; s.IsError = true; }
-        finally { s.Busy = false; StateHasChanged(); _ = ClearLater(id); }
-    }
-
-   
-   
-    async Task CheckUpdate(string id)
-    {
-        var s = _actions[id] = new ActionState { Busy = true, Message = "checking store..." };
-        StateHasChanged();
-        try
-        {
-            var resp = await Client().PostAsync($"/api/devices/{id}/check-update", null);
-            if (resp.StatusCode == System.Net.HttpStatusCode.Accepted
-                || resp.StatusCode == System.Net.HttpStatusCode.Conflict)
-            {
-                if (resp.StatusCode == System.Net.HttpStatusCode.Conflict)
-                    s.Message = "check already running";
-                await PollCheckStatus(id);
-            }
-            else
-            {
-                s.Message = await ReadError(resp); s.IsError = true;
-                s.Busy = false; StateHasChanged(); _ = ClearLater(id);
+            } else {
+                s.Message = await ReadError(resp);
+                s.IsError = true;
             }
         }
-        catch (Exception ex)
-        {
-            s.Message = ex.Message; s.IsError = true;
-            s.Busy = false; StateHasChanged(); _ = ClearLater(id);
+        catch (Exception ex) {
+            s.Message = ex.Message;
+            s.IsError = true;
         }
-    }
-
-   
-   
-    async Task PollCheckStatus(string id)
-    {
-        var s = _actions.TryGetValue(id, out var existing) ? existing : (_actions[id] = new ActionState { Busy = true });
-        while (!_disposed)
-        {
-            await Task.Delay(3000);
-            if (_disposed) return;
-            JsonElement body;
-            try
-            {
-                var resp = await Client().GetAsync($"/api/devices/{id}/check-status");
-                if (!resp.IsSuccessStatusCode) { s.Message = await ReadError(resp); s.IsError = true; break; }
-                body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-            }
-            catch (Exception ex) { s.Message = ex.Message; s.IsError = true; break; }
-
-            var state = body.TryGetProperty("state", out var st) ? st.GetString() : null;
-            var message = body.TryGetProperty("message", out var m) ? m.GetString() : null;
-            var action = body.TryGetProperty("action", out var a) ? a.GetString() : null;
-            var after = body.TryGetProperty("installedAfter", out var af) ? af.GetString() : null;
-
-            if (state == "running")
-            {
-                if (!string.IsNullOrEmpty(message)) { s.Message = message; await InvokeAsync(StateHasChanged); }
-                continue;
-            }
-
-           
-            (s.Message, s.IsError) = (state, action) switch
-            {
-                ("error", _) => (message ?? "check failed", true),
-                (_, "up_to_date") => ("up to date", false),
-                (_, "updated") => ($"updated to {after}", false),
-                (_, "unreachable") => ("device unreachable", true),
-                ("idle", _) => ("checked", false),
-                _ => (message ?? "checked", false),
-            };
-            await LoadAsync();
-            break;
-        }
-        s.Busy = false;
-        await InvokeAsync(StateHasChanged);
-        _ = ClearLater(id);
-    }
-
-   
-   
-   
-    async Task Act(string id, string url, string busyMsg, string okMsg, EventCallback onSuccess = default)
-    {
-        var s = _actions[id] = new ActionState { Busy = true, Message = busyMsg };
-        StateHasChanged();
-        try
-        {
-            var resp = await Client().PostAsync(url, null);
-            if (resp.IsSuccessStatusCode)
-            {
-                s.Message = okMsg; s.IsError = false;
-                await LoadAsync();
-                if (onSuccess.HasDelegate) await onSuccess.InvokeAsync();
-            }
-            else
-            {
-                s.Message = await ReadError(resp); s.IsError = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            s.Message = ex.Message; s.IsError = true;
-        }
-        finally
-        {
+        finally {
             s.Busy = false;
             StateHasChanged();
             _ = ClearLater(id);
         }
     }
 
-    static async Task<string> ReadError(HttpResponseMessage resp)
-    {
-        try
-        {
+
+    async Task CheckUpdate(string id) {
+        var s = _actions[id] = new ActionState { Busy = true, Message = "checking store..." };
+        StateHasChanged();
+        try {
+            var resp = await Client().PostAsync($"/api/devices/{id}/check-update", null);
+            if (resp.StatusCode == HttpStatusCode.Accepted
+                || resp.StatusCode == HttpStatusCode.Conflict) {
+                if (resp.StatusCode == HttpStatusCode.Conflict)
+                    s.Message = "check already running";
+                await PollCheckStatus(id);
+            } else {
+                s.Message = await ReadError(resp);
+                s.IsError = true;
+                s.Busy = false;
+                StateHasChanged();
+                _ = ClearLater(id);
+            }
+        }
+        catch (Exception ex) {
+            s.Message = ex.Message;
+            s.IsError = true;
+            s.Busy = false;
+            StateHasChanged();
+            _ = ClearLater(id);
+        }
+    }
+
+
+    async Task PollCheckStatus(string id) {
+        var s = _actions.TryGetValue(id, out var existing) ? existing : _actions[id] = new ActionState { Busy = true };
+        while (!_disposed) {
+            await Task.Delay(3000);
+            if (_disposed) return;
+            JsonElement body;
+            try {
+                var resp = await Client().GetAsync($"/api/devices/{id}/check-status");
+                if (!resp.IsSuccessStatusCode) {
+                    s.Message = await ReadError(resp);
+                    s.IsError = true;
+                    break;
+                }
+
+                body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            }
+            catch (Exception ex) {
+                s.Message = ex.Message;
+                s.IsError = true;
+                break;
+            }
+
+            var state = body.TryGetProperty("state", out var st) ? st.GetString() : null;
+            var message = body.TryGetProperty("message", out var m) ? m.GetString() : null;
+            var action = body.TryGetProperty("action", out var a) ? a.GetString() : null;
+            var after = body.TryGetProperty("installedAfter", out var af) ? af.GetString() : null;
+
+            if (state == "running") {
+                if (!string.IsNullOrEmpty(message)) {
+                    s.Message = message;
+                    await InvokeAsync(StateHasChanged);
+                }
+
+                continue;
+            }
+
+
+            (s.Message, s.IsError) = (state, action) switch {
+                ("error", _) => (message ?? "check failed", true),
+                (_, "up_to_date") => ("up to date", false),
+                (_, "updated") => ($"updated to {after}", false),
+                (_, "unreachable") => ("device unreachable", true),
+                ("idle", _) => ("checked", false),
+                _ => (message ?? "checked", false)
+            };
+            await LoadAsync();
+            break;
+        }
+
+        s.Busy = false;
+        await InvokeAsync(StateHasChanged);
+        _ = ClearLater(id);
+    }
+
+
+    async Task Act(string id, string url, string busyMsg, string okMsg, EventCallback onSuccess = default) {
+        var s = _actions[id] = new ActionState { Busy = true, Message = busyMsg };
+        StateHasChanged();
+        try {
+            var resp = await Client().PostAsync(url, null);
+            if (resp.IsSuccessStatusCode) {
+                s.Message = okMsg;
+                s.IsError = false;
+                await LoadAsync();
+                if (onSuccess.HasDelegate) await onSuccess.InvokeAsync();
+            } else {
+                s.Message = await ReadError(resp);
+                s.IsError = true;
+            }
+        }
+        catch (Exception ex) {
+            s.Message = ex.Message;
+            s.IsError = true;
+        }
+        finally {
+            s.Busy = false;
+            StateHasChanged();
+            _ = ClearLater(id);
+        }
+    }
+
+    static async Task<string> ReadError(HttpResponseMessage resp) {
+        try {
             var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
             if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("error", out var e))
                 return e.GetString() ?? $"failed ({(int)resp.StatusCode})";
         }
-        catch { /* not json */ }
+        catch {
+            /* not json */
+        }
+
         return $"failed ({(int)resp.StatusCode})";
     }
 
-   
-    async Task ClearLater(string id)
-    {
+
+    async Task ClearLater(string id) {
         await Task.Delay(6000);
-        if (_actions.TryGetValue(id, out var s) && !s.Busy)
-        {
+        if (_actions.TryGetValue(id, out var s) && !s.Busy) {
             _actions.Remove(id);
             await InvokeAsync(StateHasChanged);
         }
     }
 
-    static string PlatformIcon(string platform) => platform switch
-    {
-        "ios" => "apple",
-        "android" => "android",
-        _ => "device",
-    };
+    static string PlatformIcon(string platform) {
+        return platform switch {
+            "ios" => "apple",
+            "android" => "android",
+            _ => "device"
+        };
+    }
 
-    static string Ago(DateTimeOffset t)
-    {
+    static string Ago(DateTimeOffset t) {
         var s = (DateTimeOffset.UtcNow - t).TotalSeconds;
         return s < 60 ? "just now" : s < 3600 ? $"{(int)(s / 60)}m ago" : $"{(int)(s / 3600)}h ago";
     }
 
-    public void Dispose()
-    {
+    public void Dispose() {
         _disposed = true;
         _timer?.Dispose();
         _ = _vis?.DisposeAsync();
     }
+
 }

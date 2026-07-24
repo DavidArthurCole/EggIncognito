@@ -1,92 +1,100 @@
+@using System.Text.Json
 @* Capture controls side-column widget: start/stop, clear, HAR export, and view/redaction settings.
    View settings mutate the shared CaptureViewState and call OnViewChanged. One popover open at a time. *@
-@using EggIncognito.Capture
-@using EggIncognito.Components.Shared
 
 <div class="capture-controls">
-  @if (_open is not null)
-  {
-    <div class="popover-backdrop" @onclick="@(() => _open = null)"></div>
-  }
-  <div class="flex items-center gap-2">
-    <div class="flex flex-wrap items-center gap-1.5">
-      @if (!ReadOnly)
-      {
-      <button type="button" class="icon-btn @(Running ? "capture-stop" : "capture-start")" disabled="@ToggleBusy"
-              title="@(Running ? "Stop capture" : "Start capture")"
-              aria-label="@(Running ? "Stop capture" : "Start capture")" @onclick="OnToggleCapture">
-        <Icon Name="@(Running ? "pause" : "play")" />
-      </button>
+    @if (_open is not null) {
+        <div class="popover-backdrop" @onclick="@(() => _open = null)"></div>
+    }
+    <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-1.5">
+            @if (!ReadOnly) {
+                <button type="button" class="icon-btn @(Running ? "capture-stop" : "capture-start")" disabled="@ToggleBusy"
+                        title="@(Running ? "Stop capture" : "Start capture")"
+                        aria-label="@(Running ? "Stop capture" : "Start capture")" @onclick="OnToggleCapture">
+                    <Icon Name="@(Running ? "pause" : "play")"/>
+                </button>
 
-      <div class="settings-wrap" style="position: relative;">
-        <button type="button" class="icon-btn" title="Clear list" aria-label="Clear list"
-                aria-haspopup="true" aria-expanded="@(_open == "clear")" @onclick="@(() => Toggle("clear"))"><Icon Name="trash" /></button>
-        <div class="settings-menu confirm-menu @(_open == "clear" ? "open" : "")">
-          <div class="settings-title">Clear list?</div>
-          <div class="settings-hint">Removes the captured requests shown here. Saved endpoints, captured HAR(s), and exported files are kept.</div>
-          <div class="confirm-actions">
-            <button type="button" class="btn-mini" @onclick="@(() => _open = null)">Cancel</button>
-            <button type="button" class="btn-mini btn-danger" @onclick="ConfirmClear">Clear</button>
-          </div>
+                <div class="settings-wrap" style="position: relative;">
+                    <button type="button" class="icon-btn" title="Clear list" aria-label="Clear list"
+                            aria-haspopup="true" aria-expanded="@(_open == "clear")" @onclick="@(() => Toggle("clear"))">
+                        <Icon Name="trash"/>
+                    </button>
+                    <div class="settings-menu confirm-menu @(_open == "clear" ? "open" : "")">
+                        <div class="settings-title">Clear list?</div>
+                        <div class="settings-hint">Removes the captured requests shown here. Saved endpoints, captured HAR(s), and exported files are kept.</div>
+                        <div class="confirm-actions">
+                            <button type="button" class="btn-mini" @onclick="@(() => _open = null)">Cancel</button>
+                            <button type="button" class="btn-mini btn-danger" @onclick="ConfirmClear">Clear</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-wrap" style="position: relative;">
+                    <button type="button" class="icon-btn" title="Export" aria-label="Export"
+                            aria-haspopup="true" aria-expanded="@(_open == "export")" @onclick="@(() => Toggle("export"))">
+                        <Icon Name="download"/>
+                    </button>
+                    <div class="settings-menu @(_open == "export" ? "open" : "")">
+                        <div class="settings-title">Export</div>
+                        <a class="export-item" href="/api/capture/har" download>HAR (all requests)</a>
+                    </div>
+                </div>
+
+                @if (Hosted) {
+                    <button type="button" class="icon-btn" title="DM me my setup config (CA + proxy address)"
+                            aria-label="DM setup config" disabled="@_dmBusy" @onclick="SendConfig">
+                        <Icon Name="bell"/>
+                    </button>
+                    <button type="button" class="icon-btn" title="Rotate my proxy address (invalidates the old one)"
+                            aria-label="Rotate proxy address" disabled="@_rotateBusy" @onclick="RotateAddress">
+                        <Icon Name="refresh"/>
+                    </button>
+                }
+            }
+
+            <div class="settings-wrap" style="position: relative;">
+                <button type="button" class="icon-btn" title="Settings" aria-label="Settings"
+                        aria-haspopup="true" aria-expanded="@(_open == "settings")" @onclick="@(() => Toggle("settings"))">
+                    <Icon Name="gear"/>
+                </button>
+                <div class="settings-menu settings-menu-lg @(_open == "settings" ? "open" : "")">
+                    <div class="settings-title">Redaction</div>
+                    <div class="settings-hint">Hide user IDs and EIDs in the detail pane.</div>
+                    <div class="settings-seg" role="radiogroup" aria-label="Redaction mode">
+                        <button type="button" class="seg-btn @(View.RedactionMode == "off" ? "active" : "")" @onclick="@(() => SetMode("off"))">Off</button>
+                        <button type="button" class="seg-btn @(View.RedactionMode == "blur" ? "active" : "")" @onclick="@(() => SetMode("blur"))">Blur</button>
+                        <button type="button" class="seg-btn @(View.RedactionMode == "redact" ? "active" : "")" @onclick="@(() => SetMode("redact"))">Redact</button>
+                    </div>
+
+                    <div class="settings-title">Headers</div>
+                    <label class="settings-check"><input type="checkbox" checked="@View.ShowHeaders" @onchange="OnShowHeaders"/> Show captured headers</label>
+
+                    <div class="settings-title">List</div>
+                    <label class="settings-check"><input type="checkbox" checked="@View.AutoScroll" @onchange="OnAutoScroll"/> Auto-scroll to newest</label>
+
+                    <div class="settings-title">Comparison tags</div>
+                    <div class="settings-hint">Tag each capture against the saved endpoint set.</div>
+                    <label class="settings-check"><input type="checkbox" checked="@View.CompareToKnown" @onchange="OnCompare"/> Show comparison tags</label>
+
+                    <div class="settings-title">Default format</div>
+                    <div class="settings-hint">Format the data opens in.</div>
+                    <select class="data-format settings-select" value="@View.DefaultFormat" @onchange="OnDefaultFormat">
+                        <option value="json-tree">JSON (tree)</option>
+                        <option value="json">JSON (raw)</option>
+                        <option value="yaml">YAML</option>
+                        <option value="xml">XML</option>
+                        <option value="js">JS object</option>
+                        <option value="hex">Hex</option>
+                        <option value="bin">Binary</option>
+                    </select>
+                </div>
+            </div>
         </div>
-      </div>
-
-      <div class="settings-wrap" style="position: relative;">
-        <button type="button" class="icon-btn" title="Export" aria-label="Export"
-                aria-haspopup="true" aria-expanded="@(_open == "export")" @onclick="@(() => Toggle("export"))"><Icon Name="download" /></button>
-        <div class="settings-menu @(_open == "export" ? "open" : "")">
-          <div class="settings-title">Export</div>
-          <a class="export-item" href="/api/capture/har" download>HAR (all requests)</a>
-        </div>
-      </div>
-
-      @if (Hosted)
-      {
-        <button type="button" class="icon-btn" title="DM me my setup config (CA + proxy address)"
-                aria-label="DM setup config" disabled="@_dmBusy" @onclick="SendConfig"><Icon Name="bell" /></button>
-        <button type="button" class="icon-btn" title="Rotate my proxy address (invalidates the old one)"
-                aria-label="Rotate proxy address" disabled="@_rotateBusy" @onclick="RotateAddress"><Icon Name="refresh" /></button>
-      }
-      }
-
-      <div class="settings-wrap" style="position: relative;">
-        <button type="button" class="icon-btn" title="Settings" aria-label="Settings"
-                aria-haspopup="true" aria-expanded="@(_open == "settings")" @onclick="@(() => Toggle("settings"))"><Icon Name="gear" /></button>
-        <div class="settings-menu settings-menu-lg @(_open == "settings" ? "open" : "")">
-          <div class="settings-title">Redaction</div>
-          <div class="settings-hint">Hide user IDs and EIDs in the detail pane.</div>
-          <div class="settings-seg" role="radiogroup" aria-label="Redaction mode">
-            <button type="button" class="seg-btn @(View.RedactionMode == "off" ? "active" : "")" @onclick="@(() => SetMode("off"))">Off</button>
-            <button type="button" class="seg-btn @(View.RedactionMode == "blur" ? "active" : "")" @onclick="@(() => SetMode("blur"))">Blur</button>
-            <button type="button" class="seg-btn @(View.RedactionMode == "redact" ? "active" : "")" @onclick="@(() => SetMode("redact"))">Redact</button>
-          </div>
-
-          <div class="settings-title">Headers</div>
-          <label class="settings-check"><input type="checkbox" checked="@View.ShowHeaders" @onchange="OnShowHeaders" /> Show captured headers</label>
-
-          <div class="settings-title">List</div>
-          <label class="settings-check"><input type="checkbox" checked="@View.AutoScroll" @onchange="OnAutoScroll" /> Auto-scroll to newest</label>
-
-          <div class="settings-title">Comparison tags</div>
-          <div class="settings-hint">Tag each capture against the saved endpoint set.</div>
-          <label class="settings-check"><input type="checkbox" checked="@View.CompareToKnown" @onchange="OnCompare" /> Show comparison tags</label>
-
-          <div class="settings-title">Default format</div>
-          <div class="settings-hint">Format the data opens in.</div>
-          <select class="data-format settings-select" value="@View.DefaultFormat" @onchange="OnDefaultFormat">
-            <option value="json-tree">JSON (tree)</option>
-            <option value="json">JSON (raw)</option>
-            <option value="yaml">YAML</option>
-            <option value="xml">XML</option>
-            <option value="js">JS object</option>
-            <option value="hex">Hex</option>
-            <option value="bin">Binary</option>
-          </select>
-        </div>
-      </div>
     </div>
-  </div>
-  @if (_actionMsg is not null) { <div class="text-xs w-full @(_actionOk ? "text-green-400" : "text-err")">@_actionMsg</div> }
+    @if (_actionMsg is not null) {
+        <div class="text-xs w-full @(_actionOk ? "text-green-400" : "text-err")">@_actionMsg</div>
+    }
 </div>
 
 @code {
@@ -107,47 +115,80 @@
     string? _actionMsg;
     bool _actionOk;
 
-    void Toggle(string which) => _open = _open == which ? null : which;
+    void Toggle(string which) {
+        _open = _open == which ? null : which;
+    }
 
-    async Task SendConfig()
-    {
+    async Task SendConfig() {
         if (ClientFactory is null) return;
-        _dmBusy = true; _actionMsg = null;
-        try
-        {
+        _dmBusy = true;
+        _actionMsg = null;
+        try {
             var res = await ClientFactory().PostAsync("/api/capture/send-config", null);
             _actionOk = res.IsSuccessStatusCode;
             _actionMsg = _actionOk ? "Setup DM sent." : "Could not DM your setup (start a session + enable DMs).";
         }
-        catch (Exception ex) { _actionOk = false; _actionMsg = $"DM failed: {ex.Message}"; }
+        catch (Exception ex) {
+            _actionOk = false;
+            _actionMsg = $"DM failed: {ex.Message}";
+        }
+
         _dmBusy = false;
     }
 
-    async Task RotateAddress()
-    {
+    async Task RotateAddress() {
         if (ClientFactory is null) return;
-        _rotateBusy = true; _actionMsg = null;
-        try
-        {
+        _rotateBusy = true;
+        _actionMsg = null;
+        try {
             var res = await ClientFactory().PostAsync("/api/capture/proxy-address/rotate", null);
-            if (res.IsSuccessStatusCode)
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+            if (res.IsSuccessStatusCode) {
+                using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
                 var host = doc.RootElement.GetProperty("host").GetString();
-                _actionOk = true; _actionMsg = "New address issued. Update your device's proxy server.";
+                _actionOk = true;
+                _actionMsg = "New address issued. Update your device's proxy server.";
                 if (host is not null) await OnAddressRotated.InvokeAsync(host);
+            } else {
+                _actionOk = false;
+                _actionMsg = $"Rotate failed (HTTP {(int)res.StatusCode}).";
             }
-            else { _actionOk = false; _actionMsg = $"Rotate failed (HTTP {(int)res.StatusCode})."; }
         }
-        catch (Exception ex) { _actionOk = false; _actionMsg = $"Rotate failed: {ex.Message}"; }
+        catch (Exception ex) {
+            _actionOk = false;
+            _actionMsg = $"Rotate failed: {ex.Message}";
+        }
+
         _rotateBusy = false;
     }
 
-    async Task SetMode(string mode) { View.RedactionMode = mode; await OnViewChanged.InvokeAsync(); }
-    async Task OnShowHeaders(ChangeEventArgs e) { View.ShowHeaders = e.Value is bool b && b; await OnViewChanged.InvokeAsync(); }
-    async Task OnAutoScroll(ChangeEventArgs e) { View.AutoScroll = e.Value is bool b && b; await OnViewChanged.InvokeAsync(); }
-    async Task OnCompare(ChangeEventArgs e) { View.CompareToKnown = e.Value is bool b && b; await OnViewChanged.InvokeAsync(); }
-    async Task OnDefaultFormat(ChangeEventArgs e) { View.DefaultFormat = e.Value?.ToString() ?? "json-tree"; await OnViewChanged.InvokeAsync(); }
+    async Task SetMode(string mode) {
+        View.RedactionMode = mode;
+        await OnViewChanged.InvokeAsync();
+    }
 
-    async Task ConfirmClear() { _open = null; await OnClear.InvokeAsync(); }
+    async Task OnShowHeaders(ChangeEventArgs e) {
+        View.ShowHeaders = e.Value is bool b && b;
+        await OnViewChanged.InvokeAsync();
+    }
+
+    async Task OnAutoScroll(ChangeEventArgs e) {
+        View.AutoScroll = e.Value is bool b && b;
+        await OnViewChanged.InvokeAsync();
+    }
+
+    async Task OnCompare(ChangeEventArgs e) {
+        View.CompareToKnown = e.Value is bool b && b;
+        await OnViewChanged.InvokeAsync();
+    }
+
+    async Task OnDefaultFormat(ChangeEventArgs e) {
+        View.DefaultFormat = e.Value?.ToString() ?? "json-tree";
+        await OnViewChanged.InvokeAsync();
+    }
+
+    async Task ConfirmClear() {
+        _open = null;
+        await OnClear.InvokeAsync();
+    }
+
 }

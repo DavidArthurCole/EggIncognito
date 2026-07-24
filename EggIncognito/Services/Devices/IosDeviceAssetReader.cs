@@ -1,9 +1,8 @@
-using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 
 namespace EggIncognito.Services.Devices;
 
-public sealed class IosDeviceAssetReader(IProcessRunner runner, IConfiguration config) : IDeviceAssetReader {
+public sealed class IosDeviceAssetReader(IDeviceConnectionFactory connections) : IDeviceAssetReader {
     public string Platform => "ios";
 
     public Task<byte[]?> ReadAsync(Device device, DeviceAssetKind kind, string name, CancellationToken ct) {
@@ -26,11 +25,6 @@ public sealed class IosDeviceAssetReader(IProcessRunner runner, IConfiguration c
             };
     }
 
-    private IosAssetPuller? Puller(Device device) {
-        var cfg = config.GetSection("DeviceUpdate").GetSection("Ios");
-        var key = cfg["SshKeyPath"];
-        if (string.IsNullOrEmpty(key)) return null;
-        var host = string.IsNullOrEmpty(cfg["SshHost"]) ? device.Target : cfg["SshHost"]!;
-        return new IosAssetPuller(runner, host, cfg["SshPort"] ?? "2222", key);
-    }
+    private IosAssetPuller? Puller(Device device) =>
+        connections.Ios(device.Target) is { } conn ? new IosAssetPuller(conn) : null;
 }

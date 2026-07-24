@@ -1,13 +1,11 @@
 @page "/capture"
 @page "/capture/device/{DeviceId}"
 @rendermode @(RenderMode.InteractiveServer)
-@implements IAsyncDisposable
 @using System.Threading.Channels
-@using Microsoft.JSInterop
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
-@using EggIncognito.Components.Shared
 @using EggIncognito.Services.Devices
+@implements IAsyncDisposable
 @inject CaptureSessionManager Manager
 @inject IServiceProvider Services
 @inject IAppMode AppMode
@@ -20,117 +18,105 @@
 
 <PageTitle>EggIncognito - Live Capture</PageTitle>
 
-@if (_hub is not null)
-{
-  @if (_session is not null && _hosted && (!_connected || !_running))
-  {
-    <div class="px-3 pt-3 setup-collapsible @(_connected ? "setup-hidden" : "")">
-      <HostedSetupCard Port="HostedOptions.FrontDoorPort"
-                       ClientFactory="Client" InviteUrl="@Config["Discord:InviteUrl"]"
-                       HostOverride="@_rotatedHost" />
-    </div>
-  }
-
-  <main class="capture-main flex flex-col gap-3 p-3 min-h-0">
-    <section class="panel capture-topbar">
-      <div class="capture-topbar-btns">
-        <CaptureControlsPanel Running="_running" ToggleBusy="_toggleBusy" View="_view"
-                              OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
-                              Hosted="_hosted" ClientFactory="Client" ReadOnly="_readOnly"
-                              OnAddressRotated="@(h => { _rotatedHost = h; StateHasChanged(); })" />
-        <CaptureNoticesPanel Notices="_notices" Unread="_unread"
-                             OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead" />
-      </div>
-      @if (_readOnly)
-      {
-        <div class="capture-device">
-          <span class="capture-device-tag">READ-ONLY</span>
-          @if (!string.IsNullOrEmpty(_deviceLabel))
-          {
-            <span class="capture-device-name">@_deviceLabel</span>
-          }
+@if (_hub is not null) {
+    @if (_session is not null && _hosted && (!_connected || !_running)) {
+        <div class="px-3 pt-3 setup-collapsible @(_connected ? "setup-hidden" : "")">
+            <HostedSetupCard Port="HostedOptions.FrontDoorPort"
+                             ClientFactory="Client" InviteUrl="@Config["Discord:InviteUrl"]"
+                             HostOverride="@_rotatedHost"/>
         </div>
-      }
-      <div class="capture-topbar-spacer"></div>
-      <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port" />
-    </section>
+    }
 
-    <div class="capture-body grid gap-3 min-h-0">
-      <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow" />
+    <main class="capture-main flex flex-col gap-3 p-3 min-h-0">
+        <section class="panel capture-topbar">
+            <div class="capture-topbar-btns">
+                <CaptureControlsPanel Running="_running" ToggleBusy="_toggleBusy" View="_view"
+                                      OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
+                                      Hosted="_hosted" ClientFactory="Client" ReadOnly="_readOnly"
+                                      OnAddressRotated="@(h => {
+                                                            _rotatedHost = h;
+                                                            StateHasChanged();
+                                                        })"/>
+                <CaptureNoticesPanel Notices="_notices" Unread="_unread"
+                                     OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead"/>
+            </div>
+            @if (_readOnly) {
+                <div class="capture-device">
+                    <span class="capture-device-tag">READ-ONLY</span>
+                    @if (!string.IsNullOrEmpty(_deviceLabel)) {
+                        <span class="capture-device-name">@_deviceLabel</span>
+                    }
+                </div>
+            }
+            <div class="capture-topbar-spacer"></div>
+            <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port"/>
+        </section>
 
-      <section id="detailPanel" class="panel">
-        <h2>Detail</h2>
-        <DetailPane Flow="_selectedFlow" View="_view" ClientFactory="Client" />
-      </section>
-    </div>
-  </main>
+        <div class="capture-body grid gap-3 min-h-0">
+            <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow"/>
 
-  <div class="toast-container">
-    @foreach (var t in _toasts)
-    {
-      <div class="toast toast-@t.Severity show" @onclick="@(() => RemoveToast(t.Id))">
-        <div class="toast-msg">@t.Message</div>
-        @if (!string.IsNullOrEmpty(t.Timestamp))
-        {
-          <div class="toast-time">@t.Timestamp</div>
+            <section id="detailPanel" class="panel">
+                <h2>Detail</h2>
+                <DetailPane Flow="_selectedFlow" View="_view" ClientFactory="Client"/>
+            </section>
+        </div>
+    </main>
+
+    <div class="toast-container">
+        @foreach (var t in _toasts) {
+            <div class="toast toast-@t.Severity show" @onclick="@(() => RemoveToast(t.Id))">
+                <div class="toast-msg">@t.Message</div>
+                @if (!string.IsNullOrEmpty(t.Timestamp)) {
+                    <div class="toast-time">@t.Timestamp</div>
+                }
+            </div>
         }
-      </div>
-    }
-  </div>
-}
-else if (!string.IsNullOrEmpty(DeviceId))
-{
-  <main class="px-8 pt-6 pb-8 max-w-[760px]">
-    <h1 class="text-[1.3rem] mt-0 mb-2">Device capture</h1>
-    <div class="panel">
-      <p class="text-muted text-sm my-0">
-        This device live-view is admin-only, and only available for a declared device whose capture is
-        running on this host. No live session for <code class="code-chip">@DeviceId</code>.
-      </p>
-      <a class="btn-secondary text-xs mt-3 w-fit no-underline" href="/admin">Back to Admin</a>
     </div>
-  </main>
-}
-else if (AppMode.HostedCaptureEnabled)
-{
-  <main class="px-8 pt-6 pb-8 max-w-[760px]">
-    <h1 class="text-[1.3rem] mt-0 mb-2">Capture</h1>
-    @if (!_isAuthenticated)
-    {
-      <div class="panel" id="hostedLogin">
-        <p class="text-muted text-sm mt-0 mb-3">Log in to start a hosted capture session.</p>
-        <LoginButton Label="Log in" />
-      </div>
-    }
-    else if (!_isSupporter)
-    {
-      <div class="panel mb-4" id="hostedPitch">
-        <p class="text-muted text-sm mt-0 mb-3">Hosted capture is a supporter perk.</p>
-        <a class="btn-primary inline-block w-fit no-underline" href="/support">Become a supporter</a>
-      </div>
-      <LocalCaptureGuide />
-    }
-    else
-    {
-      <div class="panel" id="hostedCapacity">
-        <p class="text-muted text-sm my-0">All capture slots are in use right now. Try again in a few
-          minutes.</p>
-      </div>
-    }
-  </main>
-}
-else
-{
-  <main class="px-8 pt-6 pb-8 max-w-[760px]">
-    <h1 class="text-[1.3rem] mt-0 mb-2">Capture</h1>
-    <p class="text-muted leading-relaxed mb-5">Capture runs a local proxy + CA and writes to disk, so it cannot run on this hosted instance.</p>
-    <LocalCaptureGuide />
-  </main>
+} else if (!string.IsNullOrEmpty(DeviceId)) {
+    <main class="px-8 pt-6 pb-8 max-w-[760px]">
+        <h1 class="text-[1.3rem] mt-0 mb-2">Device capture</h1>
+        <div class="panel">
+            <p class="text-muted text-sm my-0">
+                This device live-view is admin-only, and only available for a declared device whose capture is
+                running on this host. No live session for <code class="code-chip">@DeviceId</code>.
+            </p>
+            <a class="btn-secondary text-xs mt-3 w-fit no-underline" href="/admin">Back to Admin</a>
+        </div>
+    </main>
+} else if (AppMode.HostedCaptureEnabled) {
+    <main class="px-8 pt-6 pb-8 max-w-[760px]">
+        <h1 class="text-[1.3rem] mt-0 mb-2">Capture</h1>
+        @if (!_isAuthenticated) {
+            <div class="panel" id="hostedLogin">
+                <p class="text-muted text-sm mt-0 mb-3">Log in to start a hosted capture session.</p>
+                <LoginButton Label="Log in"/>
+            </div>
+        } else if (!_isSupporter) {
+            <div class="panel mb-4" id="hostedPitch">
+                <p class="text-muted text-sm mt-0 mb-3">Hosted capture is a supporter perk.</p>
+                <a class="btn-primary inline-block w-fit no-underline" href="/support">Become a supporter</a>
+            </div>
+            <LocalCaptureGuide/>
+        } else {
+            <div class="panel" id="hostedCapacity">
+                <p class="text-muted text-sm my-0">
+                    All capture slots are in use right now. Try again in a few
+                    minutes.
+                </p>
+            </div>
+        }
+    </main>
+} else {
+    <main class="px-8 pt-6 pb-8 max-w-[760px]">
+        <h1 class="text-[1.3rem] mt-0 mb-2">Capture</h1>
+        <p class="text-muted leading-relaxed mb-5">Capture runs a local proxy + CA and writes to disk, so it cannot run on this hosted instance.</p>
+        <LocalCaptureGuide/>
+    </main>
 }
 
 @code {
-   
-   
+
+
     readonly List<DashboardFlow> _flows = [];
     readonly Dictionary<long, int> _flowIndex = new();
     long? _selectedId;
@@ -158,8 +144,7 @@ else
     string? _cookie;
     IJSObjectReference? _store;
 
-   
-   
+
     CaptureSession? _session;
     CaptureHub? _hub;
     bool _readOnly;
@@ -171,11 +156,9 @@ else
     bool _isSupporter;
     string? _userId;
 
-    protected override void OnInitialized()
-    {
+    protected override void OnInitialized() {
         var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null)
-        {
+        if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
@@ -200,26 +183,27 @@ else
     }
 
 
-
-    void ResolveSession()
-    {
-        if (AppMode.CanCapture)
-        {
+    void ResolveSession() {
+        if (AppMode.CanCapture) {
             _session = Manager.GetOrCreate(CaptureSessionManager.LocalKey);
             _hub = _session.Hub;
             return;
         }
+
         if (!AppMode.HostedCaptureEnabled || !_isAuthenticated || !_isSupporter || string.IsNullOrEmpty(_userId))
             return;
         _hosted = true;
-        try { _session = Manager.GetOrCreate(_userId); _hub = _session.Hub; }
-        catch (CaptureCapacityException) { /* capacity panel renders */ }
+        try {
+            _session = Manager.GetOrCreate(_userId);
+            _hub = _session.Hub;
+        }
+        catch (CaptureCapacityException) {
+            /* capacity panel renders */
+        }
     }
 
 
-
-    void ResolveDeviceSession()
-    {
+    void ResolveDeviceSession() {
         if (!User.IsAtLeast(UserRole.Admin)) return;
         var dcm = Services.GetService(typeof(DeviceCaptureManager)) as DeviceCaptureManager;
         var hub = dcm?.HubFor(DeviceId!);
@@ -230,19 +214,16 @@ else
         _deviceLabel = cfg?.Devices.FirstOrDefault(d => d.Id == DeviceId)?.Label ?? DeviceId;
     }
 
-   
-   
-    static IEnumerable<string> CaptureController_SensitiveKeys() =>
-        Redactor.SensitiveFieldNames.Concat(["eiUserId", "userId"]).Distinct();
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
+    static IEnumerable<string> CaptureController_SensitiveKeys() {
+        return Redactor.SensitiveFieldNames.Concat(["eiUserId", "userId"]).Distinct();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (!firstRender || _hub is null) return;
 
-       
-       
-        try
-        {
+
+        try {
             _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/captureStore.js");
             _view.RedactionMode = await InvokeOr("getRedactionMode", _view.RedactionMode);
             _view.ShowHeaders = await InvokeOr("getShowHeaders", _view.ShowHeaders);
@@ -250,16 +231,16 @@ else
             _view.CompareToKnown = await InvokeOr("getCompareToKnown", _view.CompareToKnown);
             _view.DefaultFormat = await InvokeOr("getDefaultFormat", _view.DefaultFormat);
         }
-        catch { /* JS unavailable (test prerender); defaults stand. */ }
+        catch {
+            /* JS unavailable (test prerender); defaults stand. */
+        }
 
         StartSubscription();
         StateHasChanged();
     }
 
-   
-   
-    void StartSubscription()
-    {
+
+    void StartSubscription() {
         if (_hub is null) return;
         var (reader, subscription) = _hub.Subscribe();
         _subscription = subscription;
@@ -269,25 +250,24 @@ else
         ApplyStats(_hub.StatsSnapshot());
         _loopCts = new CancellationTokenSource();
         var ct = _loopCts.Token;
-        _loopTask = Task.Run(async () =>
-        {
-            try
-            {
-                await foreach (var env in reader.ReadAllAsync(ct))
-                {
+        _loopTask = Task.Run(async () => {
+            try {
+                await foreach (var env in reader.ReadAllAsync(ct)) {
                     await InvokeAsync(() => ApplyEnvelope(env));
                 }
             }
-            catch (OperationCanceledException) { /* disposed */ }
-            catch (ChannelClosedException) { /* hub unsubscribed */ }
+            catch (OperationCanceledException) {
+                /* disposed */
+            }
+            catch (ChannelClosedException) {
+                /* hub unsubscribed */
+            }
         }, ct);
     }
 
-   
-    void ApplyEnvelope(CaptureEnvelope env)
-    {
-        switch (env.Kind)
-        {
+
+    void ApplyEnvelope(CaptureEnvelope env) {
+        switch (env.Kind) {
             case "flow" when env.Flow is not null:
                 AddOrUpdateFlow(env.Flow);
                 break;
@@ -298,70 +278,66 @@ else
                 PushNotice(env.Event);
                 break;
         }
+
         StateHasChanged();
     }
 
-    void AddOrUpdateFlow(DashboardFlow flow)
-    {
-        if (_flowIndex.TryGetValue(flow.Id, out var idx))
-        {
+    void AddOrUpdateFlow(DashboardFlow flow) {
+        if (_flowIndex.TryGetValue(flow.Id, out var idx)) {
             _flows[idx] = flow;
             if (_selectedId == flow.Id) _selectedFlow = flow;
             return;
         }
+
         _flowIndex[flow.Id] = _flows.Count;
         _flows.Add(flow);
     }
 
-    void ApplyStats(CaptureStats stats)
-    {
+    void ApplyStats(CaptureStats stats) {
         _stats = stats;
         _running = stats.Running;
         _port = stats.Port;
         _connected = stats.ActiveConnections > 0 || stats.DeviceCount > 0;
     }
 
-    void SelectFlow(long id)
-    {
+    void SelectFlow(long id) {
         _selectedId = id;
         _selectedFlow = _flowIndex.TryGetValue(id, out var idx) ? _flows[idx] : null;
     }
 
-   
-   
-    async Task ToggleCapture()
-    {
+
+    async Task ToggleCapture() {
         _toggleBusy = true;
-        try
-        {
+        try {
             var url = _running ? "/api/capture/stop" : "/api/capture/start";
             await Client().PostAsync(url, null);
         }
-        catch { /* surfaced via the next stats broadcast; nothing to do here */ }
-       
-       
-        finally { _toggleBusy = false; StateHasChanged(); }
+        catch {
+            /* surfaced via the next stats broadcast; nothing to do here */
+        }
+
+
+        finally {
+            _toggleBusy = false;
+            StateHasChanged();
+        }
     }
 
-    async Task Clear()
-    {
-        try
-        {
+    async Task Clear() {
+        try {
             var res = await Client().PostAsync("/api/capture/clear", null);
-            if (res.IsSuccessStatusCode)
-            {
+            if (res.IsSuccessStatusCode) {
                 _flows.Clear();
                 _flowIndex.Clear();
                 _selectedId = null;
                 _selectedFlow = null;
             }
         }
-        catch { }
+        catch {
+        }
     }
 
-    async Task OnViewChanged()
-    {
-       
+    async Task OnViewChanged() {
         await InvokeVoid("setRedactionMode", _view.RedactionMode);
         await InvokeVoid("setShowHeaders", _view.ShowHeaders);
         await InvokeVoid("setAutoScroll", _view.AutoScroll);
@@ -370,74 +346,104 @@ else
         StateHasChanged();
     }
 
-    void PushNotice(CaptureEvent ev)
-    {
+    void PushNotice(CaptureEvent ev) {
         var severity = NoticeSeverity(ev.Kind);
         _notices.Insert(0, new CaptureNoticesPanel.NoticeItem(_nextNoticeId++, severity, ev.Message, ev.Timestamp));
         if (_notices.Count > 200) _notices.RemoveRange(200, _notices.Count - 200);
         _unread++;
-       
+
         var toast = new ToastItem(_nextToastId++, severity, ev.Message, ev.Timestamp);
         _toasts.Add(toast);
         _ = AutoDismissToast(toast.Id, _loopCts?.Token ?? CancellationToken.None);
     }
 
-    static string NoticeSeverity(string kind) => kind switch
-    {
-        "decryptError" => "error",
-        "certTrusted" => "ok",
-        _ => "info",
-    };
-
-    async Task AutoDismissToast(int id, CancellationToken ct)
-    {
-        try { await Task.Delay(5000, ct); }
-        catch (OperationCanceledException) { return; }
-        await InvokeAsync(() => { RemoveToast(id); StateHasChanged(); });
+    static string NoticeSeverity(string kind) {
+        return kind switch {
+            "decryptError" => "error",
+            "certTrusted" => "ok",
+            _ => "info"
+        };
     }
 
-    void RemoveToast(int id) => _toasts.RemoveAll(t => t.Id == id);
-    void DismissNotice(int id) => _notices.RemoveAll(n => n.Id == id);
-    void ClearNotices() { _notices.Clear(); _unread = 0; }
-    void MarkNoticesRead() => _unread = 0;
+    async Task AutoDismissToast(int id, CancellationToken ct) {
+        try {
+            await Task.Delay(5000, ct);
+        }
+        catch (OperationCanceledException) {
+            return;
+        }
 
-    async Task<T> InvokeOr<T>(string fn, T fallback)
-    {
+        await InvokeAsync(() => {
+            RemoveToast(id);
+            StateHasChanged();
+        });
+    }
+
+    void RemoveToast(int id) {
+        _toasts.RemoveAll(t => t.Id == id);
+    }
+
+    void DismissNotice(int id) {
+        _notices.RemoveAll(n => n.Id == id);
+    }
+
+    void ClearNotices() {
+        _notices.Clear();
+        _unread = 0;
+    }
+
+    void MarkNoticesRead() {
+        _unread = 0;
+    }
+
+    async Task<T> InvokeOr<T>(string fn, T fallback) {
         if (_store is null) return fallback;
-        try { return await _store.InvokeAsync<T>(fn); } catch { return fallback; }
+        try {
+            return await _store.InvokeAsync<T>(fn);
+        }
+        catch {
+            return fallback;
+        }
     }
 
-    async Task InvokeVoid(string fn, params object?[] args)
-    {
+    async Task InvokeVoid(string fn, params object?[] args) {
         if (_store is null) return;
-        try { await _store.InvokeVoidAsync(fn, args); } catch { }
+        try {
+            await _store.InvokeVoidAsync(fn, args);
+        }
+        catch {
+        }
     }
 
-   
-    HttpClient Client()
-    {
+
+    HttpClient Client() {
         var c = HttpFactory.CreateClient();
         if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
         if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
         return c;
     }
 
-    public async ValueTask DisposeAsync()
-    {
-       
-       
+    public async ValueTask DisposeAsync() {
         _loopCts?.Cancel();
         _subscription?.Dispose();
-        if (_loopTask is not null)
-        {
-            try { await _loopTask; } catch { }
+        if (_loopTask is not null) {
+            try {
+                await _loopTask;
+            }
+            catch {
+            }
         }
+
         _loopCts?.Dispose();
-        if (_store is not null)
-        {
-            try { await _store.DisposeAsync(); } catch { }
+        if (_store is not null) {
+            try {
+                await _store.DisposeAsync();
+            }
+            catch {
+            }
         }
     }
 
     sealed record ToastItem(int Id, string Severity, string Message, string Timestamp);
+
 }

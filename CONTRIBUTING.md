@@ -21,15 +21,15 @@ dotnet test
 dotnet run --project EggIncognito
 ```
 
-The source generator and the Tailwind compile run as part of `dotnet build`. Never edit generated files. They are overwritten every build.
+The source generator runs as part of `dotnet build`. Never edit generated files. They are overwritten every build.
 
-When you change only static web assets or a Razor component and need the Tailwind sheet recompiled, run:
+The served Tailwind sheet `EggIncognito/wwwroot/tailwind.css` is a committed artifact; the build does not recompile it. When you change the Tailwind source (`wwwroot/app.tailwind.css` or a Razor class), regenerate and commit the sheet:
 
 ```sh
-dotnet build -t:BuildTailwind
+dotnet build -p:BuildTailwindCss=true
 ```
 
-The compile target runs `AfterTargets="Build"`, so a static-asset-only incremental build skips it otherwise.
+That opt-in build fetches the standalone Tailwind CLI once into `obj/tailwind/` (gitignored) and recompiles the sheet.
 
 ## Adding an endpoint
 

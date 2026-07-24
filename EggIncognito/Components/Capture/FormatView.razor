@@ -1,52 +1,45 @@
+@using System.Text.Json.Nodes
 @* One request/response data section: format selector (JSON tree/raw, YAML, XML, JS, Hex, Bin), copy
    button, and filter box. RawB64 powers the Hex/Bin views, available even when JSON failed. *@
-@using System.Text.Json.Nodes
-@using EggIncognito.Components.Capture
 @inject IJSRuntime JS
 
 <div>
-  @if (ShowLabel && !string.IsNullOrEmpty(Label))
-  {
-    <div class="section-head"><h3>@Label</h3></div>
-  }
-  @if (_emptyNoteOnly is not null)
-  {
-    <div class="no-json">@_emptyNoteOnly</div>
-    @if (_showRawBox)
-    {
-      <div class="raw-box">@RawB64</div>
-    }
-  }
-  else if (_currentFormat == "json-tree")
-  {
-    <div class="data-body">
-      <JsonTree Root="_tree" View="View">
-        <Tools>
-          @FormatSelect()
-          @CopyButton()
-        </Tools>
-      </JsonTree>
-    </div>
-  }
-  else
-  {
-    <div class="data-body">
-      @if (_decodedEmptyNote is not null)
-      {
-        <div class="no-json">@_decodedEmptyNote</div>
-      }
-      <div class="data-box">
-        <div class="data-tools">
-          @FormatSelect()
-          <input type="search" class="data-filter" placeholder="Filter..."
-                 autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-                 value="@_filter" @oninput="OnFilterInput" />
-          @CopyButton()
+    @if (ShowLabel && !string.IsNullOrEmpty(Label)) {
+        <div class="section-head">
+            <h3>@Label</h3>
         </div>
-        <pre class="data-text">@RenderTextBody()</pre>
-      </div>
-    </div>
-  }
+    }
+    @if (_emptyNoteOnly is not null) {
+        <div class="no-json">@_emptyNoteOnly</div>
+        @if (_showRawBox) {
+            <div class="raw-box">@RawB64</div>
+        }
+    } else if (_currentFormat == "json-tree") {
+        <div class="data-body">
+            <JsonTree Root="_tree" View="View">
+                <Tools>
+                    @FormatSelect()
+                    @CopyButton()
+                </Tools>
+            </JsonTree>
+        </div>
+    } else {
+        <div class="data-body">
+            @if (_decodedEmptyNote is not null) {
+                <div class="no-json">@_decodedEmptyNote</div>
+            }
+            <div class="data-box">
+                <div class="data-tools">
+                    @FormatSelect()
+                    <input type="search" class="data-filter" placeholder="Filter..."
+                           autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                           value="@_filter" @oninput="OnFilterInput"/>
+                    @CopyButton()
+                </div>
+                <pre class="data-text">@RenderTextBody()</pre>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -74,36 +67,36 @@
     readonly HashSet<string> _revealed = new(StringComparer.Ordinal);
     string? _revealedFor;
 
-    protected override void OnParametersSet()
-    {
-        if (!string.Equals(JsonStr, _revealedFor, StringComparison.Ordinal))
-        {
+    protected override void OnParametersSet() {
+        if (!string.Equals(JsonStr, _revealedFor, StringComparison.Ordinal)) {
             _revealed.Clear();
             _revealedFor = JsonStr;
         }
+
         _emptyNoteOnly = null;
         _decodedEmptyNote = null;
         _showRawBox = false;
         _parsed = null;
         var parseOk = false;
-        if (!string.IsNullOrEmpty(JsonStr))
-        {
-            try { _parsed = JsonNode.Parse(JsonStr); parseOk = true; } catch { }
+        if (!string.IsNullOrEmpty(JsonStr)) {
+            try {
+                _parsed = JsonNode.Parse(JsonStr);
+                parseOk = true;
+            }
+            catch {
+            }
         }
 
         var hasBytes = !string.IsNullOrEmpty(RawB64);
         var emptyDecoded = !string.IsNullOrEmpty(JsonStr) && parseOk && IsEmptyContainer(_parsed);
 
-        if (string.IsNullOrEmpty(JsonStr) && !hasBytes)
-        {
+        if (string.IsNullOrEmpty(JsonStr) && !hasBytes) {
             _emptyNoteOnly = EmptyNote;
             return;
         }
 
 
-
-        if (emptyDecoded && !hasBytes)
-        {
+        if (emptyDecoded && !hasBytes) {
             _emptyNoteOnly = "(empty - all default values)";
             return;
         }
@@ -111,9 +104,7 @@
         _formats = [];
         if (!string.IsNullOrEmpty(JsonStr) && parseOk && !emptyDecoded) _formats.AddRange(CaptureFormat.JsonFormats);
         if (hasBytes) _formats.AddRange(CaptureFormat.ByteFormats);
-        if (_formats.Count == 0)
-        {
-
+        if (_formats.Count == 0) {
             _emptyNoteOnly = EmptyNote;
             _showRawBox = hasBytes;
             return;
@@ -126,18 +117,14 @@
         if (!_formats.Contains(current)) current = _formats[0];
         _currentFormat = current;
         FormatChoice[Label] = current;
-       
-       
-        if (_currentFormat == "json-tree")
-        {
-            if (_tree is null || _treeFor != JsonStr)
-            {
+
+
+        if (_currentFormat == "json-tree") {
+            if (_tree is null || _treeFor != JsonStr) {
                 _tree = TreeNode.Parse(JsonStr);
                 _treeFor = JsonStr;
             }
-        }
-        else
-        {
+        } else {
             _tree = null;
             _treeFor = null;
         }
@@ -146,8 +133,7 @@
     static bool IsEmptyContainer(JsonNode? v) =>
         v is JsonArray { Count: 0 } || v is JsonObject { Count: 0 };
 
-    void OnFormatChange(ChangeEventArgs e)
-    {
+    void OnFormatChange(ChangeEventArgs e) {
         _currentFormat = e.Value?.ToString() ?? _currentFormat;
         FormatChoice[Label] = _currentFormat;
         _tree = _currentFormat == "json-tree" ? TreeNode.Parse(JsonStr) : null;
@@ -156,33 +142,34 @@
 
     void OnFilterInput(ChangeEventArgs e) => _filter = e.Value?.ToString() ?? "";
 
-    void ToggleReveal(string key)
-    {
+    void ToggleReveal(string key) {
         if (!_revealed.Remove(key)) _revealed.Add(key);
     }
 
-    RenderFragment FormatSelect() =>@<select class="data-format" value="@_currentFormat" @onchange="OnFormatChange">
-        @foreach (var f in _formats)
-        {
-          <option value="@f">@CaptureFormat.Label(f)</option>
-        }
-      </select>;
+    RenderFragment FormatSelect() => @<select class="data-format" value="@_currentFormat" @onchange="OnFormatChange">
+                                         @foreach (var f in _formats) {
+                                             <option value="@f">@CaptureFormat.Label(f)</option>
+                                         }
+                                     </select>;
 
-    RenderFragment CopyButton() =>@<button class="btn-mini data-copy" type="button" @onclick="Copy">
-        <Icon Name="@(_copied ? "check" : "copy")" Class="icon-sm" /> @(_copied ? "Copied" : _copyLabel)
-      </button>;
+    RenderFragment CopyButton() => @<button class="btn-mini data-copy" type="button" @onclick="Copy">
+                                       <Icon Name="@(_copied ? "check" : "copy")" Class="icon-sm"/> @(_copied ? "Copied" : _copyLabel)
+                                   </button>;
 
-    string CurrentText()
-    {
+    string CurrentText() {
         var fmt = _currentFormat;
         if (fmt == "json-tree") return JsonStr ?? "";
         if (CaptureFormat.IsByteFormat(fmt)) return CaptureFormat.BytesToText(RawB64, fmt);
         return CaptureFormat.JsonToText(JsonStr, fmt);
     }
 
-    async Task Copy()
-    {
-        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", CurrentText()); } catch { }
+    async Task Copy() {
+        try {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", CurrentText());
+        }
+        catch {
+        }
+
         _copied = true;
         StateHasChanged();
         await Task.Delay(1200);
@@ -190,15 +177,12 @@
         StateHasChanged();
     }
 
-   
-   
-    RenderFragment RenderTextBody() => builder =>
-    {
+
+    RenderFragment RenderTextBody() => builder => {
         var text = CurrentText();
         var q = _filter.Trim().ToLowerInvariant();
         var shown = text;
-        if (q.Length > 0)
-        {
+        if (q.Length > 0) {
             var kept = text.Split('\n').Where(l => l.ToLowerInvariant().Contains(q)).ToList();
             shown = kept.Count > 0 ? string.Join("\n", kept) : "(no lines match)";
         }
@@ -208,23 +192,24 @@
         if (View.IsBlurMode && _parsed is not null && !isByte)
             sensitive = View.CollectSensitiveValues(_parsed);
 
-        if (sensitive is null || sensitive.Count == 0)
-        {
+        if (sensitive is null || sensitive.Count == 0) {
             builder.AddContent(0, shown);
             return;
         }
 
-       
+
         var needles = sensitive.Where(s => s.Length > 0).OrderByDescending(s => s.Length).ToList();
         var seq = 0;
         var i = 0;
-        while (i < shown.Length)
-        {
+        while (i < shown.Length) {
             string? matched = null;
             foreach (var n in needles)
-                if (i + n.Length <= shown.Length && shown.AsSpan(i, n.Length).SequenceEqual(n)) { matched = n; break; }
-            if (matched is not null)
-            {
+                if (i + n.Length <= shown.Length && shown.AsSpan(i, n.Length).SequenceEqual(n)) {
+                    matched = n;
+                    break;
+                }
+
+            if (matched is not null) {
                 var key = matched;
                 builder.OpenElement(seq++, "span");
                 builder.AddAttribute(seq++, "class", "blurred" + (_revealed.Contains(key) ? " revealed" : ""));
@@ -233,9 +218,7 @@
                 builder.AddContent(seq++, matched);
                 builder.CloseElement();
                 i += matched.Length;
-            }
-            else
-            {
+            } else {
                 var j = i + 1;
                 while (j < shown.Length && !needles.Any(n => j + n.Length <= shown.Length && shown.AsSpan(j, n.Length).SequenceEqual(n))) j++;
                 builder.AddContent(seq++, shown.Substring(i, j - i));
@@ -243,4 +226,5 @@
             }
         }
     };
+
 }

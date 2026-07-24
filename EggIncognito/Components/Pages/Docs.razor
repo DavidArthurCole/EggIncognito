@@ -3,6 +3,11 @@
 
 @* Docs folded into the Inspector (proto docs now live on the endpoint Docs tab + the Objects view). This
    legacy route redirects so old links keep working. *@
+
 @code {
-    protected override void OnInitialized() => Nav.NavigateTo("/inspector", replace: true);
+
+    protected override void OnInitialized() {
+        Nav.NavigateTo("/inspector", replace: true);
+    }
+
 }

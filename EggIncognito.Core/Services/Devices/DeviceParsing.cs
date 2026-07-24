@@ -14,6 +14,33 @@ public static partial class DeviceParsing {
                 code.Success ? code.Groups[1].Value : null);
     }
 
+    public static IReadOnlyList<string> ApkPaths(string pmPathOutput) {
+        var list = new List<string>();
+        foreach (var raw in pmPathOutput.Split('\n')) {
+            var line = raw.Trim();
+            if (line.StartsWith("package:", StringComparison.Ordinal))
+                list.Add(line["package:".Length..].Trim());
+        }
+        return list;
+    }
+
+    public static string? SelectArmSplit(string pmPathOutput) {
+        foreach (var p in ApkPaths(pmPathOutput))
+            if (p.Contains("arm")) return p;
+        return null;
+    }
+
+    public static string? SelectBaseSplit(string pmPathOutput) {
+        string? only = null;
+        var count = 0;
+        foreach (var p in ApkPaths(pmPathOutput)) {
+            if (p.EndsWith("/base.apk", StringComparison.OrdinalIgnoreCase)) return p;
+            only = p;
+            count++;
+        }
+        return count == 1 ? only : null;
+    }
+
 
 
 

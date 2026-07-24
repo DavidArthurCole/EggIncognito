@@ -10,7 +10,7 @@ namespace EggIncognito.Services;
 
 public sealed class DeviceMeshProvider(
     IServiceProvider services, IProcessRunner runner,
-    IConfiguration config, GameAssetProvider assets) {
+    Devices.IDeviceConnectionFactory connections, GameAssetProvider assets) {
     private const string PlatformAndroid = "android";
     private const string PlatformIos = "ios";
 
@@ -47,9 +47,9 @@ public sealed class DeviceMeshProvider(
     private async Task<(byte[]? Rpo, Result? Err)> PullRpoAsync(Device device, string stem, CancellationToken ct) {
         byte[]? rpo;
         if (device.Platform == PlatformIos) {
-            if (IosSsh(device) is not { } ssh)
+            if (connections.Ios(device.Target) is not { } conn)
                 return (null, Err(503, "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured"));
-            rpo = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullOneRpoAsync(device.Package, stem, ct);
+            rpo = await new IosAssetPuller(conn).PullOneRpoAsync(device.Package, stem, ct);
         } else if (device.Platform == PlatformAndroid) {
             var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
             if (apk is null) return (null, Err(502, "could not pull base.apk from the device"));
@@ -68,9 +68,9 @@ public sealed class DeviceMeshProvider(
         var device = await ResolveDeviceAsync(deviceId, ct);
         if (device is null) return (false, [], "no asset-source device available");
         if (device.Platform == PlatformIos) {
-            if (IosSsh(device) is not { } ssh)
+            if (connections.Ios(device.Target) is not { } conn)
                 return (false, [], "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured");
-            var names = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).ListRposAsync(device.Package, ct);
+            var names = await new IosAssetPuller(conn).ListRposAsync(device.Package, ct);
             return names.Count > 0 ? (true, names, null) : (false, [], "no meshes found on the device bundle");
         }
         if (device.Platform != PlatformAndroid)
@@ -114,9 +114,9 @@ public sealed class DeviceMeshProvider(
 
 
     private async Task<(IReadOnlyDictionary<string, byte[]>?, string?)> PullIosRposAsync(Device device, CancellationToken ct) {
-        if (IosSsh(device) is not { } ssh)
+        if (connections.Ios(device.Target) is not { } conn)
             return (null, "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured");
-        var tar = await new IosAssetPuller(runner, ssh.Host, ssh.Port, ssh.Key).PullRposTarAsync(device.Package, ct);
+        var tar = await new IosAssetPuller(conn).PullRposTarAsync(device.Package, ct);
         if (tar is null) return (null, "could not pull the rpos tarball off the device");
         var map = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         foreach (var (name, bytes) in TarReader.Read(tar)) {
@@ -152,11 +152,4 @@ public sealed class DeviceMeshProvider(
         return reachable ?? devices[0];
     }
 
-    private (string Host, string Port, string Key)? IosSsh(Device device) {
-        var cfg = config.GetSection("DeviceUpdate").GetSection("Ios");
-        var key = cfg["SshKeyPath"];
-        if (string.IsNullOrEmpty(key)) return null;
-        var host = string.IsNullOrEmpty(cfg["SshHost"]) ? device.Target : cfg["SshHost"]!;
-        return (host, cfg["SshPort"] ?? "2222", key);
-    }
 }

@@ -36,9 +36,7 @@ public sealed class IosCaInstaller(IProcessRunner runner, IosCaInstaller.SshConf
             .Replace("{subj}", CaCertPrep.IosSubjectDerHex(cert))
             .Replace("{data}", CaCertPrep.DerHex(cert));
 
-        var r = await runner.RunAsync("ssh",
-            ["-p", ssh.Port, "-i", ssh.KeyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
-             $"root@{ssh.Host}", cmd], ct);
+        var r = await runner.RunAsync("ssh", new SshEndpoint(ssh.Host!, ssh.Port, ssh.KeyPath!).SshArgs(cmd), ct);
 
         var verified = r.Stdout.Contains("row-present");
         if (r.ExitCode == 0 && verified) return (true, "trust store updated (row verified)");

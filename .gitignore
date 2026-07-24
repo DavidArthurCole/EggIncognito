@@ -18,8 +18,6 @@ captures/
 EggIncognito/Endpoints/staged/
 EggIncognito/Endpoints/raw/
 EggIncognito/Endpoints/requests/
-EggIncognito/wwwroot/tailwind.css
-tools/tailwind/tailwindcss*
 *.rpo
 *.rpoz
 dist/

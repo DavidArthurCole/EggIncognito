@@ -1,74 +1,65 @@
+@using System.Text
+@using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
-@using System.Net.Http.Json
 
 <section class="panel mb-4">
-  <div class="admin-panel-head">
-    <h2 class="admin-panel-title">API console</h2>
-    <span class="text-muted text-xs">@_endpoints.Count endpoints</span>
-  </div>
+    <div class="admin-panel-head">
+        <h2 class="admin-panel-title">API console</h2>
+        <span class="text-muted text-xs">@_endpoints.Count endpoints</span>
+    </div>
 
-  @if (_endpoints.Count == 0)
-  {
-    <p class="text-muted text-sm m-0">No endpoints available.</p>
-  }
-  else
-  {
-    <select class="reg-filter-input w-full" @onchange="OnSelect">
-      <option value="">Pick an endpoint…</option>
-      @foreach (var group in Grouped())
-      {
-        <optgroup label="@group.Key">
-          @foreach (var e in group)
-          {
-            <option value="@Key(e)" selected="@(_selected == e)">@e.Method @ShortRoute(e.Route)</option>
-          }
-        </optgroup>
-      }
-    </select>
+    @if (_endpoints.Count == 0) {
+        <p class="text-muted text-sm m-0">No endpoints available.</p>
+    } else {
+        <select class="reg-filter-input w-full" @onchange="OnSelect">
+            <option value="">Pick an endpoint…</option>
+            @foreach (var group in Grouped()) {
+                <optgroup label="@group.Key">
+                    @foreach (var e in group) {
+                        <option value="@Key(e)" selected="@(_selected == e)">@e.Method @ShortRoute(e.Route)</option>
+                    }
+                </optgroup>
+            }
+        </select>
 
-    @if (_selected is not null)
-    {
-      <div class="mt-2 mb-2">
-        <span class="console-method console-@(_selected.Method.ToLower())">@_selected.Method</span>
-        <span class="font-mono text-xs break-all">@_selected.Route</span>
-      </div>
+        @if (_selected is not null) {
+            <div class="mt-2 mb-2">
+                <span class="console-method console-@(_selected.Method.ToLower())">@_selected.Method</span>
+                <span class="font-mono text-xs break-all">@_selected.Route</span>
+            </div>
 
-      @foreach (var p in _selected.Query)
-      {
-        <label class="block text-xs text-muted mt-1">@p.Name <span class="opacity-60">(@p.Source, @p.Type)</span>
-          <input class="reg-filter-input w-full" @bind="_paramValues[p.Name]" />
-        </label>
-      }
+            @foreach (var p in _selected.Query) {
+                <label class="block text-xs text-muted mt-1">
+                    @p.Name <span class="opacity-60">(@p.Source, @p.Type)</span>
+                    <input class="reg-filter-input w-full" @bind="_paramValues[p.Name]"/>
+                </label>
+            }
 
-      @if (_selected.HasFile)
-      {
-        <div class="settings-title mt-2">File</div>
-        <InputFile OnChange="OnFile" class="text-xs" />
-        @if (_fileName is not null) { <div class="text-xs text-muted">@_fileName (@(_fileBytes?.Length ?? 0) bytes)</div> }
-      }
+            @if (_selected.HasFile) {
+                <div class="settings-title mt-2">File</div>
+                <InputFile OnChange="OnFile" class="text-xs"/>
+                @if (_fileName is not null) {
+                    <div class="text-xs text-muted">@_fileName (@(_fileBytes?.Length ?? 0) bytes)</div>
+                }
+            }
 
-      @if (_selected.HasBody)
-      {
-        <div class="settings-title mt-2">JSON body @(_selected.BodyType is not null ? $"({_selected.BodyType})" : "")</div>
-        <textarea class="reg-filter-input w-full font-mono text-xs" rows="4" @bind="_body" placeholder="{ }"></textarea>
-      }
+            @if (_selected.HasBody) {
+                <div class="settings-title mt-2">JSON body @(_selected.BodyType is not null ? $"({_selected.BodyType})" : "")</div>
+                <textarea class="reg-filter-input w-full font-mono text-xs" rows="4" @bind="_body" placeholder="{ }"></textarea>
+            }
 
-      <button class="btn-primary mt-2" @onclick="Send" disabled="@_busy">@(_busy ? "Sending…" : "Send")</button>
+            <button class="btn-primary mt-2" @onclick="Send" disabled="@_busy">@(_busy ? "Sending…" : "Send")</button>
 
-      @if (_status is not null)
-      {
-        <div class="mt-2 text-xs @(_ok ? "text-muted" : "err")">@_statusLine</div>
-        @if (_isBinary)
-        {
-          <div class="text-xs text-muted mt-1">Binary response (@_respBytes bytes). <a class="underline" href="@_blobUrl" download="@_downloadName">Download</a></div>
+            @if (_status is not null) {
+                <div class="mt-2 text-xs @(_ok ? "text-muted" : "err")">@_statusLine</div>
+                @if (_isBinary) {
+                    <div class="text-xs text-muted mt-1">Binary response (@_respBytes bytes). <a class="underline" href="@_blobUrl" download="@_downloadName">Download</a></div>
+                } else {
+                    <pre class="result-pre mt-1" style="max-height:40vh;overflow:auto;">@_response</pre>
+                }
+            }
         }
-        else
-        {
-          <pre class="result-pre mt-1" style="max-height:40vh;overflow:auto;">@_response</pre>
-        }
-      }
     }
-  }
 </section>
 
 @code {
@@ -90,84 +81,87 @@
     string? _blobUrl;
     string? _downloadName;
 
-    protected override async Task OnInitializedAsync()
-    {
+    protected override async Task OnInitializedAsync() {
         if (ClientFactory is null) return;
-        try
-        {
+        try {
             var res = await ClientFactory().GetFromJsonAsync<EndpointList>("/api/console/endpoints");
             _endpoints = res?.Endpoints?.ToList() ?? [];
         }
-        catch { _endpoints = []; }
+        catch {
+            _endpoints = [];
+        }
     }
 
-    IEnumerable<IGrouping<string, Endpoint>> Grouped() =>
-        _endpoints.GroupBy(Namespace).OrderBy(g => g.Key, StringComparer.Ordinal);
+    IEnumerable<IGrouping<string, Endpoint>> Grouped() {
+        return _endpoints.GroupBy(Namespace).OrderBy(g => g.Key, StringComparer.Ordinal);
+    }
 
-    static string Namespace(Endpoint e)
-    {
+    static string Namespace(Endpoint e) {
         var parts = e.Route.TrimStart('/').Split('/');
         return parts.Length >= 2 && parts[0] == "api" ? parts[1] : parts.ElementAtOrDefault(0) ?? "api";
     }
 
-    static string ShortRoute(string route)
-    {
+    static string ShortRoute(string route) {
         var parts = route.TrimStart('/').Split('/');
         return parts.Length > 2 && parts[0] == "api" ? "/" + string.Join('/', parts.Skip(2)) : route;
     }
 
-    static string Key(Endpoint e) => $"{e.Method} {e.Route}";
+    static string Key(Endpoint e) {
+        return $"{e.Method} {e.Route}";
+    }
 
-    void OnSelect(ChangeEventArgs e)
-    {
+    void OnSelect(ChangeEventArgs e) {
         var key = (string?)e.Value ?? "";
         Select(_endpoints.FirstOrDefault(x => Key(x) == key));
     }
 
-    void Select(Endpoint? e)
-    {
+    void Select(Endpoint? e) {
         _selected = e;
         _paramValues.Clear();
-        if (e is not null) foreach (var p in e.Query) _paramValues[p.Name] = "";
+        if (e is not null)
+            foreach (var p in e.Query)
+                _paramValues[p.Name] = "";
         _body = "";
-        _fileBytes = null; _fileName = null;
-        _status = null; _statusLine = null; _response = ""; _isBinary = false; _blobUrl = null;
+        _fileBytes = null;
+        _fileName = null;
+        _status = null;
+        _statusLine = null;
+        _response = "";
+        _isBinary = false;
+        _blobUrl = null;
     }
 
-    async Task OnFile(InputFileChangeEventArgs e)
-    {
+    async Task OnFile(InputFileChangeEventArgs e) {
         using var ms = new MemoryStream();
         await e.File.OpenReadStream(200_000_000).CopyToAsync(ms);
         _fileBytes = ms.ToArray();
         _fileName = e.File.Name;
     }
 
-    async Task Send()
-    {
+    async Task Send() {
         if (_selected is null || ClientFactory is null) return;
-        _busy = true; _status = null; _isBinary = false; _blobUrl = null;
-        try
-        {
+        _busy = true;
+        _status = null;
+        _isBinary = false;
+        _blobUrl = null;
+        try {
             var route = _selected.Route;
             var query = new List<string>();
-            foreach (var p in _selected.Query)
-            {
+            foreach (var p in _selected.Query) {
                 var v = _paramValues.GetValueOrDefault(p.Name) ?? "";
                 if (p.Source == "Path") route = route.Replace($"{{{p.Name}}}", Uri.EscapeDataString(v));
                 else if (!string.IsNullOrEmpty(v)) query.Add($"{Uri.EscapeDataString(p.Name)}={Uri.EscapeDataString(v)}");
             }
+
             if (query.Count > 0) route += "?" + string.Join("&", query);
 
             var req = new HttpRequestMessage(new HttpMethod(_selected.Method), route);
-            if (_selected.HasFile && _fileBytes is not null)
-            {
+            if (_selected.HasFile && _fileBytes is not null) {
                 var mp = new MultipartFormDataContent();
                 mp.Add(new ByteArrayContent(_fileBytes), "file", _fileName ?? "file");
                 req.Content = mp;
-            }
-            else if (_selected.HasBody && !string.IsNullOrWhiteSpace(_body))
-            {
-                req.Content = new StringContent(_body, System.Text.Encoding.UTF8, "application/json");
+            } else if (_selected.HasBody && !string.IsNullOrWhiteSpace(_body)) {
+                req.Content = new StringContent(_body, Encoding.UTF8, "application/json");
             }
 
             var res = await ClientFactory().SendAsync(req);
@@ -176,12 +170,9 @@
             var ctype = res.Content.Headers.ContentType?.MediaType ?? "";
             _statusLine = $"HTTP {_status} {res.ReasonPhrase} ({ctype})";
 
-            if (ctype.StartsWith("application/json") || ctype.StartsWith("text/"))
-            {
+            if (ctype.StartsWith("application/json") || ctype.StartsWith("text/")) {
                 _response = Pretty(await res.Content.ReadAsStringAsync());
-            }
-            else
-            {
+            } else {
                 var bytes = await res.Content.ReadAsByteArrayAsync();
                 _respBytes = bytes.Length;
                 _isBinary = true;
@@ -189,21 +180,30 @@
                 _downloadName = res.Content.Headers.ContentDisposition?.FileName?.Trim('"') ?? "response.bin";
             }
         }
-        catch (Exception ex) { _ok = false; _statusLine = ex.Message; _response = ""; }
-        finally { _busy = false; }
+        catch (Exception ex) {
+            _ok = false;
+            _statusLine = ex.Message;
+            _response = "";
+        }
+        finally {
+            _busy = false;
+        }
     }
 
-    static string Pretty(string json)
-    {
-        try
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            return System.Text.Json.JsonSerializer.Serialize(doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    static string Pretty(string json) {
+        try {
+            using var doc = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true });
         }
-        catch { return json; }
+        catch {
+            return json;
+        }
     }
 
     record Endpoint(string Method, string Route, List<ParamRow> Query, bool HasBody, string? BodyType, bool HasFile);
+
     record ParamRow(string Name, string Source, string Type, bool Required);
+
     record EndpointList(int Count, Endpoint[]? Endpoints);
+
 }
