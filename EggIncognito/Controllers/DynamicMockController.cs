@@ -35,10 +35,10 @@ public sealed class DynamicMockController(
     }
 
 
-    private IActionResult? Serve(RouteInfo route, string? data) {
+    private ContentResult? Serve(RouteInfo route, string? data) {
         if (route.RawResponse is not null) return Content(route.RawResponse, "text/plain");
         var type = ProtoTypeResolver.Resolve(route.Response ?? "AuthenticatedMessage");
-        return type is null ? null : (IActionResult)Encode(endpoints.Get(type, route.Path, EidExtractor.FromData(data)));
+        return type is null ? null : Encode(endpoints.Get(type, route.Path, EidExtractor.FromData(data)));
     }
 
     private ContentResult Encode(IMessage message) =>

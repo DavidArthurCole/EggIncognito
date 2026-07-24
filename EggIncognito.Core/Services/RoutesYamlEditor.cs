@@ -233,7 +233,7 @@ public sealed partial class RoutesYamlEditor {
 
         int at = routesEnd;
         for (int k = comment + 1; k < routesEnd; k++) {
-            if (_lines[k].TrimStart().StartsWith("# ") && _lines[k].Trim().EndsWith('/')) { at = k; break; }
+            if (_lines[k].TrimStart().StartsWith("# ", StringComparison.Ordinal) && _lines[k].Trim().EndsWith('/')) { at = k; break; }
         }
         while (at > comment && _lines[at - 1].Trim().Length == 0) at--;
         return at;

@@ -183,7 +183,7 @@ public sealed class ConfigController(
         return Ok(new { ok = true, platform, bytes = json.Length, hasDlcCatalog = cfg.DlcCatalog is not null, shells, shellObjects });
     }
 
-    private IActionResult? RequireAdmin() =>
+    private ObjectResult? RequireAdmin() =>
         currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin)
             ? null : StatusCode(403, new { error = "admin role required" });
 }

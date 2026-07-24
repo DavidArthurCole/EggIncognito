@@ -55,7 +55,7 @@ public static class FieldTreeBuilder {
 
 
 
-    private static JsonNode? Coerce(string raw, string ptype) {
+    private static JsonValue? Coerce(string raw, string ptype) {
         if (string.IsNullOrEmpty(raw)) return null;
         if (ptype == "bool") return JsonValue.Create(raw == "true");
         if (Int32.Contains(ptype))

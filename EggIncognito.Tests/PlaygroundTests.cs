@@ -217,5 +217,5 @@ public class PlaygroundTests(SharedAppFactory f) {
         Assert.DoesNotContain(">Periodicals</button>", html);
     }
 
-    private record ListResult(string[]? Ships);
+    private sealed record ListResult(string[]? Ships);
 }

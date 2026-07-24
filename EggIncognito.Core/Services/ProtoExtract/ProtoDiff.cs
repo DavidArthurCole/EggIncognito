@@ -149,7 +149,7 @@ public static partial class ProtoDiff {
 
 
     private static List<(string Tag, int I1, int I2, int J1, int J2)> GetOpcodes(
-        IReadOnlyList<string> a, IReadOnlyList<string> b) {
+        List<string> a, List<string> b) {
         var matches = LongestCommonSubsequence(a, b);
 
         matches.Add((a.Count, b.Count, 0));
@@ -171,7 +171,7 @@ public static partial class ProtoDiff {
 
 
     private static List<(int A, int B, int Size)> LongestCommonSubsequence(
-        IReadOnlyList<string> a, IReadOnlyList<string> b) {
+        List<string> a, List<string> b) {
         var n = a.Count;
         var m = b.Count;
         var dp = new int[n + 1, m + 1];

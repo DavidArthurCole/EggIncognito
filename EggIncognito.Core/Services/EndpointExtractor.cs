@@ -421,7 +421,7 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
 
 
 
-    private static IReadOnlyDictionary<string, string> LoadInnerTypes(string contentRoot, string newKey, string legacyKey) {
+    private static Dictionary<string, string> LoadInnerTypes(string contentRoot, string newKey, string legacyKey) {
         var yaml = File.ReadAllText(ContentRoot.RoutesYamlPath(contentRoot));
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         string? currentPath = null;

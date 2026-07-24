@@ -21,7 +21,7 @@ public sealed class CaptureHub {
 
     private readonly Dictionary<string, RememberedDevice> _known = [with(StringComparer.Ordinal)];
 
-    public Action? DevicesChanged;
+    public Action? DevicesChanged { get; set; }
 
 
 

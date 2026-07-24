@@ -196,7 +196,7 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
     }
 
 
-    private static IReadOnlyList<HttpHeader> CollectHeaders(
+    private static List<HttpHeader> CollectHeaders(
         System.Net.Http.Headers.HttpHeaders messageHeaders,
         System.Net.Http.Headers.HttpHeaders? contentHeaders) {
         var list = new List<HttpHeader>();

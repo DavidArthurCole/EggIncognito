@@ -19,7 +19,7 @@ public sealed record Effect {
         MetaSchema = metaSchema;
         Meta = meta ?? EmptyMeta;
         if (metaSchema is not null) {
-            new EffectRow(metaSchema, id, Meta);
+            _ = new EffectRow(metaSchema, id, Meta);
         }
     }
 

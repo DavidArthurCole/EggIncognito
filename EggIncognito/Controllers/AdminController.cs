@@ -24,7 +24,7 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
     private IdentityApiClient? Identity => services.GetService(typeof(IdentityApiClient)) as IdentityApiClient;
 
-    private IActionResult? RequireAdmin() =>
+    private ObjectResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
 
     private ApiKeyStore? Keys => services.GetService(typeof(ApiKeyStore)) as ApiKeyStore;

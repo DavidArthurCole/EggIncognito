@@ -205,7 +205,7 @@ public static partial class BoostCatalogExtractor {
     }
 
     private static bool TryGroupsForBase(ulong baseVa, IReadOnlyList<(ulong Va, ulong AllocSize)> descStores,
-        IReadOnlyDictionary<ulong, string> sizeText, int entryCount, IReadOnlyDictionary<int, string> expected,
+        Dictionary<ulong, string> sizeText, int entryCount, IReadOnlyDictionary<int, string> expected,
         out Dictionary<int, string> groups) {
         groups = [];
         foreach (var (va, size) in descStores) {

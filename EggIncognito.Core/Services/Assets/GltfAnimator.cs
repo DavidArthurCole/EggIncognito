@@ -50,12 +50,12 @@ public static class GltfAnimator {
 
 
     private static Node? TargetNode(ModelRoot model) {
-        var scene = model.DefaultScene ?? model.LogicalScenes.FirstOrDefault();
+        var scene = model.DefaultScene ?? (model.LogicalScenes.Count > 0 ? model.LogicalScenes[0] : null);
         var fromScene = scene?.VisualChildren.FirstOrDefault(n => n.Mesh is not null)
                         ?? scene?.VisualChildren.FirstOrDefault();
         return fromScene
                ?? model.LogicalNodes.FirstOrDefault(n => n.Mesh is not null)
-               ?? model.LogicalNodes.FirstOrDefault();
+               ?? (model.LogicalNodes.Count > 0 ? model.LogicalNodes[0] : null);
     }
 
     private static void ApplyAnimation(Node node, Options opts, string name) {

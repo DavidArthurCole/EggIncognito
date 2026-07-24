@@ -89,7 +89,7 @@ public static class ShellCatalog {
     public static IReadOnlyList<ShellSet> Sets(DLCCatalog catalog) => BuildSets(catalog, catalog?.ShellSets, decorator: false);
     public static IReadOnlyList<ShellSet> Decorators(DLCCatalog catalog) => BuildSets(catalog, catalog?.Decorators, decorator: true);
 
-    private static IReadOnlyList<ShellSet> BuildSets(DLCCatalog? catalog, IEnumerable<ShellSetSpec>? specs, bool decorator) {
+    private static List<ShellSet> BuildSets(DLCCatalog? catalog, IEnumerable<ShellSetSpec>? specs, bool decorator) {
         var result = new List<ShellSet>();
         if (catalog is null || specs is null) return result;
         var bySet = FromCatalog(catalog)

@@ -107,7 +107,7 @@ public static class RouteParser {
             }
             if (!inRoutes) continue;
 
-            if (trimmed.StartsWith("- path:")) {
+            if (trimmed.StartsWith("- path:", System.StringComparison.Ordinal)) {
                 Flush();
                 var path = trimmed.Substring("- path:".Length).Trim().TrimEnd('/');
                 b = new Block { Path = path.Length == 0 ? null : path };
@@ -131,19 +131,19 @@ public static class RouteParser {
     }
 
     private static void ApplyLine(Block b, string trimmed) {
-        if (trimmed.StartsWith("requestType:")) {
+        if (trimmed.StartsWith("requestType:", System.StringComparison.Ordinal)) {
             b.LegacyReq = After(trimmed, "requestType:");
-        } else if (trimmed.StartsWith("responseType:")) {
+        } else if (trimmed.StartsWith("responseType:", System.StringComparison.Ordinal)) {
             b.LegacyRes = After(trimmed, "responseType:");
-        } else if (trimmed.StartsWith("request:")) { b.Request = NullIfEmpty(After(trimmed, "request:")); b.HasRequest = true; } else if (trimmed.StartsWith("response:")) { b.Response = NullIfEmpty(After(trimmed, "response:")); b.HasResponse = true; } else if (trimmed.StartsWith("requestWrapped:")) {
+        } else if (trimmed.StartsWith("request:", System.StringComparison.Ordinal)) { b.Request = NullIfEmpty(After(trimmed, "request:")); b.HasRequest = true; } else if (trimmed.StartsWith("response:", System.StringComparison.Ordinal)) { b.Response = NullIfEmpty(After(trimmed, "response:")); b.HasResponse = true; } else if (trimmed.StartsWith("requestWrapped:", System.StringComparison.Ordinal)) {
             b.RequestWrapped = After(trimmed, "requestWrapped:") == "true";
-        } else if (trimmed.StartsWith("responseWrapped:")) {
+        } else if (trimmed.StartsWith("responseWrapped:", System.StringComparison.Ordinal)) {
             b.ResponseWrapped = After(trimmed, "responseWrapped:") == "true";
-        } else if (trimmed.StartsWith("rawResponse:")) {
+        } else if (trimmed.StartsWith("rawResponse:", System.StringComparison.Ordinal)) {
             b.RawResponse = After(trimmed, "rawResponse:").Trim('"');
-        } else if (trimmed.StartsWith("pathParamOnly:")) {
+        } else if (trimmed.StartsWith("pathParamOnly:", System.StringComparison.Ordinal)) {
             b.PathParamOnly = After(trimmed, "pathParamOnly:") == "true";
-        } else if (trimmed.StartsWith("pathParam:")) {
+        } else if (trimmed.StartsWith("pathParam:", System.StringComparison.Ordinal)) {
             b.PathParam = After(trimmed, "pathParam:") == "true";
         }
     }
@@ -181,6 +181,6 @@ public static class RouteParser {
     public static string ToClassName(string path) =>
         string.Concat(
             path.Split(['/', '_'], System.StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => char.ToUpper(s[0]) + s.Substring(1))
+                .Select(s => char.ToUpperInvariant(s[0]) + s.Substring(1))
         ) + "Controller";
 }

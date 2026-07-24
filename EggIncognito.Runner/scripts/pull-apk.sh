@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Pull the arm split APK for a package over ADB. The arm split carries the proto
-# descriptors; base.apk does not. Mirrors AdbClient.PullArmApk in the extractor.
 set -euo pipefail
 PKG="${1:-com.auxbrain.egginc}"
 OUT="${2:-arm.apk}"

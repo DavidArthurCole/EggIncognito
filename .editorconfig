@@ -83,6 +83,14 @@ dotnet_diagnostic.CA1305.severity = suggestion
 dotnet_diagnostic.CA1822.severity = suggestion
 dotnet_diagnostic.CA1848.severity = suggestion
 dotnet_diagnostic.CA1873.severity = suggestion
+dotnet_diagnostic.CA1716.severity = none
+
+[EggIncognito.Core/Services/PostmanCollection.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+[EggIncognito.Core/Services/Devices/CaCertPrep.cs]
+dotnet_diagnostic.CA5350.severity = none
+dotnet_diagnostic.CA5351.severity = none
 
 [*.{razor,cshtml}]
 dotnet_diagnostic.IDE0005.severity = none
@@ -98,3 +106,5 @@ dotnet_diagnostic.CA1859.severity = none
 dotnet_diagnostic.CA1861.severity = none
 dotnet_diagnostic.CA1869.severity = none
 dotnet_diagnostic.CA1310.severity = none
+dotnet_diagnostic.CA1711.severity = none
+dotnet_diagnostic.CA5350.severity = none

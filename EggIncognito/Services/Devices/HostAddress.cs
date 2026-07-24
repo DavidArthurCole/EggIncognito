@@ -7,9 +7,8 @@ namespace EggIncognito.Services.Devices;
 public static class HostAddress {
     public sealed record Nic(string Name, bool IsUp, bool IsLoopback, IReadOnlyList<string> IPv4Addresses);
 
-    public static string? Resolve(string? configured, IReadOnlyList<Nic>? nics = null) {
-        return !string.IsNullOrWhiteSpace(configured) ? configured.Trim() : Pick(nics ?? Enumerate());
-    }
+    public static string? Resolve(string? configured, IReadOnlyList<Nic>? nics = null) =>
+        !string.IsNullOrWhiteSpace(configured) ? configured.Trim() : Pick(nics ?? Enumerate());
 
 
     public static string? Pick(IReadOnlyList<Nic> nics) {
@@ -42,18 +41,19 @@ public static class HostAddress {
             || (b[0] == 192 && b[1] == 168);
     }
 
-    private static IReadOnlyList<Nic> Enumerate() {
+    private static List<Nic> Enumerate() {
         try {
-            return NetworkInterface.GetAllNetworkInterfaces()
-                .Select(ni => new Nic(
-                    ni.Name,
-                    ni.OperationalStatus == OperationalStatus.Up,
-                    ni.NetworkInterfaceType == NetworkInterfaceType.Loopback,
-                    ni.GetIPProperties().UnicastAddresses
-                        .Where(u => u.Address.AddressFamily == AddressFamily.InterNetwork)
-                        .Select(u => u.Address.ToString())
-                        .ToList()))
-                .ToList();
+            return [
+                .. NetworkInterface.GetAllNetworkInterfaces()
+                    .Select(ni => new Nic(
+                        ni.Name,
+                        ni.OperationalStatus == OperationalStatus.Up,
+                        ni.NetworkInterfaceType == NetworkInterfaceType.Loopback,
+                        ni.GetIPProperties().UnicastAddresses
+                            .Where(u => u.Address.AddressFamily == AddressFamily.InterNetwork)
+                            .Select(u => u.Address.ToString())
+                            .ToList()))
+            ];
         } catch {
             return [];
         }

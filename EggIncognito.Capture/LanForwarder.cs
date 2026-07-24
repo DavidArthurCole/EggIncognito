@@ -75,8 +75,8 @@ public sealed class LanForwarder : IAsyncDisposable {
                     return;
 
 
-                var c2u = PumpAsync(cs, us, upstream, ct, "c2u");
-                var u2c = PumpAsync(us, cs, client, ct, "u2c");
+                var c2u = PumpAsync(cs, us, upstream, "c2u", ct);
+                var u2c = PumpAsync(us, cs, client, "u2c", ct);
                 try { await Task.WhenAll(c2u, u2c); } catch { /* reset or cancel - normal teardown */ }
             }
         } finally {
@@ -208,7 +208,7 @@ public sealed class LanForwarder : IAsyncDisposable {
     }
 
 
-    private async Task PumpAsync(NetworkStream src, NetworkStream dst, TcpClient dstClient, CancellationToken ct, string dir) {
+    private async Task PumpAsync(NetworkStream src, NetworkStream dst, TcpClient dstClient, string dir, CancellationToken ct) {
         var buffer = new byte[16 * 1024];
         long total = 0;
         bool first = true;

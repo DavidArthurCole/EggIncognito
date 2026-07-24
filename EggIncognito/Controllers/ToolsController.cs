@@ -178,7 +178,7 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         return File(r.Glb!, "model/gltf-binary", $"{name}.{r.AnimationName}.glb");
     }
 
-    private IActionResult ExtractResultJson(Services.ProtoExtract.DescriptorProtoCarver.ExtractResult r) =>
+    private OkObjectResult ExtractResultJson(Services.ProtoExtract.DescriptorProtoCarver.ExtractResult r) =>
         Ok(new {
             ok = r.Ok,
             proto = r.Proto,

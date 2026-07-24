@@ -5,13 +5,18 @@ using System.Reflection;
 namespace EggIncognito.Services;
 
 public sealed class HarCounts {
-    public int Wrote, Upd, Diff, Same, Err, Loss;
+    public int Wrote { get; set; }
+    public int Upd { get; set; }
+    public int Diff { get; set; }
+    public int Same { get; set; }
+    public int Err { get; set; }
+    public int Loss { get; set; }
 
 
 
-    public readonly List<string> Learned = [];
-    public readonly List<string> Flagged = [];
-    public bool WroteYaml;
+    public List<string> Learned { get; } = [];
+    public List<string> Flagged { get; } = [];
+    public bool WroteYaml { get; set; }
 }
 public sealed record HarDirs(string OutDir, string StagedDir, string RequestsDir,
     IReadOnlyDictionary<string, string> TypeMap, IReadOnlyDictionary<string, string> RequestTypeMap,

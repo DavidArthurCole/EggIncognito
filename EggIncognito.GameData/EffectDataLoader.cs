@@ -48,7 +48,7 @@ public static class EffectDataLoader {
             r.Meta is null ? null : ConvertMeta(r.Meta))).ToArray();
     }
 
-    private static IReadOnlyDictionary<string, object> ConvertMeta(IReadOnlyDictionary<string, JsonElement> raw) {
+    private static Dictionary<string, object> ConvertMeta(IReadOnlyDictionary<string, JsonElement> raw) {
         var result = new Dictionary<string, object>(raw.Count, StringComparer.Ordinal);
         foreach (var (key, element) in raw) {
             result[key] = element.ValueKind switch {

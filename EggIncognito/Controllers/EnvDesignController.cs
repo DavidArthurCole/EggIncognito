@@ -17,7 +17,7 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
 
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
-    private IActionResult? RequireContributor() =>
+    private ObjectResult? RequireContributor() =>
         currentUser.IsAtLeast(UserRole.Contributor)
             ? null : StatusCode(403, new { error = "contributor role required" });
 

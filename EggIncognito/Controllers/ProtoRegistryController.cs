@@ -16,7 +16,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
     private ProtoRegistryStore? Store => services.GetService(typeof(ProtoRegistryStore)) as ProtoRegistryStore;
 
-    private IActionResult? Require(UserRole role) =>
+    private ObjectResult? Require(UserRole role) =>
         user.IsAtLeast(role) ? null : StatusCode(403, new { error = $"{UserRoles.ToName(role)}+ only" });
 
     public sealed record SaveRequest(string Platform, string AppVersion, string Build, string? ClientVersion,

@@ -5,6 +5,8 @@ namespace EggIncognito.Core.Services.Protos;
 
 
 public static class CrawlManifestReader {
+    private static readonly JsonSerializerOptions ManifestJsonOptions = new(JsonSerializerDefaults.Web);
+
     public sealed record CrawlRecord(
         string Platform, string? AppVersion, string? Build, string? ClientVersion, string ProtoSha,
         string ProtoText, string? OriginRepo, string? OriginCommit, DateTimeOffset? OriginDate, string? Confidence);
@@ -41,8 +43,7 @@ public static class CrawlManifestReader {
 
         List<ManifestRow>? rows;
         using (var s = manifestEntry.Open()) {
-            rows = JsonSerializer.Deserialize<List<ManifestRow>>(s,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            rows = JsonSerializer.Deserialize<List<ManifestRow>>(s, ManifestJsonOptions);
         }
 
         if (rows is null) return [];

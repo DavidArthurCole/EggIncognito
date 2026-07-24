@@ -16,7 +16,7 @@ public sealed class DeviceCaptureManager(
     private readonly Func<bool, ICaptureProxy> _proxyFactory = proxyFactory ?? (verbose => new NativeCaptureProxy(verbose));
     private readonly ConcurrentDictionary<string, DeviceCapture> _captures = new();
     private readonly ConcurrentDictionary<string, DeviceCaptureDiag> _diag = new();
-    private readonly IReadOnlyDictionary<string, EggIncognito.Core.Services.Devices.IDeviceCaInstaller> _caInstallers =
+    private readonly Dictionary<string, EggIncognito.Core.Services.Devices.IDeviceCaInstaller> _caInstallers =
         (caInstallers ?? []).GroupBy(c => c.Platform, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _cts;
@@ -84,17 +84,17 @@ public sealed class DeviceCaptureManager(
             if (config.Verbose)
                 proxy.Trace += line => logger.LogDebug("device capture: {Id} trace: {Line}", d.Id, line);
             proxy.FlowCaptured += flow => {
-                diag.Bump(ref diag.Flows);
+                diag.BumpFlows();
                 queue.Writer.TryWrite(flow);
             };
             proxy.ClientConnected += (count, ip) => {
-                diag.Bump(ref diag.ClientConnects);
+                diag.BumpClientConnects();
                 hub.RecordConnection(count, ip, Now());
                 logger.LogInformation("device capture: {Id} client connected (active={Count}, ip={Ip})", d.Id, count, ip ?? "?");
             };
             proxy.ClientDisconnected += (count, ip) => hub.RecordDisconnection(count, Now());
             proxy.AuxbrainConnect += () => {
-                diag.Bump(ref diag.AuxbrainConnects);
+                diag.BumpAuxbrainConnects();
                 hub.RecordAuxbrainConnect();
                 logger.LogDebug("device capture: {Id} auxbrain CONNECT decrypted", d.Id);
             };
@@ -151,7 +151,7 @@ public sealed class DeviceCaptureManager(
                 var dash = processor.Process(flow);
                 if (dash.Observed is { } obs) {
                     Rinfo.Observe(deviceId, obs, DateTimeOffset.UtcNow.ToString("O"));
-                    if (_diag.TryGetValue(deviceId, out var dg)) dg.Bump(ref dg.RinfoHarvests);
+                    if (_diag.TryGetValue(deviceId, out var dg)) dg.BumpRinfoHarvests();
                 }
                 hub.Publish(dash, Now());
             } catch { }
@@ -170,11 +170,16 @@ public sealed class DeviceCaptureManager(
 }
 
 public sealed class DeviceCaptureDiag {
-    public long ClientConnects;
-    public long AuxbrainConnects;
-    public long Flows;
-    public long RinfoHarvests;
-    public string? LastDecryptError;
+    private long _clientConnects;
+    private long _auxbrainConnects;
+    private long _flows;
+    private long _rinfoHarvests;
+
+    public long ClientConnects { get => System.Threading.Interlocked.Read(ref _clientConnects); private set => _clientConnects = value; }
+    public long AuxbrainConnects { get => System.Threading.Interlocked.Read(ref _auxbrainConnects); private set => _auxbrainConnects = value; }
+    public long Flows { get => System.Threading.Interlocked.Read(ref _flows); private set => _flows = value; }
+    public long RinfoHarvests { get => System.Threading.Interlocked.Read(ref _rinfoHarvests); private set => _rinfoHarvests = value; }
+    public string? LastDecryptError { get; set; }
 
     public IReadOnlyList<string> RecentConnects { get; private set; } = [];
 
@@ -184,7 +189,10 @@ public sealed class DeviceCaptureDiag {
 
     public static readonly DeviceCaptureDiag Empty = new();
 
-    public void Bump(ref long counter) => System.Threading.Interlocked.Increment(ref counter);
+    public void BumpClientConnects() => System.Threading.Interlocked.Increment(ref _clientConnects);
+    public void BumpAuxbrainConnects() => System.Threading.Interlocked.Increment(ref _auxbrainConnects);
+    public void BumpFlows() => System.Threading.Interlocked.Increment(ref _flows);
+    public void BumpRinfoHarvests() => System.Threading.Interlocked.Increment(ref _rinfoHarvests);
 
     public void NoteConnect(string host, bool willDecrypt) {
         var entry = $"{host} (decrypt={(willDecrypt ? "true" : "false")})";
@@ -198,10 +206,10 @@ public sealed class DeviceCaptureDiag {
 
     public DeviceCaptureDiag Snapshot() {
         var snap = new DeviceCaptureDiag {
-            ClientConnects = System.Threading.Interlocked.Read(ref ClientConnects),
-            AuxbrainConnects = System.Threading.Interlocked.Read(ref AuxbrainConnects),
-            Flows = System.Threading.Interlocked.Read(ref Flows),
-            RinfoHarvests = System.Threading.Interlocked.Read(ref RinfoHarvests),
+            ClientConnects = ClientConnects,
+            AuxbrainConnects = AuxbrainConnects,
+            Flows = Flows,
+            RinfoHarvests = RinfoHarvests,
             LastDecryptError = LastDecryptError,
         };
         lock (_connectLock) snap.RecentConnects = _recent.ToList();

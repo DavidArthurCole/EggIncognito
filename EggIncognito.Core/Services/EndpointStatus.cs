@@ -40,7 +40,7 @@ public static partial class EndpointStatus {
         var yaml = File.ReadAllText(yamlPath);
 
 
-        yaml = Regex.Replace(yaml, @"(?s)\nendpoint_status:.*?(?=\n\w[\w_]*:|\z)", "");
+        yaml = EndpointStatusBlockRegex().Replace(yaml, "");
         yaml = yaml.TrimEnd() + "\n" + sb.ToString().TrimStart('\n') + "\n";
         File.WriteAllText(yamlPath, yaml);
         return yaml;
@@ -48,4 +48,7 @@ public static partial class EndpointStatus {
 
     [GeneratedRegex(@"\s")]
     private static partial Regex WhitespaceRegex();
+
+    [GeneratedRegex(@"(?s)\nendpoint_status:.*?(?=\n\w[\w_]*:|\z)")]
+    private static partial Regex EndpointStatusBlockRegex();
 }

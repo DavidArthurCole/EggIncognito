@@ -47,7 +47,7 @@ public sealed class DocRegistry : IDocRegistry {
     private void Index(DocSubject s) => _byKey[$"{s.Kind}:{s.Key}"] = s;
 
 
-    private static IReadOnlyList<DocSubject> BuildMessages(IProtoReflection proto) {
+    private static List<DocSubject> BuildMessages(IProtoReflection proto) {
         var list = new List<DocSubject>();
         foreach (var name in proto.AllMessageTypeNames()) {
             var schema = proto.Schema(name);
@@ -66,7 +66,7 @@ public sealed class DocRegistry : IDocRegistry {
     }
 
 
-    private static IReadOnlyList<DocSubject> BuildEndpoints(IRouteCatalog routes, IProtoReflection proto) {
+    private static List<DocSubject> BuildEndpoints(IRouteCatalog routes, IProtoReflection proto) {
         var list = new List<DocSubject>();
         foreach (var r in routes.All()) {
             var req = r.Request ?? (r.RequestWrapped ? "AuthenticatedMessage" : "(none)");
@@ -113,15 +113,15 @@ public sealed class DocRegistry : IDocRegistry {
         new("RateLimiting:Enabled", "true", "Master switch for the built-in rate limiter; false makes it a no-op", "host"),
     ];
 
-    private static IReadOnlyList<DocSubject> BuildConfig() =>
-        ConfigOptions
+    private static List<DocSubject> BuildConfig() => [
+        .. ConfigOptions
             .Select(o => new DocSubject(
                 "config",
                 o.Key,
                 o.Key,
                 $"{o.Summary} (default: {o.Default ?? "unset"}; applies to: {o.AppliesTo})",
                 []))
-            .ToList();
+    ];
 
 
     private static readonly DocSubject[] Controls =
@@ -133,5 +133,5 @@ public sealed class DocRegistry : IDocRegistry {
         new("control", "capture-pause", "Capture pause", "Pause/resume the live capture stream", []),
     ];
 
-    private static IReadOnlyList<DocSubject> BuildControls() => Controls;
+    private static DocSubject[] BuildControls() => Controls;
 }

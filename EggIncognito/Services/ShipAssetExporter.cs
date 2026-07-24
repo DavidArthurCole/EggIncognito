@@ -7,6 +7,7 @@ namespace EggIncognito.Services;
 
 
 public static class ShipAssetExporter {
+    private static readonly JsonSerializerOptions ManifestJson = new() { WriteIndented = true };
 
     public sealed record Manifest(
         [property: JsonPropertyName("version")] string Version,
@@ -68,8 +69,7 @@ public static class ShipAssetExporter {
         foreach (var s in result.Ships)
             await File.WriteAllBytesAsync(Path.Combine(shipsDir, $"{s.EnumName}.glb"), s.Glb, ct);
 
-        var json = JsonSerializer.SerializeToUtf8Bytes(result.Manifest,
-            new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.SerializeToUtf8Bytes(result.Manifest, ManifestJson);
         await File.WriteAllBytesAsync(Path.Combine(outputDir, "manifest.json"), json, ct);
     }
 }

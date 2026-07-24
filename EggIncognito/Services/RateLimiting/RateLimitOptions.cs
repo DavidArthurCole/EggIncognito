@@ -36,7 +36,7 @@ public sealed record RateLimitOptions(
         return new RateLimitOptions(enabled, tiers, policies);
     }
 
-    private static IReadOnlyDictionary<string, RateLimit> MergeGroup(
+    private static Dictionary<string, RateLimit> MergeGroup(
         IConfigurationSection group, IReadOnlyDictionary<string, RateLimit> defaults) {
         var result = new Dictionary<string, RateLimit>(defaults);
         foreach (var key in defaults.Keys) {

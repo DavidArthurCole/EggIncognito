@@ -32,105 +32,105 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
-    protected override void OnModelCreating(ModelBuilder b) {
-        b.Entity<StoredEndpoint>(e => {
+    protected override void OnModelCreating(ModelBuilder modelBuilder) {
+        modelBuilder.Entity<StoredEndpoint>(e => {
             e.HasIndex(x => new { x.Path, x.Eid }).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
         });
-        b.Entity<StoredRoute>(r => {
+        modelBuilder.Entity<StoredRoute>(r => {
             r.HasIndex(x => x.Path).IsUnique();
 
             r.HasIndex(x => x.Source);
             r.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
-        b.Entity<Doc>(d => {
+        modelBuilder.Entity<Doc>(d => {
             d.HasIndex(x => new { x.SubjectKind, x.SubjectKey }).IsUnique();
             d.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
             d.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
         });
-        b.Entity<Tag>(t => t.HasIndex(x => x.Slug).IsUnique());
-        b.Entity<SubjectTag>(s => s.HasIndex(x => new { x.SubjectKind, x.SubjectKey, x.TagId }).IsUnique());
-        b.Entity<DocImage>(im => im.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd());
-        b.Entity<CaptureUserCa>(c => c.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd());
-        b.Entity<CaptureProxyAddr>(a => {
+        modelBuilder.Entity<Tag>(t => t.HasIndex(x => x.Slug).IsUnique());
+        modelBuilder.Entity<SubjectTag>(s => s.HasIndex(x => new { x.SubjectKind, x.SubjectKey, x.TagId }).IsUnique());
+        modelBuilder.Entity<DocImage>(im => im.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd());
+        modelBuilder.Entity<CaptureUserCa>(c => c.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd());
+        modelBuilder.Entity<CaptureProxyAddr>(a => {
             a.HasIndex(x => x.Addr).IsUnique();
             a.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
-        b.Entity<ProtoVersion>(e => {
+        modelBuilder.Entity<ProtoVersion>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Platform, x.Build }).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
         });
-        b.Entity<ProtoProto>(e => {
+        modelBuilder.Entity<ProtoProto>(e => {
             e.HasKey(x => x.ProtoVersionId);
             e.Property(x => x.MessageIndex).HasColumnType("jsonb");
         });
-        b.Entity<FeedSubscription>(e => {
+        modelBuilder.Entity<FeedSubscription>(e => {
             e.HasKey(x => x.Id);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.Property(x => x.Platforms).HasColumnType("text[]");
             e.Property(x => x.EventKind).HasDefaultValue("proto_build");
         });
-        b.Entity<FeedDelivery>(e => {
+        modelBuilder.Entity<FeedDelivery>(e => {
             e.HasKey(x => x.Id);
             e.Property(x => x.EventKind).HasDefaultValue("proto_build");
             e.Property(x => x.DedupKey).HasDefaultValue("");
             e.HasIndex(x => new { x.SubscriptionId, x.EventKind, x.DedupKey }).IsUnique();
         });
-        b.Entity<BackfillJob>(e => {
+        modelBuilder.Entity<BackfillJob>(e => {
             e.HasKey(x => x.Id);
 
             e.HasIndex(x => new { x.Source, x.StartedAt });
         });
-        b.Entity<KnownVersion>(e => {
+        modelBuilder.Entity<KnownVersion>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Platform, x.AppVersion, x.Source }).IsUnique();
             e.Property(x => x.FirstSeen).HasDefaultValueSql("now()");
         });
-        b.Entity<ExtractJob>(e => {
+        modelBuilder.Entity<ExtractJob>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Platform, x.AppVersion }).IsUnique();
         });
-        b.Entity<Device>(e => {
+        modelBuilder.Entity<Device>(e => {
             e.HasKey(x => x.Id);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
         });
-        b.Entity<DeviceProbe>(e => {
+        modelBuilder.Entity<DeviceProbe>(e => {
             e.HasKey(x => x.Id);
 
             e.HasIndex(x => new { x.DeviceId, x.ProbedAt });
         });
-        b.Entity<DeviceUpdate>(e => {
+        modelBuilder.Entity<DeviceUpdate>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.DeviceId, x.AttemptedAt });
         });
-        b.Entity<StagedProto>(e => {
+        modelBuilder.Entity<StagedProto>(e => {
             e.HasIndex(x => x.ProtoSha);
             e.HasIndex(x => x.Status);
         });
-        b.Entity<StoredMesh>(e => {
+        modelBuilder.Entity<StoredMesh>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Platform, x.Stem }).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
-        b.Entity<StoredIcon>(e => {
+        modelBuilder.Entity<StoredIcon>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Name).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
-        b.Entity<EnvDesign>(e => {
+        modelBuilder.Entity<EnvDesign>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Name).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
         });
-        b.Entity<EnvDesignVersion>(e => {
+        modelBuilder.Entity<EnvDesignVersion>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.DesignId, x.VersionNo }).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
-        b.Entity<ApiKey>(e => {
+        modelBuilder.Entity<ApiKey>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.KeyHash).IsUnique();
             e.HasIndex(x => x.OwnerUserId);

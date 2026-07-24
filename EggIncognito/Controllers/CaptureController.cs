@@ -43,14 +43,14 @@ public sealed class CaptureController(
             : (session, null);
     }
 
-    private IActionResult? RequireHostedSupporter() {
+    private ObjectResult? RequireHostedSupporter() {
         if (!appMode.HostedCaptureEnabled)
             return StatusCode(403, new { error = "hosted capture is not enabled" });
         if (!currentUser.IsAuthenticated || string.IsNullOrEmpty(currentUser.DiscordId))
             return StatusCode(401, new { error = "log in to use hosted capture" });
         if (!currentUser.UserId.HasValue)
             return StatusCode(401, new { error = "log in to use hosted capture" });
-        return !currentUser.IsSupporter ? StatusCode(403, new { error = "supporter_required" }) : (IActionResult?)null;
+        return !currentUser.IsSupporter ? StatusCode(403, new { error = "supporter_required" }) : (ObjectResult?)null;
     }
 
     [HttpGet("stream")]

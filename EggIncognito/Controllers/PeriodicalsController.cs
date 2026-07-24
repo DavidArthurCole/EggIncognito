@@ -28,7 +28,7 @@ public sealed class PeriodicalsController(
     private IEnumerable<DataSource> WireSources =>
         catalog.ByGroup("periodical").Where(s => s.Provenance == DataProvenance.WireFixture);
 
-    private IActionResult? RequireAdmin() =>
+    private ObjectResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
 
     [HttpGet("summary")]
@@ -112,7 +112,7 @@ public sealed class PeriodicalsController(
             : Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
     }
 
-    private IReadOnlyDictionary<string, string> LoadColleggtibleIcons() {
+    private Dictionary<string, string> LoadColleggtibleIcons() {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
         var route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
         if (route is null) return map;
@@ -135,7 +135,7 @@ public sealed class PeriodicalsController(
         return Path.Combine(DefaultsDir, Path.Combine(parts[..^1]), file);
     }
 
-    private static readonly IReadOnlyDictionary<int, string> DimNames =
+    private static readonly Dictionary<int, string> DimNames =
         ColleggtibleCatalog.DimensionCodes.ToDictionary(kv => kv.Value, kv => kv.Key);
 
     private static string DimensionName(int code) => DimNames.TryGetValue(code, out var n) ? n : code.ToString(System.Globalization.CultureInfo.InvariantCulture);

@@ -32,7 +32,7 @@ public class IosRposTarballFixtureTests {
 
         var entries = TarReader.Read(plainTar);
         Assert.Equal(327, entries.Count);
-        Assert.DoesNotContain(entries, e => e.Name.EndsWith("/"));
+        Assert.DoesNotContain(entries, e => e.Name.EndsWith('/'));
         Assert.All(entries, e => Assert.True(e.Bytes.Length >= 4 &&
             e.Bytes[0] == (byte)'R' && e.Bytes[1] == (byte)'P' && e.Bytes[2] == (byte)'O' && e.Bytes[3] == (byte)'1',
             $"{e.Name} is not RPO1"));

@@ -21,7 +21,7 @@ public static class ZoneLayout {
 
     public static readonly IReadOnlyDictionary<ZoneId, Zone> Zones = BuildZones();
 
-    private static IReadOnlyDictionary<ZoneId, Zone> BuildZones() {
+    private static Dictionary<ZoneId, Zone> BuildZones() {
 
 
         var silos = new Zone(ZoneId.Silos, AnchorX: -35f, AnchorZ: -2f, Width: 30f, Depth: 9f);

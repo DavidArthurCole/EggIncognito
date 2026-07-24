@@ -435,7 +435,7 @@ public sealed class DecompController(
             : ulong.TryParse(s, out va);
     }
 
-    private IActionResult VaResult(
+    private OkObjectResult VaResult(
         byte[] tgt, SymbolRecovery.RecoveryReport report, string name, ulong va, ulong textVm, ulong textOff,
         string method, object? detail) {
         bool snapped = MachoFunctionStarts.TryEnclosingStart(tgt, va, out var startVa, out var endVa);
