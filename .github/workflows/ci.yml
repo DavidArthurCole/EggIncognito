@@ -23,7 +23,7 @@ jobs:
     uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
-      actions: write
+      packages: write
     with:
       push: false
       needs-pat: true
@@ -36,7 +36,7 @@ jobs:
     uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
-      actions: write
+      packages: write
     with:
       push: false
       dockerfile: EggIncognito.Runner/Dockerfile
