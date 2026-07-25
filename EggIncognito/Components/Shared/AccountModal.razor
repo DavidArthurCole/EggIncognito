@@ -1,7 +1,7 @@
 @using System.Globalization
-@using Microsoft.AspNetCore.WebUtilities
 @using EggIdentity.AdminUi
 @using EggIdentity.Client
+@using Microsoft.AspNetCore.WebUtilities
 @rendermode @(RenderMode.InteractiveServer)
 @inject AuthState Auth
 @inject ICurrentUser User
@@ -85,26 +85,17 @@
                                             @if (!item.Linked) {
                                                 <a class="btn-mini" href="@LinkHref(item.LinkUrl)">Link</a>
                                             } else {
-                                                <span class="inline-flex items-center gap-1">
-                                                    <a class="btn-mini" href="@LinkHref(item.RelinkUrl)" title="@RelinkTitle(item.Provider)">Link another</a>
-                                                    @if (item.CanUnlink) {
-                                                        <button type="button" class="btn-mini" @onclick="item.OnUnlink">Unlink</button>
-                                                    } else {
-                                                        <button type="button" class="btn-mini" disabled title="Cannot unlink the last login">Linked</button>
-                                                    }
-                                                </span>
+                                                @if (item.CanUnlink) {
+                                                    <button type="button" class="btn-mini btn-danger" @onclick="item.OnUnlink">Unlink</button>
+                                                } else {
+                                                    <button type="button" class="btn-mini" disabled title="Cannot unlink the last login">Linked</button>
+                                                }
                                             }
                                         </td>
                                     </tr>
                                 }
                                 </tbody>
                             </table>
-                            <div class="flex items-center gap-3 mt-2 text-xs">
-                                <a href="@LinkHref(Identity.SyncUrl(_returnUrl))" title="Refresh connections">Sync connections</a>
-                                @if (_authentikSettingsUrl is not null) {
-                                    <a href="@_authentikSettingsUrl" target="_blank" rel="noopener">Manage connections in Authentik</a>
-                                }
-                            </div>
                         </ProvidersTemplate>
                     </ProfilePanel>
                 } else {
@@ -119,7 +110,6 @@
     string _sessionToken = "";
     string _returnUrl = "";
     string? _linkMessage;
-    string? _authentikSettingsUrl;
     bool _linkOk;
     bool _open;
     bool _stripQuery;
@@ -141,7 +131,6 @@
         if (_linkMessage is not null) {
             _open = true;
             _stripQuery = true;
-            await LoadAuthentikSettingsAsync();
         }
     }
 
@@ -152,15 +141,8 @@
         }
     }
 
-    async Task Open() {
+    void Open() {
         _open = true;
-        await LoadAuthentikSettingsAsync();
-    }
-
-    async Task LoadAuthentikSettingsAsync() {
-        if (string.IsNullOrEmpty(_sessionToken) || _authentikSettingsUrl is not null) return;
-        var profile = await Identity.GetProfileAsync(_sessionToken, CancellationToken.None);
-        _authentikSettingsUrl = profile?.AuthentikSettingsUrl;
     }
 
     void Close() {
@@ -174,10 +156,6 @@
 
     static string Cap(string s) {
         return string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
-    }
-
-    static string RelinkTitle(string provider) {
-        return $"Link a different {Cap(provider)} account. Signs you out of the identity provider first.";
     }
 
     string LinkHref(string url) {
