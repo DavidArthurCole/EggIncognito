@@ -8,11 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EggIdentity.Auth" Version="1.0.4" />
-    <PackageReference Include="EggIdentity.Bot.AdminUi" Version="1.0.4" />
-    <PackageReference Include="EggIdentity.AdminUi" Version="1.0.4" />
-    <PackageReference Include="EggIdentity.Metrics" Version="1.0.4" />
-    <PackageReference Include="EggIdentity.Metrics.AdminUi" Version="1.0.4" />
+    <PackageReference Include="EggIdentity.Auth" Version="1.0.5" />
+    <PackageReference Include="EggIdentity.Bot.AdminUi" Version="1.0.5" />
+    <PackageReference Include="EggIdentity.AdminUi" Version="1.0.5" />
+    <PackageReference Include="EggIdentity.Metrics" Version="1.0.5" />
+    <PackageReference Include="EggIdentity.Metrics.AdminUi" Version="1.0.5" />
   </ItemGroup>
 
   <ItemGroup>
