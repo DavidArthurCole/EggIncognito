@@ -7,7 +7,7 @@ using Ei;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Controllers;
 

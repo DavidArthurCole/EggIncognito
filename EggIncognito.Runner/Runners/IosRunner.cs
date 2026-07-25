@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using EggIncognito.Services.ProtoExtract;
 using EggIncognito.Runner.State;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Runner.Runners;
 public sealed class IosRunner(

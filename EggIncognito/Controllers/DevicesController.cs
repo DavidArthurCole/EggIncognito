@@ -12,7 +12,7 @@ using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Controllers;
 

@@ -4,8 +4,8 @@ using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using SyncKit.Auth;
-using SyncKit.Identity.Client;
+using EggIdentity.Auth;
+using EggIdentity.Client;
 
 namespace EggIncognito.Services;
 
@@ -53,7 +53,7 @@ public static class AuthSetup {
             ? Task.CompletedTask
             : StampSupporterClaim(ctx.Principal, ctx.HttpContext, ctx.HttpContext.RequestAborted);
 
-    public static bool AddSyncKitAuthIfConfigured(
+    public static bool AddEggIdentityAuthIfConfigured(
         this WebApplicationBuilder builder, bool identityApiEnabled, SessionCookieOptions? session) {
         if (!identityApiEnabled) return false;
         var auth = builder.Services.AddAuthentication(session is not null
@@ -74,11 +74,11 @@ public static class AuthSetup {
             .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
                 ApiKeyGen.SchemeName, null);
         if (session is not null) {
-            auth.AddSyncKitSession(session, StampSupporterClaim);
+            auth.AddEggIdentitySession(session, StampSupporterClaim);
             auth.AddPolicyScheme(SelectorScheme, SelectorScheme, o =>
                 o.ForwardDefaultSelector = ctx =>
                     ctx.Request.Cookies.ContainsKey(session.CookieName)
-                        ? SyncKitSessionDefaults.Scheme
+                        ? EggIdentitySessionDefaults.Scheme
                         : CookieAuthenticationDefaults.AuthenticationScheme);
         }
 

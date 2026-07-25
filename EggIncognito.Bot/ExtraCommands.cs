@@ -1,6 +1,6 @@
 using Discord;
 using EggIncognito.Services;
-using SyncKit.Bot;
+using EggIdentity.Bot;
 
 namespace EggIncognito.Bot;
 
@@ -17,16 +17,16 @@ public static class ExtraCommands {
             .WithIntegrationTypes(Integrations)
             .WithContextTypes(Contexts);
 
-    public static SyncKit.Bot.BotCommand HealthCommand(DateTimeOffset startedAt) =>
+    public static EggIdentity.Bot.BotCommand HealthCommand(DateTimeOffset startedAt) =>
         new(Base("health", "Liveness check - pong + uptime.").Build(), "health",
             async ctx => await RunAsync(ctx, () => BotEmbeds.Health(DateTimeOffset.UtcNow - startedAt)));
 
-    public static SyncKit.Bot.BotCommand StatusCommand(IStatusProvider status) =>
+    public static EggIdentity.Bot.BotCommand StatusCommand(IStatusProvider status) =>
         new(Base("status", "Show the running server's live status (mode, capture, DB, signing, uptime).").Build(),
             "status",
             async ctx => await RunAsync(ctx, () => BotEmbeds.Status(status.Build())));
 
-    public static SyncKit.Bot.BotCommand EndpointsCommand(IStatusProvider status) =>
+    public static EggIdentity.Bot.BotCommand EndpointsCommand(IStatusProvider status) =>
         new(Base("endpoints", "Show endpoint coverage (ok / empty / missing).").Build(), "endpoints",
             async ctx => await RunAsync(ctx, () => BotEmbeds.Endpoints(status.Build())));
 
@@ -42,7 +42,7 @@ public static class ExtraCommands {
         }
     }
 
-    public static SyncKit.Bot.BotCommand ProtoCommand(IProtoReflection proto) =>
+    public static EggIdentity.Bot.BotCommand ProtoCommand(IProtoReflection proto) =>
         new(
             Base("proto", "Look up Egg, Inc. proto message types.")
                 .AddOption(new SlashCommandOptionBuilder()

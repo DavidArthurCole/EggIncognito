@@ -1,5 +1,5 @@
 using System.Net;
-using SyncKit.Identity.Client;
+using EggIdentity.Client;
 
 namespace EggIncognito.Tests;
 

@@ -1,17 +1,17 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using SyncKit.Bot;
+using EggIdentity.Bot;
 
 namespace EggIncognito.Bot;
 
 public sealed class EggIncognitoBotHostedService(
     BotConfig cfg,
     ILogger<EggIncognitoBotHostedService> logger) : IHostedService {
-    public SyncKitBot? Bot { get; private set; }
+    public EggIdentityBot? Bot { get; private set; }
 
     public async Task StartAsync(CancellationToken cancellationToken) {
         try {
-            Bot = await SyncKitBot.StartAsync(cfg);
+            Bot = await EggIdentityBot.StartAsync(cfg);
         } catch (Exception ex) {
             logger.LogError(ex, "bot: failed to start - continuing without the bot");
         }

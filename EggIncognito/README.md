@@ -84,7 +84,7 @@ The route map also carries `excluded:` (paths intentionally not mocked) and `end
 | `HttpsPort` | `8443` | HTTPS port (only active when certs are present) |
 | `AppMode` | `Local` | `Local` = full features; `Hosted` = capture + writes disabled (the public deploy) |
 | `ConnectionStrings:Postgres` | unset | When set, enables the Postgres data layer (overlay + DB routes) and applies migrations at startup. Unset = file-only. |
-| `Identity:ApiUrl` / `Identity:ApiSecret` | unset | External SyncKit.Identity service URL + shared secret. Cookie auth wires only when both are set. Users/roles live in that service, not locally. |
+| `Identity:ApiUrl` / `Identity:ApiSecret` | unset | External EggIdentity service URL + shared secret. Cookie auth wires only when both are set. Users/roles live in that service, not locally. |
 | `Discord:BotToken` | unset | When set, starts the optional Discord bot. |
 | `Discord:GuildId` | unset | Optional. Enables instant guild command registration for the bot. |
 | `CaptureEnabled` | follows mode | Per-capability override for the capture proxy |
@@ -182,9 +182,9 @@ A rack of wired Android + iOS phones, probed and updated and captured automatica
 | `/api/devices/{id}/save` | POST | admin | Pull the installed app, carve its proto in-process, harvest clientVersion off the wire, and upsert a registry row. |
 | `/api/devices/{id}/restart-app` | POST | admin | Force-restart the app (kill + relaunch) so it hits auxbrain and a fresh rinfo can be captured. |
 
-## Authentication (SyncKit.Identity, optional)
+## Authentication (EggIdentity, optional)
 
-Cookie auth backed by the external SyncKit.Identity microservice (`IdentityApiClient`), wired only when `Identity:ApiUrl` + `Identity:ApiSecret` are set (`AuthSetup.AddSyncKitAuthIfConfigured`, cookie `egi.auth`, 30-day sliding). There is no local user table (dropped 2026-07-08); users, roles, and the admin allowlist all live in the identity service. Without that config the app is fully anonymous and unchanged.
+Cookie auth backed by the external EggIdentity microservice (`IdentityApiClient`), wired only when `Identity:ApiUrl` + `Identity:ApiSecret` are set (`AuthSetup.AddEggIdentityAuthIfConfigured`, cookie `egi.auth`, 30-day sliding). There is no local user table (dropped 2026-07-08); users, roles, and the admin allowlist all live in the identity service. Without that config the app is fully anonymous and unchanged.
 
 - **Flow.** Login happens through the identity widget (Discord OAuth is inside that service, not here). The app redeems a login code, signs in the cookie, and caches the claims `egi:user_id` / `egi:role` / `egi:supporter`. `POST /logout` clears the cookie. On each request `OnValidatePrincipal` asks the identity service whether the session was revoked (skipped gracefully if the service is unreachable). `GET /api/auth/me` + `GET /api/app/mode` report the current user; `TopNav` renders login state from `/api/app/mode`.
 - **Identity.** `ICurrentUser` (web) reads the cached claims server-side. `AuthState` is a singleton flag for the wired/not-wired branch. Row ownership stores the identity `Guid` with no local foreign key.

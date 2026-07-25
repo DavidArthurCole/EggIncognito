@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SyncKit.Contract" Version="0.9.0-preview.7" />
+    <PackageReference Include="EggIdentity.Contract" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>

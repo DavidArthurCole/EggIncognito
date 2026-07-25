@@ -4,8 +4,8 @@ using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
-using SyncKit.Auth;
-using SyncKit.Identity.Client;
+using EggIdentity.Auth;
+using EggIdentity.Client;
 
 namespace EggIncognito.Controllers;
 

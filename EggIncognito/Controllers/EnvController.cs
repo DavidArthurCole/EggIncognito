@@ -5,7 +5,7 @@ using EggIncognito.Services.ProtoExtract;
 using EggIncognito.Services.ProtoExtract.Decomp;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Controllers;
 

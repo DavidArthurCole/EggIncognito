@@ -1,6 +1,6 @@
 # EggIncognito.Runner deploy
 
-Host-side device runner, containerized, deployed as a stack-56 sidecar via SyncKit. Polls a device over adb (android) or reads a pre-staged binary (ios), extracts the cleaned proto, posts a `NewVersionEvent`, serves an authed `POST /resync`.
+Host-side device runner, containerized, deployed as a stack-56 sidecar via EggIdentity. Polls a device over adb (android) or reads a pre-staged binary (ios), extracts the cleaned proto, posts a `NewVersionEvent`, serves an authed `POST /resync`.
 
 ## Image
 

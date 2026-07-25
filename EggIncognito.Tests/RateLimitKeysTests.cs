@@ -3,7 +3,7 @@ using EggIncognito.Services;
 using EggIncognito.Services.RateLimiting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Tests;
 

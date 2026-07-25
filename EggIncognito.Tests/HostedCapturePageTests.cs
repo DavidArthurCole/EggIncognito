@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 using CapturePage = EggIncognito.Components.Pages.Capture;
 
 namespace EggIncognito.Tests;

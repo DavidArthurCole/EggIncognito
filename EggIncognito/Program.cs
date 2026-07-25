@@ -31,13 +31,13 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
-using SyncKit.Auth;
-using SyncKit.Bot;
-using SyncKit.Contract;
-using SyncKit.Db;
-using SyncKit.Identity.Client;
-using SyncKit.Metrics;
-using SyncKit.Metrics.AdminUi;
+using EggIdentity.Auth;
+using EggIdentity.Bot;
+using EggIdentity.Contract;
+using EggIdentity.Db;
+using EggIdentity.Client;
+using EggIdentity.Metrics;
+using EggIdentity.Metrics.AdminUi;
 
 [assembly: InternalsVisibleTo("EggIncognito.Tests")]
 
@@ -211,16 +211,16 @@ if (identityApiEnabled) {
     });
 }
 
-var syncKitSession = SessionCookieOptions.FromEnvironment();
-if (syncKitSession is not null) builder.Services.AddSingleton(syncKitSession);
-builder.AddSyncKitAuthIfConfigured(identityApiEnabled, syncKitSession);
-var authState = new AuthState(identityApiEnabled, identityWidgetUrl, syncKitSession?.CookieName ?? "synckit_session");
+var eggIdentitySession = SessionCookieOptions.FromEnvironment();
+if (eggIdentitySession is not null) builder.Services.AddSingleton(eggIdentitySession);
+builder.AddEggIdentityAuthIfConfigured(identityApiEnabled, eggIdentitySession);
+var authState = new AuthState(identityApiEnabled, identityWidgetUrl, eggIdentitySession?.CookieName ?? "eggidentity_session");
 bool authEnabled = authState.Enabled;
 builder.Services.AddSingleton(authState);
 builder.Services.AddScoped<LoginSignIn>();
 builder.Services.AddHttpContextAccessor();
 bool hostedBehindProxy = string.Equals(builder.Configuration["AppMode"], "Hosted", StringComparison.OrdinalIgnoreCase);
-builder.Services.AddSyncKitRequestMetrics(o => {
+builder.Services.AddEggIdentityRequestMetrics(o => {
     o.PathPrefix = "/api";
     o.InternalMarkerHeader = SelfCallClient.InternalMarkerHeader;
     o.HostedBehindProxy = hostedBehindProxy;
@@ -617,7 +617,7 @@ if (authEnabled) {
 
 app.UseAntiforgery();
 app.UseRateLimiter();
-app.UseSyncKitRequestMetrics();
+app.UseEggIdentityRequestMetrics();
 
 app.MapControllers();
 if (!string.IsNullOrWhiteSpace(eventSecret)) {

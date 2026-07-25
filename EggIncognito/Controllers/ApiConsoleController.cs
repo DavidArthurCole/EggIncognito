@@ -3,7 +3,7 @@ using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.RateLimiting;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Controllers;
 

@@ -11,8 +11,8 @@ using EggIncognito.Tools;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using SyncKit.Contract;
-using SyncKit.Identity.Client;
+using EggIdentity.Contract;
+using EggIdentity.Client;
 
 namespace EggIncognito.Controllers;
 

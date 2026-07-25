@@ -2,7 +2,7 @@ using EggIncognito.Controllers;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Tests;
 

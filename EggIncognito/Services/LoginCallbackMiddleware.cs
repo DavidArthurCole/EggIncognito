@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.WebUtilities;
-using SyncKit.Identity.Client;
+using EggIdentity.Client;
 
 namespace EggIncognito.Services;
 

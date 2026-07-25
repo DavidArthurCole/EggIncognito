@@ -36,7 +36,7 @@ Part of [EggIncognito](../README.md). Active only when `ConnectionStrings:Postgr
 | `EnvDesignVersion` | `env_design_versions` | One version snapshot of an `EnvDesign`. |
 
 `UserRole` (viewer / contributor / admin) is the role enum. Users themselves live in the external
-SyncKit.Identity service, not in this database. Roles ride in the auth cookie's `egi:role` claim; an
+EggIdentity service, not in this database. Roles ride in the auth cookie's `egi:role` claim; an
 owner user id on a row is the identity `Guid` with no local foreign key.
 
 ## Endpoint overlay
@@ -101,4 +101,4 @@ Status and update history for the physical devices this host probes.
 - Target DB: a new `eggincognito` database on the project's Postgres instance.
 - Entities use `[Table]` / `[Column]` snake_case annotations.
 
-This library references `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore`, which persists the app's data-protection keys (auth-cookie signing keys) in the DB so cookie logins survive restarts (`data_protection_keys` table). It also references `SyncKit.Identity.Client` for the revocation-check call on cookie validation. Auth itself is the external SyncKit.Identity service. See the web project's [Authentication](../EggIncognito/README.md#authentication-synckit-identity-optional) section.
+This library references `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore`, which persists the app's data-protection keys (auth-cookie signing keys) in the DB so cookie logins survive restarts (`data_protection_keys` table). It also references `EggIdentity.Client` for the revocation-check call on cookie validation. Auth itself is the external EggIdentity service. See the web project's [Authentication](../EggIncognito/README.md#authentication-eggidentity-optional) section.

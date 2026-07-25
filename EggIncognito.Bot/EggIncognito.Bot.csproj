@@ -6,9 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SyncKit.Contract" Version="0.9.0-preview.7" />
-    <PackageReference Include="SyncKit.Bot" Version="0.9.0-preview.7" />
-    <PackageReference Include="SyncKit.Db" Version="0.9.0-preview.7" />
+    <PackageReference Include="EggIdentity.Contract" Version="1.0.0" />
+    <PackageReference Include="EggIdentity.Bot" Version="1.0.0" />
+    <PackageReference Include="EggIdentity.Db" Version="1.0.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />

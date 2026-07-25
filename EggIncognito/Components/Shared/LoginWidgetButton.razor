@@ -1,14 +1,14 @@
-@* Interactive login CTA. Click reveals the native provider buttons fetched from SyncKit's
-   /auth/sources; each is a plain top-level <a> into SyncKit's /auth/go/{provider} (mode=redirect),
+@* Interactive login CTA. Click reveals the native provider buttons fetched from EggIdentity's
+   /auth/sources; each is a plain top-level <a> into EggIdentity's /auth/go/{provider} (mode=redirect),
    which returns the browser to this exact page with ?code appended. No popup, no iframe, no app-side
-   return-path handling: SyncKit round-trips the full returnUrl. The menu is fixed-positioned by
+   return-path handling: EggIdentity round-trips the full returnUrl. The menu is fixed-positioned by
    loginMenu.js so it escapes any overflow-clipped container (e.g. the /protos modal). *@
 @rendermode @(RenderMode.InteractiveServer)
 @inject AuthState Auth
 @inject NavigationManager Nav
 @inject IdentityApiClient Identity
 @inject IJSRuntime JS
-@using SyncKit.Identity.Client
+@using EggIdentity.Client
 @implements IAsyncDisposable
 
 @if (!Auth.WidgetEnabled) {

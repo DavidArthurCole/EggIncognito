@@ -3,7 +3,7 @@ using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Tests;
 

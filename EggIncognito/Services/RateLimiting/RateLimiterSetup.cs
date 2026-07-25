@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using EggIncognito.Services.DataApi;
 using Microsoft.AspNetCore.RateLimiting;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Services.RateLimiting;
 

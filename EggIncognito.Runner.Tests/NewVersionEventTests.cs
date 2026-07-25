@@ -1,5 +1,5 @@
 using System.Text.Json;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 using Xunit;
 
 namespace EggIncognito.Runner.Tests;

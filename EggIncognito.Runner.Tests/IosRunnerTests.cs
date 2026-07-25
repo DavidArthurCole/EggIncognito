@@ -1,6 +1,6 @@
 using EggIncognito.Runner.Runners;
 using EggIncognito.Runner.State;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 using Xunit;
 
 namespace EggIncognito.Runner.Tests;

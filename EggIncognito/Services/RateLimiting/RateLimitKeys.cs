@@ -1,4 +1,4 @@
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Services.RateLimiting;
 

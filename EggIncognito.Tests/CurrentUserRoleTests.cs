@@ -2,7 +2,7 @@ using System.Security.Claims;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Tests;
 

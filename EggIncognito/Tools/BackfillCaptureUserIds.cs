@@ -2,7 +2,7 @@ using System.Data;
 using EggIncognito.Data.Services;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using SyncKit.Identity.Client;
+using EggIdentity.Client;
 
 namespace EggIncognito.Tools;
 

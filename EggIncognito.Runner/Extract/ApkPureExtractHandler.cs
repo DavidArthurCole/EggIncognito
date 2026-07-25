@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using EggIncognito.Services.ProtoExtract;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Runner.Extract;
 

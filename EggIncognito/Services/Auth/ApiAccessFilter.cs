@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Services.Auth;
 

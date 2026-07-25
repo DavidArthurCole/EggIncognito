@@ -3,7 +3,7 @@ using EggIncognito.Core.Services.Devices;
 using EggIncognito.Runner.Adb;
 using EggIncognito.Runner.Extract;
 using EggIncognito.Runner.State;
-using SyncKit.Contract;
+using EggIdentity.Contract;
 
 namespace EggIncognito.Runner.Runners;
 
