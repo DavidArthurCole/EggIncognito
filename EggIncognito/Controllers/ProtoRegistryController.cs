@@ -1,12 +1,12 @@
 using System.Security.Cryptography;
 using System.Text;
+using EggIdentity.Contract;
 using EggIncognito.Core.Services.Protos;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Controllers;
 

@@ -1,5 +1,6 @@
 using System.Net;
 using Bunit;
+using EggIdentity.Contract;
 using EggIncognito.Capture;
 using EggIncognito.Controllers;
 using EggIncognito.Services;
@@ -8,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using EggIdentity.Contract;
 using CapturePage = EggIncognito.Components.Pages.Capture;
 
 namespace EggIncognito.Tests;

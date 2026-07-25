@@ -1,6 +1,6 @@
+using EggIdentity.Bot;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using EggIdentity.Bot;
 
 namespace EggIncognito.Bot;
 

@@ -1,5 +1,5 @@
-using Microsoft.AspNetCore.WebUtilities;
 using EggIdentity.Client;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace EggIncognito.Services;
 

@@ -1,6 +1,6 @@
 using System.Net;
-using EggIncognito.Services;
 using EggIdentity.Contract;
+using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 

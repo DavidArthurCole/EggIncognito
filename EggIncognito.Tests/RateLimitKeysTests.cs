@@ -1,9 +1,9 @@
 using System.Net;
+using EggIdentity.Contract;
 using EggIncognito.Services;
 using EggIncognito.Services.RateLimiting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Tests;
 

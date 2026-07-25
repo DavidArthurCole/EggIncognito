@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using EggIncognito.Data.Services;
 using EggIdentity.Auth;
 using EggIdentity.Contract;
+using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services;
 

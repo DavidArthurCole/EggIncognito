@@ -1,9 +1,9 @@
+using EggIdentity.Contract;
 using EggIncognito.Controllers;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Tests;
 

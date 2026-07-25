@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EggIdentity.Contract;
 using EggIncognito.GameData;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
@@ -9,7 +10,6 @@ using EggIncognito.Services.DataApi;
 using Ei;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Controllers;
 

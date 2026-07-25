@@ -6,6 +6,13 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using EggIdentity.Auth;
+using EggIdentity.Bot;
+using EggIdentity.Client;
+using EggIdentity.Contract;
+using EggIdentity.Db;
+using EggIdentity.Metrics;
+using EggIdentity.Metrics.AdminUi;
 using EggIncognito.Bot;
 using EggIncognito.Build;
 using EggIncognito.Capture;
@@ -31,13 +38,6 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
-using EggIdentity.Auth;
-using EggIdentity.Bot;
-using EggIdentity.Contract;
-using EggIdentity.Db;
-using EggIdentity.Client;
-using EggIdentity.Metrics;
-using EggIdentity.Metrics.AdminUi;
 
 [assembly: InternalsVisibleTo("EggIncognito.Tests")]
 

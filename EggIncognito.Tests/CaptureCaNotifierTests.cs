@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using EggIdentity.Contract;
 using EggIncognito.Capture;
 using EggIncognito.Controllers;
 using EggIncognito.Services;
@@ -7,7 +8,6 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Tests;
 

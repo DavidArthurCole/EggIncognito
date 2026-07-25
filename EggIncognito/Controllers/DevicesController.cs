@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using EggIdentity.Contract;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
@@ -12,7 +13,6 @@ using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Controllers;
 

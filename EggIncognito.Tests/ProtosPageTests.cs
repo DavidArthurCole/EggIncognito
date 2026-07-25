@@ -1,11 +1,11 @@
 using System.Net;
 using Bunit;
+using EggIdentity.Contract;
 using EggIncognito.Components.Pages;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Tests;
 

@@ -1,11 +1,11 @@
 using System.Text.Json.Nodes;
+using EggIdentity.Contract;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.ProtoExtract;
 using EggIncognito.Services.ProtoExtract.Decomp;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Controllers;
 

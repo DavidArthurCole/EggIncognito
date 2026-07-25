@@ -1,7 +1,7 @@
-using EggIncognito.Bot;
-using Microsoft.Extensions.Logging.Abstractions;
 using EggIdentity.Bot;
 using EggIdentity.Contract;
+using EggIncognito.Bot;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 

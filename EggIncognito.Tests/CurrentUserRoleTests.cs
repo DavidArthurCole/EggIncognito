@@ -1,8 +1,8 @@
 using System.Security.Claims;
+using EggIdentity.Contract;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Tests;
 

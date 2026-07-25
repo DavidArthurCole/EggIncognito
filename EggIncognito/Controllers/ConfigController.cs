@@ -1,4 +1,5 @@
 using System.Text;
+using EggIdentity.Contract;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
@@ -7,7 +8,6 @@ using Ei;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Controllers;
 

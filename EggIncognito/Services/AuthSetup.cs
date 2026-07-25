@@ -1,11 +1,11 @@
 using System.Security.Claims;
+using EggIdentity.Auth;
+using EggIdentity.Client;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using EggIdentity.Auth;
-using EggIdentity.Client;
 
 namespace EggIncognito.Services;
 

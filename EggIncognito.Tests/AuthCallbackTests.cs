@@ -1,7 +1,7 @@
 using System.Net;
+using EggIdentity.Client;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using EggIdentity.Client;
 
 namespace EggIncognito.Tests;
 

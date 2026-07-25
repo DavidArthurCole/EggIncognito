@@ -1,8 +1,8 @@
 using System.Data;
+using EggIdentity.Client;
 using EggIncognito.Data.Services;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using EggIdentity.Client;
 
 namespace EggIncognito.Tools;
 
