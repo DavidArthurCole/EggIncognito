@@ -1,5 +1,3 @@
-
-
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -7,15 +5,13 @@ using System.Text.RegularExpressions;
 namespace EggIncognito.Services;
 
 public static class Redactor {
-
-    private static readonly string[] SensitiveFields =
-    [
+    private static readonly string[] SensitiveFields = [
         "transactionId", "originalTransactionId", "linkedTransactionId",
         "deviceId", "deviceName", "pushUserId",
         "gameServicesId", "gameServicesIdScoped", "code", "signature", "receipt",
         "advertisingId", "deviceAdId", "pushId",
         "coopIdentifier",
-        "userName", "requestingUserName", "username", "alias",
+        "userName", "requestingUserName", "username", "alias"
     ];
 
 
@@ -24,9 +20,7 @@ public static class Redactor {
         RegexOptions.Compiled);
 
 
-
     public static IReadOnlyList<string> SensitiveFieldNames => SensitiveFields;
-
 
 
     public static string Redact(string json) =>

@@ -1,3 +1,4 @@
+using System.Net;
 using Bunit;
 using EggIncognito.Components.Pages;
 using EggIncognito.Services;
@@ -17,8 +18,8 @@ public class AdminPageTests {
         public async Task Admin_Anonymous_RendersDeniedState() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/admin");
-            Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
-            var html = await r.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            string html = await r.Content.ReadAsStringAsync();
             Assert.Contains("adminMain", html);
             Assert.Contains("id=\"denied\"", html);
 
@@ -32,10 +33,8 @@ public class AdminPageTests {
         private void Wire(UserRole role) {
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
-            Services.AddSingleton(new AuthState(IdentityApiEnabled: false));
+            Services.AddSingleton(new AuthState(false));
             Services.AddHttpClient();
-
-
         }
 
         [Fact]

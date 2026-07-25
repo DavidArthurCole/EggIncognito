@@ -1,70 +1,71 @@
 using System.Text;
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EggIncognito.Controllers;
 
 [ApiController]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorService behaviors) : ControllerBase {
-    private readonly IEndpointStore _endpoints = endpoints;
-    private readonly IBehaviorService _behaviors = behaviors;
-
     protected Task<IActionResult> HandleAsync<TRes>(string path, string? data, string? sim = null)
         where TRes : IMessage<TRes>, new() {
         if (sim is not null) {
-            var behavior = _behaviors.Get(sim);
+            var behavior = behaviors.Get(sim);
             if (behavior is null) {
-                var valid = _behaviors.All().Select(b => b.Name).ToArray();
+                string[] valid = [.. behaviors.All().Select(b => b.Name)];
                 throw new ApiException(
                     $"unknown sim '{sim}'",
                     "Use one of the valid sim names listed in details, or omit ?sim to get the endpoint response.",
                     StatusCodes.Status400BadRequest,
                     new { valid });
             }
+
             foreach (var kvp in behavior.ExtraHeaders ?? new Dictionary<string, string>())
                 Response.Headers[kvp.Key] = kvp.Value;
-            var bodyStr = behavior.Body is not null
+            string bodyStr = behavior.Body is not null
                 ? Encoding.UTF8.GetString(behavior.Body())
                 : string.Empty;
-            var contentType = behavior.HttpStatus is >= 200 and < 300 ? "text/html" : "text/plain";
+            string contentType = behavior.HttpStatus is >= 200 and < 300 ? "text/html" : "text/plain";
             return Task.FromResult<IActionResult>(new ContentResult {
                 StatusCode = behavior.HttpStatus,
                 Content = bodyStr,
-                ContentType = contentType,
+                ContentType = contentType
             });
         }
+
         string? eid = EidExtractor.FromData(data);
-        var response = _endpoints.Get<TRes>(path, eid);
-        var encoded = Convert.ToBase64String(response.ToByteArray());
+        var response = endpoints.Get<TRes>(path, eid);
+        string encoded = Convert.ToBase64String(response.ToByteArray());
         return Task.FromResult<IActionResult>(Content(encoded, "text/html"));
     }
 
     protected Task<IActionResult> HandleRawAsync(string body, string? sim = null) {
         if (sim is not null) {
-            var behavior = _behaviors.Get(sim);
+            var behavior = behaviors.Get(sim);
             if (behavior is null) {
-                var valid = _behaviors.All().Select(b => b.Name).ToArray();
+                string[] valid = [.. behaviors.All().Select(b => b.Name)];
                 throw new ApiException(
                     $"unknown sim '{sim}'",
                     "Use one of the valid sim names listed in details, or omit ?sim to get the endpoint response.",
                     StatusCodes.Status400BadRequest,
                     new { valid });
             }
+
             foreach (var kvp in behavior.ExtraHeaders ?? new Dictionary<string, string>())
                 Response.Headers[kvp.Key] = kvp.Value;
-            var bodyStr = behavior.Body is not null
+            string bodyStr = behavior.Body is not null
                 ? Encoding.UTF8.GetString(behavior.Body())
                 : string.Empty;
-            var contentType = behavior.HttpStatus is >= 200 and < 300 ? "text/html" : "text/plain";
+            string contentType = behavior.HttpStatus is >= 200 and < 300 ? "text/html" : "text/plain";
             return Task.FromResult<IActionResult>(new ContentResult {
                 StatusCode = behavior.HttpStatus,
                 Content = bodyStr,
-                ContentType = contentType,
+                ContentType = contentType
             });
         }
+
         return Task.FromResult<IActionResult>(Content(body, "text/plain"));
     }
-
 }

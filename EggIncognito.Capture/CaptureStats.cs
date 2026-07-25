@@ -1,8 +1,10 @@
 namespace EggIncognito.Capture;
 
-
-public enum CertState { Waiting, Untrusted, Trusted }
-
+public enum CertState {
+    Waiting,
+    Untrusted,
+    Trusted
+}
 
 public sealed record DeviceInfo(
     string Ip,
@@ -12,7 +14,6 @@ public sealed record DeviceInfo(
     string LastSeen,
     string? Os,
     string? GameVersion,
-
     bool Online = true,
     int TotalConnections = 0);
 
@@ -30,8 +31,6 @@ public sealed record CaptureStats(
     string? BiggestEndpoint,
     long BiggestEndpointBytes,
     string CertState,
-
-
     bool Running = false,
     int Port = 0);
 

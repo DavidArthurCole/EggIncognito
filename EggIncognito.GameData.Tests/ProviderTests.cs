@@ -15,7 +15,8 @@ public sealed class ProviderTests {
     [InlineData("research", "internal_hatchery5")]
     [InlineData("hab", "CHICKEN_UNIVERSE")]
     [InlineData("artifact", "ORNATE_GUSSET:4:3")]
-    public void Resolves_each_family_by_id_without_game_client(string family, string id) => Assert.NotNull(Provider.Resolve(family, id));
+    public void Resolves_each_family_by_id_without_game_client(string family, string id) =>
+        Assert.NotNull(Provider.Resolve(family, id));
 
     [Fact]
     public void Hab_base_capacities_match_extracted_binary() {
@@ -26,7 +27,7 @@ public sealed class ProviderTests {
 
     [Fact]
     public void Ihr_common_research_is_additive() {
-        var effective = Provider.Effective(EffectTarget.IHR, 0, new Dictionary<string, int> {
+        double effective = Provider.Effective(EffectTarget.IHR, 0, new Dictionary<string, int> {
             ["internal_hatchery1"] = 10,
             ["internal_hatchery2"] = 10
         });
@@ -35,24 +36,26 @@ public sealed class ProviderTests {
 
     [Fact]
     public void Ihr_epic_incubators_multiply_after_common_add() {
-        var effective = Provider.Effective(EffectTarget.IHR, 0, new Dictionary<string, int> {
+        double effective = Provider.Effective(EffectTarget.IHR, 0, new Dictionary<string, int> {
             ["internal_hatchery1"] = 10,
             ["epic_internal_incubators"] = 20
         });
-        Assert.Equal((10 * 2) * (1 + 20 * 0.05), effective, 6);
+        Assert.Equal(10 * 2 * (1 + 20 * 0.05), effective, 6);
     }
 
     [Fact]
     public void Hab_capacity_research_is_multiplicative_on_base() {
-        var effective = Provider.Effective(EffectTarget.HabCapacity, 100, new Dictionary<string, int> {
+        double effective = Provider.Effective(EffectTarget.HabCapacity, 100, new Dictionary<string, int> {
             ["hab_capacity1"] = 8
         });
         Assert.Equal(100 * (1 + 8 * 0.05), effective, 6);
     }
 
     [Fact]
-    public void Hen_house_ac_is_egg_laying_not_hab_capacity() => Assert.Equal(EffectTarget.EggLayingRate, Provider.Resolve("research", "hen_house_ac")!.Target);
+    public void Hen_house_ac_is_egg_laying_not_hab_capacity() => Assert.Equal(EffectTarget.EggLayingRate,
+        Provider.Resolve("research", "hen_house_ac")!.Target);
 
     [Fact]
-    public void Tachyon_deflector_is_coop_egg_laying_not_hatch() => Assert.Equal(EffectTarget.CoopEggLaying, Provider.Resolve("artifact", "TACHYON_DEFLECTOR:4:3")!.Target);
+    public void Tachyon_deflector_is_coop_egg_laying_not_hatch() => Assert.Equal(EffectTarget.CoopEggLaying,
+        Provider.Resolve("artifact", "TACHYON_DEFLECTOR:4:3")!.Target);
 }

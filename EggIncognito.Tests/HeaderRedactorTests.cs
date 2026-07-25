@@ -3,15 +3,13 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-
 public class HeaderRedactorTests {
     [Fact]
     public void Build_RedactsSensitive_KeepsRawCopy() {
-        var headers = new List<HttpHeader>
-        {
+        var headers = new List<HttpHeader> {
             new("Authorization", "Bearer secret-token"),
             new("Content-Type", "application/x-www-form-urlencoded"),
-            new("Cookie", "sid=abc123"),
+            new("Cookie", "sid=abc123")
         };
 
         var (redacted, raw) = HeaderRedactor.Build(headers);
@@ -49,8 +47,8 @@ public class HeaderRedactorTests {
         var har = new HarWriter();
         har.Add(new CapturedFlow(
             "https://www.auxbrain.com/ei/x", "POST", 200, "ZGF0YQ==", "cmVzcA==",
-            RequestHeaders: [new HttpHeader("Authorization", "Bearer raw-secret")],
-            ResponseHeaders: [new HttpHeader("Content-Type", "application/octet-stream")]));
+            [new HttpHeader("Authorization", "Bearer raw-secret")],
+            [new HttpHeader("Content-Type", "application/octet-stream")]));
 
         using var doc = JsonDocument.Parse(har.ToHar());
         var entry = doc.RootElement.GetProperty("log").GetProperty("entries")[0];

@@ -5,18 +5,10 @@ using SyncKit.Contract;
 namespace EggIncognito.Tests;
 
 public class NewVersionIngestServiceTests {
-    private sealed class FakeNotifier : ISyncNotifier {
-        public List<string> Sent = [];
-        public Task NotifyAsync(string outcome, CancellationToken ct = default) {
-            Sent.Add(outcome);
-            return Task.CompletedTask;
-        }
-    }
-
     [Fact]
     public async Task ProtoUnchanged_Regens_And_Notifies() {
         var notifier = new FakeNotifier();
-        var svc = NewVersionIngestService.ForTest(expectedProtoSha: "abc", notifier: notifier);
+        var svc = NewVersionIngestService.ForTest("abc", notifier);
         var evt = new NewVersionEvent { Version = "1.34", ProtoSha = "abc", ApkRef = "n/a" };
 
         var result = await svc.HandleAsync(evt);
@@ -28,7 +20,7 @@ public class NewVersionIngestServiceTests {
     [Fact]
     public async Task ProtoChanged_Stashes_And_Flags() {
         var notifier = new FakeNotifier();
-        var svc = NewVersionIngestService.ForTest(expectedProtoSha: "abc", notifier: notifier);
+        var svc = NewVersionIngestService.ForTest("abc", notifier);
         var evt = new NewVersionEvent { Version = "1.35", ProtoSha = "different", ApkRef = "n/a" };
 
         var result = await svc.HandleAsync(evt);
@@ -39,14 +31,21 @@ public class NewVersionIngestServiceTests {
 
     [Fact]
     public async Task Handle_AlwaysCallsRegistry_BothPaths() {
-        var calls = 0;
-        static Task NoOp(NewVersionEvent _, CancellationToken __) => Task.CompletedTask;
+        int calls = 0;
+
+        static Task NoOp(NewVersionEvent _, CancellationToken __) {
+            return Task.CompletedTask;
+        }
+
         var svc = new NewVersionIngestService("expected-sha",
             new FakeNotifier(),
-            registry: (_, __) => { calls++; return Task.CompletedTask; },
-            fetch: NoOp,
-            regen: NoOp,
-            stash: NoOp);
+            (_, __) => {
+                calls++;
+                return Task.CompletedTask;
+            },
+            NoOp,
+            NoOp,
+            NoOp);
         await svc.HandleAsync(new NewVersionEvent { Version = "v", ProtoSha = "expected-sha" });
         await svc.HandleAsync(new NewVersionEvent { Version = "v2", ProtoSha = "different" });
         Assert.Equal(2, calls);
@@ -54,20 +53,33 @@ public class NewVersionIngestServiceTests {
 
     [Fact]
     public async Task LegacyEvent_PlatformFallsBackToAndroid() {
-
-
-
         string? seenPlatform = null;
-        static Task NoOp(NewVersionEvent _, CancellationToken __) => Task.CompletedTask;
+
+        static Task NoOp(NewVersionEvent _, CancellationToken __) {
+            return Task.CompletedTask;
+        }
+
         var svc = new NewVersionIngestService("expected-sha",
             new FakeNotifier(),
-            registry: (evt, __) => { seenPlatform = evt.Platform ?? "android"; return Task.CompletedTask; },
-            fetch: NoOp,
-            regen: NoOp,
-            stash: NoOp);
+            (evt, __) => {
+                seenPlatform = evt.Platform ?? "android";
+                return Task.CompletedTask;
+            },
+            NoOp,
+            NoOp,
+            NoOp);
 
         await svc.HandleAsync(new NewVersionEvent { Version = "1.34", ProtoSha = "expected-sha" });
 
         Assert.Equal("android", seenPlatform);
+    }
+
+    private sealed class FakeNotifier : ISyncNotifier {
+        public readonly List<string> Sent = [];
+
+        public Task NotifyAsync(string outcome, CancellationToken ct = default) {
+            Sent.Add(outcome);
+            return Task.CompletedTask;
+        }
     }
 }

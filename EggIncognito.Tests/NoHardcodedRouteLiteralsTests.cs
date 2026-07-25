@@ -8,18 +8,18 @@ public class NoHardcodedRouteLiteralsTests {
 
     [Fact]
     public void PeriodicalRouteLiterals_OnlyInCatalog() {
-        var repo = FindRepoRoot();
-        var webDir = Path.Combine(repo, "EggIncognito");
+        string repo = FindRepoRoot();
+        string webDir = Path.Combine(repo, "EggIncognito");
         Assert.True(Directory.Exists(webDir), "web project dir not found");
 
         var offenders = new List<string>();
-        foreach (var file in Directory.EnumerateFiles(webDir, "*.cs", SearchOption.AllDirectories)) {
+        foreach (string file in Directory.EnumerateFiles(webDir, "*.cs", SearchOption.AllDirectories)) {
             if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")) continue;
             if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")) continue;
             if (Allowed.Any(a => file.EndsWith(a, StringComparison.Ordinal))) continue;
 
-            var text = File.ReadAllText(file);
-            foreach (var route in Routes) {
+            string text = File.ReadAllText(file);
+            foreach (string route in Routes) {
                 if (text.Contains($"\"{route}\"", StringComparison.Ordinal))
                     offenders.Add($"{Path.GetFileName(file)} -> {route}");
             }
@@ -35,6 +35,7 @@ public class NoHardcodedRouteLiteralsTests {
             if (dir.GetFiles("*.slnx").Length > 0 || dir.GetFiles("*.sln").Length > 0) return dir.FullName;
             dir = dir.Parent;
         }
+
         throw new InvalidOperationException("repo root not found");
     }
 }

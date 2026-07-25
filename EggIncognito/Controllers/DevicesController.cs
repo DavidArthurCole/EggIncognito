@@ -1,8 +1,14 @@
+using System.Security.Cryptography;
+using System.Text;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Assets;
+using EggIncognito.Services.Auth;
 using EggIncognito.Services.Devices;
+using EggIncognito.Services.Feed;
+using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -10,14 +16,17 @@ using SyncKit.Contract;
 
 namespace EggIncognito.Controllers;
 
-
 [ApiController]
 [Route("api/devices")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
 public sealed class DevicesController(
-    ICurrentUser currentUser, IServiceProvider services,
-    IServiceScopeFactory scopeFactory, IDeviceJobTracker jobs) : ControllerBase {
+    ICurrentUser currentUser,
+    IServiceProvider services,
+    IServiceScopeFactory scopeFactory,
+    IDeviceJobTracker jobs) : ControllerBase {
+    private const string PlatformAndroid = "android";
+    private const string PlatformIos = "ios";
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
@@ -34,7 +43,6 @@ public sealed class DevicesController(
         var updates = (await store.LatestUpdatePerDeviceAsync()).ToDictionary(u => u.DeviceId);
 
 
-
         var db = Db;
         var storeLatest = new Dictionary<string, string?>();
 
@@ -42,7 +50,7 @@ public sealed class DevicesController(
         var regLatestApp = new Dictionary<string, string?>();
         var regLatestBuild = new Dictionary<string, string?>();
         if (db is not null) {
-            foreach (var plat in devices.Values.Select(d => d.Platform).Distinct()) {
+            foreach (string plat in devices.Values.Select(d => d.Platform).Distinct()) {
                 storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, HttpContext.RequestAborted);
 
 
@@ -51,9 +59,11 @@ public sealed class DevicesController(
                     .Select(v => new { v.Build, v.AppVersion })
                     .ToListAsync(HttpContext.RequestAborted);
                 regLatestApp[plat] = extracted.Select(e => e.AppVersion)
-                    .OrderByDescending(v => v, Comparer<string>.Create(DeviceProbeRunner.SemverCompare)).FirstOrDefault();
+                    .OrderByDescending(v => v, Comparer<string>.Create(DeviceProbeRunner.SemverCompare))
+                    .FirstOrDefault();
                 regLatestBuild[plat] = plat == "android"
-                    ? extracted.Select(e => e.Build).Where(b => long.TryParse(b, out _)).OrderByDescending(long.Parse).FirstOrDefault()
+                    ? extracted.Select(e => e.Build).Where(b => long.TryParse(b, out _)).OrderByDescending(long.Parse)
+                        .FirstOrDefault()
                     : null;
             }
         }
@@ -61,12 +71,13 @@ public sealed class DevicesController(
         var rows = latest.Where(p => devices.ContainsKey(p.DeviceId)).Select(p => {
             var d = devices[p.DeviceId];
             updates.TryGetValue(d.Id, out var up);
-            var sl = storeLatest.GetValueOrDefault(d.Platform);
+            string? sl = storeLatest.GetValueOrDefault(d.Platform);
 
-            var liveResult = (p.Reachable && !string.IsNullOrEmpty(p.InstalledAppVersion))
+            string liveResult = p.Reachable && !string.IsNullOrEmpty(p.InstalledAppVersion)
                 ? DeviceProbeRunner.Classify(
                     new DeviceProbeResult(true, p.InstalledAppVersion, p.InstalledBuild, null),
-                    d.Platform, regLatestBuild.GetValueOrDefault(d.Platform), regLatestApp.GetValueOrDefault(d.Platform))
+                    d.Platform, regLatestBuild.GetValueOrDefault(d.Platform),
+                    regLatestApp.GetValueOrDefault(d.Platform))
                 : p.Result;
             return new {
                 id = d.Id,
@@ -81,14 +92,16 @@ public sealed class DevicesController(
                 result = liveResult,
                 note = p.Note,
                 probedAt = p.ProbedAt,
-                lastUpdate = up is null ? null : new {
-                    status = up.Status,
-                    from = up.FromVersion,
-                    to = up.ToVersion,
-                    note = up.Note,
-                    by = up.TriggeredBy,
-                    at = up.AttemptedAt,
-                },
+                lastUpdate = up is null
+                    ? null
+                    : new {
+                        status = up.Status,
+                        from = up.FromVersion,
+                        to = up.ToVersion,
+                        note = up.Note,
+                        by = up.TriggeredBy,
+                        at = up.AttemptedAt
+                    }
             };
         });
         return Ok(rows);
@@ -106,7 +119,7 @@ public sealed class DevicesController(
             installedBuild = p.InstalledBuild,
             result = p.Result,
             triggeredBy = p.TriggeredBy,
-            note = p.Note,
+            note = p.Note
         }));
     }
 
@@ -138,10 +151,9 @@ public sealed class DevicesController(
             latestAvailable = row.LatestAvailable,
             result = row.Result,
             note = row.Note,
-            probedAt = row.ProbedAt,
+            probedAt = row.ProbedAt
         });
     }
-
 
 
     [HttpPost("refresh-all")]
@@ -157,18 +169,20 @@ public sealed class DevicesController(
         var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
 
         var devices = await store.EnabledDevicesAsync();
-        var n = 0;
+        int n = 0;
         foreach (var d in devices) {
             try {
                 await DeviceProbeRunner.ProbeOneAsync(
-                    d, $"admin-all:{currentUser.DiscordId}", runner, store, db, logger, time, HttpContext.RequestAborted);
+                    d, $"admin-all:{currentUser.DiscordId}", runner, store, db, logger, time,
+                    HttpContext.RequestAborted);
                 n++;
-            } catch (Exception ex) { logger.LogWarning(ex, "refresh-all: {Id} threw", d.Id); }
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "refresh-all: {Id} threw", d.Id);
+            }
         }
+
         return Ok(new { probed = n });
     }
-
-
 
 
     [HttpPost("{id}/check-update")]
@@ -180,12 +194,12 @@ public sealed class DevicesController(
         if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
 
         var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
-        var who = currentUser.DiscordId ?? "?";
+        string who = currentUser.DiscordId ?? "?";
 
         var device = await store.GetAsync(id);
         if (device is null) return NotFound(new { error = "unknown device" });
 
-        var checker = services.GetServices<IDeviceStoreChecker>().Cast<IDeviceStoreChecker>()
+        var checker = services.GetServices<IDeviceStoreChecker>()
             .FirstOrDefault(c => string.Equals(c.Platform, device.Platform, StringComparison.OrdinalIgnoreCase));
         if (checker is null)
             return StatusCode(501, new { error = $"no store checker for platform {device.Platform}" });
@@ -198,15 +212,14 @@ public sealed class DevicesController(
         var target = new DeviceStoreTarget(device.Id, device.Platform, device.Target, device.Package);
 
 
-
         _ = Task.Run(() => RunCheckUpdateAsync(id, target, checker, who));
 
         return Accepted(new { id = device.Id, action = "running" });
     }
 
 
-
-    private async Task RunCheckUpdateAsync(string id, DeviceStoreTarget target, IDeviceStoreChecker checker, string who) {
+    private async Task RunCheckUpdateAsync(string id, DeviceStoreTarget target, IDeviceStoreChecker checker,
+        string who) {
         using var scope = scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
         var logger = sp.GetRequiredService<ILogger<DevicesController>>();
@@ -220,24 +233,25 @@ public sealed class DevicesController(
             }
 
 
-
             jobs.Progress(id, "reading installed version…");
             IDeviceProbe preProbe = string.Equals(target.Platform, "ios", StringComparison.OrdinalIgnoreCase)
                 ? new IosDeviceProbe(runner, target.Target, target.Package)
                 : new AdbDeviceProbe(runner, target.Target, target.Package);
             var probe = await preProbe.ProbeAsync(CancellationToken.None);
-            var storeLatest = await StoreAheadCheck.StoreLatestAsync(db, target.Platform, CancellationToken.None);
+            string? storeLatest = await StoreAheadCheck.StoreLatestAsync(db, target.Platform, CancellationToken.None);
             if (probe.Reachable && !StoreAheadCheck.IsAhead(storeLatest, probe.InstalledAppVersion)) {
-                var note = storeLatest is null
+                string note = storeLatest is null
                     ? $"installed {probe.InstalledAppVersion}; store-latest unknown (no version poll yet)"
                     : $"already current: installed {probe.InstalledAppVersion}, store-latest {storeLatest}";
                 logger.LogInformation("device check-update: {Id} skip store-drive ({Note})", id, note);
                 jobs.Finish(id, new StoreCheckResult(
-                    probe.Reachable, probe.InstalledAppVersion, probe.InstalledAppVersion, false, false, "up_to_date", note));
+                    probe.Reachable, probe.InstalledAppVersion, probe.InstalledAppVersion, false, false, "up_to_date",
+                    note));
                 return;
             }
 
-            var result = await checker.CheckAndUpdateAsync(target, CancellationToken.None, msg => jobs.Progress(id, msg));
+            var result =
+                await checker.CheckAndUpdateAsync(target, CancellationToken.None, msg => jobs.Progress(id, msg));
 
             if (result.Installed) {
                 await store.RecordUpdateAsync(new DeviceUpdate {
@@ -247,7 +261,7 @@ public sealed class DevicesController(
                     ToVersion = result.InstalledAfter,
                     Status = "verified",
                     Note = result.Note,
-                    TriggeredBy = $"check:{who}",
+                    TriggeredBy = $"check:{who}"
                 }, CancellationToken.None);
             }
 
@@ -266,7 +280,6 @@ public sealed class DevicesController(
     }
 
 
-
     [HttpGet("{id}/check-status")]
     public IActionResult CheckStatus(string id) {
         if (RequireAdmin() is { } no) return no;
@@ -279,11 +292,9 @@ public sealed class DevicesController(
             installedBefore = s.InstalledBefore,
             installedAfter = s.InstalledAfter,
             startedAt = s.StartedAt,
-            updatedAt = s.UpdatedAt,
+            updatedAt = s.UpdatedAt
         });
     }
-
-
 
 
     [HttpPost("{id}/save")]
@@ -291,10 +302,13 @@ public sealed class DevicesController(
     public async Task<IActionResult> Save(string id) {
         if (RequireAdmin() is { } no) return no;
         var store = Store;
-        if (store is null || Db is null || services.GetService(typeof(ProtoRegistryStore)) is not ProtoRegistryStore registry) return StatusCode(503, new { error = "no database configured" });
+        if (store is null || Db is null ||
+            services.GetService(typeof(ProtoRegistryStore)) is not ProtoRegistryStore registry) {
+            return StatusCode(503, new { error = "no database configured" });
+        }
 
         var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
-        var who = currentUser.DiscordId ?? "?";
+        string who = currentUser.DiscordId ?? "?";
 
         var device = await store.GetAsync(id);
         if (device is null) return NotFound(new { error = "unknown device" });
@@ -306,8 +320,9 @@ public sealed class DevicesController(
         var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
         var probe = await DeviceProbeRunner.ProbeFor(device, runner).ProbeAsync(HttpContext.RequestAborted);
 
-        var needBuild = device.Platform == PlatformAndroid;
-        if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion) || (needBuild && string.IsNullOrEmpty(probe.InstalledBuild))) {
+        bool needBuild = device.Platform == PlatformAndroid;
+        if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion) ||
+            (needBuild && string.IsNullOrEmpty(probe.InstalledBuild))) {
             logger.LogWarning("device save: {Id} aborted: unreachable or no version ({Note})", id, probe.Note);
             return StatusCode(502, new { error = $"device unreachable or no version read: {probe.Note}" });
         }
@@ -315,34 +330,33 @@ public sealed class DevicesController(
         var (carve, err) = await PullAndCarveAsync(device, probe, runner, logger);
         if (err is not null) return err;
 
-        var appVersion = probe.InstalledAppVersion!;
-        var build = carve!.Build;
-        var sha = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(carve.Proto)));
+        string appVersion = probe.InstalledAppVersion!;
+        string build = carve!.Build;
+        string sha = Convert.ToHexStringLower(SHA256.HashData(
+            Encoding.UTF8.GetBytes(carve.Proto)));
 
 
-
-        var clientVersion = await HarvestClientVersionAsync(device, HttpContext.RequestAborted);
-        logger.LogInformation("device save: {Id} harvested clientVersion={Cv}", id, clientVersion?.ToString() ?? "(none)");
+        string? clientVersion = await HarvestClientVersionAsync(device, HttpContext.RequestAborted);
+        logger.LogInformation("device save: {Id} harvested clientVersion={Cv}", id, clientVersion ?? "(none)");
 
         try {
-            var (row, created, protoChanged) = await registry.UpsertAsync(
-                device.Platform, appVersion, build, clientVersion: clientVersion, package: device.Package,
-                protoSha: sha, apkRef: $"device:{device.Id}", detectedAt: DateTimeOffset.UtcNow,
-                detectedBy: $"device-save:{who}", protoText: carve.Proto, source: "device",
-                resurrect: true, ct: HttpContext.RequestAborted);
+            (var row, bool created, bool protoChanged) = await registry.UpsertAsync(
+                device.Platform, appVersion, build, clientVersion, device.Package,
+                sha, $"device:{device.Id}", DateTimeOffset.UtcNow,
+                $"device-save:{who}", carve.Proto, "device",
+                true, HttpContext.RequestAborted);
             logger.LogInformation("device save: {Id} -> registry {Plat} build {Build} ({State}, sha {Sha})",
                 id, device.Platform, build, created ? "created" : "updated", sha[..12]);
 
 
-            var dispatcher = services.GetService(typeof(EggIncognito.Services.Feed.FeedDispatcher))
-                as EggIncognito.Services.Feed.FeedDispatcher;
+            var dispatcher = services.GetService(typeof(FeedDispatcher))
+                as FeedDispatcher;
             if (dispatcher is not null) {
                 var cfg = services.GetService(typeof(IConfiguration)) as IConfiguration;
-                var pageUrl = EggIncognito.Services.Feed.FeedDispatcher.BuildPageUrl(
+                string pageUrl = FeedDispatcher.BuildPageUrl(
                     cfg?["Feed:PageBaseUrl"], device.Platform, build);
-                await dispatcher.DispatchAsync(new EggIncognito.Services.Feed.ProtoBuildEvent(
-                    row.Id, device.Platform, appVersion, build, ClientVersion: null,
+                await dispatcher.DispatchAsync(new ProtoBuildEvent(
+                    row.Id, device.Platform, appVersion, build, null,
                     sha, created, protoChanged, pageUrl), HttpContext.RequestAborted);
             }
         } catch (Exception ex) {
@@ -358,64 +372,76 @@ public sealed class DevicesController(
         return Ok(new { saved = true, appVersion, build, result = reprobe.Result });
     }
 
-    private const string PlatformAndroid = "android";
-    private const string PlatformIos = "ios";
-
-    private sealed record CarveResult(string Proto, string Build);
-
-
 
     private async Task<(CarveResult? carve, IActionResult? err)> PullAndCarveAsync(
         Device device, DeviceProbeResult probe, IProcessRunner runner, ILogger logger) {
         if (device.Platform == PlatformAndroid) {
-            var apk = await new DeviceApkPuller(runner).PullArmSplitAsync(device.Target, device.Package, HttpContext.RequestAborted);
+            byte[]? apk =
+                await new DeviceApkPuller(runner).PullArmSplitAsync(device.Target, device.Package,
+                    HttpContext.RequestAborted);
             if (apk is null) {
                 logger.LogWarning("device save: {Id} aborted: arm split pull failed", device.Id);
                 return (null, StatusCode(502, new { error = "could not pull the arm split apk from the device" }));
             }
-            logger.LogInformation("device save: {Id} pulled arm split ({Bytes} bytes), carving proto", device.Id, apk.Length);
-            var carved = EggIncognito.Services.ProtoExtract.ArchiveProtoExtractor.Extract(apk);
+
+            logger.LogInformation("device save: {Id} pulled arm split ({Bytes} bytes), carving proto", device.Id,
+                apk.Length);
+            var carved = ArchiveProtoExtractor.Extract(apk);
             if (!carved.Ok || string.IsNullOrEmpty(carved.Proto)) {
                 logger.LogWarning("device save: {Id} carve failed: {Diag}", device.Id, carved.Diagnostics);
                 return (null, StatusCode(500, new { error = $"proto carve failed: {carved.Diagnostics}" }));
             }
+
             return (new CarveResult(carved.Proto, probe.InstalledBuild!), null);
         }
 
         if (IosConn(device) is not { } conn) {
-            logger.LogWarning("device save: {Id} aborted: ios ssh key not configured (DeviceUpdate:Ios:SshKeyPath)", device.Id);
-            return (null, StatusCode(503, new { error = "ios extraction needs DeviceUpdate:Ios:SshKeyPath configured" }));
+            logger.LogWarning("device save: {Id} aborted: ios ssh key not configured (DeviceUpdate:Ios:SshKeyPath)",
+                device.Id);
+            return (null,
+                StatusCode(503, new { error = "ios extraction needs DeviceUpdate:Ios:SshKeyPath configured" }));
         }
-        var bin = await new IosBinaryPuller(conn).PullBinaryAsync(device.Package, HttpContext.RequestAborted);
+
+        byte[]? bin = await new IosBinaryPuller(conn).PullBinaryAsync(device.Package, HttpContext.RequestAborted);
         if (bin is null) {
             logger.LogWarning("device save: {Id} aborted: ios binary pull failed", device.Id);
             return (null, StatusCode(502, new { error = "could not pull the egginc binary from the device over ssh" }));
         }
-        logger.LogInformation("device save: {Id} pulled ios binary ({Bytes} bytes), carving proto", device.Id, bin.Length);
+
+        logger.LogInformation("device save: {Id} pulled ios binary ({Bytes} bytes), carving proto", device.Id,
+            bin.Length);
 
 
-
-        var stashPath = (services.GetService(typeof(IConfiguration)) as IConfiguration)?["Runner:IosBinaryStashPath"];
+        string? stashPath =
+            (services.GetService(typeof(IConfiguration)) as IConfiguration)?["Runner:IosBinaryStashPath"];
         if (!string.IsNullOrEmpty(stashPath)) {
-            try { await System.IO.File.WriteAllBytesAsync(stashPath, bin, HttpContext.RequestAborted); } catch (Exception ex) { logger.LogWarning(ex, "device save: {Id} could not stash ios binary to {Path}", device.Id, stashPath); }
+            try {
+                await System.IO.File.WriteAllBytesAsync(stashPath, bin, HttpContext.RequestAborted);
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "device save: {Id} could not stash ios binary to {Path}", device.Id, stashPath);
+            }
         }
-        var iosCarve = EggIncognito.Services.ProtoExtract.MachoProtoExtractor.Extract(bin);
+
+        var iosCarve = MachoProtoExtractor.Extract(bin);
         if (!iosCarve.Ok || string.IsNullOrEmpty(iosCarve.Proto)) {
             logger.LogWarning("device save: {Id} carve failed: {Diag}", device.Id, iosCarve.Diagnostics);
             return (null, StatusCode(500, new { error = $"proto carve failed: {iosCarve.Diagnostics}" }));
         }
 
 
-        var iosBuild = !string.IsNullOrEmpty(probe.InstalledBuild)
+        string iosBuild = !string.IsNullOrEmpty(probe.InstalledBuild)
             ? probe.InstalledBuild!
-            : Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bin))[..16];
+            : Convert.ToHexStringLower(SHA256.HashData(bin))[..16];
         return (new CarveResult(iosCarve.Proto, iosBuild), null);
     }
 
 
-
     private async Task<string?> HarvestClientVersionAsync(Device device, CancellationToken ct) {
-        if (services.GetService(typeof(DeviceProxyPusher)) is not DeviceProxyPusher pusher || services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg) return null;
+        if (services.GetService(typeof(DeviceProxyPusher)) is not DeviceProxyPusher pusher ||
+            services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg) {
+            return null;
+        }
+
         var entry = devCfg.Devices.FirstOrDefault(d => d.Id == device.Id);
         if (entry is null) return null;
 
@@ -424,16 +450,14 @@ public sealed class DevicesController(
     }
 
 
-
-    private EggIncognito.Core.Services.Devices.SshDeviceConnection? IosConn(Device device) =>
+    private SshDeviceConnection? IosConn(Device device) =>
         ((IDeviceConnectionFactory)services.GetRequiredService(typeof(IDeviceConnectionFactory))).Ios(device.Target);
-
-
 
 
     [HttpPost("{id}/pull-meshes")]
     [EnableRateLimiting("write")]
-    public async Task<IActionResult> PullMeshes(string id, [FromQuery] bool export = false, [FromQuery] string? build = null) {
+    public async Task<IActionResult> PullMeshes(string id, [FromQuery] bool export = false,
+        [FromQuery] string? build = null) {
         if (RequireAdmin() is { } no) return no;
         var store = Store;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
@@ -446,25 +470,25 @@ public sealed class DevicesController(
         var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
         var ct = HttpContext.RequestAborted;
 
-        Services.ProtoExtract.RpoAssetExtractor.ExtractResult extract;
+        RpoAssetExtractor.ExtractResult extract;
         if (device.Platform == PlatformAndroid) {
-            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+            byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
             if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
-            extract = Services.ProtoExtract.RpoAssetExtractor.Extract(apk);
+            extract = RpoAssetExtractor.Extract(apk);
         } else {
             if (IosConn(device) is not { } conn)
                 return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
-            var tar = await new IosAssetPuller(conn).PullRposTarAsync(device.Package, ct);
-            if (tar is null) return StatusCode(502, new { error = "could not pull the rpos meshes from the device over ssh" });
-            var entries = Services.ProtoExtract.TarReader.Read(tar)
+            byte[]? tar = await new IosAssetPuller(conn).PullRposTarAsync(device.Package, ct);
+            if (tar is null)
+                return StatusCode(502, new { error = "could not pull the rpos meshes from the device over ssh" });
+            var entries = TarReader.Read(tar)
                 .Select(e => (e.Name, e.Bytes));
-            extract = Services.ProtoExtract.RpoAssetExtractor.FromEntries(entries);
+            extract = RpoAssetExtractor.FromEntries(entries);
         }
 
 
         return Ok(export ? MeshManifest.Ships(extract, build, false, null) : MeshManifest.From(extract));
     }
-
 
 
     [HttpGet("{id}/list-meshes")]
@@ -485,19 +509,22 @@ public sealed class DevicesController(
             var names = await new IosAssetPuller(conn).ListRposAsync(device.Package, ct);
             return Ok(new { meshes = names });
         }
+
         if (device.Platform == PlatformAndroid) {
-            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+            byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
             if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
-            var names = Services.ProtoExtract.RpoAssetLister.ListStems(apk);
+            var names = RpoAssetLister.ListStems(apk);
             return Ok(new { meshes = names });
         }
+
         return StatusCode(501, new { error = $"no mesh listing for platform {device.Platform}" });
     }
 
 
     [HttpGet("{id}/mesh/{stem}")]
     [EnableRateLimiting("read")]
-    public async Task<IActionResult> Mesh(string id, string stem, [FromQuery] string? animate, [FromQuery] float seconds) {
+    public async Task<IActionResult> Mesh(string id, string stem, [FromQuery] string? animate,
+        [FromQuery] float seconds) {
         if (RequireAdmin() is { } no) return no;
         var ct = HttpContext.RequestAborted;
 
@@ -505,18 +532,17 @@ public sealed class DevicesController(
         var provider = (DeviceMeshProvider)services.GetRequiredService(typeof(DeviceMeshProvider));
         var res = await provider.GetGlbAsync(stem, id, ct);
         if (!res.Ok) return StatusCode(res.Status, new { error = res.Diagnostics });
-        var glb = res.Glb!;
+        byte[] glb = res.Glb!;
 
         if (!string.IsNullOrEmpty(animate)) {
-            var opts = new Services.Assets.GltfAnimator.Options(
-                Services.Assets.GltfAnimator.ParseKind(animate), seconds > 0 ? seconds : 6f);
-            var anim = Services.Assets.GltfAnimator.Animate(glb, opts);
+            var opts = new GltfAnimator.Options(
+                GltfAnimator.ParseKind(animate), seconds > 0 ? seconds : 6f);
+            var anim = GltfAnimator.Animate(glb, opts);
             if (anim.Ok) glb = anim.Glb!;
         }
+
         return File(glb, "model/gltf-binary", $"{stem}.glb");
     }
-
-
 
 
     [HttpPost("{id}/precache-meshes")]
@@ -534,23 +560,23 @@ public sealed class DevicesController(
         var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
         var ct = HttpContext.RequestAborted;
 
-        Services.ProtoExtract.RpoAssetExtractor.ExtractResult extract;
+        RpoAssetExtractor.ExtractResult extract;
         if (device.Platform == PlatformAndroid) {
-            var apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
+            byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
             if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
-            extract = Services.ProtoExtract.RpoAssetExtractor.Extract(apk);
+            extract = RpoAssetExtractor.Extract(apk);
         } else if (device.Platform == PlatformIos) {
             if (IosConn(device) is not { } conn)
                 return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
-            var tar = await new IosAssetPuller(conn).PullRposTarAsync(device.Package, ct);
+            byte[]? tar = await new IosAssetPuller(conn).PullRposTarAsync(device.Package, ct);
             if (tar is null) return StatusCode(502, new { error = "could not pull the rpos meshes over ssh" });
-            extract = Services.ProtoExtract.RpoAssetExtractor.FromEntries(
-                Services.ProtoExtract.TarReader.Read(tar).Select(e => (e.Name, e.Bytes)));
+            extract = RpoAssetExtractor.FromEntries(
+                TarReader.Read(tar).Select(e => (e.Name, e.Bytes)));
         } else {
             return StatusCode(501, new { error = $"no mesh pull for platform {device.Platform}" });
         }
 
-        var cached = 0;
+        int cached = 0;
         var failed = new List<string>();
         foreach (var asset in extract.Assets) {
             if (asset.Decode.Ok && asset.Decode.Glb is { } g) {
@@ -560,6 +586,7 @@ public sealed class DevicesController(
                 failed.Add(asset.Key);
             }
         }
+
         return Ok(new { ok = true, platform = device.Platform, cached, failed = failed.Count, failedKeys = failed.Take(20) });
     }
 
@@ -570,8 +597,10 @@ public sealed class DevicesController(
         if (RequireAdmin() is { } no) return no;
         var device = await Store?.GetAsync(id)!;
         if (device is null) return NotFound(new { error = "unknown device" });
-        if (services.GetService(typeof(MeshAssetCache)) is not MeshAssetCache cache || !cache.Enabled) return Ok(new { enabled = false, meshes = Array.Empty<object>() });
-        var meshes = cache.List(device.Platform).Select(m => new { stem = m.Stem, bytes = m.Bytes, cachedAt = m.CachedAt });
+        if (services.GetService(typeof(MeshAssetCache)) is not MeshAssetCache cache || !cache.Enabled)
+            return Ok(new { enabled = false, meshes = Array.Empty<object>() });
+        var meshes = cache.List(device.Platform)
+            .Select(m => new { stem = m.Stem, bytes = m.Bytes, cachedAt = m.CachedAt });
         return Ok(new { enabled = true, platform = device.Platform, meshes });
     }
 
@@ -582,36 +611,36 @@ public sealed class DevicesController(
         if (RequireAdmin() is { } no) return no;
         var device = await Store?.GetAsync(id)!;
         if (device is null) return NotFound(new { error = "unknown device" });
-        if (services.GetService(typeof(MeshAssetCache)) is not MeshAssetCache cache || !cache.Enabled) return StatusCode(503, new { error = "mesh cache not configured" });
+        if (services.GetService(typeof(MeshAssetCache)) is not MeshAssetCache cache || !cache.Enabled)
+            return StatusCode(503, new { error = "mesh cache not configured" });
 
         if (stem == "*") {
-            var n = cache.Clear(device.Platform);
+            int n = cache.Clear(device.Platform);
             return Ok(new { ok = true, cleared = n });
         }
-        var deleted = cache.Delete(device.Platform, stem);
+
+        bool deleted = cache.Delete(device.Platform, stem);
         return Ok(new { ok = deleted, deleted });
     }
-
 
 
     [HttpPost("{id}/restart-app")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> RestartApp(string id) {
         if (RequireAdmin() is { } no) return no;
-        if (services.GetService(typeof(EggIncognito.Services.Devices.DeviceProxyPusher))
-                is not EggIncognito.Services.Devices.DeviceProxyPusher pusher
-            || services.GetService(typeof(EggIncognito.Services.Devices.DeviceConfig))
-                is not EggIncognito.Services.Devices.DeviceConfig devCfg) {
+        if (services.GetService(typeof(DeviceProxyPusher))
+                is not DeviceProxyPusher pusher
+            || services.GetService(typeof(DeviceConfig))
+                is not DeviceConfig devCfg) {
             return StatusCode(503, new { error = "device capture not configured" });
         }
 
         var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
         if (entry is null) return NotFound(new { error = "unknown device" });
 
-        var (ok, note) = await pusher.RestartAppAsync(entry, HttpContext.RequestAborted);
+        (bool ok, string? note) = await pusher.RestartAppAsync(entry, HttpContext.RequestAborted);
         return ok ? Ok(new { restarted = true, note }) : StatusCode(502, new { error = note ?? "restart failed" });
     }
-
 
 
     [HttpGet("{id}/live")]
@@ -628,10 +657,12 @@ public sealed class DevicesController(
             flows = d.Flows,
             rinfoHarvests = d.RinfoHarvests,
             lastDecryptError = d.LastDecryptError,
-            recentConnects = d.RecentConnects,
+            recentConnects = d.RecentConnects
         };
         var v = mgr.Rinfo.Latest(id);
         if (v is null) return Ok(new { found = false, capture });
         return Ok(new { found = true, v.DeviceId, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen, capture });
     }
+
+    private sealed record CarveResult(string Proto, string Build);
 }

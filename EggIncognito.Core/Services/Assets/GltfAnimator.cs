@@ -1,27 +1,19 @@
 using System.Numerics;
 using SharpGLTF.Schema2;
+using SharpGLTF.Transforms;
 
 namespace EggIncognito.Services.Assets;
-
 
 //
 
 public static class GltfAnimator {
     public enum AnimationKind {
-
         SpinY,
 
         SpinZ,
 
-        HoverSpin,
+        HoverSpin
     }
-
-    public sealed record Options(AnimationKind Kind = AnimationKind.SpinY, float DurationSeconds = 6f, float BobAmplitude = 0.15f) {
-        public static Options Spin(float seconds = 6f) => new(AnimationKind.SpinY, seconds);
-    }
-
-    public sealed record Result(bool Ok, byte[]? Glb, string Diagnostics, string AnimationName, float DurationSeconds);
-
 
 
     public static Result Animate(byte[] glb, Options? options = null) {
@@ -29,12 +21,16 @@ public static class GltfAnimator {
         if (glb is null || glb.Length < 12) return Fail("input glb too short", opts);
 
         ModelRoot model;
-        try { model = ModelRoot.ParseGLB(glb); } catch (Exception ex) { return Fail($"not a valid glb: {ex.Message}", opts); }
+        try {
+            model = ModelRoot.ParseGLB(glb);
+        } catch (Exception ex) {
+            return Fail($"not a valid glb: {ex.Message}", opts);
+        }
 
         var node = TargetNode(model);
         if (node is null) return Fail("glb has no node to animate", opts);
 
-        var name = opts.Kind.ToString();
+        string name = opts.Kind.ToString();
         try {
             ApplyAnimation(node, opts, name);
         } catch (Exception ex) {
@@ -42,11 +38,14 @@ public static class GltfAnimator {
         }
 
         byte[] outGlb;
-        try { outGlb = [.. model.WriteGLB()]; } catch (Exception ex) { return Fail($"glb write failed: {ex.Message}", opts); }
+        try {
+            outGlb = [.. model.WriteGLB()];
+        } catch (Exception ex) {
+            return Fail($"glb write failed: {ex.Message}", opts);
+        }
 
         return new Result(true, outGlb, "ok", name, opts.DurationSeconds);
     }
-
 
 
     private static Node? TargetNode(ModelRoot model) {
@@ -59,8 +58,7 @@ public static class GltfAnimator {
     }
 
     private static void ApplyAnimation(Node node, Options opts, string name) {
-        var d = opts.DurationSeconds <= 0 ? 6f : opts.DurationSeconds;
-
+        float d = opts.DurationSeconds <= 0 ? 6f : opts.DurationSeconds;
 
 
         var pivot = RepivotToCenter(node);
@@ -83,8 +81,6 @@ public static class GltfAnimator {
     }
 
 
-
-
     private static Node RepivotToCenter(Node node) {
         if (node.Mesh is null) return node;
         var center = MeshCenter(node.Mesh);
@@ -97,10 +93,10 @@ public static class GltfAnimator {
 
         var child = node.CreateNode($"{node.Name ?? "mesh"}_geom");
         child.Mesh = mesh;
-        child.LocalTransform = SharpGLTF.Transforms.AffineTransform.CreateFromAny(null, null, null, -c);
+        child.LocalTransform = AffineTransform.CreateFromAny(null, null, null, -c);
 
         node.Mesh = null;
-        node.LocalTransform = SharpGLTF.Transforms.AffineTransform.CreateFromAny(null, null, null, keepTranslation + c);
+        node.LocalTransform = AffineTransform.CreateFromAny(null, null, null, keepTranslation + c);
         return node;
     }
 
@@ -108,7 +104,7 @@ public static class GltfAnimator {
     private static Vector3? MeshCenter(Mesh mesh) {
         var min = new Vector3(float.MaxValue);
         var max = new Vector3(float.MinValue);
-        var any = false;
+        bool any = false;
         foreach (var prim in mesh.Primitives) {
             var pos = prim.GetVertexAccessor("POSITION");
             if (pos is null) continue;
@@ -118,32 +114,31 @@ public static class GltfAnimator {
                 max = Vector3.Max(max, v);
             }
         }
+
         return any ? (min + max) * 0.5f : null;
     }
-
 
 
     private static (float, Quaternion)[] SpinKeys(Vector3 axis, float duration) {
         var a = Vector3.Normalize(axis);
         const int steps = 4;
         var keys = new (float, Quaternion)[steps + 1];
-        for (var i = 0; i <= steps; i++) {
-            var t = duration * i / steps;
-            var angle = MathF.PI * 2f * i / steps;
+        for (int i = 0; i <= steps; i++) {
+            float t = duration * i / steps;
+            float angle = MathF.PI * 2f * i / steps;
             keys[i] = (t, Quaternion.CreateFromAxisAngle(a, angle));
         }
+
         return keys;
     }
 
 
-
     private static (float, Vector3)[] BobKeys(float amplitude, float duration, Vector3 baseTranslation) {
-        var half = duration / 2f;
-        return
-        [
+        float half = duration / 2f;
+        return [
             (0f, baseTranslation),
             (half, baseTranslation + new Vector3(0f, amplitude, 0f)),
-            (duration, baseTranslation),
+            (duration, baseTranslation)
         ];
     }
 
@@ -152,5 +147,14 @@ public static class GltfAnimator {
 
 
     public static AnimationKind ParseKind(string? s) =>
-        Enum.TryParse<AnimationKind>(s, ignoreCase: true, out var k) ? k : AnimationKind.SpinY;
+        Enum.TryParse<AnimationKind>(s, true, out var k) ? k : AnimationKind.SpinY;
+
+    public sealed record Options(
+        AnimationKind Kind = AnimationKind.SpinY,
+        float DurationSeconds = 6f,
+        float BobAmplitude = 0.15f) {
+        public static Options Spin(float seconds = 6f) => new(AnimationKind.SpinY, seconds);
+    }
+
+    public sealed record Result(bool Ok, byte[]? Glb, string Diagnostics, string AnimationName, float DurationSeconds);
 }

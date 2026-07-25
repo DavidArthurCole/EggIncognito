@@ -1,15 +1,13 @@
+using System.Net;
 using System.Text.Json.Nodes;
 using Bunit;
 using EggIncognito.Components.Inspector;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-
 public class InspectorPageTests {
-
     [Collection(SharedAppCollection.Name)]
     public class Integration(SharedAppFactory f) {
         private readonly WebApplicationFactory<Program> _f = f;
@@ -18,8 +16,8 @@ public class InspectorPageTests {
         public async Task Inspector_RendersShell() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/inspector");
-            Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
-            var html = await r.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            string html = await r.Content.ReadAsStringAsync();
 
             Assert.Contains(">Inspector</a>", html);
             Assert.Contains("list-switch", html);
@@ -34,21 +32,17 @@ public class InspectorPageTests {
     }
 
 
-
-
     public class FieldTreeComponent : BunitContext {
-        private static SchemaMessage Inner() => new("Inner", new List<SchemaField>
-        {
-            new("flag", "flag", 1, "bool", false, false, null, null),
+        private static SchemaMessage Inner() => new("Inner", new List<SchemaField> {
+            new("flag", "flag", 1, "bool", false, false, null, null)
         });
 
-        private static SchemaMessage Root() => new("Root", new List<SchemaField>
-        {
+        private static SchemaMessage Root() => new("Root", new List<SchemaField> {
             new("name", "name", 1, "string", false, false, null, null),
             new("kind", "kind", 2, "enum", false, false, null,
                 new List<SchemaEnumValue> { new("A", 0), new("B", 1) }),
             new("ids", "ids", 3, "int32", true, false, null, null),
-            new("inner", "inner", 4, "message", false, false, "Inner", null),
+            new("inner", "inner", 4, "message", false, false, "Inner", null)
         });
 
         [Fact]
@@ -76,12 +70,11 @@ public class InspectorPageTests {
             var ids = nodes.First(n => n.Field.JsonName == "ids");
             ids.Items.Add("7");
 
-            var json = FieldTreeBuilder.Collect(nodes).ToJsonString();
+            string json = FieldTreeBuilder.Collect(nodes).ToJsonString();
             Assert.Contains("\"name\":\"hi\"", json);
             Assert.Contains("\"flag\":true", json);
             Assert.Contains("\"ids\":[7]", json);
         }
-
 
 
         [Fact]

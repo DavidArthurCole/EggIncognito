@@ -4,7 +4,7 @@ namespace EggIncognito.Tests;
 
 public class EiAfxDataBuilderTests {
     private static string Read(params string[] parts) {
-        var root = CaptureSessionManagerTests.RealContentRoot();
+        string root = CaptureSessionManagerTests.RealContentRoot();
         return File.ReadAllText(Path.Combine([root, "Endpoints", "default", .. parts]));
     }
 
@@ -32,7 +32,7 @@ public class EiAfxDataBuilderTests {
 
         var gusset = data.ArtifactFamilies.FirstOrDefault(f => f.AfxId == 8);
         Assert.NotNull(gusset);
-        Assert.Equal("ornate-gusset", gusset!.Id);
+        Assert.Equal("ornate-gusset", gusset.Id);
         Assert.Equal("ORNATE_GUSSET", gusset.SpecName);
         Assert.Equal(0, gusset.AfxType);
         Assert.Equal("Artifact", gusset.Type);

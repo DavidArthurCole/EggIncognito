@@ -3,7 +3,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-
 //
 
 public sealed class DeviceRinfoStore(string capturePath) {
@@ -14,7 +13,10 @@ public sealed class DeviceRinfoStore(string capturePath) {
 
     public IReadOnlyList<DeviceRinfo> Load() {
         try {
-            return !File.Exists(FilePath) ? [] : (IReadOnlyList<DeviceRinfo>)(JsonSerializer.Deserialize<List<DeviceRinfo>>(File.ReadAllText(FilePath), Json) ?? []);
+            return !File.Exists(FilePath)
+                ? []
+                : (IReadOnlyList<DeviceRinfo>)(JsonSerializer.Deserialize<List<DeviceRinfo>>(File.ReadAllText(FilePath),
+                    Json) ?? []);
         } catch {
             return [];
         }
@@ -22,8 +24,11 @@ public sealed class DeviceRinfoStore(string capturePath) {
 
     public DeviceRinfo? Latest(string deviceId) {
         if (string.IsNullOrEmpty(deviceId)) return null;
-        foreach (var v in Load())
-            if (string.Equals(v.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase)) return v;
+        foreach (var v in Load()) {
+            if (string.Equals(v.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
+                return v;
+        }
+
         return null;
     }
 
@@ -32,7 +37,7 @@ public sealed class DeviceRinfoStore(string capturePath) {
         if (string.IsNullOrEmpty(deviceId)) return;
         lock (_gate) {
             var rows = Load().ToList();
-            var idx = rows.FindIndex(r => string.Equals(r.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
+            int idx = rows.FindIndex(r => string.Equals(r.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
             var prev = idx >= 0 ? rows[idx] : null;
             var merged = new DeviceRinfo(
                 deviceId,
@@ -41,15 +46,21 @@ public sealed class DeviceRinfoStore(string capturePath) {
                 v.Build ?? prev?.Build,
                 v.ClientVersion ?? prev?.ClientVersion,
                 nowIso);
-            if (idx >= 0) rows[idx] = merged; else rows.Add(merged);
+            if (idx >= 0) rows[idx] = merged;
+            else rows.Add(merged);
             try {
                 Directory.CreateDirectory(capturePath);
                 File.WriteAllText(FilePath, JsonSerializer.Serialize(rows, Json));
             } catch {
-
             }
         }
     }
 }
+
 public sealed record DeviceRinfo(
-    string DeviceId, string? Platform, string? Version, string? Build, int? ClientVersion, string LastSeen);
+    string DeviceId,
+    string? Platform,
+    string? Version,
+    string? Build,
+    int? ClientVersion,
+    string LastSeen);

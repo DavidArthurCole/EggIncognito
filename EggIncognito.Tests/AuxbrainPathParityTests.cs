@@ -12,6 +12,7 @@ public sealed class AuxbrainPathParityTests {
                 return dir.FullName;
             dir = dir.Parent;
         }
+
         return Directory.GetCurrentDirectory();
     }
 
@@ -20,8 +21,8 @@ public sealed class AuxbrainPathParityTests {
 
     [Fact]
     public void EveryRoutesYamlPath_IsAKeyIn_AuxbrainPathsJson() {
-        var yamlPath = RouteMapFile("routes.yaml");
-        var jsonPath = RouteMapFile("auxbrain-paths.json");
+        string yamlPath = RouteMapFile("routes.yaml");
+        string jsonPath = RouteMapFile("auxbrain-paths.json");
         Assert.True(File.Exists(yamlPath), $"routes.yaml not found at {yamlPath}");
         Assert.True(File.Exists(jsonPath), $"auxbrain-paths.json not found at {jsonPath}");
 
@@ -30,7 +31,8 @@ public sealed class AuxbrainPathParityTests {
         var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
 
         var missing = routes.Select(r => r.Path).Where(p => !keys.Contains(p)).ToList();
-        Assert.True(missing.Count == 0, $"routes.yaml paths missing from auxbrain-paths.json: {string.Join(", ", missing)}");
+        Assert.True(missing.Count == 0,
+            $"routes.yaml paths missing from auxbrain-paths.json: {string.Join(", ", missing)}");
     }
 
     [Fact]
@@ -43,16 +45,16 @@ public sealed class AuxbrainPathParityTests {
     [Fact]
     public void Aliases_ParsedByCatalog_IgnoredByGenerator() {
         const string yaml = """
-            routes:
-              - path: ei/update_coop_status
-                requestType: ContractCoopStatusUpdateRequest
-                responseType: ContractCoopStatusUpdateResponse
-                aliases:
-                  - ei/update_coop_status_secure
-              - path: ei/other
-                requestType: ConfigRequest
-                responseType: ConfigResponse
-            """;
+                            routes:
+                              - path: ei/update_coop_status
+                                requestType: ContractCoopStatusUpdateRequest
+                                responseType: ContractCoopStatusUpdateResponse
+                                aliases:
+                                  - ei/update_coop_status_secure
+                              - path: ei/other
+                                requestType: ConfigRequest
+                                responseType: ConfigResponse
+                            """;
 
         var cat = RouteCatalog.Parse(yaml);
         var gen = RouteParser.Parse(yaml);
@@ -71,16 +73,16 @@ public sealed class AuxbrainPathParityTests {
     [Fact]
     public void AliasListItems_DoNotBleedInto_NextRouteOrKeys() {
         const string yaml = """
-            routes:
-              - path: ei/a
-                request: FooRequest
-                aliases:
-                  - ei/old_a
-                  - ei/older_a
-                pathParam: true
-              - path: ei/b
-                responseType: BarResponse
-            """;
+                            routes:
+                              - path: ei/a
+                                request: FooRequest
+                                aliases:
+                                  - ei/old_a
+                                  - ei/older_a
+                                pathParam: true
+                              - path: ei/b
+                                responseType: BarResponse
+                            """;
 
         var cat = RouteCatalog.Parse(yaml);
         Assert.Equal(2, cat.Count);

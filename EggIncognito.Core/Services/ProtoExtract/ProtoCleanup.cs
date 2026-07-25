@@ -12,7 +12,7 @@ public static class ProtoCleanup {
 
         lines = [.. lines.Where(l => !l.TrimStart().StartsWith("import \"common.proto\";", StringComparison.Ordinal))];
 
-        var packageIndex = lines.FindIndex(l => l.TrimStart().StartsWith("package ei;", StringComparison.Ordinal));
+        int packageIndex = lines.FindIndex(l => l.TrimStart().StartsWith("package ei;", StringComparison.Ordinal));
         if (packageIndex >= 0 && commonLines.Count > 0)
             lines.InsertRange(packageIndex + 1, commonLines);
 
@@ -23,7 +23,7 @@ public static class ProtoCleanup {
 
 
     private static List<string> SplitKeepEnds(string text) {
-        var normalized = text.Replace("\r\n", "\n").Replace("\r", "\n");
+        string normalized = text.Replace("\r\n", "\n").Replace("\r", "\n");
         var result = new List<string>();
         int start = 0;
         for (int i = 0; i < normalized.Length; i++) {
@@ -32,6 +32,7 @@ public static class ProtoCleanup {
                 start = i + 1;
             }
         }
+
         if (start < normalized.Length)
             result.Add(normalized[start..]);
         return result;

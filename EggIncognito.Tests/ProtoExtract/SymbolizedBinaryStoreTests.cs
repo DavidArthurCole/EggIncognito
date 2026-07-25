@@ -6,45 +6,51 @@ namespace EggIncognito.Tests.ProtoExtract;
 public class SymbolizedBinaryStoreTests {
     [Fact]
     public void Get_ReturnsExactVersion_WhenPresent() {
-        var dir = MakeDir(("a.ipa", "1.35.7", BigBinary()), ("b.ipa", "1.36.0", BigBinary()));
+        string dir = MakeDir(("a.ipa", "1.35.7", BigBinary()), ("b.ipa", "1.36.0", BigBinary()));
         try {
-            var store = new SymbolizedBinaryStore(dir, isSymbolized: b => b.Length >= 200);
+            var store = new SymbolizedBinaryStore(dir, b => b.Length >= 200);
             var r = store.Get("1.36.0");
             Assert.True(r.Ok, r.Diagnostics);
             Assert.True(r.ExactVersion);
             Assert.Equal("1.36.0", r.Version);
-        } finally { Directory.Delete(dir, true); }
+        } finally {
+            Directory.Delete(dir, true);
+        }
     }
 
     [Fact]
     public void Get_FallsBackToNewest_WhenNoExact() {
-        var dir = MakeDir(("a.ipa", "1.35.5", BigBinary()), ("b.ipa", "1.35.7", BigBinary()));
+        string dir = MakeDir(("a.ipa", "1.35.5", BigBinary()), ("b.ipa", "1.35.7", BigBinary()));
         try {
-            var store = new SymbolizedBinaryStore(dir, isSymbolized: b => b.Length >= 200);
+            var store = new SymbolizedBinaryStore(dir, b => b.Length >= 200);
             var r = store.Get("1.36.0");
             Assert.True(r.Ok);
             Assert.False(r.ExactVersion);
             Assert.Equal("1.35.7", r.Version);
-        } finally { Directory.Delete(dir, true); }
+        } finally {
+            Directory.Delete(dir, true);
+        }
     }
 
     [Fact]
     public void Get_Fails_WhenNoSymbolizedIpa() {
-        var dir = MakeDir(("small.ipa", "1.36.0", new byte[100]));
+        string dir = MakeDir(("small.ipa", "1.36.0", new byte[100]));
         try {
-            var store = new SymbolizedBinaryStore(dir, isSymbolized: b => b.Length >= 200);
+            var store = new SymbolizedBinaryStore(dir, b => b.Length >= 200);
             var r = store.Get("1.36.0");
             Assert.False(r.Ok);
             Assert.Contains("no symbolized", r.Diagnostics, StringComparison.OrdinalIgnoreCase);
-        } finally { Directory.Delete(dir, true); }
+        } finally {
+            Directory.Delete(dir, true);
+        }
     }
 
     private static byte[] BigBinary() => new byte[200];
 
     private static string MakeDir(params (string name, string version, byte[] exec)[] ipas) {
-        var dir = Path.Combine(Path.GetTempPath(), "symstore-" + Guid.NewGuid().ToString("N"));
+        string dir = Path.Combine(Path.GetTempPath(), "symstore-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        foreach (var (name, version, exec) in ipas) {
+        foreach ((string name, string version, byte[] exec) in ipas) {
             using var fs = File.Create(Path.Combine(dir, name));
             using var zip = new ZipArchive(fs, ZipArchiveMode.Create);
             var plist = zip.CreateEntry("Payload/Egg.app/Info.plist");
@@ -57,6 +63,7 @@ public class SymbolizedBinaryStoreTests {
             using var es = ent.Open();
             es.Write(exec, 0, exec.Length);
         }
+
         return dir;
     }
 }

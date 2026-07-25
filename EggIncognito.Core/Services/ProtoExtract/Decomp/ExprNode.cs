@@ -2,9 +2,24 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
+public enum UnOp {
+    Neg,
+    Sin,
+    Cos,
+    Sqrt,
+    Abs,
+    Floor
+}
 
-public enum UnOp { Neg, Sin, Cos, Sqrt, Abs, Floor }
-public enum BinOp { Add, Sub, Mul, Div, Min, Max, Mod }
+public enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Min,
+    Max,
+    Mod
+}
 
 public abstract record ExprNode {
     public static ExprNode Fold(ExprNode n) => n switch {
@@ -15,7 +30,7 @@ public abstract record ExprNode {
         Index ix => new Index(Fold(ix.Vec), ix.Lane),
         MatrixBuild m => new MatrixBuild(m.Cells.Select(Fold).ToList()),
         Opaque o => new Opaque(o.Call, o.Args.Select(Fold).ToList()),
-        _ => n,
+        _ => n
     };
 
     private static ExprNode FoldUnary(UnOp op, ExprNode x) => x is Const c
@@ -26,7 +41,7 @@ public abstract record ExprNode {
             UnOp.Sqrt => Math.Sqrt(c.V),
             UnOp.Abs => Math.Abs(c.V),
             UnOp.Floor => Math.Floor(c.V),
-            _ => c.V,
+            _ => c.V
         })
         : new Unary(op, x);
 
@@ -40,7 +55,7 @@ public abstract record ExprNode {
                 BinOp.Min => Math.Min(ca.V, cb.V),
                 BinOp.Max => Math.Max(ca.V, cb.V),
                 BinOp.Mod => cb.V == 0 ? 0 : ca.V % cb.V,
-                _ => 0,
+                _ => 0
             });
         }
 
@@ -49,18 +64,18 @@ public abstract record ExprNode {
         if (op == BinOp.Sub && b is Const { V: 0 }) return a;
         if (op == BinOp.Mul && (a is Const { V: 0 } || b is Const { V: 0 })) return new Const(0);
         if (op == BinOp.Mul && b is Const { V: 1 }) return a;
-        if (op == BinOp.Mul && a is Const { V: 1 }) return b;
-        return op == BinOp.Div && b is Const { V: 1 } ? a : new Binary(op, a, b);
+        return op == BinOp.Mul && a is Const { V: 1 } ? b :
+            op == BinOp.Div && b is Const { V: 1 } ? a : new Binary(op, a, b);
     }
 
 
     public static double Eval(ExprNode n, IReadOnlyDictionary<string, double> inputs) => n switch {
         Const c => c.V,
-        Input i => inputs.TryGetValue(i.Name, out var v) ? v : 0,
+        Input i => inputs.GetValueOrDefault(i.Name, 0),
         Unary u => EvalUnary(u.Op, Eval(u.X, inputs)),
         Binary b => EvalBinary(b.Op, Eval(b.A, inputs), Eval(b.B, inputs)),
         Select s => Eval(s.Cond, inputs) != 0 ? Eval(s.A, inputs) : Eval(s.B, inputs),
-        _ => 0,
+        _ => 0
     };
 
 
@@ -73,7 +88,7 @@ public abstract record ExprNode {
         Vec v => v.Lanes.All(IsFullyResolved),
         Index ix => IsFullyResolved(ix.Vec),
         MatrixBuild m => m.Cells.All(IsFullyResolved),
-        _ => true,
+        _ => true
     };
 
     private static double EvalUnary(UnOp op, double x) => op switch {
@@ -83,7 +98,7 @@ public abstract record ExprNode {
         UnOp.Sqrt => Math.Sqrt(x),
         UnOp.Abs => Math.Abs(x),
         UnOp.Floor => Math.Floor(x),
-        _ => x,
+        _ => x
     };
 
     private static double EvalBinary(BinOp op, double a, double b) => op switch {
@@ -94,7 +109,7 @@ public abstract record ExprNode {
         BinOp.Min => Math.Min(a, b),
         BinOp.Max => Math.Max(a, b),
         BinOp.Mod => b == 0 ? 0 : a % b,
-        _ => 0,
+        _ => 0
     };
 
     public static int CountOpaque(ExprNode n) => n switch {
@@ -105,7 +120,7 @@ public abstract record ExprNode {
         Vec v => v.Lanes.Sum(CountOpaque),
         Index ix => CountOpaque(ix.Vec),
         MatrixBuild m => m.Cells.Sum(CountOpaque),
-        _ => 0,
+        _ => 0
     };
 
     public static int Depth(ExprNode n) => n switch {
@@ -116,7 +131,7 @@ public abstract record ExprNode {
         Index ix => 1 + Depth(ix.Vec),
         MatrixBuild m => 1 + (m.Cells.Count == 0 ? 0 : m.Cells.Max(Depth)),
         Opaque o => 1 + (o.Args.Count == 0 ? 0 : o.Args.Max(Depth)),
-        _ => 1,
+        _ => 1
     };
 
     public static JsonNode ToJson(ExprNode n) => n switch {
@@ -130,17 +145,26 @@ public abstract record ExprNode {
         Index ix => new JsonObject { ["op"] = "Index", ["vec"] = ToJson(ix.Vec), ["lane"] = ix.Lane },
         MatrixBuild m => new JsonObject { ["op"] = "MatrixBuild", ["cells"] = new JsonArray(m.Cells.Select(ToJson).ToArray()) },
         Opaque o => new JsonObject { ["op"] = "Opaque", ["call"] = o.Call, ["args"] = new JsonArray(o.Args.Select(ToJson).ToArray()) },
-        _ => new JsonObject { ["op"] = "Unknown" },
+        _ => new JsonObject { ["op"] = "Unknown" }
     };
 }
 
 public sealed record Const(double V) : ExprNode;
+
 public sealed record Input(string Name) : ExprNode;
+
 public sealed record Field(string Base, long Offset) : ExprNode;
+
 public sealed record Unary(UnOp Op, ExprNode X) : ExprNode;
+
 public sealed record Binary(BinOp Op, ExprNode A, ExprNode B) : ExprNode;
+
 public sealed record Select(ExprNode Cond, ExprNode A, ExprNode B) : ExprNode;
+
 public sealed record Vec(IReadOnlyList<ExprNode> Lanes) : ExprNode;
+
 public sealed record Index(ExprNode Vec, int Lane) : ExprNode;
+
 public sealed record MatrixBuild(IReadOnlyList<ExprNode> Cells) : ExprNode;
+
 public sealed record Opaque(string Call, IReadOnlyList<ExprNode> Args) : ExprNode;

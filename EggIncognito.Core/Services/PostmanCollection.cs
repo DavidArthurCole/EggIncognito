@@ -3,12 +3,10 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Services;
 
-
 public static class PostmanCollection {
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
 
-    private static readonly string[] PreRequest =
-    [
+    private static readonly string[] PreRequest = [
         "const userId = pm.collectionVariables.get('userId') || '';",
         "if (userId) {",
         "    const bytes = [];",
@@ -18,7 +16,7 @@ public static class PostmanCollection {
         "    pm.variables.set('authData', base64);",
         "} else {",
         "    pm.variables.set('authData', '');",
-        "}",
+        "}"
     ];
 
     public static string BuildJson(string yamlPath) {
@@ -33,7 +31,7 @@ public static class PostmanCollection {
                 ? "Response: (unknown)"
                 : "Response: " + responseType + FieldLines(reflection, responseType);
             return req + "\n\n" + res +
-                "\n\nSubmit base64-encoded proto bytes as the 'data' form field. Response body is also base64 proto.";
+                   "\n\nSubmit base64-encoded proto bytes as the 'data' form field. Response body is also base64 proto.";
         }
 
         var groups = catalog.All()
@@ -46,57 +44,51 @@ public static class PostmanCollection {
             var requests = new JsonArray();
             foreach (var e in g) {
                 var parts = new JsonArray();
-                foreach (var p in e.Path.Split('/')) parts.Add(p);
+                foreach (string p in e.Path.Split('/')) parts.Add(p);
                 requests.Add(new JsonObject {
                     ["name"] = e.Path,
-                    ["event"] = new JsonArray
-                    {
-                        new JsonObject
-                        {
+                    ["event"] = new JsonArray {
+                        new JsonObject {
                             ["listen"] = "prerequest",
-                            ["script"] = new JsonObject
-                            {
+                            ["script"] = new JsonObject {
                                 ["type"] = "text/javascript",
-                                ["exec"] = new JsonArray(PreRequest.Select(l => (JsonNode)l!).ToArray()),
-                            },
-                        },
+                                ["exec"] = new JsonArray(PreRequest.Select(l => (JsonNode)l).ToArray())
+                            }
+                        }
                     },
                     ["request"] = new JsonObject {
                         ["method"] = "POST",
                         ["header"] = new JsonArray(),
                         ["body"] = new JsonObject {
                             ["mode"] = "urlencoded",
-                            ["urlencoded"] = new JsonArray
-                            {
-                                new JsonObject
-                                {
+                            ["urlencoded"] = new JsonArray {
+                                new JsonObject {
                                     ["key"] = "data",
                                     ["value"] = "{{authData}}",
                                     ["description"] = $"base64({e.Request} proto bytes)",
-                                    ["type"] = "text",
-                                },
-                            },
+                                    ["type"] = "text"
+                                }
+                            }
                         },
                         ["url"] = new JsonObject {
                             ["raw"] = "{{baseUrl}}/" + e.Path,
                             ["host"] = new JsonArray { "{{baseUrl}}" },
                             ["path"] = parts,
-                            ["query"] = new JsonArray
-                            {
-                                new JsonObject
-                                {
+                            ["query"] = new JsonArray {
+                                new JsonObject {
                                     ["key"] = "sim",
                                     ["value"] = "",
                                     ["description"] = "Simulation behavior. Leave blank for normal response.",
-                                    ["disabled"] = true,
-                                },
-                            },
+                                    ["disabled"] = true
+                                }
+                            }
                         },
-                        ["description"] = Describe(e.Request, e.Response),
+                        ["description"] = Describe(e.Request, e.Response)
                     },
-                    ["response"] = new JsonArray(),
+                    ["response"] = new JsonArray()
                 });
             }
+
             folders.Add(new JsonObject { ["name"] = g.Key, ["item"] = requests });
         }
 
@@ -107,14 +99,13 @@ public static class PostmanCollection {
                 ["_postman_id"] = "egg-inc-test-api",
                 ["name"] = "EggIncognito",
                 ["description"] = "Mock server for the Egg, Inc. API. POST base64 protobuf as form field 'data'.",
-                ["schema"] = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+                ["schema"] = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
             },
-            ["variable"] = new JsonArray
-            {
+            ["variable"] = new JsonArray {
                 new JsonObject { ["key"] = "baseUrl", ["value"] = "http://localhost:5080", ["type"] = "string" },
-                new JsonObject { ["key"] = "userId", ["value"] = "", ["type"] = "string" },
+                new JsonObject { ["key"] = "userId", ["value"] = "", ["type"] = "string" }
             },
-            ["item"] = folders,
+            ["item"] = folders
         };
 
         return collection.ToJsonString(IndentedJson);
@@ -122,30 +113,28 @@ public static class PostmanCollection {
 
     private static string FieldLines(ProtoReflection reflection, string typeName) {
         var schema = reflection.Schema(typeName);
-        return schema is null || schema.Fields.Count == 0 ? "" : "\n" + string.Join("\n", schema.Fields.Select(f => $"  {f.Name} {f.Type}"));
+        return schema is null || schema.Fields.Count == 0
+            ? ""
+            : "\n" + string.Join("\n", schema.Fields.Select(f => $"  {f.Name} {f.Type}"));
     }
 
     private static JsonObject SimulationFolder() => new() {
         ["name"] = "Simulation",
-        ["item"] = new JsonArray
-        {
-            new JsonObject
-            {
+        ["item"] = new JsonArray {
+            new JsonObject {
                 ["name"] = "OPTIONS / (all behaviors)",
-                ["request"] = new JsonObject
-                {
+                ["request"] = new JsonObject {
                     ["method"] = "OPTIONS",
                     ["header"] = new JsonArray(),
-                    ["url"] = new JsonObject
-                    {
+                    ["url"] = new JsonObject {
                         ["raw"] = "{{baseUrl}}/",
                         ["host"] = new JsonArray { "{{baseUrl}}" },
-                        ["path"] = new JsonArray { "" },
+                        ["path"] = new JsonArray { "" }
                     },
-                    ["description"] = "Returns JSON array of all simulation behaviors.",
+                    ["description"] = "Returns JSON array of all simulation behaviors."
                 },
-                ["response"] = new JsonArray(),
-            },
-        },
+                ["response"] = new JsonArray()
+            }
+        }
     };
 }

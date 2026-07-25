@@ -19,7 +19,7 @@ public class DeviceProbeRunnerTests {
         var r = new DeviceProbeResult(true, "1.36", "1.36.0.2", null);
         Assert.Equal("new_version", DeviceProbeRunner.Classify(r, "ios", null, "1.35.8"));
         Assert.Equal(DeviceProbeRunner.Classify(Ios, r, null, "1.35.8"),
-                     DeviceProbeRunner.Classify(r, "ios", null, "1.35.8"));
+            DeviceProbeRunner.Classify(r, "ios", null, "1.35.8"));
     }
 
     [Fact]

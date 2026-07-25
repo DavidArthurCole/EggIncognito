@@ -14,45 +14,47 @@ public sealed record HostedCaptureOptions(
     string Ipv6Prefix,
     string AddressSecret) {
     public static HostedCaptureOptions Defaults() => new(
-        FrontDoorPort: 8443,
-        PortPoolBase: 24000,
-        MaxConcurrentSessions: 10,
-        MaxIdleMinutes: 30,
-        MaxSessionHours: 4,
-        ExtraAllowedHosts: [],
-        PublicHost: "capture.davidarthurcole.me",
-        Ipv6Prefix: "2a01:4f8:c012:e15b::/64",
-        AddressSecret: "");
+        8443,
+        24000,
+        10,
+        30,
+        4,
+        [],
+        "capture.davidarthurcole.me",
+        "2a01:4f8:c012:e15b::/64",
+        "");
 
     public static HostedCaptureOptions Bind(IConfiguration config) {
         var d = Defaults();
         var s = config.GetSection("Capture");
         return new HostedCaptureOptions(
-            FrontDoorPort: Int(s["FrontDoorPort"], d.FrontDoorPort),
-            PortPoolBase: Int(s["PortPoolBase"], d.PortPoolBase),
-            MaxConcurrentSessions: Int(s["MaxConcurrentSessions"], d.MaxConcurrentSessions),
-            MaxIdleMinutes: Int(s["MaxIdleMinutes"], d.MaxIdleMinutes),
-            MaxSessionHours: Int(s["MaxSessionHours"], d.MaxSessionHours),
-            ExtraAllowedHosts: s.GetSection("ExtraAllowedHosts").GetChildren()
+            Int(s["FrontDoorPort"], d.FrontDoorPort),
+            Int(s["PortPoolBase"], d.PortPoolBase),
+            Int(s["MaxConcurrentSessions"], d.MaxConcurrentSessions),
+            Int(s["MaxIdleMinutes"], d.MaxIdleMinutes),
+            Int(s["MaxSessionHours"], d.MaxSessionHours),
+            s.GetSection("ExtraAllowedHosts").GetChildren()
                 .Select(c => c.Value)
                 .Where(v => !string.IsNullOrWhiteSpace(v))
                 .Select(v => v!)
                 .ToArray(),
-            PublicHost: s["PublicHost"] ?? d.PublicHost,
-            Ipv6Prefix: s["Ipv6Prefix"] ?? d.Ipv6Prefix,
-            AddressSecret: s["AddressSecret"] ?? d.AddressSecret);
+            s["PublicHost"] ?? d.PublicHost,
+            s["Ipv6Prefix"] ?? d.Ipv6Prefix,
+            s["AddressSecret"] ?? d.AddressSecret);
     }
 
-    private static int Int(string? raw, int fallback) => int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : fallback;
+    private static int Int(string? raw, int fallback) =>
+        int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) ? v : fallback;
 
 
     public bool IsExtraAllowed(string host) {
-        foreach (var h in ExtraAllowedHosts) {
+        foreach (string h in ExtraAllowedHosts) {
             if (host.Equals(h, StringComparison.OrdinalIgnoreCase) ||
                 host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
         }
+
         return false;
     }
 }

@@ -6,14 +6,14 @@ namespace EggIncognito.Tests;
 public class MitmFlowReaderTests {
     private static string Flow(string type, string method, string scheme, string host, int port,
         string path, string reqContent, int status, string respContent) {
-        var req = TnetStringTests.Dict(
+        string req = TnetStringTests.Dict(
             ("method", TnetStringTests.BytesStr(method)),
             ("scheme", TnetStringTests.BytesStr(scheme)),
             ("host", TnetStringTests.BytesStr(host)),
             ("port", TnetStringTests.Int(port)),
             ("path", TnetStringTests.BytesStr(path)),
             ("content", TnetStringTests.BytesStr(reqContent)));
-        var res = TnetStringTests.Dict(
+        string res = TnetStringTests.Dict(
             ("status_code", TnetStringTests.Int(status)),
             ("content", TnetStringTests.BytesStr(respContent)));
         return TnetStringTests.Dict(
@@ -27,7 +27,7 @@ public class MitmFlowReaderTests {
 
     [Fact]
     public void Read_SingleHttpFlow_ExtractsTuple() {
-        var bytes = File(Flow("http", "POST", "https", "www.auxbrain.com", 443,
+        byte[] bytes = File(Flow("http", "POST", "https", "www.auxbrain.com", 443,
             "/ei_data/log_purchase", "data=AAEC&extra=1", 200, "RESPBODY"));
 
         var flow = Assert.Single(MitmFlowReader.Read(bytes));
@@ -40,7 +40,7 @@ public class MitmFlowReaderTests {
 
     [Fact]
     public void Read_NonDefaultPort_InAuthority() {
-        var bytes = File(Flow("http", "POST", "https", "ctx-dot-auxbrainhome.appspot.com", 8443,
+        byte[] bytes = File(Flow("http", "POST", "https", "ctx-dot-auxbrainhome.appspot.com", 8443,
             "/ei_ctx/x", "data=AA", 200, "OK"));
         Assert.Equal("https://ctx-dot-auxbrainhome.appspot.com:8443/ei_ctx/x",
             Assert.Single(MitmFlowReader.Read(bytes)).Url);
@@ -48,14 +48,14 @@ public class MitmFlowReaderTests {
 
     [Fact]
     public void Read_NoDataParam_RequestDataNull() {
-        var bytes = File(Flow("http", "POST", "https", "www.auxbrain.com", 443,
+        byte[] bytes = File(Flow("http", "POST", "https", "www.auxbrain.com", 443,
             "/ei/x", "other=1", 200, "OK"));
         Assert.Null(Assert.Single(MitmFlowReader.Read(bytes)).RequestDataB64);
     }
 
     [Fact]
     public void Read_MultipleFlows_AllYielded() {
-        var bytes = File(
+        byte[] bytes = File(
             Flow("http", "POST", "https", "www.auxbrain.com", 443, "/ei/a", "data=AA", 200, "A"),
             Flow("http", "POST", "https", "www.auxbrain.com", 443, "/ei/b", "data=BB", 200, "B"));
         Assert.Equal(2, MitmFlowReader.Read(bytes).Count());
@@ -63,15 +63,15 @@ public class MitmFlowReaderTests {
 
     [Fact]
     public void Read_NonHttpFlow_Skipped() {
-        var bytes = File(Flow("websocket", "POST", "https", "www.auxbrain.com", 443,
+        byte[] bytes = File(Flow("websocket", "POST", "https", "www.auxbrain.com", 443,
             "/ws", "data=AA", 200, "X"));
         Assert.Empty(MitmFlowReader.Read(bytes));
     }
 
     [Fact]
     public void Read_TruncatedTail_StopsCleanly() {
-        var good = Flow("http", "POST", "https", "www.auxbrain.com", 443, "/ei/a", "data=AA", 200, "A");
-        var bytes = Encoding.UTF8.GetBytes(good + "999:incomplete");
+        string good = Flow("http", "POST", "https", "www.auxbrain.com", 443, "/ei/a", "data=AA", 200, "A");
+        byte[] bytes = Encoding.UTF8.GetBytes(good + "999:incomplete");
         Assert.Single(MitmFlowReader.Read(bytes));
     }
 

@@ -4,30 +4,30 @@ namespace EggIncognito.Tests;
 
 public class EndpointStatusTests {
     private static string WriteYaml(string dir) {
-        var p = Path.Combine(dir, "routes.yaml");
+        string p = Path.Combine(dir, "routes.yaml");
         File.WriteAllText(p, """
-            routes:
-              - path: ei/has_endpoint
-                request: A
-                response: B
-              - path: ei/empty_endpoint
-                request: A
-                response: B
-              - path: ei/missing_endpoint
-                request: A
-                response: B
-              - path: ei/raw_one
-                request: A
-                rawResponse: "OK"
-            """);
+                             routes:
+                               - path: ei/has_endpoint
+                                 request: A
+                                 response: B
+                               - path: ei/empty_endpoint
+                                 request: A
+                                 response: B
+                               - path: ei/missing_endpoint
+                                 request: A
+                                 response: B
+                               - path: ei/raw_one
+                                 request: A
+                                 rawResponse: "OK"
+                             """);
         return p;
     }
 
     private static (string yamlPath, string defaults) MakeRepo() {
-        var dir = Path.Combine(Path.GetTempPath(), "egi-st-" + Guid.NewGuid().ToString("N"));
-        var defaults = Path.Combine(dir, "default");
+        string dir = Path.Combine(Path.GetTempPath(), "egi-st-" + Guid.NewGuid().ToString("N"));
+        string defaults = Path.Combine(dir, "default");
         Directory.CreateDirectory(Path.Combine(defaults, "ei"));
-        var yamlPath = WriteYaml(dir);
+        string yamlPath = WriteYaml(dir);
         File.WriteAllText(Path.Combine(defaults, "ei", "has_endpoint.json"), "{ \"x\": 1 }");
         File.WriteAllText(Path.Combine(defaults, "ei", "empty_endpoint.json"), "{}");
         return (yamlPath, defaults);
@@ -35,7 +35,7 @@ public class EndpointStatusTests {
 
     [Fact]
     public void Classify_BucketsMissingEmptyOk_SkippingRaw() {
-        var (yamlPath, defaults) = MakeRepo();
+        (string yamlPath, string defaults) = MakeRepo();
         var r = EndpointStatus.Classify(yamlPath, defaults);
         Assert.Contains("ei/has_endpoint", r.Ok);
         Assert.Contains("ei/empty_endpoint", r.Empty);
@@ -47,8 +47,8 @@ public class EndpointStatusTests {
 
     [Fact]
     public void WriteStatusBlock_RewritesEndpointStatus() {
-        var (yamlPath, defaults) = MakeRepo();
-        var yaml = EndpointStatus.WriteStatusBlock(yamlPath, EndpointStatus.Classify(yamlPath, defaults));
+        (string yamlPath, string defaults) = MakeRepo();
+        string yaml = EndpointStatus.WriteStatusBlock(yamlPath, EndpointStatus.Classify(yamlPath, defaults));
         Assert.Contains("endpoint_status:", yaml);
         Assert.Contains("ei/missing_endpoint", yaml);
         Assert.Contains("ei/empty_endpoint", yaml);
@@ -60,7 +60,7 @@ public class EndpointStatusTests {
     [InlineData("{\r\n}")]
     [InlineData("  ")]
     public void Classify_WhitespaceVariantsOfEmptyObject_AreEmpty(string content) {
-        var (yamlPath, defaults) = MakeRepo();
+        (string yamlPath, string defaults) = MakeRepo();
         File.WriteAllText(Path.Combine(defaults, "ei", "empty_endpoint.json"), content);
         var r = EndpointStatus.Classify(yamlPath, defaults);
         Assert.Contains("ei/empty_endpoint", r.Empty);
@@ -69,11 +69,11 @@ public class EndpointStatusTests {
 
     [Fact]
     public void WriteStatusBlock_PreservesFollowingNonLowercaseTopLevelKey() {
-        var (yamlPath, defaults) = MakeRepo();
+        (string yamlPath, string defaults) = MakeRepo();
 
         File.AppendAllText(yamlPath,
             "\nendpoint_status:\n  missing:\n    - ei/stale_entry\n\n_meta: keep_underscore\nZone: keep_upper\n");
-        var yaml = EndpointStatus.WriteStatusBlock(yamlPath, EndpointStatus.Classify(yamlPath, defaults));
+        string yaml = EndpointStatus.WriteStatusBlock(yamlPath, EndpointStatus.Classify(yamlPath, defaults));
         Assert.Contains("_meta: keep_underscore", yaml);
         Assert.Contains("Zone: keep_upper", yaml);
         Assert.DoesNotContain("ei/stale_entry", yaml);

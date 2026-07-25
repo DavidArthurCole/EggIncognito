@@ -6,20 +6,22 @@ using Microsoft.Extensions.Hosting;
 
 namespace EggIncognito.Tests;
 
-
-public class RateLimitIntegrationTests(RateLimitIntegrationTests.TinyLimitFactory f) : IClassFixture<RateLimitIntegrationTests.TinyLimitFactory> {
-    private readonly TinyLimitFactory _f = f;
-
+public class RateLimitIntegrationTests(RateLimitIntegrationTests.TinyLimitFactory f)
+    : IClassFixture<RateLimitIntegrationTests.TinyLimitFactory> {
     [Fact]
     public async Task WriteEndpoint_Returns429_AfterLimit() {
-        var c = _f.CreateClient();
+        var c = f.CreateClient();
         HttpResponseMessage? rejected = null;
-        for (var i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             var r = await c.PostAsJsonAsync("/api/db/route", new { path = "ei/x", response = "Y" });
-            if (r.StatusCode == HttpStatusCode.TooManyRequests) { rejected = r; break; }
+            if (r.StatusCode == HttpStatusCode.TooManyRequests) {
+                rejected = r;
+                break;
+            }
         }
+
         Assert.NotNull(rejected);
-        Assert.True(rejected!.Headers.Contains("Retry-After"));
+        Assert.True(rejected.Headers.Contains("Retry-After"));
     }
 
     public sealed class TinyLimitFactory : WebApplicationFactory<Program> {
@@ -28,7 +30,7 @@ public class RateLimitIntegrationTests(RateLimitIntegrationTests.TinyLimitFactor
                 ["NoBrowser"] = "true",
                 ["RateLimiting:Policies:Write:PermitLimit"] = "3",
                 ["RateLimiting:Policies:Write:WindowSeconds"] = "60",
-                ["RateLimiting:Tiers:Anon:PermitLimit"] = "3",
+                ["RateLimiting:Tiers:Anon:PermitLimit"] = "3"
             }));
             return base.CreateHost(builder);
         }

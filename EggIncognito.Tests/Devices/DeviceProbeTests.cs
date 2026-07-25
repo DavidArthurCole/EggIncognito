@@ -3,9 +3,12 @@ using EggIncognito.Core.Services.Devices;
 namespace EggIncognito.Tests.Devices;
 
 public class DeviceProbeTests {
-    private sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner {
-        public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) => Task.FromResult(fn(exe, args));
-    }
+    private const string Plist = """
+                                 <?xml version="1.0"?><plist version="1.0"><array>
+                                 <dict><key>CFBundleIdentifier</key><string>com.auxbrain.egginc</string>
+                                 <key>CFBundleShortVersionString</key><string>1.35.8</string></dict>
+                                 </array></plist>
+                                 """;
 
     [Fact]
     public async Task Adb_Reachable_ReturnsVersionAndBuild() {
@@ -30,13 +33,6 @@ public class DeviceProbeTests {
         Assert.False(r.Reachable);
         Assert.NotNull(r.Note);
     }
-
-    private const string Plist = """
-        <?xml version="1.0"?><plist version="1.0"><array>
-        <dict><key>CFBundleIdentifier</key><string>com.auxbrain.egginc</string>
-        <key>CFBundleShortVersionString</key><string>1.35.8</string></dict>
-        </array></plist>
-        """;
 
     [Fact]
     public async Task Ios_Reachable_ReturnsAppVersionNullBuild() {
@@ -79,5 +75,10 @@ public class DeviceProbeTests {
         var probe = new IosDeviceProbe(runner, "3489c6b0", "com.auxbrain.egginc");
         var r = await probe.ProbeAsync(default);
         Assert.False(r.Reachable);
+    }
+
+    private sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner {
+        public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) =>
+            Task.FromResult(fn(exe, args));
     }
 }

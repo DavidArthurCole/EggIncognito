@@ -44,7 +44,7 @@ public sealed record DeviceCaptureConfig {
             IosCaInstallCommand = Nz(ios["CaInstallCommand"]),
             IosTrustStorePath = Nz(ios["TrustStorePath"]),
             IosAppProcessName = Nz(ios["AppProcessName"]),
-            IosRestartCommand = Nz(ios["RestartCommand"]),
+            IosRestartCommand = Nz(ios["RestartCommand"])
         };
     }
 

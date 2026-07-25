@@ -3,13 +3,20 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-
-public enum JobState { Running, Done, Error }
+public enum JobState {
+    Running,
+    Done,
+    Error
+}
 
 public sealed record JobStatus(
-    JobState State, string Message, string? Action,
-    string? InstalledBefore, string? InstalledAfter,
-    DateTimeOffset StartedAt, DateTimeOffset UpdatedAt);
+    JobState State,
+    string Message,
+    string? Action,
+    string? InstalledBefore,
+    string? InstalledAfter,
+    DateTimeOffset StartedAt,
+    DateTimeOffset UpdatedAt);
 
 public interface IDeviceJobTracker {
     bool TryStart(string deviceId, string message);
@@ -65,6 +72,7 @@ public sealed class DeviceJobTracker(TimeProvider time) : IDeviceJobTracker {
             _jobs.TryRemove(deviceId, out _);
             return null;
         }
+
         return s;
     }
 }

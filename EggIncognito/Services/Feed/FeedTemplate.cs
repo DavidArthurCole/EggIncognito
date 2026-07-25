@@ -8,7 +8,7 @@ public static partial class FeedTemplate {
 
 
     public static string Render(string template, IReadOnlyDictionary<string, string> vars) =>
-        TokenPattern().Replace(template, m => vars.TryGetValue(m.Groups[1].Value, out var v) ? v : m.Value);
+        TokenPattern().Replace(template, m => vars.TryGetValue(m.Groups[1].Value, out string? v) ? v : m.Value);
 
     public static Dictionary<string, string> BuildVars(
         string platform, string appVersion, string build, string? clientVersion, string protoSha,
@@ -19,12 +19,12 @@ public static partial class FeedTemplate {
             ["clientVersion"] = clientVersion ?? "",
             ["protoSha"] = protoSha,
             ["protoChanged"] = protoChanged ? "changed" : "unchanged",
-            ["pageUrl"] = pageUrl,
+            ["pageUrl"] = pageUrl
         };
 
     public static Dictionary<string, string> PeriodicalsVars(string feed, string sha, string pageUrl) => new() {
         ["feed"] = feed,
         ["sha"] = sha,
-        ["pageUrl"] = pageUrl,
+        ["pageUrl"] = pageUrl
     };
 }

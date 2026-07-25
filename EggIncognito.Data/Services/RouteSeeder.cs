@@ -14,17 +14,17 @@ public static class RouteSeeder {
         RawResponse = r.RawResponse,
         PathParam = r.PathParam,
         PathParamOnly = r.PathParamOnly,
-        Source = "yaml",
+        Source = "yaml"
     };
 
     public static bool NeedsUpdate(StoredRoute existing, RouteInfo r)
         => existing.RequestType != r.Request
-        || existing.ResponseType != r.Response
-        || existing.RequestWrapped != r.RequestWrapped
-        || existing.ResponseWrapped != r.ResponseWrapped
-        || existing.RawResponse != r.RawResponse
-        || existing.PathParam != r.PathParam
-        || existing.PathParamOnly != r.PathParamOnly;
+           || existing.ResponseType != r.Response
+           || existing.RequestWrapped != r.RequestWrapped
+           || existing.ResponseWrapped != r.ResponseWrapped
+           || existing.RawResponse != r.RawResponse
+           || existing.PathParam != r.PathParam
+           || existing.PathParamOnly != r.PathParamOnly;
 
     public static void Apply(StoredRoute row, RouteInfo r) {
         row.RequestType = r.Request;
@@ -46,10 +46,12 @@ public static class RouteSeeder {
                 toAdd.Add(ToYamlRow(info));
             }
         }
+
         return toAdd;
     }
 
-    public static async Task SeedAsync(EggIncognitoDbContext db, IRouteCatalog yamlCatalog, CancellationToken ct = default) {
+    public static async Task SeedAsync(EggIncognitoDbContext db, IRouteCatalog yamlCatalog,
+        CancellationToken ct = default) {
         var existing = await db.StoredRoutes
             .Where(r => r.Source == "yaml")
             .ToListAsync(ct);

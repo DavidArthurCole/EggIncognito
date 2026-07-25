@@ -42,7 +42,7 @@ public class IdentityApiClientTests {
 
     [Fact]
     public async Task RevokeSessionAsync_PostsSidOnly_NoUserId() {
-        var called = false;
+        bool called = false;
         var client = Client(req => {
             called = true;
             Assert.Equal("/identity/revoke-session", req.RequestUri!.AbsolutePath);
@@ -61,7 +61,7 @@ public class IdentityApiClientTests {
             return StubHttpMessageHandler.Json(HttpStatusCode.OK, "true");
         });
 
-        var revoked = await client.IsRevokedAsync("sid-1", CancellationToken.None);
+        bool revoked = await client.IsRevokedAsync("sid-1", CancellationToken.None);
 
         Assert.True(revoked);
     }

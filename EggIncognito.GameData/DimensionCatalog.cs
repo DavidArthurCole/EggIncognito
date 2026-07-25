@@ -5,15 +5,16 @@ namespace EggIncognito.GameData;
 
 public interface IDimensionCatalog {
     IReadOnlyList<string> Dimensions { get; }
-    bool Contains(string id);
     string BinaryVersion { get; }
     IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    bool Contains(string id);
 }
 
 public sealed class DimensionCatalog : IDimensionCatalog {
     private readonly HashSet<string> _ids;
 
-    private DimensionCatalog(IReadOnlyList<string> dimensions, string binaryVersion, IReadOnlyDictionary<string, ProvenanceSource> provenance) {
+    private DimensionCatalog(IReadOnlyList<string> dimensions, string binaryVersion,
+        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
         Dimensions = dimensions;
         BinaryVersion = binaryVersion;
         Provenance = provenance;
@@ -28,12 +29,13 @@ public sealed class DimensionCatalog : IDimensionCatalog {
 
     public static DimensionCatalog Load(string resource = "dimensions.json") {
         var file = DimensionCatalogDataLoader.Read(resource);
-        foreach (var id in file.Dimensions) {
-            if (string.IsNullOrEmpty(id)) {
+        foreach (string id in file.Dimensions) {
+            if (string.IsNullOrEmpty(id))
                 throw new GameDataSchemaException("Dimension catalog contains an empty id.");
-            }
         }
-        return new DimensionCatalog(file.Dimensions, file.BinaryVersion ?? "", file.Provenance ?? GameData.Provenance.Empty);
+
+        return new DimensionCatalog(file.Dimensions, file.BinaryVersion ?? "",
+            file.Provenance ?? GameData.Provenance.Empty);
     }
 }
 
@@ -50,14 +52,14 @@ public static class DimensionCatalogDataLoader {
 
     public static DimensionCatalogDataFile Read(string resourceName) {
         var assembly = Assembly.GetExecutingAssembly();
-        var full = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
+        string full = assembly.GetManifestResourceNames()
+                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
+                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
 
         using var stream = assembly.GetManifestResourceStream(full)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
+                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
 
         return JsonSerializer.Deserialize<DimensionCatalogDataFile>(stream, Options)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
+               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
     }
 }

@@ -10,15 +10,16 @@ public sealed record VehicleCatalogEntry(
 
 public interface IVehicleCatalog {
     IReadOnlyList<VehicleCatalogEntry> Vehicles { get; }
-    VehicleCatalogEntry? Find(int index);
     string BinaryVersion { get; }
     IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    VehicleCatalogEntry? Find(int index);
 }
 
 public sealed class VehicleCatalog : IVehicleCatalog {
     private readonly Dictionary<int, VehicleCatalogEntry> _byIndex;
 
-    private VehicleCatalog(IReadOnlyList<VehicleCatalogEntry> vehicles, string binaryVersion, IReadOnlyDictionary<string, ProvenanceSource> provenance) {
+    private VehicleCatalog(IReadOnlyList<VehicleCatalogEntry> vehicles, string binaryVersion,
+        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
         Vehicles = vehicles;
         BinaryVersion = binaryVersion;
         Provenance = provenance;
@@ -38,15 +39,12 @@ public sealed class VehicleCatalog : IVehicleCatalog {
     }
 
     private static VehicleCatalogEntry ToEntry(VehicleCatalogRow row) {
-        if (row.Index is null) {
-            throw new GameDataSchemaException("Vehicle catalog row missing index.");
-        }
-        if (string.IsNullOrEmpty(row.Name)) {
-            throw new GameDataSchemaException($"Vehicle catalog index {row.Index} missing name.");
-        }
-        return row.Capacity is null or <= 0
-            ? throw new GameDataSchemaException($"Vehicle catalog '{row.Name}' missing capacity.")
-            : new VehicleCatalogEntry(row.Index.Value, row.Name, row.Capacity.Value);
+        if (row.Index is null) throw new GameDataSchemaException("Vehicle catalog row missing index.");
+        return string.IsNullOrEmpty(row.Name)
+            ? throw new GameDataSchemaException($"Vehicle catalog index {row.Index} missing name.")
+            : row.Capacity is null or <= 0
+                ? throw new GameDataSchemaException($"Vehicle catalog '{row.Name}' missing capacity.")
+                : new VehicleCatalogEntry(row.Index.Value, row.Name, row.Capacity.Value);
     }
 }
 
@@ -68,14 +66,14 @@ public static class VehicleCatalogDataLoader {
 
     public static VehicleCatalogDataFile Read(string resourceName) {
         var assembly = Assembly.GetExecutingAssembly();
-        var full = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
+        string full = assembly.GetManifestResourceNames()
+                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
+                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
 
         using var stream = assembly.GetManifestResourceStream(full)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
+                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
 
         return JsonSerializer.Deserialize<VehicleCatalogDataFile>(stream, Options)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
+               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
     }
 }

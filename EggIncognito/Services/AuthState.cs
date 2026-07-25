@@ -1,7 +1,9 @@
 namespace EggIncognito.Services;
 
-
-public sealed record AuthState(bool IdentityApiEnabled, string? IdentityHostUrl = null, string SessionCookieName = "synckit_session") {
+public sealed record AuthState(
+    bool IdentityApiEnabled,
+    string? IdentityHostUrl = null,
+    string SessionCookieName = "synckit_session") {
     public bool WidgetEnabled => IdentityApiEnabled && !string.IsNullOrWhiteSpace(IdentityHostUrl);
     public bool Enabled => WidgetEnabled;
 }

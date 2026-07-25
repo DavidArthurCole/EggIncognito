@@ -1,4 +1,5 @@
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services.Devices;
@@ -10,7 +11,7 @@ public sealed class DeviceProbeService(
     TimeProvider time,
     DeviceProxyPusher proxyPusher,
     IEnumerable<IDeviceStoreChecker> storeCheckers,
-    Microsoft.Extensions.Configuration.IConfiguration appConfig,
+    IConfiguration appConfig,
     ILogger<DeviceProbeService> logger) : BackgroundService {
     private readonly bool _syncEnabled = appConfig.GetValue("DeviceSync:Enabled", false);
 
@@ -19,15 +20,17 @@ public sealed class DeviceProbeService(
             logger.LogInformation("device poller disabled or no devices declared");
             return;
         }
+
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, config.IntervalMinutes)), time);
         try {
             await ProbeAllAsync(stoppingToken);
             await StartupHarvestAsync(stoppingToken);
             while (await timer.WaitForNextTickAsync(stoppingToken))
                 await ProbeAllAsync(stoppingToken);
-        } catch (OperationCanceledException) { /* shutdown */ }
+        } catch (OperationCanceledException) {
+            /* shutdown */
+        }
     }
-
 
 
     private async Task StartupHarvestAsync(CancellationToken ct) {
@@ -36,7 +39,11 @@ public sealed class DeviceProbeService(
                 var rinfo = await proxyPusher.ForceHarvestAsync(d, TimeSpan.FromSeconds(25), ct);
                 logger.LogInformation("device capture: {Id} startup harvest -> {Cv}",
                     d.Id, rinfo?.ClientVersion is { } cv ? $"clientVersion {cv}" : "no rinfo (will retry on demand)");
-            } catch (OperationCanceledException) { throw; } catch (Exception ex) { logger.LogWarning(ex, "device capture: {Id} startup harvest threw", d.Id); }
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "device capture: {Id} startup harvest threw", d.Id);
+            }
         }
     }
 
@@ -50,19 +57,25 @@ public sealed class DeviceProbeService(
             try {
                 var row = await DeviceProbeRunner.ProbeOneAsync(d, "poll", runner, store, db, logger, time, ct);
                 await StoreSyncAsync(d, row, store, db, ct);
-            } catch (Exception ex) { logger.LogWarning(ex, "device probe: {Id} threw", d.Id); }
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "device probe: {Id} threw", d.Id);
+            }
         }
 
-        try { await proxyPusher.PushAllAsync(config.Devices, ct); } catch (Exception ex) { logger.LogWarning(ex, "device capture: proxy push tick failed"); }
+        try {
+            await proxyPusher.PushAllAsync(config.Devices, ct);
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "device capture: proxy push tick failed");
+        }
     }
 
     private async Task StoreSyncAsync(
-        EggIncognito.Data.Models.Device d, EggIncognito.Data.Models.DeviceProbe probe,
+        Device d, DeviceProbe probe,
         IDeviceStatusStore store, EggIncognitoDbContext db, CancellationToken ct) {
         if (!_syncEnabled) return;
         if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion)) return;
 
-        var storeLatest = await StoreAheadCheck.StoreLatestAsync(db, d.Platform, ct);
+        string? storeLatest = await StoreAheadCheck.StoreLatestAsync(db, d.Platform, ct);
         if (!StoreAheadCheck.IsAhead(storeLatest, probe.InstalledAppVersion)) return;
 
         var checker = storeCheckers.FirstOrDefault(c =>
@@ -80,14 +93,14 @@ public sealed class DeviceProbeService(
             msg => logger.LogInformation("device sync: {Id} {Msg}", d.Id, msg));
 
         if (result.Installed) {
-            await store.RecordUpdateAsync(new EggIncognito.Data.Models.DeviceUpdate {
+            await store.RecordUpdateAsync(new DeviceUpdate {
                 DeviceId = d.Id,
                 AttemptedAt = DateTimeOffset.UtcNow,
                 FromVersion = result.InstalledBefore,
                 ToVersion = result.InstalledAfter,
                 Status = "verified",
                 Note = result.Note,
-                TriggeredBy = "heartbeat",
+                TriggeredBy = "heartbeat"
             }, ct);
         }
     }

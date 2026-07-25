@@ -1,11 +1,10 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using EggIncognito.Services;
 using Microsoft.Extensions.Hosting;
 
 namespace EggIncognito.Capture;
-
-
 
 public sealed class ProxyFrontDoor(
     HostedCaptureOptions opts,
@@ -14,16 +13,21 @@ public sealed class ProxyFrontDoor(
     Action<string>? log = null) : IHostedService, IAsyncDisposable {
     private const int MaxFirstRequestBytes = 16 * 1024;
     private static readonly TimeSpan FirstRequestTimeout = TimeSpan.FromSeconds(10);
+    private Task? _acceptLoop;
+    private CancellationTokenSource? _cts;
 
     private TcpListener? _listener;
-    private CancellationTokenSource? _cts;
-    private Task? _acceptLoop;
 
 
     public int Port { get; private set; }
 
-    public Task StartAsync(CancellationToken cancellationToken) {
+    public async ValueTask DisposeAsync() {
+        await StopAsync(CancellationToken.None);
+        _cts?.Dispose();
+        _cts = null;
+    }
 
+    public Task StartAsync(CancellationToken cancellationToken) {
         var listener = new TcpListener(IPAddress.IPv6Any, opts.FrontDoorPort);
         listener.Server.DualMode = true;
         listener.Start();
@@ -34,7 +38,14 @@ public sealed class ProxyFrontDoor(
         _acceptLoop = Task.Run(async () => {
             while (!ct.IsCancellationRequested) {
                 TcpClient client;
-                try { client = await listener.AcceptTcpClientAsync(ct); } catch (OperationCanceledException) { break; } catch (SocketException) { break; }
+                try {
+                    client = await listener.AcceptTcpClientAsync(ct);
+                } catch (OperationCanceledException) {
+                    break;
+                } catch (SocketException) {
+                    break;
+                }
+
                 _ = Task.Run(() => HandleAsync(client, ct), CancellationToken.None);
             }
         }, CancellationToken.None);
@@ -44,17 +55,22 @@ public sealed class ProxyFrontDoor(
 
 
     public async Task StopAsync(CancellationToken cancellationToken) {
-        try { _cts?.Cancel(); } catch (ObjectDisposedException) { /* already torn down */ }
+        try {
+            _cts?.Cancel();
+        } catch (ObjectDisposedException) {
+            /* already torn down */
+        }
+
         _listener?.Stop();
         var loop = _acceptLoop;
         _acceptLoop = null;
-        if (loop is not null) { try { await loop; } catch { /* shutdown */ } }
-    }
-
-    public async ValueTask DisposeAsync() {
-        await StopAsync(CancellationToken.None);
-        _cts?.Dispose();
-        _cts = null;
+        if (loop is not null) {
+            try {
+                await loop;
+            } catch {
+                /* shutdown */
+            }
+        }
     }
 
     private async Task HandleAsync(TcpClient client, CancellationToken ct) {
@@ -62,21 +78,20 @@ public sealed class ProxyFrontDoor(
         c.NoDelay = true;
         var stream = c.GetStream();
         try {
-
-
-
             var destAddr = (c.Client.LocalEndPoint as IPEndPoint)?.Address;
-            if (destAddr is null || destAddr.Equals(IPAddress.IPv6Any) || destAddr.Equals(IPAddress.Any) || destAddr.IsIPv4MappedToIPv6) {
+            if (destAddr is null || destAddr.Equals(IPAddress.IPv6Any) || destAddr.Equals(IPAddress.Any) ||
+                destAddr.IsIPv4MappedToIPv6) {
                 GracefulClose(c);
                 return;
             }
-            var user = await addrToUser(destAddr);
+
+            string? user = await addrToUser(destAddr);
             if (user is null) {
                 GracefulClose(c);
                 return;
             }
 
-            var (first, raw, rawLen) = await ReadFirstRequestAsync(stream, ct);
+            (var first, byte[] raw, int rawLen) = await ReadFirstRequestAsync(stream, ct);
             if (first is null) return;
 
 
@@ -96,10 +111,14 @@ public sealed class ProxyFrontDoor(
             }
 
             await TunnelAsync(stream, session, first, raw, rawLen, user, ct);
-        } catch (OperationCanceledException) { /* shutdown */ } catch (IOException) { /* peer reset */ } catch (SocketException) { /* peer reset */ }
+        } catch (OperationCanceledException) {
+            /* shutdown */
+        } catch (IOException) {
+            /* peer reset */
+        } catch (SocketException) {
+            /* peer reset */
+        }
     }
-
-
 
 
     private async Task TunnelAsync(
@@ -110,44 +129,48 @@ public sealed class ProxyFrontDoor(
         var innerStream = inner.GetStream();
 
 
-        var cleanConnect = System.Text.Encoding.ASCII.GetBytes(
+        byte[] cleanConnect = Encoding.ASCII.GetBytes(
             $"CONNECT {first.TargetHost}:{first.TargetPort} HTTP/1.1\r\nHost: {first.TargetHost}:{first.TargetPort}\r\n\r\n");
         await innerStream.WriteAsync(cleanConnect, ct);
 
 
-        var respBuf = new byte[8 * 1024];
-        var respLen = 0;
+        byte[] respBuf = new byte[8 * 1024];
+        int respLen = 0;
         while (respLen < respBuf.Length) {
-            var n = await innerStream.ReadAsync(respBuf.AsMemory(respLen), ct);
+            int n = await innerStream.ReadAsync(respBuf.AsMemory(respLen), ct);
             if (n == 0) break;
             respLen += n;
             if (FindHeaderEnd(respBuf.AsSpan(0, respLen)) >= 0) break;
         }
+
         if (respLen == 0) return;
         await stream.WriteAsync(respBuf.AsMemory(0, respLen), ct);
 
         long up = cleanConnect.Length, down = respLen;
 
 
-        var connectHeaderLen = first.RawBytes.Length;
-        var leftover = rawLen - connectHeaderLen;
+        int connectHeaderLen = first.RawBytes.Length;
+        int leftover = rawLen - connectHeaderLen;
         if (leftover > 0) {
             await innerStream.WriteAsync(raw.AsMemory(connectHeaderLen, leftover), ct);
             up += leftover;
         }
 
 
-
         var pumpUp = PumpAsync(stream, innerStream, inner.Client, n => Interlocked.Add(ref up, n), ct);
         var pumpDown = PumpAsync(innerStream, stream, stream.Socket, n => Interlocked.Add(ref down, n), ct);
         await Task.WhenAll(pumpUp, pumpDown);
-        log?.Invoke($"capture-frontdoor: {user} {first.TargetHost} {Interlocked.Read(ref up)}/{Interlocked.Read(ref down)}");
+        log?.Invoke(
+            $"capture-frontdoor: {user} {first.TargetHost} {Interlocked.Read(ref up)}/{Interlocked.Read(ref down)}");
     }
 
 
     private static int FindHeaderEnd(ReadOnlySpan<byte> b) {
-        for (var i = 0; i + 3 < b.Length; i++)
-            if (b[i] == '\r' && b[i + 1] == '\n' && b[i + 2] == '\r' && b[i + 3] == '\n') return i;
+        for (int i = 0; i + 3 < b.Length; i++) {
+            if (b[i] == '\r' && b[i + 1] == '\n' && b[i + 2] == '\r' && b[i + 3] == '\n')
+                return i;
+        }
+
         return -1;
     }
 
@@ -156,42 +179,59 @@ public sealed class ProxyFrontDoor(
         NetworkStream stream, CancellationToken ct) {
         using var timed = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timed.CancelAfter(FirstRequestTimeout);
-        var buffer = new byte[MaxFirstRequestBytes];
-        var total = 0;
+        byte[] buffer = new byte[MaxFirstRequestBytes];
+        int total = 0;
         try {
             while (total < buffer.Length) {
-                var n = await stream.ReadAsync(buffer.AsMemory(total), timed.Token);
+                int n = await stream.ReadAsync(buffer.AsMemory(total), timed.Token);
                 if (n == 0) return (null, buffer, total);
                 total += n;
                 if (ProxyRequestParser.TryParse(buffer.AsSpan(0, total)) is { } first)
                     return (first, buffer, total);
             }
         } catch (OperationCanceledException) when (!ct.IsCancellationRequested) {
-
         }
+
         return (null, buffer, total);
     }
 
 
-    private static async Task PumpAsync(Stream from, Stream to, System.Net.Sockets.Socket dstSocket, Action<long> count, CancellationToken ct) {
-        var buf = new byte[8 * 1024];
+    private static async Task PumpAsync(Stream from, Stream to, Socket dstSocket, Action<long> count,
+        CancellationToken ct) {
+        byte[] buf = new byte[8 * 1024];
         try {
             while (true) {
-                var n = await from.ReadAsync(buf, ct);
+                int n = await from.ReadAsync(buf, ct);
                 if (n == 0) return;
                 await to.WriteAsync(buf.AsMemory(0, n), ct);
                 count(n);
             }
-        } catch (OperationCanceledException) { /* torn down */ } catch (IOException) { /* peer closed */ } catch (ObjectDisposedException) { /* torn down */ } finally {
-            try { dstSocket.Shutdown(System.Net.Sockets.SocketShutdown.Send); } catch { /* already closed */ }
+        } catch (OperationCanceledException) {
+            /* torn down */
+        } catch (IOException) {
+            /* peer closed */
+        } catch (ObjectDisposedException) {
+            /* torn down */
+        } finally {
+            try {
+                dstSocket.Shutdown(SocketShutdown.Send);
+            } catch {
+                /* already closed */
+            }
         }
     }
 
     private static Task WriteAsciiAsync(Stream stream, string text, CancellationToken ct) =>
-        stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(text), ct).AsTask();
+        stream.WriteAsync(Encoding.ASCII.GetBytes(text), ct).AsTask();
 
 
     private static void GracefulClose(TcpClient c) {
-        try { c.Client.Shutdown(SocketShutdown.Send); } catch (SocketException) { /* already gone */ } catch (ObjectDisposedException) { /* already gone */ }
+        try {
+            c.Client.Shutdown(SocketShutdown.Send);
+        } catch (SocketException) {
+            /* already gone */
+        } catch (ObjectDisposedException) {
+            /* already gone */
+        }
     }
 }

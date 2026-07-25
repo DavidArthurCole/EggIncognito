@@ -13,6 +13,7 @@ public interface IFeedSubscriptionStore {
     Task MarkDeliveredAsync(int subId, DateTimeOffset at, CancellationToken ct = default);
     Task<List<FeedSubscription>> ByOwnerAsync(Guid ownerUserId, CancellationToken ct = default);
     Task<bool> DeleteAsync(int id, Guid ownerUserId, CancellationToken ct = default);
+
     Task<bool> UpdateAsync(int id, Guid ownerUserId, string[] platforms, string trigger, bool active,
         string? messageTemplate, CancellationToken ct = default);
 }
@@ -27,7 +28,8 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
     public Task<List<FeedSubscription>> ActiveAsync(CancellationToken ct = default) =>
         db.FeedSubscriptions.AsNoTracking().Where(s => s.Active).ToListAsync(ct);
 
-    public async Task<bool> AlreadyDeliveredAsync(int subId, string eventKind, string dedupKey, CancellationToken ct = default) =>
+    public async Task<bool> AlreadyDeliveredAsync(int subId, string eventKind, string dedupKey,
+        CancellationToken ct = default) =>
         await db.FeedDeliveries.AnyAsync(
             d => d.SubscriptionId == subId && d.EventKind == eventKind && d.DedupKey == dedupKey, ct);
 

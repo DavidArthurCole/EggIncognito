@@ -18,8 +18,10 @@ public class CaptureOptionsTests {
     [Fact]
     public void Parse_ReadsValueAndFlagOptions() {
         var o = CaptureOptions.Parse(
-            ["--port", "9000", "--dashboard-port", "9100", "--label", "my run",
-             "--overwrite", "--no-dashboard", "--no-open", "--open"]);
+        [
+            "--port", "9000", "--dashboard-port", "9100", "--label", "my run",
+            "--overwrite", "--no-dashboard", "--no-open", "--open"
+        ]);
         Assert.Equal(9000, o.Port);
         Assert.Equal(9100, o.DashboardPort);
         Assert.Equal("my run", o.Label);
@@ -61,15 +63,15 @@ public class CaptureOptionsTests {
 
     [Fact]
     public void UniquePath_FreeName_ReturnedAsIs() {
-        var path = Path.Combine(Path.GetTempPath(), $"ei-unique-{Guid.NewGuid():N}.har");
+        string path = Path.Combine(Path.GetTempPath(), $"ei-unique-{Guid.NewGuid():N}.har");
         Assert.Equal(path, CaptureSession.UniquePath(path));
     }
 
     [Fact]
     public void UniquePath_TakenName_AppendsSuffix() {
-        var dir = Path.Combine(Path.GetTempPath(), $"ei-unique-{Guid.NewGuid():N}");
+        string dir = Path.Combine(Path.GetTempPath(), $"ei-unique-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
-        var path = Path.Combine(dir, "session.har");
+        string path = Path.Combine(dir, "session.har");
         File.WriteAllText(path, "");
         Assert.Equal(Path.Combine(dir, "session_2.har"), CaptureSession.UniquePath(path));
 

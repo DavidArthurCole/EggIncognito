@@ -17,7 +17,8 @@ public class ExprNodeTests {
     }
 
     [Fact]
-    public void Fold_UnaryOfConst_Evaluates() => Assert.Equal(new Const(-2.5), ExprNode.Fold(new Unary(UnOp.Neg, new Const(2.5))));
+    public void Fold_UnaryOfConst_Evaluates() =>
+        Assert.Equal(new Const(-2.5), ExprNode.Fold(new Unary(UnOp.Neg, new Const(2.5))));
 
     [Fact]
     public void Fold_NestedConst_FullyReduces() {

@@ -153,7 +153,7 @@
         var paramsSection = BuildParams(f);
         if (paramsSection is not null) builder.AddContent(seq++, paramsSection);
 
-        builder.AddContent(seq++, RequestBodySection(f));
+        builder.AddContent(seq, RequestBodySection(f));
     };
 
     RenderFragment RequestBodySection(DashboardFlow f) {
@@ -182,14 +182,14 @@
         }
 
         if (f.ResponseText is not null) {
-            builder.AddContent(seq++, TextResponseSection(f.ResponseText, f.ResponseIsAck));
+            builder.AddContent(seq, TextResponseSection(f.ResponseText, f.ResponseIsAck));
         } else if (f.ResponseIsAck) {
             builder.OpenElement(seq++, "div");
             builder.AddAttribute(seq++, "class", "no-json");
-            builder.AddContent(seq++, "Acknowledgement - this endpoint returns a short non-protobuf ack.");
+            builder.AddContent(seq, "Acknowledgement - this endpoint returns a short non-protobuf ack.");
             builder.CloseElement();
         } else if (ImageMime(f) is { } mime && !string.IsNullOrEmpty(f.ResponseB64)) {
-            builder.AddContent(seq++, ImageResponseSection(mime, f.ResponseB64!));
+            builder.AddContent(seq, ImageResponseSection(mime, f.ResponseB64));
         } else {
             builder.OpenComponent<FormatView>(seq++);
             builder.AddComponentParameter(seq++, nameof(FormatView.Label), "Response");
@@ -197,7 +197,7 @@
             builder.AddComponentParameter(seq++, nameof(FormatView.JsonStr), View.PickJson(f.ResponseJson, f.ResponseJsonRaw));
             builder.AddComponentParameter(seq++, nameof(FormatView.RawB64), f.ResponseB64);
             builder.AddComponentParameter(seq++, nameof(FormatView.View), View);
-            builder.AddComponentParameter(seq++, nameof(FormatView.FormatChoice), _formatChoice);
+            builder.AddComponentParameter(seq, nameof(FormatView.FormatChoice), _formatChoice);
             builder.CloseComponent();
         }
     };
@@ -251,7 +251,7 @@
 
         builder.OpenElement(seq++, "div");
         builder.AddAttribute(seq++, "class", "muted image-meta");
-        builder.AddContent(seq++, $"{mime} · ~{FormatBytes(bytes)}");
+        builder.AddContent(seq, $"{mime} · ~{FormatBytes(bytes)}");
         builder.CloseElement();
 
         builder.CloseElement();

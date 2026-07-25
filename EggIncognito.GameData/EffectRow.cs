@@ -20,16 +20,14 @@ public sealed class EffectRow {
     public bool TryGet(string field, out object value) => Values.TryGetValue(field, out value!);
 
     private void Validate() {
-        foreach (var name in Schema.RequiredNames) {
-            if (!Values.ContainsKey(name)) {
+        foreach (string name in Schema.RequiredNames) {
+            if (!Values.ContainsKey(name))
                 throw new GameDataSchemaException($"Row '{Id}' missing required field '{name}'.");
-            }
         }
 
-        foreach (var (key, value) in Values) {
-            if (!Schema.TryGetField(key, out var field)) {
+        foreach ((string key, var value) in Values) {
+            if (!Schema.TryGetField(key, out var field))
                 throw new GameDataSchemaException($"Row '{Id}' has unknown field '{key}'.");
-            }
 
             if (!TypeMatches(field.Type, value)) {
                 throw new GameDataSchemaException(

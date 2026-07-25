@@ -1,5 +1,3 @@
-
-
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Google.Protobuf.Reflection;
@@ -7,38 +5,6 @@ using Google.Protobuf.Reflection;
 namespace EggIncognito.Services;
 
 public static class OpenApiBuilder {
-    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
-
-    public static string BuildJson(IReadOnlyList<AuxbrainEntry> entries, IProtoReflection reflection) {
-
-        var components = new SortedDictionary<string, JsonObject>(StringComparer.Ordinal);
-
-        var paths = new JsonObject();
-        foreach (var e in entries) {
-            paths["/" + e.Path] = new JsonObject { ["post"] = Operation(e, reflection, components) };
-            if (e.PathParam) {
-                paths["/" + e.Path + "/{eid}"] = new JsonObject {
-                    ["post"] = Operation(e, reflection, components, eidVariant: true),
-                };
-            }
-        }
-
-        var schemas = new JsonObject();
-        foreach (var (name, schema) in components) schemas[name] = schema;
-
-        var doc = new JsonObject {
-            ["openapi"] = "3.0.3",
-            ["info"] = new JsonObject {
-                ["title"] = "EggIncognito mock API",
-                ["version"] = "1.0.0",
-                ["description"] = InfoDescription,
-            },
-            ["paths"] = paths,
-            ["components"] = new JsonObject { ["schemas"] = schemas },
-        };
-        return doc.ToJsonString(IndentedJson);
-    }
-
     private const string InfoDescription =
         "Stateless mock of the Egg Inc (auxbrain) API. Every operation is a POST with an " +
         "application/x-www-form-urlencoded body where data is a base64-encoded protobuf message. " +
@@ -47,6 +13,37 @@ public static class OpenApiBuilder {
         "x-eggincognito-request-wrapped. Routes marked x-eggincognito-status: not-mocked exist on " +
         "the real API but have no canned response here yet. Build, sign, and decode requests " +
         "interactively at /inspector.";
+
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
+
+    public static string BuildJson(IReadOnlyList<AuxbrainEntry> entries, IProtoReflection reflection) {
+        var components = new SortedDictionary<string, JsonObject>(StringComparer.Ordinal);
+
+        var paths = new JsonObject();
+        foreach (var e in entries) {
+            paths["/" + e.Path] = new JsonObject { ["post"] = Operation(e, reflection, components) };
+            if (e.PathParam) {
+                paths["/" + e.Path + "/{eid}"] = new JsonObject {
+                    ["post"] = Operation(e, reflection, components, true)
+                };
+            }
+        }
+
+        var schemas = new JsonObject();
+        foreach ((string name, var schema) in components) schemas[name] = schema;
+
+        var doc = new JsonObject {
+            ["openapi"] = "3.0.3",
+            ["info"] = new JsonObject {
+                ["title"] = "EggIncognito mock API",
+                ["version"] = "1.0.0",
+                ["description"] = InfoDescription
+            },
+            ["paths"] = paths,
+            ["components"] = new JsonObject { ["schemas"] = schemas }
+        };
+        return doc.ToJsonString(IndentedJson);
+    }
 
     private static JsonObject Operation(
         AuxbrainEntry e,
@@ -57,7 +54,7 @@ public static class OpenApiBuilder {
             ["operationId"] = e.Path.Replace('/', '_') + (eidVariant ? "_eid" : ""),
             ["summary"] = e.Path,
             ["description"] = Describe(e),
-            ["tags"] = new JsonArray(e.Namespace),
+            ["tags"] = new JsonArray(e.Namespace)
         };
 
         if (eidVariant) {
@@ -66,7 +63,7 @@ public static class OpenApiBuilder {
                 ["in"] = "path",
                 ["required"] = true,
                 ["schema"] = new JsonObject { ["type"] = "string" },
-                ["description"] = "Egg Inc user id (EI...).",
+                ["description"] = "Egg Inc user id (EI...)."
             });
         }
 
@@ -82,27 +79,27 @@ public static class OpenApiBuilder {
     }
 
     private static string Describe(AuxbrainEntry e) {
-        var req = (e.RequestType, e.RequestWrapped) switch {
+        string req = (e.RequestType, e.RequestWrapped) switch {
             (null, true) => "Request: AuthenticatedMessage (inner type unknown).",
             (null, false) => "Request: unknown.",
             (var t, true) => $"Request: {t}, wrapped in a signed AuthenticatedMessage on the real API.",
-            (var t, false) => $"Request: {t}.",
+            (var t, false) => $"Request: {t}."
         };
-        var res = (e.ResponseType, e.ResponseWrapped) switch {
+        string res = (e.ResponseType, e.ResponseWrapped) switch {
             (null, true) => "Response: AuthenticatedMessage (inner type unknown).",
             (null, false) => "Response: unknown.",
             (var t, true) => $"Response: {t}, AuthenticatedMessage-wrapped on the real API.",
-            (var t, false) => $"Response: {t}.",
+            (var t, false) => $"Response: {t}."
         };
-        var status = e.Status == AuxbrainStatus.NotMocked
+        string status = e.Status == AuxbrainStatus.NotMocked
             ? " Real API path with no mock yet."
             : "";
         return req + " " + res + status;
     }
 
     private static JsonObject RequestBody(AuxbrainEntry e) {
-        var inner = e.RequestType ?? "request";
-        var desc = e.RequestWrapped
+        string inner = e.RequestType ?? "request";
+        string desc = e.RequestWrapped
             ? $"base64-encoded AuthenticatedMessage wrapping {inner} (mock also accepts the bare inner message)"
             : $"base64-encoded {inner} protobuf";
         return new JsonObject {
@@ -116,12 +113,12 @@ public static class OpenApiBuilder {
                             ["data"] = new JsonObject {
                                 ["type"] = "string",
                                 ["format"] = "byte",
-                                ["description"] = desc,
-                            },
-                        },
-                    },
-                },
-            },
+                                ["description"] = desc
+                            }
+                        }
+                    }
+                }
+            }
         };
     }
 
@@ -131,11 +128,11 @@ public static class OpenApiBuilder {
         var response = new JsonObject {
             ["description"] = e.ResponseType is null
                 ? "Canned response; no response type known."
-                : $"Canned {e.ResponseType}, shown decoded as JSON.",
+                : $"Canned {e.ResponseType}, shown decoded as JSON."
         };
         if (desc is not null) {
             response["content"] = new JsonObject {
-                ["application/json"] = new JsonObject { ["schema"] = Ref(desc, components) },
+                ["application/json"] = new JsonObject { ["schema"] = Ref(desc, components) }
             };
         }
 
@@ -143,9 +140,8 @@ public static class OpenApiBuilder {
     }
 
 
-
     private static JsonObject Ref(MessageDescriptor d, IDictionary<string, JsonObject> components) {
-        var name = ComponentName(d);
+        string name = ComponentName(d);
         if (!components.ContainsKey(name)) {
             var schema = new JsonObject { ["type"] = "object" };
             components[name] = schema;
@@ -154,6 +150,7 @@ public static class OpenApiBuilder {
                 props[f.JsonName] = FieldSchema(f, components);
             schema["properties"] = props;
         }
+
         return new JsonObject { ["$ref"] = "#/components/schemas/" + name };
     }
 
@@ -166,12 +163,14 @@ public static class OpenApiBuilder {
             var value = f.MessageType.FindFieldByNumber(2);
             return new JsonObject {
                 ["type"] = "object",
-                ["additionalProperties"] = SingleSchema(value, components),
+                ["additionalProperties"] = SingleSchema(value, components)
             };
         }
-        return f.IsRepeated ? new JsonObject { ["type"] = "array", ["items"] = SingleSchema(f, components) } : SingleSchema(f, components);
-    }
 
+        return f.IsRepeated
+            ? new JsonObject { ["type"] = "array", ["items"] = SingleSchema(f, components) }
+            : SingleSchema(f, components);
+    }
 
 
     private static JsonObject SingleSchema(FieldDescriptor f, IDictionary<string, JsonObject> components) {
@@ -179,7 +178,7 @@ public static class OpenApiBuilder {
             FieldType.Message or FieldType.Group => Ref(f.MessageType, components),
             FieldType.Enum => new JsonObject {
                 ["type"] = "string",
-                ["enum"] = new JsonArray(f.EnumType.Values.Select(v => (JsonNode)v.Name).ToArray()),
+                ["enum"] = new JsonArray(f.EnumType.Values.Select(v => (JsonNode)v.Name).ToArray())
             },
             FieldType.Double => Scalar("number", "double"),
             FieldType.Float => Scalar("number", "float"),
@@ -189,7 +188,7 @@ public static class OpenApiBuilder {
             FieldType.UInt64 or FieldType.Fixed64 => Scalar("string", "uint64"),
             FieldType.Bool => Scalar("boolean", null),
             FieldType.Bytes => Scalar("string", "byte"),
-            _ => Scalar("string", null),
+            _ => Scalar("string", null)
         };
     }
 

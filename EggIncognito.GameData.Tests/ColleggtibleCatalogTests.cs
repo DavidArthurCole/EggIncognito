@@ -23,7 +23,7 @@ public sealed class ColleggtibleCatalogTests {
     public void Known_stat_eggs_map_to_expected_dimension_and_top_tier(string id, int dimension, double topTier) {
         var egg = Catalog.Find(id);
         Assert.NotNull(egg);
-        Assert.Equal(dimension, egg!.Dimension);
+        Assert.Equal(dimension, egg.Dimension);
         Assert.Equal(topTier, egg.TierValues[^1]);
     }
 
@@ -31,7 +31,7 @@ public sealed class ColleggtibleCatalogTests {
     public void Easter_tier_values_match_capture() {
         var egg = Catalog.Find("easter");
         Assert.NotNull(egg);
-        Assert.Equal(new[] { 1.01, 1.02, 1.03, 1.05 }, egg!.TierValues);
+        Assert.Equal(new[] { 1.01, 1.02, 1.03, 1.05 }, egg.TierValues);
     }
 
     [Fact]

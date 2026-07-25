@@ -4,7 +4,6 @@ using Google.Protobuf;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-
 public class ShellCatalogTests {
     [Fact]
     public void FromCatalog_ResolvesPrimaryPieceUrl() {
@@ -21,7 +20,7 @@ public class ShellCatalogTests {
                     Ext = "rpo",
                     Checksum = "abc",
                     Url = "https://www.auxbrain.com/dlc/shells/ei_depot_1_black_white_hash.rpoz"
-                },
+                }
             }
         };
         cat.Shells.Add(shell);
@@ -54,41 +53,45 @@ public class ShellCatalogTests {
 
     [Fact]
     public void ConfigJson_RoundTrip_PreservesDlcCatalog() {
-        var json = ConfigJson();
+        string? json = ConfigJson();
         if (json is null) return;
 
         var cfg = ConfigResponse.Parser.ParseJson(json);
-        var shells = cfg.DlcCatalog?.Shells.Count ?? 0;
+        int shells = cfg.DlcCatalog?.Shells.Count ?? 0;
         Assert.True(shells > 1000, $"parse lost shells: {shells}");
 
-        var reformatted = Google.Protobuf.JsonFormatter.Default.Format(cfg);
+        string? reformatted = JsonFormatter.Default.Format(cfg);
         var reparsed = ConfigResponse.Parser.ParseJson(reformatted);
         Assert.Equal(shells, reparsed.DlcCatalog?.Shells.Count ?? 0);
     }
 
     [Fact]
     public void InnerConfigProto_DirectParse_KeepsShells_WrappedAsAuthMsgIsHusk() {
-
-
-        var json = ConfigJson();
+        string? json = ConfigJson();
         if (json is null) return;
         var full = ConfigResponse.Parser.ParseJson(json);
-        var fullShells = full.DlcCatalog?.Shells.Count ?? 0;
+        int fullShells = full.DlcCatalog?.Shells.Count ?? 0;
         Assert.True(fullShells > 1000);
 
-        var innerBytes = full.ToByteArray();
+        byte[]? innerBytes = full.ToByteArray();
         var direct = ConfigResponse.Parser.ParseFrom(innerBytes);
         Assert.Equal(fullShells, direct.DlcCatalog?.Shells.Count ?? 0);
 
-        var wrapped = new Ei.AuthenticatedMessage { Message = Google.Protobuf.ByteString.CopyFrom(innerBytes) }.ToByteArray();
+        byte[]? wrapped = new AuthenticatedMessage { Message = ByteString.CopyFrom(innerBytes) }.ToByteArray();
         ConfigResponse husk;
-        try { husk = ConfigResponse.Parser.ParseFrom(wrapped); } catch { husk = new ConfigResponse(); }
-        Assert.True((husk.DlcCatalog?.Shells.Count ?? 0) < fullShells, "wrapped bytes should not parse to the full catalog directly");
+        try {
+            husk = ConfigResponse.Parser.ParseFrom(wrapped);
+        } catch {
+            husk = new ConfigResponse();
+        }
+
+        Assert.True((husk.DlcCatalog?.Shells.Count ?? 0) < fullShells,
+            "wrapped bytes should not parse to the full catalog directly");
     }
 
     [Fact]
     public void FromCatalog_RealConfig_HasManyShells() {
-        var json = ConfigJson();
+        string? json = ConfigJson();
         if (json is null) return;
 
         var cfg = ConfigResponse.Parser.ParseJson(json);
@@ -102,7 +105,12 @@ public class ShellCatalogTests {
     [Fact]
     public void Objects_ResolvesChickenWithAnchorAndNoHatsFlag() {
         var cat = new DLCCatalog();
-        var chicken = new ShellObjectSpec { Identifier = "ei_chicken_base", Name = "Base", AssetType = ShellSpec.Types.AssetType.Chicken, NoHats = false };
+        var chicken = new ShellObjectSpec {
+            Identifier = "ei_chicken_base",
+            Name = "Base",
+            AssetType = ShellSpec.Types.AssetType.Chicken,
+            NoHats = false
+        };
         chicken.Metadata.Add(new[] { 0.0, 0.5, -0.1, 1.2 });
         chicken.Pieces.Add(new ShellObjectSpec.Types.LODPiece { Lod = 1, Dlc = new DLCItem { Url = "https://www.auxbrain.com/dlc/shellobjects/chicken_lod1.rpoz" } });
         chicken.Pieces.Add(new ShellObjectSpec.Types.LODPiece { Lod = 0, Dlc = new DLCItem { Url = "https://www.auxbrain.com/dlc/shellobjects/chicken_lod0.rpoz" } });
@@ -158,7 +166,7 @@ public class ShellCatalogTests {
 
     [Fact]
     public void RealConfig_HasChickensWithAnchors_AndHats() {
-        var json = ConfigJson();
+        string? json = ConfigJson();
         if (json is null) return;
         var cfg = ConfigResponse.Parser.ParseJson(json);
         var chickens = ShellCatalog.Chickens(cfg.DlcCatalog!);
@@ -218,7 +226,7 @@ public class ShellCatalogTests {
             SetIdentifier = setId,
             PrimaryPiece = new ShellSpec.Types.ShellPiece {
                 AssetType = type,
-                Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shells/{id}.rpoz" },
+                Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shells/{id}.rpoz" }
             }
         };
         return s;
@@ -235,22 +243,22 @@ public class ShellCatalogTests {
             Identifier = id,
             PrimaryPiece = new ShellSpec.Types.ShellPiece {
                 AssetType = type,
-                Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shells/{id}.rpoz" },
+                Dlc = new DLCItem { Url = $"https://www.auxbrain.com/dlc/shells/{id}.rpoz" }
             }
         };
         return s;
     }
 
     private static string? ConfigJson() {
-        var candidates = new[]
-        {
+        string[] candidates = [
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "captures", "config.json"),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "captures", "config.json"),
-        };
-        foreach (var c in candidates) {
-            var full = Path.GetFullPath(c);
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "captures", "config.json")
+        ];
+        foreach (string c in candidates) {
+            string full = Path.GetFullPath(c);
             if (File.Exists(full)) return File.ReadAllText(full);
         }
+
         return null;
     }
 }

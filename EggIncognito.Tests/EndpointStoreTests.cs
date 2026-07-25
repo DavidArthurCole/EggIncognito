@@ -1,4 +1,5 @@
 using EggIncognito.Services;
+using Ei;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
@@ -6,10 +7,12 @@ namespace EggIncognito.Tests;
 public sealed class EndpointStoreTests : IDisposable {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
-    public EndpointStoreTests() => Directory.CreateDirectory(_tempDir);
+    public EndpointStoreTests() {
+        Directory.CreateDirectory(_tempDir);
+    }
 
     public void Dispose() {
-        Directory.Delete(_tempDir, recursive: true);
+        Directory.Delete(_tempDir, true);
         GC.SuppressFinalize(this);
     }
 
@@ -17,7 +20,7 @@ public sealed class EndpointStoreTests : IDisposable {
         new(new FileEndpointSource(_tempDir), null, NullLogger<EndpointStore>.Instance);
 
     private void WriteEndpoint(string relativePath, string json) {
-        var full = Path.Combine(_tempDir, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        string full = Path.Combine(_tempDir, relativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         File.WriteAllText(full, json);
     }
@@ -25,16 +28,16 @@ public sealed class EndpointStoreTests : IDisposable {
     [Fact]
     public void ReturnsDefaultInstanceWhenNoEndpoint() {
         var store = CreateStore();
-        var result = store.Get<Ei.AuthenticatedMessage>("ei/first_contact_secure");
+        var result = store.Get<AuthenticatedMessage>("ei/first_contact_secure");
         Assert.NotNull(result);
-        Assert.IsType<Ei.AuthenticatedMessage>(result);
+        Assert.IsType<AuthenticatedMessage>(result);
     }
 
     [Fact]
     public void ReturnsEndpointWhenDefaultExists() {
         WriteEndpoint("default/ei/first_contact_secure.json", "{}");
         var store = CreateStore();
-        var result = store.Get<Ei.AuthenticatedMessage>("ei/first_contact_secure");
+        var result = store.Get<AuthenticatedMessage>("ei/first_contact_secure");
         Assert.NotNull(result);
     }
 
@@ -45,10 +48,10 @@ public sealed class EndpointStoreTests : IDisposable {
 
         var store = CreateStore();
 
-        var resultDefault = store.Get<Ei.PeriodicalsResponse>("ei/get_periodicals", null);
+        var resultDefault = store.Get<PeriodicalsResponse>("ei/get_periodicals");
         Assert.NotNull(resultDefault);
 
-        var resultEid = store.Get<Ei.PeriodicalsResponse>("ei/get_periodicals", "EI0000000000000001");
+        var resultEid = store.Get<PeriodicalsResponse>("ei/get_periodicals", "EI0000000000000001");
         Assert.NotNull(resultEid);
     }
 
@@ -57,7 +60,7 @@ public sealed class EndpointStoreTests : IDisposable {
         WriteEndpoint("default/ei/get_periodicals.json", "{}");
 
         var store = CreateStore();
-        var result = store.Get<Ei.PeriodicalsResponse>("ei/get_periodicals", "EI_NONEXISTENT");
+        var result = store.Get<PeriodicalsResponse>("ei/get_periodicals", "EI_NONEXISTENT");
         Assert.NotNull(result);
     }
 
@@ -66,7 +69,7 @@ public sealed class EndpointStoreTests : IDisposable {
         WriteEndpoint("default/ei_afx/launch_mission.json", "{}");
 
         var store = CreateStore();
-        var result = store.Get<Ei.MissionResponse>("ei_afx/launch_mission");
+        var result = store.Get<MissionResponse>("ei_afx/launch_mission");
         Assert.NotNull(result);
     }
 
@@ -76,7 +79,7 @@ public sealed class EndpointStoreTests : IDisposable {
             new FileEndpointSource(Path.Combine(_tempDir, "does_not_exist")),
             null,
             NullLogger<EndpointStore>.Instance);
-        var result = store.Get<Ei.AuthenticatedMessage>("ei/any");
+        var result = store.Get<AuthenticatedMessage>("ei/any");
         Assert.NotNull(result);
     }
 }

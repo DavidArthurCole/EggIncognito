@@ -1,5 +1,6 @@
-namespace EggIncognito.Services.ProtoExtract;
+using System.Text;
 
+namespace EggIncognito.Services.ProtoExtract;
 
 public static class MachoFunctionStarts {
     private const uint MhMagic64 = 0xFEEDFACF;
@@ -20,28 +21,31 @@ public static class MachoFunctionStarts {
                 if (!TryFatArm64(bin, out b) || b + 32 > bin.Length) return outp;
                 magic = U32(bin, b);
             }
+
             if (magic != MhMagic64) return outp;
 
             uint ncmds = U32(bin, b + 16);
             int lc = b + 32;
             int dataoff = 0, datasize = 0;
-            ulong textVm = 0; uint textFileOff = 0; bool haveText = false;
+            uint textFileOff = 0;
+            bool haveText = false;
 
             for (uint c = 0; c < ncmds; c++) {
                 if (lc + 8 > bin.Length) break;
                 uint cmd = U32(bin, lc);
                 uint cmdsize = U32(bin, lc + 4);
-                if (cmdsize < 8 || lc + (long)cmdsize > bin.Length) break;
+                if (cmdsize < 8 || lc + cmdsize > bin.Length) break;
                 if (cmd == LcFunctionStarts) {
                     dataoff = (int)U32(bin, lc + 8) + b;
                     datasize = (int)U32(bin, lc + 12);
                 } else if (cmd == LcSegment64 && Cstr16(bin, lc + 8) == "__TEXT") {
-                    textVm = U64(bin, lc + 24);
                     textFileOff = U32(bin, lc + 40);
                     haveText = true;
                 }
+
                 lc += (int)cmdsize;
             }
+
             if (datasize == 0 || dataoff <= 0 || dataoff + datasize > bin.Length || !haveText) return outp;
 
 
@@ -57,26 +61,35 @@ public static class MachoFunctionStarts {
             }
         } catch {
         }
+
         return outp;
     }
 
 
-
     public static bool TryEnclosingStart(byte[] bin, ulong targetVa, out ulong startVa, out ulong endVa) {
-        startVa = 0; endVa = 0;
-        if (!MachoText.TryFindText(bin, out var textFileOff, out var textSize, out var textVm)) return false;
+        startVa = 0;
+        endVa = 0;
+        if (!MachoText.TryFindText(bin, out int textFileOff, out int textSize, out ulong textVm)) return false;
         var starts = Read(bin);
         if (starts.Count == 0) return false;
-        var slide = textVm - (ulong)textFileOff;
+        ulong slide = textVm - (ulong)textFileOff;
         ulong textEndVa = textVm + (ulong)textSize;
 
-        ulong best = 0; bool have = false; ulong next = textEndVa;
+        ulong best = 0;
+        bool have = false;
+        ulong next = textEndVa;
         for (int i = 0; i < starts.Count; i++) {
             ulong va = (ulong)starts[i] + slide;
-            if (va <= targetVa && va >= best) { best = va; have = true; next = i + 1 < starts.Count ? (ulong)starts[i + 1] + slide : textEndVa; }
+            if (va <= targetVa && va >= best) {
+                best = va;
+                have = true;
+                next = i + 1 < starts.Count ? (ulong)starts[i + 1] + slide : textEndVa;
+            }
         }
+
         if (!have) return false;
-        startVa = best; endVa = next;
+        startVa = best;
+        endVa = next;
         return true;
     }
 
@@ -90,6 +103,7 @@ public static class MachoFunctionStarts {
             shift += 7;
             if (shift > 63) break;
         }
+
         return result;
     }
 
@@ -100,24 +114,23 @@ public static class MachoFunctionStarts {
         int e = 8;
         for (uint i = 0; i < nfat; i++) {
             if (e + 20 > b.Length) return false;
-            if (U32be(b, e) == CpuArm64) { offset = (int)U32be(b, e + 8); return true; }
+            if (U32be(b, e) == CpuArm64) {
+                offset = (int)U32be(b, e + 8);
+                return true;
+            }
+
             e += 20;
         }
+
         return false;
     }
 
     private static uint U32(byte[] b, int o) => (uint)(b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24));
     private static uint U32be(byte[] b, int o) => (uint)((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]);
 
-    private static ulong U64(byte[] b, int o) {
-        ulong v = 0;
-        for (int k = 0; k < 8; k++) v |= (ulong)b[o + k] << (k * 8);
-        return v;
-    }
-
     private static string Cstr16(byte[] b, int o) {
         int end = o, max = Math.Min(o + 16, b.Length);
         while (end < max && b[end] != 0) end++;
-        return System.Text.Encoding.ASCII.GetString(b, o, end - o);
+        return Encoding.ASCII.GetString(b, o, end - o);
     }
 }

@@ -2,7 +2,10 @@ using EggIncognito.Data.Models;
 
 namespace EggIncognito.Services.Devices;
 
-public enum DeviceAssetKind { Mesh, Texture }
+public enum DeviceAssetKind {
+    Mesh,
+    Texture
+}
 
 public interface IDeviceAssetReader {
     string Platform { get; }

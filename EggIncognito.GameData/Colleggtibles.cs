@@ -7,29 +7,31 @@ public sealed record ColleggtibleEgg(string Identifier, int Dimension, IReadOnly
 
 public interface IColleggtibleCatalog {
     IReadOnlyList<ColleggtibleEgg> Eggs { get; }
-    ColleggtibleEgg? Find(string identifier);
     IReadOnlyDictionary<string, string> ContractEggMap { get; }
     string GameVersion { get; }
     IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    ColleggtibleEgg? Find(string identifier);
 }
 
 public sealed class ColleggtibleCatalog : IColleggtibleCatalog {
-    public static readonly IReadOnlyDictionary<string, int> DimensionCodes = new Dictionary<string, int>(StringComparer.Ordinal) {
-        ["INVALID"] = 0,
-        ["EARNINGS"] = 1,
-        ["AWAY_EARNINGS"] = 2,
-        ["INTERNAL_HATCHERY_RATE"] = 3,
-        ["EGG_LAYING_RATE"] = 4,
-        ["SHIPPING_CAPACITY"] = 5,
-        ["HAB_CAPACITY"] = 6,
-        ["VEHICLE_COST"] = 7,
-        ["HAB_COST"] = 8,
-        ["RESEARCH_COST"] = 9
-    };
+    public static readonly IReadOnlyDictionary<string, int> DimensionCodes =
+        new Dictionary<string, int>(StringComparer.Ordinal) {
+            ["INVALID"] = 0,
+            ["EARNINGS"] = 1,
+            ["AWAY_EARNINGS"] = 2,
+            ["INTERNAL_HATCHERY_RATE"] = 3,
+            ["EGG_LAYING_RATE"] = 4,
+            ["SHIPPING_CAPACITY"] = 5,
+            ["HAB_CAPACITY"] = 6,
+            ["VEHICLE_COST"] = 7,
+            ["HAB_COST"] = 8,
+            ["RESEARCH_COST"] = 9
+        };
 
     private readonly Dictionary<string, ColleggtibleEgg> _byId;
 
-    private ColleggtibleCatalog(IReadOnlyList<ColleggtibleEgg> eggs, IReadOnlyDictionary<string, string> map, string gameVersion, IReadOnlyDictionary<string, ProvenanceSource> provenance) {
+    private ColleggtibleCatalog(IReadOnlyList<ColleggtibleEgg> eggs, IReadOnlyDictionary<string, string> map,
+        string gameVersion, IReadOnlyDictionary<string, ProvenanceSource> provenance) {
         Eggs = eggs;
         ContractEggMap = map;
         GameVersion = gameVersion;
@@ -52,15 +54,14 @@ public sealed class ColleggtibleCatalog : IColleggtibleCatalog {
     }
 
     private static ColleggtibleEgg ToEgg(ColleggtibleEggRow row) {
-        if (string.IsNullOrEmpty(row.Identifier)) {
+        if (string.IsNullOrEmpty(row.Identifier))
             throw new GameDataSchemaException("Colleggtible row missing identifier.");
-        }
-        if (!DimensionCodes.TryGetValue(row.Dimension ?? "", out var code)) {
-            throw new GameDataSchemaException($"Colleggtible '{row.Identifier}' has unknown dimension '{row.Dimension}'.");
-        }
-        return row.TierValues is not { Count: 4 }
-            ? throw new GameDataSchemaException($"Colleggtible '{row.Identifier}' must have exactly 4 tierValues.")
-            : new ColleggtibleEgg(row.Identifier, code, row.TierValues);
+        return !DimensionCodes.TryGetValue(row.Dimension ?? "", out int code)
+            ? throw new GameDataSchemaException(
+                $"Colleggtible '{row.Identifier}' has unknown dimension '{row.Dimension}'.")
+            : row.TierValues is not { Count: 4 }
+                ? throw new GameDataSchemaException($"Colleggtible '{row.Identifier}' must have exactly 4 tierValues.")
+                : new ColleggtibleEgg(row.Identifier, code, row.TierValues);
     }
 }
 
@@ -80,14 +81,14 @@ public static class ColleggtibleDataLoader {
 
     public static ColleggtibleDataFile Read(string resourceName) {
         var assembly = Assembly.GetExecutingAssembly();
-        var full = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
+        string full = assembly.GetManifestResourceNames()
+                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
+                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
 
         using var stream = assembly.GetManifestResourceStream(full)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
+                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
 
         return JsonSerializer.Deserialize<ColleggtibleDataFile>(stream, Options)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
+               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
     }
 }

@@ -1,24 +1,20 @@
 using System.Net;
 using EggIncognito.Services;
+using Ei;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-public class DynamicMockControllerTests(WebApplicationFactory<Program> f) : IClassFixture<WebApplicationFactory<Program>> {
-    private sealed class FakeRoutes : IDbRouteProvider {
-        private readonly RouteInfo _r = new("ei/dbonly", null, "PeriodicalsResponse", false, false, null, false, false);
-        public RouteInfo? GetDbRoute(string path) => path == "ei/dbonly" ? _r : null;
-        public IReadOnlyList<RouteInfo> AllDbRoutes() => [_r];
-    }
-
+public class DynamicMockControllerTests(WebApplicationFactory<Program> f)
+    : IClassFixture<WebApplicationFactory<Program>> {
     private readonly WebApplicationFactory<Program> _factory = f.WithWebHostBuilder(b => {
         b.UseSetting("NoBrowser", "true");
         b.ConfigureServices(s => {
             s.AddSingleton<IDbRouteProvider, FakeRoutes>();
             s.AddSingleton<IRouteCatalog>(sp =>
                 new MergedRouteCatalog(sp.GetRequiredService<RouteCatalog>(),
-                                       sp.GetRequiredService<IDbRouteProvider>()));
+                    sp.GetRequiredService<IDbRouteProvider>()));
         });
     });
 
@@ -27,9 +23,9 @@ public class DynamicMockControllerTests(WebApplicationFactory<Program> f) : ICla
         var c = _factory.CreateClient();
         var resp = await c.PostAsync("/ei/dbonly", new FormUrlEncodedContent([]));
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-        var body = await resp.Content.ReadAsStringAsync();
-        var bytes = Convert.FromBase64String(body);
-        Assert.NotNull(Ei.PeriodicalsResponse.Parser.ParseFrom(bytes));
+        string body = await resp.Content.ReadAsStringAsync();
+        byte[] bytes = Convert.FromBase64String(body);
+        Assert.NotNull(PeriodicalsResponse.Parser.ParseFrom(bytes));
     }
 
     [Fact]
@@ -45,5 +41,11 @@ public class DynamicMockControllerTests(WebApplicationFactory<Program> f) : ICla
         var c = _factory.CreateClient();
         var resp = await c.PostAsync("/zz_not_auxbrain/nope", new FormUrlEncodedContent([]));
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+    }
+
+    private sealed class FakeRoutes : IDbRouteProvider {
+        private readonly RouteInfo _r = new("ei/dbonly", null, "PeriodicalsResponse", false, false, null, false, false);
+        public RouteInfo? GetDbRoute(string path) => path == "ei/dbonly" ? _r : null;
+        public IReadOnlyList<RouteInfo> AllDbRoutes() => [_r];
     }
 }

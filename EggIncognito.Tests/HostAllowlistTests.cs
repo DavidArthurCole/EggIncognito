@@ -25,8 +25,6 @@ public class HostAllowlistTests {
         Assert.False(InspectorApiController.IsAllowedHost(host));
 
 
-
-
     [Theory]
     [InlineData("www.auxbrain.com")]
     [InlineData("auxbrain.com")]
@@ -45,7 +43,6 @@ public class HostAllowlistTests {
         Assert.True(InspectorApiController.IsAllowedHost(host));
         Assert.False(AuxbrainHosts.IsAuxbrain(host));
     }
-
 
 
     [Fact]

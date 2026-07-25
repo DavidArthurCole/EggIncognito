@@ -1,4 +1,6 @@
+using System.Text;
 using EggIncognito.Services;
+using Ei;
 
 namespace EggIncognito.Tests;
 
@@ -37,8 +39,10 @@ public class BehaviorServiceTests {
     public void All_ContainsExpectedNames() {
         var svc = Build();
         var names = svc.All().Select(b => b.Name).ToHashSet();
-        foreach (var expected in new[] { "server_error", "maintenance", "not_found", "unauthorized", "rate_limited", "empty", "corrupt" })
+        foreach (string expected in new[]
+                     { "server_error", "maintenance", "not_found", "unauthorized", "rate_limited", "empty", "corrupt" }) {
             Assert.Contains(expected, names);
+        }
     }
 
     [Fact]
@@ -70,8 +74,8 @@ public class BehaviorServiceTests {
         var svc = Build();
         var b = svc.Get("empty");
         Assert.NotNull(b?.Body);
-        var bytes = Convert.FromBase64String(System.Text.Encoding.UTF8.GetString(b!.Body!()));
-        var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(bytes);
+        byte[] bytes = Convert.FromBase64String(Encoding.UTF8.GetString(b.Body!()));
+        var msg = AuthenticatedMessage.Parser.ParseFrom(bytes);
         Assert.NotNull(msg);
     }
 
@@ -80,7 +84,7 @@ public class BehaviorServiceTests {
         var svc = Build();
         var b = svc.Get("corrupt");
         Assert.NotNull(b?.Body);
-        var bodyStr = System.Text.Encoding.UTF8.GetString(b!.Body!());
+        string bodyStr = Encoding.UTF8.GetString(b.Body!());
         Assert.Throws<FormatException>(() => Convert.FromBase64String(bodyStr));
     }
 }

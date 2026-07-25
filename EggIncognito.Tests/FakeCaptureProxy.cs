@@ -12,14 +12,6 @@ public sealed class FakeCaptureProxy : ICaptureProxy {
 
     public event Action<CapturedFlow>? FlowCaptured;
     public event Action<int, string?>? ClientConnected;
-#pragma warning disable CS0067
-    public event Action<int, string?>? ClientDisconnected;
-    public event Action? AuxbrainConnect;
-    public event Action<string>? DecryptError;
-    public event Action? TrustRestored;
-    public event Action<string, bool>? ConnectSeen;
-    public event Action<string>? Trace;
-#pragma warning restore CS0067
 
     public bool Verbose { get; set; }
     public bool FreshCa => false;
@@ -36,11 +28,19 @@ public sealed class FakeCaptureProxy : ICaptureProxy {
         return ThrowOnStop ? throw new InvalidOperationException("fake proxy stop failure") : Task.CompletedTask;
     }
 
-    public void EmitFlow(CapturedFlow flow) => FlowCaptured?.Invoke(flow);
-    public void EmitConnect(int count, string? ip) => ClientConnected?.Invoke(count, ip);
-
     public ValueTask DisposeAsync() {
         DisposeCount++;
         return ValueTask.CompletedTask;
     }
+
+    public void EmitFlow(CapturedFlow flow) => FlowCaptured?.Invoke(flow);
+    public void EmitConnect(int count, string? ip) => ClientConnected?.Invoke(count, ip);
+#pragma warning disable CS0067
+    public event Action<int, string?>? ClientDisconnected;
+    public event Action? AuxbrainConnect;
+    public event Action<string>? DecryptError;
+    public event Action? TrustRestored;
+    public event Action<string, bool>? ConnectSeen;
+    public event Action<string>? Trace;
+#pragma warning restore CS0067
 }

@@ -1,7 +1,10 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-
-public enum Arm64Op { Movz, Movk, Str }
+public enum Arm64Op {
+    Movz,
+    Movk,
+    Str
+}
 
 public readonly record struct Arm64Insn(ulong Address, Arm64Op Op, int Rd, int Rn, long Imm);
 
@@ -20,8 +23,8 @@ public static class Arm64Decoder {
                 long byteOff = ((w >> 10) & 0xFFF) * 4L;
                 outp.Add(new Arm64Insn(addr, Arm64Op.Str, (int)(w & 0x1F), (int)((w >> 5) & 0x1F), byteOff));
             }
-
         }
+
         return outp;
     }
 }

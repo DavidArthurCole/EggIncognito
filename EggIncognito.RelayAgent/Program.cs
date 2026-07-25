@@ -6,10 +6,10 @@ namespace EggIncognito.RelayAgent;
 
 public static class Program {
     public static void Main(string[] args) {
-        var secret = Environment.GetEnvironmentVariable("RELAY_AGENT_SECRET") ?? "";
-        var listen = Environment.GetEnvironmentVariable("RELAY_AGENT_LISTEN") ?? "http://[fd00:8::1]:7779";
-        var iface = Environment.GetEnvironmentVariable("RELAY_IFACE") ?? "eth0";
-        var prefix = Environment.GetEnvironmentVariable("RELAY_PREFIX") ?? "2001:db8::/64";
+        string secret = Environment.GetEnvironmentVariable("RELAY_AGENT_SECRET") ?? "";
+        string listen = Environment.GetEnvironmentVariable("RELAY_AGENT_LISTEN") ?? "http://[fd00:8::1]:7779";
+        string iface = Environment.GetEnvironmentVariable("RELAY_IFACE") ?? "eth0";
+        string prefix = Environment.GetEnvironmentVariable("RELAY_PREFIX") ?? "2001:db8::/64";
 
         var builder = WebApplication.CreateBuilder(args);
         builder.WebHost.UseUrls(listen);
@@ -17,11 +17,11 @@ public static class Program {
 
         bool Authed(HttpRequest r) {
             if (string.IsNullOrEmpty(secret)) return false;
-            var h = r.Headers.Authorization.ToString();
+            string h = r.Headers.Authorization.ToString();
             const string p = "Bearer ";
             if (!h.StartsWith(p, StringComparison.Ordinal)) return false;
-            var a = Encoding.UTF8.GetBytes(h[p.Length..]);
-            var b = Encoding.UTF8.GetBytes(secret);
+            byte[] a = Encoding.UTF8.GetBytes(h[p.Length..]);
+            byte[] b = Encoding.UTF8.GetBytes(secret);
             return a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
         }
 
@@ -31,7 +31,7 @@ public static class Program {
             var tail = new StringBuilder();
             foreach (var c in RelayCommands.Provision(prefix, iface)) {
                 var psi = new ProcessStartInfo(c.File) { RedirectStandardError = true, RedirectStandardOutput = true };
-                foreach (var a in c.Args) psi.ArgumentList.Add(a);
+                foreach (string a in c.Args) psi.ArgumentList.Add(a);
                 using var proc = Process.Start(psi)!;
                 var stdout = proc.StandardOutput.ReadToEndAsync();
                 var stderr = proc.StandardError.ReadToEndAsync();
@@ -40,6 +40,7 @@ public static class Program {
                 tail.Append(await stderr);
                 if (proc.ExitCode != 0) return Results.Problem(tail.ToString(), statusCode: 500);
             }
+
             return Results.Ok(new { ok = true, tail = tail.ToString() });
         });
         app.Run();

@@ -1,4 +1,5 @@
 using EggIncognito.Data.Services;
+using EggIncognito.Services.Auth;
 using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -7,8 +8,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/protos")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
-
+[ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("fetch")]
 public sealed class ProtosController(IServiceProvider services) : ControllerBase {
     private ProtoRegistryStore? Store =>
@@ -31,7 +31,7 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
             r.Package,
             r.ProtoSha,
             r.DetectedAt,
-            buildFlag = ProtoVersionQuality.BuildQualityFlag(r.Platform, r.Build),
+            buildFlag = ProtoVersionQuality.BuildQualityFlag(r.Platform, r.Build)
         }));
     }
 
@@ -65,11 +65,9 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
     }
 
 
-
     [HttpGet("sources")]
-    public async Task<IActionResult> Sources(CancellationToken ct) {
-        return Store is null ? Ok(new Dictionary<string, int>()) : Ok(await Store.SourceCountsAsync(ct));
-    }
+    public async Task<IActionResult> Sources(CancellationToken ct) =>
+        Store is null ? Ok(new Dictionary<string, int>()) : Ok(await Store.SourceCountsAsync(ct));
 
     [HttpGet("latest")]
     public async Task<IActionResult> Latest([FromQuery] string platform = "android", CancellationToken ct = default) {
@@ -81,10 +79,10 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
             .OrderByDescending(p => ProtoVersionQuality.LatestSortKey(p.Platform, p.Build, p.AppVersion))
             .ThenByDescending(p => p.CreatedAt)
             .FirstOrDefault();
-        return r is null ? NotFound()
+        return r is null
+            ? NotFound()
             : Ok(new { r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.ProtoSha, r.DetectedAt });
     }
-
 
 
     [HttpGet("diff")]
@@ -95,9 +93,11 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
             return BadRequest(new { error = "from and to required" });
 
-        var fromText = await LoadProtoText(platform, from, ct);
-        var toText = await LoadProtoText(platform, to, ct);
-        return fromText is null || toText is null ? NotFound() : Content(ProtoDiff.Diff(fromText, toText), "text/plain");
+        string? fromText = await LoadProtoText(platform, from, ct);
+        string? toText = await LoadProtoText(platform, to, ct);
+        return fromText is null || toText is null
+            ? NotFound()
+            : Content(ProtoDiff.Diff(fromText, toText), "text/plain");
     }
 
     private async Task<string?> LoadProtoText(string platform, string build, CancellationToken ct) {

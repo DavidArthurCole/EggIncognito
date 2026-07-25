@@ -1,9 +1,23 @@
+using System.Text;
+using System.Threading.Channels;
 using EggIncognito.Capture;
+using Ei;
 using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
 public class CaptureDashboardTests {
+    private const string Yaml = """
+                                routes:
+                                  # ei/
+                                  - path: ei/get_periodicals
+                                    request: GetPeriodicalsRequest
+                                    response: PeriodicalsResponse
+                                  - path: ei_data/log_contract_action
+                                    request: ContractAction
+                                    rawResponse: "SUCCESS"
+                                """;
+
     private static DashboardFlow F(string path = "ei/x") =>
         new(0, "", path, "POST", 200, null, null, "AAEC", null);
 
@@ -15,8 +29,8 @@ public class CaptureDashboardTests {
 
         Assert.NotNull(first);
         Assert.NotNull(second);
-        Assert.Equal(1, first!.Id);
-        Assert.Equal(2, second!.Id);
+        Assert.Equal(1, first.Id);
+        Assert.Equal(2, second.Id);
     }
 
     [Fact]
@@ -25,7 +39,7 @@ public class CaptureDashboardTests {
         var stored = hub.Publish(F(), "2026-06-06T00:00:00Z");
 
         Assert.NotNull(stored);
-        Assert.Equal("2026-06-06T00:00:00Z", stored!.Timestamp);
+        Assert.Equal("2026-06-06T00:00:00Z", stored.Timestamp);
     }
 
     [Fact]
@@ -47,7 +61,7 @@ public class CaptureDashboardTests {
         var hub = new CaptureHub();
         var stored = hub.Publish(F("ei/bot_first_contact"), "t1");
         Assert.NotNull(stored);
-        Assert.False(stored!.Saved);
+        Assert.False(stored.Saved);
 
         hub.MarkSaved(stored.Id);
 
@@ -59,7 +73,7 @@ public class CaptureDashboardTests {
     public void Publish_WhenPaused_ReturnsNull_AndDoesNotBuffer() {
         var hub = new CaptureHub();
         hub.Publish(F(), "t1");
-        var before = hub.Snapshot().Count;
+        int before = hub.Snapshot().Count;
 
         hub.Paused = true;
         var result = hub.Publish(F(), "t2");
@@ -85,9 +99,9 @@ public class CaptureDashboardTests {
         var stored = hub.Publish(F("ei/found"), "t1");
 
         Assert.NotNull(stored);
-        var found = hub.Find(stored!.Id);
+        var found = hub.Find(stored.Id);
         Assert.NotNull(found);
-        Assert.Equal("ei/found", found!.Path);
+        Assert.Equal("ei/found", found.Path);
         Assert.Equal(stored.Id, found.Id);
 
         Assert.Null(hub.Find(9999));
@@ -108,7 +122,7 @@ public class CaptureDashboardTests {
         Assert.DoesNotContain("ei/after", flowsAfter);
     }
 
-    private static List<string> DrainFlowPaths(System.Threading.Channels.ChannelReader<CaptureEnvelope> reader) {
+    private static List<string> DrainFlowPaths(ChannelReader<CaptureEnvelope> reader) {
         var paths = new List<string>();
         while (reader.TryRead(out var env)) {
             if (env.Kind == "flow" && env.Flow is not null)
@@ -122,7 +136,7 @@ public class CaptureDashboardTests {
     public void RingBuffer_CapsAt500_DroppingOldest() {
         var hub = new CaptureHub();
         for (int i = 0; i < 600; i++)
-            hub.Publish(F("ei/x"), "t");
+            hub.Publish(F(), "t");
 
         var snap = hub.Snapshot();
         Assert.Equal(500, snap.Count);
@@ -130,28 +144,17 @@ public class CaptureDashboardTests {
         Assert.Equal(600, snap[^1].Id);
     }
 
-    private const string Yaml = """
-routes:
-  # ei/
-  - path: ei/get_periodicals
-    request: GetPeriodicalsRequest
-    response: PeriodicalsResponse
-  - path: ei_data/log_contract_action
-    request: ContractAction
-    rawResponse: "SUCCESS"
-""";
-
     private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-dash");
 
     private static string WrappedResponseB64() {
-        var inner = new Ei.PeriodicalsResponse();
-        var outer = new Ei.AuthenticatedMessage { Message = inner.ToByteString(), Compressed = false };
+        var inner = new PeriodicalsResponse();
+        var outer = new AuthenticatedMessage { Message = inner.ToByteString(), Compressed = false };
         return Convert.ToBase64String(outer.ToByteArray());
     }
 
     [Fact]
     public void DecodeResponse_KnownType_ReturnsJsonAndKnownType() {
-        var repo = MakeRepo();
+        string repo = MakeRepo();
         var decoder = new FlowDecoder(repo);
 
         var r = decoder.DecodeResponse("ei/get_periodicals", WrappedResponseB64());
@@ -163,12 +166,12 @@ routes:
 
     [Fact]
     public void DecodeResponse_PlainTextAck_SurfacedAsText() {
-        var repo = MakeRepo();
+        string repo = MakeRepo();
         var decoder = new FlowDecoder(repo);
 
         var r = decoder.DecodeResponse(
             "ei_data/log_contract_action",
-            Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes("SUCCESS")));
+            Convert.ToBase64String(Encoding.ASCII.GetBytes("SUCCESS")));
 
         Assert.True(r.Ack);
         Assert.Equal("SUCCESS", r.Text);
@@ -177,7 +180,7 @@ routes:
 
     [Fact]
     public void DecodeResponse_GarbageBase64_ReturnsNullJson() {
-        var repo = MakeRepo();
+        string repo = MakeRepo();
         var decoder = new FlowDecoder(repo);
 
         var r = decoder.DecodeResponse("ei/get_periodicals", "!!!notbase64");
@@ -187,7 +190,7 @@ routes:
 
     [Fact]
     public void DecodeRequest_Null_ReturnsNullJson() {
-        var repo = MakeRepo();
+        string repo = MakeRepo();
         var decoder = new FlowDecoder(repo);
 
         Assert.Null(decoder.DecodeRequest("ei/get_periodicals", null).Json);
@@ -236,7 +239,7 @@ routes:
     [Fact]
     public void Publish_Auxbrain_FlipsToTrusted_AndCountsCapture() {
         var hub = new CaptureHub();
-        hub.Publish(F("ei/x"), "t", isAuxbrain: true);
+        hub.Publish(F(), "t");
 
         var s = hub.StatsSnapshot();
         Assert.Equal("Trusted", s.CertState);
@@ -248,7 +251,7 @@ routes:
     [Fact]
     public void CertState_DoesNotDowngrade_OnceTrusted() {
         var hub = new CaptureHub();
-        hub.Publish(F("ei/x"), "t", isAuxbrain: true);
+        hub.Publish(F(), "t");
         hub.RecordDecryptError("x", "t");
 
         var s = hub.StatsSnapshot();
@@ -272,7 +275,7 @@ routes:
     [Fact]
     public void Publish_Passthrough_ReturnsNull_CountsPassthrough_NotBuffered() {
         var hub = new CaptureHub();
-        var result = hub.Publish(F("ei/x"), "t", isAuxbrain: false);
+        var result = hub.Publish(F(), "t", false);
 
         Assert.Null(result);
         var s = hub.StatsSnapshot();
@@ -284,9 +287,9 @@ routes:
     [Fact]
     public void UniqueEndpoints_CountsDistinctPaths() {
         var hub = new CaptureHub();
-        hub.Publish(F("ei/a"), "t", isAuxbrain: true);
-        hub.Publish(F("ei/a"), "t", isAuxbrain: true);
-        hub.Publish(F("ei/b"), "t", isAuxbrain: true);
+        hub.Publish(F("ei/a"), "t");
+        hub.Publish(F("ei/a"), "t");
+        hub.Publish(F("ei/b"), "t");
 
         Assert.Equal(2, hub.StatsSnapshot().UniqueEndpoints);
     }
@@ -294,7 +297,7 @@ routes:
     [Fact]
     public void Bytes_TrackedPerEndpoint_BiggestReflectsPath() {
         var hub = new CaptureHub();
-        hub.Publish(F("ei/big"), "t", isAuxbrain: true);
+        hub.Publish(F("ei/big"), "t");
 
         var s = hub.StatsSnapshot();
         Assert.True(s.BytesCaptured > 0);
@@ -324,8 +327,8 @@ routes:
     }
 
     private static DashboardFlow FlowWithRInfo(string platform, string version) =>
-        F("ei/x") with {
-            RequestJson = $"{{\"rinfo\":{{\"platform\":\"{platform}\",\"version\":\"{version}\"}}}}",
+        F() with {
+            RequestJson = $"{{\"rinfo\":{{\"platform\":\"{platform}\",\"version\":\"{version}\"}}}}"
         };
 
     [Fact]
@@ -346,6 +349,9 @@ routes:
         hub.RecordConnection(2, "192.168.1.6", "t");
         hub.Publish(FlowWithRInfo("DROID", "1.35.6"), "t");
 
-        Assert.All(hub.StatsSnapshot().Devices, d => { Assert.Null(d.Os); Assert.Null(d.GameVersion); });
+        Assert.All(hub.StatsSnapshot().Devices, d => {
+            Assert.Null(d.Os);
+            Assert.Null(d.GameVersion);
+        });
     }
 }

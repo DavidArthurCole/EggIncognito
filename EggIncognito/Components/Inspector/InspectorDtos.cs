@@ -8,10 +8,10 @@ public sealed record BuildResponse(
     string? FinalBase64,
     string? FinalFormBody,
     bool CanSign,
-
     string? Error,
     string? Resolution,
     JsonElement? Details);
+
 public sealed record SendResponse(
     int? Status,
     string? RawBase64,
@@ -32,10 +32,21 @@ public sealed record DiagnoseDto(
     string? Error);
 
 public sealed record DiagnoseErrorDto(int Offset, string Path, string? ResolvedPath, string Message);
+
 public sealed record HexWindowDto(int From, int To, int ErrorIndexInWindow, string Hex);
+
 public sealed record SalvagedDto(int Offset, string Text);
+
 public sealed record WireNodeDto(
-    string Path, string? ResolvedName, int Field, string Wire, int Offset,
-    int? Len, bool SchemaMismatch, List<WireNodeDto>? Children);
+    string Path,
+    string? ResolvedName,
+    int Field,
+    string Wire,
+    int Offset,
+    int? Len,
+    bool SchemaMismatch,
+    List<WireNodeDto>? Children);
+
 public sealed record RecoveryDto(int AlignedAt, int SkippedBytes, List<RecoveredFieldDto>? Fields);
+
 public sealed record RecoveredFieldDto(int Field, string? ResolvedName, string Wire, string Value, bool Bad);

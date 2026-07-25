@@ -13,8 +13,8 @@ public sealed record EffectSchema(IReadOnlyList<EffectField> Fields) {
     private readonly Dictionary<string, EffectField> _byName =
         Fields.ToDictionary(f => f.Name, StringComparer.Ordinal);
 
-    public bool TryGetField(string name, out EffectField field) => _byName.TryGetValue(name, out field!);
-
     public IReadOnlyList<string> RequiredNames { get; } =
         Fields.Where(f => f.Required).Select(f => f.Name).ToArray();
+
+    public bool TryGetField(string name, out EffectField field) => _byName.TryGetValue(name, out field!);
 }

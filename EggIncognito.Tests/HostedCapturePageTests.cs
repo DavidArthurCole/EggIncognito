@@ -1,8 +1,10 @@
+using System.Net;
 using Bunit;
 using EggIncognito.Capture;
 using EggIncognito.Controllers;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +14,11 @@ using CapturePage = EggIncognito.Components.Pages.Capture;
 namespace EggIncognito.Tests;
 
 public class HostedCapturePageTests {
+    private static CaptureSessionManager NewManager() =>
+        new(HostedCaptureOptions.Defaults(),
+            (key, basePort) => CaptureSessionManagerTests.NewSession(
+                key == CaptureSessionManager.LocalKey ? 18080 : basePort));
+
     private sealed class FakeAppMode(bool canCapture, bool hostedEnabled) : IAppMode {
         public AppMode Mode => AppMode.Hosted;
         public bool CanCapture => canCapture;
@@ -44,17 +51,12 @@ public class HostedCapturePageTests {
         public RouteInfo? Get(string path) => new(path, null, "PeriodicalsResponse", false, false, null, false, false);
     }
 
-    private static CaptureSessionManager NewManager() =>
-        new(HostedCaptureOptions.Defaults(),
-            (key, basePort) => CaptureSessionManagerTests.NewSession(
-                key == CaptureSessionManager.LocalKey ? 18080 : basePort));
-
 
     [Collection(HostedAppCollection.Name)]
     public class HostedDefault(HostedAppFactory f) {
         [Fact]
         public async Task Mode_Hosted_Default_ReportsHostedCaptureFalse() {
-            var json = await f.CreateClient().GetStringAsync("/api/app/mode");
+            string json = await f.CreateClient().GetStringAsync("/api/app/mode");
             Assert.Contains("\"hostedCapture\":false", json);
         }
     }
@@ -63,13 +65,13 @@ public class HostedCapturePageTests {
     public class CaptureEnabled(HostedCaptureAppFactory f) {
         [Fact]
         public async Task Mode_Hosted_Enabled_ReportsHostedCaptureTrue() {
-            var json = await f.CreateClient().GetStringAsync("/api/app/mode");
+            string json = await f.CreateClient().GetStringAsync("/api/app/mode");
             Assert.Contains("\"hostedCapture\":true", json);
         }
 
         [Fact]
         public async Task CapturePage_HostedEnabled_Anonymous_ShowsLoginPrompt() {
-            var html = await f.CreateClient().GetStringAsync("/capture");
+            string html = await f.CreateClient().GetStringAsync("/capture");
             Assert.Contains("id=\"hostedLogin\"", html);
 
             Assert.Contains("Login unavailable", html);
@@ -79,7 +81,7 @@ public class HostedCapturePageTests {
         [Fact]
         public async Task CaptureStart_HostedEnabled_Anonymous_Is401() {
             var r = await f.CreateClient().PostAsync("/api/capture/start", null);
-            Assert.Equal(System.Net.HttpStatusCode.Unauthorized, r.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, r.StatusCode);
         }
     }
 
@@ -87,19 +89,19 @@ public class HostedCapturePageTests {
     public class Component : BunitContext {
         private void Wire(bool authed, bool supporter) {
             JSInterop.Mode = JSRuntimeMode.Loose;
-            Services.AddSingleton<IAppMode>(new FakeAppMode(canCapture: false, hostedEnabled: true));
+            Services.AddSingleton<IAppMode>(new FakeAppMode(false, true));
             Services.AddSingleton<ICurrentUser>(new FakeUser(authed, supporter));
             Services.AddSingleton(HostedCaptureOptions.Defaults());
             Services.AddSingleton(NewManager());
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
-            Services.AddSingleton(new AuthState(IdentityApiEnabled: false));
+            Services.AddSingleton(new AuthState(false));
             Services.AddHttpClient();
         }
 
         [Fact]
         public void Anonymous_ShowsLoginPrompt() {
-            Wire(authed: false, supporter: false);
+            Wire(false, false);
             var cut = Render<CapturePage>();
             Assert.NotNull(cut.Find("#hostedLogin"));
             Assert.Empty(cut.FindAll("#hostedSetupCard"));
@@ -107,7 +109,7 @@ public class HostedCapturePageTests {
 
         [Fact]
         public void NonSupporter_ShowsPitchWithSupportLink() {
-            Wire(authed: true, supporter: false);
+            Wire(true, false);
             var cut = Render<CapturePage>();
             Assert.NotNull(cut.Find("#hostedPitch"));
             Assert.Contains("href=\"/support\"", cut.Markup);
@@ -116,7 +118,7 @@ public class HostedCapturePageTests {
 
         [Fact]
         public void Supporter_ShowsSetupCard_AndDashboard() {
-            Wire(authed: true, supporter: true);
+            Wire(true, true);
             var cut = Render<CapturePage>();
             Assert.NotNull(cut.Find("#hostedSetupCard"));
             Assert.NotNull(cut.Find("#statsPanel"));
@@ -124,9 +126,9 @@ public class HostedCapturePageTests {
 
         [Fact]
         public void Supporter_SetupCard_ShowsProxyAddress_NoAuthCredentials() {
-            Wire(authed: true, supporter: true);
+            Wire(true, true);
             var cut = Render<CapturePage>();
-            var markup = cut.Markup;
+            string markup = cut.Markup;
 
             Assert.NotNull(cut.Find("#proxyHost"));
             Assert.Contains("Server", markup);
@@ -147,7 +149,7 @@ public class HostedCapturePageTests {
     public class StartGate {
         private static CaptureController Controller(
             CaptureSessionManager manager, ICurrentUser user, ISupporterStatus supporters) =>
-            new(manager, new FakeAppMode(canCapture: false, hostedEnabled: true), user, supporters,
+            new(manager, new FakeAppMode(false, true), user, supporters,
                 HostedCaptureOptions.Defaults(), new EmptyServices());
 
         [Fact]
@@ -159,28 +161,27 @@ public class HostedCapturePageTests {
 
         [Fact]
         public async Task Start_LiveCheckFails_Is403SupporterRequired() {
-
-            var r = await Controller(NewManager(), new FakeUser(true, supporter: true), new FakeSupporters(false))
+            var r = await Controller(NewManager(), new FakeUser(true, true), new FakeSupporters(false))
                 .Start(CancellationToken.None);
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
-            Assert.Contains("supporter_required", ((Microsoft.AspNetCore.Mvc.ObjectResult)r).Value!.ToString());
+            Assert.Contains("supporter_required", ((ObjectResult)r).Value!.ToString());
         }
 
         [Fact]
         public async Task Start_Supporter_StartsOwnSession() {
             var manager = NewManager();
-            var r = await Controller(manager, new FakeUser(true, supporter: true), new FakeSupporters(true))
+            var r = await Controller(manager, new FakeUser(true, true), new FakeSupporters(true))
                 .Start(CancellationToken.None);
             Assert.Equal(200, ((IStatusCodeActionResult)r).StatusCode);
             var session = manager.Get("tester");
             Assert.NotNull(session);
-            Assert.Equal(CaptureState.Running, session!.State);
+            Assert.Equal(CaptureState.Running, session.State);
             await session.StopAsync();
         }
 
         [Fact]
         public async Task ProxyAddress_NonSupporter_Is403() {
-            var r = await Controller(NewManager(), new FakeUser(true, supporter: false), new FakeSupporters(false))
+            var r = await Controller(NewManager(), new FakeUser(true, false), new FakeSupporters(false))
                 .ProxyAddress(CancellationToken.None);
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
         }
@@ -191,7 +192,7 @@ public class HostedCapturePageTests {
             var manager = NewManager();
             var session = manager.GetOrCreate("tester");
             var controller = new CaptureController(
-                manager, new FakeAppMode(canCapture: false, hostedEnabled: true), user,
+                manager, new FakeAppMode(false, true), user,
                 new FakeSupporters(true), HostedCaptureOptions.Defaults(), new EmptyServices());
             return (controller, session);
         }
@@ -205,24 +206,24 @@ public class HostedCapturePageTests {
 
         [Fact]
         public async Task Save_Hosted_ViewerNonSupporter_Is403() {
-            var (controller, session) = WithFlowSession(new FakeUser(true, supporter: false, UserRole.Viewer));
-            var id = PublishFlow(session);
+            var (controller, session) = WithFlowSession(new FakeUser(true, false));
+            long id = PublishFlow(session);
             var r = await controller.SaveEndpoint(new CaptureController.SaveEndpointRequest(id), new FakeRoutes());
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
         }
 
         [Fact]
         public async Task Save_Hosted_Supporter_PassesGate_Then503NoDb() {
-            var (controller, session) = WithFlowSession(new FakeUser(true, supporter: true, UserRole.Viewer));
-            var id = PublishFlow(session);
+            var (controller, session) = WithFlowSession(new FakeUser(true, true));
+            long id = PublishFlow(session);
             var r = await controller.SaveEndpoint(new CaptureController.SaveEndpointRequest(id), new FakeRoutes());
             Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
         }
 
         [Fact]
         public async Task Save_Hosted_Contributor_PassesGate_Then503NoDb() {
-            var (controller, session) = WithFlowSession(new FakeUser(true, supporter: false, UserRole.Contributor));
-            var id = PublishFlow(session);
+            var (controller, session) = WithFlowSession(new FakeUser(true, false, UserRole.Contributor));
+            long id = PublishFlow(session);
             var r = await controller.SaveEndpoint(new CaptureController.SaveEndpointRequest(id), new FakeRoutes());
             Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
         }

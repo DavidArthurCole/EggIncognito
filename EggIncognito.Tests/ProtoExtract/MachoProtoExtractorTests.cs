@@ -4,11 +4,10 @@ using Google.Protobuf.Reflection;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-
 public class MachoProtoExtractorTests {
     [Fact]
     public void CarveAll_Fixture_FindsThreeDescriptors() {
-        if (!TryFixture(out var fx)) return;
+        if (!TryFixture(out byte[] fx)) return;
         var carved = MachoProtoExtractor.CarveAll(fx);
         Assert.Equal(["ei.proto", "common.proto", "abb.proto"], [.. carved.Select(c => c.Name)]);
         Assert.All(carved, c => Assert.True(c.Bytes.Length > 0));
@@ -18,14 +17,14 @@ public class MachoProtoExtractorTests {
 
     [Fact]
     public void EmitProto_Ei_RoundTripsTo152MessagesAnd8Enums() {
-        if (!TryFixture(out var fx)) return;
+        if (!TryFixture(out byte[] fx)) return;
         var ei = MachoProtoExtractor.CarveAll(fx).First(c => c.Name == "ei.proto");
 
 
         var fdp = FileDescriptorProto.Parser.ParseFrom(ei.Bytes);
         Assert.Equal(152, fdp.MessageType.Count);
         Assert.Equal(8, fdp.EnumType.Count);
-        var text = MachoProtoExtractor.EmitProto(ei.Bytes);
+        string? text = MachoProtoExtractor.EmitProto(ei.Bytes);
         Assert.NotNull(text);
         Assert.Contains("message EggIncFirstContactRequest {", text);
         Assert.Contains("syntax = \"proto2\";", text);
@@ -33,7 +32,7 @@ public class MachoProtoExtractorTests {
 
     [Fact]
     public void Extract_Fixture_MergesAndReportsCounts() {
-        if (!TryFixture(out var fx)) return;
+        if (!TryFixture(out byte[] fx)) return;
         var r = MachoProtoExtractor.Extract(fx);
         Assert.True(r.Ok);
         Assert.NotNull(r.Proto);
@@ -47,7 +46,7 @@ public class MachoProtoExtractorTests {
 
     [Fact]
     public void Extract_TopLevelMessages_MatchFrozenSchema() {
-        if (!TryFixture(out var fx)) return;
+        if (!TryFixture(out byte[] fx)) return;
         var ei = MachoProtoExtractor.CarveAll(fx).First(c => c.Name == "ei.proto");
         var fdp = FileDescriptorProto.Parser.ParseFrom(ei.Bytes);
         var reflection = new ProtoReflection();
@@ -59,9 +58,9 @@ public class MachoProtoExtractorTests {
         var schema = reflection.Schema("EggIncFirstContactRequest");
         Assert.NotNull(schema);
         foreach (var f in fc.Field) {
-            var sf = schema!.Fields.FirstOrDefault(x => x.Number == f.Number);
+            var sf = schema.Fields.FirstOrDefault(x => x.Number == f.Number);
             Assert.True(sf is not null, $"frozen missing field #{f.Number} ({f.Name})");
-            Assert.Equal(f.Name, sf!.Name);
+            Assert.Equal(f.Name, sf.Name);
         }
     }
 
@@ -80,5 +79,6 @@ public class MachoProtoExtractorTests {
     }
 
 
-    private static bool TryFixture(out byte[] bytes) => TestFixtureFiles.TryRead("egginc-1.35.8-descriptors.bin", out bytes);
+    private static bool TryFixture(out byte[] bytes) =>
+        TestFixtureFiles.TryRead("egginc-1.35.8-descriptors.bin", out bytes);
 }

@@ -1,5 +1,7 @@
 using EggIncognito.Bot;
 using EggIncognito.Services;
+using Google.Protobuf;
+using Google.Protobuf.Reflection;
 
 namespace EggIncognito.Tests;
 
@@ -31,16 +33,16 @@ public class ExtraCommandsTests {
 
     internal sealed class FakeStatusProvider : IStatusProvider {
         public StatusSnapshot Build() => new(
-            Mode: "Local", CanCapture: true, CanWrite: true, CaptureState: "Idle",
-            CaptureRunning: false, FlowsCaptured: 0, DeviceCount: 0, BytesCaptured: 0,
-            DbEnabled: false, SigningReady: false, Uptime: TimeSpan.Zero,
-            Build: new BuildInfo("0.0.0", "unknown", "unknown", "unknown", "https://example.com"),
-            EndpointsOk: 0, EndpointsEmpty: 0, EndpointsMissing: 0);
+            "Local", true, true, "Idle",
+            false, 0, 0, 0,
+            false, false, TimeSpan.Zero,
+            new BuildInfo("0.0.0", "unknown", "unknown", "unknown", "https://example.com"),
+            0, 0, 0);
     }
 
     internal sealed class FakeProtoReflection : IProtoReflection {
-        public Google.Protobuf.Reflection.MessageDescriptor? FindMessage(string typeName) => null;
-        public Google.Protobuf.MessageParser? FindParser(string typeName) => null;
+        public MessageDescriptor? FindMessage(string typeName) => null;
+        public MessageParser? FindParser(string typeName) => null;
         public SchemaMessage? Schema(string typeName) => null;
         public IReadOnlyList<string> AllMessageTypeNames() => Array.Empty<string>();
     }

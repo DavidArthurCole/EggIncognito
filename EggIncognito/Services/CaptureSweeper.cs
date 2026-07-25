@@ -12,29 +12,36 @@ public sealed class CaptureSweeper(
         try {
             while (await timer.WaitForNextTickAsync(stoppingToken))
                 await SweepOnceAsync(time.GetUtcNow());
-        } catch (OperationCanceledException) { /* shutdown */ }
+        } catch (OperationCanceledException) {
+            /* shutdown */
+        }
     }
 
     internal async Task SweepOnceAsync(DateTimeOffset nowUtc) {
-        foreach (var (key, session) in manager.All()) {
+        foreach ((string key, var session) in manager.All()) {
             if (key == CaptureSessionManager.LocalKey) continue;
 
-            var idle = nowUtc - session.LastFlowUtc > TimeSpan.FromMinutes(opts.MaxIdleMinutes);
-            var capped = nowUtc - session.StartedUtc > TimeSpan.FromHours(opts.MaxSessionHours);
+            bool idle = nowUtc - session.LastFlowUtc > TimeSpan.FromMinutes(opts.MaxIdleMinutes);
+            bool capped = nowUtc - session.StartedUtc > TimeSpan.FromHours(opts.MaxSessionHours);
 
             if (session.State != CaptureState.Running) {
-
                 if (session.State == CaptureState.Stopped && idle) {
                     manager.Remove(key);
                     logger.LogInformation("capture sweep: released stopped session {Key}", key);
                 }
+
                 continue;
             }
 
             if (!idle && !capped) continue;
 
             manager.Remove(key);
-            try { await session.StopAsync(); } catch (Exception ex) { logger.LogWarning(ex, "capture sweep: stop failed for {Key}", key); }
+            try {
+                await session.StopAsync();
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "capture sweep: stop failed for {Key}", key);
+            }
+
             logger.LogInformation("capture sweep: stopped {Key} ({Reason})", key, capped ? "session cap" : "idle");
         }
     }

@@ -3,23 +3,20 @@ using EggIncognito.Core.Services.Devices;
 namespace EggIncognito.Services.Devices;
 
 public sealed class AndroidPlayStoreChecker(
-    IProcessRunner runner, AndroidPlayStoreChecker.Options opts, ILogger<AndroidPlayStoreChecker> logger)
+    IProcessRunner runner,
+    AndroidPlayStoreChecker.Options opts,
+    ILogger<AndroidPlayStoreChecker> logger)
     : IDeviceStoreChecker {
-
-
-    public sealed record Options(
-        string DriveTemplate, int PollSeconds, int PollAttempts,
-        int UiFirstWaitSeconds = 6, int UiRetryWaitSeconds = 3);
-
     public string Platform => "android";
 
     public async Task<StoreCheckResult> CheckAndUpdateAsync(
         DeviceStoreTarget device, CancellationToken ct, Action<string>? progress = null) {
         progress?.Invoke("reading installed version over adb…");
-        var before = await ReadInstalledAsync(device, ct);
+        string? before = await ReadInstalledAsync(device, ct);
         if (before is null) {
             logger.LogInformation("device check-update: {Id} android unreachable (no version read)", device.Id);
-            return new StoreCheckResult(false, null, null, false, false, "unreachable", "device unreachable or no version read");
+            return new StoreCheckResult(false, null, null, false, false, "unreachable",
+                "device unreachable or no version read");
         }
 
         progress?.Invoke($"installed {before}; waking device + opening Play…");
@@ -32,12 +29,14 @@ public sealed class AndroidPlayStoreChecker(
                 return new StoreCheckResult(true, before, before, false, false, "up_to_date",
                     "no Update button on the Play page (already current, or update not yet offered)");
             }
-            var note = $"Play UI drive failed: {drive.Note}";
+
+            string note = $"Play UI drive failed: {drive.Note}";
             logger.LogWarning("device check-update: {Id} android error: {Note}", device.Id, note);
             return new StoreCheckResult(true, before, before, false, false, "error", note);
         }
 
-        progress?.Invoke($"Update tapped; waiting for Play to install (up to {opts.PollAttempts * opts.PollSeconds}s)…");
+        progress?.Invoke(
+            $"Update tapped; waiting for Play to install (up to {opts.PollAttempts * opts.PollSeconds}s)…");
         try {
             return await StorePoll.WaitForClimbAsync(device.Id, "android", "Play", before,
                 c => ReadInstalledAsync(device, c), opts.PollSeconds, opts.PollAttempts, logger, progress, ct);
@@ -51,11 +50,10 @@ public sealed class AndroidPlayStoreChecker(
         try {
             await Shell(device, "input keyevent KEYCODE_HOME", ct);
             await Shell(device, "input keyevent KEYCODE_SLEEP", ct);
-        } catch (Exception ex) { logger.LogDebug(ex, "device {Id} screen-sleep best-effort failed", device.Id); }
+        } catch (Exception ex) {
+            logger.LogDebug(ex, "device {Id} screen-sleep best-effort failed", device.Id);
+        }
     }
-
-    private readonly record struct DriveOutcome(bool Ok, bool NoUpdateButton, string? Note);
-
 
 
     private async Task<DriveOutcome> DrivePlayUpdateAsync(
@@ -63,17 +61,21 @@ public sealed class AndroidPlayStoreChecker(
         await Shell(device, "input keyevent KEYCODE_WAKEUP", ct);
         await Shell(device, "wm dismiss-keyguard", ct);
 
-        var deepLink = opts.DriveTemplate.Replace("{package}", device.Package);
+        string deepLink = opts.DriveTemplate.Replace("{package}", device.Package);
         var open = await Shell(device, deepLink, ct);
         if (open.ExitCode != 0)
             return new DriveOutcome(false, false, $"open page: {DeviceParsing.TrimNote(open.Stderr + open.Stdout)}");
 
         progress?.Invoke("Play page open; locating Update button…");
-        for (var tries = 0; tries < 4; tries++) {
-            var wait = tries == 0 ? opts.UiFirstWaitSeconds : opts.UiRetryWaitSeconds;
-            try { if (wait > 0) await Task.Delay(TimeSpan.FromSeconds(wait), ct); } catch (OperationCanceledException) { break; }
+        for (int tries = 0; tries < 4; tries++) {
+            int wait = tries == 0 ? opts.UiFirstWaitSeconds : opts.UiRetryWaitSeconds;
+            try {
+                if (wait > 0) await Task.Delay(TimeSpan.FromSeconds(wait), ct);
+            } catch (OperationCanceledException) {
+                break;
+            }
 
-            var xml = await DumpUiAsync(device, ct);
+            string? xml = await DumpUiAsync(device, ct);
             if (xml is null) continue;
 
             var bounds = FindUpdateButtonCenter(xml);
@@ -82,12 +84,15 @@ public sealed class AndroidPlayStoreChecker(
                 var tap = await Shell(device, $"input tap {c.X} {c.Y}", ct);
                 if (tap.ExitCode != 0)
                     return new DriveOutcome(false, false, $"tap: {DeviceParsing.TrimNote(tap.Stderr + tap.Stdout)}");
-                logger.LogInformation("device check-update: {Id} android tapped Update at {X},{Y}", device.Id, c.X, c.Y);
+                logger.LogInformation("device check-update: {Id} android tapped Update at {X},{Y}", device.Id, c.X,
+                    c.Y);
                 return new DriveOutcome(true, false, null);
             }
+
             if (HasButton(xml, "Open") || HasButton(xml, "Uninstall"))
                 return new DriveOutcome(false, true, "no Update button (current)");
         }
+
         return new DriveOutcome(false, true, "Update button not found (page may not have loaded an update)");
     }
 
@@ -100,19 +105,21 @@ public sealed class AndroidPlayStoreChecker(
 
 
     internal static (int X, int Y)? FindUpdateButtonCenter(string xml) {
-        var idx = xml.IndexOf("text=\"Update\"", StringComparison.Ordinal);
+        int idx = xml.IndexOf("text=\"Update\"", StringComparison.Ordinal);
         while (idx >= 0) {
-            var b = xml.IndexOf("bounds=\"", idx, StringComparison.Ordinal);
+            int b = xml.IndexOf("bounds=\"", idx, StringComparison.Ordinal);
             if (b >= 0) {
-                var end = xml.IndexOf('"', b + 8);
+                int end = xml.IndexOf('"', b + 8);
                 if (end > b) {
-                    var raw = xml[(b + 8)..end];
-                    if (TryParseBounds(raw, out var l, out var t, out var r, out var bot))
+                    string raw = xml[(b + 8)..end];
+                    if (TryParseBounds(raw, out int l, out int t, out int r, out int bot))
                         return ((l + r) / 2, (t + bot) / 2);
                 }
             }
+
             idx = xml.IndexOf("text=\"Update\"", idx + 1, StringComparison.Ordinal);
         }
+
         return null;
     }
 
@@ -121,12 +128,10 @@ public sealed class AndroidPlayStoreChecker(
 
     private static bool TryParseBounds(string s, out int l, out int t, out int r, out int b) {
         l = t = r = b = 0;
-        var nums = s.Replace('[', ' ').Replace(']', ' ').Replace(',', ' ')
+        string[] nums = s.Replace('[', ' ').Replace(']', ' ').Replace(',', ' ')
             .Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return nums.Length != 4
-            ? false
-            : int.TryParse(nums[0], out l) && int.TryParse(nums[1], out t)
-            && int.TryParse(nums[2], out r) && int.TryParse(nums[3], out b);
+        return nums.Length == 4 && int.TryParse(nums[0], out l) && int.TryParse(nums[1], out t)
+               && int.TryParse(nums[2], out r) && int.TryParse(nums[3], out b);
     }
 
     private Task<ProcessResult> Shell(DeviceStoreTarget device, string cmd, CancellationToken ct) =>
@@ -136,4 +141,14 @@ public sealed class AndroidPlayStoreChecker(
         var probe = await new AdbDeviceProbe(runner, device.Target, device.Package).ProbeAsync(ct);
         return probe.InstalledAppVersion;
     }
+
+
+    public sealed record Options(
+        string DriveTemplate,
+        int PollSeconds,
+        int PollAttempts,
+        int UiFirstWaitSeconds = 6,
+        int UiRetryWaitSeconds = 3);
+
+    private readonly record struct DriveOutcome(bool Ok, bool NoUpdateButton, string? Note);
 }

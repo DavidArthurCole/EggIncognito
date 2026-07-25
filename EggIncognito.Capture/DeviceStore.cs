@@ -27,7 +27,6 @@ public sealed class DeviceStore(string capturePath) {
             Directory.CreateDirectory(capturePath);
             File.WriteAllText(FilePath, JsonSerializer.Serialize(capped, Json));
         } catch {
-
         }
     }
 }

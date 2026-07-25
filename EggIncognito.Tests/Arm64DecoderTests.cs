@@ -3,15 +3,15 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Tests;
 
 public class Arm64DecoderTests {
-
     private static byte[] Words(params uint[] words) {
-        var b = new byte[words.Length * 4];
+        byte[] b = new byte[words.Length * 4];
         for (int i = 0; i < words.Length; i++) {
             b[i * 4 + 0] = (byte)(words[i] & 0xFF);
             b[i * 4 + 1] = (byte)((words[i] >> 8) & 0xFF);
             b[i * 4 + 2] = (byte)((words[i] >> 16) & 0xFF);
             b[i * 4 + 3] = (byte)((words[i] >> 24) & 0xFF);
         }
+
         return b;
     }
 

@@ -7,7 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace EggIncognito.Tests;
 
 public abstract class EgiTestFactory : WebApplicationFactory<Program> {
-    protected virtual void Configure(IWebHostBuilder builder) { }
+    protected virtual void Configure(IWebHostBuilder builder) {
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseSetting("NoBrowser", "true");
@@ -18,7 +19,8 @@ public abstract class EgiTestFactory : WebApplicationFactory<Program> {
     }
 }
 
-public sealed class SharedAppFactory : EgiTestFactory { }
+public sealed class SharedAppFactory : EgiTestFactory {
+}
 
 [CollectionDefinition(Name)]
 public sealed class SharedAppCollection : ICollectionFixture<SharedAppFactory> {

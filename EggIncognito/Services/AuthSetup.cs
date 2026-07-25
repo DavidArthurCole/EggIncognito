@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using EggIncognito.Data.Services;
+using EggIncognito.Services.Auth;
+using EggIncognito.Services.DataApi;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using SyncKit.Auth;
@@ -7,24 +9,27 @@ using SyncKit.Identity.Client;
 
 namespace EggIncognito.Services;
 
-
 public static class AuthSetup {
+    private const string SelectorScheme = "EgiAuthSelector";
 
 
     private static async Task ValidateNotRevoked(CookieValidatePrincipalContext ctx) {
         var identity = ctx.HttpContext.RequestServices.GetService<IdentityApiClient>();
         if (identity is null) return;
         try {
-            await AuthentikAspNetAuth.OnValidatePrincipalCheckRevoked(ctx, identity, AuthClaims.UserIdClaim, AuthClaims.RoleClaim);
+            await AuthentikAspNetAuth.OnValidatePrincipalCheckRevoked(ctx, identity, AuthClaims.UserIdClaim,
+                AuthClaims.RoleClaim);
         } catch (HttpRequestException ex) {
             ctx.HttpContext.RequestServices.GetService<ILoggerFactory>()?
                 .CreateLogger("EggIncognito.Auth")
                 .LogWarning(ex, "revocation check skipped: identity API unreachable");
-        } catch (TaskCanceledException) { }
+        } catch (TaskCanceledException) {
+        }
     }
 
     private static async Task StampSupporterClaim(ClaimsPrincipal principal, HttpContext ctx, CancellationToken ct) {
-        var discordId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? principal.FindFirstValue(SessionClaims.DiscordId);
+        string? discordId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                            principal.FindFirstValue(SessionClaims.DiscordId);
         if (string.IsNullOrEmpty(discordId) || principal.Identity is not ClaimsIdentity identity) return;
         var supporters = ctx.RequestServices.GetService<ISupporterStatus>();
         if (supporters is null) return;
@@ -44,7 +49,9 @@ public static class AuthSetup {
     }
 
     private static Task StampSupporterClaimCookie(CookieValidatePrincipalContext ctx) =>
-        ctx.Principal is null ? Task.CompletedTask : StampSupporterClaim(ctx.Principal, ctx.HttpContext, ctx.HttpContext.RequestAborted);
+        ctx.Principal is null
+            ? Task.CompletedTask
+            : StampSupporterClaim(ctx.Principal, ctx.HttpContext, ctx.HttpContext.RequestAborted);
 
     public static bool AddSyncKitAuthIfConfigured(
         this WebApplicationBuilder builder, bool identityApiEnabled, SessionCookieOptions? session) {
@@ -64,19 +71,18 @@ public static class AuthSetup {
                     await StampSupporterClaimCookie(ctx);
                 };
             })
-            .AddScheme<AuthenticationSchemeOptions, Auth.ApiKeyAuthenticationHandler>(
-                DataApi.ApiKeyGen.SchemeName, null);
+            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+                ApiKeyGen.SchemeName, null);
         if (session is not null) {
-            auth.AddSyncKitSession(session, onValidated: StampSupporterClaim);
+            auth.AddSyncKitSession(session, StampSupporterClaim);
             auth.AddPolicyScheme(SelectorScheme, SelectorScheme, o =>
                 o.ForwardDefaultSelector = ctx =>
                     ctx.Request.Cookies.ContainsKey(session.CookieName)
                         ? SyncKitSessionDefaults.Scheme
                         : CookieAuthenticationDefaults.AuthenticationScheme);
         }
+
         builder.Services.AddAuthorization();
         return true;
     }
-
-    private const string SelectorScheme = "EgiAuthSelector";
 }

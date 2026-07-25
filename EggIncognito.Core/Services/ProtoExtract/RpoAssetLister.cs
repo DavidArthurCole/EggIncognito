@@ -8,7 +8,10 @@ public static class RpoAssetLister {
 
     public static IReadOnlyList<string> ListStems(byte[] archiveZipBytes) {
         var stems = new SortedSet<string>(StringComparer.Ordinal);
-        ForEachRpoEntry(archiveZipBytes, (stem, _) => { stems.Add(stem); return false; });
+        ForEachRpoEntry(archiveZipBytes, (stem, _) => {
+            stems.Add(stem);
+            return false;
+        });
         return stems.ToList();
     }
 
@@ -24,15 +27,18 @@ public static class RpoAssetLister {
     }
 
 
-
     private static void ForEachRpoEntry(byte[] zipBytes, Func<string, Func<byte[]>, bool> visit) {
         if (zipBytes is null || zipBytes.Length == 0) return;
         ZipArchive zip;
-        try { zip = new ZipArchive(new MemoryStream(zipBytes, writable: false), ZipArchiveMode.Read); } catch { return; }
+        try {
+            zip = new ZipArchive(new MemoryStream(zipBytes, false), ZipArchiveMode.Read);
+        } catch {
+            return;
+        }
 
         using (zip) {
             foreach (var entry in zip.Entries) {
-                var name = entry.FullName;
+                string name = entry.FullName;
                 if (!name.EndsWith(".rpo", StringComparison.OrdinalIgnoreCase)
                     && !name.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase)) {
                     continue;
@@ -40,22 +46,24 @@ public static class RpoAssetLister {
 
                 if (entry.Length is <= 0 or > MaxEntryBytes) continue;
 
-                var stem = Stem(name);
+                string stem = Stem(name);
+
                 byte[] Read() {
                     using var es = entry.Open();
                     using var buf = new MemoryStream();
                     es.CopyTo(buf);
                     return buf.ToArray();
                 }
+
                 if (visit(stem, Read)) return;
             }
         }
     }
 
     private static string Stem(string fullName) {
-        var slash = fullName.LastIndexOfAny(['/', '\\']);
-        var name = slash >= 0 ? fullName[(slash + 1)..] : fullName;
-        var dot = name.LastIndexOf('.');
+        int slash = fullName.LastIndexOfAny(['/', '\\']);
+        string name = slash >= 0 ? fullName[(slash + 1)..] : fullName;
+        int dot = name.LastIndexOf('.');
         return dot > 0 ? name[..dot] : name;
     }
 }

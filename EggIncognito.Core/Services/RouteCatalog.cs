@@ -1,6 +1,3 @@
-
-
-
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 
@@ -15,8 +12,6 @@ public sealed record RouteInfo(
     string? RawResponse,
     bool PathParam,
     bool PathParamOnly) {
-
-
     public IReadOnlyList<string> Aliases { get; init; } = [];
 }
 
@@ -26,11 +21,12 @@ public interface IRouteCatalog {
 }
 
 public sealed partial class RouteCatalog : IRouteCatalog {
-    private readonly IReadOnlyList<RouteInfo> _routes;
     private readonly Dictionary<string, RouteInfo> _byPath;
+    private readonly IReadOnlyList<RouteInfo> _routes;
 
     public RouteCatalog(IConfiguration config)
-        : this(ResolveYamlPath(config)) { }
+        : this(ResolveYamlPath(config)) {
+    }
 
     internal RouteCatalog(string yamlPath) {
         var list = File.Exists(yamlPath) ? Parse(File.ReadAllText(yamlPath)) : [];
@@ -41,18 +37,10 @@ public sealed partial class RouteCatalog : IRouteCatalog {
     public IReadOnlyList<RouteInfo> All() => _routes;
 
     public RouteInfo? Get(string path) =>
-        _byPath.TryGetValue(path, out var e) ? e : null;
+        _byPath.GetValueOrDefault(path);
 
     private static string ResolveYamlPath(IConfiguration config) =>
         ContentRoot.ResolveRouteMapFile(config["RoutesYamlPath"], "routes.yaml");
-
-
-    private sealed class Block {
-        public string? Path, Request, Response, RawResponse, LegacyReq, LegacyRes;
-        public bool? RequestWrapped, ResponseWrapped;
-        public bool PathParam, PathParamOnly, HasRequest, HasResponse, InAliases;
-        public List<string> Aliases = [];
-    }
 
 
     internal static List<RouteInfo> Parse(string yaml) {
@@ -65,8 +53,8 @@ public sealed partial class RouteCatalog : IRouteCatalog {
             b = null;
         }
 
-        foreach (var rawLine in yaml.Split('\n')) {
-            var line = rawLine.TrimEnd('\r');
+        foreach (string rawLine in yaml.Split('\n')) {
+            string line = rawLine.TrimEnd('\r');
 
             var topKey = TopKeyRegex().Match(line);
             if (topKey.Success) {
@@ -74,19 +62,22 @@ public sealed partial class RouteCatalog : IRouteCatalog {
                 inRoutes = topKey.Groups[1].Value == "routes";
                 continue;
             }
+
             if (!inRoutes) continue;
 
-            var pathMatch = Regex.Match(line, @"^\s+-\s+path:\s*(.*?)\s*$");
+            var pathMatch = MyRegex().Match(line);
             if (pathMatch.Success) {
                 Flush();
-                var path = pathMatch.Groups[1].Value.Trim().TrimEnd('/');
+                string path = pathMatch.Groups[1].Value.Trim().TrimEnd('/');
                 b = new Block { Path = path.Length == 0 ? null : path };
                 continue;
             }
+
             if (b is null) continue;
 
             ApplyLine(b, line);
         }
+
         Flush();
         return result;
     }
@@ -98,11 +89,12 @@ public sealed partial class RouteCatalog : IRouteCatalog {
         }
 
         if (b.InAliases) {
-            var item = Regex.Match(line, @"^\s+-\s*([^#]*?)\s*(?:#.*)?$");
+            var item = AliasItemRegex().Match(line);
             if (item.Success) {
                 if (item.Groups[1].Value.Length > 0) b.Aliases.Add(item.Groups[1].Value);
                 return;
             }
+
             b.InAliases = false;
         }
 
@@ -111,7 +103,13 @@ public sealed partial class RouteCatalog : IRouteCatalog {
             b.LegacyReq = v;
         } else if ((v = V("responseType")) is not null) {
             b.LegacyRes = v;
-        } else if ((v = V("request")) is not null) { b.Request = NullIfEmpty(v); b.HasRequest = true; } else if ((v = V("response")) is not null) { b.Response = NullIfEmpty(v); b.HasResponse = true; } else if ((v = V("requestWrapped")) is not null) {
+        } else if ((v = V("request")) is not null) {
+            b.Request = NullIfEmpty(v);
+            b.HasRequest = true;
+        } else if ((v = V("response")) is not null) {
+            b.Response = NullIfEmpty(v);
+            b.HasResponse = true;
+        } else if ((v = V("requestWrapped")) is not null) {
             b.RequestWrapped = v == "true";
         } else if ((v = V("responseWrapped")) is not null) {
             b.ResponseWrapped = v == "true";
@@ -129,17 +127,17 @@ public sealed partial class RouteCatalog : IRouteCatalog {
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
 
     private static RouteInfo Emit(Block b) {
-        var (reqType, reqWrapDefault) = Normalize(b.HasRequest ? b.Request : b.LegacyReq);
-        var (resType, resWrapDefault) = Normalize(b.HasResponse ? b.Response : b.LegacyRes);
+        (string? reqType, bool reqWrapDefault) = Normalize(b.HasRequest ? b.Request : b.LegacyReq);
+        (string? resType, bool resWrapDefault) = Normalize(b.HasResponse ? b.Response : b.LegacyRes);
         return new RouteInfo(
-            Path: b.Path!,
-            Request: b.PathParamOnly ? null : reqType,
-            Response: resType,
-            RequestWrapped: b.RequestWrapped ?? reqWrapDefault,
-            ResponseWrapped: b.ResponseWrapped ?? resWrapDefault,
-            RawResponse: b.RawResponse,
-            PathParam: b.PathParam,
-            PathParamOnly: b.PathParamOnly) { Aliases = b.Aliases };
+            b.Path!,
+            b.PathParamOnly ? null : reqType,
+            resType,
+            b.RequestWrapped ?? reqWrapDefault,
+            b.ResponseWrapped ?? resWrapDefault,
+            b.RawResponse,
+            b.PathParam,
+            b.PathParamOnly) { Aliases = b.Aliases };
     }
 
 
@@ -151,4 +149,18 @@ public sealed partial class RouteCatalog : IRouteCatalog {
 
     [GeneratedRegex(@"^(\w[\w_]*):\s*$")]
     private static partial Regex TopKeyRegex();
+
+    [GeneratedRegex(@"^\s+-\s+path:\s*(.*?)\s*$")]
+    private static partial Regex MyRegex();
+
+    [GeneratedRegex(@"^\s+-\s*([^#]*?)\s*(?:#.*)?$")]
+    private static partial Regex AliasItemRegex();
+
+
+    private sealed class Block {
+        public readonly List<string> Aliases = [];
+        public string? Path, Request, Response, RawResponse, LegacyReq, LegacyRes;
+        public bool PathParam, PathParamOnly, HasRequest, HasResponse, InAliases;
+        public bool? RequestWrapped, ResponseWrapped;
+    }
 }

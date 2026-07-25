@@ -14,14 +14,14 @@ public class ApiAccessGuardTests {
 
         var missing = new List<string>();
         foreach (var t in controllers) {
-            if (t.GetCustomAttributes(typeof(ApiAccessAttribute), inherit: true).Length > 0) continue;
+            if (t.GetCustomAttributes(typeof(ApiAccessAttribute), true).Length > 0) continue;
 
             var actions = t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-                .Where(m => m.GetCustomAttributes(typeof(HttpMethodAttribute), inherit: true).Length > 0)
+                .Where(m => m.GetCustomAttributes(typeof(HttpMethodAttribute), true).Length > 0)
                 .ToArray();
 
             if (actions.Length > 0 &&
-                actions.All(m => m.GetCustomAttributes(typeof(ApiAccessAttribute), inherit: true).Length > 0)) {
+                actions.All(m => m.GetCustomAttributes(typeof(ApiAccessAttribute), true).Length > 0)) {
                 continue;
             }
 

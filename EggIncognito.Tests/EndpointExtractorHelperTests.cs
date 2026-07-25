@@ -9,26 +9,27 @@ public class EndpointExtractorHelperTests {
 
     [Fact]
     public void ScrubEid_ReplacesExactMatch() {
-        var red = EndpointExtractor.ScrubEid($"{{ \"userId\": \"{Eid}\" }}", Eid, Placeholder);
+        string red = EndpointExtractor.ScrubEid($"{{ \"userId\": \"{Eid}\" }}", Eid, Placeholder);
         Assert.DoesNotContain(Eid, red);
         Assert.Contains(Placeholder, red);
     }
 
     [Fact]
     public void ScrubEid_IsCaseInsensitive() {
-        var red = EndpointExtractor.ScrubEid("ei1234567890123456 and Ei1234567890123456", Eid, Placeholder);
+        string red = EndpointExtractor.ScrubEid("ei1234567890123456 and Ei1234567890123456", Eid, Placeholder);
         Assert.DoesNotContain("1234567890123456", red);
         Assert.Equal($"{Placeholder} and {Placeholder}", red);
     }
 
     [Fact]
     public void ScrubEid_CatchesEmbeddedRendering() {
-        var red = EndpointExtractor.ScrubEid($"prefix{Eid}suffix", Eid, Placeholder);
+        string red = EndpointExtractor.ScrubEid($"prefix{Eid}suffix", Eid, Placeholder);
         Assert.Equal($"prefix{Placeholder}suffix", red);
     }
 
     [Fact]
-    public void ScrubEid_NullEid_Passthrough() => Assert.Equal("unchanged", EndpointExtractor.ScrubEid("unchanged", null, Placeholder));
+    public void ScrubEid_NullEid_Passthrough() =>
+        Assert.Equal("unchanged", EndpointExtractor.ScrubEid("unchanged", null, Placeholder));
 
     [Fact]
     public void CountJsonFields_CountsColonsOutsideStrings() {
@@ -39,9 +40,8 @@ public class EndpointExtractorHelperTests {
 
     [Fact]
     public void CountJsonFields_SeesLossThatObjectCountMisses() {
-
-        var rich = "{\"a\":1,\"b\":2,\"c\":3}";
-        var sparse = "{\"a\":1}";
+        const string rich = "{\"a\":1,\"b\":2,\"c\":3}";
+        const string sparse = "{\"a\":1}";
         Assert.True(EndpointExtractor.CountJsonFields(sparse) < EndpointExtractor.CountJsonFields(rich));
     }
 
@@ -75,5 +75,6 @@ public class EndpointExtractorHelperTests {
     }
 
     [Fact]
-    public void ReadRequestData_NoDataKey_ReturnsNull() => Assert.Null(EndpointExtractor.ReadRequestData(Req("{ \"text\": \"other=1&more=2\" }")));
+    public void ReadRequestData_NoDataKey_ReturnsNull() =>
+        Assert.Null(EndpointExtractor.ReadRequestData(Req("{ \"text\": \"other=1&more=2\" }")));
 }

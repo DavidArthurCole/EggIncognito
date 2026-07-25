@@ -32,8 +32,8 @@ public enum CombineMode {
 
 public static class Folding {
     public static double Fold(CombineMode mode, double seed, IEnumerable<double> contributions) {
-        var value = seed;
-        foreach (var c in contributions) {
+        double value = seed;
+        foreach (double c in contributions) {
             value = mode switch {
                 CombineMode.Add => value + c,
                 CombineMode.Mul => value * c,
@@ -41,6 +41,7 @@ public static class Folding {
                 _ => value
             };
         }
+
         return value;
     }
 }

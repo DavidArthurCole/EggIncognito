@@ -5,8 +5,6 @@ using System.Net.Sockets;
 namespace EggIncognito.Services.Devices;
 
 public static class HostAddress {
-    public sealed record Nic(string Name, bool IsUp, bool IsLoopback, IReadOnlyList<string> IPv4Addresses);
-
     public static string? Resolve(string? configured, IReadOnlyList<Nic>? nics = null) =>
         !string.IsNullOrWhiteSpace(configured) ? configured.Trim() : Pick(nics ?? Enumerate());
 
@@ -21,10 +19,12 @@ public static class HostAddress {
     }
 
     private static bool IsVirtual(string name) {
-        var n = name.ToLowerInvariant();
-        return n.StartsWith("docker", StringComparison.Ordinal) || n.StartsWith("veth", StringComparison.Ordinal) || n.StartsWith("br-", StringComparison.Ordinal)
-            || n.StartsWith("vmnet", StringComparison.Ordinal) || n.StartsWith("vbox", StringComparison.Ordinal) || n == "lo" || n.StartsWith("tun", StringComparison.Ordinal)
-            || n.StartsWith("tap", StringComparison.Ordinal) || n.StartsWith("wg", StringComparison.Ordinal);
+        string n = name.ToLowerInvariant();
+        return n.StartsWith("docker", StringComparison.Ordinal) || n.StartsWith("veth", StringComparison.Ordinal) ||
+               n.StartsWith("br-", StringComparison.Ordinal)
+               || n.StartsWith("vmnet", StringComparison.Ordinal) || n.StartsWith("vbox", StringComparison.Ordinal) ||
+               n == "lo" || n.StartsWith("tun", StringComparison.Ordinal)
+               || n.StartsWith("tap", StringComparison.Ordinal) || n.StartsWith("wg", StringComparison.Ordinal);
     }
 
     private static bool IsRoutableV4(string ip) =>
@@ -35,10 +35,10 @@ public static class HostAddress {
 
     private static bool IsPrivate(string ip) {
         if (!IPAddress.TryParse(ip, out var a) || a.AddressFamily != AddressFamily.InterNetwork) return false;
-        var b = a.GetAddressBytes();
+        byte[] b = a.GetAddressBytes();
         return b[0] == 10
-            || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
-            || (b[0] == 192 && b[1] == 168);
+               || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
+               || (b[0] == 192 && b[1] == 168);
     }
 
     private static List<Nic> Enumerate() {
@@ -58,4 +58,6 @@ public static class HostAddress {
             return [];
         }
     }
+
+    public sealed record Nic(string Name, bool IsUp, bool IsLoopback, IReadOnlyList<string> IPv4Addresses);
 }

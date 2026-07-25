@@ -6,13 +6,13 @@ namespace EggIncognito.Tests.GameData;
 public sealed class BoostCostParityTests {
     [Fact]
     public void GameDataBoostCosts_MatchGetConfigCapture() {
-        var path = FindFixture();
+        string? path = FindFixture();
         if (path is null) return;
 
         var costs = BoostCostExtractor.FromConfigJson(File.ReadAllText(path));
         var provider = GameDataProvider.CreateDefault();
 
-        var matched = 0;
+        int matched = 0;
         foreach (var e in provider.All("boost")) {
             if (!costs.TryGetValue(e.Id, out var cost)) continue;
             matched++;
@@ -34,10 +34,12 @@ public sealed class BoostCostParityTests {
     private static string? FindFixture() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null) {
-            var candidate = Path.Combine(dir.FullName, "EggIncognito", "Endpoints", "default", "ei", "get_config.json");
+            string candidate = Path.Combine(dir.FullName, "EggIncognito", "Endpoints", "default", "ei",
+                "get_config.json");
             if (File.Exists(candidate)) return candidate;
             dir = dir.Parent;
         }
+
         return null;
     }
 }

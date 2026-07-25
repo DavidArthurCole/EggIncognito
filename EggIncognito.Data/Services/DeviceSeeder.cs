@@ -8,7 +8,7 @@ public static class DeviceSeeder {
         IReadOnlyList<(string Id, string Platform, string Label, string Target, string Package)> devices,
         CancellationToken ct = default) {
         var declared = new HashSet<string>();
-        foreach (var (Id, Platform, Label, Target, Package) in devices) {
+        foreach ((string Id, string Platform, string Label, string Target, string Package) in devices) {
             await store.UpsertDeviceAsync(Id, Platform, Label, Target, Package, ct);
             declared.Add(Id);
         }

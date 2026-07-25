@@ -17,7 +17,7 @@ public class DeviceFileParserTests {
         var p = DeviceFileParser.Parse("android.egidevice.0",
             "Id=frame-android\nPlatform=android\nLabel=Samsung Galaxy A15\nTarget=RF8X20GLYDY\nPackage=com.x");
         Assert.NotNull(p);
-        Assert.Equal(0, p!.Order);
+        Assert.Equal(0, p.Order);
         Assert.Equal("frame-android", p.Id);
         Assert.Equal("android", p.Platform);
         Assert.Equal("Samsung Galaxy A15", p.Label);
@@ -51,7 +51,8 @@ public class DeviceFileParserTests {
     }
 
     [Fact]
-    public void Parse_NonDeviceFileReturnsNull() => Assert.Null(DeviceFileParser.Parse("runner-android.env", "Id=x\nTarget=t"));
+    public void Parse_NonDeviceFileReturnsNull() =>
+        Assert.Null(DeviceFileParser.Parse("runner-android.env", "Id=x\nTarget=t"));
 
     [Fact]
     public void Parse_MissingKeysStayNull() {

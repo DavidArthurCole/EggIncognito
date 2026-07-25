@@ -28,7 +28,6 @@ public class ProtoVersionQualityTests {
 
     [Fact]
     public void Mismatch_AndroidWithIntegerBuild_IsClean() {
-
         Assert.False(ProtoVersionQuality.HasPlatformBuildMismatch("android", "111342"));
         Assert.Null(ProtoVersionQuality.BuildQualityFlag("android", "111342"));
     }
@@ -41,25 +40,23 @@ public class ProtoVersionQualityTests {
 
     [Fact]
     public void LatestSortKey_Android_RanksByVersionCode() {
-        var older = ProtoVersionQuality.LatestSortKey("android", "111341", "1.35.6");
-        var newer = ProtoVersionQuality.LatestSortKey("android", "111342", "1.35.7");
+        long older = ProtoVersionQuality.LatestSortKey("android", "111341", "1.35.6");
+        long newer = ProtoVersionQuality.LatestSortKey("android", "111342", "1.35.7");
         Assert.True(newer > older);
     }
 
     [Fact]
     public void LatestSortKey_Ios_RanksByDottedVersion_NotIntegerBuild() {
-
-
-        var good = ProtoVersionQuality.LatestSortKey("ios", "1.35.7.1", "1.35.7");
-        var bad = ProtoVersionQuality.LatestSortKey("ios", "111342", "1.35.7");
+        long good = ProtoVersionQuality.LatestSortKey("ios", "1.35.7.1", "1.35.7");
+        long bad = ProtoVersionQuality.LatestSortKey("ios", "111342", "1.35.7");
         Assert.True(good > bad);
         Assert.Equal(long.MinValue, bad);
     }
 
     [Fact]
     public void LatestSortKey_Ios_NewerDottedWins() {
-        var v1357 = ProtoVersionQuality.LatestSortKey("ios", "1.35.7.1", "1.35.7");
-        var v1358 = ProtoVersionQuality.LatestSortKey("ios", "1.35.8.0", "1.35.8");
+        long v1357 = ProtoVersionQuality.LatestSortKey("ios", "1.35.7.1", "1.35.7");
+        long v1358 = ProtoVersionQuality.LatestSortKey("ios", "1.35.8.0", "1.35.8");
         Assert.True(v1358 > v1357);
     }
 

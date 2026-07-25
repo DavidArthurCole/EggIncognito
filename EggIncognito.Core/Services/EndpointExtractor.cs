@@ -1,39 +1,38 @@
-
-
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Ei;
 using Google.Protobuf;
 
 namespace EggIncognito.Services;
 
 public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string eidPlaceholder, bool overwrite) {
-    private readonly HarDirs _dirs = dirs;
-    private readonly string? _eid = eid;
-    private readonly string _eidPlaceholder = eidPlaceholder;
-    private readonly bool _overwrite = overwrite;
+    private readonly HashSet<string> _reqErrorSeen = [with(StringComparer.Ordinal)];
 
 
     private readonly HashSet<string> _seen = [with(StringComparer.Ordinal)];
-    private readonly HashSet<string> _reqErrorSeen = [with(StringComparer.Ordinal)];
 
     public HarCounts Counts { get; } = new();
-
 
 
     public bool Quiet { get; set; }
 
     public IEndpointWriteObserver? WriteObserver { get; set; }
 
-    private void Out(string line) { if (!Quiet) Console.WriteLine(line); }
-    private void Err(string line) { if (!Quiet) Console.Error.WriteLine(line); }
+    private void Out(string line) {
+        if (!Quiet) Console.WriteLine(line);
+    }
+
+    private void Err(string line) {
+        if (!Quiet) Console.Error.WriteLine(line);
+    }
 
     public static EndpointExtractor ForRepo(string contentRoot, string? eid, string eidPlaceholder, bool overwrite) {
-        var endpointsRoot = Path.Combine(contentRoot, "Endpoints");
-        var outDir = Path.Combine(endpointsRoot, "default");
-        var stagedDir = Path.Combine(endpointsRoot, "staged");
-        var requestsDir = Path.Combine(endpointsRoot, "requests");
+        string endpointsRoot = Path.Combine(contentRoot, "Endpoints");
+        string outDir = Path.Combine(endpointsRoot, "default");
+        string stagedDir = Path.Combine(endpointsRoot, "staged");
+        string requestsDir = Path.Combine(endpointsRoot, "requests");
         Directory.CreateDirectory(outDir);
 
         var dirs = new HarDirs(outDir, stagedDir, requestsDir,
@@ -43,13 +42,11 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     }
 
 
-
-
     public string? ProcessFlow(string url, string method, int status, string? requestDataB64, string responseBodyB64) {
         if (method != "POST") return null;
         if (status != 200) return null;
 
-        var path = NormalizePath(url);
+        string path = NormalizePath(url);
 
         DecodedEntry? decoded;
         try {
@@ -68,18 +65,24 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     }
 
 
-
-
-    public string? ForceWriteEndpoint(string url, string method, int status, string? requestDataB64, string responseBodyB64) {
+    public string? ForceWriteEndpoint(string url, string method, int status, string? requestDataB64,
+        string responseBodyB64) {
         if (method != "POST" || status != 200) return null;
-        var path = NormalizePath(url);
+        string path = NormalizePath(url);
 
         DecodedEntry? decoded;
-        try { decoded = TryDecode(path, requestDataB64, responseBodyB64, isExplicit: true); } catch (Exception ex) { Err($"  ERR   {path}: {ex.Message}"); Counts.Err++; return null; }
+        try {
+            decoded = TryDecode(path, requestDataB64, responseBodyB64, true);
+        } catch (Exception ex) {
+            Err($"  ERR   {path}: {ex.Message}");
+            Counts.Err++;
+            return null;
+        }
+
         if (decoded is null) return null;
         if (ExtractorConfig.AlwaysSkip.Contains(decoded.Path)) return null;
 
-        WriteDecoded(decoded, forceOverwrite: true, isExplicit: true);
+        WriteDecoded(decoded, true, true);
         return decoded.Path;
     }
 
@@ -99,47 +102,55 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
         var req = entry.GetProperty("request");
         var res = entry.GetProperty("response");
 
-        var method = req.GetProperty("method").GetString() ?? "";
-        var status = res.GetProperty("status").GetInt32();
-        var url = req.GetProperty("url").GetString()!;
+        string method = req.GetProperty("method").GetString() ?? "";
+        int status = res.GetProperty("status").GetInt32();
+        string url = req.GetProperty("url").GetString()!;
 
 
         if (method != "POST" || status != 200) return;
 
         var contentEl = res.GetProperty("content");
-        var rawText = contentEl.GetProperty("text").GetString()!;
+        string rawText = contentEl.GetProperty("text").GetString()!;
         string responseBodyB64;
         if (contentEl.TryGetProperty("encoding", out var enc) && enc.GetString() == "base64")
             responseBodyB64 = Encoding.UTF8.GetString(Convert.FromBase64String(rawText)).Trim();
         else
             responseBodyB64 = rawText.Trim();
 
-        var requestData = ReadRequestData(req);
+        string? requestData = ReadRequestData(req);
 
         ProcessFlow(url, method, status, requestData, responseBodyB64);
     }
 
 
+    public void Save() => dirs.Yaml.Save();
 
-    public void Save() => _dirs.Yaml.Save();
 
-
-    private DecodedEntry? TryDecode(string path, string? requestDataB64, string responseBodyB64, bool isExplicit = false) {
+    private DecodedEntry? TryDecode(string path, string? requestDataB64, string responseBodyB64,
+        bool isExplicit = false) {
         byte[] respBytes;
-        try { respBytes = ProtoFraming.FromBase64Loose(responseBodyB64); } catch (FormatException) { return null; }
+        try {
+            respBytes = ProtoFraming.FromBase64Loose(responseBodyB64);
+        } catch (FormatException) {
+            return null;
+        }
 
-        var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(respBytes);
-        var inner = outer.Compressed ? ProtoFraming.Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
+        var outer = AuthenticatedMessage.Parser.ParseFrom(respBytes);
+        byte[]? inner = outer.Compressed
+            ? ProtoFraming.Decompress(outer.Message.ToByteArray())
+            : outer.Message.ToByteArray();
 
         var request = ExtractRequestJson(requestDataB64, path, isExplicit);
 
-        string Scrub(string s) => ScrubEid(s, _eid, _eidPlaceholder);
+        string Scrub(string s) {
+            return ScrubEid(s, eid, eidPlaceholder);
+        }
 
-        var json = FormatResponse(path, inner, _dirs.TypeMap);
+        string? json = FormatResponse(path, inner, dirs.TypeMap);
         if (json is null) {
             var det = AutoDetect(inner);
             if (det.typeName is null || det.json is null) return null;
-            var red = Scrub(Redactor.Redact(det.json));
+            string red = Scrub(Redactor.Redact(det.json));
             return new DecodedEntry(path, red, request, det.typeName, det.bestScore, det.secondBestScore);
         }
 
@@ -147,17 +158,16 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     }
 
 
-
     private void WriteDecoded(DecodedEntry decoded, bool forceOverwrite = false, bool isExplicit = false) {
-        var (path, json, request, autoResponseType, respBest, respSecond) = decoded;
-        var slug = path;
+        (string path, string json, var request, string? autoResponseType, int respBest, int respSecond) = decoded;
+        string slug = path;
         if (ExtractorConfig.AlwaysSkip.Contains(slug)) return;
 
         SelfRepair(path, request, autoResponseType, respBest, respSecond, isExplicit);
 
-        var outFile = Path.Combine(_dirs.OutDir, EndpointFile(slug));
+        string outFile = Path.Combine(dirs.OutDir, EndpointFile(slug));
         if (!forceOverwrite && File.Exists(outFile)) {
-            var existing = File.ReadAllText(outFile, Encoding.UTF8);
+            string existing = File.ReadAllText(outFile, Encoding.UTF8);
             if (CountJsonFields(json) < CountJsonFields(existing)) {
                 Counts.Loss++;
                 Out($"  loss  {slug}.json  (skipped - fewer fields than existing)");
@@ -165,27 +175,34 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
             }
         }
 
-        var writeResult = WriteEndpointFile(outFile, json, _overwrite || forceOverwrite);
+        string writeResult = WriteEndpointFile(outFile, json, overwrite || forceOverwrite);
         if (writeResult is "wrote" or "upd") WriteObserver?.OnEndpointWritten(path, json);
         switch (writeResult) {
-            case "wrote": Counts.Wrote++; Out($"  wrote {slug}.json"); break;
-            case "upd": Counts.Upd++; Out($"  upd   {slug}.json"); break;
+            case "wrote":
+                Counts.Wrote++;
+                Out($"  wrote {slug}.json");
+                break;
+            case "upd":
+                Counts.Upd++;
+                Out($"  upd   {slug}.json");
+                break;
             case "same": Counts.Same++; break;
             case "diff":
                 Counts.Diff++;
-                var stagedFile = Path.Combine(_dirs.StagedDir, EndpointFile(slug));
+                string stagedFile = Path.Combine(dirs.StagedDir, EndpointFile(slug));
                 Directory.CreateDirectory(Path.GetDirectoryName(stagedFile)!);
                 File.WriteAllText(stagedFile, json, Encoding.UTF8);
                 Out($"  diff  {slug}.json");
-                Out($"        code-insiders --diff \"{Path.Combine(_dirs.OutDir, EndpointFile(slug))}\" \"{stagedFile}\"");
+                Out(
+                    $"        code-insiders --diff \"{Path.Combine(dirs.OutDir, EndpointFile(slug))}\" \"{stagedFile}\"");
                 break;
         }
 
         if (request.Json is not null) {
-            var reqFile = Path.Combine(_dirs.RequestsDir, slug + ".request.json");
+            string reqFile = Path.Combine(dirs.RequestsDir, slug + ".request.json");
             Directory.CreateDirectory(Path.GetDirectoryName(reqFile)!);
             if (!File.Exists(reqFile)) {
-                var scrubbed = ScrubEid(Redactor.Redact(request.Json), _eid, _eidPlaceholder);
+                string scrubbed = ScrubEid(Redactor.Redact(request.Json), eid, eidPlaceholder);
                 File.WriteAllText(reqFile, scrubbed, Encoding.UTF8);
                 Out($"  req   {slug}.request.json  (wrote)");
             }
@@ -193,30 +210,29 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     }
 
 
-
     private void SelfRepair(string capturedPath, RequestDecode request, string? autoResponseType,
         int respBest, int respSecond, bool isExplicit = false) {
-        var yaml = _dirs.Yaml;
+        var yaml = dirs.Yaml;
 
 
-        var path = yaml.CanonicalPath(capturedPath);
+        string path = yaml.CanonicalPath(capturedPath);
 
 
         if (request.DetectedType is not null && yaml.RequestUnresolved(path)) {
             if (yaml.SetFieldIfEmpty(path, "request", request.DetectedType)) {
                 if (request.DetectedWrapped) yaml.SetWrappedFlag(path, "requestWrapped");
-                Counts.Learned.Add($"{path}  request = {request.DetectedType}{(request.DetectedWrapped ? " (wrapped)" : "")}");
+                Counts.Learned.Add(
+                    $"{path}  request = {request.DetectedType}{(request.DetectedWrapped ? " (wrapped)" : "")}");
                 Counts.WroteYaml = true;
             }
         } else if (request.EmptyBody && yaml.RequestUnresolved(path)) {
-
             if (yaml.MarkRequestNone(path)) {
                 Counts.Learned.Add($"{path}  request = none (empty body observed)");
                 Counts.WroteYaml = true;
             }
         }
-        if (request.FlagNote is not null) Counts.Flagged.Add(request.FlagNote);
 
+        if (request.FlagNote is not null) Counts.Flagged.Add(request.FlagNote);
 
 
         if (autoResponseType is not null) {
@@ -224,8 +240,7 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
 
             if (verdict == AutoWriteVerdict.Write || isExplicit) {
                 if (!yaml.HasPath(path)) {
-
-                    if (yaml.AddRoute(path, request.DetectedType, request.DetectedWrapped, autoResponseType, responseWrapped: true)) {
+                    if (yaml.AddRoute(path, request.DetectedType, request.DetectedWrapped, autoResponseType, true)) {
                         Counts.Learned.Add($"{path}  added -> response = {autoResponseType} (wrapped)");
                         Counts.WroteYaml = true;
                     }
@@ -240,11 +255,11 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
         }
 
 
-        if (!yaml.RequestUnresolved(path) && !yaml.ResponseUnresolved(path))
-            if (yaml.RemoveFromNeedsCapture(path)) Counts.WroteYaml = true;
+        if (!yaml.RequestUnresolved(path) && !yaml.ResponseUnresolved(path)) {
+            if (yaml.RemoveFromNeedsCapture(path))
+                Counts.WroteYaml = true;
+        }
     }
-
-
 
 
     private RequestDecode ExtractRequestJson(string? dataValue, string path, bool isExplicit = false) {
@@ -252,48 +267,49 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
             if (string.IsNullOrEmpty(dataValue))
 
 
-                return new(null, null, false, null) { EmptyBody = true };
+                return new RequestDecode(null, null, false, null) { EmptyBody = true };
 
-            var reqBytes = ProtoFraming.FromBase64Loose(dataValue);
+            byte[] reqBytes = ProtoFraming.FromBase64Loose(dataValue);
 
 
-            if (_dirs.RequestTypeMap.TryGetValue(path, out var typeName)) {
-                var toParse = _dirs.RequestWrapped.Contains(path) ? ProtoFraming.Unwrap(reqBytes) : reqBytes;
+            if (dirs.RequestTypeMap.TryGetValue(path, out string? typeName)) {
+                byte[] toParse = dirs.RequestWrapped.Contains(path) ? ProtoFraming.Unwrap(reqBytes) : reqBytes;
                 var msg = ParseByTypeName(typeName, toParse);
                 if (msg is null) {
                     if (_reqErrorSeen.Add(path))
                         Err($"  req   {path}: no parser for requestType '{typeName}'");
-                    return new(null, null, false, null);
+                    return new RequestDecode(null, null, false, null);
                 }
-                return new(ProtoJson.PrettyPrint(JsonFormatter.Default.Format(msg)), null, _dirs.RequestWrapped.Contains(path), null);
+
+                return new RequestDecode(ProtoJson.PrettyPrint(JsonFormatter.Default.Format(msg)), null,
+                    dirs.RequestWrapped.Contains(path), null);
             }
 
 
-
-            var (chosen, useUnwrapped) = BestFraming(reqBytes);
-            if (chosen.typeName is null || chosen.json is null) return new(null, null, false, null);
+            (var chosen, bool useUnwrapped) = BestFraming(reqBytes);
+            if (chosen.typeName is null || chosen.json is null) return new RequestDecode(null, null, false, null);
 
             var verdict = ExtractorConfig.ClassifyAutoWrite(chosen.bestScore, chosen.secondBestScore);
-            Out($"  reqauto {path}  request -> {chosen.typeName} ({(useUnwrapped ? "wrapped" : "raw")}, {verdict}, conf {chosen.confidence}%)");
-
+            Out(
+                $"  reqauto {path}  request -> {chosen.typeName} ({(useUnwrapped ? "wrapped" : "raw")}, {verdict}, conf {chosen.confidence}%)");
 
 
             if (verdict == AutoWriteVerdict.Write || (isExplicit && chosen.typeName is not null))
-                return new(chosen.json, chosen.typeName, useUnwrapped, null);
+                return new RequestDecode(chosen.json, chosen.typeName, useUnwrapped, null);
 
 
-            var note = verdict == AutoWriteVerdict.Flag
+            string? note = verdict == AutoWriteVerdict.Flag
                 ? $"{path} request: {chosen.typeName} vs runner-up tied on fields - verify with --decode"
                 : null;
-            return new(chosen.json, null, useUnwrapped, note);
+            return new RequestDecode(chosen.json, null, useUnwrapped, note);
         } catch (InvalidProtocolBufferException ex) when (ex.Message.Contains("ended unexpectedly")) {
             if (_reqErrorSeen.Add(path))
                 Err($"  req   {path}: truncated (HAR capture limit)");
-            return new(null, null, false, null);
+            return new RequestDecode(null, null, false, null);
         } catch (Exception ex) {
             if (_reqErrorSeen.Add(path))
                 Err($"  req   {path}: {ex.GetType().Name}: {ex.Message}");
-            return new(null, null, false, null);
+            return new RequestDecode(null, null, false, null);
         }
     }
 
@@ -305,14 +321,18 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
         Console.WriteLine("Self-repair summary");
         if (Counts.Learned.Count > 0) {
             Console.WriteLine($"  learned ({Counts.Learned.Count}):");
-            foreach (var l in Counts.Learned) Console.WriteLine($"    {l}");
+            foreach (string l in Counts.Learned) Console.WriteLine($"    {l}");
         }
+
         if (Counts.Flagged.Count > 0) {
             Console.WriteLine($"  flagged for review ({Counts.Flagged.Count}):");
-            foreach (var f in Counts.Flagged) Console.WriteLine($"    {f}");
+            foreach (string f in Counts.Flagged) Console.WriteLine($"    {f}");
         }
-        if (Counts.WroteYaml)
-            Console.WriteLine("  note: routes.yaml updated -> POST /api/import/endpoint-status/update to refresh endpoint_status");
+
+        if (Counts.WroteYaml) {
+            Console.WriteLine(
+                "  note: routes.yaml updated -> POST /api/import/endpoint-status/update to refresh endpoint_status");
+        }
     }
 
     public static string? ReadRequestData(JsonElement reqEl) {
@@ -324,15 +344,15 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
                     return p.GetProperty("value").GetString()?.Replace(' ', '+');
             }
         }
+
         if (postData.TryGetProperty("text", out var text)) {
-
-
-            foreach (var pair in (text.GetString() ?? "").Split('&')) {
-                var eq = pair.IndexOf('=');
+            foreach (string pair in (text.GetString() ?? "").Split('&')) {
+                int eq = pair.IndexOf('=');
                 if (eq < 0 || pair[..eq] != "data") continue;
                 return Uri.UnescapeDataString(pair[(eq + 1)..].Replace("+", "%2B"));
             }
         }
+
         return null;
     }
 
@@ -350,7 +370,8 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
             File.WriteAllText(path, json, Encoding.UTF8);
             return "wrote";
         }
-        var existing = File.ReadAllText(path, Encoding.UTF8);
+
+        string existing = File.ReadAllText(path, Encoding.UTF8);
         if (ProtoJson.NormalizeFloats(existing.Trim()) == ProtoJson.NormalizeFloats(json.Trim())) return "same";
         if (!overwrite) return "diff";
         File.WriteAllText(path, json, Encoding.UTF8);
@@ -358,12 +379,12 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     }
 
     public static string NormalizePath(string url) {
-        var path = new Uri(url).AbsolutePath.TrimStart('/');
+        string path = new Uri(url).AbsolutePath.TrimStart('/');
         return EidSuffixRegex().Replace(path, "");
     }
 
     public static string? FormatResponse(string path, byte[] inner, IReadOnlyDictionary<string, string> typeMap) {
-        if (!typeMap.TryGetValue(path, out var typeName)) return null;
+        if (!typeMap.TryGetValue(path, out string? typeName)) return null;
         try {
             var msg = ParseByTypeName(typeName, inner);
             return msg is null ? null : Redactor.Redact(ProtoJson.PrettyPrint(JsonFormatter.Default.Format(msg)));
@@ -375,26 +396,23 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     public static IMessage? ParseByTypeName(string typeName, byte[] data) {
         var type = ExtractorConfig.EiAssembly.GetType($"Ei.{typeName}");
         var parser = type?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
-                          ?.GetValue(null) as MessageParser;
+            ?.GetValue(null) as MessageParser;
         return parser?.ParseFrom(data);
     }
 
     public static IReadOnlyDictionary<string, string> LoadEndpointTypes(string contentRoot) =>
-        LoadInnerTypes(contentRoot, newKey: "response", legacyKey: "responseType");
+        LoadInnerTypes(contentRoot, "response", "responseType");
 
     public static IReadOnlyDictionary<string, string> LoadRequestTypes(string contentRoot) =>
-        LoadInnerTypes(contentRoot, newKey: "request", legacyKey: "requestType");
-
-
+        LoadInnerTypes(contentRoot, "request", "requestType");
 
 
     public static IReadOnlyDictionary<string, string> LoadRawResponses(string contentRoot) =>
-        LoadInnerTypes(contentRoot, newKey: "rawResponse", legacyKey: "rawResponse");
-
+        LoadInnerTypes(contentRoot, "rawResponse", "rawResponse");
 
 
     public static HashSet<string> LoadRequestWrapped(string contentRoot) {
-        var yaml = File.ReadAllText(ContentRoot.RoutesYamlPath(contentRoot));
+        string yaml = File.ReadAllText(ContentRoot.RoutesYamlPath(contentRoot));
         var result = new HashSet<string>(StringComparer.Ordinal);
         string? currentPath = null;
         bool wrapped = false;
@@ -405,74 +423,98 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
             wrapped = false;
         }
 
-        foreach (var line in yaml.Split('\n')) {
-            var pathMatch = Regex.Match(line, @"^\s+-\s+path:\s+(.+)$");
-            if (pathMatch.Success) { Flush(); currentPath = pathMatch.Groups[1].Value.Trim(); continue; }
+        foreach (string line in yaml.Split('\n')) {
+            var pathMatch = MyRegex().Match(line);
+            if (pathMatch.Success) {
+                Flush();
+                currentPath = pathMatch.Groups[1].Value.Trim();
+                continue;
+            }
+
             if (currentPath is null) continue;
 
-            if (Regex.IsMatch(line, @"^\s+requestWrapped:\s*true\s*(?:#.*)?$")) wrapped = true;
-            else if (Regex.IsMatch(line, @"^\s+requestType:\s*AuthenticatedMessage\s*(?:#.*)?$")) wrapped = true;
+            if (RequestWrappedTrueRegex().IsMatch(line)) wrapped = true;
+            else if (RequestTypeAuthenticatedRegex().IsMatch(line)) wrapped = true;
         }
+
         Flush();
         return result;
     }
 
 
-
-
-
     private static Dictionary<string, string> LoadInnerTypes(string contentRoot, string newKey, string legacyKey) {
-        var yaml = File.ReadAllText(ContentRoot.RoutesYamlPath(contentRoot));
+        string yaml = File.ReadAllText(ContentRoot.RoutesYamlPath(contentRoot));
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         string? currentPath = null;
         string? newVal = null, legacyVal = null;
 
         void Flush() {
             if (currentPath is not null) {
-                var v = newVal ?? legacyVal;
+                string? v = newVal ?? legacyVal;
                 if (v is not null && v.Length > 0 && v != "AuthenticatedMessage")
                     result[currentPath] = v;
             }
+
             currentPath = null;
             newVal = legacyVal = null;
         }
 
-        foreach (var line in yaml.Split('\n')) {
-            var pathMatch = Regex.Match(line, @"^\s+-\s+path:\s+(.+)$");
-            if (pathMatch.Success) { Flush(); currentPath = pathMatch.Groups[1].Value.Trim(); continue; }
+        foreach (string line in yaml.Split('\n')) {
+            var pathMatch = MyRegex().Match(line);
+            if (pathMatch.Success) {
+                Flush();
+                currentPath = pathMatch.Groups[1].Value.Trim();
+                continue;
+            }
+
             if (currentPath is null) continue;
 
 
             var m = Regex.Match(line, @"^\s+" + Regex.Escape(newKey) + @":\s*([^#]*?)\s*(?:#.*)?$");
-            if (m.Success) { newVal = m.Groups[1].Value.Trim(); continue; }
+            if (m.Success) {
+                newVal = m.Groups[1].Value.Trim();
+                continue;
+            }
+
             m = Regex.Match(line, @"^\s+" + Regex.Escape(legacyKey) + @":\s*([^#]*?)\s*(?:#.*)?$");
-            if (m.Success) { legacyVal = m.Groups[1].Value.Trim(); continue; }
+            if (m.Success) legacyVal = m.Groups[1].Value.Trim();
         }
+
         Flush();
         return result;
     }
-
 
 
     internal static int CountJsonFields(string json) {
         int count = 0;
         bool inString = false, escape = false;
         foreach (char c in json) {
-            if (escape) { escape = false; continue; }
+            if (escape) {
+                escape = false;
+                continue;
+            }
+
             if (inString) {
                 if (c == '\\') escape = true;
                 else if (c == '"') inString = false;
                 continue;
             }
+
             if (c == '"') inString = true;
             else if (c == ':') count++;
         }
+
         return count;
     }
 
     public static void RunDecode(string base64) {
         byte[] data;
-        try { data = ProtoFraming.FromBase64Loose(base64); } catch (Exception ex) { Console.Error.WriteLine($"not valid base64: {ex.Message}"); return; }
+        try {
+            data = ProtoFraming.FromBase64Loose(base64);
+        } catch (Exception ex) {
+            Console.Error.WriteLine($"not valid base64: {ex.Message}");
+            return;
+        }
 
         void Report(string label, byte[] bytes) {
             Console.WriteLine($"=== {label} ({bytes.Length} bytes) ===");
@@ -484,11 +526,16 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
                 .Take(5)
                 .ToList();
 
-            if (ranked.Count == 0) { Console.WriteLine("  (no Ei.* type parses these bytes)"); return; }
-            foreach (var (name, (score, _)) in ranked) {
-                var exact = score >= 1000;
+            if (ranked.Count == 0) {
+                Console.WriteLine("  (no Ei.* type parses these bytes)");
+                return;
+            }
+
+            foreach ((string name, (int score, string? _)) in ranked) {
+                bool exact = score >= 1000;
                 Console.WriteLine($"  {name,-32} score={score}{(exact ? "  [EXACT round-trip]" : "")}");
             }
+
             var top = ranked[0];
             Console.WriteLine();
             Console.WriteLine($"  best: Ei.{top.name}");
@@ -500,39 +547,55 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
 
 
         try {
-            var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(data);
+            var outer = AuthenticatedMessage.Parser.ParseFrom(data);
             if (outer.Message.Length > 0) {
-                var inner = outer.Compressed ? ProtoFraming.Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
+                byte[]? inner = outer.Compressed
+                    ? ProtoFraming.Decompress(outer.Message.ToByteArray())
+                    : outer.Message.ToByteArray();
                 Report($"unwrapped AuthenticatedMessage.message (compressed={outer.Compressed})", inner);
             }
-        } catch (InvalidProtocolBufferException) { }
+        } catch (InvalidProtocolBufferException) {
+        }
     }
-
-
 
 
     public static (string? json, string? typeName) DecodeRequestBody(string? knownType, bool wrapped, byte[] bytes) {
         try {
             if (knownType is not null) {
                 var candidates = new List<byte[]>();
-                var unwrapped = ProtoFraming.TryUnwrap(bytes);
-                if (wrapped && unwrapped is not null) { candidates.Add(unwrapped); candidates.Add(bytes); } else { candidates.Add(bytes); if (unwrapped is not null) candidates.Add(unwrapped); }
+                byte[]? unwrapped = ProtoFraming.TryUnwrap(bytes);
+                if (wrapped && unwrapped is not null) {
+                    candidates.Add(unwrapped);
+                    candidates.Add(bytes);
+                } else {
+                    candidates.Add(bytes);
+                    if (unwrapped is not null) candidates.Add(unwrapped);
+                }
 
                 IMessage? best = null;
                 int bestScore = int.MinValue;
-                foreach (var cand in candidates) {
+                foreach (byte[] cand in candidates) {
                     IMessage? m;
 
 
-                    try { m = ParseByTypeName(knownType, cand); } catch (InvalidProtocolBufferException) { continue; }
+                    try {
+                        m = ParseByTypeName(knownType, cand);
+                    } catch (InvalidProtocolBufferException) {
+                        continue;
+                    }
+
                     if (m is null) continue;
-                    var json = JsonFormatter.Default.Format(m);
-                    var exact = m.ToByteArray().AsSpan().SequenceEqual(cand);
+                    string? json = JsonFormatter.Default.Format(m);
+                    bool exact = m.ToByteArray().AsSpan().SequenceEqual(cand);
 
 
-                    var score = (exact ? 100_000 : 0) + json.Count(c => c == ':');
-                    if (score > bestScore) { bestScore = score; best = m; }
+                    int score = (exact ? 100_000 : 0) + json.Count(c => c == ':');
+                    if (score > bestScore) {
+                        bestScore = score;
+                        best = m;
+                    }
                 }
+
                 if (best is not null)
                     return (ProtoJson.PrettyPrint(JsonFormatter.Default.Format(best)), knownType);
             }
@@ -545,25 +608,24 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     }
 
 
-
-
-
-    private static ((string? typeName, string? json, int confidence, int bestScore, int secondBestScore) result, bool unwrapped) BestFraming(byte[] bytes) {
+    private static ((string? typeName, string? json, int confidence, int bestScore, int secondBestScore) result, bool
+        unwrapped) BestFraming(byte[] bytes) {
         var raw = AutoDetect(bytes);
-        var unwrappedBytes = ProtoFraming.TryUnwrap(bytes);
+        byte[]? unwrappedBytes = ProtoFraming.TryUnwrap(bytes);
         var unw = unwrappedBytes is null ? default : AutoDetect(unwrappedBytes);
         return unwrappedBytes is not null && unw.bestScore > raw.bestScore ? (unw, true) : (raw, false);
     }
 
-    public static (string? typeName, string? json, int confidence, int bestScore, int secondBestScore) AutoDetect(byte[] data) {
+    public static (string? typeName, string? json, int confidence, int bestScore, int secondBestScore)
+        AutoDetect(byte[] data) {
         string? bestType = null;
         string? bestJson = null;
         int bestScore = 0;
         int secondBestScore = 0;
 
         foreach (var type in ExtractorConfig.EiAssembly.GetTypes()
-            .Where(t => t.Namespace == "Ei" && !t.IsAbstract && typeof(IMessage).IsAssignableFrom(t))) {
-            var (score, json) = TryParseAs(type, data);
+                     .Where(t => t.Namespace == "Ei" && !t.IsAbstract && typeof(IMessage).IsAssignableFrom(t))) {
+            (int score, string? json) = TryParseAs(type, data);
             if (score > bestScore) {
                 secondBestScore = bestScore;
                 bestScore = score;
@@ -575,7 +637,6 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
         }
 
         if (bestScore < 2) return (null, null, 0, bestScore, secondBestScore);
-
 
 
         const int Exact = 1000;
@@ -591,24 +652,20 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
             confidence = Math.Min(99, (int)((double)bestScore / (bestScore + secondBestScore) * 100));
         }
 
-        return (bestType, bestJson is null ? null : ProtoJson.PrettyPrint(bestJson), confidence, bestScore, secondBestScore);
+        return (bestType, bestJson is null ? null : ProtoJson.PrettyPrint(bestJson), confidence, bestScore,
+            secondBestScore);
     }
 
     public static (int score, string? json) TryParseAs(Type type, byte[] data) {
         try {
             if (type.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
-                             ?.GetValue(null) is not MessageParser parser) {
+                    ?.GetValue(null) is not MessageParser parser) {
                 return (0, null);
             }
 
             var msg = parser.ParseFrom(data);
-            var json = JsonFormatter.Default.Format(msg);
-            var fieldScore = json.Count(c => c == ':');
-
-
-
-
-
+            string? json = JsonFormatter.Default.Format(msg);
+            int fieldScore = json.Count(c => c == ':');
 
 
             bool exact = msg.ToByteArray().AsSpan().SequenceEqual(data);
@@ -620,4 +677,13 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
 
     [GeneratedRegex(@"/EI\d+.*$")]
     private static partial Regex EidSuffixRegex();
+
+    [GeneratedRegex(@"^\s+-\s+path:\s+(.+)$")]
+    private static partial Regex MyRegex();
+
+    [GeneratedRegex(@"^\s+requestWrapped:\s*true\s*(?:#.*)?$")]
+    private static partial Regex RequestWrappedTrueRegex();
+
+    [GeneratedRegex(@"^\s+requestType:\s*AuthenticatedMessage\s*(?:#.*)?$")]
+    private static partial Regex RequestTypeAuthenticatedRegex();
 }

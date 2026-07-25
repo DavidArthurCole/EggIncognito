@@ -1,7 +1,6 @@
-
-
 using System.Collections.Concurrent;
 using System.Reflection;
+using Ei;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 
@@ -31,39 +30,19 @@ public interface IProtoReflection {
 }
 
 public sealed class ProtoReflection : IProtoReflection {
-    private static readonly Assembly EiAssembly = typeof(Ei.AuthenticatedMessage).Assembly;
-
-
-    private static string Short(string typeName) =>
-        typeName.StartsWith("Ei.", StringComparison.Ordinal) ? typeName[3..] : typeName;
+    private static readonly Assembly EiAssembly = typeof(AuthenticatedMessage).Assembly;
 
 
     private static readonly ConcurrentDictionary<string, (MessageDescriptor Descriptor, MessageParser Parser)> Cache =
         new(StringComparer.Ordinal);
 
-    private static (MessageDescriptor Descriptor, MessageParser Parser)? Resolve(string typeName) {
-        var key = Short(typeName);
-        if (Cache.TryGetValue(key, out var hit)) return hit;
-
-        var clr = EiAssembly.GetType("Ei." + key);
-        if (clr?.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null) is not MessageDescriptor descriptor || clr?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
-            ?.GetValue(null) is not MessageParser parser) {
-            return null;
-        }
-
-        Cache.TryAdd(key, (descriptor, parser));
-        return (descriptor, parser);
-    }
-
-
 
     private static readonly Lazy<IReadOnlyList<string>> AllNames = new(() =>
         EiAssembly.GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false, DeclaringType: null }
-                && t.Namespace == "Ei"
-                && typeof(IMessage).IsAssignableFrom(t)
-                && t.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static) is not null)
+                        && t.Namespace == "Ei"
+                        && typeof(IMessage).IsAssignableFrom(t)
+                        && t.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static) is not null)
             .Select(t => t.Name)
             .Distinct()
             .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
@@ -83,6 +62,26 @@ public sealed class ProtoReflection : IProtoReflection {
         return new SchemaMessage(desc.Name, fields);
     }
 
+
+    private static string Short(string typeName) =>
+        typeName.StartsWith("Ei.", StringComparison.Ordinal) ? typeName[3..] : typeName;
+
+    private static (MessageDescriptor Descriptor, MessageParser Parser)? Resolve(string typeName) {
+        string key = Short(typeName);
+        if (Cache.TryGetValue(key, out var hit)) return hit;
+
+        var clr = EiAssembly.GetType("Ei." + key);
+        if (clr?.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null) is not MessageDescriptor descriptor || clr
+                ?.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null) is not MessageParser parser) {
+            return null;
+        }
+
+        Cache.TryAdd(key, (descriptor, parser));
+        return (descriptor, parser);
+    }
+
     private static SchemaField ToSchemaField(FieldDescriptor f) {
         string type = f.FieldType.ToString().ToLowerInvariant();
         string? messageType = null;
@@ -99,13 +98,13 @@ public sealed class ProtoReflection : IProtoReflection {
         }
 
         return new SchemaField(
-            Name: f.Name,
-            JsonName: f.JsonName,
-            Number: f.FieldNumber,
-            Type: type,
-            Repeated: f.IsRepeated,
-            Required: f.IsRequired,
-            MessageType: messageType,
-            EnumValues: enumValues);
+            f.Name,
+            f.JsonName,
+            f.FieldNumber,
+            type,
+            f.IsRepeated,
+            f.IsRequired,
+            messageType,
+            enumValues);
     }
 }

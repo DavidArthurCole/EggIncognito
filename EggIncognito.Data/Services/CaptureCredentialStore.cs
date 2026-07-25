@@ -12,6 +12,7 @@ public sealed class CaptureCredentialStore(EggIncognitoDbContext db) {
             row.Pfx = pfx;
             row.Thumbprint = thumbprint;
         }
+
         await db.SaveChangesAsync(ct);
     }
 

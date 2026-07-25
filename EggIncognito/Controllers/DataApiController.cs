@@ -28,9 +28,10 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
                 extends = s.Extends,
                 acceptsName = s.AcceptsName,
                 bytes = await SizeOf(s, ct),
-                refresh = new { s.Refresh.Egress, deviceTrigger = s.Refresh.Device is not null },
+                refresh = new { s.Refresh.Egress, deviceTrigger = s.Refresh.Device is not null }
             });
         }
+
         return Ok(new { count = catalog.Sources.Count, sources = items });
     }
 
@@ -39,7 +40,9 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
         try {
             var payload = await s.Produce(new DataProduceContext(HttpContext, null), ct);
             return payload?.Bytes.LongLength;
-        } catch { return null; }
+        } catch {
+            return null;
+        }
     }
 
     [HttpGet("{group}/{id}")]
@@ -54,14 +57,19 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
 
     [HttpGet("{group}/{parent}/{sub}")]
     [EnableRateLimiting("data")]
-    public async Task<IActionResult> GetExtension(string group, string parent, string sub, [FromQuery] string? name, CancellationToken ct) {
+    public async Task<IActionResult> GetExtension(string group, string parent, string sub, [FromQuery] string? name,
+        CancellationToken ct) {
         var src = catalog.ByChild(group, parent, sub);
-        return src is null ? NotFound(new { error = "unknown extension dataset", group, parent, sub }) : await Serve(src, name, ct);
+        return src is null
+            ? NotFound(new { error = "unknown extension dataset", group, parent, sub })
+            : await Serve(src, name, ct);
     }
 
     private async Task<IActionResult> Serve(DataSource src, string? name, CancellationToken ct) {
-        if (src.Access == DataAccess.Authenticated && !currentUser.IsAuthenticated)
-            return StatusCode(401, new { error = "authentication required", hint = "mint an API key at /api/v1/keys or log in" });
+        if (src.Access == DataAccess.Authenticated && !currentUser.IsAuthenticated) {
+            return StatusCode(401,
+                new { error = "authentication required", hint = "mint an API key at /api/v1/keys or log in" });
+        }
 
         if (src.AcceptsName && string.IsNullOrEmpty(name))
             return BadRequest(new { error = "this source requires a name query parameter" });

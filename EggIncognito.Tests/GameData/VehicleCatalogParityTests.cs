@@ -17,5 +17,4 @@ public class VehicleCatalogParityTests {
         Assert.Equal("vehicledata", cat.Provenance["capacity"].Locator);
         Assert.Equal("decoded", cat.Provenance["capacity"].Method);
     }
-
 }

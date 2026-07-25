@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -6,6 +7,7 @@ using EggIncognito.Capture;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +17,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/capture")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 public sealed class CaptureController(
     CaptureSessionManager manager,
     IAppMode appMode,
@@ -27,7 +29,6 @@ public sealed class CaptureController(
 
     private CaptureCredentialStore? Credentials =>
         services.GetService(typeof(CaptureCredentialStore)) as CaptureCredentialStore;
-
 
 
     private (CaptureSession? Session, IActionResult? Error) Resolve() {
@@ -50,15 +51,14 @@ public sealed class CaptureController(
             return StatusCode(401, new { error = "log in to use hosted capture" });
         if (!currentUser.UserId.HasValue)
             return StatusCode(401, new { error = "log in to use hosted capture" });
-        return !currentUser.IsSupporter ? StatusCode(403, new { error = "supporter_required" }) : (ObjectResult?)null;
+        return !currentUser.IsSupporter ? StatusCode(403, new { error = "supporter_required" }) : null;
     }
 
     [HttpGet("stream")]
     public async Task Stream(CancellationToken ct) {
         var (session, error) = Resolve();
         if (session is null) {
-
-            var (status, payload) = error is ObjectResult o
+            (int status, object? payload) = error is ObjectResult o
                 ? (o.StatusCode ?? 403, o.Value)
                 : (403, (object?)new { error = "capture unavailable" });
             Response.StatusCode = status;
@@ -82,16 +82,18 @@ public sealed class CaptureController(
                         "flow" => env.Flow,
                         "stats" => env.Stats,
                         "notice" => env.Event,
-                        _ => null,
+                        _ => null
                     };
                     if (payload is not null) await WriteEvent(env.Kind, payload, ct);
                 }
-            } catch (OperationCanceledException) { /* client disconnected */ }
+            } catch (OperationCanceledException) {
+                /* client disconnected */
+            }
         }
     }
 
     private async Task WriteEvent(string eventName, object payload, CancellationToken ct) {
-        var data = JsonSerializer.Serialize(payload, Json);
+        string data = JsonSerializer.Serialize(payload, Json);
         await Response.WriteAsync($"event: {eventName}\ndata: {data}\n\n", ct);
         await Response.Body.FlushAsync(ct);
     }
@@ -104,7 +106,7 @@ public sealed class CaptureController(
 
     [HttpGet("sensitive-keys")]
     public IActionResult SensitiveKeys() => Ok(new {
-        keys = Redactor.SensitiveFieldNames.Concat(["eiUserId", "userId"]).Distinct().ToArray(),
+        keys = Redactor.SensitiveFieldNames.Concat(["eiUserId", "userId"]).Distinct().ToArray()
     });
 
     [HttpGet("stats")]
@@ -135,7 +137,9 @@ public sealed class CaptureController(
             return StatusCode(403, new { error = "supporter_required" });
 
         CaptureSession session;
-        try { session = manager.GetOrCreate(currentUser.DiscordId); } catch (CaptureCapacityException) {
+        try {
+            session = manager.GetOrCreate(currentUser.DiscordId);
+        } catch (CaptureCapacityException) {
             return StatusCode(503, new { error = "capture capacity reached; try again later" });
         }
 
@@ -148,7 +152,6 @@ public sealed class CaptureController(
         await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId!.Value, ct);
         return Ok(result);
     }
-
 
 
     [HttpPost("send-config")]
@@ -168,14 +171,25 @@ public sealed class CaptureController(
     }
 
 
-
     private async Task DeliverSetupAsync(
         CaptureSession session, string discordId, Guid userId, CancellationToken ct) {
-        if (services.GetService(typeof(ICaptureCaNotifier)) is not ICaptureCaNotifier notifier || services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore addrStore) { FlagDmFailed(session); return; }
+        if (services.GetService(typeof(ICaptureCaNotifier)) is not ICaptureCaNotifier notifier ||
+            services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore addrStore) {
+            FlagDmFailed(session);
+            return;
+        }
 
         byte[] cer;
-        try { cer = await System.IO.File.ReadAllBytesAsync(session.CaPath, ct); } catch { cer = []; }
-        if (cer.Length == 0) { FlagDmFailed(session); return; }
+        try {
+            cer = await System.IO.File.ReadAllBytesAsync(session.CaPath, ct);
+        } catch {
+            cer = [];
+        }
+
+        if (cer.Length == 0) {
+            FlagDmFailed(session);
+            return;
+        }
 
         var addr = await addrStore.AddrForUserAsync(hostedOptions.Ipv6Prefix, userId, ct);
         var dm = new CaptureSetupDm(discordId, cer, addr.ToString(), hostedOptions.FrontDoorPort);
@@ -186,15 +200,15 @@ public sealed class CaptureController(
     private static void FlagDmFailed(CaptureSession session) {
         session.CaDmFailed = true;
         session.Hub.PostNotice(new CaptureEvent(
-            "caDmFailed", "Could not DM your setup; use the card below.", DateTime.Now.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)));
+            "caDmFailed", "Could not DM your setup; use the card below.",
+            DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)));
     }
-
 
 
     private static async Task RestoreCaAsync(
         CaptureSession session, CaptureCredentialStore? store, Guid userId, CancellationToken ct) {
         if (store is null) return;
-        var pfxPath = SessionPfxPath(session);
+        string pfxPath = SessionPfxPath(session);
         if (System.IO.File.Exists(pfxPath)) return;
         var ca = await store.GetCaAsync(userId, ct);
         if (ca is null || ca.Pfx.Length == 0) return;
@@ -206,9 +220,9 @@ public sealed class CaptureController(
     private static async Task PersistFreshCaAsync(
         CaptureSession session, CaptureCredentialStore store, Guid userId,
         string? thumbprint, CancellationToken ct) {
-        var pfxPath = SessionPfxPath(session);
+        string pfxPath = SessionPfxPath(session);
         if (!System.IO.File.Exists(pfxPath)) return;
-        var pfx = await System.IO.File.ReadAllBytesAsync(pfxPath, ct);
+        byte[] pfx = await System.IO.File.ReadAllBytesAsync(pfxPath, ct);
         await store.SaveCaAsync(userId, pfx, thumbprint ?? "", ct);
     }
 
@@ -247,8 +261,6 @@ public sealed class CaptureController(
         return Ok(new { cleared = true });
     }
 
-    public sealed record SaveEndpointRequest(long Id);
-
     [HttpPost("save-endpoint")]
     public async Task<IActionResult> SaveEndpoint([FromBody] SaveEndpointRequest body,
         [FromServices] IRouteCatalog routes) {
@@ -258,8 +270,10 @@ public sealed class CaptureController(
         if (flow is null) return NotFound(new { error = $"flow {body.Id} not in buffer" });
 
         if (appMode.CanCapture) {
-            var path = session.SaveEndpoint(flow.Path, flow.Method, flow.Status, flow.RequestDataB64, flow.ResponseB64);
-            if (path is null) return StatusCode(409, new { error = "capture not running or flow could not be decoded" });
+            string? path = session.SaveEndpoint(flow.Path, flow.Method, flow.Status, flow.RequestDataB64,
+                flow.ResponseB64);
+            if (path is null)
+                return StatusCode(409, new { error = "capture not running or flow could not be decoded" });
             session.Hub.MarkSaved(body.Id);
             return Ok(new { saved = path });
         }
@@ -267,7 +281,8 @@ public sealed class CaptureController(
 
         if (!currentUser.IsSupporter && !currentUser.IsAtLeast(UserRole.Contributor))
             return StatusCode(403, new { error = "supporter or contributor role required to save endpoints" });
-        if (services.GetService(typeof(EggIncognitoDbContext)) is not EggIncognitoDbContext db) return StatusCode(503, new { error = "no database configured" });
+        if (services.GetService(typeof(EggIncognitoDbContext)) is not EggIncognitoDbContext db)
+            return StatusCode(503, new { error = "no database configured" });
         if (routes.Get(flow.Path) is null) return BadRequest(new { error = $"unknown route {flow.Path}" });
         var decoded = session.Decode(flow.Path, flow.ResponseB64);
         if (decoded.Json is null || decoded.Type is null)
@@ -281,13 +296,14 @@ public sealed class CaptureController(
                 Eid = null,
                 ResponseJson = decoded.Json,
                 ResponseType = decoded.Type,
-                OwnerUserId = currentUser.UserId,
+                OwnerUserId = currentUser.UserId
             });
         } else {
             existing.ResponseJson = decoded.Json;
             existing.ResponseType = decoded.Type;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
         }
+
         await db.SaveChangesAsync();
         session.Hub.MarkSaved(body.Id);
         return Ok(new { saved = flow.Path, store = "db" });
@@ -297,7 +313,7 @@ public sealed class CaptureController(
     public IActionResult Har() {
         var (session, error) = Resolve();
         if (session is null) return error!;
-        var bytes = Encoding.UTF8.GetBytes(session.CurrentHar());
+        byte[] bytes = Encoding.UTF8.GetBytes(session.CurrentHar());
         return File(bytes, "application/json", "capture-session.har");
     }
 
@@ -313,7 +329,8 @@ public sealed class CaptureController(
     [HttpGet("proxy-address")]
     public async Task<IActionResult> ProxyAddress(CancellationToken ct) {
         if (RequireHostedSupporter() is { } no) return no;
-        if (services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore store) return StatusCode(503, new { error = "no database configured" });
+        if (services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore store)
+            return StatusCode(503, new { error = "no database configured" });
         var addr = await store.AddrForUserAsync(hostedOptions.Ipv6Prefix, currentUser.UserId!.Value, ct);
         return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
@@ -322,11 +339,11 @@ public sealed class CaptureController(
     [HttpPost("proxy-address/rotate")]
     public async Task<IActionResult> RotateProxyAddress(CancellationToken ct) {
         if (RequireHostedSupporter() is { } no) return no;
-        if (services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore store) return StatusCode(503, new { error = "no database configured" });
+        if (services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore store)
+            return StatusCode(503, new { error = "no database configured" });
         var addr = await store.RotateAsync(hostedOptions.Ipv6Prefix, currentUser.UserId!.Value, ct);
         return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
-
 
 
     [HttpGet("ca.cer")]
@@ -334,19 +351,22 @@ public sealed class CaptureController(
         if (RequireHostedSupporter() is { } no) return no;
         var session = manager.Get(currentUser.DiscordId!);
         if (session is not null && System.IO.File.Exists(session.CaPath)) {
-            var cer = await System.IO.File.ReadAllBytesAsync(session.CaPath, ct);
+            byte[] cer = await System.IO.File.ReadAllBytesAsync(session.CaPath, ct);
             return File(cer, "application/x-x509-ca-cert", "eggincognito-ca.cer");
         }
+
         var store = Credentials;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
         var ca = await store.GetCaAsync(currentUser.UserId!.Value, ct);
         if (ca is null || ca.Pfx.Length == 0)
             return NotFound(new { error = "no CA yet; start a capture session first" });
         try {
-            using var cert = X509CertificateLoader.LoadPkcs12(ca.Pfx, password: null);
+            using var cert = X509CertificateLoader.LoadPkcs12(ca.Pfx, null);
             return File(cert.Export(X509ContentType.Cert), "application/x-x509-ca-cert", "eggincognito-ca.cer");
         } catch (CryptographicException) {
             return StatusCode(500, new { error = "stored CA could not be read" });
         }
     }
+
+    public sealed record SaveEndpointRequest(long Id);
 }

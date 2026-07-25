@@ -4,14 +4,6 @@ using EggIncognito.Services.Devices;
 namespace EggIncognito.Tests.Devices;
 
 public class IosBinaryPullerTests {
-    private sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner {
-        public readonly List<(string exe, string[] args)> Calls = [];
-        public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) {
-            Calls.Add((exe, args));
-            return Task.FromResult(fn(exe, args));
-        }
-    }
-
     private const string BundleId = "com.auxbrain.egginc";
     private const string BinPath = "/private/var/containers/Bundle/Application/ABC/egginc.app/egginc";
 
@@ -53,7 +45,7 @@ public class IosBinaryPullerTests {
         });
         var puller = Puller(runner, "phone.local");
 
-        var bytes = await puller.PullBinaryAsync(BundleId, default);
+        byte[]? bytes = await puller.PullBinaryAsync(BundleId, default);
 
         Assert.NotNull(bytes);
         Assert.Equal(payload, bytes);
@@ -74,5 +66,14 @@ public class IosBinaryPullerTests {
         await puller.PullBinaryAsync(BundleId, default);
         var scp = runner.Calls.Single(c => c.exe == "scp");
         Assert.Contains(scp.args, a => a == $"root@h:{BinPath}");
+    }
+
+    private sealed class FakeRunner(Func<string, string[], ProcessResult> fn) : IProcessRunner {
+        public readonly List<(string exe, string[] args)> Calls = [];
+
+        public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) {
+            Calls.Add((exe, args));
+            return Task.FromResult(fn(exe, args));
+        }
     }
 }

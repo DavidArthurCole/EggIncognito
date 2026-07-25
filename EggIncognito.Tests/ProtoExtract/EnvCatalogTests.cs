@@ -53,7 +53,6 @@ public class EnvCatalogTests {
 
     [Fact]
     public void SiloPos_MatchesGameFormula() {
-
         Assert.Equal([-5f, 0f, 5.5f], FarmLayout.SiloPos(0));
         Assert.Equal([-5f, 0f, -0.5f], FarmLayout.SiloPos(1));
         Assert.Equal([-11f, 0f, 5.5f], FarmLayout.SiloPos(2));
@@ -63,8 +62,6 @@ public class EnvCatalogTests {
 
     [Fact]
     public void Standard_PlacesCoreZonesAtRowAnchors() {
-
-
         var placed = FarmLayout.Standard("hab_10k");
         var lab = placed.First(p => p.Stem == "ei_lab_6");
         var hoa = placed.First(p => p.Stem == "ei_hoa_3");
@@ -110,7 +107,8 @@ public class EnvCatalogTests {
     [Fact]
     public void Standard_DefaultHabRow_IsMixedTopTiers_And_DefaultVariants() {
         var placed = FarmLayout.Standard();
-        var habs = placed.Where(p => p.Stem.StartsWith("hab_", StringComparison.Ordinal)).OrderBy(p => p.Pos[0]).ToList();
+        var habs = placed.Where(p => p.Stem.StartsWith("hab_", StringComparison.Ordinal)).OrderBy(p => p.Pos[0])
+            .ToList();
         Assert.Equal(4, habs.Count);
 
         Assert.Equal(new[] { "hab_chicken_universe", "hab_chicken_universe", "hab_portal", "hab_monolith" },

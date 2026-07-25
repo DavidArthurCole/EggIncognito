@@ -1,7 +1,6 @@
-
-
 using System.Security.Cryptography;
 using System.Text;
+using Ei;
 using Google.Protobuf;
 using Microsoft.Extensions.Configuration;
 
@@ -16,23 +15,22 @@ public sealed record TransportStage(
     string? Note = null,
     string? Role = null,
     bool Skipped = false);
+
 public sealed record BuildResult(
     IReadOnlyList<TransportStage> Stages,
     string FinalBase64,
     string FinalFormBody);
+
 public sealed record DecodeResult(
     IReadOnlyList<TransportStage> Stages,
     string? Json,
     string? Error);
 
 public interface ITransportPipeline {
-
-
     bool CanSign { get; }
 
 
     BuildResult Build(byte[] innerProtoBytes, bool wrap);
-
 
 
     BuildResult Build(byte[] innerProtoBytes, bool wrap, string? salt);
@@ -49,23 +47,26 @@ public sealed class TransportPipeline : ITransportPipeline {
     private readonly string? _salt;
 
     public TransportPipeline(IConfiguration config)
-        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"]) { }
+        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"]) {
+    }
 
     public TransportPipeline()
-        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT")) { }
+        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT")) {
+    }
 
-    private TransportPipeline(string? salt) => _salt = salt;
+    private TransportPipeline(string? salt) {
+        _salt = salt;
+    }
 
     public bool CanSign => !string.IsNullOrEmpty(_salt);
 
     public BuildResult Build(byte[] innerProtoBytes, bool wrap) => Build(innerProtoBytes, wrap, _salt);
 
     public BuildResult Build(byte[] innerProtoBytes, bool wrap, string? salt) {
-        var canSign = !string.IsNullOrEmpty(salt);
-        var stages = new List<TransportStage>
-        {
+        bool canSign = !string.IsNullOrEmpty(salt);
+        var stages = new List<TransportStage> {
             Stage("proto-encode", "Request message serialized to protobuf wire bytes",
-                innerProtoBytes, role: RolePayload),
+                innerProtoBytes, role: RolePayload)
         };
 
         const string envelopeNote =
@@ -79,14 +80,15 @@ public sealed class TransportPipeline : ITransportPipeline {
             if (canSign) {
                 wrapped = WrapInAuthMessage(innerProtoBytes, salt!);
             } else {
-                wrapped = new Ei.AuthenticatedMessage {
-                    Message = ByteString.CopyFrom(innerProtoBytes),
+                wrapped = new AuthenticatedMessage {
+                    Message = ByteString.CopyFrom(innerProtoBytes)
                 }.ToByteArray();
                 note = "UNSIGNED - no signing salt provided; real-API sends requiring auth will fail. " + envelopeNote;
             }
+
             stages.Add(Stage("authenticated-message",
                 "Wrapped in AuthenticatedMessage { message, code = SHA256 hash }",
-                wrapped, note, role: RoleEnvelope));
+                wrapped, note, RoleEnvelope));
             postBytes = wrapped;
         } else {
             stages.Add(Stage("passthrough",
@@ -95,15 +97,15 @@ public sealed class TransportPipeline : ITransportPipeline {
             postBytes = innerProtoBytes;
         }
 
-        var b64 = Convert.ToBase64String(postBytes);
+        string b64 = Convert.ToBase64String(postBytes);
         stages.Add(new TransportStage("base64",
             "Base64-encode the POST bytes",
             postBytes.Length, null, b64, Role: RoleEncoding));
 
-        var formBody = "data=" + Uri.EscapeDataString(b64);
+        string formBody = "data=" + Uri.EscapeDataString(b64);
         stages.Add(new TransportStage("form-urlencode",
             "application/x-www-form-urlencoded body: data=<base64>",
-            postBytes.Length, null, null, formBody, Role: RoleEncoding));
+            postBytes.Length, null, null, formBody, RoleEncoding));
 
         return new BuildResult(stages, b64, formBody);
     }
@@ -116,18 +118,15 @@ public sealed class TransportPipeline : ITransportPipeline {
         } catch (Exception ex) {
             return new DecodeResult(stages, null, $"not valid base64: {ex.Message}");
         }
+
         stages.Add(Stage("base64-decode", "Decode base64 response body", respBytes, role: RoleEncoding));
 
         if (responseParser is null)
             return new DecodeResult(stages, null, "no parser for this endpoint's response type");
 
 
-
-
-
-
         if (responseWrapped != false) {
-            var wrapped = TryDecodeWrapped(respBytes, responseParser, force: responseWrapped == true);
+            var wrapped = TryDecodeWrapped(respBytes, responseParser, responseWrapped == true);
             if (wrapped is not null) {
                 stages.AddRange(wrapped.Value.Stages);
                 return new DecodeResult(stages, wrapped.Value.Json, null);
@@ -136,10 +135,10 @@ public sealed class TransportPipeline : ITransportPipeline {
 
         try {
             var msg = responseParser.ParseFrom(respBytes);
-            var json = JsonFormatter.Default.Format(msg);
+            string? json = JsonFormatter.Default.Format(msg);
             stages.Add(new TransportStage("proto-decode",
                 "Parsed bytes directly as the endpoint's response message (unwrapped - e.g. EggIncognito mock)",
-                respBytes.Length, null, null, "see JSON below", Role: RolePayload));
+                respBytes.Length, null, null, "see JSON below", RolePayload));
             return new DecodeResult(stages, json, null);
         } catch (Exception ex) {
             return new DecodeResult(stages, null, $"{ex.GetType().Name}: {ex.Message}");
@@ -148,37 +147,30 @@ public sealed class TransportPipeline : ITransportPipeline {
 
     private static (IReadOnlyList<TransportStage> Stages, string Json)? TryDecodeWrapped(
         byte[] respBytes, MessageParser responseParser, bool force = false) {
-
-
-
-
         if (!force && !LooksLikeAuthEnvelope(respBytes)) return null;
         try {
-            var outer = Ei.AuthenticatedMessage.Parser.ParseFrom(respBytes);
-            var messageBytes = outer.Message.ToByteArray();
+            var outer = AuthenticatedMessage.Parser.ParseFrom(respBytes);
+            byte[]? messageBytes = outer.Message.ToByteArray();
             if (messageBytes.Length == 0) return null;
 
-            var inner = outer.Compressed ? ProtoFraming.Decompress(messageBytes) : messageBytes;
+            byte[] inner = outer.Compressed ? ProtoFraming.Decompress(messageBytes) : messageBytes;
             var msg = responseParser.ParseFrom(inner);
-            var json = JsonFormatter.Default.Format(msg);
+            string? json = JsonFormatter.Default.Format(msg);
 
-            var stages = new List<TransportStage>
-            {
+            var stages = new List<TransportStage> {
                 Stage("authenticated-message",
-                    $"Parsed AuthenticatedMessage (compressed = {outer.Compressed})", messageBytes, role: RoleEnvelope),
+                    $"Parsed AuthenticatedMessage (compressed = {outer.Compressed})", messageBytes, role: RoleEnvelope)
             };
             if (outer.Compressed)
                 stages.Add(Stage("inflate", "Decompressed inner payload (gzip/zlib)", inner, role: RoleEncoding));
             stages.Add(new TransportStage("proto-decode",
                 "Parsed inner payload as the endpoint's response message",
-                inner.Length, null, null, "see JSON below", Role: RolePayload));
+                inner.Length, null, null, "see JSON below", RolePayload));
             return (stages, json);
         } catch (Exception ex) when (ex is InvalidProtocolBufferException or InvalidDataException) {
-
             return null;
         }
     }
-
 
 
     private static bool LooksLikeAuthEnvelope(byte[] bytes) {
@@ -191,38 +183,42 @@ public sealed class TransportPipeline : ITransportPipeline {
                 bool known = (field, wire) switch {
                     (1 or 2 or 6, WireFormat.WireType.LengthDelimited) => true,
                     (3 or 4 or 5, WireFormat.WireType.Varint) => true,
-                    _ => false,
+                    _ => false
                 };
                 if (!known) return false;
                 input.SkipLastField();
             }
+
             return true;
-        } catch (InvalidProtocolBufferException) { return false; }
+        } catch (InvalidProtocolBufferException) {
+            return false;
+        }
     }
 
-    private static TransportStage Stage(string name, string desc, byte[] bytes, string? note = null, string? role = null) =>
+    private static TransportStage Stage(string name, string desc, byte[] bytes, string? note = null,
+        string? role = null) =>
         new(name, desc, bytes.Length, Convert.ToHexString(bytes).ToLowerInvariant(),
             Convert.ToBase64String(bytes), note, role);
 
     private static byte[] WrapInAuthMessage(byte[] innerBytes, string salt) {
-        var msg = new Ei.AuthenticatedMessage {
+        var msg = new AuthenticatedMessage {
             Message = ByteString.CopyFrom(innerBytes),
-            Code = ComputeCode(innerBytes, salt),
+            Code = ComputeCode(innerBytes, salt)
         };
         return msg.ToByteArray();
     }
 
     private static string ComputeCode(byte[] messageBytes, string phrase) {
-        var phraseHash = SHA256.HashData(Encoding.UTF8.GetBytes(phrase));
-        var salt = Encoding.ASCII.GetBytes(Convert.ToHexString(phraseHash).ToLowerInvariant());
+        byte[] phraseHash = SHA256.HashData(Encoding.UTF8.GetBytes(phrase));
+        byte[] salt = Encoding.ASCII.GetBytes(Convert.ToHexString(phraseHash).ToLowerInvariant());
 
         const uint magic = 0x3b9af419;
-        var mutated = (byte[])messageBytes.Clone();
+        byte[] mutated = (byte[])messageBytes.Clone();
 
         if (mutated.Length > 0)
             mutated[magic % (uint)mutated.Length] = 0x1b;
 
-        var combined = new byte[mutated.Length + salt.Length];
+        byte[] combined = new byte[mutated.Length + salt.Length];
         mutated.CopyTo(combined, 0);
         salt.CopyTo(combined, mutated.Length);
         return Convert.ToHexString(SHA256.HashData(combined)).ToLowerInvariant();

@@ -3,25 +3,15 @@ using System.Text.Json;
 
 namespace EggIncognito.Core.Services.Protos;
 
-
 public static class CrawlManifestReader {
     private static readonly JsonSerializerOptions ManifestJsonOptions = new(JsonSerializerDefaults.Web);
-
-    public sealed record CrawlRecord(
-        string Platform, string? AppVersion, string? Build, string? ClientVersion, string ProtoSha,
-        string ProtoText, string? OriginRepo, string? OriginCommit, DateTimeOffset? OriginDate, string? Confidence);
-
-    private sealed record ManifestRow(
-        string? Repo, string? Commit, DateTimeOffset? Date, string? ProtoSha256,
-        int? ClientVersion, string? AppVersion, string? Build, string? SnapshotFile, string? VersionConfidence,
-        string? Platform);
 
 
     private static int ConfidenceRank(string? c) => c switch {
         "version-file" => 3,
         "subject" => 2,
         "tree-scan" => 1,
-        _ => 0,
+        _ => 0
     };
 
     private static bool IsTrusted(string? c) => c is "version-file" or "subject";
@@ -30,7 +20,7 @@ public static class CrawlManifestReader {
     private static string NormalizePlatform(string? p) => p?.ToUpperInvariant() switch {
         "IOS" => "ios",
         "ANDROID" => "android",
-        _ => "android",
+        _ => "android"
     };
 
     public static IReadOnlyList<CrawlRecord> Read(byte[] zipBytes) {
@@ -38,13 +28,13 @@ public static class CrawlManifestReader {
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
 
         var manifestEntry = zip.GetEntry("manifest.json")
-            ?? zip.Entries.FirstOrDefault(e => e.Name.Equals("manifest.json", StringComparison.OrdinalIgnoreCase));
+                            ?? zip.Entries.FirstOrDefault(e =>
+                                e.Name.Equals("manifest.json", StringComparison.OrdinalIgnoreCase));
         if (manifestEntry is null) return [];
 
         List<ManifestRow>? rows;
-        using (var s = manifestEntry.Open()) {
+        using (var s = manifestEntry.Open())
             rows = JsonSerializer.Deserialize<List<ManifestRow>>(s, ManifestJsonOptions);
-        }
 
         if (rows is null) return [];
 
@@ -63,16 +53,40 @@ public static class CrawlManifestReader {
             string text;
             using (var sr = new StreamReader(snap.Open())) text = sr.ReadToEnd();
 
-            var trusted = IsTrusted(r.VersionConfidence);
+            bool trusted = IsTrusted(r.VersionConfidence);
             result.Add(new CrawlRecord(
                 NormalizePlatform(r.Platform),
                 trusted ? r.AppVersion : null,
                 trusted ? r.Build : null,
                 trusted ? r.ClientVersion?.ToString() : null,
-
                 r.ProtoSha256!, text, r.Repo, r.Commit, r.Date?.ToUniversalTime(),
                 string.IsNullOrEmpty(r.VersionConfidence) ? null : r.VersionConfidence));
         }
+
         return result;
     }
+
+    public sealed record CrawlRecord(
+        string Platform,
+        string? AppVersion,
+        string? Build,
+        string? ClientVersion,
+        string ProtoSha,
+        string ProtoText,
+        string? OriginRepo,
+        string? OriginCommit,
+        DateTimeOffset? OriginDate,
+        string? Confidence);
+
+    private sealed record ManifestRow(
+        string? Repo,
+        string? Commit,
+        DateTimeOffset? Date,
+        string? ProtoSha256,
+        int? ClientVersion,
+        string? AppVersion,
+        string? Build,
+        string? SnapshotFile,
+        string? VersionConfidence,
+        string? Platform);
 }

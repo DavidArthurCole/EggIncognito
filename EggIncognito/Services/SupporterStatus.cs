@@ -13,14 +13,28 @@ public static class SupporterClaims {
         identity.AddClaim(new Claim(ClaimType, isSupporter ? "true" : "false"));
     }
 }
+
 public interface ISupporterStatus {
     Task<bool> CheckAsync(string discordId, CancellationToken ct = default);
 }
 
 public sealed class SupporterStatus(
-    IHttpClientFactory httpFactory, IConfiguration config, ILogger<SupporterStatus> logger, TimeProvider clock) : ISupporterStatus {
+    IHttpClientFactory httpFactory,
+    IConfiguration config,
+    ILogger<SupporterStatus> logger,
+    TimeProvider clock) : ISupporterStatus {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(30);
     private readonly ConcurrentDictionary<string, (bool IsSupporter, DateTimeOffset Expires)> _cache = new();
+
+    public async Task<bool> CheckAsync(string discordId, CancellationToken ct = default) {
+        var now = clock.GetUtcNow();
+        if (_cache.TryGetValue(discordId, out var cached) && cached.Expires > now)
+            return cached.IsSupporter;
+
+        bool result = await CheckLiveAsync(discordId, ct);
+        _cache[discordId] = (result, now + CacheTtl);
+        return result;
+    }
 
     public static bool ParseHasRole(string memberJson, string roleId) {
         try {
@@ -28,8 +42,11 @@ public sealed class SupporterStatus(
             if (doc.RootElement.ValueKind != JsonValueKind.Object) return false;
             if (!doc.RootElement.TryGetProperty("roles", out var roles)) return false;
             if (roles.ValueKind != JsonValueKind.Array) return false;
-            foreach (var r in roles.EnumerateArray())
-                if (r.ValueKind == JsonValueKind.String && r.GetString() == roleId) return true;
+            foreach (var r in roles.EnumerateArray()) {
+                if (r.ValueKind == JsonValueKind.String && r.GetString() == roleId)
+                    return true;
+            }
+
             return false;
         } catch (JsonException) {
             return false;
@@ -38,22 +55,12 @@ public sealed class SupporterStatus(
 
     public void Invalidate(string discordId) => _cache.TryRemove(discordId, out _);
 
-    public async Task<bool> CheckAsync(string discordId, CancellationToken ct = default) {
-        var now = clock.GetUtcNow();
-        if (_cache.TryGetValue(discordId, out var cached) && cached.Expires > now)
-            return cached.IsSupporter;
-
-        var result = await CheckLiveAsync(discordId, ct);
-        _cache[discordId] = (result, now + CacheTtl);
-        return result;
-    }
-
     private async Task<bool> CheckLiveAsync(string discordId, CancellationToken ct) {
-        var guildId = config["Discord:GuildId"];
-        var roleId = config["Discord:SupporterRoleId"];
-        var token = config["Discord:BotToken"];
+        string? guildId = config["Discord:GuildId"];
+        string? roleId = config["Discord:SupporterRoleId"];
+        string? token = config["Discord:BotToken"];
         if (string.IsNullOrWhiteSpace(guildId) || string.IsNullOrWhiteSpace(roleId)
-            || string.IsNullOrWhiteSpace(token)) {
+                                               || string.IsNullOrWhiteSpace(token)) {
             return false;
         }
 
@@ -63,7 +70,7 @@ public sealed class SupporterStatus(
                 $"https://discord.com/api/v10/guilds/{guildId}/members/{discordId}");
             req.Headers.TryAddWithoutValidation("Authorization", $"Bot {token}");
             using var res = await http.SendAsync(req, ct);
-            return !res.IsSuccessStatusCode ? false : ParseHasRole(await res.Content.ReadAsStringAsync(ct), roleId);
+            return res.IsSuccessStatusCode && ParseHasRole(await res.Content.ReadAsStringAsync(ct), roleId);
         } catch (Exception ex) {
             logger.LogWarning(ex, "Supporter check failed for {DiscordId}; fail-closed", discordId);
             return false;

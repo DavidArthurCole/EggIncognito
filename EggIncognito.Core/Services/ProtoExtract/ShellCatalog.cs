@@ -6,16 +6,7 @@ public static class ShellCatalog {
     private const string CdnBase = "https://www.auxbrain.com/dlc";
 
 
-
-
-    public sealed record Shell(string Identifier, string? Name, string AssetType, string Url, string? Checksum, bool ModifiedGeometry, string? SetIdentifier = null);
-
-
-
-    public sealed record ShellObject(
-        string Identifier, string? Name, string AssetType, string Url, string? Checksum,
-        IReadOnlyList<double> Anchor, bool NoHats);
-
+    public static readonly IReadOnlyList<double> DefaultChickenAnchor = [0.0, 0.428, -0.11, 1.06];
 
 
     public static IReadOnlyList<Shell> FromCatalog(DLCCatalog catalog) {
@@ -25,17 +16,16 @@ public static class ShellCatalog {
         foreach (var s in catalog.Shells) {
             var piece = s.PrimaryPiece ?? s.Pieces.FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
-            var url = Url(dlc);
+            string? url = Url(dlc);
             if (url is null) continue;
             shells.Add(new Shell(s.Identifier ?? "", NullIfEmpty(s.Name), AssetTypeName(piece.AssetType),
                 url, NullIfEmpty(dlc.Checksum), s.ModifiedGeometry, NullIfEmpty(s.SetIdentifier)));
         }
 
         foreach (var o in catalog.ShellObjects) {
-
             var piece = o.Pieces.Where(p => p.Dlc is not null).OrderBy(p => p.Lod).FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
-            var url = Url(dlc);
+            string? url = Url(dlc);
             if (url is null) continue;
             shells.Add(new Shell(o.Identifier ?? "", NullIfEmpty(o.Name), AssetTypeName(o.AssetType),
                 url, NullIfEmpty(dlc.Checksum), false));
@@ -46,14 +36,12 @@ public static class ShellCatalog {
 
 
     public static IReadOnlyList<Shell> ForAssetType(DLCCatalog catalog, string assetType) =>
-        FromCatalog(catalog).Where(s => string.Equals(s.AssetType, assetType, StringComparison.OrdinalIgnoreCase)).ToList();
+        FromCatalog(catalog).Where(s => string.Equals(s.AssetType, assetType, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
 
     public static Shell? ById(DLCCatalog catalog, string identifier) =>
         FromCatalog(catalog).FirstOrDefault(s => string.Equals(s.Identifier, identifier, StringComparison.Ordinal));
-
-
-    public static readonly IReadOnlyList<double> DefaultChickenAnchor = [0.0, 0.428, -0.11, 1.06];
 
     public static IReadOnlyList<ShellObject> Objects(DLCCatalog catalog) {
         var objs = new List<ShellObject>();
@@ -61,15 +49,18 @@ public static class ShellCatalog {
         foreach (var o in catalog.ShellObjects) {
             var piece = o.Pieces.Where(p => p.Dlc is not null).OrderBy(p => p.Lod).FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
-            var url = Url(dlc);
+            string? url = Url(dlc);
             if (url is null) continue;
-            var isChicken = o.AssetType == ShellSpec.Types.AssetType.Chicken;
+            bool isChicken = o.AssetType == ShellSpec.Types.AssetType.Chicken;
             var anchor = o.Metadata.Count > 0
                 ? o.Metadata.ToList()
-                : (isChicken && !o.NoHats ? DefaultChickenAnchor : []);
+                : isChicken && !o.NoHats
+                    ? DefaultChickenAnchor
+                    : [];
             objs.Add(new ShellObject(o.Identifier ?? "", NullIfEmpty(o.Name), AssetTypeName(o.AssetType),
                 url, NullIfEmpty(dlc.Checksum), anchor, o.NoHats));
         }
+
         return objs;
     }
 
@@ -82,12 +73,10 @@ public static class ShellCatalog {
     public static ShellObject? ObjectById(DLCCatalog catalog, string identifier) =>
         Objects(catalog).FirstOrDefault(o => string.Equals(o.Identifier, identifier, StringComparison.Ordinal));
 
+    public static IReadOnlyList<ShellSet> Sets(DLCCatalog catalog) => BuildSets(catalog, catalog?.ShellSets, false);
 
-
-    public sealed record ShellSet(string Identifier, string? Name, bool Decorator, IReadOnlyList<Shell> Members);
-
-    public static IReadOnlyList<ShellSet> Sets(DLCCatalog catalog) => BuildSets(catalog, catalog?.ShellSets, decorator: false);
-    public static IReadOnlyList<ShellSet> Decorators(DLCCatalog catalog) => BuildSets(catalog, catalog?.Decorators, decorator: true);
+    public static IReadOnlyList<ShellSet> Decorators(DLCCatalog catalog) =>
+        BuildSets(catalog, catalog?.Decorators, true);
 
     private static List<ShellSet> BuildSets(DLCCatalog? catalog, IEnumerable<ShellSetSpec>? specs, bool decorator) {
         var result = new List<ShellSet>();
@@ -97,21 +86,45 @@ public static class ShellCatalog {
             .GroupBy(s => s.SetIdentifier!, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<Shell>)[.. g], StringComparer.Ordinal);
         foreach (var spec in specs) {
-            var id = spec.Identifier ?? "";
+            string id = spec.Identifier ?? "";
             if (id.Length == 0) continue;
             var members = bySet.TryGetValue(id, out var m) ? m : [];
             result.Add(new ShellSet(id, NullIfEmpty(spec.Name), decorator, members));
         }
+
         return result;
     }
 
     private static string? Url(DLCItem dlc) {
         if (!string.IsNullOrEmpty(dlc.Url)) return dlc.Url;
         if (string.IsNullOrEmpty(dlc.Directory) || string.IsNullOrEmpty(dlc.Name)) return null;
-        var ext = string.IsNullOrEmpty(dlc.Ext) ? "rpoz" : dlc.Ext;
+        string? ext = string.IsNullOrEmpty(dlc.Ext) ? "rpoz" : dlc.Ext;
         return $"{CdnBase}/{dlc.Directory}/{dlc.Name}.{ext}";
     }
 
     private static string AssetTypeName(ShellSpec.Types.AssetType t) => t.ToString();
     private static string? NullIfEmpty(string? s) => string.IsNullOrEmpty(s) ? null : s;
+
+
+    public sealed record Shell(
+        string Identifier,
+        string? Name,
+        string AssetType,
+        string Url,
+        string? Checksum,
+        bool ModifiedGeometry,
+        string? SetIdentifier = null);
+
+
+    public sealed record ShellObject(
+        string Identifier,
+        string? Name,
+        string AssetType,
+        string Url,
+        string? Checksum,
+        IReadOnlyList<double> Anchor,
+        bool NoHats);
+
+
+    public sealed record ShellSet(string Identifier, string? Name, bool Decorator, IReadOnlyList<Shell> Members);
 }

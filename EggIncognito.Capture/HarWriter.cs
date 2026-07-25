@@ -3,21 +3,21 @@ using System.Text.Json;
 
 namespace EggIncognito.Capture;
 
-
-
 public sealed class HarWriter {
-
-
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
-
-    private readonly Lock _gate = new();
     private readonly List<object> _entries = [];
 
-    public int Count { get { lock (_gate) return _entries.Count; } }
+    private readonly Lock _gate = new();
+
+    public int Count {
+        get {
+            lock (_gate) return _entries.Count;
+        }
+    }
 
     public void Add(CapturedFlow flow) {
-        var requestParams = flow.RequestDataB64 is null
-            ? Array.Empty<object>()
+        object[] requestParams = flow.RequestDataB64 is null
+            ? []
             : [new { name = "data", value = flow.RequestDataB64 }];
 
         var entry = new {
@@ -27,28 +27,26 @@ public sealed class HarWriter {
                 headers = HarHeaders(flow.RequestHeaders),
                 postData = new {
                     mimeType = "application/x-www-form-urlencoded",
-                    @params = requestParams,
-                },
+                    @params = requestParams
+                }
             },
             response = new {
                 status = flow.Status,
                 headers = HarHeaders(flow.ResponseHeaders),
                 content = new {
-                    text = flow.ResponseBodyB64,
-                },
-            },
+                    text = flow.ResponseBodyB64
+                }
+            }
         };
 
         lock (_gate) _entries.Add(entry);
     }
 
 
-
     private static object[] HarHeaders(IReadOnlyList<HttpHeader>? headers) =>
         headers is null ? [] : [.. headers.Select(h => new { name = h.Name, value = h.Value })];
 
     public string ToHar() {
-
         object[] entries;
         lock (_gate) entries = [.. _entries];
 
@@ -56,8 +54,8 @@ public sealed class HarWriter {
             log = new {
                 version = "1.2",
                 creator = new { name = "EggIncognito.Capture", version = "1.0" },
-                entries,
-            },
+                entries
+            }
         };
         return JsonSerializer.Serialize(har, IndentedJson);
     }

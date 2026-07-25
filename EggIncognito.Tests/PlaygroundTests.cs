@@ -1,12 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using EggIncognito.Services.ProtoExtract;
 using EggIncognito.Tests.ProtoExtract;
 using Microsoft.AspNetCore.Mvc.Testing;
+using SharpGLTF.Schema2;
 
 namespace EggIncognito.Tests;
-
 
 [Collection(SharedAppCollection.Name)]
 public class PlaygroundTests(SharedAppFactory f) {
@@ -14,11 +15,10 @@ public class PlaygroundTests(SharedAppFactory f) {
 
     [Fact]
     public async Task Playground_Page_Renders_AdminGated() {
-
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/playground");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var html = await r.Content.ReadAsStringAsync();
+        string html = await r.Content.ReadAsStringAsync();
         Assert.Contains("3D Playground", html);
         Assert.Contains("Admin access required", html);
         Assert.DoesNotContain("playgroundCanvas", html);
@@ -36,7 +36,9 @@ public class PlaygroundTests(SharedAppFactory f) {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/devices/some-device/list-meshes");
 
-        Assert.True(r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
+        Assert.True(
+            r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                or HttpStatusCode.ServiceUnavailable,
             $"expected 401/403/503, got {(int)r.StatusCode}");
     }
 
@@ -48,12 +50,12 @@ public class PlaygroundTests(SharedAppFactory f) {
 
         var body = await r.Content.ReadFromJsonAsync<ListResult>();
         Assert.NotNull(body);
-        Assert.NotNull(body!.Ships);
+        Assert.NotNull(body.Ships);
     }
 
     [Fact]
     public async Task AnimateGlb_RoundTripsThroughEndpoint() {
-        var glb = RpoMeshDecoder.Decode(SampleRpo.Build(), "Endpoint").Glb!;
+        byte[] glb = RpoMeshDecoder.Decode(SampleRpo.Build(), "Endpoint").Glb!;
 
         var c = _factory.CreateClient();
         using var content = new MultipartFormDataContent();
@@ -65,9 +67,9 @@ public class PlaygroundTests(SharedAppFactory f) {
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         Assert.Equal("model/gltf-binary", r.Content.Headers.ContentType?.MediaType);
 
-        var outGlb = await r.Content.ReadAsByteArrayAsync();
+        byte[] outGlb = await r.Content.ReadAsByteArrayAsync();
 
-        var model = SharpGLTF.Schema2.ModelRoot.ParseGLB(outGlb);
+        var model = ModelRoot.ParseGLB(outGlb);
         Assert.Single(model.LogicalAnimations);
     }
 
@@ -83,7 +85,7 @@ public class PlaygroundTests(SharedAppFactory f) {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/shells/objects?platform=ios&type=chicken");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var json = await r.Content.ReadAsStringAsync();
+        string json = await r.Content.ReadAsStringAsync();
 
         Assert.Contains("\"ok\"", json);
         Assert.Contains("\"type\":\"chicken\"", json);
@@ -94,7 +96,7 @@ public class PlaygroundTests(SharedAppFactory f) {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/interop/playgroundRecorder.js");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var body = await r.Content.ReadAsStringAsync();
+        string body = await r.Content.ReadAsStringAsync();
         Assert.Contains("renderAtPhase", body);
         Assert.Contains("playground-loop.gif", body);
     }
@@ -104,7 +106,7 @@ public class PlaygroundTests(SharedAppFactory f) {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/env/catalog");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var json = await r.Content.ReadAsStringAsync();
+        string json = await r.Content.ReadAsStringAsync();
         Assert.Contains("ei_silo_0_large", json);
         Assert.Contains("\"habs\"", json);
         Assert.Contains("hab_eggtopia", json);
@@ -122,7 +124,7 @@ public class PlaygroundTests(SharedAppFactory f) {
     [Fact]
     public async Task EnvDesigns_Save_RequiresContributor() {
         var c = _factory.CreateClient();
-        var body = new StringContent("{\"payload\":\"{}\"}", System.Text.Encoding.UTF8, "application/json");
+        var body = new StringContent("{\"payload\":\"{}\"}", Encoding.UTF8, "application/json");
         var r = await c.PutAsync("/api/env/designs/test", body);
 
         Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
@@ -139,7 +141,6 @@ public class PlaygroundTests(SharedAppFactory f) {
 
     [Fact]
     public async Task EnvGlb_RequiresAdmin() {
-
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/env/ei_farm_ground/glb");
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
@@ -161,18 +162,25 @@ public class PlaygroundTests(SharedAppFactory f) {
 
     [Fact]
     public async Task InspectorBuild_ConfigRequest_WithClonedRinfo_Is200() {
-
         var c = _factory.CreateClient();
         var body = new {
             path = "ei/get_config",
             requestType = "ConfigRequest",
             fields = new { },
-            env = new { eiUserId = "EI5862923193024512", clientVersion = 72, version = "1.35.7", build = "111343", platform = "DROID", country = "US", language = "en" },
+            env = new {
+                eiUserId = "EI5862923193024512",
+                clientVersion = 72,
+                version = "1.35.7",
+                build = "111343",
+                platform = "DROID",
+                country = "US",
+                language = "en"
+            },
             wrap = true,
-            salt = "",
+            salt = ""
         };
         var r = await c.PostAsJsonAsync("/api/inspector/build", body);
-        var json = await r.Content.ReadAsStringAsync();
+        string json = await r.Content.ReadAsStringAsync();
         Assert.True(r.StatusCode == HttpStatusCode.OK, $"HTTP {(int)r.StatusCode}: {json}");
         Assert.Contains("finalFormBody", json, StringComparison.OrdinalIgnoreCase);
     }
@@ -186,7 +194,6 @@ public class PlaygroundTests(SharedAppFactory f) {
 
     [Fact]
     public async Task Shells_List_Responds() {
-
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/shells?platform=ios");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
@@ -196,7 +203,8 @@ public class PlaygroundTests(SharedAppFactory f) {
     public async Task Precache_RequiresAdmin() {
         var c = _factory.CreateClient();
         var r = await c.PostAsync("/api/devices/x/precache-meshes", null);
-        Assert.True(r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable);
+        Assert.True(r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+            or HttpStatusCode.ServiceUnavailable);
     }
 
     [Fact]
@@ -211,7 +219,7 @@ public class PlaygroundTests(SharedAppFactory f) {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/periodicals");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var html = await r.Content.ReadAsStringAsync();
+        string html = await r.Content.ReadAsStringAsync();
         Assert.Contains("Protos &amp; Data", html);
 
         Assert.DoesNotContain(">Periodicals</button>", html);

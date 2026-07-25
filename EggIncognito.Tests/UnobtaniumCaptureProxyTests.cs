@@ -3,8 +3,6 @@ using EggIncognito.Capture;
 namespace EggIncognito.Tests;
 
 public class UnobtaniumCaptureProxyTests {
-
-
     [Theory]
     [InlineData("www.auxbrain.com", true)]
     [InlineData("www.auxbrain.com:443", true)]
@@ -42,7 +40,6 @@ public class UnobtaniumCaptureProxyTests {
 
         Assert.Equal(1, proxy.PendingRequestCount);
     }
-
 
 
     [Fact]

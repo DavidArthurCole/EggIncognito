@@ -1,135 +1,112 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-
 public static class EnvCatalog {
-
-
-
-    public sealed record EnvPiece(string Stem, string Label, string Group, bool Singleton = false, string Family = "");
-
     public static readonly IReadOnlyList<EnvPiece> Pieces = [
-        new EnvPiece("ei_farm_ground", "Farm ground", "Terrain", Singleton: true),
-        new EnvPiece("ei_farm", "Farm paths", "Terrain", Singleton: true),
-        new EnvPiece("ei_farm_hardscape", "Hardscape", "Terrain", Singleton: true),
-        new EnvPiece("ei_farm_misc", "Ground detail", "Terrain", Singleton: true),
-        new EnvPiece("ei_chicken_display_ground", "Display ground", "Terrain", Singleton: true),
+        new("ei_farm_ground", "Farm ground", "Terrain", true),
+        new("ei_farm", "Farm paths", "Terrain", true),
+        new("ei_farm_hardscape", "Hardscape", "Terrain", true),
+        new("ei_farm_misc", "Ground detail", "Terrain", true),
+        new("ei_chicken_display_ground", "Display ground", "Terrain", true),
 
 
-        new EnvPiece("coop", "Coop", "Habs", Family: "hab"),
-        new EnvPiece("shack", "Shack", "Habs", Family: "hab"),
-        new EnvPiece("super_shack", "Super Shack", "Habs", Family: "hab"),
-        new EnvPiece("short_house", "Short House", "Habs", Family: "hab"),
-        new EnvPiece("the_standard", "The Standard", "Habs", Family: "hab"),
-        new EnvPiece("long_house", "Long House", "Habs", Family: "hab"),
-        new EnvPiece("double_decker", "Double Decker", "Habs", Family: "hab"),
-        new EnvPiece("warehouse", "Warehouse", "Habs", Family: "hab"),
-        new EnvPiece("center", "Center", "Habs", Family: "hab"),
-        new EnvPiece("bunker", "Bunker", "Habs", Family: "hab"),
-        new EnvPiece("eggkea", "Eggkea", "Habs", Family: "hab"),
-        new EnvPiece("hab_1k", "HAB 1000", "Habs", Family: "hab"),
-        new EnvPiece("hanger", "Hangar", "Habs", Family: "hab"),
-        new EnvPiece("tower", "Tower", "Habs", Family: "hab"),
-        new EnvPiece("hab_10k", "HAB 10,000", "Habs", Family: "hab"),
-        new EnvPiece("hab_eggtopia", "Eggtopia", "Habs", Family: "hab"),
-        new EnvPiece("hab_monolith", "Monolith", "Habs", Family: "hab"),
-        new EnvPiece("hab_portal", "Planet Portal", "Habs", Family: "hab"),
-        new EnvPiece("hab_chicken_universe", "Chicken Universe", "Habs", Family: "hab"),
+        new("coop", "Coop", "Habs", Family: "hab"),
+        new("shack", "Shack", "Habs", Family: "hab"),
+        new("super_shack", "Super Shack", "Habs", Family: "hab"),
+        new("short_house", "Short House", "Habs", Family: "hab"),
+        new("the_standard", "The Standard", "Habs", Family: "hab"),
+        new("long_house", "Long House", "Habs", Family: "hab"),
+        new("double_decker", "Double Decker", "Habs", Family: "hab"),
+        new("warehouse", "Warehouse", "Habs", Family: "hab"),
+        new("center", "Center", "Habs", Family: "hab"),
+        new("bunker", "Bunker", "Habs", Family: "hab"),
+        new("eggkea", "Eggkea", "Habs", Family: "hab"),
+        new("hab_1k", "HAB 1000", "Habs", Family: "hab"),
+        new("hanger", "Hangar", "Habs", Family: "hab"),
+        new("tower", "Tower", "Habs", Family: "hab"),
+        new("hab_10k", "HAB 10,000", "Habs", Family: "hab"),
+        new("hab_eggtopia", "Eggtopia", "Habs", Family: "hab"),
+        new("hab_monolith", "Monolith", "Habs", Family: "hab"),
+        new("hab_portal", "Planet Portal", "Habs", Family: "hab"),
+        new("hab_chicken_universe", "Chicken Universe", "Habs", Family: "hab"),
 
-        new EnvPiece("ei_silo_0_large", "Silo", "Storage", Family: "silo"),
-        new EnvPiece("ei_silo", "Silo (alt)", "Storage", Family: "silo"),
-        new EnvPiece("ei_depot_1", "Depot (1)", "Storage", Singleton: true, Family: "depot"),
-        new EnvPiece("ei_depot_2", "Depot (2)", "Storage", Singleton: true, Family: "depot"),
-        new EnvPiece("ei_depot_3", "Depot (3)", "Storage", Singleton: true, Family: "depot"),
-        new EnvPiece("ei_depot_4", "Depot (4)", "Storage", Singleton: true, Family: "depot"),
-        new EnvPiece("ei_depot_5", "Depot (5)", "Storage", Singleton: true, Family: "depot"),
-        new EnvPiece("ei_depot_6", "Depot (6)", "Storage", Singleton: true, Family: "depot"),
-        new EnvPiece("ei_depot_7", "Depot (7)", "Storage", Singleton: true, Family: "depot"),
-        new EnvPiece("ei_fuel_tank_1", "Fuel tank (1)", "Storage", Singleton: true, Family: "fuel"),
-        new EnvPiece("ei_fuel_tank_2", "Fuel tank (2)", "Storage", Singleton: true, Family: "fuel"),
-        new EnvPiece("ei_fuel_tank_3", "Fuel tank (3)", "Storage", Singleton: true, Family: "fuel"),
-        new EnvPiece("ei_fuel_tank_4", "Fuel tank (4)", "Storage", Singleton: true, Family: "fuel"),
-        new EnvPiece("ei_hyperloop_stop", "Hyperloop station", "Storage", Singleton: true),
-        new EnvPiece("ei_hyperloop_track", "Hyperloop track", "Storage", Singleton: true),
+        new("ei_silo_0_large", "Silo", "Storage", Family: "silo"),
+        new("ei_silo", "Silo (alt)", "Storage", Family: "silo"),
+        new("ei_depot_1", "Depot (1)", "Storage", true, "depot"),
+        new("ei_depot_2", "Depot (2)", "Storage", true, "depot"),
+        new("ei_depot_3", "Depot (3)", "Storage", true, "depot"),
+        new("ei_depot_4", "Depot (4)", "Storage", true, "depot"),
+        new("ei_depot_5", "Depot (5)", "Storage", true, "depot"),
+        new("ei_depot_6", "Depot (6)", "Storage", true, "depot"),
+        new("ei_depot_7", "Depot (7)", "Storage", true, "depot"),
+        new("ei_fuel_tank_1", "Fuel tank (1)", "Storage", true, "fuel"),
+        new("ei_fuel_tank_2", "Fuel tank (2)", "Storage", true, "fuel"),
+        new("ei_fuel_tank_3", "Fuel tank (3)", "Storage", true, "fuel"),
+        new("ei_fuel_tank_4", "Fuel tank (4)", "Storage", true, "fuel"),
+        new("ei_hyperloop_stop", "Hyperloop station", "Storage", true),
+        new("ei_hyperloop_track", "Hyperloop track", "Storage", true),
 
-        new EnvPiece("ei_lab_1", "Research lab (1)", "Buildings", Singleton: true, Family: "lab"),
-        new EnvPiece("ei_lab_2", "Research lab (2)", "Buildings", Singleton: true, Family: "lab"),
-        new EnvPiece("ei_lab_3", "Research lab (3)", "Buildings", Singleton: true, Family: "lab"),
-        new EnvPiece("ei_lab_4", "Research lab (4)", "Buildings", Singleton: true, Family: "lab"),
-        new EnvPiece("ei_lab_5", "Research lab (5)", "Buildings", Singleton: true, Family: "lab"),
-        new EnvPiece("ei_lab_6", "Research lab (6)", "Buildings", Singleton: true, Family: "lab"),
-        new EnvPiece("ei_mission_control_1", "Mission control (1)", "Buildings", Singleton: true, Family: "mission"),
-        new EnvPiece("ei_mission_control_2", "Mission control (2)", "Buildings", Singleton: true, Family: "mission"),
-        new EnvPiece("ei_mission_control_3", "Mission control (3)", "Buildings", Singleton: true, Family: "mission"),
-        new EnvPiece("ei_hoa_1", "Artifact hall (1)", "Buildings", Singleton: true, Family: "hoa"),
-        new EnvPiece("ei_hoa_2", "Artifact hall (2)", "Buildings", Singleton: true, Family: "hoa"),
-        new EnvPiece("ei_hoa_3", "Artifact hall (3)", "Buildings", Singleton: true, Family: "hoa"),
-        new EnvPiece("ei_trophy_case", "Trophy case", "Buildings", Singleton: true, Family: "trophy"),
-        new EnvPiece("ei_trophy_case2", "Trophy case (2)", "Buildings", Singleton: true, Family: "trophy"),
+        new("ei_lab_1", "Research lab (1)", "Buildings", true, "lab"),
+        new("ei_lab_2", "Research lab (2)", "Buildings", true, "lab"),
+        new("ei_lab_3", "Research lab (3)", "Buildings", true, "lab"),
+        new("ei_lab_4", "Research lab (4)", "Buildings", true, "lab"),
+        new("ei_lab_5", "Research lab (5)", "Buildings", true, "lab"),
+        new("ei_lab_6", "Research lab (6)", "Buildings", true, "lab"),
+        new("ei_mission_control_1", "Mission control (1)", "Buildings", true, "mission"),
+        new("ei_mission_control_2", "Mission control (2)", "Buildings", true, "mission"),
+        new("ei_mission_control_3", "Mission control (3)", "Buildings", true, "mission"),
+        new("ei_hoa_1", "Artifact hall (1)", "Buildings", true, "hoa"),
+        new("ei_hoa_2", "Artifact hall (2)", "Buildings", true, "hoa"),
+        new("ei_hoa_3", "Artifact hall (3)", "Buildings", true, "hoa"),
+        new("ei_trophy_case", "Trophy case", "Buildings", true, "trophy"),
+        new("ei_trophy_case2", "Trophy case (2)", "Buildings", true, "trophy"),
 
-        new EnvPiece("ei_afx_construction_site", "Artifact hall (construction)", "Buildings", Singleton: true, Family: "hoa"),
-
-
-
-        new EnvPiece("ei_hatchery_edible", "Hatchery (Edible)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_superfood", "Hatchery (Superfood)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_medical", "Hatchery (Medical)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_supermaterial", "Hatchery (Super Material)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_fusion", "Hatchery (Fusion)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_quantum", "Hatchery (Quantum)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_immortality", "Hatchery (Immortality)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_tachyon", "Hatchery (Tachyon)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_graviton", "Hatchery (Graviton)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_dilithium", "Hatchery (Dilithium)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_prodigy", "Hatchery (Prodigy)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_terraform", "Hatchery (Terraform)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_antimatter", "Hatchery (Antimatter)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_darkmatter", "Hatchery (Dark Matter)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_ai", "Hatchery (AI)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_vision", "Hatchery (Nebula)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_universe", "Hatchery (Universe)", "Buildings", Singleton: true, Family: "hatchery"),
-        new EnvPiece("ei_hatchery_enlightenment", "Hatchery (Enlightenment)", "Buildings", Singleton: true, Family: "hatchery"),
-
-        new EnvPiece("ei_farm_mailbox_full", "Mailbox", "Structures", Singleton: true),
+        new("ei_afx_construction_site", "Artifact hall (construction)", "Buildings", true, "hoa"),
 
 
-        new EnvPiece("ei_vehicle_semi", "Semi", "Vehicles"),
-        new EnvPiece("ei_vehicle_pickup", "Pickup", "Vehicles"),
-        new EnvPiece("ei_vehicle_trike", "Trike", "Vehicles"),
-        new EnvPiece("ei_vehicle_transit_van", "Transit van", "Vehicles"),
-        new EnvPiece("ei_vehicle_10ft", "10ft truck", "Vehicles"),
-        new EnvPiece("ei_vehicle_24ft", "24ft truck", "Vehicles"),
-        new EnvPiece("ei_vehicle_double_semi", "Double semi", "Vehicles"),
-        new EnvPiece("ei_vehicle_future_semi", "Future semi", "Vehicles"),
-        new EnvPiece("ei_vehicle_hover_semi", "Hover semi", "Vehicles"),
-        new EnvPiece("ei_vehicle_mega_semi", "Mega semi", "Vehicles"),
+        new("ei_hatchery_edible", "Hatchery (Edible)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_superfood", "Hatchery (Superfood)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_medical", "Hatchery (Medical)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_supermaterial", "Hatchery (Super Material)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_fusion", "Hatchery (Fusion)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_quantum", "Hatchery (Quantum)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_immortality", "Hatchery (Immortality)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_tachyon", "Hatchery (Tachyon)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_graviton", "Hatchery (Graviton)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_dilithium", "Hatchery (Dilithium)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_prodigy", "Hatchery (Prodigy)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_terraform", "Hatchery (Terraform)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_antimatter", "Hatchery (Antimatter)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_darkmatter", "Hatchery (Dark Matter)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_ai", "Hatchery (AI)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_vision", "Hatchery (Nebula)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_universe", "Hatchery (Universe)", "Buildings", true, "hatchery"),
+        new("ei_hatchery_enlightenment", "Hatchery (Enlightenment)", "Buildings", true, "hatchery"),
+
+        new("ei_farm_mailbox_full", "Mailbox", "Structures", true),
 
 
-        new EnvPiece("ei_ship_egg_shuttle", "Egg shuttle", "Ships"),
-        new EnvPiece("ei_ship_rooster", "Rooster", "Ships"),
-        new EnvPiece("ei_ship_bcr", "BCR", "Ships"),
-        new EnvPiece("ei_ship_chicken_one", "Chicken One", "Ships"),
-        new EnvPiece("ei_ship_chicken_nine", "Chicken Nine", "Ships"),
-        new EnvPiece("ei_ship_chicken_heavy", "Chicken Heavy", "Ships"),
-        new EnvPiece("ei_ship_corellihen_corvette", "Corellihen Corvette", "Ships"),
-        new EnvPiece("ei_ship_millenium_chicken", "Millenium Chicken", "Ships"),
-        new EnvPiece("ei_ship_atreggies_shuttle", "Atreggies Shuttle", "Ships"),
+        new("ei_vehicle_semi", "Semi", "Vehicles"),
+        new("ei_vehicle_pickup", "Pickup", "Vehicles"),
+        new("ei_vehicle_trike", "Trike", "Vehicles"),
+        new("ei_vehicle_transit_van", "Transit van", "Vehicles"),
+        new("ei_vehicle_10ft", "10ft truck", "Vehicles"),
+        new("ei_vehicle_24ft", "24ft truck", "Vehicles"),
+        new("ei_vehicle_double_semi", "Double semi", "Vehicles"),
+        new("ei_vehicle_future_semi", "Future semi", "Vehicles"),
+        new("ei_vehicle_hover_semi", "Hover semi", "Vehicles"),
+        new("ei_vehicle_mega_semi", "Mega semi", "Vehicles"),
+
+
+        new("ei_ship_egg_shuttle", "Egg shuttle", "Ships"),
+        new("ei_ship_rooster", "Rooster", "Ships"),
+        new("ei_ship_bcr", "BCR", "Ships"),
+        new("ei_ship_chicken_one", "Chicken One", "Ships"),
+        new("ei_ship_chicken_nine", "Chicken Nine", "Ships"),
+        new("ei_ship_chicken_heavy", "Chicken Heavy", "Ships"),
+        new("ei_ship_corellihen_corvette", "Corellihen Corvette", "Ships"),
+        new("ei_ship_millenium_chicken", "Millenium Chicken", "Ships"),
+        new("ei_ship_atreggies_shuttle", "Atreggies Shuttle", "Ships")
     ];
-
-
-    public static IReadOnlyList<EnvPiece> Habs =>
-        Pieces.Where(p => p.Group == "Habs").ToList();
-
-
-
-    public static IReadOnlyList<EnvPiece> Family(string stem) {
-        var fam = Pieces.FirstOrDefault(p => p.Stem == stem)?.Family ?? "";
-        return string.IsNullOrEmpty(fam) ? [] : [.. Pieces.Where(p => p.Family == fam)];
-    }
-
-    public static bool IsKnownPiece(string stem) =>
-        Pieces.Any(p => string.Equals(p.Stem, stem, StringComparison.Ordinal));
-
-
 
 
     private static readonly Dictionary<string, string?> _assetTypeByStem = new(StringComparer.Ordinal) {
@@ -182,12 +159,25 @@ public static class EnvCatalog {
         ["ei_farm_mailbox_full"] = "Mailbox",
         ["ei_farm_hardscape"] = "Hardscape",
         ["ei_hyperloop_stop"] = "Hyperloop",
-        ["ei_hyperloop_track"] = "Hyperloop",
+        ["ei_hyperloop_track"] = "Hyperloop"
     };
+
+
+    public static IReadOnlyList<EnvPiece> Habs =>
+        Pieces.Where(p => p.Group == "Habs").ToList();
+
+
+    public static IReadOnlyList<EnvPiece> Family(string stem) {
+        string fam = Pieces.FirstOrDefault(p => p.Stem == stem)?.Family ?? "";
+        return string.IsNullOrEmpty(fam) ? [] : [.. Pieces.Where(p => p.Family == fam)];
+    }
+
+    public static bool IsKnownPiece(string stem) =>
+        Pieces.Any(p => string.Equals(p.Stem, stem, StringComparison.Ordinal));
 
     public static string? AssetTypeOf(string stem) {
         if (stem.StartsWith("ei_hatchery_", StringComparison.Ordinal)) {
-            var suffix = stem["ei_hatchery_".Length..];
+            string suffix = stem["ei_hatchery_".Length..];
             return suffix switch {
                 "edible" => "HatcheryEdible",
                 "superfood" => "HatcherySuperfood",
@@ -207,9 +197,13 @@ public static class EnvCatalog {
                 "vision" => "HatcheryNebula",
                 "universe" => "HatcheryUniverse",
                 "enlightenment" => "HatcheryEnlightenment",
-                _ => null,
+                _ => null
             };
         }
-        return _assetTypeByStem.TryGetValue(stem, out var t) ? t : null;
+
+        return _assetTypeByStem.GetValueOrDefault(stem);
     }
+
+
+    public sealed record EnvPiece(string Stem, string Label, string Group, bool Singleton = false, string Family = "");
 }

@@ -3,7 +3,6 @@ using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-
 public static class Arm64Decode {
     public static CapstoneArm64Disassembler CreateDisassembler() {
         var cs = CapstoneDisassembler.CreateArm64Disassembler(Arm64DisassembleMode.LittleEndian);
@@ -15,8 +14,8 @@ public static class Arm64Decode {
         out byte[] code, out ulong slide) {
         slide = textVmAddr - (ulong)textFileOff;
         code = [];
-        var startFile = (long)startVa - (long)slide;
-        var len = (long)endVa - (long)startVa;
+        long startFile = (long)startVa - (long)slide;
+        long len = (long)endVa - (long)startVa;
         if (startFile < 0 || len <= 0 || startFile + len > bin.Length) return false;
         code = new byte[len];
         Array.Copy(bin, startFile, code, 0, (int)len);
@@ -25,10 +24,18 @@ public static class Arm64Decode {
 
     public static bool ReadPoolFloat(byte[] bin, ulong va, ulong slide, bool f64, out double value) {
         value = 0;
-        var fileOff = (long)va - (long)slide;
+        long fileOff = (long)va - (long)slide;
         if (fileOff < 0) return false;
-        if (f64 && fileOff + 8 <= bin.Length) { value = BitConverter.ToDouble(bin, (int)fileOff); return true; }
-        if (!f64 && fileOff + 4 <= bin.Length) { value = BitConverter.ToSingle(bin, (int)fileOff); return true; }
+        if (f64 && fileOff + 8 <= bin.Length) {
+            value = BitConverter.ToDouble(bin, (int)fileOff);
+            return true;
+        }
+
+        if (!f64 && fileOff + 4 <= bin.Length) {
+            value = BitConverter.ToSingle(bin, (int)fileOff);
+            return true;
+        }
+
         return false;
     }
 }

@@ -1,3 +1,4 @@
+using EggIncognito.Data.Models;
 using EggIncognito.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -24,7 +25,7 @@ public sealed class DbRouteProvider(EggIncognitoDbContext db, ILogger<DbRoutePro
         }
     }
 
-    private static RouteInfo ToInfo(Models.StoredRoute r) => new(
+    private static RouteInfo ToInfo(StoredRoute r) => new(
         r.Path, r.RequestType, r.ResponseType, r.RequestWrapped, r.ResponseWrapped,
         r.RawResponse, r.PathParam, r.PathParamOnly);
 }

@@ -1,6 +1,7 @@
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -10,9 +11,14 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/docs")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("write")]
 public sealed class DocsController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase {
+    private const int MaxImageBytes = 4 * 1024 * 1024;
+
+    private static readonly HashSet<string> AllowedImageTypes =
+        [with(StringComparer.OrdinalIgnoreCase), "image/png", "image/jpeg", "image/gif", "image/webp"];
+
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
     private ObjectResult? RequireContributor() =>
@@ -25,13 +31,8 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         kind is "message" or "endpoint" or "route" or "config" or "control";
 
 
-
     private void CacheFor(int seconds) =>
         Response.Headers.CacheControl = $"private, max-age={seconds}";
-
-    public sealed record UpsertDoc(string SubjectKind, string SubjectKey, string BodyMd);
-    public sealed record SetSubjectTags(string SubjectKind, string SubjectKey, long[] TagIds);
-
 
 
     [HttpGet("doc/{kind}/{**key}")]
@@ -56,7 +57,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
 
         var existing = await db.Docs
             .FirstOrDefaultAsync(d => d.SubjectKind == body.SubjectKind && d.SubjectKey == body.SubjectKey);
-        var empty = string.IsNullOrWhiteSpace(body.BodyMd);
+        bool empty = string.IsNullOrWhiteSpace(body.BodyMd);
 
         if (existing is null) {
             if (empty) return Ok(new { saved = false });
@@ -64,14 +65,15 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
                 SubjectKind = body.SubjectKind,
                 SubjectKey = body.SubjectKey,
                 BodyMd = body.BodyMd,
-                OwnerUserId = currentUser.UserId,
+                OwnerUserId = currentUser.UserId
             });
         } else if (empty) {
             db.Docs.Remove(existing);
         } else {
             existing.BodyMd = body.BodyMd;
-            existing.UpdatedAt = System.DateTimeOffset.UtcNow;
+            existing.UpdatedAt = DateTimeOffset.UtcNow;
         }
+
         await db.SaveChangesAsync();
         return Ok(new { saved = !empty });
     }
@@ -80,7 +82,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
     [HttpGet("tags")]
     public async Task<IActionResult> GetTags() {
         var db = Db;
-        if (db is null) return Ok(System.Array.Empty<object>());
+        if (db is null) return Ok(Array.Empty<object>());
         var rows = await db.Tags.AsNoTracking().OrderBy(t => t.Label)
             .Select(t => new { t.Id, t.Slug, t.Label, t.Color }).ToListAsync();
         CacheFor(30);
@@ -92,7 +94,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
     public async Task<IActionResult> GetSubjectTags(string kind, string key) {
         if (!ValidKind(kind)) return BadRequest(new { error = "invalid subject kind" });
         var db = Db;
-        if (db is null) return Ok(System.Array.Empty<object>());
+        if (db is null) return Ok(Array.Empty<object>());
         var rows = await (
             from st in db.SubjectTags.AsNoTracking()
             where st.SubjectKind == kind && st.SubjectKey == key
@@ -124,13 +126,12 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         var currentIds = current.Select(s => s.TagId).ToHashSet();
 
         db.SubjectTags.RemoveRange(current.Where(s => !wanted.Contains(s.TagId)));
-        foreach (var id in wanted.Where(id => !currentIds.Contains(id)))
+        foreach (long id in wanted.Where(id => !currentIds.Contains(id)))
             db.SubjectTags.Add(new SubjectTag { SubjectKind = body.SubjectKind, SubjectKey = body.SubjectKey, TagId = id });
 
         await db.SaveChangesAsync();
         return Ok(new { tagIds = wanted });
     }
-
 
 
     [HttpGet("tags-map")]
@@ -153,27 +154,18 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
     }
 
 
-
-
-    private const int MaxImageBytes = 4 * 1024 * 1024;
-
-    private static readonly HashSet<string> AllowedImageTypes =
-        [with(StringComparer.OrdinalIgnoreCase), "image/png", "image/jpeg", "image/gif", "image/webp"];
-
-
-
     internal static bool MagicMatches(byte[] b, string contentType) => contentType.ToLowerInvariant() switch {
         "image/png" => b.Length >= 8
-            && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47
-            && b[4] == 0x0D && b[5] == 0x0A && b[6] == 0x1A && b[7] == 0x0A,
+                       && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47
+                       && b[4] == 0x0D && b[5] == 0x0A && b[6] == 0x1A && b[7] == 0x0A,
         "image/jpeg" => b.Length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF,
         "image/gif" => b.Length >= 6
-            && b[0] == (byte)'G' && b[1] == (byte)'I' && b[2] == (byte)'F'
-            && b[3] == (byte)'8' && (b[4] == (byte)'7' || b[4] == (byte)'9') && b[5] == (byte)'a',
+                       && b[0] == (byte)'G' && b[1] == (byte)'I' && b[2] == (byte)'F'
+                       && b[3] == (byte)'8' && (b[4] == (byte)'7' || b[4] == (byte)'9') && b[5] == (byte)'a',
         "image/webp" => b.Length >= 12
-            && b[0] == (byte)'R' && b[1] == (byte)'I' && b[2] == (byte)'F' && b[3] == (byte)'F'
-            && b[8] == (byte)'W' && b[9] == (byte)'E' && b[10] == (byte)'B' && b[11] == (byte)'P',
-        _ => false,
+                        && b[0] == (byte)'R' && b[1] == (byte)'I' && b[2] == (byte)'F' && b[3] == (byte)'F'
+                        && b[8] == (byte)'W' && b[9] == (byte)'E' && b[10] == (byte)'B' && b[11] == (byte)'P',
+        _ => false
     };
 
 
@@ -182,8 +174,9 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
     public async Task<IActionResult> UploadImageAsync(IFormFile? file) {
         if (RequireContributor() is { } no) return no;
         if (file is null || file.Length == 0) return BadRequest(new { error = "no file" });
-        if (file.Length > MaxImageBytes) return BadRequest(new { error = $"image exceeds {MaxImageBytes / (1024 * 1024)} MB" });
-        var ct = file.ContentType ?? "";
+        if (file.Length > MaxImageBytes)
+            return BadRequest(new { error = $"image exceeds {MaxImageBytes / (1024 * 1024)} MB" });
+        string ct = file.ContentType ?? "";
         if (!AllowedImageTypes.Contains(ct)) return BadRequest(new { error = $"unsupported content type '{ct}'" });
 
         var db = Db;
@@ -191,7 +184,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
 
         using var ms = new MemoryStream();
         await file.CopyToAsync(ms);
-        var bytes = ms.ToArray();
+        byte[] bytes = ms.ToArray();
         if (!MagicMatches(bytes, ct))
             return BadRequest(new { error = $"file bytes do not match the declared type '{ct}'" });
 
@@ -199,7 +192,7 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             ContentType = ct,
             Bytes = bytes,
             ByteSize = bytes.Length,
-            OwnerUserId = currentUser.UserId,
+            OwnerUserId = currentUser.UserId
         };
         db.DocImages.Add(img);
         await db.SaveChangesAsync();
@@ -220,7 +213,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
     }
 
 
-
     [HttpGet("has")]
     public async Task<IActionResult> GetHasDocs() {
         var db = Db;
@@ -231,4 +223,8 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         CacheFor(30);
         return Ok(map);
     }
+
+    public sealed record UpsertDoc(string SubjectKind, string SubjectKey, string BodyMd);
+
+    public sealed record SetSubjectTags(string SubjectKind, string SubjectKey, long[] TagIds);
 }

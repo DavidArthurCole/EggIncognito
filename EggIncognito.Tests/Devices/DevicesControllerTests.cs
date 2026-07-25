@@ -8,21 +8,10 @@ using SyncKit.Contract;
 namespace EggIncognito.Tests.Devices;
 
 public class DevicesControllerTests {
-    private sealed class FakeUser(UserRole role) : ICurrentUser {
-        public bool IsAuthenticated => true;
-        public Guid? UserId => null;
-        public string? DiscordId => "123";
-        public string? Username => "tester";
-        public string? Avatar => null;
-        public string? AvatarUrl => null;
-        public UserRole Role => role;
-        public bool IsSupporter => false;
-        public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(Role, need);
-    }
-
     private static DevicesController Make(UserRole role, IServiceProvider sp, IDeviceJobTracker? jobs = null) =>
         new(new FakeUser(role), sp,
-            sp.GetService<IServiceScopeFactory>() ?? new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            sp.GetService<IServiceScopeFactory>() ?? new ServiceCollection().BuildServiceProvider()
+                .GetRequiredService<IServiceScopeFactory>(),
             jobs ?? new DeviceJobTracker(TimeProvider.System));
 
     [Fact]
@@ -97,5 +86,17 @@ public class DevicesControllerTests {
         var r = c.CheckStatus("frame-android");
         var ok = Assert.IsType<OkObjectResult>(r);
         Assert.Contains("running", ok.Value!.ToString());
+    }
+
+    private sealed class FakeUser(UserRole role) : ICurrentUser {
+        public bool IsAuthenticated => true;
+        public Guid? UserId => null;
+        public string? DiscordId => "123";
+        public string? Username => "tester";
+        public string? Avatar => null;
+        public string? AvatarUrl => null;
+        public UserRole Role => role;
+        public bool IsSupporter => false;
+        public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(Role, need);
     }
 }

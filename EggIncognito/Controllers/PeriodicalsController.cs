@@ -1,7 +1,12 @@
+using System.Globalization;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using EggIncognito.GameData;
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
+using Ei;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using SyncKit.Contract;
@@ -10,17 +15,20 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/periodicals")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Admin)]
+[ApiAccess(ApiAccessLevel.Admin)]
 [EnableRateLimiting("read")]
 public sealed class PeriodicalsController(
     ICurrentUser currentUser,
     IConfiguration config,
     DataCatalog catalog,
     IServiceProvider services) : ControllerBase {
-    private static readonly System.Text.Json.JsonSerializerOptions ProvenanceJson = new() {
-        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    private static readonly JsonSerializerOptions ProvenanceJson = new() {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+
+    private static readonly Dictionary<int, string> DimNames =
+        ColleggtibleCatalog.DimensionCodes.ToDictionary(kv => kv.Value, kv => kv.Key);
 
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
     private string DefaultsDir => Path.Combine(Root, "Endpoints", "default");
@@ -42,7 +50,7 @@ public sealed class PeriodicalsController(
                 extracted.Add(new {
                     key = f.Key,
                     count = f.Effects.Count,
-                    provenance = System.Text.Json.JsonSerializer.Serialize(f.Provenance, ProvenanceJson),
+                    provenance = JsonSerializer.Serialize(f.Provenance, ProvenanceJson)
                 });
             }
 
@@ -51,28 +59,30 @@ public sealed class PeriodicalsController(
             colleggtibles = new {
                 count = col.Eggs.Count,
                 gameVersion = col.GameVersion,
-                provenance = System.Text.Json.JsonSerializer.Serialize(col.Provenance, ProvenanceJson),
+                provenance = JsonSerializer.Serialize(col.Provenance, ProvenanceJson),
                 eggs = col.Eggs.Select(e => new {
                     e.Identifier,
                     dimension = DimensionName(e.Dimension),
                     e.TierValues,
-                    icon = icons.GetValueOrDefault(e.Identifier),
-                }),
+                    icon = icons.GetValueOrDefault(e.Identifier)
+                })
             };
         }
 
-        var platforms = Array.Empty<object>();
-        var configEnabled = false;
+        object[] platforms = [];
+        bool configEnabled = false;
         if (services.GetService(typeof(GameConfigStore)) is GameConfigStore store) {
             configEnabled = store.Enabled;
-            platforms = [.. store.List().Select(c => (object)new { platform = c.Platform, savedAt = c.SavedAt, bytes = c.Bytes })];
+            platforms = [
+                .. store.List().Select(c => (object)new { platform = c.Platform, savedAt = c.SavedAt, bytes = c.Bytes })
+            ];
         }
 
         return Ok(new {
             extracted,
             colleggtibles,
             config = new { enabled = configEnabled, platforms },
-            feeds = WireSources.Select(FeedInfo).ToArray(),
+            feeds = WireSources.Select(FeedInfo).ToArray()
         });
     }
 
@@ -114,41 +124,41 @@ public sealed class PeriodicalsController(
 
     private Dictionary<string, string> LoadColleggtibleIcons() {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        var route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
+        string? route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
         if (route is null) return map;
-        var path = FixturePath(route);
+        string path = FixturePath(route);
         if (!System.IO.File.Exists(path)) return map;
         try {
-            var per = Ei.PeriodicalsResponse.Parser.ParseJson(System.IO.File.ReadAllText(path));
+            var per = PeriodicalsResponse.Parser.ParseJson(System.IO.File.ReadAllText(path));
             foreach (var egg in per.Contracts?.CustomEggs ?? []) {
-                var url = egg.Icon?.Url;
+                string? url = egg.Icon?.Url;
                 if (!string.IsNullOrEmpty(egg.Identifier) && !string.IsNullOrEmpty(url))
                     map[egg.Identifier] = url;
             }
-        } catch { }
+        } catch {
+        }
+
         return map;
     }
 
     private string FixturePath(string route) {
-        var parts = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var file = parts[^1] + ".json";
+        string[] parts = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string file = parts[^1] + ".json";
         return Path.Combine(DefaultsDir, Path.Combine(parts[..^1]), file);
     }
 
-    private static readonly Dictionary<int, string> DimNames =
-        ColleggtibleCatalog.DimensionCodes.ToDictionary(kv => kv.Value, kv => kv.Key);
-
-    private static string DimensionName(int code) => DimNames.TryGetValue(code, out var n) ? n : code.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    private static string DimensionName(int code) =>
+        DimNames.TryGetValue(code, out string? n) ? n : code.ToString(CultureInfo.InvariantCulture);
 
     private object FeedInfo(DataSource src) {
-        var route = src.WireRoute!;
-        var path = FixturePath(route);
-        var exists = System.IO.File.Exists(path);
+        string route = src.WireRoute!;
+        string path = FixturePath(route);
+        bool exists = System.IO.File.Exists(path);
         return new {
             name = src.Feed,
             path = route,
             present = exists,
-            bytes = exists ? new FileInfo(path).Length : 0,
+            bytes = exists ? new FileInfo(path).Length : 0
         };
     }
 }

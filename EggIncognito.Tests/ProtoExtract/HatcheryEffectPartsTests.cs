@@ -2,11 +2,8 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-
 public class HatcheryEffectPartsTests {
-
-    private static readonly string[] Stems =
-    [
+    private static readonly string[] Stems = [
         "ei_hatchery_universe", "ei_hatchery_universe_bolt", "ei_hatchery_universe_probe",
         "ei_hatchery_darkmatter", "ei_hatchery_darkmatter_ring_1", "ei_hatchery_darkmatter_ring_2",
         "ei_hatchery_darkmatter_ring_3",
@@ -16,7 +13,7 @@ public class HatcheryEffectPartsTests {
         "ei_hatchery_graviton", "ei_hatchery_graviton_top",
         "ei_hatchery_edible", "ei_hatchery_easter", "ei_hatchery_quantum",
 
-        "ei_depot_3", "ei_lab_3", "hab_10k",
+        "ei_depot_3", "ei_lab_3", "hab_10k"
     ];
 
     [Fact]

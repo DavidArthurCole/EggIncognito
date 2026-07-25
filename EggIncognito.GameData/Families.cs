@@ -20,10 +20,11 @@ public abstract class EmbeddedEffectFamily : IEffectFamily {
         _byId = Effects.ToDictionary(e => e.Id, StringComparer.Ordinal);
     }
 
+    public string BinaryVersion { get; }
+
     public string Key { get; }
     public EffectSchema? MetaSchema { get; }
     public IReadOnlyList<Effect> Effects { get; }
-    public string BinaryVersion { get; }
     public IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
 
     public Effect? Find(string id) => _byId.GetValueOrDefault(id);
@@ -33,13 +34,13 @@ public sealed class BoostFamily() : EmbeddedEffectFamily(Families.Boost, "boosts
     private static readonly EffectSchema MetaSchemaDef = new([
         new EffectField("kind", EffectFieldType.String),
         new EffectField("durationSeconds", EffectFieldType.Int),
-        new EffectField("multiplier", EffectFieldType.Double, Required: false),
-        new EffectField("appliesTo", EffectFieldType.String, Required: false),
-        new EffectField("slotCap", EffectFieldType.Int, Required: false),
-        new EffectField("price", EffectFieldType.Int, Required: false),
-        new EffectField("tokenPrice", EffectFieldType.Int, Required: false),
-        new EffectField("seRequired", EffectFieldType.Double, Required: false),
-        new EffectField("iconAsset", EffectFieldType.String, Required: false)
+        new EffectField("multiplier", EffectFieldType.Double, false),
+        new EffectField("appliesTo", EffectFieldType.String, false),
+        new EffectField("slotCap", EffectFieldType.Int, false),
+        new EffectField("price", EffectFieldType.Int, false),
+        new EffectField("tokenPrice", EffectFieldType.Int, false),
+        new EffectField("seRequired", EffectFieldType.Double, false),
+        new EffectField("iconAsset", EffectFieldType.String, false)
     ]);
 
     public static BoostFamily Load() => new();
@@ -47,8 +48,8 @@ public sealed class BoostFamily() : EmbeddedEffectFamily(Families.Boost, "boosts
 
 public sealed class ResearchFamily() : EmbeddedEffectFamily(Families.Research, "research.json", MetaSchemaDef) {
     private static readonly EffectSchema MetaSchemaDef = new([
-        new EffectField("name", EffectFieldType.String, Required: false),
-        new EffectField("epic", EffectFieldType.Bool, Required: false)
+        new EffectField("name", EffectFieldType.String, false),
+        new EffectField("epic", EffectFieldType.Bool, false)
     ]);
 
     public static ResearchFamily Load() => new();
@@ -57,7 +58,7 @@ public sealed class ResearchFamily() : EmbeddedEffectFamily(Families.Research, "
 public sealed class HabFamily() : EmbeddedEffectFamily(Families.Hab, "habs.json", MetaSchemaDef) {
     private static readonly EffectSchema MetaSchemaDef = new([
         new EffectField("habId", EffectFieldType.Int),
-        new EffectField("name", EffectFieldType.String, Required: false)
+        new EffectField("name", EffectFieldType.String, false)
     ]);
 
     public static HabFamily Load() => new();
@@ -66,10 +67,10 @@ public sealed class HabFamily() : EmbeddedEffectFamily(Families.Hab, "habs.json"
 public sealed class ArtifactFamily() : EmbeddedEffectFamily(Families.Artifact, "artifacts.json", MetaSchemaDef) {
     private static readonly EffectSchema MetaSchemaDef = new([
         new EffectField("boost", EffectFieldType.String),
-        new EffectField("tier", EffectFieldType.Int, Required: false),
-        new EffectField("rarity", EffectFieldType.Int, Required: false),
-        new EffectField("stoneCap", EffectFieldType.Int, Required: false),
-        new EffectField("iconAsset", EffectFieldType.String, Required: false)
+        new EffectField("tier", EffectFieldType.Int, false),
+        new EffectField("rarity", EffectFieldType.Int, false),
+        new EffectField("stoneCap", EffectFieldType.Int, false),
+        new EffectField("iconAsset", EffectFieldType.String, false)
     ]);
 
     public static ArtifactFamily Load() => new();

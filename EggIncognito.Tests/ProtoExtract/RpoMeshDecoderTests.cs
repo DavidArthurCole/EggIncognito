@@ -35,7 +35,7 @@ public class RpoMeshDecoderTests {
 
     [Fact]
     public void Decode_ProducesValidGlbContainer() {
-        var glb = RpoMeshDecoder.Decode(BuildRpo()).Glb!;
+        byte[] glb = RpoMeshDecoder.Decode(BuildRpo()).Glb!;
         Assert.Equal((uint)0x46546C67, BinaryPrimitives.ReadUInt32LittleEndian(glb));
         Assert.Equal((uint)2, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(4)));
         Assert.Equal((uint)glb.Length, BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(8)));
@@ -45,7 +45,7 @@ public class RpoMeshDecoderTests {
 
     [Fact]
     public void Decode_Rpoz_ZlibWrapped_RoundTrips() {
-        var rpoz = ZlibWrap(BuildRpo());
+        byte[] rpoz = ZlibWrap(BuildRpo());
         var r = RpoMeshDecoder.Decode(rpoz);
         Assert.True(r.Ok, r.Diagnostics);
         Assert.Equal(3, r.VertexCount);
@@ -54,8 +54,9 @@ public class RpoMeshDecoderTests {
 
     [Fact]
     public void Decode_BadMagic_FailsCleanly() {
-        var junk = new byte[64];
-        junk[0] = 0xDE; junk[1] = 0xAD;
+        byte[] junk = new byte[64];
+        junk[0] = 0xDE;
+        junk[1] = 0xAD;
         var r = RpoMeshDecoder.Decode(junk);
         Assert.False(r.Ok);
         Assert.Null(r.Glb);
@@ -67,10 +68,11 @@ public class RpoMeshDecoderTests {
     [Fact]
     public void Extract_ZipWithRpo_DecodesNamedByEntry() {
         using var ms = new MemoryStream();
-        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true)) {
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true)) {
             using var es = zip.CreateEntry("assets/rpos/Henerprise.rpo").Open();
             es.Write(BuildRpo());
         }
+
         var r = RpoAssetExtractor.Extract(ms.ToArray());
         Assert.True(r.Ok, r.Diagnostics);
         var asset = Assert.Single(r.Assets);
@@ -81,10 +83,11 @@ public class RpoMeshDecoderTests {
     [Fact]
     public void Extract_NoMeshEntries_ReportsNotFound() {
         using var ms = new MemoryStream();
-        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true)) {
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true)) {
             using var es = zip.CreateEntry("AndroidManifest.xml").Open();
             es.Write([1, 2, 3]);
         }
+
         var r = RpoAssetExtractor.Extract(ms.ToArray());
         Assert.False(r.Ok);
         Assert.Empty(r.Assets);
@@ -96,15 +99,15 @@ public class RpoMeshDecoderTests {
         ms.WriteByte(0x9C);
 
         ms.SetLength(0);
-        using (var zl = new ZLibStream(ms, CompressionLevel.Optimal, leaveOpen: true))
+        using (var zl = new ZLibStream(ms, CompressionLevel.Optimal, true))
             zl.Write(data);
         return ms.ToArray();
     }
 
 
     private static Dictionary<string, JsonElement> PrimitiveAttributes(byte[] glb) {
-        var jsonLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12));
-        var json = Encoding.UTF8.GetString(glb, 20, jsonLen);
+        int jsonLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12));
+        string json = Encoding.UTF8.GetString(glb, 20, jsonLen);
         using var doc = JsonDocument.Parse(json);
         var attrs = doc.RootElement
             .GetProperty("meshes")[0]

@@ -12,7 +12,8 @@ public sealed class IosBinaryPuller(SshDeviceConnection conn) {
             $"base=$(basename \"$app\" .app); [ -f \"$app/$base\" ] && echo \"$app/$base\" && break; " +
             $"fi; done", ct);
         if (locate.ExitCode != 0) return null;
-        var binPath = locate.Stdout.Trim().Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim();
+        string? binPath = locate.Stdout.Trim().Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
+            ?.Trim();
         return string.IsNullOrEmpty(binPath) ? null : await conn.PullBytesAsync(binPath, ct);
     }
 }

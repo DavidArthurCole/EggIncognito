@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
@@ -9,7 +10,7 @@ public class ImportTabStyleTests(SharedAppFactory f) {
     [Fact]
     public async Task ImportPage_UsesTailwind_NotBespokeSheet() {
         var c = _f.CreateClient();
-        var html = await c.GetStringAsync("/import");
+        string html = await c.GetStringAsync("/import");
         Assert.DoesNotContain("import/styles.css", html);
         Assert.Contains("/tailwind.css", html);
         Assert.Contains("class=\"panel\"", html);
@@ -20,13 +21,13 @@ public class ImportTabStyleTests(SharedAppFactory f) {
         var c = _f.CreateClient();
         var r = await c.GetAsync("/import/styles.css");
 
-        Assert.NotEqual(System.Net.HttpStatusCode.OK, r.StatusCode);
+        Assert.NotEqual(HttpStatusCode.OK, r.StatusCode);
     }
 
     [Fact]
     public async Task CompiledSheet_DefinesComponentClasses() {
         var c = _f.CreateClient();
-        var css = await c.GetStringAsync("/tailwind.css");
+        string css = await c.GetStringAsync("/tailwind.css");
 
         Assert.Contains(".panel", css);
         Assert.Contains(".dropzone", css);

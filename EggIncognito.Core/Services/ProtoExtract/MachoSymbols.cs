@@ -1,5 +1,6 @@
-namespace EggIncognito.Services.ProtoExtract;
+using System.Text;
 
+namespace EggIncognito.Services.ProtoExtract;
 
 public static class MachoSymbols {
     private const uint MhMagic64 = 0xFEEDFACF;
@@ -8,12 +9,6 @@ public static class MachoSymbols {
     private const uint CpuArm64 = 0x0100000C;
     private const uint LcSymtab = 0x02;
     private const uint LcSegment64 = 0x19;
-
-    public readonly record struct Symbol(string Name, ulong Value, byte Type, byte Sect);
-
-
-
-    public readonly record struct FuncRange(string Name, ulong Start, ulong End);
 
     public static IReadOnlyList<Symbol> Read(byte[] bin) {
         var outp = new List<Symbol>();
@@ -25,6 +20,7 @@ public static class MachoSymbols {
                 if (!TryFatArm64(bin, out b) || b + 32 > bin.Length) return outp;
                 magic = U32(bin, b);
             }
+
             if (magic != MhMagic64) return outp;
 
             uint ncmds = U32(bin, b + 16);
@@ -33,7 +29,7 @@ public static class MachoSymbols {
                 if (lc + 8 > bin.Length) return outp;
                 uint cmd = U32(bin, lc);
                 uint cmdsize = U32(bin, lc + 4);
-                if (cmdsize < 8 || lc + (long)cmdsize > bin.Length) return outp;
+                if (cmdsize < 8 || lc + cmdsize > bin.Length) return outp;
                 if (cmd == LcSymtab) {
                     uint symoff = U32(bin, lc + 8) + (uint)b;
                     uint nsyms = U32(bin, lc + 12);
@@ -41,14 +37,14 @@ public static class MachoSymbols {
                     uint strsize = U32(bin, lc + 20);
                     ReadNlist(bin, symoff, nsyms, stroff, strsize, outp);
                 }
+
                 lc += (int)cmdsize;
             }
         } catch {
         }
+
         return outp;
     }
-
-
 
 
     public static bool TryFindFunc(IReadOnlyList<Symbol> syms, string[] needles, out FuncRange range) {
@@ -57,15 +53,28 @@ public static class MachoSymbols {
         foreach (var s in syms) {
             if (s.Value == 0 || string.IsNullOrEmpty(s.Name)) continue;
             bool all = true;
-            foreach (var n in needles) if (!s.Name.Contains(n)) { all = false; break; }
-            if (all) { hit = s; break; }
+            foreach (string n in needles) {
+                if (!s.Name.Contains(n)) {
+                    all = false;
+                    break;
+                }
+            }
+
+            if (all) {
+                hit = s;
+                break;
+            }
         }
+
         if (hit is null) return false;
 
         ulong start = hit.Value.Value;
         ulong end = ulong.MaxValue;
-        foreach (var s in syms)
-            if (s.Value > start && s.Value < end) end = s.Value;
+        foreach (var s in syms) {
+            if (s.Value > start && s.Value < end)
+                end = s.Value;
+        }
+
         if (end == ulong.MaxValue) end = start + 0x4000;
         range = new FuncRange(hit.Value.Name, start, end);
         return true;
@@ -93,9 +102,14 @@ public static class MachoSymbols {
         int e = 8;
         for (uint i = 0; i < nfat; i++) {
             if (e + 20 > b.Length) return false;
-            if (U32be(b, e) == CpuArm64) { offset = (int)U32be(b, e + 8); return true; }
+            if (U32be(b, e) == CpuArm64) {
+                offset = (int)U32be(b, e + 8);
+                return true;
+            }
+
             e += 20;
         }
+
         return false;
     }
 
@@ -112,6 +126,11 @@ public static class MachoSymbols {
         if (o < 0 || o >= b.Length) return "";
         int end = o;
         while (end < b.Length && b[end] != 0) end++;
-        return System.Text.Encoding.UTF8.GetString(b, o, end - o);
+        return Encoding.UTF8.GetString(b, o, end - o);
     }
+
+    public readonly record struct Symbol(string Name, ulong Value, byte Type, byte Sect);
+
+
+    public readonly record struct FuncRange(string Name, ulong Start, ulong End);
 }

@@ -10,7 +10,7 @@ public class ControllerPolicyAttributeTests {
     public void ToolsController_HasReadRateLimitPolicy() {
         var attr = typeof(ToolsController).GetCustomAttribute<EnableRateLimitingAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal("read", attr!.PolicyName);
+        Assert.Equal("read", attr.PolicyName);
     }
 
     [Fact]

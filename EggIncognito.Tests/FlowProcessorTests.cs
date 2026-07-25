@@ -1,38 +1,38 @@
 using System.Text;
 using EggIncognito.Capture;
 using EggIncognito.Services;
+using Ei;
 using Google.Protobuf;
 
 namespace EggIncognito.Tests;
-
 
 public class FlowProcessorTests {
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
     private const string Slug = "ei/get_periodicals";
 
     private const string Yaml = """
-routes:
-  # ei/
-  - path: ei/get_periodicals
-    request: GetPeriodicalsRequest
-    response: PeriodicalsResponse
+                                routes:
+                                  # ei/
+                                  - path: ei/get_periodicals
+                                    request: GetPeriodicalsRequest
+                                    response: PeriodicalsResponse
 
-needs_capture:
-  request_unknown:
-""";
+                                needs_capture:
+                                  request_unknown:
+                                """;
 
     private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-flowproc");
 
     private static string WrappedResponseB64() {
-        var inner = new Ei.PeriodicalsResponse();
-        var outer = new Ei.AuthenticatedMessage { Message = inner.ToByteString(), Compressed = false };
+        var inner = new PeriodicalsResponse();
+        var outer = new AuthenticatedMessage { Message = inner.ToByteString(), Compressed = false };
         return Convert.ToBase64String(outer.ToByteArray());
     }
 
     [Fact]
     public void Process_NewKnownEndpoint_YieldsWroteOutcomeAndKnownFlow() {
-        var root = MakeRepo();
-        var extractor = EndpointExtractor.ForRepo(root, eid: null, eidPlaceholder: "EI0000000000000000", overwrite: false);
+        string root = MakeRepo();
+        var extractor = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", false);
         var decoder = new FlowDecoder(root);
         var har = new HarWriter();
         var proc = new FlowProcessor(extractor, decoder, har, root);
@@ -49,7 +49,7 @@ needs_capture:
 
     [Fact]
     public void Process_SkippedFlow_FallsBackToNormalizedPathAndEmptyOutcome() {
-        var root = MakeRepo();
+        string root = MakeRepo();
         var extractor = EndpointExtractor.ForRepo(root, null, "EI0000000000000000", false);
         var decoder = new FlowDecoder(root);
         var proc = new FlowProcessor(extractor, decoder, new HarWriter(), root);
@@ -74,16 +74,20 @@ needs_capture:
 
     [Fact]
     public void DiffCounts_CountsAddedAndRemovedLines_Multiset() {
-        var root = MakeRepo();
-        string dir(string sub) => Path.Combine(root, "Endpoints", sub);
-        var existing = Path.Combine(dir("default"), Slug + ".json");
-        var staged = Path.Combine(dir("staged"), Slug + ".json");
+        string root = MakeRepo();
+
+        string dir(string sub) {
+            return Path.Combine(root, "Endpoints", sub);
+        }
+
+        string existing = Path.Combine(dir("default"), Slug + ".json");
+        string staged = Path.Combine(dir("staged"), Slug + ".json");
         Directory.CreateDirectory(Path.GetDirectoryName(existing)!);
         Directory.CreateDirectory(Path.GetDirectoryName(staged)!);
         File.WriteAllText(existing, "a\nb\nb\nc", Encoding.UTF8);
         File.WriteAllText(staged, "a\nb\nd\ne", Encoding.UTF8);
 
-        var (added, removed) = FlowProcessor.DiffCounts(root, Slug);
+        (int added, int removed) = FlowProcessor.DiffCounts(root, Slug);
 
         Assert.Equal(2, added);
         Assert.Equal(2, removed);
@@ -91,7 +95,7 @@ needs_capture:
 
     [Fact]
     public void DiffCounts_MissingFiles_ReturnsZero() {
-        var root = MakeRepo();
+        string root = MakeRepo();
         Assert.Equal((0, 0), FlowProcessor.DiffCounts(root, Slug));
     }
 }

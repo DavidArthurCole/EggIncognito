@@ -1567,7 +1567,7 @@
     async Task<object?> BuildHatcheryModel(string tier, List<string> floating, JsonElement? dump) {
         float[] orb = [0f, 2.15f, 0f];
 
-        var probeCount = 12;
+        const int probeCount = 12;
         var orbitRadius = 0f;
         var orbitSpeed = 0.5f;
         float beamInterval = 0f, beamDuration = 0.2f;
@@ -1627,12 +1627,11 @@
         }
 
 
-        float bodyCx = 0f, bodyCy = 0f, bodyCz = 0f, bodyTopY = 0f;
+        float bodyCx = 0f, bodyCy = 0f, bodyCz = 0f;
         if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyForOff)) {
             bodyCx = (bodyForOff.MinX + bodyForOff.MaxX) * 0.5f;
             bodyCy = (bodyForOff.MinY + bodyForOff.MaxY) * 0.5f;
             bodyCz = (bodyForOff.MinZ + bodyForOff.MaxZ) * 0.5f;
-            bodyTopY = bodyForOff.MaxY;
         }
 
         var pieces = new List<object>();

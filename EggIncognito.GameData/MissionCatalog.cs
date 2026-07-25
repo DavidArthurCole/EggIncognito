@@ -10,15 +10,16 @@ public sealed record MissionCatalogEntry(
 
 public interface IMissionCatalog {
     IReadOnlyList<MissionCatalogEntry> Missions { get; }
-    MissionCatalogEntry? Find(string id);
     string BinaryVersion { get; }
     IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    MissionCatalogEntry? Find(string id);
 }
 
 public sealed class MissionCatalog : IMissionCatalog {
     private readonly Dictionary<string, MissionCatalogEntry> _byId;
 
-    private MissionCatalog(IReadOnlyList<MissionCatalogEntry> missions, string binaryVersion, IReadOnlyDictionary<string, ProvenanceSource> provenance) {
+    private MissionCatalog(IReadOnlyList<MissionCatalogEntry> missions, string binaryVersion,
+        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
         Missions = missions;
         BinaryVersion = binaryVersion;
         Provenance = provenance;
@@ -38,12 +39,11 @@ public sealed class MissionCatalog : IMissionCatalog {
     }
 
     private static MissionCatalogEntry ToEntry(MissionCatalogRow row) {
-        if (string.IsNullOrEmpty(row.Id)) {
-            throw new GameDataSchemaException("Mission catalog row missing id.");
-        }
-        return string.IsNullOrEmpty(row.Goal)
-            ? throw new GameDataSchemaException($"Mission catalog '{row.Id}' missing goal.")
-            : new MissionCatalogEntry(row.Id, row.DisplayName, row.Goal);
+        return string.IsNullOrEmpty(row.Id)
+            ? throw new GameDataSchemaException("Mission catalog row missing id.")
+            : string.IsNullOrEmpty(row.Goal)
+                ? throw new GameDataSchemaException($"Mission catalog '{row.Id}' missing goal.")
+                : new MissionCatalogEntry(row.Id, row.DisplayName, row.Goal);
     }
 }
 
@@ -65,14 +65,14 @@ public static class MissionCatalogDataLoader {
 
     public static MissionCatalogDataFile Read(string resourceName) {
         var assembly = Assembly.GetExecutingAssembly();
-        var full = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
+        string full = assembly.GetManifestResourceNames()
+                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
+                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
 
         using var stream = assembly.GetManifestResourceStream(full)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
+                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
 
         return JsonSerializer.Deserialize<MissionCatalogDataFile>(stream, Options)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
+               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
     }
 }

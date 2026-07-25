@@ -17,8 +17,8 @@ public class AuthCallbackTests(WebApplicationFactory<Program> f) : IClassFixture
     private static IdentityApiClient StubIdentity() {
         var uid = Guid.NewGuid();
         var http = new HttpClient(new StubHttpMessageHandler(req =>
-            StubHttpMessageHandler.Json(HttpStatusCode.OK,
-                $$"""{"userId":"{{uid}}","username":"tester","role":"viewer","discordId":null,"avatar":null,"isNew":false}"""))) { BaseAddress = new Uri("http://identity.local") };
+                StubHttpMessageHandler.Json(HttpStatusCode.OK,
+                    $$"""{"userId":"{{uid}}","username":"tester","role":"viewer","discordId":null,"avatar":null,"isNew":false}"""))) { BaseAddress = new Uri("http://identity.local") };
         return new IdentityApiClient(http);
     }
 

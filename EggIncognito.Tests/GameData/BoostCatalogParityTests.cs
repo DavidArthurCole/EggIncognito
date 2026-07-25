@@ -17,5 +17,4 @@ public class BoostCatalogParityTests {
         Assert.Equal("ei/get_config", cat.Provenance["cost"].Locator);
         Assert.Equal("derived", cat.Provenance["iconAsset"].Origin);
     }
-
 }

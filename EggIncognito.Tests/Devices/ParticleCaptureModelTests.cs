@@ -1,12 +1,13 @@
+using System.Globalization;
 using EggIncognito.Services.Devices;
 
 namespace EggIncognito.Tests.Devices;
 
 public class ParticleCaptureModelTests {
     private static string Line(int t, string mesh, float x, float y, float z, float s) {
-        var m = new[] { 1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, x, y, z };
-        var xs = string.Join(",", m.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-        var sl = s.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        float[] m = [1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, x, y, z];
+        string xs = string.Join(",", m.Select(v => v.ToString(CultureInfo.InvariantCulture)));
+        string sl = s.ToString(CultureInfo.InvariantCulture);
         return $"{{\"t\":{t},\"mesh\":\"{mesh}\",\"x\":[{xs}],\"s\":{sl}}}";
     }
 
@@ -19,7 +20,7 @@ public class ParticleCaptureModelTests {
 
     [Fact]
     public void Parse_ClustersByMesh_DominantIsBiggest() {
-        var log = string.Join("\n",
+        string log = string.Join("\n",
             Line(0, "0xA", 1, 2, 3, 0.5f),
             Line(1, "0xA", 1, 2, 3, 0.5f),
             Line(2, "0xA", 1, 2, 3, 0.5f),
@@ -35,7 +36,7 @@ public class ParticleCaptureModelTests {
 
     [Fact]
     public void Summarize_ReadsTranslationFromFourthColumn() {
-        var log = Line(0, "0xA", 5, 6, 7, 0.25f);
+        string log = Line(0, "0xA", 5, 6, 7, 0.25f);
         var m = ParticleCaptureModel.Parse(log);
         var c = m.Dominant!.Value;
         Assert.Equal(5f, c.Centroid[0], 3);
@@ -46,7 +47,7 @@ public class ParticleCaptureModelTests {
 
     [Fact]
     public void Summarize_RadiusIsMeanHorizontalDistanceFromCentroid() {
-        var log = string.Join("\n",
+        string log = string.Join("\n",
             Line(0, "0xR", 1, 0, 0, 1f),
             Line(1, "0xR", -1, 0, 0, 1f),
             Line(2, "0xR", 0, 0, 1, 1f),
@@ -59,10 +60,10 @@ public class ParticleCaptureModelTests {
 
     [Fact]
     public void Parse_SkipsNaNAndMalformedRecords() {
-        var nan = "{\"t\":0,\"mesh\":\"0xA\",\"x\":[1,0,0,0,1,0,0,0,1,0,0,NaN],\"s\":1}";
-        var short_ = "{\"t\":1,\"mesh\":\"0xA\",\"x\":[1,2,3],\"s\":1}";
-        var junk = "not json";
-        var good = Line(2, "0xA", 1, 1, 1, 1f);
+        const string nan = "{\"t\":0,\"mesh\":\"0xA\",\"x\":[1,0,0,0,1,0,0,0,1,0,0,NaN],\"s\":1}";
+        const string short_ = "{\"t\":1,\"mesh\":\"0xA\",\"x\":[1,2,3],\"s\":1}";
+        const string junk = "not json";
+        string good = Line(2, "0xA", 1, 1, 1, 1f);
         var m = ParticleCaptureModel.Parse(string.Join("\n", nan, short_, junk, good));
         Assert.True(m.Ok);
         Assert.Equal(1, m.TotalSamples);

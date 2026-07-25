@@ -11,7 +11,7 @@ public class SupportPageTests(SharedAppFactory f) {
         using var client = _factory.CreateClient();
         var res = await client.GetAsync("/support");
         res.EnsureSuccessStatusCode();
-        var html = await res.Content.ReadAsStringAsync();
+        string html = await res.Content.ReadAsStringAsync();
         Assert.Contains("GitHub Sponsors", html);
         Assert.Contains("buymeacoffee.com/davidarthurcole", html);
         Assert.Contains("patreon.com/c/DavidArthurCole", html);
@@ -20,7 +20,7 @@ public class SupportPageTests(SharedAppFactory f) {
     [Fact]
     public async Task SupportPage_HidesConnectSection_WithoutOAuth() {
         using var client = _factory.CreateClient();
-        var html = await client.GetStringAsync("/support");
+        string html = await client.GetStringAsync("/support");
         Assert.DoesNotContain("Connect your account", html);
     }
 }

@@ -1,1 +1,3 @@
-[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("EggIncognito.Tests")]
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("EggIncognito.Tests")]

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace EggIncognito.GameData;
 
@@ -20,20 +21,20 @@ public static class EffectDataLoader {
     private static readonly JsonSerializerOptions Options = new() {
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
-        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        Converters = { new JsonStringEnumConverter() }
     };
 
     public static EffectDataFile Read(string resourceName) {
         var assembly = Assembly.GetExecutingAssembly();
-        var full = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
+        string full = assembly.GetManifestResourceNames()
+                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
+                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
 
         using var stream = assembly.GetManifestResourceStream(full)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
+                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
 
         return JsonSerializer.Deserialize<EffectDataFile>(stream, Options)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
+               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
     }
 
     public static IReadOnlyList<Effect> ToEffects(string family, EffectDataFile file, EffectSchema? metaSchema) {
@@ -50,15 +51,16 @@ public static class EffectDataLoader {
 
     private static Dictionary<string, object> ConvertMeta(IReadOnlyDictionary<string, JsonElement> raw) {
         var result = new Dictionary<string, object>(raw.Count, StringComparer.Ordinal);
-        foreach (var (key, element) in raw) {
+        foreach ((string key, var element) in raw) {
             result[key] = element.ValueKind switch {
                 JsonValueKind.String => element.GetString()!,
-                JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+                JsonValueKind.Number => element.TryGetInt64(out long l) ? l : element.GetDouble(),
                 JsonValueKind.True => true,
                 JsonValueKind.False => false,
                 _ => throw new GameDataSchemaException($"Unsupported meta value for '{key}': {element.ValueKind}.")
             };
         }
+
         return result;
     }
 }

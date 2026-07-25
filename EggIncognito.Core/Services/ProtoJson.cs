@@ -1,17 +1,11 @@
-
-
-
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services;
 
 public static partial class ProtoJson {
-
-
     public static string NormalizeFloats(string json) =>
         FloatZeroRegex().Replace(json, "$1");
-
 
 
     public static string PrettyPrint(string json) {
@@ -20,10 +14,20 @@ public static partial class ProtoJson {
         bool inString = false, escape = false;
         while (i < json.Length) {
             char c = json[i++];
-            if (escape) { sb.Append(c); escape = false; continue; }
-            if (inString) { AppendInString(sb, c, ref inString, ref escape); continue; }
+            if (escape) {
+                sb.Append(c);
+                escape = false;
+                continue;
+            }
+
+            if (inString) {
+                AppendInString(sb, c, ref inString, ref escape);
+                continue;
+            }
+
             AppendStructural(sb, json, c, ref i, ref depth, ref inString);
         }
+
         return sb.ToString();
     }
 
@@ -33,13 +37,30 @@ public static partial class ProtoJson {
         else if (c == '"') inString = false;
     }
 
-    private static void AppendStructural(StringBuilder sb, string json, char c, ref int i, ref int depth, ref bool inString) {
+    private static void AppendStructural(StringBuilder sb, string json, char c, ref int i, ref int depth,
+        ref bool inString) {
         switch (c) {
-            case ' ': case '\t': case '\r': case '\n': break;
-            case '"': inString = true; sb.Append(c); break;
-            case '{': case '[': AppendOpen(sb, json, c, ref i, ref depth); break;
-            case '}': case ']': sb.AppendLine(); sb.Append(' ', --depth * 2); sb.Append(c); break;
-            case ',': sb.Append(c); sb.AppendLine(); sb.Append(' ', depth * 2); break;
+            case ' ':
+            case '\t':
+            case '\r':
+            case '\n': break;
+            case '"':
+                inString = true;
+                sb.Append(c);
+                break;
+            case '{':
+            case '[': AppendOpen(sb, json, c, ref i, ref depth); break;
+            case '}':
+            case ']':
+                sb.AppendLine();
+                sb.Append(' ', --depth * 2);
+                sb.Append(c);
+                break;
+            case ',':
+                sb.Append(c);
+                sb.AppendLine();
+                sb.Append(' ', depth * 2);
+                break;
             case ':': sb.Append(": "); break;
             default: sb.Append(c); break;
         }

@@ -1,7 +1,7 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
-
 
 [Collection(SharedAppCollection.Name)]
 public partial class UnifiedStyleTests(SharedAppFactory f) {
@@ -12,7 +12,7 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
     [InlineData("/capture")]
     public async Task Page_DoesNotLinkBespokeSheet_AndLinksTailwind(string path) {
         var c = _f.CreateClient();
-        var html = await c.GetStringAsync(path);
+        string html = await c.GetStringAsync(path);
         Assert.DoesNotContain("href=\"styles.css\"", html);
         Assert.Contains("/tailwind.css", html);
     }
@@ -20,16 +20,18 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
     [Fact]
     public async Task CompiledSheet_DefinesUnifiedComponentVocabulary() {
         var c = _f.CreateClient();
-        var css = await c.GetStringAsync("/tailwind.css");
-        foreach (var cls in new[] { ".panel", ".btn-primary", ".icon-btn", ".settings-menu",
-            ".pill", ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".cap-stat",
-            ".toast", ".modal-overlay", ".known-card", ".tab-btn", ".notif-item",
-            ".perk-list", ".rail", ".connect-card", ".faq-list",
-            ".reg-table", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
-            ".reg-filter-input", ".reg-edit-btn", ".sub-form", ".sub-item",
-            ".legal-disclaimer", ".legal-section",
-            ".pg-menubar", ".pg-menu-btn", ".pg-menu", ".pg-menu-item", ".pg-popover",
-            ".pg-popover-head", ".pg-palette", ".pg-palette-head" }) {
+        string css = await c.GetStringAsync("/tailwind.css");
+        foreach (string cls in new[] {
+                     ".panel", ".btn-primary", ".icon-btn", ".settings-menu",
+                     ".pill", ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".cap-stat",
+                     ".toast", ".modal-overlay", ".known-card", ".tab-btn", ".notif-item",
+                     ".perk-list", ".rail", ".connect-card", ".faq-list",
+                     ".reg-table", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
+                     ".reg-filter-input", ".reg-edit-btn", ".sub-form", ".sub-item",
+                     ".legal-disclaimer", ".legal-section",
+                     ".pg-menubar", ".pg-menu-btn", ".pg-menu", ".pg-menu-item", ".pg-popover",
+                     ".pg-popover-head", ".pg-palette", ".pg-palette-head"
+                 }) {
             Assert.Contains(cls, css);
         }
     }
@@ -37,7 +39,7 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
     [Fact]
     public async Task BtnPrimary_IsAccentOrange_NotAccent2Blue() {
         var c = _f.CreateClient();
-        var css = await c.GetStringAsync("/tailwind.css");
+        string css = await c.GetStringAsync("/tailwind.css");
 
 
         var m = BtnPrimaryRegex().Match(css);
@@ -46,6 +48,6 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
         Assert.DoesNotContain("90 169 230", m.Value);
     }
 
-    [System.Text.RegularExpressions.GeneratedRegex(@"\.btn-primary\{[^}]*\}")]
-    private static partial System.Text.RegularExpressions.Regex BtnPrimaryRegex();
+    [GeneratedRegex(@"\.btn-primary\{[^}]*\}")]
+    private static partial Regex BtnPrimaryRegex();
 }

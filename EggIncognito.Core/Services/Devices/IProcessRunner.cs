@@ -13,9 +13,9 @@ public sealed class ProcessRunner : IProcessRunner {
         var psi = new ProcessStartInfo(exe) {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            UseShellExecute = false,
+            UseShellExecute = false
         };
-        foreach (var a in args) psi.ArgumentList.Add(a);
+        foreach (string a in args) psi.ArgumentList.Add(a);
         try {
             using var p = Process.Start(psi)!;
             var outTask = p.StandardOutput.ReadToEndAsync(ct);
@@ -23,7 +23,6 @@ public sealed class ProcessRunner : IProcessRunner {
             await p.WaitForExitAsync(ct);
             return new ProcessResult(p.ExitCode, await outTask, await errTask);
         } catch (Exception ex) {
-
             return new ProcessResult(-1, "", ex.Message);
         }
     }

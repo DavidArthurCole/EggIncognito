@@ -1,5 +1,3 @@
-
-
 namespace EggIncognito.Services;
 
 public sealed class ApiException(string error, string? resolution, int status = 400, object? details = null)

@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -7,28 +8,27 @@ namespace EggIncognito.RouteGenerator;
 
 [Generator]
 public sealed class RouteSourceGenerator : IIncrementalGenerator {
-
 #pragma warning disable RS2008
     private static readonly DiagnosticDescriptor InvalidIdentifier = new(
-        id: "EGI001",
-        title: "Invalid identifier in routes.yaml",
-        messageFormat: "Route '{0}' yields invalid C# identifier '{1}'; controller not generated",
-        category: "EggIncognito.RouteGenerator",
-        defaultSeverity: DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        "EGI001",
+        "Invalid identifier in routes.yaml",
+        "Route '{0}' yields invalid C# identifier '{1}'; controller not generated",
+        "EggIncognito.RouteGenerator",
+        DiagnosticSeverity.Warning,
+        true);
 #pragma warning restore RS2008
 
     public void Initialize(IncrementalGeneratorInitializationContext context) {
         var routes = context.AdditionalTextsProvider
-            .Where(static f => f.Path.EndsWith("routes.yaml", System.StringComparison.OrdinalIgnoreCase))
+            .Where(static f => f.Path.EndsWith("routes.yaml", StringComparison.OrdinalIgnoreCase))
             .Select(static (f, ct) => f.GetText(ct)?.ToString())
             .Select(static (content, _) => content is null ? [] : RouteParser.Parse(content))
             .WithComparer(RouteListComparer.Instance);
 
         context.RegisterSourceOutput(routes, static (ctx, routeList) => {
             foreach (var route in routeList) {
-                var className = ToClassName(route.Path);
-                var bad =
+                string className = ToClassName(route.Path);
+                string? bad =
                     !SyntaxFacts.IsValidIdentifier(className) ? className
                     : !SyntaxFacts.IsValidIdentifier(route.MockResponseType) ? route.MockResponseType
                     : null;
@@ -37,7 +37,7 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator {
                     continue;
                 }
 
-                var source = GenerateController(className, route);
+                string source = GenerateController(className, route);
                 ctx.AddSource(className + ".g.cs", SourceText.From(source, Encoding.UTF8));
             }
         });
@@ -46,17 +46,18 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator {
     public static string ToClassName(string path) => RouteParser.ToClassName(path);
 
     private static string GenerateController(string className, RouteModel route) {
-        var pathLiteral = SymbolDisplay.FormatLiteral(route.Path, quote: true);
+        string pathLiteral = SymbolDisplay.FormatLiteral(route.Path, true);
 
-        var handler = route.RawResponse is not null
-            ? "HandleRawAsync(" + SymbolDisplay.FormatLiteral(route.RawResponse, quote: true) + ", sim)"
+        string handler = route.RawResponse is not null
+            ? "HandleRawAsync(" + SymbolDisplay.FormatLiteral(route.RawResponse, true) + ", sim)"
             : "HandleAsync<global::Ei." + route.MockResponseType + ">(" + pathLiteral + ", data, sim)";
 
-        var paramMethod = route.PathParam
+        string paramMethod = route.PathParam
             ? "\n" +
               "    [HttpPost(\"{param}\")]\n" +
               "    public System.Threading.Tasks.Task<Microsoft.AspNetCore.Mvc.IActionResult> HandleWithParam([Microsoft.AspNetCore.Mvc.FromRoute] string param, [Microsoft.AspNetCore.Mvc.FromForm(Name = \"data\")] string? data = null, [Microsoft.AspNetCore.Mvc.FromQuery(Name = \"sim\")] string? sim = null) =>\n" +
-              "        HandleAsync<global::Ei." + route.MockResponseType + ">(" + SymbolDisplay.FormatLiteral(route.Path + "/", quote: true) + " + param, data, sim);\n"
+              "        HandleAsync<global::Ei." + route.MockResponseType + ">(" +
+              SymbolDisplay.FormatLiteral(route.Path + "/", true) + " + param, data, sim);\n"
             : "";
 
         return
@@ -72,7 +73,8 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator {
             "[Route(" + pathLiteral + ")]\n" +
             "public partial class " + className + " : MockApiControllerBase\n" +
             "{\n" +
-            "    public " + className + "(IEndpointStore endpoints, IBehaviorService behaviors) : base(endpoints, behaviors) { }\n" +
+            "    public " + className +
+            "(IEndpointStore endpoints, IBehaviorService behaviors) : base(endpoints, behaviors) { }\n" +
             "\n" +
             "    [HttpPost]\n" +
             "    public System.Threading.Tasks.Task<Microsoft.AspNetCore.Mvc.IActionResult> Handle([Microsoft.AspNetCore.Mvc.FromForm(Name = \"data\")] string? data = null, [Microsoft.AspNetCore.Mvc.FromQuery(Name = \"sim\")] string? sim = null) =>\n" +

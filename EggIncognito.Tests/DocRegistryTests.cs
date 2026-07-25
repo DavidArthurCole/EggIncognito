@@ -2,22 +2,21 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-
 public class DocRegistryTests {
     private const string YamlText = """
-routes:
-  - path: ei/first_contact_secure
-    request: EggIncFirstContactRequest
-    requestWrapped: true
-    response: EggIncFirstContactResponse
-    responseWrapped: true
-  - path: ei/get_periodicals
-    request: GetPeriodicalsRequest
-    response: PeriodicalsResponse
-""";
+                                    routes:
+                                      - path: ei/first_contact_secure
+                                        request: EggIncFirstContactRequest
+                                        requestWrapped: true
+                                        response: EggIncFirstContactResponse
+                                        responseWrapped: true
+                                      - path: ei/get_periodicals
+                                        request: GetPeriodicalsRequest
+                                        response: PeriodicalsResponse
+                                    """;
 
     private static DocRegistry Build() {
-        var path = Path.Combine(Path.GetTempPath(), $"ei-docreg-{Guid.NewGuid():N}.yaml");
+        string path = Path.Combine(Path.GetTempPath(), $"ei-docreg-{Guid.NewGuid():N}.yaml");
         File.WriteAllText(path, YamlText);
         var routes = new RouteCatalog(path);
         return new DocRegistry(new ProtoReflection(), routes);
@@ -41,7 +40,7 @@ routes:
 
         var contract = messages.SingleOrDefault(m => m.Key == "Contract");
         Assert.NotNull(contract);
-        Assert.Equal("message", contract!.Kind);
+        Assert.Equal("message", contract.Kind);
         Assert.NotEmpty(contract.Children);
         Assert.All(contract.Children, c => Assert.Equal("field", c.Kind));
     }
@@ -53,7 +52,7 @@ routes:
 
         var route = endpoints.SingleOrDefault(e => e.Key == "ei/first_contact_secure");
         Assert.NotNull(route);
-        Assert.Equal("endpoint", route!.Kind);
+        Assert.Equal("endpoint", route.Kind);
         Assert.Contains("EggIncFirstContactRequest", route.Summary);
         Assert.Contains("EggIncFirstContactResponse", route.Summary);
         Assert.Contains(route.Children, c => c.Kind == "message" && c.Key == "EggIncFirstContactRequest");
@@ -66,11 +65,11 @@ routes:
 
         var appMode = reg.Find("config", "AppMode");
         Assert.NotNull(appMode);
-        Assert.False(string.IsNullOrEmpty(appMode!.Summary));
+        Assert.False(string.IsNullOrEmpty(appMode.Summary));
 
         var rl = reg.Find("config", "RateLimiting:Enabled");
         Assert.NotNull(rl);
-        Assert.False(string.IsNullOrEmpty(rl!.Summary));
+        Assert.False(string.IsNullOrEmpty(rl.Summary));
     }
 
     [Fact]

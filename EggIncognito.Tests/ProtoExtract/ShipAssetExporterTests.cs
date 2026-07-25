@@ -5,11 +5,9 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Tests.ProtoExtract;
 
 public class ShipAssetExporterTests {
-
-    private static readonly string[] EnumShips =
-    [
+    private static readonly string[] EnumShips = [
         "ChickenOne", "ChickenNine", "ChickenHeavy", "Bcr", "MilleniumChicken",
-        "CorellihenCorvette", "Galeggtica", "Chickfiant", "Voyegger", "Henerprise", "Atreggies",
+        "CorellihenCorvette", "Galeggtica", "Chickfiant", "Voyegger", "Henerprise", "Atreggies"
     ];
 
     [Fact]
@@ -22,7 +20,7 @@ public class ShipAssetExporterTests {
 
     [Fact]
     public void NameMap_TierOrderMatchesEnumValues() {
-        for (var i = 0; i < EnumShips.Length; i++) {
+        for (int i = 0; i < EnumShips.Length; i++) {
             var ship = ShipNameMap.All.Single(s => s.Tier == i);
             Assert.Equal(EnumShips[i], ship.EnumName);
         }
@@ -41,12 +39,13 @@ public class ShipAssetExporterTests {
     [Fact]
     public void Export_Synthetic_RenamesShipsAndSkipsCdnOnly() {
         using var ms = new MemoryStream();
-        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true)) {
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true)) {
             WriteEntry(zip, "rpos/ei_ship_chicken_one.rpo", SampleRpo.Build());
             WriteEntry(zip, "rpos/ei_silo_3_large.rpo", SampleRpo.Build());
         }
+
         var extract = RpoAssetExtractor.Extract(ms.ToArray());
-        var export = ShipAssetExporter.Build(extract, generatedFromBuild: "111344");
+        var export = ShipAssetExporter.Build(extract, "111344");
 
         var ship = Assert.Single(export.Ships);
         Assert.Equal("ChickenOne", ship.EnumName);
@@ -60,16 +59,19 @@ public class ShipAssetExporterTests {
 
     [Fact]
     public void Export_RealDeviceTarball_YieldsSevenBundledShips() {
-        var tgz = DeviceTarball();
+        byte[]? tgz = DeviceTarball();
         if (tgz is null) return;
 
         var entries = ReadGzippedTar(tgz);
         var extract = RpoAssetExtractor.FromEntries(entries);
-        var export = ShipAssetExporter.Build(extract, generatedFromBuild: "device");
+        var export = ShipAssetExporter.Build(extract, "device");
 
-        var exported = export.Ships.Select(s => s.EnumName).OrderBy(x => x).ToArray();
+        string[] exported = [.. export.Ships.Select(s => s.EnumName).OrderBy(x => x)];
         Assert.Equal(
-            new[] { "Atreggies", "Bcr", "ChickenHeavy", "ChickenNine", "ChickenOne", "CorellihenCorvette", "MilleniumChicken" }.OrderBy(x => x),
+            new[] {
+                "Atreggies", "Bcr", "ChickenHeavy", "ChickenNine", "ChickenOne", "CorellihenCorvette",
+                "MilleniumChicken"
+            }.OrderBy(x => x),
             exported.OrderBy(x => x));
         Assert.Equal(
             new[] { "Chickfiant", "Galeggtica", "Henerprise", "Voyegger" }.OrderBy(x => x),
@@ -84,15 +86,15 @@ public class ShipAssetExporterTests {
     }
 
     private static byte[]? DeviceTarball() {
-        var candidates = new[]
-        {
+        string[] candidates = [
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "captures", "egi-repos.tgz"),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "captures", "egi-repos.tgz"),
-        };
-        foreach (var c in candidates) {
-            var full = Path.GetFullPath(c);
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "captures", "egi-repos.tgz")
+        ];
+        foreach (string c in candidates) {
+            string full = Path.GetFullPath(c);
             if (File.Exists(full)) return File.ReadAllBytes(full);
         }
+
         return null;
     }
 

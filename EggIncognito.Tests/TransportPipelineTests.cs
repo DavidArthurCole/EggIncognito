@@ -1,5 +1,8 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
 using EggIncognito.Services;
+using Ei;
 using Google.Protobuf;
 using Microsoft.Extensions.Configuration;
 
@@ -16,14 +19,13 @@ public class TransportPipelineTests {
     [Fact]
     public void Build_Unwrapped_PassesThroughWithRealBytes() {
         var pipe = Build();
-        var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
+        byte[]? inner = new ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
 
-        var result = pipe.Build(inner, wrap: false);
+        var result = pipe.Build(inner, false);
 
         Assert.Collection(result.Stages,
             s => Assert.Equal("proto-encode", s.Name),
             s => {
-
                 Assert.Equal("passthrough", s.Name);
                 Assert.Equal("payload", s.Role);
                 Assert.False(s.Skipped);
@@ -40,31 +42,28 @@ public class TransportPipelineTests {
     public void Build_WrappedWithSalt_ProducesSignedAuthMessage() {
         var pipe = Build("test-salt");
         Assert.True(pipe.CanSign);
-        var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
+        byte[]? inner = new ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
 
-        var result = pipe.Build(inner, wrap: true);
+        var result = pipe.Build(inner, true);
 
         var authStage = result.Stages.Single(s => s.Name == "authenticated-message");
         Assert.Equal("envelope", authStage.Role);
 
         Assert.DoesNotContain("UNSIGNED", authStage.Note);
 
-        var wrapped = Convert.FromBase64String(authStage.Base64!);
-        var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(wrapped);
+        byte[] wrapped = Convert.FromBase64String(authStage.Base64!);
+        var msg = AuthenticatedMessage.Parser.ParseFrom(wrapped);
         Assert.False(string.IsNullOrEmpty(msg.Code));
         Assert.Equal(inner, msg.Message.ToByteArray());
     }
 
     [Fact]
     public void Build_WrappedWithSalt_CodeMatchesSeederAlgorithm() {
-
-
-
         const string salt = "parity-salt";
-        var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
+        byte[]? inner = new ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
 
-        var result = Build(salt).Build(inner, wrap: true);
-        var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(
+        var result = Build(salt).Build(inner, true);
+        var msg = AuthenticatedMessage.Parser.ParseFrom(
             Convert.FromBase64String(result.Stages.Single(s => s.Name == "authenticated-message").Base64!));
 
         Assert.Equal(ExpectedCode(inner, salt), msg.Code);
@@ -72,36 +71,31 @@ public class TransportPipelineTests {
 
     [Fact]
     public void Build_WithPerRequestSalt_MatchesInstanceSaltResult() {
-
-
         const string salt = "per-request-salt";
-        var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
+        byte[]? inner = new ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
 
-        var viaInstance = Build(salt).Build(inner, wrap: true);
-        var viaPerRequest = Build(null).Build(inner, wrap: true, salt: salt);
+        var viaInstance = Build(salt).Build(inner, true);
+        var viaPerRequest = Build().Build(inner, true, salt);
 
         Assert.Equal(viaInstance.FinalBase64, viaPerRequest.FinalBase64);
     }
 
     [Fact]
     public void Build_WithPerRequestSalt_EmptyMeansUnsigned() {
-        var inner = new Ei.ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
+        byte[]? inner = new ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
 
-        var viaInstance = Build(null).Build(inner, wrap: true);
-        var viaPerRequest = Build(null).Build(inner, wrap: true, salt: null);
+        var viaInstance = Build().Build(inner, true);
+        var viaPerRequest = Build().Build(inner, true, null);
         Assert.Equal(viaInstance.FinalBase64, viaPerRequest.FinalBase64);
     }
 
     [Fact]
     public void Build_WrappedEmptyMessageWithSalt_DoesNotThrow() {
-
-
-
-        var empty = new Ei.ContractsInfoRequest().ToByteArray();
+        byte[]? empty = new ContractsInfoRequest().ToByteArray();
         Assert.Empty(empty);
 
-        var result = Build("any-salt").Build(empty, wrap: true);
-        var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(
+        var result = Build("any-salt").Build(empty, true);
+        var msg = AuthenticatedMessage.Parser.ParseFrom(
             Convert.FromBase64String(result.Stages.Single(s => s.Name == "authenticated-message").Base64!));
 
 
@@ -109,26 +103,25 @@ public class TransportPipelineTests {
     }
 
 
-
     private static string ExpectedCode(byte[] messageBytes, string phrase) {
-        var phraseHash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(phrase));
-        var saltBytes = System.Text.Encoding.ASCII.GetBytes(Convert.ToHexString(phraseHash).ToLowerInvariant());
+        byte[] phraseHash = SHA256.HashData(Encoding.UTF8.GetBytes(phrase));
+        byte[] saltBytes = Encoding.ASCII.GetBytes(Convert.ToHexString(phraseHash).ToLowerInvariant());
         const uint magic = 0x3b9af419;
-        var mutated = (byte[])messageBytes.Clone();
+        byte[] mutated = (byte[])messageBytes.Clone();
         mutated[magic % (uint)mutated.Length] = 0x1b;
-        var combined = new byte[mutated.Length + saltBytes.Length];
+        byte[] combined = new byte[mutated.Length + saltBytes.Length];
         mutated.CopyTo(combined, 0);
         saltBytes.CopyTo(combined, mutated.Length);
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(combined)).ToLowerInvariant();
+        return Convert.ToHexString(SHA256.HashData(combined)).ToLowerInvariant();
     }
 
     [Fact]
     public void Build_WrappedWithoutSalt_FlagsUnsigned() {
         var pipe = Build();
         Assert.False(pipe.CanSign);
-        var inner = new Ei.ContractsInfoRequest().ToByteArray();
+        byte[]? inner = new ContractsInfoRequest().ToByteArray();
 
-        var result = pipe.Build(inner, wrap: true);
+        var result = pipe.Build(inner, true);
 
         var authStage = result.Stages.Single(s => s.Name == "authenticated-message");
         Assert.Contains("UNSIGNED", authStage.Note);
@@ -137,13 +130,13 @@ public class TransportPipelineTests {
     [Fact]
     public void Decode_UnwrappedMockResponse_ParsesDirectly() {
         var pipe = Build();
-        var response = new Ei.ContractsInfoResponse {
+        var response = new ContractsInfoResponse {
             ServerTime = 123.0,
-            Contracts = { new Ei.Contract { Identifier = "spring-2025" } },
+            Contracts = { new Contract { Identifier = "spring-2025" } }
         };
-        var b64 = Convert.ToBase64String(response.ToByteArray());
+        string b64 = Convert.ToBase64String(response.ToByteArray());
 
-        var result = pipe.Decode(b64, Ei.ContractsInfoResponse.Parser);
+        var result = pipe.Decode(b64, ContractsInfoResponse.Parser);
 
         Assert.Null(result.Error);
         Assert.Contains("spring-2025", result.Json);
@@ -154,13 +147,13 @@ public class TransportPipelineTests {
     [Fact]
     public void Decode_WrappedRealResponse_UnwrapsThenParses() {
         var pipe = Build();
-        var response = new Ei.ContractsInfoResponse { ServerTime = 99.0 };
-        var wrapped = new Ei.AuthenticatedMessage {
-            Message = ByteString.CopyFrom(response.ToByteArray()),
+        var response = new ContractsInfoResponse { ServerTime = 99.0 };
+        var wrapped = new AuthenticatedMessage {
+            Message = ByteString.CopyFrom(response.ToByteArray())
         };
-        var b64 = Convert.ToBase64String(wrapped.ToByteArray());
+        string b64 = Convert.ToBase64String(wrapped.ToByteArray());
 
-        var result = pipe.Decode(b64, Ei.ContractsInfoResponse.Parser);
+        var result = pipe.Decode(b64, ContractsInfoResponse.Parser);
 
         Assert.Null(result.Error);
         Assert.Contains(result.Stages, s => s.Name == "authenticated-message");
@@ -170,20 +163,21 @@ public class TransportPipelineTests {
     [Fact]
     public void Decode_WrappedCompressedResponse_InflatesThenParses() {
         var pipe = Build();
-        var response = new Ei.ContractsInfoResponse { ServerTime = 42.0 };
+        var response = new ContractsInfoResponse { ServerTime = 42.0 };
         byte[] gz;
         using (var ms = new MemoryStream()) {
             using (var z = new GZipStream(ms, CompressionMode.Compress))
                 z.Write(response.ToByteArray());
             gz = ms.ToArray();
         }
-        var wrapped = new Ei.AuthenticatedMessage {
-            Message = ByteString.CopyFrom(gz),
-            Compressed = true,
-        };
-        var b64 = Convert.ToBase64String(wrapped.ToByteArray());
 
-        var result = pipe.Decode(b64, Ei.ContractsInfoResponse.Parser);
+        var wrapped = new AuthenticatedMessage {
+            Message = ByteString.CopyFrom(gz),
+            Compressed = true
+        };
+        string b64 = Convert.ToBase64String(wrapped.ToByteArray());
+
+        var result = pipe.Decode(b64, ContractsInfoResponse.Parser);
 
         Assert.Null(result.Error);
         Assert.Contains(result.Stages, s => s.Name == "authenticated-message");
@@ -193,20 +187,16 @@ public class TransportPipelineTests {
 
     [Fact]
     public void Decode_UnwrappedResponseResemblingEnvelope_PrefersDirectParse() {
-
-
-
-
         var pipe = Build();
-        var response = new Ei.ContractsInfoResponse {
+        var response = new ContractsInfoResponse {
             ServerTime = 1.5,
 
 
-            Contracts = { new Ei.Contract { Identifier = "" } },
+            Contracts = { new Contract { Identifier = "" } }
         };
-        var b64 = Convert.ToBase64String(response.ToByteArray());
+        string b64 = Convert.ToBase64String(response.ToByteArray());
 
-        var result = pipe.Decode(b64, Ei.ContractsInfoResponse.Parser);
+        var result = pipe.Decode(b64, ContractsInfoResponse.Parser);
 
         Assert.Null(result.Error);
         Assert.DoesNotContain(result.Stages, s => s.Name == "authenticated-message");
@@ -216,18 +206,14 @@ public class TransportPipelineTests {
 
     [Fact]
     public void Decode_ResponseWrappedFalse_ForcesDirectEvenWhenBytesResembleEnvelope() {
-
-
-
-
         var pipe = Build();
-        var response = new Ei.EggIncFirstContactResponse {
+        var response = new EggIncFirstContactResponse {
             EiUserId = "oBlazin",
-            Backup = new Ei.Backup { UserName = "player" },
+            Backup = new Backup { UserName = "player" }
         };
-        var b64 = Convert.ToBase64String(response.ToByteArray());
+        string b64 = Convert.ToBase64String(response.ToByteArray());
 
-        var result = pipe.Decode(b64, Ei.EggIncFirstContactResponse.Parser, responseWrapped: false);
+        var result = pipe.Decode(b64, EggIncFirstContactResponse.Parser, false);
 
         Assert.Null(result.Error);
         Assert.DoesNotContain(result.Stages, s => s.Name == "authenticated-message");
@@ -237,14 +223,12 @@ public class TransportPipelineTests {
 
     [Fact]
     public void Decode_ResponseWrappedTrue_ForcesWrappedEvenIfHeuristicWouldReject() {
-
-
         var pipe = Build();
-        var inner = new Ei.ContractsInfoResponse { ServerTime = 7.0 };
-        var wrapped = new Ei.AuthenticatedMessage { Message = ByteString.CopyFrom(inner.ToByteArray()) };
-        var b64 = Convert.ToBase64String(wrapped.ToByteArray());
+        var inner = new ContractsInfoResponse { ServerTime = 7.0 };
+        var wrapped = new AuthenticatedMessage { Message = ByteString.CopyFrom(inner.ToByteArray()) };
+        string b64 = Convert.ToBase64String(wrapped.ToByteArray());
 
-        var result = pipe.Decode(b64, Ei.ContractsInfoResponse.Parser, responseWrapped: true);
+        var result = pipe.Decode(b64, ContractsInfoResponse.Parser, true);
 
         Assert.Null(result.Error);
         Assert.Contains(result.Stages, s => s.Name == "authenticated-message");
@@ -253,16 +237,13 @@ public class TransportPipelineTests {
 
     [Fact]
     public void Decode_WrappedPath_SwallowsOnlyProtoAndDataExceptions() {
-
-
-
         var pipe = Build();
-        var wrapped = new Ei.AuthenticatedMessage {
-            Message = ByteString.CopyFrom(new Ei.ContractsInfoResponse { ServerTime = 1.0 }.ToByteArray()),
+        var wrapped = new AuthenticatedMessage {
+            Message = ByteString.CopyFrom(new ContractsInfoResponse { ServerTime = 1.0 }.ToByteArray())
         };
-        var b64 = Convert.ToBase64String(wrapped.ToByteArray());
-        var throwingParser = new MessageParser<Ei.ContractsInfoResponse>(
-            () => throw new InvalidOperationException("boom"));
+        string b64 = Convert.ToBase64String(wrapped.ToByteArray());
+        var throwingParser =
+            new MessageParser<ContractsInfoResponse>(() => throw new InvalidOperationException("boom"));
 
         var ex = Assert.Throws<InvalidOperationException>(() => pipe.Decode(b64, throwingParser));
         Assert.Equal("boom", ex.Message);
@@ -271,38 +252,38 @@ public class TransportPipelineTests {
 
 public class RouteCatalogTests {
     private const string Yaml = """
-routes:
-  - path: ei/first_contact_secure
-    request: EggIncFirstContactRequest
-    requestWrapped: true
-    response: EggIncFirstContactResponse
-    responseWrapped: true
-  - path: ei_ctx/get_contracts_info
-    request: ContractsInfoRequest
-    response: ContractsInfoResponse
-  - path: ei/process_shells_actions
-    request: ShellsActionBatch
-    rawResponse: "OK"
-  - path: ei_ctx/get_contract_evaluation
-    requestType: AuthenticatedMessage
-    response: ContractEvaluation
-    pathParam: true
-  - path: ei_srv/subscription_status
-    response: UserSubscriptionInfo
-    responseWrapped: true
-    pathParam: true
-    pathParamOnly: true
+                                routes:
+                                  - path: ei/first_contact_secure
+                                    request: EggIncFirstContactRequest
+                                    requestWrapped: true
+                                    response: EggIncFirstContactResponse
+                                    responseWrapped: true
+                                  - path: ei_ctx/get_contracts_info
+                                    request: ContractsInfoRequest
+                                    response: ContractsInfoResponse
+                                  - path: ei/process_shells_actions
+                                    request: ShellsActionBatch
+                                    rawResponse: "OK"
+                                  - path: ei_ctx/get_contract_evaluation
+                                    requestType: AuthenticatedMessage
+                                    response: ContractEvaluation
+                                    pathParam: true
+                                  - path: ei_srv/subscription_status
+                                    response: UserSubscriptionInfo
+                                    responseWrapped: true
+                                    pathParam: true
+                                    pathParamOnly: true
 
-excluded:
-  - ei/kb
+                                excluded:
+                                  - ei/kb
 
-endpoint_status:
-  empty:
-    - ei/clean_accounts
-""";
+                                endpoint_status:
+                                  empty:
+                                    - ei/clean_accounts
+                                """;
 
     private static RouteCatalog Build() {
-        var path = Path.GetTempFileName();
+        string path = Path.GetTempFileName();
         File.WriteAllText(path, Yaml);
         return new RouteCatalog(path);
     }
@@ -319,7 +300,7 @@ endpoint_status:
     public void Parse_NewContractsInfoEndpoint_HasCorrectTypes() {
         var e = Build().Get("ei_ctx/get_contracts_info");
         Assert.NotNull(e);
-        Assert.Equal("ContractsInfoRequest", e!.Request);
+        Assert.Equal("ContractsInfoRequest", e.Request);
         Assert.Equal("ContractsInfoResponse", e.Response);
         Assert.False(e.RequestWrapped);
         Assert.False(e.ResponseWrapped);
@@ -344,7 +325,6 @@ endpoint_status:
 
     [Fact]
     public void Parse_LegacyAuthenticatedMessageRequest_NormalizesToWrapped() {
-
         var e = Build().Get("ei_ctx/get_contract_evaluation")!;
         Assert.Null(e.Request);
         Assert.True(e.RequestWrapped);
@@ -364,7 +344,7 @@ public class ProtoReflectionTests {
     public void Schema_ContractsInfoRequest_ListsFields() {
         var schema = new ProtoReflection().Schema("ContractsInfoRequest");
         Assert.NotNull(schema);
-        var byName = schema!.Fields.ToDictionary(f => f.Name);
+        var byName = schema.Fields.ToDictionary(f => f.Name);
         Assert.Equal("message", byName["rinfo"].Type);
         Assert.Equal("BasicRequestInfo", byName["rinfo"].MessageType);
         Assert.True(byName["contract_identifiers"].Repeated);
@@ -382,7 +362,6 @@ public class ProtoReflectionTests {
         var descriptor = reflection.FindMessage("ContractsInfoRequest");
         Assert.NotNull(parser);
         Assert.NotNull(descriptor);
-
 
 
         Assert.Same(parser, reflection.FindParser("ContractsInfoRequest"));

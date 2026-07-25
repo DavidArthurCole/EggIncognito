@@ -1,3 +1,4 @@
+using System.Net;
 using Bunit;
 using EggIncognito.Capture;
 using EggIncognito.Components.Capture;
@@ -14,8 +15,8 @@ public class CapturePageTests {
         public async Task Capture_RendersShell() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/capture");
-            Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
-            var html = await r.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            string html = await r.Content.ReadAsStringAsync();
             Assert.Contains(">Capture</a>", html);
             Assert.Contains("id=\"statsPanel\"", html);
             Assert.Contains("id=\"flowsPanel\"", html);
@@ -80,9 +81,8 @@ public class CapturePageTests {
             var module = JSInterop.SetupModule("./interop/scroll.js");
             module.SetupVoid("scrollToBottom", _ => true);
 
-            var flows = new List<DashboardFlow>
-            {
-                new(1, "12:00:00", "ei/first_contact", "POST", 200, null, null, "", null),
+            var flows = new List<DashboardFlow> {
+                new(1, "12:00:00", "ei/first_contact", "POST", 200, null, null, "", null)
             };
             var cut = Render<FlowList>(p => p
                 .Add(c => c.Flows, flows)
@@ -96,9 +96,8 @@ public class CapturePageTests {
             var module = JSInterop.SetupModule("./interop/scroll.js");
             module.SetupVoid("scrollToBottom", _ => true);
 
-            var flows = new List<DashboardFlow>
-            {
-                new(1, "12:00:00", "ei/first_contact", "POST", 200, null, null, "", null),
+            var flows = new List<DashboardFlow> {
+                new(1, "12:00:00", "ei/first_contact", "POST", 200, null, null, "", null)
             };
             Render<FlowList>(p => p
                 .Add(c => c.Flows, flows)
@@ -112,7 +111,7 @@ public class CapturePageTests {
             var view = new CaptureViewState { DefaultFormat = "hex" };
             var cut = Render<FormatView>(p => p
                 .Add(c => c.Label, "Response")
-                .Add(c => c.JsonStr, (string?)null)
+                .Add(c => c.JsonStr, null)
                 .Add(c => c.RawB64, "AAEC")
                 .Add(c => c.View, view));
 
@@ -124,7 +123,7 @@ public class CapturePageTests {
     public class Format {
         [Fact]
         public void Yaml_RendersNestedObject() {
-            var y = CaptureFormat.JsonToText("{\"a\":1,\"b\":{\"c\":2}}", "yaml");
+            string y = CaptureFormat.JsonToText("{\"a\":1,\"b\":{\"c\":2}}", "yaml");
             Assert.Contains("a: 1", y);
             Assert.Contains("b:", y);
             Assert.Contains("c: 2", y);
@@ -135,7 +134,7 @@ public class CapturePageTests {
 
         [Fact]
         public void Xml_WrapsAndPrettyPrints() {
-            var x = CaptureFormat.JsonToText("{\"a\":1}", "xml");
+            string x = CaptureFormat.JsonToText("{\"a\":1}", "xml");
             Assert.Contains("<root>", x);
             Assert.Contains("<a>1</a>", x);
         }

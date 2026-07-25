@@ -236,12 +236,12 @@
             if (flow.DiffRemoved > 0) {
                 builder.OpenElement(seq++, "span");
                 builder.AddAttribute(seq++, "class", "diff-del");
-                builder.AddContent(seq++, "-" + flow.DiffRemoved);
+                builder.AddContent(seq, "-" + flow.DiffRemoved);
                 builder.CloseElement();
             }
         } else {
             builder.AddAttribute(seq++, "title", "endpoint: " + meta.Label);
-            builder.AddContent(seq++, meta.Label);
+            builder.AddContent(seq, meta.Label);
         }
 
         builder.CloseElement();

@@ -15,5 +15,4 @@ public class DimensionCatalogParityTests {
         Assert.Equal("binary", cat.Provenance["identity"].Origin);
         Assert.Equal("boostmanager", cat.Provenance["identity"].Locator);
     }
-
 }

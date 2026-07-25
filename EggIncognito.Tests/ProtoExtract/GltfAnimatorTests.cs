@@ -14,7 +14,7 @@ public class GltfAnimatorTests {
 
     [Fact]
     public void Animate_SpinY_AddsRotationChannel() {
-        var r = GltfAnimator.Animate(SampleGlb(), GltfAnimator.Options.Spin(6f));
+        var r = GltfAnimator.Animate(SampleGlb(), GltfAnimator.Options.Spin());
         Assert.True(r.Ok, r.Diagnostics);
         Assert.Equal("SpinY", r.AnimationName);
 
@@ -28,7 +28,8 @@ public class GltfAnimatorTests {
 
     [Fact]
     public void Animate_HoverSpin_AddsRotationAndTranslation() {
-        var r = GltfAnimator.Animate(SampleGlb(), new GltfAnimator.Options(GltfAnimator.AnimationKind.HoverSpin, 4f, 0.2f));
+        var r = GltfAnimator.Animate(SampleGlb(),
+            new GltfAnimator.Options(GltfAnimator.AnimationKind.HoverSpin, 4f, 0.2f));
         Assert.True(r.Ok, r.Diagnostics);
 
         var model = ModelRoot.ParseGLB(r.Glb!);
@@ -39,7 +40,6 @@ public class GltfAnimatorTests {
 
     [Fact]
     public void Animate_RoundTripsGeometry() {
-
         var r = GltfAnimator.Animate(SampleGlb(), GltfAnimator.Options.Spin());
         Assert.True(r.Ok, r.Diagnostics);
         var model = ModelRoot.ParseGLB(r.Glb!);
@@ -50,8 +50,6 @@ public class GltfAnimatorTests {
 
     [Fact]
     public void Animate_OffCenterMesh_PivotsAtCentroid() {
-
-
         var r = GltfAnimator.Animate(SampleGlb(), GltfAnimator.Options.Spin());
         Assert.True(r.Ok, r.Diagnostics);
 
@@ -60,13 +58,13 @@ public class GltfAnimatorTests {
 
         var rotNode = anim.Channels.First(c => c.GetRotationSampler() is not null).TargetNode;
         var t = rotNode.LocalTransform.Translation;
-        Assert.True(System.MathF.Abs(t.X - 0.5f) < 1e-4f, $"pivot x {t.X}");
-        Assert.True(System.MathF.Abs(t.Y - 1.0f) < 1e-4f, $"pivot y {t.Y}");
+        Assert.True(MathF.Abs(t.X - 0.5f) < 1e-4f, $"pivot x {t.X}");
+        Assert.True(MathF.Abs(t.Y - 1.0f) < 1e-4f, $"pivot y {t.Y}");
 
         Assert.Null(rotNode.Mesh);
         var child = rotNode.VisualChildren.Single();
         Assert.NotNull(child.Mesh);
-        Assert.True(System.MathF.Abs(child.LocalTransform.Translation.X + 0.5f) < 1e-4f);
+        Assert.True(MathF.Abs(child.LocalTransform.Translation.X + 0.5f) < 1e-4f);
     }
 
     [Fact]
@@ -86,7 +84,7 @@ public class GltfAnimatorTests {
 
     [Fact]
     public void Animate_RealDeviceShip_Spins() {
-        var tgz = DeviceTarball();
+        byte[]? tgz = DeviceTarball();
         if (tgz is null) return;
 
         var entries = ReadGzippedTar(tgz);
@@ -94,7 +92,7 @@ public class GltfAnimatorTests {
         var ship = extract.Assets.FirstOrDefault(a => a.Key == "ei_ship_bcr" && a.Decode.Ok);
         Assert.True(ship is not null, "ei_ship_bcr should decode from the device tarball");
 
-        var r = GltfAnimator.Animate(ship!.Decode.Glb!, GltfAnimator.Options.Spin());
+        var r = GltfAnimator.Animate(ship.Decode.Glb!, GltfAnimator.Options.Spin());
         Assert.True(r.Ok, r.Diagnostics);
         var model = ModelRoot.ParseGLB(r.Glb!);
         Assert.Single(model.LogicalAnimations);
@@ -103,15 +101,15 @@ public class GltfAnimatorTests {
     }
 
     private static byte[]? DeviceTarball() {
-        var candidates = new[]
-        {
+        string[] candidates = [
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "captures", "egi-repos.tgz"),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "captures", "egi-repos.tgz"),
-        };
-        foreach (var c in candidates) {
-            var full = Path.GetFullPath(c);
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "captures", "egi-repos.tgz")
+        ];
+        foreach (string c in candidates) {
+            string full = Path.GetFullPath(c);
             if (File.Exists(full)) return File.ReadAllBytes(full);
         }
+
         return null;
     }
 

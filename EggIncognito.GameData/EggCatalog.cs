@@ -10,15 +10,16 @@ public sealed record EggCatalogEntry(
 
 public interface IEggCatalog {
     IReadOnlyList<EggCatalogEntry> Eggs { get; }
-    EggCatalogEntry? Find(int index);
     string BinaryVersion { get; }
     IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    EggCatalogEntry? Find(int index);
 }
 
 public sealed class EggCatalog : IEggCatalog {
     private readonly Dictionary<int, EggCatalogEntry> _byIndex;
 
-    private EggCatalog(IReadOnlyList<EggCatalogEntry> eggs, string binaryVersion, IReadOnlyDictionary<string, ProvenanceSource> provenance) {
+    private EggCatalog(IReadOnlyList<EggCatalogEntry> eggs, string binaryVersion,
+        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
         Eggs = eggs;
         BinaryVersion = binaryVersion;
         Provenance = provenance;
@@ -38,12 +39,11 @@ public sealed class EggCatalog : IEggCatalog {
     }
 
     private static EggCatalogEntry ToEntry(EggCatalogRow row) {
-        if (row.Index is null) {
-            throw new GameDataSchemaException("Egg catalog row missing index.");
-        }
-        return row.BaseValue is null
-            ? throw new GameDataSchemaException($"Egg catalog index {row.Index} missing baseValue.")
-            : new EggCatalogEntry(row.Index.Value, row.Name, row.BaseValue.Value);
+        return row.Index is null
+            ? throw new GameDataSchemaException("Egg catalog row missing index.")
+            : row.BaseValue is null
+                ? throw new GameDataSchemaException($"Egg catalog index {row.Index} missing baseValue.")
+                : new EggCatalogEntry(row.Index.Value, row.Name, row.BaseValue.Value);
     }
 }
 
@@ -65,14 +65,14 @@ public static class EggCatalogDataLoader {
 
     public static EggCatalogDataFile Read(string resourceName) {
         var assembly = Assembly.GetExecutingAssembly();
-        var full = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
+        string full = assembly.GetManifestResourceNames()
+                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
+                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
 
         using var stream = assembly.GetManifestResourceStream(full)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
+                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
 
         return JsonSerializer.Deserialize<EggCatalogDataFile>(stream, Options)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
+               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
     }
 }

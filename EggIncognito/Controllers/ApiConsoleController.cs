@@ -1,24 +1,27 @@
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.RateLimiting;
+using SyncKit.Contract;
 
 namespace EggIncognito.Controllers;
 
-
 [ApiController]
 [Route("api/console")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Admin)]
+[ApiAccess(ApiAccessLevel.Admin)]
 [EnableRateLimiting("read")]
-public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider explorer, ICurrentUser currentUser) : ControllerBase {
+public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider explorer, ICurrentUser currentUser)
+    : ControllerBase {
     [HttpGet("endpoints")]
     public IActionResult Endpoints() {
-        if (!currentUser.IsAtLeast(SyncKit.Contract.UserRole.Admin))
+        if (!currentUser.IsAtLeast(UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
         var endpoints = explorer.ApiDescriptionGroups.Items
             .SelectMany(g => g.Items)
-            .Where(d => d.RelativePath is not null && d.RelativePath.StartsWith("api/", StringComparison.OrdinalIgnoreCase))
+            .Where(d => d.RelativePath is not null &&
+                        d.RelativePath.StartsWith("api/", StringComparison.OrdinalIgnoreCase))
             .Where(d => !d.RelativePath!.StartsWith("api/console", StringComparison.OrdinalIgnoreCase))
             .Select(d => new {
                 method = d.HttpMethod ?? "GET",
@@ -28,9 +31,12 @@ public sealed class ApiConsoleController(IApiDescriptionGroupCollectionProvider 
                     .Select(p => new { name = p.Name, source = p.Source.Id, type = TypeName(p.Type), required = p.IsRequired })
                     .ToList(),
                 hasBody = d.ParameterDescriptions.Any(p => p.Source.Id == "Body"),
-                bodyType = d.ParameterDescriptions.FirstOrDefault(p => p.Source.Id == "Body") is { } b ? TypeName(b.Type) : null,
+                bodyType = d.ParameterDescriptions.FirstOrDefault(p => p.Source.Id == "Body") is { } b
+                    ? TypeName(b.Type)
+                    : null,
                 hasFile = d.ParameterDescriptions.Any(p => p.Source.Id == "FormFile"
-                    || (p.Type is not null && typeof(IFormFile).IsAssignableFrom(p.Type))),
+                                                           || (p.Type is not null &&
+                                                               typeof(IFormFile).IsAssignableFrom(p.Type)))
             })
             .OrderBy(e => e.route, StringComparer.Ordinal)
             .ThenBy(e => e.method, StringComparer.Ordinal)

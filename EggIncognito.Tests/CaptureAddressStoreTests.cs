@@ -16,29 +16,33 @@ public class CaptureAddressStoreTests {
     [Fact]
     public void RandomInPrefix_HonorsSubPrefixUpperHalf() {
         const string sub = "2a01:4f8:c012:e15b:8000::/65";
-        var prefixBytes = IPAddress.Parse("2a01:4f8:c012:e15b::").GetAddressBytes();
-        for (var n = 0; n < 50; n++) {
-            var bytes = CaptureAddressStore.RandomInPrefix(sub).GetAddressBytes();
-            for (var i = 0; i < 8; i++) Assert.Equal(prefixBytes[i], bytes[i]);
+        byte[] prefixBytes = IPAddress.Parse("2a01:4f8:c012:e15b::").GetAddressBytes();
+        for (int n = 0; n < 50; n++) {
+            byte[] bytes = CaptureAddressStore.RandomInPrefix(sub).GetAddressBytes();
+            for (int i = 0; i < 8; i++) Assert.Equal(prefixBytes[i], bytes[i]);
             Assert.Equal(0x80, bytes[8] & 0x80);
         }
     }
 
     [Fact]
     public void RandomInPrefix_IsInPrefix() {
-        var prefixAddr = IPAddress.Parse("2a01:4f8:c012:e15b::").GetAddressBytes();
-        for (var n = 0; n < 50; n++) {
-            var ab = CaptureAddressStore.RandomInPrefix(Prefix).GetAddressBytes();
-            for (var i = 0; i < 8; i++) Assert.Equal(prefixAddr[i], ab[i]);
+        byte[] prefixAddr = IPAddress.Parse("2a01:4f8:c012:e15b::").GetAddressBytes();
+        for (int n = 0; n < 50; n++) {
+            byte[] ab = CaptureAddressStore.RandomInPrefix(Prefix).GetAddressBytes();
+            for (int i = 0; i < 8; i++) Assert.Equal(prefixAddr[i], ab[i]);
         }
     }
 
     [Fact]
     public void RandomInPrefix_AvoidsReservedHostPart() {
-        for (var n = 0; n < 50; n++) {
-            var bytes = CaptureAddressStore.RandomInPrefix(Prefix).GetAddressBytes();
-            var hostAllZeroExceptLast = true;
-            for (var i = 8; i < 15; i++) if (bytes[i] != 0) hostAllZeroExceptLast = false;
+        for (int n = 0; n < 50; n++) {
+            byte[] bytes = CaptureAddressStore.RandomInPrefix(Prefix).GetAddressBytes();
+            bool hostAllZeroExceptLast = true;
+            for (int i = 8; i < 15; i++) {
+                if (bytes[i] != 0)
+                    hostAllZeroExceptLast = false;
+            }
+
             Assert.False(hostAllZeroExceptLast && bytes[15] <= 1);
         }
     }

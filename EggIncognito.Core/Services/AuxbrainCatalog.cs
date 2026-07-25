@@ -1,12 +1,15 @@
-
-
-
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Services;
 
-public enum AuxbrainStatus { Ok, Empty, Missing, NotMocked }
+public enum AuxbrainStatus {
+    Ok,
+    Empty,
+    Missing,
+    NotMocked
+}
+
 public sealed record CanonicalPath(
     string? RequestType,
     string? ResponseType,
@@ -23,17 +26,15 @@ public sealed record AuxbrainEntry(
     bool ResponseWrapped,
     bool PathParam,
     AuxbrainStatus Status) {
-
     public IReadOnlyList<string> Aliases { get; init; } = [];
 }
 
 public static class AuxbrainCatalog {
-
     public static string Label(AuxbrainStatus status) => status switch {
         AuxbrainStatus.Ok => "ok",
         AuxbrainStatus.Empty => "empty",
         AuxbrainStatus.Missing => "missing",
-        _ => "not-mocked",
+        _ => "not-mocked"
     };
 
     public static IReadOnlyList<AuxbrainEntry> Build(
@@ -43,7 +44,6 @@ public static class AuxbrainCatalog {
         var empty = status.Empty.ToHashSet(StringComparer.Ordinal);
         var missing = status.Missing.ToHashSet(StringComparer.Ordinal);
         var entries = new List<AuxbrainEntry>();
-
 
 
         var mocked = routes.Select(r => r.Path)
@@ -59,7 +59,7 @@ public static class AuxbrainCatalog {
                 r.RequestWrapped, r.ResponseWrapped, r.PathParam, s) { Aliases = r.Aliases });
         }
 
-        foreach (var (path, c) in canonical) {
+        foreach ((string path, var c) in canonical) {
             if (mocked.Contains(path)) continue;
             entries.Add(new AuxbrainEntry(
                 path, NamespaceOf(path), c.RequestType, c.ResponseType,
@@ -72,7 +72,7 @@ public static class AuxbrainCatalog {
 
 
     private static string NamespaceOf(string path) {
-        var i = path.IndexOf('/');
+        int i = path.IndexOf('/');
         return i < 0 ? path : path[..i];
     }
 
@@ -89,6 +89,7 @@ public static class AuxbrainCatalog {
                 Flag(p.Value, "responseWrapped"),
                 Flag(p.Value, "pathParam"));
         }
+
         return result;
     }
 

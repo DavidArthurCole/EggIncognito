@@ -2,7 +2,6 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
 
-
 public class ProtoCleanupTests {
     private const string Ei =
         "syntax = \"proto2\";\n" +
@@ -27,14 +26,14 @@ public class ProtoCleanupTests {
 
     [Fact]
     public void Clean_Merges_Common_After_Package_StripsAux_DropsImport() {
-        var result = ProtoCleanup.Clean(Ei, Common);
+        string result = ProtoCleanup.Clean(Ei, Common);
 
         Assert.DoesNotContain("import \"common.proto\"", result);
         Assert.DoesNotContain("aux.", result);
 
-        var packageIdx = result.IndexOf("package ei;", StringComparison.Ordinal);
-        var enumIdx = result.IndexOf("enum Platform {", StringComparison.Ordinal);
-        var messageIdx = result.IndexOf("message M {", StringComparison.Ordinal);
+        int packageIdx = result.IndexOf("package ei;", StringComparison.Ordinal);
+        int enumIdx = result.IndexOf("enum Platform {", StringComparison.Ordinal);
+        int messageIdx = result.IndexOf("message M {", StringComparison.Ordinal);
         Assert.True(packageIdx >= 0 && enumIdx >= 0 && messageIdx >= 0);
 
         Assert.True(packageIdx < enumIdx, "enum must follow package ei;");
@@ -70,7 +69,7 @@ public class ProtoCleanupTests {
     [Fact]
     public void Clean_NoCommonBody_LeavesEiMinusImportAndAux() {
         const string ei = "package ei;\nmessage M { optional aux.X x = 1; }\n";
-        var result = ProtoCleanup.Clean(ei, "syntax\npackage aux;\n\n");
+        string result = ProtoCleanup.Clean(ei, "syntax\npackage aux;\n\n");
         Assert.DoesNotContain("aux.", result);
         Assert.Contains("package ei;", result);
     }

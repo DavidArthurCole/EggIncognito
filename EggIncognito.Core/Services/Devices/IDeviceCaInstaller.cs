@@ -1,8 +1,6 @@
 namespace EggIncognito.Core.Services.Devices;
 
-
 public interface IDeviceCaInstaller {
-
     string Platform { get; }
 
 

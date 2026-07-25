@@ -1,19 +1,16 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 public static class MachoClientVersionReader {
-    public sealed record ClientVersionResult(int? ClientVersion, IReadOnlyList<int> Candidates);
-
     public static ClientVersionResult Read(byte[] macho, int? previousClientVersion) {
         if (!MachoText.TryFindText(macho, out int off, out int size, out ulong vm))
             return new ClientVersionResult(null, []);
 
         var insns = Arm64Decoder.Decode(macho.AsSpan(off, size), vm);
         var cands = Candidates(insns);
-        var chosen = Pick(cands, previousClientVersion);
+        int? chosen = Pick(cands, previousClientVersion);
         var sorted = cands.Keys.OrderBy(k => k).ToList();
         return new ClientVersionResult(chosen, sorted);
     }
-
 
 
     internal static Dictionary<int, int> Candidates(IReadOnlyList<Arm64Insn> insns) {
@@ -32,11 +29,11 @@ public static class MachoClientVersionReader {
         foreach (var (key, sites) in pair) {
             if (sites.Count < 3) continue;
             int v = key.val;
-            outp[v] = Math.Max(outp.TryGetValue(v, out var c) ? c : 0, sites.Count);
+            outp[v] = Math.Max(outp.GetValueOrDefault(v, 0), sites.Count);
         }
+
         return outp;
     }
-
 
 
     private static int? ResolveReg(IReadOnlyList<Arm64Insn> insns, int strIndex, int reg) {
@@ -55,9 +52,9 @@ public static class MachoClientVersionReader {
                 value = (value & mask) | (int)(ins.Imm << shift);
             }
         }
+
         return seeded ? value : null;
     }
-
 
 
     public static int? Pick(IReadOnlyDictionary<int, int> cands, int? prev) {
@@ -67,8 +64,10 @@ public static class MachoClientVersionReader {
         return inRange.Count == 0
             ? null
             : inRange
-            .OrderBy(v => Math.Abs(v - p))
-            .ThenByDescending(v => cands[v])
-            .First();
+                .OrderBy(v => Math.Abs(v - p))
+                .ThenByDescending(v => cands[v])
+                .First();
     }
+
+    public sealed record ClientVersionResult(int? ClientVersion, IReadOnlyList<int> Candidates);
 }

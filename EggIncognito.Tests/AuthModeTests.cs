@@ -10,7 +10,7 @@ public class AuthModeTests(SharedAppFactory f) {
     [Fact]
     public async Task Mode_ReportsAuthDisabled_WhenNoCreds() {
         var c = _factory.CreateClient();
-        var json = await c.GetStringAsync("/api/app/mode");
+        string json = await c.GetStringAsync("/api/app/mode");
         Assert.Contains("\"authEnabled\":false", json);
         Assert.Contains("\"user\":null", json);
     }
@@ -25,13 +25,12 @@ public class AuthModeTests(SharedAppFactory f) {
     [Fact]
     public async Task Me_ReportsUnauthenticated() {
         var c = _factory.CreateClient();
-        var json = await c.GetStringAsync("/api/auth/me");
+        string json = await c.GetStringAsync("/api/auth/me");
         Assert.Contains("\"authenticated\":false", json);
     }
 
     [Fact]
     public async Task Code_PassesThrough_WhenAuthOff() {
-
         var c = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         var r = await c.GetAsync("/health?code=abc");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);

@@ -4,12 +4,6 @@ using EggIncognito.Services.Devices;
 namespace EggIncognito.Tests.Devices;
 
 public class DeviceJobTrackerTests {
-    private sealed class FakeTime : TimeProvider {
-        private DateTimeOffset _now = new(2026, 6, 18, 0, 0, 0, TimeSpan.Zero);
-        public override DateTimeOffset GetUtcNow() => _now;
-        public void Advance(TimeSpan d) => _now += d;
-    }
-
     private static StoreCheckResult UpToDate => new(true, "1.0", "1.0", false, false, "up_to_date", "no newer version");
 
     [Fact]
@@ -33,7 +27,7 @@ public class DeviceJobTrackerTests {
         t.Progress("dev", "poll 3/24: installed 1.0");
         var s = t.Get("dev");
         Assert.NotNull(s);
-        Assert.Equal(JobState.Running, s!.State);
+        Assert.Equal(JobState.Running, s.State);
         Assert.Equal("poll 3/24: installed 1.0", s.Message);
     }
 
@@ -44,7 +38,7 @@ public class DeviceJobTrackerTests {
         t.Finish("dev", UpToDate);
         var s = t.Get("dev");
         Assert.NotNull(s);
-        Assert.Equal(JobState.Done, s!.State);
+        Assert.Equal(JobState.Done, s.State);
         Assert.Equal("up_to_date", s.Action);
         Assert.Equal("1.0", s.InstalledAfter);
     }
@@ -91,5 +85,11 @@ public class DeviceJobTrackerTests {
     public void Get_UnknownDevice_Null() {
         var t = new DeviceJobTracker(new FakeTime());
         Assert.Null(t.Get("nope"));
+    }
+
+    private sealed class FakeTime : TimeProvider {
+        private DateTimeOffset _now = new(2026, 6, 18, 0, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan d) => _now += d;
     }
 }

@@ -2,17 +2,14 @@ using System.Text;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-
 public static class Arm64Signature {
-    public readonly record struct Pattern(bool Ok, string FridaPattern, int Instructions, int MaskedWords, string Diagnostics);
-
-
-    public static Pattern Build(byte[] bin, ulong startVa, ulong endVa, ulong textVmAddr, int textFileOff, int instructions) {
-        if (!Arm64Decode.SliceFunction(bin, startVa, endVa, textVmAddr, textFileOff, out var code, out _))
-            return new(false, "", 0, 0, "function range out of bounds");
+    public static Pattern Build(byte[] bin, ulong startVa, ulong endVa, ulong textVmAddr, int textFileOff,
+        int instructions) {
+        if (!Arm64Decode.SliceFunction(bin, startVa, endVa, textVmAddr, textFileOff, out byte[] code, out _))
+            return new Pattern(false, "", 0, 0, "function range out of bounds");
 
         int words = Math.Min(instructions, code.Length / 4);
-        if (words < 2) return new(false, "", 0, 0, "function too short for a signature");
+        if (words < 2) return new Pattern(false, "", 0, 0, "function too short for a signature");
 
         var sb = new StringBuilder();
         int masked = 0;
@@ -29,7 +26,8 @@ public static class Arm64Signature {
                 else sb.Append("??");
             }
         }
-        return new(true, sb.ToString(), words, masked, "ok");
+
+        return new Pattern(true, sb.ToString(), words, masked, "ok");
     }
 
 
@@ -41,4 +39,11 @@ public static class Arm64Signature {
         bool adr = (w & 0x1F000000) == 0x10000000;
         return brImm || bcond || adr;
     }
+
+    public readonly record struct Pattern(
+        bool Ok,
+        string FridaPattern,
+        int Instructions,
+        int MaskedWords,
+        string Diagnostics);
 }

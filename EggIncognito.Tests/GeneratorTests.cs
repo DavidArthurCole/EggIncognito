@@ -6,14 +6,14 @@ public class GeneratorTests {
     [Fact]
     public void ParsesEndpointsFromYaml() {
         const string yaml = """
-            routes:
-              - path: ei/first_contact_secure
-                requestType: EggIncFirstContactRequest
-                responseType: EggIncFirstContactResponse
-              - path: ei/get_periodicals
-                requestType: GetPeriodicalsRequest
-                responseType: PeriodicalsResponse
-            """;
+                            routes:
+                              - path: ei/first_contact_secure
+                                requestType: EggIncFirstContactRequest
+                                responseType: EggIncFirstContactResponse
+                              - path: ei/get_periodicals
+                                requestType: GetPeriodicalsRequest
+                                responseType: PeriodicalsResponse
+                            """;
 
         var endpoints = RouteParser.Parse(yaml);
 
@@ -27,18 +27,18 @@ public class GeneratorTests {
     [Fact]
     public void NewSchemaKeysWinAndModelTheThreeAxes() {
         const string yaml = """
-            routes:
-              - path: ei/first_contact_secure
-                request: EggIncFirstContactRequest
-                requestWrapped: true
-                response: EggIncFirstContactResponse
-                responseWrapped: true
-              - path: ei_srv/subscription_status
-                response: UserSubscriptionInfo
-                responseWrapped: true
-                pathParam: true
-                pathParamOnly: true
-            """;
+                            routes:
+                              - path: ei/first_contact_secure
+                                request: EggIncFirstContactRequest
+                                requestWrapped: true
+                                response: EggIncFirstContactResponse
+                                responseWrapped: true
+                              - path: ei_srv/subscription_status
+                                response: UserSubscriptionInfo
+                                responseWrapped: true
+                                pathParam: true
+                                pathParamOnly: true
+                            """;
 
         var e = RouteParser.Parse(yaml);
 
@@ -58,16 +58,16 @@ public class GeneratorTests {
     [Fact]
     public void InlineCommentsAreStrippedFromValues() {
         const string yaml = """
-            routes:
-              - path: ei/ack_endpoint
-                request: SomeRequest
-                response:  # ack - AuthenticatedMessage-wrapped, no body
-                responseWrapped: true
-              - path: ei/needs_capture
-                request:  # NEEDS CAPTURE - signed, unknown
-                requestWrapped: true
-                response: KnownResponse
-            """;
+                            routes:
+                              - path: ei/ack_endpoint
+                                request: SomeRequest
+                                response:  # ack - AuthenticatedMessage-wrapped, no body
+                                responseWrapped: true
+                              - path: ei/needs_capture
+                                request:  # NEEDS CAPTURE - signed, unknown
+                                requestWrapped: true
+                                response: KnownResponse
+                            """;
 
         var e = RouteParser.Parse(yaml);
 
@@ -85,11 +85,11 @@ public class GeneratorTests {
     [Fact]
     public void LegacyAuthenticatedMessageNormalizesToWrappedUnknown() {
         const string yaml = """
-            routes:
-              - path: ei/get_events
-                requestType: AuthenticatedMessage
-                responseType: EggIncCurrentEvents
-            """;
+                            routes:
+                              - path: ei/get_events
+                                requestType: AuthenticatedMessage
+                                responseType: EggIncCurrentEvents
+                            """;
 
         var e = RouteParser.Parse(yaml)[0];
 
@@ -103,10 +103,10 @@ public class GeneratorTests {
     [Fact]
     public void StripsTrailingSlashFromPath() {
         const string yaml = """
-            routes:
-              - path: ei/get_events/
-                responseType: EggIncCurrentEvents
-            """;
+                            routes:
+                              - path: ei/get_events/
+                                responseType: EggIncCurrentEvents
+                            """;
 
         var endpoints = RouteParser.Parse(yaml);
 
@@ -116,9 +116,9 @@ public class GeneratorTests {
     [Fact]
     public void OmittedTypesAreNullButMockResponseFallsBackToAuthenticatedMessage() {
         const string yaml = """
-            routes:
-              - path: ei/unknown_endpoint
-            """;
+                            routes:
+                              - path: ei/unknown_endpoint
+                            """;
 
         var endpoints = RouteParser.Parse(yaml);
 
@@ -130,23 +130,21 @@ public class GeneratorTests {
 
     [Fact]
     public void ParseOutput_HasValueEquality_ForIdenticalYaml() {
-
-
         const string yaml = """
-            routes:
-              - path: ei/first_contact_secure
-                request: EggIncFirstContactRequest
-                requestWrapped: true
-                response: EggIncFirstContactResponse
-                responseWrapped: true
-              - path: ei/process_shells_actions
-                requestType: ShellsActionBatch
-                rawResponse: "OK"
-              - path: ei_srv/subscription_status
-                response: UserSubscriptionInfo
-                pathParam: true
-                pathParamOnly: true
-            """;
+                            routes:
+                              - path: ei/first_contact_secure
+                                request: EggIncFirstContactRequest
+                                requestWrapped: true
+                                response: EggIncFirstContactResponse
+                                responseWrapped: true
+                              - path: ei/process_shells_actions
+                                requestType: ShellsActionBatch
+                                rawResponse: "OK"
+                              - path: ei_srv/subscription_status
+                                response: UserSubscriptionInfo
+                                pathParam: true
+                                pathParamOnly: true
+                            """;
 
         var a = RouteParser.Parse(yaml);
         var b = RouteParser.Parse(yaml);
@@ -159,10 +157,10 @@ public class GeneratorTests {
     [Fact]
     public void ParseOutput_Differs_WhenARouteChanges() {
         const string yaml = """
-            routes:
-              - path: ei/get_events
-                response: EggIncCurrentEvents
-            """;
+                            routes:
+                              - path: ei/get_events
+                                response: EggIncCurrentEvents
+                            """;
         var a = RouteParser.Parse(yaml);
         var b = RouteParser.Parse(yaml.Replace("EggIncCurrentEvents", "SomethingElse"));
 
@@ -174,5 +172,6 @@ public class GeneratorTests {
     [InlineData("ei_afx/launch_mission", "EiAfxLaunchMissionController")]
     [InlineData("ei_ctx/get_leaderboard", "EiCtxGetLeaderboardController")]
     [InlineData("ei_data", "EiDataController")]
-    public void DerivedClassNameFromPath(string path, string expected) => Assert.Equal(expected, RouteParser.ToClassName(path));
+    public void DerivedClassNameFromPath(string path, string expected) =>
+        Assert.Equal(expected, RouteParser.ToClassName(path));
 }

@@ -14,7 +14,7 @@ public sealed class DeviceApkPuller(IProcessRunner runner) {
         var conn = new AdbDeviceConnection(runner, serial);
         var pm = await conn.ShellAsync($"pm path {package}", ct);
         if (pm.ExitCode != 0) return null;
-        var path = select(pm.Stdout);
+        string? path = select(pm.Stdout);
         return path is null ? null : await conn.PullBytesAsync(path, ct);
     }
 }

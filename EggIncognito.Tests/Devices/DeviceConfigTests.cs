@@ -17,7 +17,7 @@ public class DeviceConfigTests {
 
     [Fact]
     public void Bind_TwoDevices_ParsesAll() {
-        var c = DeviceConfig.Bind(Cfg(new() {
+        var c = DeviceConfig.Bind(Cfg(new Dictionary<string, string?> {
             ["DevicePolling:Enabled"] = "true",
             ["DevicePolling:IntervalMinutes"] = "15",
             ["Devices:0:Id"] = "frame-android",
@@ -28,7 +28,7 @@ public class DeviceConfigTests {
             ["Devices:1:Id"] = "frame-iphone",
             ["Devices:1:Platform"] = "ios",
             ["Devices:1:Label"] = "iPhone 8",
-            ["Devices:1:Target"] = "3489c6b0",
+            ["Devices:1:Target"] = "3489c6b0"
         }));
         Assert.Equal(15, c.IntervalMinutes);
         Assert.Equal(2, c.Devices.Count);
@@ -39,11 +39,11 @@ public class DeviceConfigTests {
 
     [Fact]
     public void Bind_DropsEntriesMissingIdOrTarget() {
-        var c = DeviceConfig.Bind(Cfg(new() {
+        var c = DeviceConfig.Bind(Cfg(new Dictionary<string, string?> {
             ["Devices:0:Platform"] = "android",
             ["Devices:1:Id"] = "ok",
             ["Devices:1:Platform"] = "ios",
-            ["Devices:1:Target"] = "udid",
+            ["Devices:1:Target"] = "udid"
         }));
         Assert.Single(c.Devices);
         Assert.Equal("ok", c.Devices[0].Id);
@@ -56,7 +56,7 @@ public class DeviceConfigTests {
         tmp.Write("android.egidevice.0", "Id=frame-android\nPlatform=android\nLabel=A15\nTarget=RF8X20GLYDY");
         tmp.Write("runner-android.env", "Id=nope\nTarget=nope");
 
-        var c = DeviceConfig.Bind(Cfg(new() { ["Devices:Dir"] = tmp.Path }));
+        var c = DeviceConfig.Bind(Cfg(new Dictionary<string, string?> { ["Devices:Dir"] = tmp.Path }));
 
         Assert.Equal(2, c.Devices.Count);
         Assert.Equal("frame-android", c.Devices[0].Id);
@@ -66,10 +66,10 @@ public class DeviceConfigTests {
 
     [Fact]
     public void Bind_MissingDirFallsBackToInline() {
-        var c = DeviceConfig.Bind(Cfg(new() {
+        var c = DeviceConfig.Bind(Cfg(new Dictionary<string, string?> {
             ["Devices:Dir"] = "/no/such/dir",
             ["Devices:0:Id"] = "inline",
-            ["Devices:0:Target"] = "t",
+            ["Devices:0:Target"] = "t"
         }));
         Assert.Single(c.Devices);
         Assert.Equal("inline", c.Devices[0].Id);
@@ -80,10 +80,10 @@ public class DeviceConfigTests {
         using var tmp = new TempDir();
         tmp.Write("android.egidevice.0", "Id=dev\nPlatform=android\nTarget=from-file");
 
-        var c = DeviceConfig.Bind(Cfg(new() {
+        var c = DeviceConfig.Bind(Cfg(new Dictionary<string, string?> {
             ["Devices:Dir"] = tmp.Path,
             ["Devices:0:Id"] = "dev",
-            ["Devices:0:Target"] = "from-inline",
+            ["Devices:0:Target"] = "from-inline"
         }));
 
         Assert.Single(c.Devices);
@@ -95,10 +95,10 @@ public class DeviceConfigTests {
         using var tmp = new TempDir();
         tmp.Write("android.egidevice.0", "Id=from-file\nTarget=t");
 
-        var c = DeviceConfig.Bind(Cfg(new() {
+        var c = DeviceConfig.Bind(Cfg(new Dictionary<string, string?> {
             ["Devices:Dir"] = tmp.Path,
             ["Devices:0:Id"] = "from-inline",
-            ["Devices:0:Target"] = "t",
+            ["Devices:0:Target"] = "t"
         }));
 
         Assert.Equal(2, c.Devices.Count);
@@ -107,10 +107,21 @@ public class DeviceConfigTests {
     }
 
     private sealed class TempDir : IDisposable {
+        public TempDir() {
+            Directory.CreateDirectory(Path);
+        }
+
         public string Path { get; } =
             System.IO.Path.Combine(System.IO.Path.GetTempPath(), "egi-dev-" + Guid.NewGuid().ToString("N"));
-        public TempDir() => Directory.CreateDirectory(Path);
-        public void Write(string name, string content) => File.WriteAllText(System.IO.Path.Combine(Path, name), content);
-        public void Dispose() { try { Directory.Delete(Path, true); } catch { } }
+
+        public void Dispose() {
+            try {
+                Directory.Delete(Path, true);
+            } catch {
+            }
+        }
+
+        public void Write(string name, string content) =>
+            File.WriteAllText(System.IO.Path.Combine(Path, name), content);
     }
 }

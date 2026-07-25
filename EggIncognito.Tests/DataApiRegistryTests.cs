@@ -40,9 +40,11 @@ public class DataApiRegistryTests {
     [Fact]
     public void Catalog_PeriodicalFeeds_MatchFeedEventKinds() {
         var c = new DataCatalog();
-        var feeds = c.PeriodicalFeeds().OrderBy(x => x, StringComparer.Ordinal).ToArray();
-        var triggers = FeedEventKinds.Periodicals.Triggers
-            .Select(t => t.Value).Where(v => v != "any").OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        string[] feeds = [.. c.PeriodicalFeeds().OrderBy(x => x, StringComparer.Ordinal)];
+        string[] triggers = [
+            .. FeedEventKinds.Periodicals.Triggers
+                .Select(t => t.Value).Where(v => v != "any").OrderBy(x => x, StringComparer.Ordinal)
+        ];
         Assert.Equal(triggers, feeds);
     }
 
@@ -57,12 +59,12 @@ public class DataApiRegistryTests {
 
     [Fact]
     public void ApiKeyGen_MintDeterministicHash() {
-        var (full, hash, prefix) = ApiKeyGen.Mint();
+        (string full, string hash, string prefix) = ApiKeyGen.Mint();
         Assert.StartsWith("egi_live_", full);
         Assert.Equal(12, prefix.Length);
         Assert.Equal(hash, ApiKeyGen.HashOf(full));
         Assert.Equal(64, hash.Length);
-        var (second, _, _) = ApiKeyGen.Mint();
+        (string second, _, _) = ApiKeyGen.Mint();
         Assert.NotEqual(full, second);
     }
 }

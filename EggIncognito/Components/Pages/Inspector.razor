@@ -564,7 +564,7 @@
                 builder.AddAttribute(seq++, "class", "env-check");
                 builder.AddAttribute(seq++, "type", "checkbox");
                 builder.AddAttribute(seq++, "checked", r.Value == "true");
-                builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvBool(r, e)));
+                builder.AddAttribute(seq, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvBool(r, e)));
                 builder.CloseElement();
             } else {
                 builder.OpenElement(seq++, "input");
@@ -573,7 +573,7 @@
                 builder.AddAttribute(seq++, "value", r.Value);
                 builder.AddAttribute(seq++, "placeholder", r.Hint);
                 builder.AddAttribute(seq++, "autocomplete", "off");
-                builder.AddAttribute(seq++, "oninput", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvInput(r, e.Value?.ToString())));
+                builder.AddAttribute(seq, "oninput", EventCallback.Factory.Create<ChangeEventArgs>(this, e => OnEnvInput(r, e.Value?.ToString())));
                 builder.CloseElement();
             }
 

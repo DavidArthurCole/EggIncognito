@@ -1,3 +1,4 @@
+using System.Net;
 using Bunit;
 using EggIncognito.Components.Pages;
 using EggIncognito.Services;
@@ -9,8 +10,6 @@ using SyncKit.Contract;
 namespace EggIncognito.Tests;
 
 public class ProtosPageTests {
-
-
     [Collection(SharedAppCollection.Name)]
     public class Integration(SharedAppFactory f) {
         private readonly WebApplicationFactory<Program> _f = f;
@@ -19,24 +18,22 @@ public class ProtosPageTests {
         public async Task Protos_Anonymous_RendersTableShell_NoBackfillPanel() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/protos");
-            Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
-            var html = await r.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            string html = await r.Content.ReadAsStringAsync();
             Assert.Contains("Protos &amp; Data", html);
 
             Assert.DoesNotContain("id=\"backfillPanel\"", html);
         }
 
 
-
         [Fact]
         public async Task SubscribeRoute_StillResponds() =>
-            Assert.Equal(System.Net.HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/subscribe")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/subscribe")).StatusCode);
 
         [Fact]
         public async Task SourcesRoute_StillResponds() =>
-            Assert.Equal(System.Net.HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/sources")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/sources")).StatusCode);
     }
-
 
 
     public class Component : BunitContext {

@@ -5,43 +5,51 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Services.Devices;
 
-
 public static class DeviceProbeRunner {
     public static IDeviceProbe ProbeFor(Device d, IProcessRunner runner) => d.Platform switch {
         "ios" => new IosDeviceProbe(runner, d.Target, d.Package),
-        _ => new AdbDeviceProbe(runner, d.Target, d.Package),
+        _ => new AdbDeviceProbe(runner, d.Target, d.Package)
     };
 
-    public static string Classify(Device d, DeviceProbeResult r, string? extractedLatestBuild, string? extractedLatestAppVersion)
+    public static string Classify(Device d, DeviceProbeResult r, string? extractedLatestBuild,
+        string? extractedLatestAppVersion)
         => Classify(r, d.Platform, extractedLatestBuild, extractedLatestAppVersion);
 
 
-    public static string Classify(DeviceProbeResult r, string platform, string? extractedLatestBuild, string? extractedLatestAppVersion) {
+    public static string Classify(DeviceProbeResult r, string platform, string? extractedLatestBuild,
+        string? extractedLatestAppVersion) {
         if (!r.Reachable) return "unreachable";
         if (string.IsNullOrEmpty(r.InstalledAppVersion)) return "error";
 
         if (platform == "ios") {
             return extractedLatestAppVersion is null
                 ? "new_version"
-                : SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion) > 0 ? "new_version" : "no_change";
+                : SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion) > 0
+                    ? "new_version"
+                    : "no_change";
         }
-        if (extractedLatestBuild is null) return "new_version";
-        return long.TryParse(r.InstalledBuild, out var inst) && long.TryParse(extractedLatestBuild, out var ext)
-            ? inst > ext ? "new_version" : "no_change"
-            : SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion ?? "") > 0 ? "new_version" : "no_change";
+
+        return extractedLatestBuild is null
+            ? "new_version"
+            : long.TryParse(r.InstalledBuild, out long inst) && long.TryParse(extractedLatestBuild, out long ext)
+                ? inst > ext ? "new_version" : "no_change"
+                : SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion ?? "") > 0
+                    ? "new_version"
+                    : "no_change";
     }
 
 
     public static int SemverCompare(string a, string b) {
-        var pa = a.Split('.'); var pb = b.Split('.');
-        for (var i = 0; i < Math.Max(pa.Length, pb.Length); i++) {
-            var x = i < pa.Length && int.TryParse(pa[i], out var xi) ? xi : 0;
-            var y = i < pb.Length && int.TryParse(pb[i], out var yi) ? yi : 0;
+        string[] pa = a.Split('.');
+        string[] pb = b.Split('.');
+        for (int i = 0; i < Math.Max(pa.Length, pb.Length); i++) {
+            int x = i < pa.Length && int.TryParse(pa[i], out int xi) ? xi : 0;
+            int y = i < pb.Length && int.TryParse(pb[i], out int yi) ? yi : 0;
             if (x != y) return x.CompareTo(y);
         }
+
         return 0;
     }
-
 
 
     public static async Task<DeviceProbe> ProbeOneAsync(
@@ -54,16 +62,17 @@ public static class DeviceProbeRunner {
             .Where(p => p.Platform == d.Platform && p.DeletedAt == null)
             .Select(p => new { p.Build, p.AppVersion })
             .ToListAsync(ct);
-        var latestBuild = d.Platform == "android"
-            ? extracted.Select(e => e.Build).Where(b => long.TryParse(b, out _)).OrderByDescending(long.Parse).FirstOrDefault()
+        string? latestBuild = d.Platform == "android"
+            ? extracted.Select(e => e.Build).Where(b => long.TryParse(b, out _)).OrderByDescending(long.Parse)
+                .FirstOrDefault()
             : null;
-        var latestAppVersion = extracted.Select(e => e.AppVersion)
+        string? latestAppVersion = extracted.Select(e => e.AppVersion)
             .OrderByDescending(v => v, Comparer<string>.Create(SemverCompare)).FirstOrDefault();
-        var latestAvailable = await db.KnownVersions.AsNoTracking()
+        string? latestAvailable = await db.KnownVersions.AsNoTracking()
             .Where(k => k.Platform == d.Platform)
             .OrderByDescending(k => k.FirstSeen).Select(k => k.AppVersion).FirstOrDefaultAsync(ct);
 
-        var resultCode = Classify(d, result, latestBuild, latestAppVersion);
+        string resultCode = Classify(d, result, latestBuild, latestAppVersion);
 
         var row = new DeviceProbe {
             DeviceId = d.Id,
@@ -74,7 +83,7 @@ public static class DeviceProbeRunner {
             LatestAvailable = latestAvailable,
             Result = resultCode,
             TriggeredBy = triggeredBy,
-            Note = result.Note,
+            Note = result.Note
         };
         await store.RecordProbeAsync(row, ct);
 

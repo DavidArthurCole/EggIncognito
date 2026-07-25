@@ -4,12 +4,13 @@ using Microsoft.EntityFrameworkCore;
 namespace EggIncognito.Data.Services;
 
 public sealed class ApiKeyStore(EggIncognitoDbContext db) {
-    public async Task<ApiKey> AddAsync(Guid owner, string name, string hash, string prefix, CancellationToken ct = default) {
+    public async Task<ApiKey> AddAsync(Guid owner, string name, string hash, string prefix,
+        CancellationToken ct = default) {
         var row = new ApiKey {
             OwnerUserId = owner,
             Name = string.IsNullOrWhiteSpace(name) ? "key" : name.Trim(),
             KeyHash = hash,
-            Prefix = prefix,
+            Prefix = prefix
         };
         db.ApiKeys.Add(row);
         await db.SaveChangesAsync(ct);
@@ -42,7 +43,7 @@ public sealed class ApiKeyStore(EggIncognitoDbContext db) {
         if (row is null) return;
         var now = DateTimeOffset.UtcNow;
         row.RequestCount++;
-        if (row.LastUsedAt is null || (now - row.LastUsedAt.Value) > TimeSpan.FromSeconds(60))
+        if (row.LastUsedAt is null || now - row.LastUsedAt.Value > TimeSpan.FromSeconds(60))
             row.LastUsedAt = now;
         await db.SaveChangesAsync(ct);
     }

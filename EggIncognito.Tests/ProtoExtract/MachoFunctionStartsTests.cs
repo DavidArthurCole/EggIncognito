@@ -5,8 +5,7 @@ namespace EggIncognito.Tests.ProtoExtract;
 public class MachoFunctionStartsTests {
     [Fact]
     public void Read_ReturnsEmpty_WhenNoTable() {
-
-        var bin = SyntheticMacho.Build(new byte[64], [new SyntheticMacho.Sym("__ZN1A1fEv", SyntheticMacho.TextVm)]);
+        byte[] bin = SyntheticMacho.Build(new byte[64], [new SyntheticMacho.Sym("__ZN1A1fEv", SyntheticMacho.TextVm)]);
         Assert.Empty(MachoFunctionStarts.Read(bin));
     }
 
@@ -15,7 +14,7 @@ public class MachoFunctionStartsTests {
 
     [Fact]
     public void TryEnclosingStart_NoTable_False() {
-        var bin = SyntheticMacho.Build(new byte[64], []);
+        byte[] bin = SyntheticMacho.Build(new byte[64], []);
         Assert.False(MachoFunctionStarts.TryEnclosingStart(bin, SyntheticMacho.TextVm, out _, out _));
     }
 }

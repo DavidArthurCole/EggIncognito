@@ -19,7 +19,7 @@ public class RateLimitOptionsTests {
             ["RateLimiting:Enabled"] = "false",
             ["RateLimiting:Tiers:Anon:PermitLimit"] = "7",
             ["RateLimiting:Tiers:Anon:WindowSeconds"] = "60",
-            ["RateLimiting:Tiers:Anon:SegmentsPerWindow"] = "6",
+            ["RateLimiting:Tiers:Anon:SegmentsPerWindow"] = "6"
         }).Build();
 
         var o = RateLimitOptions.Bind(cfg);

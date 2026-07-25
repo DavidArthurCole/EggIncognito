@@ -1,6 +1,7 @@
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/db")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("write")]
 public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase {
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
@@ -19,10 +20,6 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
         currentUser.IsAtLeast(UserRole.Contributor)
             ? null
             : StatusCode(403, new { error = "contributor role required to write to the shared store" });
-
-    public sealed record UpsertEndpoint(string Path, string? Eid, string ResponseJson, string ResponseType);
-    public sealed record AddRoute(string Path, string? RequestType, string? ResponseType,
-        bool RequestWrapped, bool ResponseWrapped, string? RawResponse, bool PathParam, bool PathParamOnly);
 
     [HttpPost("endpoint")]
     public async Task<IActionResult> UpsertEndpointAsync([FromBody] UpsertEndpoint body,
@@ -40,14 +37,15 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
                 Eid = body.Eid,
                 ResponseJson = body.ResponseJson,
                 ResponseType = body.ResponseType,
-                OwnerUserId = currentUser.UserId,
+                OwnerUserId = currentUser.UserId
             });
         } else {
             existing.ResponseJson = body.ResponseJson;
             existing.ResponseType = body.ResponseType;
 
-            existing.UpdatedAt = System.DateTimeOffset.UtcNow;
+            existing.UpdatedAt = DateTimeOffset.UtcNow;
         }
+
         await db.SaveChangesAsync();
         return Ok(new { saved = body.Path, eid = body.Eid });
     }
@@ -69,7 +67,7 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
             PathParam = body.PathParam,
             PathParamOnly = body.PathParamOnly,
             Source = "db",
-            OwnerUserId = currentUser.UserId,
+            OwnerUserId = currentUser.UserId
         });
         await db.SaveChangesAsync();
         return Ok(new { added = body.Path });
@@ -78,7 +76,7 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
     [HttpGet("endpoints")]
     public async Task<IActionResult> ListEndpointsAsync() {
         var db = Db;
-        if (db is null) return Ok(System.Array.Empty<object>());
+        if (db is null) return Ok(Array.Empty<object>());
         var rows = await db.StoredEndpoints.AsNoTracking()
             .Select(e => new { e.Id, e.Path, e.Eid, e.ResponseType, e.UpdatedAt }).ToListAsync();
         return Ok(rows);
@@ -87,9 +85,21 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
     [HttpGet("routes")]
     public async Task<IActionResult> ListRoutesAsync() {
         var db = Db;
-        if (db is null) return Ok(System.Array.Empty<object>());
+        if (db is null) return Ok(Array.Empty<object>());
         var rows = await db.StoredRoutes.AsNoTracking().Where(r => r.Source == "db")
             .Select(r => new { r.Id, r.Path, r.RequestType, r.ResponseType }).ToListAsync();
         return Ok(rows);
     }
+
+    public sealed record UpsertEndpoint(string Path, string? Eid, string ResponseJson, string ResponseType);
+
+    public sealed record AddRoute(
+        string Path,
+        string? RequestType,
+        string? ResponseType,
+        bool RequestWrapped,
+        bool ResponseWrapped,
+        string? RawResponse,
+        bool PathParam,
+        bool PathParamOnly);
 }

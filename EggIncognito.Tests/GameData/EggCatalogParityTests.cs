@@ -20,5 +20,4 @@ public class EggCatalogParityTests {
         Assert.Equal("eggdata", cat.Provenance["baseValue"].Locator);
         Assert.Equal("decoded", cat.Provenance["baseValue"].Method);
     }
-
 }

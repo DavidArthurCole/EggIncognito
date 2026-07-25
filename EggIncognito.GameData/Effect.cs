@@ -1,6 +1,9 @@
 namespace EggIncognito.GameData;
 
 public sealed record Effect {
+    private static readonly IReadOnlyDictionary<string, object> EmptyMeta =
+        new Dictionary<string, object>(0);
+
     public Effect(
         string family,
         string id,
@@ -18,13 +21,8 @@ public sealed record Effect {
         MaxLevel = maxLevel;
         MetaSchema = metaSchema;
         Meta = meta ?? EmptyMeta;
-        if (metaSchema is not null) {
-            _ = new EffectRow(metaSchema, id, Meta);
-        }
+        if (metaSchema is not null) _ = new EffectRow(metaSchema, id, Meta);
     }
-
-    private static readonly IReadOnlyDictionary<string, object> EmptyMeta =
-        new Dictionary<string, object>(0);
 
     public string Family { get; }
     public string Id { get; }

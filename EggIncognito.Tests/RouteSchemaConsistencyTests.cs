@@ -3,7 +3,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-
 public sealed class RouteSchemaConsistencyTests {
     private static string RealYamlPath() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -12,14 +11,15 @@ public sealed class RouteSchemaConsistencyTests {
                 return Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
             dir = dir.Parent;
         }
+
         return Path.Combine(Directory.GetCurrentDirectory(), "EggIncognito", "RouteMap", "routes.yaml");
     }
 
     [Fact]
     public void BothParsers_AgreeOnEveryRoute() {
-        var yamlPath = RealYamlPath();
+        string yamlPath = RealYamlPath();
         Assert.True(File.Exists(yamlPath), $"routes.yaml not found at {yamlPath}");
-        var yaml = File.ReadAllText(yamlPath);
+        string yaml = File.ReadAllText(yamlPath);
 
         var gen = RouteParser.Parse(yaml).ToDictionary(e => e.Path);
         var cat = RouteCatalog.Parse(yaml).ToDictionary(e => e.Path);
@@ -27,7 +27,7 @@ public sealed class RouteSchemaConsistencyTests {
 
         Assert.Equal(gen.Keys.OrderBy(k => k), cat.Keys.OrderBy(k => k));
 
-        foreach (var path in gen.Keys) {
+        foreach (string path in gen.Keys) {
             var g = gen[path];
             var c = cat[path];
 
@@ -44,17 +44,17 @@ public sealed class RouteSchemaConsistencyTests {
     [Fact]
     public void LegacyAndNewKeyForms_ProduceIdenticalShape_AcrossParsers() {
         const string legacy = """
-            routes:
-              - path: ei/x
-                requestType: AuthenticatedMessage
-                responseType: FooResponse
-            """;
+                              routes:
+                                - path: ei/x
+                                  requestType: AuthenticatedMessage
+                                  responseType: FooResponse
+                              """;
         const string modern = """
-            routes:
-              - path: ei/x
-                requestWrapped: true
-                response: FooResponse
-            """;
+                              routes:
+                                - path: ei/x
+                                  requestWrapped: true
+                                  response: FooResponse
+                              """;
 
         var gLegacy = RouteParser.Parse(legacy)[0];
         var gModern = RouteParser.Parse(modern)[0];
@@ -72,19 +72,19 @@ public sealed class RouteSchemaConsistencyTests {
     [Fact]
     public void EntriesOutsideRoutesSection_AreIgnored_ByBothParsers() {
         const string yaml = """
-            routes:
-              - path: ei/real
-                requestType: ConfigRequest
-                responseType: ConfigResponse
+                            routes:
+                              - path: ei/real
+                                requestType: ConfigRequest
+                                responseType: ConfigResponse
 
-            excluded:
-              - path: ei/bogus
-                responseType: ConfigResponse
+                            excluded:
+                              - path: ei/bogus
+                                responseType: ConfigResponse
 
-            endpoint_status:
-              empty:
-                - ei/real
-            """;
+                            endpoint_status:
+                              empty:
+                                - ei/real
+                            """;
 
         var g = RouteParser.Parse(yaml);
         var c = RouteCatalog.Parse(yaml);
@@ -100,12 +100,12 @@ public sealed class RouteSchemaConsistencyTests {
     [Fact]
     public void EmptyPathEntry_EmitsNoRoute_AndDoesNotCorruptNeighbors() {
         const string yaml = """
-            routes:
-              - path: ei/real
-                requestType: ConfigRequest
-              - path:
-                responseType: ConfigResponse
-            """;
+                            routes:
+                              - path: ei/real
+                                requestType: ConfigRequest
+                              - path:
+                                responseType: ConfigResponse
+                            """;
 
         var g = RouteParser.Parse(yaml);
         var c = RouteCatalog.Parse(yaml);
@@ -121,16 +121,14 @@ public sealed class RouteSchemaConsistencyTests {
 
     [Fact]
     public void NewKeysWinOverLegacy_AtBlockLevel_InBothParsers() {
-
-
         const string yaml = """
-            routes:
-              - path: ei/both
-                requestType: OldRequest
-                request: NewRequest
-                response:  # explicitly empty new key beats legacy below
-                responseType: OldResponse
-            """;
+                            routes:
+                              - path: ei/both
+                                requestType: OldRequest
+                                request: NewRequest
+                                response:  # explicitly empty new key beats legacy below
+                                responseType: OldResponse
+                            """;
 
         var g = RouteParser.Parse(yaml)[0];
         Assert.Equal("NewRequest", g.Request);

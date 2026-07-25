@@ -1,3 +1,6 @@
+using System.Text.RegularExpressions;
+using EggIncognito.Services;
+
 namespace EggIncognito.Capture;
 
 public sealed partial record CaptureSessionOptions(
@@ -9,19 +12,22 @@ public sealed partial record CaptureSessionOptions(
     string CapturePath,
     string CaPath,
     bool WriteEndpoints = true,
-    EggIncognito.Services.IEndpointWriteObserver? WriteObserver = null) {
+    IEndpointWriteObserver? WriteObserver = null) {
     public string HarFileName() {
-        var name = "session";
+        string name = "session";
         if (!string.IsNullOrEmpty(Label))
             name += "_" + SanitizeRegex().Replace(Label, "_");
         if (!string.IsNullOrEmpty(Eid) &&
-            System.Text.RegularExpressions.Regex.IsMatch(Eid, @"^EI\d{16,}$")) {
+            MyRegex().IsMatch(Eid)) {
             name += "_" + Eid;
         }
 
         return name + ".har";
     }
 
-    [System.Text.RegularExpressions.GeneratedRegex(@"[^A-Za-z0-9._-]")]
-    private static partial System.Text.RegularExpressions.Regex SanitizeRegex();
+    [GeneratedRegex(@"[^A-Za-z0-9._-]")]
+    private static partial Regex SanitizeRegex();
+
+    [GeneratedRegex(@"^EI\d{16,}$")]
+    private static partial Regex MyRegex();
 }

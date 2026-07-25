@@ -7,30 +7,30 @@ public sealed record RateLimitOptions(
     IReadOnlyDictionary<string, RateLimit> Tiers,
     IReadOnlyDictionary<string, RateLimit> Policies) {
     public static RateLimitOptions Defaults() => new(
-        Enabled: true,
-        Tiers: new Dictionary<string, RateLimit> {
-            ["Anon"] = new(PermitLimit: 30, WindowSeconds: 60, SegmentsPerWindow: 6),
-            ["Viewer"] = new(PermitLimit: 120, WindowSeconds: 60, SegmentsPerWindow: 6),
-            ["Contributor"] = new(PermitLimit: 600, WindowSeconds: 60, SegmentsPerWindow: 6),
-            ["Supporter"] = new(PermitLimit: 1200, WindowSeconds: 60, SegmentsPerWindow: 6),
-            ["Keyed"] = new(PermitLimit: 600, WindowSeconds: 60, SegmentsPerWindow: 6),
+        true,
+        new Dictionary<string, RateLimit> {
+            ["Anon"] = new(30, 60, 6),
+            ["Viewer"] = new(120, 60, 6),
+            ["Contributor"] = new(600, 60, 6),
+            ["Supporter"] = new(1200, 60, 6),
+            ["Keyed"] = new(600, 60, 6)
         },
-        Policies: new Dictionary<string, RateLimit> {
-            ["Global"] = new(PermitLimit: 300, WindowSeconds: 60, SegmentsPerWindow: 6),
-            ["Egress"] = new(PermitLimit: 10, WindowSeconds: 60, SegmentsPerWindow: 6),
-            ["Write"] = new(PermitLimit: 60, WindowSeconds: 60, SegmentsPerWindow: 6),
-            ["Read"] = new(PermitLimit: 120, WindowSeconds: 60, SegmentsPerWindow: 6),
+        new Dictionary<string, RateLimit> {
+            ["Global"] = new(300, 60, 6),
+            ["Egress"] = new(10, 60, 6),
+            ["Write"] = new(60, 60, 6),
+            ["Read"] = new(120, 60, 6),
 
 
-            ["Fetch"] = new(PermitLimit: 300, WindowSeconds: 60, SegmentsPerWindow: 6),
-            ["Data"] = new(PermitLimit: 600, WindowSeconds: 60, SegmentsPerWindow: 6),
-            ["DataAnon"] = new(PermitLimit: 1, WindowSeconds: 3600, SegmentsPerWindow: 1),
+            ["Fetch"] = new(300, 60, 6),
+            ["Data"] = new(600, 60, 6),
+            ["DataAnon"] = new(1, 3600, 1)
         });
 
     public static RateLimitOptions Bind(IConfiguration config) {
         var d = Defaults();
         var section = config.GetSection("RateLimiting");
-        var enabled = section.GetValue("Enabled", d.Enabled);
+        bool enabled = section.GetValue("Enabled", d.Enabled);
         var tiers = MergeGroup(section.GetSection("Tiers"), d.Tiers);
         var policies = MergeGroup(section.GetSection("Policies"), d.Policies);
         return new RateLimitOptions(enabled, tiers, policies);
@@ -39,7 +39,7 @@ public sealed record RateLimitOptions(
     private static Dictionary<string, RateLimit> MergeGroup(
         IConfigurationSection group, IReadOnlyDictionary<string, RateLimit> defaults) {
         var result = new Dictionary<string, RateLimit>(defaults);
-        foreach (var key in defaults.Keys) {
+        foreach (string key in defaults.Keys) {
             var s = group.GetSection(key);
             if (!s.Exists()) continue;
             var d = defaults[key];
@@ -48,6 +48,7 @@ public sealed record RateLimitOptions(
                 s.GetValue("WindowSeconds", d.WindowSeconds),
                 s.GetValue("SegmentsPerWindow", d.SegmentsPerWindow));
         }
+
         return result;
     }
 }

@@ -5,4 +5,7 @@ public interface IDeviceProbe {
 }
 
 public sealed record DeviceProbeResult(
-    bool Reachable, string? InstalledAppVersion, string? InstalledBuild, string? Note);
+    bool Reachable,
+    string? InstalledAppVersion,
+    string? InstalledBuild,
+    string? Note);

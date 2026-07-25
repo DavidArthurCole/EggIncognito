@@ -1,37 +1,52 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 
 namespace EggIncognito.Capture;
 
-
 public sealed class LanForwarder : IAsyncDisposable {
+    private static readonly TimeSpan DisconnectGrace = TimeSpan.FromSeconds(45);
+    private readonly Dictionary<string, int> _connsPerIp = [with(StringComparer.Ordinal)];
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Lock _devLock = new();
+    private readonly HashSet<string> _disconnectPending = [with(StringComparer.Ordinal)];
     private readonly TcpListener _listener;
     private readonly int _proxyPort;
-    private readonly CancellationTokenSource _cts = new();
     private Task? _acceptLoop;
+
+    public LanForwarder(int publicPort, int proxyPort) {
+        _listener = new TcpListener(IPAddress.IPv6Any, publicPort);
+        _listener.Server.DualMode = true;
+        _proxyPort = proxyPort;
+    }
 
 
     public Action<string>? Trace { get; set; }
-    private void Log(string m) => Trace?.Invoke(m);
-
-
 
 
     public Action<string, int>? DeviceConnected { get; set; }
     public Action<string, int>? DeviceDisconnected { get; set; }
 
+    public async ValueTask DisposeAsync() {
+        await _cts.CancelAsync();
+        try {
+            _listener.Stop();
+        } catch {
+            /* already stopped */
+        }
 
-    private static readonly TimeSpan DisconnectGrace = TimeSpan.FromSeconds(45);
-    private readonly Lock _devLock = new();
-    private readonly Dictionary<string, int> _connsPerIp = [with(StringComparer.Ordinal)];
-    private readonly HashSet<string> _disconnectPending = [with(StringComparer.Ordinal)];
+        if (_acceptLoop is not null) {
+            try {
+                await _acceptLoop;
+            } catch {
+                /* ignored */
+            }
+        }
 
-    public LanForwarder(int publicPort, int proxyPort) {
-
-        _listener = new TcpListener(IPAddress.IPv6Any, publicPort);
-        _listener.Server.DualMode = true;
-        _proxyPort = proxyPort;
+        _cts.Dispose();
     }
+
+    private void Log(string m) => Trace?.Invoke(m);
 
     public void Start() {
         _listener.Start();
@@ -41,11 +56,18 @@ public sealed class LanForwarder : IAsyncDisposable {
     private async Task AcceptLoopAsync(CancellationToken ct) {
         while (!ct.IsCancellationRequested) {
             TcpClient client;
-            try { client = await _listener.AcceptTcpClientAsync(ct); } catch (OperationCanceledException) { break; } catch (ObjectDisposedException) { break; } catch (SocketException ex) {
+            try {
+                client = await _listener.AcceptTcpClientAsync(ct);
+            } catch (OperationCanceledException) {
+                break;
+            } catch (ObjectDisposedException) {
+                break;
+            } catch (SocketException ex) {
                 if (IsFatalAcceptError(ex, ct.IsCancellationRequested)) break;
                 Log($"FWD accept error: {ex.SocketErrorCode} - retrying");
                 continue;
             }
+
             Log($"FWD accept from {client.Client.RemoteEndPoint}");
             _ = HandleAsync(client, ct);
         }
@@ -56,19 +78,22 @@ public sealed class LanForwarder : IAsyncDisposable {
         cancelRequested || ex.SocketErrorCode is SocketError.Interrupted or SocketError.OperationAborted;
 
     private async Task HandleAsync(TcpClient client, CancellationToken ct) {
-
-        var deviceIp = DeviceIp(client);
+        string deviceIp = DeviceIp(client);
         OnDeviceConnectionOpened(deviceIp);
         try {
             using (client) {
                 using var upstream = new TcpClient();
-                try { await upstream.ConnectAsync(IPAddress.Loopback, _proxyPort, ct); } catch (Exception ex) { Log($"FWD upstream connect failed: {ex.Message}"); return; }
+                try {
+                    await upstream.ConnectAsync(IPAddress.Loopback, _proxyPort, ct);
+                } catch (Exception ex) {
+                    Log($"FWD upstream connect failed: {ex.Message}");
+                    return;
+                }
 
                 client.NoDelay = true;
                 upstream.NoDelay = true;
                 var cs = client.GetStream();
                 var us = upstream.GetStream();
-
 
 
                 if (!await ForwardCleanedConnectAsync(cs, us, ct))
@@ -77,7 +102,11 @@ public sealed class LanForwarder : IAsyncDisposable {
 
                 var c2u = PumpAsync(cs, us, upstream, "c2u", ct);
                 var u2c = PumpAsync(us, cs, client, "u2c", ct);
-                try { await Task.WhenAll(c2u, u2c); } catch { /* reset or cancel - normal teardown */ }
+                try {
+                    await Task.WhenAll(c2u, u2c);
+                } catch {
+                    /* reset or cancel - normal teardown */
+                }
             }
         } finally {
             OnDeviceConnectionClosed(deviceIp);
@@ -89,26 +118,31 @@ public sealed class LanForwarder : IAsyncDisposable {
         bool firstForIp;
         int deviceCount;
         lock (_devLock) {
-            firstForIp = !_connsPerIp.TryGetValue(ip, out var c) || c == 0;
+            firstForIp = !_connsPerIp.TryGetValue(ip, out int c) || c == 0;
             _connsPerIp[ip] = (firstForIp ? 0 : c) + 1;
             deviceCount = _connsPerIp.Count(kv => kv.Value > 0);
         }
+
         if (firstForIp) DeviceConnected?.Invoke(ip, deviceCount);
     }
 
 
-
     private void OnDeviceConnectionClosed(string ip) {
         lock (_devLock) {
-            if (_connsPerIp.TryGetValue(ip, out var c) && c > 0) _connsPerIp[ip] = c - 1;
+            if (_connsPerIp.TryGetValue(ip, out int c) && c > 0) _connsPerIp[ip] = c - 1;
             if (_connsPerIp.GetValueOrDefault(ip) > 0) return;
             if (!_disconnectPending.Add(ip)) return;
         }
+
         _ = DebouncedDisconnectAsync(ip);
     }
 
     private async Task DebouncedDisconnectAsync(string ip) {
-        try { await Task.Delay(DisconnectGrace, _cts.Token); } catch (OperationCanceledException) { return; }
+        try {
+            await Task.Delay(DisconnectGrace, _cts.Token);
+        } catch (OperationCanceledException) {
+            return;
+        }
 
         int deviceCount;
         lock (_devLock) {
@@ -117,26 +151,30 @@ public sealed class LanForwarder : IAsyncDisposable {
             _connsPerIp.Remove(ip);
             deviceCount = _connsPerIp.Count(kv => kv.Value > 0);
         }
+
         DeviceDisconnected?.Invoke(ip, deviceCount);
     }
 
 
-
     private async Task<bool> ForwardCleanedConnectAsync(NetworkStream cs, NetworkStream us, CancellationToken ct) {
-        var buf = new byte[8192];
+        byte[] buf = new byte[8192];
         int len = 0;
         int headerEnd = -1;
         while (headerEnd < 0) {
-            if (len == buf.Length) { Log("FWD head too large"); return false; }
+            if (len == buf.Length) {
+                Log("FWD head too large");
+                return false;
+            }
+
             int n = await cs.ReadAsync(buf.AsMemory(len, buf.Length - len), ct);
             if (n == 0) return false;
             len += n;
             headerEnd = IndexOfDoubleCrlf(buf, len);
         }
 
-        var head = System.Text.Encoding.ASCII.GetString(buf, 0, headerEnd);
-        var cleaned = CleanConnectHead(head);
-        var cleanedBytes = System.Text.Encoding.ASCII.GetBytes(cleaned);
+        string head = Encoding.ASCII.GetString(buf, 0, headerEnd);
+        string cleaned = CleanConnectHead(head);
+        byte[] cleanedBytes = Encoding.ASCII.GetBytes(cleaned);
         await us.WriteAsync(cleanedBytes, ct);
 
 
@@ -149,17 +187,12 @@ public sealed class LanForwarder : IAsyncDisposable {
     }
 
 
-
-
-
-
     internal static string CleanConnectHead(string head) {
-        var lines = head.Split("\r\n");
-        var requestLine = lines[0];
-        var parts = requestLine.Split(' ');
-        var method = parts.Length >= 1 ? parts[0] : "";
-        var target = parts.Length >= 2 ? parts[1] : "";
-
+        string[] lines = head.Split("\r\n");
+        string requestLine = lines[0];
+        string[] parts = requestLine.Split(' ');
+        string method = parts.Length >= 1 ? parts[0] : "";
+        string target = parts.Length >= 2 ? parts[1] : "";
 
 
         string authority;
@@ -172,8 +205,8 @@ public sealed class LanForwarder : IAsyncDisposable {
 
         var kept = new List<string> { requestLine };
         bool hostWritten = false;
-        foreach (var line in lines.Skip(1)) {
-            var name = line.Split(':', 2)[0].Trim();
+        foreach (string line in lines.Skip(1)) {
+            string name = line.Split(':', 2)[0].Trim();
 
             if (name.Equals("Connection", StringComparison.OrdinalIgnoreCase) ||
                 name.Equals("Proxy-Connection", StringComparison.OrdinalIgnoreCase) ||
@@ -186,8 +219,10 @@ public sealed class LanForwarder : IAsyncDisposable {
                 hostWritten = true;
                 continue;
             }
+
             kept.Add(line);
         }
+
         if (!hostWritten && authority.Length > 0) kept.Add($"Host: {authority}");
 
         return string.Join("\r\n", kept) + "\r\n\r\n";
@@ -202,44 +237,49 @@ public sealed class LanForwarder : IAsyncDisposable {
         (addr.IsIPv4MappedToIPv6 ? addr.MapToIPv4() : addr).ToString();
 
     internal static int IndexOfDoubleCrlf(byte[] b, int len) {
-        for (int i = 0; i + 3 < len; i++)
-            if (b[i] == 13 && b[i + 1] == 10 && b[i + 2] == 13 && b[i + 3] == 10) return i;
+        for (int i = 0; i + 3 < len; i++) {
+            if (b[i] == 13 && b[i + 1] == 10 && b[i + 2] == 13 && b[i + 3] == 10)
+                return i;
+        }
+
         return -1;
     }
 
 
-    private async Task PumpAsync(NetworkStream src, NetworkStream dst, TcpClient dstClient, string dir, CancellationToken ct) {
-        var buffer = new byte[16 * 1024];
+    private async Task PumpAsync(NetworkStream src, NetworkStream dst, TcpClient dstClient, string dir,
+        CancellationToken ct) {
+        byte[] buffer = new byte[16 * 1024];
         long total = 0;
         bool first = true;
         try {
             int n;
             while ((n = await src.ReadAsync(buffer, ct)) > 0) {
-                if (first) { Log($"FWD {dir} first {n}B: {Preview(buffer, n)}"); first = false; }
+                if (first) {
+                    Log($"FWD {dir} first {n}B: {Preview(buffer, n)}");
+                    first = false;
+                }
+
                 total += n;
                 await dst.WriteAsync(buffer.AsMemory(0, n), ct);
                 await dst.FlushAsync(ct);
             }
-        } catch (Exception ex) { Log($"FWD {dir} pump error after {total}B: {ex.Message}"); } finally {
+        } catch (Exception ex) {
+            Log($"FWD {dir} pump error after {total}B: {ex.Message}");
+        } finally {
             if (total == 0) Log($"FWD {dir} closed with 0 bytes");
-            try { dstClient.Client.Shutdown(SocketShutdown.Send); } catch { /* already closed */ }
+            try {
+                dstClient.Client.Shutdown(SocketShutdown.Send);
+            } catch {
+                /* already closed */
+            }
         }
     }
 
 
     private static string Preview(byte[] b, int n) {
-        var len = Math.Min(n, 300);
-        var chars = new char[len];
+        int len = Math.Min(n, 300);
+        char[] chars = new char[len];
         for (int i = 0; i < len; i++) chars[i] = b[i] is >= 32 and < 127 ? (char)b[i] : '.';
         return new string(chars);
-    }
-
-    public async ValueTask DisposeAsync() {
-        await _cts.CancelAsync();
-        try { _listener.Stop(); } catch { /* already stopped */ }
-        if (_acceptLoop is not null) {
-            try { await _acceptLoop; } catch { /* ignored */ }
-        }
-        _cts.Dispose();
     }
 }

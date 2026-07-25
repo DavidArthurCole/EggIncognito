@@ -31,7 +31,7 @@ public sealed class AuxbrainCatalogTests {
         var routes = new[] { Route("ei/mock_only"), Route("ei/matched") };
         var canonical = new Dictionary<string, CanonicalPath> {
             ["ei/matched"] = Canonical(),
-            ["ei/real_only"] = Canonical("FooRequest", "FooResponse", requestWrapped: true),
+            ["ei/real_only"] = Canonical("FooRequest", "FooResponse", true)
         };
 
         var entries = AuxbrainCatalog.Build(routes, canonical, Status());
@@ -50,7 +50,7 @@ public sealed class AuxbrainCatalogTests {
     [Fact]
     public void Build_MapsEndpointStatusBuckets() {
         var routes = new[] { Route("ei/a"), Route("ei/b"), Route("ei/c") };
-        var status = Status(ok: ["ei/a"], empty: ["ei/b"], missing: ["ei/c"]);
+        var status = Status(["ei/a"], ["ei/b"], ["ei/c"]);
 
         var entries = AuxbrainCatalog.Build(routes, new Dictionary<string, CanonicalPath>(), status);
 
@@ -70,7 +70,7 @@ public sealed class AuxbrainCatalogTests {
     public void Build_MatchedPath_UsesRouteShapeNotCanonical() {
         var routes = new[] { Route("ei/coop_status", responseWrapped: false) };
         var canonical = new Dictionary<string, CanonicalPath> {
-            ["ei/coop_status"] = Canonical(responseWrapped: true),
+            ["ei/coop_status"] = Canonical(responseWrapped: true)
         };
 
         var entry = AuxbrainCatalog.Build(routes, canonical, Status()).Single();
@@ -82,7 +82,7 @@ public sealed class AuxbrainCatalogTests {
         var routes = new[] { Route("ei/new_name", aliases: ["ei/old_name"]) };
         var canonical = new Dictionary<string, CanonicalPath> {
             ["ei/new_name"] = Canonical(),
-            ["ei/old_name"] = Canonical(),
+            ["ei/old_name"] = Canonical()
         };
 
         var entries = AuxbrainCatalog.Build(routes, canonical, Status());
@@ -112,7 +112,7 @@ public sealed class AuxbrainCatalogTests {
 
     [Fact]
     public void ResolveJsonPath_FindsRepoFile_AndLoadCanonicalParsesIt() {
-        var path = AuxbrainCatalog.ResolveJsonPath(new ConfigurationBuilder().Build());
+        string path = AuxbrainCatalog.ResolveJsonPath(new ConfigurationBuilder().Build());
         Assert.True(File.Exists(path), $"auxbrain-paths.json not found at {path}");
 
         var canonical = AuxbrainCatalog.LoadCanonical(path);
@@ -128,13 +128,15 @@ public sealed class AuxbrainCatalogTests {
 
     [Fact]
     public void ResolveJsonPath_ConfigOverrideWins() {
-        var tmp = Path.Combine(Path.GetTempPath(), "egi-axp-" + Guid.NewGuid().ToString("N") + ".json");
+        string tmp = Path.Combine(Path.GetTempPath(), "egi-axp-" + Guid.NewGuid().ToString("N") + ".json");
         File.WriteAllText(tmp, "{}");
         try {
             var config = new ConfigurationBuilder().AddInMemoryCollection(
                 new Dictionary<string, string?> { ["AuxbrainPathsPath"] = tmp }).Build();
             Assert.Equal(tmp, AuxbrainCatalog.ResolveJsonPath(config));
-        } finally { File.Delete(tmp); }
+        } finally {
+            File.Delete(tmp);
+        }
     }
 
     [Fact]

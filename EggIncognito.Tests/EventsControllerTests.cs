@@ -1,11 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text;
 
 namespace EggIncognito.Tests;
 
 public static class EventsControllerTests {
     private const string Body = "{\"package\":\"com.auxbrain.egginc\",\"version\":\"1.34\",\"protoSha\":\"x\"}";
-    private static StringContent Json() => new(Body, System.Text.Encoding.UTF8, "application/json");
+    private static StringContent Json() => new(Body, Encoding.UTF8, "application/json");
 
     [Collection(SharedAppCollection.Name)]
     public class NoSecret(SharedAppFactory f) {

@@ -1,20 +1,16 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-
 public static class Arm64ClientVersionScanner {
-    public sealed record ScanResult(int? ClientVersion, IReadOnlyList<int> Candidates);
-
-
     private const uint MovzMask = 0x7FA00000, MovzMatch = 0x52800000;
 
     private const uint StrMask = 0xFFC00000, StrMatch = 0xB9000000;
 
     public static ScanResult Scan(byte[] textBytes, int prevClientVersion) {
         int n = textBytes.Length / 4;
-        var words = new uint[n];
+        uint[] words = new uint[n];
         for (int i = 0; i < n; i++) {
             words[i] = (uint)(textBytes[i * 4] | (textBytes[i * 4 + 1] << 8)
-                            | (textBytes[i * 4 + 2] << 16) | (textBytes[i * 4 + 3] << 24));
+                                               | (textBytes[i * 4 + 2] << 16) | (textBytes[i * 4 + 3] << 24));
         }
 
         var pair = new Dictionary<(int Off, int Val), HashSet<int>>();
@@ -31,9 +27,9 @@ public static class Arm64ClientVersionScanner {
 
 
         var counts = new Dictionary<int, int>();
-        foreach (var ((_, val), sites) in pair) {
+        foreach (((int _, int val), var sites) in pair) {
             if (sites.Count >= 3)
-                counts[val] = Math.Max(counts.TryGetValue(val, out var c) ? c : 0, sites.Count);
+                counts[val] = Math.Max(counts.GetValueOrDefault(val, 0), sites.Count);
         }
 
         int? chosen = Pick(counts, prevClientVersion);
@@ -50,18 +46,26 @@ public static class Arm64ClientVersionScanner {
             if ((int)(w & 0x1F) != rt) continue;
             return (int)((w >> 5) & 0xFFFF);
         }
+
         return null;
     }
 
 
     private static int? Pick(Dictionary<int, int> cands, int prev) {
         int? best = null;
-        foreach (var v in cands.Keys) {
+        foreach (int v in cands.Keys) {
             if (v < prev || v > prev + 2) continue;
-            if (best is null) { best = v; continue; }
+            if (best is null) {
+                best = v;
+                continue;
+            }
+
             int da = Math.Abs(v - prev), db = Math.Abs(best.Value - prev);
             if (da < db || (da == db && cands[v] > cands[best.Value])) best = v;
         }
+
         return best;
     }
+
+    public sealed record ScanResult(int? ClientVersion, IReadOnlyList<int> Candidates);
 }

@@ -2,15 +2,8 @@ using System.IO.Compression;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-
 public static class RpoAssetExtractor {
     private const long MaxEntryBytes = 50_000_000L;
-
-
-
-    public sealed record Asset(string Key, string SourceEntry, RpoMeshDecoder.DecodeResult Decode);
-
-    public sealed record ExtractResult(bool Ok, IReadOnlyList<Asset> Assets, string Diagnostics);
 
     public static ExtractResult Extract(byte[] archiveZipBytes) {
         if (archiveZipBytes is null || archiveZipBytes.Length == 0)
@@ -18,9 +11,8 @@ public static class RpoAssetExtractor {
 
         ZipArchive zip;
         try {
-            zip = new ZipArchive(new MemoryStream(archiveZipBytes, writable: false), ZipArchiveMode.Read);
+            zip = new ZipArchive(new MemoryStream(archiveZipBytes, false), ZipArchiveMode.Read);
         } catch {
-
             var single = RpoMeshDecoder.Decode(archiveZipBytes);
             return single.Ok
                 ? new ExtractResult(true, [new Asset("mesh", "<raw>", single)], "ok")
@@ -37,12 +29,14 @@ public static class RpoAssetExtractor {
                     using var buf = new MemoryStream();
                     es.CopyTo(buf);
                     entries.Add((entry.FullName, buf.ToArray()));
-                } catch { /* skip unreadable entry */ }
+                } catch {
+                    /* skip unreadable entry */
+                }
             }
         }
+
         return DecodeEntries(entries);
     }
-
 
 
     public static ExtractResult FromEntries(IEnumerable<(string Name, byte[] Bytes)> entries) =>
@@ -50,11 +44,12 @@ public static class RpoAssetExtractor {
 
     private static ExtractResult DecodeEntries(IEnumerable<(string Name, byte[] Bytes)> entries) {
         var assets = new List<Asset>();
-        foreach (var (name, bytes) in entries) {
-            var key = KeyFromEntry(name);
+        foreach ((string name, byte[] bytes) in entries) {
+            string key = KeyFromEntry(name);
             assets.Add(new Asset(key, name, RpoMeshDecoder.Decode(bytes, key)));
         }
-        var ok = assets.Any(a => a.Decode.Ok);
+
+        bool ok = assets.Any(a => a.Decode.Ok);
         return new ExtractResult(ok, assets,
             ok ? "ok" : assets.Count == 0 ? "no .rpo/.rpoz entries found" : "found meshes but none decoded");
     }
@@ -64,11 +59,15 @@ public static class RpoAssetExtractor {
         || fullName.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase);
 
 
-
     private static string KeyFromEntry(string fullName) {
-        var slash = fullName.LastIndexOfAny(['/', '\\']);
-        var name = slash >= 0 ? fullName[(slash + 1)..] : fullName;
-        var dot = name.LastIndexOf('.');
+        int slash = fullName.LastIndexOfAny(['/', '\\']);
+        string name = slash >= 0 ? fullName[(slash + 1)..] : fullName;
+        int dot = name.LastIndexOf('.');
         return dot > 0 ? name[..dot] : name;
     }
+
+
+    public sealed record Asset(string Key, string SourceEntry, RpoMeshDecoder.DecodeResult Decode);
+
+    public sealed record ExtractResult(bool Ok, IReadOnlyList<Asset> Assets, string Diagnostics);
 }

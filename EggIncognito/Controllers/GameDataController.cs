@@ -1,4 +1,5 @@
 using EggIncognito.GameData;
+using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -6,18 +7,17 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/gamedata")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
 public sealed class GameDataController(IGameDataProvider provider) : ControllerBase {
     [HttpGet("effects")]
     public IActionResult Effects([FromQuery] string? family, [FromQuery] string? target) {
-        IEnumerable<Effect> effects = family is null
+        var effects = family is null
             ? provider.Families.SelectMany(f => f.Effects)
             : provider.All(family);
 
-        if (target is not null && Enum.TryParse<EffectTarget>(target, ignoreCase: true, out var t)) {
+        if (target is not null && Enum.TryParse<EffectTarget>(target, true, out var t))
             effects = effects.Where(e => e.Target == t);
-        }
 
         return Ok(new {
             families = provider.Families.Select(f => f.Key),

@@ -1,12 +1,12 @@
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EggIncognito.Controllers;
 
-
 [ApiController]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 public sealed class DynamicMockController(
     IRouteCatalog routes,
     IEndpointStore endpoints,
@@ -17,16 +17,14 @@ public sealed class DynamicMockController(
         if (route is not null && Serve(route, data) is { } stored) return stored;
 
 
-
         if (surface.ResolveAlias(slug) is { } canonical && Serve(canonical, data) is { } aliased)
             return aliased;
 
         if (!surface.IsKnownNamespace(slug)) return NotFound();
 
 
-
         if (surface.Canonical.TryGetValue(slug, out var c) && c.ResponseType is not null
-            && ProtoTypeResolver.Resolve(c.ResponseType) is { } type) {
+                                                           && ProtoTypeResolver.Resolve(c.ResponseType) is { } type) {
             return Encode(endpoints.Get(type, slug, EidExtractor.FromData(data)));
         }
 

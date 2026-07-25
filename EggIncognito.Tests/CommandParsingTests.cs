@@ -15,7 +15,8 @@ public class CommandParsingTests {
     [InlineData("nope", BotCommand.Unknown)]
     [InlineData("", BotCommand.Unknown)]
     [InlineData(null, BotCommand.Unknown)]
-    public void Resolve_MapsCommandNames(string? name, BotCommand expected) => Assert.Equal(expected, CommandParsing.Resolve(name));
+    public void Resolve_MapsCommandNames(string? name, BotCommand expected) =>
+        Assert.Equal(expected, CommandParsing.Resolve(name));
 
     [Fact]
     public void ParseProto_List_DefaultsPageTo1() {

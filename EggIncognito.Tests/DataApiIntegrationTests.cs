@@ -4,10 +4,8 @@ namespace EggIncognito.Tests;
 
 [Collection(EggIncApiCollection.Name)]
 public class DataApiIntegrationTests(EggIncApiFactory factory) {
-    private readonly EggIncApiFactory _factory = factory;
-
     private HttpClient Client(string ip) {
-        var c = _factory.CreateClient();
+        var c = factory.CreateClient();
         c.DefaultRequestHeaders.Add("CF-Connecting-IP", ip);
         return c;
     }
@@ -16,7 +14,7 @@ public class DataApiIntegrationTests(EggIncApiFactory factory) {
     public async Task Index_ListsSources() {
         var resp = await Client("10.10.0.1").GetAsync("/api/v1/data");
         resp.EnsureSuccessStatusCode();
-        var body = await resp.Content.ReadAsStringAsync();
+        string body = await resp.Content.ReadAsStringAsync();
         Assert.Contains("\"boost\"", body);
         Assert.Contains("get_periodicals", body);
     }

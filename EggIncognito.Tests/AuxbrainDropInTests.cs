@@ -1,6 +1,8 @@
 using System.Net;
 using System.Reflection;
 using System.Text.Json;
+using EggIncognito.Controllers;
+using Ei;
 using Google.Protobuf;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -11,7 +13,7 @@ public class AuxbrainDropInTests(EggIncApiFactory factory) {
     private readonly HttpClient _client = factory.CreateClient();
 
     private static FormUrlEncodedContent EmptyForm() {
-        var data = Convert.ToBase64String(new Ei.AuthenticatedMessage().ToByteArray());
+        string data = Convert.ToBase64String(new AuthenticatedMessage().ToByteArray());
         return new FormUrlEncodedContent([new KeyValuePair<string, string>("data", data)]);
     }
 
@@ -19,8 +21,8 @@ public class AuxbrainDropInTests(EggIncApiFactory factory) {
     public async Task KnownMockedPath_StillServesCannedProto() {
         var resp = await _client.PostAsync("/ei/first_contact_secure", EmptyForm());
         resp.EnsureSuccessStatusCode();
-        var body = await resp.Content.ReadAsStringAsync();
-        var result = Ei.EggIncFirstContactResponse.Parser.ParseFrom(Convert.FromBase64String(body));
+        string body = await resp.Content.ReadAsStringAsync();
+        var result = EggIncFirstContactResponse.Parser.ParseFrom(Convert.FromBase64String(body));
         Assert.Equal("EI0000000000000001", result.EiUserId);
     }
 
@@ -39,9 +41,9 @@ public class AuxbrainDropInTests(EggIncApiFactory factory) {
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.False(resp.Headers.Contains("x-eggincognito"));
         Assert.Equal("text/html", resp.Content.Headers.ContentType?.MediaType);
-        var body = await resp.Content.ReadAsStringAsync();
-        var msg = Ei.ContractCoopStatusResponse.Parser.ParseFrom(Convert.FromBase64String(body));
-        Assert.Equal(new Ei.ContractCoopStatusResponse(), msg);
+        string body = await resp.Content.ReadAsStringAsync();
+        var msg = ContractCoopStatusResponse.Parser.ParseFrom(Convert.FromBase64String(body));
+        Assert.Equal(new ContractCoopStatusResponse(), msg);
     }
 
     [Fact]
@@ -52,11 +54,11 @@ public class AuxbrainDropInTests(EggIncApiFactory factory) {
         Assert.False(alias.Headers.Contains("x-eggincognito"));
         Assert.Equal("text/html", alias.Content.Headers.ContentType?.MediaType);
 
-        var canonicalBody = await canonical.Content.ReadAsStringAsync();
-        var aliasBody = await alias.Content.ReadAsStringAsync();
+        string canonicalBody = await canonical.Content.ReadAsStringAsync();
+        string aliasBody = await alias.Content.ReadAsStringAsync();
         Assert.Equal(canonicalBody, aliasBody);
 
-        var msg = Ei.ContractCoopStatusUpdateResponse.Parser.ParseFrom(Convert.FromBase64String(aliasBody));
+        var msg = ContractCoopStatusUpdateResponse.Parser.ParseFrom(Convert.FromBase64String(aliasBody));
         Assert.True(msg.Finalized);
         Assert.True(msg.Exists);
     }
@@ -76,7 +78,7 @@ public class AuxbrainDropInTests(EggIncApiFactory factory) {
         Assert.True(entries.Count >= 64, $"expected >= 64 catalog entries, got {entries.Count}");
 
         foreach (var entry in entries) {
-            var path = entry.GetProperty("path").GetString()!;
+            string path = entry.GetProperty("path").GetString()!;
             Assert.True(paths.GetProperty("/" + path).TryGetProperty("post", out _),
                 $"catalog path {path} missing from openapi.json");
         }
@@ -105,13 +107,13 @@ public class AuxbrainDropInTests(EggIncApiFactory factory) {
         var resp = await _client.GetAsync(url);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.Equal("text/html", resp.Content.Headers.ContentType?.MediaType);
-        var body = await resp.Content.ReadAsStringAsync();
+        string body = await resp.Content.ReadAsStringAsync();
         Assert.Contains("EggIncognito", body);
     }
 
     [Fact]
     public async Task Landing_DocumentsFormShape_SigningAndInspector() {
-        var body = await _client.GetStringAsync("/api");
+        string body = await _client.GetStringAsync("/api");
         Assert.Contains("data=", body);
         Assert.Contains("AuthenticatedMessage", body);
         Assert.Contains("/api/catalog", body);
@@ -120,9 +122,9 @@ public class AuxbrainDropInTests(EggIncApiFactory factory) {
 
     [Fact]
     public void ApiSurfaceController_HasReadRateLimitPolicy() {
-        var attr = typeof(EggIncognito.Controllers.ApiSurfaceController)
+        var attr = typeof(ApiSurfaceController)
             .GetCustomAttribute<EnableRateLimitingAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal("read", attr!.PolicyName);
+        Assert.Equal("read", attr.PolicyName);
     }
 }

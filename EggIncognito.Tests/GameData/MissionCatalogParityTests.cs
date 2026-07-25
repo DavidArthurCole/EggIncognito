@@ -16,5 +16,4 @@ public class MissionCatalogParityTests {
         Assert.Equal("binary", cat.Provenance["identity"].Origin);
         Assert.Equal("missiondata", cat.Provenance["goal"].Locator);
     }
-
 }

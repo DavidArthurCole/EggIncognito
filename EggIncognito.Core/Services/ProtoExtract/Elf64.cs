@@ -3,8 +3,6 @@ using System.Text;
 namespace EggIncognito.Services.ProtoExtract;
 
 public static class Elf64 {
-    public sealed record Section(ulong VAddr, long FileOffset, long Size);
-
     public static Section? FindSection(byte[] elf, string name) {
         try {
             if (elf is null || elf.Length < 64) return null;
@@ -17,7 +15,10 @@ public static class Elf64 {
             int shstrndx = U16(elf, 0x3E);
             if (shentsize < 64 || shnum <= 0 || shstrndx >= shnum) return null;
 
-            long ShAt(int i) => (long)shoff + (long)i * shentsize;
+            long ShAt(int i) {
+                return (long)shoff + (long)i * shentsize;
+            }
+
             long strHdr = ShAt(shstrndx);
             if (strHdr + 64 > elf.Length) return null;
             long strOff = (long)U64(elf, (int)strHdr + 0x18);
@@ -27,8 +28,10 @@ public static class Elf64 {
                 if (h + 64 > elf.Length) break;
                 uint nameOff = U32(elf, (int)h + 0x00);
                 if (SectionName(elf, strOff, nameOff) != name) continue;
-                return new Section(U64(elf, (int)h + 0x10), (long)U64(elf, (int)h + 0x18), (long)U64(elf, (int)h + 0x20));
+                return new Section(U64(elf, (int)h + 0x10), (long)U64(elf, (int)h + 0x18),
+                    (long)U64(elf, (int)h + 0x20));
             }
+
             return null;
         } catch {
             return null;
@@ -45,9 +48,12 @@ public static class Elf64 {
 
     private static ushort U16(byte[] b, int p) => (ushort)(b[p] | (b[p + 1] << 8));
     private static uint U32(byte[] b, int p) => (uint)(b[p] | (b[p + 1] << 8) | (b[p + 2] << 16) | (b[p + 3] << 24));
+
     private static ulong U64(byte[] b, int p) {
         ulong v = 0;
         for (int i = 0; i < 8; i++) v |= (ulong)b[p + i] << (8 * i);
         return v;
     }
+
+    public sealed record Section(ulong VAddr, long FileOffset, long Size);
 }

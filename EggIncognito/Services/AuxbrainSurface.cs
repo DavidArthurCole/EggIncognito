@@ -1,33 +1,30 @@
-
-
 namespace EggIncognito.Services;
 
 public sealed class AuxbrainSurface {
+    private readonly Lazy<IReadOnlyDictionary<string, RouteInfo>> _aliases;
     private readonly Lazy<IReadOnlyDictionary<string, CanonicalPath>> _canonical;
     private readonly Lazy<IReadOnlyList<AuxbrainEntry>> _entries;
     private readonly Lazy<IReadOnlySet<string>> _namespaces;
     private readonly Lazy<string> _openApiJson;
-    private readonly Lazy<IReadOnlyDictionary<string, RouteInfo>> _aliases;
 
     public AuxbrainSurface(RouteCatalog routes, IProtoReflection reflection, IConfiguration config) {
-        _canonical = new(() => AuxbrainCatalog.LoadCanonical(AuxbrainCatalog.ResolveJsonPath(config)));
-        _entries = new(() => {
-
-
-            var root = ContentRoot.Resolve(config["ContentRoot"]);
+        _canonical = new Lazy<IReadOnlyDictionary<string, CanonicalPath>>(() =>
+            AuxbrainCatalog.LoadCanonical(AuxbrainCatalog.ResolveJsonPath(config)));
+        _entries = new Lazy<IReadOnlyList<AuxbrainEntry>>(() => {
+            string root = ContentRoot.Resolve(config["ContentRoot"]);
             var status = EndpointStatus.Classify(
                 Path.Combine(root, "RouteMap", "routes.yaml"),
                 Path.Combine(root, "Endpoints", "default"));
             return AuxbrainCatalog.Build(routes.All(), _canonical.Value, status);
         });
-        _namespaces = new(() =>
+        _namespaces = new Lazy<IReadOnlySet<string>>(() =>
             _entries.Value.Select(e => e.Namespace).ToHashSet(StringComparer.Ordinal));
-        _openApiJson = new(() => OpenApiBuilder.BuildJson(_entries.Value, reflection));
+        _openApiJson = new Lazy<string>(() => OpenApiBuilder.BuildJson(_entries.Value, reflection));
 
-        _aliases = new(() => {
+        _aliases = new Lazy<IReadOnlyDictionary<string, RouteInfo>>(() => {
             var map = new Dictionary<string, RouteInfo>(StringComparer.Ordinal);
             foreach (var r in routes.All()) {
-                foreach (var a in r.Aliases)
+                foreach (string a in r.Aliases)
                     map[a] = r;
             }
 
@@ -35,18 +32,18 @@ public sealed class AuxbrainSurface {
         });
     }
 
-
-    public RouteInfo? ResolveAlias(string path) =>
-        _aliases.Value.TryGetValue(path, out var r) ? r : null;
-
     public IReadOnlyDictionary<string, CanonicalPath> Canonical => _canonical.Value;
     public IReadOnlyList<AuxbrainEntry> Entries => _entries.Value;
     public IReadOnlySet<string> Namespaces => _namespaces.Value;
     public string OpenApiJson => _openApiJson.Value;
 
+
+    public RouteInfo? ResolveAlias(string path) =>
+        _aliases.Value.GetValueOrDefault(path);
+
     public bool IsKnownNamespace(string path) {
-        var i = path.IndexOf('/');
-        var ns = i < 0 ? path : path[..i];
+        int i = path.IndexOf('/');
+        string ns = i < 0 ? path : path[..i];
         return Namespaces.Contains(ns);
     }
 }

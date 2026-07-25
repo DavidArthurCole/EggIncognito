@@ -6,21 +6,22 @@ public class CaptureSessionTests {
     private static CaptureSession NewSession(out FakeCaptureProxy fake) {
         var f = new FakeCaptureProxy();
         fake = f;
-        var contentRoot = RealContentRoot();
-        var tmp = Path.Combine(Path.GetTempPath(), "egi-cap-" + Guid.NewGuid().ToString("N"));
+        string contentRoot = RealContentRoot();
+        string tmp = Path.Combine(Path.GetTempPath(), "egi-cap-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tmp);
-        var opts = new CaptureSessionOptions(Port: 18080, Eid: null, Label: null,
-            Overwrite: false, Verbose: false, CapturePath: tmp, CaPath: Path.Combine(tmp, "ca.cer"));
+        var opts = new CaptureSessionOptions(18080, null, null,
+            false, false, tmp, Path.Combine(tmp, "ca.cer"));
         return new CaptureSession(contentRoot, opts, _ => f);
     }
 
     private static string RealContentRoot() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null) {
-            var candidate = Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
+            string candidate = Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
             if (File.Exists(candidate)) return Path.Combine(dir.FullName, "EggIncognito");
             dir = dir.Parent;
         }
+
         throw new InvalidOperationException("Could not locate the EggIncognito project content root.");
     }
 

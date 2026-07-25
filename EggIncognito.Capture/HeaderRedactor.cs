@@ -1,13 +1,8 @@
-
 namespace EggIncognito.Capture;
 
-
 public static class HeaderRedactor {
-
-
-    private static readonly HashSet<string> Sensitive =
-    [
-with(StringComparer.OrdinalIgnoreCase),
+    private static readonly HashSet<string> Sensitive = [
+        with(StringComparer.OrdinalIgnoreCase),
         "authorization",
         "proxy-authorization",
         "cookie",
@@ -15,7 +10,7 @@ with(StringComparer.OrdinalIgnoreCase),
         "x-api-key",
         "x-auth-token",
         "x-egg-inc-token",
-        "x-cloud-trace-context",
+        "x-cloud-trace-context"
     ];
 
     public static bool IsSensitive(string name) => Sensitive.Contains(name);
@@ -29,10 +24,11 @@ with(StringComparer.OrdinalIgnoreCase),
         var redacted = new List<DashboardHeader>(headers.Count);
         var raw = new List<DashboardHeader>(headers.Count);
         foreach (var h in headers) {
-            var sensitive = IsSensitive(h.Name);
+            bool sensitive = IsSensitive(h.Name);
             redacted.Add(new DashboardHeader(h.Name, sensitive ? "redacted" : h.Value, sensitive));
             raw.Add(new DashboardHeader(h.Name, h.Value, sensitive));
         }
+
         return (redacted, raw);
     }
 }

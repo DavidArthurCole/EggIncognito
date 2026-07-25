@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 
 namespace EggIncognito.Tests;
 
-
 internal static class TestHostInit {
     [ModuleInitializer]
     internal static void Init() =>

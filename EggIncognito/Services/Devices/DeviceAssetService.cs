@@ -4,16 +4,15 @@ using EggIncognito.Data.Services;
 namespace EggIncognito.Services.Devices;
 
 public sealed class DeviceAssetService(IServiceProvider services, IEnumerable<IDeviceAssetReader> readers) {
-    public readonly record struct Read(bool Ok, byte[]? Bytes, string? Platform, string? Diagnostics);
-
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
 
     public async Task<Read> ReadAsync(string? platform, DeviceAssetKind kind, string name, CancellationToken ct) {
         var device = await ResolveDeviceAsync(platform, ct);
         if (device is null) return new Read(false, null, null, "no asset-source device available");
         var reader = readers.FirstOrDefault(r => r.Platform == device.Platform);
-        if (reader is null) return new Read(false, null, device.Platform, $"no asset reader for platform {device.Platform}");
-        var bytes = await reader.ReadAsync(device, kind, name, ct);
+        if (reader is null)
+            return new Read(false, null, device.Platform, $"no asset reader for platform {device.Platform}");
+        byte[]? bytes = await reader.ReadAsync(device, kind, name, ct);
         return bytes is null
             ? new Read(false, null, device.Platform, "asset not found on device")
             : new Read(true, bytes, device.Platform, null);
@@ -38,4 +37,6 @@ public sealed class DeviceAssetService(IServiceProvider services, IEnumerable<ID
         var reachable = devices.FirstOrDefault(d => latest.TryGetValue(d.Id, out var p) && p.Reachable);
         return reachable ?? devices[0];
     }
+
+    public readonly record struct Read(bool Ok, byte[]? Bytes, string? Platform, string? Diagnostics);
 }

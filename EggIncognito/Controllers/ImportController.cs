@@ -1,19 +1,20 @@
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
+using EggIncognito.Services.Feed;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace EggIncognito.Controllers;
 
-
 [ApiController]
 [Route("api/import")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("write")]
 public sealed class ImportController(
-    IConfiguration config, IAppMode appMode,
-    EggIncognito.Services.Feed.PeriodicalsChangeNotifier notifier) : ControllerBase {
+    IConfiguration config,
+    IAppMode appMode,
+    PeriodicalsChangeNotifier notifier) : ControllerBase {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
-
 
 
     [HttpPost("har")]
@@ -30,24 +31,29 @@ public sealed class ImportController(
         if (!appMode.CanWrite) return StatusCode(403, new { error = "imports are disabled in hosted mode" });
         if (file is null || file.Length == 0) return BadRequest(new { error = "no file uploaded" });
 
-        var tmp = Path.GetTempFileName();
+        string tmp = Path.GetTempFileName();
         try {
             await using (var fs = System.IO.File.Create(tmp)) await file.CopyToAsync(fs);
-            var eid = config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID");
+            string? eid = config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID");
             var extractor = EndpointExtractor.ForRepo(Root, eid, "EI0000000000000000", overwrite);
             extractor.WriteObserver = notifier;
             run(extractor, tmp);
             extractor.Save();
             var c = extractor.Counts;
             return Ok(new { wrote = c.Wrote, upd = c.Upd, diff = c.Diff, same = c.Same, loss = c.Loss, err = c.Err });
-        } finally { try { System.IO.File.Delete(tmp); } catch { } }
+        } finally {
+            try {
+                System.IO.File.Delete(tmp);
+            } catch {
+            }
+        }
     }
 
     [HttpPost("endpoint-status/update")]
     public IActionResult UpdateStatus() {
         if (!appMode.CanWrite) return StatusCode(403, new { error = "writes are disabled in hosted mode" });
-        var yamlPath = Path.Combine(Root, "RouteMap", "routes.yaml");
-        var defaultsDir = Path.Combine(Root, "Endpoints", "default");
+        string yamlPath = Path.Combine(Root, "RouteMap", "routes.yaml");
+        string defaultsDir = Path.Combine(Root, "Endpoints", "default");
         EndpointStatus.WriteStatusBlock(yamlPath, EndpointStatus.Classify(yamlPath, defaultsDir));
         return Ok(new { updated = true });
     }

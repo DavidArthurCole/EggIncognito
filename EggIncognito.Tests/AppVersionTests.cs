@@ -12,7 +12,7 @@ public class AppVersionTests(SharedAppFactory f) {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/app/version");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var json = await r.Content.ReadAsStringAsync();
+        string json = await r.Content.ReadAsStringAsync();
         Assert.Contains("\"version\"", json);
         Assert.Contains("\"sha\"", json);
     }
@@ -22,7 +22,7 @@ public class AppVersionTests(SharedAppFactory f) {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/interop/reconnectWatcher.js");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var body = await r.Content.ReadAsStringAsync();
+        string body = await r.Content.ReadAsStringAsync();
         Assert.Contains("location.reload", body);
         Assert.Contains("/api/app/version", body);
     }

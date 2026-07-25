@@ -9,14 +9,14 @@ public sealed record DeviceConfig {
 
     public static DeviceConfig Bind(IConfiguration config) {
         var poll = config.GetSection("DevicePolling");
-        var dir = config["Devices:Dir"];
+        string? dir = config["Devices:Dir"];
         var fromDir = ReadDir(dir);
         var inline = ReadInline(config);
 
         return new DeviceConfig {
             Enabled = poll.GetValue("Enabled", true),
             IntervalMinutes = poll.GetValue("IntervalMinutes", 30),
-            Devices = Merge(fromDir, inline),
+            Devices = Merge(fromDir, inline)
         };
     }
 
@@ -33,6 +33,7 @@ public sealed record DeviceConfig {
             if (int.TryParse(d.Key, out _))
                 AddIfValid(devices, d["Id"], d["Platform"], d["Label"], d["Target"], d["Package"]);
         }
+
         return devices;
     }
 
@@ -55,11 +56,11 @@ public sealed record DeviceConfig {
         List<DeviceEntry> devices, string? id, string? platform, string? label, string? target, string? package) {
         if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(target)) return;
         devices.Add(new DeviceEntry(
-            Id: id,
-            Platform: (platform ?? "android").ToLowerInvariant(),
-            Label: string.IsNullOrWhiteSpace(label) ? id : label,
-            Target: target,
-            Package: string.IsNullOrWhiteSpace(package) ? "com.auxbrain.egginc" : package));
+            id,
+            (platform ?? "android").ToLowerInvariant(),
+            string.IsNullOrWhiteSpace(label) ? id : label,
+            target,
+            string.IsNullOrWhiteSpace(package) ? "com.auxbrain.egginc" : package));
     }
 }
 

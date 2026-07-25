@@ -1,11 +1,13 @@
 using EggIncognito.Services;
+using Ei;
+using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
 public class ProtoTypeResolverTests {
     [Fact]
     public void Resolves_KnownType()
-        => Assert.Equal(typeof(Ei.PeriodicalsResponse), ProtoTypeResolver.Resolve("PeriodicalsResponse"));
+        => Assert.Equal(typeof(PeriodicalsResponse), ProtoTypeResolver.Resolve("PeriodicalsResponse"));
 
     [Fact]
     public void Unknown_ReturnsNull()
@@ -14,6 +16,6 @@ public class ProtoTypeResolverTests {
     [Fact]
     public void NewInstance_CreatesMessage() {
         var t = ProtoTypeResolver.Resolve("PeriodicalsResponse")!;
-        Assert.IsType<Google.Protobuf.IMessage>(ProtoTypeResolver.NewInstance(t), exactMatch: false);
+        Assert.IsType<IMessage>(ProtoTypeResolver.NewInstance(t), false);
     }
 }

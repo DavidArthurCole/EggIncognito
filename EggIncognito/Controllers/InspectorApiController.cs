@@ -1,8 +1,9 @@
-
-
+using System.Text;
 using System.Text.Json;
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Google.Protobuf;
+using Google.Protobuf.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -10,7 +11,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/inspector")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 #pragma warning disable S107
 public sealed class InspectorApiController(
     IRouteCatalog catalog,
@@ -35,7 +36,7 @@ public sealed class InspectorApiController(
                 e.ResponseWrapped,
                 e.PathParam,
                 e.PathParamOnly,
-                e.RawResponse,
+                e.RawResponse
             });
 
 
@@ -53,19 +54,11 @@ public sealed class InspectorApiController(
     [HttpGet("schema/{typeName}")]
     public IActionResult Schema(string typeName) {
         var schema = reflection.Schema(typeName) ?? throw new ApiException(
-                $"unknown message type '{typeName}'",
-                "Type not found in the compiled proto. Check spelling; ei.proto is a frozen upstream snapshot, so a genuinely new type needs ei.proto edited and the solution rebuilt.",
-                StatusCodes.Status404NotFound);
+            $"unknown message type '{typeName}'",
+            "Type not found in the compiled proto. Check spelling; ei.proto is a frozen upstream snapshot, so a genuinely new type needs ei.proto edited and the solution rebuilt.",
+            StatusCodes.Status404NotFound);
         return Ok(schema);
     }
-
-    public sealed record BuildRequest(
-        string Path,
-        string RequestType,
-        bool Wrap,
-        JsonElement? Fields,
-        JsonElement? Env,
-        string? Salt);
 
     [HttpPost("build")]
     public IActionResult Build([FromBody] BuildRequest body) {
@@ -74,23 +67,21 @@ public sealed class InspectorApiController(
         if (parser is null || descriptor is null) {
             throw new ApiException(
                 $"unknown request type '{body.RequestType}'",
-                "Type not found in the compiled proto. Check the endpoint's request type in routes.yaml.",
-                StatusCodes.Status400BadRequest);
+                "Type not found in the compiled proto. Check the endpoint's request type in routes.yaml.");
         }
 
         IMessage message;
         try {
-            var fieldsJson = body.Fields?.GetRawText() ?? "{}";
-            var merged = MergeEnv(fieldsJson, body.Env, descriptor);
+            string fieldsJson = body.Fields?.GetRawText() ?? "{}";
+            string merged = MergeEnv(fieldsJson, body.Env, descriptor);
             message = parser.ParseJson(merged);
         } catch (Exception ex) {
             throw new ApiException(
                 $"invalid request JSON: {ex.Message}",
-                $"Field values do not match {body.RequestType}. Check field types in the schema panel.",
-                StatusCodes.Status400BadRequest);
+                $"Field values do not match {body.RequestType}. Check field types in the schema panel.");
         }
 
-        var inner = message.ToByteArray();
+        byte[]? inner = message.ToByteArray();
 
         var result = pipeline.Build(inner, body.Wrap, body.Salt);
 
@@ -98,17 +89,13 @@ public sealed class InspectorApiController(
             result.Stages,
             result.FinalBase64,
             result.FinalFormBody,
-            canSign = !string.IsNullOrEmpty(body.Salt),
+            canSign = !string.IsNullOrEmpty(body.Salt)
         });
     }
-
-    public sealed record SendRequest(string Url, string FormBody, string? ResponseType, bool Sealed = false, bool? ResponseWrapped = null);
 
     [HttpPost("send")]
     [EnableRateLimiting("egress")]
     public async Task<IActionResult> Send([FromBody] SendRequest body) {
-
-
         if (appMode.Mode == AppMode.Hosted && !currentUser.IsAuthenticated) {
             throw new ApiException(
                 "log in to use Live API from the hosted site",
@@ -116,7 +103,7 @@ public sealed class InspectorApiController(
                 StatusCodes.Status403Forbidden);
         }
 
-        var useSealed = body.Sealed;
+        bool useSealed = body.Sealed;
         if (useSealed && !await sealedProxy.CanUseAsync(currentUser, HttpContext.RequestAborted)) {
             throw new ApiException(
                 "the sealed API proxy is a supporter perk",
@@ -128,7 +115,7 @@ public sealed class InspectorApiController(
 
         var client = useSealed ? sealedProxy.CreateEgressClient() : httpFactory.CreateClient("inspector");
         var content = new StringContent(body.FormBody,
-            System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");
+            Encoding.UTF8, "application/x-www-form-urlencoded");
 
         HttpResponseMessage resp;
         try {
@@ -145,7 +132,7 @@ public sealed class InspectorApiController(
         logger.LogInformation("send {Host}{Path} -> HTTP {Status}",
             uri.Host, uri.AbsolutePath, (int)resp.StatusCode);
 
-        var raw = (await resp.Content.ReadAsStringAsync()).Trim();
+        string raw = (await resp.Content.ReadAsStringAsync()).Trim();
         var parser = body.ResponseType is not null
             ? reflection.FindParser(body.ResponseType)
             : null;
@@ -157,26 +144,22 @@ public sealed class InspectorApiController(
             decode.Stages,
             json = decode.Json,
             error = decode.Error,
-            resolution = decode.Error is null ? null
-                : "No known response type for this endpoint. Add a `response:` type in routes.yaml so the body can be decoded.",
+            resolution = decode.Error is null
+                ? null
+                : "No known response type for this endpoint. Add a `response:` type in routes.yaml so the body can be decoded."
         });
     }
 
-    public sealed record DecodeResponseRequest(string RawBase64, string? ResponseType, bool? ResponseWrapped = null);
-
     [HttpPost("decode-response")]
     public IActionResult DecodeResponse([FromBody] DecodeResponseRequest body) {
-
-
         var parser = body.ResponseType is not null ? reflection.FindParser(body.ResponseType) : null;
         var decode = pipeline.Decode(body.RawBase64, parser, body.ResponseWrapped);
         return Ok(new { decode.Stages, json = decode.Json, error = decode.Error });
     }
 
 
-
     private static string MergeEnv(string fieldsJson, JsonElement? env,
-        Google.Protobuf.Reflection.MessageDescriptor descriptor) {
+        MessageDescriptor descriptor) {
         var rinfoField = descriptor.Fields.InFieldNumberOrder()
             .FirstOrDefault(f => f.Name == "rinfo");
         if (env is null || rinfoField is null) return fieldsJson;
@@ -189,7 +172,7 @@ public sealed class InspectorApiController(
             outObj[prop.Name] = prop.Value.Clone();
 
 
-        var rinfoKey = rinfoField.JsonName;
+        string? rinfoKey = rinfoField.JsonName;
         var envObj = new Dictionary<string, JsonElement>();
         foreach (var prop in env.Value.EnumerateObject())
             envObj[prop.Name] = prop.Value.Clone();
@@ -207,38 +190,34 @@ public sealed class InspectorApiController(
                 writer.WritePropertyName(kv.Key);
                 kv.Value.WriteTo(writer);
             }
+
             writer.WritePropertyName(rinfoKey);
             writer.WriteStartObject();
             foreach (var kv in envObj) {
                 writer.WritePropertyName(kv.Key);
                 kv.Value.WriteTo(writer);
             }
+
             writer.WriteEndObject();
             writer.WriteEndObject();
         }
-        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+
+        return Encoding.UTF8.GetString(stream.ToArray());
     }
-
-
 
 
     private static Uri ResolveAllowedUrl(string url, string selfHost) {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
-            || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps)) {
-            throw new ApiException(
+        return !Uri.TryCreate(url, UriKind.Absolute, out var parsed)
+               || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps)
+            ? throw new ApiException(
                 $"invalid target URL '{url}'",
-                "URL must be an absolute http(s) URL.",
-                StatusCodes.Status400BadRequest);
-        }
-
-        return IsAllowedHost(parsed.Host, selfHost)
-            ? parsed
-            : throw new ApiException(
-            $"target URL host '{parsed.Host}' is not allowed",
-            "Allowed hosts: this instance, localhost, 127.0.0.1, *.auxbrain.com, auxbrainhome.appspot.com, and its <service>-dot-auxbrainhome.appspot.com subdomains.",
-            StatusCodes.Status400BadRequest);
+                "URL must be an absolute http(s) URL.")
+            : IsAllowedHost(parsed.Host, selfHost)
+                ? parsed
+                : throw new ApiException(
+                    $"target URL host '{parsed.Host}' is not allowed",
+                    "Allowed hosts: this instance, localhost, 127.0.0.1, *.auxbrain.com, auxbrainhome.appspot.com, and its <service>-dot-auxbrainhome.appspot.com subdomains.");
     }
-
 
 
     internal static bool IsAllowedHost(string host, string? selfHost = null) =>
@@ -246,4 +225,20 @@ public sealed class InspectorApiController(
         || (!string.IsNullOrEmpty(selfHost) && string.Equals(host, selfHost, StringComparison.OrdinalIgnoreCase))
         || AuxbrainHosts.IsAuxbrain(host);
 
+    public sealed record BuildRequest(
+        string Path,
+        string RequestType,
+        bool Wrap,
+        JsonElement? Fields,
+        JsonElement? Env,
+        string? Salt);
+
+    public sealed record SendRequest(
+        string Url,
+        string FormBody,
+        string? ResponseType,
+        bool Sealed = false,
+        bool? ResponseWrapped = null);
+
+    public sealed record DecodeResponseRequest(string RawBase64, string? ResponseType, bool? ResponseWrapped = null);
 }

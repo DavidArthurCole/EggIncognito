@@ -6,5 +6,5 @@ public enum LoginMenuPlacement {
     Right,
     Left,
     TopRight,
-    TopLeft,
+    TopLeft
 }

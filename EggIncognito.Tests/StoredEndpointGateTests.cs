@@ -5,19 +5,22 @@ namespace EggIncognito.Tests;
 
 [Collection(HostedAppCollection.Name)]
 public class StoredEndpointGateTests(HostedAppFactory f) {
-    private readonly HostedAppFactory _factory = f;
-
     [Fact]
     public async Task Hosted_UpsertEndpoint_Is403() {
-        var c = _factory.CreateClient();
+        var c = f.CreateClient();
         var r = await c.PostAsJsonAsync("/api/db/endpoint",
-            new { path = "ei/get_periodicals", eid = (string?)null, responseJson = "{}", responseType = "PeriodicalsResponse" });
+            new {
+                path = "ei/get_periodicals",
+                eid = (string?)null,
+                responseJson = "{}",
+                responseType = "PeriodicalsResponse"
+            });
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
     [Fact]
     public async Task Hosted_AddRoute_Is403() {
-        var c = _factory.CreateClient();
+        var c = f.CreateClient();
         var r = await c.PostAsJsonAsync("/api/db/route",
             new {
                 path = "ei/new",
@@ -34,7 +37,7 @@ public class StoredEndpointGateTests(HostedAppFactory f) {
 
     [Fact]
     public async Task Reads_AreReachable_EmptyWhenNoDb() {
-        var c = _factory.CreateClient();
+        var c = f.CreateClient();
         var r = await c.GetAsync("/api/db/endpoints");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
     }

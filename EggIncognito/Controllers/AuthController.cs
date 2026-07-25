@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,7 @@ using SyncKit.Identity.Client;
 namespace EggIncognito.Controllers;
 
 [ApiController]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 public sealed class AuthController(AuthState authState, ICurrentUser currentUser) : ControllerBase {
     [HttpPost("/logout")]
     public async Task<IActionResult> Logout() {
@@ -17,17 +18,20 @@ public sealed class AuthController(AuthState authState, ICurrentUser currentUser
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         var session = HttpContext.RequestServices.GetService<SessionCookieOptions>();
         if (session is not null) {
-            var sid = User.FindFirstValue(SessionClaims.SessionId);
+            string? sid = User.FindFirstValue(SessionClaims.SessionId);
             if (!string.IsNullOrEmpty(sid)) {
                 var identity = HttpContext.RequestServices.GetService<IdentityApiClient>();
                 if (identity is not null) {
                     try {
                         await identity.RevokeSessionAsync(sid, HttpContext.RequestAborted);
-                    } catch (HttpRequestException) { }
+                    } catch (HttpRequestException) {
+                    }
                 }
             }
+
             SessionIssuer.ClearCookie(Response, session);
         }
+
         return Redirect("/");
     }
 
@@ -39,7 +43,7 @@ public sealed class AuthController(AuthState authState, ICurrentUser currentUser
             authenticated = true,
             discordId = currentUser.DiscordId,
             username = currentUser.Username,
-            avatar = currentUser.Avatar,
+            avatar = currentUser.Avatar
         });
     }
 }

@@ -3,7 +3,6 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Tests.ProtoExtract;
 
 public class RpaCurveReaderTests {
-
     private static byte[] Build(int nComp, (float t, float c0, float c1, float c2)[] keys) {
         var ms = new MemoryStream();
         var w = new BinaryWriter(ms);
@@ -13,7 +12,13 @@ public class RpaCurveReaderTests {
         w.Write(0);
         w.Write(keys.Length);
         w.Write(nComp);
-        foreach (var (t, c0, c1, c2) in keys) { w.Write(t); w.Write(c0); w.Write(c1); w.Write(c2); }
+        foreach ((float t, float c0, float c1, float c2) in keys) {
+            w.Write(t);
+            w.Write(c0);
+            w.Write(c1);
+            w.Write(c2);
+        }
+
         return ms.ToArray();
     }
 
@@ -25,7 +30,7 @@ public class RpaCurveReaderTests {
 
     [Fact]
     public void Read_ParsesHeaderAndKeys() {
-        var bin = Build(3, [(0f, 1f, 2f, 3f), (0.5f, 4f, 5f, 6f), (1f, 7f, 8f, 9f)]);
+        byte[] bin = Build(3, [(0f, 1f, 2f, 3f), (0.5f, 4f, 5f, 6f), (1f, 7f, 8f, 9f)]);
         var c = RpaCurveReader.Read(bin);
         Assert.True(c.Ok);
         Assert.Equal(1, c.Tracks);
@@ -38,8 +43,8 @@ public class RpaCurveReaderTests {
 
     [Fact]
     public void Read_Truncated_NotOk() {
-        var bin = Build(3, [(0f, 1f, 2f, 3f), (1f, 4f, 5f, 6f)]);
-        var trunc = bin[..(bin.Length - 8)];
+        byte[] bin = Build(3, [(0f, 1f, 2f, 3f), (1f, 4f, 5f, 6f)]);
+        byte[] trunc = bin[..(bin.Length - 8)];
         Assert.False(RpaCurveReader.Read(trunc).Ok);
     }
 
@@ -56,7 +61,7 @@ public class RpaCurveReaderTests {
     [Fact]
     public void Sample_PicksComponent() {
         var c = RpaCurveReader.Read(Build(3, [(0f, 1f, 2f, 3f), (1f, 1f, 2f, 3f)]));
-        Assert.Equal(1f, c.Sample(0.5f, 0), 3);
+        Assert.Equal(1f, c.Sample(0.5f), 3);
         Assert.Equal(2f, c.Sample(0.5f, 1), 3);
         Assert.Equal(3f, c.Sample(0.5f, 2), 3);
     }

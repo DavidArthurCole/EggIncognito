@@ -35,7 +35,7 @@ public class EffectEvalContractTests {
             "Sqrt" => new Unary(UnOp.Sqrt, new Const(1)),
             "Select" => new Select(new Const(1), new Const(2), new Const(3)),
             "MatrixBuild" => new MatrixBuild(Enumerable.Repeat((ExprNode)new Const(0), 16).ToList()),
-            _ => new Opaque("x", []),
+            _ => new Opaque("x", [])
         };
         Assert.Equal(op, (string?)ExprNode.ToJson(n)["op"]);
     }

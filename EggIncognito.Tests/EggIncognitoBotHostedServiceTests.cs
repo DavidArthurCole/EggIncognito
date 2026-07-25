@@ -13,7 +13,5 @@ public class EggIncognitoBotHostedServiceTests {
 
         await svc.StartAsync(CancellationToken.None);
         await svc.StopAsync(CancellationToken.None);
-
-
     }
 }

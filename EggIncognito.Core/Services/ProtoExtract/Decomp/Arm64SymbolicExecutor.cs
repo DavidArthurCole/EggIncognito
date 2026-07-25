@@ -3,35 +3,22 @@ using Gee.External.Capstone.Arm64;
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
 public static class Arm64SymbolicExecutor {
-
-    public readonly record struct CallRecord(string Name, IReadOnlyList<ExprNode> FloatArgs);
-
-    public readonly record struct ExecResult(
-        IReadOnlyDictionary<string, ExprNode> Regs, IReadOnlyDictionary<long, ExprNode> Stack,
-        IReadOnlyDictionary<long, ExprNode> RetVec, ExprNode? SinkArg, long? SinkStackPtr, int Opaque,
-        IReadOnlyList<CallRecord> Calls, string Diagnostics) {
-
-        public ExprNode? Reg(string name) => Regs.TryGetValue(NormKey(name), out var e) ? e : null;
-    }
+    private const int InstrBudget = 5000;
 
     private static string NormKey(string name) {
         if (name.Length == 0) return name;
         char c = name[0];
         int i = 1;
         while (i < name.Length && char.IsDigit(name[i])) i++;
-        var num = name[1..i];
-        if (c is 'v' or 'q' or 'd' or 's') return "v" + num;
-        return c is 'x' or 'w' ? "x" + num : name;
+        string num = name[1..i];
+        return c is 'v' or 'q' or 'd' or 's' ? "v" + num : c is 'x' or 'w' ? "x" + num : name;
     }
-
-    private const int InstrBudget = 5000;
 
     public static ExecResult Run(
         byte[] code, MachoSymbols.FuncRange fn,
         IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyDictionary<string, ExprNode> seedInputs,
         Func<string, ExprNode[], ExprNode?> resolveCall)
         => Run(code, fn, syms, seedInputs, null, resolveCall);
-
 
 
     public static ExecResult Run(
@@ -53,16 +40,20 @@ public static class Arm64SymbolicExecutor {
         } catch (Exception ex) {
             return st.Result("executor error: " + ex.Message);
         }
+
         return st.Result("ok");
     }
 
     private static void Step(State st, Arm64Instruction insn, Arm64Operand[] ops,
         IReadOnlyList<MachoSymbols.Symbol> syms, Func<string, ExprNode[], ExprNode?> resolveCall) {
         switch (insn.Id) {
-            case Arm64InstructionId.ARM64_INS_FMOV when ops.Length == 2 && ops[1].Type == Arm64OperandType.FloatingPoint && ops[0].Register is { } fi:
+            case Arm64InstructionId.ARM64_INS_FMOV when ops.Length == 2 &&
+                                                        ops[1].Type == Arm64OperandType.FloatingPoint &&
+                                                        ops[0].Register is { } fi:
                 st.SetScalar(fi.Name, new Const(ops[1].FloatingPoint));
                 break;
-            case Arm64InstructionId.ARM64_INS_FMOV when ops.Length == 2 && ops[0].Register is { } fd && ops[1].Register is { } fs:
+            case Arm64InstructionId.ARM64_INS_FMOV
+                when ops.Length == 2 && ops[0].Register is { } fd && ops[1].Register is { } fs:
 
                 st.SetScalar(fd.Name, st.RegExpr(fs.Name));
                 break;
@@ -75,7 +66,8 @@ public static class Arm64SymbolicExecutor {
             case Arm64InstructionId.ARM64_INS_FSQRT: st.Un(ops, UnOp.Sqrt); break;
             case Arm64InstructionId.ARM64_INS_FMAXNM: st.Bin(ops, BinOp.Max); break;
             case Arm64InstructionId.ARM64_INS_FMINNM: st.Bin(ops, BinOp.Min); break;
-            case Arm64InstructionId.ARM64_INS_FCVT when ops.Length == 2 && ops[0].Register is { } cd && ops[1].Register is { } cs2:
+            case Arm64InstructionId.ARM64_INS_FCVT
+                when ops.Length == 2 && ops[0].Register is { } cd && ops[1].Register is { } cs2:
                 st.SetScalar(cd.Name, st.Scalar(cs2.Name));
                 break;
             case Arm64InstructionId.ARM64_INS_FMADD when ops.Length == 4 && ops[0].Register is { } md:
@@ -84,36 +76,47 @@ public static class Arm64SymbolicExecutor {
                     new Binary(BinOp.Mul, st.Scalar(RegName(ops, 1)), st.Scalar(RegName(ops, 2)))));
                 break;
             case Arm64InstructionId.ARM64_INS_FCSEL when ops.Length >= 3 && ops[0].Register is { } cd2:
-                st.SetScalar(cd2.Name, new Select(new Opaque("cond", []), st.Scalar(RegName(ops, 1)), st.Scalar(RegName(ops, 2))));
+                st.SetScalar(cd2.Name,
+                    new Select(new Opaque("cond", []), st.Scalar(RegName(ops, 1)), st.Scalar(RegName(ops, 2))));
                 break;
 
-            case Arm64InstructionId.ARM64_INS_MOVZ when ops.Length >= 2 && ops[0].Register is { } mz && ops[1].Type == Arm64OperandType.Immediate:
+            case Arm64InstructionId.ARM64_INS_MOVZ when ops.Length >= 2 && ops[0].Register is { } mz &&
+                                                        ops[1].Type == Arm64OperandType.Immediate:
                 st.SetGp(mz.Name, ShiftImm(ops));
                 break;
-            case Arm64InstructionId.ARM64_INS_MOVK when ops.Length >= 2 && ops[0].Register is { } mk && ops[1].Type == Arm64OperandType.Immediate:
+            case Arm64InstructionId.ARM64_INS_MOVK when ops.Length >= 2 && ops[0].Register is { } mk &&
+                                                        ops[1].Type == Arm64OperandType.Immediate:
                 st.SetGp(mk.Name, st.GpVal(mk.Name) | ShiftImm(ops));
                 break;
-            case Arm64InstructionId.ARM64_INS_MOV when ops.Length == 2 && ops[0].Register is { } gd && ops[1].Register is { } gs:
+            case Arm64InstructionId.ARM64_INS_MOV
+                when ops.Length == 2 && ops[0].Register is { } gd && ops[1].Register is { } gs:
                 st.CopyReg(gd.Name, gs.Name);
                 break;
-            case Arm64InstructionId.ARM64_INS_ADD when ops.Length == 3 && ops[0].Register is { } ad && ops[1].Register is { } an && ops[2].Type == Arm64OperandType.Immediate:
+            case Arm64InstructionId.ARM64_INS_ADD when ops.Length == 3 && ops[0].Register is { } ad &&
+                                                       ops[1].Register is { } an &&
+                                                       ops[2].Type == Arm64OperandType.Immediate:
                 st.AddImm(ad.Name, an.Name, ops[2].Immediate);
                 break;
-            case Arm64InstructionId.ARM64_INS_ORR when ops.Length == 3 && ops[0].Register is { } od && ops[1].Register is { } on && ops[2].Type == Arm64OperandType.Immediate:
+            case Arm64InstructionId.ARM64_INS_ORR when ops.Length == 3 && ops[0].Register is { } od &&
+                                                       ops[1].Register is { } on &&
+                                                       ops[2].Type == Arm64OperandType.Immediate:
 
                 st.OrrImm(od.Name, on.Name, ops[2].Immediate);
                 break;
 
-            case Arm64InstructionId.ARM64_INS_INS when ops.Length == 2 && ops[0].Register is { } id0 && ops[1].Register is { } is0:
+            case Arm64InstructionId.ARM64_INS_INS
+                when ops.Length == 2 && ops[0].Register is { } id0 && ops[1].Register is { } is0:
                 st.VecInsert(id0.Name, ops[0].VectorIndex, is0.Name, ops[1].VectorIndex);
                 break;
-            case Arm64InstructionId.ARM64_INS_DUP when ops.Length == 2 && ops[0].Register is { } dd && ops[1].Register is { } ds:
+            case Arm64InstructionId.ARM64_INS_DUP
+                when ops.Length == 2 && ops[0].Register is { } dd && ops[1].Register is { } ds:
                 st.VecDup(dd.Name, ds.Name, ops[1].VectorIndex);
                 break;
             case Arm64InstructionId.ARM64_INS_ZIP1 when ops.Length == 3 && ops[0].Register is { } zd:
                 st.VecZip1(zd.Name, RegName(ops, 1), RegName(ops, 2));
                 break;
-            case Arm64InstructionId.ARM64_INS_EXT when ops.Length == 4 && ops[0].Register is { } ed && ops[3].Type == Arm64OperandType.Immediate:
+            case Arm64InstructionId.ARM64_INS_EXT when ops.Length == 4 && ops[0].Register is { } ed &&
+                                                       ops[3].Type == Arm64OperandType.Immediate:
                 st.VecExt(ed.Name, RegName(ops, 1), RegName(ops, 2), (int)ops[3].Immediate);
                 break;
 
@@ -138,35 +141,56 @@ public static class Arm64SymbolicExecutor {
         long v = ops[1].Immediate;
 
         if (ops.Length >= 2) {
-            try { if (ops[1].ShiftOperation != Arm64ShiftOperation.Invalid) v <<= ops[1].ShiftValue; } catch { }
+            try {
+                if (ops[1].ShiftOperation != Arm64ShiftOperation.Invalid) v <<= ops[1].ShiftValue;
+            } catch {
+            }
         }
+
         return v;
     }
 
-    private static string RegName(Arm64Operand[] ops, int i) => i < ops.Length && ops[i].Register is { } r ? r.Name : "";
+    private static string RegName(Arm64Operand[] ops, int i) =>
+        i < ops.Length && ops[i].Register is { } r ? r.Name : "";
+
+    public readonly record struct CallRecord(string Name, IReadOnlyList<ExprNode> FloatArgs);
+
+    public readonly record struct ExecResult(
+        IReadOnlyDictionary<string, ExprNode> Regs,
+        IReadOnlyDictionary<long, ExprNode> Stack,
+        IReadOnlyDictionary<long, ExprNode> RetVec,
+        ExprNode? SinkArg,
+        long? SinkStackPtr,
+        int Opaque,
+        IReadOnlyList<CallRecord> Calls,
+        string Diagnostics) {
+        public ExprNode? Reg(string name) => Regs.GetValueOrDefault(NormKey(name));
+    }
 
 
     private sealed class State {
-        private readonly Dictionary<string, ExprNode> _regs = [];
-        private readonly Dictionary<string, ExprNode[]> _vecs = [];
+        private readonly List<CallRecord> _calls = [];
         private readonly Dictionary<string, long> _gp = [];
-        private readonly Dictionary<string, (string Space, long Off)> _ptr = [];
-        private readonly Dictionary<long, ExprNode> _stack = [];
-        private readonly Dictionary<long, ExprNode> _retVec = [];
         private readonly Dictionary<string, string> _named = [];
+        private readonly Dictionary<string, (string Space, long Off)> _ptr = [];
+        private readonly Dictionary<string, ExprNode> _regs = [];
+        private readonly Dictionary<long, ExprNode> _retVec = [];
+        private readonly Dictionary<long, ExprNode> _stack = [];
+        private readonly Dictionary<string, ExprNode[]> _vecs = [];
         public int Opaque;
         public ExprNode? SinkArg;
         public long? SinkStackPtr;
-        private readonly List<CallRecord> _calls = [];
 
-        public State(IReadOnlyDictionary<string, ExprNode> seed) : this(seed, null) { }
+        public State(IReadOnlyDictionary<string, ExprNode> seed) : this(seed, null) {
+        }
+
         public State(IReadOnlyDictionary<string, ExprNode> seed, IReadOnlyDictionary<string, string>? seedBases) {
-            foreach (var (k, v) in seed) _regs[Norm(k)] = v;
+            foreach ((string k, var v) in seed) _regs[Norm(k)] = v;
             _ptr["sp"] = ("sp", 0);
             _regs["zr"] = new Const(0);
             _gp["zr"] = 0;
             if (seedBases is not null) {
-                foreach (var (reg, name) in seedBases) {
+                foreach ((string reg, string name) in seedBases) {
                     _named[Norm(reg)] = name;
                     if (name == "ret") _ptr[Norm(reg)] = ("ret", 0);
                 }
@@ -190,7 +214,8 @@ public static class Arm64SymbolicExecutor {
             if (ops.Length < 3 || ops[0].Register is not { } d) return;
 
             if (IsVec(ops[0])) {
-                var a = Lanes(RegName(ops, 1)); var b = Lanes(RegName(ops, 2));
+                var a = Lanes(RegName(ops, 1));
+                var b = Lanes(RegName(ops, 2));
                 var outl = new ExprNode[4];
                 for (int i = 0; i < 4; i++) outl[i] = new Binary(op, a[i], b[i]);
                 SetVec(d.Name, outl);
@@ -204,27 +229,39 @@ public static class Arm64SymbolicExecutor {
             SetScalar(d.Name, new Unary(op, Scalar(RegName(ops, 1))));
         }
 
-        public void SetGp(string name, long v) { _gp[Norm(name)] = v; _regs[Norm(name)] = new Const(ReinterpretFloat(v)); }
-        public long GpVal(string name) => _gp.TryGetValue(Norm(name), out var v) ? v : 0;
+        public void SetGp(string name, long v) {
+            _gp[Norm(name)] = v;
+            _regs[Norm(name)] = new Const(ReinterpretFloat(v));
+        }
+
+        public long GpVal(string name) => _gp.GetValueOrDefault(Norm(name), 0);
 
         public void CopyReg(string d, string s) {
-            d = Norm(d); s = Norm(s);
+            d = Norm(d);
+            s = Norm(s);
             if (_regs.TryGetValue(s, out var e)) _regs[d] = e;
-            if (_gp.TryGetValue(s, out var g)) _gp[d] = g;
-            if (_ptr.TryGetValue(s, out var p)) _ptr[d] = p; else _ptr.Remove(d);
-            if (_named.TryGetValue(s, out var nb)) _named[d] = nb; else _named.Remove(d);
+            if (_gp.TryGetValue(s, out long g)) _gp[d] = g;
+            if (_ptr.TryGetValue(s, out var p)) _ptr[d] = p;
+            else _ptr.Remove(d);
+            if (_named.TryGetValue(s, out string? nb)) _named[d] = nb;
+            else _named.Remove(d);
             if (_vecs.TryGetValue(s, out var v)) _vecs[d] = (ExprNode[])v.Clone();
         }
 
         public void AddImm(string d, string n, long imm) {
-            d = Norm(d); n = Norm(n);
+            d = Norm(d);
+            n = Norm(n);
             if (_ptr.TryGetValue(n, out var p)) {
                 _ptr[d] = (p.Space, p.Off + imm);
-            } else { _ptr.Remove(d); if (_gp.TryGetValue(n, out var g)) _gp[d] = g + imm; }
+            } else {
+                _ptr.Remove(d);
+                if (_gp.TryGetValue(n, out long g)) _gp[d] = g + imm;
+            }
         }
 
         public void OrrImm(string d, string n, long imm) {
-            d = Norm(d); n = Norm(n);
+            d = Norm(d);
+            n = Norm(n);
             if (_ptr.TryGetValue(n, out var p)) _ptr[d] = (p.Space, p.Off | imm);
         }
 
@@ -235,31 +272,43 @@ public static class Arm64SymbolicExecutor {
             var e = _regs.TryGetValue(name, out var r) ? r : new Opaque("unset", []);
             return [e, new Opaque("unset", []), new Opaque("unset", []), new Opaque("unset", [])];
         }
-        public void SetVec(string name, ExprNode[] lanes) { name = Norm(name); _vecs[name] = lanes; _regs[name] = new Const(0); }
+
+        public void SetVec(string name, ExprNode[] lanes) {
+            name = Norm(name);
+            _vecs[name] = lanes;
+            _regs[name] = new Const(0);
+        }
 
         public void VecInsert(string d, int di, string s, int si) {
-            var dl = (ExprNode[])Lanes(d).Clone(); var sl = Lanes(s);
+            var dl = (ExprNode[])Lanes(d).Clone();
+            var sl = Lanes(s);
             if (di >= 0 && di < 4 && si >= 0 && si < 4) dl[di] = sl[si];
             SetVec(d, dl);
         }
+
         public void VecDup(string d, string s, int si) {
-            var sl = Lanes(s); var e = si is >= 0 and < 4 ? sl[si] : sl[0];
+            var sl = Lanes(s);
+            var e = si is >= 0 and < 4 ? sl[si] : sl[0];
             SetVec(d, [e, e, e, e]);
         }
+
         public void VecZip1(string d, string a, string b) {
-            var al = Lanes(a); var bl = Lanes(b);
+            var al = Lanes(a);
+            var bl = Lanes(b);
             SetVec(d, [al[0], bl[0], al[1], bl[1]]);
         }
-        public void VecExt(string d, string a, string b, int byteIdx) {
 
-            var al = Lanes(a); var bl = Lanes(b); int sh = byteIdx / 4;
+        public void VecExt(string d, string a, string b, int byteIdx) {
+            var al = Lanes(a);
+            var bl = Lanes(b);
+            int sh = byteIdx / 4;
             var combined = new[] { al[0], al[1], al[2], al[3], bl[0], bl[1], bl[2], bl[3] };
             SetVec(d, [combined[sh], combined[sh + 1], combined[sh + 2], combined[sh + 3]]);
         }
 
         public void Store(Arm64Operand[] ops) {
             if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory) return;
-            if (!MemTarget(ops[^1], out var space, out var off)) return;
+            if (!MemTarget(ops[^1], out string space, out long off)) return;
             var src = ops[0];
             if (src.Register is not { } r) return;
             if (IsVec(src) || r.Name.StartsWith('q')) {
@@ -267,7 +316,8 @@ public static class Arm64SymbolicExecutor {
                 for (int i = 0; i < 4; i++) WriteSlot(space, off + i * 4, lanes[i]);
             } else if (r.Name.StartsWith('d')) {
                 var lanes = Lanes(r.Name);
-                WriteSlot(space, off, lanes[0]); WriteSlot(space, off + 4, lanes[1]);
+                WriteSlot(space, off, lanes[0]);
+                WriteSlot(space, off + 4, lanes[1]);
             } else {
                 WriteSlot(space, off, Scalar(r.Name));
             }
@@ -275,16 +325,15 @@ public static class Arm64SymbolicExecutor {
 
         public void StorePair(Arm64Operand[] ops) {
             if (ops.Length < 3 || ops[^1].Type != Arm64OperandType.Memory) return;
-            if (!MemTarget(ops[^1], out var space, out var off)) return;
+            if (!MemTarget(ops[^1], out string space, out long off)) return;
             if (ops[0].Register is { } a) WriteSlot(space, off, Scalar(a.Name));
             if (ops[1].Register is { } b) WriteSlot(space, off + LaneSize(ops[0]), Scalar(b.Name));
         }
 
         public void St1(Arm64Operand[] ops) {
-
             if (ops.Length < 2) return;
             var memOp = ops[^1];
-            if (!MemTarget(memOp, out var space, out var off)) return;
+            if (!MemTarget(memOp, out string space, out long off)) return;
             if (ops[0].Register is { } v) {
                 var lanes = Lanes(v.Name);
                 int li = ops[0].VectorIndex >= 0 ? ops[0].VectorIndex : 0;
@@ -294,7 +343,7 @@ public static class Arm64SymbolicExecutor {
 
         public void Load(Arm64Operand[] ops) {
             if (ops.Length < 2 || ops[^1].Type != Arm64OperandType.Memory || ops[0].Register is not { } r) return;
-            if (MemTarget(ops[^1], out var space, out var off) && space == "sp") {
+            if (MemTarget(ops[^1], out string space, out long off) && space == "sp") {
                 if (IsVec(ops[0]) || r.Name.StartsWith('q'))
                     SetVec(r.Name, [Slot(off), Slot(off + 4), Slot(off + 8), Slot(off + 12)]);
                 else
@@ -304,12 +353,17 @@ public static class Arm64SymbolicExecutor {
 
             _ptr.Remove(Norm(r.Name));
             if (ops[^1].Memory?.Base is { } b) {
-                var baseName = _named.TryGetValue(Norm(b.Name), out var nb) ? nb : b.Name;
-                var disp = ops[^1].Memory.Displacement;
-                if (IsVec(ops[0]) || r.Name.StartsWith('q'))
-                    SetVec(r.Name, [new Field(baseName, disp), new Field(baseName, disp + 4), new Field(baseName, disp + 8), new Field(baseName, disp + 12)]);
-                else
+                string? baseName = _named.TryGetValue(Norm(b.Name), out string? nb) ? nb : b.Name;
+                int disp = ops[^1].Memory.Displacement;
+                if (IsVec(ops[0]) || r.Name.StartsWith('q')) {
+                    SetVec(r.Name,
+                    [
+                        new Field(baseName, disp), new Field(baseName, disp + 4), new Field(baseName, disp + 8),
+                        new Field(baseName, disp + 12)
+                    ]);
+                } else {
                     SetScalar(r.Name, new Field(baseName, disp));
+                }
             } else {
                 _regs.Remove(Norm(r.Name));
             }
@@ -317,15 +371,16 @@ public static class Arm64SymbolicExecutor {
 
         public void LoadPair(Arm64Operand[] ops) {
             if (ops.Length < 3 || ops[^1].Type != Arm64OperandType.Memory) return;
-            var sz = LaneSize(ops[0]);
-            if (MemTarget(ops[^1], out var space, out var off) && space == "sp") {
+            int sz = LaneSize(ops[0]);
+            if (MemTarget(ops[^1], out string space, out long off) && space == "sp") {
                 if (ops[0].Register is { } a) SetScalar(a.Name, Slot(off));
                 if (ops[1].Register is { } b) SetScalar(b.Name, Slot(off + sz));
                 return;
             }
+
             if (ops[^1].Memory?.Base is { } mb) {
-                var baseName = _named.TryGetValue(Norm(mb.Name), out var nb) ? nb : mb.Name;
-                var disp = ops[^1].Memory.Displacement;
+                string? baseName = _named.TryGetValue(Norm(mb.Name), out string? nb) ? nb : mb.Name;
+                int disp = ops[^1].Memory.Displacement;
                 if (ops[0].Register is { } a) SetScalar(a.Name, new Field(baseName, disp));
                 if (ops[1].Register is { } b) SetScalar(b.Name, new Field(baseName, disp + sz));
             }
@@ -334,31 +389,40 @@ public static class Arm64SymbolicExecutor {
         private ExprNode Slot(long off) => _stack.TryGetValue(off, out var e) ? e : new Field("stack", off);
 
 
-
         private bool MemTarget(Arm64Operand mem, out string space, out long off) {
-            space = ""; off = 0;
+            space = "";
+            off = 0;
             if (mem.Memory?.Base is not { } b) return false;
             if (!_ptr.TryGetValue(Norm(b.Name), out var p)) return false;
-            space = p.Space; off = p.Off + mem.Memory.Displacement;
+            space = p.Space;
+            off = p.Off + mem.Memory.Displacement;
             return true;
         }
 
 
         private void WriteSlot(string space, long off, ExprNode e) {
-            if (space == "ret") _retVec[off] = e; else _stack[off] = e;
+            if (space == "ret") _retVec[off] = e;
+            else _stack[off] = e;
         }
 
-        public void DirectCall(Arm64Operand[] ops, IReadOnlyList<MachoSymbols.Symbol> syms, Func<string, ExprNode[], ExprNode?> resolveCall) {
-            var target = ops.Length == 1 && ops[0].Type == Arm64OperandType.Immediate ? (ulong)ops[0].Immediate : 0;
-            var name = Nearest(syms, target);
+        public void DirectCall(Arm64Operand[] ops, IReadOnlyList<MachoSymbols.Symbol> syms,
+            Func<string, ExprNode[], ExprNode?> resolveCall) {
+            ulong target = ops.Length == 1 && ops[0].Type == Arm64OperandType.Immediate ? (ulong)ops[0].Immediate : 0;
+            string name = Nearest(syms, target);
             var args = new[] { Scalar("s0"), Scalar("s1"), Scalar("s2") };
             RecordCall(name, args);
             var modeled = resolveCall(name, args);
-            if (modeled is null) { SetScalar("s0", new Opaque(name, [])); SetScalar("x0", Scalar("s0")); Opaque++; return; }
-            if (modeled is Opaque { Call: "@sink" } sink && sink.Args.Count > 0) SinkArg = sink.Args[0];
-            SetScalar("s0", modeled); SetScalar("x0", modeled);
-        }
+            if (modeled is null) {
+                SetScalar("s0", new Opaque(name, []));
+                SetScalar("x0", Scalar("s0"));
+                Opaque++;
+                return;
+            }
 
+            if (modeled is Opaque { Call: "@sink" } sink && sink.Args.Count > 0) SinkArg = sink.Args[0];
+            SetScalar("s0", modeled);
+            SetScalar("x0", modeled);
+        }
 
 
         public void IndirectCall() {
@@ -367,28 +431,34 @@ public static class Arm64SymbolicExecutor {
         }
 
         private static string Nearest(IReadOnlyList<MachoSymbols.Symbol> syms, ulong target) {
-            string? best = null; ulong bestAddr = 0;
+            string? best = null;
+            ulong bestAddr = 0;
             foreach (var s in syms) {
                 if (s.Value == 0 || string.IsNullOrEmpty(s.Name)) continue;
-                if (s.Value <= target && s.Value >= bestAddr) { bestAddr = s.Value; best = s.Name; }
+                if (s.Value <= target && s.Value >= bestAddr) {
+                    bestAddr = s.Value;
+                    best = s.Name;
+                }
             }
+
             return best ?? $"0x{target:x}";
         }
 
 
         private static double ReinterpretFloat(long bits) => BitConverter.Int32BitsToSingle((int)(bits & 0xFFFFFFFF));
 
-        private static bool IsVec(Arm64Operand op) => op.VectorArrangementSpecifier != Arm64VectorArrangementSpecifier.Invalid;
+        private static bool IsVec(Arm64Operand op) =>
+            op.VectorArrangementSpecifier != Arm64VectorArrangementSpecifier.Invalid;
+
         private static int LaneSize(Arm64Operand op) {
             var r = op.Register;
-            return r is null ? 8 : r.Name.StartsWith('d') ? 8 : r.Name.StartsWith('s') || r.Name.StartsWith('w') ? 4 : 8;
+            return r is null ? 8 :
+                r.Name.StartsWith('d') ? 8 :
+                r.Name.StartsWith('s') || r.Name.StartsWith('w') ? 4 : 8;
         }
 
 
-
-        private static string Norm(string name) {
-            if (name is "sp" or "wsp") return "sp";
-            return name is "wzr" or "xzr" ? "zr" : NormKey(name);
-        }
+        private static string Norm(string name) =>
+            name is "sp" or "wsp" ? "sp" : name is "wzr" or "xzr" ? "zr" : NormKey(name);
     }
 }

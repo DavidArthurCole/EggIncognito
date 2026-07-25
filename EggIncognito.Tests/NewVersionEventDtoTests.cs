@@ -6,7 +6,8 @@ namespace EggIncognito.Tests;
 public class NewVersionEventDtoTests {
     [Fact]
     public void Decodes_Frozen_Wire_Names() {
-        var json = "{\"package\":\"com.auxbrain.egginc\",\"version\":\"1.34\",\"apkRef\":\"/x/base.apk\",\"protoSha\":\"deadbeef\",\"detectedAt\":\"2026-06-10T00:00:00Z\"}";
+        const string json =
+            "{\"package\":\"com.auxbrain.egginc\",\"version\":\"1.34\",\"apkRef\":\"/x/base.apk\",\"protoSha\":\"deadbeef\",\"detectedAt\":\"2026-06-10T00:00:00Z\"}";
         var evt = JsonSerializer.Deserialize<NewVersionEvent>(json)!;
         Assert.Equal("com.auxbrain.egginc", evt.Package);
         Assert.Equal("1.34", evt.Version);
@@ -17,8 +18,6 @@ public class NewVersionEventDtoTests {
 
     [Fact]
     public void Deserialize_PlatformIsNull_WhenAbsent() {
-
-
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"package":"com.auxbrain.egginc","version":"1.0","apkRef":"a","protoSha":"s","detectedAt":"t"}""");
         Assert.Null(e!.Platform);
@@ -44,7 +43,6 @@ public class NewVersionEventDtoTests {
 
     [Fact]
     public void Deserialize_OldEmitter_OmitsNewFields() {
-
         var e = JsonSerializer.Deserialize<NewVersionEvent>(
             """{"version":"1.34","build":"","clientVersion":null}""");
         Assert.Equal("1.34", e!.Version);

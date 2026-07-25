@@ -124,7 +124,7 @@
                 idx = lower.IndexOf(needle, pos, StringComparison.Ordinal);
             }
 
-            if (pos < text.Length) builder.AddContent(seq++, text.Substring(pos));
+            if (pos < text.Length) builder.AddContent(seq, text.Substring(pos));
         };
     }
 

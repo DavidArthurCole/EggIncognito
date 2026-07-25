@@ -1,5 +1,9 @@
 using System.Text;
+using EggIncognito.Capture;
 using EggIncognito.Services;
+using EggIncognito.Services.Assets;
+using EggIncognito.Services.Auth;
+using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -7,7 +11,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/tools")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
 public sealed class ToolsController(IConfiguration config, IProtoReflection reflection) : ControllerBase {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
@@ -16,22 +20,18 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
     private string CapturePath => config["CapturePath"] ?? Path.Combine(Root, "captures");
 
 
-
-
     [HttpGet("live-version")]
     public IActionResult LiveVersion([FromQuery] string platform = "ios") {
-        var v = new Capture.LiveVersionStore(CapturePath).Latest(platform);
+        var v = new LiveVersionStore(CapturePath).Latest(platform);
         if (v is null) return Ok(new { found = false });
         return Ok(new { found = true, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen });
     }
 
     [HttpGet("postman-collection")]
     public IActionResult PostmanCollection() {
-        var json = Services.PostmanCollection.BuildJson(YamlPath);
+        string json = Services.PostmanCollection.BuildJson(YamlPath);
         return File(Encoding.UTF8.GetBytes(json), "application/json", "EggIncognito.postman_collection.json");
     }
-
-    public sealed record DecodeRequest(string Base64);
 
     [HttpPost("decode")]
     public IActionResult Decode([FromBody] DecodeRequest body) {
@@ -47,11 +47,11 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
 
     [HttpGet("boost-costs")]
     public IActionResult BoostCosts() {
-        var path = Path.Combine(DefaultsDir, "ei", "get_config.json");
+        string path = Path.Combine(DefaultsDir, "ei", "get_config.json");
         if (!System.IO.File.Exists(path)) return NotFound(new { error = "no get_config capture" });
         try {
-            var json = System.IO.File.ReadAllText(path);
-            var costs = EggIncognito.Services.BoostCostExtractor.FromConfigJson(json);
+            string json = System.IO.File.ReadAllText(path);
+            var costs = BoostCostExtractor.FromConfigJson(json);
             return Ok(new {
                 count = costs.Count,
                 costs = costs.Select(kv => new { boostId = kv.Key, kv.Value.Price, kv.Value.TokenPrice, kv.Value.SeRequired })
@@ -63,11 +63,11 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
 
     [HttpGet("colleggtibles")]
     public IActionResult Colleggtibles() {
-        var path = Path.Combine(DefaultsDir, "ei", "get_periodicals.json");
+        string path = Path.Combine(DefaultsDir, "ei", "get_periodicals.json");
         if (!System.IO.File.Exists(path)) return NotFound(new { error = "no get_periodicals capture" });
         try {
-            var json = System.IO.File.ReadAllText(path);
-            var extract = EggIncognito.Services.ColleggtibleExtractor.FromPeriodicalsJson(json);
+            string json = System.IO.File.ReadAllText(path);
+            var extract = ColleggtibleExtractor.FromPeriodicalsJson(json);
             return Ok(new {
                 count = extract.Eggs.Count,
                 eggs = extract.Eggs.Select(e => new { e.Identifier, e.Dimension, e.TierValues }),
@@ -78,19 +78,18 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         }
     }
 
-    public sealed record ExtractIosProtoRequest(string BinaryBase64);
-
-
-
 
     [HttpPost("extract-ios-proto")]
     public IActionResult ExtractIosProto([FromBody] ExtractIosProtoRequest body) {
         byte[] macho;
-        try { macho = Convert.FromBase64String(body.BinaryBase64 ?? ""); } catch { return Ok(new { ok = false, diagnostics = "input is not valid base64" }); }
-        return ExtractResultJson(Services.ProtoExtract.DescriptorProtoCarver.Extract(macho));
+        try {
+            macho = Convert.FromBase64String(body.BinaryBase64 ?? "");
+        } catch {
+            return Ok(new { ok = false, diagnostics = "input is not valid base64" });
+        }
+
+        return ExtractResultJson(DescriptorProtoCarver.Extract(macho));
     }
-
-
 
 
     [HttpPost("extract-proto")]
@@ -99,34 +98,28 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
 
 
-        var bytes = new byte[file.Length];
+        byte[] bytes = new byte[file.Length];
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
-
 
 
         bool isZip = bytes.Length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04;
         var r = isZip
-            ? Services.ProtoExtract.ArchiveProtoExtractor.Extract(bytes)
-            : Services.ProtoExtract.DescriptorProtoCarver.Extract(bytes);
+            ? ArchiveProtoExtractor.Extract(bytes)
+            : DescriptorProtoCarver.Extract(bytes);
         return ExtractResultJson(r);
     }
-
-
 
 
     [HttpPost("extract-meshes")]
     [RequestSizeLimit(200_000_000)]
     public async Task<IActionResult> ExtractMeshes(IFormFile file, CancellationToken ct) {
         if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
-        var bytes = new byte[file.Length];
+        byte[] bytes = new byte[file.Length];
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
 
-        var r = Services.ProtoExtract.RpoAssetExtractor.Extract(bytes);
-        return Ok(Services.MeshManifest.From(r));
+        var r = RpoAssetExtractor.Extract(bytes);
+        return Ok(MeshManifest.From(r));
     }
-
-
-
 
 
     [HttpPost("export-ships")]
@@ -134,51 +127,50 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
     public async Task<IActionResult> ExportShips(IFormFile file, [FromQuery] string? build, [FromQuery] bool write,
         [FromQuery] string? animate, [FromQuery] float seconds, CancellationToken ct) {
         if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
-        var bytes = new byte[file.Length];
+        byte[] bytes = new byte[file.Length];
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
 
-        var anim = string.IsNullOrEmpty(animate) ? null
-            : new Services.Assets.GltfAnimator.Options(Services.Assets.GltfAnimator.ParseKind(animate), seconds > 0 ? seconds : 6f);
+        var anim = string.IsNullOrEmpty(animate)
+            ? null
+            : new GltfAnimator.Options(GltfAnimator.ParseKind(animate), seconds > 0 ? seconds : 6f);
 
-        var r = Services.ProtoExtract.RpoAssetExtractor.Extract(bytes);
-        var (wrote, dir) = await MaybeWriteAsync(r, build, write, anim, ct);
-        return Ok(Services.MeshManifest.Ships(r, build, wrote, dir, anim));
+        var r = RpoAssetExtractor.Extract(bytes);
+        (bool wrote, string? dir) = await MaybeWriteAsync(r, build, write, anim, ct);
+        return Ok(MeshManifest.Ships(r, build, wrote, dir, anim));
     }
 
 
-
     private async Task<(bool, string?)> MaybeWriteAsync(
-        Services.ProtoExtract.RpoAssetExtractor.ExtractResult r, string? build, bool write,
-        Services.Assets.GltfAnimator.Options? animate, CancellationToken ct) {
+        RpoAssetExtractor.ExtractResult r, string? build, bool write,
+        GltfAnimator.Options? animate, CancellationToken ct) {
         if (!write) return (false, null);
-        var dir = config["ShipAssets:OutputDir"];
+        string? dir = config["ShipAssets:OutputDir"];
         if (string.IsNullOrEmpty(dir)) return (false, null);
-        var export = Services.ShipAssetExporter.Build(r, build, animate);
+        var export = ShipAssetExporter.Build(r, build, animate);
         if (export.Ships.Count == 0) return (false, null);
-        await Services.ShipAssetExporter.WriteToAsync(export, dir, ct);
+        await ShipAssetExporter.WriteToAsync(export, dir, ct);
         return (true, dir);
     }
 
 
-
-
     [HttpPost("animate-glb")]
     [RequestSizeLimit(100_000_000)]
-    public async Task<IActionResult> AnimateGlb(IFormFile file, [FromQuery] string? kind, [FromQuery] float seconds, CancellationToken ct) {
+    public async Task<IActionResult> AnimateGlb(IFormFile file, [FromQuery] string? kind, [FromQuery] float seconds,
+        CancellationToken ct) {
         if (file is null || file.Length == 0) return BadRequest(new { ok = false, diagnostics = "no file uploaded" });
-        var bytes = new byte[file.Length];
+        byte[] bytes = new byte[file.Length];
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
 
-        var opts = new Services.Assets.GltfAnimator.Options(
-            Services.Assets.GltfAnimator.ParseKind(kind), seconds > 0 ? seconds : 6f);
-        var r = Services.Assets.GltfAnimator.Animate(bytes, opts);
+        var opts = new GltfAnimator.Options(
+            GltfAnimator.ParseKind(kind), seconds > 0 ? seconds : 6f);
+        var r = GltfAnimator.Animate(bytes, opts);
         if (!r.Ok) return Ok(new { ok = false, diagnostics = r.Diagnostics });
 
-        var name = Path.GetFileNameWithoutExtension(file.FileName) is { Length: > 0 } n ? n : "model";
+        string name = Path.GetFileNameWithoutExtension(file.FileName) is { Length: > 0 } n ? n : "model";
         return File(r.Glb!, "model/gltf-binary", $"{name}.{r.AnimationName}.glb");
     }
 
-    private OkObjectResult ExtractResultJson(Services.ProtoExtract.DescriptorProtoCarver.ExtractResult r) =>
+    private OkObjectResult ExtractResultJson(DescriptorProtoCarver.ExtractResult r) =>
         Ok(new {
             ok = r.Ok,
             proto = r.Proto,
@@ -189,18 +181,25 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
             build = r.Build
         });
 
-    public sealed record DiagnoseRequest(string Base64, string? RootType);
-
-
 
     [HttpPost("diagnose")]
     public IActionResult Diagnose([FromBody] DiagnoseRequest body) {
         byte[] bytes;
-        try { bytes = ProtoFraming.FromBase64Loose(body.Base64 ?? ""); } catch { return Ok(new { error = "input is not valid base64" }); }
+        try {
+            bytes = ProtoFraming.FromBase64Loose(body.Base64 ?? "");
+        } catch {
+            return Ok(new { error = "input is not valid base64" });
+        }
 
 
-        var inner = ProtoFraming.TryUnwrap(bytes) ?? bytes;
+        byte[] inner = ProtoFraming.TryUnwrap(bytes) ?? bytes;
         var result = WireForensics.Diagnose(inner, body.RootType, reflection);
         return Ok(result);
     }
+
+    public sealed record DecodeRequest(string Base64);
+
+    public sealed record ExtractIosProtoRequest(string BinaryBase64);
+
+    public sealed record DiagnoseRequest(string Base64, string? RootType);
 }

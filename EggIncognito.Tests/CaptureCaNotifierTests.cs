@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using EggIncognito.Capture;
 using EggIncognito.Controllers;
 using EggIncognito.Services;
@@ -11,8 +12,133 @@ using SyncKit.Contract;
 namespace EggIncognito.Tests;
 
 public class CaptureCaNotifierTests {
+    private static CaptureSession FreshCaSession() {
+        string tmp = Path.Combine(Path.GetTempPath(), "egi-cadm-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tmp);
+        var opts = new CaptureSessionOptions(19090, null, null,
+            false, false, tmp,
+            Path.Combine(tmp, "ca.cer"), false);
+        return new CaptureSession(CaptureSessionManagerTests.RealContentRoot(), opts, _ => new FreshCaProxy());
+    }
+
+    private static CaptureSessionManager FreshCaManager() =>
+        new(HostedCaptureOptions.Defaults(), (_, _) => FreshCaSession());
+
+    private static IConfiguration Config(Dictionary<string, string?> values) =>
+        new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+
+    [Fact]
+    public async Task Start_FreshCa_NoStore_Still200_AndFlagsCaDmFailed() {
+        var manager = FreshCaManager();
+        var notifier = new FailingNotifier();
+        var controller = new CaptureController(
+            manager, new FakeAppMode(false, true),
+            new FakeUser(true, true), new FakeSupporters(true),
+            HostedCaptureOptions.Defaults(), new StubServices(notifier));
+
+        var r = await controller.Start(CancellationToken.None);
+
+        Assert.Equal(200, ((IStatusCodeActionResult)r).StatusCode);
+        var session = manager.Get("tester");
+        Assert.NotNull(session);
+        Assert.True(session.CaDmFailed);
+        Assert.True(session.Status.CaDmFailed);
+        await session.StopAsync();
+    }
+
+    [Fact]
+    public async Task DiscordNotifier_FailingHttp_ReturnsFalse() {
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var notifier = new DiscordCaptureCaNotifier(
+            new StubHttpFactory(handler),
+            Config(new Dictionary<string, string?> { ["Discord:BotToken"] = "token" }),
+            NullLogger<DiscordCaptureCaNotifier>.Instance);
+
+        bool ok = await notifier.SendSetupAsync(Dm(), CancellationToken.None);
+        Assert.False(ok);
+    }
+
+    [Fact]
+    public async Task DiscordNotifier_NoToken_ReturnsFalse() {
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var notifier = new DiscordCaptureCaNotifier(
+            new StubHttpFactory(handler),
+            Config([]),
+            NullLogger<DiscordCaptureCaNotifier>.Instance);
+
+        bool ok = await notifier.SendSetupAsync(Dm(), CancellationToken.None);
+        Assert.False(ok);
+    }
+
+    private static CaptureSetupDm Dm() =>
+        new("123", [0x30, 0x82, 0x01], "[2a01:4f8:c012:e15b::5]", 8443);
+
+    [Fact]
+    public void BuildMessage_ShowsProxyAddress_NoCredentials() {
+        string msg = DiscordCaptureCaNotifier.BuildMessage(
+            new CaptureSetupDm("123", [0x30, 0x82, 0x01], "2a01:4f8:c012:e15b::5", 8443));
+
+        Assert.Contains("2a01:4f8:c012:e15b::5", msg);
+        Assert.Contains("8443", msg);
+        Assert.Contains("Auth off", msg);
+        Assert.DoesNotContain("Token", msg, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Username", msg);
+        Assert.DoesNotContain("password", msg, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void MobileConfig_EmbedsCert_AndIsStablePerUser() {
+        byte[] cer = [0x30, 0x82, 0x01, 0x02, 0x03];
+        string a = Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-1"));
+        string b = Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-1"));
+        Assert.Equal(a, b);
+        Assert.Contains("com.apple.security.root", a);
+        Assert.Contains(Convert.ToBase64String(cer), a);
+    }
+
+    [Fact]
+    public void MobileConfig_SameUser_DifferentCert_KeepsProfileIdentity() {
+        string newCert = Convert.ToBase64String([0x30, 0x99]);
+        string a = Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x82, 0x01], "user-1"));
+        string b = Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x99], "user-1"));
+        Assert.Equal(ProfileUuid(a), ProfileUuid(b));
+        Assert.Contains(newCert, b);
+    }
+
+    [Fact]
+    public void MobileConfig_DifferentUsers_GetDistinctProfiles() {
+        byte[] cer = [0x30, 0x82, 0x01];
+        string a = Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-1"));
+        string b = Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-2"));
+        Assert.NotEqual(ProfileUuid(a), ProfileUuid(b));
+    }
+
+    private static string ProfileUuid(string plist) =>
+        plist.Split("<key>PayloadUUID</key>")[^1].Split("<string>")[1].Split("</string>")[0];
+
+    private static ICaptureCaNotifier ResolveNotifier(string? botToken) {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddHttpClient("discord-api");
+        services.AddSingleton(Config(new Dictionary<string, string?> { ["Discord:BotToken"] = botToken }));
+        if (!string.IsNullOrWhiteSpace(botToken))
+            services.AddSingleton<ICaptureCaNotifier, DiscordCaptureCaNotifier>();
+        else
+            services.AddSingleton<ICaptureCaNotifier, NoopCaptureCaNotifier>();
+        return services.BuildServiceProvider().GetRequiredService<ICaptureCaNotifier>();
+    }
+
+    [Fact]
+    public void Notifier_NoBotToken_RegistersNoop() =>
+        Assert.IsType<NoopCaptureCaNotifier>(ResolveNotifier(null));
+
+    [Fact]
+    public void Notifier_BotTokenSet_RegistersDiscord() =>
+        Assert.IsType<DiscordCaptureCaNotifier>(ResolveNotifier("token"));
+
     private sealed class FailingNotifier : ICaptureCaNotifier {
         public int Calls { get; private set; }
+
         public Task<bool> SendSetupAsync(CaptureSetupDm dm, CancellationToken ct) {
             Calls++;
             return Task.FromResult(false);
@@ -48,17 +174,6 @@ public class CaptureCaNotifierTests {
     }
 
     private sealed class FreshCaProxy : ICaptureProxy {
-#pragma warning disable CS0067
-        public event Action<CapturedFlow>? FlowCaptured;
-        public event Action<int, string?>? ClientConnected;
-        public event Action<int, string?>? ClientDisconnected;
-        public event Action? AuxbrainConnect;
-        public event Action<string>? DecryptError;
-        public event Action? TrustRestored;
-        public event Action<string, bool>? ConnectSeen;
-        public event Action<string>? Trace;
-#pragma warning restore CS0067
-
         public bool Verbose { get; set; }
         public bool FreshCa => true;
         public string? RootThumbprint => "FRESH-THUMB";
@@ -70,19 +185,17 @@ public class CaptureCaNotifierTests {
 
         public Task StopAsync() => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+#pragma warning disable CS0067
+        public event Action<CapturedFlow>? FlowCaptured;
+        public event Action<int, string?>? ClientConnected;
+        public event Action<int, string?>? ClientDisconnected;
+        public event Action? AuxbrainConnect;
+        public event Action<string>? DecryptError;
+        public event Action? TrustRestored;
+        public event Action<string, bool>? ConnectSeen;
+        public event Action<string>? Trace;
+#pragma warning restore CS0067
     }
-
-    private static CaptureSession FreshCaSession() {
-        var tmp = Path.Combine(Path.GetTempPath(), "egi-cadm-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tmp);
-        var opts = new CaptureSessionOptions(Port: 19090, Eid: null, Label: null,
-            Overwrite: false, Verbose: false, CapturePath: tmp,
-            CaPath: Path.Combine(tmp, "ca.cer"), WriteEndpoints: false);
-        return new CaptureSession(CaptureSessionManagerTests.RealContentRoot(), opts, _ => new FreshCaProxy());
-    }
-
-    private static CaptureSessionManager FreshCaManager() =>
-        new(HostedCaptureOptions.Defaults(), (_, _) => FreshCaSession());
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
@@ -90,118 +203,6 @@ public class CaptureCaNotifierTests {
     }
 
     private sealed class StubHttpFactory(HttpMessageHandler handler) : IHttpClientFactory {
-        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+        public HttpClient CreateClient(string name) => new(handler, false);
     }
-
-    private static IConfiguration Config(Dictionary<string, string?> values) =>
-        new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-
-    [Fact]
-    public async Task Start_FreshCa_NoStore_Still200_AndFlagsCaDmFailed() {
-        var manager = FreshCaManager();
-        var notifier = new FailingNotifier();
-        var controller = new CaptureController(
-            manager, new FakeAppMode(canCapture: false, hostedEnabled: true),
-            new FakeUser(true, supporter: true), new FakeSupporters(true),
-            HostedCaptureOptions.Defaults(), new StubServices(notifier));
-
-        var r = await controller.Start(CancellationToken.None);
-
-        Assert.Equal(200, ((IStatusCodeActionResult)r).StatusCode);
-        var session = manager.Get("tester");
-        Assert.NotNull(session);
-        Assert.True(session!.CaDmFailed);
-        Assert.True(session.Status.CaDmFailed);
-        await session.StopAsync();
-    }
-
-    [Fact]
-    public async Task DiscordNotifier_FailingHttp_ReturnsFalse() {
-        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
-        var notifier = new DiscordCaptureCaNotifier(
-            new StubHttpFactory(handler),
-            Config(new() { ["Discord:BotToken"] = "token" }),
-            NullLogger<DiscordCaptureCaNotifier>.Instance);
-
-        var ok = await notifier.SendSetupAsync(Dm(), CancellationToken.None);
-        Assert.False(ok);
-    }
-
-    [Fact]
-    public async Task DiscordNotifier_NoToken_ReturnsFalse() {
-        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
-        var notifier = new DiscordCaptureCaNotifier(
-            new StubHttpFactory(handler),
-            Config([]),
-            NullLogger<DiscordCaptureCaNotifier>.Instance);
-
-        var ok = await notifier.SendSetupAsync(Dm(), CancellationToken.None);
-        Assert.False(ok);
-    }
-
-    private static CaptureSetupDm Dm() =>
-        new("123", [0x30, 0x82, 0x01], "[2a01:4f8:c012:e15b::5]", 8443);
-
-    [Fact]
-    public void BuildMessage_ShowsProxyAddress_NoCredentials() {
-        var msg = DiscordCaptureCaNotifier.BuildMessage(
-            new CaptureSetupDm("123", [0x30, 0x82, 0x01], "2a01:4f8:c012:e15b::5", 8443));
-
-        Assert.Contains("2a01:4f8:c012:e15b::5", msg);
-        Assert.Contains("8443", msg);
-        Assert.Contains("Auth off", msg);
-        Assert.DoesNotContain("Token", msg, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Username", msg);
-        Assert.DoesNotContain("password", msg, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void MobileConfig_EmbedsCert_AndIsStablePerUser() {
-        byte[] cer = [0x30, 0x82, 0x01, 0x02, 0x03];
-        var a = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-1"));
-        var b = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-1"));
-        Assert.Equal(a, b);
-        Assert.Contains("com.apple.security.root", a);
-        Assert.Contains(Convert.ToBase64String(cer), a);
-    }
-
-    [Fact]
-    public void MobileConfig_SameUser_DifferentCert_KeepsProfileIdentity() {
-        var newCert = Convert.ToBase64String([(byte)0x30, 0x99]);
-        var a = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x82, 0x01], "user-1"));
-        var b = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile([0x30, 0x99], "user-1"));
-        Assert.Equal(ProfileUuid(a), ProfileUuid(b));
-        Assert.Contains(newCert, b);
-    }
-
-    [Fact]
-    public void MobileConfig_DifferentUsers_GetDistinctProfiles() {
-        byte[] cer = [0x30, 0x82, 0x01];
-        var a = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-1"));
-        var b = System.Text.Encoding.UTF8.GetString(MobileConfig.BuildCaProfile(cer, "user-2"));
-        Assert.NotEqual(ProfileUuid(a), ProfileUuid(b));
-    }
-
-    private static string ProfileUuid(string plist) =>
-        plist.Split("<key>PayloadUUID</key>")[^1].Split("<string>")[1].Split("</string>")[0];
-
-    private static ICaptureCaNotifier ResolveNotifier(string? botToken) {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddHttpClient("discord-api");
-        services.AddSingleton(Config(new() { ["Discord:BotToken"] = botToken }));
-        if (!string.IsNullOrWhiteSpace(botToken))
-            services.AddSingleton<ICaptureCaNotifier, DiscordCaptureCaNotifier>();
-        else
-            services.AddSingleton<ICaptureCaNotifier, NoopCaptureCaNotifier>();
-        return services.BuildServiceProvider().GetRequiredService<ICaptureCaNotifier>();
-    }
-
-    [Fact]
-    public void Notifier_NoBotToken_RegistersNoop() =>
-        Assert.IsType<NoopCaptureCaNotifier>(ResolveNotifier(null));
-
-    [Fact]
-    public void Notifier_BotTokenSet_RegistersDiscord() =>
-        Assert.IsType<DiscordCaptureCaNotifier>(ResolveNotifier("token"));
 }

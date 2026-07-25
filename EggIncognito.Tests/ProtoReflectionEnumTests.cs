@@ -8,7 +8,7 @@ public class ProtoReflectionEnumTests {
         var names = new ProtoReflection().AllMessageTypeNames();
         Assert.NotEmpty(names);
         Assert.Equal(names.Count, names.Distinct().Count());
-        var sorted = names.OrderBy(n => n, System.StringComparer.OrdinalIgnoreCase).ToList();
+        var sorted = names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
         Assert.Equal(sorted, names);
     }
 
@@ -25,7 +25,7 @@ public class ProtoReflectionEnumTests {
         var refl = new ProtoReflection();
 
 
-        foreach (var name in refl.AllMessageTypeNames().Take(25))
+        foreach (string name in refl.AllMessageTypeNames().Take(25))
             Assert.NotNull(refl.Schema(name));
     }
 }

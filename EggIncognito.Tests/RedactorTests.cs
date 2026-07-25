@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Ei;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Svc = EggIncognito.Services;
@@ -28,8 +29,8 @@ public partial class RedactorTests {
     [InlineData("username")]
     [InlineData("alias")]
     public void Redact_JumblesSensitiveField(string field) {
-        var json = $"{{ \"{field}\": \"super-secret-value-123\" }}";
-        var red = Svc.Redactor.Redact(json);
+        string json = $"{{ \"{field}\": \"super-secret-value-123\" }}";
+        string red = Svc.Redactor.Redact(json);
         Assert.DoesNotContain("super-secret-value-123", red);
         Assert.Contains($"\"{field}\":", red);
         Assert.Contains("redacted-", red);
@@ -37,29 +38,29 @@ public partial class RedactorTests {
 
     [Fact]
     public void Redact_IsStable() {
-        var json = "{ \"deviceId\": \"abc123\" }";
+        const string json = "{ \"deviceId\": \"abc123\" }";
         Assert.Equal(Svc.Redactor.Redact(json), Svc.Redactor.Redact(json));
     }
 
     [Fact]
     public void Redact_LeavesNonSensitiveFieldsUntouched() {
-        var json = "{ \"soulEggs\": \"4659456007327222784\", \"currentEgg\": 14, \"sku\": \"cc_standard\" }";
+        const string json = "{ \"soulEggs\": \"4659456007327222784\", \"currentEgg\": 14, \"sku\": \"cc_standard\" }";
         Assert.Equal(json, Svc.Redactor.Redact(json));
     }
 
     [Fact]
     public void Redact_RealisticSubscriptionPayload() {
-        var json = "{ \"originalTransactionId\": \"amdflgjddogdgeejiamdpaej.AO-J1Oy8\", \"periodEnd\": 1782945704.448 }";
-        var red = Svc.Redactor.Redact(json);
+        const string json =
+            "{ \"originalTransactionId\": \"amdflgjddogdgeejiamdpaej.AO-J1Oy8\", \"periodEnd\": 1782945704.448 }";
+        string red = Svc.Redactor.Redact(json);
         Assert.DoesNotContain("amdflgjddogdgeejiamdpaej", red);
         Assert.Contains("1782945704.448", red);
     }
 
     [Fact]
     public void Redact_ValueWithEscapedQuote_IsConsumedWhole() {
-
-        var json = "{ \"deviceName\": \"say \\\" hideout\" }";
-        var red = Svc.Redactor.Redact(json);
+        const string json = "{ \"deviceName\": \"say \\\" hideout\" }";
+        string red = Svc.Redactor.Redact(json);
         Assert.DoesNotContain("say", red);
         Assert.DoesNotContain("hideout", red);
         Assert.Contains("redacted-", red);
@@ -67,13 +68,11 @@ public partial class RedactorTests {
 
     [Fact]
     public void Redact_ValueEndingInEscapedBackslash_DoesNotOverrun() {
-        var json = "{ \"deviceId\": \"trail\\\\\", \"keepMe\": \"visible\" }";
-        var red = Svc.Redactor.Redact(json);
+        const string json = "{ \"deviceId\": \"trail\\\\\", \"keepMe\": \"visible\" }";
+        string red = Svc.Redactor.Redact(json);
         Assert.DoesNotContain("trail", red);
         Assert.Contains("\"keepMe\": \"visible\"", red);
     }
-
-
 
 
     [Fact]
@@ -81,9 +80,7 @@ public partial class RedactorTests {
         var piiShaped = PiiShapedRegex();
 
 
-        var safe = new HashSet<string>(StringComparer.Ordinal)
-        {
-
+        var safe = new HashSet<string>(StringComparer.Ordinal) {
             "userId", "eiUserId", "coopUserId", "requestingUserId", "destUserId",
             "toEiUserId", "eiUserIdToKeep", "pastUserIds", "playerIdentifier",
 
@@ -91,14 +88,14 @@ public partial class RedactorTests {
             "setIdentifier", "shellIdentifier", "shellSetIdentifier", "variationIdentifier",
             "decoratorIdentifier", "groupIdentifier", "chickenIdentifier", "hatIdentifier",
 
-            "deviceBucket",
+            "deviceBucket"
         };
 
         var sensitive = Svc.Redactor.SensitiveFieldNames.ToHashSet(StringComparer.Ordinal);
         var unaccounted = new SortedSet<string>(StringComparer.Ordinal);
 
-        foreach (var type in typeof(Ei.AuthenticatedMessage).Assembly.GetTypes()
-            .Where(t => t.Namespace == "Ei" && !t.IsAbstract && typeof(IMessage).IsAssignableFrom(t))) {
+        foreach (var type in typeof(AuthenticatedMessage).Assembly.GetTypes()
+                     .Where(t => t.Namespace == "Ei" && !t.IsAbstract && typeof(IMessage).IsAssignableFrom(t))) {
             var descriptor = (MessageDescriptor)type
                 .GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static)!
                 .GetValue(null)!;
@@ -113,6 +110,8 @@ public partial class RedactorTests {
         Assert.Empty(unaccounted);
     }
 
-    [GeneratedRegex("email|secret|password|token|account|device|transaction|receipt|advertising|push|signature|alias|identifier|username|userid|servicesid", RegexOptions.IgnoreCase, "en-US")]
+    [GeneratedRegex(
+        "email|secret|password|token|account|device|transaction|receipt|advertising|push|signature|alias|identifier|username|userid|servicesid",
+        RegexOptions.IgnoreCase, "en-US")]
     private static partial Regex PiiShapedRegex();
 }

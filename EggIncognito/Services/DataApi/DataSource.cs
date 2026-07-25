@@ -2,9 +2,17 @@ using System.Text;
 
 namespace EggIncognito.Services.DataApi;
 
-public enum DataProvenance { WireFixture, GameDataEmbedded, DerivedExtract, Asset }
+public enum DataProvenance {
+    WireFixture,
+    GameDataEmbedded,
+    DerivedExtract,
+    Asset
+}
 
-public enum DataAccess { Public, Authenticated }
+public enum DataAccess {
+    Public,
+    Authenticated
+}
 
 public sealed record DeviceTrigger(string AndroidRecipe, string IosRecipe);
 

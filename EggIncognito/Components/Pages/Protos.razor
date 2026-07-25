@@ -374,7 +374,7 @@
     }
 
     MarkupString Caret(string col) {
-        return new MarkupString(_sortCol == col ? (_sortDesc ? " ▾" : " ▴") : "");
+        return new MarkupString(_sortCol == col ? _sortDesc ? " ▾" : " ▴" : "");
     }
 
     static int CompareNumeric(string? a, string? b) {
@@ -605,7 +605,7 @@
     }
 
     static string Short(string sha) {
-        return string.IsNullOrEmpty(sha) ? "" : (sha.Length <= 12 ? sha : sha[..12]);
+        return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
     }
 
     public async ValueTask DisposeAsync() {

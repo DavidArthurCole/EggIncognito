@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace EggIncognito.Services.ProtoExtract;
 
 public static class MachoText {
@@ -8,7 +10,9 @@ public static class MachoText {
     private const uint LcSegment64 = 0x19;
 
     public static bool TryFindText(byte[] bin, out int fileOff, out int size, out ulong vmAddr) {
-        fileOff = 0; size = 0; vmAddr = 0;
+        fileOff = 0;
+        size = 0;
+        vmAddr = 0;
         if (bin is null || bin.Length < 32) return false;
         try {
             uint magic = U32(bin, 0);
@@ -18,6 +22,7 @@ public static class MachoText {
                 if (machoBase + 32 > bin.Length) return false;
                 magic = U32(bin, machoBase);
             }
+
             if (magic != MhMagic64) return false;
 
             uint ncmds = U32(bin, machoBase + 16);
@@ -26,7 +31,7 @@ public static class MachoText {
                 if (lc + 8 > bin.Length) return false;
                 uint cmd = U32(bin, lc);
                 uint cmdsize = U32(bin, lc + 4);
-                if (cmdsize < 8 || lc + (long)cmdsize > bin.Length) return false;
+                if (cmdsize < 8 || lc + cmdsize > bin.Length) return false;
                 if (cmd == LcSegment64) {
                     string seg = Cstr16(bin, lc + 8);
                     if (seg == "__TEXT") {
@@ -39,14 +44,17 @@ public static class MachoText {
                                 vmAddr = U64(bin, sec + 32);
                                 size = (int)U64(bin, sec + 40);
                                 fileOff = (int)U32(bin, sec + 48) + machoBase;
-                                return fileOff < 0 || size < 0 || (long)fileOff + size > bin.Length ? false : size > 0;
+                                return fileOff >= 0 && size >= 0 && (long)fileOff + size <= bin.Length && size > 0;
                             }
+
                             sec += 80;
                         }
                     }
                 }
+
                 lc += (int)cmdsize;
             }
+
             return false;
         } catch {
             return false;
@@ -63,9 +71,14 @@ public static class MachoText {
             if (e + 20 > b.Length) return false;
             uint cputype = U32be(b, e);
             uint off = U32be(b, e + 8);
-            if (cputype == CpuArm64) { offset = (int)off; return true; }
+            if (cputype == CpuArm64) {
+                offset = (int)off;
+                return true;
+            }
+
             e += 20;
         }
+
         return false;
     }
 
@@ -82,6 +95,6 @@ public static class MachoText {
         int end = o;
         int max = Math.Min(o + 16, b.Length);
         while (end < max && b[end] != 0) end++;
-        return System.Text.Encoding.ASCII.GetString(b, o, end - o);
+        return Encoding.ASCII.GetString(b, o, end - o);
     }
 }

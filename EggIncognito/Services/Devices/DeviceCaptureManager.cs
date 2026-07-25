@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Threading.Channels;
 using EggIncognito.Capture;
+using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
 
@@ -12,58 +14,58 @@ public sealed class DeviceCaptureManager(
     Func<bool, ICaptureProxy>? proxyFactory,
     string contentRoot,
     ILogger<DeviceCaptureManager> logger,
-    IEnumerable<EggIncognito.Core.Services.Devices.IDeviceCaInstaller>? caInstallers = null) : IHostedService {
-    private readonly Func<bool, ICaptureProxy> _proxyFactory = proxyFactory ?? (verbose => new NativeCaptureProxy(verbose));
+    IEnumerable<IDeviceCaInstaller>? caInstallers = null) : IHostedService {
+    public const int PortsPerDevice = 3;
+
+    private readonly Dictionary<string, IDeviceCaInstaller> _caInstallers =
+        (caInstallers ?? []).GroupBy(c => c.Platform, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
     private readonly ConcurrentDictionary<string, DeviceCapture> _captures = new();
     private readonly ConcurrentDictionary<string, DeviceCaptureDiag> _diag = new();
-    private readonly Dictionary<string, EggIncognito.Core.Services.Devices.IDeviceCaInstaller> _caInstallers =
-        (caInstallers ?? []).GroupBy(c => c.Platform, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+    private readonly Func<bool, ICaptureProxy> _proxyFactory =
+        proxyFactory ?? (verbose => new NativeCaptureProxy(verbose));
+
     private CancellationTokenSource? _cts;
-
-    private sealed record DeviceCapture(ICaptureProxy Proxy, int Port, Channel<CapturedFlow> Queue, Task Pump, CaptureHub Hub);
-
-    public int PortFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Port : 0;
     public DeviceRinfoStore Rinfo { get; } = new(capturePath);
-
-
-
-    public CaptureHub? HubFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Hub : null;
-
-    private static string Now() => DateTime.Now.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
-
-
-
-    public DeviceCaptureDiag DiagFor(string deviceId) =>
-        _diag.TryGetValue(deviceId, out var d) ? d.Snapshot() : DeviceCaptureDiag.Empty;
 
     public async Task StartAsync(CancellationToken cancellationToken) {
         if (!config.Enabled) {
             logger.LogInformation("device capture: disabled (DeviceCapture:Enabled=false)");
             return;
         }
+
         if (devices.Devices.Count == 0) {
             logger.LogInformation("device capture: no devices declared");
             return;
         }
+
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         await EnsureAsync(_cts.Token);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken) {
         _cts?.Cancel();
-        foreach (var id in _captures.Keys.ToList()) await TeardownAsync(id);
+        foreach (string id in _captures.Keys.ToList()) await TeardownAsync(id);
     }
 
+    public int PortFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Port : 0;
 
 
-    public const int PortsPerDevice = 3;
+    public CaptureHub? HubFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Hub : null;
+
+    private static string Now() => DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+
+
+    public DeviceCaptureDiag DiagFor(string deviceId) =>
+        _diag.TryGetValue(deviceId, out var d) ? d.Snapshot() : DeviceCaptureDiag.Empty;
 
     public static int PortForIndex(int basePort, int index) => basePort + index * PortsPerDevice;
 
     public async Task EnsureAsync(CancellationToken ct) {
         if (!config.Enabled) return;
-        for (var i = 0; i < devices.Devices.Count; i++) {
+        for (int i = 0; i < devices.Devices.Count; i++) {
             var d = devices.Devices[i];
             if (_captures.ContainsKey(d.Id)) continue;
             await StartOneAsync(d, PortForIndex(config.BasePort, i), ct);
@@ -90,7 +92,8 @@ public sealed class DeviceCaptureManager(
             proxy.ClientConnected += (count, ip) => {
                 diag.BumpClientConnects();
                 hub.RecordConnection(count, ip, Now());
-                logger.LogInformation("device capture: {Id} client connected (active={Count}, ip={Ip})", d.Id, count, ip ?? "?");
+                logger.LogInformation("device capture: {Id} client connected (active={Count}, ip={Ip})", d.Id, count,
+                    ip ?? "?");
             };
             proxy.ClientDisconnected += (count, ip) => hub.RecordDisconnection(count, Now());
             proxy.AuxbrainConnect += () => {
@@ -110,7 +113,7 @@ public sealed class DeviceCaptureManager(
             };
             proxy.ConnectSeen += (host, willDecrypt) => diag.NoteConnect(host, willDecrypt);
             await proxy.StartAsync(port, caPath, ct);
-            hub.SetProxyState(running: true, port: port);
+            hub.SetProxyState(true, port);
 
             _captures[d.Id] = new DeviceCapture(proxy, port, queue, pump, hub);
             logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca}, freshCa={Fresh})",
@@ -120,7 +123,8 @@ public sealed class DeviceCaptureManager(
             if (proxy.FreshCa) {
                 logger.LogWarning(
                     "device capture: {Id} FRESH CA minted ({Ca}). Any cert installed on a device last run is now " +
-                    "STALE. Persist the captures dir across restarts or device trust resets on every deploy.", d.Id, caPath);
+                    "STALE. Persist the captures dir across restarts or device trust resets on every deploy.", d.Id,
+                    caPath);
             }
 
             await InstallCaAsync(d, ct);
@@ -134,8 +138,8 @@ public sealed class DeviceCaptureManager(
         if (!_caInstallers.TryGetValue(d.Platform, out var installer))
             return (false, $"no CA installer for {d.Platform}");
         try {
-            var target = new EggIncognito.Core.Services.Devices.DeviceCaTarget(d.Id, d.Platform, d.Target);
-            var (ok, note) = await installer.InstallAsync(target, caPath, ct);
+            var target = new DeviceCaTarget(d.Id, d.Platform, d.Target);
+            (bool ok, string? note) = await installer.InstallAsync(target, caPath, ct);
             if (ok) logger.LogInformation("device capture: {Id} CA installed ({Note})", d.Id, note);
             else logger.LogWarning("device capture: {Id} CA install failed: {Note}", d.Id, note);
             return (ok, note);
@@ -145,7 +149,8 @@ public sealed class DeviceCaptureManager(
         }
     }
 
-    private async Task PumpAsync(string deviceId, Channel<CapturedFlow> queue, FlowProcessor processor, CaptureHub hub) {
+    private async Task PumpAsync(string deviceId, Channel<CapturedFlow> queue, FlowProcessor processor,
+        CaptureHub hub) {
         await foreach (var flow in queue.Reader.ReadAllAsync()) {
             try {
                 var dash = processor.Process(flow);
@@ -153,49 +158,85 @@ public sealed class DeviceCaptureManager(
                     Rinfo.Observe(deviceId, obs, DateTimeOffset.UtcNow.ToString("O"));
                     if (_diag.TryGetValue(deviceId, out var dg)) dg.BumpRinfoHarvests();
                 }
+
                 hub.Publish(dash, Now());
-            } catch { }
+            } catch {
+            }
         }
     }
 
     private async Task TeardownAsync(string id) {
         if (!_captures.TryRemove(id, out var c)) return;
-        c.Hub.SetProxyState(running: false, port: c.Port);
-        try { await c.Proxy.StopAsync(); } catch { }
+        c.Hub.SetProxyState(false, c.Port);
+        try {
+            await c.Proxy.StopAsync();
+        } catch {
+        }
+
         c.Queue.Writer.TryComplete();
-        try { await c.Pump; } catch { }
-        try { await c.Proxy.DisposeAsync(); } catch { }
+        try {
+            await c.Pump;
+        } catch {
+        }
+
+        try {
+            await c.Proxy.DisposeAsync();
+        } catch {
+        }
+
         logger.LogInformation("device capture: {Id} torn down", id);
     }
+
+    private sealed record DeviceCapture(
+        ICaptureProxy Proxy,
+        int Port,
+        Channel<CapturedFlow> Queue,
+        Task Pump,
+        CaptureHub Hub);
 }
 
 public sealed class DeviceCaptureDiag {
-    private long _clientConnects;
+    private const int MaxRecent = 12;
+
+    public static readonly DeviceCaptureDiag Empty = new();
+    private readonly Lock _connectLock = new();
+    private readonly LinkedList<string> _recent = new();
     private long _auxbrainConnects;
+    private long _clientConnects;
     private long _flows;
     private long _rinfoHarvests;
 
-    public long ClientConnects { get => System.Threading.Interlocked.Read(ref _clientConnects); private set => _clientConnects = value; }
-    public long AuxbrainConnects { get => System.Threading.Interlocked.Read(ref _auxbrainConnects); private set => _auxbrainConnects = value; }
-    public long Flows { get => System.Threading.Interlocked.Read(ref _flows); private set => _flows = value; }
-    public long RinfoHarvests { get => System.Threading.Interlocked.Read(ref _rinfoHarvests); private set => _rinfoHarvests = value; }
+    public long ClientConnects {
+        get => Interlocked.Read(ref _clientConnects);
+        private set => _clientConnects = value;
+    }
+
+    public long AuxbrainConnects {
+        get => Interlocked.Read(ref _auxbrainConnects);
+        private set => _auxbrainConnects = value;
+    }
+
+    public long Flows {
+        get => Interlocked.Read(ref _flows);
+        private set => _flows = value;
+    }
+
+    public long RinfoHarvests {
+        get => Interlocked.Read(ref _rinfoHarvests);
+        private set => _rinfoHarvests = value;
+    }
+
     public string? LastDecryptError { get; set; }
 
     public IReadOnlyList<string> RecentConnects { get; private set; } = [];
 
-    private const int MaxRecent = 12;
-    private readonly Lock _connectLock = new();
-    private readonly LinkedList<string> _recent = new();
-
-    public static readonly DeviceCaptureDiag Empty = new();
-
-    public void BumpClientConnects() => System.Threading.Interlocked.Increment(ref _clientConnects);
-    public void BumpAuxbrainConnects() => System.Threading.Interlocked.Increment(ref _auxbrainConnects);
-    public void BumpFlows() => System.Threading.Interlocked.Increment(ref _flows);
-    public void BumpRinfoHarvests() => System.Threading.Interlocked.Increment(ref _rinfoHarvests);
+    public void BumpClientConnects() => Interlocked.Increment(ref _clientConnects);
+    public void BumpAuxbrainConnects() => Interlocked.Increment(ref _auxbrainConnects);
+    public void BumpFlows() => Interlocked.Increment(ref _flows);
+    public void BumpRinfoHarvests() => Interlocked.Increment(ref _rinfoHarvests);
 
     public void NoteConnect(string host, bool willDecrypt) {
-        var entry = $"{host} (decrypt={(willDecrypt ? "true" : "false")})";
+        string entry = $"{host} (decrypt={(willDecrypt ? "true" : "false")})";
         lock (_connectLock) {
             _recent.Remove(entry);
             _recent.AddFirst(entry);
@@ -210,7 +251,7 @@ public sealed class DeviceCaptureDiag {
             AuxbrainConnects = AuxbrainConnects,
             Flows = Flows,
             RinfoHarvests = RinfoHarvests,
-            LastDecryptError = LastDecryptError,
+            LastDecryptError = LastDecryptError
         };
         lock (_connectLock) snap.RecentConnects = _recent.ToList();
         return snap;

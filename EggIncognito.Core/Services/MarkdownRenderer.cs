@@ -3,29 +3,28 @@ using System.Text.RegularExpressions;
 namespace EggIncognito.Services;
 //
 
-
 public static partial class MarkdownRenderer {
     private static readonly Regex EscapeChars = EscapeCharsRegex();
-    private static readonly Regex SafeScheme = new(@"^(https?://|/|\./|#)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex SplitLines = new(@"\r?\n", RegexOptions.Compiled);
+    private static readonly Regex SafeScheme = MyRegex();
+    private static readonly Regex SplitLines = SplitLinesRegex();
 
-    private static readonly Regex InlineCode = new(@"`([^`]+)`", RegexOptions.Compiled);
-    private static readonly Regex InlineImg = new(@"!\[([^\]]*)\]\(([^)]+)\)", RegexOptions.Compiled);
-    private static readonly Regex InlineLink = new(@"\[([^\]]+)\]\(([^)]+)\)", RegexOptions.Compiled);
-    private static readonly Regex InlineBold = new(@"\*\*([^*]+)\*\*", RegexOptions.Compiled);
-    private static readonly Regex InlineItalic = new(@"(^|[^*])\*([^*]+)\*", RegexOptions.Compiled);
+    private static readonly Regex InlineCode = InlineCodeRegex();
+    private static readonly Regex InlineImg = InlineImgRegex();
+    private static readonly Regex InlineLink = InlineLinkRegex();
+    private static readonly Regex InlineBold = InlineBoldRegex();
+    private static readonly Regex InlineItalic = InlineItalicRegex();
 
-    private static readonly Regex Fence = new(@"^```", RegexOptions.Compiled);
-    private static readonly Regex Rule = new(@"^\s*---+\s*$", RegexOptions.Compiled);
-    private static readonly Regex Heading = new(@"^(#{1,3})\s+(.*)$", RegexOptions.Compiled);
-
-
-    private static readonly Regex Quote = new(@"^\s*&gt;\s?", RegexOptions.Compiled);
-    private static readonly Regex Ul = new(@"^\s*[-*]\s+", RegexOptions.Compiled);
-    private static readonly Regex Ol = new(@"^\s*\d+\.\s+", RegexOptions.Compiled);
+    private static readonly Regex Fence = FenceRegex();
+    private static readonly Regex Rule = RuleRegex();
+    private static readonly Regex Heading = HeadingRegex();
 
 
-    private static readonly Regex ParaStop = new(@"^(#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*&gt;|```|\s*---+\s*$)", RegexOptions.Compiled);
+    private static readonly Regex Quote = QuoteRegex();
+    private static readonly Regex Ul = UlRegex();
+    private static readonly Regex Ol = OlRegex();
+
+
+    private static readonly Regex ParaStop = ParaStopRegex();
 
     private static string EscapeHtml(string s) => EscapeChars.Replace(s, m => m.Value switch {
         "&" => "&amp;",
@@ -38,16 +37,18 @@ public static partial class MarkdownRenderer {
 
 
     private static string SafeUrl(string url) {
-        var u = url.Trim();
+        string u = url.Trim();
         return SafeScheme.IsMatch(u) ? u : "#";
     }
 
 
-
     private static string Inline(string text) {
         text = InlineCode.Replace(text, m => $"<code>{m.Groups[1].Value}</code>");
-        text = InlineImg.Replace(text, m => $"<img src=\"{SafeUrl(m.Groups[2].Value)}\" alt=\"{m.Groups[1].Value}\" />");
-        text = InlineLink.Replace(text, m => $"<a href=\"{SafeUrl(m.Groups[2].Value)}\" target=\"_blank\" rel=\"noopener noreferrer\">{m.Groups[1].Value}</a>");
+        text = InlineImg.Replace(text,
+            m => $"<img src=\"{SafeUrl(m.Groups[2].Value)}\" alt=\"{m.Groups[1].Value}\" />");
+        text = InlineLink.Replace(text,
+            m =>
+                $"<a href=\"{SafeUrl(m.Groups[2].Value)}\" target=\"_blank\" rel=\"noopener noreferrer\">{m.Groups[1].Value}</a>");
         text = InlineBold.Replace(text, "<strong>$1</strong>");
         text = InlineItalic.Replace(text, "$1<em>$2</em>");
         return text;
@@ -55,34 +56,46 @@ public static partial class MarkdownRenderer {
 
 
     public static string Render(string? src) {
-        var lines = SplitLines.Split(EscapeHtml(src ?? ""));
+        string[] lines = SplitLines.Split(EscapeHtml(src ?? ""));
         var outLines = new List<string>();
-        var i = 0;
+        int i = 0;
         string? listType = null;
 
         void CloseList() {
-            if (listType != null) { outLines.Add($"</{listType}>"); listType = null; }
+            if (listType != null) {
+                outLines.Add($"</{listType}>");
+                listType = null;
+            }
         }
 
         while (i < lines.Length) {
-            var line = lines[i];
+            string line = lines[i];
 
             if (Fence.IsMatch(line.Trim())) {
                 CloseList();
                 var body = new List<string>();
                 i++;
-                while (i < lines.Length && !Fence.IsMatch(lines[i].Trim())) { body.Add(lines[i]); i++; }
+                while (i < lines.Length && !Fence.IsMatch(lines[i].Trim())) {
+                    body.Add(lines[i]);
+                    i++;
+                }
+
                 i++;
                 outLines.Add($"<pre class=\"md-code\"><code>{string.Join("\n", body)}</code></pre>");
                 continue;
             }
 
-            if (Rule.IsMatch(line)) { CloseList(); outLines.Add("<hr class=\"md-rule\" />"); i++; continue; }
+            if (Rule.IsMatch(line)) {
+                CloseList();
+                outLines.Add("<hr class=\"md-rule\" />");
+                i++;
+                continue;
+            }
 
             var h = Heading.Match(line);
             if (h.Success) {
                 CloseList();
-                var n = h.Groups[1].Value.Length;
+                int n = h.Groups[1].Value.Length;
                 outLines.Add($"<h{n} class=\"md-h{n}\">{Inline(h.Groups[2].Value)}</h{n}>");
                 i++;
                 continue;
@@ -92,25 +105,44 @@ public static partial class MarkdownRenderer {
             if (Quote.IsMatch(line)) {
                 CloseList();
                 var body = new List<string>();
-                while (i < lines.Length && Quote.IsMatch(lines[i])) { body.Add(Quote.Replace(lines[i], "", 1)); i++; }
+                while (i < lines.Length && Quote.IsMatch(lines[i])) {
+                    body.Add(Quote.Replace(lines[i], "", 1));
+                    i++;
+                }
+
                 outLines.Add($"<blockquote class=\"md-quote\">{Inline(string.Join("<br/>", body))}</blockquote>");
                 continue;
             }
 
             if (Ul.IsMatch(line)) {
-                if (listType != "ul") { CloseList(); outLines.Add("<ul class=\"md-list\">"); listType = "ul"; }
+                if (listType != "ul") {
+                    CloseList();
+                    outLines.Add("<ul class=\"md-list\">");
+                    listType = "ul";
+                }
+
                 outLines.Add($"<li>{Inline(Ul.Replace(line, "", 1))}</li>");
                 i++;
                 continue;
             }
+
             if (Ol.IsMatch(line)) {
-                if (listType != "ol") { CloseList(); outLines.Add("<ol class=\"md-list\">"); listType = "ol"; }
+                if (listType != "ol") {
+                    CloseList();
+                    outLines.Add("<ol class=\"md-list\">");
+                    listType = "ol";
+                }
+
                 outLines.Add($"<li>{Inline(Ol.Replace(line, "", 1))}</li>");
                 i++;
                 continue;
             }
 
-            if (line.Trim() == "") { CloseList(); i++; continue; }
+            if (line.Trim() == "") {
+                CloseList();
+                i++;
+                continue;
+            }
 
             {
                 CloseList();
@@ -120,13 +152,57 @@ public static partial class MarkdownRenderer {
                     body.Add(lines[i]);
                     i++;
                 }
+
                 outLines.Add($"<p>{Inline(string.Join("<br/>", body))}</p>");
             }
         }
+
         CloseList();
         return string.Join("\n", outLines);
     }
 
     [GeneratedRegex("[&<>\"']", RegexOptions.Compiled)]
     private static partial Regex EscapeCharsRegex();
+
+    [GeneratedRegex(@"^(https?://|/|\./|#)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-US")]
+    private static partial Regex MyRegex();
+
+    [GeneratedRegex(@"\r?\n", RegexOptions.Compiled)]
+    private static partial Regex SplitLinesRegex();
+
+    [GeneratedRegex(@"`([^`]+)`", RegexOptions.Compiled)]
+    private static partial Regex InlineCodeRegex();
+
+    [GeneratedRegex(@"!\[([^\]]*)\]\(([^)]+)\)", RegexOptions.Compiled)]
+    private static partial Regex InlineImgRegex();
+
+    [GeneratedRegex(@"\[([^\]]+)\]\(([^)]+)\)", RegexOptions.Compiled)]
+    private static partial Regex InlineLinkRegex();
+
+    [GeneratedRegex(@"\*\*([^*]+)\*\*", RegexOptions.Compiled)]
+    private static partial Regex InlineBoldRegex();
+
+    [GeneratedRegex(@"(^|[^*])\*([^*]+)\*", RegexOptions.Compiled)]
+    private static partial Regex InlineItalicRegex();
+
+    [GeneratedRegex(@"^```", RegexOptions.Compiled)]
+    private static partial Regex FenceRegex();
+
+    [GeneratedRegex(@"^\s*---+\s*$", RegexOptions.Compiled)]
+    private static partial Regex RuleRegex();
+
+    [GeneratedRegex(@"^(#{1,3})\s+(.*)$", RegexOptions.Compiled)]
+    private static partial Regex HeadingRegex();
+
+    [GeneratedRegex(@"^\s*&gt;\s?", RegexOptions.Compiled)]
+    private static partial Regex QuoteRegex();
+
+    [GeneratedRegex(@"^\s*[-*]\s+", RegexOptions.Compiled)]
+    private static partial Regex UlRegex();
+
+    [GeneratedRegex(@"^\s*\d+\.\s+", RegexOptions.Compiled)]
+    private static partial Regex OlRegex();
+
+    [GeneratedRegex(@"^(#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*&gt;|```|\s*---+\s*$)", RegexOptions.Compiled)]
+    private static partial Regex ParaStopRegex();
 }

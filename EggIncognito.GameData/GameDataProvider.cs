@@ -1,15 +1,15 @@
 namespace EggIncognito.GameData;
 
-public sealed class GameDataProvider(IReadOnlyList<IEffectFamily> families, IColleggtibleCatalog colleggtibles, IBoostCatalog boostCatalog, IEggCatalog eggCatalog, IDimensionCatalog dimensions, IMissionCatalog missions, IVehicleCatalog vehicles) : IGameDataProvider {
-    private readonly Dictionary<string, IEffectFamily> _byKey = families.ToDictionary(f => f.Key, StringComparer.Ordinal);
-
-    public static GameDataProvider CreateDefault() =>
-        new([
-            BoostFamily.Load(),
-            ResearchFamily.Load(),
-            HabFamily.Load(),
-            ArtifactFamily.Load()
-        ], ColleggtibleCatalog.Load(), global::EggIncognito.GameData.BoostCatalog.Load(), global::EggIncognito.GameData.EggCatalog.Load(), DimensionCatalog.Load(), MissionCatalog.Load(), VehicleCatalog.Load());
+public sealed class GameDataProvider(
+    IReadOnlyList<IEffectFamily> families,
+    IColleggtibleCatalog colleggtibles,
+    IBoostCatalog boostCatalog,
+    IEggCatalog eggCatalog,
+    IDimensionCatalog dimensions,
+    IMissionCatalog missions,
+    IVehicleCatalog vehicles) : IGameDataProvider {
+    private readonly Dictionary<string, IEffectFamily> _byKey =
+        families.ToDictionary(f => f.Key, StringComparer.Ordinal);
 
     public IReadOnlyList<IEffectFamily> Families { get; } = families;
     public IColleggtibleCatalog Colleggtibles { get; } = colleggtibles;
@@ -37,23 +37,31 @@ public sealed class GameDataProvider(IReadOnlyList<IEffectFamily> families, ICol
 
     public double Effective(EffectTarget target, double seed, IReadOnlyDictionary<string, int> idLevels) {
         var active = new List<Effect>();
-        foreach (var (id, _) in idLevels) {
+        foreach ((string id, int _) in idLevels) {
             foreach (var family in Families) {
                 var effect = family.Find(id);
-                if (effect is not null && effect.Target == target) {
-                    active.Add(effect);
-                }
+                if (effect is not null && effect.Target == target) active.Add(effect);
             }
         }
 
-        var value = seed;
+        double value = seed;
         foreach (var group in active.GroupBy(e => e.CombineMode)) {
             var contributions = group.Select(e => e.Contribution(LevelOf(idLevels, e.Id)));
             value = Folding.Fold(group.Key, value, contributions);
         }
+
         return value;
     }
 
+    public static GameDataProvider CreateDefault() =>
+        new([
+                BoostFamily.Load(),
+                ResearchFamily.Load(),
+                HabFamily.Load(),
+                ArtifactFamily.Load()
+            ], ColleggtibleCatalog.Load(), GameData.BoostCatalog.Load(), GameData.EggCatalog.Load(),
+            DimensionCatalog.Load(), MissionCatalog.Load(), VehicleCatalog.Load());
+
     private static int LevelOf(IReadOnlyDictionary<string, int> idLevels, string id) =>
-        idLevels.TryGetValue(id, out var level) ? level : 1;
+        idLevels.GetValueOrDefault(id, 1);
 }

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 
@@ -22,8 +23,10 @@ public class CurrentUserTests {
     [Fact]
     public void Authenticated_ExposesClaims() {
         var id = new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(ClaimTypes.Name, "alice"),
-             new Claim("urn:discord:avatar:hash", "abc")], "Discord");
+        [
+            new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(ClaimTypes.Name, "alice"),
+            new Claim("urn:discord:avatar:hash", "abc")
+        ], "Discord");
         var u = Make(new ClaimsPrincipal(id));
         Assert.True(u.IsAuthenticated);
         Assert.Equal("123", u.DiscordId);
@@ -35,8 +38,10 @@ public class CurrentUserTests {
     [Fact]
     public void AvatarUrl_AlreadyFullUrl_PassedThroughUnwrapped() {
         var id = new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(ClaimTypes.Name, "alice"),
-             new Claim("urn:discord:avatar:hash", "https://cdn.discordapp.com/avatars/123/abc.png")], "Discord");
+        [
+            new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(ClaimTypes.Name, "alice"),
+            new Claim("urn:discord:avatar:hash", "https://cdn.discordapp.com/avatars/123/abc.png")
+        ], "Discord");
         var u = Make(new ClaimsPrincipal(id));
         Assert.Equal("https://cdn.discordapp.com/avatars/123/abc.png", u.AvatarUrl);
     }
@@ -45,7 +50,8 @@ public class CurrentUserTests {
     public void Authenticated_ExposesUserId() {
         var guid = Guid.NewGuid();
         var id = new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(EggIncognito.Data.Services.AuthClaims.UserIdClaim, guid.ToString())], "Discord");
+            [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(AuthClaims.UserIdClaim, guid.ToString())],
+            "Discord");
         var u = Make(new ClaimsPrincipal(id));
         Assert.Equal(guid, u.UserId);
     }

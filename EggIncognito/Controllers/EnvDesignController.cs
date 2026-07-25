@@ -1,6 +1,9 @@
+using System.Text;
+using System.Text.Json;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -8,10 +11,9 @@ using SyncKit.Contract;
 
 namespace EggIncognito.Controllers;
 
-
 [ApiController]
 [Route("api/env/designs")]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase {
     private const int MaxPayloadBytes = 2_000_000;
 
@@ -19,7 +21,8 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
 
     private ObjectResult? RequireContributor() =>
         currentUser.IsAtLeast(UserRole.Contributor)
-            ? null : StatusCode(403, new { error = "contributor role required" });
+            ? null
+            : StatusCode(403, new { error = "contributor role required" });
 
     [HttpGet]
     [EnableRateLimiting("read")]
@@ -38,12 +41,10 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
     public async Task<IActionResult> Get(string name) {
         var db = Db;
         if (db is null) return NotFound(new { error = "no database configured" });
-        var row = await db.EnvDesigns.AsNoTracking().FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
+        var row = await db.EnvDesigns.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
         return row is null ? NotFound(new { error = "unknown design" }) : Content(row.Payload, "application/json");
     }
-
-    public sealed record SaveDesign(string Payload, string? Note);
-
 
 
     [HttpPut("{name}")]
@@ -54,10 +55,14 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         if (db is null) return StatusCode(503, new { error = "no database configured" });
         if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
 
-        var payload = body?.Payload ?? "";
-        if (System.Text.Encoding.UTF8.GetByteCount(payload) > MaxPayloadBytes)
+        string payload = body?.Payload ?? "";
+        if (Encoding.UTF8.GetByteCount(payload) > MaxPayloadBytes)
             return BadRequest(new { error = "payload too large" });
-        try { using var _ = System.Text.Json.JsonDocument.Parse(payload); } catch { return BadRequest(new { error = "payload is not valid JSON" }); }
+        try {
+            using var _ = JsonDocument.Parse(payload);
+        } catch {
+            return BadRequest(new { error = "payload is not valid JSON" });
+        }
 
         var existing = await db.EnvDesigns.FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
         if (existing is null) {
@@ -68,13 +73,14 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
             existing.Payload = payload;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        var next = await NextVersionNo(db, existing.Id);
+
+        int next = await NextVersionNo(db, existing.Id);
         db.EnvDesignVersions.Add(new EnvDesignVersion {
             DesignId = existing.Id,
             VersionNo = next,
             Payload = payload,
             AuthorUserId = currentUser.UserId,
-            Note = Trim(body?.Note),
+            Note = Trim(body?.Note)
         });
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         return Ok(new { saved = name, version = next });
@@ -86,7 +92,8 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
     public async Task<IActionResult> Versions(string name) {
         var db = Db;
         if (db is null) return Ok(new { versions = Array.Empty<object>() });
-        var design = await db.EnvDesigns.AsNoTracking().FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
+        var design = await db.EnvDesigns.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
         if (design is null) return NotFound(new { error = "unknown design" });
         var rows = await db.EnvDesignVersions.AsNoTracking()
             .Where(v => v.DesignId == design.Id)
@@ -102,15 +109,13 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
     public async Task<IActionResult> GetVersion(string name, int versionNo) {
         var db = Db;
         if (db is null) return NotFound(new { error = "no database configured" });
-        var design = await db.EnvDesigns.AsNoTracking().FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
+        var design = await db.EnvDesigns.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
         if (design is null) return NotFound(new { error = "unknown design" });
         var row = await db.EnvDesignVersions.AsNoTracking()
             .FirstOrDefaultAsync(v => v.DesignId == design.Id && v.VersionNo == versionNo, HttpContext.RequestAborted);
         return row is null ? NotFound(new { error = "unknown version" }) : Content(row.Payload, "application/json");
     }
-
-    public sealed record RollbackBody(int VersionNo);
-
 
 
     [HttpPost("{name}/rollback")]
@@ -122,27 +127,28 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         var design = await db.EnvDesigns.FirstOrDefaultAsync(d => d.Name == name, HttpContext.RequestAborted);
         if (design is null) return NotFound(new { error = "unknown design" });
         var src = await db.EnvDesignVersions
-            .FirstOrDefaultAsync(v => v.DesignId == design.Id && v.VersionNo == body.VersionNo, HttpContext.RequestAborted);
+            .FirstOrDefaultAsync(v => v.DesignId == design.Id && v.VersionNo == body.VersionNo,
+                HttpContext.RequestAborted);
         if (src is null) return NotFound(new { error = "unknown version" });
 
         design.Payload = src.Payload;
         design.UpdatedAt = DateTimeOffset.UtcNow;
-        var next = await NextVersionNo(db, design.Id);
+        int next = await NextVersionNo(db, design.Id);
         db.EnvDesignVersions.Add(new EnvDesignVersion {
             DesignId = design.Id,
             VersionNo = next,
             Payload = src.Payload,
             AuthorUserId = currentUser.UserId,
             RolledBackFrom = src.VersionNo,
-            Note = $"rolled back to v{src.VersionNo}",
+            Note = $"rolled back to v{src.VersionNo}"
         });
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         return Ok(new { rolledBack = name, fromVersion = src.VersionNo, newVersion = next });
     }
 
     private static async Task<int> NextVersionNo(EggIncognitoDbContext db, long designId) {
-        var max = await db.EnvDesignVersions.Where(v => v.DesignId == designId)
-            .MaxAsync(v => (int?)v.VersionNo, default) ?? 0;
+        int max = await db.EnvDesignVersions.Where(v => v.DesignId == designId)
+            .MaxAsync(v => (int?)v.VersionNo) ?? 0;
         return max + 1;
     }
 
@@ -162,4 +168,8 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         return Ok(new { deleted = name });
     }
+
+    public sealed record SaveDesign(string Payload, string? Note);
+
+    public sealed record RollbackBody(int VersionNo);
 }

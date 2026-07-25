@@ -9,10 +9,9 @@ public class DocsImageMagicTests {
     private static byte[] Gif89 => [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'9', (byte)'a', 0x00, 0x00];
     private static byte[] Gif87 => [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'7', (byte)'a', 0x00, 0x00];
 
-    private static byte[] Webp =>
-    [
+    private static byte[] Webp => [
         (byte)'R', (byte)'I', (byte)'F', (byte)'F', 0x00, 0x00, 0x00, 0x00,
-        (byte)'W', (byte)'E', (byte)'B', (byte)'P', (byte)'V', (byte)'P', (byte)'8', (byte)' ',
+        (byte)'W', (byte)'E', (byte)'B', (byte)'P', (byte)'V', (byte)'P', (byte)'8', (byte)' '
     ];
 
     [Fact]
@@ -33,7 +32,7 @@ public class DocsImageMagicTests {
 
     [Fact]
     public void MagicMatches_RejectsNonImagePayloads() {
-        var html = Encoding.ASCII.GetBytes("<html><script>alert(1)</script></html>");
+        byte[] html = Encoding.ASCII.GetBytes("<html><script>alert(1)</script></html>");
         Assert.False(DocsController.MagicMatches(html, "image/png"));
         Assert.False(DocsController.MagicMatches(html, "image/jpeg"));
         Assert.False(DocsController.MagicMatches(html, "image/gif"));

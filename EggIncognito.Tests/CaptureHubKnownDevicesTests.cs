@@ -57,7 +57,7 @@ public class CaptureHubKnownDevicesTests {
     [Fact]
     public void DevicesChanged_FiresOnConnect() {
         var hub = new CaptureHub();
-        var fired = 0;
+        int fired = 0;
         hub.DevicesChanged = () => fired++;
         hub.RecordConnection(1, "192.168.1.5", "10:00:00");
         Assert.True(fired > 0);

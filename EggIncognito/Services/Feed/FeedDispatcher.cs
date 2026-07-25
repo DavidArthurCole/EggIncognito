@@ -1,19 +1,20 @@
+using System.Text;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services.Feed;
 
-
 public sealed class FeedDispatcher(
-    IFeedSubscriptionStore store, IHttpClientFactory httpFactory, ILogger<FeedDispatcher> logger) {
+    IFeedSubscriptionStore store,
+    IHttpClientFactory httpFactory,
+    ILogger<FeedDispatcher> logger) {
     private const int DeadAfterFailures = 5;
-
 
 
     public const string DefaultPageBaseUrl = "https://eggincognito.davidarthurcole.me";
 
     public static string BuildPageUrl(string? baseUrl, string platform, string build) =>
-        $"{(string.IsNullOrEmpty(baseUrl) ? DefaultPageBaseUrl : baseUrl!.TrimEnd('/'))}/protos/{platform}/{build}";
+        $"{(string.IsNullOrEmpty(baseUrl) ? DefaultPageBaseUrl : baseUrl.TrimEnd('/'))}/protos/{platform}/{build}";
 
     public async Task DispatchAsync(INotificationEvent evt, CancellationToken ct = default) {
         var subs = await store.ActiveAsync(ct);
@@ -23,15 +24,18 @@ public sealed class FeedDispatcher(
             if (!evt.Matches(sub)) continue;
             if (await store.AlreadyDeliveredAsync(sub.Id, evt.EventKind, evt.DedupKey, ct)) continue;
 
-            int? code = null; var ok = false;
+            int? code = null;
+            bool ok = false;
             try {
-                var body = evt.BuildBody(sub.MessageTemplate);
+                string body = evt.BuildBody(sub.MessageTemplate);
                 var res = await http.PostAsync(sub.TargetUrl,
-                    new StringContent(body, System.Text.Encoding.UTF8, "application/json"), ct);
+                    new StringContent(body, Encoding.UTF8, "application/json"), ct);
                 code = (int)res.StatusCode;
                 ok = res.IsSuccessStatusCode;
                 if (code is 404 or 410) await store.SetActiveAsync(sub.Id, false, ct);
-            } catch (Exception ex) { logger.LogWarning(ex, "feed dispatch to sub {Id} threw", sub.Id); }
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "feed dispatch to sub {Id} threw", sub.Id);
+            }
 
             await store.RecordAsync(new FeedDelivery {
                 SubscriptionId = sub.Id,
@@ -40,7 +44,7 @@ public sealed class FeedDispatcher(
                 Status = ok ? "sent" : "failed",
                 AttemptedAt = DateTimeOffset.UtcNow,
                 ResponseCode = code,
-                Attempts = 1,
+                Attempts = 1
             }, ct);
 
             if (ok) {

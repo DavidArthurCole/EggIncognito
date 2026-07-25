@@ -1,3 +1,4 @@
+using System.Net;
 using Bunit;
 using EggIncognito.Components.Pages;
 using Microsoft.AspNetCore.Http;
@@ -6,9 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-
 public class ImportPageTests {
-
     [Collection(SharedAppCollection.Name)]
     public class Integration(SharedAppFactory f) {
         private readonly WebApplicationFactory<Program> _f = f;
@@ -17,8 +16,8 @@ public class ImportPageTests {
         public async Task Import_RendersDropzoneShell() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/import");
-            Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
-            var html = await r.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            string html = await r.Content.ReadAsStringAsync();
             Assert.Contains("Drop a HAR or .mitm file here", html);
             Assert.Contains("class=\"panel\"", html);
             Assert.Contains("dropzone", html);

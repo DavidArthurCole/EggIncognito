@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
+using Ei;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
-
 
 [Collection(SharedAppCollection.Name)]
 public class InspectorDecodeResponseTests(SharedAppFactory f) {
@@ -11,13 +11,13 @@ public class InspectorDecodeResponseTests(SharedAppFactory f) {
 
     [Fact]
     public async Task DecodesKnownResponse() {
-        var msg = new Ei.PeriodicalsResponse();
-        var b64 = System.Convert.ToBase64String(msg.ToByteArray());
+        var msg = new PeriodicalsResponse();
+        string b64 = Convert.ToBase64String(msg.ToByteArray());
         var c = _factory.CreateClient();
         var r = await c.PostAsJsonAsync("/api/inspector/decode-response",
             new { rawBase64 = b64, responseType = "PeriodicalsResponse" });
         Assert.True(r.IsSuccessStatusCode);
-        var txt = await r.Content.ReadAsStringAsync();
+        string txt = await r.Content.ReadAsStringAsync();
         Assert.DoesNotContain("\"error\":\"not valid base64", txt);
     }
 

@@ -1,3 +1,4 @@
+using Ei;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Hosting;
 
@@ -16,6 +17,7 @@ public sealed class EggIncApiFactory : EgiTestFactory {
                 return Path.Combine(dir.FullName, "EggIncognito.Tests", "TestFixtures");
             dir = dir.Parent;
         }
+
         return Path.Combine(AppContext.BaseDirectory, "TestFixtures");
     }
 }
@@ -35,7 +37,7 @@ public class IntegrationTests(EggIncApiFactory factory) {
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent(null));
         response.EnsureSuccessStatusCode();
 
-        var result = await DecodeResponse<Ei.EggIncFirstContactResponse>(response);
+        var result = await DecodeResponse<EggIncFirstContactResponse>(response);
 
         Assert.Equal("EI0000000000000001", result.EiUserId);
         Assert.Equal("MockPlayer", result.Backup.UserName);
@@ -48,7 +50,7 @@ public class IntegrationTests(EggIncApiFactory factory) {
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent(eid));
         response.EnsureSuccessStatusCode();
 
-        var result = await DecodeResponse<Ei.EggIncFirstContactResponse>(response);
+        var result = await DecodeResponse<EggIncFirstContactResponse>(response);
 
         Assert.Equal(eid, result.EiUserId);
         Assert.Equal("TestPlayer2", result.Backup.UserName);
@@ -60,7 +62,7 @@ public class IntegrationTests(EggIncApiFactory factory) {
         var response = await _client.PostAsync("/ei/first_contact_secure", MakeFormContent("EI9999999999999999"));
         response.EnsureSuccessStatusCode();
 
-        var result = await DecodeResponse<Ei.EggIncFirstContactResponse>(response);
+        var result = await DecodeResponse<EggIncFirstContactResponse>(response);
 
         Assert.Equal("EI0000000000000001", result.EiUserId);
     }
@@ -70,7 +72,7 @@ public class IntegrationTests(EggIncApiFactory factory) {
         var response = await _client.PostAsync("/ei/get_periodicals", MakeFormContent(null));
         response.EnsureSuccessStatusCode();
 
-        var result = await DecodeResponse<Ei.PeriodicalsResponse>(response);
+        var result = await DecodeResponse<PeriodicalsResponse>(response);
 
         Assert.Equal(2, result.Events.Events.Count);
     }
@@ -80,7 +82,7 @@ public class IntegrationTests(EggIncApiFactory factory) {
         var response = await _client.PostAsync("/ei/get_periodicals", MakeFormContent("EI0000000000000002"));
         response.EnsureSuccessStatusCode();
 
-        var result = await DecodeResponse<Ei.PeriodicalsResponse>(response);
+        var result = await DecodeResponse<PeriodicalsResponse>(response);
 
         Assert.Equal(3, result.Events.Events.Count);
     }
@@ -90,11 +92,11 @@ public class IntegrationTests(EggIncApiFactory factory) {
         var response = await _client.PostAsync("/ei_afx/launch_mission", MakeFormContent(null));
         response.EnsureSuccessStatusCode();
 
-        var result = await DecodeResponse<Ei.MissionResponse>(response);
+        var result = await DecodeResponse<MissionResponse>(response);
 
         Assert.True(result.Success);
-        Assert.Equal(Ei.MissionInfo.Types.Spaceship.Henerprise, result.Info.Ship);
-        Assert.Equal(Ei.MissionInfo.Types.Status.Exploring, result.Info.Status);
+        Assert.Equal(MissionInfo.Types.Spaceship.Henerprise, result.Info.Ship);
+        Assert.Equal(MissionInfo.Types.Status.Exploring, result.Info.Status);
     }
 
     [Fact]
@@ -102,15 +104,14 @@ public class IntegrationTests(EggIncApiFactory factory) {
         var response = await _client.PostAsync("/ei/get_contracts", MakeFormContent(null));
         response.EnsureSuccessStatusCode();
 
-        var result = await DecodeResponse<Ei.ContractsResponse>(response);
+        var result = await DecodeResponse<ContractsResponse>(response);
 
         Assert.True(result.Contracts.Count > 0);
     }
 
     [Fact]
     public async Task AllEndpoints_DoNotReturn500() {
-        string[] paths =
-        [
+        string[] paths = [
             "/ei/first_contact_secure",
             "/ei/get_periodicals",
             "/ei/get_contracts",
@@ -118,10 +119,10 @@ public class IntegrationTests(EggIncApiFactory factory) {
             "/ei/daily_gift_info",
             "/ei_afx/launch_mission",
             "/ei_afx/sync_mission",
-            "/ei/coop_status",
+            "/ei/coop_status"
         ];
 
-        foreach (var path in paths) {
+        foreach (string path in paths) {
             var response = await _client.PostAsync(path, MakeFormContent("EI0000000000000002"));
             Assert.True(
                 (int)response.StatusCode < 500,
@@ -139,9 +140,9 @@ public class IntegrationTests(EggIncApiFactory factory) {
     public async Task Sim_Empty_Returns200WithValidBase64Proto() {
         var response = await _client.PostAsync("/ei/first_contact_secure?sim=empty", MakeFormContent(null));
         Assert.Equal(200, (int)response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        var bytes = Convert.FromBase64String(body);
-        var msg = Ei.AuthenticatedMessage.Parser.ParseFrom(bytes);
+        string body = await response.Content.ReadAsStringAsync();
+        byte[] bytes = Convert.FromBase64String(body);
+        var msg = AuthenticatedMessage.Parser.ParseFrom(bytes);
         Assert.NotNull(msg);
     }
 
@@ -149,7 +150,7 @@ public class IntegrationTests(EggIncApiFactory factory) {
     public async Task Sim_Corrupt_Returns200WithInvalidBase64() {
         var response = await _client.PostAsync("/ei/first_contact_secure?sim=corrupt", MakeFormContent(null));
         Assert.Equal(200, (int)response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
+        string body = await response.Content.ReadAsStringAsync();
         Assert.Throws<FormatException>(() => Convert.FromBase64String(body));
     }
 
@@ -163,9 +164,10 @@ public class IntegrationTests(EggIncApiFactory factory) {
 
     [Fact]
     public async Task Sim_UnknownName_Returns400WithErrorJson() {
-        var response = await _client.PostAsync("/ei/first_contact_secure?sim=not_a_real_behavior", MakeFormContent(null));
+        var response =
+            await _client.PostAsync("/ei/first_contact_secure?sim=not_a_real_behavior", MakeFormContent(null));
         Assert.Equal(400, (int)response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
+        string body = await response.Content.ReadAsStringAsync();
         Assert.Contains("unknown sim", body);
         Assert.Contains("server_error", body);
     }
@@ -175,7 +177,7 @@ public class IntegrationTests(EggIncApiFactory factory) {
         var request = new HttpRequestMessage(HttpMethod.Options, "/");
         var response = await _client.SendAsync(request);
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync();
+        string body = await response.Content.ReadAsStringAsync();
         Assert.Contains("server_error", body);
         Assert.Contains("empty", body);
         Assert.Contains("corrupt", body);
@@ -187,22 +189,22 @@ public class IntegrationTests(EggIncApiFactory factory) {
         var request = new HttpRequestMessage(HttpMethod.Options, "/ei/first_contact_secure");
         var response = await _client.SendAsync(request);
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync();
+        string body = await response.Content.ReadAsStringAsync();
         Assert.Contains("server_error", body);
     }
 
     private static FormUrlEncodedContent MakeFormContent(string? eid) {
-        var msg = new Ei.AuthenticatedMessage();
+        var msg = new AuthenticatedMessage();
         if (!string.IsNullOrEmpty(eid))
             msg.UserId = eid;
-        var encoded = Convert.ToBase64String(msg.ToByteArray());
+        string encoded = Convert.ToBase64String(msg.ToByteArray());
         return new FormUrlEncodedContent([new KeyValuePair<string, string>("data", encoded)]);
     }
 
     private static async Task<T> DecodeResponse<T>(HttpResponseMessage response)
         where T : IMessage<T>, new() {
-        var body = await response.Content.ReadAsStringAsync();
-        var bytes = Convert.FromBase64String(body);
+        string body = await response.Content.ReadAsStringAsync();
+        byte[] bytes = Convert.FromBase64String(body);
         return new MessageParser<T>(() => new T()).ParseFrom(bytes);
     }
 }

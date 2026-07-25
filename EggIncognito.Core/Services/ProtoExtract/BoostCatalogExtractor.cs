@@ -10,40 +10,42 @@ public static partial class BoostCatalogExtractor {
     private const int StructStride = 0x88;
     private const int DescFieldOffset = 0x30;
 
-    public readonly record struct BoostEntry(string Id, string? DisplayName, string? Description);
-    public readonly record struct Result(bool Ok, IReadOnlyList<BoostEntry> Entries, string Diagnostics);
-
     [GeneratedRegex("^[a-z][a-z0-9_]+$")]
     private static partial Regex IdPattern();
 
     public static Result Extract(byte[] bin) => ExtractWith(bin, MachoSymbols.Read(bin), MachoSections.Read(bin));
 
-    public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyList<MachoSections.Section> sections) {
+    public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
+        IReadOnlyList<MachoSections.Section> sections) {
         var read = StaticInitCatalogReader.ReadWith(bin, syms, sections, InitSymbol, IsBoostId);
-        if (!read.Ok) return new(false, [], read.Diagnostics);
+        if (!read.Ok) return new Result(false, [], read.Diagnostics);
 
         var decoded = DecodeMemberDescriptions(bin, syms, sections, read.Entries);
         if (decoded is null) {
             var fallback = read.Entries.Select(e => new BoostEntry(e.Id, e.DisplayName, e.Description)).ToList();
-            var fallbackDesc = fallback.Count(e => e.Description is not null);
-            return new(true, fallback, $"{fallback.Count} boosts, {fallbackDesc} with description, member decode unavailable, reader descriptions only");
+            int fallbackDesc = fallback.Count(e => e.Description is not null);
+            return new Result(true, fallback,
+                $"{fallback.Count} boosts, {fallbackDesc} with description, member decode unavailable, reader descriptions only");
         }
 
         var outp = read.Entries
-            .Select((e, k) => new BoostEntry(e.Id, e.DisplayName, decoded.TryGetValue(k, out var d) ? d : null))
+            .Select((e, k) => new BoostEntry(e.Id, e.DisplayName, decoded.GetValueOrDefault(k)))
             .ToList();
-        return new(true, outp, $"{outp.Count} boosts, {decoded.Count} with description");
+        return new Result(true, outp, $"{outp.Count} boosts, {decoded.Count} with description");
     }
 
     private static bool IsBoostId(string s)
         => s.Length >= 4 && IdPattern().IsMatch(s) && !s.StartsWith("bd", StringComparison.Ordinal);
 
-    private static Dictionary<int, string>? DecodeMemberDescriptions(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
+    private static Dictionary<int, string>? DecodeMemberDescriptions(byte[] bin,
+        IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections, IReadOnlyList<StaticInitCatalogReader.Entry> entries) {
         var expected = new Dictionary<int, string>();
-        for (var k = 0; k < entries.Count; k++) {
-            if (entries[k].Description is { } d) expected[k] = d;
+        for (int k = 0; k < entries.Count; k++) {
+            if (entries[k].Description is { } d)
+                expected[k] = d;
         }
+
         if (expected.Count == 0) return null;
 
         var lst = Arm64DataTableReader.ListWith(bin, syms, [InitSymbol], 100_000);
@@ -56,7 +58,7 @@ public static partial class BoostCatalogExtractor {
         var storeTargets = new List<ulong>();
         var descStores = new List<(ulong Va, ulong AllocSize)>();
         var sizeText = new Dictionary<ulong, string>();
-        var conflict = false;
+        bool conflict = false;
 
         void ClearX0Imm(string reg) {
             if (reg is "x0" or "w0") x0Imm = null;
@@ -82,7 +84,11 @@ public static partial class BoostCatalogExtractor {
 
         bool RecordStoreTarget(string memToken, out ulong va) {
             va = 0;
-            if (!TryMem(memToken, out var baseReg, out var off) || !page.TryGetValue(baseReg, out var baseVa)) return false;
+            if (!TryMem(memToken, out string baseReg, out ulong off) ||
+                !page.TryGetValue(baseReg, out ulong baseVa)) {
+                return false;
+            }
+
             va = baseVa + off;
             storeTargets.Add(va);
             return true;
@@ -92,47 +98,56 @@ public static partial class BoostCatalogExtractor {
             var ops = SplitOps(i.Operands);
             switch (i.Mnemonic) {
                 case "adrp":
-                    if (ops.Count == 2 && TryImm(ops[1], out var pg)) SetPage(ops[0], pg);
+                    if (ops.Count == 2 && TryImm(ops[1], out ulong pg)) SetPage(ops[0], pg);
                     else if (ops.Count >= 1) ClobberReg(ops[0]);
                     break;
 
                 case "add":
-                    if (ops.Count == 3 && page.TryGetValue(ops[1], out var addBase) && TryImm(ops[2], out var addOff)) {
-                        var full = addBase + addOff;
+                    if (ops.Count == 3 && page.TryGetValue(ops[1], out ulong addBase) &&
+                        TryImm(ops[2], out ulong addOff)) {
+                        ulong full = addBase + addOff;
                         SetPage(ops[0], full);
-                        if (activeAlloc is { } sz && TryReadDescription(bin, sections, full, out var text)) {
-                            if (sizeText.TryGetValue(sz, out var prev) && prev != text) conflict = true;
+                        if (activeAlloc is { } sz && TryReadDescription(bin, sections, full, out string text)) {
+                            if (sizeText.TryGetValue(sz, out string? prev) && prev != text) conflict = true;
                             else sizeText[sz] = text;
                         }
                     } else if (ops.Count >= 1 && LooksLikeGpr(ops[0])) {
                         ClobberReg(ops[0]);
                     }
+
                     break;
 
                 case "mov":
                     if (ops.Count == 2 && LooksLikeGpr(ops[0])) {
-                        if (page.TryGetValue(ops[1], out var mv)) {
+                        if (page.TryGetValue(ops[1], out ulong mv)) {
                             SetPage(ops[0], mv);
                         } else if (allocRegs.Contains(ops[1])) {
                             page.Remove(ops[0]);
                             ClearX0Imm(ops[0]);
                             allocRegs.Add(ops[0]);
-                        } else if (TryImm(ops[1], out var mc)) {
+                        } else if (TryImm(ops[1], out ulong mc)) {
                             SetImm(ops[0], mc);
                         } else {
                             ClobberReg(ops[0]);
                         }
                     }
+
                     break;
 
                 case "movz":
-                    if (ops.Count >= 2 && LooksLikeGpr(ops[0]) && TryImm(ops[1], out var mz)) SetImm(ops[0], mz << ShiftOf(ops));
+                    if (ops.Count >= 2 && LooksLikeGpr(ops[0]) && TryImm(ops[1], out ulong mz))
+                        SetImm(ops[0], mz << ShiftOf(ops));
                     else if (ops.Count >= 1) ClobberReg(ops[0]);
                     break;
 
                 case "orr":
-                    if (ops.Count == 3 && LooksLikeGpr(ops[0]) && ops[1] is "wzr" or "xzr" && TryImm(ops[2], out var oi)) SetImm(ops[0], oi);
-                    else if (ops.Count >= 1) ClobberReg(ops[0]);
+                    if (ops.Count == 3 && LooksLikeGpr(ops[0]) && ops[1] is "wzr" or "xzr" &&
+                        TryImm(ops[2], out ulong oi)) {
+                        SetImm(ops[0], oi);
+                    } else if (ops.Count >= 1) {
+                        ClobberReg(ops[0]);
+                    }
+
                     break;
 
                 case "bl":
@@ -142,21 +157,25 @@ public static partial class BoostCatalogExtractor {
                         allocRegs.Clear();
                         allocRegs.Add("x0");
                     } else {
-                        for (var r = 0; r <= 17; r++) allocRegs.Remove("x" + r.ToString(CultureInfo.InvariantCulture));
+                        for (int r = 0; r <= 17; r++)
+                            allocRegs.Remove("x" + r.ToString(CultureInfo.InvariantCulture));
                     }
+
                     x0Imm = null;
-                    for (var r = 0; r <= 17; r++) {
+                    for (int r = 0; r <= 17; r++) {
                         page.Remove("x" + r.ToString(CultureInfo.InvariantCulture));
                         page.Remove("w" + r.ToString(CultureInfo.InvariantCulture));
                     }
+
                     break;
 
                 case "str":
                 case "stur":
-                    if (ops.Count >= 2 && RecordStoreTarget(ops[^1], out var strVa)
-                        && activeAlloc is { } strAlloc && allocRegs.Contains(ops[0])) {
+                    if (ops.Count >= 2 && RecordStoreTarget(ops[^1], out ulong strVa)
+                                       && activeAlloc is { } strAlloc && allocRegs.Contains(ops[0])) {
                         descStores.Add((strVa, strAlloc));
                     }
+
                     break;
 
                 case "strb":
@@ -180,6 +199,7 @@ public static partial class BoostCatalogExtractor {
                         if (LooksLikeGpr(ops[0])) ClobberReg(ops[0]);
                         if (LooksLikeGpr(ops[1])) ClobberReg(ops[1]);
                     }
+
                     break;
 
                 default:
@@ -191,16 +211,18 @@ public static partial class BoostCatalogExtractor {
         if (conflict || sizeText.Count == 0 || descStores.Count == 0) return null;
 
         var candidates = new HashSet<ulong>(storeTargets);
-        foreach (var (va, _) in descStores) {
-            for (var k = 0; k < entries.Count; k++) {
-                var rel = (ulong)(DescFieldOffset + k * StructStride);
+        foreach ((ulong va, ulong _) in descStores) {
+            for (int k = 0; k < entries.Count; k++) {
+                ulong rel = (ulong)(DescFieldOffset + k * StructStride);
                 if (va >= rel) candidates.Add(va - rel);
             }
         }
 
-        foreach (var candidateBase in candidates.Order()) {
-            if (TryGroupsForBase(candidateBase, descStores, sizeText, entries.Count, expected, out var groups)) return groups;
+        foreach (ulong candidateBase in candidates.Order()) {
+            if (TryGroupsForBase(candidateBase, descStores, sizeText, entries.Count, expected, out var groups))
+                return groups;
         }
+
         return null;
     }
 
@@ -208,32 +230,36 @@ public static partial class BoostCatalogExtractor {
         Dictionary<ulong, string> sizeText, int entryCount, IReadOnlyDictionary<int, string> expected,
         out Dictionary<int, string> groups) {
         groups = [];
-        foreach (var (va, size) in descStores) {
+        foreach ((ulong va, ulong size) in descStores) {
             if (va < baseVa) continue;
-            var rel = va - baseVa;
+            ulong rel = va - baseVa;
             if (rel % StructStride != DescFieldOffset) continue;
-            var k = (int)(rel / StructStride);
+            int k = (int)(rel / StructStride);
             if (k >= entryCount) continue;
-            if (!sizeText.TryGetValue(size, out var text)) continue;
-            if (groups.TryGetValue(k, out var prev) && prev != text) return false;
+            if (!sizeText.TryGetValue(size, out string? text)) continue;
+            if (groups.TryGetValue(k, out string? prev) && prev != text) return false;
             groups[k] = text;
         }
+
         if (groups.Count == 0) return false;
         foreach (var kv in expected) {
-            if (!groups.TryGetValue(kv.Key, out var g) || g != kv.Value) return false;
+            if (!groups.TryGetValue(kv.Key, out string? g) || g != kv.Value)
+                return false;
         }
+
         return true;
     }
 
-    private static bool TryReadDescription(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va, out string desc) {
+    private static bool TryReadDescription(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va,
+        out string desc) {
         desc = "";
-        if (!MachoSections.TryVaToFileOffset(sections, va, out var fo, out var owner)) return false;
+        if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out var owner)) return false;
         if (owner.Name != "__cstring") return false;
-        var end = fo;
+        int end = fo;
         while (end < bin.Length && bin[end] != 0) end++;
-        var s = Encoding.UTF8.GetString(bin, fo, end - fo);
+        string s = Encoding.UTF8.GetString(bin, fo, end - fo);
         if (s.Length < 2 || s[0] != '\x1b') return false;
-        var body = s[1] == 'z' ? s[2..] : s[1..];
+        string body = s[1] == 'z' ? s[2..] : s[1..];
         if (body.Length == 0) return false;
         desc = body;
         return true;
@@ -241,19 +267,19 @@ public static partial class BoostCatalogExtractor {
 
     private static bool IsNonWriting(string mnemonic)
         => mnemonic is "cmp" or "cmn" or "ccmp" or "tst" or "fcmp" or "b" or "ret" or "nop"
-            || mnemonic.StartsWith("b.", StringComparison.Ordinal)
-            || mnemonic.StartsWith("cb", StringComparison.Ordinal)
-            || mnemonic.StartsWith("tb", StringComparison.Ordinal);
+           || mnemonic.StartsWith("b.", StringComparison.Ordinal)
+           || mnemonic.StartsWith("cb", StringComparison.Ordinal)
+           || mnemonic.StartsWith("tb", StringComparison.Ordinal);
 
     private static bool LooksLikeGpr(string tok)
         => tok.Length >= 2 && (tok[0] == 'x' || tok[0] == 'w') && char.IsDigit(tok[1]);
 
     private static List<string> SplitOps(string operands) {
         var outp = new List<string>();
-        var depth = 0;
-        var start = 0;
-        for (var k = 0; k < operands.Length; k++) {
-            var c = operands[k];
+        int depth = 0;
+        int start = 0;
+        for (int k = 0; k < operands.Length; k++) {
+            char c = operands[k];
             if (c == '[') {
                 depth++;
             } else if (c == ']') {
@@ -263,33 +289,34 @@ public static partial class BoostCatalogExtractor {
                 start = k + 1;
             }
         }
+
         if (start < operands.Length) outp.Add(operands[start..].Trim());
         return outp;
     }
 
     private static bool TryImm(string token, out ulong value) {
         value = 0;
-        var t = token.Trim();
+        string t = token.Trim();
         if (t.StartsWith('#')) t = t[1..];
         if (t.EndsWith('!')) t = t[..^1];
         t = t.Trim();
-        var neg = t.StartsWith('-');
+        bool neg = t.StartsWith('-');
         if (neg) t = t[1..];
-        var ok = t.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+        bool ok = t.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
             ? ulong.TryParse(t[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value)
             : ulong.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-        if (ok && neg) value = (ulong)(-(long)value);
+        if (ok && neg) value = (ulong)-(long)value;
         return ok;
     }
 
     private static bool TryMem(string token, out string reg, out ulong off) {
         reg = "";
         off = 0;
-        var t = token.Trim();
-        var lb = t.IndexOf('[');
-        var rb = t.IndexOf(']');
+        string t = token.Trim();
+        int lb = t.IndexOf('[');
+        int rb = t.IndexOf(']');
         if (lb < 0 || rb < 0 || rb < lb) return false;
-        var inner = t[(lb + 1)..rb];
+        string inner = t[(lb + 1)..rb];
         var parts = SplitOps(inner);
         if (parts.Count == 0) return false;
         reg = parts[0].Trim();
@@ -298,11 +325,18 @@ public static partial class BoostCatalogExtractor {
     }
 
     private static int ShiftOf(IReadOnlyList<string> ops) {
-        foreach (var o in ops) {
-            var t = o.Trim();
-            if (t.StartsWith("lsl", StringComparison.OrdinalIgnoreCase) && TryImm(t[3..].TrimStart('#', ' '), out var s))
+        foreach (string o in ops) {
+            string t = o.Trim();
+            if (t.StartsWith("lsl", StringComparison.OrdinalIgnoreCase) &&
+                TryImm(t[3..].TrimStart('#', ' '), out ulong s)) {
                 return (int)s;
+            }
         }
+
         return 0;
     }
+
+    public readonly record struct BoostEntry(string Id, string? DisplayName, string? Description);
+
+    public readonly record struct Result(bool Ok, IReadOnlyList<BoostEntry> Entries, string Diagnostics);
 }

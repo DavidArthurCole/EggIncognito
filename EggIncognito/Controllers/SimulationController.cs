@@ -1,10 +1,11 @@
 using EggIncognito.Services;
+using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EggIncognito.Controllers;
 
 [ApiController]
-[EggIncognito.Services.Auth.ApiAccess(EggIncognito.Services.Auth.ApiAccessLevel.Public)]
+[ApiAccess(ApiAccessLevel.Public)]
 public class SimulationController(IBehaviorService behaviors) : ControllerBase {
     [HttpOptions("/")]
     public IActionResult GetAll() => Ok(behaviors.All());

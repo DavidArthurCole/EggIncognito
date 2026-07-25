@@ -202,13 +202,13 @@
 
                 if (string.IsNullOrWhiteSpace(_saveClientVersion)) {
                     var cv = sameApp.Select(r => r.ClientVersion).FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
-                    if (!string.IsNullOrWhiteSpace(cv)) _saveClientVersion = cv!;
+                    if (!string.IsNullOrWhiteSpace(cv)) _saveClientVersion = cv;
                 }
 
                 if (string.IsNullOrWhiteSpace(_saveBuild)) {
                     var b = sameApp.Where(r => string.Equals(r.Platform, _savePlatform, StringComparison.OrdinalIgnoreCase))
                         .Select(r => r.Build).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
-                    if (!string.IsNullOrWhiteSpace(b)) _saveBuild = b!;
+                    if (!string.IsNullOrWhiteSpace(b)) _saveBuild = b;
                 }
             }
             catch {

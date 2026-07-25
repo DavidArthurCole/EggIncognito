@@ -6,19 +6,20 @@ public class CaptureSessionManagerTests {
     internal static string RealContentRoot() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null) {
-            var candidate = Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
+            string candidate = Path.Combine(dir.FullName, "EggIncognito", "RouteMap", "routes.yaml");
             if (File.Exists(candidate)) return Path.Combine(dir.FullName, "EggIncognito");
             dir = dir.Parent;
         }
+
         throw new InvalidOperationException("Could not locate the EggIncognito project content root.");
     }
 
     internal static CaptureSession NewSession(int port, FakeCaptureProxy? fake = null) {
-        var tmp = Path.Combine(Path.GetTempPath(), "egi-mgr-" + Guid.NewGuid().ToString("N"));
+        string tmp = Path.Combine(Path.GetTempPath(), "egi-mgr-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tmp);
-        var opts = new CaptureSessionOptions(Port: port, Eid: null, Label: null,
-            Overwrite: false, Verbose: false, CapturePath: tmp, CaPath: Path.Combine(tmp, "ca.cer"),
-            WriteEndpoints: false);
+        var opts = new CaptureSessionOptions(port, null, null,
+            false, false, tmp, Path.Combine(tmp, "ca.cer"),
+            false);
         return new CaptureSession(RealContentRoot(), opts, _ => fake ?? new FakeCaptureProxy());
     }
 
@@ -56,7 +57,7 @@ public class CaptureSessionManagerTests {
 
     [Fact]
     public void CapacityCap_Throws() {
-        var m = NewManager(maxSessions: 2);
+        var m = NewManager(2);
         m.GetOrCreate("user-a");
         m.GetOrCreate("user-b");
         Assert.Throws<CaptureCapacityException>(() => m.GetOrCreate("user-c"));
@@ -64,7 +65,7 @@ public class CaptureSessionManagerTests {
 
     [Fact]
     public void LocalKey_IsExemptFromCap() {
-        var m = NewManager(maxSessions: 1);
+        var m = NewManager(1);
         m.GetOrCreate("user-a");
         var local = m.GetOrCreate(CaptureSessionManager.LocalKey);
         Assert.NotNull(local);

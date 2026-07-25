@@ -10,14 +10,19 @@ public static class IosProtoExtractor {
         }
 
         byte[] bytes;
-        try { bytes = File.ReadAllBytes(binaryPath); } catch (Exception e) { Console.Error.WriteLine($"__extract-proto: read failed: {e.Message}"); return 1; }
+        try {
+            bytes = File.ReadAllBytes(binaryPath);
+        } catch (Exception e) {
+            Console.Error.WriteLine($"__extract-proto: read failed: {e.Message}");
+            return 1;
+        }
 
 
         bool isZip = bytes.Length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04;
         var result = isZip ? ArchiveProtoExtractor.Extract(bytes) : DescriptorProtoCarver.Extract(bytes);
         Console.Error.WriteLine($"__extract-proto: {result.Diagnostics}"
-            + (result.AppVersion is { } v ? $" appVersion={v}" : "")
-            + (result.Build is { } b ? $" build={b}" : ""));
+                                + (result.AppVersion is { } v ? $" appVersion={v}" : "")
+                                + (result.Build is { } b ? $" build={b}" : ""));
         if (!result.Ok || result.Proto is null)
             return 2;
 

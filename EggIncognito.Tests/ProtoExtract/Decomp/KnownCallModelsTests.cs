@@ -11,7 +11,8 @@ public class KnownCallModelsTests {
     }
 
     [Fact]
-    public void Cosf_MapsToCosUnary() => Assert.Equal(UnOp.Cos, Assert.IsType<Unary>(KnownCallModels.Resolve("_cosf", [new Input("t")])).Op);
+    public void Cosf_MapsToCosUnary() => Assert.Equal(UnOp.Cos,
+        Assert.IsType<Unary>(KnownCallModels.Resolve("_cosf", [new Input("t")])).Op);
 
     [Fact]
     public void AddParticle_IsSink_CapturesFirstArg() {

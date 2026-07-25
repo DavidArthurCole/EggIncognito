@@ -5,36 +5,36 @@ using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Services;
 
-public sealed class EndpointStore(IEndpointSource fileSource, IServiceScopeFactory? scopeFactory, ILogger<EndpointStore> logger) : IEndpointStore {
-    private readonly IEndpointSource _fileSource = fileSource;
-    private readonly IServiceScopeFactory? _scopeFactory = scopeFactory;
-    private readonly ILogger<EndpointStore> _logger = logger;
-
+public sealed class EndpointStore(
+    IEndpointSource fileSource,
+    IServiceScopeFactory? scopeFactory,
+    ILogger<EndpointStore> logger) : IEndpointStore {
     public TRes Get<TRes>(string path, string? eid = null) where TRes : IMessage<TRes>, new() {
-        var bytes = LookupBytes(path, eid);
+        byte[]? bytes = LookupBytes(path, eid);
         return bytes is null ? new TRes() : JsonParser.Default.Parse<TRes>(Encoding.UTF8.GetString(bytes));
     }
 
 
-    public IMessage Get(System.Type messageType, string path, string? eid = null) {
+    public IMessage Get(Type messageType, string path, string? eid = null) {
         var instance = (IMessage)Activator.CreateInstance(messageType)!;
-        var bytes = LookupBytes(path, eid);
+        byte[]? bytes = LookupBytes(path, eid);
         return bytes is null ? instance : JsonParser.Default.Parse(Encoding.UTF8.GetString(bytes), instance.Descriptor);
     }
 
     internal byte[]? LookupBytes(string path, string? eid) {
-        if (_scopeFactory is not null) {
+        if (scopeFactory is not null) {
             try {
-                using var scope = _scopeFactory.CreateScope();
+                using var scope = scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetService<DbEndpointSourceMarker>()?.Source;
-                var hit = db?.Lookup(path, eid);
+                byte[]? hit = db?.Lookup(path, eid);
                 if (hit is not null) return hit;
             } catch (Exception ex) {
-
-                _logger.LogWarning(ex, "DB endpoint lookup failed for {Path} (eid {Eid}); using file default", path, eid);
+                logger.LogWarning(ex, "DB endpoint lookup failed for {Path} (eid {Eid}); using file default", path,
+                    eid);
             }
         }
-        return _fileSource.Lookup(path, eid);
+
+        return fileSource.Lookup(path, eid);
     }
 }
 

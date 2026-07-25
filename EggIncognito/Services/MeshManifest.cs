@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using EggIncognito.Services.Assets;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
@@ -6,7 +7,7 @@ namespace EggIncognito.Services;
 public static class MeshManifest {
     public static object From(RpoAssetExtractor.ExtractResult r) {
         var ships = r.Assets.Where(a => a.Decode.Ok).Select(a => {
-            var glb = a.Decode.Glb!;
+            byte[] glb = a.Decode.Glb!;
             var b = a.Decode.Bounds!;
             return new {
                 key = a.Key,
@@ -16,7 +17,7 @@ public static class MeshManifest {
                 hasEmission = a.Decode.HasEmission,
                 bbox = new { min = new[] { b.Min.X, b.Min.Y, b.Min.Z }, max = new[] { b.Max.X, b.Max.Y, b.Max.Z } },
                 sha256 = Convert.ToHexStringLower(SHA256.HashData(glb)),
-                glbBase64 = Convert.ToBase64String(glb),
+                glbBase64 = Convert.ToBase64String(glb)
             };
         }).ToList();
 
@@ -27,16 +28,15 @@ public static class MeshManifest {
     }
 
 
-
     public static object Ships(RpoAssetExtractor.ExtractResult r, string? build, bool wroteToDisk, string? outputDir,
-        EggIncognito.Services.Assets.GltfAnimator.Options? animate = null) {
+        GltfAnimator.Options? animate = null) {
         var export = ShipAssetExporter.Build(r, build, animate);
         var ships = export.Ships.Select(s => new {
             enumName = s.EnumName,
             file = s.Entry.File,
             sha256 = s.Entry.Sha256,
             bbox = new { min = s.Entry.Bbox.Min, max = s.Entry.Bbox.Max },
-            glbBase64 = Convert.ToBase64String(s.Glb),
+            glbBase64 = Convert.ToBase64String(s.Glb)
         }).ToList();
 
         return new {
@@ -46,7 +46,7 @@ public static class MeshManifest {
             ships,
             skipped = export.SkippedShips,
             wroteToDisk,
-            outputDir = wroteToDisk ? outputDir : null,
+            outputDir = wroteToDisk ? outputDir : null
         };
     }
 }

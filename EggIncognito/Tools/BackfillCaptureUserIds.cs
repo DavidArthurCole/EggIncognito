@@ -1,3 +1,4 @@
+using System.Data;
 using EggIncognito.Data.Services;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -5,20 +6,19 @@ using SyncKit.Identity.Client;
 
 namespace EggIncognito.Tools;
 
-
 public static class CaptureUserIdBackfill {
     public static async Task<int> RunAsync(EggIncognitoDbContext db, IdentityApiClient identity, CancellationToken ct) {
-        var updated = 0;
+        int updated = 0;
         var addrRows = await db.CaptureProxyAddrs.Where(a => a.UserId == Guid.Empty).ToListAsync(ct);
         foreach (var row in addrRows) {
-            var result = await identity.ResolveAsync("discord", row.DiscordId!, row.DiscordId, username: null, avatar: null, ct);
+            var result = await identity.ResolveAsync("discord", row.DiscordId!, row.DiscordId, null, null, ct);
             row.UserId = result.UserId;
             updated++;
         }
 
         var caRows = await db.CaptureUserCas.Where(c => c.UserId == Guid.Empty).ToListAsync(ct);
         foreach (var row in caRows) {
-            var result = await identity.ResolveAsync("discord", row.DiscordId!, row.DiscordId, username: null, avatar: null, ct);
+            var result = await identity.ResolveAsync("discord", row.DiscordId!, row.DiscordId, null, null, ct);
             row.UserId = result.UserId;
             updated++;
         }
@@ -29,40 +29,39 @@ public static class CaptureUserIdBackfill {
 }
 
 public static class OwnerAuthorUserIdBackfill {
-    private static readonly (string Table, string Column)[] Targets =
-    [
+    private static readonly (string Table, string Column)[] Targets = [
         ("docs", "owner_user_id"),
         ("doc_images", "owner_user_id"),
         ("env_designs", "owner_user_id"),
         ("env_design_versions", "author_user_id"),
         ("stored_endpoints", "owner_user_id"),
         ("stored_routes", "owner_user_id"),
-        ("feed_subscriptions", "owner_user_id"),
+        ("feed_subscriptions", "owner_user_id")
     ];
 
     public static async Task<int> RunAsync(EggIncognitoDbContext db, IdentityApiClient identity, CancellationToken ct) {
         var conn = (NpgsqlConnection)db.Database.GetDbConnection();
-        if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync(ct);
+        if (conn.State != ConnectionState.Open) await conn.OpenAsync(ct);
 
-        var updated = 0;
+        int updated = 0;
 
 
         var cache = new Dictionary<string, Guid>();
 
-        foreach (var (table, column) in Targets) {
+        foreach ((string table, string column) in Targets) {
             var discordIds = new List<string>();
             await using (var select = new NpgsqlCommand(
-                $"SELECT DISTINCT {column} FROM {table} WHERE {column} IS NOT NULL " +
-                $"AND {column} !~ '^[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}$'",
-                conn))
+                             $"SELECT DISTINCT {column} FROM {table} WHERE {column} IS NOT NULL " +
+                             $"AND {column} !~ '^[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}$'",
+                             conn))
             await using (var reader = await select.ExecuteReaderAsync(ct)) {
                 while (await reader.ReadAsync(ct))
                     discordIds.Add(reader.GetString(0));
             }
 
-            foreach (var discordId in discordIds) {
+            foreach (string discordId in discordIds) {
                 if (!cache.TryGetValue(discordId, out var userId)) {
-                    var result = await identity.ResolveAsync("discord", discordId, discordId, username: null, avatar: null, ct);
+                    var result = await identity.ResolveAsync("discord", discordId, discordId, null, null, ct);
                     userId = result.UserId;
                     cache[discordId] = userId;
                 }

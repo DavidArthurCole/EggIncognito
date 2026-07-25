@@ -3,8 +3,12 @@ namespace EggIncognito.Services.Feed;
 public sealed record FeedTriggerOption(string Value, string Label);
 
 public sealed record FeedEventKindInfo(
-    string Key, string Label, IReadOnlyList<FeedTriggerOption> Triggers,
-    IReadOnlyList<string> Vars, string DefaultTrigger, bool PlatformScoped);
+    string Key,
+    string Label,
+    IReadOnlyList<FeedTriggerOption> Triggers,
+    IReadOnlyList<string> Vars,
+    string DefaultTrigger,
+    bool PlatformScoped);
 
 public static class FeedEventKinds {
     public const string ProtoBuild = "proto_build";
@@ -12,20 +16,23 @@ public static class FeedEventKinds {
 
     public static readonly FeedEventKindInfo Proto = new(
         ProtoBuild, "Proto build",
-        [new("proto_changed", "Proto changed"), new("new_version", "Any new version")],
+        [
+            new FeedTriggerOption("proto_changed", "Proto changed"),
+            new FeedTriggerOption("new_version", "Any new version")
+        ],
         ["platform", "appVersion", "build", "clientVersion", "protoSha", "protoChanged", "pageUrl"],
-        "proto_changed", PlatformScoped: true);
+        "proto_changed", true);
 
     public static readonly FeedEventKindInfo Periodicals = new(
         PeriodicalsChanged, "Periodicals changed",
         [
-            new("any", "Any feed"),
-            new("periodicals", "get_periodicals"),
-            new("afx-config", "ei_afx/config"),
-            new("season-infos", "get_season_infos_v2"),
+            new FeedTriggerOption("any", "Any feed"),
+            new FeedTriggerOption("periodicals", "get_periodicals"),
+            new FeedTriggerOption("afx-config", "ei_afx/config"),
+            new FeedTriggerOption("season-infos", "get_season_infos_v2")
         ],
         ["feed", "sha", "pageUrl"],
-        "any", PlatformScoped: false);
+        "any", false);
 
     public static readonly IReadOnlyList<FeedEventKindInfo> All = [Proto, Periodicals];
 

@@ -51,8 +51,10 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         });
         modelBuilder.Entity<Tag>(t => t.HasIndex(x => x.Slug).IsUnique());
         modelBuilder.Entity<SubjectTag>(s => s.HasIndex(x => new { x.SubjectKind, x.SubjectKey, x.TagId }).IsUnique());
-        modelBuilder.Entity<DocImage>(im => im.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd());
-        modelBuilder.Entity<CaptureUserCa>(c => c.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd());
+        modelBuilder.Entity<DocImage>(im =>
+            im.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd());
+        modelBuilder.Entity<CaptureUserCa>(c =>
+            c.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd());
         modelBuilder.Entity<CaptureProxyAddr>(a => {
             a.HasIndex(x => x.Addr).IsUnique();
             a.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();

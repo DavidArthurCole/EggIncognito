@@ -11,7 +11,7 @@ public class HomePageTests(SharedAppFactory f) {
         using var client = _factory.CreateClient();
         var res = await client.GetAsync("/");
         res.EnsureSuccessStatusCode();
-        var html = await res.Content.ReadAsStringAsync();
+        string html = await res.Content.ReadAsStringAsync();
         Assert.Contains("Inspector", html);
         Assert.Contains("/support", html);
     }

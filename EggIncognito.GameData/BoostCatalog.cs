@@ -14,15 +14,16 @@ public sealed record BoostCatalogEntry(
 
 public interface IBoostCatalog {
     IReadOnlyList<BoostCatalogEntry> Boosts { get; }
-    BoostCatalogEntry? Find(string id);
     string BinaryVersion { get; }
     IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    BoostCatalogEntry? Find(string id);
 }
 
 public sealed class BoostCatalog : IBoostCatalog {
     private readonly Dictionary<string, BoostCatalogEntry> _byId;
 
-    private BoostCatalog(IReadOnlyList<BoostCatalogEntry> boosts, string binaryVersion, IReadOnlyDictionary<string, ProvenanceSource> provenance) {
+    private BoostCatalog(IReadOnlyList<BoostCatalogEntry> boosts, string binaryVersion,
+        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
         Boosts = boosts;
         BinaryVersion = binaryVersion;
         Provenance = provenance;
@@ -42,19 +43,18 @@ public sealed class BoostCatalog : IBoostCatalog {
     }
 
     private static BoostCatalogEntry ToEntry(BoostCatalogRow row) {
-        if (string.IsNullOrEmpty(row.Id)) {
-            throw new GameDataSchemaException("Boost catalog row missing id.");
-        }
-        return string.IsNullOrEmpty(row.IconAsset)
-            ? throw new GameDataSchemaException($"Boost catalog '{row.Id}' missing iconAsset.")
-            : new BoostCatalogEntry(
-            row.Id,
-            row.DisplayName,
-            row.Description,
-            row.Price,
-            row.TokenPrice,
-            row.SeRequired,
-            row.IconAsset);
+        return string.IsNullOrEmpty(row.Id)
+            ? throw new GameDataSchemaException("Boost catalog row missing id.")
+            : string.IsNullOrEmpty(row.IconAsset)
+                ? throw new GameDataSchemaException($"Boost catalog '{row.Id}' missing iconAsset.")
+                : new BoostCatalogEntry(
+                    row.Id,
+                    row.DisplayName,
+                    row.Description,
+                    row.Price,
+                    row.TokenPrice,
+                    row.SeRequired,
+                    row.IconAsset);
     }
 }
 
@@ -80,14 +80,14 @@ public static class BoostCatalogDataLoader {
 
     public static BoostCatalogDataFile Read(string resourceName) {
         var assembly = Assembly.GetExecutingAssembly();
-        var full = assembly.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
+        string full = assembly.GetManifestResourceNames()
+                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
+                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
 
         using var stream = assembly.GetManifestResourceStream(full)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
+                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
 
         return JsonSerializer.Deserialize<BoostCatalogDataFile>(stream, Options)
-            ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
+               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
     }
 }

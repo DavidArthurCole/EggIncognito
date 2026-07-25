@@ -8,7 +8,7 @@ public sealed class AndroidDeviceAssetReader(IProcessRunner runner) : IDeviceAss
     public string Platform => "android";
 
     public async Task<byte[]?> ReadAsync(Device device, DeviceAssetKind kind, string name, CancellationToken ct) {
-        var apk = await PullApkAsync(device, ct);
+        byte[]? apk = await PullApkAsync(device, ct);
         return apk is null
             ? null
             : kind switch {
@@ -19,7 +19,7 @@ public sealed class AndroidDeviceAssetReader(IProcessRunner runner) : IDeviceAss
     }
 
     public async Task<IReadOnlyList<string>> ListAsync(Device device, DeviceAssetKind kind, CancellationToken ct) {
-        var apk = await PullApkAsync(device, ct);
+        byte[]? apk = await PullApkAsync(device, ct);
         return apk is null
             ? []
             : kind switch {

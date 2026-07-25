@@ -5,7 +5,7 @@ public sealed class BoostStackingTests {
 
     [Fact]
     public void Two_beacons_stack_additively_to_six_not_seven() {
-        var effective = Provider.Effective(EffectTarget.BeaconMult, 1, new Dictionary<string, int> {
+        double effective = Provider.Effective(EffectTarget.BeaconMult, 1, new Dictionary<string, int> {
             ["boost_beacon_blue"] = 1,
             ["boost_beacon_blue_big"] = 1
         });
@@ -14,7 +14,7 @@ public sealed class BoostStackingTests {
 
     [Fact]
     public void Single_beacon_gives_its_multiplier() {
-        var effective = Provider.Effective(EffectTarget.BeaconMult, 1, new Dictionary<string, int> {
+        double effective = Provider.Effective(EffectTarget.BeaconMult, 1, new Dictionary<string, int> {
             ["boost_beacon_orange"] = 1
         });
         Assert.Equal(50, effective);

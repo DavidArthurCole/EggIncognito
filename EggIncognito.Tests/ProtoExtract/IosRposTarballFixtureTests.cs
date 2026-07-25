@@ -8,15 +8,16 @@ public class IosRposTarballFixtureTests {
     private static string? FindFixture() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null) {
-            var candidate = Path.Combine(dir.FullName, "captures", "egi-repos.tgz");
+            string candidate = Path.Combine(dir.FullName, "captures", "egi-repos.tgz");
             if (File.Exists(candidate)) return candidate;
             dir = dir.Parent;
         }
+
         return null;
     }
 
     private static byte[] Gunzip(byte[] gz) {
-        using var input = new MemoryStream(gz, writable: false);
+        using var input = new MemoryStream(gz, false);
         using var dec = new GZipStream(input, CompressionMode.Decompress);
         using var output = new MemoryStream();
         dec.CopyTo(output);
@@ -25,16 +26,17 @@ public class IosRposTarballFixtureTests {
 
     [Fact]
     public void RealDeviceTarball_ParsesAndDecodes() {
-        var fixture = FindFixture();
+        string? fixture = FindFixture();
         if (fixture is null) return;
 
-        var plainTar = Gunzip(File.ReadAllBytes(fixture!));
+        byte[] plainTar = Gunzip(File.ReadAllBytes(fixture));
 
         var entries = TarReader.Read(plainTar);
         Assert.Equal(327, entries.Count);
         Assert.DoesNotContain(entries, e => e.Name.EndsWith('/'));
         Assert.All(entries, e => Assert.True(e.Bytes.Length >= 4 &&
-            e.Bytes[0] == (byte)'R' && e.Bytes[1] == (byte)'P' && e.Bytes[2] == (byte)'O' && e.Bytes[3] == (byte)'1',
+                                             e.Bytes[0] == (byte)'R' && e.Bytes[1] == (byte)'P' &&
+                                             e.Bytes[2] == (byte)'O' && e.Bytes[3] == (byte)'1',
             $"{e.Name} is not RPO1"));
 
         var result = RpoAssetExtractor.FromEntries(entries.Select(e => (e.Name, e.Bytes)));

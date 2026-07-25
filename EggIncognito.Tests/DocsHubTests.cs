@@ -1,3 +1,4 @@
+using System.Net;
 using Bunit;
 using EggIncognito.Components.Shared;
 using EggIncognito.Services;
@@ -16,15 +17,15 @@ public class DocsHubTests {
         public async Task DocsRoute_StillResponds() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/docs");
-            Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         }
 
         [Fact]
         public async Task SubjectTags_ConfigKind_Accepted() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/api/docs/subject-tags/config/AppMode");
-            Assert.Equal(System.Net.HttpStatusCode.OK, r.StatusCode);
-            var body = await r.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            string body = await r.Content.ReadAsStringAsync();
             Assert.Equal("[]", body.Trim());
         }
     }

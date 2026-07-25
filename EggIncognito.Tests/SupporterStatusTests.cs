@@ -8,13 +8,13 @@ public class SupporterStatusTests {
 
     [Fact]
     public void ParseHasRole_RolePresent_True() {
-        var json = $$"""{"user":{"id":"1"},"roles":["111","{{RoleId}}","222"]}""";
+        const string json = $$"""{"user":{"id":"1"},"roles":["111","{{RoleId}}","222"]}""";
         Assert.True(SupporterStatus.ParseHasRole(json, RoleId));
     }
 
     [Fact]
     public void ParseHasRole_RoleAbsent_False() {
-        var json = """{"roles":["111","222"]}""";
+        const string json = """{"roles":["111","222"]}""";
         Assert.False(SupporterStatus.ParseHasRole(json, RoleId));
     }
 

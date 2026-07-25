@@ -3,7 +3,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-
 public sealed class OpenApiBuilderTests {
     private static readonly ProtoReflection Reflection = new();
 
@@ -137,8 +136,8 @@ public sealed class OpenApiBuilderTests {
 
     [Fact]
     public void NullResponseType_OmitsContent_KeepsDescription() {
-        using var doc = Build(Entry("ei/showcase_vote", request: null, response: null,
-            requestWrapped: true, responseWrapped: true));
+        using var doc = Build(Entry("ei/showcase_vote", null, null,
+            true, true));
         var ok = doc.RootElement.GetProperty("paths").GetProperty("/ei/showcase_vote")
             .GetProperty("post").GetProperty("responses").GetProperty("200");
         Assert.False(ok.TryGetProperty("content", out _));
@@ -146,13 +145,12 @@ public sealed class OpenApiBuilderTests {
     }
 
 
-
     [Fact]
     public void FullRealCatalog_Builds_AndEveryRefResolves() {
-        var root = RepoRoot();
-        var yamlPath = Path.Combine(root, "EggIncognito", "RouteMap", "routes.yaml");
-        var jsonPath = Path.Combine(root, "EggIncognito", "RouteMap", "auxbrain-paths.json");
-        var defaultsDir = Path.Combine(root, "EggIncognito", "Endpoints", "default");
+        string root = RepoRoot();
+        string yamlPath = Path.Combine(root, "EggIncognito", "RouteMap", "routes.yaml");
+        string jsonPath = Path.Combine(root, "EggIncognito", "RouteMap", "auxbrain-paths.json");
+        string defaultsDir = Path.Combine(root, "EggIncognito", "Endpoints", "default");
 
         var entries = AuxbrainCatalog.Build(
             new RouteCatalog(yamlPath).All(),
@@ -171,9 +169,9 @@ public sealed class OpenApiBuilderTests {
         var refs = new List<string>();
         CollectRefs(doc.RootElement, refs);
         Assert.NotEmpty(refs);
-        foreach (var r in refs.Distinct()) {
+        foreach (string r in refs.Distinct()) {
             Assert.StartsWith("#/components/schemas/", r);
-            var name = r["#/components/schemas/".Length..];
+            string name = r["#/components/schemas/".Length..];
             Assert.True(schemas.TryGetProperty(name, out _), $"unresolved $ref {r}");
         }
     }
@@ -186,6 +184,7 @@ public sealed class OpenApiBuilderTests {
                         refs.Add(p.Value.GetString()!);
                     else CollectRefs(p.Value, refs);
                 }
+
                 break;
             case JsonValueKind.Array:
                 foreach (var item in element.EnumerateArray()) CollectRefs(item, refs);
@@ -200,6 +199,7 @@ public sealed class OpenApiBuilderTests {
                 return dir.FullName;
             dir = dir.Parent;
         }
+
         return Directory.GetCurrentDirectory();
     }
 }

@@ -3,8 +3,7 @@ namespace EggIncognito.GameData.Tests;
 public sealed class SchemaAndParityTests {
     private static readonly IGameDataProvider Provider = GameDataProvider.CreateDefault();
 
-    private static readonly string[] HatcheryBoostIds =
-    [
+    private static readonly string[] HatcheryBoostIds = [
         "tachyon_prism_blue", "tachyon_prism_blue_v2", "tachyon_prism_blue_big",
         "tachyon_prism_purple", "tachyon_prism_purple_v2", "tachyon_prism_purple_big",
         "tachyon_prism_orange", "tachyon_prism_orange_big",
@@ -12,16 +11,16 @@ public sealed class SchemaAndParityTests {
         "quantum_bulb", "dilithium_bulb"
     ];
 
+    private static readonly string[] AllowedOrigins = ["binary", "config", "fixture", "derived"];
+
     [Fact]
     public void Every_hatchery_boost_id_has_an_effect_row() {
-        foreach (var id in HatcheryBoostIds) {
-            Assert.NotNull(Provider.Resolve("boost", id));
-        }
+        foreach (string id in HatcheryBoostIds) Assert.NotNull(Provider.Resolve("boost", id));
     }
 
     [Fact]
     public void Every_hatchery_boost_carries_a_cost_from_get_config() {
-        foreach (var id in HatcheryBoostIds) {
+        foreach (string id in HatcheryBoostIds) {
             var e = Provider.Resolve("boost", id)!;
             Assert.True(e.TryMeta("price", out _), $"{id} missing price");
             Assert.True(e.TryMeta("tokenPrice", out _), $"{id} missing tokenPrice");
@@ -41,25 +40,23 @@ public sealed class SchemaAndParityTests {
         Assert.Equal(8, beacon.MetaInt("tokenPrice"));
     }
 
-    private static readonly string[] AllowedOrigins = ["binary", "config", "fixture", "derived"];
-
     private static IEnumerable<(string Dataset, string Aspect, ProvenanceSource Source)> AllProvenance() {
         foreach (var f in Provider.Families) {
-            foreach (var (aspect, src) in f.Provenance)
+            foreach ((string aspect, var src) in f.Provenance)
                 yield return (f.Key, aspect, src);
         }
 
-        foreach (var (aspect, src) in Provider.Colleggtibles.Provenance)
+        foreach ((string aspect, var src) in Provider.Colleggtibles.Provenance)
             yield return ("colleggtibles", aspect, src);
-        foreach (var (aspect, src) in Provider.BoostCatalog.Provenance)
+        foreach ((string aspect, var src) in Provider.BoostCatalog.Provenance)
             yield return ("boost-catalog", aspect, src);
-        foreach (var (aspect, src) in Provider.EggCatalog.Provenance)
+        foreach ((string aspect, var src) in Provider.EggCatalog.Provenance)
             yield return ("egg-catalog", aspect, src);
-        foreach (var (aspect, src) in Provider.Dimensions.Provenance)
+        foreach ((string aspect, var src) in Provider.Dimensions.Provenance)
             yield return ("dimension", aspect, src);
-        foreach (var (aspect, src) in Provider.Missions.Provenance)
+        foreach ((string aspect, var src) in Provider.Missions.Provenance)
             yield return ("mission", aspect, src);
-        foreach (var (aspect, src) in Provider.Vehicles.Provenance)
+        foreach ((string aspect, var src) in Provider.Vehicles.Provenance)
             yield return ("vehicle", aspect, src);
     }
 
@@ -72,7 +69,8 @@ public sealed class SchemaAndParityTests {
     }
 
     [Fact]
-    public void Every_provenance_origin_is_from_the_game_binary_or_wire() => Assert.All(AllProvenance(), p => Assert.Contains(p.Source.Origin, AllowedOrigins));
+    public void Every_provenance_origin_is_from_the_game_binary_or_wire() =>
+        Assert.All(AllProvenance(), p => Assert.Contains(p.Source.Origin, AllowedOrigins));
 
     [Fact]
     public void No_provenance_is_sourced_from_egg9000() {

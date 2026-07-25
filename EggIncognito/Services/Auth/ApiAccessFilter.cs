@@ -29,6 +29,7 @@ public sealed class ApiAccessFilter : IAsyncAuthorizationFilter {
                 if (!user.IsAtLeast(UserRole.Admin)) context.Result = Deny(403, "admin role required");
                 break;
         }
+
         return Task.CompletedTask;
     }
 

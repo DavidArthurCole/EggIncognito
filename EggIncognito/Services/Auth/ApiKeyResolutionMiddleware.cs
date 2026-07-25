@@ -10,6 +10,7 @@ public sealed class ApiKeyResolutionMiddleware(RequestDelegate next) {
             if (result.Succeeded && result.Principal is not null)
                 ctx.User = result.Principal;
         }
+
         await next(ctx);
     }
 

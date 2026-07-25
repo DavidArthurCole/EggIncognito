@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace EggIncognito.Services.ProtoExtract;
 
 public static class MachoSections {
@@ -6,8 +8,6 @@ public static class MachoSections {
     private const uint FatMagicLe = 0xBEBAFECA;
     private const uint CpuArm64 = 0x0100000C;
     private const uint LcSegment64 = 0x19;
-
-    public readonly record struct Section(string Segment, string Name, ulong VmAddr, ulong VmSize, int FileOff, int MachoBase);
 
     public static IReadOnlyList<Section> Read(byte[] bin) {
         var result = new List<Section>();
@@ -20,6 +20,7 @@ public static class MachoSections {
                 if (machoBase + 32 > bin.Length) return result;
                 magic = U32(bin, machoBase);
             }
+
             if (magic != MhMagic64) return result;
 
             uint ncmds = U32(bin, machoBase + 16);
@@ -28,7 +29,7 @@ public static class MachoSections {
                 if (lc + 8 > bin.Length) return result;
                 uint cmd = U32(bin, lc);
                 uint cmdsize = U32(bin, lc + 4);
-                if (cmdsize < 8 || lc + (long)cmdsize > bin.Length) return result;
+                if (cmdsize < 8 || lc + cmdsize > bin.Length) return result;
                 if (cmd == LcSegment64) {
                     string seg = Cstr16(bin, lc + 8);
                     uint nsects = U32(bin, lc + 64);
@@ -43,13 +44,18 @@ public static class MachoSections {
                         sec += 80;
                     }
                 }
+
                 lc += (int)cmdsize;
             }
-        } catch { return result; }
+        } catch {
+            return result;
+        }
+
         return result;
     }
 
-    public static bool TryVaToFileOffset(IReadOnlyList<Section> sections, ulong va, out int fileOff, out Section owner) {
+    public static bool TryVaToFileOffset(IReadOnlyList<Section> sections, ulong va, out int fileOff,
+        out Section owner) {
         foreach (var s in sections) {
             if (s.VmSize == 0) continue;
             if (va >= s.VmAddr && va < s.VmAddr + s.VmSize) {
@@ -61,14 +67,18 @@ public static class MachoSections {
                 }
             }
         }
+
         fileOff = 0;
         owner = default;
         return false;
     }
 
     public static Section? Find(IReadOnlyList<Section> sections, string segment, string name) {
-        foreach (var s in sections)
-            if (s.Segment == segment && s.Name == name) return s;
+        foreach (var s in sections) {
+            if (s.Segment == segment && s.Name == name)
+                return s;
+        }
+
         return null;
     }
 
@@ -81,9 +91,14 @@ public static class MachoSections {
             if (e + 20 > b.Length) return false;
             uint cputype = U32be(b, e);
             uint off = U32be(b, e + 8);
-            if (cputype == CpuArm64) { offset = (int)off; return true; }
+            if (cputype == CpuArm64) {
+                offset = (int)off;
+                return true;
+            }
+
             e += 20;
         }
+
         return false;
     }
 
@@ -100,6 +115,14 @@ public static class MachoSections {
         int end = o;
         int max = Math.Min(o + 16, b.Length);
         while (end < max && b[end] != 0) end++;
-        return System.Text.Encoding.ASCII.GetString(b, o, end - o);
+        return Encoding.ASCII.GetString(b, o, end - o);
     }
+
+    public readonly record struct Section(
+        string Segment,
+        string Name,
+        ulong VmAddr,
+        ulong VmSize,
+        int FileOff,
+        int MachoBase);
 }

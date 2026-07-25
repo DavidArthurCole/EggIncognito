@@ -1,4 +1,7 @@
+using System.Collections.Concurrent;
+using System.Net.Http.Headers;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using EggIncognito.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -11,25 +14,30 @@ namespace EggIncognito.Capture;
 
 public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy {
     private const string RootCaName = "EggIncognito Capture Root";
-
-    private IHost? _host;
-    private LanForwarder? _forwarder;
-    private readonly ProxyServerEvents _events = new();
-    private X509Certificate2? _rootCa;
-    private bool _trustAdded;
-
-    private sealed record PendingRequest(DateTime StashedAtUtc, string? Data, IReadOnlyList<HttpHeader> Headers);
     internal static readonly TimeSpan PendingTtl = TimeSpan.FromMinutes(2);
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, PendingRequest> _pendingRequests = new();
-    private DateTime _lastSweepUtc = DateTime.UtcNow;
-
 
 
     private static readonly TimeSpan TrustGrace = TimeSpan.FromSeconds(25);
+    private readonly ProxyServerEvents _events = new();
+    private readonly ConcurrentDictionary<string, PendingRequest> _pendingRequests = new();
     private readonly Lock _trustGate = new();
+
+    private int _flowErrors;
+    private LanForwarder? _forwarder;
+
+    private IHost? _host;
+    private DateTime _lastSweepUtc = DateTime.UtcNow;
+    private X509Certificate2? _rootCa;
+    private bool _trustAdded;
     private bool _trustProven;
-    private bool _untrustedReported;
     private Timer? _trustTimer;
+    private bool _untrustedReported;
+
+
+    public bool LanForwarderEnabled { get; init; } = true;
+    public bool TrustCaInOsStore { get; init; } = true;
+    public int FlowErrorCount => Volatile.Read(ref _flowErrors);
+    internal int PendingRequestCount => _pendingRequests.Count;
 
     public bool FreshCa { get; private set; }
     public string? RootThumbprint => _rootCa?.Thumbprint;
@@ -46,40 +54,24 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
 
     public bool Verbose { get; set; } = verbose;
 
-
-
-    public bool LanForwarderEnabled { get; init; } = true;
-    public bool TrustCaInOsStore { get; init; } = true;
-
     public event Action<string>? Trace;
-    private void Log(string msg) { if (Verbose) Trace?.Invoke(msg); }
-
-    private int _flowErrors;
-    public int FlowErrorCount => Volatile.Read(ref _flowErrors);
-    internal void ReportFlowError(string stage, Exception ex) {
-        Interlocked.Increment(ref _flowErrors);
-        Log($"{stage}-ERR {ex.Message}");
-        DecryptError?.Invoke($"Capture {stage} handler failed: {ex.Message}");
-    }
 
     public async Task StartAsync(int port, string caPath, CancellationToken ct) {
-        var certDir = Path.GetDirectoryName(Path.GetFullPath(caPath))!;
+        string certDir = Path.GetDirectoryName(Path.GetFullPath(caPath))!;
         Directory.CreateDirectory(certDir);
 
 
-
-        var caCacheDir = Path.Combine(certDir, ".ca");
+        string caCacheDir = Path.Combine(certDir, ".ca");
         Directory.CreateDirectory(caCacheDir);
 
-        var pfxPath = Path.Combine(caCacheDir, "root.pfx");
+        string pfxPath = Path.Combine(caCacheDir, "root.pfx");
         FreshCa = !File.Exists(pfxPath);
 
         WireEvents();
 
 
-
-        var internalPort = port + 1;
-        var internalHttpsPort = port + 2;
+        int internalPort = port + 1;
+        int internalHttpsPort = port + 2;
 
         var builder = Host.CreateApplicationBuilder();
 
@@ -94,7 +86,6 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
             o.HttpsPort = internalHttpsPort;
         });
         builder.Services.Configure<CertificateManagerConfiguration>(o => {
-
             o.CachePath = caCacheDir;
             o.RootCertificateName = RootCaName;
             o.CacheRootCertificate = true;
@@ -106,18 +97,55 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
         await _host.StartAsync(ct);
 
         if (LanForwarderEnabled) {
-            _forwarder = new LanForwarder(publicPort: port, proxyPort: internalPort) {
+            _forwarder = new LanForwarder(port, internalPort) {
                 Trace = Log,
                 DeviceConnected = (ip, n) => ClientConnected?.Invoke(n, ip),
-                DeviceDisconnected = (ip, n) => ClientDisconnected?.Invoke(n, ip),
+                DeviceDisconnected = (ip, n) => ClientDisconnected?.Invoke(n, ip)
             };
             _forwarder.Start();
         }
 
         var cm = _host.Services.GetRequiredService<ICertificateManager>();
-        _rootCa = await cm.GetRootCertificateAsync(includePrivateKey: false, ct);
+        _rootCa = await cm.GetRootCertificateAsync(false, ct);
         await File.WriteAllBytesAsync(caPath, _rootCa.Export(X509ContentType.Cert), ct);
         if (TrustCaInOsStore) TrustRootCa(_rootCa);
+    }
+
+    public async Task StopAsync() {
+        UntrustRootCa();
+
+        lock (_trustGate) {
+            _trustTimer?.Dispose();
+            _trustTimer = null;
+        }
+
+        if (_forwarder is not null) {
+            var f = _forwarder;
+            _forwarder = null;
+            await WithTimeout(f.DisposeAsync().AsTask(), TimeSpan.FromMilliseconds(500));
+        }
+
+        if (_host is not null) {
+            var h = _host;
+            _host = null;
+            await WithTimeout(h.StopAsync(), TimeSpan.FromMilliseconds(800));
+            h.Dispose();
+        }
+    }
+
+    public async ValueTask DisposeAsync() {
+        await StopAsync();
+        _rootCa?.Dispose();
+    }
+
+    private void Log(string msg) {
+        if (Verbose) Trace?.Invoke(msg);
+    }
+
+    internal void ReportFlowError(string stage, Exception ex) {
+        Interlocked.Increment(ref _flowErrors);
+        Log($"{stage}-ERR {ex.Message}");
+        DecryptError?.Invoke($"Capture {stage} handler failed: {ex.Message}");
     }
 
     private void WireEvents() {
@@ -130,15 +158,18 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
 
     private void WireConnectDecision() {
         _events.ShouldDecryptNewConnection = (host, client, cts) => {
-            var decrypt = ShouldDecrypt(host);
+            bool decrypt = ShouldDecrypt(host);
             Log($"CONNECT {host}  decrypt={decrypt}");
             ConnectSeen?.Invoke(host, decrypt);
 
-            if (decrypt) { AuxbrainConnect?.Invoke(); ArmTrustInference(host); }
+            if (decrypt) {
+                AuxbrainConnect?.Invoke();
+                ArmTrustInference(host);
+            }
+
             return Task.FromResult(decrypt);
         };
     }
-
 
 
     private void WireRequest() {
@@ -150,9 +181,10 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
                 _pendingRequests[e.RequestId] = new PendingRequest(DateTime.UtcNow, null, headers);
 
                 if (e.Request.Content is not null) {
-                    var bytes = await e.Request.Content.ReadAsByteArrayAsync(token);
-                    var data = WireBody.ExtractDataParam(System.Text.Encoding.UTF8.GetString(bytes));
-                    if (data is not null) _pendingRequests[e.RequestId] = new PendingRequest(DateTime.UtcNow, data, headers);
+                    byte[] bytes = await e.Request.Content.ReadAsByteArrayAsync(token);
+                    string? data = WireBody.ExtractDataParam(Encoding.UTF8.GetString(bytes));
+                    if (data is not null)
+                        _pendingRequests[e.RequestId] = new PendingRequest(DateTime.UtcNow, data, headers);
 
                     var fresh = new HttpRequestMessage(e.Request.Method, e.Request.RequestUri);
                     var content = new ByteArrayContent(bytes);
@@ -161,10 +193,14 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
                     fresh.Content = content;
                     foreach (var h in e.Request.Headers)
                         fresh.Headers.TryAddWithoutValidation(h.Key, h.Value);
-                    Log($"REQ  {e.Request.Method} {e.Request.RequestUri}  data={(data is null ? "none" : data.Length + "b64")}");
+                    Log(
+                        $"REQ  {e.Request.Method} {e.Request.RequestUri}  data={(data is null ? "none" : data.Length + "b64")}");
                     return RequestEventResponse.ModifyRequest(fresh);
                 }
-            } catch (Exception ex) { ReportFlowError("request", ex); }
+            } catch (Exception ex) {
+                ReportFlowError("request", ex);
+            }
+
             return RequestEventResponse.ContinueResponse();
         };
     }
@@ -174,15 +210,15 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
         _events.OnResponse += async (sender, e, token) => {
             try {
                 var uri = e.Request.RequestUri;
-                var host = uri?.Host ?? "";
+                string host = uri?.Host ?? "";
                 if (!AuxbrainHosts.IsAuxbrain(host) || e.Response.Content is null)
                     return ResponseEventResponse.ContinueResponse();
 
-                var respBytes = await e.Response.Content.ReadAsByteArrayAsync(token);
-                var (responseB64, shape) = WireBody.Normalize(respBytes);
-                var status = (int)e.Response.StatusCode;
+                byte[] respBytes = await e.Response.Content.ReadAsByteArrayAsync(token);
+                (string responseB64, string shape) = WireBody.Normalize(respBytes);
+                int status = (int)e.Response.StatusCode;
                 _pendingRequests.TryRemove(e.RequestId, out var pending);
-                var reqData = pending?.Data;
+                string? reqData = pending?.Data;
                 var reqHeaders = pending?.Headers;
                 var respHeaders = CollectHeaders(e.Response.Headers, e.Response.Content?.Headers);
                 Log($"RESP {host}  status={status}  shape={shape}  len={responseB64.Length}");
@@ -190,22 +226,27 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
                 FlowCaptured?.Invoke(new CapturedFlow(
                     uri!.ToString(), e.Request.Method.Method, status, reqData, responseB64,
                     reqHeaders, respHeaders));
-            } catch (Exception ex) { ReportFlowError("response", ex); }
+            } catch (Exception ex) {
+                ReportFlowError("response", ex);
+            }
+
             return ResponseEventResponse.ContinueResponse();
         };
     }
 
 
     private static List<HttpHeader> CollectHeaders(
-        System.Net.Http.Headers.HttpHeaders messageHeaders,
-        System.Net.Http.Headers.HttpHeaders? contentHeaders) {
+        HttpHeaders messageHeaders,
+        HttpHeaders? contentHeaders) {
         var list = new List<HttpHeader>();
-        void Add(System.Net.Http.Headers.HttpHeaders hs) {
+
+        void Add(HttpHeaders hs) {
             foreach (var h in hs) {
-                foreach (var v in h.Value)
+                foreach (string v in h.Value)
                     list.Add(new HttpHeader(h.Key, v));
             }
         }
+
         Add(messageHeaders);
         if (contentHeaders is not null) Add(contentHeaders);
         return list;
@@ -225,7 +266,6 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
 
     internal void StashPendingForTest(string requestId, DateTime stashedAtUtc) =>
         _pendingRequests[requestId] = new PendingRequest(stashedAtUtc, null, []);
-    internal int PendingRequestCount => _pendingRequests.Count;
 
     private void ArmTrustInference(string host) {
         lock (_trustGate) {
@@ -245,6 +285,7 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
             _trustTimer?.Dispose();
             _trustTimer = null;
         }
+
         if (wasReported) TrustRestored?.Invoke();
     }
 
@@ -255,8 +296,10 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
             _trustTimer?.Dispose();
             _trustTimer = null;
         }
+
         Log($"TRUST infer: no decrypted traffic from {host} within grace - CA likely untrusted");
-        DecryptError?.Invoke($"No decrypted traffic after connecting to {host} - is the CA installed and trusted on the device?");
+        DecryptError?.Invoke(
+            $"No decrypted traffic after connecting to {host} - is the CA installed and trusted on the device?");
     }
 
 
@@ -264,15 +307,23 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
         try {
             using var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
             store.Open(OpenFlags.ReadWrite);
-            foreach (var stale in store.Certificates.Find(X509FindType.FindBySubjectName, RootCaName, validOnly: false)) {
+            foreach (var stale in store.Certificates.Find(X509FindType.FindBySubjectName, RootCaName, false)) {
                 if (!stale.Thumbprint.Equals(cert.Thumbprint, StringComparison.OrdinalIgnoreCase)) {
-                    try { store.Remove(stale); } catch (Exception ex) { Log($"TRUST-PRUNE-ERR {ex.Message}"); }
+                    try {
+                        store.Remove(stale);
+                    } catch (Exception ex) {
+                        Log($"TRUST-PRUNE-ERR {ex.Message}");
+                    }
                 }
+
                 stale.Dispose();
             }
+
             if (!store.Certificates.Contains(cert)) store.Add(cert);
             _trustAdded = true;
-        } catch (Exception ex) { Log($"TRUST-ERR {ex.Message}"); }
+        } catch (Exception ex) {
+            Log($"TRUST-ERR {ex.Message}");
+        }
     }
 
     private void UntrustRootCa() {
@@ -282,31 +333,18 @@ public sealed class UnobtaniumCaptureProxy(bool verbose = false) : ICaptureProxy
             using var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
             store.Open(OpenFlags.ReadWrite);
             store.Remove(_rootCa);
-        } catch (Exception ex) { Log($"TRUST-ERR {ex.Message}"); }
-    }
-
-    public async Task StopAsync() {
-        UntrustRootCa();
-
-        lock (_trustGate) { _trustTimer?.Dispose(); _trustTimer = null; }
-
-        if (_forwarder is not null) {
-            var f = _forwarder; _forwarder = null;
-            await WithTimeout(f.DisposeAsync().AsTask(), TimeSpan.FromMilliseconds(500));
-        }
-        if (_host is not null) {
-            var h = _host; _host = null;
-            await WithTimeout(h.StopAsync(), TimeSpan.FromMilliseconds(800));
-            h.Dispose();
+        } catch (Exception ex) {
+            Log($"TRUST-ERR {ex.Message}");
         }
     }
 
     private static async Task WithTimeout(Task task, TimeSpan timeout) {
-        try { await Task.WhenAny(task, Task.Delay(timeout)); } catch { /* best effort */ }
+        try {
+            await Task.WhenAny(task, Task.Delay(timeout));
+        } catch {
+            /* best effort */
+        }
     }
 
-    public async ValueTask DisposeAsync() {
-        await StopAsync();
-        _rootCa?.Dispose();
-    }
+    private sealed record PendingRequest(DateTime StashedAtUtc, string? Data, IReadOnlyList<HttpHeader> Headers);
 }

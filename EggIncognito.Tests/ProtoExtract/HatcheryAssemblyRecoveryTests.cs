@@ -2,7 +2,6 @@ using EggIncognito.Services.ProtoExtract.Decomp;
 
 namespace EggIncognito.Tests.ProtoExtract;
 
-
 public class HatcheryAssemblyRecoveryTests {
     [Fact]
     public void Recover_ShortBinary_NotOk() {
@@ -17,9 +16,9 @@ public class HatcheryAssemblyRecoveryTests {
         cells[13] = new Const(4.342);
         cells[14] = new Const(2.968);
         var m = new HatcheryAssemblyRecovery.Mat4(true, "$_2", cells, 0, "ok");
-        var t = m.Translation();
+        float[]? t = m.Translation();
         Assert.NotNull(t);
-        Assert.Equal(13.651f, t![0], 3);
+        Assert.Equal(13.651f, t[0], 3);
         Assert.Equal(4.342f, t[1], 3);
         Assert.Equal(2.968f, t[2], 3);
     }
@@ -33,7 +32,9 @@ public class HatcheryAssemblyRecoveryTests {
     [Fact]
     public void Mat4_ToJson_ShapesTranslation() {
         var cells = new ExprNode?[16];
-        cells[12] = new Const(1); cells[13] = new Const(2); cells[14] = new Const(3);
+        cells[12] = new Const(1);
+        cells[13] = new Const(2);
+        cells[14] = new Const(3);
         var json = new HatcheryAssemblyRecovery.Mat4(true, "$_2", cells, 1, "ok").ToJson();
         Assert.True((bool)json["ok"]!);
         Assert.Equal("$_2", (string)json["lambda"]!);
@@ -59,7 +60,6 @@ public class HatcheryAssemblyRecoveryTests {
 
     [Fact]
     public void Timing_ToJson_FlagsRandomFireDelay() {
-
         var json = new HatcheryAssemblyRecovery.Timing(null, true, 0.5f, 3, "ok").ToJson();
         Assert.Null(json["waitFor"]);
         Assert.True((bool)json["waitForRandom"]!);

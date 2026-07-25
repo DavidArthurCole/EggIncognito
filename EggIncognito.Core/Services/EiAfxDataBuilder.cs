@@ -1,4 +1,5 @@
 using System.Text;
+using Ei;
 
 namespace EggIncognito.Services;
 
@@ -35,19 +36,18 @@ public sealed record EiAfxTier(
 public static class EiAfxDataBuilder {
     private static readonly IReadOnlyDictionary<string, ProvenanceSource> DefaultProvenance =
         new Dictionary<string, ProvenanceSource>(StringComparer.Ordinal) {
-            ["families"] = new ProvenanceSource("fixture", "ei_afx/config", "captured"),
-            ["icons"] = new ProvenanceSource("config", "ei/get_config"),
+            ["families"] = new("fixture", "ei_afx/config", "captured"),
+            ["icons"] = new("config", "ei/get_config")
         };
 
-    private static readonly HashSet<string> IngredientNames =
-    [
+    private static readonly HashSet<string> IngredientNames = [
         "EXTRATERRESTRIAL_ALUMINUM", "ANCIENT_TUNGSTEN", "SPACE_ROCKS", "ALIEN_WOOD",
         "GOLD_METEORITE", "TAU_CETI_GEODE", "CENTAURIAN_STEEL", "ERIDANI_FEATHER",
-        "DRONE_PARTS", "CELESTIAL_BRONZE", "LALANDE_HIDE", "SOLAR_TITANIUM",
+        "DRONE_PARTS", "CELESTIAL_BRONZE", "LALANDE_HIDE", "SOLAR_TITANIUM"
     ];
 
     public static EiAfxData Build(
-        Ei.ArtifactsConfigurationResponse cfg,
+        ArtifactsConfigurationResponse cfg,
         IReadOnlyDictionary<string, string> icons) {
         var families = cfg.ArtifactParameters
             .Where(p => p.Spec is not null)
@@ -62,16 +62,16 @@ public static class EiAfxDataBuilder {
     public static EiAfxData BuildFromJson(
         string configJson,
         IReadOnlyDictionary<string, string> icons) =>
-        Build(Ei.ArtifactsConfigurationResponse.Parser.ParseJson(configJson), icons);
+        Build(ArtifactsConfigurationResponse.Parser.ParseJson(configJson), icons);
 
     private static EiAfxFamily BuildFamily(
-        Ei.ArtifactSpec.Types.Name name,
-        List<Ei.ArtifactsConfigurationResponse.Types.ArtifactParameters> rows,
+        ArtifactSpec.Types.Name name,
+        List<ArtifactsConfigurationResponse.Types.ArtifactParameters> rows,
         IReadOnlyDictionary<string, string> icons) {
-        var afxId = (int)name;
-        var screaming = Screaming(name);
-        var id = screaming.ToLowerInvariant().Replace('_', '-');
-        var (afxType, typeName) = Classify(screaming);
+        int afxId = (int)name;
+        string screaming = Screaming(name);
+        string id = screaming.ToLowerInvariant().Replace('_', '-');
+        (int afxType, string typeName) = Classify(screaming);
 
         var tiers = rows
             .GroupBy(r => r.Spec.Level)
@@ -84,33 +84,33 @@ public static class EiAfxDataBuilder {
 
     private static EiAfxTier BuildTier(
         string screaming, string familyId, int afxId,
-        Ei.ArtifactSpec.Types.Level level,
-        List<Ei.ArtifactsConfigurationResponse.Types.ArtifactParameters> rows,
+        ArtifactSpec.Types.Level level,
+        List<ArtifactsConfigurationResponse.Types.ArtifactParameters> rows,
         IReadOnlyDictionary<string, string> icons) {
-        var levelInt = (int)level;
-        var tierNumber = levelInt + 1;
+        int levelInt = (int)level;
+        int tierNumber = levelInt + 1;
 
         var rarities = rows.Select(r => (int)r.Spec.Rarity).Distinct().OrderBy(r => r).ToList();
         var byRarity = rows.ToDictionary(r => (int)r.Spec.Rarity, r => r);
         var baseRow = byRarity.TryGetValue(0, out var common) ? common : rows[0];
         var prices = rarities.Select(r => byRarity[r].CraftingPrice).ToList();
 
-        var stem = $"afx_{screaming.ToLowerInvariant()}_{tierNumber}";
-        var icon = icons.TryGetValue(stem, out var fn) ? fn : null;
+        string stem = $"afx_{screaming.ToLowerInvariant()}_{tierNumber}";
+        string? icon = icons.GetValueOrDefault(stem);
 
         return new EiAfxTier(
-            Id: $"{familyId}-{tierNumber}",
-            SpecName: screaming,
-            AfxId: afxId,
-            AfxLevel: levelInt,
-            TierNumber: tierNumber,
-            IconFilename: icon,
-            Quality: baseRow.BaseQuality,
-            Value: baseRow.Value,
-            Craftable: baseRow.CraftingPrice > 0,
-            BaseCraftingPrices: prices,
-            HasRarities: rarities.Count > 1,
-            PossibleAfxRarities: rarities);
+            $"{familyId}-{tierNumber}",
+            screaming,
+            afxId,
+            levelInt,
+            tierNumber,
+            icon,
+            baseRow.BaseQuality,
+            baseRow.Value,
+            baseRow.CraftingPrice > 0,
+            prices,
+            rarities.Count > 1,
+            rarities);
     }
 
     private static (int AfxType, string Name) Classify(string screaming) {
@@ -120,14 +120,15 @@ public static class EiAfxDataBuilder {
         return (0, "Artifact");
     }
 
-    private static string Screaming(Ei.ArtifactSpec.Types.Name name) {
-        var pascal = name.ToString();
+    private static string Screaming(ArtifactSpec.Types.Name name) {
+        string pascal = name.ToString();
         var sb = new StringBuilder(pascal.Length + 8);
-        for (var i = 0; i < pascal.Length; i++) {
-            var c = pascal[i];
+        for (int i = 0; i < pascal.Length; i++) {
+            char c = pascal[i];
             if (i > 0 && char.IsUpper(c)) sb.Append('_');
             sb.Append(char.ToUpperInvariant(c));
         }
+
         return sb.ToString();
     }
 }

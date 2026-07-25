@@ -29,7 +29,7 @@ public class CaptureSweeperTests {
     [Fact]
     public async Task IdleSession_IsStoppedAndRemoved() {
         var (sweeper, manager) = New();
-        var s = await StartedSession(manager, "user-a", age: TimeSpan.FromHours(1), sinceLastFlow: TimeSpan.FromMinutes(31));
+        var s = await StartedSession(manager, "user-a", TimeSpan.FromHours(1), TimeSpan.FromMinutes(31));
         await sweeper.SweepOnceAsync(Now);
         Assert.Equal(CaptureState.Stopped, s.State);
         Assert.Null(manager.Get("user-a"));
@@ -38,7 +38,7 @@ public class CaptureSweeperTests {
     [Fact]
     public async Task CappedSession_IsStopped_EvenWhenActive() {
         var (sweeper, manager) = New();
-        var s = await StartedSession(manager, "user-a", age: TimeSpan.FromHours(5), sinceLastFlow: TimeSpan.FromMinutes(1));
+        var s = await StartedSession(manager, "user-a", TimeSpan.FromHours(5), TimeSpan.FromMinutes(1));
         await sweeper.SweepOnceAsync(Now);
         Assert.Equal(CaptureState.Stopped, s.State);
         Assert.Null(manager.Get("user-a"));
@@ -47,7 +47,7 @@ public class CaptureSweeperTests {
     [Fact]
     public async Task FreshSession_IsLeftAlone() {
         var (sweeper, manager) = New();
-        var s = await StartedSession(manager, "user-a", age: TimeSpan.FromMinutes(10), sinceLastFlow: TimeSpan.FromMinutes(5));
+        var s = await StartedSession(manager, "user-a", TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(5));
         await sweeper.SweepOnceAsync(Now);
         Assert.Equal(CaptureState.Running, s.State);
         Assert.NotNull(manager.Get("user-a"));
@@ -58,7 +58,7 @@ public class CaptureSweeperTests {
     public async Task LocalSession_IsNeverSwept() {
         var (sweeper, manager) = New();
         var s = await StartedSession(manager, CaptureSessionManager.LocalKey,
-            age: TimeSpan.FromDays(2), sinceLastFlow: TimeSpan.FromDays(1));
+            TimeSpan.FromDays(2), TimeSpan.FromDays(1));
         await sweeper.SweepOnceAsync(Now);
         Assert.Equal(CaptureState.Running, s.State);
         Assert.NotNull(manager.Get(CaptureSessionManager.LocalKey));
@@ -68,7 +68,7 @@ public class CaptureSweeperTests {
     [Fact]
     public async Task StoppedSession_IsReleasedOnceIdle() {
         var (sweeper, manager) = New();
-        var s = await StartedSession(manager, "user-a", age: TimeSpan.FromHours(1), sinceLastFlow: TimeSpan.FromMinutes(31));
+        var s = await StartedSession(manager, "user-a", TimeSpan.FromHours(1), TimeSpan.FromMinutes(31));
         await s.StopAsync();
         await sweeper.SweepOnceAsync(Now);
         Assert.Null(manager.Get("user-a"));

@@ -2,48 +2,38 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
-
 public static class FarmPlacementRecovery {
-    public readonly record struct Vec3Model(
-        bool Ok, string Function, ExprNode? X, ExprNode? Y, ExprNode? Z, int OpaqueCount, string Diagnostics) {
-        public JsonObject ToJson() => new() {
-            ["ok"] = Ok,
-            ["function"] = Function,
-            ["x"] = X is null ? null : ExprNode.ToJson(X),
-            ["y"] = Y is null ? null : ExprNode.ToJson(Y),
-            ["z"] = Z is null ? null : ExprNode.ToJson(Z),
-            ["opaqueCount"] = OpaqueCount,
-            ["diagnostics"] = Diagnostics,
-        };
-    }
-
-
-
     private static readonly long[] FarmWidthFields = [0x3d0, 0x3d4, 0x3d8];
 
     public static Vec3Model Recover(byte[] bin, string needle) {
-        if (bin is null || bin.Length < 64) return new(false, needle, null, null, null, 0, "binary too short");
-        if (!MachoText.TryFindText(bin, out var tfo, out _, out var tvm))
-            return new(false, needle, null, null, null, 0, "no __text");
+        if (bin is null || bin.Length < 64)
+            return new Vec3Model(false, needle, null, null, null, 0, "binary too short");
+        if (!MachoText.TryFindText(bin, out int tfo, out _, out ulong tvm))
+            return new Vec3Model(false, needle, null, null, null, 0, "no __text");
 
         var syms = MachoSymbols.Read(bin);
         if (!MachoSymbols.TryFindFunc(syms, [needle], out var fn))
-            return new(false, needle, null, null, null, 0, $"symbol not found: {needle}");
+            return new Vec3Model(false, needle, null, null, null, 0, $"symbol not found: {needle}");
 
-        if (!Arm64Decode.SliceFunction(bin, fn.Start, fn.End, tvm, tfo, out var code, out _))
-            return new(false, fn.Name, null, null, null, 0, "function range out of bounds");
+        if (!Arm64Decode.SliceFunction(bin, fn.Start, fn.End, tvm, tfo, out byte[] code, out _))
+            return new Vec3Model(false, fn.Name, null, null, null, 0, "function range out of bounds");
 
 
         var bases = new Dictionary<string, string> { ["x0"] = "gc", ["x8"] = "ret" };
-        var exec = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(), bases, KnownCallModels.Resolve);
+        var exec = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(), bases,
+            KnownCallModels.Resolve);
 
-        ExprNode? Axis(long off) => exec.RetVec.TryGetValue(off, out var e) ? FoldFarmWidth(ExprNode.Fold(e)) : null;
-        var x = Axis(0); var y = Axis(4); var z = Axis(8);
-        var ok = x is not null;
-        var diag = ok ? "ok" : "out-param X not captured";
-        return new(ok, fn.Name, x, y, z, exec.Opaque, diag);
+        ExprNode? Axis(long off) {
+            return exec.RetVec.TryGetValue(off, out var e) ? FoldFarmWidth(ExprNode.Fold(e)) : null;
+        }
+
+        var x = Axis(0);
+        var y = Axis(4);
+        var z = Axis(8);
+        bool ok = x is not null;
+        string diag = ok ? "ok" : "out-param X not captured";
+        return new Vec3Model(ok, fn.Name, x, y, z, exec.Opaque, diag);
     }
-
 
 
     private static ExprNode FoldFarmWidth(ExprNode n) {
@@ -54,10 +44,29 @@ public static class FarmPlacementRecovery {
             Unary u => new Unary(u.Op, FoldFarmWidth(u.X)),
             Binary b => new Binary(b.Op, FoldFarmWidth(b.A), FoldFarmWidth(b.B)),
             Select s => new Select(FoldFarmWidth(s.Cond), FoldFarmWidth(s.A), FoldFarmWidth(s.B)),
-            _ => n,
+            _ => n
         };
     }
 
     private static bool IsBound(ExprNode n) => n is Field f && IsBoundField(f);
     private static bool IsBoundField(Field f) => f.Base == "gc" && Array.IndexOf(FarmWidthFields, f.Offset) >= 0;
+
+    public readonly record struct Vec3Model(
+        bool Ok,
+        string Function,
+        ExprNode? X,
+        ExprNode? Y,
+        ExprNode? Z,
+        int OpaqueCount,
+        string Diagnostics) {
+        public JsonObject ToJson() => new() {
+            ["ok"] = Ok,
+            ["function"] = Function,
+            ["x"] = X is null ? null : ExprNode.ToJson(X),
+            ["y"] = Y is null ? null : ExprNode.ToJson(Y),
+            ["z"] = Z is null ? null : ExprNode.ToJson(Z),
+            ["opaqueCount"] = OpaqueCount,
+            ["diagnostics"] = Diagnostics
+        };
+    }
 }

@@ -6,7 +6,7 @@ public sealed class AdbDeviceProbe(IProcessRunner runner, string serial, string 
         if (r.ExitCode != 0)
             return new DeviceProbeResult(false, null, null, DeviceParsing.TrimNote(r.Stderr + r.Stdout));
 
-        var (app, build) = DeviceParsing.AndroidVersion(r.Stdout);
+        (string? app, string? build) = DeviceParsing.AndroidVersion(r.Stdout);
         return build is null && app is null
             ? new DeviceProbeResult(false, null, null, "no version in dumpsys")
             : new DeviceProbeResult(true, app, build, null);

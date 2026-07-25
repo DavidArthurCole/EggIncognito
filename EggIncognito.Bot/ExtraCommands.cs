@@ -1,12 +1,13 @@
 using Discord;
+using EggIncognito.Services;
 using SyncKit.Bot;
 
 namespace EggIncognito.Bot;
 
-
 public static class ExtraCommands {
     private static readonly ApplicationIntegrationType[] Integrations =
         [ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall];
+
     private static readonly InteractionContextType[] Contexts =
         [InteractionContextType.Guild, InteractionContextType.BotDm, InteractionContextType.PrivateChannel];
 
@@ -21,7 +22,8 @@ public static class ExtraCommands {
             async ctx => await RunAsync(ctx, () => BotEmbeds.Health(DateTimeOffset.UtcNow - startedAt)));
 
     public static SyncKit.Bot.BotCommand StatusCommand(IStatusProvider status) =>
-        new(Base("status", "Show the running server's live status (mode, capture, DB, signing, uptime).").Build(), "status",
+        new(Base("status", "Show the running server's live status (mode, capture, DB, signing, uptime).").Build(),
+            "status",
             async ctx => await RunAsync(ctx, () => BotEmbeds.Status(status.Build())));
 
     public static SyncKit.Bot.BotCommand EndpointsCommand(IStatusProvider status) =>
@@ -29,9 +31,8 @@ public static class ExtraCommands {
             async ctx => await RunAsync(ctx, () => BotEmbeds.Endpoints(status.Build())));
 
 
-
     private static async Task RunAsync(SocketSlashCommandContext ctx, Func<Embed> build) {
-        await ctx.Command.DeferAsync(ephemeral: true);
+        await ctx.Command.DeferAsync(true);
         try {
             await ctx.Command.FollowupAsync(embed: build(), ephemeral: true);
         } catch (Exception) {
@@ -41,13 +42,13 @@ public static class ExtraCommands {
         }
     }
 
-    public static SyncKit.Bot.BotCommand ProtoCommand(EggIncognito.Services.IProtoReflection proto) =>
+    public static SyncKit.Bot.BotCommand ProtoCommand(IProtoReflection proto) =>
         new(
             Base("proto", "Look up Egg, Inc. proto message types.")
                 .AddOption(new SlashCommandOptionBuilder()
                     .WithName("list").WithDescription("List proto message types.")
                     .WithType(ApplicationCommandOptionType.SubCommand)
-                    .AddOption("page", ApplicationCommandOptionType.Integer, "Page number.", isRequired: false))
+                    .AddOption("page", ApplicationCommandOptionType.Integer, "Page number.", false))
                 .AddOption(new SlashCommandOptionBuilder()
                     .WithName("type").WithDescription("Show one message type's fields.")
                     .WithType(ApplicationCommandOptionType.SubCommand)
@@ -61,9 +62,9 @@ public static class ExtraCommands {
             ctx => HandleProtoAsync(ctx, proto),
             ctx => HandleProtoAutocompleteAsync(ctx, proto));
 
-    private static async Task HandleProtoAsync(SocketSlashCommandContext ctx, EggIncognito.Services.IProtoReflection proto) {
+    private static async Task HandleProtoAsync(SocketSlashCommandContext ctx, IProtoReflection proto) {
         var cmd = ctx.Command;
-        await cmd.DeferAsync(ephemeral: true);
+        await cmd.DeferAsync(true);
         try {
             var sub = cmd.Data.Options.FirstOrDefault();
             List<(string Name, object? Value)> opts = sub?.Options?
@@ -74,8 +75,9 @@ public static class ExtraCommands {
                 await cmd.FollowupAsync(embed: BotEmbeds.Error(args.Error), ephemeral: true);
                 return;
             }
+
             if (args.IsList) {
-                var (slice, p, pages) = ProtoQuery.Page(proto.AllMessageTypeNames(), args.Page);
+                (var slice, int p, int pages) = ProtoQuery.Page(proto.AllMessageTypeNames(), args.Page);
                 var embed = new EmbedBuilder()
                     .WithTitle($"Proto message types (page {p}/{pages})")
                     .WithColor(new Color(0xEF7559))
@@ -84,11 +86,14 @@ public static class ExtraCommands {
                 await cmd.FollowupAsync(embed: embed, ephemeral: true);
                 return;
             }
+
             var schema = proto.Schema(args.TypeName!);
             if (schema is null) {
-                await cmd.FollowupAsync(embed: BotEmbeds.Error($"Unknown proto type `{args.TypeName}`."), ephemeral: true);
+                await cmd.FollowupAsync(embed: BotEmbeds.Error($"Unknown proto type `{args.TypeName}`."),
+                    ephemeral: true);
                 return;
             }
+
             var detail = new EmbedBuilder()
                 .WithTitle($"Ei.{schema.Name}")
                 .WithColor(new Color(0xEF7559))
@@ -102,14 +107,23 @@ public static class ExtraCommands {
         }
     }
 
-    private static async Task HandleProtoAutocompleteAsync(SocketAutocompleteContext ctx, EggIncognito.Services.IProtoReflection proto) {
+    private static async Task HandleProtoAutocompleteAsync(SocketAutocompleteContext ctx, IProtoReflection proto) {
         var ac = ctx.Interaction;
         try {
-            if (ac.Data.CommandName != "proto") { await ac.RespondAsync(Array.Empty<AutocompleteResult>()); return; }
-            var current = ac.Data.Current.Value?.ToString() ?? "";
+            if (ac.Data.CommandName != "proto") {
+                await ac.RespondAsync(Array.Empty<AutocompleteResult>());
+                return;
+            }
+
+            string current = ac.Data.Current.Value?.ToString() ?? "";
             var hits = ProtoQuery.Autocomplete(proto.AllMessageTypeNames(), current)
                 .Select(n => new AutocompleteResult(n, n));
             await ac.RespondAsync(hits);
-        } catch (Exception) { try { await ac.RespondAsync(Array.Empty<AutocompleteResult>()); } catch { } }
+        } catch (Exception) {
+            try {
+                await ac.RespondAsync(Array.Empty<AutocompleteResult>());
+            } catch {
+            }
+        }
     }
 }
