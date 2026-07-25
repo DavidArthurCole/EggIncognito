@@ -17,7 +17,7 @@ jobs:
           generate_release_notes: true
 
   nuget:
-    uses: DavidArthurCole/EggIdentity/.github/workflows/nuget-publish.yml@master
+    uses: DavidArthurCole/EggIdentity/.github/workflows/nuget-publish.yml@main
     permissions:
       contents: read
       packages: write
@@ -110,7 +110,7 @@ jobs:
           files: SHA256SUMS
 
   docker:
-    uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@master
+    uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
       packages: write
@@ -122,7 +122,7 @@ jobs:
     secrets: inherit
 
   docker-runner:
-    uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@master
+    uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
       packages: write
