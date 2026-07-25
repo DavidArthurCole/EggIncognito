@@ -108,7 +108,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             : string.IsNullOrWhiteSpace(sub.MessageTemplate)
                 ? """{"content":"EggIncognito feed test."}"""
                 : DiscordFeedPayload.Build(
-                    "android", "1.0.2", "1", "1", "0000000000000000000000000000000000000000",
+                    "android", "1.0.0", "1", "1", "0000000000000000000000000000000000000000",
                     true, FeedDispatcher.BuildPageUrl(null, "android", "1"), sub.MessageTemplate);
 
         var http = httpFactory.CreateClient("discord-api");

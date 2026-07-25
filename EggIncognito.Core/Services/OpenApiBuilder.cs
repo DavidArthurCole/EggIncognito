@@ -36,7 +36,7 @@ public static class OpenApiBuilder {
             ["openapi"] = "3.0.3",
             ["info"] = new JsonObject {
                 ["title"] = "EggIncognito mock API",
-                ["version"] = "1.0.2",
+                ["version"] = "1.0.0",
                 ["description"] = InfoDescription
             },
             ["paths"] = paths,
