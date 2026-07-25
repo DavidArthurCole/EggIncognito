@@ -10,6 +10,7 @@ COPY EggIncognito.Data/EggIncognito.Data.csproj EggIncognito.Data/
 COPY EggIncognito.Bot/EggIncognito.Bot.csproj EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/EggIncognito.RouteGenerator.csproj EggIncognito.RouteGenerator/
 COPY EggIncognito.GameData/EggIncognito.GameData.csproj EggIncognito.GameData/
+COPY EggIncognito.DeviceTools/EggIncognito.DeviceTools.csproj EggIncognito.DeviceTools/
 COPY EggIncognito/EggIncognito.csproj EggIncognito/
 ARG GITHUB_PACKAGES_USER
 RUN --mount=type=secret,id=github_token \
@@ -27,6 +28,7 @@ COPY EggIncognito.Data/ EggIncognito.Data/
 COPY EggIncognito.Bot/ EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/ EggIncognito.RouteGenerator/
 COPY EggIncognito.GameData/ EggIncognito.GameData/
+COPY EggIncognito.DeviceTools/ EggIncognito.DeviceTools/
 COPY EggIncognito/ EggIncognito/
 
 RUN set -eux; \
