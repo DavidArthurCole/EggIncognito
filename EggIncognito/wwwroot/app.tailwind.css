@@ -1061,7 +1061,7 @@
   .modal-title { @apply text-base font-semibold m-0 text-fg; }
   .modal-body { @apply px-5 py-4 overflow-x-auto; }
 
-  .account-modal { @apply max-w-md; }
+  .account-modal { @apply w-fit min-w-[min(28rem,100%)] max-w-full sm:max-w-2xl; }
   .account-link-banner { @apply mb-3 text-sm; }
 
   .acct-chip { @apply w-[22px] h-[22px] rounded-full p-0 border-2 border-solid border-transparent cursor-pointer bg-transparent shrink-0; }
