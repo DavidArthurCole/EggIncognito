@@ -202,7 +202,7 @@
         }
     };
 
-    RenderFragment TextResponseSection(string text, bool isAck) => @<div>
+    RenderFragment TextResponseSection(string text, bool isAck) => @<div class="text-body">
                                                                        @if (isAck) {
                                                                            <div class="section-head">
                                                                                <span class="ack-tag">acknowledgement</span>

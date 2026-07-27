@@ -13,6 +13,8 @@ public sealed partial record CaptureSessionOptions(
     string CaPath,
     bool WriteEndpoints = true,
     IEndpointWriteObserver? WriteObserver = null) {
+    public IReadOnlyCollection<string> LiveRoutes { get; init; } = [];
+
     public string HarFileName() {
         string name = "session";
         if (!string.IsNullOrEmpty(Label))

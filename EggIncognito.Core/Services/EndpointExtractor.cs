@@ -18,6 +18,10 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
 
     public bool Quiet { get; set; }
 
+    public IReadOnlySet<string> LiveRoutes { get; set; } = new HashSet<string>(StringComparer.Ordinal);
+
+    public bool LiveOnly { get; set; }
+
     public IEndpointWriteObserver? WriteObserver { get; set; }
 
     private void Out(string line) {
@@ -47,6 +51,8 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
         if (status != 200) return null;
 
         string path = NormalizePath(url);
+        bool live = LiveRoutes.Contains(path);
+        if (LiveOnly && !live) return null;
 
         DecodedEntry? decoded;
         try {
@@ -58,6 +64,11 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
         }
 
         if (decoded is null) return null;
+        if (live) {
+            WriteDecoded(decoded, true);
+            return decoded.Path;
+        }
+
         if (!_seen.Add(decoded.Path)) return null;
 
         WriteDecoded(decoded);
@@ -163,20 +174,22 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
         string slug = path;
         if (ExtractorConfig.AlwaysSkip.Contains(slug)) return;
 
+        json = PeriodicalsSanitizer.ScrubPlayerScope(
+            dirs.TypeMap.TryGetValue(path, out string? knownType) ? knownType : autoResponseType, json);
+
         SelfRepair(path, request, autoResponseType, respBest, respSecond, isExplicit);
 
         string outFile = Path.Combine(dirs.OutDir, EndpointFile(slug));
-        if (!forceOverwrite && File.Exists(outFile)) {
-            string existing = File.ReadAllText(outFile, Encoding.UTF8);
-            if (CountJsonFields(json) < CountJsonFields(existing)) {
-                Counts.Loss++;
-                Out($"  loss  {slug}.json  (skipped - fewer fields than existing)");
-                return;
-            }
+        string? existing = File.Exists(outFile) ? File.ReadAllText(outFile, Encoding.UTF8) : null;
+        if (!forceOverwrite && existing is not null && CountJsonFields(json) < CountJsonFields(existing)) {
+            Counts.Loss++;
+            Out($"  loss  {slug}.json  (skipped - fewer fields than existing)");
+            return;
         }
 
-        string writeResult = WriteEndpointFile(outFile, json, overwrite || forceOverwrite);
-        if (writeResult is "wrote" or "upd") WriteObserver?.OnEndpointWritten(path, json);
+        string writeResult = WriteEndpointFile(outFile, json, overwrite || forceOverwrite, existing,
+            LiveRoutes.Contains(path));
+        if (writeResult is "wrote" or "upd") WriteObserver?.OnEndpointWritten(path, json, existing);
         switch (writeResult) {
             case "wrote":
                 Counts.Wrote++;
@@ -364,18 +377,22 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
 
     private static string EndpointFile(string slug) => slug + ".json";
 
-    private static string WriteEndpointFile(string path, string json, bool overwrite) {
-        if (!File.Exists(path)) {
+    private static string WriteEndpointFile(string path, string json, bool overwrite, string? existing, bool live) {
+        if (existing is null) {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, json, Encoding.UTF8);
             return "wrote";
         }
 
-        string existing = File.ReadAllText(path, Encoding.UTF8);
-        if (ProtoJson.NormalizeFloats(existing.Trim()) == ProtoJson.NormalizeFloats(json.Trim())) return "same";
+        if (Comparable(existing, live) == Comparable(json, live)) return "same";
         if (!overwrite) return "diff";
         File.WriteAllText(path, json, Encoding.UTF8);
         return "upd";
+    }
+
+    private static string Comparable(string json, bool live) {
+        string trimmed = json.Trim();
+        return ProtoJson.NormalizeFloats(live ? ProtoJson.StripVolatile(trimmed) : trimmed);
     }
 
     public static string NormalizePath(string url) {

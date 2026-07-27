@@ -31,7 +31,17 @@ public sealed record ProtoBuildEvent(
             messageTemplate);
 }
 
-public sealed record PeriodicalsChangedEvent(string Feed, string Sha, string PageUrl) : INotificationEvent {
+public sealed record PeriodicalsAspectSummary(
+    IReadOnlyList<string> ChangedAspects,
+    IReadOnlyList<string> AddedEvents,
+    IReadOnlyList<string> AddedContracts,
+    IReadOnlyList<string> AddedColleggtibles);
+
+public sealed record PeriodicalsChangedEvent(
+    string Feed,
+    string Sha,
+    string PageUrl,
+    PeriodicalsAspectSummary? Aspects = null) : INotificationEvent {
     public string EventKind => FeedEventKinds.PeriodicalsChanged;
     public string DedupKey => $"{Feed}:{Sha}";
 
@@ -39,5 +49,5 @@ public sealed record PeriodicalsChangedEvent(string Feed, string Sha, string Pag
         sub.Trigger is "any" || string.Equals(sub.Trigger, Feed, StringComparison.Ordinal);
 
     public string BuildBody(string? messageTemplate) =>
-        DiscordFeedPayload.BuildPeriodicals(Feed, Sha, PageUrl, messageTemplate);
+        DiscordFeedPayload.BuildPeriodicals(Feed, Sha, PageUrl, messageTemplate, Aspects);
 }

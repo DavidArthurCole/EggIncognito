@@ -54,19 +54,35 @@ public sealed class PeriodicalsController(
                 });
             }
 
-            var col = provider.Colleggtibles;
             var icons = LoadColleggtibleIcons();
-            colleggtibles = new {
-                count = col.Eggs.Count,
-                gameVersion = col.GameVersion,
-                provenance = JsonSerializer.Serialize(col.Provenance, ProvenanceJson),
-                eggs = col.Eggs.Select(e => new {
-                    e.Identifier,
-                    dimension = DimensionName(e.Dimension),
-                    e.TierValues,
-                    icon = icons.GetValueOrDefault(e.Identifier)
-                })
-            };
+            string? route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
+            var live = route is null ? null : LiveColleggtibleSource.Derive(services, route);
+            if (live is not null) {
+                colleggtibles = new {
+                    count = live.Extract.Eggs.Count,
+                    gameVersion = live.GameVersion,
+                    provenance = JsonSerializer.Serialize(live.Provenance, ProvenanceJson),
+                    eggs = live.Extract.Eggs.Select(e => new {
+                        e.Identifier,
+                        dimension = DimensionName(e.Dimension),
+                        e.TierValues,
+                        icon = icons.GetValueOrDefault(e.Identifier)
+                    })
+                };
+            } else {
+                var col = provider.Colleggtibles;
+                colleggtibles = new {
+                    count = col.Eggs.Count,
+                    gameVersion = col.GameVersion,
+                    provenance = JsonSerializer.Serialize(col.Provenance, ProvenanceJson),
+                    eggs = col.Eggs.Select(e => new {
+                        e.Identifier,
+                        dimension = DimensionName(e.Dimension),
+                        e.TierValues,
+                        icon = icons.GetValueOrDefault(e.Identifier)
+                    })
+                };
+            }
         }
 
         object[] platforms = [];

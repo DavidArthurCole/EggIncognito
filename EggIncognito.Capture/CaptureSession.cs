@@ -77,9 +77,11 @@ public sealed class CaptureSession(
             var liveVersions = new LiveVersionStore(opts.CapturePath);
 
 
-            if (opts.WriteEndpoints) {
+            if (opts.WriteEndpoints || opts.LiveRoutes.Count > 0) {
                 _extractor = EndpointExtractor.ForRepo(contentRoot, opts.Eid, EidPlaceholder, opts.Overwrite);
                 _extractor.Quiet = true;
+                _extractor.LiveOnly = !opts.WriteEndpoints;
+                _extractor.LiveRoutes = opts.LiveRoutes.ToHashSet(StringComparer.Ordinal);
                 _extractor.WriteObserver = opts.WriteObserver;
             }
 

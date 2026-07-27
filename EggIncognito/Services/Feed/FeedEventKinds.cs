@@ -31,7 +31,7 @@ public static class FeedEventKinds {
             new FeedTriggerOption("afx-config", "ei_afx/config"),
             new FeedTriggerOption("season-infos", "get_season_infos_v2")
         ],
-        ["feed", "sha", "pageUrl"],
+        ["feed", "sha", "pageUrl", "changedAspects", "addedEvents", "addedContracts", "addedColleggtibles"],
         "any", false);
 
     public static readonly IReadOnlyList<FeedEventKindInfo> All = [Proto, Periodicals];

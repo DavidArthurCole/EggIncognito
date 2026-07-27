@@ -45,6 +45,13 @@ public sealed class DataCatalog {
     public IReadOnlyList<DataSource> EgressSources() =>
         Sources.Where(s => s.Refresh.Egress && s.WireRoute is not null).ToArray();
 
+    public IReadOnlyList<string> FeedWireRoutes() =>
+        Sources
+            .Where(s => s.Feed is not null && s.WireRoute is not null)
+            .Select(s => s.WireRoute!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
     public IReadOnlyList<string> PeriodicalFeeds() =>
         Sources
             .Where(s => string.Equals(s.Group, "periodical", StringComparison.Ordinal) && s.Feed is not null)
@@ -73,10 +80,10 @@ public sealed class DataCatalog {
             p => new ConfigRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
 
         new("colleggtibles", "periodical", "Colleggtibles",
-            "Custom-egg buff defs extracted from get_periodicals.",
-            DataProvenance.GameDataEmbedded, DataAccess.Public,
+            "Custom-egg buff defs derived at request time from the freshest captured get_periodicals.",
+            DataProvenance.DerivedExtract, DataAccess.Public,
             null, null, new DataRefresh(false), false,
-            (_, _) => Task.FromResult(EmbeddedJson("colleggtibles.json")),
+            ProduceColleggtibles,
             Extends: "get_periodicals"),
         new("eiafx", "periodical", "eiafx data",
             "Artifact families/tiers extracted from ei_afx/config + get_config icons.",
@@ -105,32 +112,32 @@ public sealed class DataCatalog {
         Func<string, byte[]> egressRequest) =>
         new(id, "periodical", display, desc, DataProvenance.WireFixture, DataAccess.Authenticated,
             route, feed, new DataRefresh(true), false,
-            (ctx, _) => Task.FromResult(FixtureJson(ctx, route)), egressRequest);
+            (ctx, _) => Task.FromResult(FixtureJson(ctx.Services, route)), egressRequest);
 
     private static DataSource Embedded(string id, string display, string desc, string resource) =>
         new(id, "gamedata", display, desc, DataProvenance.GameDataEmbedded, DataAccess.Public,
             null, null, new DataRefresh(false), false,
             (_, _) => Task.FromResult(EmbeddedJson(resource)));
 
-    private static string DefaultsDir(DataProduceContext ctx) {
-        var config = ctx.Services.GetRequiredService<IConfiguration>();
+    private static string DefaultsDir(IServiceProvider services) {
+        var config = services.GetRequiredService<IConfiguration>();
         string root = ContentRoot.Resolve(config["ContentRoot"]);
         return Path.Combine(root, "Endpoints", "default");
     }
 
-    private static string FixturePath(DataProduceContext ctx, string route) {
+    private static string FixturePath(IServiceProvider services, string route) {
         string[] parts = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
         string file = parts[^1] + ".json";
-        return Path.Combine(DefaultsDir(ctx), Path.Combine(parts[..^1]), file);
+        return Path.Combine(DefaultsDir(services), Path.Combine(parts[..^1]), file);
     }
 
-    private static DataPayload? FixtureJson(DataProduceContext ctx, string route) {
-        string path = FixturePath(ctx, route);
+    private static DataPayload? FixtureJson(IServiceProvider services, string route) {
+        string path = FixturePath(services, route);
         return File.Exists(path) ? DataPayload.Json(File.ReadAllText(path)) : null;
     }
 
-    private static string? FixtureText(DataProduceContext ctx, string route) {
-        string path = FixturePath(ctx, route);
+    internal static string? FixtureText(IServiceProvider services, string route) {
+        string path = FixturePath(services, route);
         return File.Exists(path) ? File.ReadAllText(path) : null;
     }
 
@@ -144,10 +151,17 @@ public sealed class DataCatalog {
         return DataPayload.Json(reader.ReadToEnd());
     }
 
+    private static Task<DataPayload?> ProduceColleggtibles(DataProduceContext ctx, CancellationToken ct) {
+        var live = LiveColleggtibleSource.Derive(ctx.Services, "ei/get_periodicals");
+        return Task.FromResult(live is null
+            ? EmbeddedJson("colleggtibles.json")
+            : DataPayload.Json(live.Json));
+    }
+
     private static Task<DataPayload?> ProduceEiAfx(DataProduceContext ctx, CancellationToken ct) {
-        string? afx = FixtureText(ctx, "ei_afx/config");
+        string? afx = FixtureText(ctx.Services, "ei_afx/config");
         if (afx is null) return Task.FromResult<DataPayload?>(null);
-        string? configJson = FixtureText(ctx, "ei/get_config");
+        string? configJson = FixtureText(ctx.Services, "ei/get_config");
         IReadOnlyDictionary<string, string> icons = new Dictionary<string, string>();
         if (configJson is not null) {
             try {

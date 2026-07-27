@@ -1,5 +1,6 @@
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
+using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Feed;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -13,6 +14,7 @@ namespace EggIncognito.Controllers;
 public sealed class ImportController(
     IConfiguration config,
     IAppMode appMode,
+    DataCatalog catalog,
     PeriodicalsChangeNotifier notifier) : ControllerBase {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
 
@@ -36,6 +38,7 @@ public sealed class ImportController(
             await using (var fs = System.IO.File.Create(tmp)) await file.CopyToAsync(fs);
             string? eid = config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID");
             var extractor = EndpointExtractor.ForRepo(Root, eid, "EI0000000000000000", overwrite);
+            extractor.LiveRoutes = new HashSet<string>(catalog.FeedWireRoutes(), StringComparer.Ordinal);
             extractor.WriteObserver = notifier;
             run(extractor, tmp);
             extractor.Save();

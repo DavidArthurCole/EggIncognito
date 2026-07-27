@@ -8,6 +8,7 @@ using EggIncognito.Data.Services;
 using EggIncognito.GameData;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
+using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Devices;
 using EggIncognito.Tools;
 using Microsoft.AspNetCore.Mvc;
@@ -150,13 +151,25 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
                 });
             }
 
-            var col = provider.Colleggtibles;
-            gameData.Add(new {
-                key = "colleggtibles",
-                count = col.Eggs.Count,
-                gameVersion = col.GameVersion,
-                provenance = JsonSerializer.Serialize(col.Provenance, ProvenanceJson)
-            });
+            string? route = (services.GetService(typeof(DataCatalog)) as DataCatalog)
+                ?.ById("periodical", "get_periodicals")?.WireRoute;
+            var live = route is null ? null : LiveColleggtibleSource.Derive(services, route);
+            if (live is not null) {
+                gameData.Add(new {
+                    key = "colleggtibles",
+                    count = live.Extract.Eggs.Count,
+                    gameVersion = live.GameVersion,
+                    provenance = JsonSerializer.Serialize(live.Provenance, ProvenanceJson)
+                });
+            } else {
+                var col = provider.Colleggtibles;
+                gameData.Add(new {
+                    key = "colleggtibles",
+                    count = col.Eggs.Count,
+                    gameVersion = col.GameVersion,
+                    provenance = JsonSerializer.Serialize(col.Provenance, ProvenanceJson)
+                });
+            }
         }
 
         object[] platforms = [];

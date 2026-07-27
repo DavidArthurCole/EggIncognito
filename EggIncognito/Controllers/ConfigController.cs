@@ -165,6 +165,7 @@ public sealed class ConfigController(
         string contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
         var extractor = EndpointExtractor.ForRepo(contentRoot, null, "EI0000000000000000", true);
         extractor.Quiet = true;
+        extractor.LiveRoutes = new HashSet<string>(catalog.FeedWireRoutes(), StringComparer.Ordinal);
         extractor.WriteObserver = notifier;
 
         async Task<object> One(string url, string label, byte[] inner) {

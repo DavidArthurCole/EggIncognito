@@ -9,6 +9,7 @@ using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
+using EggIncognito.Services.Feed;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -288,23 +289,27 @@ public sealed class CaptureController(
         if (decoded.Json is null || decoded.Type is null)
             return StatusCode(409, new { error = "flow could not be decoded" });
 
+        string json = PeriodicalsSanitizer.ScrubPlayerScope(decoded.Type, decoded.Json);
         var existing = await db.StoredEndpoints
             .FirstOrDefaultAsync(e => e.Path == flow.Path && e.Eid == null);
+        string? previousJson = existing?.ResponseJson;
         if (existing is null) {
             db.StoredEndpoints.Add(new StoredEndpoint {
                 Path = flow.Path,
                 Eid = null,
-                ResponseJson = decoded.Json,
+                ResponseJson = json,
                 ResponseType = decoded.Type,
                 OwnerUserId = currentUser.UserId
             });
         } else {
-            existing.ResponseJson = decoded.Json;
+            existing.ResponseJson = json;
             existing.ResponseType = decoded.Type;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
         }
 
         await db.SaveChangesAsync();
+        if (services.GetService(typeof(PeriodicalsChangeNotifier)) is PeriodicalsChangeNotifier notifier)
+            notifier.OnEndpointWritten(flow.Path, json, previousJson);
         session.Hub.MarkSaved(body.Id);
         return Ok(new { saved = flow.Path, store = "db" });
     }

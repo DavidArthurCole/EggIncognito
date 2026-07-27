@@ -22,9 +22,17 @@ public static partial class FeedTemplate {
             ["pageUrl"] = pageUrl
         };
 
-    public static Dictionary<string, string> PeriodicalsVars(string feed, string sha, string pageUrl) => new() {
-        ["feed"] = feed,
-        ["sha"] = sha,
-        ["pageUrl"] = pageUrl
-    };
+    public static Dictionary<string, string> PeriodicalsVars(string feed, string sha, string pageUrl,
+        PeriodicalsAspectSummary? aspects = null) => new() {
+            ["feed"] = feed,
+            ["sha"] = sha,
+            ["pageUrl"] = pageUrl,
+            ["changedAspects"] = Joined(aspects?.ChangedAspects),
+            ["addedEvents"] = Joined(aspects?.AddedEvents),
+            ["addedContracts"] = Joined(aspects?.AddedContracts),
+            ["addedColleggtibles"] = Joined(aspects?.AddedColleggtibles)
+        };
+
+    private static string Joined(IReadOnlyList<string>? items) =>
+        items is null || items.Count == 0 ? "" : string.Join(", ", items);
 }

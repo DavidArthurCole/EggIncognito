@@ -3,7 +3,7 @@
    button, and filter box. RawB64 powers the Hex/Bin views, available even when JSON failed. *@
 @inject IJSRuntime JS
 
-<div>
+<div class="format-view">
     @if (ShowLabel && !string.IsNullOrEmpty(Label)) {
         <div class="section-head">
             <h3>@Label</h3>

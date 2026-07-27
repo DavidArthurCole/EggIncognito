@@ -411,6 +411,8 @@ builder.Services.AddSingleton(sp => {
 
     string contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
     return new CaptureSessionManager(hostedCaptureOpts, (key, basePort) => {
+        var liveRoutes = sp.GetRequiredService<DataCatalog>().FeedWireRoutes();
+        var writeObserver = sp.GetService<PeriodicalsChangeNotifier>();
         if (key == CaptureSessionManager.LocalKey) {
             string capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
             string caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
@@ -422,7 +424,7 @@ builder.Services.AddSingleton(sp => {
                 config.GetValue("CaptureVerbose", false),
                 capturePath,
                 caPath,
-                WriteObserver: sp.GetService<PeriodicalsChangeNotifier>());
+                WriteObserver: writeObserver) { LiveRoutes = liveRoutes };
             return new CaptureSession(contentRoot, opts);
         }
 
@@ -432,7 +434,8 @@ builder.Services.AddSingleton(sp => {
             basePort, null, null, false,
             config.GetValue("CaptureVerbose", false),
             dir, Path.Combine(dir, "ca.cer"),
-            false);
+            false,
+            writeObserver) { LiveRoutes = liveRoutes };
         return new CaptureSession(contentRoot, hostedOpts,
             verbose => new NativeCaptureProxy(verbose) {
                 LanForwarderEnabled = false,

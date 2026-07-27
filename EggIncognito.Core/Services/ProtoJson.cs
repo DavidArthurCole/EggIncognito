@@ -7,6 +7,9 @@ public static partial class ProtoJson {
     public static string NormalizeFloats(string json) =>
         FloatZeroRegex().Replace(json, "$1");
 
+    public static string StripVolatile(string json) =>
+        VolatileLastMemberRegex().Replace(VolatileMemberWithCommaRegex().Replace(json, ""), "");
+
 
     public static string PrettyPrint(string json) {
         var sb = new StringBuilder(json.Length * 2);
@@ -81,4 +84,10 @@ public static partial class ProtoJson {
 
     [GeneratedRegex(@"(?<=[:\[,\s])(-?\d+)\.0(?=[,\}\]\s\r\n])")]
     private static partial Regex FloatZeroRegex();
+
+    [GeneratedRegex(@"""(?:serverTime|secondsRemaining)""\s*:\s*[^,}\]]*,\s*")]
+    private static partial Regex VolatileMemberWithCommaRegex();
+
+    [GeneratedRegex(@",?\s*""(?:serverTime|secondsRemaining)""\s*:\s*[^,}\]]*")]
+    private static partial Regex VolatileLastMemberRegex();
 }
