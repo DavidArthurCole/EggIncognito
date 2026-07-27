@@ -28,9 +28,11 @@ routes:
   - path: ei/coop_status
     requestType: ContractCoopStatusRequest
     responseType: ContractCoopStatusResponse
+    responseWrapped: true
   - path: ei/coop_status_basic
     requestType: ContractCoopStatusRequest
     responseType: ContractCoopStatusResponse
+    responseWrapped: true
   - path: ei/create_coop
     requestType: CreateCoopRequest
     responseType: CreateCoopResponse

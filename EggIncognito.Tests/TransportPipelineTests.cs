@@ -273,6 +273,10 @@ public class RouteCatalogTests {
                                     responseWrapped: true
                                     pathParam: true
                                     pathParamOnly: true
+                                  - path: ei/coop_status
+                                    requestType: ContractCoopStatusRequest
+                                    responseType: ContractCoopStatusResponse
+                                    responseWrapped: true
 
                                 excluded:
                                   - ei/kb
@@ -293,7 +297,16 @@ public class RouteCatalogTests {
         var cat = Build();
 
         Assert.Null(cat.Get("ei/kb"));
-        Assert.Equal(5, cat.All().Count);
+        Assert.Equal(6, cat.All().Count);
+    }
+
+    [Fact]
+    public void Parse_LegacyTypeKeys_HonorExplicitResponseWrapped() {
+        var e = Build().Get("ei/coop_status")!;
+        Assert.Equal("ContractCoopStatusRequest", e.Request);
+        Assert.Equal("ContractCoopStatusResponse", e.Response);
+        Assert.False(e.RequestWrapped);
+        Assert.True(e.ResponseWrapped);
     }
 
     [Fact]

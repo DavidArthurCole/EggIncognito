@@ -52,7 +52,7 @@ jobs:
         run: |
           dotnet nuget update source github \
             --username ${{ github.repository_owner }} \
-            --password ${{ secrets.PACKAGES_PAT }} \
+            --password ${{ github.token }} \
             --store-password-in-clear-text \
             --configfile nuget.config
 
