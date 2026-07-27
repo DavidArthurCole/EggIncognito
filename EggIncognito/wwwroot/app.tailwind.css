@@ -179,7 +179,6 @@
   .perk-chip-soon { @apply bg-amber-900/60 text-amber-300; }
   .perk-chip-dev { @apply bg-sky-900/60 text-sky-300; }
 
-
   .support-title { @apply text-[1.4rem] font-semibold leading-tight text-fg m-0 mb-2; }
   .support-lede { @apply text-sm text-muted leading-relaxed max-w-[64ch] m-0 mb-8; }
 
@@ -333,6 +332,36 @@
   .file-btn { @apply inline-flex items-center gap-2 cursor-pointer text-xs border border-border rounded-md bg-bg px-2 py-1 hover:border-accent/60; }
   .file-btn input[type="file"] { @apply hidden; }
 
+  .console-method { @apply font-mono text-[10px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 w-[52px] text-center; }
+  .console-get { @apply bg-emerald-500/15 text-emerald-300 border border-emerald-500/30; }
+  .console-post { @apply bg-orange-500/15 text-orange-300 border border-orange-500/30; }
+  .console-put, .console-patch { @apply bg-sky-500/15 text-sky-300 border border-sky-500/30; }
+  .console-delete { @apply bg-red-500/15 text-red-300 border border-red-500/30; }
+  .canvas-wrap { @apply w-full rounded-md overflow-hidden bg-bg; height: min(80vh, 820px); }
+  .canvas-wrap canvas { @apply w-full h-full block; }
+  .canvas-error-overlay { @apply absolute inset-0 flex items-center justify-center p-6; background: rgba(0,0,0,0.55); }
+  .canvas-error-box { @apply panel max-w-[420px] text-center border border-red-500/40; }
+  .capture-controls { @apply flex flex-wrap items-center gap-2 overflow-visible; }
+  .capture-controls .settings-menu { @apply left-0 right-auto; transform-origin: top left; }
+  .capture-controls .settings-menu.open::before { left: 12px; right: auto; }
+  .settings-title { @apply text-[13px] font-semibold text-fg mb-1; }
+  .settings-title .muted { @apply normal-case tracking-normal font-normal; }
+  .settings-hint { @apply text-xs leading-snug mb-2.5; color: var(--muted); opacity: .95; }
+  .settings-divider { @apply border-0 border-t border-border my-3.5; }
+  .settings-menu .set-row { @apply flex items-center justify-between gap-2 text-xs text-muted; }
+  .settings-menu .set-row input, .settings-menu .set-row select {
+    @apply w-[140px] bg-panel2 text-fg border border-border rounded px-1.5 py-[3px] text-xs;
+  }
+  .settings-input { @apply w-full box-border bg-bg text-fg border border-border rounded px-1.5 py-1 text-xs; }
+  .settings-select { @apply w-full h-7 mt-0.5; }
+  .settings-check { @apply flex items-center gap-2 text-[13px] text-fg cursor-pointer; }
+  .settings-check input { @apply cursor-pointer; }
+  .panel input[type="checkbox"], .panel input[type="radio"] {
+    @apply w-4 h-4 align-middle shrink-0 cursor-pointer relative bg-panel2;
+    -webkit-appearance: none;
+    appearance: none;
+    border: 1.5px solid #6b6b78; 
+  }
   .panel input[type="checkbox"] { @apply rounded-sm; }
   .panel input[type="radio"] { @apply rounded-full; }
   .panel input[type="checkbox"]:hover, .panel input[type="radio"]:hover { @apply border-accent; }
@@ -446,12 +475,32 @@
 
   #endpointFilter { @apply w-full mb-2 px-2 py-1.5 bg-panel2 border border-border rounded text-fg; }
   #endpointFilter:focus { @apply outline-none border-accent; }
+  #endpoints, #objects, #history { @apply overflow-auto pr-2; scrollbar-gutter: stable; }
   #builder, #pipeline { @apply overflow-auto pr-3; }
   .panel-head, .resp-head { @apply flex items-center justify-between gap-2; }
   .panel-head { @apply mb-2.5; }
   .panel-head h2, .resp-head h2 { @apply mb-0; }
   .resp-head { @apply my-3; }
 
+  .inspector-main { @apply grid-cols-1; }
+  .capture-body { @apply grid grid-cols-1 flex-1 min-h-0; }
+  .capture-topbar { @apply relative z-30 flex flex-row flex-wrap items-center gap-x-5 gap-y-3 overflow-visible; }
+  .capture-topbar-btns { @apply flex items-center gap-1.5; }
+  .capture-topbar-spacer { @apply flex-1 min-w-[1rem]; }
+  .capture-device { @apply flex flex-col leading-tight; }
+  .capture-device-tag { @apply text-[10px] uppercase tracking-wide text-accent font-semibold; }
+  .capture-device-name { @apply text-sm font-medium truncate max-w-[16rem]; }
+  @media (min-width: 1024px) {
+    .inspector-main {
+      grid-template-columns: 270px 1fr 1fr;
+      height: calc(100vh - var(--nav-h, 48px) - 2.75rem);
+    }
+    .capture-main { height: calc(100vh - var(--nav-h, 48px)); }
+    .capture-body { grid-template-columns: 2fr 3fr; }
+    .inspector-main > .panel, .capture-body > .panel { min-height: 0; overflow: auto; }
+    .inspector-main > .panel.insp-result { overflow: hidden; }
+  }
+  .fields { @apply flex flex-col gap-1; }
   .fields-body { @apply max-w-[34rem] ml-1; }
   .no-fields-note {
     @apply text-sm text-muted bg-panel2 border border-border rounded-md px-3 py-2 max-w-[34rem];
@@ -589,6 +638,12 @@
   .doc-usedby-role { @apply text-[10px] text-muted uppercase tracking-[0.04em]; }
   .md-editor { @apply border border-border rounded-md overflow-hidden mt-2 max-w-full; }
   .md-toolbar { @apply flex items-center gap-1 p-1.5 bg-panel2 border-b border-border flex-wrap; }
+  .md-tb-btn {
+    @apply inline-flex items-center justify-center h-7 box-border min-w-[28px] px-2
+           bg-bg text-fg border border-border rounded cursor-pointer text-xs leading-none;
+  }
+  .md-tb-btn:hover { @apply border-accent; }
+  .md-toolbar .btn-primary { @apply h-7 box-border inline-flex items-center px-3 py-0 text-xs; }
   .md-source {
     @apply block w-full box-border border-0 h-[240px] max-h-[50vh] p-2 bg-bg text-fg font-mono text-xs overflow-auto;
     resize: vertical; border-bottom: 1px solid theme(colors.border);
@@ -933,6 +988,8 @@
   .protos-toolbar .protos-trigger { @apply w-full justify-start mb-1; }
   .protos-toolbar .protos-trigger:last-child { @apply mb-0; }
 
+  .reg-wrap { @apply border border-border rounded-md overflow-x-auto bg-panel; }
+  .reg-table { @apply w-full border-collapse text-[13px]; }
   .reg-table thead tr:first-child th {
     @apply text-left px-3 py-2 text-muted text-xs font-semibold border-b border-border bg-panel0;
   }
@@ -1012,6 +1069,12 @@
     box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
   }
 
+  .reg-table input[type="checkbox"] {
+    @apply w-4 h-4 align-middle cursor-pointer shrink-0 rounded-sm bg-bg relative;
+    -webkit-appearance: none;
+    appearance: none;
+    border: 1.5px solid #6b6b78; 
+  }
   .reg-table input[type="checkbox"]:hover { @apply border-accent; }
   .reg-table input[type="checkbox"]:checked { @apply bg-accent border-accent; }
   .reg-table input[type="checkbox"]:checked::after {
