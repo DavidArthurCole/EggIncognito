@@ -1,8 +1,4 @@
 {
-  "binaryVersion": "egginc-1.35.6",
-  "provenance": {
-    "magnitude": { "origin": "binary", "locator": "artifactdata", "method": "manual" }
-  },
   "rows": [
     { "id": "ORNATE_GUSSET:1:0", "target": "HabCapacity", "combineMode": "Mul", "magnitude": 1.05, "meta": { "boost": "HabCapacity", "tier": 1, "rarity": 0, "stoneCap": 0, "iconAsset": "afx_ornate_gusset_1" } },
     { "id": "ORNATE_GUSSET:2:0", "target": "HabCapacity", "combineMode": "Mul", "magnitude": 1.10, "meta": { "boost": "HabCapacity", "tier": 2, "rarity": 0, "stoneCap": 0, "iconAsset": "afx_ornate_gusset_2" } },
@@ -26,5 +22,9 @@
     { "id": "TACHYON_DEFLECTOR:4:1", "target": "CoopEggLaying", "combineMode": "Mul", "magnitude": 1.17, "meta": { "boost": "CoopEggLaying", "tier": 4, "rarity": 1, "stoneCap": 1, "iconAsset": "afx_tachyon_deflector_4" } },
     { "id": "TACHYON_DEFLECTOR:4:2", "target": "CoopEggLaying", "combineMode": "Mul", "magnitude": 1.19, "meta": { "boost": "CoopEggLaying", "tier": 4, "rarity": 2, "stoneCap": 2, "iconAsset": "afx_tachyon_deflector_4" } },
     { "id": "TACHYON_DEFLECTOR:4:3", "target": "CoopEggLaying", "combineMode": "Mul", "magnitude": 1.20, "meta": { "boost": "CoopEggLaying", "tier": 4, "rarity": 3, "stoneCap": 2, "iconAsset": "afx_tachyon_deflector_4" } }
-  ]
+  ],
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "magnitude": { "origin": "binary", "locator": "artifactdata", "method": "manual" }
+  }
 }

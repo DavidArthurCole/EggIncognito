@@ -6,8 +6,8 @@ namespace EggIncognito.Services;
 public sealed record ProvenanceSource(string Origin, string? Locator = null, string? Method = null);
 
 public sealed record EiAfxData(
-    IReadOnlyDictionary<string, ProvenanceSource> Provenance,
-    IReadOnlyList<EiAfxFamily> ArtifactFamilies);
+    IReadOnlyList<EiAfxFamily> ArtifactFamilies,
+    IReadOnlyDictionary<string, ProvenanceSource> Provenance);
 
 public sealed record EiAfxFamily(
     string Id,
@@ -56,7 +56,7 @@ public static class EiAfxDataBuilder {
             .Select(g => BuildFamily(g.Key, [.. g], icons))
             .ToList();
 
-        return new EiAfxData(DefaultProvenance, families);
+        return new EiAfxData(families, DefaultProvenance);
     }
 
     public static EiAfxData BuildFromJson(

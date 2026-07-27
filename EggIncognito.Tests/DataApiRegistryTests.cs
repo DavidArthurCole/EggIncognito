@@ -28,6 +28,27 @@ public class DataApiRegistryTests {
     }
 
     [Fact]
+    public void Catalog_GamedataSources_MatchExpectedSet() {
+        var c = new DataCatalog();
+        string[] ids = [.. c.ByGroup("gamedata").Select(s => s.Id).OrderBy(x => x, StringComparer.Ordinal)];
+        string[] expected = ["boost-catalog", "mission", "research-common", "research-epic"];
+        Assert.Equal(expected, ids);
+        Assert.Equal("Common research", c.ById("gamedata", "research-common")?.DisplayName);
+        Assert.Equal("Epic research", c.ById("gamedata", "research-epic")?.DisplayName);
+    }
+
+    [Fact]
+    public void Catalog_SeasonInfos_UnlistedButResolvable() {
+        var c = new DataCatalog();
+        var s = c.ById("periodical", "season-infos");
+        Assert.NotNull(s);
+        Assert.False(s.Listed);
+        Assert.Equal("season-infos", s.Feed);
+        Assert.True(s.Refresh.Egress);
+        Assert.All(c.Sources.Where(x => x.Id != "season-infos"), x => Assert.True(x.Listed));
+    }
+
+    [Fact]
     public void Catalog_EgressSources_HaveRouteAndRequestBuilder() {
         var c = new DataCatalog();
         Assert.NotEmpty(c.EgressSources());

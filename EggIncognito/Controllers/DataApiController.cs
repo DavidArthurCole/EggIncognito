@@ -14,8 +14,9 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
     [HttpGet]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Index(CancellationToken ct) {
-        var items = new List<object>(catalog.Sources.Count);
-        foreach (var s in catalog.Sources) {
+        var listed = catalog.Sources.Where(s => s.Listed).ToList();
+        var items = new List<object>(listed.Count);
+        foreach (var s in listed) {
             items.Add(new {
                 s.Id,
                 s.Group,
@@ -32,7 +33,7 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
             });
         }
 
-        return Ok(new { count = catalog.Sources.Count, sources = items });
+        return Ok(new { count = listed.Count, sources = items });
     }
 
     private async Task<long?> SizeOf(DataSource s, CancellationToken ct) {

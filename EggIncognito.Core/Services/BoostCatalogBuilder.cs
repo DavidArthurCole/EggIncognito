@@ -39,7 +39,7 @@ public static class BoostCatalogBuilder {
             ["cost"] = new("config", "ei/get_config"),
             ["iconAsset"] = new("derived")
         };
-        var file = new BoostCatalogBuildFile(binaryVersion, provenance, rows);
+        var file = new BoostCatalogBuildFile(rows, binaryVersion, provenance);
         return new BuildResult(file, missing);
     }
 
@@ -60,9 +60,9 @@ public static class BoostCatalogBuilder {
     public sealed record ProvenanceSource(string Origin, string? Locator = null, string? Method = null);
 
     public sealed record BoostCatalogBuildFile(
+        IReadOnlyList<BoostCatalogBuildRow> Boosts,
         string BinaryVersion,
-        IReadOnlyDictionary<string, ProvenanceSource> Provenance,
-        IReadOnlyList<BoostCatalogBuildRow> Boosts);
+        IReadOnlyDictionary<string, ProvenanceSource> Provenance);
 
     public readonly record struct BuildResult(BoostCatalogBuildFile File, IReadOnlyList<string> MissingCosts);
 }

@@ -1,17 +1,4 @@
 {
-  "binaryVersion": "egginc-1.35.6",
-  "provenance": {
-    "identity": {
-      "origin": "binary",
-      "locator": "vehicledata",
-      "method": "decoded"
-    },
-    "capacity": {
-      "origin": "binary",
-      "locator": "vehicledata",
-      "method": "decoded"
-    }
-  },
   "vehicles": [
     {
       "index": 0,
@@ -73,5 +60,18 @@
       "name": "HYPERLOOP TRAIN",
       "capacity": 50000000
     }
-  ]
+  ],
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "identity": {
+      "origin": "binary",
+      "locator": "vehicledata",
+      "method": "decoded"
+    },
+    "capacity": {
+      "origin": "binary",
+      "locator": "vehicledata",
+      "method": "decoded"
+    }
+  }
 }

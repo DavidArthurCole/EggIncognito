@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EggIdentity.Contract;
+using EggIncognito.Core.Services.Assets;
+using EggIncognito.Data.Services;
 using EggIncognito.GameData;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
@@ -10,6 +12,7 @@ using EggIncognito.Services.DataApi;
 using Ei;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Controllers;
 
@@ -102,6 +105,79 @@ public sealed class PeriodicalsController(
         });
     }
 
+    [HttpGet("seasons")]
+    public IActionResult Seasons() {
+        if (RequireAdmin() is { } no) return no;
+        string? route = catalog.ById("periodical", "season-infos")?.WireRoute;
+        if (route is null) return NotFound(new { error = "season source missing" });
+        string path = FixturePath(route);
+        if (!System.IO.File.Exists(path)) return NotFound(new { error = "no season capture on disk" });
+
+        ContractSeasonInfos infos;
+        try {
+            infos = ContractSeasonInfos.Parser.ParseJson(System.IO.File.ReadAllText(path));
+        } catch (Exception ex) {
+            return StatusCode(500, new { error = $"season fixture unreadable: {ex.Message}" });
+        }
+
+        return Ok(new { seasons = SeasonList(infos) });
+    }
+
+    private static object[] SeasonList(ContractSeasonInfos infos) {
+        var list = infos.Infos.ToList();
+        double[] starts = ResolveStarts(list);
+        return [
+            .. list.Select((s, i) => (object)new {
+                id = s.Id,
+                name = string.IsNullOrEmpty(s.Name) ? PrettySeasonId(s.Id) : s.Name,
+                startTime = starts[i],
+                startDerived = !(s.HasStartTime && s.StartTime > 0),
+                gradeGoals = s.GradeGoals.Select(g => new {
+                    grade = g.Grade.ToString(),
+                    goals = g.Goals.Select(x => new {
+                        cxp = x.Cxp,
+                        rewardType = x.RewardType.ToString(),
+                        rewardSubType = x.RewardSubType,
+                        rewardAmount = x.RewardAmount
+                    }).ToArray()
+                }).ToArray()
+            })
+        ];
+    }
+
+    private static double[] ResolveStarts(List<ContractSeasonInfo> list) {
+        double[] starts = [.. list.Select(s => s.HasStartTime && s.StartTime > 0 ? s.StartTime : 0)];
+        int[] known = [.. Enumerable.Range(0, starts.Length).Where(i => starts[i] > 0)];
+        if (known.Length == 0) return starts;
+
+        double quarter = 7889400;
+        if (known.Length >= 2) {
+            double sum = 0;
+            int n = 0;
+            for (int k = 0; k + 1 < known.Length; k++) {
+                int a = known[k], b = known[k + 1];
+                if (starts[a] > starts[b] && b > a) {
+                    sum += (starts[a] - starts[b]) / (b - a);
+                    n++;
+                }
+            }
+
+            if (n > 0) quarter = sum / n;
+        }
+
+        for (int i = 0; i < starts.Length; i++) {
+            if (starts[i] > 0) continue;
+            int nearest = known.MinBy(j => Math.Abs(j - i));
+            starts[i] = starts[nearest] - (i - nearest) * quarter;
+        }
+
+        return starts;
+    }
+
+    private static string PrettySeasonId(string id) =>
+        string.Join(' ', id.Split('_', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => w.Length > 0 ? char.ToUpperInvariant(w[0]) + w[1..] : w));
+
     [HttpGet("feed/{name}")]
     public async Task<IActionResult> Feed(string name, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
@@ -136,6 +212,84 @@ public sealed class PeriodicalsController(
         return payload is null
             ? NotFound(new { error = "no ei_afx/config capture" })
             : Content(Encoding.UTF8.GetString(payload.Bytes), "application/json");
+    }
+
+    [HttpGet("current")]
+    public async Task<IActionResult> Current(CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        string? route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
+        (string? json, DateTimeOffset? capturedAt) = await ResolveCurrentJson(route, ct);
+        if (json is null) return NotFound(new { error = "no periodicals capture available" });
+
+        PeriodicalsResponse per;
+        try {
+            per = PeriodicalsResponse.Parser.ParseJson(json);
+        } catch (Exception ex) {
+            return StatusCode(500, new { error = $"periodicals capture unreadable: {ex.Message}" });
+        }
+
+        double? serverTime = per.Contracts is { HasServerTime: true } c ? c.ServerTime : null;
+        var events = new List<object>();
+        var iconCache = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var e in per.Events?.Events ?? []) {
+            double? endTime = e.StartTime > 0 && e.Duration > 0
+                ? e.StartTime + e.Duration
+                : serverTime is { } st ? st + e.SecondsRemaining : null;
+            events.Add(new {
+                identifier = e.Identifier,
+                type = e.Type,
+                subtitle = e.Subtitle,
+                multiplier = e.Multiplier,
+                startTime = e.StartTime,
+                duration = e.Duration,
+                endTime,
+                icon = await ResolveEventIcon(e.Type, iconCache, ct)
+            });
+        }
+
+        return Ok(new { capturedAt, serverTime, events });
+    }
+
+    private async Task<(string? Json, DateTimeOffset? CapturedAt)> ResolveCurrentJson(string? route, CancellationToken ct) {
+        if (services.GetService(typeof(EggIncognitoDbContext)) is EggIncognitoDbContext db) {
+            try {
+                var snap = await db.PeriodicalsSnapshots
+                    .OrderByDescending(s => s.CapturedAt)
+                    .FirstOrDefaultAsync(ct);
+                if (snap is not null) return (snap.ResponseJson, snap.CapturedAt);
+                if (route is not null) {
+                    var stored = await db.StoredEndpoints
+                        .FirstOrDefaultAsync(s => s.Path == route && s.Eid == null, ct);
+                    if (stored is not null) return (stored.ResponseJson, null);
+                }
+            } catch {
+            }
+        }
+
+        if (route is null) return (null, null);
+        string path = FixturePath(route);
+        return System.IO.File.Exists(path)
+            ? (await System.IO.File.ReadAllTextAsync(path, ct), null)
+            : (null, null);
+    }
+
+    private async Task<string?> ResolveEventIcon(string type, Dictionary<string, string?> cache, CancellationToken ct) {
+        if (string.IsNullOrEmpty(type)) return null;
+        if (cache.TryGetValue(type, out string? cached)) return cached;
+        string? icon = null;
+        if (services.GetService(typeof(GameAssetProvider)) is GameAssetProvider assets) {
+            string stem = type.Replace('-', '_');
+            string[] candidates = [stem, $"event_{stem}"];
+            foreach (string candidate in candidates) {
+                var result = await assets.GetAsync(new GameAssetKey("icon", null, candidate), ct);
+                if (!result.Ok || result.Asset is null) continue;
+                icon = $"/api/v1/data/asset/icon?name={Uri.EscapeDataString(candidate)}";
+                break;
+            }
+        }
+
+        cache[type] = icon;
+        return icon;
     }
 
     private Dictionary<string, string> LoadColleggtibleIcons() {

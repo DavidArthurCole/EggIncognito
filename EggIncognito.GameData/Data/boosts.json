@@ -1,12 +1,4 @@
 {
-  "binaryVersion": "egginc-1.35.6",
-  "provenance": {
-    "identity": { "origin": "binary", "locator": "boostmanager" },
-    "magnitude": { "origin": "binary", "locator": "boostmanager", "method": "manual" },
-    "duration": { "origin": "binary", "locator": "boostmanager", "method": "manual" },
-    "cost": { "origin": "config", "locator": "ei/get_config" },
-    "iconAsset": { "origin": "derived" }
-  },
   "rows": [
     { "id": "tachyon_prism_blue", "target": "IHR", "combineMode": "Mul", "magnitude": 10, "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 1800, "price": 200, "tokenPrice": 1, "seRequired": 0, "iconAsset": "b_icon_tachyon_prism_blue" } },
     { "id": "tachyon_prism_blue_v2", "target": "IHR", "combineMode": "Mul", "magnitude": 10, "meta": { "kind": "InternalHatcheryMult", "durationSeconds": 1800, "price": 50, "tokenPrice": 0, "seRequired": 0, "iconAsset": "b_icon_tachyon_prism_blue" } },
@@ -22,5 +14,13 @@
     { "id": "boost_beacon_orange", "target": "BeaconMult", "combineMode": "Add", "magnitude": 49, "meta": { "kind": "BeaconMult", "multiplier": 50, "durationSeconds": 600, "appliesTo": "Feed,Prism,SoulBeacon", "price": 50000, "tokenPrice": 8, "seRequired": 100000000, "iconAsset": "b_icon_boost_beacon_orange" } },
     { "id": "quantum_bulb", "target": "UnlimitedHatchery", "combineMode": "Mul", "magnitude": 1, "meta": { "kind": "UnlimitedHatchery", "durationSeconds": 600, "price": 10, "tokenPrice": 0, "seRequired": 0, "iconAsset": "b_icon_quantum_bulb" } },
     { "id": "dilithium_bulb", "target": "UnlimitedHatchery", "combineMode": "Mul", "magnitude": 1, "meta": { "kind": "UnlimitedHatchery", "durationSeconds": 600, "price": 1000, "tokenPrice": 0, "seRequired": 100000, "iconAsset": "b_icon_dilithium_bulb" } }
-  ]
+  ],
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "identity": { "origin": "binary", "locator": "boostmanager" },
+    "magnitude": { "origin": "binary", "locator": "boostmanager", "method": "manual" },
+    "duration": { "origin": "binary", "locator": "boostmanager", "method": "manual" },
+    "cost": { "origin": "config", "locator": "ei/get_config" },
+    "iconAsset": { "origin": "derived" }
+  }
 }

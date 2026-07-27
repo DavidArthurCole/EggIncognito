@@ -1,8 +1,4 @@
 {
-  "binaryVersion": "egginc-1.35.6",
-  "provenance": {
-    "capacity": { "origin": "binary", "locator": "habdata", "method": "decoded" }
-  },
   "rows": [
     { "id": "COOP", "target": "HabCapacity", "combineMode": "Add", "magnitude": 250, "meta": { "habId": 0, "name": "Coop" } },
     { "id": "SHACK", "target": "HabCapacity", "combineMode": "Add", "magnitude": 500, "meta": { "habId": 1, "name": "Shack" } },
@@ -23,5 +19,9 @@
     { "id": "MONOLITH", "target": "HabCapacity", "combineMode": "Add", "magnitude": 50000000, "meta": { "habId": 16, "name": "Monolith" } },
     { "id": "PLANET_PORTAL", "target": "HabCapacity", "combineMode": "Add", "magnitude": 100000000, "meta": { "habId": 17, "name": "Planet Portal" } },
     { "id": "CHICKEN_UNIVERSE", "target": "HabCapacity", "combineMode": "Add", "magnitude": 600000000, "meta": { "habId": 18, "name": "Chicken Universe" } }
-  ]
+  ],
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "capacity": { "origin": "binary", "locator": "habdata", "method": "decoded" }
+  }
 }

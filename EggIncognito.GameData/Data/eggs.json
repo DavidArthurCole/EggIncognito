@@ -1,17 +1,4 @@
 {
-  "binaryVersion": "egginc-1.35.6",
-  "provenance": {
-    "identity": {
-      "origin": "binary",
-      "locator": "eggdata",
-      "method": "decoded"
-    },
-    "baseValue": {
-      "origin": "binary",
-      "locator": "eggdata",
-      "method": "decoded"
-    }
-  },
   "eggs": [
     {
       "index": 0,
@@ -102,5 +89,18 @@
       "name": "ENLIGHTENMENT",
       "baseValue": 1E-07
     }
-  ]
+  ],
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "identity": {
+      "origin": "binary",
+      "locator": "eggdata",
+      "method": "decoded"
+    },
+    "baseValue": {
+      "origin": "binary",
+      "locator": "eggdata",
+      "method": "decoded"
+    }
+  }
 }

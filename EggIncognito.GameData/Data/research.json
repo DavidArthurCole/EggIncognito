@@ -1,9 +1,4 @@
 {
-  "binaryVersion": "egginc-1.35.6",
-  "provenance": {
-    "identity": { "origin": "binary", "locator": "researchdata" },
-    "magnitude": { "origin": "binary", "locator": "researchdata", "method": "manual" }
-  },
   "rows": [
     { "id": "internal_hatchery1", "target": "IHR", "combineMode": "Add", "magnitude": 2, "maxLevel": 10, "meta": { "name": "Internal Hatcheries" } },
     { "id": "internal_hatchery2", "target": "IHR", "combineMode": "Add", "magnitude": 5, "maxLevel": 10, "meta": { "name": "Internal Hatchery Upgrades" } },
@@ -19,5 +14,10 @@
     { "id": "grav_plating", "target": "HabCapacity", "combineMode": "MulPlusOne", "magnitude": 0.02, "maxLevel": 25, "meta": { "name": "Grav Plating" } },
     { "id": "wormhole_dampening", "target": "HabCapacity", "combineMode": "MulPlusOne", "magnitude": 0.02, "maxLevel": 25, "meta": { "name": "Wormhole Dampening" } },
     { "id": "hen_house_ac", "target": "EggLayingRate", "combineMode": "MulPlusOne", "magnitude": 0.05, "maxLevel": 50, "meta": { "name": "Hen House A/C" } }
-  ]
+  ],
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "identity": { "origin": "binary", "locator": "researchdata" },
+    "magnitude": { "origin": "binary", "locator": "researchdata", "method": "manual" }
+  }
 }

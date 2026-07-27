@@ -35,6 +35,7 @@ public sealed class PeriodicalsChangeNotifier(
             try {
                 using var scope = scopes.CreateScope();
                 await UpsertStoredEndpointAsync(scope.ServiceProvider, routePath, json);
+                await InsertSnapshotAsync(scope.ServiceProvider, routePath, json, sha);
                 var dispatcher = scope.ServiceProvider.GetService<FeedDispatcher>();
                 if (dispatcher is null) return;
                 await dispatcher.DispatchAsync(new PeriodicalsChangedEvent(feed, sha, pageUrl, aspects));
@@ -119,6 +120,23 @@ public sealed class PeriodicalsChangeNotifier(
             await db.SaveChangesAsync();
         } catch (Exception ex) {
             logger.LogWarning(ex, "periodicals-change stored_endpoint upsert for {Route} failed", route);
+        }
+    }
+
+    private async Task InsertSnapshotAsync(IServiceProvider sp, string route, string json, string sha) {
+        try {
+            if (!string.Equals(routes.Get(route)?.Response, PeriodicalsResponse.Descriptor.Name, StringComparison.Ordinal))
+                return;
+            if (sp.GetService<EggIncognitoDbContext>() is not { } db) return;
+            if (await db.PeriodicalsSnapshots.AnyAsync(s => s.Sha == sha)) return;
+            db.PeriodicalsSnapshots.Add(new PeriodicalsSnapshot {
+                CapturedAt = DateTimeOffset.UtcNow,
+                Sha = sha,
+                ResponseJson = json
+            });
+            await db.SaveChangesAsync();
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "periodicals snapshot insert for {Route} failed", route);
         }
     }
 

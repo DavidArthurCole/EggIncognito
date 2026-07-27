@@ -1,9 +1,4 @@
 {
-  "gameVersion": "1.36",
-  "provenance": {
-    "buffs": { "origin": "fixture", "locator": "ei/get_periodicals", "method": "captured" },
-    "contractEggMap": { "origin": "fixture", "locator": "ei/get_periodicals", "method": "captured" }
-  },
   "eggs": [
     { "identifier": "carbon-fiber", "dimension": "SHIPPING_CAPACITY", "tierValues": [1.01, 1.02, 1.03, 1.05] },
     { "identifier": "chocolate", "dimension": "AWAY_EARNINGS", "tierValues": [1.25, 1.5, 2, 3] },
@@ -22,5 +17,10 @@
     "model-kits-2026": "pegg",
     "more-housing-2026": "wood",
     "thermal-runaway-2026": "ice"
+  },
+  "gameVersion": "1.36",
+  "provenance": {
+    "buffs": { "origin": "fixture", "locator": "ei/get_periodicals", "method": "captured" },
+    "contractEggMap": { "origin": "fixture", "locator": "ei/get_periodicals", "method": "captured" }
   }
 }

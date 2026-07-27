@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using EggIncognito.Core.Services.Assets;
 using EggIncognito.GameData;
 using Ei;
@@ -9,6 +10,10 @@ namespace EggIncognito.Services.DataApi;
 public sealed class DataCatalog {
     private static readonly JsonSerializerOptions SnakeJson = new() {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = true
+    };
+
+    private static readonly JsonSerializerOptions IndentedJson = new() {
         WriteIndented = true
     };
 
@@ -74,7 +79,7 @@ public sealed class DataCatalog {
             p => new ArtifactsConfigurationRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
         Wire("season-infos", "Season infos", "Raw get_season_infos_v2 response fixture.",
             "ei_ctx/get_season_infos_v2", "season-infos",
-            p => new BasicRequestInfo { Platform = p }.ToByteArray()),
+            p => new BasicRequestInfo { Platform = p }.ToByteArray(), listed: false),
         Wire("config", "Game config", "Raw get_config response fixture.",
             "ei/get_config", null,
             p => new ConfigRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
@@ -91,33 +96,34 @@ public sealed class DataCatalog {
             "ei_afx/config", null, new DataRefresh(false), false,
             ProduceEiAfx, Extends: "afx-config"),
 
-        Embedded("boost", "Boosts", "boosts.json", "boosts.json"),
-        Embedded("boost-catalog", "Boost catalog",
-            "All 33 boosts: identity + costs, extracted from boostmanager + get_config.", "boost-catalog.json"),
-        Embedded("egg-catalog", "Egg catalog", "Egg names and base values extracted from eggdata.", "eggs.json"),
-        Embedded("dimension", "Boost dimensions", "Boost dimension ids extracted from boostmanager.",
-            "dimensions.json"),
+        Derived("boost-catalog", "Boost catalog",
+            "All 33 boosts: identity, costs, effects and durations, extracted from boostmanager + get_config.",
+            (_, _) => Task.FromResult(BoostCatalogPayload())),
         Embedded("mission", "Missions", "Home-screen mission goals extracted from missiondata.", "missions.json"),
-        Embedded("vehicle", "Vehicles", "Vehicle names and shipping capacities extracted from vehicledata.",
-            "vehicles.json"),
-        Embedded("research", "Research", "research.json", "research.json"),
-        Embedded("hab", "Habs", "habs.json", "habs.json"),
-        Embedded("artifact", "Artifacts", "artifacts.json", "artifacts.json"),
+        Derived("research-common", "Common research",
+            "Common research lines extracted from researchdata.",
+            (_, _) => Task.FromResult(ResearchPayload(epic: false))),
+        Derived("research-epic", "Epic research",
+            "Epic research lines extracted from researchdata.",
+            (_, _) => Task.FromResult(ResearchPayload(epic: true))),
 
         new("icon", "asset", "Game icon", "Boost/artifact icon PNG by asset name.",
             DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceIcon)
     ];
 
     private static DataSource Wire(string id, string display, string desc, string route, string? feed,
-        Func<string, byte[]> egressRequest) =>
+        Func<string, byte[]> egressRequest, bool listed = true) =>
         new(id, "periodical", display, desc, DataProvenance.WireFixture, DataAccess.Authenticated,
             route, feed, new DataRefresh(true), false,
-            (ctx, _) => Task.FromResult(FixtureJson(ctx.Services, route)), egressRequest);
+            (ctx, _) => Task.FromResult(FixtureJson(ctx.Services, route)), egressRequest, Listed: listed);
 
     private static DataSource Embedded(string id, string display, string desc, string resource) =>
+        Derived(id, display, desc, (_, _) => Task.FromResult(EmbeddedJson(resource)));
+
+    private static DataSource Derived(string id, string display, string desc,
+        Func<DataProduceContext, CancellationToken, Task<DataPayload?>> produce) =>
         new(id, "gamedata", display, desc, DataProvenance.GameDataEmbedded, DataAccess.Public,
-            null, null, new DataRefresh(false), false,
-            (_, _) => Task.FromResult(EmbeddedJson(resource)));
+            null, null, new DataRefresh(false), false, produce);
 
     private static string DefaultsDir(IServiceProvider services) {
         var config = services.GetRequiredService<IConfiguration>();
@@ -125,7 +131,7 @@ public sealed class DataCatalog {
         return Path.Combine(root, "Endpoints", "default");
     }
 
-    private static string FixturePath(IServiceProvider services, string route) {
+    internal static string FixturePath(IServiceProvider services, string route) {
         string[] parts = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
         string file = parts[^1] + ".json";
         return Path.Combine(DefaultsDir(services), Path.Combine(parts[..^1]), file);
@@ -142,13 +148,113 @@ public sealed class DataCatalog {
     }
 
     private static DataPayload? EmbeddedJson(string resource) {
+        string? text = EmbeddedText(resource);
+        return text is null ? null : DataPayload.Json(text);
+    }
+
+    private static string? EmbeddedText(string resource) {
         var asm = typeof(ColleggtibleCatalog).Assembly;
         string? full = asm.GetManifestResourceNames()
             .FirstOrDefault(n => n.EndsWith(resource, StringComparison.Ordinal));
         if (full is null) return null;
         using var stream = asm.GetManifestResourceStream(full)!;
         using var reader = new StreamReader(stream);
-        return DataPayload.Json(reader.ReadToEnd());
+        return reader.ReadToEnd();
+    }
+
+    private static DataPayload? BoostCatalogPayload() {
+        string? catalogText = EmbeddedText("boost-catalog.json");
+        string? boostsText = EmbeddedText("boosts.json");
+        if (catalogText is null && boostsText is null) return null;
+
+        var catalogDoc = catalogText is null ? null : JsonNode.Parse(catalogText)!.AsObject();
+        var boostsDoc = boostsText is null ? null : JsonNode.Parse(boostsText)!.AsObject();
+
+        var identity = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        var effects = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        var order = new List<string>();
+
+        if (catalogDoc?["boosts"] is JsonArray catalogBoosts) {
+            foreach (var node in catalogBoosts) {
+                var row = node!.AsObject();
+                string id = row["id"]!.GetValue<string>();
+                identity[id] = row;
+                order.Add(id);
+            }
+        }
+
+        if (boostsDoc?["rows"] is JsonArray boostRows) {
+            foreach (var node in boostRows) {
+                var row = node!.AsObject();
+                string id = row["id"]!.GetValue<string>();
+                effects[id] = row;
+                if (!identity.ContainsKey(id)) order.Add(id);
+            }
+        }
+
+        var boosts = new JsonArray();
+        foreach (string id in order) {
+            var merged = new JsonObject { ["id"] = id };
+            identity.TryGetValue(id, out var idRow);
+            effects.TryGetValue(id, out var fxRow);
+            var meta = fxRow?["meta"]?.AsObject();
+            CopyField(merged, "displayName", idRow);
+            CopyField(merged, "price", idRow, meta);
+            CopyField(merged, "tokenPrice", idRow, meta);
+            CopyField(merged, "seRequired", idRow, meta);
+            CopyField(merged, "iconAsset", idRow, meta);
+            CopyField(merged, "target", fxRow);
+            CopyField(merged, "combineMode", fxRow);
+            CopyField(merged, "magnitude", fxRow);
+            CopyField(merged, "kind", meta);
+            CopyField(merged, "durationSeconds", meta);
+            boosts.Add(merged);
+        }
+
+        var provenance = new JsonObject();
+        if (boostsDoc?["provenance"] is JsonObject boostsProv) {
+            foreach ((string key, var value) in boostsProv) provenance[key] = value?.DeepClone();
+        }
+
+        if (catalogDoc?["provenance"] is JsonObject catalogProv) {
+            foreach ((string key, var value) in catalogProv) provenance[key] = value?.DeepClone();
+        }
+
+        var output = new JsonObject {
+            ["boosts"] = boosts,
+            ["binaryVersion"] = (catalogDoc?["binaryVersion"] ?? boostsDoc?["binaryVersion"])?.DeepClone(),
+            ["provenance"] = provenance
+        };
+        return DataPayload.Json(output.ToJsonString(IndentedJson));
+    }
+
+    private static void CopyField(JsonObject target, string key, params JsonObject?[] sources) {
+        foreach (var source in sources) {
+            if (source is not null && source.TryGetPropertyValue(key, out var value) && value is not null) {
+                target[key] = value.DeepClone();
+                return;
+            }
+        }
+    }
+
+    private static DataPayload? ResearchPayload(bool epic) {
+        string? text = EmbeddedText("research.json");
+        if (text is null) return null;
+        var doc = JsonNode.Parse(text)!.AsObject();
+        var rows = new JsonArray();
+        if (doc["rows"] is JsonArray all) {
+            foreach (var node in all) {
+                bool isEpic = node?["meta"]?["epic"]?.GetValue<bool>() ?? false;
+                if (isEpic == epic) rows.Add(node!.DeepClone());
+            }
+        }
+
+        var output = new JsonObject {
+            ["rows"] = rows,
+            ["binaryVersion"] = doc["binaryVersion"]?.DeepClone(),
+            ["provenance"] = doc["provenance"]?.DeepClone()
+        };
+        return DataPayload.Json(output.ToJsonString(IndentedJson));
     }
 
     private static Task<DataPayload?> ProduceColleggtibles(DataProduceContext ctx, CancellationToken ct) {

@@ -39,21 +39,31 @@ public static class LiveColleggtibleSource {
     }
 
     private static IEnumerable<(string? Json, string Origin)> Candidates(IServiceProvider services, string route) {
-        yield return (DbJson(services, route), "db");
-        yield return (DataCatalog.FixtureText(services, route), "fixture");
+        (string? Json, string Origin, DateTimeOffset Updated)[] rows = [DbRow(services, route), FixtureRow(services, route)];
+        return rows.OrderByDescending(r => r.Updated).Select(r => (r.Json, r.Origin));
     }
 
-    private static string? DbJson(IServiceProvider services, string route) {
-        if (services.GetService(typeof(EggIncognitoDbContext)) is not EggIncognitoDbContext db) return null;
+    private static (string? Json, string Origin, DateTimeOffset Updated) DbRow(IServiceProvider services, string route) {
+        if (services.GetService(typeof(EggIncognitoDbContext)) is not EggIncognitoDbContext db)
+            return (null, "db", DateTimeOffset.MinValue);
         try {
-            return db.StoredEndpoints.AsNoTracking()
+            var row = db.StoredEndpoints.AsNoTracking()
                 .Where(e => e.Path == route && e.Eid == null)
                 .OrderByDescending(e => e.UpdatedAt)
-                .Select(e => e.ResponseJson)
+                .Select(e => new { e.ResponseJson, e.UpdatedAt })
                 .FirstOrDefault();
+            return row is null ? (null, "db", DateTimeOffset.MinValue) : (row.ResponseJson, "db", row.UpdatedAt);
         } catch {
-            return null;
+            return (null, "db", DateTimeOffset.MinValue);
         }
+    }
+
+    private static (string? Json, string Origin, DateTimeOffset Updated) FixtureRow(IServiceProvider services,
+        string route) {
+        string path = DataCatalog.FixturePath(services, route);
+        return File.Exists(path)
+            ? (File.ReadAllText(path), "fixture", File.GetLastWriteTimeUtc(path))
+            : (null, "fixture", DateTimeOffset.MinValue);
     }
 
     private static LiveColleggtibles Build(IServiceProvider services, string route, ColleggtibleExtract extract,
@@ -67,14 +77,14 @@ public static class LiveColleggtibleSource {
             ["contractEggMap"] = source
         };
         var doc = new {
-            gameVersion,
-            provenance,
             eggs = extract.Eggs.Select(e => new {
                 identifier = e.Identifier,
                 dimension = DimensionName(e.Dimension),
                 tierValues = e.TierValues
             }).ToArray(),
-            contractEggMap = extract.ContractEggMap
+            contractEggMap = extract.ContractEggMap,
+            gameVersion,
+            provenance
         };
         return new LiveColleggtibles(extract, gameVersion, provenance, JsonSerializer.Serialize(doc, CamelJson));
     }

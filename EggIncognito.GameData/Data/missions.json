@@ -1,21 +1,4 @@
 {
-  "binaryVersion": "egginc-1.35.6",
-  "provenance": {
-    "identity": {
-      "origin": "binary",
-      "locator": "missiondata"
-    },
-    "displayName": {
-      "origin": "binary",
-      "locator": "missiondata",
-      "method": "manual"
-    },
-    "goal": {
-      "origin": "binary",
-      "locator": "missiondata",
-      "method": "manual"
-    }
-  },
   "missions": [
     {
       "id": "two_hundred",
@@ -249,6 +232,23 @@
       "displayName": "CHICKEN GALAXY",
       "goal": "300 Million chickens live on your farm."
     }
-  ]
+  ],
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "identity": {
+      "origin": "binary",
+      "locator": "missiondata"
+    },
+    "displayName": {
+      "origin": "binary",
+      "locator": "missiondata",
+      "method": "manual"
+    },
+    "goal": {
+      "origin": "binary",
+      "locator": "missiondata",
+      "method": "manual"
+    }
+  }
 }
 

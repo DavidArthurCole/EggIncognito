@@ -1,5 +1,7 @@
+@using System.Text
 @using System.Text.Json
 @using EggIncognito.Components.Capture
+@implements IDisposable
 @inject ICurrentUser User
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
@@ -10,6 +12,34 @@
     <div class="panel text-muted text-sm">Loading…</div>
 } else {
     <div class="flex flex-col gap-6">
+        @if (_events is { Count: > 0 }) {
+            <section class="panel">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-semibold m-0">Current events</h3>
+                    @if (_eventsCapturedAt is { } cap) {
+                        <span class="text-muted text-xs">captured @cap.ToLocalTime().ToString("MMM d, HH:mm")</span>
+                    }
+                </div>
+                <div class="flex flex-col gap-2">
+                    @foreach (var e in _events) {
+                        <div class="flex items-center gap-3">
+                            @if (!string.IsNullOrEmpty(e.Icon)) {
+                                <img class="w-8 h-8 object-contain shrink-0" src="@e.Icon" alt="" loading="lazy"/>
+                            }
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm truncate">@(string.IsNullOrEmpty(e.Subtitle) ? e.Type : e.Subtitle)</div>
+                                <div class="text-muted text-xs mono truncate">@e.Type</div>
+                            </div>
+                            @if (e.Multiplier > 0 && Math.Abs(e.Multiplier - 1) > 0.0001) {
+                                <span class="pill">@MultLabel(e.Multiplier)</span>
+                            }
+                            <span class="mono text-xs @(RemainingSeconds(e) <= 0 ? "text-muted" : "text-accent")">@RemainingLabel(e)</span>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
         @if (_catalog is not null) {
             var ix = 0;
             var firstGroup = true;
@@ -61,6 +91,65 @@
             </section>
         }
 
+        @if (_seasons is { Count: > 0 } seasonList) {
+            var season = seasonList[Math.Clamp(_seasonIx, 0, seasonList.Count - 1)];
+            var grades = season.GradeGoals.Where(g => g.Goals.Count > 0).ToList();
+            <section class="panel">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-semibold m-0">Seasons</h3>
+                    <div class="flex items-center gap-1">
+                        <button type="button" class="reg-edit-btn" disabled="@(_seasonIx >= seasonList.Count - 1)"
+                                title="Older season" aria-label="Older season" @onclick="() => MoveSeason(1)">
+                            <Icon Name="chevronLeft"/>
+                        </button>
+                        <button type="button" class="reg-edit-btn" disabled="@(_seasonIx <= 0)"
+                                title="Newer season" aria-label="Newer season" @onclick="() => MoveSeason(-1)">
+                            <Icon Name="chevronRight"/>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="border border-border rounded overflow-hidden text-center w-14 shrink-0">
+                        <div class="bg-accent text-bg text-[10px] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
+                        <div class="text-lg font-semibold py-1">@StartDate(season).Day</div>
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold">@season.Name</div>
+                        <div class="text-muted text-xs">@StartLabel(season)</div>
+                    </div>
+                </div>
+                @if (grades.Count > 0) {
+                    var sel = grades.FirstOrDefault(g => g.Grade == _grade) ?? grades[^1];
+                    <div class="settings-seg mb-2 max-w-xs" role="radiogroup" aria-label="Grade">
+                        @foreach (var g in grades) {
+                            var grade = g.Grade;
+                            <button type="button" class="seg-btn @(sel.Grade == grade ? "active" : "")"
+                                    @onclick="() => _grade = grade">
+                                @GradeLabel(grade)
+                            </button>
+                        }
+                    </div>
+                    <table class="reg-table">
+                        <thead>
+                        <tr>
+                            <th>CXP</th><th>Reward</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var goal in sel.Goals) {
+                            <tr>
+                                <td class="mono text-xs">@goal.Cxp.ToString("N0")</td>
+                                <td class="text-xs">@RewardLabel(goal)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                } else {
+                    <div class="text-muted text-sm">No reward data captured for this season.</div>
+                }
+            </section>
+        }
+
         @if (_summary?.Colleggtibles is { } c) {
             <section class="panel">
                 <div class="flex items-center justify-between mb-3">
@@ -106,6 +195,12 @@
     Summary? _summary;
     DataResponse? _catalog;
     string? _catalogError;
+    List<Season>? _seasons;
+    int _seasonIx;
+    string _grade = "GRADE_AAA";
+    List<EventRow>? _events;
+    DateTimeOffset? _eventsCapturedAt;
+    Timer? _tick;
     readonly CaptureViewState _view = new();
     readonly Dictionary<string, string> _fc = new();
     string _baseAddress = "";
@@ -130,6 +225,31 @@
             var fetched = await Client().GetFromJsonAsync<Summary>("/api/periodicals/summary", JsonOpts);
             if (fetched is not null) {
                 _summary = fetched;
+            }
+        }
+        catch {
+        }
+
+        try {
+            var cur = await Client().GetFromJsonAsync<EventsResponse>("/api/periodicals/current", JsonOpts);
+            if (cur is not null) {
+                _events = cur.Events;
+                _eventsCapturedAt = cur.CapturedAt;
+                if (_events is { Count: > 0 }) {
+                    _tick = new Timer(_ => InvokeAsync(StateHasChanged), null, 30_000, 30_000);
+                }
+            }
+        }
+        catch {
+        }
+
+        try {
+            var seasonsRes = await Client().GetFromJsonAsync<SeasonsResponse>("/api/periodicals/seasons", JsonOpts);
+            if (seasonsRes?.Seasons is { Count: > 0 } ls) {
+                _seasons = ls;
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var ix = ls.FindIndex(s => s.StartTime <= now);
+                _seasonIx = ix < 0 ? 0 : ix;
             }
         }
         catch {
@@ -177,6 +297,72 @@
         return "ds-cell" + (ix % 2 == 1 ? " ds-stripe" : "");
     }
 
+    void MoveSeason(int delta) {
+        if (_seasons is null) return;
+        _seasonIx = Math.Clamp(_seasonIx + delta, 0, _seasons.Count - 1);
+    }
+
+    static DateTimeOffset StartDate(Season s) {
+        return DateTimeOffset.FromUnixTimeSeconds((long)s.StartTime);
+    }
+
+    static string StartLabel(Season s) {
+        var d = StartDate(s);
+        var verb = d <= DateTimeOffset.UtcNow ? "Started" : "Starts";
+        var derived = s.StartDerived ? " (derived)" : "";
+        return $"{verb} {d.ToString("MMMM d, yyyy")}{derived}";
+    }
+
+    static string GradeLabel(string grade) {
+        return grade.StartsWith("GRADE_", StringComparison.Ordinal) ? grade["GRADE_".Length..] : grade;
+    }
+
+    static string RewardLabel(GoalRow g) {
+        var label = Pretty(g.RewardType);
+        if (!string.IsNullOrEmpty(g.RewardSubType)) {
+            label += $" ({Pretty(g.RewardSubType)})";
+        }
+
+        return $"{g.RewardAmount.ToString("N0")} × {label}";
+    }
+
+    static string Pretty(string raw) {
+        var words = raw.Replace('-', '_').Split('_', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > 1 || raw.Contains('_')) {
+            return string.Join(' ', words.Select(w => w.Length > 0 ? char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant() : w));
+        }
+
+        var sb = new StringBuilder();
+        foreach (var ch in raw) {
+            if (char.IsUpper(ch) && sb.Length > 0) sb.Append(' ');
+            sb.Append(ch);
+        }
+
+        return sb.ToString();
+    }
+
+    static string MultLabel(double m) {
+        return $"{m.ToString(m == Math.Floor(m) ? "0" : "0.##")}x";
+    }
+
+    static double RemainingSeconds(EventRow e) {
+        if (e.EndTime is not { } end || end <= 0) return 0;
+        return end - DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    }
+
+    static string RemainingLabel(EventRow e) {
+        var s = RemainingSeconds(e);
+        if (s <= 0) return "ended";
+        var t = TimeSpan.FromSeconds(s);
+        if (t.TotalDays >= 1) return $"{(int)t.TotalDays}d {t.Hours}h left";
+        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}h {t.Minutes}m left";
+        return $"{t.Minutes}m left";
+    }
+
+    public void Dispose() {
+        _tick?.Dispose();
+    }
+
     record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config, List<FeedInfo> Feeds);
 
     record ExtractedRow(string Key, int Count, string Provenance);
@@ -190,6 +376,26 @@
     record PlatformRow(string Platform, DateTimeOffset SavedAt, long Bytes);
 
     record FeedInfo(string Name, string Path, bool Present, long Bytes);
+
+    record SeasonsResponse(List<Season> Seasons);
+
+    record Season(string Id, string Name, double StartTime, bool StartDerived, List<GradeGoalsRow> GradeGoals);
+
+    record GradeGoalsRow(string Grade, List<GoalRow> Goals);
+
+    record GoalRow(double Cxp, string RewardType, string RewardSubType, double RewardAmount);
+
+    record EventsResponse(DateTimeOffset? CapturedAt, double? ServerTime, List<EventRow> Events);
+
+    record EventRow(
+        string Identifier,
+        string Type,
+        string Subtitle,
+        double Multiplier,
+        double StartTime,
+        double Duration,
+        double? EndTime,
+        string? Icon);
 
     record DataResponse(int Count, List<Source> Sources);
 

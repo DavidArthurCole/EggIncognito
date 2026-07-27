@@ -1,23 +1,4 @@
 {
-  "binaryVersion": "egginc-1.35.6",
-  "provenance": {
-    "identity": {
-      "origin": "binary",
-      "locator": "boostmanager"
-    },
-    "description": {
-      "origin": "binary",
-      "locator": "boostmanager",
-      "method": "decoded"
-    },
-    "cost": {
-      "origin": "config",
-      "locator": "ei/get_config"
-    },
-    "iconAsset": {
-      "origin": "derived"
-    }
-  },
   "boosts": [
     {
       "id": "jimbos_blue_v2",
@@ -290,5 +271,24 @@
       "seRequired": 1000000,
       "iconAsset": "b_icon_soul_beacon_purple"
     }
-  ]
+  ],
+  "binaryVersion": "egginc-1.35.6",
+  "provenance": {
+    "identity": {
+      "origin": "binary",
+      "locator": "boostmanager"
+    },
+    "description": {
+      "origin": "binary",
+      "locator": "boostmanager",
+      "method": "decoded"
+    },
+    "cost": {
+      "origin": "config",
+      "locator": "ei/get_config"
+    },
+    "iconAsset": {
+      "origin": "derived"
+    }
+  }
 }
