@@ -13,8 +13,4 @@
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Data\*.json" />
-  </ItemGroup>
 </Project>

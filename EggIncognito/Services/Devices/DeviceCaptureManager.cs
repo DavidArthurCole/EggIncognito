@@ -14,7 +14,9 @@ public sealed class DeviceCaptureManager(
     Func<bool, ICaptureProxy>? proxyFactory,
     string contentRoot,
     ILogger<DeviceCaptureManager> logger,
-    IEnumerable<IDeviceCaInstaller>? caInstallers = null) : IHostedService {
+    IEnumerable<IDeviceCaInstaller>? caInstallers = null,
+    IReadOnlySet<string>? liveRoutes = null,
+    IEndpointWriteObserver? writeObserver = null) : IHostedService {
     public const int PortsPerDevice = 3;
 
     private readonly Dictionary<string, IDeviceCaInstaller> _caInstallers =
@@ -77,7 +79,16 @@ public sealed class DeviceCaptureManager(
             var hub = new CaptureHub();
             var queue = Channel.CreateUnbounded<CapturedFlow>(new UnboundedChannelOptions { SingleReader = true });
             var decoder = new FlowDecoder(contentRoot);
-            var processor = new FlowProcessor(null, decoder, null, contentRoot);
+            EndpointExtractor? extractor = null;
+            if (liveRoutes is { Count: > 0 }) {
+                extractor = EndpointExtractor.ForRepo(contentRoot, null, "EI0000000000000000", false);
+                extractor.Quiet = true;
+                extractor.LiveOnly = true;
+                extractor.LiveRoutes = liveRoutes.ToHashSet(StringComparer.Ordinal);
+                extractor.WriteObserver = writeObserver;
+            }
+
+            var processor = new FlowProcessor(extractor, decoder, null, contentRoot);
             var pump = Task.Run(() => PumpAsync(d.Id, queue, processor, hub), ct);
 
             var diag = _diag.GetOrAdd(d.Id, _ => new DeviceCaptureDiag());

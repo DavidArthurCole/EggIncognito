@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Text.Json;
-
 namespace EggIncognito.GameData;
 
 public sealed record VehicleCatalogEntry(
@@ -32,8 +29,9 @@ public sealed class VehicleCatalog : IVehicleCatalog {
 
     public VehicleCatalogEntry? Find(int index) => _byIndex.GetValueOrDefault(index);
 
-    public static VehicleCatalog Load(string resource = "vehicles.json") {
-        var file = VehicleCatalogDataLoader.Read(resource);
+    public static VehicleCatalog Parse(string json) {
+        var file = GameDataJson.Deserialize<VehicleCatalogDataFile>(json, "Vehicle catalog");
+        if (file.Vehicles is null) throw new GameDataSchemaException("Vehicle catalog missing vehicles.");
         var vehicles = file.Vehicles.Select(ToEntry).ToArray();
         return new VehicleCatalog(vehicles, file.BinaryVersion ?? "", file.Provenance ?? GameData.Provenance.Empty);
     }
@@ -57,23 +55,3 @@ public sealed record VehicleCatalogDataFile(
     string? BinaryVersion,
     IReadOnlyDictionary<string, ProvenanceSource>? Provenance,
     IReadOnlyList<VehicleCatalogRow> Vehicles);
-
-public static class VehicleCatalogDataLoader {
-    private static readonly JsonSerializerOptions Options = new() {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
-    public static VehicleCatalogDataFile Read(string resourceName) {
-        var assembly = Assembly.GetExecutingAssembly();
-        string full = assembly.GetManifestResourceNames()
-                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
-
-        using var stream = assembly.GetManifestResourceStream(full)
-                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
-
-        return JsonSerializer.Deserialize<VehicleCatalogDataFile>(stream, Options)
-               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
-    }
-}

@@ -21,7 +21,6 @@ using EggIncognito.Core;
 using EggIncognito.Core.Services.Assets;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
-using EggIncognito.GameData;
 using EggIncognito.Logging;
 using EggIncognito.Services;
 using EggIncognito.Services.Assets;
@@ -156,7 +155,7 @@ builder.Services.AddHttpClient(SealedProxy.EgressClientName, c => {
 builder.Services.AddSingleton<IAppMode, AppModeService>();
 builder.Services.AddSingleton<IBehaviorService, BehaviorService>();
 builder.Services.AddSingleton<IProtoReflection, ProtoReflection>();
-builder.Services.AddSingleton<IGameDataProvider>(_ => GameDataProvider.CreateDefault());
+builder.Services.AddSingleton<GameDataStore>();
 builder.Services.AddSingleton<IDocRegistry, DocRegistry>();
 builder.Services.AddSingleton<ITransportPipeline, TransportPipeline>();
 
@@ -506,7 +505,9 @@ builder.Services.AddSingleton(sp => {
     return new DeviceCaptureManager(
         deviceCaptureConfig, deviceConfig, capturePath, caPath, null, contentRoot,
         sp.GetRequiredService<ILogger<DeviceCaptureManager>>(),
-        sp.GetServices<IDeviceCaInstaller>());
+        sp.GetServices<IDeviceCaInstaller>(),
+        sp.GetRequiredService<DataCatalog>().FeedWireRoutes().ToHashSet(StringComparer.Ordinal),
+        sp.GetService<PeriodicalsChangeNotifier>());
 });
 builder.Services.AddSingleton<DeviceProxyPusher>();
 if (deviceCaptureConfig.Enabled && deviceConfig.Devices.Count > 0)

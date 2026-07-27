@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Text.Json;
-
 namespace EggIncognito.GameData;
 
 public sealed record EggCatalogEntry(
@@ -32,8 +29,9 @@ public sealed class EggCatalog : IEggCatalog {
 
     public EggCatalogEntry? Find(int index) => _byIndex.GetValueOrDefault(index);
 
-    public static EggCatalog Load(string resource = "eggs.json") {
-        var file = EggCatalogDataLoader.Read(resource);
+    public static EggCatalog Parse(string json) {
+        var file = GameDataJson.Deserialize<EggCatalogDataFile>(json, "Egg catalog");
+        if (file.Eggs is null) throw new GameDataSchemaException("Egg catalog missing eggs.");
         var eggs = file.Eggs.Select(ToEntry).ToArray();
         return new EggCatalog(eggs, file.BinaryVersion ?? "", file.Provenance ?? GameData.Provenance.Empty);
     }
@@ -56,23 +54,3 @@ public sealed record EggCatalogDataFile(
     string? BinaryVersion,
     IReadOnlyDictionary<string, ProvenanceSource>? Provenance,
     IReadOnlyList<EggCatalogRow> Eggs);
-
-public static class EggCatalogDataLoader {
-    private static readonly JsonSerializerOptions Options = new() {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
-    public static EggCatalogDataFile Read(string resourceName) {
-        var assembly = Assembly.GetExecutingAssembly();
-        string full = assembly.GetManifestResourceNames()
-                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
-
-        using var stream = assembly.GetManifestResourceStream(full)
-                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
-
-        return JsonSerializer.Deserialize<EggCatalogDataFile>(stream, Options)
-               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
-    }
-}

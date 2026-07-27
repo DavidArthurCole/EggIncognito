@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using EggIncognito.Core.Services.Assets;
-using EggIncognito.GameData;
 using Ei;
 using Google.Protobuf;
 
@@ -98,14 +97,15 @@ public sealed class DataCatalog {
 
         Derived("boost-catalog", "Boost catalog",
             "All 33 boosts: identity, costs, effects and durations, extracted from boostmanager + get_config.",
-            (_, _) => Task.FromResult(BoostCatalogPayload())),
-        Embedded("mission", "Missions", "Home-screen mission goals extracted from missiondata.", "missions.json"),
+            (ctx, _) => Task.FromResult(BoostCatalogPayload(ctx.Services))),
+        Derived("mission", "Missions", "Home-screen mission goals extracted from missiondata.",
+            (ctx, _) => Task.FromResult(DocJson(ctx.Services, "missions"))),
         Derived("research-common", "Common research",
             "Common research lines extracted from researchdata.",
-            (_, _) => Task.FromResult(ResearchPayload(epic: false))),
+            (ctx, _) => Task.FromResult(ResearchPayload(ctx.Services, epic: false))),
         Derived("research-epic", "Epic research",
             "Epic research lines extracted from researchdata.",
-            (_, _) => Task.FromResult(ResearchPayload(epic: true))),
+            (ctx, _) => Task.FromResult(ResearchPayload(ctx.Services, epic: true))),
 
         new("icon", "asset", "Game icon", "Boost/artifact icon PNG by asset name.",
             DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceIcon)
@@ -117,12 +117,9 @@ public sealed class DataCatalog {
             route, feed, new DataRefresh(true), false,
             (ctx, _) => Task.FromResult(FixtureJson(ctx.Services, route)), egressRequest, Listed: listed);
 
-    private static DataSource Embedded(string id, string display, string desc, string resource) =>
-        Derived(id, display, desc, (_, _) => Task.FromResult(EmbeddedJson(resource)));
-
     private static DataSource Derived(string id, string display, string desc,
         Func<DataProduceContext, CancellationToken, Task<DataPayload?>> produce) =>
-        new(id, "gamedata", display, desc, DataProvenance.GameDataEmbedded, DataAccess.Public,
+        new(id, "gamedata", display, desc, DataProvenance.Database, DataAccess.Public,
             null, null, new DataRefresh(false), false, produce);
 
     private static string DefaultsDir(IServiceProvider services) {
@@ -147,24 +144,17 @@ public sealed class DataCatalog {
         return File.Exists(path) ? File.ReadAllText(path) : null;
     }
 
-    private static DataPayload? EmbeddedJson(string resource) {
-        string? text = EmbeddedText(resource);
+    private static string? DocText(IServiceProvider services, string id) =>
+        services.GetService<GameDataStore>()?.Doc(id);
+
+    private static DataPayload? DocJson(IServiceProvider services, string id) {
+        string? text = DocText(services, id);
         return text is null ? null : DataPayload.Json(text);
     }
 
-    private static string? EmbeddedText(string resource) {
-        var asm = typeof(ColleggtibleCatalog).Assembly;
-        string? full = asm.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(resource, StringComparison.Ordinal));
-        if (full is null) return null;
-        using var stream = asm.GetManifestResourceStream(full)!;
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
-
-    private static DataPayload? BoostCatalogPayload() {
-        string? catalogText = EmbeddedText("boost-catalog.json");
-        string? boostsText = EmbeddedText("boosts.json");
+    private static DataPayload? BoostCatalogPayload(IServiceProvider services) {
+        string? catalogText = DocText(services, "boost-catalog");
+        string? boostsText = DocText(services, "boosts");
         if (catalogText is null && boostsText is null) return null;
 
         var catalogDoc = catalogText is null ? null : JsonNode.Parse(catalogText)!.AsObject();
@@ -237,8 +227,8 @@ public sealed class DataCatalog {
         }
     }
 
-    private static DataPayload? ResearchPayload(bool epic) {
-        string? text = EmbeddedText("research.json");
+    private static DataPayload? ResearchPayload(IServiceProvider services, bool epic) {
+        string? text = DocText(services, "research");
         if (text is null) return null;
         var doc = JsonNode.Parse(text)!.AsObject();
         var rows = new JsonArray();
@@ -259,9 +249,7 @@ public sealed class DataCatalog {
 
     private static Task<DataPayload?> ProduceColleggtibles(DataProduceContext ctx, CancellationToken ct) {
         var live = LiveColleggtibleSource.Derive(ctx.Services, "ei/get_periodicals");
-        return Task.FromResult(live is null
-            ? EmbeddedJson("colleggtibles.json")
-            : DataPayload.Json(live.Json));
+        return Task.FromResult(live is null ? null : DataPayload.Json(live.Json));
     }
 
     private static Task<DataPayload?> ProduceEiAfx(DataProduceContext ctx, CancellationToken ct) {

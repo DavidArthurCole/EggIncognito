@@ -48,7 +48,7 @@ public sealed class PeriodicalsController(
 
         var extracted = new List<object>();
         object? colleggtibles = null;
-        if (services.GetService(typeof(IGameDataProvider)) is IGameDataProvider provider) {
+        if (services.GetService(typeof(GameDataStore)) is GameDataStore gdStore && gdStore.Provider is { } provider) {
             foreach (var f in provider.Families) {
                 extracted.Add(new {
                     key = f.Key,
@@ -56,36 +56,23 @@ public sealed class PeriodicalsController(
                     provenance = JsonSerializer.Serialize(f.Provenance, ProvenanceJson)
                 });
             }
+        }
 
-            var icons = LoadColleggtibleIcons();
-            string? route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
-            var live = route is null ? null : LiveColleggtibleSource.Derive(services, route);
-            if (live is not null) {
-                colleggtibles = new {
-                    count = live.Extract.Eggs.Count,
-                    gameVersion = live.GameVersion,
-                    provenance = JsonSerializer.Serialize(live.Provenance, ProvenanceJson),
-                    eggs = live.Extract.Eggs.Select(e => new {
-                        e.Identifier,
-                        dimension = DimensionName(e.Dimension),
-                        e.TierValues,
-                        icon = icons.GetValueOrDefault(e.Identifier)
-                    })
-                };
-            } else {
-                var col = provider.Colleggtibles;
-                colleggtibles = new {
-                    count = col.Eggs.Count,
-                    gameVersion = col.GameVersion,
-                    provenance = JsonSerializer.Serialize(col.Provenance, ProvenanceJson),
-                    eggs = col.Eggs.Select(e => new {
-                        e.Identifier,
-                        dimension = DimensionName(e.Dimension),
-                        e.TierValues,
-                        icon = icons.GetValueOrDefault(e.Identifier)
-                    })
-                };
-            }
+        var icons = LoadColleggtibleIcons();
+        string? liveRoute = catalog.ById("periodical", "get_periodicals")?.WireRoute;
+        var live = liveRoute is null ? null : LiveColleggtibleSource.Derive(services, liveRoute);
+        if (live is not null) {
+            colleggtibles = new {
+                count = live.Extract.Eggs.Count,
+                gameVersion = live.GameVersion,
+                provenance = JsonSerializer.Serialize(live.Provenance, ProvenanceJson),
+                eggs = live.Extract.Eggs.Select(e => new {
+                    e.Identifier,
+                    dimension = DimensionName(e.Dimension),
+                    e.TierValues,
+                    icon = icons.GetValueOrDefault(e.Identifier)
+                })
+            };
         }
 
         object[] platforms = [];

@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Text.Json;
-
 namespace EggIncognito.GameData;
 
 public sealed record MissionCatalogEntry(
@@ -32,8 +29,9 @@ public sealed class MissionCatalog : IMissionCatalog {
 
     public MissionCatalogEntry? Find(string id) => _byId.GetValueOrDefault(id);
 
-    public static MissionCatalog Load(string resource = "missions.json") {
-        var file = MissionCatalogDataLoader.Read(resource);
+    public static MissionCatalog Parse(string json) {
+        var file = GameDataJson.Deserialize<MissionCatalogDataFile>(json, "Mission catalog");
+        if (file.Missions is null) throw new GameDataSchemaException("Mission catalog missing missions.");
         var missions = file.Missions.Select(ToEntry).ToArray();
         return new MissionCatalog(missions, file.BinaryVersion ?? "", file.Provenance ?? GameData.Provenance.Empty);
     }
@@ -56,23 +54,3 @@ public sealed record MissionCatalogDataFile(
     string? BinaryVersion,
     IReadOnlyDictionary<string, ProvenanceSource>? Provenance,
     IReadOnlyList<MissionCatalogRow> Missions);
-
-public static class MissionCatalogDataLoader {
-    private static readonly JsonSerializerOptions Options = new() {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
-    public static MissionCatalogDataFile Read(string resourceName) {
-        var assembly = Assembly.GetExecutingAssembly();
-        string full = assembly.GetManifestResourceNames()
-                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
-
-        using var stream = assembly.GetManifestResourceStream(full)
-                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
-
-        return JsonSerializer.Deserialize<MissionCatalogDataFile>(stream, Options)
-               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
-    }
-}

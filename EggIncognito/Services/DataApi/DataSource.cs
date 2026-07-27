@@ -4,7 +4,7 @@ namespace EggIncognito.Services.DataApi;
 
 public enum DataProvenance {
     WireFixture,
-    GameDataEmbedded,
+    Database,
     DerivedExtract,
     Asset
 }

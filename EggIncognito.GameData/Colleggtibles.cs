@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Text.Json;
-
 namespace EggIncognito.GameData;
 
 public sealed record ColleggtibleEgg(string Identifier, int Dimension, IReadOnlyList<double> TierValues);
@@ -46,8 +43,9 @@ public sealed class ColleggtibleCatalog : IColleggtibleCatalog {
 
     public ColleggtibleEgg? Find(string identifier) => _byId.GetValueOrDefault(identifier);
 
-    public static ColleggtibleCatalog Load(string resource = "colleggtibles.json") {
-        var file = ColleggtibleDataLoader.Read(resource);
+    public static ColleggtibleCatalog Parse(string json) {
+        var file = GameDataJson.Deserialize<ColleggtibleDataFile>(json, "Colleggtible catalog");
+        if (file.Eggs is null) throw new GameDataSchemaException("Colleggtible catalog missing eggs.");
         var eggs = file.Eggs.Select(ToEgg).ToArray();
         var map = file.ContractEggMap ?? new Dictionary<string, string>(0);
         return new ColleggtibleCatalog(eggs, map, file.GameVersion ?? "", file.Provenance ?? GameData.Provenance.Empty);
@@ -72,23 +70,3 @@ public sealed record ColleggtibleDataFile(
     IReadOnlyDictionary<string, ProvenanceSource>? Provenance,
     IReadOnlyList<ColleggtibleEggRow> Eggs,
     IReadOnlyDictionary<string, string>? ContractEggMap);
-
-public static class ColleggtibleDataLoader {
-    private static readonly JsonSerializerOptions Options = new() {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
-    public static ColleggtibleDataFile Read(string resourceName) {
-        var assembly = Assembly.GetExecutingAssembly();
-        string full = assembly.GetManifestResourceNames()
-                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
-
-        using var stream = assembly.GetManifestResourceStream(full)
-                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
-
-        return JsonSerializer.Deserialize<ColleggtibleDataFile>(stream, Options)
-               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
-    }
-}

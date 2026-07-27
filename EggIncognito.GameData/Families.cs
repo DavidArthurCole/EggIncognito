@@ -7,13 +7,12 @@ public static class Families {
     public const string Artifact = "artifact";
 }
 
-public abstract class EmbeddedEffectFamily : IEffectFamily {
+public abstract class EffectFamily : IEffectFamily {
     private readonly Dictionary<string, Effect> _byId;
 
-    protected EmbeddedEffectFamily(string key, string resource, EffectSchema? metaSchema) {
+    protected EffectFamily(string key, EffectDataFile file, EffectSchema? metaSchema) {
         Key = key;
         MetaSchema = metaSchema;
-        var file = EffectDataLoader.Read(resource);
         Effects = EffectDataLoader.ToEffects(key, file, metaSchema);
         BinaryVersion = file.BinaryVersion;
         Provenance = file.Provenance ?? GameData.Provenance.Empty;
@@ -30,7 +29,7 @@ public abstract class EmbeddedEffectFamily : IEffectFamily {
     public Effect? Find(string id) => _byId.GetValueOrDefault(id);
 }
 
-public sealed class BoostFamily() : EmbeddedEffectFamily(Families.Boost, "boosts.json", MetaSchemaDef) {
+public sealed class BoostFamily(EffectDataFile file) : EffectFamily(Families.Boost, file, MetaSchemaDef) {
     private static readonly EffectSchema MetaSchemaDef = new([
         new EffectField("kind", EffectFieldType.String),
         new EffectField("durationSeconds", EffectFieldType.Int),
@@ -42,29 +41,23 @@ public sealed class BoostFamily() : EmbeddedEffectFamily(Families.Boost, "boosts
         new EffectField("seRequired", EffectFieldType.Double, false),
         new EffectField("iconAsset", EffectFieldType.String, false)
     ]);
-
-    public static BoostFamily Load() => new();
 }
 
-public sealed class ResearchFamily() : EmbeddedEffectFamily(Families.Research, "research.json", MetaSchemaDef) {
+public sealed class ResearchFamily(EffectDataFile file) : EffectFamily(Families.Research, file, MetaSchemaDef) {
     private static readonly EffectSchema MetaSchemaDef = new([
         new EffectField("name", EffectFieldType.String, false),
         new EffectField("epic", EffectFieldType.Bool, false)
     ]);
-
-    public static ResearchFamily Load() => new();
 }
 
-public sealed class HabFamily() : EmbeddedEffectFamily(Families.Hab, "habs.json", MetaSchemaDef) {
+public sealed class HabFamily(EffectDataFile file) : EffectFamily(Families.Hab, file, MetaSchemaDef) {
     private static readonly EffectSchema MetaSchemaDef = new([
         new EffectField("habId", EffectFieldType.Int),
         new EffectField("name", EffectFieldType.String, false)
     ]);
-
-    public static HabFamily Load() => new();
 }
 
-public sealed class ArtifactFamily() : EmbeddedEffectFamily(Families.Artifact, "artifacts.json", MetaSchemaDef) {
+public sealed class ArtifactFamily(EffectDataFile file) : EffectFamily(Families.Artifact, file, MetaSchemaDef) {
     private static readonly EffectSchema MetaSchemaDef = new([
         new EffectField("boost", EffectFieldType.String),
         new EffectField("tier", EffectFieldType.Int, false),
@@ -72,6 +65,4 @@ public sealed class ArtifactFamily() : EmbeddedEffectFamily(Families.Artifact, "
         new EffectField("stoneCap", EffectFieldType.Int, false),
         new EffectField("iconAsset", EffectFieldType.String, false)
     ]);
-
-    public static ArtifactFamily Load() => new();
 }

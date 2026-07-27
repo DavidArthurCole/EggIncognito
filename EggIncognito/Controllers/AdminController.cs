@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EggIdentity.Client;
@@ -142,7 +143,8 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         if (RequireAdmin() is { } no) return no;
 
         var gameData = new List<object>();
-        if (services.GetService(typeof(IGameDataProvider)) is IGameDataProvider provider) {
+        var gdStore = services.GetService(typeof(GameDataStore)) as GameDataStore;
+        if (gdStore?.Provider is { } provider) {
             foreach (var f in provider.Families) {
                 gameData.Add(new {
                     key = f.Key,
@@ -206,7 +208,55 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
             }
         }
 
-        return Ok(new { gameData, config = new { enabled = configEnabled, platforms }, fixtures });
+        var documents = gdStore?.List() ?? [];
+        IReadOnlyList<string> missing = gdStore?.MissingIds() ?? [.. GameDataProvider.DocumentIds];
+        return Ok(new { gameData, documents, missing, config = new { enabled = configEnabled, platforms }, fixtures });
+    }
+
+    [HttpGet("gamedata")]
+    [EnableRateLimiting("read")]
+    public IActionResult GameDataDocuments() {
+        if (RequireAdmin() is { } no) return no;
+        if (Db is null) return StatusCode(503, new { error = "no database configured" });
+        var store = services.GetRequiredService<GameDataStore>();
+        var rows = store.List().ToDictionary(d => d.Id, StringComparer.Ordinal);
+        var documents = GameDataProvider.DocumentIds
+            .Select(id => rows.TryGetValue(id, out var doc)
+                ? new { id, present = true, updatedAt = (DateTimeOffset?)doc.UpdatedAt, bytes = (int?)doc.Bytes }
+                : new { id, present = false, updatedAt = (DateTimeOffset?)null, bytes = (int?)null })
+            .ToArray();
+        return Ok(new { documents, missing = store.MissingIds() });
+    }
+
+    [HttpPost("gamedata/{id}")]
+    [RequestSizeLimit(2_000_000)]
+    public async Task<IActionResult> ImportGameDataDocument(string id, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        var db = Db;
+        if (db is null) return StatusCode(503, new { error = "no database configured" });
+        if (!GameDataProvider.DocumentIds.Contains(id)) return NotFound(new { error = "unknown document id" });
+
+        string json;
+        using (var reader = new StreamReader(Request.Body)) json = await reader.ReadToEndAsync(ct);
+        if (string.IsNullOrWhiteSpace(json)) return BadRequest(new { error = "empty body" });
+
+        try {
+            GameDataProvider.Validate(id, json);
+        } catch (GameDataSchemaException ex) {
+            return BadRequest(new { error = ex.Message });
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var row = await db.GameDataDocuments.FirstOrDefaultAsync(d => d.Id == id, ct);
+        if (row is null) {
+            db.GameDataDocuments.Add(new GameDataDocument { Id = id, Json = json, UpdatedAt = now });
+        } else {
+            row.Json = json;
+            row.UpdatedAt = now;
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Ok(new { id, bytes = Encoding.UTF8.GetByteCount(json), updatedAt = now });
     }
 
 

@@ -31,6 +31,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<EnvDesignVersion> EnvDesignVersions => Set<EnvDesignVersion>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<PeriodicalsSnapshot> PeriodicalsSnapshots => Set<PeriodicalsSnapshot>();
+    public DbSet<GameDataDocument> GameDataDocuments => Set<GameDataDocument>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
@@ -144,6 +145,10 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasIndex(x => x.CapturedAt);
             e.HasIndex(x => x.Sha).IsUnique();
             e.Property(x => x.CapturedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        modelBuilder.Entity<GameDataDocument>(e => {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
         });
     }
 }

@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Text.Json;
-
 namespace EggIncognito.GameData;
 
 public sealed record BoostCatalogEntry(
@@ -36,8 +33,9 @@ public sealed class BoostCatalog : IBoostCatalog {
 
     public BoostCatalogEntry? Find(string id) => _byId.GetValueOrDefault(id);
 
-    public static BoostCatalog Load(string resource = "boost-catalog.json") {
-        var file = BoostCatalogDataLoader.Read(resource);
+    public static BoostCatalog Parse(string json) {
+        var file = GameDataJson.Deserialize<BoostCatalogDataFile>(json, "Boost catalog");
+        if (file.Boosts is null) throw new GameDataSchemaException("Boost catalog missing boosts.");
         var boosts = file.Boosts.Select(ToEntry).ToArray();
         return new BoostCatalog(boosts, file.BinaryVersion ?? "", file.Provenance ?? GameData.Provenance.Empty);
     }
@@ -71,23 +69,3 @@ public sealed record BoostCatalogDataFile(
     string? BinaryVersion,
     IReadOnlyDictionary<string, ProvenanceSource>? Provenance,
     IReadOnlyList<BoostCatalogRow> Boosts);
-
-public static class BoostCatalogDataLoader {
-    private static readonly JsonSerializerOptions Options = new() {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
-    public static BoostCatalogDataFile Read(string resourceName) {
-        var assembly = Assembly.GetExecutingAssembly();
-        string full = assembly.GetManifestResourceNames()
-                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
-
-        using var stream = assembly.GetManifestResourceStream(full)
-                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
-
-        return JsonSerializer.Deserialize<BoostCatalogDataFile>(stream, Options)
-               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
-    }
-}

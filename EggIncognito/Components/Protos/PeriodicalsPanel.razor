@@ -98,18 +98,20 @@
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-sm font-semibold m-0">Seasons</h3>
                     <div class="flex items-center gap-1">
-                        <button type="button" class="reg-edit-btn" disabled="@(_seasonIx >= seasonList.Count - 1)"
+                        <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
+                                disabled="@(_seasonIx >= seasonList.Count - 1)"
                                 title="Older season" aria-label="Older season" @onclick="() => MoveSeason(1)">
                             <Icon Name="chevronLeft"/>
                         </button>
-                        <button type="button" class="reg-edit-btn" disabled="@(_seasonIx <= 0)"
+                        <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
+                                disabled="@(_seasonIx <= 0)"
                                 title="Newer season" aria-label="Newer season" @onclick="() => MoveSeason(-1)">
                             <Icon Name="chevronRight"/>
                         </button>
                     </div>
                 </div>
                 <div class="flex items-center gap-3 mb-3">
-                    <div class="border border-border rounded overflow-hidden text-center w-14 shrink-0">
+                    <div class="bg-bg border border-border rounded overflow-hidden text-center w-14 shrink-0">
                         <div class="bg-accent text-bg text-[10px] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
                         <div class="text-lg font-semibold py-1">@StartDate(season).Day</div>
                     </div>
@@ -197,7 +199,7 @@
     string? _catalogError;
     List<Season>? _seasons;
     int _seasonIx;
-    string _grade = "GRADE_AAA";
+    string _grade = "GradeAaa";
     List<EventRow>? _events;
     DateTimeOffset? _eventsCapturedAt;
     Timer? _tick;
@@ -314,7 +316,9 @@
     }
 
     static string GradeLabel(string grade) {
-        return grade.StartsWith("GRADE_", StringComparison.Ordinal) ? grade["GRADE_".Length..] : grade;
+        if (grade.StartsWith("GRADE_", StringComparison.Ordinal)) return grade["GRADE_".Length..];
+        if (grade.StartsWith("Grade", StringComparison.Ordinal)) return grade["Grade".Length..].ToUpperInvariant();
+        return grade;
     }
 
     static string RewardLabel(GoalRow g) {

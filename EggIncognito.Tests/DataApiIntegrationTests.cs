@@ -36,10 +36,9 @@ public class DataApiIntegrationTests(EggIncApiFactory factory) {
     }
 
     [Fact]
-    public async Task PublicGamedataSource_Anon_Returns200() {
+    public async Task PublicGamedataSource_Anon_WithoutImportedDocs_Returns404() {
         var resp = await Client("10.10.0.3").GetAsync("/api/v1/data/gamedata/boost-catalog");
-        resp.EnsureSuccessStatusCode();
-        Assert.Equal("application/json", resp.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 
     [Fact]

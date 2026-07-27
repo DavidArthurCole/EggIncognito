@@ -68,8 +68,8 @@ public static class LiveColleggtibleSource {
 
     private static LiveColleggtibles Build(IServiceProvider services, string route, ColleggtibleExtract extract,
         string origin) {
-        string gameVersion = services.GetService(typeof(IGameDataProvider)) is IGameDataProvider provider
-            ? provider.Colleggtibles.GameVersion
+        string gameVersion = services.GetService(typeof(GameDataStore)) is GameDataStore store
+            ? store.Provider?.Colleggtibles.GameVersion ?? ""
             : "";
         var source = new ProvenanceSource(origin, route, "derived from captured get_periodicals");
         var provenance = new Dictionary<string, ProvenanceSource>(StringComparer.Ordinal) {

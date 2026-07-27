@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Text.Json;
-
 namespace EggIncognito.GameData;
 
 public interface IDimensionCatalog {
@@ -27,8 +24,9 @@ public sealed class DimensionCatalog : IDimensionCatalog {
 
     public bool Contains(string id) => _ids.Contains(id);
 
-    public static DimensionCatalog Load(string resource = "dimensions.json") {
-        var file = DimensionCatalogDataLoader.Read(resource);
+    public static DimensionCatalog Parse(string json) {
+        var file = GameDataJson.Deserialize<DimensionCatalogDataFile>(json, "Dimension catalog");
+        if (file.Dimensions is null) throw new GameDataSchemaException("Dimension catalog missing dimensions.");
         foreach (string id in file.Dimensions) {
             if (string.IsNullOrEmpty(id))
                 throw new GameDataSchemaException("Dimension catalog contains an empty id.");
@@ -43,23 +41,3 @@ public sealed record DimensionCatalogDataFile(
     string? BinaryVersion,
     IReadOnlyDictionary<string, ProvenanceSource>? Provenance,
     IReadOnlyList<string> Dimensions);
-
-public static class DimensionCatalogDataLoader {
-    private static readonly JsonSerializerOptions Options = new() {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
-    public static DimensionCatalogDataFile Read(string resourceName) {
-        var assembly = Assembly.GetExecutingAssembly();
-        string full = assembly.GetManifestResourceNames()
-                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
-
-        using var stream = assembly.GetManifestResourceStream(full)
-                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
-
-        return JsonSerializer.Deserialize<DimensionCatalogDataFile>(stream, Options)
-               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
-    }
-}

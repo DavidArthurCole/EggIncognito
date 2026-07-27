@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -17,24 +16,31 @@ public sealed record EffectDataRow(
     int? MaxLevel = null,
     IReadOnlyDictionary<string, JsonElement>? Meta = null);
 
-public static class EffectDataLoader {
+internal static class GameDataJson {
     private static readonly JsonSerializerOptions Options = new() {
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public static EffectDataFile Read(string resourceName) {
-        var assembly = Assembly.GetExecutingAssembly();
-        string full = assembly.GetManifestResourceNames()
-                          .FirstOrDefault(n => n.EndsWith(resourceName, StringComparison.Ordinal))
-                      ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' not found.");
+    internal static T Deserialize<T>(string json, string what) {
+        T? value;
+        try {
+            value = JsonSerializer.Deserialize<T>(json, Options);
+        } catch (JsonException ex) {
+            throw new GameDataSchemaException($"{what} is not valid JSON: {ex.Message}");
+        }
 
-        using var stream = assembly.GetManifestResourceStream(full)
-                           ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' unreadable.");
+        return value ?? throw new GameDataSchemaException($"{what} parsed null.");
+    }
+}
 
-        return JsonSerializer.Deserialize<EffectDataFile>(stream, Options)
-               ?? throw new GameDataSchemaException($"Embedded data '{resourceName}' parsed null.");
+public static class EffectDataLoader {
+    public static EffectDataFile Parse(string json) {
+        var file = GameDataJson.Deserialize<EffectDataFile>(json, "Effect data");
+        if (file.Rows is null) throw new GameDataSchemaException("Effect data missing rows.");
+        if (string.IsNullOrEmpty(file.BinaryVersion)) throw new GameDataSchemaException("Effect data missing binaryVersion.");
+        return file;
     }
 
     public static IReadOnlyList<Effect> ToEffects(string family, EffectDataFile file, EffectSchema? metaSchema) {

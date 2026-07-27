@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace EggIncognito.GameData;
 
 public sealed class GameDataProvider(
@@ -53,14 +55,53 @@ public sealed class GameDataProvider(
         return value;
     }
 
-    public static GameDataProvider CreateDefault() =>
-        new([
-                BoostFamily.Load(),
-                ResearchFamily.Load(),
-                HabFamily.Load(),
-                ArtifactFamily.Load()
-            ], ColleggtibleCatalog.Load(), GameData.BoostCatalog.Load(), GameData.EggCatalog.Load(),
-            DimensionCatalog.Load(), MissionCatalog.Load(), VehicleCatalog.Load());
+    public static readonly ImmutableArray<string> DocumentIds = [
+        "boosts",
+        "research",
+        "habs",
+        "artifacts",
+        "boost-catalog",
+        "colleggtibles",
+        "eggs",
+        "dimensions",
+        "missions",
+        "vehicles"
+    ];
+
+    public static GameDataProvider FromDocuments(IReadOnlyDictionary<string, string> docs) {
+        return new GameDataProvider([
+                new BoostFamily(EffectDataLoader.Parse(Doc(docs, "boosts"))),
+                new ResearchFamily(EffectDataLoader.Parse(Doc(docs, "research"))),
+                new HabFamily(EffectDataLoader.Parse(Doc(docs, "habs"))),
+                new ArtifactFamily(EffectDataLoader.Parse(Doc(docs, "artifacts")))
+            ], ColleggtibleCatalog.Parse(Doc(docs, "colleggtibles")),
+            GameData.BoostCatalog.Parse(Doc(docs, "boost-catalog")),
+            GameData.EggCatalog.Parse(Doc(docs, "eggs")),
+            DimensionCatalog.Parse(Doc(docs, "dimensions")),
+            MissionCatalog.Parse(Doc(docs, "missions")),
+            VehicleCatalog.Parse(Doc(docs, "vehicles")));
+    }
+
+    public static void Validate(string id, string json) {
+        _ = (object)(id switch {
+            "boosts" => new BoostFamily(EffectDataLoader.Parse(json)),
+            "research" => new ResearchFamily(EffectDataLoader.Parse(json)),
+            "habs" => new HabFamily(EffectDataLoader.Parse(json)),
+            "artifacts" => new ArtifactFamily(EffectDataLoader.Parse(json)),
+            "boost-catalog" => GameData.BoostCatalog.Parse(json),
+            "colleggtibles" => ColleggtibleCatalog.Parse(json),
+            "eggs" => GameData.EggCatalog.Parse(json),
+            "dimensions" => DimensionCatalog.Parse(json),
+            "missions" => MissionCatalog.Parse(json),
+            "vehicles" => VehicleCatalog.Parse(json),
+            _ => throw new GameDataSchemaException($"Unknown game data document id '{id}'.")
+        });
+    }
+
+    private static string Doc(IReadOnlyDictionary<string, string> docs, string id) =>
+        docs.TryGetValue(id, out string? json)
+            ? json
+            : throw new GameDataSchemaException($"Missing game data document '{id}'.");
 
     private static int LevelOf(IReadOnlyDictionary<string, int> idLevels, string id) =>
         idLevels.GetValueOrDefault(id, 1);

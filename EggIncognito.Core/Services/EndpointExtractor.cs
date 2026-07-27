@@ -187,8 +187,17 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
             return;
         }
 
-        string writeResult = WriteEndpointFile(outFile, json, overwrite || forceOverwrite, existing,
-            LiveRoutes.Contains(path));
+        string writeResult;
+        try {
+            writeResult = WriteEndpointFile(outFile, json, overwrite || forceOverwrite, existing,
+                LiveRoutes.Contains(path));
+        } catch (Exception ex) when (LiveRoutes.Contains(path) &&
+                                     ex is IOException or UnauthorizedAccessException) {
+            Err($"  ERR   {slug}.json fixture write failed: {ex.Message}");
+            writeResult = existing is not null && Comparable(existing, true) == Comparable(json, true)
+                ? "same"
+                : "upd";
+        }
         if (writeResult is "wrote" or "upd") WriteObserver?.OnEndpointWritten(path, json, existing);
         switch (writeResult) {
             case "wrote":
