@@ -6,9 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="EggIdentity.Contract" Version="1.0.5" />
-    <PackageReference Include="EggIdentity.Bot" Version="1.0.5" />
-    <PackageReference Include="EggIdentity.Db" Version="1.0.5" />
+    <PackageReference Include="EggIdentity.Contract" Version="1.0.6" />
+    <PackageReference Include="EggIdentity.Bot" Version="1.0.6" />
+    <PackageReference Include="EggIdentity.Db" Version="1.0.6" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
