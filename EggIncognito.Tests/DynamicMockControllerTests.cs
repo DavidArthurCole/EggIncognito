@@ -1,26 +1,32 @@
 using System.Net;
 using EggIncognito.Services;
 using Ei;
-using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-public class DynamicMockControllerTests(WebApplicationFactory<Program> f)
-    : IClassFixture<WebApplicationFactory<Program>> {
-    private readonly WebApplicationFactory<Program> _factory = f.WithWebHostBuilder(b => {
-        b.UseSetting("NoBrowser", "true");
-        b.ConfigureServices(s => {
+public sealed class DynamicMockFactory : EgiTestFactory {
+    protected override void Configure(IWebHostBuilder builder) =>
+        builder.ConfigureServices(s => {
             s.AddSingleton<IDbRouteProvider, FakeRoutes>();
             s.AddSingleton<IRouteCatalog>(sp =>
                 new MergedRouteCatalog(sp.GetRequiredService<RouteCatalog>(),
                     sp.GetRequiredService<IDbRouteProvider>()));
         });
-    });
+
+    internal sealed class FakeRoutes : IDbRouteProvider {
+        private readonly RouteInfo _r = new("ei/dbonly", null, "PeriodicalsResponse", false, false, null, false, false);
+        public RouteInfo? GetDbRoute(string path) => path == "ei/dbonly" ? _r : null;
+        public IReadOnlyList<RouteInfo> AllDbRoutes() => [_r];
+    }
+}
+
+public class DynamicMockControllerTests(DynamicMockFactory f) : IClassFixture<DynamicMockFactory> {
 
     [Fact]
     public async Task DbOnlyRoute_IsServed() {
-        var c = _factory.CreateClient();
+        var c = f.CreateClient();
         var resp = await c.PostAsync("/ei/dbonly", new FormUrlEncodedContent([]));
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         string body = await resp.Content.ReadAsStringAsync();
@@ -30,7 +36,7 @@ public class DynamicMockControllerTests(WebApplicationFactory<Program> f)
 
     [Fact]
     public async Task UnknownPath_InKnownNamespace_ReturnsNotMockedMarker() {
-        var c = _factory.CreateClient();
+        var c = f.CreateClient();
         var resp = await c.PostAsync("/ei/does_not_exist_anywhere", new FormUrlEncodedContent([]));
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.Equal("not-mocked", resp.Headers.GetValues("x-eggincognito").Single());
@@ -38,14 +44,8 @@ public class DynamicMockControllerTests(WebApplicationFactory<Program> f)
 
     [Fact]
     public async Task UnknownPath_OutsideKnownNamespaces_404s() {
-        var c = _factory.CreateClient();
+        var c = f.CreateClient();
         var resp = await c.PostAsync("/zz_not_auxbrain/nope", new FormUrlEncodedContent([]));
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
-    }
-
-    private sealed class FakeRoutes : IDbRouteProvider {
-        private readonly RouteInfo _r = new("ei/dbonly", null, "PeriodicalsResponse", false, false, null, false, false);
-        public RouteInfo? GetDbRoute(string path) => path == "ei/dbonly" ? _r : null;
-        public IReadOnlyList<RouteInfo> AllDbRoutes() => [_r];
     }
 }

@@ -1,18 +1,18 @@
 using System.Net;
 using EggIdentity.Client;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
-public class AuthCallbackTests(WebApplicationFactory<Program> f) : IClassFixture<WebApplicationFactory<Program>> {
-    private readonly WebApplicationFactory<Program> _factory = f.WithWebHostBuilder(b => {
-        b.UseSetting("NoBrowser", "true");
-        b.UseSetting("Identity:ApiUrl", "http://identity.local");
-        b.UseSetting("Identity:ApiSecret", "test-secret");
-        b.UseSetting("Identity:WidgetUrl", "http://identity.local");
-        b.ConfigureServices(s => s.AddSingleton(_ => StubIdentity()));
-    });
+public sealed class AuthCallbackFactory : EgiTestFactory {
+    protected override void Configure(IWebHostBuilder builder) {
+        builder.UseSetting("Identity:ApiUrl", "http://identity.local");
+        builder.UseSetting("Identity:ApiSecret", "test-secret");
+        builder.UseSetting("Identity:WidgetUrl", "http://identity.local");
+        builder.ConfigureServices(s => s.AddSingleton(_ => StubIdentity()));
+    }
 
     private static IdentityApiClient StubIdentity() {
         var uid = Guid.NewGuid();
@@ -21,9 +21,11 @@ public class AuthCallbackTests(WebApplicationFactory<Program> f) : IClassFixture
                     $$"""{"userId":"{{uid}}","username":"tester","role":"viewer","discordId":null,"avatar":null,"isNew":false}"""))) { BaseAddress = new Uri("http://identity.local") };
         return new IdentityApiClient(http);
     }
+}
 
+public class AuthCallbackTests(AuthCallbackFactory f) : IClassFixture<AuthCallbackFactory> {
     private HttpClient NoRedirectClient() =>
-        _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        f.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
     [Fact]
     public async Task Code_OnAnyPage_SignsInAndRedirectsClean() {
