@@ -13,7 +13,7 @@ public class StoreCheckerProgressTests {
         "<hierarchy><node text=\"Open\" bounds=\"[718,551][851,608]\"/>" +
         "<node text=\"Uninstall\" bounds=\"[200,551][333,608]\"/></hierarchy>";
 
-    private static DeviceStoreTarget Target => new("a", "android", "SER", "com.auxbrain.egginc");
+    private static DeviceTarget Target => new("a", "android", "SER", "com.auxbrain.egginc");
 
     private static AndroidPlayStoreChecker Checker(FakeRunner runner, int attempts) =>
         new(runner, new AndroidPlayStoreChecker.Options("am start {package}", 0, attempts,

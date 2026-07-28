@@ -19,8 +19,8 @@ public static class Arm64ConstSectionReader {
         if (bin is null || bin.Length < 64) return new DumpResult(false, va, "", "", [], "binary too short");
         if (count is <= 0 or > 4096) return new DumpResult(false, va, "", "", [], "count out of range (1..4096)");
 
-        var sections = MachoSections.Read(bin);
-        if (!MachoSections.TryVaToFileOffset(sections, va, out int fileOff, out var owner))
+        var img = BinaryImage.Load(bin);
+        if (img is null || !img.TryVaToFileOffset(va, out int fileOff, out var owner))
             return new DumpResult(false, va, "", "", [], $"va 0x{va:x} not in any mapped section");
 
         int size = ElemSize(elem);

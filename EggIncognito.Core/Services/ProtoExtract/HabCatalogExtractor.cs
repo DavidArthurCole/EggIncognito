@@ -12,8 +12,10 @@ public static class HabCatalogExtractor {
         1_000_000, 2_000_000, 5_000_000, 10_000_000, 25_000_000, 50_000_000, 100_000_000, 600_000_000
     ];
 
-    public static Result Extract(byte[] bin)
-        => ExtractWith(bin, MachoSymbols.Read(bin), MachoSections.Read(bin));
+    public static Result Extract(byte[] bin) {
+        var img = BinaryImage.Load(bin);
+        return ExtractWith(bin, img?.Symbols ?? [], img?.Sections ?? []);
+    }
 
     public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections) {

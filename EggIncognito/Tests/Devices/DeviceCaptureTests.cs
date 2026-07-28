@@ -101,7 +101,7 @@ public class DeviceCaptureTests {
         var runner = new CapturingRunner(_ => new ProcessResult(0, "", ""));
         var cfg = new AdbProxyConfigurator(runner);
         (bool ok, _) =
-            await cfg.SetProxyAsync(new DeviceProxyTarget("a", "android", "SERIAL"), "10.0.0.5", 9100, default);
+            await cfg.SetProxyAsync(new DeviceTarget("a", "android", "SERIAL", "com.auxbrain.egginc"), "10.0.0.5", 9100, default);
         Assert.True(ok);
         string[] call = runner.Calls[0];
         Assert.Equal("adb", call[0]);
@@ -114,7 +114,7 @@ public class DeviceCaptureTests {
     public async Task Adb_ClearProxy_EmitsSentinel() {
         var runner = new CapturingRunner(_ => new ProcessResult(0, "", ""));
         var cfg = new AdbProxyConfigurator(runner);
-        (bool ok, _) = await cfg.ClearProxyAsync(new DeviceProxyTarget("a", "android", "SERIAL"), default);
+        (bool ok, _) = await cfg.ClearProxyAsync(new DeviceTarget("a", "android", "SERIAL", "com.auxbrain.egginc"), default);
         Assert.True(ok);
         Assert.Contains(":0", runner.Calls[0]);
     }
@@ -124,7 +124,7 @@ public class DeviceCaptureTests {
         var runner = new CapturingRunner(_ => new ProcessResult(1, "", "device offline"));
         var cfg = new AdbProxyConfigurator(runner);
         (bool ok, string? note) =
-            await cfg.SetProxyAsync(new DeviceProxyTarget("a", "android", "SERIAL"), "10.0.0.5", 9100, default);
+            await cfg.SetProxyAsync(new DeviceTarget("a", "android", "SERIAL", "com.auxbrain.egginc"), "10.0.0.5", 9100, default);
         Assert.False(ok);
         Assert.Contains("device offline", note);
     }
@@ -135,7 +135,7 @@ public class DeviceCaptureTests {
         var ssh = new IosProxyConfigurator.SshConfig("1.2.3.4", "2222", "/k",
             "set-proxy {host} {port}", "clear-proxy");
         var cfg = new IosProxyConfigurator(runner, ssh);
-        (bool ok, _) = await cfg.SetProxyAsync(new DeviceProxyTarget("i", "ios", "UDID"), "10.0.0.5", 9101, default);
+        (bool ok, _) = await cfg.SetProxyAsync(new DeviceTarget("i", "ios", "UDID", "com.auxbrain.egginc"), "10.0.0.5", 9101, default);
         Assert.True(ok);
         string remote = runner.Calls[0].Last();
         Assert.Equal("set-proxy 10.0.0.5 9101", remote);
@@ -147,7 +147,7 @@ public class DeviceCaptureTests {
         var ssh = new IosProxyConfigurator.SshConfig("1.2.3.4", "2222", "/k", null, null);
         var cfg = new IosProxyConfigurator(runner, ssh);
         (bool ok, string? note) =
-            await cfg.SetProxyAsync(new DeviceProxyTarget("i", "ios", "UDID"), "10.0.0.5", 9101, default);
+            await cfg.SetProxyAsync(new DeviceTarget("i", "ios", "UDID", "com.auxbrain.egginc"), "10.0.0.5", 9101, default);
         Assert.False(ok);
         Assert.Empty(runner.Calls);
         Assert.Contains("guid", note);
@@ -159,7 +159,7 @@ public class DeviceCaptureTests {
         var ssh = new IosProxyConfigurator.SshConfig(null, "2222", null,
             "set {host} {port}", "clear");
         var cfg = new IosProxyConfigurator(runner, ssh);
-        (bool ok, _) = await cfg.SetProxyAsync(new DeviceProxyTarget("i", "ios", "UDID"), "10.0.0.5", 9101, default);
+        (bool ok, _) = await cfg.SetProxyAsync(new DeviceTarget("i", "ios", "UDID", "com.auxbrain.egginc"), "10.0.0.5", 9101, default);
         Assert.False(ok);
         Assert.Empty(runner.Calls);
     }
@@ -216,7 +216,7 @@ public class DeviceCaptureTests {
             "10.0.0.1", "2222", "/k", "echo {host}:{port}", "echo clear", "GUID-123");
         var proxy = new IosProxyConfigurator(runner, cfg);
 
-        (bool ok, _) = await proxy.SetProxyAsync(new DeviceProxyTarget("d", "ios", "udid"), "1.2.3.4", 80, default);
+        (bool ok, _) = await proxy.SetProxyAsync(new DeviceTarget("d", "ios", "udid", "com.auxbrain.egginc"), "1.2.3.4", 80, default);
         Assert.True(ok);
         Assert.Equal("echo 1.2.3.4:80", seen);
     }

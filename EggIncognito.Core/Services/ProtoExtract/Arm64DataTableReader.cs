@@ -5,12 +5,13 @@ namespace EggIncognito.Services.ProtoExtract;
 
 public static class Arm64DataTableReader {
     public static ListResult List(byte[] bin, string[] nameNeedles, int maxInstructions = 512)
-        => ListWith(bin, MachoSymbols.Read(bin), nameNeedles, maxInstructions);
+        => ListWith(bin, BinaryImage.Load(bin)?.Symbols ?? [], nameNeedles, maxInstructions);
 
     public static ListResult ListWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string[] nameNeedles,
         int maxInstructions = 512) {
         if (bin is null || bin.Length < 64) return new ListResult(false, "", 0, 0, [], "binary too short");
-        if (!MachoText.TryFindText(bin, out int textFileOff, out _, out ulong textVmAddr))
+        var img = BinaryImage.Load(bin);
+        if (img is null || !img.TryFindText(out int textFileOff, out _, out ulong textVmAddr))
             return new ListResult(false, "", 0, 0, [], "no __text section");
         if (!MachoSymbols.TryFindFunc(syms, nameNeedles, out var fn))
             return new ListResult(false, "", 0, 0, [], $"symbol not found: {string.Join("|", nameNeedles)}");
@@ -36,7 +37,8 @@ public static class Arm64DataTableReader {
 
     public static ListResult ListRange(byte[] bin, ulong startVa, ulong endVa, int maxInstructions = 512) {
         if (bin is null || bin.Length < 64) return new ListResult(false, "", 0, 0, [], "binary too short");
-        if (!MachoText.TryFindText(bin, out int textFileOff, out _, out ulong textVmAddr))
+        var img = BinaryImage.Load(bin);
+        if (img is null || !img.TryFindText(out int textFileOff, out _, out ulong textVmAddr))
             return new ListResult(false, "", 0, 0, [], "no __text section");
 
         ulong slide = textVmAddr - (ulong)textFileOff;
@@ -59,16 +61,16 @@ public static class Arm64DataTableReader {
     }
 
     public static ScanResult Scan(byte[] bin, string[] nameNeedles)
-        => ScanWith(bin, MachoSymbols.Read(bin), nameNeedles);
+        => ScanWith(bin, BinaryImage.Load(bin)?.Symbols ?? [], nameNeedles);
 
     public static ScanResult ScanWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string[] nameNeedles) {
         if (bin is null || bin.Length < 64) return new ScanResult(false, "", [], "binary too short");
-        if (!MachoText.TryFindText(bin, out int textFileOff, out _, out ulong textVmAddr))
+        var img = BinaryImage.Load(bin);
+        if (img is null || !img.TryFindText(out int textFileOff, out _, out ulong textVmAddr))
             return new ScanResult(false, "", [], "no __text section");
         if (!MachoSymbols.TryFindFunc(syms, nameNeedles, out var fn))
             return new ScanResult(false, "", [], $"symbol not found: {string.Join("|", nameNeedles)}");
 
-        var sections = MachoSections.Read(bin);
         ulong slide = textVmAddr - (ulong)textFileOff;
         long startFile = (long)fn.Start - (long)slide;
         long len = (long)fn.End - (long)fn.Start;
@@ -87,7 +89,7 @@ public static class Arm64DataTableReader {
 
         void Record(ulong va, string via) {
             if (va == 0 || !seen.Add(va)) return;
-            if (MachoSections.TryVaToFileOffset(sections, va, out _, out var owner))
+            if (img is not null && img.TryVaToFileOffset(va, out _, out var owner))
                 addresses.Add(new AddressRef(va, owner.Segment, owner.Name, via));
         }
 

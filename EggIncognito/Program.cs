@@ -539,6 +539,10 @@ builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
         sp.GetRequiredService<IConfiguration>(),
         sp.GetRequiredService<ILogger<IosStoreChecker>>()));
 
+builder.Services.AddSingleton<IDevicePlatform, IosPlatform>();
+builder.Services.AddSingleton<IDevicePlatform, AndroidPlatform>();
+builder.Services.AddSingleton<IDevicePlatforms, DevicePlatforms>();
+
 if (hostedCaptureOn) {
     if (string.IsNullOrWhiteSpace(hostedCaptureOpts.AddressSecret)) {
         throw new InvalidOperationException(

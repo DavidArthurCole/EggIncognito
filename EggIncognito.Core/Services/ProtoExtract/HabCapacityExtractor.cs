@@ -10,7 +10,7 @@ public static class HabCapacityExtractor {
         1_000_000, 2_000_000, 5_000_000, 10_000_000, 25_000_000, 50_000_000, 100_000_000, 600_000_000
     ];
 
-    public static Result Extract(byte[] bin) => ExtractWith(bin, MachoSymbols.Read(bin));
+    public static Result Extract(byte[] bin) => ExtractWith(bin, BinaryImage.Load(bin)?.Symbols ?? []);
 
     public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms) {
         var lst = Arm64DataTableReader.ListWith(bin, syms, [InitSymbol], 6000);

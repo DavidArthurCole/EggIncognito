@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using EggIdentity.Contract;
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
 using EggIncognito.DeviceTools;
 using EggIncognito.Services;
@@ -19,8 +20,7 @@ namespace EggIncognito.Controllers;
 public sealed class DecompController(
     GameBinaryProvider binaries,
     IServiceProvider services,
-    ICurrentUser currentUser,
-    IDeviceConnectionFactory connections) : ControllerBase {
+    ICurrentUser currentUser) : ControllerBase {
     private GameBinaryStore? Store => services.GetService(typeof(GameBinaryStore)) as GameBinaryStore;
 
     [HttpGet("symbols")]
@@ -293,23 +293,39 @@ public sealed class DecompController(
 
     [HttpPost("particle-capture")]
     [EnableRateLimiting("read")]
-    public async Task<IActionResult> ParticleCapture([FromQuery] string? addrOffset, CancellationToken ct) {
+    public async Task<IActionResult> ParticleCapture([FromQuery] string? addrOffset, [FromQuery] string platform = "ios",
+        [FromQuery] string? device = null, CancellationToken ct = default) {
         if (!currentUser.IsAtLeast(UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
-        if (connections.Ios() is not { } conn) {
-            return StatusCode(503,
-                new { ok = false, diagnostics = "ios ssh not configured (DeviceCapture:Ios:SshHost + SshKeyPath)" });
-        }
+        if (services.GetService(typeof(IDevicePlatforms)) is not IDevicePlatforms platforms)
+            return StatusCode(503, new { ok = false, diagnostics = "device platform registry unavailable" });
+
+        var target = await ResolveDeviceTargetAsync(device, platform, ct);
+        if (target is null)
+            return StatusCode(503, new { ok = false, diagnostics = $"no enabled {platform} device" });
 
         try {
-            var capturer = new IosParticleCapturer(conn, DeviceScripts.ParticleCapture, addrOffset);
-            var model = await capturer.CaptureAsync(ct);
-            return model is null
-                ? Ok(new { ok = false, diagnostics = "capture failed (scp/frida)" })
-                : Content(model.Value.ToJson().ToJsonString(), "application/json");
+            var result = await platforms.For(target.Platform)
+                .CaptureParticlesAsync(target, DeviceScripts.ParticleCapture, addrOffset, ct);
+            return result is { Ok: true, Value: { } model }
+                ? Content(model.ToJson().ToJsonString(), "application/json")
+                : Ok(new { ok = false, diagnostics = $"{result.Outcome}: {result.Note}" });
         } catch (Exception ex) {
             return Ok(new { ok = false, diagnostics = ex.Message });
+        }
+    }
+
+    private async Task<DeviceTarget?> ResolveDeviceTargetAsync(string? deviceId, string platform, CancellationToken ct) {
+        if (services.GetService(typeof(IDeviceStatusStore)) is not IDeviceStatusStore store) return null;
+        try {
+            var devices = await store.EnabledDevicesAsync(ct);
+            var d = deviceId is null
+                ? devices.FirstOrDefault(x => string.Equals(x.Platform, platform, StringComparison.OrdinalIgnoreCase))
+                : devices.FirstOrDefault(x => x.Id == deviceId);
+            return d is null ? null : new DeviceTarget(d.Id, d.Platform, d.Target, d.Package);
+        } catch {
+            return null;
         }
     }
 

@@ -13,14 +13,14 @@ public static class StructInitReader {
     ];
 
     public static Result Read(byte[] bin, string initSymbol, int maxInstructions = 100_000)
-        => ReadWith(bin, MachoSymbols.Read(bin), initSymbol, maxInstructions);
+        => ReadWith(bin, BinaryImage.Load(bin)?.Symbols ?? [], initSymbol, maxInstructions);
 
     public static Result ReadWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string initSymbol,
         int maxInstructions = 100_000) {
         var lst = Arm64DataTableReader.ListWith(bin, syms, [initSymbol], maxInstructions);
         if (!lst.Ok) return new Result(false, [], lst.Diagnostics);
 
-        var sections = MachoSections.Read(bin);
+        var img = BinaryImage.Load(bin);
         var page = new Dictionary<string, ulong>(StringComparer.Ordinal);
         var imm = new Dictionary<string, (ulong Val, bool Wide)>(StringComparer.Ordinal);
         var vec = new Dictionary<string, byte[]>(StringComparer.Ordinal);
@@ -38,7 +38,7 @@ public static class StructInitReader {
         }
 
         byte[]? ReadVecFrom(ulong va, int width) {
-            if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out _)) return null;
+            if (img is null || !img.TryVaToFileOffset(va, out int fo, out _)) return null;
             if (fo < 0 || fo + width > bin.Length) return null;
             byte[] buf = new byte[width];
             Array.Copy(bin, fo, buf, 0, width);

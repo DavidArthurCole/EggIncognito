@@ -4,7 +4,7 @@ public static class ArtifactMultiplierExtractor {
     public static readonly double[] TierMultipliers =
         [1.05, 1.08, 1.10, 1.12, 1.13, 1.15, 1.16, 1.17, 1.19, 1.20, 1.22, 1.23, 1.25, 1.28, 1.30];
 
-    public static Result Locate(byte[] bin) => LocateWith(bin, MachoSections.Read(bin));
+    public static Result Locate(byte[] bin) => LocateWith(bin, BinaryImage.Load(bin)?.Sections ?? []);
 
     public static Result LocateWith(byte[] bin, IReadOnlyList<MachoSections.Section> sections) {
         if (bin is null || bin.Length < 64) return new Result(false, [], TierMultipliers, "binary too short");

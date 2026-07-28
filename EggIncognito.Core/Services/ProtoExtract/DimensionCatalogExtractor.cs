@@ -3,7 +3,10 @@ namespace EggIncognito.Services.ProtoExtract;
 public static class DimensionCatalogExtractor {
     public const string InitSymbol = "__GLOBAL__sub_I_boostmanager";
 
-    public static Result Extract(byte[] bin) => ExtractWith(bin, MachoSymbols.Read(bin), MachoSections.Read(bin));
+    public static Result Extract(byte[] bin) {
+        var img = BinaryImage.Load(bin);
+        return ExtractWith(bin, img?.Symbols ?? [], img?.Sections ?? []);
+    }
 
     public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections) {

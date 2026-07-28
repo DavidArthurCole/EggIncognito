@@ -9,7 +9,7 @@ public sealed class IosStoreChecker(
     public string Platform => "ios";
 
     public async Task<StoreCheckResult> CheckAndUpdateAsync(
-        DeviceStoreTarget device, CancellationToken ct, Action<string>? progress = null) {
+        DeviceTarget device, CancellationToken ct, Action<string>? progress = null) {
         progress?.Invoke("reading installed version over usbmux…");
         string? before = await ReadInstalledAsync(device, ct);
         if (before is null) {
@@ -88,7 +88,7 @@ public sealed class IosStoreChecker(
         }
     }
 
-    private async Task<string?> ReadInstalledAsync(DeviceStoreTarget device, CancellationToken ct) {
+    private async Task<string?> ReadInstalledAsync(DeviceTarget device, CancellationToken ct) {
         var probe = await new IosDeviceProbe(runner, device.Target, device.Package).ProbeAsync(ct);
         return probe.InstalledAppVersion;
     }

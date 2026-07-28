@@ -108,63 +108,80 @@
                         </button>
                     </div>
                 </div>
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="bg-bg border border-border rounded overflow-hidden text-center w-14 shrink-0">
-                        <div class="bg-accent text-bg text-[10px] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
-                        <div class="text-lg font-semibold py-1">@StartDate(season).Day</div>
+                <div class="flex items-start justify-between gap-4 mb-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="bg-bg border border-border rounded overflow-hidden text-center w-14 shrink-0">
+                            <div class="bg-accent text-bg text-[10px] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
+                            <div class="text-lg font-semibold py-1">@StartDate(season).Day</div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-semibold">@season.Name</div>
+                            @if (IsActive(season)) {
+                                <div class="text-muted text-xs">Next season ~@NextStartLabel(season)</div>
+                                <div class="text-muted text-xs">@ContractsLeftLabel(season)</div>
+                            } else {
+                                <div class="text-muted text-xs">@StartLabel(season)</div>
+                            }
+                        </div>
                     </div>
-                    <div>
-                        <div class="text-sm font-semibold">@season.Name</div>
-                        <div class="text-muted text-xs">@SeasonSubLabel(season)</div>
-                        @if (season.Colleggtibles is { Count: > 0 } ceggs) {
-                            <div class="flex flex-wrap items-center gap-1.5 text-muted text-xs" style="margin-top:4px">
-                                <span>@(ceggs.Count == 1 ? "Colleggtible" : "Colleggtibles")</span>
+                    @if (season.Colleggtibles is { Count: > 0 } ceggs) {
+                        <div class="shrink-0">
+                            <div class="text-xs font-semibold mb-1">@(ceggs.Count == 1 ? "Season Colleggtible" : "Season Colleggtibles")</div>
+                            <div class="flex flex-col gap-1.5">
                                 @foreach (var egg in ceggs) {
-                                    <span class="code-chip flex items-center gap-1.5">
+                                    <div class="flex items-center gap-2">
                                         @if (egg.Icon is not null) {
-                                            <img src="@egg.Icon" alt="" loading="lazy" style="width:22px;height:22px;object-fit:contain"/>
+                                            <img src="@egg.Icon" alt="@egg.Id" loading="lazy" style="width:40px;height:40px;object-fit:contain"/>
                                         }
-                                        @egg.Id
-                                    </span>
+                                        <div class="min-w-0">
+                                            <div class="text-xs font-medium">@Pretty(egg.Id)</div>
+                                            @if (egg.Contracts is { Count: > 0 } cnames) {
+                                                <div class="text-muted text-[11px]">Released with @string.Join(", ", cnames)</div>
+                                            }
+                                        </div>
+                                    </div>
                                 }
                             </div>
-                        }
-                    </div>
+                        </div>
+                    }
                 </div>
                 @if (grades.Count > 0) {
-                    var sel = grades.FirstOrDefault(g => g.Grade == _grade) ?? grades[^1];
-                    <div class="settings-seg mb-2 max-w-xs" role="radiogroup" aria-label="Grade">
-                        @foreach (var g in grades) {
-                            var grade = g.Grade;
-                            <button type="button" class="seg-btn @(sel.Grade == grade ? "active" : "")"
-                                    @onclick="() => _grade = grade">
-                                @if (!string.IsNullOrEmpty(g.GradeIcon)) {
-                                    <img src="@g.GradeIcon" alt="@GradeLabel(grade)" title="@GradeLabel(grade)" style="width:28px;height:28px;object-fit:contain" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
-                                    <span style="display:none">@GradeLabel(grade)</span>
-                                } else {
-                                    @GradeLabel(grade)
-                                }
-                            </button>
-                        }
-                    </div>
+                    var goalCount = grades.Max(g => g.Goals.Count);
                     <table class="reg-table">
                         <thead>
                         <tr>
-                            <th>CXP</th><th>Reward</th>
+                            <th class="w-20">CXP Goal</th>
+                            @foreach (var g in grades) {
+                                <th>
+                                    @if (!string.IsNullOrEmpty(g.GradeIcon)) {
+                                        <img src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" title="@GradeLabel(g.Grade)" style="width:28px;height:28px;object-fit:contain" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
+                                        <span style="display:none">@GradeLabel(g.Grade)</span>
+                                    } else {
+                                        @GradeLabel(g.Grade)
+                                    }
+                                </th>
+                            }
                         </tr>
                         </thead>
                         <tbody>
-                        @foreach (var goal in sel.Goals) {
+                        @for (var ix = 0; ix < goalCount; ix++) {
+                            var goalIx = ix;
                             <tr>
-                                <td class="mono text-xs">@goal.Cxp.ToString("N0")</td>
-                                <td class="text-xs">
-                                    <span class="flex items-center gap-1.5">
-                                        @if (!string.IsNullOrEmpty(goal.Icon)) {
-                                            <img src="@goal.Icon" alt="" style="width:18px;height:18px;object-fit:contain" loading="lazy" onerror="this.style.display='none'"/>
+                                <td class="mono text-xs text-muted">@(goalIx + 1)</td>
+                                @foreach (var g in grades) {
+                                    <td class="text-xs">
+                                        @if (goalIx < g.Goals.Count) {
+                                            var goal = g.Goals[goalIx];
+                                            <div class="mono text-muted">@FormatAmount(goal.Cxp)</div>
+                                            <div class="flex items-center gap-1.5">
+                                                @if (!string.IsNullOrEmpty(goal.Icon)) {
+                                                    <img src="@goal.Icon" alt="" style="width:18px;height:18px;object-fit:contain" loading="lazy" onerror="this.style.display='none'"/>
+                                                }
+                                                @RewardLabel(goal)
+                                            </div>
                                         }
-                                        @RewardLabel(goal)
-                                    </span>
-                                </td>
+                                    </td>
+                                }
                             </tr>
                         }
                         </tbody>
@@ -222,7 +239,6 @@
     string? _catalogError;
     List<Season>? _seasons;
     int _seasonIx;
-    string _grade = "GradeAaa";
     List<EventRow>? _events;
     IJSObjectReference? _countdown;
     readonly CaptureViewState _view = new();
@@ -336,13 +352,19 @@
         return $"{verb} {d.ToString("MMMM d, yyyy")}{derived}";
     }
 
-    static string SeasonSubLabel(Season s) {
+    static bool IsActive(Season s) {
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        if (!(s.StartTime <= now && now < s.NextStartTime)) return StartLabel(s);
+        return s.StartTime <= now && now < s.NextStartTime;
+    }
+
+    static string NextStartLabel(Season s) {
+        return DateTimeOffset.FromUnixTimeSeconds((long)s.NextStartTime).ToLocalTime().ToString("MMMM d");
+    }
+
+    static string ContractsLeftLabel(Season s) {
         var nextLocal = DateTimeOffset.FromUnixTimeSeconds((long)s.NextStartTime).ToLocalTime();
         var mondays = MondaysBetween(DateTimeOffset.UtcNow.ToLocalTime(), nextLocal);
-        var noun = mondays == 1 ? "contract" : "contracts";
-        return $"Next season ~{nextLocal.ToString("MMMM d")} · {mondays} {noun} left";
+        return $"{mondays} {(mondays == 1 ? "contract" : "contracts")} left";
     }
 
     static int MondaysBetween(DateTimeOffset nowLocal, DateTimeOffset endLocal) {
@@ -361,9 +383,9 @@
     }
 
     static string FormatAmount(double n) {
-        if (n >= 1e9) return (n / 1e9).ToString("0.##") + "b";
-        if (n >= 1e6) return (n / 1e6).ToString("0.##") + "m";
-        if (n >= 1e3) return (n / 1e3).ToString("0.##") + "k";
+        if (n >= 1e9) return (n / 1e9).ToString("0.##") + "B";
+        if (n >= 1e6) return (n / 1e6).ToString("0.##") + "M";
+        if (n >= 1e3) return (n / 1e3).ToString("0.##") + "K";
         return n.ToString("N0");
     }
 
@@ -480,7 +502,7 @@
 
     record Season(string Id, string Name, double StartTime, double NextStartTime, bool StartDerived, List<GradeGoalsRow> GradeGoals, List<SeasonEgg>? Colleggtibles);
 
-    record SeasonEgg(string Id, string? Icon);
+    record SeasonEgg(string Id, string? Icon, List<string>? Contracts);
 
     record GradeGoalsRow(string Grade, List<GoalRow> Goals, string? GradeIcon);
 

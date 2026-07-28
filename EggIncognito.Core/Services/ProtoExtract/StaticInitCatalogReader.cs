@@ -3,8 +3,10 @@ using System.Text;
 namespace EggIncognito.Services.ProtoExtract;
 
 public static class StaticInitCatalogReader {
-    public static Result Read(byte[] bin, string initSymbol, Func<string, bool> isId)
-        => ReadWith(bin, MachoSymbols.Read(bin), MachoSections.Read(bin), initSymbol, isId);
+    public static Result Read(byte[] bin, string initSymbol, Func<string, bool> isId) {
+        var img = BinaryImage.Load(bin);
+        return ReadWith(bin, img?.Symbols ?? [], img?.Sections ?? [], initSymbol, isId);
+    }
 
     public static Result ReadWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections, string initSymbol, Func<string, bool> isId) {

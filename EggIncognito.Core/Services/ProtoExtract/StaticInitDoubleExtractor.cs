@@ -6,7 +6,7 @@ namespace EggIncognito.Services.ProtoExtract;
 
 public static class StaticInitDoubleExtractor {
     public static Result Extract(byte[] bin, string symbol, int maxInsns = 6000)
-        => ExtractWith(bin, MachoSymbols.Read(bin), symbol, maxInsns);
+        => ExtractWith(bin, BinaryImage.Load(bin)?.Symbols ?? [], symbol, maxInsns);
 
     public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string symbol,
         int maxInsns = 6000) {
@@ -15,7 +15,8 @@ public static class StaticInitDoubleExtractor {
     }
 
     public static Result ExtractRange(byte[] bin, ulong startVa, ulong endVa, int maxInsns = 60000) {
-        if (!MachoText.TryFindText(bin, out int textFileOff, out _, out ulong textVmAddr))
+        var img = BinaryImage.Load(bin);
+        if (img is null || !img.TryFindText(out int textFileOff, out _, out ulong textVmAddr))
             return new Result(false, [], "range", "no __text");
         ulong slide = textVmAddr - (ulong)textFileOff;
         long startFile = (long)startVa - (long)slide;
@@ -37,7 +38,7 @@ public static class StaticInitDoubleExtractor {
     }
 
     private static Result Decode(byte[] bin, IReadOnlyList<Arm64DataTableReader.Insn> insns, string symbol) {
-        var sections = MachoSections.Read(bin);
+        var img = BinaryImage.Load(bin);
         var seen = new HashSet<long>();
         var outp = new List<double>();
         var page = new Dictionary<string, ulong>();
@@ -78,7 +79,7 @@ public static class StaticInitDoubleExtractor {
             }
 
             if ((m == "ldr" || m == "ldur") && TryMemLoad(ops, page, out ulong va, out bool isWide)) {
-                if (MachoSections.TryVaToFileOffset(sections, va, out int fo, out _)) {
+                if (img is not null && img.TryVaToFileOffset(va, out int fo, out _)) {
                     if (isWide && fo + 16 <= bin.Length) {
                         Emit(BitConverter.ToInt64(bin, fo));
                         Emit(BitConverter.ToInt64(bin, fo + 8));

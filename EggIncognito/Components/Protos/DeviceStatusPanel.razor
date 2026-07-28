@@ -22,6 +22,12 @@
                     <div class="min-w-0 flex-1 max-w-[19rem]">
                         <div class="flex items-baseline gap-2">
                             <span class="text-sm font-medium truncate">@d.Label</span>
+                            @if (Capture(d.Id) is { } cap) {
+                                var v = CaptureVerdict(cap);
+                                <span class="@v.Color shrink-0 self-center inline-flex" title="@(v.Color == "text-green-400" ? null : v.Label)">
+                                    <Icon Name="@CaptureIcon(v.Color)" Class="icon-sm"/>
+                                </span>
+                            }
                             <span class="text-xs text-muted opacity-60 whitespace-nowrap shrink-0" title="@d.ProbedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")">@Ago(d.ProbedAt)</span>
                             @if (d.Result == "new_version") {
                                 <span class="dev-badge-new" title="Installed version can populate new registry version">NEW</span>
@@ -41,13 +47,6 @@
                                 </span>
                             }
                         </div>
-                        @{ var cap = Capture(d.Id); }
-                        @if (cap is not null) {
-                            var v = CaptureVerdict(cap);
-                            <div class="text-xs mt-0.5 flex items-center gap-1.5" title="@v.Detail">
-                                <span class="@v.Color">capture: @v.Label</span>
-                            </div>
-                        }
                     </div>
                     @if (_isAdmin) {
                         @if (d.Result == "new_version") {
@@ -120,6 +119,14 @@
         return DeviceCaptureVerdict.For(
             new DeviceCaptureVerdict.Counters(
                 c.Listening, c.Port, c.ClientConnects, c.AuxbrainConnects, c.Flows, c.RinfoHarvests, c.LastDecryptError));
+    }
+
+    static string CaptureIcon(string color) {
+        return color switch {
+            "text-green-400" => "check",
+            "text-yellow-400" => "info",
+            _ => "x"
+        };
     }
 
     bool _isAdmin;

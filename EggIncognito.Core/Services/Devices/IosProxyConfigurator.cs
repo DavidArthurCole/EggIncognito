@@ -9,7 +9,7 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
 
     public string Platform => "ios";
 
-    public async Task<(bool Ok, string? Note)> SetProxyAsync(DeviceProxyTarget device, string hostIp, int port,
+    public async Task<(bool Ok, string? Note)> SetProxyAsync(DeviceTarget device, string hostIp, int port,
         CancellationToken ct) {
         return !string.IsNullOrEmpty(ssh.SetTemplate)
             ? await Ssh(
@@ -20,7 +20,7 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
                 : await Ssh(BuildSet(hostIp, port), ct);
     }
 
-    public async Task<(bool Ok, string? Note)> ClearProxyAsync(DeviceProxyTarget device, CancellationToken ct) {
+    public async Task<(bool Ok, string? Note)> ClearProxyAsync(DeviceTarget device, CancellationToken ct) {
         return !string.IsNullOrEmpty(ssh.ClearTemplate)
             ? await Ssh(ssh.ClearTemplate, ct)
             : string.IsNullOrEmpty(ssh.Guid)

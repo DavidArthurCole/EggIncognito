@@ -12,7 +12,10 @@ public static partial class MissionCatalogExtractor {
     [GeneratedRegex("^[A-Z][A-Z0-9 .!']+$")]
     private static partial Regex DisplayPattern();
 
-    public static Result Extract(byte[] bin) => ExtractWith(bin, MachoSymbols.Read(bin), MachoSections.Read(bin));
+    public static Result Extract(byte[] bin) {
+        var img = BinaryImage.Load(bin);
+        return ExtractWith(bin, img?.Symbols ?? [], img?.Sections ?? []);
+    }
 
     public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections) {

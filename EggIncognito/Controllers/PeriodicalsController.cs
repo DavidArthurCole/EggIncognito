@@ -108,7 +108,7 @@ public sealed class PeriodicalsController(
             return StatusCode(500, new { error = $"season fixture unreadable: {ex.Message}" });
         }
 
-        var seasonEggs = new Dictionary<string, List<(string Id, string? Icon)>>(StringComparer.Ordinal);
+        var seasonEggs = new Dictionary<string, List<(string Id, string? Icon, List<string> Contracts)>>(StringComparer.Ordinal);
         string? perRoute = catalog.ById("periodical", "get_periodicals")?.WireRoute;
         (string? perJson, _) = await ResolveCurrentJson(perRoute, ct);
         if (perJson is not null) {
@@ -121,10 +121,16 @@ public sealed class PeriodicalsController(
                         seasonEggs[contract.SeasonId] = eggs;
                     }
 
-                    if (eggs.Any(e => e.Id == contract.CustomEggId)) continue;
+                    string contractName = string.IsNullOrEmpty(contract.Name) ? contract.Identifier : contract.Name;
+                    var existing = eggs.FirstOrDefault(e => e.Id == contract.CustomEggId);
+                    if (existing.Id is not null) {
+                        if (!existing.Contracts.Contains(contractName)) existing.Contracts.Add(contractName);
+                        continue;
+                    }
+
                     string? icon = (per.Contracts?.CustomEggs ?? [])
                         .FirstOrDefault(e => e.Identifier == contract.CustomEggId)?.Icon?.Url;
-                    eggs.Add((contract.CustomEggId, icon));
+                    eggs.Add((contract.CustomEggId, icon, [contractName]));
                 }
             } catch {
             }
@@ -133,14 +139,14 @@ public sealed class PeriodicalsController(
         return Ok(new { seasons = SeasonList(infos, seasonEggs) });
     }
 
-    private static object[] SeasonList(ContractSeasonInfos infos, Dictionary<string, List<(string Id, string? Icon)>> seasonEggs) {
+    private static object[] SeasonList(ContractSeasonInfos infos, Dictionary<string, List<(string Id, string? Icon, List<string> Contracts)>> seasonEggs) {
         var list = infos.Infos.ToList();
         double[] starts = ResolveStarts(list);
         double quarter = Quarter(starts);
         return [
             .. list.Select((s, i) => {
                 object[] colleggtibles = seasonEggs.TryGetValue(s.Id, out var eggs)
-                    ? [.. eggs.Select(e => (object)new { id = e.Id, icon = e.Icon })]
+                    ? [.. eggs.Select(e => (object)new { id = e.Id, icon = e.Icon, contracts = e.Contracts.ToArray() })]
                     : [];
                 return (object)new {
                 id = s.Id,

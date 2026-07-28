@@ -7,8 +7,10 @@ public static class VehicleCatalogExtractor {
     private const long Stride = 0xF0;
     private const long CapacityOff = 0x18;
 
-    public static Result Read(byte[] bin, string initSymbol = InitSymbol)
-        => ReadWith(bin, MachoSymbols.Read(bin), MachoSections.Read(bin), initSymbol);
+    public static Result Read(byte[] bin, string initSymbol = InitSymbol) {
+        var img = BinaryImage.Load(bin);
+        return ReadWith(bin, img?.Symbols ?? [], img?.Sections ?? [], initSymbol);
+    }
 
     public static Result ReadWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections, string initSymbol = InitSymbol) {

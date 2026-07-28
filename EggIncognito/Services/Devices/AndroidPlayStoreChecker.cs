@@ -10,7 +10,7 @@ public sealed class AndroidPlayStoreChecker(
     public string Platform => "android";
 
     public async Task<StoreCheckResult> CheckAndUpdateAsync(
-        DeviceStoreTarget device, CancellationToken ct, Action<string>? progress = null) {
+        DeviceTarget device, CancellationToken ct, Action<string>? progress = null) {
         progress?.Invoke("reading installed version over adb…");
         string? before = await ReadInstalledAsync(device, ct);
         if (before is null) {
@@ -46,7 +46,7 @@ public sealed class AndroidPlayStoreChecker(
     }
 
 
-    private async Task SleepDeviceAsync(DeviceStoreTarget device, CancellationToken ct) {
+    private async Task SleepDeviceAsync(DeviceTarget device, CancellationToken ct) {
         try {
             await Shell(device, "input keyevent KEYCODE_HOME", ct);
             await Shell(device, "input keyevent KEYCODE_SLEEP", ct);
@@ -57,7 +57,7 @@ public sealed class AndroidPlayStoreChecker(
 
 
     private async Task<DriveOutcome> DrivePlayUpdateAsync(
-        DeviceStoreTarget device, Action<string>? progress, CancellationToken ct) {
+        DeviceTarget device, Action<string>? progress, CancellationToken ct) {
         await Shell(device, "input keyevent KEYCODE_WAKEUP", ct);
         await Shell(device, "wm dismiss-keyguard", ct);
 
@@ -96,7 +96,7 @@ public sealed class AndroidPlayStoreChecker(
         return new DriveOutcome(false, true, "Update button not found (page may not have loaded an update)");
     }
 
-    private async Task<string?> DumpUiAsync(DeviceStoreTarget device, CancellationToken ct) {
+    private async Task<string?> DumpUiAsync(DeviceTarget device, CancellationToken ct) {
         var dump = await Shell(device, "uiautomator dump /sdcard/egi-ui.xml", ct);
         if (dump.ExitCode != 0) return null;
         var cat = await Shell(device, "cat /sdcard/egi-ui.xml", ct);
@@ -134,10 +134,10 @@ public sealed class AndroidPlayStoreChecker(
                && int.TryParse(nums[2], out r) && int.TryParse(nums[3], out b);
     }
 
-    private Task<ProcessResult> Shell(DeviceStoreTarget device, string cmd, CancellationToken ct) =>
+    private Task<ProcessResult> Shell(DeviceTarget device, string cmd, CancellationToken ct) =>
         runner.RunAsync("adb", ["-s", device.Target, "shell", cmd], ct);
 
-    private async Task<string?> ReadInstalledAsync(DeviceStoreTarget device, CancellationToken ct) {
+    private async Task<string?> ReadInstalledAsync(DeviceTarget device, CancellationToken ct) {
         var probe = await new AdbDeviceProbe(runner, device.Target, device.Package).ProbeAsync(ct);
         return probe.InstalledAppVersion;
     }

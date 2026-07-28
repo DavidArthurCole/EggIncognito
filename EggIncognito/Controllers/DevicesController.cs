@@ -236,7 +236,7 @@ public sealed class DevicesController(
             return StatusCode(409, new { error = "check already running" });
 
         logger.LogInformation("device check-update: {Id} start (by {Who})", id, who);
-        var target = new DeviceStoreTarget(device.Id, device.Platform, device.Target, device.Package);
+        var target = new DeviceTarget(device.Id, device.Platform, device.Target, device.Package);
 
 
         _ = Task.Run(() => RunCheckUpdateAsync(id, target, checker, who));
@@ -245,7 +245,7 @@ public sealed class DevicesController(
     }
 
 
-    private async Task RunCheckUpdateAsync(string id, DeviceStoreTarget target, IDeviceStoreChecker checker,
+    private async Task RunCheckUpdateAsync(string id, DeviceTarget target, IDeviceStoreChecker checker,
         string who) {
         using var scope = scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;

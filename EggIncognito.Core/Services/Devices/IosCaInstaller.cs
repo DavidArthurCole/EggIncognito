@@ -15,7 +15,7 @@ public sealed class IosCaInstaller(IProcessRunner runner, IosCaInstaller.SshConf
     public string Platform => "ios";
 
     public async Task<(bool Ok, string? Note)>
-        InstallAsync(DeviceCaTarget device, string caPath, CancellationToken ct) {
+        InstallAsync(DeviceTarget device, string caPath, CancellationToken ct) {
         if (string.IsNullOrEmpty(ssh.Host) || string.IsNullOrEmpty(ssh.KeyPath))
             return (false, "ios ssh host/key not configured");
         if (!File.Exists(caPath)) return (false, $"ca file not found: {caPath}");

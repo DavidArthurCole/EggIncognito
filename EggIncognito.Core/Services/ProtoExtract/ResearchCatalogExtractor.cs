@@ -40,7 +40,10 @@ public static class ResearchCatalogExtractor {
 
     public readonly record struct Result(bool Ok, IReadOnlyList<ResearchEntry> Entries, string Diagnostics);
 
-    public static Result Extract(byte[] bin) => ExtractWith(bin, MachoSymbols.Read(bin), MachoSections.Read(bin));
+    public static Result Extract(byte[] bin) {
+        var img = BinaryImage.Load(bin);
+        return ExtractWith(bin, img?.Symbols ?? [], img?.Sections ?? []);
+    }
 
     public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections) {

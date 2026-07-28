@@ -77,19 +77,23 @@ public sealed class DeviceMaintenanceService(
     private async Task EnsureBinaryStoredAsync(IServiceProvider sp, CancellationToken ct) {
         if (sp.GetService(typeof(GameBinaryProvider)) is not GameBinaryProvider binaries) return;
         try {
-            (string status, string? version, string? note) = await binaries.EnsureCurrentVersionStoredAsync(ct);
-            switch (status) {
-                case "pulled":
-                    logger.LogInformation("binary store: pulled and stored {Version}; {Note}", version, note);
-                    break;
-                case "pull-failed":
-                case "store-error":
-                    logger.LogWarning("binary store: ensure {Version} failed ({Status}): {Note}", version, status,
-                        note);
-                    break;
-                default:
-                    logger.LogDebug("binary store: {Status} {Version} {Note}", status, version ?? "?", note);
-                    break;
+            foreach ((string platform, string status, string? version, string? note) in
+                     await binaries.EnsureAllVersionsStoredAsync(ct)) {
+                switch (status) {
+                    case "pulled":
+                        logger.LogInformation("binary store: {Platform} pulled and stored {Version}; {Note}", platform,
+                            version, note);
+                        break;
+                    case "pull-failed":
+                    case "store-error":
+                        logger.LogWarning("binary store: {Platform} ensure {Version} failed ({Status}): {Note}",
+                            platform, version, status, note);
+                        break;
+                    default:
+                        logger.LogDebug("binary store: {Platform} {Status} {Version} {Note}", platform, status,
+                            version ?? "?", note);
+                        break;
+                }
             }
         } catch (Exception ex) {
             logger.LogWarning(ex, "binary store: ensure tick threw");
@@ -115,7 +119,7 @@ public sealed class DeviceMaintenanceService(
 
         logger.LogInformation("device sync: {Id} store {Store} > installed {Inst}: driving on-device store",
             d.Id, storeLatest, probe.InstalledAppVersion);
-        var target = new DeviceStoreTarget(d.Id, d.Platform, d.Target, d.Package);
+        var target = new DeviceTarget(d.Id, d.Platform, d.Target, d.Package);
         var result = await checker.CheckAndUpdateAsync(target, ct,
             msg => logger.LogInformation("device sync: {Id} {Msg}", d.Id, msg));
 

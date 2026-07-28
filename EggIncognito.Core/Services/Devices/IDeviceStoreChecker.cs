@@ -5,10 +5,8 @@ public interface IDeviceStoreChecker {
 
 
     Task<StoreCheckResult> CheckAndUpdateAsync(
-        DeviceStoreTarget device, CancellationToken ct, Action<string>? progress = null);
+        DeviceTarget device, CancellationToken ct, Action<string>? progress = null);
 }
-
-public sealed record DeviceStoreTarget(string Id, string Platform, string Target, string Package);
 
 public sealed record StoreCheckResult(
     bool Reachable,

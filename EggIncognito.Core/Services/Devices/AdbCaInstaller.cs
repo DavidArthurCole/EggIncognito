@@ -34,7 +34,7 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
     public string Platform => "android";
 
     public async Task<(bool Ok, string? Note)>
-        InstallAsync(DeviceCaTarget device, string caPath, CancellationToken ct) {
+        InstallAsync(DeviceTarget device, string caPath, CancellationToken ct) {
         if (!File.Exists(caPath)) return (false, $"ca file not found: {caPath}");
 
         X509Certificate2 cert;

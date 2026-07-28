@@ -1,0 +1,131 @@
+using System.Text;
+
+namespace EggIncognito.Services.ProtoExtract;
+
+public static class ElfSections {
+    private const uint PtLoad = 1;
+    private const uint ShtInitArray = 14;
+    private const ulong ShfAlloc = 0x2;
+
+    public static IReadOnlyList<MachoSections.Section> Read(byte[] bin) {
+        var result = new List<MachoSections.Section>();
+        if (!IsElf64Le(bin)) return result;
+        try {
+            ulong shoff = U64(bin, 0x28);
+            int shentsize = U16(bin, 0x3A);
+            int shnum = U16(bin, 0x3C);
+            int shstrndx = U16(bin, 0x3E);
+            if (shentsize < 64 || shnum <= 0 || shstrndx >= shnum) return result;
+
+            long strHdr = (long)shoff + (long)shstrndx * shentsize;
+            if (strHdr < 0 || strHdr + 64 > bin.Length) return result;
+            long strTab = (long)U64(bin, (int)strHdr + 0x18);
+
+            for (int i = 0; i < shnum; i++) {
+                long h = (long)shoff + (long)i * shentsize;
+                if (h < 0 || h + 64 > bin.Length) break;
+                ulong flags = U64(bin, (int)h + 0x08);
+                if ((flags & ShfAlloc) == 0) continue;
+                uint nameOff = U32(bin, (int)h + 0x00);
+                ulong addr = U64(bin, (int)h + 0x10);
+                ulong off = U64(bin, (int)h + 0x18);
+                ulong sz = U64(bin, (int)h + 0x20);
+                string name = Cstr(bin, strTab + nameOff);
+                result.Add(new MachoSections.Section("", name, addr, sz, (int)off, 0));
+            }
+        } catch {
+            return result;
+        }
+
+        return result;
+    }
+
+    public static IReadOnlyList<LoadSegment> ReadSegments(byte[] bin) {
+        var result = new List<LoadSegment>();
+        if (!IsElf64Le(bin)) return result;
+        try {
+            ulong phoff = U64(bin, 0x20);
+            int phentsize = U16(bin, 0x36);
+            int phnum = U16(bin, 0x38);
+            if (phentsize < 56 || phnum <= 0) return result;
+
+            for (int i = 0; i < phnum; i++) {
+                long p = (long)phoff + (long)i * phentsize;
+                if (p < 0 || p + 56 > bin.Length) break;
+                if (U32(bin, (int)p + 0x00) != PtLoad) continue;
+                ulong off = U64(bin, (int)p + 0x08);
+                ulong vaddr = U64(bin, (int)p + 0x10);
+                ulong filesz = U64(bin, (int)p + 0x20);
+                ulong memsz = U64(bin, (int)p + 0x28);
+                result.Add(new LoadSegment(vaddr, memsz, (long)off, (long)filesz));
+            }
+        } catch {
+            return result;
+        }
+
+        return result;
+    }
+
+    public static bool TryVaToFileOffset(IReadOnlyList<LoadSegment> segments, ulong va, out int fileOff) {
+        foreach (var s in segments) {
+            if (s.FileSize == 0) continue;
+            if (va >= s.VAddr && va < s.VAddr + (ulong)s.FileSize) {
+                long off = s.FileOff + (long)(va - s.VAddr);
+                if (off is >= 0 and <= int.MaxValue) {
+                    fileOff = (int)off;
+                    return true;
+                }
+            }
+        }
+
+        fileOff = 0;
+        return false;
+    }
+
+    public static bool TryFindInitArray(byte[] bin, out ulong va, out ulong size) {
+        va = 0;
+        size = 0;
+        if (!IsElf64Le(bin)) return false;
+        try {
+            ulong shoff = U64(bin, 0x28);
+            int shentsize = U16(bin, 0x3A);
+            int shnum = U16(bin, 0x3C);
+            if (shentsize < 64 || shnum <= 0) return false;
+
+            for (int i = 0; i < shnum; i++) {
+                long h = (long)shoff + (long)i * shentsize;
+                if (h < 0 || h + 64 > bin.Length) break;
+                if (U32(bin, (int)h + 0x04) != ShtInitArray) continue;
+                va = U64(bin, (int)h + 0x10);
+                size = U64(bin, (int)h + 0x20);
+                return size != 0;
+            }
+        } catch {
+            return false;
+        }
+
+        return false;
+    }
+
+    internal static bool IsElf64Le(byte[]? b) =>
+        b is { Length: >= 64 } && b[0] == 0x7F && b[1] == (byte)'E' && b[2] == (byte)'L' && b[3] == (byte)'F'
+        && b[4] == 2 && b[5] == 1;
+
+    private static ushort U16(byte[] b, int p) => (ushort)(b[p] | (b[p + 1] << 8));
+    private static uint U32(byte[] b, int p) => (uint)(b[p] | (b[p + 1] << 8) | (b[p + 2] << 16) | (b[p + 3] << 24));
+
+    private static ulong U64(byte[] b, int p) {
+        ulong v = 0;
+        for (int i = 0; i < 8; i++) v |= (ulong)b[p + i] << (8 * i);
+        return v;
+    }
+
+    private static string Cstr(byte[] b, long o) {
+        if (o < 0 || o >= b.Length) return "";
+        long end = o;
+        while (end < b.Length && b[end] != 0) end++;
+        return Encoding.ASCII.GetString(b, (int)o, (int)(end - o));
+    }
+
+    public readonly record struct LoadSegment(ulong VAddr, ulong VSize, long FileOff, long FileSize);
+}

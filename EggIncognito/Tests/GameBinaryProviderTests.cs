@@ -1,6 +1,4 @@
-using EggIncognito.Core.Services.Devices;
 using EggIncognito.Services;
-using EggIncognito.Services.Devices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -11,15 +9,9 @@ public class GameBinaryProviderTests {
         public object? GetService(Type serviceType) => null;
     }
 
-    private sealed class NoDeviceConnections : IDeviceConnectionFactory {
-        public IDeviceConnection? For(string platform, string target) => null;
-        public SshDeviceConnection? Ios(string? hostFallback = null) => null;
-    }
-
     private static GameBinaryProvider Provider(IReadOnlyDictionary<string, string?> settings) {
         var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        return new GameBinaryProvider(new EmptyServices(), config, new NoDeviceConnections(),
-            NullLogger<GameBinaryProvider>.Instance);
+        return new GameBinaryProvider(new EmptyServices(), config, NullLogger<GameBinaryProvider>.Instance);
     }
 
     [Fact]

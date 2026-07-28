@@ -64,7 +64,7 @@ public class CaInstallerTests {
                 new ProcessResult(0, "diag module: written\ndiag live: mounted into running cacerts\ndiag done", ""));
             var inst = new AdbCaInstaller(runner);
             (bool ok, string? note) =
-                await inst.InstallAsync(new DeviceCaTarget("d", "android", "SERIAL"), path, default);
+                await inst.InstallAsync(new DeviceTarget("d", "android", "SERIAL", "com.auxbrain.egginc"), path, default);
 
             Assert.True(ok);
             var pushes = runner.Calls.Where(c => c.args.Contains("push")).ToList();
@@ -88,7 +88,7 @@ public class CaInstallerTests {
             var runner = new FakeRunner((_, args) =>
                 args.Contains("push") ? new ProcessResult(1, "", "no device") : new ProcessResult(0, "", ""));
             var inst = new AdbCaInstaller(runner);
-            (bool ok, string? note) = await inst.InstallAsync(new DeviceCaTarget("d", "android", "S"), path, default);
+            (bool ok, string? note) = await inst.InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
 
             Assert.False(ok);
             Assert.Contains("push", note!);
@@ -105,7 +105,7 @@ public class CaInstallerTests {
             var runner = new FakeRunner((_, _) => new ProcessResult(0, "row-present", ""));
             var ssh = new IosCaInstaller.SshConfig("1.2.3.4", "2222", "/k", null, null);
             var inst = new IosCaInstaller(runner, ssh);
-            (bool ok, _) = await inst.InstallAsync(new DeviceCaTarget("d", "ios", "UDID"), path, default);
+            (bool ok, _) = await inst.InstallAsync(new DeviceTarget("d", "ios", "UDID", "com.auxbrain.egginc"), path, default);
 
             Assert.True(ok);
             (string exe, string[] args) = runner.Calls.Single(c => c.exe == "ssh");
@@ -127,7 +127,7 @@ public class CaInstallerTests {
         try {
             var runner = new FakeRunner((_, _) => new ProcessResult(0, "", ""));
             var inst = new IosCaInstaller(runner, new IosCaInstaller.SshConfig(null, "2222", null, null, null));
-            (bool ok, string? note) = await inst.InstallAsync(new DeviceCaTarget("d", "ios", "U"), path, default);
+            (bool ok, string? note) = await inst.InstallAsync(new DeviceTarget("d", "ios", "U", "com.auxbrain.egginc"), path, default);
             Assert.False(ok);
             Assert.Contains("ssh", note!);
             Assert.Empty(runner.Calls);
@@ -143,7 +143,7 @@ public class CaInstallerTests {
             var runner = new FakeRunner((_, _) => new ProcessResult(0, "", ""));
             var ssh = new IosCaInstaller.SshConfig("h", "22", "/k", null, "/custom/TrustStore.sqlite3");
             var inst = new IosCaInstaller(runner, ssh);
-            await inst.InstallAsync(new DeviceCaTarget("d", "ios", "U"), path, default);
+            await inst.InstallAsync(new DeviceTarget("d", "ios", "U", "com.auxbrain.egginc"), path, default);
             string remote = runner.Calls.Single(c => c.exe == "ssh").args[^1];
             Assert.Contains("/custom/TrustStore.sqlite3", remote);
         } finally {

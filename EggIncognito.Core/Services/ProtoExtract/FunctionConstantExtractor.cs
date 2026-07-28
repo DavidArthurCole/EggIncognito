@@ -4,13 +4,14 @@ public static class FunctionConstantExtractor {
     public static ExtractResult Extract(byte[] bin, string[] nameNeedles) {
         return bin is null || bin.Length < 64
             ? new ExtractResult(false, "", [], [], "binary too short")
-            : ExtractWith(bin, MachoSymbols.Read(bin), nameNeedles);
+            : ExtractWith(bin, BinaryImage.Load(bin)?.Symbols ?? [], nameNeedles);
     }
 
 
     public static ExtractResult ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string[] nameNeedles) {
         if (bin is null || bin.Length < 64) return new ExtractResult(false, "", [], [], "binary too short");
-        if (!MachoText.TryFindText(bin, out int textFileOff, out _, out ulong textVmAddr))
+        var img = BinaryImage.Load(bin);
+        if (img is null || !img.TryFindText(out int textFileOff, out _, out ulong textVmAddr))
             return new ExtractResult(false, "", [], [], "no __text section");
 
         if (!MachoSymbols.TryFindFunc(syms, nameNeedles, out var fn))

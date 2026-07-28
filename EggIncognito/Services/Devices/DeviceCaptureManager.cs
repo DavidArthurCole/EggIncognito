@@ -149,7 +149,7 @@ public sealed class DeviceCaptureManager(
         if (!_caInstallers.TryGetValue(d.Platform, out var installer))
             return (false, $"no CA installer for {d.Platform}");
         try {
-            var target = new DeviceCaTarget(d.Id, d.Platform, d.Target);
+            var target = new DeviceTarget(d.Id, d.Platform, d.Target, d.Package);
             (bool ok, string? note) = await installer.InstallAsync(target, caPath, ct);
             if (ok) logger.LogInformation("device capture: {Id} CA installed ({Note})", d.Id, note);
             else logger.LogWarning("device capture: {Id} CA install failed: {Note}", d.Id, note);

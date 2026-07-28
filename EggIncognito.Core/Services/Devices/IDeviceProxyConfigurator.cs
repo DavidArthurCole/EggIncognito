@@ -5,10 +5,8 @@ public interface IDeviceProxyConfigurator {
 
 
     Task<(bool Ok, string? Note)>
-        SetProxyAsync(DeviceProxyTarget device, string hostIp, int port, CancellationToken ct);
+        SetProxyAsync(DeviceTarget device, string hostIp, int port, CancellationToken ct);
 
 
-    Task<(bool Ok, string? Note)> ClearProxyAsync(DeviceProxyTarget device, CancellationToken ct);
+    Task<(bool Ok, string? Note)> ClearProxyAsync(DeviceTarget device, CancellationToken ct);
 }
-
-public sealed record DeviceProxyTarget(string Id, string Platform, string Target);
