@@ -5,6 +5,7 @@ ENV NUGET_PACKAGES=/root/.nuget/packages
 
 COPY nuget.config ./
 COPY EggIncognito.Core/EggIncognito.Core.csproj EggIncognito.Core/
+COPY EggIncognito.Data/EggIncognito.Data.csproj EggIncognito.Data/
 COPY EggIncognito.Runner/EggIncognito.Runner.csproj EggIncognito.Runner/
 ARG GITHUB_PACKAGES_USER
 RUN --mount=type=secret,id=github_token \
@@ -17,6 +18,7 @@ RUN --mount=type=secret,id=github_token \
     && dotnet restore EggIncognito.Runner/EggIncognito.Runner.csproj
 
 COPY EggIncognito.Core/ EggIncognito.Core/
+COPY EggIncognito.Data/ EggIncognito.Data/
 COPY EggIncognito.Runner/ EggIncognito.Runner/
 
 ARG GIT_SHA
