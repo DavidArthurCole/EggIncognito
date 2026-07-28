@@ -29,6 +29,14 @@ public static class StructInitReader {
         var ptrWrites = new Dictionary<ulong, Dictionary<long, ulong>>();
         var tplWrites = new Dictionary<ulong, Dictionary<long, ulong>>();
 
+        bool TryResolveMem(string token, out string reg, out ulong off) {
+            if (!TryMem(token, out reg, out off, out string? idx, out int sh)) return false;
+            if (idx is null) return true;
+            if (!imm.TryGetValue(RegNum(idx), out var iv)) return false;
+            off += iv.Val << sh;
+            return true;
+        }
+
         byte[]? ReadVecFrom(ulong va, int width) {
             if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out _)) return null;
             if (fo < 0 || fo + width > bin.Length) return null;
@@ -143,7 +151,7 @@ public static class StructInitReader {
                 case "ldr":
                 case "ldur":
                     if (ops.Count >= 2 && LooksLikeVecReg(ops[0]) &&
-                        TryMem(ops[^1], out string ldQreg, out ulong ldQoff)
+                        TryResolveMem(ops[^1], out string ldQreg, out ulong ldQoff)
                         && page.TryGetValue(ldQreg, out ulong ldQbase)) {
                         ulong src = ldQbase + ldQoff;
                         byte[]? buf = ReadVecFrom(src, VecWidth(ops[0]));
@@ -155,7 +163,7 @@ public static class StructInitReader {
                             vecSrc.Remove(ops[0]);
                         }
                     } else if (ops.Count >= 2 && !LooksLikeVecReg(ops[0]) &&
-                               TryMem(ops[^1], out string ldMreg, out ulong ldMoff) &&
+                               TryResolveMem(ops[^1], out string ldMreg, out ulong ldMoff) &&
                                page.TryGetValue(ldMreg, out ulong ldMbase)) {
                         page[ops[0]] = ldMbase + ldMoff;
                         imm.Remove(RegNum(ops[0]));
@@ -170,7 +178,7 @@ public static class StructInitReader {
 
                 case "ldp":
                     if (ops.Count >= 3 && LooksLikeVecReg(ops[0]) &&
-                        TryMem(ops[^1], out string ldpReg, out ulong ldpOff)
+                        TryResolveMem(ops[^1], out string ldpReg, out ulong ldpOff)
                         && page.TryGetValue(ldpReg, out ulong ldpBase)) {
                         int w = VecWidth(ops[0]);
                         ulong loSrc = ldpBase + ldpOff;
@@ -246,7 +254,7 @@ public static class StructInitReader {
                 case "sturb":
                 case "strh":
                 case "sturh":
-                    if (ops.Count >= 2 && TryMem(ops[^1], out string sReg, out ulong sOffU) &&
+                    if (ops.Count >= 2 && TryResolveMem(ops[^1], out string sReg, out ulong sOffU) &&
                         page.TryGetValue(sReg, out ulong sBase)) {
                         long off = unchecked((long)sOffU);
                         string rt = ops[0];
@@ -269,7 +277,7 @@ public static class StructInitReader {
                     break;
 
                 case "stp":
-                    if (ops.Count >= 3 && TryMem(ops[^1], out string pReg, out ulong pOffU) &&
+                    if (ops.Count >= 3 && TryResolveMem(ops[^1], out string pReg, out ulong pOffU) &&
                         page.TryGetValue(pReg, out ulong pBase)) {
                         long off0 = unchecked((long)pOffU);
                         if (LooksLikeVecReg(ops[0])) {
@@ -337,9 +345,11 @@ public static class StructInitReader {
         return ok;
     }
 
-    private static bool TryMem(string token, out string reg, out ulong off) {
+    private static bool TryMem(string token, out string reg, out ulong off, out string? idxReg, out int idxShift) {
         reg = "";
         off = 0;
+        idxReg = null;
+        idxShift = 0;
         string t = token.Trim();
         int lb = t.IndexOf('[');
         int rb = t.IndexOf(']');
@@ -348,7 +358,16 @@ public static class StructInitReader {
         var parts = SplitOps(inner);
         if (parts.Count == 0) return false;
         reg = parts[0].Trim();
-        if (parts.Count >= 2) TryImm(parts[1], out off);
+        if (parts.Count >= 2) {
+            string second = parts[1].Trim();
+            if (LooksLikeReg(second)) {
+                idxReg = second;
+                if (parts.Count >= 3) idxShift = ShiftOf([parts[2]]);
+            } else {
+                TryImm(second, out off);
+            }
+        }
+
         return true;
     }
 
