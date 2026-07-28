@@ -8,10 +8,7 @@
 @implements IDisposable
 
 <div class="panel">
-    <div class="flex items-center justify-between mb-2">
-        <h3 class="text-sm font-semibold m-0">Devices</h3>
-        <span class="text-muted text-xs">@(_devices.Count == 0 ? "none configured" : $"{_devices.Count} connected")</span>
-    </div>
+    <h3 class="text-sm font-semibold mt-0 mb-2">Devices</h3>
     @if (_devices.Count == 0) {
         <p class="text-muted text-xs">No devices declared on this host.</p>
     } else {
