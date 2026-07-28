@@ -25,9 +25,6 @@
                                 </span>
                             }
                             <span class="event-name">@(string.IsNullOrEmpty(e.Subtitle) ? Pretty(e.Type) : e.Subtitle)</span>
-                            @if (e.Multiplier > 0 && Math.Abs(e.Multiplier - 1) > 0.0001) {
-                                <span class="event-mult">@MultLabel(e.Multiplier)</span>
-                            }
                             <span class="event-timer" data-countdown="@FormattableString.Invariant($"{e.EndTime ?? 0:0}")">@RemainingLabel(e)</span>
                         </span>
                     }
@@ -112,7 +109,20 @@
                     </div>
                     <div>
                         <div class="text-sm font-semibold">@season.Name</div>
-                        <div class="text-muted text-xs">@StartLabel(season)</div>
+                        <div class="text-muted text-xs">@SeasonSubLabel(season)</div>
+                        @if (season.Colleggtibles is { Count: > 0 } ceggs) {
+                            <div class="flex flex-wrap items-center gap-1.5 text-muted text-xs" style="margin-top:4px">
+                                <span>@(ceggs.Count == 1 ? "Colleggtible" : "Colleggtibles")</span>
+                                @foreach (var egg in ceggs) {
+                                    <span class="code-chip flex items-center gap-1.5">
+                                        @if (egg.Icon is not null) {
+                                            <img src="@egg.Icon" alt="" loading="lazy" style="width:22px;height:22px;object-fit:contain"/>
+                                        }
+                                        @egg.Id
+                                    </span>
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
                 @if (grades.Count > 0) {
@@ -123,7 +133,7 @@
                             <button type="button" class="seg-btn @(sel.Grade == grade ? "active" : "")"
                                     @onclick="() => _grade = grade">
                                 @if (!string.IsNullOrEmpty(g.GradeIcon)) {
-                                    <img src="@g.GradeIcon" alt="@GradeLabel(grade)" title="@GradeLabel(grade)" style="width:20px;height:20px;object-fit:contain" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
+                                    <img src="@g.GradeIcon" alt="@GradeLabel(grade)" title="@GradeLabel(grade)" style="width:28px;height:28px;object-fit:contain" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
                                     <span style="display:none">@GradeLabel(grade)</span>
                                 } else {
                                     @GradeLabel(grade)
@@ -319,6 +329,24 @@
         return $"{verb} {d.ToString("MMMM d, yyyy")}{derived}";
     }
 
+    static string SeasonSubLabel(Season s) {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (!(s.StartTime <= now && now < s.NextStartTime)) return StartLabel(s);
+        var nextLocal = DateTimeOffset.FromUnixTimeSeconds((long)s.NextStartTime).ToLocalTime();
+        var mondays = MondaysBetween(DateTimeOffset.UtcNow.ToLocalTime(), nextLocal);
+        var noun = mondays == 1 ? "contract" : "contracts";
+        return $"Next season ~{nextLocal.ToString("MMMM d")} · {mondays} {noun} left";
+    }
+
+    static int MondaysBetween(DateTimeOffset nowLocal, DateTimeOffset endLocal) {
+        var count = 0;
+        for (var d = nowLocal.Date.AddDays(1); d < endLocal.Date; d = d.AddDays(1)) {
+            if (d.DayOfWeek == DayOfWeek.Monday) count++;
+        }
+
+        return count;
+    }
+
     static string GradeLabel(string grade) {
         if (grade.StartsWith("GRADE_", StringComparison.Ordinal)) return grade["GRADE_".Length..];
         if (grade.StartsWith("Grade", StringComparison.Ordinal)) return grade["Grade".Length..].ToUpperInvariant();
@@ -347,10 +375,6 @@
         }
 
         return sb.ToString();
-    }
-
-    static string MultLabel(double m) {
-        return $"{m.ToString(m == Math.Floor(m) ? "0" : "0.##")}x";
     }
 
     static readonly Dictionary<string, string> EventColors = new(StringComparer.OrdinalIgnoreCase) {
@@ -424,7 +448,9 @@
 
     record SeasonsResponse(List<Season> Seasons);
 
-    record Season(string Id, string Name, double StartTime, bool StartDerived, List<GradeGoalsRow> GradeGoals);
+    record Season(string Id, string Name, double StartTime, double NextStartTime, bool StartDerived, List<GradeGoalsRow> GradeGoals, List<SeasonEgg>? Colleggtibles);
+
+    record SeasonEgg(string Id, string? Icon);
 
     record GradeGoalsRow(string Grade, List<GoalRow> Goals, string? GradeIcon);
 

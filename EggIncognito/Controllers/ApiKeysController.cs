@@ -1,3 +1,4 @@
+using EggIdentity.Contract;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
@@ -15,6 +16,10 @@ public sealed class ApiKeysController(ICurrentUser currentUser, IConfiguration c
     : ControllerBase {
     private ApiKeyStore? Store => services.GetService(typeof(ApiKeyStore)) as ApiKeyStore;
 
+    private int? Cap() => currentUser.IsAtLeast(UserRole.Contributor) || currentUser.IsSupporter
+        ? null
+        : config.GetValue("ApiKeys:MaxPerUser", 2);
+
     [HttpPost]
     public async Task<IActionResult> Mint([FromBody] MintReq req, CancellationToken ct) {
         var owner = currentUser.UserId;
@@ -25,9 +30,9 @@ public sealed class ApiKeysController(ICurrentUser currentUser, IConfiguration c
         var store = Store;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
 
-        int cap = config.GetValue("ApiKeys:MaxPerUser", 20);
-        if (await store.ActiveCountAsync(owner.Value, ct) >= cap)
-            return Conflict(new { error = $"key limit reached ({cap}); revoke one first" });
+        int? cap = Cap();
+        if (cap is { } c && await store.ActiveCountAsync(owner.Value, ct) >= c)
+            return Conflict(new { error = $"key limit reached ({c}); revoke one first" });
 
         (string full, string hash, string prefix) = ApiKeyGen.Mint();
         var row = await store.AddAsync(owner.Value, req.Name ?? "key", hash, prefix, ct);
@@ -39,10 +44,12 @@ public sealed class ApiKeysController(ICurrentUser currentUser, IConfiguration c
         var owner = currentUser.UserId;
         if (owner is null) return Unauthorized(new { error = "log in to manage keys" });
         var store = Store;
-        if (store is null) return Ok(Array.Empty<object>());
+        if (store is null) return Ok(new { keys = Array.Empty<object>(), cap = Cap() });
         var rows = await store.ByOwnerAsync(owner.Value, ct);
-        return Ok(
-            rows.Select(k => new { k.Id, k.Name, k.Prefix, k.CreatedAt, k.LastUsedAt, k.RequestCount, k.Revoked }));
+        return Ok(new {
+            keys = rows.Select(k => new { k.Id, k.Name, k.Prefix, k.CreatedAt, k.LastUsedAt, k.RequestCount, k.Revoked }),
+            cap = Cap()
+        });
     }
 
     [HttpDelete("{id:int}")]

@@ -94,7 +94,7 @@ public sealed class PeriodicalsController(
     }
 
     [HttpGet("seasons")]
-    public IActionResult Seasons() {
+    public async Task<IActionResult> Seasons(CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         string? route = catalog.ById("periodical", "season-infos")?.WireRoute;
         if (route is null) return NotFound(new { error = "season source missing" });
@@ -108,18 +108,47 @@ public sealed class PeriodicalsController(
             return StatusCode(500, new { error = $"season fixture unreadable: {ex.Message}" });
         }
 
-        return Ok(new { seasons = SeasonList(infos) });
+        var seasonEggs = new Dictionary<string, List<(string Id, string? Icon)>>(StringComparer.Ordinal);
+        string? perRoute = catalog.ById("periodical", "get_periodicals")?.WireRoute;
+        (string? perJson, _) = await ResolveCurrentJson(perRoute, ct);
+        if (perJson is not null) {
+            try {
+                var per = PeriodicalsResponse.Parser.ParseJson(perJson);
+                foreach (var contract in per.Contracts?.Contracts ?? []) {
+                    if (string.IsNullOrEmpty(contract.SeasonId) || string.IsNullOrEmpty(contract.CustomEggId)) continue;
+                    if (!seasonEggs.TryGetValue(contract.SeasonId, out var eggs)) {
+                        eggs = [];
+                        seasonEggs[contract.SeasonId] = eggs;
+                    }
+
+                    if (eggs.Any(e => e.Id == contract.CustomEggId)) continue;
+                    string? icon = (per.Contracts?.CustomEggs ?? [])
+                        .FirstOrDefault(e => e.Identifier == contract.CustomEggId)?.Icon?.Url;
+                    eggs.Add((contract.CustomEggId, icon));
+                }
+            } catch {
+            }
+        }
+
+        return Ok(new { seasons = SeasonList(infos, seasonEggs) });
     }
 
-    private static object[] SeasonList(ContractSeasonInfos infos) {
+    private static object[] SeasonList(ContractSeasonInfos infos, Dictionary<string, List<(string Id, string? Icon)>> seasonEggs) {
         var list = infos.Infos.ToList();
         double[] starts = ResolveStarts(list);
+        double quarter = Quarter(starts);
         return [
-            .. list.Select((s, i) => (object)new {
+            .. list.Select((s, i) => {
+                object[] colleggtibles = seasonEggs.TryGetValue(s.Id, out var eggs)
+                    ? [.. eggs.Select(e => (object)new { id = e.Id, icon = e.Icon })]
+                    : [];
+                return (object)new {
                 id = s.Id,
                 name = string.IsNullOrEmpty(s.Name) ? PrettySeasonId(s.Id) : s.Name,
                 startTime = starts[i],
+                nextStartTime = i == 0 ? starts[0] + quarter : starts[i - 1],
                 startDerived = !(s.HasStartTime && s.StartTime > 0),
+                colleggtibles,
                 gradeGoals = s.GradeGoals.Select(g => new {
                     grade = g.Grade.ToString(),
                     gradeIcon = $"/api/v1/data/asset/icon?name={RewardIconMap.GradeStem(g.Grade.ToString())}",
@@ -133,6 +162,7 @@ public sealed class PeriodicalsController(
                             : null
                     }).ToArray()
                 }).ToArray()
+                };
             })
         ];
     }
@@ -142,6 +172,18 @@ public sealed class PeriodicalsController(
         int[] known = [.. Enumerable.Range(0, starts.Length).Where(i => starts[i] > 0)];
         if (known.Length == 0) return starts;
 
+        double quarter = Quarter(starts);
+        for (int i = 0; i < starts.Length; i++) {
+            if (starts[i] > 0) continue;
+            int nearest = known.MinBy(j => Math.Abs(j - i));
+            starts[i] = starts[nearest] - (i - nearest) * quarter;
+        }
+
+        return starts;
+    }
+
+    private static double Quarter(double[] starts) {
+        int[] known = [.. Enumerable.Range(0, starts.Length).Where(i => starts[i] > 0)];
         double quarter = 7889400;
         if (known.Length >= 2) {
             double sum = 0;
@@ -157,13 +199,7 @@ public sealed class PeriodicalsController(
             if (n > 0) quarter = sum / n;
         }
 
-        for (int i = 0; i < starts.Length; i++) {
-            if (starts[i] > 0) continue;
-            int nearest = known.MinBy(j => Math.Abs(j - i));
-            starts[i] = starts[nearest] - (i - nearest) * quarter;
-        }
-
-        return starts;
+        return quarter;
     }
 
     private static string PrettySeasonId(string id) =>
