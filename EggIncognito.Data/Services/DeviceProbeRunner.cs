@@ -1,9 +1,9 @@
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
-using EggIncognito.Data.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Data.Services;
 
 public static class DeviceProbeRunner {
     public static IDeviceProbe ProbeFor(Device d, IProcessRunner runner) => d.Platform switch {

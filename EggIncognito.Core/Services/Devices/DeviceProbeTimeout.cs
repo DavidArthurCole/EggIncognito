@@ -1,5 +1,5 @@
 namespace EggIncognito.Core.Services.Devices;
 
 public static class DeviceProbeTimeout {
-    public static readonly TimeSpan Value = TimeSpan.FromSeconds(8);
+    public static TimeSpan Value { get; set; } = TimeSpan.FromSeconds(30);
 }

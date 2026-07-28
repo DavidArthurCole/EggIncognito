@@ -1,36 +1,39 @@
 # EggIncognito.Runner deploy
 
-Host-side device runner, containerized, deployed as a stack-56 sidecar via EggIdentity. Polls a device over adb (android) or reads a pre-staged binary (ios), extracts the cleaned proto, posts a `NewVersionEvent`, serves an authed `POST /resync`.
+Host-side device runner, containerized, deployed as a stack-56 sidecar via EggIdentity. Watches every configured device (android over adb, ios via a pre-staged binary), extracts the cleaned proto, posts a `NewVersionEvent`, and serves an authed resync API.
 
 ## Image
 
 `ghcr.io/davidarthurcole/eggincognito-runner:latest`, built by the release workflow's `docker-runner` job.
 
-## Instances
+## Instance
 
-One container per platform, same image, `PLATFORM` env differs. Both need `network_mode: host` (android for the host adb server; ios for consistency).
-
-| Instance | State |
-|---|---|
-| `PLATFORM=android` | proven |
-| `PLATFORM=ios` | proven, reads `IOS_BINARY_PATH` (staged by the main `eggincognito` container's `IosBinaryPuller`) |
+One `eggincognito-runner` container watches every configured device, both platforms, from `DEVICES_DIR`. `network_mode: host` (android needs the host adb server; ios reads a staged binary). No more per-platform split.
 
 ## Env vars
 
 | Key | Purpose |
 |---|---|
-| `PLATFORM` | `android` or `ios` |
-| `PACKAGE` | `com.auxbrain.egginc` |
-| `ADB_TARGET` | device serial (USB) or host:port, android only |
-| `IOS_BINARY_PATH` | path to the staged Mach-O binary, ios only |
-| `STATE_FILE` | last-seen build state path |
-| `APK_STASH_DIR` | pulled APK / staged binary directory (shared mount with the main container for ios) |
-| `POLL_INTERVAL` | seconds between poll ticks |
-| `SYNC_EVENT_URL` | sync server new-version ingest endpoint |
-| `SYNC_EVENT_SECRET` | bearer token for the event POST |
-| `RUNNER_TRIGGER_SECRET` | bearer the `/resync` listener requires; EGI sends it as `RUNNER_AGENT_SECRET` |
-| `RUNNER_TRIGGER_URLS` | e.g. `http://0.0.0.0:5055` |
-| `PREV_CLIENT_VERSION` | bootstrap anchor for clientVersion extraction, android only |
+| `DEVICES_DIR` | directory of `*.egidevice.N` device files; drives the device list. When unset, falls back to legacy single-`PLATFORM` mode. |
+| `PACKAGE` | default package when a device file omits `Package` |
+| `APK_STASH_DIR` | pulled APK / staged binary / per-device state directory |
+| `IOS_BINARY_PATH` | staged Mach-O path used by ios devices this phase (single ios feed) |
+| `POLL_INTERVAL` | seconds between full sweeps of all devices |
+| `SYNC_EVENT_URL` / `SYNC_EVENT_SECRET` | new-version ingest endpoint + bearer |
+| `RUNNER_TRIGGER_SECRET` | bearer for `POST /resync`, `POST /resync/{id}`, and the probe routes; EGI sends it as `RUNNER_AGENT_SECRET` |
+| `RUNNER_TRIGGER_URLS` | listener bind, e.g. `http://0.0.0.0:5055` |
+| `PREV_CLIENT_VERSION` | bootstrap anchor for android clientVersion extraction |
+| `ConnectionStrings__Postgres` | optional. When set, the runner connects to the same Postgres DB as the main app and owns device probing: a periodic sweep of every enabled device plus the probe API below. When unset, the runner stays Phase-0 version-only (no DB, no probe sweep, no probe routes). |
+
+Legacy `PLATFORM`, `ADB_TARGET`, `STATE_FILE` still work when `DEVICES_DIR` is unset (single-device fallback).
+
+## Trigger routes
+
+- `POST /resync` resyncs all devices, returns per-device results.
+- `POST /resync/{id}` resyncs one device by id.
+- `POST /extract` ApkPure fallback extract (android).
+- `POST /devices/{id}/probe` probes one device (bearer `RUNNER_TRIGGER_SECRET`); only registered when `ConnectionStrings__Postgres` is set.
+- `POST /devices/probe-all` probes every enabled device (bearer `RUNNER_TRIGGER_SECRET`); only registered when `ConnectionStrings__Postgres` is set.
 
 ## clientVersion extraction
 

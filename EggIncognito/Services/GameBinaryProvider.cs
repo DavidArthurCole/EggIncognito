@@ -49,6 +49,20 @@ public sealed class GameBinaryProvider(
             r.ExactVersion ? null : $"version mismatch: device {version ?? "?"}, using symbolized {r.Version}");
     }
 
+    public async Task<(bool Ok, byte[]? Bytes, IReadOnlyList<MachoSymbols.Symbol>? Symbols, string Version, string?
+            Diagnostics)>
+        GetExtractionBinaryAsync(CancellationToken ct) {
+        (bool ok, byte[]? bytes, string version, string? diag) = await GetBinaryWithVersionAsync(null, ct);
+        if (ok && bytes is not null) return (true, bytes, null, version, diag);
+
+        (bool liveOk, byte[]? liveBytes, var syms, _, string? liveDiag) = await GetLiveBinaryAsync(ct);
+        if (!liveOk || liveBytes is null)
+            return (false, null, null, "", $"{diag}; live pull: {liveDiag}");
+
+        string? deviceVersion = await DeviceVersionAsync(null, ct);
+        return (true, liveBytes, syms, deviceVersion ?? "device", liveDiag);
+    }
+
     public async Task<(bool Ok, byte[]? Bytes, IReadOnlyList<MachoSymbols.Symbol>? Symbols, bool Grafted, string?
             Diagnostics)>
         GetLiveBinaryAsync(CancellationToken ct) {

@@ -15,12 +15,13 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
     public async Task<(IReadOnlyList<RebuildDocResult> Results, string? BinaryNote)> RebuildAsync(CancellationToken ct) {
         var results = new List<RebuildDocResult>();
 
-        (bool ok, byte[]? bin, string version, string? diag) = await binaries.GetBinaryWithVersionAsync(null, ct);
+        (bool ok, byte[]? bin, var liveSyms, string version, string? diag) =
+            await binaries.GetExtractionBinaryAsync(ct);
         if (!ok || bin is null) {
             foreach (string id in (string[])["boost-catalog", "missions", "eggs", "vehicles", "dimensions", "research"])
                 results.Add(new RebuildDocResult(id, "skipped", null, null, diag ?? "no binary available"));
         } else {
-            var syms = MachoSymbols.Read(bin);
+            var syms = liveSyms ?? MachoSymbols.Read(bin);
             var sections = MachoSections.Read(bin);
 
             await LandAsync(results, "boost-catalog", () => {

@@ -468,10 +468,16 @@ if (dbEnabled) {
 
 var deviceConfig = DeviceConfig.Bind(builder.Configuration);
 builder.Services.AddSingleton(deviceConfig);
+var probeTimeoutSeconds = builder.Configuration.GetValue("DeviceProbe:TimeoutSeconds", 0);
+if (probeTimeoutSeconds > 0)
+    DeviceProbeTimeout.Value = TimeSpan.FromSeconds(probeTimeoutSeconds);
 builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
 builder.Services.TryAddSingleton(TimeProvider.System);
+builder.Services.AddHttpClient<IDeviceAgentClient, DeviceAgentClient>();
 if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
-    builder.Services.AddHostedService<DeviceProbeService>();
+    builder.Services.AddHostedService<DeviceMaintenanceService>();
+if (dbEnabled)
+    builder.Services.AddHostedService<GameDataAutoRebuildService>();
 
 
 var deviceCaptureConfig = DeviceCaptureConfig.Bind(builder.Configuration);

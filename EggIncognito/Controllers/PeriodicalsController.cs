@@ -230,6 +230,7 @@ public sealed class PeriodicalsController(
                 startTime = e.StartTime,
                 duration = e.Duration,
                 endTime,
+                ccOnly = e.CcOnly,
                 icon = await ResolveEventIcon(e.Type, iconCache, ct)
             });
         }
@@ -266,7 +267,7 @@ public sealed class PeriodicalsController(
         string? icon = null;
         if (services.GetService(typeof(GameAssetProvider)) is GameAssetProvider assets) {
             string stem = type.Replace('-', '_');
-            string[] candidates = [stem, $"event_{stem}"];
+            string[] candidates = [$"event_{stem}", stem];
             foreach (string candidate in candidates) {
                 var result = await assets.GetAsync(new GameAssetKey("icon", null, candidate), ct);
                 if (!result.Ok || result.Asset is null) continue;

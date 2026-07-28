@@ -136,6 +136,10 @@
            bg-panel2 text-xs min-w-0;
   }
   .event-pill img { @apply w-5 h-5 object-contain shrink-0; }
+  .event-pill .event-icon {
+    @apply w-6 h-6 rounded-md shrink-0 flex items-center justify-center overflow-hidden;
+  }
+  .event-pill .event-icon img { @apply w-4 h-4; }
   .event-pill .event-name { @apply font-semibold truncate max-w-[14rem]; }
   .event-pill .event-mult { @apply text-accent font-semibold shrink-0; }
   .event-pill .event-timer { @apply font-mono tabular-nums text-accent shrink-0; }

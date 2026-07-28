@@ -10,9 +10,11 @@ public sealed record ExtractResult(int Status, string? Build, string? ProtoSha, 
 public sealed class ApkPureExtractHandler(
     string secret, ApkPureDownloader downloader, IProtoExtractor extractor,
     IClientVersionReader clientVersion, State.ClientVersionState cvState,
-    Func<NewVersionEvent, Task> postEvent)
+    Func<NewVersionEvent, Task> postEvent) : IDisposable
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
+
+    public void Dispose() => _lock.Dispose();
 
     public async Task<ExtractResult> HandleAsync(string? authHeader, string? appVersion)
     {

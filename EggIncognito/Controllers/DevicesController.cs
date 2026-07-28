@@ -127,6 +127,27 @@ public sealed class DevicesController(
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Refresh(string id) {
         if (RequireAdmin() is { } no) return no;
+
+        if (services.GetService(typeof(IDeviceAgentClient)) is IDeviceAgentClient agent && agent.Enabled) {
+            var dto = await agent.ProbeAsync(id, HttpContext.RequestAborted);
+            if (dto is not null) {
+                var agentDevice = await (Store?.GetAsync(id, HttpContext.RequestAborted) ?? Task.FromResult<Device?>(null));
+                if (agentDevice is null) return NotFound(new { error = "unknown device" });
+                return Ok(new {
+                    id = dto.Id,
+                    platform = agentDevice.Platform,
+                    label = agentDevice.Label,
+                    reachable = dto.Reachable,
+                    installedAppVersion = dto.InstalledAppVersion,
+                    installedBuild = dto.InstalledBuild,
+                    latestAvailable = dto.LatestAvailable,
+                    result = dto.Result,
+                    note = dto.Note,
+                    probedAt = dto.ProbedAt
+                });
+            }
+        }
+
         var store = Store;
         var db = Db;
         if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
@@ -160,6 +181,12 @@ public sealed class DevicesController(
     [EnableRateLimiting("write")]
     public async Task<IActionResult> RefreshAll() {
         if (RequireAdmin() is { } no) return no;
+
+        if (services.GetService(typeof(IDeviceAgentClient)) is IDeviceAgentClient agent && agent.Enabled) {
+            int probedByAgent = await agent.ProbeAllAsync(HttpContext.RequestAborted);
+            return Ok(new { probed = probedByAgent });
+        }
+
         var store = Store;
         var db = Db;
         if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });

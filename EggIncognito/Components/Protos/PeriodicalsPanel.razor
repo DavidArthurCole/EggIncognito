@@ -20,7 +20,9 @@
                     @foreach (var e in _events) {
                         <span class="event-pill @(RemainingSeconds(e) <= 0 ? "ended" : "")" title="@e.Type">
                             @if (!string.IsNullOrEmpty(e.Icon)) {
-                                <img src="@e.Icon" alt="" loading="lazy"/>
+                                <span class="event-icon" style="@IconStyle(e)">
+                                    <img src="@e.Icon" alt="" loading="lazy"/>
+                                </span>
                             }
                             <span class="event-name">@(string.IsNullOrEmpty(e.Subtitle) ? Pretty(e.Type) : e.Subtitle)</span>
                             @if (e.Multiplier > 0 && Math.Abs(e.Multiplier - 1) > 0.0001) {
@@ -339,6 +341,31 @@
         return $"{m.ToString(m == Math.Floor(m) ? "0" : "0.##")}x";
     }
 
+    static readonly Dictionary<string, string> EventColors = new(StringComparer.OrdinalIgnoreCase) {
+        ["epic-research-sale"] = "#ef4444",
+        ["piggy-boost"] = "#f97316",
+        ["piggy-cap-boost"] = "#f59e0b",
+        ["prestige-boost"] = "#f59e0b",
+        ["earnings-boost"] = "#84cc16",
+        ["gift-boost"] = "#10b981",
+        ["drone-boost"] = "#10b981",
+        ["research-sale"] = "#14b8a6",
+        ["hab-sale"] = "#06b6d4",
+        ["vehicle-sale"] = "#0ea5e9",
+        ["boost-sale"] = "#3b82f6",
+        ["boost-duration"] = "#6366f1",
+        ["crafting-sale"] = "#8b5cf6",
+        ["mission-fuel"] = "#8b5cf6",
+        ["mission-capacity"] = "#d946ef",
+        ["mission-duration"] = "#ec4899",
+        ["shell-sale"] = "#f43f5e"
+    };
+
+    static string IconStyle(EventRow e) {
+        if (e.CcOnly) return "background:linear-gradient(90deg,#f5a709,#900fb1)";
+        return $"background:{EventColors.GetValueOrDefault(e.Type, "#9ca3af")}";
+    }
+
     static double RemainingSeconds(EventRow e) {
         if (e.EndTime is not { } end || end <= 0) return 0;
         return end - DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -401,6 +428,7 @@
         double StartTime,
         double Duration,
         double? EndTime,
+        bool CcOnly,
         string? Icon);
 
     record DataResponse(int Count, List<Source> Sources);

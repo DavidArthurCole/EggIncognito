@@ -1,5 +1,7 @@
 using EggIdentity.Contract;
 using EggIncognito.Controllers;
+using EggIncognito.Data.Models;
+using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Devices;
 using Microsoft.AspNetCore.Mvc;
@@ -30,6 +32,52 @@ public class DevicesControllerTests {
         var r = await c.Refresh("frame-android");
         var sc = Assert.IsType<ObjectResult>(r);
         Assert.Equal(503, sc.StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_Admin_AgentEnabled_ReturnsAgentResult() {
+        var sp = new ServiceCollection()
+            .AddSingleton<IDeviceAgentClient>(new FakeAgent())
+            .AddSingleton<IDeviceStatusStore>(new FakeDeviceStore())
+            .BuildServiceProvider();
+        var c = Make(UserRole.Admin, sp);
+        var r = await c.Refresh("frame-android");
+        var ok = Assert.IsType<OkObjectResult>(r);
+        Assert.Contains("no_change", ok.Value!.ToString());
+    }
+
+    [Fact]
+    public async Task Refresh_Admin_AgentEnabled_UnknownDevice_404() {
+        var sp = new ServiceCollection()
+            .AddSingleton<IDeviceAgentClient>(new FakeAgent())
+            .AddSingleton<IDeviceStatusStore>(new FakeDeviceStore())
+            .BuildServiceProvider();
+        var c = Make(UserRole.Admin, sp);
+        var r = await c.Refresh("unknown-device");
+        var nf = Assert.IsType<NotFoundObjectResult>(r);
+        Assert.Contains("unknown device", nf.Value!.ToString());
+    }
+
+    [Fact]
+    public async Task Refresh_Admin_AgentDisabled_FallsBackToDb_503() {
+        var sp = new ServiceCollection()
+            .AddSingleton<IDeviceAgentClient>(new FakeAgent(false))
+            .BuildServiceProvider();
+        var c = Make(UserRole.Admin, sp);
+        var r = await c.Refresh("frame-android");
+        var sc = Assert.IsType<ObjectResult>(r);
+        Assert.Equal(503, sc.StatusCode);
+    }
+
+    [Fact]
+    public async Task RefreshAll_Admin_AgentEnabled_ReturnsAgentCount() {
+        var sp = new ServiceCollection()
+            .AddSingleton<IDeviceAgentClient>(new FakeAgent())
+            .BuildServiceProvider();
+        var c = Make(UserRole.Admin, sp);
+        var r = await c.RefreshAll();
+        var ok = Assert.IsType<OkObjectResult>(r);
+        Assert.Contains("3", ok.Value!.ToString());
     }
 
     [Fact]
@@ -86,6 +134,43 @@ public class DevicesControllerTests {
         var r = c.CheckStatus("frame-android");
         var ok = Assert.IsType<OkObjectResult>(r);
         Assert.Contains("running", ok.Value!.ToString());
+    }
+
+    private sealed class FakeAgent(bool enabled = true) : IDeviceAgentClient {
+        public bool Enabled => enabled;
+
+        public Task<DeviceProbeDto?> ProbeAsync(string id, CancellationToken ct) =>
+            Task.FromResult<DeviceProbeDto?>(
+                new DeviceProbeDto(id, true, "1.36", "100", "1.36", "no_change", null, DateTimeOffset.UnixEpoch));
+
+        public Task<int> ProbeAllAsync(CancellationToken ct) => Task.FromResult(3);
+    }
+
+    private sealed class FakeDeviceStore : IDeviceStatusStore {
+        public Task UpsertDeviceAsync(string id, string platform, string label, string target, string package,
+            CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<List<Device>> EnabledDevicesAsync(CancellationToken ct = default) =>
+            Task.FromResult(new List<Device>());
+
+        public Task<Device?> GetAsync(string id, CancellationToken ct = default) =>
+            Task.FromResult<Device?>(id == "frame-android" ? new Device { Id = id, Platform = "android", Label = id } : null);
+
+        public Task RecordProbeAsync(DeviceProbe row, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<List<DeviceProbe>> LatestPerDeviceAsync(CancellationToken ct = default) =>
+            Task.FromResult(new List<DeviceProbe>());
+
+        public Task<List<DeviceProbe>> HistoryAsync(string deviceId, int n, CancellationToken ct = default) =>
+            Task.FromResult(new List<DeviceProbe>());
+
+        public Task RecordUpdateAsync(DeviceUpdate row, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<List<DeviceUpdate>> LatestUpdatePerDeviceAsync(CancellationToken ct = default) =>
+            Task.FromResult(new List<DeviceUpdate>());
+
+        public Task<List<DeviceUpdate>> UpdateHistoryAsync(string deviceId, int n, CancellationToken ct = default) =>
+            Task.FromResult(new List<DeviceUpdate>());
     }
 
     private sealed class FakeUser(UserRole role) : ICurrentUser {

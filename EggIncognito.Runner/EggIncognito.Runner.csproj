@@ -14,5 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
+    <ProjectReference Include="..\EggIncognito.Data\EggIncognito.Data.csproj" />
   </ItemGroup>
 </Project>

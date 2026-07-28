@@ -4,29 +4,28 @@ using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services.Devices;
 
-public sealed class DeviceProbeService(
+public sealed class DeviceMaintenanceService(
     IServiceScopeFactory scopeFactory,
     DeviceConfig config,
-    IProcessRunner runner,
     TimeProvider time,
     DeviceProxyPusher proxyPusher,
     IEnumerable<IDeviceStoreChecker> storeCheckers,
     IConfiguration appConfig,
-    ILogger<DeviceProbeService> logger) : BackgroundService {
+    ILogger<DeviceMaintenanceService> logger) : BackgroundService {
     private readonly bool _syncEnabled = appConfig.GetValue("DeviceSync:Enabled", false);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         if (!config.Enabled || config.Devices.Count == 0) {
-            logger.LogInformation("device poller disabled or no devices declared");
+            logger.LogInformation("device maintenance disabled or no devices declared");
             return;
         }
 
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, config.IntervalMinutes)), time);
         try {
-            await ProbeAllAsync(stoppingToken);
             await StartupHarvestAsync(stoppingToken);
+            await StoreSyncAllAsync(stoppingToken);
             while (await timer.WaitForNextTickAsync(stoppingToken))
-                await ProbeAllAsync(stoppingToken);
+                await StoreSyncAllAsync(stoppingToken);
         } catch (OperationCanceledException) {
             /* shutdown */
         }
@@ -47,18 +46,22 @@ public sealed class DeviceProbeService(
         }
     }
 
-    internal async Task ProbeAllAsync(CancellationToken ct) {
+    internal async Task StoreSyncAllAsync(CancellationToken ct) {
         using var scope = scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
         if (sp.GetService(typeof(IDeviceStatusStore)) is not IDeviceStatusStore store) return;
         var db = (EggIncognitoDbContext)sp.GetRequiredService(typeof(EggIncognitoDbContext));
 
+        var latest = (await store.LatestPerDeviceAsync(ct))
+            .GroupBy(p => p.DeviceId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
         foreach (var d in await store.EnabledDevicesAsync(ct)) {
+            if (!latest.TryGetValue(d.Id, out var probe)) continue;
             try {
-                var row = await DeviceProbeRunner.ProbeOneAsync(d, "poll", runner, store, db, logger, time, ct);
-                await StoreSyncAsync(d, row, store, db, ct);
+                await StoreSyncAsync(d, probe, store, db, ct);
             } catch (Exception ex) {
-                logger.LogWarning(ex, "device probe: {Id} threw", d.Id);
+                logger.LogWarning(ex, "device sync: {Id} threw", d.Id);
             }
         }
 
