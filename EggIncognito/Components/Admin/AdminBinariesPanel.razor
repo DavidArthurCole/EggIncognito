@@ -1,0 +1,130 @@
+@using System.Text.Json
+@rendermode @(RenderMode.InteractiveServer)
+
+<section class="panel mb-4">
+    <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Stored binaries</h2>
+        <div class="flex gap-1 items-center">
+            <span class="text-muted text-xs">@_rows.Count total</span>
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="PullCurrent">Pull current</button>
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="Load">Refresh</button>
+        </div>
+    </div>
+    @if (_rows.Count == 0) {
+        <p class="text-muted text-sm m-0">No stored binaries. Pulled automatically on the device maintenance schedule when a new version is installed.</p>
+    } else {
+        <div class="reg-wrap">
+            <table class="reg-table">
+                <thead>
+                <tr>
+                    <th>Version</th><th>Platform</th><th>SHA-256</th><th>Size</th><th>Symbols</th><th>Source</th><th>Pulled</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var b in _rows) {
+                    <tr>
+                        <td class="font-medium mono">@b.Version</td>
+                        <td class="text-xs">@b.Platform</td>
+                        <td class="mono text-xs" title="@b.Sha256">@ShaShort(b.Sha256)</td>
+                        <td class="mono text-xs">@SizeMb(b.ByteSize)</td>
+                        <td class="mono text-xs">@b.NativeSymbols.ToString("N0")</td>
+                        <td class="text-xs">@b.Source</td>
+                        <td class="text-muted text-xs">@b.PulledAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>
+                            <div class="flex gap-1 justify-end">
+                                <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Delete(b.Platform, b.Version)">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    @if (_msg is not null) {
+        <p class="text-xs text-muted mt-2 mb-0">@_msg</p>
+    }
+</section>
+
+@code {
+    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
+
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    List<Row> _rows = [];
+    bool _busy;
+    string? _msg;
+
+    protected override async Task OnInitializedAsync() {
+        await Load();
+    }
+
+    async Task Load() {
+        if (ClientFactory is null) return;
+        try {
+            var res = await ClientFactory().GetFromJsonAsync<ListResult>("/api/decomp/stored-binaries", JsonOpts);
+            _rows = res?.Binaries ?? [];
+        }
+        catch (Exception ex) {
+            _msg = $"load failed: {ex.Message}";
+        }
+    }
+
+    async Task PullCurrent() {
+        if (ClientFactory is null) return;
+        _busy = true;
+        _msg = "pulling (may take a while over device SSH)...";
+        StateHasChanged();
+        try {
+            var res = await ClientFactory().PostAsync("/api/decomp/pull-store", null);
+            var d = await res.Content.ReadFromJsonAsync<PullResult>(JsonOpts);
+            _msg = d is { Ok: true }
+                ? $"resolved {d.Version} ({d.Bytes:N0} bytes, {d.Symbols:N0} symbols); {d.Diagnostics}"
+                : $"pull failed: {d?.Diagnostics ?? $"HTTP {(int)res.StatusCode}"}";
+            await Load();
+        }
+        catch (Exception ex) {
+            _msg = $"pull error: {ex.Message}";
+        }
+
+        _busy = false;
+    }
+
+    async Task Delete(string platform, string version) {
+        if (ClientFactory is null) return;
+        _busy = true;
+        _msg = null;
+        try {
+            var res = await ClientFactory().DeleteAsync($"/api/decomp/stored-binaries/{Uri.EscapeDataString(platform)}/{Uri.EscapeDataString(version)}");
+            _msg = res.IsSuccessStatusCode ? $"deleted {platform} {version}" : $"delete failed ({(int)res.StatusCode})";
+            await Load();
+        }
+        catch (Exception ex) {
+            _msg = $"delete error: {ex.Message}";
+        }
+
+        _busy = false;
+    }
+
+    static string ShaShort(string sha) {
+        return sha.Length >= 12 ? sha[..12] : sha;
+    }
+
+    static string SizeMb(long bytes) {
+        return $"{bytes / 1024d / 1024d:F1} MB";
+    }
+
+    record Row(
+        string Platform,
+        string Version,
+        string Sha256,
+        long ByteSize,
+        int NativeSymbols,
+        string Source,
+        DateTimeOffset PulledAt);
+
+    record ListResult(bool Ok, int Count, List<Row> Binaries);
+
+    record PullResult(bool Ok, string? Version, long Bytes, int Symbols, string? Diagnostics);
+
+}

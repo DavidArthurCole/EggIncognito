@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using EggIdentity.Contract;
+using EggIncognito.Data.Services;
 using EggIncognito.DeviceTools;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
@@ -17,6 +18,7 @@ namespace EggIncognito.Controllers;
 [ApiAccess(ApiAccessLevel.Admin)]
 public sealed class DecompController(
     GameBinaryProvider binaries,
+    GameBinaryStore store,
     ICurrentUser currentUser,
     IDeviceConnectionFactory connections) : ControllerBase {
     [HttpGet("symbols")]
@@ -430,6 +432,55 @@ public sealed class DecompController(
             bytes = bytes?.Length ?? 0,
             symbols = syms?.Count ?? 0,
             grafted,
+            diagnostics = diag
+        });
+    }
+
+    [HttpGet("stored-binaries")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> StoredBinaries(CancellationToken ct) {
+        if (!currentUser.IsAtLeast(UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        var rows = await store.ListAsync(ct);
+        return Ok(new {
+            ok = true,
+            count = rows.Count,
+            binaries = rows.Select(b => new {
+                b.Platform,
+                version = b.AppVersion,
+                sha256 = b.Sha256,
+                byteSize = b.ByteSize,
+                nativeSymbols = b.NativeSymbolCount,
+                b.Source,
+                pulledAt = b.PulledAt
+            }).ToList()
+        });
+    }
+
+    [HttpDelete("stored-binaries/{platform}/{version}")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> DeleteStoredBinary(string platform, string version, CancellationToken ct) {
+        if (!currentUser.IsAtLeast(UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        bool removed = await store.DeleteAsync(platform, version, ct);
+        return removed
+            ? Ok(new { ok = true, platform, version })
+            : NotFound(new { ok = false, error = $"no stored binary {platform} {version}" });
+    }
+
+    [HttpPost("pull-store")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> PullStore(CancellationToken ct) {
+        if (!currentUser.IsAtLeast(UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+
+        (bool ok, byte[]? bin, var syms, string version, string? diag) = await binaries.GetExtractionBinaryAsync(ct);
+        if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
+        return Ok(new {
+            ok = true,
+            version,
+            bytes = bin.Length,
+            symbols = syms?.Count ?? MachoSymbols.Read(bin).Count,
             diagnostics = diag
         });
     }

@@ -32,6 +32,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<PeriodicalsSnapshot> PeriodicalsSnapshots => Set<PeriodicalsSnapshot>();
     public DbSet<GameDataDocument> GameDataDocuments => Set<GameDataDocument>();
+    public DbSet<StoredBinary> StoredBinaries => Set<StoredBinary>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
@@ -149,6 +150,12 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         modelBuilder.Entity<GameDataDocument>(e => {
             e.HasKey(x => x.Id);
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        });
+        modelBuilder.Entity<StoredBinary>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Platform, x.AppVersion }).IsUnique();
+            e.HasIndex(x => x.Sha256);
+            e.Property(x => x.PulledAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
     }
 }

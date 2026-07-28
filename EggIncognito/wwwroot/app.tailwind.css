@@ -31,22 +31,15 @@
   .prov-unknown { @apply bg-panel2 text-muted; }
 
   .ds-cell { @apply px-2 py-2 rounded-md; }
-  .ds-head { @apply rounded transition-colors; }
+  .ds-head { @apply rounded px-1.5 py-1 transition-colors; }
   .ds-head:hover { @apply bg-panel2; }
   .ds-stripe { @apply bg-white/[0.04]; }
-  .ds-children { @apply ml-3 flex flex-col gap-0.5; }
-  .ds-elbow { @apply relative shrink-0 self-center; width: 1.1rem; height: 1.25rem; margin-right: 0.15rem; }
-  .ds-elbow::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: -0.55rem;
-    bottom: 50%;
-    width: 0.7rem;
-    border-left: 1px solid #50505b;
-    border-bottom: 1px solid #50505b;
-    border-bottom-left-radius: 4px;
-  }
+  .ds-section-label { @apply text-[10px] uppercase tracking-wide text-muted font-semibold mb-1 px-1.5; }
+  .ds-list { @apply flex flex-col; }
+  .ds-list > * + * { @apply border-t border-border/60; }
+  .ds-item { @apply py-1; }
+  .ds-children { @apply ml-2.5 mt-0.5 mb-1 pl-3 border-l border-border/60 flex flex-col gap-0.5; }
+  .ds-meta-chip { @apply inline-flex items-center rounded bg-panel2 text-muted font-mono text-[10px] px-1.5 py-0.5; }
 
   .ds-state { @apply flex flex-col items-start gap-0.5 whitespace-nowrap; }
   .ds-state-k { @apply text-[10px] uppercase tracking-wide text-muted; }
@@ -137,11 +130,10 @@
   }
   .event-pill img { @apply w-5 h-5 object-contain shrink-0; }
   .event-pill .event-icon {
-    @apply w-6 h-6 rounded-md shrink-0 flex items-center justify-center overflow-hidden;
+    @apply w-6 h-6 rounded-full shrink-0 flex items-center justify-center overflow-hidden;
   }
-  .event-pill .event-icon img { @apply w-4 h-4; }
+  .event-pill .event-icon img { @apply w-3.5 h-3.5; }
   .event-pill .event-name { @apply font-semibold truncate max-w-[14rem]; }
-  .event-pill .event-mult { @apply text-accent font-semibold shrink-0; }
   .event-pill .event-timer { @apply font-mono tabular-nums text-accent shrink-0; }
   .event-pill.ended .event-timer { @apply text-muted; }
   .pill.live { @apply text-ok border-ok; }

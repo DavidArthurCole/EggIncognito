@@ -1,0 +1,64 @@
+using EggIncognito.Data.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace EggIncognito.Data.Services;
+
+public sealed record StoredBinaryInfo(
+    string Platform, string AppVersion, string Sha256, long ByteSize, int NativeSymbolCount, string Source,
+    DateTimeOffset PulledAt);
+
+public sealed class GameBinaryStore(EggIncognitoDbContext db) {
+    public Task<StoredBinary?> GetAsync(string platform, string version, CancellationToken ct = default) =>
+        db.StoredBinaries.AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Platform == platform && b.AppVersion == version, ct);
+
+    public Task<bool> ExistsAsync(string platform, string version, CancellationToken ct = default) =>
+        db.StoredBinaries.AsNoTracking()
+            .AnyAsync(b => b.Platform == platform && b.AppVersion == version, ct);
+
+    public async Task<bool> DeleteAsync(string platform, string version, CancellationToken ct = default) {
+        int removed = await db.StoredBinaries
+            .Where(b => b.Platform == platform && b.AppVersion == version)
+            .ExecuteDeleteAsync(ct);
+        return removed > 0;
+    }
+
+    public Task<StoredBinary?> GetLatestAsync(string platform, CancellationToken ct = default) =>
+        db.StoredBinaries.AsNoTracking()
+            .Where(b => b.Platform == platform)
+            .OrderByDescending(b => b.PulledAt)
+            .FirstOrDefaultAsync(ct);
+
+    public async Task PutAsync(string platform, string version, string sha256, byte[] bytes, int nativeSymbolCount,
+        string source, CancellationToken ct = default) {
+        var row = await db.StoredBinaries.FirstOrDefaultAsync(b => b.Platform == platform && b.AppVersion == version, ct);
+        if (row is null) {
+            db.StoredBinaries.Add(new StoredBinary {
+                Platform = platform,
+                AppVersion = version,
+                Sha256 = sha256,
+                Bytes = bytes,
+                ByteSize = bytes.LongLength,
+                NativeSymbolCount = nativeSymbolCount,
+                Source = source,
+                PulledAt = DateTimeOffset.UtcNow
+            });
+        } else {
+            row.Sha256 = sha256;
+            row.Bytes = bytes;
+            row.ByteSize = bytes.LongLength;
+            row.NativeSymbolCount = nativeSymbolCount;
+            row.Source = source;
+            row.PulledAt = DateTimeOffset.UtcNow;
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    public Task<List<StoredBinaryInfo>> ListAsync(CancellationToken ct = default) =>
+        db.StoredBinaries.AsNoTracking()
+            .OrderByDescending(b => b.PulledAt)
+            .Select(b => new StoredBinaryInfo(b.Platform, b.AppVersion, b.Sha256, b.ByteSize, b.NativeSymbolCount,
+                b.Source, b.PulledAt))
+            .ToListAsync(ct);
+}

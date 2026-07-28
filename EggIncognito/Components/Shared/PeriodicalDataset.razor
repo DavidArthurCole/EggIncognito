@@ -4,9 +4,6 @@
 <div class="@RowClass">
     <div class="ds-head flex items-center justify-between gap-3 cursor-pointer" @onclick="Toggle">
         <div class="flex items-center gap-2 min-w-0">
-            @if (Nested) {
-                <span class="ds-elbow" aria-hidden="true"></span>
-            }
             <span class="font-medium truncate" title="@Endpoint">@Title</span>
             @Badges
         </div>
@@ -37,7 +34,6 @@
     [Parameter] public string Endpoint { get; set; } = "";
     [Parameter] public string DownloadName { get; set; } = "data.json";
     [Parameter] public string? RowClass { get; set; }
-    [Parameter] public bool Nested { get; set; }
     [Parameter] public Func<string, Task<string>>? Fetch { get; set; }
     [Parameter] public CaptureViewState View { get; set; } = new();
     [Parameter] public Dictionary<string, string> FormatChoice { get; set; } = new();

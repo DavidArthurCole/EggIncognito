@@ -16,9 +16,9 @@ public static class RewardIconMap {
                 : "b_icon_" + (subType.EndsWith("_v2", StringComparison.Ordinal) ? subType[..^3] : subType),
             RewardType.BoostToken => "b_icon_token",
             RewardType.Artifact => "afx",
-            RewardType.ArtifactCase => "icon_afx_chest_1",
+            RewardType.ArtifactCase => "icon_afx_chest_3",
             RewardType.Chicken => "chicken_box",
-            RewardType.ShellScript => "icon_shell_script",
+            RewardType.ShellScript => "icon_shell_script_colored",
             RewardType.VirtueGem => "icon_virtue_gem",
             _ => null
         };

@@ -33,51 +33,57 @@
         }
 
         @if (_catalog is not null) {
-            var ix = 0;
-            var firstGroup = true;
             <section class="panel">
                 <h3 class="text-sm font-semibold mt-0 mb-3">Data</h3>
-                <div class="flex flex-col gap-0.5">
+                <div class="flex flex-col gap-3">
                     @foreach (var grp in Groups) {
                         var rows = _catalog.Sources.Where(s => s.Group == grp.Key && s.Extends is null).ToList();
                         if (rows.Count == 0) {
                             continue;
                         }
 
-                        if (!firstGroup) {
-                            <hr class="my-2 border-0 border-t border-border"/>
-                        }
-
-                        firstGroup = false;
-                        @foreach (var s in rows) {
-                            var kids = _catalog.Sources.Where(k => k.Group == grp.Key && k.Extends == s.Id).ToList();
-                            <div>
-                                <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
-                                                   DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
-                                                   RowClass="@Stripe(ix++)">
-                                    <Badges>
-                                        @if (s.Bytes is { } b) {
-                                            <span class="mono text-muted text-xs">@Kb(b)</span>
-                                        }
-                                    </Badges>
-                                </PeriodicalDataset>
-                                @if (kids.Count > 0) {
-                                    <div class="ds-children">
-                                        @foreach (var k in kids) {
-                                            <PeriodicalDataset Title="@k.DisplayName" Endpoint="@k.Url" Nested="true"
-                                                               DownloadName="@($"{k.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc"
-                                                               RowClass="@Stripe(ix++)">
-                                                <Badges>
-                                                    @if (k.Bytes is { } kb) {
-                                                        <span class="mono text-muted text-xs">@Kb(kb)</span>
-                                                    }
-                                                </Badges>
-                                            </PeriodicalDataset>
+                        <div>
+                            <div class="ds-section-label">@grp.Label</div>
+                            <div class="ds-list">
+                                @foreach (var s in rows) {
+                                    var kids = _catalog.Sources.Where(k => k.Group == grp.Key && k.Extends == s.Id).ToList();
+                                    <div class="ds-item">
+                                        <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
+                                                           DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc">
+                                            <Badges>
+                                                @if (s.Bytes is { } b) {
+                                                    <span class="mono text-muted text-xs">@Kb(b)</span>
+                                                }
+                                                @if (s.Meta is { } m && !string.IsNullOrEmpty(m.BinaryVersion)) {
+                                                    <span class="ds-meta-chip" title="@ProvenanceTitle(s)">v@(m.BinaryVersion)</span>
+                                                } else if (s.Meta?.Provenance is not null) {
+                                                    <span class="ds-meta-chip" title="@ProvenanceTitle(s)">prov</span>
+                                                }
+                                            </Badges>
+                                        </PeriodicalDataset>
+                                        @if (kids.Count > 0) {
+                                            <div class="ds-children">
+                                                @foreach (var k in kids) {
+                                                    <PeriodicalDataset Title="@k.DisplayName" Endpoint="@k.Url"
+                                                                       DownloadName="@($"{k.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc">
+                                                        <Badges>
+                                                            @if (k.Bytes is { } kb) {
+                                                                <span class="mono text-muted text-xs">@Kb(kb)</span>
+                                                            }
+                                                            @if (k.Meta is { } km && !string.IsNullOrEmpty(km.BinaryVersion)) {
+                                                                <span class="ds-meta-chip" title="@ProvenanceTitle(k)">v@(km.BinaryVersion)</span>
+                                                            } else if (k.Meta?.Provenance is not null) {
+                                                                <span class="ds-meta-chip" title="@ProvenanceTitle(k)">prov</span>
+                                                            }
+                                                        </Badges>
+                                                    </PeriodicalDataset>
+                                                }
+                                            </div>
                                         }
                                     </div>
                                 }
                             </div>
-                        }
+                        </div>
                     }
                 </div>
             </section>
@@ -309,8 +315,9 @@
         return kb >= 1000 ? $"{kb / 1000}MB" : $"{kb}KB";
     }
 
-    static string Stripe(int ix) {
-        return "ds-cell" + (ix % 2 == 1 ? " ds-stripe" : "");
+    static string ProvenanceTitle(Source s) {
+        if (s.Meta?.Provenance is not { } prov) return "";
+        return $"provenance: {JsonSerializer.Serialize(prov)}";
     }
 
     void MoveSeason(int delta) {
@@ -353,13 +360,36 @@
         return grade;
     }
 
-    static string RewardLabel(GoalRow g) {
-        var label = Pretty(g.RewardType);
-        if (!string.IsNullOrEmpty(g.RewardSubType)) {
-            label += $" ({Pretty(g.RewardSubType)})";
-        }
+    static string FormatAmount(double n) {
+        if (n >= 1e9) return (n / 1e9).ToString("0.##") + "b";
+        if (n >= 1e6) return (n / 1e6).ToString("0.##") + "m";
+        if (n >= 1e3) return (n / 1e3).ToString("0.##") + "k";
+        return n.ToString("N0");
+    }
 
-        return $"{g.RewardAmount.ToString("N0")} × {label}";
+    static string RewardName(string rewardType, string? subType, bool plural) {
+        return rewardType switch {
+            "Gold" => plural ? "Golden Eggs" : "Golden Egg",
+            "SoulEggs" => plural ? "Soul Eggs" : "Soul Egg",
+            "EggsOfProphecy" => plural ? "Eggs of Prophecy" : "Egg of Prophecy",
+            "ShellScript" => plural ? "Shell Tickets" : "Shell Ticket",
+            "PiggyFill" => "Piggy Fill",
+            "PiggyMultiplier" => plural ? "Piggy Multipliers" : "Piggy Multiplier",
+            "PiggyLevelBump" => plural ? "Piggy Level Bumps" : "Piggy Level Bump",
+            "Boost" => Pretty(subType ?? ""),
+            "EpicResearchItem" => Pretty(subType ?? ""),
+            "BoostToken" => plural ? "Boost Tokens" : "Boost Token",
+            "Artifact" => plural ? "Artifacts" : "Artifact",
+            "ArtifactCase" => plural ? "Artifact Cases" : "Artifact Case",
+            "Chicken" => plural ? "Chicken Boxes" : "Chicken Box",
+            "VirtueGem" => plural ? "Virtue Gems" : "Virtue Gem",
+            "Cash" => "Cash",
+            _ => Pretty(rewardType)
+        };
+    }
+
+    static string RewardLabel(GoalRow g) {
+        return $"{FormatAmount(g.RewardAmount)} {RewardName(g.RewardType, g.RewardSubType, g.RewardAmount != 1)}";
     }
 
     static string Pretty(string raw) {
@@ -482,6 +512,9 @@
         string? Feed,
         string? Extends,
         bool AcceptsName,
-        long? Bytes);
+        long? Bytes,
+        MetaRow? Meta);
+
+    record MetaRow(string? BinaryVersion, JsonElement? Provenance);
 
 }

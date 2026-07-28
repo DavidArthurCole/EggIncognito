@@ -135,6 +135,7 @@ builder.Services.AddScoped<GameAssetProvider>();
 
 builder.Services.AddScoped<DeviceMeshProvider>();
 
+builder.Services.AddScoped<GameBinaryStore>();
 builder.Services.AddScoped<GameBinaryProvider>();
 builder.Services.AddScoped<GameDataRebuilder>();
 

@@ -70,6 +70,30 @@ public sealed class DeviceMaintenanceService(
         } catch (Exception ex) {
             logger.LogWarning(ex, "device capture: proxy push tick failed");
         }
+
+        await EnsureBinaryStoredAsync(sp, ct);
+    }
+
+    private async Task EnsureBinaryStoredAsync(IServiceProvider sp, CancellationToken ct) {
+        if (sp.GetService(typeof(GameBinaryProvider)) is not GameBinaryProvider binaries) return;
+        try {
+            (string status, string? version, string? note) = await binaries.EnsureCurrentVersionStoredAsync(ct);
+            switch (status) {
+                case "pulled":
+                    logger.LogInformation("binary store: pulled and stored {Version}; {Note}", version, note);
+                    break;
+                case "pull-failed":
+                case "store-error":
+                    logger.LogWarning("binary store: ensure {Version} failed ({Status}): {Note}", version, status,
+                        note);
+                    break;
+                default:
+                    logger.LogDebug("binary store: {Status} {Version} {Note}", status, version ?? "?", note);
+                    break;
+            }
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "binary store: ensure tick threw");
+        }
     }
 
     private async Task StoreSyncAsync(

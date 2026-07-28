@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
@@ -17,6 +19,7 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
         var listed = catalog.Sources.Where(s => s.Listed).ToList();
         var items = new List<object>(listed.Count);
         foreach (var s in listed) {
+            var payload = await ProduceOf(s, ct);
             items.Add(new {
                 s.Id,
                 s.Group,
@@ -28,7 +31,8 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
                 feed = s.Feed,
                 extends = s.Extends,
                 acceptsName = s.AcceptsName,
-                bytes = await SizeOf(s, ct),
+                bytes = payload?.Bytes.LongLength,
+                meta = MetaOf(s, payload),
                 refresh = new { s.Refresh.Egress, deviceTrigger = s.Refresh.Device is not null }
             });
         }
@@ -36,11 +40,24 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
         return Ok(new { count = listed.Count, sources = items });
     }
 
-    private async Task<long?> SizeOf(DataSource s, CancellationToken ct) {
+    private async Task<DataPayload?> ProduceOf(DataSource s, CancellationToken ct) {
         if (s.AcceptsName) return null;
         try {
-            var payload = await s.Produce(new DataProduceContext(HttpContext, null), ct);
-            return payload?.Bytes.LongLength;
+            return await s.Produce(new DataProduceContext(HttpContext, null), ct);
+        } catch {
+            return null;
+        }
+    }
+
+    private static object? MetaOf(DataSource s, DataPayload? payload) {
+        if (s.Group != "gamedata" || payload is null) return null;
+        try {
+            var reader = new Utf8JsonReader(payload.Bytes);
+            if (JsonNode.Parse(ref reader) is not JsonObject root) return null;
+            var binaryVersion = root["binaryVersion"]?.GetValue<string>();
+            var provenance = root["provenance"]?.DeepClone();
+            if (binaryVersion is null && provenance is null) return null;
+            return new { binaryVersion, provenance };
         } catch {
             return null;
         }
@@ -78,9 +95,28 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
         var payload = await src.Produce(new DataProduceContext(HttpContext, name), ct);
         if (payload is null) return NotFound(new { error = "data not available", id = src.Id });
 
+        var bytes = payload.Bytes;
+        if (payload.ContentType == "application/json" && Request.Query["meta"] != "1")
+            bytes = StripMeta(bytes);
+
         var maxAge = src.Provenance == DataProvenance.Asset ? TimeSpan.FromDays(30) : TimeSpan.FromSeconds(30);
         Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue { Public = true, MaxAge = maxAge };
         Response.Headers["X-Data-Source"] = src.Id;
-        return File(payload.Bytes, payload.ContentType);
+        return File(bytes, payload.ContentType);
+    }
+
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
+
+    private static byte[] StripMeta(byte[] bytes) {
+        try {
+            var reader = new Utf8JsonReader(bytes);
+            if (JsonNode.Parse(ref reader) is not JsonObject root) return bytes;
+            if (!root.ContainsKey("binaryVersion") && !root.ContainsKey("provenance")) return bytes;
+            root.Remove("binaryVersion");
+            root.Remove("provenance");
+            return JsonSerializer.SerializeToUtf8Bytes(root, IndentedJson);
+        } catch {
+            return bytes;
+        }
     }
 }
