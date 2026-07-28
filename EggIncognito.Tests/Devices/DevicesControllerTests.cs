@@ -4,6 +4,7 @@ using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Devices;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,7 +15,11 @@ public class DevicesControllerTests {
         new(new FakeUser(role), sp,
             sp.GetService<IServiceScopeFactory>() ?? new ServiceCollection().BuildServiceProvider()
                 .GetRequiredService<IServiceScopeFactory>(),
-            jobs ?? new DeviceJobTracker(TimeProvider.System));
+            jobs ?? new DeviceJobTracker(TimeProvider.System)) {
+            ControllerContext = new ControllerContext {
+                HttpContext = new DefaultHttpContext { RequestServices = sp }
+            }
+        };
 
     [Fact]
     public async Task Refresh_NonAdmin_403() {
