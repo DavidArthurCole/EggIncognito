@@ -18,10 +18,19 @@ public sealed class ProcessRunner : IProcessRunner {
         foreach (string a in args) psi.ArgumentList.Add(a);
         try {
             using var p = Process.Start(psi)!;
-            var outTask = p.StandardOutput.ReadToEndAsync(ct);
-            var errTask = p.StandardError.ReadToEndAsync(ct);
-            await p.WaitForExitAsync(ct);
-            return new ProcessResult(p.ExitCode, await outTask, await errTask);
+            try {
+                var outTask = p.StandardOutput.ReadToEndAsync(ct);
+                var errTask = p.StandardError.ReadToEndAsync(ct);
+                await p.WaitForExitAsync(ct);
+                return new ProcessResult(p.ExitCode, await outTask, await errTask);
+            } catch (OperationCanceledException) {
+                try {
+                    p.Kill(true);
+                } catch {
+                }
+
+                return new ProcessResult(-1, "", $"{exe} canceled (timeout or shutdown)");
+            }
         } catch (Exception ex) {
             return new ProcessResult(-1, "", ex.Message);
         }

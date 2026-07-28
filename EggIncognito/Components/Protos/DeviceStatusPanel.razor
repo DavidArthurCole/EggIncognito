@@ -165,9 +165,15 @@
         }
     }
 
+    protected override Task OnAfterRenderAsync(bool firstRender) {
+        if (firstRender) KickReprobe();
+        return Task.CompletedTask;
+    }
+
     async Task TickAsync() {
         if (_disposed || !await PageVisibleAsync()) return;
         await LoadAsync();
+        KickReprobe();
     }
 
     async Task LoadAsync() {
@@ -176,7 +182,6 @@
             _devices = rows ?? [];
             StateHasChanged();
             await LoadCaptureAsync();
-            await ReprobeStaleAsync();
         }
         catch {
             /* transient; keep last good */
@@ -185,9 +190,14 @@
 
     bool _reprobing;
 
+    void KickReprobe() {
+        if (!_isAdmin || _reprobing || _disposed) return;
+        _ = Task.Run(ReprobeStaleAsync);
+    }
+
 
     async Task ReprobeStaleAsync() {
-        if (!_isAdmin || _reprobing) return;
+        if (!_isAdmin || _reprobing || _disposed) return;
         var stale = _devices.Where(d => !d.Reachable).Select(d => d.Id).ToList();
         if (stale.Count == 0) return;
         _reprobing = true;

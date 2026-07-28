@@ -2,7 +2,9 @@ namespace EggIncognito.Core.Services.Devices;
 
 public sealed class IosDeviceProbe(IProcessRunner runner, string udid, string bundleId) : IDeviceProbe {
     public async Task<DeviceProbeResult> ProbeAsync(CancellationToken ct) {
-        var r = await runner.RunAsync("ideviceinstaller", ["-u", udid, "-l", "-o", "xml"], ct);
+        using var timebox = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timebox.CancelAfter(DeviceProbeTimeout.Value);
+        var r = await runner.RunAsync("ideviceinstaller", ["-u", udid, "-l", "-o", "xml"], timebox.Token);
         if (r.ExitCode != 0)
             return new DeviceProbeResult(false, null, null, DeviceParsing.TrimNote(r.Stderr + r.Stdout));
 
