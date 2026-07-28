@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using EggIdentity.Client;
 using EggIdentity.Contract;
 using EggIncognito.Capture;
@@ -22,7 +23,10 @@ namespace EggIncognito.Controllers;
 [Route("api/admin")]
 [ApiAccess(ApiAccessLevel.Admin)]
 [EnableRateLimiting("write")]
-public sealed class AdminController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase {
+public sealed partial class AdminController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase {
+    [GeneratedRegex("^[a-z0-9_-]{1,64}$")]
+    private static partial Regex IconNameRegex();
+
     private static readonly JsonSerializerOptions ProvenanceJson = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
@@ -267,6 +271,65 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
 
         await db.SaveChangesAsync(ct);
         return Ok(new { id, bytes = Encoding.UTF8.GetByteCount(json), updatedAt = now });
+    }
+
+    [HttpGet("icons")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Icons(CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        var db = Db;
+        if (db is null) return StatusCode(503, new { error = "no database configured" });
+        var icons = await db.StoredIcons.AsNoTracking()
+            .OrderBy(i => i.Name)
+            .Select(i => new {
+                name = i.Name,
+                bytes = i.ByteSize,
+                contentType = i.ContentType,
+                provenance = i.Provenance,
+                createdAt = i.CreatedAt
+            })
+            .ToListAsync(ct);
+        return Ok(new { icons });
+    }
+
+    [HttpPost("icons/{name}")]
+    [RequestSizeLimit(1_000_000)]
+    public async Task<IActionResult> ImportIcon(string name, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        var db = Db;
+        if (db is null) return StatusCode(503, new { error = "no database configured" });
+        if (!IconNameRegex().IsMatch(name)) return BadRequest(new { error = "invalid icon name" });
+
+        byte[] data;
+        using (var ms = new MemoryStream()) {
+            await Request.Body.CopyToAsync(ms, ct);
+            data = ms.ToArray();
+        }
+
+        if (data.Length == 0) return BadRequest(new { error = "empty body" });
+        bool png = data.Length >= 8
+                   && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47
+                   && data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A;
+        if (!png) return BadRequest(new { error = "not a png" });
+
+        var row = await db.StoredIcons.FirstOrDefaultAsync(i => i.Name == name, ct);
+        if (row is null) {
+            db.StoredIcons.Add(new StoredIcon {
+                Name = name,
+                ContentType = "image/png",
+                Bytes = data,
+                ByteSize = data.Length,
+                Provenance = "admin-import"
+            });
+        } else {
+            row.Bytes = data;
+            row.ByteSize = data.Length;
+            row.ContentType = "image/png";
+            row.Provenance = "admin-import";
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Ok(new { name, bytes = data.Length });
     }
 
 

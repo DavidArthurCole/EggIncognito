@@ -13,6 +13,8 @@
     <PackageReference Include="EggIdentity.AdminUi" Version="1.1.1" />
     <PackageReference Include="EggIdentity.Metrics" Version="1.1.1" />
     <PackageReference Include="EggIdentity.Metrics.AdminUi" Version="1.1.1" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
   </ItemGroup>
 
   <ItemGroup>

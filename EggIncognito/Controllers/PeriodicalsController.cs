@@ -7,6 +7,7 @@ using EggIncognito.Core.Services.Assets;
 using EggIncognito.Data.Services;
 using EggIncognito.GameData;
 using EggIncognito.Services;
+using EggIncognito.Services.Assets;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
 using Ei;
@@ -121,11 +122,15 @@ public sealed class PeriodicalsController(
                 startDerived = !(s.HasStartTime && s.StartTime > 0),
                 gradeGoals = s.GradeGoals.Select(g => new {
                     grade = g.Grade.ToString(),
+                    gradeIcon = $"/api/v1/data/asset/icon?name={RewardIconMap.GradeStem(g.Grade.ToString())}",
                     goals = g.Goals.Select(x => new {
                         cxp = x.Cxp,
                         rewardType = x.RewardType.ToString(),
                         rewardSubType = x.RewardSubType,
-                        rewardAmount = x.RewardAmount
+                        rewardAmount = x.RewardAmount,
+                        icon = RewardIconMap.Stem(x.RewardType, x.RewardSubType) is { } stem
+                            ? $"/api/v1/data/asset/icon?name={stem}"
+                            : null
                     }).ToArray()
                 }).ToArray()
             })

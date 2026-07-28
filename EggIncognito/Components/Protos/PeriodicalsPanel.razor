@@ -122,7 +122,12 @@
                             var grade = g.Grade;
                             <button type="button" class="seg-btn @(sel.Grade == grade ? "active" : "")"
                                     @onclick="() => _grade = grade">
-                                @GradeLabel(grade)
+                                @if (!string.IsNullOrEmpty(g.GradeIcon)) {
+                                    <img src="@g.GradeIcon" alt="@GradeLabel(grade)" title="@GradeLabel(grade)" style="width:20px;height:20px;object-fit:contain" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
+                                    <span style="display:none">@GradeLabel(grade)</span>
+                                } else {
+                                    @GradeLabel(grade)
+                                }
                             </button>
                         }
                     </div>
@@ -136,7 +141,14 @@
                         @foreach (var goal in sel.Goals) {
                             <tr>
                                 <td class="mono text-xs">@goal.Cxp.ToString("N0")</td>
-                                <td class="text-xs">@RewardLabel(goal)</td>
+                                <td class="text-xs">
+                                    <span class="flex items-center gap-1.5">
+                                        @if (!string.IsNullOrEmpty(goal.Icon)) {
+                                            <img src="@goal.Icon" alt="" style="width:18px;height:18px;object-fit:contain" loading="lazy" onerror="this.style.display='none'"/>
+                                        }
+                                        @RewardLabel(goal)
+                                    </span>
+                                </td>
                             </tr>
                         }
                         </tbody>
@@ -414,9 +426,9 @@
 
     record Season(string Id, string Name, double StartTime, bool StartDerived, List<GradeGoalsRow> GradeGoals);
 
-    record GradeGoalsRow(string Grade, List<GoalRow> Goals);
+    record GradeGoalsRow(string Grade, List<GoalRow> Goals, string? GradeIcon);
 
-    record GoalRow(double Cxp, string RewardType, string RewardSubType, double RewardAmount);
+    record GoalRow(double Cxp, string RewardType, string RewardSubType, double RewardAmount, string? Icon);
 
     record EventsResponse(DateTimeOffset? CapturedAt, double? ServerTime, List<EventRow> Events);
 

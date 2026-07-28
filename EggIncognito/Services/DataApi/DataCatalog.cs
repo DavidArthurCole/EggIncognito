@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using EggIncognito.Core.Services.Assets;
+using EggIncognito.Services.Assets;
 using Ei;
 using Google.Protobuf;
 
@@ -110,7 +111,11 @@ public sealed class DataCatalog {
             (ctx, _) => Task.FromResult(ResearchPayload(ctx.Services, epic: true))),
 
         new("icon", "asset", "Game icon", "Boost/artifact icon PNG by asset name.",
-            DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceIcon)
+            DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceIcon),
+
+        new("event-icon", "asset", "Event icon",
+            "Composited event icon PNG by event type (E9K-style colored background + glyph).",
+            DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceEventIcon)
     ];
 
     private static DataSource Wire(string id, string display, string desc, string route, string? feed,
@@ -279,5 +284,17 @@ public sealed class DataCatalog {
         return !result.Ok || result.Asset is null
             ? null
             : new DataPayload(result.Asset.Bytes, result.Asset.ContentType);
+    }
+
+    private static async Task<DataPayload?> ProduceEventIcon(DataProduceContext ctx, CancellationToken ct) {
+        string? name = ctx.Name;
+        if (string.IsNullOrEmpty(name)) return null;
+        if (!name.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-')) return null;
+        string stem = name.ToLowerInvariant().Replace('-', '_');
+        var assets = ctx.Services.GetRequiredService<GameAssetProvider>();
+        var glyph = await assets.GetCachedAsync(new GameAssetKey("icon", null, $"event_{stem}"), ct);
+        if (!glyph.Ok || glyph.Asset is null) return null;
+        bool ccOnly = ctx.Http.Request.Query["cc"] == "1";
+        return DataPayload.Png(EventIconRenderer.Render(glyph.Asset.Bytes, name, ccOnly));
     }
 }
