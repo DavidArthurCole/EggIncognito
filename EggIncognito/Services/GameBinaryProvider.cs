@@ -20,26 +20,32 @@ public sealed class GameBinaryProvider(
 
     public async Task<(bool Ok, byte[]? Bytes, string? Diagnostics)> GetBinaryAsync(string? deviceId,
         CancellationToken ct) {
+        (bool ok, byte[]? bytes, _, string? diag) = await GetBinaryWithVersionAsync(deviceId, ct);
+        return (ok, bytes, diag);
+    }
+
+    public async Task<(bool Ok, byte[]? Bytes, string Version, string? Diagnostics)> GetBinaryWithVersionAsync(
+        string? deviceId, CancellationToken ct) {
+        string? version = await DeviceVersionAsync(deviceId, ct);
+
         string? overridePath = config["Decomp:BinaryPath"];
         if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath)) {
             byte[] bytes = await File.ReadAllBytesAsync(overridePath, ct);
-            return (true, bytes, null);
+            return (true, bytes, version ?? "unknown", null);
         }
-
-        string? version = await DeviceVersionAsync(deviceId, ct);
 
         string? dir = config["Decomp:SymbolizedIpaDir"];
         if (string.IsNullOrEmpty(dir)) dir = Path.Combine("captures", "ipas");
         var store = new SymbolizedBinaryStore(dir);
         var r = store.Get(version);
-        if (!r.Ok || r.Bytes is null) return (false, null, r.Diagnostics);
+        if (!r.Ok || r.Bytes is null) return (false, null, "", r.Diagnostics);
 
         if (!r.ExactVersion) {
             logger.LogInformation("decomp: device version {Dev} not in stash, using symbolized {Use}", version ?? "?",
                 r.Version);
         }
 
-        return (true, r.Bytes,
+        return (true, r.Bytes, r.Version,
             r.ExactVersion ? null : $"version mismatch: device {version ?? "?"}, using symbolized {r.Version}");
     }
 

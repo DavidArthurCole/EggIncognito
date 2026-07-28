@@ -228,6 +228,16 @@ public sealed class AdminController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { documents, missing = store.MissingIds() });
     }
 
+    [HttpPost("gamedata/rebuild")]
+    public async Task<IActionResult> RebuildGameDataDocuments(CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        if (Db is null) return StatusCode(503, new { error = "no database configured" });
+        var rebuilder = services.GetRequiredService<GameDataRebuilder>();
+        (var results, string? binaryNote) = await rebuilder.RebuildAsync(ct);
+        var store = services.GetRequiredService<GameDataStore>();
+        return Ok(new { results, binary = binaryNote, missing = store.MissingIds() });
+    }
+
     [HttpPost("gamedata/{id}")]
     [RequestSizeLimit(2_000_000)]
     public async Task<IActionResult> ImportGameDataDocument(string id, CancellationToken ct) {

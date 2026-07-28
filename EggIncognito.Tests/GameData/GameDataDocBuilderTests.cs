@@ -1,0 +1,62 @@
+using EggIncognito.GameData;
+using EggIncognito.Services;
+using EggIncognito.Services.ProtoExtract;
+
+namespace EggIncognito.Tests.GameData;
+
+public class GameDataDocBuilderTests {
+    [Fact]
+    public void BuildMissions_DropsGoallessRows_AndValidates() {
+        var doc = GameDataDocBuilders.BuildMissions([
+            new MissionCatalogExtractor.MissionEntry("egg_shipment", "EGG SHIPMENT", "Ship an egg"),
+            new MissionCatalogExtractor.MissionEntry("broken_row", null, null)
+        ], "1.35.8");
+
+        GameDataProvider.Validate("missions", doc.Json);
+        var parsed = MissionCatalog.Parse(doc.Json);
+        Assert.Equal(1, doc.Count);
+        Assert.Single(parsed.Missions);
+        Assert.Equal(["broken_row"], doc.Skipped);
+        Assert.Equal("1.35.8", parsed.BinaryVersion);
+        Assert.Equal("binary", parsed.Provenance["identity"].Origin);
+        Assert.Equal("missiondata", parsed.Provenance["identity"].Locator);
+    }
+
+    [Fact]
+    public void BuildEggs_KeepsNamelessRows_AndValidates() {
+        var doc = GameDataDocBuilders.BuildEggs([
+            new EggCatalogExtractor.EggEntry(0, "EDIBLE", 0.25),
+            new EggCatalogExtractor.EggEntry(1, null, 1.25)
+        ], "1.35.8");
+
+        GameDataProvider.Validate("eggs", doc.Json);
+        var parsed = EggCatalog.Parse(doc.Json);
+        Assert.Equal(2, parsed.Eggs.Count);
+        Assert.Null(parsed.Find(1)!.Name);
+        Assert.Equal(0.25, parsed.Find(0)!.BaseValue);
+    }
+
+    [Fact]
+    public void BuildVehicles_DropsNamelessRows_AndValidates() {
+        var doc = GameDataDocBuilders.BuildVehicles([
+            new VehicleCatalogExtractor.VehicleEntry(0, "TRIKE", 5000),
+            new VehicleCatalogExtractor.VehicleEntry(1, null, 9999)
+        ], "1.35.8");
+
+        GameDataProvider.Validate("vehicles", doc.Json);
+        var parsed = VehicleCatalog.Parse(doc.Json);
+        Assert.Single(parsed.Vehicles);
+        Assert.Equal(["1"], doc.Skipped);
+        Assert.Equal(5000, parsed.Find(0)!.Capacity);
+    }
+
+    [Fact]
+    public void BuildDimensions_Validates() {
+        var doc = GameDataDocBuilders.BuildDimensions(["bd-earnings", "bd-egg-value"], "1.35.8");
+
+        GameDataProvider.Validate("dimensions", doc.Json);
+        var parsed = DimensionCatalog.Parse(doc.Json);
+        Assert.Equal(2, parsed.Dimensions.Count);
+        Assert.True(parsed.Contains("bd-earnings"));
+    }
+}

@@ -277,7 +277,9 @@
         try {
             var res = await Client().GetAsync(route);
             var body = await res.Content.ReadAsStringAsync();
-            return res.IsSuccessStatusCode ? body : $"HTTP {(int)res.StatusCode}: {body}";
+            if (res.IsSuccessStatusCode) return body;
+            var isJson = res.Content.Headers.ContentType?.MediaType?.Contains("json", StringComparison.OrdinalIgnoreCase) == true;
+            return isJson && !string.IsNullOrWhiteSpace(body) ? body : $"HTTP {(int)res.StatusCode}: {body}";
         }
         catch (Exception ex) {
             return ex.Message;

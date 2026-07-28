@@ -136,6 +136,7 @@ builder.Services.AddScoped<GameAssetProvider>();
 builder.Services.AddScoped<DeviceMeshProvider>();
 
 builder.Services.AddScoped<GameBinaryProvider>();
+builder.Services.AddScoped<GameDataRebuilder>();
 
 builder.Services.AddSingleton<GameConfigStore>();
 builder.Services.AddSingleton<PeriodicalsChangeNotifier>();
