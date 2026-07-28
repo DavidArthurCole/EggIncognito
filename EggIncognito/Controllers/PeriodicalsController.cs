@@ -269,7 +269,7 @@ public sealed class PeriodicalsController(
             string stem = type.Replace('-', '_');
             string[] candidates = [$"event_{stem}", stem];
             foreach (string candidate in candidates) {
-                var result = await assets.GetAsync(new GameAssetKey("icon", null, candidate), ct);
+                var result = await assets.GetCachedAsync(new GameAssetKey("icon", null, candidate), ct);
                 if (!result.Ok || result.Asset is null) continue;
                 icon = $"/api/v1/data/asset/icon?name={Uri.EscapeDataString(candidate)}";
                 break;

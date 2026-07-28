@@ -57,6 +57,15 @@ public sealed class GameAssetProvider(IEnumerable<IGameAssetTier> tiers, IEnumer
         return new GameAssetResult(true, fetched, "origin", null);
     }
 
+    public async Task<GameAssetResult> GetCachedAsync(GameAssetKey key, CancellationToken ct) {
+        foreach (var tier in _tiers.Where(t => t.Handles(key))) {
+            var hit = await tier.TryGetAsync(key, ct);
+            if (hit is not null) return new GameAssetResult(true, hit, TierName(tier), null);
+        }
+
+        return new GameAssetResult(false, null, "none", "not cached");
+    }
+
     private static async Task SafePutAsync(IGameAssetTier tier, GameAsset asset, CancellationToken ct) {
         try {
             await tier.PutAsync(asset, ct);
