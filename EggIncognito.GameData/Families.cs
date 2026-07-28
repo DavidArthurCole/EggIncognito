@@ -46,7 +46,11 @@ public sealed class BoostFamily(EffectDataFile file) : EffectFamily(Families.Boo
 public sealed class ResearchFamily(EffectDataFile file) : EffectFamily(Families.Research, file, MetaSchemaDef) {
     private static readonly EffectSchema MetaSchemaDef = new([
         new EffectField("name", EffectFieldType.String, false),
-        new EffectField("epic", EffectFieldType.Bool, false)
+        new EffectField("epic", EffectFieldType.Bool),
+        new EffectField("description", EffectFieldType.String, false),
+        new EffectField("help", EffectFieldType.String, false),
+        new EffectField("dimension", EffectFieldType.String, false),
+        new EffectField("tier", EffectFieldType.Int, false)
     ]);
 }
 

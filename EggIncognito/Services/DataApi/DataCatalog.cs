@@ -7,6 +7,8 @@ using Google.Protobuf;
 namespace EggIncognito.Services.DataApi;
 
 public sealed class DataCatalog {
+    public const string PeriodicalsRoute = "ei/get_periodicals";
+
     private static readonly JsonSerializerOptions SnakeJson = new() {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = true
@@ -71,7 +73,7 @@ public sealed class DataCatalog {
 
     private static IReadOnlyList<DataSource> Build() => [
         Wire("get_periodicals", "Periodicals", "Raw get_periodicals response fixture.",
-            "ei/get_periodicals", "periodicals",
+            PeriodicalsRoute, "periodicals",
             p => new GetPeriodicalsRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
         Wire("afx-config", "Artifacts config", "Raw ei_afx/config response fixture.",
             "ei_afx/config", "afx-config",
@@ -248,7 +250,7 @@ public sealed class DataCatalog {
     }
 
     private static Task<DataPayload?> ProduceColleggtibles(DataProduceContext ctx, CancellationToken ct) {
-        var live = LiveColleggtibleSource.Derive(ctx.Services, "ei/get_periodicals");
+        var live = LiveColleggtibleSource.Derive(ctx.Services, PeriodicalsRoute);
         return Task.FromResult(live is null ? null : DataPayload.Json(live.Json));
     }
 

@@ -57,6 +57,96 @@ public static class GameDataDocBuilders {
         return new DocResult(JsonSerializer.Serialize(doc, CamelJson), rows.Length, skipped);
     }
 
+    private static readonly Dictionary<string, string> ResearchDimensionTargets = new(StringComparer.Ordinal) {
+        ["eggLayingRateMult"] = "EggLayingRate",
+        ["eggValueMult"] = "EggValue",
+        ["earningsMult"] = "Earnings",
+        ["earningsMultAway"] = "AwayEarnings",
+        ["coopEarningsMult"] = "CoopEarnings",
+        ["coopEggLayingRateMult"] = "CoopEggLaying",
+        ["habCapacityMult"] = "HabCapacity",
+        ["portalCapacityMult"] = "PortalHabCapacity",
+        ["hatcheryCapacity"] = "HatcheryCapacity",
+        ["hatcheryRefillRateMult"] = "HatcheryRefillRate",
+        ["onscreenChickenMult"] = "RunningChickenBonus",
+        ["onscreenChickenMultMaxBase"] = "RunningChickenBonusCap",
+        ["onscreenChickenMultMult"] = "RunningChickenBonusMult",
+        ["internalHatcheryRateBase"] = "IHRBase",
+        ["internalHatcherySharing"] = "IHRSharing",
+        ["internalHatcheryMult"] = "IHR",
+        ["internalHatcheryMultAway"] = "IHROffline",
+        ["vehicleSpeedMult"] = "VehicleSpeed",
+        ["vehicleCapacityMult"] = "VehicleCapacity",
+        ["vehicleCapacityMultHover"] = "HoverVehicleCapacity",
+        ["vehicleLoadingTimeMult"] = "VehicleLoadingTime",
+        ["maxFleetSize"] = "FleetSize",
+        ["hyperloopCarCapacityMult"] = "HyperloopCarCapacity",
+        ["hyperloopMaxTrainLength"] = "HyperloopTrainLength",
+        ["siloSeconds"] = "SiloTime",
+        ["vehicleCostMult"] = "VehicleCost",
+        ["habCostMult"] = "HabCost",
+        ["researchCostMult"] = "ResearchCost",
+        ["epicResearchCostMult"] = "EpicResearchCost",
+        ["boostCostMult"] = "BoostCost",
+        ["boostDurationMult"] = "BoostDuration",
+        ["boostBoostMult"] = "BoostEffectiveness",
+        ["valuationMult"] = "FarmValue",
+        ["soulEggBonus"] = "SoulEggBonus",
+        ["soulEggCollectionMult"] = "SoulEggCollectionRate",
+        ["prestigeEarningsMult"] = "PrestigeEarnings",
+        ["eggOfProphecyBonus"] = "ProphecyEggBonus",
+        ["droneRewardMult"] = "DroneRewards",
+        ["droneRewardQualityMult"] = "DroneRewardQuality",
+        ["droneFrequencyMult"] = "DroneFrequency",
+        ["giftRewardMult"] = "GiftRewards",
+        ["videoDoublerHours"] = "VideoDoublerTime",
+        ["holdToHatchRate"] = "HoldToHatchRate",
+        ["holdToResearchMult"] = "HoldToResearch",
+        ["artifactsMissionCapacityResearchMult"] = "AfxMissionCapacity",
+        ["artifactsMissionFTLDurationResearchMult"] = "AfxMissionDuration"
+    };
+
+    public static DocResult BuildResearch(IReadOnlyList<ResearchCatalogExtractor.ResearchEntry> entries,
+        string binaryVersion) {
+        var rows = new List<object>();
+        var skipped = new List<string>();
+        foreach (var e in entries) {
+            if (e.Dimension is null || e.CombineMode is null || e.Magnitude is null ||
+                !ResearchDimensionTargets.TryGetValue(e.Dimension, out string? target)) {
+                skipped.Add($"{e.Id} ({e.DecodeNote ?? "unmapped dimension " + e.Dimension})");
+                continue;
+            }
+
+            var meta = new Dictionary<string, object>(StringComparer.Ordinal) { ["epic"] = e.Epic };
+            if (e.Name is not null) meta["name"] = e.Name;
+            if (e.Description is not null) meta["description"] = e.Description;
+            if (e.Help is not null) meta["help"] = e.Help;
+            meta["dimension"] = e.Dimension;
+            if (e.Tier is not null) meta["tier"] = e.Tier.Value;
+
+            rows.Add(new {
+                id = e.Id,
+                target,
+                combineMode = e.CombineMode.Value.ToString(),
+                magnitude = e.Magnitude.Value,
+                maxLevel = e.MaxLevel,
+                meta
+            });
+        }
+
+        var doc = new {
+            rows,
+            binaryVersion,
+            provenance = new Dictionary<string, BoostCatalogBuilder.ProvenanceSource>(StringComparer.Ordinal) {
+                ["identity"] = new("binary", "researchdata"),
+                ["maxLevel"] = new("binary", "researchdata", "decoded"),
+                ["effects"] = new("binary", "researchdata", "decoded"),
+                ["epic"] = new("binary", "researchdata", "decoded")
+            }
+        };
+        return new DocResult(JsonSerializer.Serialize(doc, CamelJson), rows.Count, skipped);
+    }
+
     public static DocResult BuildDimensions(IReadOnlyList<string> ids, string binaryVersion) {
         var doc = new {
             dimensions = ids,

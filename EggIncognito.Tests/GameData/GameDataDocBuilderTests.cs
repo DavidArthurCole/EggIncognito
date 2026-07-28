@@ -51,6 +51,31 @@ public class GameDataDocBuilderTests {
     }
 
     [Fact]
+    public void BuildResearch_EmitsRowsAndSkipsUndecoded_AndValidates() {
+        var doc = GameDataDocBuilders.BuildResearch([
+            new ResearchCatalogExtractor.ResearchEntry("comfy_nests", "COMFORTABLE NESTS",
+                "Increase egg laying rate by 10%", null, false, 50, 0, "eggLayingRateMult", false,
+                ResearchCatalogExtractor.Combine.MulPlusOne, 0.1, null),
+            new ResearchCatalogExtractor.ResearchEntry("broken", null, null, null, false, null, null, null, false,
+                null, null, "unrecognized effect pattern")
+        ], "1.35.8");
+
+        GameDataProvider.Validate("research", doc.Json);
+        Assert.Equal(1, doc.Count);
+        string skip = Assert.Single(doc.Skipped);
+        Assert.Contains("broken", skip);
+
+        var parsed = EffectDataLoader.Parse(doc.Json);
+        var row = Assert.Single(parsed.Rows);
+        Assert.Equal(EffectTarget.EggLayingRate, row.Target);
+        Assert.Equal(CombineMode.MulPlusOne, row.CombineMode);
+        Assert.Equal(0.1, row.Magnitude);
+        Assert.Equal(50, row.MaxLevel);
+        Assert.False(row.Meta!["epic"].GetBoolean());
+        Assert.Equal("COMFORTABLE NESTS", row.Meta["name"].GetString());
+    }
+
+    [Fact]
     public void BuildDimensions_Validates() {
         var doc = GameDataDocBuilders.BuildDimensions(["bd-earnings", "bd-egg-value"], "1.35.8");
 

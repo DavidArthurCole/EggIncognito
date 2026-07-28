@@ -10,14 +10,14 @@ namespace EggIncognito.Services.DataApi;
 public sealed record RebuildDocResult(string Id, string Status, int? Count, int? Bytes, string? Note);
 
 public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvider binaries) {
-    private static readonly string[] Unbuildable = ["boosts", "research", "habs", "artifacts"];
+    private static readonly string[] Unbuildable = ["boosts", "habs", "artifacts"];
 
     public async Task<(IReadOnlyList<RebuildDocResult> Results, string? BinaryNote)> RebuildAsync(CancellationToken ct) {
         var results = new List<RebuildDocResult>();
 
         (bool ok, byte[]? bin, string version, string? diag) = await binaries.GetBinaryWithVersionAsync(null, ct);
         if (!ok || bin is null) {
-            foreach (string id in (string[])["boost-catalog", "missions", "eggs", "vehicles", "dimensions"])
+            foreach (string id in (string[])["boost-catalog", "missions", "eggs", "vehicles", "dimensions", "research"])
                 results.Add(new RebuildDocResult(id, "skipped", null, null, diag ?? "no binary available"));
         } else {
             var syms = MachoSymbols.Read(bin);
@@ -59,10 +59,17 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
                 var doc = GameDataDocBuilders.BuildDimensions(r.Ids, version);
                 return (doc.Json, doc.Count, null);
             }, ct);
+
+            await LandAsync(results, "research", () => {
+                var r = ResearchCatalogExtractor.ExtractWith(bin, syms, sections);
+                if (!r.Ok) throw new InvalidOperationException(r.Diagnostics);
+                var doc = GameDataDocBuilders.BuildResearch(r.Entries, version);
+                return (doc.Json, doc.Count, SkipNote(doc.Skipped, "undecoded"));
+            }, ct);
         }
 
         await LandAsync(results, "colleggtibles", () => {
-            var live = LiveColleggtibleSource.Derive(services, "ei/get_periodicals")
+            var live = LiveColleggtibleSource.Derive(services, DataCatalog.PeriodicalsRoute)
                        ?? throw new InvalidOperationException("no captured get_periodicals to derive from");
             return (live.Json, live.Extract.Eggs.Count, null);
         }, ct);
