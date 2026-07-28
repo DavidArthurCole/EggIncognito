@@ -16,6 +16,7 @@ public class NoHardcodedRouteLiteralsTests {
         foreach (string file in Directory.EnumerateFiles(webDir, "*.cs", SearchOption.AllDirectories)) {
             if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")) continue;
             if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")) continue;
+            if (file.Contains($"{Path.DirectorySeparatorChar}Tests{Path.DirectorySeparatorChar}")) continue;
             if (Allowed.Any(a => file.EndsWith(a, StringComparison.Ordinal))) continue;
 
             string text = File.ReadAllText(file);

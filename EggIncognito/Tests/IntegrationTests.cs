@@ -14,7 +14,7 @@ public sealed class EggIncApiFactory : EgiTestFactory {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null) {
             if (dir.GetFiles("*.slnx").Length > 0 || dir.GetFiles("*.sln").Length > 0)
-                return Path.Combine(dir.FullName, "EggIncognito.Tests", "TestFixtures");
+                return Path.Combine(dir.FullName, "EggIncognito", "Tests", "TestFixtures");
             dir = dir.Parent;
         }
 

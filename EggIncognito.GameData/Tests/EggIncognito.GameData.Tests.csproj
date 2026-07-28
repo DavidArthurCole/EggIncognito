@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EggIncognito.GameData\EggIncognito.GameData.csproj" />
+    <ProjectReference Include="..\EggIncognito.GameData.csproj" />
   </ItemGroup>
 
 </Project>

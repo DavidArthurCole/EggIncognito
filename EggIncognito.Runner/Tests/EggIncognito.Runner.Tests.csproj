@@ -13,7 +13,7 @@
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\EggIncognito.Runner\EggIncognito.Runner.csproj" />
-    <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />
+    <ProjectReference Include="..\EggIncognito.Runner.csproj" />
+    <ProjectReference Include="..\..\EggIncognito.Core\EggIncognito.Core.csproj" />
   </ItemGroup>
 </Project>

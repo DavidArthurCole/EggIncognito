@@ -135,7 +135,6 @@ builder.Services.AddScoped<GameAssetProvider>();
 
 builder.Services.AddScoped<DeviceMeshProvider>();
 
-builder.Services.AddScoped<GameBinaryStore>();
 builder.Services.AddScoped<GameBinaryProvider>();
 builder.Services.AddScoped<GameDataRebuilder>();
 
@@ -190,6 +189,7 @@ if (dbEnabled) {
         .SetApplicationName("EggIncognito")
         .PersistKeysToDbContext<EggIncognitoDbContext>();
 
+    builder.Services.AddScoped<GameBinaryStore>();
     builder.Services.AddScoped<DbEndpointSource>();
     builder.Services.AddScoped(sp =>
         new DbEndpointSourceMarker(sp.GetRequiredService<DbEndpointSource>()));

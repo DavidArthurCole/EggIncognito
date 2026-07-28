@@ -10,3 +10,6 @@ docs/
 *.md
 !EggIncognito/Endpoints/**
 dist/
+EggIncognito/Tests/
+EggIncognito.GameData/Tests/
+EggIncognito.Runner/Tests/

@@ -18,9 +18,11 @@ namespace EggIncognito.Controllers;
 [ApiAccess(ApiAccessLevel.Admin)]
 public sealed class DecompController(
     GameBinaryProvider binaries,
-    GameBinaryStore store,
+    IServiceProvider services,
     ICurrentUser currentUser,
     IDeviceConnectionFactory connections) : ControllerBase {
+    private GameBinaryStore? Store => services.GetService(typeof(GameBinaryStore)) as GameBinaryStore;
+
     [HttpGet("symbols")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Symbols([FromQuery] string? filter, [FromQuery] string? device,
@@ -441,6 +443,7 @@ public sealed class DecompController(
     public async Task<IActionResult> StoredBinaries(CancellationToken ct) {
         if (!currentUser.IsAtLeast(UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
+        if (Store is not { } store) return StatusCode(503, new { error = "no database configured" });
         var rows = await store.ListAsync(ct);
         return Ok(new {
             ok = true,
@@ -462,6 +465,7 @@ public sealed class DecompController(
     public async Task<IActionResult> DeleteStoredBinary(string platform, string version, CancellationToken ct) {
         if (!currentUser.IsAtLeast(UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
+        if (Store is not { } store) return StatusCode(503, new { error = "no database configured" });
         bool removed = await store.DeleteAsync(platform, version, ct);
         return removed
             ? Ok(new { ok = true, platform, version })

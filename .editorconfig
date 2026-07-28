@@ -102,7 +102,7 @@ resharper_razor_always_use_end_of_line_brace_style = true
 [EggIncognito.Data/Migrations/**.cs]
 generated_code = true
 
-[*Tests/**.cs]
+[**Tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1822.severity = none
 dotnet_diagnostic.CA1859.severity = none
