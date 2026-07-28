@@ -147,6 +147,51 @@ public static class GameDataDocBuilders {
         return new DocResult(JsonSerializer.Serialize(doc, CamelJson), rows.Count, skipped);
     }
 
+    public static DocResult BuildHabs(IReadOnlyList<HabCatalogExtractor.HabEntry> entries, string binaryVersion) {
+        var skipped = entries.Where(e => string.IsNullOrEmpty(e.Name))
+            .Select(e => e.Index.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .ToList();
+        var rows = entries.Where(e => !string.IsNullOrEmpty(e.Name))
+            .Select(e => new {
+                id = HabIdFromName(e.Name!),
+                target = "HabCapacity",
+                combineMode = "Add",
+                magnitude = (double)e.Capacity,
+                maxLevel = 1,
+                meta = new Dictionary<string, object>(StringComparer.Ordinal) {
+                    ["habId"] = e.Index,
+                    ["name"] = e.Name!
+                }
+            })
+            .ToArray();
+        var doc = new {
+            rows,
+            binaryVersion,
+            provenance = new Dictionary<string, BoostCatalogBuilder.ProvenanceSource>(StringComparer.Ordinal) {
+                ["identity"] = new("binary", "habdata"),
+                ["capacity"] = new("binary", "habdata", "decoded"),
+                ["id"] = new("derived")
+            }
+        };
+        return new DocResult(JsonSerializer.Serialize(doc, CamelJson), rows.Length, skipped);
+    }
+
+    public static string HabIdFromName(string name) {
+        var sb = new System.Text.StringBuilder(name.Length);
+        bool pendingSep = false;
+        foreach (char c in name) {
+            if (char.IsAsciiLetterOrDigit(c)) {
+                if (pendingSep && sb.Length > 0) sb.Append('_');
+                pendingSep = false;
+                sb.Append(char.ToLowerInvariant(c));
+            } else if (c == ' ') {
+                pendingSep = true;
+            }
+        }
+
+        return sb.ToString();
+    }
+
     public static DocResult BuildDimensions(IReadOnlyList<string> ids, string binaryVersion) {
         var doc = new {
             dimensions = ids,

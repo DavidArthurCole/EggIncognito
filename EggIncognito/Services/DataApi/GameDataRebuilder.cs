@@ -10,7 +10,7 @@ namespace EggIncognito.Services.DataApi;
 public sealed record RebuildDocResult(string Id, string Status, int? Count, int? Bytes, string? Note);
 
 public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvider binaries) {
-    private static readonly string[] Unbuildable = ["boosts", "habs", "artifacts"];
+    private static readonly string[] Unbuildable = ["boosts", "artifacts"];
 
     public async Task<(IReadOnlyList<RebuildDocResult> Results, string? BinaryNote)> RebuildAsync(CancellationToken ct) {
         var results = new List<RebuildDocResult>();
@@ -18,7 +18,7 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
         (bool ok, byte[]? bin, var liveSyms, string version, string? diag) =
             await binaries.GetExtractionBinaryAsync(ct);
         if (!ok || bin is null) {
-            foreach (string id in (string[])["boost-catalog", "missions", "eggs", "vehicles", "dimensions", "research"])
+            foreach (string id in (string[])["boost-catalog", "missions", "eggs", "vehicles", "dimensions", "research", "habs"])
                 results.Add(new RebuildDocResult(id, "skipped", null, null, diag ?? "no binary available"));
         } else {
             var syms = liveSyms ?? MachoSymbols.Read(bin);
@@ -66,6 +66,13 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
                 if (!r.Ok) throw new InvalidOperationException(r.Diagnostics);
                 var doc = GameDataDocBuilders.BuildResearch(r.Entries, version);
                 return (doc.Json, doc.Count, SkipNote(doc.Skipped, "undecoded"));
+            }, ct);
+
+            await LandAsync(results, "habs", () => {
+                var r = HabCatalogExtractor.ExtractWith(bin, syms, sections);
+                if (!r.Ok) throw new InvalidOperationException(r.Diagnostics);
+                var doc = GameDataDocBuilders.BuildHabs(r.Entries, version);
+                return (doc.Json, doc.Count, SkipNote(doc.Skipped, "nameless"));
             }, ct);
         }
 

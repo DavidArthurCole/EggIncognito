@@ -76,6 +76,33 @@ public class GameDataDocBuilderTests {
     }
 
     [Fact]
+    public void BuildHabs_EmitsCapacityRows_AndValidates() {
+        var doc = GameDataDocBuilders.BuildHabs([
+            new HabCatalogExtractor.HabEntry(0, "COOP", 250),
+            new HabCatalogExtractor.HabEntry(14, "HAB 10,000", 10_000_000),
+            new HabCatalogExtractor.HabEntry(3, null, 2000)
+        ], "1.35.8");
+
+        GameDataProvider.Validate("habs", doc.Json);
+        Assert.Equal(2, doc.Count);
+        Assert.Equal(["3"], doc.Skipped);
+
+        var parsed = EffectDataLoader.Parse(doc.Json);
+        Assert.Equal(2, parsed.Rows.Count);
+        var coop = parsed.Rows[0];
+        Assert.Equal("coop", coop.Id);
+        Assert.Equal(EffectTarget.HabCapacity, coop.Target);
+        Assert.Equal(CombineMode.Add, coop.CombineMode);
+        Assert.Equal(250, coop.Magnitude);
+        Assert.Equal(1, coop.MaxLevel);
+        Assert.Equal(0, coop.Meta!["habId"].GetInt32());
+        Assert.Equal("hab_10000", parsed.Rows[1].Id);
+        Assert.Equal("HAB 10,000", parsed.Rows[1].Meta!["name"].GetString());
+        Assert.Equal("binary", parsed.Provenance!["capacity"].Origin);
+        Assert.Equal("derived", parsed.Provenance["id"].Origin);
+    }
+
+    [Fact]
     public void BuildDimensions_Validates() {
         var doc = GameDataDocBuilders.BuildDimensions(["bd-earnings", "bd-egg-value"], "1.35.8");
 
