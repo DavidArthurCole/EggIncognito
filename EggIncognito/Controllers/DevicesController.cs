@@ -33,6 +33,17 @@ public sealed class DevicesController(
     private ObjectResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
 
+    private static string DeviceKey(string realId) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(realId)))[..16];
+
+    private async Task<string?> ResolveDeviceIdAsync(string incoming, CancellationToken ct) {
+        if (currentUser.IsAtLeast(UserRole.Admin)) return incoming;
+        var store = Store;
+        if (store is null) return null;
+        var enabled = await store.EnabledDevicesAsync(ct);
+        return enabled.FirstOrDefault(d => DeviceKey(d.Id) == incoming)?.Id;
+    }
+
     [HttpGet("status")]
     [EnableRateLimiting("fetch")]
     public async Task<IActionResult> Status() {
@@ -68,6 +79,7 @@ public sealed class DevicesController(
             }
         }
 
+        bool isAdmin = currentUser.IsAtLeast(UserRole.Admin);
         var rows = latest.Where(p => devices.ContainsKey(p.DeviceId)).Select(p => {
             var d = devices[p.DeviceId];
             updates.TryGetValue(d.Id, out var up);
@@ -80,7 +92,7 @@ public sealed class DevicesController(
                     regLatestApp.GetValueOrDefault(d.Platform))
                 : p.Result;
             return new {
-                id = d.Id,
+                id = isAdmin ? d.Id : DeviceKey(d.Id),
                 platform = d.Platform,
                 label = d.Label,
                 reachable = p.Reachable,
@@ -90,9 +102,9 @@ public sealed class DevicesController(
                 storeLatest = sl,
                 storeAhead = StoreAheadCheck.IsAhead(sl, p.InstalledAppVersion),
                 result = liveResult,
-                note = p.Note,
+                note = isAdmin ? p.Note : null,
                 probedAt = p.ProbedAt,
-                lastUpdate = up is null
+                lastUpdate = !isAdmin || up is null
                     ? null
                     : new {
                         status = up.Status,
@@ -109,6 +121,7 @@ public sealed class DevicesController(
 
     [HttpGet("{id}/history")]
     public async Task<IActionResult> History(string id, [FromQuery] int n = 20) {
+        if (RequireAdmin() is { } no) return no;
         var store = Store;
         if (store is null) return Ok(Array.Empty<object>());
         var rows = await store.HistoryAsync(id, Math.Clamp(n, 1, 100));
@@ -672,23 +685,27 @@ public sealed class DevicesController(
 
     [HttpGet("{id}/live")]
     [EnableRateLimiting("fetch")]
-    public IActionResult Live(string id) {
+    public async Task<IActionResult> Live(string id, CancellationToken ct) {
+        if (await ResolveDeviceIdAsync(id, ct) is not { } realId) return Ok(new { found = false });
         if (services.GetService(typeof(DeviceCaptureManager)) is not DeviceCaptureManager mgr)
             return Ok(new { found = false });
-        var d = mgr.DiagFor(id);
-        var capture = new {
-            listening = mgr.PortFor(id) != 0,
-            port = mgr.PortFor(id),
+        bool isAdmin = currentUser.IsAtLeast(UserRole.Admin);
+        var d = mgr.DiagFor(realId);
+        object capture = new {
+            listening = mgr.PortFor(realId) != 0,
+            port = isAdmin ? mgr.PortFor(realId) : 0,
             clientConnects = d.ClientConnects,
             auxbrainConnects = d.AuxbrainConnects,
             flows = d.Flows,
             rinfoHarvests = d.RinfoHarvests,
-            lastDecryptError = d.LastDecryptError,
-            recentConnects = d.RecentConnects
+            lastDecryptError = isAdmin ? d.LastDecryptError : null,
+            recentConnects = isAdmin ? d.RecentConnects : null
         };
-        var v = mgr.Rinfo.Latest(id);
+        var v = mgr.Rinfo.Latest(realId);
         if (v is null) return Ok(new { found = false, capture });
-        return Ok(new { found = true, v.DeviceId, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen, capture });
+        return isAdmin
+            ? Ok(new { found = true, v.DeviceId, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen, capture })
+            : Ok(new { found = true, v.Platform, v.Version, v.Build, v.ClientVersion, capture });
     }
 
     private sealed record CarveResult(string Proto, string Build);
