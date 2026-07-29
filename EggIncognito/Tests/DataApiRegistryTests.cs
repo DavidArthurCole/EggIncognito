@@ -74,8 +74,8 @@ public class DataApiRegistryTests {
         var o = RateLimitOptions.Defaults();
         Assert.True(o.Tiers.ContainsKey("Keyed"));
         Assert.True(o.Policies.ContainsKey("Data"));
-        Assert.Equal(1, o.Policies["DataAnon"].PermitLimit);
-        Assert.Equal(3600, o.Policies["DataAnon"].WindowSeconds);
+        Assert.Equal(30, o.Policies["DataAnon"].PermitLimit);
+        Assert.Equal(60, o.Policies["DataAnon"].WindowSeconds);
     }
 
     [Fact]

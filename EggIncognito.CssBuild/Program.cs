@@ -62,9 +62,9 @@ var settings = sourceResult.Settings with { Applies = mergedApplies, IncludePref
 var framework = new CssFramework(settings);
 var compiledCss = framework.Process(candidates);
 
-var strippedRawCss = StripApplyDirectives(sourceResult.RawCss);
+var strippedRawCss = UnwrapLayersAndSpliceRaw(StripApplyDirectives(sourceResult.RawCss), "");
 
-var finalCss = compiledCss + "\n" + strippedRawCss;
+var finalCss = UnwrapLayersAndSpliceRaw(compiledCss, strippedRawCss);
 
 Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
 File.WriteAllText(outputPath, finalCss);
@@ -111,6 +111,58 @@ static (int Line, string Snippet)? FindSemicolonInsideApplyBracket(string text) 
         }
         searchStart = applyIndex + "@apply".Length;
     }
+}
+
+static string UnwrapLayersAndSpliceRaw(string compiled, string raw) {
+    var result = new StringBuilder(compiled.Length + raw.Length + 16);
+    var rawSpliced = false;
+    var i = 0;
+    while (i < compiled.Length) {
+        var layerIndex = compiled.IndexOf("@layer", i, StringComparison.Ordinal);
+        if (layerIndex < 0) {
+            result.Append(compiled, i, compiled.Length - i);
+            break;
+        }
+        result.Append(compiled, i, layerIndex - i);
+        var headEnd = layerIndex + "@layer".Length;
+        while (headEnd < compiled.Length && compiled[headEnd] != '{' && compiled[headEnd] != ';') {
+            headEnd++;
+        }
+        if (headEnd >= compiled.Length) {
+            break;
+        }
+        var layerName = compiled.Substring(layerIndex + "@layer".Length, headEnd - layerIndex - "@layer".Length).Trim();
+        if (compiled[headEnd] == ';') {
+            i = headEnd + 1;
+            continue;
+        }
+        var depth = 1;
+        var bodyStart = headEnd + 1;
+        var pos = bodyStart;
+        while (pos < compiled.Length && depth > 0) {
+            var c = compiled[pos];
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+            }
+            pos++;
+        }
+        var bodyEnd = pos - 1;
+        result.Append(compiled, bodyStart, bodyEnd - bodyStart);
+        if (!rawSpliced && layerName == "components") {
+            result.Append('\n');
+            result.Append(raw);
+            result.Append('\n');
+            rawSpliced = true;
+        }
+        i = pos;
+    }
+    if (!rawSpliced) {
+        result.Append('\n');
+        result.Append(raw);
+    }
+    return result.ToString();
 }
 
 static string StripApplyDirectives(string css) {

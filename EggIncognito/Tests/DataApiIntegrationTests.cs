@@ -1,4 +1,5 @@
 using System.Net;
+using EggIncognito.Services.RateLimiting;
 
 namespace EggIncognito.Tests;
 
@@ -61,11 +62,15 @@ public class DataApiIntegrationTests(EggIncApiFactory factory) {
     }
 
     [Fact]
-    public async Task Anon_SecondDataCall_IsRateLimited() {
+    public async Task Anon_DataCalls_RateLimitedPastPolicyPermit() {
         var client = Client("10.10.9.9");
-        var first = await client.GetAsync("/api/v1/data/gamedata/boost-catalog");
-        var second = await client.GetAsync("/api/v1/data/gamedata/boost-catalog");
-        Assert.NotEqual(HttpStatusCode.TooManyRequests, first.StatusCode);
-        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+        int permit = RateLimitOptions.Defaults().Policies["DataAnon"].PermitLimit;
+        for (int i = 0; i < permit; i++) {
+            var resp = await client.GetAsync("/api/v1/data/gamedata/boost-catalog");
+            Assert.NotEqual(HttpStatusCode.TooManyRequests, resp.StatusCode);
+        }
+
+        var limited = await client.GetAsync("/api/v1/data/gamedata/boost-catalog");
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
     }
 }
