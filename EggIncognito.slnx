@@ -5,6 +5,7 @@
   <Project Path="EggIncognito.GameData/Tests/EggIncognito.GameData.Tests.csproj" />
   <Project Path="EggIncognito.Bot/EggIncognito.Bot.csproj" />
   <Project Path="EggIncognito.Capture/EggIncognito.Capture.csproj" />
+  <Project Path="EggIncognito.CssBuild/EggIncognito.CssBuild.csproj" />
   <Project Path="EggIncognito.Data/EggIncognito.Data.csproj" />
   <Project Path="EggIncognito.DeviceTools/EggIncognito.DeviceTools.csproj" />
   <Project Path="EggIncognito.RelayAgent/EggIncognito.RelayAgent.csproj" />

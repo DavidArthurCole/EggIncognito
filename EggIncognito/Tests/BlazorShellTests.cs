@@ -15,7 +15,7 @@ public class BlazorShellTests(SharedAppFactory f) {
         string html = await r.Content.ReadAsStringAsync();
         Assert.Contains("app-nav", html);
         Assert.Contains("gh-bubble", html);
-        Assert.Contains("/tailwind.css", html);
+        Assert.Contains("/styles.css", html);
         Assert.Contains("blazor.web.js", html);
     }
 }

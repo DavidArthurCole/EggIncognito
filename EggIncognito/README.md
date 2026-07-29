@@ -24,7 +24,7 @@ The UI is Blazor Server (Razor Components). A host page loads the routable pages
 - Pages: `/` (Home), `/inspector`, `/capture`, `/import`, `/protodata` (Protos & Data, also served at `/protos` + `/data` + `/periodicals`), `/playground` (admin), `/docs`, `/admin`, `/support`.
 - Navigation is normal Blazor routing. There is no separate client-side router.
 
-Static assets are the CSS layer (a small nav sheet plus the Tailwind source and its compiled output), brand images, and minimal localStorage-bridge interop JS for the Inspector and Capture. The interop JS carries no Tailwind classes.
+Static assets are the CSS layer (a small nav sheet plus the compiled `styles.css` generated from `Styles/app.v4.css`), brand images, and minimal localStorage-bridge interop JS for the Inspector and Capture. The interop JS carries no utility classes.
 
 The tabs:
 
@@ -115,17 +115,15 @@ The former PowerShell scripts and CLI subcommands are gone. Their behavior is no
 | Inspector Tools -> `POST /api/tools/decode` | Auto-detect the proto type of an arbitrary base64 blob (was `decode`) |
 | Import tab -> `POST /api/import/har` (Local) | Import a HAR into the default endpoint store (staged unless `?overwrite=true`) (was `from-har`) |
 | `EmitDashboardTypes` MSBuild target | Regenerate the capture dashboard type declarations from the capture records on every build (was `emit-types`) |
-| `BuildTailwind` MSBuild target | Opt-in (`-p:BuildTailwindCss=true`): recompile the served stylesheet from the Tailwind source sheet. See below. |
+| `BuildStyles` MSBuild target | Default-on: compile the served stylesheet from the CSS source via the `EggIncognito.CssBuild` tool. Skip with `-p:BuildStylesCss=false`. See below. |
 
-Tailwind details:
+Stylesheet details:
 
-- The served sheet `wwwroot/tailwind.css` is a committed, tracked artifact. Normal builds, CI, Docker, and release ship it as-is. No Tailwind CLI download in any automated build.
-- To restyle: edit `wwwroot/app.tailwind.css` (or a Razor class), then regenerate with `dotnet build -p:BuildTailwindCss=true` and commit the updated `wwwroot/tailwind.css`. The opt-in build fetches the standalone CLI once into `obj/tailwind/` (gitignored, RID-aware).
-- Tokens live only in the Tailwind config. All chrome is one canonical `@layer components` block in the Tailwind source.
-- The Razor components emit semantic class names; the `@layer components` block defines them. Add a missing class to the component layer rather than inlining utilities in markup.
-- Gotcha: `@apply hidden` inside `@layer components` is a circular-dependency error. Use raw `display:none`.
-
-The live-API batch seed (former `seed` subcommand) is not yet web-ported. Recover it from git history if a Local seeding flow is needed.
+- The served sheet `wwwroot/styles.css` is generated on every build and gitignored. Compilation is pure C#: the `EggIncognito.CssBuild` console tool runs MonorailCss (a Tailwind-v4-compatible engine) over `Styles/app.v4.css`, merged with the shared `EggIdentity.Styles` component classes. No CLI download, no Node, no executable anywhere.
+- To restyle: edit `Styles/app.v4.css` and rebuild. Tokens live in its `@theme` block; app chrome is its component classes; the app's own definitions win any name collision with the shared `EggIdentity.Styles` set.
+- The Razor components emit semantic class names; the source sheet defines them. Add a missing class there rather than inlining utilities in markup.
+- Utility class names used only in dynamically-built C# strings are still found because the tool scans `.cs` files; genuinely invisible names go in the tool's `ContentSafelist`.
+- The 1:1 visual gate is the `EggIdentity.StyleVerify` computed-style harness against the golden baselines in the EggIdentity repo, never a text diff of the sheets.
 
 ## Inspector send targets
 

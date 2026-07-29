@@ -8,11 +8,11 @@ public class ImportTabStyleTests(SharedAppFactory f) {
     private readonly WebApplicationFactory<Program> _f = f;
 
     [Fact]
-    public async Task ImportPage_UsesTailwind_NotBespokeSheet() {
+    public async Task ImportPage_UsesSharedSheet_NotBespokeSheet() {
         var c = _f.CreateClient();
         string html = await c.GetStringAsync("/import");
         Assert.DoesNotContain("import/styles.css", html);
-        Assert.Contains("/tailwind.css", html);
+        Assert.Contains("/styles.css", html);
         Assert.Contains("class=\"panel\"", html);
     }
 
@@ -27,7 +27,7 @@ public class ImportTabStyleTests(SharedAppFactory f) {
     [Fact]
     public async Task CompiledSheet_DefinesComponentClasses() {
         var c = _f.CreateClient();
-        string css = await c.GetStringAsync("/tailwind.css");
+        string css = await c.GetStringAsync("/styles.css");
 
         Assert.Contains(".panel", css);
         Assert.Contains(".dropzone", css);

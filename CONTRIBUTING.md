@@ -23,13 +23,7 @@ dotnet run --project EggIncognito
 
 The source generator runs as part of `dotnet build`. Never edit generated files. They are overwritten every build.
 
-The served Tailwind sheet `EggIncognito/wwwroot/tailwind.css` is a committed artifact; the build does not recompile it. When you change the Tailwind source (`wwwroot/app.tailwind.css` or a Razor class), regenerate and commit the sheet:
-
-```sh
-dotnet build -p:BuildTailwindCss=true
-```
-
-That opt-in build fetches the standalone Tailwind CLI once into `obj/tailwind/` (gitignored) and recompiles the sheet.
+The served stylesheet `EggIncognito/wwwroot/styles.css` is generated on every build (gitignored, never committed). The source is `EggIncognito/Styles/app.v4.css` (Tailwind v4 syntax), compiled in pure C# by the `EggIncognito.CssBuild` tool via MonorailCss plus the shared `EggIdentity.Styles` component classes. No CLI download, no Node, no executable fetch. Skip the CSS step with `-p:BuildStylesCss=false` if you need to.
 
 ## Adding an endpoint
 

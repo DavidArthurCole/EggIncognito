@@ -60,6 +60,69 @@ public class SymbolRecoveryTests {
         Assert.Equal(vm + 8, rec.Value);
     }
 
+    private static uint AddImm(int rd, int rn, uint imm12) =>
+        0x91000000u | ((imm12 & 0xFFF) << 10) | (uint)((rn & 0x1F) << 5) | (uint)(rd & 0x1F);
+
+    private static uint LdrDImm(int rt, int rn, uint imm12) =>
+        0xFD400000u | ((imm12 & 0xFFF) << 10) | (uint)((rn & 0x1F) << 5) | (uint)(rt & 0x1F);
+
+    private static uint Adrp(int rd) => 0x90000000u | (uint)(rd & 0x1F);
+
+    private static byte[] BigDataFunc(uint addImm, uint ldrImm, uint movConst) {
+        var ws = new List<uint> { Adrp(8), AddImm(8, 8, addImm), LdrDImm(0, 8, ldrImm), MovZ(1, movConst) };
+        while (ws.Count < 63) ws.Add(Nop());
+        ws.Add(Ret());
+        return Words([.. ws]);
+    }
+
+    [Fact]
+    public void Recover_LooseTier_RecoversBigFunctionWithShiftedDataOffsets_NotChangedConstants() {
+        const ulong vm = SyntheticMacho.TextVm;
+
+        byte[] refFuncA = BigDataFunc(0x100, 0x40, 7);
+        byte[] refFuncB = BigDataFunc(0x200, 0x80, 9);
+        byte[] tail = Words(Ret());
+        byte[] refText = [.. refFuncA, .. refFuncB, .. tail];
+        byte[] refb = SyntheticMacho.Build(refText, new[] {
+            new SyntheticMacho.Sym("__GLOBAL__sub_I_boostmanager.cpp", vm),
+            new SyntheticMacho.Sym("__ZN5OtherC2Ev", vm + (ulong)refFuncA.Length),
+            new SyntheticMacho.Sym("__Ztail", vm + (ulong)(refFuncA.Length + refFuncB.Length))
+        });
+
+        byte[] pad = Words(Nop(), Nop());
+        byte[] tgtFuncA = BigDataFunc(0x700, 0x90, 7);
+        byte[] tgtFuncBChanged = BigDataFunc(0x200, 0x80, 11);
+        byte[] tgtText = [.. pad, .. tgtFuncA, .. tgtFuncBChanged];
+        byte[] tgt = SyntheticMacho.Build(tgtText, []);
+
+        var r = SymbolRecovery.Recover(refb, tgt, ["boostmanager", "Other"]);
+        Assert.Contains(r.Symbols, s => s.Name == "__GLOBAL__sub_I_boostmanager.cpp" && s.Value == vm + 8);
+        Assert.DoesNotContain(r.Symbols, s => s.Name == "__ZN5OtherC2Ev");
+        Assert.Contains("boostmanager", r.RequestedFound);
+        Assert.Contains("Other", r.RequestedMissing);
+    }
+
+    [Fact]
+    public void Recover_LooseTier_DropsAmbiguousTwins() {
+        const ulong vm = SyntheticMacho.TextVm;
+
+        byte[] twinA = BigDataFunc(0x100, 0x40, 7);
+        byte[] twinB = BigDataFunc(0x300, 0x60, 7);
+        byte[] refText = [.. twinA, .. twinB, .. Words(Ret())];
+        byte[] refb = SyntheticMacho.Build(refText, new[] {
+            new SyntheticMacho.Sym("__ZN4TwinAC2Ev", vm),
+            new SyntheticMacho.Sym("__ZN4TwinBC2Ev", vm + (ulong)twinA.Length),
+            new SyntheticMacho.Sym("__Ztail", vm + (ulong)(twinA.Length * 2))
+        });
+
+        byte[] tgtText = [.. Words(Nop(), Nop()), .. BigDataFunc(0x500, 0x80, 7)];
+        byte[] tgt = SyntheticMacho.Build(tgtText, []);
+
+        var r = SymbolRecovery.Recover(refb, tgt, ["TwinA", "TwinB"]);
+        Assert.DoesNotContain(r.Symbols, s => s.Name == "__ZN4TwinAC2Ev");
+        Assert.DoesNotContain(r.Symbols, s => s.Name == "__ZN4TwinBC2Ev");
+    }
+
     [Fact]
     public void Recover_None_WhenTargetHasNoText() {
         byte[] refb = SyntheticMacho.Build(Words(Ret()),

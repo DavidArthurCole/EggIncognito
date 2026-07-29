@@ -11,6 +11,7 @@ COPY EggIncognito.Bot/EggIncognito.Bot.csproj EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/EggIncognito.RouteGenerator.csproj EggIncognito.RouteGenerator/
 COPY EggIncognito.GameData/EggIncognito.GameData.csproj EggIncognito.GameData/
 COPY EggIncognito.DeviceTools/EggIncognito.DeviceTools.csproj EggIncognito.DeviceTools/
+COPY EggIncognito.CssBuild/EggIncognito.CssBuild.csproj EggIncognito.CssBuild/
 COPY EggIncognito/EggIncognito.csproj EggIncognito/
 ARG GITHUB_PACKAGES_USER
 RUN --mount=type=secret,id=github_token \
@@ -20,7 +21,8 @@ RUN --mount=type=secret,id=github_token \
       --password "$(cat /run/secrets/github_token)" \
       --store-password-in-clear-text \
       --configfile nuget.config \
-    && dotnet restore EggIncognito/EggIncognito.csproj
+    && dotnet restore EggIncognito/EggIncognito.csproj \
+    && dotnet restore EggIncognito.CssBuild/EggIncognito.CssBuild.csproj
 
 COPY EggIncognito.Core/ EggIncognito.Core/
 COPY EggIncognito.Capture/ EggIncognito.Capture/
@@ -29,11 +31,8 @@ COPY EggIncognito.Bot/ EggIncognito.Bot/
 COPY EggIncognito.RouteGenerator/ EggIncognito.RouteGenerator/
 COPY EggIncognito.GameData/ EggIncognito.GameData/
 COPY EggIncognito.DeviceTools/ EggIncognito.DeviceTools/
+COPY EggIncognito.CssBuild/ EggIncognito.CssBuild/
 COPY EggIncognito/ EggIncognito/
-
-RUN set -eux; \
-    test -s EggIncognito/wwwroot/tailwind.css; \
-    grep -q "btn-primary" EggIncognito/wwwroot/tailwind.css
 
 ARG GIT_SHA
 ARG APP_VERSION
@@ -44,7 +43,8 @@ RUN --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
     [ -n "$APP_VERSION" ] && STAMP="$STAMP -p:Version=$APP_VERSION"; \
     dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
         -p:EmitTypes=false $STAMP; \
-    test -s /app/publish/wwwroot/tailwind.css; \
+    test -s /app/publish/wwwroot/styles.css; \
+    grep -q "btn-primary" /app/publish/wwwroot/styles.css; \
     test -s /app/publish/wwwroot/_framework/blazor.web.js
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime

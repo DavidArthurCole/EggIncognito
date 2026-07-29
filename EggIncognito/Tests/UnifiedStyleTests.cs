@@ -10,17 +10,17 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
     [Theory]
     [InlineData("/inspector")]
     [InlineData("/capture")]
-    public async Task Page_DoesNotLinkBespokeSheet_AndLinksTailwind(string path) {
+    public async Task Page_LinksCompiledSheet_NotTailwind(string path) {
         var c = _f.CreateClient();
         string html = await c.GetStringAsync(path);
-        Assert.DoesNotContain("href=\"styles.css\"", html);
-        Assert.Contains("/tailwind.css", html);
+        Assert.Contains("/styles.css", html);
+        Assert.DoesNotContain("/tailwind.css", html);
     }
 
     [Fact]
     public async Task CompiledSheet_DefinesUnifiedComponentVocabulary() {
         var c = _f.CreateClient();
-        string css = await c.GetStringAsync("/tailwind.css");
+        string css = await c.GetStringAsync("/styles.css");
         foreach (string cls in new[] {
                      ".panel", ".btn-primary", ".icon-btn", ".settings-menu",
                      ".pill", ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".cap-stat",
@@ -37,17 +37,33 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
     }
 
     [Fact]
+    public async Task CompiledSheet_KeepsDynamicallyReferencedClasses() {
+        var c = _f.CreateClient();
+        string css = await c.GetStringAsync("/styles.css");
+        foreach (string cls in new[] {
+                     ".status-2xx", ".status-3xx", ".status-4xx", ".status-5xx",
+                     ".jv-string", ".jv-number", ".jv-boolean", ".jv-null",
+                     ".toast-info", ".perk-chip", ".admin-panel", ".sub-section",
+                     ".bg-picker", ".picker"
+                 }) {
+            Assert.Contains(cls, css);
+        }
+    }
+
+    [Fact]
     public async Task BtnPrimary_IsAccentOrange_NotAccent2Blue() {
         var c = _f.CreateClient();
-        string css = await c.GetStringAsync("/tailwind.css");
+        string css = await c.GetStringAsync("/styles.css");
 
+        Assert.Contains("#ef7559", css);
 
         var m = BtnPrimaryRegex().Match(css);
         Assert.True(m.Success, ".btn-primary rule not found");
-        Assert.Contains("239 117 89", m.Value);
-        Assert.DoesNotContain("90 169 230", m.Value);
+        Assert.Contains("var(--color-accent)", m.Value);
+        Assert.DoesNotContain("accent2", m.Value);
+        Assert.DoesNotContain("#5aa9e6", m.Value);
     }
 
-    [GeneratedRegex(@"\.btn-primary\{[^}]*\}")]
+    [GeneratedRegex(@"^\s*\.btn-primary\s*\{[^}]*\}", RegexOptions.Multiline)]
     private static partial Regex BtnPrimaryRegex();
 }
