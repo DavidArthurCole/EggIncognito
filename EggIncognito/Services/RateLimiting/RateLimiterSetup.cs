@@ -90,6 +90,9 @@ public static class RateLimiterSetup {
         var user = ctx.RequestServices.GetRequiredService<ICurrentUser>();
         if (IsExempt(user)) return RateLimitPartition.GetNoLimiter($"admin:{user.DiscordId}");
 
+        if (ctx.Request.RouteValues.TryGetValue("group", out var group) && (string?)group == "asset")
+            return Partition(ctx, "Read", opts);
+
         bool hosted = ctx.RequestServices.GetRequiredService<IAppMode>().Mode == AppMode.Hosted;
 
         if (ctx.User.FindFirst(ApiKeyGen.Claim) is { } keyClaim) {
