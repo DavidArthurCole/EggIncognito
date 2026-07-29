@@ -13,8 +13,16 @@ public static class BoostCatalogBuilder {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    public static BuildResult Build(byte[] bin, string configJson, string binaryVersion) {
-        var entries = BoostCatalogExtractor.Extract(bin).Entries;
+    public static BuildResult Build(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
+        IReadOnlyList<MachoSections.Section> sections, string configJson, string binaryVersion) {
+        var extracted = BoostCatalogExtractor.ExtractWith(bin, syms, sections);
+        if (!extracted.Ok || extracted.Entries.Count == 0) {
+            throw new InvalidOperationException(extracted.Diagnostics is { Length: > 0 } d
+                ? d
+                : $"boost extraction produced no entries ({BoostCatalogExtractor.InitSymbol} unresolved?)");
+        }
+
+        var entries = extracted.Entries;
         var costs = BoostCostExtractor.FromConfigJson(configJson);
 
         var rows = new List<BoostCatalogBuildRow>(entries.Count);
@@ -44,9 +52,6 @@ public static class BoostCatalogBuilder {
     }
 
     public static string Serialize(BoostCatalogBuildFile file) => JsonSerializer.Serialize(file, CamelJson);
-
-    public static string BuildJson(byte[] bin, string configJson, string binaryVersion) =>
-        Serialize(Build(bin, configJson, binaryVersion).File);
 
     public sealed record BoostCatalogBuildRow(
         string Id,
