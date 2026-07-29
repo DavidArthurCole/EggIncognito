@@ -16,7 +16,7 @@
 
         <div class="flex gap-2 flex-wrap mb-3 text-xs">
             <span class="code-chip">@(Result.Messages.Count) messages</span>
-            <button type="button" class="code-chip" title="@Result.ProtoSha" @onclick="@(() => Copy(Result.ProtoSha))">
+            <button type="button" class="code-chip" @onclick="@(() => Copy(Result.ProtoSha))">
                 sha @Short(Result.ProtoSha)
             </button>
         </div>

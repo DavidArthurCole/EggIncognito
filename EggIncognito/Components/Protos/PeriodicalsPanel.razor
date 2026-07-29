@@ -18,7 +18,7 @@
                 <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
                 <div class="flex flex-wrap gap-1.5">
                     @foreach (var e in _events) {
-                        <span class="event-pill @(RemainingSeconds(e) <= 0 ? "ended" : "")" title="@e.Type">
+                        <span class="event-pill @(RemainingSeconds(e) <= 0 ? "ended" : "")">
                             @if (!string.IsNullOrEmpty(e.Icon)) {
                                 <span class="event-icon" style="@IconStyle(e)">
                                     <img src="@e.Icon" alt="" loading="lazy"/>
@@ -55,9 +55,9 @@
                                                     <span class="mono text-muted text-xs">@Kb(b)</span>
                                                 }
                                                 @if (s.Meta is { } m && !string.IsNullOrEmpty(m.BinaryVersion)) {
-                                                    <span class="ds-meta-chip" title="@ProvenanceTitle(s)">v@(m.BinaryVersion)</span>
+                                                    <span class="ds-meta-chip">v@(m.BinaryVersion)</span>
                                                 } else if (s.Meta?.Provenance is not null) {
-                                                    <span class="ds-meta-chip" title="@ProvenanceTitle(s)">prov</span>
+                                                    <span class="ds-meta-chip">prov</span>
                                                 }
                                             </Badges>
                                         </PeriodicalDataset>
@@ -71,9 +71,9 @@
                                                                 <span class="mono text-muted text-xs">@Kb(kb)</span>
                                                             }
                                                             @if (k.Meta is { } km && !string.IsNullOrEmpty(km.BinaryVersion)) {
-                                                                <span class="ds-meta-chip" title="@ProvenanceTitle(k)">v@(km.BinaryVersion)</span>
+                                                                <span class="ds-meta-chip">v@(km.BinaryVersion)</span>
                                                             } else if (k.Meta?.Provenance is not null) {
-                                                                <span class="ds-meta-chip" title="@ProvenanceTitle(k)">prov</span>
+                                                                <span class="ds-meta-chip">prov</span>
                                                             }
                                                         </Badges>
                                                     </PeriodicalDataset>
@@ -154,7 +154,7 @@
                             @foreach (var g in grades) {
                                 <th>
                                     @if (!string.IsNullOrEmpty(g.GradeIcon)) {
-                                        <img src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" title="@GradeLabel(g.Grade)" style="width:28px;height:28px;object-fit:contain" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
+                                        <img src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" style="width:28px;height:28px;object-fit:contain" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
                                         <span style="display:none">@GradeLabel(g.Grade)</span>
                                     } else {
                                         @GradeLabel(g.Grade)
@@ -329,11 +329,6 @@
         if (bytes < 1024) return $"{bytes}B";
         var kb = bytes / 1024;
         return kb >= 1000 ? $"{kb / 1000}MB" : $"{kb}KB";
-    }
-
-    static string ProvenanceTitle(Source s) {
-        if (s.Meta?.Provenance is not { } prov) return "";
-        return $"provenance: {JsonSerializer.Serialize(prov)}";
     }
 
     void MoveSeason(int delta) {

@@ -113,7 +113,7 @@
             @foreach (var s in _subs) {
                 <div class="sub-item">
                     <div class="sub-item-hook">
-                        <span class="font-mono text-xs truncate" title="@s.UrlMasked">@s.UrlMasked</span>
+                        <span class="font-mono text-xs truncate">@s.UrlMasked</span>
                         @if (!string.IsNullOrWhiteSpace(s.Label)) {
                             <span class="text-muted text-xs">(@s.Label)</span>
                         }

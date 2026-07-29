@@ -4,7 +4,7 @@
 <div class="@RowClass">
     <div class="ds-head flex items-center justify-between gap-3 cursor-pointer" @onclick="Toggle">
         <div class="flex items-center gap-2 min-w-0">
-            <span class="font-medium truncate" title="@Endpoint">@Title</span>
+            <span class="font-medium truncate">@Title</span>
             @Badges
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
@@ -43,7 +43,7 @@
     bool _copied;
     IJSObjectReference? _copy;
 
-    string CopyTitle => _copied ? "Copied" : Endpoint;
+    string CopyTitle => _copied ? "Copied" : "Copy endpoint path";
 
     async Task Toggle() {
         _open = !_open;

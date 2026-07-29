@@ -16,7 +16,7 @@
             @foreach (var d in _devices) {
                 var act = State(d.Id);
                 <div class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
-                    <span class="@(d.Reachable ? "text-green-500" : "text-red-500") shrink-0" title="@(d.Reachable ? "reachable" : "unreachable")">
+                    <span class="@(d.Reachable ? "text-green-500" : "text-red-500") shrink-0">
                         <Icon Name="@PlatformIcon(d.Platform)"/>
                     </span>
                     <div class="min-w-0 flex-1 max-w-[19rem]">
@@ -24,13 +24,13 @@
                             <span class="text-sm font-medium truncate">@d.Label</span>
                             @if (Capture(d.Id) is { } cap) {
                                 var v = CaptureVerdict(cap);
-                                <span class="@v.Color shrink-0 self-center inline-flex" title="@(v.Color == "text-green-400" ? null : v.Label)">
+                                <span class="@v.Color shrink-0 self-center inline-flex">
                                     <Icon Name="@CaptureIcon(v.Color)" Class="icon-sm"/>
                                 </span>
                             }
-                            <span class="text-xs text-muted opacity-60 whitespace-nowrap shrink-0" title="@d.ProbedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")">@Ago(d.ProbedAt)</span>
+                            <span class="text-xs text-muted opacity-60 whitespace-nowrap shrink-0">@Ago(d.ProbedAt)</span>
                             @if (d.Result == "new_version") {
-                                <span class="dev-badge-new" title="Installed version can populate new registry version">NEW</span>
+                                <span class="dev-badge-new">NEW</span>
                             }
                         </div>
                         <div class="text-xs mt-0.5 flex items-center gap-2">

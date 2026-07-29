@@ -75,7 +75,7 @@
                         <td>
                             <input class="protos-filter w-full" style="min-width:4rem" placeholder="-" @bind="r.ClientVersion"/>
                         </td>
-                        <td class="text-xs text-muted font-mono" title="@r.ProtoSha">@Short(r.ProtoSha)</td>
+                        <td class="text-xs text-muted font-mono">@Short(r.ProtoSha)</td>
                         <td class="text-xs text-muted">
                             @if (r.OriginRepo is not null) {
                                 <span>@r.OriginRepo</span>
