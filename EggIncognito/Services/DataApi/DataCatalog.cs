@@ -9,6 +9,7 @@ namespace EggIncognito.Services.DataApi;
 
 public sealed class DataCatalog {
     public const string PeriodicalsRoute = "ei/get_periodicals";
+    private const string ConfigRoute = "ei/get_config";
 
     private static readonly JsonSerializerOptions SnakeJson = new() {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
@@ -83,7 +84,7 @@ public sealed class DataCatalog {
             "ei_ctx/get_season_infos_v2", "season-infos",
             p => new BasicRequestInfo { Platform = p }.ToByteArray(), listed: false),
         Wire("config", "Game config", "Raw get_config response fixture.",
-            "ei/get_config", null,
+            ConfigRoute, null,
             p => new ConfigRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
 
         new("colleggtibles", "periodical", "Colleggtibles",
@@ -97,6 +98,16 @@ public sealed class DataCatalog {
             DataProvenance.DerivedExtract, DataAccess.Public,
             "ei_afx/config", null, new DataRefresh(false), false,
             ProduceEiAfx, Extends: "afx-config"),
+
+        DlcSlice("items", "items", "DLC items", "DLC store items sliced from the get_config dlcCatalog."),
+        DlcSlice("shells", "shells", "Shells", "Shell specs sliced from the get_config dlcCatalog."),
+        DlcSlice("shell-sets", "shellSets", "Shell sets", "Shell set specs sliced from the get_config dlcCatalog."),
+        DlcSlice("shell-objects", "shellObjects", "Shell objects",
+            "Shell object specs sliced from the get_config dlcCatalog."),
+        DlcSlice("shell-groups", "shellGroups", "Shell groups",
+            "Shell group specs sliced from the get_config dlcCatalog."),
+        DlcSlice("decorators", "decorators", "Decorators",
+            "Decorator set specs sliced from the get_config dlcCatalog."),
 
         Derived("boost-catalog", "Boost catalog",
             "All 33 boosts: identity, costs, effects and durations, extracted from boostmanager + get_config.",
@@ -128,6 +139,13 @@ public sealed class DataCatalog {
         Func<DataProduceContext, CancellationToken, Task<DataPayload?>> produce) =>
         new(id, "gamedata", display, desc, DataProvenance.Database, DataAccess.Public,
             null, null, new DataRefresh(false), false, produce);
+
+    private static DataSource DlcSlice(string id, string field, string display, string desc) =>
+        new(id, "periodical", display, desc, DataProvenance.DerivedExtract, DataAccess.Public,
+            null, null, new DataRefresh(false), false,
+            (ctx, _) => Task.FromResult(ctx.Services.GetRequiredService<ConfigSliceCache>()
+                .Slice(ctx.Services, ConfigRoute, field)),
+            Extends: "config");
 
     private static string DefaultsDir(IServiceProvider services) {
         var config = services.GetRequiredService<IConfiguration>();

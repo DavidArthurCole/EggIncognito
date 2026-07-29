@@ -16,10 +16,28 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
     [HttpGet]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Index(CancellationToken ct) {
-        var listed = catalog.Sources.Where(s => s.Listed).ToList();
-        var items = new List<object>(listed.Count);
-        foreach (var s in listed) {
+        var roots = catalog.Sources.Where(s => s.Extends is null && s.Listed).ToList();
+        var items = new List<object>(roots.Count);
+        foreach (var s in roots) {
             var payload = await ProduceOf(s, ct);
+            var children = new List<object>();
+            foreach (var child in catalog.Children(s).Where(c => c.Listed)) {
+                var childPayload = await ProduceOf(child, ct);
+                children.Add(new {
+                    child.Id,
+                    child.Group,
+                    url = catalog.UrlFor(child),
+                    displayName = child.DisplayName,
+                    description = child.Description,
+                    provenance = child.Provenance.ToString(),
+                    access = child.Access.ToString(),
+                    feed = child.Feed,
+                    acceptsName = child.AcceptsName,
+                    bytes = childPayload?.Bytes.LongLength,
+                    meta = MetaOf(child, childPayload)
+                });
+            }
+
             items.Add(new {
                 s.Id,
                 s.Group,
@@ -29,15 +47,15 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
                 provenance = s.Provenance.ToString(),
                 access = s.Access.ToString(),
                 feed = s.Feed,
-                extends = s.Extends,
                 acceptsName = s.AcceptsName,
                 bytes = payload?.Bytes.LongLength,
                 meta = MetaOf(s, payload),
-                refresh = new { s.Refresh.Egress, deviceTrigger = s.Refresh.Device is not null }
+                refresh = new { s.Refresh.Egress, deviceTrigger = s.Refresh.Device is not null },
+                children
             });
         }
 
-        return Ok(new { count = listed.Count, sources = items });
+        return Ok(new { count = items.Count, sources = items });
     }
 
     private async Task<DataPayload?> ProduceOf(DataSource s, CancellationToken ct) {

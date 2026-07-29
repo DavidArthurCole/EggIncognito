@@ -2,19 +2,8 @@
 @rendermode @(RenderMode.InteractiveServer)
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
-@inject ICurrentUser User
 
-<p class="text-muted text-xs mb-3">A test message is sent to the webhook on save.</p>
-
-@if (!_isAuthed) {
-    <div class="sub-login-note">
-        <p class="text-muted text-sm m-0 mb-2">
-            Subscriptions are tied to your account. Log in to create and
-            manage webhook notifications.
-        </p>
-        <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
-    </div>
-} else if (_done is not null) {
+@if (_done is not null) {
     <div class="sub-done">
         <div class="sub-done-icon">
             <Icon Name="check"/>
@@ -29,6 +18,8 @@
     </div>
     <button type="button" class="btn-primary mt-4" @onclick="Reset">Add another</button>
 } else {
+    <p class="text-muted text-xs mb-3">A test message is sent to the webhook on save.</p>
+
     <div class="sub-form">
         <label class="sub-field">
             <span class="sub-field-label">Discord webhook URL</span>
@@ -94,9 +85,7 @@
 
 <div class="sub-manage">
     <div class="sub-section-head mb-2">Your subscriptions</div>
-    @if (!_isAuthed) {
-        <p class="text-muted text-sm m-0">Log in to manage your subscriptions.</p>
-    } else if (_subs is null) {
+    @if (_subs is null) {
         <p class="text-muted text-sm m-0">Loading...</p>
     } else if (_subs.Count == 0) {
         <p class="text-muted text-sm m-0">No subscriptions yet.</p>
@@ -133,8 +122,8 @@
                                 }
                             </select>
                             <textarea class="field-input w-full font-mono text-xs mt-2" rows="3"
-                        placeholder="Custom message (blank = default embed)"
-                        @bind="_editMessageTemplate" @bind:event="oninput"></textarea>
+                                placeholder="Custom message (blank = default embed)"
+                                @bind="_editMessageTemplate" @bind:event="oninput"></textarea>
                             <div class="sub-item-actions">
                                 <button type="button" class="btn-mini" disabled="@_saving" @onclick="() => SaveEdit(s.Id)">Save</button>
                                 <button type="button" class="btn-mini" disabled="@_saving" @onclick="CancelEdit">Cancel</button>
@@ -196,7 +185,6 @@
     string _baseAddress = "";
     string? _cookie;
 
-    bool _isAuthed;
     List<Sub>? _subs;
     bool _deleting;
     bool _deleted;
@@ -251,13 +239,11 @@
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
-
-        _isAuthed = User.IsAuthenticated;
     }
 
     protected override async Task OnInitializedAsync() {
         await LoadKinds();
-        if (_isAuthed) await LoadSubs();
+        await LoadSubs();
     }
 
     async Task LoadKinds() {
@@ -385,7 +371,7 @@
             var res = await Client().PostAsJsonAsync("/api/protos/feed", body, JsonOpts);
             if (res.IsSuccessStatusCode) {
                 _done = new Confirmation(KindLabel(_eventKind), TriggerLabel(_eventKind, _trigger));
-                if (_isAuthed) await LoadSubs();
+                await LoadSubs();
             } else {
                 var err = await res.Content.ReadFromJsonAsync<ErrorBody>(JsonOpts);
                 _error = err?.Error ?? $"Subscription failed ({(int)res.StatusCode}).";

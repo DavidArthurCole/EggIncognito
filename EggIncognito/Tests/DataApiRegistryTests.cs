@@ -70,6 +70,34 @@ public class DataApiRegistryTests {
     }
 
     [Fact]
+    public void Catalog_ConfigChildren_MatchExpectedSet() {
+        var c = new DataCatalog();
+        var config = c.ById("periodical", "config");
+        Assert.NotNull(config);
+        var children = c.Children(config);
+        string[] ids = [.. children.Select(s => s.Id).OrderBy(x => x, StringComparer.Ordinal)];
+        string[] expected = [
+            "decorators", "items", "shell-groups", "shell-objects", "shell-sets", "shells"
+        ];
+        Assert.Equal(expected, ids);
+        Assert.All(children, s => {
+            Assert.Equal(DataAccess.Public, s.Access);
+            Assert.Equal(DataProvenance.DerivedExtract, s.Provenance);
+            Assert.Null(s.Feed);
+            Assert.False(s.Refresh.Egress);
+            Assert.True(s.Listed);
+        });
+    }
+
+    [Fact]
+    public void Catalog_ByChild_ResolvesShellSetsUnderConfig() {
+        var c = new DataCatalog();
+        var src = c.ByChild("periodical", "config", "shell-sets");
+        Assert.NotNull(src);
+        Assert.Equal("/api/v1/data/periodical/config/shell-sets", c.UrlFor(src));
+    }
+
+    [Fact]
     public void RateLimitOptions_HasDataPolicies() {
         var o = RateLimitOptions.Defaults();
         Assert.True(o.Tiers.ContainsKey("Keyed"));

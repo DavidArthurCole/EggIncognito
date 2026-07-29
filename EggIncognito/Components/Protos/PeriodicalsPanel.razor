@@ -36,7 +36,7 @@
                 <h3 class="text-sm font-semibold mt-0 mb-3">Data</h3>
                 <div class="ds-groups">
                     @foreach (var grp in Groups) {
-                        var rows = _catalog.Sources.Where(s => s.Group == grp.Key && s.Extends is null).ToList();
+                        var rows = _catalog.Sources.Where(s => s.Group == grp.Key).ToList();
                         if (rows.Count == 0) {
                             continue;
                         }
@@ -45,7 +45,6 @@
                             <div class="ds-section-label">@grp.Label</div>
                             <div class="ds-list">
                                 @foreach (var s in rows) {
-                                    var kids = _catalog.Sources.Where(k => k.Group == grp.Key && k.Extends == s.Id).ToList();
                                     <div class="ds-item">
                                         <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
                                                            DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc">
@@ -60,24 +59,8 @@
                                                 }
                                             </Badges>
                                         </PeriodicalDataset>
-                                        @if (kids.Count > 0) {
-                                            <div class="ds-children">
-                                                @foreach (var k in kids) {
-                                                    <PeriodicalDataset Title="@k.DisplayName" Endpoint="@k.Url"
-                                                                       DownloadName="@($"{k.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc">
-                                                        <Badges>
-                                                            @if (k.Bytes is { } kb) {
-                                                                <span class="mono text-muted text-xs">@Kb(kb)</span>
-                                                            }
-                                                            @if (k.Meta is { } km && !string.IsNullOrEmpty(km.BinaryVersion)) {
-                                                                <span class="ds-meta-chip">v@(km.BinaryVersion)</span>
-                                                            } else if (k.Meta?.Provenance is not null) {
-                                                                <span class="ds-meta-chip">prov</span>
-                                                            }
-                                                        </Badges>
-                                                    </PeriodicalDataset>
-                                                }
-                                            </div>
+                                        @if (s.Children is { Count: > 0 }) {
+                                            <SubDatasetChips Items="ChipsOf(s)" Fetch="Fetch" View="_view" FormatChoice="_fc"/>
                                         }
                                     </div>
                                 }
@@ -345,6 +328,14 @@
         if (bytes < 1024) return $"{bytes}B";
         var kb = bytes / 1024;
         return kb >= 1000 ? $"{kb / 1000}MB" : $"{kb}KB";
+    }
+
+    static List<SubDatasetChips.SubDataset> ChipsOf(Source s) {
+        return (s.Children ?? []).Select(k => new SubDatasetChips.SubDataset(k.DisplayName, k.Url, $"{k.Id}.json", k.Bytes, VersionOf(k))).ToList();
+    }
+
+    static string? VersionOf(Source k) {
+        return k.Meta is { } m && !string.IsNullOrEmpty(m.BinaryVersion) ? m.BinaryVersion : null;
     }
 
     void MoveSeason(int delta) {
@@ -627,10 +618,10 @@
         string Provenance,
         string Access,
         string? Feed,
-        string? Extends,
         bool AcceptsName,
         long? Bytes,
-        MetaRow? Meta);
+        MetaRow? Meta,
+        List<Source>? Children);
 
     record MetaRow(string? BinaryVersion, JsonElement? Provenance);
 

@@ -1,24 +1,36 @@
-@* Modal wrapper around ProtoSubscribePanel. The trigger lives wherever the caller places <ProtoSubscribeModal />;
-   Open()/Close() are exposed for the caller's button via @ref. *@
 @rendermode @(RenderMode.InteractiveServer)
+@inject ICurrentUser User
 
 @if (_open) {
     <div class="modal-backdrop" @onclick="Close">
         <div class="modal-card" @onclick:stopPropagation="true">
             <div class="modal-head">
-                <h3 class="modal-title">Notifications</h3>
+                <h3 class="modal-title">@Title</h3>
                 <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
                     <Icon Name="x"/>
                 </button>
             </div>
             <div class="modal-body">
-                <ProtoSubscribePanel/>
+                @if (User.IsAuthenticated) {
+                    @ChildContent
+                } else {
+                    <div class="sub-login-note">
+                        <p class="text-muted text-sm m-0 mb-2">@LoginPrompt</p>
+                        <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
+                    </div>
+                }
             </div>
         </div>
     </div>
 }
 
 @code {
+    [Parameter] public string Title { get; set; } = "";
+
+    [Parameter] public string LoginPrompt { get; set; } = "Log in to continue.";
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
     bool _open;
 
     public void Open() {

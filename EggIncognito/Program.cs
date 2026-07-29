@@ -141,6 +141,7 @@ builder.Services.AddScoped<GameDataRebuilder>();
 builder.Services.AddSingleton<GameConfigStore>();
 builder.Services.AddSingleton<PeriodicalsChangeNotifier>();
 builder.Services.AddSingleton<DataCatalog>();
+builder.Services.AddSingleton<ConfigSliceCache>();
 var sealedProxyOptions = SealedProxyOptions.FromConfig(builder.Configuration);
 builder.Services.AddSingleton(sealedProxyOptions);
 builder.Services.AddSingleton<ISealedProxy, SealedProxy>();

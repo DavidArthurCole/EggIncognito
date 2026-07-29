@@ -60,16 +60,14 @@
                 </div>
                 <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _subscribeModal?.Open())">Manage notifications</button>
             </div>
-            @if (_isAuthenticated) {
-                <div class="w-px self-stretch bg-border"></div>
-                <div class="w-52 flex flex-col justify-between gap-2">
-                    <div>
-                        <h3 class="text-sm font-semibold m-0">API keys</h3>
-                        <p class="text-muted text-xs m-0 mt-1">Programmatic access to the data API.</p>
-                    </div>
-                    <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _apiKeysModal?.Open())">Manage API keys</button>
+            <div class="w-px self-stretch bg-border"></div>
+            <div class="w-52 flex flex-col justify-between gap-2">
+                <div>
+                    <h3 class="text-sm font-semibold m-0">API keys</h3>
+                    <p class="text-muted text-xs m-0 mt-1">Programmatic access to the data API.</p>
                 </div>
-            }
+                <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _apiKeysModal?.Open())">Manage API keys</button>
+            </div>
         </section>
     </div>
 
@@ -225,17 +223,19 @@
                                 </td>
                                 <td class="text-muted text-xs whitespace-nowrap">@primary.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
                                 <td class="reg-actions" @onclick:stopPropagation="true">
-                                    <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
-                                       href="@($"/api/protos/versions/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}/proto")"
-                                       title="Download .proto" aria-label="Download .proto">
-                                        <Icon Name="download"/>
-                                    </a>
-                                    @if (_canWrite) {
-                                        <button type="button" class="reg-edit-btn @(_editingKey == rel.Key ? "active" : "")"
-                                                title="Edit" aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
-                                            <Icon Name="pencil"/>
-                                        </button>
-                                    }
+                                    <div class="reg-actions-row">
+                                        <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
+                                           href="@($"/api/protos/versions/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}/proto")"
+                                           title="Download .proto" aria-label="Download .proto">
+                                            <Icon Name="download"/>
+                                        </a>
+                                        @if (_canWrite) {
+                                            <button type="button" class="reg-edit-btn @(_editingKey == rel.Key ? "active" : "")"
+                                                    title="Edit" aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
+                                                <Icon Name="pencil"/>
+                                            </button>
+                                        }
+                                    </div>
                                 </td>
                             </tr>
                             @if (_canWrite && _editingKey == rel.Key) {
@@ -258,8 +258,12 @@
     </div>
 </main>
 
-<ProtoSubscribeModal @ref="_subscribeModal"/>
-<ApiKeysModal @ref="_apiKeysModal"/>
+<LoggedInModal @ref="_subscribeModal" Title="Notifications" LoginPrompt="Log in to manage webhook notifications.">
+    <ProtoSubscribePanel/>
+</LoggedInModal>
+<LoggedInModal @ref="_apiKeysModal" Title="API keys" LoginPrompt="Log in to manage API keys.">
+    <ApiKeysPanel/>
+</LoggedInModal>
 
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -276,7 +280,6 @@
     bool _isAdmin;
     bool _isContributor;
     bool _canWrite;
-    bool _isAuthenticated;
 
 
     string _sortCol = "appVersion";
@@ -287,8 +290,8 @@
     int? _editingKey;
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
-    ProtoSubscribeModal? _subscribeModal;
-    ApiKeysModal? _apiKeysModal;
+    LoggedInModal? _subscribeModal;
+    LoggedInModal? _apiKeysModal;
 
     string _serverVersion = "";
     string _serverSha = "";
@@ -406,7 +409,6 @@
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         _isContributor = User.IsAtLeast(UserRole.Contributor);
         _canWrite = User.IsAtLeast(UserRole.Contributor);
-        _isAuthenticated = User.IsAuthenticated;
 
         var b = BuildInfo.FromAssembly("https://github.com/davidarthurcole/EggIncognito");
         _serverVersion = $"v{b.Version}";
@@ -540,7 +542,7 @@
     void ToggleRow(VersionRow r) {
         var existing = _selected.FirstOrDefault(k => k.Platform == r.Platform && k.Build == r.Build);
         if (existing is not null) _selected.Remove(existing);
-        else _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
+        else _selected.Add(new VersionKey(r.Platform, r.Build));
     }
 
     bool AllSelected => Sorted.Count > 0 && Sorted.All(IsSelected);
@@ -549,7 +551,7 @@
         _selected.Clear();
         if (e.Value is true)
             foreach (var r in Sorted)
-                _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
+                _selected.Add(new VersionKey(r.Platform, r.Build));
     }
 
 
@@ -559,7 +561,7 @@
             var existing = _selected.FirstOrDefault(k => k.Platform == m.Platform && k.Build == m.Build);
             if (allSelected) {
                 if (existing is not null) _selected.Remove(existing);
-            } else if (existing is null) _selected.Add(new ProtoSelectionBar.VersionKey(m.Platform, m.Build));
+            } else if (existing is null) _selected.Add(new VersionKey(m.Platform, m.Build));
         }
     }
 
@@ -574,7 +576,7 @@
 
     List<ProtoEditDialog.Row> EditTargets(Release rel) {
         return rel.Members
-            .Select(m => new ProtoEditDialog.Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
+            .Select(m => new Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
             .ToList();
     }
 

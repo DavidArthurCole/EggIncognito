@@ -1,5 +1,6 @@
 @* Admin bulk-action bar, shown when >=1 registry row is selected. Soft-delete the selection, or merge
-   it into a chosen canonical (the first selected row by default). Server ACL is the real gate. *@
+   it into one grouped release; the canonical is picked automatically since members are the same version
+   and all platforms stay visible on the grouped row. Server ACL is the real gate. *@
 
 <div class="panel flex items-center gap-3 flex-wrap mb-3">
     <span class="text-fg text-sm font-semibold">@Selected.Count selected</span>
@@ -7,17 +8,7 @@
     <button type="button" class="btn-mini" disabled="@_busy" @onclick="DeleteSelected">Delete</button>
 
     @if (Selected.Count >= 2) {
-        <div class="flex items-center gap-2">
-            <label class="text-xs text-muted">
-                Merge into
-                <select class="protos-filter" @bind="_canonical">
-                    @foreach (var k in Selected) {
-                        <option value="@Key(k)">@k.Platform/@k.Build</option>
-                    }
-                </select>
-            </label>
-            <button type="button" class="btn-mini" disabled="@_busy" @onclick="MergeSelected">Merge</button>
-        </div>
+        <button type="button" class="btn-mini" disabled="@_busy" @onclick="MergeSelected">Merge</button>
     }
 
     <button type="button" class="btn-mini" @onclick="@(() => OnClear.InvokeAsync())">Clear</button>
@@ -32,13 +23,8 @@
 
     bool _busy;
     string _msg = "";
-    string? _canonical;
 
     public sealed record VersionKey(string Platform, string Build);
-
-    static string Key(VersionKey k) {
-        return $"{k.Platform}|{k.Build}";
-    }
 
     async Task DeleteSelected() {
         _busy = true;
@@ -52,12 +38,14 @@
     async Task MergeSelected() {
         _busy = true;
         _msg = "";
-        var canonKey = _canonical ?? Key(Selected[0]);
-        var parts = canonKey.Split('|');
-        var canonical = new VersionKey(parts[0], parts[1]);
-        var aliases = Selected.Where(k => Key(k) != canonKey).ToList();
+        var ordered = Selected
+            .OrderBy(k => k.Platform, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(k => k.Build, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var canonical = ordered[0];
+        var aliases = ordered.Skip(1).ToList();
         var ok = await Post("/api/protos/versions/merge", new { canonical, aliases });
-        _msg = ok ? $"merged {aliases.Count} into {canonical.Platform}/{canonical.Build}" : "err: merge failed (admin only?)";
+        _msg = ok ? $"merged {Selected.Count} builds into one release" : "err: merge failed (admin only?)";
         _busy = false;
         if (ok) await OnChanged.InvokeAsync();
     }
