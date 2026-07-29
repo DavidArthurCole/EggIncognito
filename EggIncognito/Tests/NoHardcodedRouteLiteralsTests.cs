@@ -2,7 +2,7 @@ namespace EggIncognito.Tests;
 
 public class NoHardcodedRouteLiteralsTests {
     private static readonly string[] Routes =
-        ["ei/get_periodicals", "ei_afx/config", "ei_ctx/get_season_infos_v2"];
+        ["ei/get_periodicals", "ei_afx/config", "ei_ctx/get_season_infos_v2", "ei/get_config"];
 
     private static readonly string[] Allowed = ["DataCatalog.cs", "FeedEventKinds.cs"];
 

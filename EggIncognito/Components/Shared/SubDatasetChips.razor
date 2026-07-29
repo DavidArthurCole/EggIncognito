@@ -38,6 +38,7 @@
 }
 
 @code {
+
     public record SubDataset(string Title, string Endpoint, string DownloadName, long? Bytes, string? VersionChip);
 
     [Parameter] public List<SubDataset> Items { get; set; } = [];
@@ -55,6 +56,7 @@
     string CopyTitle => _copied ? "Copied" : "Copy endpoint path";
 
     async Task Select(SubDataset item) {
+        _copied = false;
         if (_selected == item.Endpoint) {
             _selected = null;
             return;
@@ -80,6 +82,8 @@
         }
     }
 
-    static string Kb(long bytes) => $"{bytes / 1024.0:0.#} KB";
+    static string Kb(long bytes) {
+        return $"{bytes / 1024.0:0.#} KB";
+    }
 
 }

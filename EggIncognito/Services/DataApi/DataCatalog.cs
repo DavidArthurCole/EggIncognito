@@ -9,7 +9,7 @@ namespace EggIncognito.Services.DataApi;
 
 public sealed class DataCatalog {
     public const string PeriodicalsRoute = "ei/get_periodicals";
-    private const string ConfigRoute = "ei/get_config";
+    internal const string ConfigRoute = "ei/get_config";
 
     private static readonly JsonSerializerOptions SnakeJson = new() {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
@@ -280,7 +280,7 @@ public sealed class DataCatalog {
     private static Task<DataPayload?> ProduceEiAfx(DataProduceContext ctx, CancellationToken ct) {
         string? afx = FixtureText(ctx.Services, "ei_afx/config");
         if (afx is null) return Task.FromResult<DataPayload?>(null);
-        string? configJson = FixtureText(ctx.Services, "ei/get_config");
+        string? configJson = FixtureText(ctx.Services, ConfigRoute);
         IReadOnlyDictionary<string, string> icons = new Dictionary<string, string>();
         if (configJson is not null) {
             try {

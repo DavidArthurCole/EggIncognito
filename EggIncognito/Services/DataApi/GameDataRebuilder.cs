@@ -25,7 +25,7 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
             var sections = MachoSections.Read(bin);
 
             await LandAsync(results, "boost-catalog", () => {
-                string configJson = DataCatalog.FixtureText(services, "ei/get_config") ?? "{}";
+                string configJson = DataCatalog.FixtureText(services, DataCatalog.ConfigRoute) ?? "{}";
                 var built = BoostCatalogBuilder.Build(bin, syms, sections, configJson, version);
                 string? note = built.MissingCosts.Count > 0
                     ? $"{built.MissingCosts.Count} ids without costs: {string.Join(", ", built.MissingCosts)}"
