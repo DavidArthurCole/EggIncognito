@@ -19,6 +19,8 @@ public class StoredBinary {
 
     [Column("native_symbol_count")] public int NativeSymbolCount { get; set; }
 
+    [Column("effective_symbol_count")] public int EffectiveSymbolCount { get; set; }
+
     [Column("source")] public string Source { get; set; } = "";
 
     [Column("pulled_at")] public DateTimeOffset PulledAt { get; set; }

@@ -40,6 +40,19 @@
   .ds-item { @apply py-1; }
   .ds-children { @apply ml-2.5 mt-0.5 mb-1 pl-3 border-l border-border/60 flex flex-col gap-0.5; }
   .ds-meta-chip { @apply inline-flex items-center rounded bg-panel2 text-muted font-mono text-[10px] px-1.5 py-0.5; }
+  .ds-groups { @apply flex flex-col gap-3; }
+  .ds-groups > * + * { @apply border-t border-border pt-3; }
+
+  .panel-hcards { overflow: visible; }
+  .hcard-wrap { @apply relative inline-flex; }
+  .hcard {
+    @apply hidden absolute left-1/2 bottom-full z-40 -translate-x-1/2 mb-1.5 flex-col gap-0.5 whitespace-nowrap
+           rounded-md border border-border bg-bg px-3 py-2;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .5);
+  }
+  .hcard-wrap:hover .hcard { @apply flex; }
+  .hcard-title { @apply text-xs font-semibold text-accent; }
+  .hcard-line { @apply text-[11px] text-muted; }
 
   .ds-state { @apply flex flex-col items-start gap-0.5 whitespace-nowrap; }
   .ds-state-k { @apply text-[10px] uppercase tracking-wide text-muted; }

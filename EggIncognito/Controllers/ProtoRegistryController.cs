@@ -114,7 +114,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
 
     [HttpGet("/api/protos/staged/check")]
-    [ApiAccess(ApiAccessLevel.Authenticated)]
+    [ApiAccess(ApiAccessLevel.Public)]
     public async Task<IActionResult> StagedCheck([FromQuery] string protoSha, CancellationToken ct) {
         if (StagedStore is not { } s) return Ok(new { inRegistry = false, pending = false });
         (bool inReg, bool pending) = await s.CheckAsync(protoSha, ct);

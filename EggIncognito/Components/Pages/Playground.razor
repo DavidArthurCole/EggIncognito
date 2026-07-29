@@ -51,7 +51,7 @@
                                 <div class="pg-menu-label">History (v@_currentVersion)</div>
                                 @foreach (var v in _versions) {
                                     <button class="pg-menu-item" disabled="@(v.VersionNo == _currentVersion)" @onclick="() => MenuRollback(v.VersionNo)">
-                                        v@(v.VersionNo)@(v.VersionNo == _currentVersion ? " (current)" : "")@(string.IsNullOrEmpty(v.Note) ? "" : $" — {v.Note}")
+                                        v@(v.VersionNo)@(v.VersionNo == _currentVersion ? " (current)" : "")@(string.IsNullOrEmpty(v.Note) ? "" : $": {v.Note}")
                                     </button>
                                 }
 

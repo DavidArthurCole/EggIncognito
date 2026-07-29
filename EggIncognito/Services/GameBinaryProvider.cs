@@ -218,7 +218,7 @@ public sealed class GameBinaryProvider(
         var resolved = ResolveSymbols(pulled);
         string note = $"live pull sha {sha[..12]}; {resolved.Note}";
 
-        await PersistPullAsync(platform, version, pulled, sha, resolved.NativeCount, ct);
+        await PersistPullAsync(platform, version, pulled, sha, resolved.NativeCount, resolved.Syms.Count, ct);
 
         lock (LiveGate) {
             LiveCache[platform] = (sha, pulled, resolved.Syms, resolved.Grafted, DateTimeOffset.UtcNow);
@@ -257,12 +257,12 @@ public sealed class GameBinaryProvider(
     }
 
     private async Task PersistPullAsync(string platform, string? version, byte[] bytes, string sha, int nativeCount,
-        CancellationToken ct) {
+        int effectiveCount, CancellationToken ct) {
         var store = BinaryStore;
         if (store is null) return;
         if (string.IsNullOrEmpty(version)) return;
         try {
-            await store.PutAsync(platform, version, sha, bytes, nativeCount, "live", ct);
+            await store.PutAsync(platform, version, sha, bytes, nativeCount, effectiveCount, "live", ct);
         } catch (Exception ex) {
             logger.LogWarning(ex, "failed to persist pulled binary {Platform} {Version}", platform, version);
         }

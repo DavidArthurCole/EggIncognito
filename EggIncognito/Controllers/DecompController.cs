@@ -470,6 +470,7 @@ public sealed class DecompController(
                 sha256 = b.Sha256,
                 byteSize = b.ByteSize,
                 nativeSymbols = b.NativeSymbolCount,
+                effectiveSymbols = b.EffectiveSymbolCount,
                 b.Source,
                 pulledAt = b.PulledAt
             }).ToList()

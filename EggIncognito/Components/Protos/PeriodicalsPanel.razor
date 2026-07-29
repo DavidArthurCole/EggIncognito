@@ -2,15 +2,14 @@
 @using System.Text.Json
 @using EggIncognito.Components.Capture
 @implements IAsyncDisposable
-@inject ICurrentUser User
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
 
-@if (!_isAdmin) {
-    <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft"/></div>
-} else if (_summary is null && _catalog is null) {
+@if (!_loaded) {
     <div class="panel text-muted text-sm">Loading…</div>
+} else if (_summary is null && _catalog is null) {
+    <div class="panel text-muted text-sm">No data available right now.</div>
 } else {
     <div class="flex flex-col gap-6">
         @if (_events is { Count: > 0 }) {
@@ -35,7 +34,7 @@
         @if (_catalog is not null) {
             <section class="panel">
                 <h3 class="text-sm font-semibold mt-0 mb-3">Data</h3>
-                <div class="flex flex-col gap-3">
+                <div class="ds-groups">
                     @foreach (var grp in Groups) {
                         var rows = _catalog.Sources.Where(s => s.Group == grp.Key && s.Extends is null).ToList();
                         if (rows.Count == 0) {
@@ -92,7 +91,7 @@
         @if (_seasons is { Count: > 0 } seasonList) {
             var season = seasonList[Math.Clamp(_seasonIx, 0, seasonList.Count - 1)];
             var grades = season.GradeGoals.Where(g => g.Goals.Count > 0).ToList();
-            <section class="panel">
+            <section class="panel panel-hcards">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-sm font-semibold m-0">Seasons</h3>
                     <div class="flex items-center gap-1">
@@ -108,7 +107,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="flex items-start justify-between gap-4 mb-3">
+                <div class="flex items-start gap-10 mb-3">
                     <div class="flex items-center gap-3 min-w-0">
                         <div class="bg-bg border border-border rounded overflow-hidden text-center w-14 shrink-0">
                             <div class="bg-accent text-bg text-[10px] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
@@ -134,9 +133,9 @@
                                             <img src="@egg.Icon" alt="@egg.Id" loading="lazy" style="width:40px;height:40px;object-fit:contain"/>
                                         }
                                         <div class="min-w-0">
-                                            <div class="text-xs font-medium">@Pretty(egg.Id)</div>
+                                            <div class="text-xs font-medium">@TitleCase(egg.Id)</div>
                                             @if (egg.Contracts is { Count: > 0 } cnames) {
-                                                <div class="text-muted text-[11px]">Released with @string.Join(", ", cnames)</div>
+                                                <div class="text-muted text-[11px]">@string.Join(", ", cnames)</div>
                                             }
                                         </div>
                                     </div>
@@ -147,10 +146,10 @@
                 </div>
                 @if (grades.Count > 0) {
                     var goalCount = grades.Max(g => g.Goals.Count);
-                    <table class="reg-table">
+                    <table class="reg-table" @key="season.Id">
                         <thead>
                         <tr>
-                            <th class="w-20">CXP Goal</th>
+                            <th class="w-12">Goal</th>
                             @foreach (var g in grades) {
                                 <th>
                                     @if (!string.IsNullOrEmpty(g.GradeIcon)) {
@@ -172,13 +171,28 @@
                                     <td class="text-xs">
                                         @if (goalIx < g.Goals.Count) {
                                             var goal = g.Goals[goalIx];
-                                            <div class="mono text-muted">@FormatAmount(goal.Cxp)</div>
-                                            <div class="flex items-center gap-1.5">
-                                                @if (!string.IsNullOrEmpty(goal.Icon)) {
-                                                    <img src="@goal.Icon" alt="" style="width:18px;height:18px;object-fit:contain" loading="lazy" onerror="this.style.display='none'"/>
-                                                }
-                                                @RewardLabel(goal)
-                                            </div>
+                                            <div class="mono text-muted text-center">@FormatAmount(goal.Cxp) CS</div>
+                                            <span class="hcard-wrap">
+                                                <span class="flex items-center gap-1.5">
+                                                    @if (!string.IsNullOrEmpty(goal.Icon)) {
+                                                        <img src="@goal.Icon" alt="" style="width:18px;height:18px;object-fit:contain" loading="lazy" onerror="this.style.display='none'"/>
+                                                    }
+                                                    @RewardLabel(goal)
+                                                </span>
+                                                <span class="hcard">
+                                                    <span class="hcard-title">@RewardFullName(goal)</span>
+                                                    <span class="hcard-line">@goal.RewardAmount.ToString("N0") @RewardFullNoun(goal)</span>
+                                                    @if (BoostInfo(goal) is { } bi) {
+                                                        @if (bi.Duration is { } bd) {
+                                                            <span class="hcard-line">Lasts @bd</span>
+                                                        }
+
+                                                        @if (bi.Effect is { } be) {
+                                                            <span class="hcard-line">@be</span>
+                                                        }
+                                                    }
+                                                </span>
+                                            </span>
                                         }
                                     </td>
                                 }
@@ -233,7 +247,7 @@
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    bool _isAdmin;
+    bool _loaded;
     Summary? _summary;
     DataResponse? _catalog;
     string? _catalogError;
@@ -252,14 +266,11 @@
     ];
 
     protected override async Task OnInitializedAsync() {
-        _isAdmin = User.IsAtLeast(UserRole.Admin);
         var req = HttpContextAccessor.HttpContext?.Request;
         if (req is not null) {
             _baseAddress = $"{req.Scheme}://{req.Host}";
             _cookie = req.Headers.Cookie;
         }
-
-        if (!_isAdmin) return;
 
         try {
             var fetched = await Client().GetFromJsonAsync<Summary>("/api/periodicals/summary", JsonOpts);
@@ -291,6 +302,8 @@
         catch {
         }
 
+        await LoadBoostCatalog();
+
         try {
             var res = await Client().GetAsync("/api/v1/data");
             if (res.IsSuccessStatusCode) {
@@ -305,6 +318,9 @@
         }
         catch (Exception ex) {
             _catalogError = ex.Message;
+        }
+        finally {
+            _loaded = true;
         }
     }
 
@@ -386,18 +402,17 @@
 
     static string RewardName(string rewardType, string? subType, bool plural) {
         return rewardType switch {
-            "Gold" => plural ? "Golden Eggs" : "Golden Egg",
+            "Gold" => "GE",
             "SoulEggs" => plural ? "Soul Eggs" : "Soul Egg",
-            "EggsOfProphecy" => plural ? "Eggs of Prophecy" : "Egg of Prophecy",
-            "ShellScript" => plural ? "Shell Tickets" : "Shell Ticket",
-            "PiggyFill" => "Piggy Fill",
+            "EggsOfProphecy" => "PE",
+            "ShellScript" => "Tickets",
             "PiggyMultiplier" => plural ? "Piggy Multipliers" : "Piggy Multiplier",
             "PiggyLevelBump" => plural ? "Piggy Level Bumps" : "Piggy Level Bump",
             "Boost" => Pretty(subType ?? ""),
             "EpicResearchItem" => Pretty(subType ?? ""),
             "BoostToken" => plural ? "Boost Tokens" : "Boost Token",
             "Artifact" => plural ? "Artifacts" : "Artifact",
-            "ArtifactCase" => plural ? "Artifact Cases" : "Artifact Case",
+            "ArtifactCase" => "Artifacts",
             "Chicken" => plural ? "Chicken Boxes" : "Chicken Box",
             "VirtueGem" => plural ? "Virtue Gems" : "Virtue Gem",
             "Cash" => "Cash",
@@ -405,8 +420,93 @@
         };
     }
 
+    sealed record BoostMeta(string DisplayName, string? Duration, string? Effect);
+
+    readonly Dictionary<string, BoostMeta> _boosts = new(StringComparer.Ordinal);
+
+    BoostMeta? BoostInfo(GoalRow g) {
+        if (g.RewardType != "Boost" || string.IsNullOrEmpty(g.RewardSubType)) return null;
+        if (_boosts.TryGetValue(g.RewardSubType, out var meta)) return meta;
+        var bare = g.RewardSubType.EndsWith("_v2", StringComparison.Ordinal)
+            ? g.RewardSubType[..^3]
+            : g.RewardSubType;
+        return _boosts.GetValueOrDefault(bare);
+    }
+
+    static string FormatDuration(double seconds) {
+        if (seconds >= 3600) return $"{seconds / 3600:0.#}h";
+        if (seconds >= 60) return $"{seconds / 60:0.#}m";
+        return $"{seconds:0}s";
+    }
+
+    async Task LoadBoostCatalog() {
+        try {
+            var res = await Client().GetAsync("/api/v1/data/gamedata/boost-catalog");
+            if (!res.IsSuccessStatusCode) return;
+            using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+            if (!doc.RootElement.TryGetProperty("boosts", out var arr)) return;
+            foreach (var b in arr.EnumerateArray()) {
+                var id = b.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                if (string.IsNullOrEmpty(id)) continue;
+                var dn = b.TryGetProperty("displayName", out var dnEl) ? dnEl.GetString() : null;
+                var dur = b.TryGetProperty("durationSeconds", out var duEl)
+                          && duEl.TryGetDouble(out var ds) && ds > 0
+                    ? FormatDuration(ds)
+                    : null;
+                string? eff = null;
+                if (b.TryGetProperty("magnitude", out var mgEl) && mgEl.TryGetDouble(out var mg) && mg > 0) {
+                    var tgt = b.TryGetProperty("target", out var tEl) ? tEl.GetString() ?? "" : "";
+                    eff = tgt.Length > 0
+                        ? $"{FormatAmount(mg)}x {Pretty(tgt.StartsWith("bd-", StringComparison.Ordinal) ? tgt[3..] : tgt)}"
+                        : $"{FormatAmount(mg)}x";
+                }
+
+                _boosts[id] = new BoostMeta(string.IsNullOrEmpty(dn) ? TitleCase(id) : dn, dur, eff);
+            }
+        }
+        catch {
+        }
+    }
+
+    string RewardFullName(GoalRow g) {
+        return g.RewardType switch {
+            "Gold" => "Golden Eggs",
+            "EggsOfProphecy" => "Eggs of Prophecy",
+            "ShellScript" => "Shell Tickets",
+            "PiggyFill" => "Piggy Fill",
+            "ArtifactCase" => "Artifact Case",
+            "Boost" => BoostInfo(g)?.DisplayName ?? Pretty(g.RewardSubType),
+            "EpicResearchItem" => Pretty(g.RewardSubType),
+            _ => RewardName(g.RewardType, g.RewardSubType, true)
+        };
+    }
+
+    static string RewardFullNoun(GoalRow g) {
+        var one = g.RewardAmount == 1;
+        return g.RewardType switch {
+            "Gold" => one ? "golden egg" : "golden eggs",
+            "EggsOfProphecy" => one ? "egg of prophecy" : "eggs of prophecy",
+            "ShellScript" => one ? "shell ticket" : "shell tickets",
+            "PiggyFill" => "added to the piggy bank",
+            "ArtifactCase" => one ? "artifact case" : "artifact cases",
+            "Boost" => one ? "boost" : "boosts",
+            "EpicResearchItem" => one ? "level" : "levels",
+            "BoostToken" => one ? "boost token" : "boost tokens",
+            "SoulEggs" => one ? "soul egg" : "soul eggs",
+            "VirtueGem" => one ? "virtue gem" : "virtue gems",
+            "Chicken" => one ? "chicken box" : "chicken boxes",
+            _ => ""
+        };
+    }
+
     static string RewardLabel(GoalRow g) {
+        if (g.RewardType == "PiggyFill") return $"+{FormatAmount(g.RewardAmount)} Piggy";
         return $"{FormatAmount(g.RewardAmount)} {RewardName(g.RewardType, g.RewardSubType, g.RewardAmount != 1)}";
+    }
+
+    static string TitleCase(string raw) {
+        return string.Join(' ', raw.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => char.ToUpperInvariant(w[0]) + w[1..]));
     }
 
     static string Pretty(string raw) {

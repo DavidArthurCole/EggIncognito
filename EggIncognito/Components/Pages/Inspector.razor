@@ -858,7 +858,7 @@
         var bits = new List<string>();
         if (e.PathParam && !string.IsNullOrWhiteSpace(_pathParam)) bits.Add(_pathParam.Trim());
         bits.Add(_target);
-        return string.Join(" · ", bits);
+        return string.Join(" / ", bits);
     }
 
 

@@ -114,7 +114,7 @@ public sealed class DataCatalog {
             DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceIcon),
 
         new("event-icon", "asset", "Event icon",
-            "Composited event icon PNG by event type (E9K-style colored background + glyph).",
+            "Composited event icon PNG by event type (colored background + glyph).",
             DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceEventIcon)
     ];
 

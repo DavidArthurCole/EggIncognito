@@ -4,8 +4,8 @@ using Microsoft.EntityFrameworkCore;
 namespace EggIncognito.Data.Services;
 
 public sealed record StoredBinaryInfo(
-    string Platform, string AppVersion, string Sha256, long ByteSize, int NativeSymbolCount, string Source,
-    DateTimeOffset PulledAt);
+    string Platform, string AppVersion, string Sha256, long ByteSize, int NativeSymbolCount, int EffectiveSymbolCount,
+    string Source, DateTimeOffset PulledAt);
 
 public sealed class GameBinaryStore(EggIncognitoDbContext db) {
     public Task<StoredBinary?> GetAsync(string platform, string version, CancellationToken ct = default) =>
@@ -30,7 +30,7 @@ public sealed class GameBinaryStore(EggIncognitoDbContext db) {
             .FirstOrDefaultAsync(ct);
 
     public async Task PutAsync(string platform, string version, string sha256, byte[] bytes, int nativeSymbolCount,
-        string source, CancellationToken ct = default) {
+        int effectiveSymbolCount, string source, CancellationToken ct = default) {
         var row = await db.StoredBinaries.FirstOrDefaultAsync(b => b.Platform == platform && b.AppVersion == version, ct);
         if (row is null) {
             db.StoredBinaries.Add(new StoredBinary {
@@ -40,6 +40,7 @@ public sealed class GameBinaryStore(EggIncognitoDbContext db) {
                 Bytes = bytes,
                 ByteSize = bytes.LongLength,
                 NativeSymbolCount = nativeSymbolCount,
+                EffectiveSymbolCount = effectiveSymbolCount,
                 Source = source,
                 PulledAt = DateTimeOffset.UtcNow
             });
@@ -48,6 +49,7 @@ public sealed class GameBinaryStore(EggIncognitoDbContext db) {
             row.Bytes = bytes;
             row.ByteSize = bytes.LongLength;
             row.NativeSymbolCount = nativeSymbolCount;
+            row.EffectiveSymbolCount = effectiveSymbolCount;
             row.Source = source;
             row.PulledAt = DateTimeOffset.UtcNow;
         }
@@ -59,6 +61,6 @@ public sealed class GameBinaryStore(EggIncognitoDbContext db) {
         db.StoredBinaries.AsNoTracking()
             .OrderByDescending(b => b.PulledAt)
             .Select(b => new StoredBinaryInfo(b.Platform, b.AppVersion, b.Sha256, b.ByteSize, b.NativeSymbolCount,
-                b.Source, b.PulledAt))
+                b.EffectiveSymbolCount, b.Source, b.PulledAt))
             .ToListAsync(ct);
 }

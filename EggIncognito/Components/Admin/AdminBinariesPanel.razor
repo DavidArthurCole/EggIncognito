@@ -27,7 +27,12 @@
                         <td class="text-xs">@b.Platform</td>
                         <td class="mono text-xs">@ShaShort(b.Sha256)</td>
                         <td class="mono text-xs">@SizeMb(b.ByteSize)</td>
-                        <td class="mono text-xs">@b.NativeSymbols.ToString("N0")</td>
+                        <td class="mono text-xs">
+                            @EffectiveSymbols(b).ToString("N0")
+                            @if (b.EffectiveSymbols > b.NativeSymbols) {
+                                <span class="text-muted"> (@b.NativeSymbols.ToString("N0") native + graft)</span>
+                            }
+                        </td>
                         <td class="text-xs">@b.Source</td>
                         <td class="text-muted text-xs">@b.PulledAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
                         <td>
@@ -114,12 +119,17 @@
         return $"{bytes / 1024d / 1024d:F1} MB";
     }
 
+    static int EffectiveSymbols(Row b) {
+        return b.EffectiveSymbols > 0 ? b.EffectiveSymbols : b.NativeSymbols;
+    }
+
     record Row(
         string Platform,
         string Version,
         string Sha256,
         long ByteSize,
         int NativeSymbols,
+        int EffectiveSymbols,
         string Source,
         DateTimeOffset PulledAt);
 

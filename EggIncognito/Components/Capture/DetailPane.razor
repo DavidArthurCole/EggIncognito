@@ -251,7 +251,7 @@
 
         builder.OpenElement(seq++, "div");
         builder.AddAttribute(seq++, "class", "muted image-meta");
-        builder.AddContent(seq, $"{mime} · ~{FormatBytes(bytes)}");
+        builder.AddContent(seq, $"{mime}, ~{FormatBytes(bytes)}");
         builder.CloseElement();
 
         builder.CloseElement();

@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using EggIdentity.Contract;
 using EggIncognito.Core.Services.Assets;
 using EggIncognito.Data.Services;
 using EggIncognito.GameData;
@@ -19,7 +18,7 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [Route("api/periodicals")]
-[ApiAccess(ApiAccessLevel.Admin)]
+[ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
 public sealed class PeriodicalsController(
     ICurrentUser currentUser,
@@ -40,13 +39,11 @@ public sealed class PeriodicalsController(
     private IEnumerable<DataSource> WireSources =>
         catalog.ByGroup("periodical").Where(s => s.Provenance == DataProvenance.WireFixture);
 
-    private ObjectResult? RequireAdmin() =>
-        currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
+    private ObjectResult? RequireAuthenticated() =>
+        currentUser.IsAuthenticated ? null : StatusCode(401, new { error = "authentication required" });
 
     [HttpGet("summary")]
     public IActionResult Summary() {
-        if (RequireAdmin() is { } no) return no;
-
         var extracted = new List<object>();
         object? colleggtibles = null;
         if (services.GetService(typeof(GameDataStore)) is GameDataStore gdStore && gdStore.Provider is { } provider) {
@@ -95,7 +92,6 @@ public sealed class PeriodicalsController(
 
     [HttpGet("seasons")]
     public async Task<IActionResult> Seasons(CancellationToken ct) {
-        if (RequireAdmin() is { } no) return no;
         string? route = catalog.ById("periodical", "season-infos")?.WireRoute;
         if (route is null) return NotFound(new { error = "season source missing" });
         string path = FixturePath(route);
@@ -213,8 +209,9 @@ public sealed class PeriodicalsController(
             .Select(w => w.Length > 0 ? char.ToUpperInvariant(w[0]) + w[1..] : w));
 
     [HttpGet("feed/{name}")]
+    [ApiAccess(ApiAccessLevel.Authenticated)]
     public async Task<IActionResult> Feed(string name, CancellationToken ct) {
-        if (RequireAdmin() is { } no) return no;
+        if (RequireAuthenticated() is { } no) return no;
         var src = WireSources.FirstOrDefault(s => string.Equals(s.Feed, name, StringComparison.Ordinal));
         if (src is null) return NotFound(new { error = "unknown feed" });
 
@@ -226,7 +223,6 @@ public sealed class PeriodicalsController(
 
     [HttpGet("gamedata/{key}")]
     public async Task<IActionResult> GameData(string key, CancellationToken ct) {
-        if (RequireAdmin() is { } no) return no;
         var src = catalog.ById("gamedata", key);
         if (src is null) return NotFound(new { error = "unknown dataset" });
 
@@ -238,7 +234,6 @@ public sealed class PeriodicalsController(
 
     [HttpGet("eiafx-data")]
     public async Task<IActionResult> EiAfxData(CancellationToken ct) {
-        if (RequireAdmin() is { } no) return no;
         var src = catalog.ByChild("periodical", "afx-config", "eiafx");
         if (src is null) return NotFound(new { error = "eiafx source missing" });
 
@@ -250,7 +245,6 @@ public sealed class PeriodicalsController(
 
     [HttpGet("current")]
     public async Task<IActionResult> Current(CancellationToken ct) {
-        if (RequireAdmin() is { } no) return no;
         string? route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
         (string? json, DateTimeOffset? capturedAt) = await ResolveCurrentJson(route, ct);
         if (json is null) return NotFound(new { error = "no periodicals capture available" });

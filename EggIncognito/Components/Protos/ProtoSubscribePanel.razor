@@ -150,7 +150,7 @@
                             <span class="@(s.Active ? "text-green-400" : "text-muted")">@(s.Active ? "active" : "paused")</span>
                             <span class="text-muted">last @(s.LastDeliveryAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "never")</span>
                             @if (s.FailCount > 0) {
-                                <span class="text-err">@s.FailCount fails</span>
+                                <span class="text-err">@s.FailCount @(s.FailCount == 1 ? "fail" : "fails")</span>
                             }
                         </div>
                         <div class="sub-item-actions">
