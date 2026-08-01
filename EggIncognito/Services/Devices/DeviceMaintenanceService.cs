@@ -14,7 +14,13 @@ public sealed class DeviceMaintenanceService(
     IEnumerable<IDeviceStoreChecker> storeCheckers,
     IConfiguration appConfig,
     ILogger<DeviceMaintenanceService> logger) : BackgroundService {
+    private static readonly TimeSpan ClimbHarvestBackoff = TimeSpan.FromMinutes(30);
     private readonly bool _syncEnabled = appConfig.GetValue("DeviceSync:Enabled", false);
+
+#pragma warning disable IDE0028
+    private readonly Dictionary<string, (string Build, DateTimeOffset At)> _lastClimbHarvest =
+        new(StringComparer.OrdinalIgnoreCase);
+#pragma warning restore IDE0028
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         if (!config.Enabled || config.Devices.Count == 0) {
@@ -83,8 +89,18 @@ public sealed class DeviceMaintenanceService(
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
             if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledBuild)) continue;
             var harvested = proxyPusher.LastRinfo(d.Id);
-            if (harvested is not null && string.Equals(harvested.Build, probe.InstalledBuild, StringComparison.Ordinal))
+            if (harvested is not null &&
+                string.Equals(harvested.Build, probe.InstalledBuild, StringComparison.Ordinal)) {
                 continue;
+            }
+
+            if (_lastClimbHarvest.TryGetValue(d.Id, out var last)
+                && string.Equals(last.Build, probe.InstalledBuild, StringComparison.Ordinal)
+                && time.GetUtcNow() - last.At < ClimbHarvestBackoff) {
+                continue;
+            }
+
+            _lastClimbHarvest[d.Id] = (probe.InstalledBuild!, time.GetUtcNow());
 
             try {
                 logger.LogInformation(
