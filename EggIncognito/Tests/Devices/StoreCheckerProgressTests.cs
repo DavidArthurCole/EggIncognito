@@ -13,6 +13,11 @@ public class StoreCheckerProgressTests {
         "<hierarchy><node text=\"Open\" bounds=\"[718,551][851,608]\"/>" +
         "<node text=\"Uninstall\" bounds=\"[200,551][333,608]\"/></hierarchy>";
 
+    private const string UiMajorUpdate =
+        "<hierarchy><node text=\"Play\" bounds=\"[718,551][851,608]\"/>" +
+        "<node text=\"Uninstall\" bounds=\"[200,551][333,608]\"/>" +
+        "<node text=\"Update available\" bounds=\"[113,1683][376,1728]\"/></hierarchy>";
+
     private static DeviceTarget Target => new("a", "android", "SER", "com.auxbrain.egginc");
 
     private static AndroidPlayStoreChecker Checker(FakeRunner runner, int attempts) =>
@@ -38,6 +43,37 @@ public class StoreCheckerProgressTests {
         Assert.False(result.Installed);
         Assert.NotEmpty(rounds);
         Assert.DoesNotContain(rounds, m => m.Contains("waiting", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task MajorUpdateAdvertised_NotReportedCurrent() {
+        var runner = new FakeRunner(args => {
+            return args.Contains("dumpsys")
+                ? new ProcessResult(0, "versionName=1.0\n", "")
+                : args.Any(a => a.Contains("cat"))
+                    ? new ProcessResult(0, UiMajorUpdate, "")
+                    : new ProcessResult(0, "", "");
+        });
+        var checker = Checker(runner, 4);
+
+        var result = await checker.CheckAndUpdateAsync(Target, default);
+
+        Assert.NotEqual("up_to_date", result.Action);
+        Assert.False(result.Installed);
+    }
+
+    [Fact]
+    public async Task PageNeverLoads_NotReportedCurrent() {
+        var runner = new FakeRunner(args => {
+            return args.Contains("dumpsys")
+                ? new ProcessResult(0, "versionName=1.0\n", "")
+                : new ProcessResult(0, "", "");
+        });
+        var checker = Checker(runner, 2);
+
+        var result = await checker.CheckAndUpdateAsync(Target, default);
+
+        Assert.NotEqual("up_to_date", result.Action);
     }
 
     [Fact]
@@ -67,7 +103,13 @@ public class StoreCheckerProgressTests {
 
     [Fact]
     public async Task NullProgress_NoThrow() {
-        var runner = new FakeRunner(_ => new ProcessResult(0, "versionName=1.0\n", ""));
+        var runner = new FakeRunner(args => {
+            return args.Contains("dumpsys")
+                ? new ProcessResult(0, "versionName=1.0\n", "")
+                : args.Any(a => a.Contains("cat"))
+                    ? new ProcessResult(0, UiNoUpdate, "")
+                    : new ProcessResult(0, "", "");
+        });
         var checker = Checker(runner, 2);
         var result = await checker.CheckAndUpdateAsync(Target, default);
         Assert.Equal("up_to_date", result.Action);
