@@ -273,23 +273,6 @@ public sealed class DevicesController(
             }
 
 
-            jobs.Progress(id, "reading installed version…");
-            IDeviceProbe preProbe = string.Equals(target.Platform, "ios", StringComparison.OrdinalIgnoreCase)
-                ? new IosDeviceProbe(runner, target.Target, target.Package)
-                : new AdbDeviceProbe(runner, target.Target, target.Package);
-            var probe = await preProbe.ProbeAsync(CancellationToken.None);
-            string? storeLatest = await StoreAheadCheck.StoreLatestAsync(db, target.Platform, CancellationToken.None);
-            if (probe.Reachable && !StoreAheadCheck.IsAhead(storeLatest, probe.InstalledAppVersion)) {
-                string note = storeLatest is null
-                    ? $"installed {probe.InstalledAppVersion}; store-latest unknown (no version poll yet)"
-                    : $"already current: installed {probe.InstalledAppVersion}, store-latest {storeLatest}";
-                logger.LogInformation("device check-update: {Id} skip store-drive ({Note})", id, note);
-                jobs.Finish(id, new StoreCheckResult(
-                    probe.Reachable, probe.InstalledAppVersion, probe.InstalledAppVersion, false, false, "up_to_date",
-                    note));
-                return;
-            }
-
             var result =
                 await checker.CheckAndUpdateAsync(target, CancellationToken.None, msg => jobs.Progress(id, msg));
 

@@ -89,11 +89,18 @@ public sealed class AndroidPlayStoreChecker(
                 return new DriveOutcome(true, false, null);
             }
 
-            if (HasButton(xml, "Open") || HasButton(xml, "Uninstall"))
+            if (HasButton(xml, "Open") || HasButton(xml, "Uninstall")) {
+                if (AdvertisesUpdate(xml)) {
+                    return new DriveOutcome(false, false,
+                        "Play advertises an update but no auto-tappable Update button (major update?); needs manual update");
+                }
+
                 return new DriveOutcome(false, true, "no Update button (current)");
+            }
         }
 
-        return new DriveOutcome(false, true, "Update button not found (page may not have loaded an update)");
+        return new DriveOutcome(false, false,
+            "Play page did not load an Update/Open/Uninstall button (store may be offline or slow)");
     }
 
     private async Task<string?> DumpUiAsync(DeviceTarget device, CancellationToken ct) {
@@ -125,6 +132,9 @@ public sealed class AndroidPlayStoreChecker(
 
     private static bool HasButton(string xml, string label) =>
         xml.Contains($"text=\"{label}\"", StringComparison.Ordinal);
+
+    private static bool AdvertisesUpdate(string xml) =>
+        xml.Contains("Update available", StringComparison.OrdinalIgnoreCase);
 
     private static bool TryParseBounds(string s, out int l, out int t, out int r, out int b) {
         l = t = r = b = 0;

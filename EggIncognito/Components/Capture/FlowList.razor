@@ -23,13 +23,13 @@
                        value="@_pathFilter" @oninput="OnPathInput"
                        @onfocus="@(() => _openCombo = "path")" @onblur="CloseCombo"/>
                 @if (_openCombo == "path") {
-                    <div class="combo-menu">
+                    <div class="popover popover-combo open">
                         @{ var pathOpts = PathOptions().ToList(); }
                         @if (pathOpts.Count == 0) {
                             <div class="combo-empty">No matches</div>
                         }
                         @foreach (var p in pathOpts) {
-                            <button type="button" class="combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickPath(p))">@p</button>
+                            <button type="button" class="popover-combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickPath(p))">@p</button>
                         }
                     </div>
                 }
@@ -40,13 +40,13 @@
                        value="@_typeFilter" @oninput="OnTypeInput"
                        @onfocus="@(() => _openCombo = "type")" @onblur="CloseCombo"/>
                 @if (_openCombo == "type") {
-                    <div class="combo-menu">
+                    <div class="popover popover-combo open">
                         @{ var typeOpts = TypeOptions().ToList(); }
                         @if (typeOpts.Count == 0) {
                             <div class="combo-empty">No matches</div>
                         }
                         @foreach (var t in typeOpts) {
-                            <button type="button" class="combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickType(t))">@t</button>
+                            <button type="button" class="popover-combo-opt" @onmousedown:preventDefault="true" @onclick="@(() => PickType(t))">@t</button>
                         }
                     </div>
                 }

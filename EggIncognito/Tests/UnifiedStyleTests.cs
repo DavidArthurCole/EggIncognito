@@ -26,9 +26,10 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
                      ".pill", ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".cap-stat",
                      ".toast", ".modal-overlay", ".known-card", ".tab-btn", ".notif-item",
                      ".perk-list", ".rail", ".connect-card", ".faq-list",
-                     ".reg-table", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
+                     ".data-table", ".stat-tile", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
                      ".reg-filter-input", ".reg-edit-btn", ".sub-form", ".sub-item",
-                     ".legal-disclaimer", ".legal-section",
+                     ".prose-legal", ".prose-legal-disclaimer", ".prose-legal-section",
+                     ".popover", ".popover-combo", ".popover-combo-opt",
                      ".pg-menubar", ".pg-menu-btn", ".pg-menu", ".pg-menu-item", ".pg-popover",
                      ".pg-popover-head", ".pg-palette", ".pg-palette-head"
                  }) {

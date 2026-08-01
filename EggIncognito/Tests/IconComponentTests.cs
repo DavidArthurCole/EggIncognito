@@ -5,25 +5,29 @@ namespace EggIncognito.Tests;
 
 public class IconComponentTests : BunitContext {
     [Fact]
-    public void KnownIcon_RendersInnerSvgAndIconClass() {
+    public void KnownIcon_RendersNestedSvgInsideIconSpan() {
         var cut = Render<Icon>(p => p.Add(c => c.Name, "gear"));
-        var svg = cut.Find("svg");
-        Assert.Contains("icon", svg.ClassList);
-        Assert.NotEmpty(svg.Children);
+        var span = cut.Find("span");
+        Assert.Contains("icon", span.ClassList);
+        var svg = span.QuerySelector("svg");
+        Assert.NotNull(svg);
+        Assert.NotEmpty(svg!.Children);
     }
 
     [Fact]
-    public void Class_IsAppendedToIconClass() {
+    public void Class_IsAppendedToIconSpanClass() {
         var cut = Render<Icon>(p => p.Add(c => c.Name, "play").Add(c => c.Class, "spinning"));
-        var svg = cut.Find("svg");
-        Assert.Contains("icon", svg.ClassList);
-        Assert.Contains("spinning", svg.ClassList);
+        var span = cut.Find("span");
+        Assert.Contains("icon", span.ClassList);
+        Assert.Contains("spinning", span.ClassList);
+        Assert.NotNull(span.QuerySelector("svg"));
     }
 
     [Fact]
-    public void UnknownIcon_RendersEmptySvg() {
+    public void UnknownIcon_RendersEmptyIconSpanWithNoSvg() {
         var cut = Render<Icon>(p => p.Add(c => c.Name, "nope"));
-        var svg = cut.Find("svg");
-        Assert.Empty(svg.Children);
+        var span = cut.Find("span");
+        Assert.Contains("icon", span.ClassList);
+        Assert.Null(span.QuerySelector("svg"));
     }
 }

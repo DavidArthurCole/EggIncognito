@@ -1,13 +1,8 @@
-@* width/height so the glyph stays sized before styles.css loads (.icon* classes override once it does). *@
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="icon @Class">
-    @((MarkupString)Inner)
-</svg>
+<EggIdentity.UI.Icon Name="@Name" Class="@Class" Icons="@AllIcons"/>
 
 @code {
     [Parameter] public string Name { get; set; } = "";
     [Parameter] public string? Class { get; set; }
-
 
     static readonly Dictionary<string, string> Paths = new() {
         ["pause"] = "<rect x=\"6\" y=\"5\" width=\"4\" height=\"14\" rx=\"1\"/><rect x=\"14\" y=\"5\" width=\"4\" height=\"14\" rx=\"1\"/>",
@@ -39,5 +34,8 @@
         ["history"] = "<path d=\"M3 12a9 9 0 1 0 3-6.7L3 8\"/><path d=\"M3 3v5h5\"/><path d=\"M12 7v5l3 2\"/>"
     };
 
-    string Inner => Paths.GetValueOrDefault(Name, "");
+    static readonly IReadOnlyDictionary<string, string> AllIcons = Paths.ToDictionary(
+        kv => kv.Key,
+        kv => $"<svg width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" style=\"display:block\">{kv.Value}</svg>");
+
 }

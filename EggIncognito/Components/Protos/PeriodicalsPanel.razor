@@ -129,7 +129,7 @@
                 </div>
                 @if (grades.Count > 0) {
                     var goalCount = grades.Max(g => g.Goals.Count);
-                    <table class="reg-table" @key="season.Id">
+                    <table class="data-table" @key="season.Id">
                         <thead>
                         <tr>
                             <th class="w-12">Goal</th>
@@ -197,7 +197,7 @@
                         <Icon Name="download"/>
                     </a>
                 </div>
-                <table class="reg-table">
+                <table class="data-table">
                     <thead>
                     <tr>
                         <th class="w-8"></th><th>Identifier</th><th>Dimension</th><th>Tier values</th>
