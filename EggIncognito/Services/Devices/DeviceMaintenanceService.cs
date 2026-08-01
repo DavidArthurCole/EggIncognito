@@ -1,3 +1,5 @@
+using System.Globalization;
+using EggIncognito.Capture;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
@@ -71,7 +73,42 @@ public sealed class DeviceMaintenanceService(
             logger.LogWarning(ex, "device capture: proxy push tick failed");
         }
 
+        await HarvestClimbedDevicesAsync(latest, sp, ct);
         await EnsureBinaryStoredAsync(sp, ct);
+    }
+
+    private async Task HarvestClimbedDevicesAsync(
+        Dictionary<string, DeviceProbe> latest, IServiceProvider sp, CancellationToken ct) {
+        foreach (var d in config.Devices) {
+            if (!latest.TryGetValue(d.Id, out var probe)) continue;
+            if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledBuild)) continue;
+            var harvested = proxyPusher.LastRinfo(d.Id);
+            if (harvested is not null && string.Equals(harvested.Build, probe.InstalledBuild, StringComparison.Ordinal))
+                continue;
+
+            try {
+                logger.LogInformation(
+                    "device capture: {Id} installed build {Build} not yet harvested (had {Prev}); launching app for fresh capture",
+                    d.Id, probe.InstalledBuild, harvested?.Build ?? "none");
+                var rinfo = await proxyPusher.ForceHarvestAsync(d, TimeSpan.FromSeconds(40), ct);
+                await BackfillClientVersionAsync(sp, d, probe.InstalledBuild!, rinfo, ct);
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "device capture: {Id} climb harvest threw", d.Id);
+            }
+        }
+    }
+
+    private async Task BackfillClientVersionAsync(
+        IServiceProvider sp, DeviceEntry d, string build, DeviceRinfo? rinfo, CancellationToken ct) {
+        if (rinfo?.ClientVersion is not { } cv) return;
+        if (sp.GetService(typeof(ProtoRegistryStore)) is not ProtoRegistryStore registry) return;
+
+        var res = await registry.UpdateMetadataAsync(d.Platform, build, null,
+            cv.ToString(CultureInfo.InvariantCulture), null, ct: ct);
+        logger.LogInformation("device capture: {Id} backfill clientVersion {Cv} onto {Plat} build {Build} -> {Res}",
+            d.Id, cv, d.Platform, build, res);
     }
 
     private async Task EnsureBinaryStoredAsync(IServiceProvider sp, CancellationToken ct) {

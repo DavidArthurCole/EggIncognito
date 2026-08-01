@@ -50,6 +50,8 @@ public sealed class DeviceProxyPusher(
     }
 
 
+    public DeviceRinfo? LastRinfo(string deviceId) => manager.Rinfo.Latest(deviceId);
+
     public async Task<DeviceRinfo?> ForceHarvestAsync(DeviceEntry d, TimeSpan timeout, CancellationToken ct) {
         var before = manager.Rinfo.Latest(d.Id);
         await RestartAppAsync(d, ct);
