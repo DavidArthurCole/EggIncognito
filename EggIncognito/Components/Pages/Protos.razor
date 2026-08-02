@@ -385,7 +385,7 @@
     List<VersionRow> Sorted {
         get {
             var rows = Filtered;
-            Comparison<VersionRow> cmp = _sortCol switch {
+            Comparison<VersionRow> primary = _sortCol switch {
                 "platform" => (a, b) => string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase),
                 "appVersion" => (a, b) => CompareSemver(a.AppVersion, b.AppVersion),
                 "build" => (a, b) => CompareNumeric(a.Build, b.Build),
@@ -394,7 +394,12 @@
                 _ => (a, b) => a.DetectedAt.CompareTo(b.DetectedAt)
             };
             var sorted = rows.ToList();
-            sorted.Sort(cmp);
+            sorted.Sort((a, b) => {
+                var v = primary(a, b);
+                if (v != 0) return v;
+                v = CompareNumeric(a.Build, b.Build);
+                return v != 0 ? v : CompareNumeric(a.ClientVersion, b.ClientVersion);
+            });
             if (_sortDesc) sorted.Reverse();
             return sorted;
         }

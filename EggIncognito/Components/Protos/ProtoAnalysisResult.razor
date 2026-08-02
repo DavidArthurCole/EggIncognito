@@ -219,9 +219,9 @@
 
     static string PlatformFor(string? fileName) {
         var n = fileName ?? "";
-        bool android = n.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
-            || n.EndsWith(".apkm", StringComparison.OrdinalIgnoreCase)
-            || n.EndsWith(".xapk", StringComparison.OrdinalIgnoreCase);
+        var android = n.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
+                      || n.EndsWith(".apkm", StringComparison.OrdinalIgnoreCase)
+                      || n.EndsWith(".xapk", StringComparison.OrdinalIgnoreCase);
         return android ? "android" : "ios";
     }
 
