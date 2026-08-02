@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using Google.Protobuf.Reflection;
 
@@ -52,7 +51,7 @@ public static class DescriptorProtoCarver {
         string? commonText = common is not null ? EmitProto(common.Bytes) : null;
 
         string proto = commonText is not null ? ProtoCleanup.Clean(eiText, commonText) : eiText;
-        string sha = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(proto))).ToLowerInvariant();
+        string sha = EggIncognito.Core.ProtoHash.OfDescriptor(ei.Bytes);
         var messages = ProtoTextIndex.Names(proto);
 
         var eiFdp = TryParse(ei.Bytes) ?? new FileDescriptorProto();

@@ -25,7 +25,7 @@ public sealed class IosRunner(
             return new RunOutcome(false, build, null, result.Diagnostics);
 
         var protoBytes = System.Text.Encoding.UTF8.GetBytes(result.Proto);
-        var protoSha = Convert.ToHexString(SHA256.HashData(protoBytes)).ToLowerInvariant();
+        var protoSha = result.ProtoSha ?? Convert.ToHexString(SHA256.HashData(protoBytes)).ToLowerInvariant();
 
         onNewVersion(new NewVersionEvent
         {

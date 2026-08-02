@@ -45,17 +45,23 @@ public sealed class TransportPipeline : ITransportPipeline {
     private const string RoleEncoding = "encoding";
 
     private readonly string? _salt;
+    private readonly IEnumFailover? _enumFailover;
+
+    public TransportPipeline(IConfiguration config, IEnumFailover enumFailover)
+        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"], enumFailover) {
+    }
 
     public TransportPipeline(IConfiguration config)
-        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"]) {
+        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT") ?? config["EGG_INC_API_SALT"], null) {
     }
 
     public TransportPipeline()
-        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT")) {
+        : this(Environment.GetEnvironmentVariable("EGG_INC_API_SALT"), null) {
     }
 
-    private TransportPipeline(string? salt) {
+    private TransportPipeline(string? salt, IEnumFailover? enumFailover) {
         _salt = salt;
+        _enumFailover = enumFailover;
     }
 
     public bool CanSign => !string.IsNullOrEmpty(_salt);
@@ -135,7 +141,7 @@ public sealed class TransportPipeline : ITransportPipeline {
 
         try {
             var msg = responseParser.ParseFrom(respBytes);
-            string? json = JsonFormatter.Default.Format(msg);
+            string? json = FormatJson(msg);
             stages.Add(new TransportStage("proto-decode",
                 "Parsed bytes directly as the endpoint's response message (unwrapped - e.g. EggIncognito mock)",
                 respBytes.Length, null, null, "see JSON below", RolePayload));
@@ -145,7 +151,12 @@ public sealed class TransportPipeline : ITransportPipeline {
         }
     }
 
-    private static (IReadOnlyList<TransportStage> Stages, string Json)? TryDecodeWrapped(
+    private string FormatJson(IMessage msg) {
+        string json = JsonFormatter.Default.Format(msg);
+        return _enumFailover is null ? json : _enumFailover.Apply(msg, json);
+    }
+
+    private (IReadOnlyList<TransportStage> Stages, string Json)? TryDecodeWrapped(
         byte[] respBytes, MessageParser responseParser, bool force = false) {
         if (!force && !LooksLikeAuthEnvelope(respBytes)) return null;
         try {
@@ -155,7 +166,7 @@ public sealed class TransportPipeline : ITransportPipeline {
 
             byte[] inner = outer.Compressed ? ProtoFraming.Decompress(messageBytes) : messageBytes;
             var msg = responseParser.ParseFrom(inner);
-            string? json = JsonFormatter.Default.Format(msg);
+            string? json = FormatJson(msg);
 
             var stages = new List<TransportStage> {
                 Stage("authenticated-message",

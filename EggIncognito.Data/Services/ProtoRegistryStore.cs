@@ -15,6 +15,8 @@ public interface IProtoBackfillStore {
         string apkRef, DateTimeOffset detectedAt, string source, CancellationToken ct = default);
 
     Task<int> PruneEmptyAsync(CancellationToken ct = default);
+
+    Task<List<(string Platform, string Build, string ProtoText)>> LatestProtoTextsAsync(CancellationToken ct = default);
 }
 
 public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfillStore {
@@ -55,6 +57,26 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
             pp.MessageIndex = messageIndex ?? "[]";
             await db.SaveChangesAsync(ct);
         }
+    }
+
+    public async Task<List<(string Platform, string Build, string ProtoText)>> LatestProtoTextsAsync(
+        CancellationToken ct = default) {
+        var rows = await db.ProtoVersions.AsNoTracking()
+            .Where(p => p.DeletedAt == null)
+            .Where(p => p.Build != null && p.Build != "" && p.AppVersion != null && p.AppVersion != "")
+            .OrderByDescending(p => p.CreatedAt)
+            .Select(p => new { p.Id, p.Platform, p.Build })
+            .ToListAsync(ct);
+
+        var result = new List<(string, string, string)>();
+        foreach (var latest in rows.GroupBy(r => r.Platform).Select(g => g.First())) {
+            var pp = await db.ProtoProtos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ProtoVersionId == latest.Id, ct);
+            if (pp is not null && !string.IsNullOrEmpty(pp.ProtoText))
+                result.Add((latest.Platform, latest.Build, pp.ProtoText));
+        }
+
+        return result;
     }
 
     public Task<int> PruneEmptyAsync(CancellationToken ct = default) =>

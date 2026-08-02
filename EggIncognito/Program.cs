@@ -159,6 +159,8 @@ builder.Services.AddSingleton<IBehaviorService, BehaviorService>();
 builder.Services.AddSingleton<IProtoReflection, ProtoReflection>();
 builder.Services.AddSingleton<GameDataStore>();
 builder.Services.AddSingleton<IDocRegistry, DocRegistry>();
+builder.Services.AddSingleton<ILastKnownProtoSource, LastKnownProtoSource>();
+builder.Services.AddSingleton<IEnumFailover, EnumFailover>();
 builder.Services.AddSingleton<ITransportPipeline, TransportPipeline>();
 
 string? pgConn = builder.Configuration.GetConnectionString("Postgres");
@@ -330,7 +332,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret)) {
     builder.Services.AddSingleton(syncOptions);
     builder.Services.AddSingleton<ISyncNotifier, DiscordSyncNotifier>();
     builder.Services.AddSingleton(sp => {
-        string expectedProtoSha = ProtoHash.Current(syncContentRoot);
+        string expectedProtoSha = ProtoHash.Current();
         var notifier = sp.GetRequiredService<ISyncNotifier>();
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("sync.ingest");
 

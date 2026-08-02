@@ -53,7 +53,7 @@ public class RunnerSetTests {
     }
 
     private sealed class StubProto : EggIncognito.Runner.Extract.IProtoExtractor {
-        public byte[] Extract(string apkPath) => [];
+        public EggIncognito.Runner.Extract.ProtoExtraction Extract(string apkPath) => new([], "");
     }
 
     private sealed class FakeRunner(string platform) : IDeviceRunner {

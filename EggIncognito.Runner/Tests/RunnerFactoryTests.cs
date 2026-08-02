@@ -54,6 +54,6 @@ public class RunnerFactoryTests {
     }
 
     private sealed class StubProtoExtractor : IProtoExtractor {
-        public byte[] Extract(string apkPath) => [];
+        public ProtoExtraction Extract(string apkPath) => new([], "");
     }
 }

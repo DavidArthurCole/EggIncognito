@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Runner.Adb;
 using EggIncognito.Runner.Extract;
@@ -24,8 +23,9 @@ public sealed class AndroidRunner(
         var apkPath = Path.Combine(apkStashDir, $"egginc-{build}.apk");
         adb.PullArmApk(package, apkPath);
 
-        var protoBytes = proto.Extract(apkPath);
-        var protoSha = Convert.ToHexString(SHA256.HashData(protoBytes)).ToLowerInvariant();
+        var extraction = proto.Extract(apkPath);
+        var protoBytes = extraction.ProtoText;
+        var protoSha = extraction.ProtoSha;
 
         var cv = clientVersion.Read(apkPath, cvState.Last());
         if (cv is not null && int.TryParse(cv, out var cvNum)) cvState.Save(cvNum);

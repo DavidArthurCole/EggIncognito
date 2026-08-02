@@ -5,9 +5,12 @@ namespace EggIncognito.Runner.Extract;
 
 public sealed class CSharpProtoExtractor : IProtoExtractor
 {
-    public byte[] Extract(string apkPath)
+    public ProtoExtraction Extract(string apkPath)
     {
         var bytes = File.ReadAllBytes(apkPath);
-        return Encoding.UTF8.GetBytes(AndroidProtoExtractor.ExtractProtoText(bytes));
+        var r = AndroidProtoExtractor.Extract(bytes);
+        if (!r.Ok || r.Proto is null)
+            throw new InvalidOperationException($"android proto extract failed: {r.Diagnostics}");
+        return new ProtoExtraction(Encoding.UTF8.GetBytes(r.Proto), r.ProtoSha ?? "");
     }
 }

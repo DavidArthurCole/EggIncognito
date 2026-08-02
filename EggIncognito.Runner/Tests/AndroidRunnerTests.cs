@@ -23,7 +23,7 @@ public class AndroidRunnerTests
     private sealed class FakeExtractor : IProtoExtractor
     {
         public byte[] Bytes = System.Text.Encoding.UTF8.GetBytes("syntax = \"proto2\";\npackage ei;\n");
-        public byte[] Extract(string apkPath) => Bytes;
+        public ProtoExtraction Extract(string apkPath) => new(Bytes, "deadbeef");
     }
 
     private static AndroidRunner Make(FakeAdb adb, VersionState state, out List<NewVersionEvent> sent)

@@ -35,12 +35,12 @@ public sealed class ApkPureExtractHandler(
                 return new ExtractResult(502, null, null, "no arm split in download", null);
 
             var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".apk");
-            byte[] protoBytes;
+            ProtoExtraction extraction;
             string? cv;
             try
             {
                 await File.WriteAllBytesAsync(tmp, armSplit);
-                protoBytes = extractor.Extract(tmp);
+                extraction = extractor.Extract(tmp);
                 cv = clientVersion.Read(tmp, cvState.Last());
             }
             finally
@@ -50,7 +50,8 @@ public sealed class ApkPureExtractHandler(
             if (cv is not null && int.TryParse(cv, out var cvNum)) cvState.Save(cvNum);
 
             var build = ApkVersionCode.Read(armSplit);
-            var protoSha = Convert.ToHexString(SHA256.HashData(protoBytes)).ToLowerInvariant();
+            var protoBytes = extraction.ProtoText;
+            var protoSha = extraction.ProtoSha;
             await postEvent(new NewVersionEvent
             {
                 Package = "com.auxbrain.egginc",

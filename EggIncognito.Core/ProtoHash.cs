@@ -1,5 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using Ei;
+using Google.Protobuf;
+using Google.Protobuf.Reflection;
 
 namespace EggIncognito.Core;
 
@@ -7,30 +10,46 @@ public static class ProtoHash {
     public static string Of(string protoText) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(protoText))).ToLowerInvariant();
 
-    private static readonly string[] RelativeCandidates = [
-        Path.Combine("Proto", "ei.proto"),
-        Path.Combine("EggIncognito.Core", "Proto", "ei.proto")
-    ];
+    public static string OfDescriptor(byte[] fileDescriptorProtoBytes) =>
+        HashCanonical(FileDescriptorProto.Parser.ParseFrom(fileDescriptorProtoBytes));
 
+    public static string Current() => HashCanonical(AuthenticatedMessage.Descriptor.File.ToProto());
 
-    public static string Current(string root) {
-        string path = Locate(root) ?? throw new FileNotFoundException(
-            $"ei.proto not found under '{root}' or its ancestors.");
-        byte[] bytes = File.ReadAllBytes(path);
-        return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    private static string HashCanonical(FileDescriptorProto fdp) {
+        Canonicalize(fdp);
+        return Convert.ToHexString(SHA256.HashData(fdp.ToByteArray())).ToLowerInvariant();
     }
 
-    private static string? Locate(string root) {
-        var dir = new DirectoryInfo(root);
-        while (dir is not null) {
-            foreach (string rel in RelativeCandidates) {
-                string candidate = Path.Combine(dir.FullName, rel);
-                if (File.Exists(candidate)) return candidate;
-            }
+    private static void Canonicalize(FileDescriptorProto f) {
+        f.Options = null;
+        f.SourceCodeInfo = null;
+        f.Service.Clear();
+        foreach (var m in f.MessageType) CanonMessage(m);
+        foreach (var e in f.EnumType) CanonEnum(e);
+        foreach (var x in f.Extension) CanonField(x);
+    }
 
-            dir = dir.Parent;
-        }
+    private static void CanonMessage(DescriptorProto m) {
+        m.Options = null;
+        m.ReservedRange.Clear();
+        m.ReservedName.Clear();
+        m.ExtensionRange.Clear();
+        foreach (var fld in m.Field) CanonField(fld);
+        foreach (var x in m.Extension) CanonField(x);
+        foreach (var od in m.OneofDecl) od.Options = null;
+        foreach (var n in m.NestedType) CanonMessage(n);
+        foreach (var e in m.EnumType) CanonEnum(e);
+    }
 
-        return null;
+    private static void CanonField(FieldDescriptorProto fld) {
+        fld.ClearJsonName();
+        fld.Options = null;
+    }
+
+    private static void CanonEnum(EnumDescriptorProto e) {
+        e.Options = null;
+        e.ReservedRange.Clear();
+        e.ReservedName.Clear();
+        foreach (var v in e.Value) v.Options = null;
     }
 }
