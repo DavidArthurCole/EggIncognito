@@ -1,8 +1,12 @@
 using System.Security.Cryptography;
+using System.Text;
 
 namespace EggIncognito.Core;
 
 public static class ProtoHash {
+    public static string Of(string protoText) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(protoText))).ToLowerInvariant();
+
     private static readonly string[] RelativeCandidates = [
         Path.Combine("Proto", "ei.proto"),
         Path.Combine("EggIncognito.Core", "Proto", "ei.proto")

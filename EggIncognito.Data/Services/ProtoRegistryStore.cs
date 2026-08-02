@@ -1,4 +1,5 @@
 using System.Text.Json;
+using EggIncognito.Core;
 using EggIncognito.Data.Models;
 using EggIncognito.Services;
 using Microsoft.EntityFrameworkCore;
@@ -222,6 +223,23 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
 
         await db.SaveChangesAsync(ct);
         return linked;
+    }
+
+    public async Task<bool> SetProtoAsync(string platform, string build, string protoText, CancellationToken ct = default) {
+        var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
+        if (row is null) return false;
+
+        row.ProtoSha = ProtoHash.Of(protoText);
+        var pp = await db.ProtoProtos.FirstOrDefaultAsync(x => x.ProtoVersionId == row.Id, ct);
+        if (pp is null) {
+            pp = new ProtoProto { ProtoVersionId = row.Id };
+            db.ProtoProtos.Add(pp);
+        }
+
+        pp.ProtoText = protoText;
+        pp.MessageIndex = JsonSerializer.Serialize(ProtoTextIndex.Names(protoText));
+        await db.SaveChangesAsync(ct);
+        return true;
     }
 
     public Task<ProtoProto?> GetProtoAsync(int protoVersionId, CancellationToken ct = default) =>

@@ -32,6 +32,21 @@
                         <input class="protos-filter w-full" @bind="f.Source"/>
                     </label>
                 </div>
+                <div class="mt-2">
+                    @if (!f.ProtoOpen) {
+                        <button type="button" class="btn-mini" disabled="@f.ProtoBusy" @onclick="@(() => OpenProto(f))">Edit proto</button>
+                    } else {
+                        <label class="text-xs text-muted block">
+                            Proto
+                            <textarea class="protos-filter w-full font-mono text-xs" rows="8" @bind="f.Proto"></textarea>
+                        </label>
+                        <div class="flex items-center gap-2 mt-1">
+                            <button type="button" class="btn-primary" disabled="@f.ProtoBusy" @onclick="@(() => SaveProto(f))">@(f.ProtoBusy ? "Saving..." : "Save proto")</button>
+                            <button type="button" class="btn-mini" @onclick="@(() => f.ProtoOpen = false)">Cancel</button>
+                            <span class="text-xs @(f.ProtoMsg == "saved" ? "text-accent" : "text-muted")">@f.ProtoMsg</span>
+                        </div>
+                    }
+                </div>
             </div>
         }
 
@@ -46,6 +61,8 @@
 
     [Parameter] public IReadOnlyList<Row>? Targets { get; set; }
     [Parameter] public Func<string, object, Task<bool>> Patch { get; set; } = (_, _) => Task.FromResult(false);
+    [Parameter] public Func<string, object, Task<bool>> Post { get; set; } = (_, _) => Task.FromResult(false);
+    [Parameter] public Func<string, Task<string?>> FetchText { get; set; } = _ => Task.FromResult<string?>("");
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -63,6 +80,10 @@
         public string Build = "";
         public string ClientVersion = "";
         public string Source = "";
+        public bool ProtoOpen;
+        public bool ProtoBusy;
+        public string Proto = "";
+        public string ProtoMsg = "";
     }
 
     protected override void OnParametersSet() {
@@ -100,6 +121,29 @@
         _msg = allOk ? "saved" : "failed (build taken? contributor+?)";
         _busy = false;
         if (allOk) await OnChanged.InvokeAsync();
+    }
+
+    async Task OpenProto(MemberField f) {
+        f.ProtoBusy = true;
+        f.ProtoMsg = "";
+        f.Proto = await FetchText($"/api/protos/versions/{f.Platform}/{Uri.EscapeDataString(f.OriginalBuild)}/proto") ?? "";
+        f.ProtoOpen = true;
+        f.ProtoBusy = false;
+    }
+
+    async Task SaveProto(MemberField f) {
+        if (string.IsNullOrWhiteSpace(f.Proto)) {
+            f.ProtoMsg = "proto required";
+            return;
+        }
+
+        f.ProtoBusy = true;
+        f.ProtoMsg = "";
+        var ok = await Post($"/api/protos/versions/{f.Platform}/{Uri.EscapeDataString(f.OriginalBuild)}/proto",
+            new { proto = f.Proto });
+        f.ProtoMsg = ok ? "saved" : "failed (contributor+?)";
+        f.ProtoBusy = false;
+        if (ok) await OnChanged.InvokeAsync();
     }
 
 }

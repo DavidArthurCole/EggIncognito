@@ -1,6 +1,5 @@
-using System.Security.Cryptography;
-using System.Text;
 using EggIdentity.Contract;
+using EggIncognito.Core;
 using EggIncognito.Core.Services.Protos;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
@@ -30,16 +29,17 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
     public async Task<IActionResult> Save([FromBody] SaveRequest req, CancellationToken ct) {
         if (Require(UserRole.Contributor) is { } no) return no;
         if (Store is not { } store) return StatusCode(503, new { error = NoDb });
-        if (string.IsNullOrWhiteSpace(req.Build) || string.IsNullOrWhiteSpace(req.AppVersion) ||
-            string.IsNullOrWhiteSpace(req.Proto)) {
-            return StatusCode(400, new { error = "platform, appVersion, build, proto required" });
+        if (string.IsNullOrWhiteSpace(req.Platform) || string.IsNullOrWhiteSpace(req.Build) ||
+            string.IsNullOrWhiteSpace(req.AppVersion)) {
+            return StatusCode(400, new { error = "platform, appVersion, build required" });
         }
 
-        string sha = Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes(req.Proto)));
+        bool hasProto = !string.IsNullOrWhiteSpace(req.Proto);
+        string sha = hasProto ? ProtoHash.Of(req.Proto!) : "";
         (var row, bool created, _) = await store.UpsertAsync(
             req.Platform, req.AppVersion, req.Build, req.ClientVersion, req.Package ?? "",
-            sha, "", DateTimeOffset.UtcNow, user.Username, req.Proto, req.Source ?? "upload", ct: ct);
+            sha, "", DateTimeOffset.UtcNow, user.Username, hasProto ? req.Proto : null,
+            req.Source ?? "upload", ct: ct);
         return Ok(new { ok = true, created, row.Platform, row.Build, protoSha = sha });
     }
 
@@ -57,6 +57,18 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
                 Conflict(new { error = $"build '{req.Build}' already exists for {platform}" }),
             _ => NotFound()
         };
+    }
+
+
+    [HttpPost("{platform}/{build}/proto")]
+    public async Task<IActionResult> SetProto(string platform, string build, [FromBody] SetProtoRequest req,
+        CancellationToken ct) {
+        if (Require(UserRole.Contributor) is { } no) return no;
+        if (Store is not { } store) return StatusCode(503, new { error = NoDb });
+        if (string.IsNullOrWhiteSpace(req.Proto)) return StatusCode(400, new { error = "proto required" });
+        string sha = ProtoHash.Of(req.Proto);
+        bool ok = await store.SetProtoAsync(platform, build, req.Proto, ct);
+        return ok ? Ok(new { ok = true, protoSha = sha }) : NotFound();
     }
 
 
@@ -240,8 +252,10 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         string Build,
         string? ClientVersion,
         string? Package,
-        string Proto,
+        string? Proto,
         string? Source);
+
+    public sealed record SetProtoRequest(string Proto);
 
     public sealed record EditRequest(string? AppVersion, string? ClientVersion, string? Source, string? Build);
 

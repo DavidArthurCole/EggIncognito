@@ -81,6 +81,49 @@
             </section>
 
             <section class="reg-wrap">
+                @if (_canWrite) {
+                    <div class="panel mb-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-semibold m-0">Add version</h3>
+                            <button type="button" class="btn-mini" @onclick="@(() => _addOpen = !_addOpen)">@(_addOpen ? "Close" : "Add version")</button>
+                        </div>
+                        @if (_addOpen) {
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                                <label class="text-xs text-muted">
+                                    Platform
+                                    <select class="protos-filter w-full" @bind="_addPlatform">
+                                        <option value="android">android</option>
+                                        <option value="ios">ios</option>
+                                    </select>
+                                </label>
+                                <label class="text-xs text-muted">
+                                    App version
+                                    <input class="protos-filter w-full" @bind="_addAppVersion"/>
+                                </label>
+                                <label class="text-xs text-muted">
+                                    Build
+                                    <input class="protos-filter w-full" @bind="_addBuild"/>
+                                </label>
+                                <label class="text-xs text-muted">
+                                    Client version
+                                    <input class="protos-filter w-full" @bind="_addClient"/>
+                                </label>
+                                <label class="text-xs text-muted">
+                                    Source
+                                    <input class="protos-filter w-full" @bind="_addSource"/>
+                                </label>
+                            </div>
+                            <label class="text-xs text-muted block mb-2">
+                                Proto (optional)
+                                <textarea class="protos-filter w-full font-mono text-xs" rows="6" @bind="_addProto"></textarea>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="btn-primary" disabled="@_addBusy" @onclick="AddVersion">@(_addBusy ? "Saving..." : "Save")</button>
+                                <span class="text-xs @(_addMsg == "saved" ? "text-accent" : "text-muted")">@_addMsg</span>
+                            </div>
+                        }
+                    </div>
+                }
                 @if (_isAdmin || _isContributor) {
                     <StagedReviewPanel @ref="_stagedPanel" IsAdmin="_isAdmin" OnChanged="OnMutated"/>
                 }
@@ -241,8 +284,8 @@
                             @if (_canWrite && _editingKey == rel.Key) {
                                 <tr class="reg-edit-row">
                                     <td colspan="@EditColspan">
-                                        <ProtoEditDialog Targets="EditTargets(rel)" Patch="PatchJson"
-                                                         OnChanged="OnMutated" OnClose="@(() => _editingKey = null)"/>
+                                        <ProtoEditDialog Targets="EditTargets(rel)" Patch="PatchJson" Post="PostJson"
+                                                         FetchText="GetText" OnChanged="OnMutated" OnClose="@(() => _editingKey = null)"/>
                                     </td>
                                 </tr>
                             }
@@ -286,6 +329,17 @@
     bool _sortDesc = true;
 
     ProtoDropZone.ExtractResult? _result;
+
+    bool _addOpen;
+    bool _addBusy;
+    string _addMsg = "";
+    string _addPlatform = "android";
+    string _addAppVersion = "";
+    string _addBuild = "";
+    string _addClient = "";
+    string _addSource = "";
+    string _addProto = "";
+
     readonly List<ProtoSelectionBar.VersionKey> _selected = [];
     int? _editingKey;
     List<MergeSuggestion> _suggestions = [];
@@ -519,6 +573,44 @@
         }
         catch {
             return false;
+        }
+    }
+
+    async Task<string?> GetText(string url) {
+        try {
+            var res = await Client().GetAsync(url);
+            return res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync() : "";
+        } catch {
+            return "";
+        }
+    }
+
+    async Task AddVersion() {
+        if (string.IsNullOrWhiteSpace(_addPlatform) || string.IsNullOrWhiteSpace(_addAppVersion) ||
+            string.IsNullOrWhiteSpace(_addBuild)) {
+            _addMsg = "platform, app version, build required";
+            return;
+        }
+
+        _addBusy = true;
+        _addMsg = "";
+        var body = new {
+            platform = _addPlatform,
+            appVersion = _addAppVersion,
+            build = _addBuild,
+            clientVersion = string.IsNullOrWhiteSpace(_addClient) ? null : _addClient,
+            source = string.IsNullOrWhiteSpace(_addSource) ? null : _addSource,
+            proto = string.IsNullOrWhiteSpace(_addProto) ? null : _addProto
+        };
+        var ok = await PostJson("/api/protos/versions", body);
+        _addBusy = false;
+        if (ok) {
+            _addMsg = "saved";
+            _addAppVersion = _addBuild = _addClient = _addSource = _addProto = "";
+            _addOpen = false;
+            await OnMutated();
+        } else {
+            _addMsg = "failed (contributor+? build taken?)";
         }
     }
 
