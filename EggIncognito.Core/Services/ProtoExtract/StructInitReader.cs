@@ -18,15 +18,16 @@ public static class StructInitReader {
     public static Result ReadWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string initSymbol,
         int maxInstructions = 100_000) {
         var lst = Arm64DataTableReader.ListWith(bin, syms, [initSymbol], maxInstructions);
-        return !lst.Ok ? new Result(false, [], lst.Diagnostics) : Walk(bin, lst.Instructions);
+        return !lst.Ok ? new Result(false, [], lst.Diagnostics) : Walk(bin, lst.Instructions, false);
     }
 
-    public static Result ReadRange(byte[] bin, ulong startVa, ulong endVa, int maxInstructions = 100_000) {
+    public static Result ReadRange(byte[] bin, ulong startVa, ulong endVa, int maxInstructions = 100_000,
+        bool writeback = false) {
         var lst = Arm64DataTableReader.ListRange(bin, startVa, endVa, maxInstructions);
-        return !lst.Ok ? new Result(false, [], lst.Diagnostics) : Walk(bin, lst.Instructions);
+        return !lst.Ok ? new Result(false, [], lst.Diagnostics) : Walk(bin, lst.Instructions, writeback);
     }
 
-    private static Result Walk(byte[] bin, IReadOnlyList<Arm64DataTableReader.Insn> insns) {
+    private static Result Walk(byte[] bin, IReadOnlyList<Arm64DataTableReader.Insn> insns, bool writeback) {
         var img = BinaryImage.Load(bin);
         var page = new Dictionary<string, ulong>(StringComparer.Ordinal);
         var imm = new Dictionary<string, (ulong Val, bool Wide)>(StringComparer.Ordinal);
@@ -279,6 +280,8 @@ public static class StructInitReader {
                             else if (page.TryGetValue(rt, out ulong pv))
                                 Store(sBase, off, width, pv, pv);
                         }
+
+                        if (writeback && IsWriteback(ops[^1])) page[sReg] = sBase + (ulong)off;
                     }
 
                     break;
@@ -301,6 +304,8 @@ public static class StructInitReader {
                             if (imm.TryGetValue(RegNum(ops[1]), out var iv1))
                                 Store(pBase, off0 + w0, w0, iv1.Val, null);
                         }
+
+                        if (writeback && IsWriteback(ops[^1])) page[pReg] = pBase + (ulong)off0;
                     }
 
                     break;
@@ -394,6 +399,8 @@ public static class StructInitReader {
         string t = reg.Trim();
         return t.Length > 1 && (t[0] == 'w' || t[0] == 'x') ? t[1..] : t;
     }
+
+    private static bool IsWriteback(string memToken) => memToken.TrimEnd().EndsWith('!');
 
     private static bool LooksLikeReg(string tok) =>
         tok.Length >= 2 && (tok[0] == 'x' || tok[0] == 'w') && char.IsDigit(tok[1]);

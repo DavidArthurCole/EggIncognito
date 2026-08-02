@@ -49,7 +49,7 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
             }, ct);
 
             await LandBestAsync(results, "eggs", candidates, c => {
-                var r = EggCatalogExtractor.ReadWith(c.Bin, c.Syms, c.Sections);
+                var r = EggCatalogExtractor.ExtractAuto(c.Bin);
                 if (!r.Ok || r.Entries.Count == 0) return null;
                 var doc = GameDataDocBuilders.BuildEggs(r.Entries, c.Version);
                 return (doc.Json, doc.Count, null);
@@ -70,7 +70,7 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
             }, ct);
 
             await LandBestAsync(results, "research", candidates, c => {
-                var r = ResearchCatalogExtractor.ExtractWith(c.Bin, c.Syms, c.Sections);
+                var r = ResearchCatalogExtractor.ExtractAuto(c.Bin);
                 if (!r.Ok || r.Entries.Count == 0) return null;
                 var doc = GameDataDocBuilders.BuildResearch(r.Entries, c.Version);
                 return (doc.Json, doc.Count, SkipNote(doc.Skipped, "undecoded"));

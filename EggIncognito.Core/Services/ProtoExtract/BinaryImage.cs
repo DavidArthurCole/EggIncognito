@@ -71,6 +71,7 @@ public sealed class ElfImage : IBinaryImage {
     private readonly Lazy<IReadOnlyList<MachoSections.Section>> _sections;
     private readonly Lazy<IReadOnlyList<ElfSections.LoadSegment>> _segments;
     private readonly Lazy<IReadOnlyList<MachoSymbols.Symbol>> _symbols;
+    private readonly Lazy<Dictionary<ulong, ulong>> _relocs;
 
     public byte[] Bytes { get; }
     public IReadOnlyList<MachoSymbols.Symbol> Symbols => _symbols.Value;
@@ -81,7 +82,10 @@ public sealed class ElfImage : IBinaryImage {
         _sections = new Lazy<IReadOnlyList<MachoSections.Section>>(() => ElfSections.Read(Bytes));
         _segments = new Lazy<IReadOnlyList<ElfSections.LoadSegment>>(() => ElfSections.ReadSegments(Bytes));
         _symbols = new Lazy<IReadOnlyList<MachoSymbols.Symbol>>(() => ElfSymbols.Read(Bytes));
+        _relocs = new Lazy<Dictionary<ulong, ulong>>(() => ElfSections.ReadRelativeRelocs(Bytes));
     }
+
+    public bool TryResolveRelative(ulong va, out ulong target) => _relocs.Value.TryGetValue(va, out target);
 
     public bool TryVaToFileOffset(ulong va, out int fileOff, out MachoSections.Section owner) {
         if (MachoSections.TryVaToFileOffset(Sections, va, out fileOff, out owner)) return true;

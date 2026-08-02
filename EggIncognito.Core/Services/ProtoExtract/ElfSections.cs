@@ -129,6 +129,9 @@ public static class ElfSections {
         return outp;
     }
 
+    public static Dictionary<ulong, ulong> ReadRelativeRelocs(byte[] bin)
+        => ReadRelativeRelocs(bin, 0, ulong.MaxValue);
+
     private static Dictionary<ulong, ulong> ReadRelativeRelocs(byte[] bin, ulong lo, ulong hi) {
         var map = new Dictionary<ulong, ulong>();
         if (!IsElf64Le(bin)) return map;

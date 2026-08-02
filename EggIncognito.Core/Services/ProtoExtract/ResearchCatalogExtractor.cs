@@ -5,9 +5,10 @@ namespace EggIncognito.Services.ProtoExtract;
 
 public static class ResearchCatalogExtractor {
     public const string InitSymbol = "__GLOBAL__sub_I_researchdata";
+    public const string SignatureString = "comfy_nests";
     public const string CommonEnumSymbol = "ResearchData9enumForId";
     public const string EpicEnumSymbol = "ResearchData13enumForEpicId";
-    private const string ProviderGetterPrefix = "__ZN25GameDimensionProviderBase";
+    private const string ProviderGetterAnchor = "ZN25GameDimensionProviderBase";
     private const int VtableInvokeSlot = 6;
     private const int NameOffset = 0x00;
     private const int IdOffset = 0x18;
@@ -15,8 +16,9 @@ public static class ResearchCatalogExtractor {
     private const int DescOffset = 0x58;
     private const int HelpOffset = 0x70;
     private const int MaxLevelOffset = 0x88;
-    private const int EffectVtableOffset = 0xb8;
+    private static readonly int[] PreferredEffectOffsets = [0xb8, 0xd0];
     private const int SsoCapacity = 0x17;
+    private const int LongStringDataDelta = 0x10;
     private const int ProviderFieldDelta = 8;
 
     public enum Combine {
@@ -42,11 +44,28 @@ public static class ResearchCatalogExtractor {
 
     public static Result Extract(byte[] bin) {
         var img = BinaryImage.Load(bin);
-        return ExtractWith(bin, img?.Symbols ?? [], img?.Sections ?? []);
+        return img is ElfImage ? ExtractAuto(bin) : ExtractWith(bin, img?.Symbols ?? []);
     }
 
-    public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
-        IReadOnlyList<MachoSections.Section> sections) {
+    public static Result ExtractAuto(byte[] bin) {
+        var img = BinaryImage.Load(bin);
+        if (img is ElfImage) {
+            var loc = InitArrayLocator.Create(bin);
+            if (loc is null || !loc.TryLocateByString(SignatureString, out ulong s, out ulong e))
+                return new Result(false, [], "researchdata init not located via signature on ELF");
+            return ExtractCore(bin, img.Symbols, img, s, e);
+        }
+
+        return ExtractWith(bin, img?.Symbols ?? []);
+    }
+
+    public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms) {
+        var img = BinaryImage.Load(bin);
+        return img is null ? new Result(false, [], "unrecognized binary") : ExtractCore(bin, syms, img, 0, 0);
+    }
+
+    private static Result ExtractCore(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, IBinaryImage img,
+        ulong initStart, ulong initEnd) {
         var dims = ReadDimensionOffsets(bin, syms);
         if (dims.Count == 0) return new Result(false, [], "no GameDimensionProviderBase getters resolved");
 
@@ -62,15 +81,27 @@ public static class ResearchCatalogExtractor {
         if (stride != epicStride)
             return new Result(false, [], $"stride mismatch: common 0x{stride:x}, epic 0x{epicStride:x}");
 
-        var lst = Arm64DataTableReader.ListWith(bin, syms, [InitSymbol], 100_000);
+        var lst = initEnd > initStart
+            ? Arm64DataTableReader.ListRange(bin, initStart, initEnd, 100_000)
+            : Arm64DataTableReader.ListWith(bin, syms, [InitSymbol], 100_000);
         if (!lst.Ok) return new Result(false, [], lst.Diagnostics);
 
-        var walk = WalkInit(bin, sections, lst.Instructions);
+        var walk = WalkInit(bin, img, lst.Instructions);
 
-        if (!walk.AddrStores.TryGetValue(commonGlobal, out ulong commonBase))
-            return new Result(false, [], "init does not store the common research array base");
-        if (!walk.AddrStores.TryGetValue(epicGlobal, out ulong epicBase))
-            return new Result(false, [], "init does not store the epic research array base");
+        ulong commonBase;
+        ulong epicBase;
+        if (img is ElfImage) {
+            var runs = FindIdRuns(walk, stride);
+            if (!TryResolveElfBases(runs, stride, commonCount, epicCount, out commonBase, out epicBase)) {
+                return new Result(false, [], $"could not match research id-runs (stride 0x{stride:x}, "
+                                             + $"want {commonCount}+{epicCount}); runs: {RunSummary(runs)}");
+            }
+        } else {
+            if (!walk.AddrStores.TryGetValue(commonGlobal, out commonBase))
+                return new Result(false, [], "init does not store the common research array base");
+            if (!walk.AddrStores.TryGetValue(epicGlobal, out epicBase))
+                return new Result(false, [], "init does not store the epic research array base");
+        }
 
         var entries = new List<ResearchEntry>(commonCount + epicCount);
         int decoded = 0;
@@ -96,21 +127,12 @@ public static class ResearchCatalogExtractor {
             int? maxLevel = ReadIntField(walk, recBase + MaxLevelOffset);
             int? tier = ReadIntField(walk, recBase + TierOffset);
 
-            string? dimension = null;
-            bool dimInt = false;
-            Combine? combine = null;
-            double? magnitude = null;
-            string? note;
-            if (walk.AddrStores.TryGetValue(recBase + EffectVtableOffset, out ulong vt)) {
-                var dec = DecodeInvoke(bin, sections, vt, dims);
-                dimension = dec.Dimension;
-                dimInt = dec.DimensionIsInt;
-                combine = dec.CombineMode;
-                magnitude = dec.Magnitude;
-                note = dec.Note;
-            } else {
-                note = "effect vtable store not found";
-            }
+            var dec = DecodeEffect(bin, img, walk, recBase, stride, dims);
+            string? dimension = dec.Dimension;
+            bool dimInt = dec.DimensionIsInt;
+            Combine? combine = dec.CombineMode;
+            double? magnitude = dec.Magnitude;
+            string? note = dec.Note;
 
             if (dimension is not null && combine is not null && magnitude is not null) decoded++;
             else undecoded.Add(id);
@@ -119,12 +141,13 @@ public static class ResearchCatalogExtractor {
                 magnitude, note));
         }
 
-        if (missingIds.Count > 0) {
+        if (missingIds.Count > (commonCount + epicCount) / 4) {
             return new Result(false, entries,
                 $"records without id: {string.Join(", ", missingIds)} of {commonCount}+{epicCount}");
         }
 
-        string diag = $"{commonCount} common + {epicCount} epic, {decoded} effect-decoded"
+        string diag = $"{entries.Count} of {commonCount}+{epicCount} rows, {decoded} effect-decoded"
+                      + (missingIds.Count > 0 ? $", {missingIds.Count} id-less skipped" : "")
                       + (undecoded.Count > 0 ? $", undecoded: {string.Join(", ", undecoded)}" : "");
         return new Result(true, entries, diag);
     }
@@ -135,9 +158,10 @@ public static class ResearchCatalogExtractor {
         IReadOnlyList<MachoSymbols.Symbol> syms) {
         var map = new Dictionary<int, DimensionField>();
         foreach (var sym in syms) {
-            if (!sym.Name.StartsWith(ProviderGetterPrefix, StringComparison.Ordinal)) continue;
+            int anchor = sym.Name.IndexOf(ProviderGetterAnchor, StringComparison.Ordinal);
+            if (anchor < 0) continue;
             if (!sym.Name.EndsWith("Ev", StringComparison.Ordinal)) continue;
-            string rest = sym.Name[ProviderGetterPrefix.Length..];
+            string rest = sym.Name[(anchor + ProviderGetterAnchor.Length)..];
             int d = 0;
             while (d < rest.Length && char.IsAsciiDigit(rest[d])) d++;
             if (d == 0 || !int.TryParse(rest[..d], NumberStyles.None, CultureInfo.InvariantCulture, out int len))
@@ -209,7 +233,7 @@ public static class ResearchCatalogExtractor {
 
     private readonly record struct RegVal(char Kind, ulong Addr, long Imm, int Tok, long TokOff, ulong Src);
 
-    private static InitWalk WalkInit(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
+    private static InitWalk WalkInit(byte[] bin, IBinaryImage img,
         IReadOnlyList<Arm64DataTableReader.Insn> insns) {
         var regs = new Dictionary<string, RegVal>(StringComparer.Ordinal);
         var frame = new Dictionary<(string Base, long Off), ulong>();
@@ -244,7 +268,7 @@ public static class ResearchCatalogExtractor {
         }
 
         bool IsCstring(ulong va) =>
-            MachoSections.TryVaToFileOffset(sections, va, out _, out var owner) && owner.Name == "__cstring";
+            img.TryVaToFileOffset(va, out _, out var owner) && IsCstrSection(owner.Name);
 
         void WriteBytes(RegVal target, long extra, byte[] bytes) {
             if (target.Kind == 'a') {
@@ -260,7 +284,7 @@ public static class ResearchCatalogExtractor {
         }
 
         byte[] SrcBytes(ulong srcVa, int size) {
-            if (!MachoSections.TryVaToFileOffset(sections, srcVa, out int fo, out _)) return [];
+            if (!img.TryVaToFileOffset(srcVa, out int fo, out _)) return [];
             int n = Math.Min(size, bin.Length - fo);
             if (n <= 0) return [];
             byte[] b = new byte[n];
@@ -513,12 +537,77 @@ public static class ResearchCatalogExtractor {
             return AssembleString(perOff.Select(kv => (kv.Key, kv.Value)));
         }
 
+        if (walk.HeapAt.TryGetValue(fieldVa + LongStringDataDelta, out int longTok) &&
+            walk.TokBytes.TryGetValue(longTok, out var longBytes)) {
+            string? heap = AssembleString(longBytes.Select(kv => (kv.Key, kv.Value)));
+            if (!string.IsNullOrEmpty(heap)) return heap;
+        }
+
+        if (TryByte(walk, fieldVa, out byte size) && (size & 1) == 0 && size >= 2 && size >> 1 <= SsoCapacity) {
+            int len = size >> 1;
+            var chars = new List<(long Off, List<ByteWrite> W)>();
+            for (int o = 0; o <= SsoCapacity; o++) {
+                if (walk.AbsBytes.TryGetValue(fieldVa + 1 + (ulong)o, out var list)) chars.Add((o, list));
+            }
+
+            string? sso = chars.Count == 0 ? null : AssembleString(chars.Select(w => (w.Off, w.W)));
+            if (sso is not null) {
+                if (sso.Length > len) sso = sso[..len];
+                if (sso.Length == len) return sso;
+            }
+        }
+
         var writes = new List<(long Off, List<ByteWrite> W)>();
         for (int o = 0; o <= SsoCapacity; o++) {
             if (walk.AbsBytes.TryGetValue(fieldVa + (ulong)o, out var list)) writes.Add((o, list));
         }
 
         return writes.Count == 0 ? null : AssembleString(writes.Select(w => (w.Off, w.W)));
+    }
+
+    private static string? ReadStringFieldStrict(InitWalk walk, ulong fieldVa) {
+        if (walk.HeapAt.TryGetValue(fieldVa, out int tok0) && walk.TokBytes.TryGetValue(tok0, out var perOff0)) {
+            return AssembleString(perOff0.Select(kv => (kv.Key, kv.Value)));
+        }
+
+        if (walk.HeapAt.TryGetValue(fieldVa + LongStringDataDelta, out int longTok) &&
+            walk.TokBytes.TryGetValue(longTok, out var longBytes)) {
+            string? heap = AssembleString(longBytes.Select(kv => (kv.Key, kv.Value)));
+            if (!string.IsNullOrEmpty(heap)) return heap;
+        }
+
+        if (TryByte(walk, fieldVa, out byte size) && (size & 1) == 0 && size >= 2 && size >> 1 <= SsoCapacity) {
+            int len = size >> 1;
+            var chars = new List<(long Off, List<ByteWrite> W)>();
+            for (int o = 0; o <= SsoCapacity; o++) {
+                if (walk.AbsBytes.TryGetValue(fieldVa + 1 + (ulong)o, out var list)) chars.Add((o, list));
+            }
+
+            string? sso = chars.Count == 0 ? null : AssembleString(chars.Select(w => (w.Off, w.W)));
+            if (sso is not null && sso.Length >= len) return sso[..len];
+        }
+
+        return null;
+    }
+
+    private static bool TryByte(InitWalk walk, ulong va, out byte value) {
+        value = 0;
+        int bestOrder = int.MinValue;
+        bool found = false;
+        ulong lo = va >= 16 ? va - 16 : 0;
+        for (ulong s = lo; s <= va; s++) {
+            if (!walk.AbsBytes.TryGetValue(s, out var list)) continue;
+            int idx = (int)(va - s);
+            foreach (var bw in list) {
+                if (idx < bw.Bytes.Length && bw.Order > bestOrder) {
+                    bestOrder = bw.Order;
+                    value = bw.Bytes[idx];
+                    found = true;
+                }
+            }
+        }
+
+        return found;
     }
 
     private static string? AssembleString(IEnumerable<(long Off, List<ByteWrite> Writes)> writes) {
@@ -567,6 +656,35 @@ public static class ResearchCatalogExtractor {
         double? Magnitude,
         string? Note);
 
+    private static InvokeDecode DecodeEffect(byte[] bin, IBinaryImage img, InitWalk walk, ulong recBase, int stride,
+        Dictionary<int, DimensionField> dims) {
+        InvokeDecode first = new(null, false, null, null, "no effect vtable store in record");
+        bool haveFirst = false;
+        foreach (ulong vt in EffectVtableCandidates(walk, recBase, stride)) {
+            var dec = DecodeInvoke(bin, img, vt, dims);
+            if (dec.Dimension is not null && dec.CombineMode is not null && dec.Magnitude is not null) return dec;
+            if (!haveFirst) {
+                first = dec;
+                haveFirst = true;
+            }
+        }
+
+        return first;
+    }
+
+    private static IEnumerable<ulong> EffectVtableCandidates(InitWalk walk, ulong recBase, int stride) {
+        var seen = new HashSet<ulong>();
+        foreach (int off in PreferredEffectOffsets) {
+            if (walk.AddrStores.TryGetValue(recBase + (ulong)off, out ulong vt) && seen.Add(vt)) yield return vt;
+        }
+
+        foreach (var (fieldVa, vt) in walk.AddrStores.OrderBy(kv => kv.Key)) {
+            if (fieldVa < recBase || fieldVa >= recBase + (ulong)stride) continue;
+            if (vt >= recBase && vt < recBase + (ulong)stride) continue;
+            if (seen.Add(vt)) yield return vt;
+        }
+    }
+
     private enum SymKind {
         Level,
         Const,
@@ -588,12 +706,12 @@ public static class ResearchCatalogExtractor {
 
     private readonly record struct EffectHit(int D, bool Vec, bool Int, char Kind, double Lo, double Hi);
 
-    private static InvokeDecode DecodeInvoke(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
+    private static InvokeDecode DecodeInvoke(byte[] bin, IBinaryImage img,
         ulong vtableVa, Dictionary<int, DimensionField> dims) {
-        if (!TryReadU64(bin, sections, vtableVa + (ulong)(VtableInvokeSlot * 8), out ulong invokeVa))
+        if (!TryReadU64(bin, img, vtableVa + (ulong)(VtableInvokeSlot * 8), out ulong invokeVa))
             return new InvokeDecode(null, false, null, null, "vtable slot unreadable");
-        if (!MachoSections.TryVaToFileOffset(sections, invokeVa, out _, out var owner) || owner.Name != "__text")
-            return new InvokeDecode(null, false, null, null, $"invoke 0x{invokeVa:x} not in __text");
+        if (!img.TryVaToFileOffset(invokeVa, out _, out var owner) || !IsTextSection(owner.Name))
+            return new InvokeDecode(null, false, null, null, $"invoke 0x{invokeVa:x} not in text");
 
         var lst = Arm64DataTableReader.ListRange(bin, invokeVa, invokeVa + 60 * 4, 60);
         if (!lst.Ok || lst.Instructions.Count == 0)
@@ -708,12 +826,12 @@ public static class ResearchCatalogExtractor {
                             else if (rk == 'q' && fn >= 0) fpv[fn] = new SymVal(SymKind.CurVec, 0, 0, (int)disp);
                         } else if (page.TryGetValue(mb, out ulong pv) && fn >= 0) {
                             ulong cva = pv + (ulong)disp;
-                            if (rk == 'd' && TryReadF64(bin, sections, cva, out double dv)) {
+                            if (rk == 'd' && TryReadF64(bin, img, cva, out double dv)) {
                                 fpv[fn] = new SymVal(SymKind.Const, dv);
-                            } else if (rk == 's' && TryReadF32(bin, sections, cva, out float fv)) {
+                            } else if (rk == 's' && TryReadF32(bin, img, cva, out float fv)) {
                                 fpv[fn] = new SymVal(SymKind.Const, fv);
-                            } else if (rk == 'q' && TryReadF64(bin, sections, cva, out double lo) &&
-                                       TryReadF64(bin, sections, cva + 8, out double hi)) {
+                            } else if (rk == 'q' && TryReadF64(bin, img, cva, out double lo) &&
+                                       TryReadF64(bin, img, cva + 8, out double hi)) {
                                 fpv[fn] = new SymVal(SymKind.ConstPair, lo, hi);
                             } else {
                                 fpv.Remove(fn);
@@ -974,26 +1092,85 @@ public static class ResearchCatalogExtractor {
         return int.TryParse(reg[1..end], NumberStyles.None, CultureInfo.InvariantCulture, out int n) ? n : -1;
     }
 
-    private static bool TryReadU64(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va,
-        out ulong value) {
-        value = 0;
-        if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out _) || fo + 8 > bin.Length) return false;
-        value = BitConverter.ToUInt64(bin, fo);
+    private static List<(ulong Start, int Len)> FindIdRuns(InitWalk walk, int stride) {
+        var idVas = new SortedSet<ulong>();
+        foreach (ulong v in walk.AbsBytes.Keys) {
+            if ((v & 7) == 0 && IsResearchId(ReadStringFieldStrict(walk, v))) idVas.Add(v);
+        }
+
+        var runs = new List<(ulong Start, int Len)>();
+        foreach (ulong v in idVas) {
+            if (idVas.Contains(v - (ulong)stride)) continue;
+            int len = 1;
+            while (idVas.Contains(v + (ulong)(len * stride))) len++;
+            runs.Add((v, len));
+        }
+
+        return runs;
+    }
+
+    private static bool TryResolveElfBases(List<(ulong Start, int Len)> runs, int stride, int commonCount,
+        int epicCount, out ulong commonBase, out ulong epicBase) {
+        commonBase = 0;
+        epicBase = 0;
+        if (runs.Count == 0) return false;
+
+        var main = runs.OrderByDescending(r => r.Len).First();
+        if (main.Len < Math.Max(4, commonCount / 2)) return false;
+        commonBase = main.Start - IdOffset;
+
+        if (main.Len >= commonCount + epicCount) {
+            epicBase = main.Start + (ulong)(commonCount * stride) - IdOffset;
+            return true;
+        }
+
+        ulong commonEnd = main.Start + (ulong)((commonCount - 1) * stride);
+        var epic = runs.Where(r => r.Start != main.Start && r.Start > commonEnd).OrderByDescending(r => r.Len)
+            .FirstOrDefault();
+        if (epic.Len == 0) {
+            epic = runs.Where(r => r.Start != main.Start).OrderByDescending(r => r.Len).FirstOrDefault();
+        }
+
+        if (epic.Len == 0) return false;
+        epicBase = epic.Start - IdOffset;
         return true;
     }
 
-    private static bool TryReadF64(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va,
-        out double value) {
+    private static string RunSummary(List<(ulong Start, int Len)> runs) =>
+        runs.Count == 0 ? "none" : string.Join(", ", runs.OrderByDescending(r => r.Len).Take(6)
+            .Select(r => $"0x{r.Start:x}:{r.Len}"));
+
+    private static bool IsResearchId(string? s) {
+        if (s is null || s.Length < 3 || !char.IsAsciiLetterLower(s[0])) return false;
+        foreach (char c in s) {
+            if (!char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '_') return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsTextSection(string name) => name is "__text" or ".text";
+
+    private static bool IsCstrSection(string name) => name is "__cstring" or ".rodata";
+
+    private static bool TryReadU64(byte[] bin, IBinaryImage img, ulong va, out ulong value) {
         value = 0;
-        if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out _) || fo + 8 > bin.Length) return false;
+        if (!img.TryVaToFileOffset(va, out int fo, out _) || fo + 8 > bin.Length) return false;
+        value = BitConverter.ToUInt64(bin, fo);
+        if (value == 0 && img is ElfImage elf && elf.TryResolveRelative(va, out ulong reloc)) value = reloc;
+        return true;
+    }
+
+    private static bool TryReadF64(byte[] bin, IBinaryImage img, ulong va, out double value) {
+        value = 0;
+        if (!img.TryVaToFileOffset(va, out int fo, out _) || fo + 8 > bin.Length) return false;
         value = BitConverter.ToDouble(bin, fo);
         return double.IsFinite(value);
     }
 
-    private static bool TryReadF32(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va,
-        out float value) {
+    private static bool TryReadF32(byte[] bin, IBinaryImage img, ulong va, out float value) {
         value = 0;
-        if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out _) || fo + 4 > bin.Length) return false;
+        if (!img.TryVaToFileOffset(va, out int fo, out _) || fo + 4 > bin.Length) return false;
         value = BitConverter.ToSingle(bin, fo);
         return float.IsFinite(value);
     }
