@@ -29,7 +29,13 @@ public static partial class DeviceParsing {
     }
 
     public static string? SelectArmSplit(string pmPathOutput) {
-        foreach (string p in ApkPaths(pmPathOutput)) {
+        var paths = ApkPaths(pmPathOutput);
+        foreach (string p in paths) {
+            if (p.Contains("arm64"))
+                return p;
+        }
+
+        foreach (string p in paths) {
             if (p.Contains("arm"))
                 return p;
         }

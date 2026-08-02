@@ -44,15 +44,17 @@ public static class HabCatalogExtractor {
         StructInitReader.Result scan, long stride) {
         var bytes = new Dictionary<ulong, byte>();
         var ptrs = new Dictionary<ulong, ulong>();
+        var tpls = new Dictionary<ulong, ulong>();
         foreach (var s in scan.Structs) {
             foreach ((long off, byte b) in s.Bytes) bytes[s.BaseVa + (ulong)off] = b;
             foreach ((long off, ulong p) in s.Pointers) ptrs[s.BaseVa + (ulong)off] = p;
+            foreach ((long off, ulong t) in s.Templates) tpls[s.BaseVa + (ulong)off] = t;
         }
 
         foreach (var s in scan.Structs) {
             if (!TryReadInt64(bytes, s.BaseVa + CapacityOffset, out long first) || first != ExpectedCapacities[0])
                 continue;
-            if (TryReadBlock(bin, sections, bytes, ptrs, s.BaseVa, stride, out var entries))
+            if (TryReadBlock(bin, sections, bytes, ptrs, tpls, s.BaseVa, stride, out var entries))
                 return new Result(true, entries, $"{entries.Count} habs, {entries.Count(e => e.Name is not null)} named");
         }
 
@@ -60,27 +62,29 @@ public static class HabCatalogExtractor {
     }
 
     private static bool TryReadBlock(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
-        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, ulong blockBase, long stride,
-        out List<HabEntry> entries) {
+        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, Dictionary<ulong, ulong> tpls,
+        ulong blockBase, long stride, out List<HabEntry> entries) {
         entries = [];
         for (int i = 0; i < ExpectedCapacities.Length; i++) {
             ulong rec = blockBase + (ulong)(i * stride);
             if (!TryReadInt64(bytes, rec + CapacityOffset, out long cap) || cap != ExpectedCapacities[i])
                 return false;
-            entries.Add(new HabEntry(i, ResolveName(bin, sections, bytes, ptrs, rec), cap));
+            entries.Add(new HabEntry(i, ResolveName(bin, sections, bytes, ptrs, tpls, rec), cap));
         }
 
         return true;
     }
 
     private static string? ResolveName(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
-        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, ulong rec)
-        => ResolveAt(bin, sections, bytes, ptrs, rec) ?? ResolveAt(bin, sections, bytes, ptrs, rec + 1);
+        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, Dictionary<ulong, ulong> tpls, ulong rec)
+        => ResolveAt(bin, sections, bytes, ptrs, tpls, rec) ?? ResolveAt(bin, sections, bytes, ptrs, tpls, rec + 1);
 
     private static string? ResolveAt(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
-        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, ulong at) {
+        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, Dictionary<ulong, ulong> tpls, ulong at) {
         if (ptrs.TryGetValue(at, out ulong pva) && IsName(ReadCstr(bin, sections, pva)) is { } fromPtr)
             return fromPtr;
+        if (tpls.TryGetValue(at, out ulong tva) && IsName(ReadCstr(bin, sections, tva)) is { } fromTpl)
+            return fromTpl;
         return IsName(ReadInline(bytes, at));
     }
 

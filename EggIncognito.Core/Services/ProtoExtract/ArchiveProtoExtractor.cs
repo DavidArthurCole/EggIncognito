@@ -11,6 +11,12 @@ public static class ArchiveProtoExtractor {
         if (archiveZipBytes is null || archiveZipBytes.Length == 0)
             return new DescriptorProtoCarver.ExtractResult(false, null, "empty archive", null, []);
 
+        if (TryReadArmBundle(archiveZipBytes, out byte[] armApk, out byte[]? baseApk)) {
+            (string? bv, string? bb) = ReadVersion(baseApk ?? armApk);
+            var inner = Extract(armApk);
+            return inner.Ok ? inner with { AppVersion = bv, Build = bb } : inner;
+        }
+
         (string? appVersion, string? build) = ReadVersion(archiveZipBytes);
 
         foreach (byte[] entryBytes in CandidateBinaries(archiveZipBytes)) {
@@ -21,6 +27,35 @@ public static class ArchiveProtoExtractor {
 
         var raw = DescriptorProtoCarver.Extract(archiveZipBytes);
         return raw.Ok ? raw with { AppVersion = appVersion, Build = build } : raw;
+    }
+
+    private static bool TryReadArmBundle(byte[] zipBytes, out byte[] armApk, out byte[]? baseApk) {
+        armApk = [];
+        baseApk = null;
+        try {
+            using var ms = new MemoryStream(zipBytes, false);
+            using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
+            var arm = zip.Entries.FirstOrDefault(e =>
+                e.Name.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
+                && e.Name.Contains("arm64", StringComparison.OrdinalIgnoreCase));
+            if (arm is null) return false;
+
+            armApk = ReadEntry(arm);
+            var baseEntry = zip.Entries.FirstOrDefault(e =>
+                e.Name.Equals("base.apk", StringComparison.OrdinalIgnoreCase)
+                || e.FullName.EndsWith("/base.apk", StringComparison.OrdinalIgnoreCase));
+            baseApk = baseEntry is null ? null : ReadEntry(baseEntry);
+            return armApk.Length > 0;
+        } catch {
+            return false;
+        }
+    }
+
+    private static byte[] ReadEntry(ZipArchiveEntry entry) {
+        using var es = entry.Open();
+        using var buf = new MemoryStream();
+        es.CopyTo(buf);
+        return buf.ToArray();
     }
 
 
@@ -100,6 +135,11 @@ public static class ArchiveProtoExtractor {
 
 
     private static IEnumerable<ZipArchiveEntry> OrderedCandidates(ZipArchive zip) {
+        bool IsArm64LibEggInc(ZipArchiveEntry e) {
+            return e.FullName.EndsWith("/libegginc.so", StringComparison.OrdinalIgnoreCase)
+                   && e.FullName.Contains("arm64", StringComparison.OrdinalIgnoreCase);
+        }
+
         bool IsApkLibEggInc(ZipArchiveEntry e) {
             return e.FullName.EndsWith("/libegginc.so", StringComparison.OrdinalIgnoreCase);
         }
@@ -130,7 +170,8 @@ public static class ArchiveProtoExtractor {
         }
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var pred in new[] { IsApkLibEggInc, IsArm64So, IsAnySo, IsIosAppExecutable, IsIosFrameworkBinary }) {
+        foreach (var pred in new[]
+                     { IsArm64LibEggInc, IsApkLibEggInc, IsArm64So, IsAnySo, IsIosAppExecutable, IsIosFrameworkBinary }) {
             foreach (var e in zip.Entries) {
                 if (pred(e) && seen.Add(e.FullName))
                     yield return e;
