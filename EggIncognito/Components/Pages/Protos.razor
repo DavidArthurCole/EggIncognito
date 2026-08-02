@@ -645,7 +645,7 @@
     void ToggleRow(VersionRow r) {
         var existing = _selected.FirstOrDefault(k => k.Platform == r.Platform && k.Build == r.Build);
         if (existing is not null) _selected.Remove(existing);
-        else _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
+        else _selected.Add(new VersionKey(r.Platform, r.Build));
     }
 
     bool AllSelected => Sorted.Count > 0 && Sorted.All(IsSelected);
@@ -654,7 +654,7 @@
         _selected.Clear();
         if (e.Value is true)
             foreach (var r in Sorted)
-                _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
+                _selected.Add(new VersionKey(r.Platform, r.Build));
     }
 
 
@@ -664,7 +664,7 @@
             var existing = _selected.FirstOrDefault(k => k.Platform == m.Platform && k.Build == m.Build);
             if (allSelected) {
                 if (existing is not null) _selected.Remove(existing);
-            } else if (existing is null) _selected.Add(new ProtoSelectionBar.VersionKey(m.Platform, m.Build));
+            } else if (existing is null) _selected.Add(new VersionKey(m.Platform, m.Build));
         }
     }
 
@@ -679,7 +679,7 @@
 
     List<ProtoEditDialog.Row> EditTargets(Release rel) {
         return rel.Members
-            .Select(m => new ProtoEditDialog.Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
+            .Select(m => new Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
             .ToList();
     }
 

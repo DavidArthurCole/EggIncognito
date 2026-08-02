@@ -348,7 +348,7 @@
 
     void PushNotice(CaptureEvent ev) {
         var severity = NoticeSeverity(ev.Kind);
-        _notices.Insert(0, new CaptureNoticesPanel.NoticeItem(_nextNoticeId++, severity, ev.Message, ev.Timestamp));
+        _notices.Insert(0, new NoticeItem(_nextNoticeId++, severity, ev.Message, ev.Timestamp));
         if (_notices.Count > 200) _notices.RemoveRange(200, _notices.Count - 200);
         _unread++;
 
