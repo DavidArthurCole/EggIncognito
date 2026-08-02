@@ -32,7 +32,7 @@ public partial class ProtoHashTests {
         };
 
         var noisy = bare.Clone();
-        noisy.Options = new FileOptions { Deprecated = true };
+        noisy.Options = new Google.Protobuf.Reflection.FileOptions { Deprecated = true };
         noisy.MessageType[0].Field[0].JsonName = "aJson";
         noisy.MessageType[0].Field[0].Options = new FieldOptions { Deprecated = true };
 
