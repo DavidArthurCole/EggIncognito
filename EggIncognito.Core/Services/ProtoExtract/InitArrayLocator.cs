@@ -30,11 +30,22 @@ public sealed class InitArrayLocator {
             ulong s = _inits[i];
             if (!ContainsString(s, InitEnd(i), needle)) continue;
             start = s;
-            end = i + 1 < _inits.Count ? _inits[i + 1] : EndOf(s);
+            ulong cap = i + 1 < _inits.Count ? _inits[i + 1] : EndOf(s);
+            end = FunctionEnd(s, cap);
             return true;
         }
 
         return false;
+    }
+
+    private ulong FunctionEnd(ulong start, ulong cap) {
+        var lst = Arm64DataTableReader.ListRange(_bin, start, cap, 200_000);
+        if (!lst.Ok) return cap;
+        foreach (var insn in lst.Instructions) {
+            if (insn.Mnemonic.StartsWith("ret", StringComparison.Ordinal)) return insn.Va + 4;
+        }
+
+        return cap;
     }
 
     private bool ContainsString(ulong startVa, ulong endVa, string needle) {

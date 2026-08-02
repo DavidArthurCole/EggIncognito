@@ -6,6 +6,7 @@ namespace EggIncognito.Services.ProtoExtract;
 
 public static partial class BoostCatalogExtractor {
     public const string InitSymbol = "__GLOBAL__sub_I_boostmanager";
+    public const string SignatureString = "TACHYON PRISM";
 
     private const int StructStride = 0x88;
     private const int DescFieldOffset = 0x30;
@@ -20,7 +21,9 @@ public static partial class BoostCatalogExtractor {
 
     public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections) {
-        var read = StaticInitCatalogReader.ReadWith(bin, syms, sections, InitSymbol, IsBoostId);
+        if (BinaryImage.Load(bin) is ElfImage) return ExtractElf(bin);
+
+        var read = StaticInitCatalogReader.ReadWith(bin, syms, InitSymbol, IsBoostId);
         if (!read.Ok) return new Result(false, [], read.Diagnostics);
 
         var decoded = DecodeMemberDescriptions(bin, syms, sections, read.Entries);
@@ -35,6 +38,20 @@ public static partial class BoostCatalogExtractor {
             .Select((e, k) => new BoostEntry(e.Id, e.DisplayName, decoded.GetValueOrDefault(k)))
             .ToList();
         return new Result(true, outp, $"{outp.Count} boosts, {decoded.Count} with description");
+    }
+
+    private static Result ExtractElf(byte[] bin) {
+        var loc = InitArrayLocator.Create(bin);
+        if (loc is null || !loc.TryLocateByString(SignatureString, out ulong s, out ulong e))
+            return new Result(false, [], $"boostmanager init not located via '{SignatureString}' on ELF");
+
+        var read = StaticInitCatalogReader.ReadRange(bin, s, e, IsBoostId);
+        if (!read.Ok) return new Result(false, [], read.Diagnostics);
+
+        var outp = read.Entries.Select(x => new BoostEntry(x.Id, x.DisplayName, x.Description)).ToList();
+        int desc = outp.Count(x => x.Description is not null);
+        return new Result(true, outp,
+            $"{outp.Count} boosts, {desc} with description (ELF catalog; member-store decode is Mach-O only)");
     }
 
     private static bool IsBoostId(string s)

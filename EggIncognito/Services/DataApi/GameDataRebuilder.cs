@@ -31,7 +31,6 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
                 results.Add(new RebuildDocResult(id, "skipped", null, null, "no extraction binary available"));
         } else {
             await LandBestAsync(results, "boost-catalog", candidates, c => {
-                if (c.IsElf) return null;
                 string configJson = DataCatalog.FixtureText(services, DataCatalog.ConfigRoute) ?? "{}";
                 var built = BoostCatalogBuilder.Build(c.Bin, c.Syms, c.Sections, configJson, c.Version);
                 string? note = built.MissingCosts.Count > 0
@@ -64,7 +63,7 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
             }, ct);
 
             await LandBestAsync(results, "dimensions", candidates, c => {
-                var r = DimensionCatalogExtractor.ExtractWith(c.Bin, c.Syms, c.Sections);
+                var r = DimensionCatalogExtractor.ExtractWith(c.Bin, c.Syms);
                 if (!r.Ok || r.Ids.Count == 0) return null;
                 var doc = GameDataDocBuilders.BuildDimensions(r.Ids, c.Version);
                 return (doc.Json, doc.Count, null);

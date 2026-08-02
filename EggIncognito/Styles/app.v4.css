@@ -59,7 +59,7 @@
 .season-table td { white-space: normal; }
 .hcard-wrap { @apply relative inline-flex; }
 .hcard {
-  @apply hidden absolute left-1/2 bottom-full z-40 -translate-x-1/2 mb-1.5 flex-col gap-0.5 whitespace-nowrap
+  @apply hidden absolute left-1/2 bottom-full z-[1100] -translate-x-1/2 mb-1.5 flex-col gap-0.5 whitespace-nowrap
          rounded-md border border-border bg-bg px-3 py-2 [box-shadow:0_6px_20px_rgba(0,0,0,.5)];
 }
 .hcard-wrap:hover .hcard { @apply flex; }

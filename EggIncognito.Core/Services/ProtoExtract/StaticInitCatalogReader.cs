@@ -5,18 +5,27 @@ namespace EggIncognito.Services.ProtoExtract;
 public static class StaticInitCatalogReader {
     public static Result Read(byte[] bin, string initSymbol, Func<string, bool> isId) {
         var img = BinaryImage.Load(bin);
-        return ReadWith(bin, img?.Symbols ?? [], img?.Sections ?? [], initSymbol, isId);
+        return ReadWith(bin, img?.Symbols ?? [], initSymbol, isId);
     }
 
     public static Result ReadWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
-        IReadOnlyList<MachoSections.Section> sections, string initSymbol, Func<string, bool> isId) {
+        string initSymbol, Func<string, bool> isId) {
         var scan = Arm64DataTableReader.ScanWith(bin, syms, [initSymbol]);
-        if (!scan.Ok) return new Result(false, [], scan.Diagnostics);
+        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Classify(bin, scan.Addresses, isId);
+    }
 
+    public static Result ReadRange(byte[] bin, ulong startVa, ulong endVa, Func<string, bool> isId) {
+        var scan = Arm64DataTableReader.ScanRange(bin, startVa, endVa);
+        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Classify(bin, scan.Addresses, isId);
+    }
+
+    private static Result Classify(byte[] bin, IReadOnlyList<Arm64DataTableReader.AddressRef> addresses,
+        Func<string, bool> isId) {
+        var img = BinaryImage.Load(bin);
         var refs = new List<(ulong Va, string Str)>();
-        foreach (var a in scan.Addresses) {
-            if (a.Section != "__cstring") continue;
-            refs.Add((a.Va, ReadCstr(bin, sections, a.Va)));
+        foreach (var a in addresses) {
+            if (!IsStringSection(a.Section)) continue;
+            refs.Add((a.Va, ReadCstr(bin, img, a.Va)));
         }
 
         var kept = new List<(ulong Va, string Str)>();
@@ -48,9 +57,26 @@ public static class StaticInitCatalogReader {
                 entries[^1] = cur with { Name = Str };
         }
 
-        var outp = entries.Select(e => new Entry(e.Id, e.Name, e.Desc)).ToList();
+        var outp = entries
+            .Where(e => !IsSuffixFragment(e, entries))
+            .Select(e => new Entry(e.Id, e.Name, e.Desc))
+            .ToList();
         return new Result(true, outp, $"{outp.Count} entries");
     }
+
+    private static bool IsSuffixFragment((string Id, string? Name, string? Desc) e,
+        IReadOnlyList<(string Id, string? Name, string? Desc)> all) {
+        if (e.Name is not null || e.Desc is not null) return false;
+        foreach (var o in all) {
+            if (o.Id.Length > e.Id.Length && o.Id.EndsWith(e.Id, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsStringSection(string name) =>
+        name is "__cstring" or ".rodata" or ".data.rel.ro";
 
     private static bool LooksLikeDisplayName(string s)
         => s.Length > 0 && (s.Contains(' ') || char.IsUpper(s[0]) || char.IsDigit(s[0]));
@@ -64,8 +90,8 @@ public static class StaticInitCatalogReader {
         return true;
     }
 
-    private static string ReadCstr(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va) {
-        if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out _)) return "";
+    private static string ReadCstr(byte[] bin, IBinaryImage? img, ulong va) {
+        if (img is null || !img.TryVaToFileOffset(va, out int fo, out _)) return "";
         int end = fo;
         while (end < bin.Length && bin[end] != 0) end++;
         return Encoding.UTF8.GetString(bin, fo, end - fo);
