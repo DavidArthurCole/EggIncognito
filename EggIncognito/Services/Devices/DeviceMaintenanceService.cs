@@ -13,12 +13,19 @@ public sealed class DeviceMaintenanceService(
     DeviceProxyPusher proxyPusher,
     IEnumerable<IDeviceStoreChecker> storeCheckers,
     IConfiguration appConfig,
+    IosStoreCatalog catalog,
+    KnownVersionRecorder knownVersions,
     ILogger<DeviceMaintenanceService> logger) : BackgroundService {
     private static readonly TimeSpan ClimbHarvestBackoff = TimeSpan.FromMinutes(30);
     private readonly bool _syncEnabled = appConfig.GetValue("DeviceSync:Enabled", false);
+    private readonly TimeSpan _noOpRetryBackoff =
+        TimeSpan.FromMinutes(appConfig.GetValue("DeviceSync:RetryBackoffMinutes", 360));
 
 #pragma warning disable IDE0028
     private readonly Dictionary<string, (string Build, DateTimeOffset At)> _lastClimbHarvest =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<string, (string StoreLatest, DateTimeOffset At)> _lastNoOpCheck =
         new(StringComparer.OrdinalIgnoreCase);
 #pragma warning restore IDE0028
 
@@ -64,6 +71,8 @@ public sealed class DeviceMaintenanceService(
             .GroupBy(p => p.DeviceId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
+        if (_syncEnabled) await RefreshStoreCatalogAsync(ct);
+
         foreach (var d in await store.EnabledDevicesAsync(ct)) {
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
             try {
@@ -81,6 +90,18 @@ public sealed class DeviceMaintenanceService(
 
         await HarvestClimbedDevicesAsync(latest, sp, ct);
         await EnsureBinaryStoredAsync(sp, ct);
+    }
+
+    private async Task RefreshStoreCatalogAsync(CancellationToken ct) {
+        try {
+            string appId = appConfig["DeviceUpdate:Ios:AppId"] ?? "993492744";
+            string? country = appConfig["DeviceUpdate:Ios:LookupCountry"];
+            string? storeLatest = await catalog.LatestVersionAsync(appId, country, ct);
+            if (storeLatest is not null)
+                await knownVersions.RecordAsync("ios", storeLatest, "itunes-lookup", ct);
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "device sync: store catalog refresh threw");
+        }
     }
 
     private async Task HarvestClimbedDevicesAsync(
@@ -159,8 +180,17 @@ public sealed class DeviceMaintenanceService(
         if (!_syncEnabled) return;
         if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion)) return;
 
-        string? storeLatest = await StoreAheadCheck.StoreLatestAsync(db, d.Platform, ct);
+        string? storeLatest = await StoreAheadCheck.StoreLatestAsync(db, d.Platform, ct,
+            crossPlatformHint: string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase));
         if (!StoreAheadCheck.IsAhead(storeLatest, probe.InstalledAppVersion)) return;
+
+        if (_lastNoOpCheck.TryGetValue(d.Id, out var noOp)
+            && string.Equals(noOp.StoreLatest, storeLatest, StringComparison.Ordinal)
+            && time.GetUtcNow() - noOp.At < _noOpRetryBackoff) {
+            logger.LogDebug("device sync: {Id} store {Store} already checked recently (no-op); backing off",
+                d.Id, storeLatest);
+            return;
+        }
 
         var checker = storeCheckers.FirstOrDefault(c =>
             string.Equals(c.Platform, d.Platform, StringComparison.OrdinalIgnoreCase));
@@ -177,6 +207,7 @@ public sealed class DeviceMaintenanceService(
             msg => logger.LogInformation("device sync: {Id} {Msg}", d.Id, msg));
 
         if (result.Installed) {
+            _lastNoOpCheck.Remove(d.Id);
             await store.RecordUpdateAsync(new DeviceUpdate {
                 DeviceId = d.Id,
                 AttemptedAt = DateTimeOffset.UtcNow,
@@ -186,6 +217,8 @@ public sealed class DeviceMaintenanceService(
                 Note = result.Note,
                 TriggeredBy = "heartbeat"
             }, ct);
+        } else if (result.Action is "up_to_date" or "manual_needed") {
+            _lastNoOpCheck[d.Id] = (storeLatest!, time.GetUtcNow());
         }
     }
 }

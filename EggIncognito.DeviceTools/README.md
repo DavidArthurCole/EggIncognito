@@ -19,7 +19,7 @@ into the App Store at launch (filter `com.apple.AppStore`), NOT frida injection 
 once; see memory `ios-frida-spike-danger`).
 
 - Watches `/var/mobile/eggupdate.trigger` via a kqueue dispatch source. The app fires the update by
-  `touch`-ing that file over ssh (`IosStoreChecker`). No notifyutil/nc/socat needed.
+  `touch`-ing that file over ssh (`IosStoreUpdateDriver`). No notifyutil/nc/socat needed.
 - On trigger: phase 1 `getUpdatesWithCompletionBlock:` on `[ASDUpdatesService defaultService]`, wait for
   callback, find adam-id `993492744`, phase 2 install. Reuses the phone's logged-in StoreServices session,
   so it never re-auths and dodges the GSA/Anisette wall that kills ipatool.
@@ -36,11 +36,10 @@ make package EGGUPDATE_ARMED=1 THEOS=$HOME/theos  # armed, after the phase-2 sel
 Wire the app on once the armed tweak reliably climbs the version:
 
 ```
-DeviceUpdate:Enabled=true
-DeviceUpdate:Ios:Enabled=true
+DeviceSync:Enabled=true
 DeviceUpdate:Ios:SshHost=<phone-ip>
 DeviceUpdate:Ios:SshKeyPath=<key>
-# optional: SshPort (2222), TriggerPath (/var/mobile/eggupdate.trigger), PollSeconds (15), PollAttempts (24)
+# optional: SshPort (2222), TriggerPath (/var/mobile/eggupdate.trigger), PollSeconds (15), PollAttempts (24), AppId (993492744), LookupCountry
 ```
 
 ## ios/frida

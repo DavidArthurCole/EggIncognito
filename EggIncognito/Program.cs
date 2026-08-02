@@ -525,22 +525,52 @@ if (deviceCaptureConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceCaptureManager>());
 
 
-string androidDrive = builder.Configuration["DeviceCheck:Android:DriveCommand"]
-                      ?? "am start -a android.intent.action.VIEW -d market://details?id={package}";
-int androidPollSeconds = builder.Configuration.GetValue("DeviceCheck:Android:PollSeconds", 15);
-int androidPollAttempts = builder.Configuration.GetValue("DeviceCheck:Android:PollAttempts", 24);
-builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
-    new AndroidPlayStoreChecker(
-        sp.GetRequiredService<IProcessRunner>(),
-        new AndroidPlayStoreChecker.Options(androidDrive, androidPollSeconds, androidPollAttempts),
-        sp.GetRequiredService<ILogger<AndroidPlayStoreChecker>>()));
+builder.Services.AddHttpClient("itunes", c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<KnownVersionRecorder>();
+builder.Services.AddSingleton<IosStoreCatalog>();
 builder.Services.AddSingleton<IDeviceJobTracker,
     DeviceJobTracker>();
+
+string androidDrive = builder.Configuration["DeviceUpdate:Android:DriveCommand"]
+                      ?? builder.Configuration["DeviceCheck:Android:DriveCommand"]
+                      ?? "am start -a android.intent.action.VIEW -d market://details?id={package}";
+int androidPollSeconds = builder.Configuration.GetValue<int?>("DeviceUpdate:Android:PollSeconds")
+                         ?? builder.Configuration.GetValue("DeviceCheck:Android:PollSeconds", 15);
+int androidPollAttempts = builder.Configuration.GetValue<int?>("DeviceUpdate:Android:PollAttempts")
+                          ?? builder.Configuration.GetValue("DeviceCheck:Android:PollAttempts", 24);
+int androidUiFirstWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiFirstWaitSeconds", 6);
+int androidUiRetryWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiRetryWaitSeconds", 3);
 builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
-    new IosStoreChecker(
-        sp.GetRequiredService<IProcessRunner>(),
-        sp.GetRequiredService<IConfiguration>(),
-        sp.GetRequiredService<ILogger<IosStoreChecker>>()));
+    new StoreUpdateOrchestrator(
+        new AndroidStoreUpdateDriver(
+            sp.GetRequiredService<IProcessRunner>(),
+            new AndroidStoreUpdateDriver.Options(androidDrive, androidUiFirstWait, androidUiRetryWait),
+            sp.GetRequiredService<ILogger<AndroidStoreUpdateDriver>>()),
+        new StoreUpdateOrchestrator.Options(androidPollSeconds, androidPollAttempts),
+        sp.GetRequiredService<KnownVersionRecorder>(),
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.android")));
+
+var iosUpdateConfig = builder.Configuration.GetSection("DeviceUpdate").GetSection("Ios");
+string? iosSshHost = iosUpdateConfig["SshHost"];
+string iosSshPort = iosUpdateConfig["SshPort"] ?? "2222";
+string? iosSshKeyPath = iosUpdateConfig["SshKeyPath"];
+string iosTriggerPath = iosUpdateConfig["TriggerPath"] ?? "/var/mobile/eggupdate.trigger";
+int iosPollSeconds = iosUpdateConfig.GetValue("PollSeconds", 15);
+int iosPollAttempts = iosUpdateConfig.GetValue("PollAttempts", 24);
+string iosAppId = iosUpdateConfig["AppId"] ?? "993492744";
+string? iosLookupCountry = iosUpdateConfig["LookupCountry"];
+builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
+    new StoreUpdateOrchestrator(
+        new IosStoreUpdateDriver(
+            sp.GetRequiredService<IProcessRunner>(),
+            new IosStoreUpdateDriver.Options(
+                iosSshHost, iosSshPort, iosSshKeyPath, iosTriggerPath, iosAppId, iosLookupCountry),
+            sp.GetRequiredService<IosStoreCatalog>(),
+            sp.GetRequiredService<KnownVersionRecorder>(),
+            sp.GetRequiredService<ILogger<IosStoreUpdateDriver>>()),
+        new StoreUpdateOrchestrator.Options(iosPollSeconds, iosPollAttempts),
+        sp.GetRequiredService<KnownVersionRecorder>(),
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.ios")));
 
 builder.Services.AddSingleton<IDevicePlatform, IosPlatform>();
 builder.Services.AddSingleton<IDevicePlatform, AndroidPlatform>();

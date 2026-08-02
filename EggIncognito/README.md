@@ -97,10 +97,12 @@ The route map also carries `excluded:` (paths intentionally not mocked) and `end
 | `EGG_INC_API_SALT` | required for request signing | API signing phrase for the Inspector's "Live API" sends |
 | `Devices:*` | unset | Declares the wired phones to probe (`Id`/`Platform`/`Target`/`Label`/`Package` per device). Empty = no farm. |
 | `DevicePolling:Enabled` / `:IntervalMinutes` | `true` / `30` | The background probe heartbeat. |
-| `DeviceSync:Enabled` | `false` | Allow the heartbeat to drive a device store-update when its store is ahead. |
+| `DeviceSync:Enabled` / `:RetryBackoffMinutes` | `false` / `360` | Allow the heartbeat to drive a device store-update when its store is ahead; backoff before re-driving a device whose check came back up-to-date or manual-needed. |
 | `DeviceCapture:Enabled` / `:BasePort` / `:HostIp` | `false` / `9100` / auto | Persistent per-device capture proxies (rinfo harvest). `HostIp` = the address devices dial back to. |
 | `DeviceCapture:Android:*` / `:Ios:*` | unset | CA-install scripts, iOS ssh creds + proxy/restart command templates (falls back to `DeviceUpdate:Ios`). |
 | `DeviceUpdate:Ios:SshHost` / `:SshPort` / `:SshKeyPath` | unset / `2222` / unset | iOS ssh creds for binary pull + update + CA install. |
+| `DeviceUpdate:Ios:AppId` / `:LookupCountry` | `993492744` / unset | iTunes lookup for the App Store latest version; results recorded to known versions. |
+| `DeviceUpdate:Android:*` | defaults | Play Store drive command + poll tuning (legacy `DeviceCheck:Android:*` still honored). |
 | `Feed:PageBaseUrl` | unset | Base URL stamped into proto feed notifications. |
 
 ## Web tooling
