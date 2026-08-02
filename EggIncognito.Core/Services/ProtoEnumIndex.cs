@@ -30,20 +30,20 @@ public static class ProtoEnumIndex {
                     pendingName = i + 1 < tokens.Count ? tokens[i + 1] : null;
                     break;
                 case "{": {
-                    var frame = new Frame { Kind = pendingKind, Name = pendingName };
-                    if (pendingKind == "enum") {
-                        var members = new Dictionary<int, string>();
-                        frame.EnumMembers = members;
-                        stack.Add(frame);
-                        enums[FullName(package, stack)] = members;
-                    } else {
-                        stack.Add(frame);
-                    }
+                        var frame = new Frame { Kind = pendingKind, Name = pendingName };
+                        if (pendingKind == "enum") {
+                            var members = new Dictionary<int, string>();
+                            frame.EnumMembers = members;
+                            stack.Add(frame);
+                            enums[FullName(package, stack)] = members;
+                        } else {
+                            stack.Add(frame);
+                        }
 
-                    pendingKind = null;
-                    pendingName = null;
-                    break;
-                }
+                        pendingKind = null;
+                        pendingName = null;
+                        break;
+                    }
                 case "}":
                     if (stack.Count > 0) stack.RemoveAt(stack.Count - 1);
                     break;

@@ -20,7 +20,8 @@ public partial class ProtoHashTests {
     [Fact]
     public void OfDescriptor_Ignores_JsonName_And_Options() {
         var bare = new FileDescriptorProto {
-            Name = "x.proto", Syntax = "proto2",
+            Name = "x.proto",
+            Syntax = "proto2",
             MessageType = { new DescriptorProto {
                 Name = "M",
                 Field = { new FieldDescriptorProto {
@@ -42,12 +43,14 @@ public partial class ProtoHashTests {
     [Fact]
     public void OfDescriptor_Distinguishes_Different_Schemas() {
         var one = new FileDescriptorProto {
-            Name = "x.proto", Syntax = "proto2",
+            Name = "x.proto",
+            Syntax = "proto2",
             MessageType = { new DescriptorProto { Name = "M" } }
         };
         var two = one.Clone();
         two.MessageType[0].Field.Add(new FieldDescriptorProto {
-            Name = "a", Number = 1,
+            Name = "a",
+            Number = 1,
             Label = FieldDescriptorProto.Types.Label.Optional,
             Type = FieldDescriptorProto.Types.Type.Int32
         });
