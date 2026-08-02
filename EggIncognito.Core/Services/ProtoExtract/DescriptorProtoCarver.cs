@@ -58,7 +58,7 @@ public static class DescriptorProtoCarver {
         string diag =
             $"ei.proto @0x{ei.FileOffset:X}: {eiFdp.MessageType.Count} top-level messages, {eiFdp.EnumType.Count} enums"
             + (common is not null ? "; merged common.proto (aux)" : "; common.proto absent");
-        return new ExtractResult(true, proto, diag, sha, messages);
+        return new ExtractResult(true, proto, diag, sha, messages, ClientVersion: LibegincClientVersion.ReadFromBinary(binary));
     }
 
     private static FileDescriptorProto? TryParse(byte[] bytes) {
@@ -203,5 +203,6 @@ public static class DescriptorProtoCarver {
         string? ProtoSha,
         IReadOnlyList<string> Messages,
         string? AppVersion = null,
-        string? Build = null);
+        string? Build = null,
+        int? ClientVersion = null);
 }

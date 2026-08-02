@@ -9,6 +9,7 @@ public static class ElfSymbols {
 
     public static IReadOnlyList<MachoSymbols.Symbol> Read(byte[] bin) {
         var outp = new List<MachoSymbols.Symbol>();
+        if (ElfSections.IsElf32Le(bin)) return Read32(bin);
         if (!ElfSections.IsElf64Le(bin)) return outp;
         try {
             ulong shoff = U64(bin, 0x28);
@@ -36,6 +37,57 @@ public static class ElfSymbols {
                 ulong strSize = U64(bin, (int)lh + 0x20);
 
                 ReadSymTab(bin, tabOff, tabSize, entsize, strOff, strSize, seen, outp);
+            }
+        } catch {
+            return outp;
+        }
+
+        return outp;
+    }
+
+    private const int Elf32SymSize = 16;
+
+    private static List<MachoSymbols.Symbol> Read32(byte[] bin) {
+        var outp = new List<MachoSymbols.Symbol>();
+        try {
+            uint shoff = U32(bin, 0x20);
+            int shentsize = U16(bin, 0x2E);
+            int shnum = U16(bin, 0x30);
+            if (shentsize < 40 || shnum <= 0) return outp;
+
+            var seen = new HashSet<(string, ulong)>();
+            for (int i = 0; i < shnum; i++) {
+                long h = (long)shoff + (long)i * shentsize;
+                if (h < 0 || h + 40 > bin.Length) break;
+                uint type = U32(bin, (int)h + 0x04);
+                if (type is not (ShtSymtab or ShtDynsym)) continue;
+
+                uint tabOff = U32(bin, (int)h + 0x10);
+                uint tabSize = U32(bin, (int)h + 0x14);
+                uint link = U32(bin, (int)h + 0x18);
+                uint entsize = U32(bin, (int)h + 0x24);
+                if (entsize < Elf32SymSize) entsize = Elf32SymSize;
+                if (link >= (uint)shnum) continue;
+
+                long lh = (long)shoff + (long)link * shentsize;
+                if (lh < 0 || lh + 40 > bin.Length) continue;
+                uint strOff = U32(bin, (int)lh + 0x10);
+                uint strSize = U32(bin, (int)lh + 0x14);
+
+                uint count = entsize == 0 ? 0 : tabSize / entsize;
+                for (uint s = 0; s < count; s++) {
+                    long e = (long)tabOff + (long)(s * entsize);
+                    if (e < 0 || e + Elf32SymSize > bin.Length) break;
+                    uint nameOff = U32(bin, (int)e + 0x00);
+                    uint value = U32(bin, (int)e + 0x04);
+                    byte info = bin[e + 0x0C];
+                    ushort shndx = U16(bin, (int)e + 0x0E);
+                    if (nameOff == 0 || nameOff >= strSize) continue;
+                    string name = Cstr(bin, (long)strOff + nameOff);
+                    if (name.Length == 0) continue;
+                    if (!seen.Add((name, value))) continue;
+                    outp.Add(new MachoSymbols.Symbol(name, value, info, (byte)shndx));
+                }
             }
         } catch {
             return outp;

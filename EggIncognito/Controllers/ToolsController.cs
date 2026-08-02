@@ -178,7 +178,8 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
             protoSha = r.ProtoSha,
             messages = r.Messages,
             appVersion = r.AppVersion,
-            build = r.Build
+            build = r.Build,
+            clientVersion = r.ClientVersion
         });
 
 

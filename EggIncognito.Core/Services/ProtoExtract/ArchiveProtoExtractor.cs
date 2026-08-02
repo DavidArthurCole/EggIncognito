@@ -36,8 +36,13 @@ public static class ArchiveProtoExtractor {
             using var ms = new MemoryStream(zipBytes, false);
             using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
             var arm = zip.Entries.FirstOrDefault(e =>
-                e.Name.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
-                && e.Name.Contains("arm64", StringComparison.OrdinalIgnoreCase));
+                         e.Name.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
+                         && e.Name.Contains("arm64", StringComparison.OrdinalIgnoreCase))
+                     ?? zip.Entries.FirstOrDefault(e =>
+                         e.Name.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
+                         && (e.Name.Contains("armeabi", StringComparison.OrdinalIgnoreCase)
+                             || e.Name.Contains("armeabi_v7a", StringComparison.OrdinalIgnoreCase)
+                             || e.Name.Contains("_v7a", StringComparison.OrdinalIgnoreCase)));
             if (arm is null) return false;
 
             armApk = ReadEntry(arm);

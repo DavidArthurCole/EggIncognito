@@ -359,8 +359,10 @@ public sealed class DevicesController(
             Encoding.UTF8.GetBytes(carve.Proto)));
 
 
-        string? clientVersion = await HarvestClientVersionAsync(device, HttpContext.RequestAborted);
-        logger.LogInformation("device save: {Id} harvested clientVersion={Cv}", id, clientVersion ?? "(none)");
+        string? clientVersion = carve.ClientVersion?.ToString()
+                                ?? await HarvestClientVersionAsync(device, HttpContext.RequestAborted);
+        logger.LogInformation("device save: {Id} clientVersion={Cv} (source={Src})", id, clientVersion ?? "(none)",
+            carve.ClientVersion is not null ? "binary" : "harvest");
 
         try {
             (var row, bool created, bool protoChanged) = await registry.UpsertAsync(
@@ -415,7 +417,7 @@ public sealed class DevicesController(
                 return (null, StatusCode(500, new { error = $"proto carve failed: {carved.Diagnostics}" }));
             }
 
-            return (new CarveResult(carved.Proto, probe.InstalledBuild!), null);
+            return (new CarveResult(carved.Proto, probe.InstalledBuild!, carved.ClientVersion), null);
         }
 
         if (IosConn(device) is not { } conn) {
@@ -455,7 +457,7 @@ public sealed class DevicesController(
         string iosBuild = !string.IsNullOrEmpty(probe.InstalledBuild)
             ? probe.InstalledBuild!
             : Convert.ToHexStringLower(SHA256.HashData(bin))[..16];
-        return (new CarveResult(iosCarve.Proto, iosBuild), null);
+        return (new CarveResult(iosCarve.Proto, iosBuild, LibegincClientVersion.ReadFromBinary(bin)), null);
     }
 
 
@@ -691,5 +693,5 @@ public sealed class DevicesController(
             : Ok(new { found = true, v.Platform, v.Version, v.Build, v.ClientVersion, capture });
     }
 
-    private sealed record CarveResult(string Proto, string Build);
+    private sealed record CarveResult(string Proto, string Build, int? ClientVersion = null);
 }

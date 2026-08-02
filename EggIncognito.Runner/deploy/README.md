@@ -22,7 +22,6 @@ One `eggincognito-runner` container watches every configured device, both platfo
 | `SYNC_EVENT_URL` / `SYNC_EVENT_SECRET` | new-version ingest endpoint + bearer |
 | `RUNNER_TRIGGER_SECRET` | bearer for `POST /resync`, `POST /resync/{id}`, and the probe routes; EGI sends it as `RUNNER_AGENT_SECRET` |
 | `RUNNER_TRIGGER_URLS` | listener bind, e.g. `http://0.0.0.0:5055` |
-| `PREV_CLIENT_VERSION` | bootstrap anchor for android clientVersion extraction |
 | `ConnectionStrings__Postgres` | optional. When set, the runner connects to the same Postgres DB as the main app and owns device probing: a periodic sweep of every enabled device plus the probe API below. When unset, the runner stays Phase-0 version-only (no DB, no probe sweep, no probe routes). |
 
 Legacy `PLATFORM`, `ADB_TARGET`, `STATE_FILE` still work when `DEVICES_DIR` is unset (single-device fallback).
@@ -37,7 +36,7 @@ Legacy `PLATFORM`, `ADB_TARGET`, `STATE_FILE` still work when `DEVICES_DIR` is u
 
 ## clientVersion extraction
 
-In-process C# (`Elf64` + `Arm64ClientVersionScanner`) against `libegginc.so`, anchored to `PREV_CLIENT_VERSION`. Self-advances after each extract.
+In-process C# (`LibegincClientVersion`) resolves `GameController::currentClientVersion()` in the `libegginc.so` and decodes its constant return. Deterministic, no anchor. Handles arm64 (movz/movk, orr-bitmask MOV alias) and armeabi-v7a ELF32 (ARM/Thumb). Verified across the full 1.0 through 1.37 APK corpus plus iOS.
 
 ## Redeploy
 

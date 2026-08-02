@@ -44,6 +44,7 @@ public static class ElfSections {
 
     public static IReadOnlyList<LoadSegment> ReadSegments(byte[] bin) {
         var result = new List<LoadSegment>();
+        if (IsElf32Le(bin)) return ReadSegments32(bin);
         if (!IsElf64Le(bin)) return result;
         try {
             ulong phoff = U64(bin, 0x20);
@@ -60,6 +61,31 @@ public static class ElfSections {
                 ulong filesz = U64(bin, (int)p + 0x20);
                 ulong memsz = U64(bin, (int)p + 0x28);
                 result.Add(new LoadSegment(vaddr, memsz, (long)off, (long)filesz));
+            }
+        } catch {
+            return result;
+        }
+
+        return result;
+    }
+
+    private static List<LoadSegment> ReadSegments32(byte[] bin) {
+        var result = new List<LoadSegment>();
+        try {
+            uint phoff = U32(bin, 0x1C);
+            int phentsize = U16(bin, 0x2A);
+            int phnum = U16(bin, 0x2C);
+            if (phentsize < 32 || phnum <= 0) return result;
+
+            for (int i = 0; i < phnum; i++) {
+                long p = (long)phoff + (long)i * phentsize;
+                if (p < 0 || p + 32 > bin.Length) break;
+                if (U32(bin, (int)p + 0x00) != PtLoad) continue;
+                uint off = U32(bin, (int)p + 0x04);
+                uint vaddr = U32(bin, (int)p + 0x08);
+                uint filesz = U32(bin, (int)p + 0x10);
+                uint memsz = U32(bin, (int)p + 0x14);
+                result.Add(new LoadSegment(vaddr, memsz, off, filesz));
             }
         } catch {
             return result;
@@ -164,6 +190,10 @@ public static class ElfSections {
     internal static bool IsElf64Le(byte[]? b) =>
         b is { Length: >= 64 } && b[0] == 0x7F && b[1] == (byte)'E' && b[2] == (byte)'L' && b[3] == (byte)'F'
         && b[4] == 2 && b[5] == 1;
+
+    internal static bool IsElf32Le(byte[]? b) =>
+        b is { Length: >= 52 } && b[0] == 0x7F && b[1] == (byte)'E' && b[2] == (byte)'L' && b[3] == (byte)'F'
+        && b[4] == 1 && b[5] == 1;
 
     private static ushort U16(byte[] b, int p) => (ushort)(b[p] | (b[p + 1] << 8));
     private static uint U32(byte[] b, int p) => (uint)(b[p] | (b[p + 1] << 8) | (b[p + 2] << 16) | (b[p + 3] << 24));
