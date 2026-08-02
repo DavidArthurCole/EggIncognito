@@ -14,291 +14,291 @@
 <PageTitle>EggIncognito - Protos & Data</PageTitle>
 
 <main class="px-4 sm:px-8 pt-6 pb-8 max-w-[110rem] mx-auto w-full">
-    <h1 class="text-[1.3rem] mt-0 mb-4">Protos &amp; Data</h1>
+<h1 class="text-[1.3rem] mt-0 mb-4">Protos &amp; Data</h1>
 
-    <div class="flex flex-col lg:flex-row gap-4 mb-6 items-stretch">
-        <DeviceStatusPanel OnSaved="OnMutated"/>
-        <section class="panel shrink-0 flex flex-row flex-wrap items-stretch gap-4">
-            <div class="flex flex-col justify-center gap-4 text-xs">
-                <div class="group">
-                    <div class="ds-state">
-                        <span class="ds-state-k">Latest</span>
-                        <span class="dev-verline">
-                            @if (LatestRow is { } lr) {
-                                @lr.AppVersion<span class="dev-versep">|</span>
-                                @lr.Build
-                                @if (!string.IsNullOrEmpty(lr.ClientVersion)) {
-                                    <span class="dev-versep">|</span>
-                                    @lr.ClientVersion
-                                }
-                            } else {
-                                <span class="text-muted">none yet</span>
+<div class="flex flex-col lg:flex-row gap-4 mb-6 items-stretch">
+    <DeviceStatusPanel OnSaved="OnMutated"/>
+    <section class="panel shrink-0 flex flex-row flex-wrap items-stretch gap-4">
+        <div class="flex flex-col justify-center gap-4 text-xs">
+            <div class="group">
+                <div class="ds-state">
+                    <span class="ds-state-k">Latest</span>
+                    <span class="dev-verline">
+                        @if (LatestRow is { } lr) {
+                            @lr.AppVersion<span class="dev-versep">|</span>
+                            @lr.Build
+                            @if (!string.IsNullOrEmpty(lr.ClientVersion)) {
+                                <span class="dev-versep">|</span>
+                                @lr.ClientVersion
                             }
-                        </span>
-                    </div>
-                    @if (LatestRow is { } lu) {
-                        <div class="ds-state-sub">updated @lu.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
-                    }
+                        } else {
+                            <span class="text-muted">none yet</span>
+                        }
+                    </span>
                 </div>
-                <div class="group">
-                    <div class="ds-state">
-                        <span class="ds-state-k">Server</span>
-                        <span class="dev-verline">
-                            @_serverVersion<span class="dev-versep">|</span><a class="text-accent no-underline hover:underline" href="@_serverCommitUrl" target="_blank" rel="noopener">@_serverSha</a>
-                        </span>
-                    </div>
-                    @if (!string.IsNullOrEmpty(_serverBuildDate)) {
-                        <div class="ds-state-sub">built @_serverBuildDate</div>
-                    }
-                </div>
+                @if (LatestRow is { } lu) {
+                    <div class="ds-state-sub">updated @lu.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
+                }
             </div>
-            <div class="w-px self-stretch bg-border"></div>
-            <div class="w-52 flex flex-col justify-between gap-2">
-                <div>
-                    <h3 class="text-sm font-semibold m-0">Notifications</h3>
-                    <p class="text-muted text-xs m-0 mt-1">Discord webhooks that fire on new proto builds and periodicals updates.</p>
+            <div class="group">
+                <div class="ds-state">
+                    <span class="ds-state-k">Server</span>
+                    <span class="dev-verline">
+                        @_serverVersion<span class="dev-versep">|</span><a class="text-accent no-underline hover:underline" href="@_serverCommitUrl" target="_blank" rel="noopener">@_serverSha</a>
+                    </span>
                 </div>
-                <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _subscribeModal?.Open())">Manage notifications</button>
+                @if (!string.IsNullOrEmpty(_serverBuildDate)) {
+                    <div class="ds-state-sub">built @_serverBuildDate</div>
+                }
             </div>
-            <div class="w-px self-stretch bg-border"></div>
-            <div class="w-52 flex flex-col justify-between gap-2">
-                <div>
-                    <h3 class="text-sm font-semibold m-0">API keys</h3>
-                    <p class="text-muted text-xs m-0 mt-1">Programmatic access to the data API.</p>
-                </div>
-                <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _apiKeysModal?.Open())">Manage API keys</button>
+        </div>
+        <div class="w-px self-stretch bg-border"></div>
+        <div class="w-52 flex flex-col justify-between gap-2">
+            <div>
+                <h3 class="text-sm font-semibold m-0">Notifications</h3>
+                <p class="text-muted text-xs m-0 mt-1">Discord webhooks that fire on new proto builds and periodicals updates.</p>
             </div>
+            <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _subscribeModal?.Open())">Manage notifications</button>
+        </div>
+        <div class="w-px self-stretch bg-border"></div>
+        <div class="w-52 flex flex-col justify-between gap-2">
+            <div>
+                <h3 class="text-sm font-semibold m-0">API keys</h3>
+                <p class="text-muted text-xs m-0 mt-1">Programmatic access to the data API.</p>
+            </div>
+            <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _apiKeysModal?.Open())">Manage API keys</button>
+        </div>
+    </section>
+</div>
+
+<div class="flex flex-col xl:flex-row gap-6 items-start">
+    <div class="flex-1 min-w-0 flex flex-col gap-6">
+        <section>
+            <ProtoDropZone OnResult="OnExtracted"/>
+            @if (_result is not null) {
+                <ProtoAnalysisResult Result="_result" CanWrite="_canWrite" OnSaved="OnMutated"/>
+            }
         </section>
-    </div>
 
-    <div class="flex flex-col xl:flex-row gap-6 items-start">
-        <div class="flex-1 min-w-0 flex flex-col gap-6">
-            <section>
-                <ProtoDropZone OnResult="OnExtracted"/>
-                @if (_result is not null) {
-                    <ProtoAnalysisResult Result="_result" CanWrite="_canWrite" OnSaved="OnMutated"/>
-                }
-            </section>
-
-            <section class="reg-wrap">
-                @if (_canWrite) {
-                    <div class="panel mb-3">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-sm font-semibold m-0">Add version</h3>
-                            <button type="button" class="btn-mini" @onclick="@(() => _addOpen = !_addOpen)">@(_addOpen ? "Close" : "Add version")</button>
-                        </div>
-                        @if (_addOpen) {
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
-                                <label class="text-xs text-muted">
-                                    Platform
-                                    <select class="protos-filter w-full" @bind="_addPlatform">
-                                        <option value="android">android</option>
-                                        <option value="ios">ios</option>
-                                    </select>
-                                </label>
-                                <label class="text-xs text-muted">
-                                    App version
-                                    <input class="protos-filter w-full" @bind="_addAppVersion"/>
-                                </label>
-                                <label class="text-xs text-muted">
-                                    Build
-                                    <input class="protos-filter w-full" @bind="_addBuild"/>
-                                </label>
-                                <label class="text-xs text-muted">
-                                    Client version
-                                    <input class="protos-filter w-full" @bind="_addClient"/>
-                                </label>
-                                <label class="text-xs text-muted">
-                                    Source
-                                    <input class="protos-filter w-full" @bind="_addSource"/>
-                                </label>
-                            </div>
-                            <label class="text-xs text-muted block mb-2">
-                                Proto (optional)
-                                <textarea class="protos-filter w-full font-mono text-xs" rows="6" @bind="_addProto"></textarea>
-                            </label>
-                            <div class="flex items-center gap-2">
-                                <button type="button" class="btn-primary" disabled="@_addBusy" @onclick="AddVersion">@(_addBusy ? "Saving..." : "Save")</button>
-                                <span class="text-xs @(_addMsg == "saved" ? "text-accent" : "text-muted")">@_addMsg</span>
-                            </div>
-                        }
+        <section class="reg-wrap">
+            @if (_canWrite) {
+                <div class="panel mb-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-sm font-semibold m-0">Add version</h3>
+                        <button type="button" class="btn-mini" @onclick="@(() => _addOpen = !_addOpen)">@(_addOpen ? "Close" : "Add version")</button>
                     </div>
-                }
-                @if (_isAdmin || _isContributor) {
-                    <StagedReviewPanel @ref="_stagedPanel" IsAdmin="_isAdmin" OnChanged="OnMutated"/>
-                }
-                @if (_isAdmin && _suggestions.Count > 0) {
-                    <div class="panel mb-3">
-                        <div class="text-sm font-semibold mb-2">Suggested merges</div>
-                        <div class="text-xs text-muted mb-2">Same app version + proto SHA across platforms. Merge links them under one entry.</div>
-                        @foreach (var s in _suggestions) {
-                            <div class="flex items-center gap-2 flex-wrap mb-1">
-                                <span class="code-chip">@s.AppVersion</span>
-                                <span class="text-xs text-muted font-mono">@(s.ProtoSha.Length > 12 ? s.ProtoSha[..12] : s.ProtoSha)</span>
-                                <span class="text-xs">@string.Join(" + ", s.Members.Select(m => $"{m.Platform}/{m.Build}"))</span>
-                                <button type="button" class="btn-mini" @onclick="@(() => AcceptSuggestion(s))">Merge</button>
-                            </div>
-                        }
-                    </div>
-                }
-                @if (_isAdmin && _selected.Count > 0) {
-                    <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnMutated" OnClear="ClearSelection"/>
-                }
-                @if (_loading && _rows.Count == 0) {
-                    <div class="backfill-empty">Loading...</div>
-                } else if (_rows.Count == 0) {
-                    <div class="reg-empty">
-                        <div>No proto versions yet.</div>
-                        <div class="reg-empty-hint">Drop a binary above to analyze one.</div>
-                    </div>
-                } else {
-                    <table class="data-table">
-                        <thead>
-                        <tr>
-                            @if (_isAdmin) {
-                                <th class="w-8">
-                                    <input type="checkbox" checked="@AllSelected" @onchange="ToggleAll"/>
-                                </th>
-                            }
-                            <th class="reg-th-sort w-28" @onclick="@(() => Sort("platform"))">
-                                <span>Platform</span>@Caret("platform")
-                            </th>
-                            <th class="reg-th-sort w-28" @onclick="@(() => Sort("appVersion"))">
-                                <span>App Version</span>@Caret("appVersion")
-                            </th>
-                            <th class="reg-th-sort w-40" @onclick="@(() => Sort("build"))">
-                                <span>Build</span>@Caret("build")
-                            </th>
-                            <th class="reg-th-sort w-20" @onclick="@(() => Sort("client"))">
-                                <span>Client</span>@Caret("client")
-                            </th>
-                            <th class="reg-th-sort w-40" @onclick="@(() => Sort("sha"))">
-                                <span>Proto SHA</span>@Caret("sha")
-                            </th>
-                            <th class="reg-th-sort" @onclick="@(() => Sort("detected"))">
-                                <span>Detected</span>@Caret("detected")
-                            </th>
-                            <th class="w-16"></th>
-                        </tr>
-                        <tr class="reg-filter-row">
-                            @if (_isAdmin) {
-                                <th>
-                                    @if (AnyFilter) {
-                                        <button type="button" class="reg-filter-clear" title="Clear filters" @onclick="ClearFilters">×</button>
-                                    }
-                                </th>
-                            }
-                            <th>
-                                <select class="reg-filter-input" value="@_fPlatform" @onchange="@(e => { _fPlatform = e.Value?.ToString() ?? ""; })">
-                                    <option value="">all</option>
+                    @if (_addOpen) {
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                            <label class="text-xs text-muted">
+                                Platform
+                                <select class="protos-filter w-full" @bind="_addPlatform">
                                     <option value="android">android</option>
                                     <option value="ios">ios</option>
                                 </select>
+                            </label>
+                            <label class="text-xs text-muted">
+                                App version
+                                <input class="protos-filter w-full" @bind="_addAppVersion"/>
+                            </label>
+                            <label class="text-xs text-muted">
+                                Build
+                                <input class="protos-filter w-full" @bind="_addBuild"/>
+                            </label>
+                            <label class="text-xs text-muted">
+                                Client version
+                                <input class="protos-filter w-full" @bind="_addClient"/>
+                            </label>
+                            <label class="text-xs text-muted">
+                                Source
+                                <input class="protos-filter w-full" @bind="_addSource"/>
+                            </label>
+                        </div>
+                        <label class="text-xs text-muted block mb-2">
+                            Proto (optional)
+                            <textarea class="protos-filter w-full font-mono text-xs" rows="6" @bind="_addProto"></textarea>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <button type="button" class="btn-primary" disabled="@_addBusy" @onclick="AddVersion">@(_addBusy ? "Saving..." : "Save")</button>
+                            <span class="text-xs @(_addMsg == "saved" ? "text-accent" : "text-muted")">@_addMsg</span>
+                        </div>
+                    }
+                </div>
+            }
+            @if (_isAdmin || _isContributor) {
+                <StagedReviewPanel @ref="_stagedPanel" IsAdmin="_isAdmin" OnChanged="OnMutated"/>
+            }
+            @if (_isAdmin && _suggestions.Count > 0) {
+                <div class="panel mb-3">
+                    <div class="text-sm font-semibold mb-2">Suggested merges</div>
+                    <div class="text-xs text-muted mb-2">Same app version + proto SHA across platforms. Merge links them under one entry.</div>
+                    @foreach (var s in _suggestions) {
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            <span class="code-chip">@s.AppVersion</span>
+                            <span class="text-xs text-muted font-mono">@(s.ProtoSha.Length > 12 ? s.ProtoSha[..12] : s.ProtoSha)</span>
+                            <span class="text-xs">@string.Join(" + ", s.Members.Select(m => $"{m.Platform}/{m.Build}"))</span>
+                            <button type="button" class="btn-mini" @onclick="@(() => AcceptSuggestion(s))">Merge</button>
+                        </div>
+                    }
+                </div>
+            }
+            @if (_isAdmin && _selected.Count > 0) {
+                <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnMutated" OnClear="ClearSelection"/>
+            }
+            @if (_loading && _rows.Count == 0) {
+                <div class="backfill-empty">Loading...</div>
+            } else if (_rows.Count == 0) {
+                <div class="reg-empty">
+                    <div>No proto versions yet.</div>
+                    <div class="reg-empty-hint">Drop a binary above to analyze one.</div>
+                </div>
+            } else {
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        @if (_isAdmin) {
+                            <th class="w-8">
+                                <input type="checkbox" checked="@AllSelected" @onchange="ToggleAll"/>
                             </th>
-                            <th>
-                                <input class="reg-filter-input" placeholder="filter" value="@_fVersion" @oninput="@(e => _fVersion = e.Value?.ToString() ?? "")"/>
-                            </th>
-                            <th>
-                                <input class="reg-filter-input" placeholder="filter" value="@_fBuild" @oninput="@(e => _fBuild = e.Value?.ToString() ?? "")"/>
-                            </th>
-                            <th>
-                                <input class="reg-filter-input" placeholder="filter" value="@_fClient" @oninput="@(e => _fClient = e.Value?.ToString() ?? "")"/>
-                            </th>
-                            <th>
-                                <input class="reg-filter-input" placeholder="filter" value="@_fSha" @oninput="@(e => _fSha = e.Value?.ToString() ?? "")"/>
-                            </th>
-                            <th></th>
-                            <th></th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @if (Filtered.Count == 0) {
-                            <tr>
-                                <td colspan="@EditColspan" class="reg-empty">No versions match this filter.</td>
-                            </tr>
                         }
-                        @foreach (var rel in SortedReleases) {
-                            var primary = rel.Primary;
-                            <tr class="reg-row cursor-pointer"
-                                @onclick="@(() => Navigate($"/protos/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}"))">
-                                @if (_isAdmin) {
-                                    <td @onclick:stopPropagation="true">
-                                        <input type="checkbox" checked="@IsSelected(primary)" @onchange="@(() => ToggleRelease(rel))"/>
-                                    </td>
+                        <th class="reg-th-sort w-28" @onclick="@(() => Sort("platform"))">
+                            <span>Platform</span>@Caret("platform")
+                        </th>
+                        <th class="reg-th-sort w-28" @onclick="@(() => Sort("appVersion"))">
+                            <span>App Version</span>@Caret("appVersion")
+                        </th>
+                        <th class="reg-th-sort w-40" @onclick="@(() => Sort("build"))">
+                            <span>Build</span>@Caret("build")
+                        </th>
+                        <th class="reg-th-sort w-20" @onclick="@(() => Sort("client"))">
+                            <span>Client</span>@Caret("client")
+                        </th>
+                        <th class="reg-th-sort w-40" @onclick="@(() => Sort("sha"))">
+                            <span>Proto SHA</span>@Caret("sha")
+                        </th>
+                        <th class="reg-th-sort" @onclick="@(() => Sort("detected"))">
+                            <span>Detected</span>@Caret("detected")
+                        </th>
+                        <th class="w-16"></th>
+                    </tr>
+                    <tr class="reg-filter-row">
+                        @if (_isAdmin) {
+                            <th>
+                                @if (AnyFilter) {
+                                    <button type="button" class="reg-filter-clear" title="Clear filters" @onclick="ClearFilters">×</button>
                                 }
-                                <td>
-                                    <div class="flex flex-wrap gap-1">
+                            </th>
+                        }
+                        <th>
+                            <select class="reg-filter-input" value="@_fPlatform" @onchange="@(e => { _fPlatform = e.Value?.ToString() ?? ""; })">
+                                <option value="">all</option>
+                                <option value="android">android</option>
+                                <option value="ios">ios</option>
+                            </select>
+                        </th>
+                        <th>
+                            <input class="reg-filter-input" placeholder="filter" value="@_fVersion" @oninput="@(e => _fVersion = e.Value?.ToString() ?? "")"/>
+                        </th>
+                        <th>
+                            <input class="reg-filter-input" placeholder="filter" value="@_fBuild" @oninput="@(e => _fBuild = e.Value?.ToString() ?? "")"/>
+                        </th>
+                        <th>
+                            <input class="reg-filter-input" placeholder="filter" value="@_fClient" @oninput="@(e => _fClient = e.Value?.ToString() ?? "")"/>
+                        </th>
+                        <th>
+                            <input class="reg-filter-input" placeholder="filter" value="@_fSha" @oninput="@(e => _fSha = e.Value?.ToString() ?? "")"/>
+                        </th>
+                        <th></th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @if (Filtered.Count == 0) {
+                        <tr>
+                            <td colspan="@EditColspan" class="reg-empty">No versions match this filter.</td>
+                        </tr>
+                    }
+                    @foreach (var rel in SortedReleases) {
+                        var primary = rel.Primary;
+                        <tr class="reg-row cursor-pointer"
+                            @onclick="@(() => Navigate($"/protos/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}"))">
+                            @if (_isAdmin) {
+                                <td @onclick:stopPropagation="true">
+                                    <input type="checkbox" checked="@IsSelected(primary)" @onchange="@(() => ToggleRelease(rel))"/>
+                                </td>
+                            }
+                            <td>
+                                <div class="flex flex-wrap gap-1">
+                                    @foreach (var m in rel.Members) {
+                                        <span class="code-chip cursor-pointer" @onclick:stopPropagation="true"
+                                              @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
+                                            @m.Platform
+                                        </span>
+                                    }
+                                </div>
+                            </td>
+                            <td class="reg-version">@primary.AppVersion</td>
+                            <td class="mono">
+                                @if (rel.IsGrouped) {
+                                    <div class="flex flex-col gap-0.5">
                                         @foreach (var m in rel.Members) {
-                                            <span class="code-chip cursor-pointer" @onclick:stopPropagation="true"
-                                                  @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
-                                                @m.Platform
+                                            <span class="cursor-pointer flex flex-col gap-0.5 items-start" @onclick:stopPropagation="true" @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
+                                                <span>
+                                                    <span class="text-muted text-xs">@m.Platform</span> @m.Build
+                                                </span>
+                                                @if (m.BuildFlag is not null) {
+                                                    <span class="reg-badwarn">bad build</span>
+                                                }
                                             </span>
                                         }
                                     </div>
-                                </td>
-                                <td class="reg-version">@primary.AppVersion</td>
-                                <td class="mono">
-                                    @if (rel.IsGrouped) {
-                                        <div class="flex flex-col gap-0.5">
-                                            @foreach (var m in rel.Members) {
-                                                <span class="cursor-pointer flex flex-col gap-0.5 items-start" @onclick:stopPropagation="true" @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
-                                                    <span>
-                                                        <span class="text-muted text-xs">@m.Platform</span> @m.Build
-                                                    </span>
-                                                    @if (m.BuildFlag is not null) {
-                                                        <span class="reg-badwarn">bad build</span>
-                                                    }
-                                                </span>
-                                            }
-                                        </div>
-                                    } else {
-                                        <div class="flex flex-col gap-0.5 items-start">
-                                            <span>@primary.Build</span>
-                                            @if (primary.BuildFlag is not null) {
-                                                <span class="reg-badwarn">bad build</span>
-                                            }
-                                        </div>
-                                    }
-                                </td>
-                                <td class="mono text-muted">@(string.IsNullOrEmpty(primary.ClientVersion) ? "-" : primary.ClientVersion)</td>
-                                <td>
-                                    <span class="code-chip reg-sha">@Short(primary.ProtoSha)</span>
-                                </td>
-                                <td class="text-muted text-xs whitespace-nowrap">@primary.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                                <td class="reg-actions" @onclick:stopPropagation="true">
-                                    <div class="reg-actions-row">
-                                        <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
-                                           href="@($"/api/protos/versions/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}/proto")"
-                                           title="Download .proto" aria-label="Download .proto">
-                                            <Icon Name="download"/>
-                                        </a>
-                                        @if (_canWrite) {
-                                            <button type="button" class="reg-edit-btn @(_editingKey == rel.Key ? "active" : "")"
-                                                    title="Edit" aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
-                                                <Icon Name="pencil"/>
-                                            </button>
+                                } else {
+                                    <div class="flex flex-col gap-0.5 items-start">
+                                        <span>@primary.Build</span>
+                                        @if (primary.BuildFlag is not null) {
+                                            <span class="reg-badwarn">bad build</span>
                                         }
                                     </div>
+                                }
+                            </td>
+                            <td class="mono text-muted">@(string.IsNullOrEmpty(primary.ClientVersion) ? "-" : primary.ClientVersion)</td>
+                            <td>
+                                <span class="code-chip reg-sha">@Short(primary.ProtoSha)</span>
+                            </td>
+                            <td class="text-muted text-xs whitespace-nowrap">@primary.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td class="reg-actions" @onclick:stopPropagation="true">
+                                <div class="reg-actions-row">
+                                    <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
+                                       href="@($"/api/protos/versions/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}/proto")"
+                                       title="Download .proto" aria-label="Download .proto">
+                                        <Icon Name="download"/>
+                                    </a>
+                                    @if (_canWrite) {
+                                        <button type="button" class="reg-edit-btn @(_editingKey == rel.Key ? "active" : "")"
+                                                title="Edit" aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
+                                            <Icon Name="pencil"/>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                        @if (_canWrite && _editingKey == rel.Key) {
+                            <tr class="reg-edit-row">
+                                <td colspan="@EditColspan">
+                                    <ProtoEditDialog Targets="EditTargets(rel)" Patch="PatchJson" Post="PostJson"
+                                                     FetchText="GetText" OnChanged="OnMutated" OnClose="@(() => _editingKey = null)"/>
                                 </td>
                             </tr>
-                            @if (_canWrite && _editingKey == rel.Key) {
-                                <tr class="reg-edit-row">
-                                    <td colspan="@EditColspan">
-                                        <ProtoEditDialog Targets="EditTargets(rel)" Patch="PatchJson" Post="PostJson"
-                                                         FetchText="GetText" OnChanged="OnMutated" OnClose="@(() => _editingKey = null)"/>
-                                    </td>
-                                </tr>
-                            }
                         }
-                        </tbody>
-                    </table>
-                }
-            </section>
-        </div>
-        <div class="w-full xl:w-[38%] shrink-0 min-w-0">
-            <PeriodicalsPanel/>
-        </div>
+                    }
+                    </tbody>
+                </table>
+            }
+        </section>
     </div>
+    <div class="w-full xl:w-[38%] shrink-0 min-w-0">
+        <PeriodicalsPanel/>
+    </div>
+</div>
 </main>
 
 <LoggedInModal @ref="_subscribeModal" Title="Notifications" LoginPrompt="Log in to manage webhook notifications.">
@@ -585,7 +585,8 @@
         try {
             var res = await Client().GetAsync(url);
             return res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync() : "";
-        } catch {
+        }
+        catch {
             return "";
         }
     }
@@ -639,7 +640,7 @@
     void ToggleRow(VersionRow r) {
         var existing = _selected.FirstOrDefault(k => k.Platform == r.Platform && k.Build == r.Build);
         if (existing is not null) _selected.Remove(existing);
-        else _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
+        else _selected.Add(new VersionKey(r.Platform, r.Build));
     }
 
     bool AllSelected => Sorted.Count > 0 && Sorted.All(IsSelected);
@@ -648,7 +649,7 @@
         _selected.Clear();
         if (e.Value is true)
             foreach (var r in Sorted)
-                _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
+                _selected.Add(new VersionKey(r.Platform, r.Build));
     }
 
 
@@ -658,7 +659,7 @@
             var existing = _selected.FirstOrDefault(k => k.Platform == m.Platform && k.Build == m.Build);
             if (allSelected) {
                 if (existing is not null) _selected.Remove(existing);
-            } else if (existing is null) _selected.Add(new ProtoSelectionBar.VersionKey(m.Platform, m.Build));
+            } else if (existing is null) _selected.Add(new VersionKey(m.Platform, m.Build));
         }
     }
 
@@ -673,7 +674,7 @@
 
     List<ProtoEditDialog.Row> EditTargets(Release rel) {
         return rel.Members
-            .Select(m => new ProtoEditDialog.Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
+            .Select(m => new Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
             .ToList();
     }
 
