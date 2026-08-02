@@ -81,6 +81,7 @@ public class LibegincClientVersionTests {
             int h = shoff + idx * shentsize;
             U32(h + 0x00, name);
             U32(h + 0x04, type);
+            U64(h + 0x08, type == 1 ? 0x2UL : 0);
             U64(h + 0x10, addr);
             U64(h + 0x18, off);
             U64(h + 0x20, size);
