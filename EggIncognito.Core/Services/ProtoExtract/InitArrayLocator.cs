@@ -24,18 +24,24 @@ public sealed class InitArrayLocator {
     public IReadOnlyList<ulong> Inits => _inits;
 
     public bool TryLocateByString(string needle, out ulong start, out ulong end) {
-        start = 0;
-        end = 0;
-        for (int i = 0; i < _inits.Count; i++) {
-            ulong s = _inits[i];
-            if (!ContainsString(s, InitEnd(i), needle)) continue;
+        foreach ((ulong s, ulong e) in LocateAllByString(needle)) {
             start = s;
-            ulong cap = i + 1 < _inits.Count ? _inits[i + 1] : EndOf(s);
-            end = FunctionEnd(s, cap);
+            end = e;
             return true;
         }
 
+        start = 0;
+        end = 0;
         return false;
+    }
+
+    public IEnumerable<(ulong Start, ulong End)> LocateAllByString(string needle) {
+        for (int i = 0; i < _inits.Count; i++) {
+            ulong s = _inits[i];
+            ulong cap = i + 1 < _inits.Count ? _inits[i + 1] : EndOf(s);
+            ulong fnEnd = FunctionEnd(s, cap);
+            if (ContainsString(s, fnEnd, needle)) yield return (s, fnEnd);
+        }
     }
 
     private ulong FunctionEnd(ulong start, ulong cap) {
@@ -57,12 +63,6 @@ public sealed class InitArrayLocator {
         }
 
         return false;
-    }
-
-    private ulong InitEnd(int i) {
-        ulong start = _inits[i];
-        ulong next = i + 1 < _inits.Count ? _inits[i + 1] : EndOf(start);
-        return next <= start || next - start > 0x6000 ? start + 0x3000 : next;
     }
 
     private ulong EndOf(ulong start) {

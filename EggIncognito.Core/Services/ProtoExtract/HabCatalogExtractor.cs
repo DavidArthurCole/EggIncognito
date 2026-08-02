@@ -4,7 +4,9 @@ namespace EggIncognito.Services.ProtoExtract;
 
 public static class HabCatalogExtractor {
     public const string InitSymbol = "__GLOBAL__sub_I_habdata";
+    public const string SignatureString = "PLANET PORTAL";
     private const long Stride = 0x158;
+    private const long ElfStride = 0x1e0;
     private const long CapacityOffset = 0x18;
 
     private static readonly long[] ExpectedCapacities = [
@@ -19,9 +21,27 @@ public static class HabCatalogExtractor {
 
     public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections) {
+        if (BinaryImage.Load(bin) is ElfImage) return ExtractElf(bin);
         var scan = StructInitReader.ReadWith(bin, syms, InitSymbol);
-        if (!scan.Ok) return new Result(false, [], scan.Diagnostics);
+        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Build(bin, sections, scan, Stride);
+    }
 
+    private static Result ExtractElf(byte[] bin) {
+        var loc = InitArrayLocator.Create(bin);
+        if (loc is null) return new Result(false, [], "no binary image");
+        var sections = BinaryImage.Load(bin)?.Sections ?? [];
+        foreach ((ulong s0, ulong e0) in loc.LocateAllByString(SignatureString)) {
+            var scan = StructInitReader.ReadRange(bin, s0, e0);
+            if (!scan.Ok) continue;
+            var built = Build(bin, sections, scan, ElfStride);
+            if (built.Ok) return built;
+        }
+
+        return new Result(false, [], "no habdata init with the 19-capacity anchor located via signature on ELF");
+    }
+
+    private static Result Build(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
+        StructInitReader.Result scan, long stride) {
         var bytes = new Dictionary<ulong, byte>();
         var ptrs = new Dictionary<ulong, ulong>();
         foreach (var s in scan.Structs) {
@@ -32,7 +52,7 @@ public static class HabCatalogExtractor {
         foreach (var s in scan.Structs) {
             if (!TryReadInt64(bytes, s.BaseVa + CapacityOffset, out long first) || first != ExpectedCapacities[0])
                 continue;
-            if (TryReadBlock(bin, sections, bytes, ptrs, s.BaseVa, out var entries))
+            if (TryReadBlock(bin, sections, bytes, ptrs, s.BaseVa, stride, out var entries))
                 return new Result(true, entries, $"{entries.Count} habs, {entries.Count(e => e.Name is not null)} named");
         }
 
@@ -40,11 +60,11 @@ public static class HabCatalogExtractor {
     }
 
     private static bool TryReadBlock(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
-        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, ulong blockBase,
+        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, ulong blockBase, long stride,
         out List<HabEntry> entries) {
         entries = [];
         for (int i = 0; i < ExpectedCapacities.Length; i++) {
-            ulong rec = blockBase + (ulong)(i * Stride);
+            ulong rec = blockBase + (ulong)(i * stride);
             if (!TryReadInt64(bytes, rec + CapacityOffset, out long cap) || cap != ExpectedCapacities[i])
                 return false;
             entries.Add(new HabEntry(i, ResolveName(bin, sections, bytes, ptrs, rec), cap));
@@ -54,10 +74,14 @@ public static class HabCatalogExtractor {
     }
 
     private static string? ResolveName(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
-        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, ulong rec) {
-        if (ptrs.TryGetValue(rec, out ulong pva) && IsName(ReadCstr(bin, sections, pva)) is { } fromPtr)
+        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, ulong rec)
+        => ResolveAt(bin, sections, bytes, ptrs, rec) ?? ResolveAt(bin, sections, bytes, ptrs, rec + 1);
+
+    private static string? ResolveAt(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
+        Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, ulong at) {
+        if (ptrs.TryGetValue(at, out ulong pva) && IsName(ReadCstr(bin, sections, pva)) is { } fromPtr)
             return fromPtr;
-        return IsName(ReadInline(bytes, rec));
+        return IsName(ReadInline(bytes, at));
     }
 
     private static string ReadInline(Dictionary<ulong, byte> bytes, ulong start) {
@@ -83,7 +107,7 @@ public static class HabCatalogExtractor {
 
     private static string ReadCstr(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va) {
         if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out var owner)) return "";
-        if (owner.Name is not "__cstring" and not "__const") return "";
+        if (owner.Name is not ("__cstring" or "__const" or ".rodata" or ".data.rel.ro")) return "";
         int end = fo;
         while (end < bin.Length && bin[end] != 0 && end - fo < 64) end++;
         return Encoding.UTF8.GetString(bin, fo, end - fo);

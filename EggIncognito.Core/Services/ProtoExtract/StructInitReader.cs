@@ -18,8 +18,15 @@ public static class StructInitReader {
     public static Result ReadWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string initSymbol,
         int maxInstructions = 100_000) {
         var lst = Arm64DataTableReader.ListWith(bin, syms, [initSymbol], maxInstructions);
-        if (!lst.Ok) return new Result(false, [], lst.Diagnostics);
+        return !lst.Ok ? new Result(false, [], lst.Diagnostics) : Walk(bin, lst.Instructions);
+    }
 
+    public static Result ReadRange(byte[] bin, ulong startVa, ulong endVa, int maxInstructions = 100_000) {
+        var lst = Arm64DataTableReader.ListRange(bin, startVa, endVa, maxInstructions);
+        return !lst.Ok ? new Result(false, [], lst.Diagnostics) : Walk(bin, lst.Instructions);
+    }
+
+    private static Result Walk(byte[] bin, IReadOnlyList<Arm64DataTableReader.Insn> insns) {
         var img = BinaryImage.Load(bin);
         var page = new Dictionary<string, ulong>(StringComparer.Ordinal);
         var imm = new Dictionary<string, (ulong Val, bool Wide)>(StringComparer.Ordinal);
@@ -83,7 +90,7 @@ public static class StructInitReader {
             }
         }
 
-        foreach (var i in lst.Instructions) {
+        foreach (var i in insns) {
             var ops = SplitOps(i.Operands);
 
             if (!TrackedProducers.Contains(i.Mnemonic) && !NonWritingMnemonics.Contains(i.Mnemonic)

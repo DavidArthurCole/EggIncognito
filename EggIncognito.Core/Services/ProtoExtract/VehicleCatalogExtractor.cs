@@ -4,7 +4,9 @@ namespace EggIncognito.Services.ProtoExtract;
 
 public static class VehicleCatalogExtractor {
     public const string InitSymbol = "__GLOBAL__sub_I_vehicledata.cpp";
+    public const string SignatureString = "HYPERLOOP TRAIN";
     private const long Stride = 0xF0;
+    private const long ElfStride = 0x140;
     private const long CapacityOff = 0x18;
 
     public static Result Read(byte[] bin, string initSymbol = InitSymbol) {
@@ -14,14 +16,34 @@ public static class VehicleCatalogExtractor {
 
     public static Result ReadWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections, string initSymbol = InitSymbol) {
+        if (BinaryImage.Load(bin) is ElfImage) return ReadElf(bin);
         var scan = StructInitReader.ReadWith(bin, syms, initSymbol);
-        if (!scan.Ok) return new Result(false, [], scan.Diagnostics);
+        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Build(bin, sections, scan, Stride);
+    }
+
+    private static Result ReadElf(byte[] bin) {
+        var loc = InitArrayLocator.Create(bin);
+        if (loc is null) return new Result(false, [], "no binary image");
+        var sections = BinaryImage.Load(bin)?.Sections ?? [];
+        var best = new Result(false, [], "vehicledata init not located via signature on ELF");
+        foreach ((ulong s0, ulong e0) in loc.LocateAllByString(SignatureString)) {
+            var scan = StructInitReader.ReadRange(bin, s0, e0);
+            if (!scan.Ok) continue;
+            var built = Build(bin, sections, scan, ElfStride);
+            if (built.Entries.Count > best.Entries.Count) best = built;
+        }
+
+        return best;
+    }
+
+    private static Result Build(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
+        StructInitReader.Result scan, long stride) {
         if (scan.Structs.Count == 0) return new Result(false, [], "no struct bases");
 
         var s = MergeByAbsoluteVa(scan.Structs);
         var entries = new List<VehicleEntry>();
         for (int i = 0; ; i++) {
-            long slot = i * Stride;
+            long slot = i * stride;
             if (!s.TryInt(slot + CapacityOff, 8, out long capacity) || !IsPlausibleCapacity(capacity)) break;
             entries.Add(new VehicleEntry(i, ResolveName(bin, sections, s, slot), capacity));
         }
@@ -45,14 +67,18 @@ public static class VehicleCatalogExtractor {
     }
 
     private static string? ResolveName(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
-        StructInitReader.StructInit s, long nameOff) {
-        if (s.TryPointer(nameOff, out ulong pva) && IsName(ReadCstr(bin, sections, pva)) is { } fromPtr)
+        StructInitReader.StructInit s, long nameOff)
+        => ResolveAt(bin, sections, s, nameOff) ?? ResolveAt(bin, sections, s, nameOff + 1);
+
+    private static string? ResolveAt(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
+        StructInitReader.StructInit s, long off) {
+        if (s.TryPointer(off, out ulong pva) && IsName(ReadCstr(bin, sections, pva)) is { } fromPtr)
             return fromPtr;
-        return s.TryTemplate(nameOff, out ulong tva) && IsName(ReadCstr(bin, sections, tva)) is { } fromTpl
-            ? fromTpl
-            : s.TryInlineStringComplete(nameOff, out string inline) && IsName(inline) is { } fromInline
-                ? fromInline
-                : IsName(s.TryInlineString(nameOff));
+        if (s.TryTemplate(off, out ulong tva) && IsName(ReadCstr(bin, sections, tva)) is { } fromTpl)
+            return fromTpl;
+        return s.TryInlineStringComplete(off, out string inline) && IsName(inline) is { } fromInline
+            ? fromInline
+            : IsName(s.TryInlineString(off));
     }
 
     private static bool IsPlausibleCapacity(long c) => c is > 0 and <= 1_000_000_000_000;
@@ -69,7 +95,7 @@ public static class VehicleCatalogExtractor {
 
     private static string ReadCstr(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va) {
         if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out var owner)) return "";
-        if (owner.Name is not "__cstring" and not "__const") return "";
+        if (owner.Name is not ("__cstring" or "__const" or ".rodata" or ".data.rel.ro")) return "";
         int end = fo;
         while (end < bin.Length && bin[end] != 0 && end - fo < 64) end++;
         return Encoding.UTF8.GetString(bin, fo, end - fo);
