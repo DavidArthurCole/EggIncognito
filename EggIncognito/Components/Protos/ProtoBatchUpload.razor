@@ -1,0 +1,176 @@
+@using System.Text.Json
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject ICurrentUser User
+
+@if (_canBatch) {
+    <div class="panel mt-4">
+        <div class="flex items-stretch gap-3">
+            <label class="dropzone flex-1 @(_dragging ? "dragging" : "")"
+                   @ondragenter="() => _dragging = true"
+                   @ondragleave="() => _dragging = false"
+                   @ondragover:preventDefault="true"
+                   @ondrop="() => _dragging = false">
+                <InputFile accept=".ipa,.apk,.apkm,.xapk" multiple hidden="hidden" OnChange="OnFilesSelected"/>
+                <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop multiple binaries here</strong> or click to browse</div>
+                <div class="font-mono text-xs @(_files.Count == 0 ? "text-muted muted" : "")">
+                    @(_files.Count == 0 ? "No files selected." : $"{_files.Count} file(s) selected.")
+                </div>
+            </label>
+            <button class="btn-primary px-6 shrink-0" disabled="@(_files.Count == 0 || _busy)" @onclick="UploadBatch">
+                @(_busy ? "Uploading..." : "Upload batch")
+            </button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error)) {
+            <pre class="result-pre">@_error</pre>
+        }
+
+        @if (_batchId is { } id) {
+            <div class="mt-3">
+                <div class="text-sm">Batch #@id: @_processed / @_total (@_status)</div>
+                @if (_items.Count > 0) {
+                    <table class="data-table mt-2">
+                        <thead>
+                        <tr>
+                            <th>File</th><th>Status</th><th>Version</th><th>Client</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var it in _items) {
+                            <tr>
+                                <td class="mono text-xs">@it.FileName</td>
+                                <td class="text-xs">@it.Status</td>
+                                <td class="mono text-xs">@it.AppVersion</td>
+                                <td class="mono text-xs">@it.ClientVersion</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+
+    const long MaxUploadBytes = 200_000_000;
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    [Parameter] public EventCallback OnCompleted { get; set; }
+
+    bool _canBatch;
+    bool _dragging;
+    bool _busy;
+    string _error = "";
+    readonly List<IBrowserFile> _files = [];
+
+    int? _batchId;
+    int _total;
+    int _processed;
+    string _status = "";
+    readonly List<ItemView> _items = [];
+
+    string _baseAddress = "";
+    string? _cookie;
+
+    protected override void OnInitialized() {
+        _canBatch = User.IsAuthenticated && (User.IsAtLeast(UserRole.Contributor) || User.IsSupporter);
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null) {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    void OnFilesSelected(InputFileChangeEventArgs e) {
+        _files.Clear();
+        _files.AddRange(e.GetMultipleFiles(50));
+        _error = "";
+    }
+
+    HttpClient Client() {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        c.Timeout = TimeSpan.FromMinutes(10);
+        return c;
+    }
+
+    async Task UploadBatch() {
+        if (_files.Count == 0) return;
+        _busy = true;
+        _error = "";
+        try {
+            using var content = new MultipartFormDataContent();
+            foreach (var f in _files) {
+                content.Add(new StreamContent(f.OpenReadStream(MaxUploadBytes)), "files", f.Name);
+            }
+
+            var res = await Client().PostAsync("/api/protos/batch", content);
+            if (!res.IsSuccessStatusCode) {
+                _error = $"HTTP {(int)res.StatusCode}";
+                return;
+            }
+
+            var data = await res.Content.ReadFromJsonAsync<UploadResponse>(JsonOpts);
+            if (data is null) {
+                _error = "empty response";
+                return;
+            }
+
+            _batchId = data.BatchId;
+            _total = data.ItemCount;
+            _processed = 0;
+            _status = "pending";
+            _items.Clear();
+            _ = PollAsync(data.BatchId);
+        }
+        catch (Exception ex) {
+            _error = $"Request failed: {ex.Message}";
+        }
+        finally {
+            _busy = false;
+        }
+    }
+
+    async Task PollAsync(int id) {
+        while (true) {
+            await Task.Delay(1500);
+            try {
+                var view = await Client().GetFromJsonAsync<BatchResponse>($"/api/protos/batch/{id}", JsonOpts);
+                if (view is null) continue;
+                _status = view.Status;
+                _total = view.Total;
+                _processed = view.Processed;
+                _items.Clear();
+                _items.AddRange(view.Items);
+                await InvokeAsync(StateHasChanged);
+                if (view.Status == "done") {
+                    await OnCompleted.InvokeAsync();
+                    break;
+                }
+            }
+            catch {
+                break;
+            }
+        }
+    }
+
+    sealed record UploadResponse(int BatchId, int ItemCount);
+
+    sealed record BatchResponse(int Id, string Status, int Total, int Processed, IReadOnlyList<ItemView> Items);
+
+    sealed record ItemView(
+        int Id,
+        string FileName,
+        string Status,
+        string? Platform,
+        string? ProtoSha,
+        string? AppVersion,
+        string? Build,
+        string? ClientVersion,
+        string? Diagnostics);
+
+}

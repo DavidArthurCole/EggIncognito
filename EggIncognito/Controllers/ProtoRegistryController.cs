@@ -141,7 +141,7 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
             return BadRequest(new { error = "protoSha + protoText required" });
         string? by = user.DiscordId;
         var r = await s.OfferAsync(req.Platform, req.AppVersion, req.Build, req.ClientVersion, req.Package,
-            req.ProtoSha, req.ProtoText, req.MessageIndex, by, ct);
+            req.ProtoSha, req.ProtoText, req.MessageIndex, by, "offer", ct);
         return Ok(new { result = r.ToString().ToLowerInvariant() });
     }
 

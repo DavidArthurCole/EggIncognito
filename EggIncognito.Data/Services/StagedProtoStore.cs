@@ -90,9 +90,10 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
 
     public async Task<OfferResult> OfferAsync(
         string platform, string? appVersion, string? build, string? clientVersion, string? package,
-        string protoSha, string protoText, string? messageIndex, string? submittedBy, CancellationToken ct) {
+        string protoSha, string protoText, string? messageIndex, string? submittedBy, string source,
+        CancellationToken ct) {
         var outcome = await StageOrReviveAsync(platform, appVersion, build, clientVersion, package, protoSha,
-            protoText, messageIndex, "offer", submittedBy, null, null, null, null, ct);
+            protoText, messageIndex, source, submittedBy, null, null, null, null, ct);
         return outcome switch {
             StageOutcome.AlreadyInRegistry => OfferResult.AlreadyInRegistry,
             StageOutcome.AlreadyPending or StageOutcome.StaleRejected => OfferResult.AlreadyPending,

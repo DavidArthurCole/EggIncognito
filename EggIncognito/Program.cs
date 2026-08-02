@@ -29,6 +29,7 @@ using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Feed;
 using EggIncognito.Services.Metrics;
+using EggIncognito.Services.Protos;
 using EggIncognito.Services.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -458,6 +459,7 @@ if (dbEnabled) {
     builder.Services.AddScoped<CaptureAddressStore>();
     builder.Services.AddScoped<ProtoRegistryStore>();
     builder.Services.AddScoped<StagedProtoStore>();
+    builder.Services.AddScoped<UploadBatchStore>();
     builder.Services.AddScoped<DeviceStatusStore>();
     builder.Services.AddScoped<IDeviceStatusStore>(sp => sp.GetRequiredService<DeviceStatusStore>());
     builder.Services.AddScoped<FeedSubscriptionStore>();
@@ -482,6 +484,8 @@ if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService<DeviceMaintenanceService>();
 if (dbEnabled)
     builder.Services.AddHostedService<GameDataAutoRebuildService>();
+if (dbEnabled)
+    builder.Services.AddHostedService<BatchUploadProcessor>();
 
 
 var deviceCaptureConfig = DeviceCaptureConfig.Bind(builder.Configuration);

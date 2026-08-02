@@ -78,6 +78,9 @@
             @if (_result is not null) {
                 <ProtoAnalysisResult Result="_result" CanWrite="_canWrite" OnSaved="OnMutated"/>
             }
+            @if (_canBatch) {
+                <ProtoBatchUpload OnCompleted="OnMutated"/>
+            }
         </section>
 
         <section class="reg-wrap">
@@ -323,6 +326,7 @@
     bool _isAdmin;
     bool _isContributor;
     bool _canWrite;
+    bool _canBatch;
 
 
     string _sortCol = "appVersion";
@@ -468,6 +472,7 @@
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         _isContributor = User.IsAtLeast(UserRole.Contributor);
         _canWrite = User.IsAtLeast(UserRole.Contributor);
+        _canBatch = User.IsAuthenticated && (User.IsAtLeast(UserRole.Contributor) || User.IsSupporter);
 
         var b = BuildInfo.FromAssembly("https://github.com/davidarthurcole/EggIncognito");
         _serverVersion = $"v{b.Version}";
