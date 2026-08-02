@@ -129,7 +129,7 @@
                 </div>
                 @if (grades.Count > 0) {
                     var goalCount = grades.Max(g => g.Goals.Count);
-                    <table class="data-table" @key="season.Id">
+                    <table class="data-table season-table" @key="season.Id">
                         <thead>
                         <tr>
                             <th class="w-12">Goal</th>
@@ -549,8 +549,7 @@
         var s = RemainingSeconds(e);
         if (s <= 0) return "Ended";
         var t = TimeSpan.FromSeconds(s);
-        var core = $"{t.Hours:00}:{t.Minutes:00}:{t.Seconds:00}";
-        return t.Days > 0 ? $"{t.Days}d {core}" : core;
+        return $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}";
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {

@@ -71,11 +71,25 @@ public static class Arm64DataTableReader {
         if (!MachoSymbols.TryFindFunc(syms, nameNeedles, out var fn))
             return new ScanResult(false, "", [], $"symbol not found: {string.Join("|", nameNeedles)}");
 
+        return ScanCode(bin, img, textFileOff, textVmAddr, fn.Name, fn.Start, fn.End);
+    }
+
+    public static ScanResult ScanRange(byte[] bin, ulong startVa, ulong endVa) {
+        if (bin is null || bin.Length < 64) return new ScanResult(false, "", [], "binary too short");
+        var img = BinaryImage.Load(bin);
+        if (img is null || !img.TryFindText(out int textFileOff, out _, out ulong textVmAddr))
+            return new ScanResult(false, "", [], "no __text section");
+        if (endVa <= startVa) return new ScanResult(false, "", [], "empty range");
+        return ScanCode(bin, img, textFileOff, textVmAddr, "range", startVa, endVa);
+    }
+
+    private static ScanResult ScanCode(byte[] bin, IBinaryImage img, int textFileOff, ulong textVmAddr,
+        string label, ulong start, ulong end) {
         ulong slide = textVmAddr - (ulong)textFileOff;
-        long startFile = (long)fn.Start - (long)slide;
-        long len = (long)fn.End - (long)fn.Start;
+        long startFile = (long)start - (long)slide;
+        long len = (long)end - (long)start;
         if (startFile < 0 || len <= 0 || startFile + len > bin.Length)
-            return new ScanResult(false, fn.Name, [], "function bounds out of range");
+            return new ScanResult(false, label, [], "function bounds out of range");
 
         byte[] code = new byte[len];
         Array.Copy(bin, startFile, code, 0, (int)len);
@@ -93,15 +107,17 @@ public static class Arm64DataTableReader {
                 addresses.Add(new AddressRef(va, owner.Segment, owner.Name, via));
         }
 
-        foreach (var insn in cs.Disassemble(code, (long)fn.Start)) {
+        foreach (var insn in cs.Disassemble(code, (long)start)) {
             var ops = insn.Details?.Operands;
             if (ops is null) continue;
 
+            string? kept = null;
             switch (insn.Id) {
                 case Arm64InstructionId.ARM64_INS_ADRP:
                     if (ops.Length == 2 && ops[0].Type == Arm64OperandType.Register
                                         && ops[1].Type == Arm64OperandType.Immediate && ops[0].Register is { } adrpRd) {
                         page[adrpRd.Name] = (ulong)ops[1].Immediate;
+                        kept = adrpRd.Name;
                     }
 
                     break;
@@ -112,9 +128,8 @@ public static class Arm64DataTableReader {
                         page.TryGetValue(addRn.Name, out ulong addBase)) {
                         ulong full = addBase + (ulong)ops[2].Immediate;
                         page[addRd.Name] = full;
+                        kept = addRd.Name;
                         Record(full, $"adrp+add @0x{insn.Address:x}");
-                    } else if (ops.Length >= 1 && ops[0].Register is { } addClobber) {
-                        page.Remove(addClobber.Name);
                     }
 
                     break;
@@ -122,21 +137,25 @@ public static class Arm64DataTableReader {
                 case Arm64InstructionId.ARM64_INS_LDR:
                 case Arm64InstructionId.ARM64_INS_LDUR:
                     if (ops.Length >= 2 && ops[0].Type == Arm64OperandType.Register
-                                        && ops[^1].Type == Arm64OperandType.Memory && ops[0].Register is { } rt
+                                        && ops[^1].Type == Arm64OperandType.Memory
                                         && ops[^1].Memory?.Base is { } memBase &&
                                         page.TryGetValue(memBase.Name, out ulong pv)) {
                         ulong va = pv + (ulong)ops[^1].Memory!.Displacement;
                         Record(va, $"ldr [{memBase.Name}] @0x{insn.Address:x}");
-                        page.Remove(rt.Name ?? "");
-                    } else if (ops.Length >= 1 && ops[0].Register is { } ldDst && page.ContainsKey(ldDst.Name)) {
-                        page.Remove(ldDst.Name);
                     }
 
                     break;
             }
+
+            var written = insn.Details?.AllWrittenRegisters;
+            if (written is not null) {
+                foreach (var w in written) {
+                    if (w.Name is { } wn && wn != kept) page.Remove(wn);
+                }
+            }
         }
 
-        return new ScanResult(true, fn.Name, addresses, "ok");
+        return new ScanResult(true, label, addresses, "ok");
     }
 
     public readonly record struct AddressRef(ulong Va, string Segment, string Section, string Via);

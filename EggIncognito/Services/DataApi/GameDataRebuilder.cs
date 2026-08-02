@@ -12,66 +12,75 @@ public sealed record RebuildDocResult(string Id, string Status, int? Count, int?
 public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvider binaries) {
     private static readonly string[] Unbuildable = ["boosts", "artifacts"];
 
+    private sealed record Candidate(string Platform, string Version, byte[] Bin,
+        IReadOnlyList<MachoSymbols.Symbol> Syms, IReadOnlyList<MachoSections.Section> Sections, bool IsElf);
+
     public async Task<(IReadOnlyList<RebuildDocResult> Results, string? BinaryNote)> RebuildAsync(CancellationToken ct) {
         var results = new List<RebuildDocResult>();
 
-        (bool ok, byte[]? bin, var liveSyms, string version, string? diag) =
-            await binaries.GetExtractionBinaryAsync(ct);
-        if (!ok || bin is null) {
-            foreach (string id in (string[])["boost-catalog", "missions", "eggs", "vehicles", "dimensions", "research", "habs"])
-                results.Add(new RebuildDocResult(id, "skipped", null, null, diag ?? "no binary available"));
-        } else {
-            var syms = liveSyms ?? MachoSymbols.Read(bin);
-            var sections = MachoSections.Read(bin);
+        var raw = await binaries.GetExtractionCandidatesAsync(ct);
+        var candidates = raw.Select(c => {
+            bool elf = IsElf(c.Bytes);
+            var syms = c.Symbols ?? (elf ? [] : MachoSymbols.Read(c.Bytes));
+            var sections = elf ? [] : MachoSections.Read(c.Bytes);
+            return new Candidate(c.Platform, c.Version, c.Bytes, syms, sections, elf);
+        }).ToList();
 
-            await LandAsync(results, "boost-catalog", () => {
+        if (candidates.Count == 0) {
+            foreach (string id in (string[])["boost-catalog", "missions", "eggs", "vehicles", "dimensions", "research", "habs"])
+                results.Add(new RebuildDocResult(id, "skipped", null, null, "no extraction binary available"));
+        } else {
+            await LandBestAsync(results, "boost-catalog", candidates, c => {
+                if (c.IsElf) return null;
                 string configJson = DataCatalog.FixtureText(services, DataCatalog.ConfigRoute) ?? "{}";
-                var built = BoostCatalogBuilder.Build(bin, syms, sections, configJson, version);
+                var built = BoostCatalogBuilder.Build(c.Bin, c.Syms, c.Sections, configJson, c.Version);
                 string? note = built.MissingCosts.Count > 0
                     ? $"{built.MissingCosts.Count} ids without costs: {string.Join(", ", built.MissingCosts)}"
                     : null;
-                return (BoostCatalogBuilder.Serialize(built.File), built.File.Boosts.Count, note);
+                return built.File.Boosts.Count == 0
+                    ? null
+                    : (BoostCatalogBuilder.Serialize(built.File), built.File.Boosts.Count, note);
             }, ct);
 
-            await LandAsync(results, "missions", () => {
-                var r = MissionCatalogExtractor.ExtractWith(bin, syms, sections);
-                if (!r.Ok) throw new InvalidOperationException(r.Diagnostics);
-                var doc = GameDataDocBuilders.BuildMissions(r.Entries, version);
+            await LandBestAsync(results, "missions", candidates, c => {
+                var r = MissionCatalogExtractor.ExtractAuto(c.Bin);
+                if (!r.Ok || r.Entries.Count == 0) return null;
+                var doc = GameDataDocBuilders.BuildMissions(r.Entries, c.Version);
                 return (doc.Json, doc.Count, SkipNote(doc.Skipped, "goal-less"));
             }, ct);
 
-            await LandAsync(results, "eggs", () => {
-                var r = EggCatalogExtractor.ReadWith(bin, syms, sections);
-                if (!r.Ok) throw new InvalidOperationException(r.Diagnostics);
-                var doc = GameDataDocBuilders.BuildEggs(r.Entries, version);
+            await LandBestAsync(results, "eggs", candidates, c => {
+                var r = EggCatalogExtractor.ReadWith(c.Bin, c.Syms, c.Sections);
+                if (!r.Ok || r.Entries.Count == 0) return null;
+                var doc = GameDataDocBuilders.BuildEggs(r.Entries, c.Version);
                 return (doc.Json, doc.Count, null);
             }, ct);
 
-            await LandAsync(results, "vehicles", () => {
-                var r = VehicleCatalogExtractor.ReadWith(bin, syms, sections);
-                if (!r.Ok) throw new InvalidOperationException(r.Diagnostics);
-                var doc = GameDataDocBuilders.BuildVehicles(r.Entries, version);
+            await LandBestAsync(results, "vehicles", candidates, c => {
+                var r = VehicleCatalogExtractor.ReadWith(c.Bin, c.Syms, c.Sections);
+                if (!r.Ok || r.Entries.Count == 0) return null;
+                var doc = GameDataDocBuilders.BuildVehicles(r.Entries, c.Version);
                 return (doc.Json, doc.Count, SkipNote(doc.Skipped, "nameless"));
             }, ct);
 
-            await LandAsync(results, "dimensions", () => {
-                var r = DimensionCatalogExtractor.ExtractWith(bin, syms, sections);
-                if (!r.Ok) throw new InvalidOperationException(r.Diagnostics);
-                var doc = GameDataDocBuilders.BuildDimensions(r.Ids, version);
+            await LandBestAsync(results, "dimensions", candidates, c => {
+                var r = DimensionCatalogExtractor.ExtractWith(c.Bin, c.Syms, c.Sections);
+                if (!r.Ok || r.Ids.Count == 0) return null;
+                var doc = GameDataDocBuilders.BuildDimensions(r.Ids, c.Version);
                 return (doc.Json, doc.Count, null);
             }, ct);
 
-            await LandAsync(results, "research", () => {
-                var r = ResearchCatalogExtractor.ExtractWith(bin, syms, sections);
-                if (!r.Ok) throw new InvalidOperationException(r.Diagnostics);
-                var doc = GameDataDocBuilders.BuildResearch(r.Entries, version);
+            await LandBestAsync(results, "research", candidates, c => {
+                var r = ResearchCatalogExtractor.ExtractWith(c.Bin, c.Syms, c.Sections);
+                if (!r.Ok || r.Entries.Count == 0) return null;
+                var doc = GameDataDocBuilders.BuildResearch(r.Entries, c.Version);
                 return (doc.Json, doc.Count, SkipNote(doc.Skipped, "undecoded"));
             }, ct);
 
-            await LandAsync(results, "habs", () => {
-                var r = HabCatalogExtractor.ExtractWith(bin, syms, sections);
-                if (!r.Ok) throw new InvalidOperationException(r.Diagnostics);
-                var doc = GameDataDocBuilders.BuildHabs(r.Entries, version);
+            await LandBestAsync(results, "habs", candidates, c => {
+                var r = HabCatalogExtractor.ExtractWith(c.Bin, c.Syms, c.Sections);
+                if (!r.Ok || r.Entries.Count == 0) return null;
+                var doc = GameDataDocBuilders.BuildHabs(r.Entries, c.Version);
                 return (doc.Json, doc.Count, SkipNote(doc.Skipped, "nameless"));
             }, ct);
         }
@@ -87,11 +96,54 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
                 "no extraction pipeline yet; needs a dedicated extraction session"));
         }
 
-        return (results, ok ? $"binary {version}" : diag);
+        string? note = candidates.Count == 0
+            ? "no extraction binary available"
+            : "binaries " + string.Join(", ", candidates.Select(c => $"{c.Platform} {c.Version}"));
+        return (results, note);
     }
+
+    private static bool IsElf(byte[] b) =>
+        b.Length >= 4 && b[0] == 0x7f && b[1] == 0x45 && b[2] == 0x4c && b[3] == 0x46;
 
     private static string? SkipNote(IReadOnlyList<string> skipped, string kind) =>
         skipped.Count == 0 ? null : $"{skipped.Count} {kind} rows dropped: {string.Join(", ", skipped)}";
+
+    private async Task LandBestAsync(List<RebuildDocResult> results, string id, IReadOnlyList<Candidate> candidates,
+        Func<Candidate, (string Json, int Count, string? Note)?> build, CancellationToken ct) {
+        string? lastNote = null;
+        foreach (var c in candidates) {
+            string json;
+            int count;
+            string? note;
+            try {
+                var built = build(c);
+                if (built is null) {
+                    lastNote = $"no extraction from {c.Platform} {c.Version}";
+                    continue;
+                }
+
+                (json, count, note) = built.Value;
+                GameDataProvider.Validate(id, json);
+            } catch (Exception ex) {
+                lastNote = $"{c.Platform} {c.Version}: {ex.Message}";
+                continue;
+            }
+
+            try {
+                await UpsertAsync(id, json, ct);
+            } catch (Exception ex) {
+                results.Add(new RebuildDocResult(id, "failed", count, null, "db write failed: " + ex.Message));
+                return;
+            }
+
+            string tag = $"{c.Platform} {c.Version}";
+            results.Add(new RebuildDocResult(id, "built", count, Encoding.UTF8.GetByteCount(json),
+                note is null ? tag : $"{tag}; {note}"));
+            return;
+        }
+
+        results.Add(new RebuildDocResult(id, "skipped", null, null, lastNote ?? "no candidate binary"));
+    }
 
     private async Task LandAsync(List<RebuildDocResult> results, string id,
         Func<(string Json, int Count, string? Note)> build, CancellationToken ct) {

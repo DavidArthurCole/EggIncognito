@@ -5,6 +5,8 @@ namespace EggIncognito.Services.ProtoExtract;
 public static class ElfSections {
     private const uint PtLoad = 1;
     private const uint ShtInitArray = 14;
+    private const uint ShtRela = 4;
+    private const uint RAarch64Relative = 1027;
     private const ulong ShfAlloc = 0x2;
 
     public static IReadOnlyList<MachoSections.Section> Read(byte[] bin) {
@@ -105,6 +107,55 @@ public static class ElfSections {
         }
 
         return false;
+    }
+
+    public static IReadOnlyList<ulong> ReadInitArrayTargets(byte[] bin) {
+        if (!TryFindInitArray(bin, out var va, out var size)) return [];
+        var segments = ReadSegments(bin);
+        if (!TryVaToFileOffset(segments, va, out var baseFo)) return [];
+
+        var relocs = ReadRelativeRelocs(bin, va, va + size);
+        var n = (int)(size / 8);
+        var outp = new List<ulong>(n);
+        for (int i = 0; i < n; i++) {
+            long p = (long)baseFo + i * 8;
+            if (p < 0 || p + 8 > bin.Length) break;
+            ulong slotVa = va + (ulong)(i * 8);
+            ulong val = U64(bin, (int)p);
+            if (val == 0) relocs.TryGetValue(slotVa, out val);
+            if (val != 0) outp.Add(val);
+        }
+
+        return outp;
+    }
+
+    private static Dictionary<ulong, ulong> ReadRelativeRelocs(byte[] bin, ulong lo, ulong hi) {
+        var map = new Dictionary<ulong, ulong>();
+        if (!IsElf64Le(bin)) return map;
+        try {
+            ulong shoff = U64(bin, 0x28);
+            int shentsize = U16(bin, 0x3A);
+            int shnum = U16(bin, 0x3C);
+            if (shentsize < 64 || shnum <= 0) return map;
+
+            for (int i = 0; i < shnum; i++) {
+                long h = (long)shoff + (long)i * shentsize;
+                if (h < 0 || h + 64 > bin.Length) break;
+                if (U32(bin, (int)h + 0x04) != ShtRela) continue;
+                long off = (long)U64(bin, (int)h + 0x18);
+                long sz = (long)U64(bin, (int)h + 0x20);
+                for (long r = off; r + 24 <= off + sz && r + 24 <= bin.Length; r += 24) {
+                    ulong roff = U64(bin, (int)r);
+                    if (roff < lo || roff >= hi) continue;
+                    if ((uint)(U64(bin, (int)r + 8) & 0xFFFFFFFF) != RAarch64Relative) continue;
+                    map[roff] = U64(bin, (int)r + 16);
+                }
+            }
+        } catch {
+            return map;
+        }
+
+        return map;
     }
 
     internal static bool IsElf64Le(byte[]? b) =>

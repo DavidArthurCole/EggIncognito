@@ -10,6 +10,7 @@ public interface IBinaryImage {
     bool TryFindFunc(string[] needles, out MachoSymbols.FuncRange range);
     bool TryFindText(out int fileOff, out int size, out ulong vmAddr);
     bool TryGetInitArray(out ulong va, out ulong size);
+    IReadOnlyList<ulong> GetInitArrayTargets();
 }
 
 public sealed class MachoImage : IBinaryImage {
@@ -48,6 +49,22 @@ public sealed class MachoImage : IBinaryImage {
         size = s.Value.VmSize;
         return va != 0 && size != 0;
     }
+
+    public IReadOnlyList<ulong> GetInitArrayTargets() {
+        if (!TryGetInitArray(out var va, out var size)) return [];
+        if (!TryVaToFileOffset(va, out var fo, out _)) return [];
+        var n = (int)(size / 8);
+        var outp = new List<ulong>(n);
+        for (int i = 0; i < n; i++) {
+            long p = (long)fo + i * 8;
+            if (p < 0 || p + 8 > Bytes.Length) break;
+            ulong ptr = 0;
+            for (int k = 0; k < 8; k++) ptr |= (ulong)Bytes[p + k] << (8 * k);
+            if (ptr != 0) outp.Add(ptr);
+        }
+
+        return outp;
+    }
 }
 
 public sealed class ElfImage : IBinaryImage {
@@ -80,6 +97,9 @@ public sealed class ElfImage : IBinaryImage {
 
     public bool TryGetInitArray(out ulong va, out ulong size)
         => ElfSections.TryFindInitArray(Bytes, out va, out size);
+
+    public IReadOnlyList<ulong> GetInitArrayTargets()
+        => ElfSections.ReadInitArrayTargets(Bytes);
 }
 
 public static class BinaryImage {

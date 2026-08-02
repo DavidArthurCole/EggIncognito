@@ -87,6 +87,53 @@ public sealed class GameBinaryProvider(
 
     public IReadOnlyList<string> ExtractablePlatformsFallback => [DefaultPlatform];
 
+    public sealed record ExtractionCandidate(string Platform, string Version, byte[] Bytes,
+        IReadOnlyList<MachoSymbols.Symbol>? Symbols, string? Diagnostics);
+
+    public async Task<IReadOnlyList<ExtractionCandidate>> GetExtractionCandidatesAsync(CancellationToken ct) {
+        var platforms = new List<string>();
+        var store = Store;
+        if (store is not null) {
+            try {
+                var devices = await store.EnabledDevicesAsync(ct);
+                platforms.AddRange(devices.Select(d => d.Platform).Distinct(StringComparer.OrdinalIgnoreCase));
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "enabled-device enumeration failed; falling back to {Platform}", DefaultPlatform);
+            }
+        }
+
+        if (platforms.Count == 0) platforms.Add(DefaultPlatform);
+        if (!platforms.Contains(DefaultPlatform, StringComparer.OrdinalIgnoreCase)) platforms.Add(DefaultPlatform);
+
+        var candidates = new List<ExtractionCandidate>();
+        foreach (string platform in platforms) {
+            var r = await GetExtractionBinaryAsync(platform, ct);
+            if (r.Ok && r.Bytes is not null)
+                candidates.Add(new ExtractionCandidate(platform, r.Version, r.Bytes, r.Symbols, r.Diagnostics));
+        }
+
+        candidates.Sort((a, b) => {
+            int cmp = CompareVersions(b.Version, a.Version);
+            return cmp != 0 ? cmp : PlatformRank(a.Platform).CompareTo(PlatformRank(b.Platform));
+        });
+        return candidates;
+    }
+
+    private static int PlatformRank(string platform) =>
+        string.Equals(platform, DefaultPlatform, StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+
+    private static int CompareVersions(string? a, string? b) {
+        if (Version.TryParse(Normalize(a), out var va) && Version.TryParse(Normalize(b), out var vb))
+            return va.CompareTo(vb);
+        return string.CompareOrdinal(a ?? "", b ?? "");
+    }
+
+    private static string Normalize(string? v) {
+        if (string.IsNullOrWhiteSpace(v)) return "0.0";
+        var parts = v.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 ? v : v + ".0";
+    }
+
     public async Task<IReadOnlyList<(string Platform, string Status, string? Version, string? Note)>>
         EnsureAllVersionsStoredAsync(CancellationToken ct) {
         var results = new List<(string, string, string?, string?)>();

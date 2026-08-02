@@ -5,6 +5,7 @@ namespace EggIncognito.Services.ProtoExtract;
 
 public static partial class MissionCatalogExtractor {
     public const string InitSymbol = "__GLOBAL__sub_I_missiondata";
+    public const string SignatureString = "Hatch 200 chickens";
 
     [GeneratedRegex("^[a-z][a-z0-9_]{3,}$")]
     private static partial Regex IdPattern();
@@ -14,25 +15,45 @@ public static partial class MissionCatalogExtractor {
 
     public static Result Extract(byte[] bin) {
         var img = BinaryImage.Load(bin);
-        return ExtractWith(bin, img?.Symbols ?? [], img?.Sections ?? []);
+        return ExtractWith(bin, img?.Symbols ?? []);
     }
 
-    public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
-        IReadOnlyList<MachoSections.Section> sections) {
+    public static Result ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms) {
         var scan = Arm64DataTableReader.ScanWith(bin, syms, [InitSymbol]);
-        if (!scan.Ok) return new Result(false, [], scan.Diagnostics);
+        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Classify(bin, scan.Addresses);
+    }
 
+    public static Result ExtractAuto(byte[] bin) {
+        var img = BinaryImage.Load(bin);
+        if (img is ElfImage) {
+            var loc = InitArrayLocator.Create(bin);
+            if (loc is null || !loc.TryLocateByString(SignatureString, out var s, out var e))
+                return new Result(false, [], "missiondata init not located via signature on ELF");
+            return ExtractRange(bin, s, e);
+        }
+
+        return ExtractWith(bin, img?.Symbols ?? []);
+    }
+
+    public static Result ExtractRange(byte[] bin, ulong startVa, ulong endVa) {
+        var scan = Arm64DataTableReader.ScanRange(bin, startVa, endVa);
+        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Classify(bin, scan.Addresses);
+    }
+
+    private static Result Classify(byte[] bin, IReadOnlyList<Arm64DataTableReader.AddressRef> refs) {
+        var img = BinaryImage.Load(bin);
         var entries = new List<MissionEntry>();
         string? pendingDisplay = null;
         int open = -1;
         string? prevStr = null;
         ulong prevVa = 0;
 
-        foreach (var r in scan.Addresses) {
-            if (r.Section != "__cstring") continue;
-            string raw = ReadCstr(bin, sections, r.Va);
+        foreach (var r in refs) {
+            if (!IsStringSection(r.Section)) continue;
+            string raw = ReadCstr(bin, img, r.Va);
             if (string.IsNullOrEmpty(raw)) continue;
             string str = StripDescPrefix(raw);
+            if (!IsPrintable(str)) continue;
 
             if (prevStr is not null && prevStr.EndsWith(str, StringComparison.Ordinal)
                                     && r.Va > prevVa && r.Va <= prevVa + (ulong)prevStr.Length + 1) {
@@ -57,12 +78,24 @@ public static partial class MissionCatalogExtractor {
         return new Result(true, entries, $"{entries.Count} missions");
     }
 
-    private static string ReadCstr(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va) {
-        if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out var owner)) return "";
-        if (owner.Name != "__cstring") return "";
+    private static bool IsStringSection(string name) =>
+        name is "__cstring" or ".rodata" or ".data.rel.ro" or "__const";
+
+    private static string ReadCstr(byte[] bin, IBinaryImage? img, ulong va) {
+        if (img is null || !img.TryVaToFileOffset(va, out int fo, out _)) return "";
         int end = fo;
         while (end < bin.Length && bin[end] != 0 && end - fo < 128) end++;
         return Encoding.UTF8.GetString(bin, fo, end - fo);
+    }
+
+    private static bool IsPrintable(string s) {
+        if (s.Length < 2) return false;
+        foreach (char c in s) {
+            if (c is '\t' or '\n' or '\r' or (char)0x1b) continue;
+            if (c is < (char)0x20 or > (char)0x7e) return false;
+        }
+
+        return true;
     }
 
     private static string StripDescPrefix(string s) {
