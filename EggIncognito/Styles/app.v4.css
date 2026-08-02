@@ -245,7 +245,7 @@
 .support-legal-note { @apply text-xs text-muted leading-relaxed m-0 mt-2; }
 
 .code-chip {
-  @apply bg-bg border border-border rounded px-[0.3rem] py-[0.05rem] font-mono [font-size:0.85em];
+  @apply bg-bg border border-border rounded px-[0.3rem] py-[0.05rem] font-mono text-fg [font-size:0.85em];
 }
 .dev-verline { @apply font-mono text-fg whitespace-nowrap; }
 .dev-versep { @apply text-muted opacity-50 mx-1; }

@@ -16,6 +16,15 @@
 
         <div class="flex gap-2 flex-wrap mb-3 text-xs">
             <span class="code-chip">@(Result.Messages.Count) @(Result.Messages.Count == 1 ? "message" : "messages")</span>
+            @if (!string.IsNullOrWhiteSpace(Result.AppVersion)) {
+                <span class="code-chip">v @Result.AppVersion</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Result.Build)) {
+                <span class="code-chip">build @Result.Build</span>
+            }
+            @if (Result.ClientVersion is int cv) {
+                <span class="code-chip">client @cv</span>
+            }
             <button type="button" class="code-chip" @onclick="@(() => Copy(Result.ProtoSha))">
                 sha @Short(Result.ProtoSha)
             </button>
@@ -126,7 +135,7 @@
         _savePlatform = PlatformFor(Result.FileName);
         _saveAppVersion = Result.AppVersion ?? "";
         _saveBuild = Result.Build ?? "";
-        _saveClientVersion = "";
+        _saveClientVersion = Result.ClientVersion?.ToString() ?? "";
         _saveMsg = "";
         _offerable = _offered = _offerBusy = false;
         await BackfillBuildAndClientVersion();
