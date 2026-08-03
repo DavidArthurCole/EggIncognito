@@ -14,18 +14,12 @@
             <span class="text-muted text-xs">@Result.Diagnostics</span>
         </div>
 
-        <div class="flex gap-2 flex-wrap mb-3 text-xs">
-            <span class="code-chip">@(Result.Messages.Count) @(Result.Messages.Count == 1 ? "message" : "messages")</span>
-            @if (!string.IsNullOrWhiteSpace(Result.AppVersion)) {
-                <span class="code-chip">v @Result.AppVersion</span>
-            }
-            @if (!string.IsNullOrWhiteSpace(Result.Build)) {
-                <span class="code-chip">build @Result.Build</span>
-            }
-            @if (Result.ClientVersion is int cv) {
-                <span class="code-chip">client @cv</span>
-            }
-            <button type="button" class="code-chip" @onclick="@(() => Copy(Result.ProtoSha))">
+        <div class="flex gap-3 flex-wrap mb-3 text-xs font-mono text-muted">
+            <span>@(Result.Messages.Count) @(Result.Messages.Count == 1 ? "message" : "messages")</span>
+            <span>v @(string.IsNullOrWhiteSpace(Result.AppVersion) ? "-" : Result.AppVersion)</span>
+            <span>build @(string.IsNullOrWhiteSpace(Result.Build) ? "-" : Result.Build)</span>
+            <span>client @(Result.ClientVersion?.ToString() ?? "-")</span>
+            <button type="button" class="cursor-pointer hover:underline" title="Copy full sha" @onclick="@(() => Copy(Result.ProtoSha))">
                 sha @Short(Result.ProtoSha)
             </button>
         </div>
