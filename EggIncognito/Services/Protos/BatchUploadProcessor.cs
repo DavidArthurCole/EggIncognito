@@ -44,13 +44,16 @@ public sealed class BatchUploadProcessor(
             try {
                 UploadBatchStore.ItemOutcome outcome;
                 byte[] bytes = item.Bytes ?? [];
-                string fileSha = AnalyzedFileStore.Sha256Hex(bytes);
+                var manifest = CarvedManifest.TryParse(bytes);
+                string fileSha = manifest?.FileSha ?? AnalyzedFileStore.Sha256Hex(bytes);
                 var seen = await analyzed.FindAsync(fileSha, ct);
                 if (seen is not null) {
                     outcome = new UploadBatchStore.ItemOutcome("duplicate", seen.ProtoSha, seen.AppVersion,
                         seen.Build, seen.ClientVersion, "duplicate file (already analyzed)");
                 } else {
-                    var extract = SniffExtract(bytes);
+                    var extract = manifest is not null
+                        ? DescriptorProtoCarver.FromCarvedBase64(manifest.Ei, manifest.Common, manifest.ClientVersion)
+                        : SniffExtract(bytes);
                     if (!extract.Ok) {
                         outcome = new UploadBatchStore.ItemOutcome("failed", null, null, null, null,
                             extract.Diagnostics ?? "extraction failed");

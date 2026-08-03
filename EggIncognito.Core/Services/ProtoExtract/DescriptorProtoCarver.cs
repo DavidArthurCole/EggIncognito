@@ -33,6 +33,46 @@ public static class DescriptorProtoCarver {
     }
 
 
+    public static ExtractResult FromCarvedBase64(string? eiB64, string? commonB64, int? clientVersion) {
+        byte[] ei;
+        try {
+            ei = Convert.FromBase64String(eiB64 ?? "");
+        } catch {
+            return new ExtractResult(false, null, "carved ei.proto descriptor is not valid base64", null, []);
+        }
+
+        byte[]? common = null;
+        if (!string.IsNullOrEmpty(commonB64)) {
+            try {
+                common = Convert.FromBase64String(commonB64);
+            } catch {
+                common = null;
+            }
+        }
+
+        return FromCarved(ei, common, clientVersion);
+    }
+
+    public static ExtractResult FromCarved(byte[] eiBytes, byte[]? commonBytes, int? clientVersion) {
+        if (eiBytes is null || eiBytes.Length == 0)
+            return new ExtractResult(false, null, "carved manifest missing ei.proto descriptor", null, []);
+
+        string? eiText = EmitProto(eiBytes);
+        if (eiText is null)
+            return new ExtractResult(false, null, "carved ei.proto descriptor failed to parse", null, []);
+
+        string? commonText = commonBytes is { Length: > 0 } ? EmitProto(commonBytes) : null;
+        string proto = commonText is not null ? ProtoCleanup.Clean(eiText, commonText) : eiText;
+        string sha = EggIncognito.Core.ProtoHash.OfDescriptor(eiBytes);
+        var messages = ProtoTextIndex.Names(proto);
+
+        var eiFdp = TryParse(eiBytes) ?? new FileDescriptorProto();
+        string diag =
+            $"ei.proto (client-carved): {eiFdp.MessageType.Count} top-level messages, {eiFdp.EnumType.Count} enums"
+            + (commonText is not null ? "; merged common.proto (aux)" : "; common.proto absent");
+        return new ExtractResult(true, proto, diag, sha, messages, ClientVersion: clientVersion);
+    }
+
     public static ExtractResult Extract(byte[] binary) {
         var carved = CarveAll(binary);
         var ei = carved.FirstOrDefault(c => c.Name == "ei.proto");

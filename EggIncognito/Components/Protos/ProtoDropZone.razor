@@ -133,7 +133,9 @@
         _error = "";
         try {
             var mod = await StripModule();
-            var data = await mod.InvokeAsync<ExtractResult>("analyze", "protoFile", "/api/tools/extract-proto");
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+            var data = await mod.InvokeAsync<ExtractResult>("analyze", cts.Token,
+                ["protoFile", "/api/tools/extract-proto"]);
             if (data is null) {
                 _error = "no response";
                 return;
@@ -157,7 +159,9 @@
         _error = "";
         try {
             var mod = await StripModule();
-            var res = await mod.InvokeAsync<BatchUploadResult>("uploadBatch", "protoFile", "/api/protos/batch");
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(30));
+            var res = await mod.InvokeAsync<BatchUploadResult>("uploadBatch", cts.Token,
+                ["protoFile", "/api/protos/batch"]);
             if (res?.BatchId is not { } id) {
                 _error = res?.Error ?? "upload failed";
                 return;

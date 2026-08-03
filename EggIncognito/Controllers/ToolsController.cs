@@ -104,21 +104,24 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
 
 
+        var manifest = CarvedManifest.TryParse(bytes);
         bool isZip = bytes.Length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04;
-        var r = isZip
-            ? ArchiveProtoExtractor.Extract(bytes)
-            : DescriptorProtoCarver.Extract(bytes);
-        if (r.Ok) await RecordAnalyzedAsync(bytes, r, file.FileName, ct);
+        var r = manifest is not null
+            ? DescriptorProtoCarver.FromCarvedBase64(manifest.Ei, manifest.Common, manifest.ClientVersion)
+            : isZip
+                ? ArchiveProtoExtractor.Extract(bytes)
+                : DescriptorProtoCarver.Extract(bytes);
+        if (r.Ok) await RecordAnalyzedAsync(bytes, r, file.FileName, manifest?.FileSha, ct);
         return ExtractResultJson(r);
     }
 
     private async Task RecordAnalyzedAsync(byte[] bytes, DescriptorProtoCarver.ExtractResult r, string? fileName,
-        CancellationToken ct) {
+        string? fileSha, CancellationToken ct) {
         var store = HttpContext.RequestServices.GetService<AnalyzedFileStore>();
         if (store is null) return;
         try {
             await store.RecordAsync(new AnalyzedFileStore.Entry(
-                AnalyzedFileStore.Sha256Hex(bytes), "analyze", null, r.ProtoSha, r.AppVersion, r.Build,
+                fileSha ?? AnalyzedFileStore.Sha256Hex(bytes), "analyze", null, r.ProtoSha, r.AppVersion, r.Build,
                 r.ClientVersion?.ToString(), fileName), ct);
         } catch (DbException) {
         }

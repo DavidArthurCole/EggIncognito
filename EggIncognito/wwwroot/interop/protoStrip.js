@@ -129,6 +129,275 @@ async function strip(blob) {
   }
 }
 
+function isElf64Le(b) {
+  return b.length >= 64 && b[0] === 0x7f && b[1] === 0x45 && b[2] === 0x4c && b[3] === 0x46
+    && b[4] === 2 && b[5] === 1;
+}
+
+function u16(dv, p) {
+  return dv.getUint16(p, true);
+}
+
+function u32(dv, p) {
+  return dv.getUint32(p, true);
+}
+
+function u64(dv, p) {
+  return dv.getUint32(p + 4, true) * 0x100000000 + dv.getUint32(p, true);
+}
+
+function cstrEnd(b, o) {
+  let e = o;
+  while (e < b.length && b[e] !== 0) e++;
+  return e;
+}
+
+function indexOf(hay, needle) {
+  const first = needle[0], n = needle.length;
+  let i = hay.indexOf(first);
+  while (i >= 0 && i + n <= hay.length) {
+    let ok = true;
+    for (let j = 1; j < n; j++) {
+      if (hay[i + j] !== needle[j]) { ok = false; break; }
+    }
+    if (ok) return i;
+    i = hay.indexOf(first, i + 1);
+  }
+  return -1;
+}
+
+function findAnchor(bytes, name) {
+  const nb = new TextEncoder().encode(name);
+  const pat = new Uint8Array(nb.length + 2);
+  pat[0] = 0x0a;
+  pat[1] = nb.length;
+  pat.set(nb, 2);
+  return indexOf(bytes, pat);
+}
+
+function readVarint(bytes, pos) {
+  let shift = 0, result = 0, p = pos;
+  while (true) {
+    const by = bytes[p++];
+    if (by === undefined) throw new Error("eof");
+    result += (by & 0x7f) * Math.pow(2, shift);
+    if ((by & 0x80) === 0) break;
+    shift += 7;
+    if (shift > 63) throw new Error("varint too long");
+  }
+  return [result, p];
+}
+
+function wireWalkLength(bytes, start) {
+  let pos = start, lastGood = start;
+  try {
+    while (pos < bytes.length) {
+      const [tag, p] = readVarint(bytes, pos);
+      const fieldNum = Math.floor(tag / 8), wire = tag % 8;
+      if (fieldNum < 1 || fieldNum > 12 || wire !== 2) break;
+      const [len, q] = readVarint(bytes, p);
+      if (q + len > bytes.length) break;
+      pos = q + len;
+      lastGood = pos;
+    }
+  } catch {
+  }
+  return lastGood - start;
+}
+
+function carveDescriptor(bytes, name) {
+  const at = findAnchor(bytes, name);
+  if (at < 0) return null;
+  const len = wireWalkLength(bytes, at);
+  if (len <= 0) return null;
+  return bytes.subarray(at, at + len);
+}
+
+function elf64Sections(dv, len) {
+  const shoff = u64(dv, 0x28), shentsize = u16(dv, 0x3a), shnum = u16(dv, 0x3c);
+  const out = [];
+  if (shentsize < 64 || shnum <= 0) return out;
+  for (let i = 0; i < shnum; i++) {
+    const h = shoff + i * shentsize;
+    if (h < 0 || h + 64 > len) break;
+    const flags = u64(dv, h + 0x08);
+    if (flags % 4 < 2) continue;
+    out.push({ addr: u64(dv, h + 0x10), off: u64(dv, h + 0x18), sz: u64(dv, h + 0x20) });
+  }
+  return out;
+}
+
+function elf64Segments(dv, len) {
+  const phoff = u64(dv, 0x20), phentsize = u16(dv, 0x36), phnum = u16(dv, 0x38);
+  const out = [];
+  if (phentsize < 56 || phnum <= 0) return out;
+  for (let i = 0; i < phnum; i++) {
+    const p = phoff + i * phentsize;
+    if (p < 0 || p + 56 > len) break;
+    if (u32(dv, p + 0x00) !== 1) continue;
+    out.push({ vaddr: u64(dv, p + 0x10), off: u64(dv, p + 0x08), filesz: u64(dv, p + 0x20) });
+  }
+  return out;
+}
+
+function vaToOffset(sections, segments, va) {
+  for (const s of sections) {
+    if (s.sz > 0 && va >= s.addr && va < s.addr + s.sz) return s.off + (va - s.addr);
+  }
+  for (const s of segments) {
+    if (s.filesz > 0 && va >= s.vaddr && va < s.vaddr + s.filesz) return s.off + (va - s.vaddr);
+  }
+  return -1;
+}
+
+function elf64Symbols(dv, bytes, len) {
+  const shoff = u64(dv, 0x28), shentsize = u16(dv, 0x3a), shnum = u16(dv, 0x3c);
+  const syms = [];
+  if (shentsize < 64 || shnum <= 0) return syms;
+  const dec = new TextDecoder();
+  for (let i = 0; i < shnum; i++) {
+    const h = shoff + i * shentsize;
+    if (h < 0 || h + 64 > len) break;
+    const type = u32(dv, h + 0x04);
+    if (type !== 2 && type !== 11) continue;
+    const tabOff = u64(dv, h + 0x18), tabSize = u64(dv, h + 0x20), link = u32(dv, h + 0x28);
+    let entsize = u64(dv, h + 0x38);
+    if (entsize < 24) entsize = 24;
+    if (link >= shnum) continue;
+    const lh = shoff + link * shentsize;
+    if (lh < 0 || lh + 64 > len) continue;
+    const strOff = u64(dv, lh + 0x18), strSize = u64(dv, lh + 0x20);
+    const count = Math.floor(tabSize / entsize);
+    for (let s = 0; s < count; s++) {
+      const e = tabOff + s * entsize;
+      if (e < 0 || e + 24 > len) break;
+      const nameOff = u32(dv, e + 0x00);
+      const value = u64(dv, e + 8);
+      if (nameOff === 0 || nameOff >= strSize) continue;
+      const at = strOff + nameOff;
+      const name = dec.decode(bytes.subarray(at, cstrEnd(bytes, at)));
+      if (name.length === 0) continue;
+      syms.push({ name, value });
+    }
+  }
+  return syms;
+}
+
+function movkInsert(w0, imm16, hw) {
+  const factor = Math.pow(2, hw * 16);
+  const below = w0 % factor;
+  const above = Math.floor(w0 / (factor * 0x10000)) * (factor * 0x10000);
+  return above + imm16 * factor + below;
+}
+
+function decodeBitMask(n, immr, imms, width) {
+  if (width > 32) return null;
+  const combined = (n << 6) | (imms ^ 0x3f);
+  if (combined === 0) return null;
+  const length = 31 - Math.clz32(combined >>> 0);
+  const esize = 1 << length;
+  if (esize < 2 || esize > 32) return null;
+  const levels = esize - 1;
+  const s = imms & levels, r = immr & levels;
+  const welem = Math.pow(2, s + 1) - 1;
+  const emod = Math.pow(2, esize);
+  let val;
+  if (r === 0) {
+    val = welem;
+  } else {
+    const right = Math.floor(welem / Math.pow(2, r));
+    const left = (welem * Math.pow(2, esize - r)) % emod;
+    val = (right + left) % emod;
+  }
+  let out = 0;
+  for (let i = 0; i < width; i += esize) out += val * Math.pow(2, i);
+  return out % Math.pow(2, 32);
+}
+
+function decodeConstReturnArm64(dv, fo, len) {
+  let w0 = null;
+  for (let p = fo; p + 4 <= fo + len; p += 4) {
+    const ins = u32(dv, p);
+    if (ins === 0xd65f03c0) break;
+    const rd = ins & 0x1f;
+    const hw = (ins >>> 21) & 3;
+    const imm16 = (ins >>> 5) & 0xffff;
+    if ((ins & 0x7f800000) === 0x52800000) {
+      if (rd === 0) w0 = imm16 * Math.pow(2, hw * 16);
+    } else if ((ins & 0x7f800000) === 0x72800000) {
+      if (rd === 0 && w0 !== null) w0 = movkInsert(w0, imm16, hw);
+    } else if ((ins & 0x7f800000) === 0x32000000 && rd === 0 && ((ins >>> 5) & 0x1f) === 31) {
+      const bm = decodeBitMask((ins >>> 22) & 1, (ins >>> 16) & 0x3f, (ins >>> 10) & 0x3f,
+        ((ins >>> 31) & 1) ? 64 : 32);
+      if (bm !== null) w0 = bm;
+    }
+  }
+  if (w0 === null || w0 < 0 || w0 > 0x7fffffff) return null;
+  return Math.floor(w0);
+}
+
+const SYM_NEEDLE = "GameController20currentClientVersion";
+
+function clientVersionElf64(bytes) {
+  if (!isElf64Le(bytes)) return null;
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const len = bytes.length;
+  const syms = elf64Symbols(dv, bytes, len);
+  let hit = null;
+  for (const s of syms) {
+    if (s.value !== 0 && s.name.includes(SYM_NEEDLE)) { hit = s; break; }
+  }
+  if (!hit) return null;
+  const start = hit.value;
+  let end = Number.MAX_SAFE_INTEGER;
+  for (const s of syms) {
+    if (s.value > start && s.value < end) end = s.value;
+  }
+  if (end === Number.MAX_SAFE_INTEGER) end = start + 0x4000;
+  const fo = vaToOffset(elf64Sections(dv, len), elf64Segments(dv, len), start);
+  if (fo < 0) return null;
+  const span = end > start ? end - start : 16;
+  const declen = Math.min(span, 64);
+  if (declen < 4 || fo + declen > len) return null;
+  return decodeConstReturnArm64(dv, fo, declen);
+}
+
+function toBase64(u8) {
+  let s = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < u8.length; i += chunk) {
+    s += String.fromCodePoint(...u8.subarray(i, i + chunk));
+  }
+  return btoa(s);
+}
+
+async function sha256Hex(u8) {
+  const buf = await crypto.subtle.digest("SHA-256", u8);
+  const b = new Uint8Array(buf);
+  let s = "";
+  for (const x of b) s += x.toString(16).padStart(2, "0");
+  return s;
+}
+
+async function prepare(file) {
+  const so = await strip(file);
+  const soBytes = new Uint8Array(await so.arrayBuffer());
+  if (!isElf64Le(soBytes)) return { blob: so, name: file.name };
+  const ei = carveDescriptor(soBytes, "ei.proto");
+  if (!ei) return { blob: so, name: file.name };
+  const cv = clientVersionElf64(soBytes);
+  if (cv === null) return { blob: so, name: file.name };
+  const common = carveDescriptor(soBytes, "common.proto");
+  const manifest = {
+    v: 1,
+    fileSha: await sha256Hex(soBytes),
+    clientVersion: cv,
+    ei: toBase64(ei),
+    common: common ? toBase64(common) : null
+  };
+  return { blob: new Blob([JSON.stringify(manifest)], { type: "application/json" }), name: file.name };
+}
+
 function inputFiles(inputId) {
   const el = document.getElementById(inputId);
   return el?.files ? Array.from(el.files) : [];
@@ -149,10 +418,9 @@ async function postForm(endpoint, form) {
 export async function analyze(inputId, endpoint) {
   const files = inputFiles(inputId);
   if (files.length === 0) return { ok: false, diagnostics: "no file selected" };
-  const file = files[0];
-  const body = await strip(file);
+  const prep = await prepare(files[0]);
   const form = new FormData();
-  form.append("file", body, file.name);
+  form.append("file", prep.blob, prep.name);
   const r = await postForm(endpoint, form);
   if (r?.error) return { ok: false, diagnostics: r.error };
   return r;
@@ -163,8 +431,8 @@ export async function uploadBatch(inputId, endpoint) {
   if (files.length === 0) return { error: "no files selected" };
   const form = new FormData();
   for (const file of files) {
-    const body = await strip(file);
-    form.append("files", body, file.name);
+    const prep = await prepare(file);
+    form.append("files", prep.blob, prep.name);
   }
   return await postForm(endpoint, form);
 }
