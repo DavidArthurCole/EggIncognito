@@ -495,6 +495,9 @@ public sealed class DecompController(
         if (!currentUser.IsAtLeast(UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
 
+        (bool lok, _, _, _, string? ldiag) = await binaries.GetLiveBinaryAsync(ct);
+        if (!lok) return Ok(new { ok = false, diagnostics = $"live pull failed: {ldiag}" });
+
         (bool ok, byte[]? bin, var syms, string version, string? diag) = await binaries.GetExtractionBinaryAsync(ct);
         if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
         return Ok(new {
@@ -502,7 +505,7 @@ public sealed class DecompController(
             version,
             bytes = bin.Length,
             symbols = syms?.Count ?? MachoSymbols.Read(bin).Count,
-            diagnostics = diag
+            diagnostics = $"force-pulled; {diag}"
         });
     }
 

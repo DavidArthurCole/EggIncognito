@@ -97,6 +97,8 @@ public sealed class DeviceMaintenanceService(
 
             try {
                 int? cv = await binaries.GetClientVersionAsync(d.Platform, ct, force);
+                if (cv is null && sp.GetService(typeof(DeviceCaptureManager)) is DeviceCaptureManager mgr)
+                    cv = mgr.Rinfo.Latest(d.Id)?.ClientVersion;
                 if (cv is not { } v) continue;
                 await BackfillClientVersionAsync(sp, d, probe.InstalledBuild!, v, ct);
             } catch (OperationCanceledException) {

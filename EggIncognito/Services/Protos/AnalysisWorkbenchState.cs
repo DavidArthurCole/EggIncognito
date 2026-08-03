@@ -1,5 +1,3 @@
-using EggIncognito.Services.ProtoExtract;
-
 namespace EggIncognito.Services.Protos;
 
 public sealed record ExtractResult {
@@ -31,21 +29,19 @@ public sealed class StagedEntry {
     public string AppVersion { get; set; } = "";
     public string Build { get; set; } = "";
     public string ClientVersionText { get; set; } = "";
-    public bool Known { get; set; }
-    public bool Pending { get; set; }
-    public bool Offerable { get; set; }
-    public bool Offered { get; set; }
-    public ProtoDiffResult? DiffVsLatest { get; set; }
-    public string? DiffVsLatestLabel { get; set; }
     public bool IsDone => Status == "done";
+    public bool IsAnalyzed => IsDone && Result is { Ok: true };
+}
+
+public sealed record GroupStatus(bool Known, bool Pending, bool Offered) {
+    public bool Offerable => !Known && !Pending && !Offered;
 }
 
 public sealed class AnalysisWorkbenchState {
     public List<StagedEntry> Entries { get; } = [];
     public Guid? SelectedId { get; set; }
-    public Guid? CompareA { get; set; }
-    public Guid? CompareB { get; set; }
-    public string View { get; set; } = "detail";
+    public Dictionary<string, Guid> GroupWinners { get; } = [];
+    public Dictionary<string, GroupStatus> GroupStatuses { get; } = [];
 
     public StagedEntry? Find(Guid? id) {
         return id is { } g ? Entries.FirstOrDefault(e => e.Id == g) : null;
