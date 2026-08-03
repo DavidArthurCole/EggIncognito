@@ -1,6 +1,8 @@
-@using System.Text.Json
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+@using System.Text.Json
+@implements IAsyncDisposable
 
 <div class="panel">
     <div class="flex items-stretch gap-3">
@@ -56,7 +58,6 @@
 
 @code {
 
-    const long MaxUploadBytes = 200_000_000;
     const int MaxBatchFiles = 50;
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -75,6 +76,7 @@
     string _status = "";
     readonly List<ItemView> _items = [];
 
+    IJSObjectReference? _strip;
     string _baseAddress = "";
     string? _cookie;
 
@@ -103,10 +105,14 @@
 
     void OnFilesSelected(InputFileChangeEventArgs e) {
         _files.Clear();
-        _files.AddRange(e.GetMultipleFiles(MaxBatchFiles));
+        _files.AddRange(e.GetMultipleFiles(500));
         _error = "";
         _batchId = null;
         _items.Clear();
+    }
+
+    async Task<IJSObjectReference> StripModule() {
+        return _strip ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/protoStrip.js");
     }
 
     HttpClient Client() {
@@ -127,13 +133,10 @@
         _busy = true;
         _error = "";
         try {
-            using var content = new MultipartFormDataContent();
-            using var stream = file.OpenReadStream(MaxUploadBytes);
-            content.Add(new StreamContent(stream), "file", file.Name);
-            var res = await Client().PostAsync("/api/tools/extract-proto", content);
-            var data = await res.Content.ReadFromJsonAsync<ExtractResult>(JsonOpts);
+            var mod = await StripModule();
+            var data = await mod.InvokeAsync<ExtractResult>("analyze", "protoFile", "/api/tools/extract-proto");
             if (data is null) {
-                _error = $"HTTP {(int)res.StatusCode}";
+                _error = "no response";
                 return;
             }
 
@@ -151,32 +154,27 @@
 
     async Task UploadBatch() {
         if (_files.Count == 0) return;
+        if (_files.Count > MaxBatchFiles) {
+            _error = $"max {MaxBatchFiles} files per batch";
+            return;
+        }
+
         _busy = true;
         _error = "";
         try {
-            using var content = new MultipartFormDataContent();
-            foreach (var f in _files) {
-                content.Add(new StreamContent(f.OpenReadStream(MaxUploadBytes)), "files", f.Name);
-            }
-
-            var res = await Client().PostAsync("/api/protos/batch", content);
-            if (!res.IsSuccessStatusCode) {
-                _error = $"HTTP {(int)res.StatusCode}";
+            var mod = await StripModule();
+            var res = await mod.InvokeAsync<BatchUploadResult>("uploadBatch", "protoFile", "/api/protos/batch");
+            if (res?.BatchId is not { } id) {
+                _error = res?.Error ?? "upload failed";
                 return;
             }
 
-            var data = await res.Content.ReadFromJsonAsync<UploadResponse>(JsonOpts);
-            if (data is null) {
-                _error = "empty response";
-                return;
-            }
-
-            _batchId = data.BatchId;
-            _total = data.ItemCount;
+            _batchId = id;
+            _total = res.ItemCount ?? _files.Count;
             _processed = 0;
             _status = "pending";
             _items.Clear();
-            _ = PollAsync(data.BatchId);
+            _ = PollAsync(id);
         }
         catch (Exception ex) {
             _error = $"Request failed: {ex.Message}";
@@ -209,6 +207,16 @@
         }
     }
 
+    public async ValueTask DisposeAsync() {
+        if (_strip is not null) {
+            try {
+                await _strip.DisposeAsync();
+            }
+            catch (JSDisconnectedException) {
+            }
+        }
+    }
+
     public sealed record ExtractResult {
         public bool Ok { get; init; }
         public string? Proto { get; init; }
@@ -221,7 +229,7 @@
         public string? FileName { get; init; }
     }
 
-    sealed record UploadResponse(int BatchId, int ItemCount);
+    sealed record BatchUploadResult(int? BatchId, int? ItemCount, string? Error);
 
     sealed record BatchResponse(int Id, string Status, int Total, int Processed, IReadOnlyList<ItemView> Items);
 

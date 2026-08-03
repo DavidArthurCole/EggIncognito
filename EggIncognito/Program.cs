@@ -460,6 +460,7 @@ if (dbEnabled) {
     builder.Services.AddScoped<ProtoRegistryStore>();
     builder.Services.AddScoped<StagedProtoStore>();
     builder.Services.AddScoped<UploadBatchStore>();
+    builder.Services.AddScoped<AnalyzedFileStore>();
     builder.Services.AddScoped<DeviceStatusStore>();
     builder.Services.AddScoped<IDeviceStatusStore>(sp => sp.GetRequiredService<DeviceStatusStore>());
     builder.Services.AddScoped<FeedSubscriptionStore>();

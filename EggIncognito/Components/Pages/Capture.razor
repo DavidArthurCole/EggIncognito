@@ -4,8 +4,8 @@
 @using System.Threading.Channels
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
-@using static EggIncognito.Components.Capture.CaptureNoticesPanel
 @using EggIncognito.Services.Devices
+@using static Components.Capture.CaptureNoticesPanel
 @implements IAsyncDisposable
 @inject CaptureSessionManager Manager
 @inject IServiceProvider Services
@@ -131,7 +131,7 @@
 
     readonly CaptureViewState _view = new();
 
-    readonly List<CaptureNoticesPanel.NoticeItem> _notices = [];
+    readonly List<NoticeItem> _notices = [];
     readonly List<ToastItem> _toasts = [];
     int _unread;
     int _nextNoticeId = 1;

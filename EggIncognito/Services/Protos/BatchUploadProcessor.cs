@@ -38,21 +38,32 @@ public sealed class BatchUploadProcessor(
             var sp = scope.ServiceProvider;
             var batches = sp.GetRequiredService<UploadBatchStore>();
             var staged = sp.GetRequiredService<StagedProtoStore>();
+            var analyzed = sp.GetRequiredService<AnalyzedFileStore>();
             var item = await batches.ClaimNextAsync(ct);
             if (item is null) break;
             try {
                 UploadBatchStore.ItemOutcome outcome;
                 byte[] bytes = item.Bytes ?? [];
-                var extract = SniffExtract(bytes);
-                if (!extract.Ok) {
-                    outcome = new UploadBatchStore.ItemOutcome("failed", null, null, null, null,
-                        extract.Diagnostics ?? "extraction failed");
+                string fileSha = AnalyzedFileStore.Sha256Hex(bytes);
+                var seen = await analyzed.FindAsync(fileSha, ct);
+                if (seen is not null) {
+                    outcome = new UploadBatchStore.ItemOutcome("duplicate", seen.ProtoSha, seen.AppVersion,
+                        seen.Build, seen.ClientVersion, "duplicate file (already analyzed)");
                 } else {
-                    var view = await batches.GetAsync(item.BatchId, ct);
-                    var offer = await staged.OfferAsync(item.Platform ?? "android", extract.AppVersion,
-                        extract.Build, extract.ClientVersion?.ToString(), null, extract.ProtoSha ?? "",
-                        extract.Proto ?? "", null, view?.SubmittedBy, "batch", ct);
-                    outcome = Map(extract, offer);
+                    var extract = SniffExtract(bytes);
+                    if (!extract.Ok) {
+                        outcome = new UploadBatchStore.ItemOutcome("failed", null, null, null, null,
+                            extract.Diagnostics ?? "extraction failed");
+                    } else {
+                        var view = await batches.GetAsync(item.BatchId, ct);
+                        var offer = await staged.OfferAsync(item.Platform ?? "android", extract.AppVersion,
+                            extract.Build, extract.ClientVersion?.ToString(), null, extract.ProtoSha ?? "",
+                            extract.Proto ?? "", null, view?.SubmittedBy, "batch", ct);
+                        await analyzed.RecordAsync(new AnalyzedFileStore.Entry(fileSha, "batch", item.Platform,
+                            extract.ProtoSha, extract.AppVersion, extract.Build, extract.ClientVersion?.ToString(),
+                            item.FileName), ct);
+                        outcome = Map(extract, offer);
+                    }
                 }
                 await batches.CompleteItemAsync(item.Id, outcome, ct);
             } catch (Exception ex) {

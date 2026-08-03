@@ -1,5 +1,7 @@
+using System.Data.Common;
 using System.Text;
 using EggIncognito.Capture;
+using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Assets;
 using EggIncognito.Services.Auth;
@@ -106,7 +108,20 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         var r = isZip
             ? ArchiveProtoExtractor.Extract(bytes)
             : DescriptorProtoCarver.Extract(bytes);
+        if (r.Ok) await RecordAnalyzedAsync(bytes, r, file.FileName, ct);
         return ExtractResultJson(r);
+    }
+
+    private async Task RecordAnalyzedAsync(byte[] bytes, DescriptorProtoCarver.ExtractResult r, string? fileName,
+        CancellationToken ct) {
+        var store = HttpContext.RequestServices.GetService<AnalyzedFileStore>();
+        if (store is null) return;
+        try {
+            await store.RecordAsync(new AnalyzedFileStore.Entry(
+                AnalyzedFileStore.Sha256Hex(bytes), "analyze", null, r.ProtoSha, r.AppVersion, r.Build,
+                r.ClientVersion?.ToString(), fileName), ct);
+        } catch (DbException) {
+        }
     }
 
 

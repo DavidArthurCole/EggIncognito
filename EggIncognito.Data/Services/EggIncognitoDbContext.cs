@@ -35,6 +35,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<StoredBinary> StoredBinaries => Set<StoredBinary>();
     public DbSet<UploadBatch> UploadBatches => Set<UploadBatch>();
     public DbSet<UploadBatchItem> UploadBatchItems => Set<UploadBatchItem>();
+    public DbSet<AnalyzedFile> AnalyzedFiles => Set<AnalyzedFile>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
@@ -167,6 +168,11 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         modelBuilder.Entity<UploadBatchItem>(e => {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.BatchId, x.Status });
+        });
+        modelBuilder.Entity<AnalyzedFile>(e => {
+            e.HasKey(x => x.FileSha);
+            e.HasIndex(x => x.FirstSeen);
+            e.Property(x => x.FirstSeen).HasDefaultValueSql("now()");
         });
     }
 }
