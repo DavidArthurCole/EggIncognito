@@ -1,5 +1,4 @@
 using System.Globalization;
-using EggIncognito.Capture;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
@@ -16,15 +15,11 @@ public sealed class DeviceMaintenanceService(
     IosStoreCatalog catalog,
     KnownVersionRecorder knownVersions,
     ILogger<DeviceMaintenanceService> logger) : BackgroundService {
-    private static readonly TimeSpan ClimbHarvestBackoff = TimeSpan.FromMinutes(30);
     private readonly bool _syncEnabled = appConfig.GetValue("DeviceSync:Enabled", false);
     private readonly TimeSpan _noOpRetryBackoff =
         TimeSpan.FromMinutes(appConfig.GetValue("DeviceSync:RetryBackoffMinutes", 360));
 
 #pragma warning disable IDE0028
-    private readonly Dictionary<string, (string Build, DateTimeOffset At)> _lastClimbHarvest =
-        new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Dictionary<string, (string StoreLatest, DateTimeOffset At)> _lastNoOpCheck =
         new(StringComparer.OrdinalIgnoreCase);
 #pragma warning restore IDE0028
@@ -37,27 +32,11 @@ public sealed class DeviceMaintenanceService(
 
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, config.IntervalMinutes)), time);
         try {
-            await StartupHarvestAsync(stoppingToken);
             await StoreSyncAllAsync(stoppingToken);
             while (await timer.WaitForNextTickAsync(stoppingToken))
                 await StoreSyncAllAsync(stoppingToken);
         } catch (OperationCanceledException) {
             /* shutdown */
-        }
-    }
-
-
-    private async Task StartupHarvestAsync(CancellationToken ct) {
-        foreach (var d in config.Devices) {
-            try {
-                var rinfo = await proxyPusher.ForceHarvestAsync(d, TimeSpan.FromSeconds(25), ct);
-                logger.LogInformation("device capture: {Id} startup harvest -> {Cv}",
-                    d.Id, rinfo?.ClientVersion is { } cv ? $"clientVersion {cv}" : "no rinfo (will retry on demand)");
-            } catch (OperationCanceledException) {
-                throw;
-            } catch (Exception ex) {
-                logger.LogWarning(ex, "device capture: {Id} startup harvest threw", d.Id);
-            }
         }
     }
 
@@ -88,8 +67,8 @@ public sealed class DeviceMaintenanceService(
             logger.LogWarning(ex, "device capture: proxy push tick failed");
         }
 
-        await HarvestClimbedDevicesAsync(latest, sp, ct);
         await EnsureBinaryStoredAsync(sp, ct);
+        await BackfillClientVersionsAsync(latest, sp, ct);
     }
 
     private async Task RefreshStoreCatalogAsync(CancellationToken ct) {
@@ -104,42 +83,27 @@ public sealed class DeviceMaintenanceService(
         }
     }
 
-    private async Task HarvestClimbedDevicesAsync(
+    private async Task BackfillClientVersionsAsync(
         Dictionary<string, DeviceProbe> latest, IServiceProvider sp, CancellationToken ct) {
+        if (sp.GetService(typeof(GameBinaryProvider)) is not GameBinaryProvider binaries) return;
         foreach (var d in config.Devices) {
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
             if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledBuild)) continue;
-            var harvested = proxyPusher.LastRinfo(d.Id);
-            if (harvested is not null &&
-                string.Equals(harvested.Build, probe.InstalledBuild, StringComparison.Ordinal)) {
-                continue;
-            }
-
-            if (_lastClimbHarvest.TryGetValue(d.Id, out var last)
-                && string.Equals(last.Build, probe.InstalledBuild, StringComparison.Ordinal)
-                && time.GetUtcNow() - last.At < ClimbHarvestBackoff) {
-                continue;
-            }
-
-            _lastClimbHarvest[d.Id] = (probe.InstalledBuild!, time.GetUtcNow());
 
             try {
-                logger.LogInformation(
-                    "device capture: {Id} installed build {Build} not yet harvested (had {Prev}); launching app for fresh capture",
-                    d.Id, probe.InstalledBuild, harvested?.Build ?? "none");
-                var rinfo = await proxyPusher.ForceHarvestAsync(d, TimeSpan.FromSeconds(40), ct);
-                await BackfillClientVersionAsync(sp, d, probe.InstalledBuild!, rinfo, ct);
+                int? cv = await binaries.GetClientVersionAsync(d.Platform, ct);
+                if (cv is not { } v) continue;
+                await BackfillClientVersionAsync(sp, d, probe.InstalledBuild!, v, ct);
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
-                logger.LogWarning(ex, "device capture: {Id} climb harvest threw", d.Id);
+                logger.LogWarning(ex, "device capture: {Id} clientVersion backfill threw", d.Id);
             }
         }
     }
 
     private async Task BackfillClientVersionAsync(
-        IServiceProvider sp, DeviceEntry d, string build, DeviceRinfo? rinfo, CancellationToken ct) {
-        if (rinfo?.ClientVersion is not { } cv) return;
+        IServiceProvider sp, DeviceEntry d, string build, int cv, CancellationToken ct) {
         if (sp.GetService(typeof(ProtoRegistryStore)) is not ProtoRegistryStore registry) return;
 
         var res = await registry.UpdateMetadataAsync(d.Platform, build, null,

@@ -179,8 +179,7 @@ A rack of wired Android + iOS phones, probed and updated and captured automatica
 | `/api/devices/{id}/refresh` | POST | admin | Run an immediate probe through the same runner the poller uses. |
 | `/api/devices/{id}/check-update` | POST | admin | Tell the device to ask its own store for an update and install it. Fire-and-forget (202); poll `check-status`. |
 | `/api/devices/{id}/check-status` | GET | admin | Live state of an in-flight check-update. |
-| `/api/devices/{id}/save` | POST | admin | Pull the installed app, carve its proto in-process, harvest clientVersion off the wire, and upsert a registry row. |
-| `/api/devices/{id}/restart-app` | POST | admin | Force-restart the app (kill + relaunch) so it hits auxbrain and a fresh rinfo can be captured. |
+| `/api/devices/{id}/save` | POST | admin | Pull the installed app, carve its proto in-process, read clientVersion from the binary, and upsert a registry row. |
 
 ## Authentication (EggIdentity, optional)
 

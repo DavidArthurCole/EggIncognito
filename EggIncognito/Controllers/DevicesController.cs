@@ -80,6 +80,7 @@ public sealed class DevicesController(
         }
 
         bool isAdmin = currentUser.IsAtLeast(UserRole.Admin);
+        var binaries = services.GetService(typeof(GameBinaryProvider)) as GameBinaryProvider;
         var rows = latest.Where(p => devices.ContainsKey(p.DeviceId)).Select(p => {
             var d = devices[p.DeviceId];
             updates.TryGetValue(d.Id, out var up);
@@ -98,6 +99,7 @@ public sealed class DevicesController(
                 reachable = p.Reachable,
                 installedAppVersion = p.InstalledAppVersion,
                 installedBuild = p.InstalledBuild,
+                clientVersion = binaries?.CachedClientVersion(d.Platform, p.InstalledAppVersion),
                 latestAvailable = p.LatestAvailable,
                 storeLatest = sl,
                 storeAhead = StoreAheadCheck.IsAhead(sl, p.InstalledAppVersion),
@@ -359,10 +361,9 @@ public sealed class DevicesController(
             Encoding.UTF8.GetBytes(carve.Proto)));
 
 
-        string? clientVersion = carve.ClientVersion?.ToString()
-                                ?? await HarvestClientVersionAsync(device, HttpContext.RequestAborted);
+        string? clientVersion = carve.ClientVersion?.ToString();
         logger.LogInformation("device save: {Id} clientVersion={Cv} (source={Src})", id, clientVersion ?? "(none)",
-            carve.ClientVersion is not null ? "binary" : "harvest");
+            carve.ClientVersion is not null ? "binary" : "none");
 
         try {
             (var row, bool created, bool protoChanged) = await registry.UpsertAsync(
@@ -458,20 +459,6 @@ public sealed class DevicesController(
             ? probe.InstalledBuild!
             : Convert.ToHexStringLower(SHA256.HashData(bin))[..16];
         return (new CarveResult(iosCarve.Proto, iosBuild, LibegincClientVersion.ReadFromBinary(bin)), null);
-    }
-
-
-    private async Task<string?> HarvestClientVersionAsync(Device device, CancellationToken ct) {
-        if (services.GetService(typeof(DeviceProxyPusher)) is not DeviceProxyPusher pusher ||
-            services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg) {
-            return null;
-        }
-
-        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == device.Id);
-        if (entry is null) return null;
-
-        var rinfo = await pusher.ForceHarvestAsync(entry, TimeSpan.FromSeconds(5), ct);
-        return rinfo?.ClientVersion?.ToString();
     }
 
 
@@ -646,25 +633,6 @@ public sealed class DevicesController(
 
         bool deleted = cache.Delete(device.Platform, stem);
         return Ok(new { ok = deleted, deleted });
-    }
-
-
-    [HttpPost("{id}/restart-app")]
-    [EnableRateLimiting("write")]
-    public async Task<IActionResult> RestartApp(string id) {
-        if (RequireAdmin() is { } no) return no;
-        if (services.GetService(typeof(DeviceProxyPusher))
-                is not DeviceProxyPusher pusher
-            || services.GetService(typeof(DeviceConfig))
-                is not DeviceConfig devCfg) {
-            return StatusCode(503, new { error = "device capture not configured" });
-        }
-
-        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
-        if (entry is null) return NotFound(new { error = "unknown device" });
-
-        (bool ok, string? note) = await pusher.RestartAppAsync(entry, HttpContext.RequestAborted);
-        return ok ? Ok(new { restarted = true, note }) : StatusCode(502, new { error = note ?? "restart failed" });
     }
 
 

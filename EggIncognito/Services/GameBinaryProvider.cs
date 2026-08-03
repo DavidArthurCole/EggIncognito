@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
@@ -13,10 +14,15 @@ public sealed class GameBinaryProvider(
     ILogger<GameBinaryProvider> logger) {
     private const string DefaultPlatform = "ios";
     private static readonly Lock LiveGate = new();
+    private static readonly Lock CvGate = new();
+    private static readonly TimeSpan CvRecheckBackoff = TimeSpan.FromMinutes(15);
 
 #pragma warning disable IDE0028
     private static readonly Dictionary<string, (string Sha, byte[] Bytes, IReadOnlyList<MachoSymbols.Symbol> Syms, bool
         Grafted, DateTimeOffset Pulled)> LiveCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Dictionary<string, (string Version, int? ClientVersion, DateTimeOffset CheckedAt)>
+        CvCache = new(StringComparer.OrdinalIgnoreCase);
 #pragma warning restore IDE0028
 
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
@@ -83,6 +89,47 @@ public sealed class GameBinaryProvider(
         }
 
         return (false, null, null, dev.Version, dev.Diagnostics);
+    }
+
+    public async Task<int?> GetClientVersionAsync(string platform, CancellationToken ct) {
+        string? installed = (await ResolveVersionAndDeviceAsync(null, platform, ct)).Version;
+        if (string.IsNullOrEmpty(installed)) return null;
+
+        lock (CvGate) {
+            if (CvCache.TryGetValue(platform, out var c) &&
+                string.Equals(c.Version, installed, StringComparison.Ordinal) &&
+                (c.ClientVersion is not null || DateTimeOffset.UtcNow - c.CheckedAt < CvRecheckBackoff)) {
+                return c.ClientVersion;
+            }
+        }
+
+        var bin = await GetExtractionBinaryAsync(platform, ct);
+        if (!bin.Ok || bin.Bytes is null || !string.Equals(bin.Version, installed, StringComparison.Ordinal)) {
+            lock (CvGate) {
+                CvCache[platform] = (installed, null, DateTimeOffset.UtcNow);
+            }
+
+            return null;
+        }
+
+        int? cv = LibegincClientVersion.Read(bin.Bytes);
+        lock (CvGate) {
+            CvCache[platform] = (installed, cv, DateTimeOffset.UtcNow);
+        }
+
+        logger.LogInformation("client version: {Platform} {Version} -> {Cv}", platform, installed,
+            cv?.ToString(CultureInfo.InvariantCulture) ?? "none");
+        return cv;
+    }
+
+    public int? CachedClientVersion(string platform, string? version) {
+        if (string.IsNullOrEmpty(platform) || string.IsNullOrEmpty(version)) return null;
+        lock (CvGate) {
+            return CvCache.TryGetValue(platform, out var c) &&
+                   string.Equals(c.Version, version, StringComparison.Ordinal)
+                ? c.ClientVersion
+                : null;
+        }
     }
 
     public IReadOnlyList<string> ExtractablePlatformsFallback => [DefaultPlatform];

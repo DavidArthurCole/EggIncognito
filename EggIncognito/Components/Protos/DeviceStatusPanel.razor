@@ -48,7 +48,7 @@
                             <span class="dev-verline">
                                 @(d.InstalledAppVersion ?? "?")
                                 <span class="dev-versep">|</span> @(d.InstalledBuild ?? "?")
-                                @if (_clientVersion.GetValueOrDefault(d.Id) is int cv) {
+                                @if (d.ClientVersion is int cv) {
                                     <span class="dev-versep">|</span>
                                     <text> @cv</text>
                                 }
@@ -64,9 +64,6 @@
 
                         <button class="icon-btn icon-btn-sm" disabled="@busy" title="Check this device's store for an update now" @onclick="() => CheckUpdate(d.Id)">
                             <Icon Name="@(busy ? "clock" : "refresh")"/>
-                        </button>
-                        <button class="icon-btn icon-btn-sm" disabled="@busy" title="Force-restart Egg Inc to trigger an auxbrain call + capture clientVersion" @onclick="() => RestartApp(d.Id)">
-                            <Icon Name="@(busy ? "clock" : "play")"/>
                         </button>
                     }
                 </div>
@@ -119,7 +116,8 @@
         bool StoreAhead,
         string Result,
         string? Note,
-        DateTimeOffset ProbedAt);
+        DateTimeOffset ProbedAt,
+        int? ClientVersion);
 
 
     sealed record LogEntry(DateTimeOffset At, string Label, string Message, bool IsError);
@@ -135,11 +133,10 @@
         string? LastDecryptError,
         List<string>? RecentConnects);
 
-    sealed record LiveResponse(bool Found, int? ClientVersion, CaptureBlock? Capture);
+    sealed record LiveResponse(bool Found, CaptureBlock? Capture);
 
     List<DeviceStatus> _devices = [];
     readonly Dictionary<string, CaptureBlock> _capture = new();
-    readonly Dictionary<string, int?> _clientVersion = new();
     readonly HashSet<string> _busy = [];
     readonly List<LogEntry> _log = [];
     bool _logOpen;
@@ -290,7 +287,6 @@
                 var live = await Client().GetFromJsonAsync<LiveResponse>($"/api/devices/{d.Id}/live");
                 if (live?.Capture is { } cap) _capture[d.Id] = cap;
                 else _capture.Remove(d.Id);
-                _clientVersion[d.Id] = live?.ClientVersion;
             }
             catch {
                 /* transient / capture off: keep last known, chip hides if never set */
@@ -304,40 +300,6 @@
 
     Task Save(string id) {
         return Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "installed to registry", OnSaved);
-    }
-
-
-    async Task RestartApp(string id) {
-        _busy.Add(id);
-        AddLog(id, "restarting app...");
-        StateHasChanged();
-        try {
-            var resp = await Client().PostAsync($"/api/devices/{id}/restart-app", null);
-            if (resp.IsSuccessStatusCode) {
-                AddLog(id, "launched, waiting for API call...");
-                await InvokeAsync(StateHasChanged);
-                var captured = false;
-                for (var i = 0; i < 8 && !_disposed; i++) {
-                    await Task.Delay(2000);
-                    await LoadCaptureAsync();
-                    if (_clientVersion.GetValueOrDefault(id) is not null) {
-                        captured = true;
-                        break;
-                    }
-                }
-
-                AddLog(id, captured ? "clientVersion captured" : "no clientVersion captured (timed out)", !captured);
-            } else {
-                AddLog(id, await ReadError(resp), true);
-            }
-        }
-        catch (Exception ex) {
-            AddLog(id, ex.Message, true);
-        }
-        finally {
-            _busy.Remove(id);
-            await InvokeAsync(StateHasChanged);
-        }
     }
 
 
