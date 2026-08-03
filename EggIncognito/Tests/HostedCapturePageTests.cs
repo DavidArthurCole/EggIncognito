@@ -4,6 +4,7 @@ using EggIdentity.Contract;
 using EggIncognito.Capture;
 using EggIncognito.Controllers;
 using EggIncognito.Services;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -94,6 +95,7 @@ public class HostedCapturePageTests {
             Services.AddSingleton(HostedCaptureOptions.Defaults());
             Services.AddSingleton(NewManager());
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
+            Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
             Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             Services.AddSingleton(new AuthState(false));
             Services.AddHttpClient();

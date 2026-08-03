@@ -3,6 +3,7 @@ using Bunit;
 using EggIdentity.Contract;
 using EggIncognito.Components.Pages;
 using EggIncognito.Services;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +41,7 @@ public class ProtosPageTests {
         private void Wire(UserRole role) {
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
+            Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
             Services.AddHttpClient();
 
             JSInterop.Mode = JSRuntimeMode.Loose;

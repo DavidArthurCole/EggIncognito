@@ -2,7 +2,9 @@ using System.Net;
 using Bunit;
 using EggIncognito.Capture;
 using EggIncognito.Components.Capture;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
@@ -28,6 +30,10 @@ public class CapturePageTests {
     }
 
     public class Components : BunitContext {
+        public Components() {
+            Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
+        }
+
         [Fact]
         public void JsonTree_RendersNodesForObject() {
             var root = TreeNode.Parse("{\"a\":1,\"b\":{\"c\":\"hi\"}}");

@@ -42,23 +42,17 @@
                     <span class="font-mono">@UploadText(up)</span>
                 </div>
             }
-            <div class="flex gap-2">
-                <span class="text-muted w-28 shrink-0">Registry</span>
-                <span>
-                    @if (_checking) {
-                        <span class="text-muted">checking...</span>
-                    } else if (_known) {
-                        <span class="text-accent">already in registry</span>
-                    } else if (_pending || _offered) {
-                        <span class="text-muted">offered, pending review</span>
-                    } else if (_offerable) {
-                        <button type="button" class="btn-primary" disabled="@(_offerBusy || _offered)" @onclick="Offer">Offer to registry</button>
-                    } else {
-                        <span class="text-muted">-</span>
-                    }
-                </span>
-            </div>
         </div>
+
+        @if (_known) {
+            <div class="text-xs text-accent mb-3">already in registry</div>
+        } else if (_pending || _offered) {
+            <div class="text-xs text-muted mb-3">offered, pending review</div>
+        } else if (_offerable) {
+            <div class="mb-3">
+                <button type="button" class="btn-primary" disabled="@_offerBusy" @onclick="Offer">Offer to registry</button>
+            </div>
+        }
 
         @if (_compareMsg is not null) {
             <div class="panel mb-3 text-xs">
@@ -132,7 +126,7 @@
     }
 
 
-    bool _checking, _known, _pending, _offerable, _offered, _offerBusy;
+    bool _known, _pending, _offerable, _offered, _offerBusy;
 
     async Task CheckOfferable() {
         if (Result?.ProtoSha is not { Length: > 0 } sha) {
@@ -140,7 +134,6 @@
             return;
         }
 
-        _checking = true;
         try {
             var r = await Client().GetFromJsonAsync<CheckResp>(
                 $"/api/protos/staged/check?platform={Uri.EscapeDataString(_platform)}&appVersion={Uri.EscapeDataString(_appVersion)}&build={Uri.EscapeDataString(_build)}&clientVersion={Uri.EscapeDataString(_clientVersion)}&protoSha={Uri.EscapeDataString(sha)}",
@@ -155,9 +148,6 @@
         }
         catch {
             _known = _pending = _offerable = false;
-        }
-        finally {
-            _checking = false;
         }
     }
 
