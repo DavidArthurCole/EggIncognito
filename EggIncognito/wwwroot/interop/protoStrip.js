@@ -507,13 +507,11 @@ async function sha256Hex(u8) {
 async function prepare(file) {
   const so = await strip(file);
   const soBytes = new Uint8Array(await so.arrayBuffer());
-  const img = loadImage(soBytes);
-  if (!img) return { blob: so, name: file.name };
   const ei = carveDescriptor(soBytes, "ei.proto");
   if (!ei) return { blob: so, name: file.name };
-  const cv = clientVersionArm64(img);
-  if (cv === null) return { blob: so, name: file.name };
   const common = carveDescriptor(soBytes, "common.proto");
+  const img = loadImage(soBytes);
+  const cv = img ? clientVersionArm64(img) : null;
   const manifest = {
     v: 1,
     fileSha: await sha256Hex(soBytes),
