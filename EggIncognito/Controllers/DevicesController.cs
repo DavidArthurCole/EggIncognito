@@ -81,7 +81,6 @@ public sealed class DevicesController(
 
         bool isAdmin = currentUser.IsAtLeast(UserRole.Admin);
         var binaries = services.GetService(typeof(GameBinaryProvider)) as GameBinaryProvider;
-        var capture = services.GetService(typeof(DeviceCaptureManager)) as DeviceCaptureManager;
         var rows = latest.Where(p => devices.ContainsKey(p.DeviceId)).Select(p => {
             var d = devices[p.DeviceId];
             updates.TryGetValue(d.Id, out var up);
@@ -100,8 +99,7 @@ public sealed class DevicesController(
                 reachable = p.Reachable,
                 installedAppVersion = p.InstalledAppVersion,
                 installedBuild = p.InstalledBuild,
-                clientVersion = binaries?.CachedClientVersion(d.Platform, p.InstalledAppVersion)
-                                ?? capture?.Rinfo.Latest(d.Id)?.ClientVersion,
+                clientVersion = binaries?.CachedClientVersion(d.Platform, p.InstalledAppVersion),
                 latestAvailable = p.LatestAvailable,
                 storeLatest = sl,
                 storeAhead = StoreAheadCheck.IsAhead(sl, p.InstalledAppVersion),

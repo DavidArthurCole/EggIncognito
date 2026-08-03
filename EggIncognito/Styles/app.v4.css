@@ -1128,17 +1128,41 @@ pre.data-text {
 .wb-rail { @apply w-72 shrink-0 border-r border-border overflow-y-auto p-2 flex flex-col gap-2; }
 .wb-rail-empty { @apply border border-dashed border-border rounded-md p-3; }
 .wb-main { @apply flex-1 min-w-0 overflow-y-auto p-4; }
-.wb-tabs { @apply flex items-center gap-2 mb-3; }
-.wb-entry { @apply border border-border rounded-md p-2 cursor-pointer text-xs flex flex-col gap-1; }
+.wb-head-tools { @apply relative flex items-center gap-2; }
+.wb-settings {
+  @apply absolute right-0 top-9 z-10 w-64 flex flex-col gap-2 rounded-md border border-border bg-panel2 p-3
+         [box-shadow:0_6px_20px_rgba(0,0,0,.45)];
+}
+.wb-settings-row { @apply flex items-center justify-between gap-2 text-xs text-muted m-0; }
+.wb-group { @apply border border-border rounded-md flex flex-col; }
+.wb-group.conflict { @apply [border-color:var(--color-err)]; }
+.wb-group-head { @apply flex items-center gap-2 flex-wrap px-2 py-1.5 border-b border-border bg-panel2 text-xs; }
+.wb-group.conflict .wb-group-head { @apply [border-bottom-color:var(--color-err)]; }
+.wb-group-body { @apply flex flex-col gap-1.5 p-1.5; }
+.wb-badge {
+  @apply inline-block rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide
+         border border-border text-muted;
+}
+.wb-badge-known { @apply text-ok border-ok; }
+.wb-badge-pending { @apply text-muted border-border; }
+.wb-badge-open { @apply text-accent border-accent; }
+.wb-badge-conflict { @apply bg-red-500/15 text-red-400 border-red-500/30; }
+.wb-badge-failed { @apply text-err border-err; }
+.wb-entry { @apply border border-border rounded-md bg-bg px-2 py-1.5 cursor-pointer text-xs flex flex-col gap-0.5; }
 .wb-entry:hover { @apply [border-color:var(--color-accent)]; }
 .wb-entry.selected { @apply [border-color:var(--color-accent)]; }
-.wb-entry-name { @apply font-mono break-all text-fg; }
+.wb-entry-name { @apply font-mono break-all text-fg flex-1 min-w-0; }
 .wb-entry-meta { @apply text-muted font-mono text-[0.7rem]; }
-.wb-chip { @apply text-[0.65rem] uppercase tracking-wide border border-border rounded px-1 text-muted; }
-.wb-chip-done { @apply text-accent [border-color:var(--color-accent)]; }
-.wb-chip-error { @apply bg-red-500/15 text-red-400 border-red-500/30 font-semibold; }
-.wb-slot { @apply text-[0.65rem] border border-border rounded px-1 cursor-pointer bg-transparent text-muted; }
-.wb-slot.active { @apply text-accent [border-color:var(--color-accent)]; }
+.wb-entry-foot { @apply flex items-center justify-end gap-1.5 mt-0.5 min-w-0 text-muted; }
+.wb-x { @apply w-5 h-5 shrink-0 grid place-items-center rounded bg-transparent border-0 p-0 text-muted cursor-pointer; }
+.wb-x:hover { @apply text-fg; }
+.wb-radio { accent-color: var(--color-accent); margin: 2px 0 0 0; flex: none; }
+.wb-st-queued { @apply text-amber-300; }
+.wb-st-run { @apply text-accent; }
+.wb-st-done { @apply text-ok; }
+.wb-st-err { @apply text-err; }
+.wb-arrow { @apply text-muted opacity-50 mx-1; }
+.wb-cmp { @apply flex flex-col gap-2 p-2 overflow-x-auto; }
 
 .account-modal { width: fit-content; min-width: min(28rem, 100%); max-width: 100%; }
 @media (min-width: 640px) {

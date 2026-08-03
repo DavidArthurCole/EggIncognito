@@ -317,7 +317,7 @@
 <LoggedInModal @ref="_apiKeysModal" Title="API keys" LoginPrompt="Log in to manage API keys.">
     <ApiKeysPanel/>
 </LoggedInModal>
-<AnalysisWorkbenchModal @ref="_workbench" OnChanged="OnMutated"/>
+<AnalysisWorkbenchModal OnChanged="OnMutated"/>
 
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -355,7 +355,6 @@
     StagedReviewPanel? _stagedPanel;
     LoggedInModal? _subscribeModal;
     LoggedInModal? _apiKeysModal;
-    AnalysisWorkbenchModal? _workbench;
 
     string _serverVersion = "";
     string _serverSha = "";
