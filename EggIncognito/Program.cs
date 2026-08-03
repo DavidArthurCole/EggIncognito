@@ -460,7 +460,6 @@ if (dbEnabled) {
     builder.Services.AddScoped<CaptureAddressStore>();
     builder.Services.AddScoped<ProtoRegistryStore>();
     builder.Services.AddScoped<StagedProtoStore>();
-    builder.Services.AddScoped<UploadBatchStore>();
     builder.Services.AddScoped<AnalyzedFileStore>();
     builder.Services.AddScoped<DeviceStatusStore>();
     builder.Services.AddScoped<IDeviceStatusStore>(sp => sp.GetRequiredService<DeviceStatusStore>());
@@ -480,14 +479,13 @@ var probeTimeoutSeconds = builder.Configuration.GetValue("DeviceProbe:TimeoutSec
 if (probeTimeoutSeconds > 0)
     DeviceProbeTimeout.Value = TimeSpan.FromSeconds(probeTimeoutSeconds);
 builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
+builder.Services.AddScoped<AnalysisWorkbenchState>();
 builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddHttpClient<IDeviceAgentClient, DeviceAgentClient>();
 if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService<DeviceMaintenanceService>();
 if (dbEnabled)
     builder.Services.AddHostedService<GameDataAutoRebuildService>();
-if (dbEnabled)
-    builder.Services.AddHostedService<BatchUploadProcessor>();
 
 
 var deviceCaptureConfig = DeviceCaptureConfig.Bind(builder.Configuration);

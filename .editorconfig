@@ -91,6 +91,9 @@ resharper_remove_redundant_braces_highlighting = none
 [EggIncognito.Core/Services/PostmanCollection.cs]
 dotnet_diagnostic.CA1711.severity = none
 
+[EggIncognito.Core/Services/ProtoExtract/ProtoModel.cs]
+dotnet_diagnostic.CA1711.severity = none
+
 [EggIncognito.Core/Services/Devices/CaCertPrep.cs]
 dotnet_diagnostic.CA5350.severity = none
 dotnet_diagnostic.CA5351.severity = none

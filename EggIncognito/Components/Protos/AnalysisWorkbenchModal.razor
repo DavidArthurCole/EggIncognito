@@ -1,0 +1,581 @@
+@rendermode @(RenderMode.InteractiveServer)
+@inject IHttpClientFactory HttpFactory
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+@inject ICurrentUser User
+@inject AnalysisWorkbenchState State
+@using System.Globalization
+@using System.Text.Json
+@using EggIncognito.Services.ProtoExtract
+@using EggIncognito.Services.Protos
+@implements IAsyncDisposable
+
+<InputFile id="wbFile" accept=".ipa,.apk,.apkm,.xapk" multiple hidden OnChange="OnFilesSelected"/>
+
+@if (_open) {
+    <div class="modal-backdrop" @onclick="Close">
+        <div class="modal-card wb-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <h3 class="modal-title">Analysis workbench</h3>
+                <div class="flex items-center gap-2">
+                    <label for="wbFile" class="btn-primary cursor-pointer m-0">Add files</label>
+                    <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
+                        <Icon Name="x"/>
+                    </button>
+                </div>
+            </div>
+            <div class="wb-body" id="wbDrop">
+                <aside class="wb-rail">
+                    @if (State.Entries.Count == 0) {
+                        <div class="wb-rail-empty">
+                            <div class="text-muted text-xs">Drop .ipa, .apk, or bundle files anywhere in this window, or use Add files.</div>
+                        </div>
+                    }
+                    @foreach (var e in State.Entries) {
+                        <div class="wb-entry @(State.SelectedId == e.Id ? "selected" : "")" @onclick="@(() => Select(e))">
+                            <div class="flex items-start justify-between gap-1">
+                                <span class="wb-entry-name">@e.FileName</span>
+                                <button type="button" class="reg-edit-btn shrink-0" title="Remove" aria-label="Remove"
+                                        @onclick:stopPropagation="true" @onclick="@(() => Remove(e))">
+                                    <Icon Name="x" Class="icon-sm"/>
+                                </button>
+                            </div>
+                            <div class="wb-entry-meta">
+                                @e.Platform
+                                @if (e.Result?.AppVersion is { Length: > 0 } av) {
+                                    <text> @av</text>
+                                    @if (e.Result?.Build is { Length: > 0 } b) {
+                                        <text> (@b)</text>
+                                    }
+                                }
+                                @if (e.Result?.ClientVersion is { } cv) {
+                                    <text> cv @cv</text>
+                                }
+                            </div>
+                            @if (e.Result?.ProtoSha is { Length: > 0 } sha) {
+                                <div class="wb-entry-meta">@(sha.Length > 12 ? sha[..12] : sha)</div>
+                            }
+                            <div class="flex items-center gap-1 flex-wrap">
+                                <span class="wb-chip @StatusChipClass(e)">@e.Status</span>
+                                @if (e.Status is "stripping" or "uploading" && e.Step is { Length: > 0 }) {
+                                    <span class="text-muted text-[0.65rem]">@e.Step</span>
+                                }
+                                @if (e.IsDone) {
+                                    <button type="button" class="wb-slot @(State.CompareA == e.Id ? "active" : "")"
+                                            @onclick:stopPropagation="true" @onclick="@(() => ToggleSlot(e, true))">
+                                        A
+                                    </button>
+                                    <button type="button" class="wb-slot @(State.CompareB == e.Id ? "active" : "")"
+                                            @onclick:stopPropagation="true" @onclick="@(() => ToggleSlot(e, false))">
+                                        B
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </aside>
+                <section class="wb-main">
+                    <div class="wb-tabs">
+                        <button type="button" class="btn-mini @(State.View == "detail" ? "active" : "")"
+                                @onclick="@(() => State.View = "detail")">
+                            Detail
+                        </button>
+                        <button type="button" class="btn-mini @(State.View == "compare" ? "active" : "")"
+                                disabled="@(!CanCompare)" @onclick="@(() => State.View = "compare")">
+                            Compare@(CanCompare ? "" : " (pick A + B)")
+                        </button>
+                    </div>
+                    @if (State.View == "compare" && CanCompare) {
+                        var a = State.Find(State.CompareA)!;
+                        var b = State.Find(State.CompareB)!;
+                        <div class="flex flex-col gap-3">
+                            <table class="data-table">
+                                <thead>
+                                <tr>
+                                    <th></th><th class="font-mono">A: @a.FileName</th><th class="font-mono">B: @b.FileName</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr>
+                                    <td class="text-muted">Platform</td><td class="mono">@a.Platform</td><td class="mono">@b.Platform</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">App version</td><td class="mono">@(a.Result?.AppVersion ?? "-")</td><td class="mono">@(b.Result?.AppVersion ?? "-")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Build</td><td class="mono">@(a.Result?.Build ?? "-")</td><td class="mono">@(b.Result?.Build ?? "-")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Client version</td><td class="mono">@(a.Result?.ClientVersion?.ToString() ?? "-")</td><td class="mono">@(b.Result?.ClientVersion?.ToString() ?? "-")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Proto SHA</td><td class="mono text-xs break-all">@(a.Result?.ProtoSha ?? "-")</td><td class="mono text-xs break-all">@(b.Result?.ProtoSha ?? "-")</td>
+                                </tr>
+                                </tbody>
+                            </table>
+                            @if (a.Result?.ProtoSha is { Length: > 0 } && a.Result?.ProtoSha == b.Result?.ProtoSha) {
+                                <div class="text-accent text-sm">Protos are identical (same SHA).</div>
+                            } else {
+                                <ProtoDiffView Diff="CompareDiff()" EmptyText="No structural differences."/>
+                            }
+                        </div>
+                    } else if (Selected is not { } sel) {
+                        <div class="text-muted text-sm mt-4">Add files to analyze. Everything runs client-side first; only a small manifest is uploaded.</div>
+                    } else if (sel.Status == "error") {
+                        <pre class="result-pre">@(sel.Error ?? "failed")</pre>
+                    } else if (!sel.IsDone) {
+                        <div class="text-muted text-sm mt-4">@sel.Status@(sel.Step is { Length: > 0 } ? $": {sel.Step}" : "")...</div>
+                    } else if (sel.Result is { } r) {
+                        <div class="font-mono text-xs break-all">@sel.FileName</div>
+                        <div class="flex flex-col gap-1 text-xs mt-2 mb-3">
+                            <div class="flex gap-2">
+                                <span class="text-muted w-28 shrink-0">App version</span><span class="font-mono">@(string.IsNullOrWhiteSpace(r.AppVersion) ? "-" : r.AppVersion)</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <span class="text-muted w-28 shrink-0">Build</span><span class="font-mono">@(string.IsNullOrWhiteSpace(r.Build) ? "-" : r.Build)</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <span class="text-muted w-28 shrink-0">Client version</span><span class="font-mono">@(r.ClientVersion?.ToString() ?? "-")</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <span class="text-muted w-28 shrink-0">Messages</span><span class="font-mono">@r.Messages.Count</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <span class="text-muted w-28 shrink-0">Size</span><span class="font-mono">@SizeText(sel)</span>
+                            </div>
+                            @if (r.UploadedSize is { } up) {
+                                <div class="flex gap-2">
+                                    <span class="text-muted w-28 shrink-0">Uploaded</span><span class="font-mono">@UploadText(up)</span>
+                                </div>
+                            }
+                        </div>
+                        @if (sel.Known) {
+                            <div class="text-xs text-accent mb-3">already in registry</div>
+                        } else if (sel.Pending || sel.Offered) {
+                            <div class="text-xs text-muted mb-3">offered, pending review</div>
+                        } else if (sel.Offerable) {
+                            @if (User.IsAuthenticated) {
+                                <div class="mb-3">
+                                    <button type="button" class="btn-primary" disabled="@_offerBusy" @onclick="@(() => Offer(sel))">Offer to registry</button>
+                                </div>
+                            } else {
+                                <div class="text-xs text-muted mb-3">Log in to offer this version to the registry.</div>
+                            }
+                        }
+
+                        <div class="mb-3">
+                            <button type="button" class="btn-mini" disabled="@_comparingLatest" @onclick="@(() => CompareToLatest(sel))">
+                                <Icon Name="swap" Class="icon-sm"/> Diff vs latest @sel.Platform
+                            </button>
+                            @if (sel.DiffVsLatestLabel is { Length: > 0 }) {
+                                <div class="text-muted text-xs mt-2 mb-1">@sel.DiffVsLatestLabel</div>
+                                <ProtoDiffView Diff="sel.DiffVsLatest" EmptyText="Identical to latest."/>
+                            }
+                        </div>
+                        <CodeTextView Text="@r.Proto" MaxHeight="48vh">
+                            <Tools>
+                                <button type="button" class="btn-mini" title="Download .proto" @onclick="@(() => Download(sel))">
+                                    <Icon Name="download" Class="icon-sm"/>
+                                </button>
+                            </Tools>
+                        </CodeTextView>
+                    }
+                </section>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    bool _open;
+    bool _dropWired;
+    bool _offerBusy;
+    bool _comparingLatest;
+    string _baseAddress = "";
+    string? _cookie;
+    IJSObjectReference? _strip;
+    IJSObjectReference? _download;
+    DotNetObjectReference<AnalysisWorkbenchModal>? _selfRef;
+    readonly SemaphoreSlim _gate = new(2, 2);
+    (Guid A, Guid B)? _cmpKey;
+    ProtoDiffResult? _cmpDiff;
+
+    StagedEntry? Selected => State.Find(State.SelectedId);
+    bool CanCompare => State.Find(State.CompareA) is { IsDone: true } && State.Find(State.CompareB) is { IsDone: true };
+
+    public void Open() {
+        _open = true;
+        _dropWired = false;
+        StateHasChanged();
+    }
+
+    void Close() {
+        _open = false;
+    }
+
+    protected override void OnInitialized() {
+        var req = HttpContextAccessor.HttpContext?.Request;
+        if (req is not null) {
+            _baseAddress = $"{req.Scheme}://{req.Host}";
+            _cookie = req.Headers.Cookie;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (_open && !_dropWired) {
+            var mod = await StripModule();
+            _dropWired = await mod.InvokeAsync<bool>("wireDrop", "wbDrop", "wbFile");
+        }
+    }
+
+    async Task<IJSObjectReference> StripModule() {
+        return _strip ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/protoStrip.js"));
+    }
+
+    async Task OnFilesSelected(InputFileChangeEventArgs e) {
+        var mod = await StripModule();
+        var stashed = await mod.InvokeAsync<List<StashedFile>>("stashFiles", "wbFile");
+        foreach (var s in stashed) {
+            var entry = new StagedEntry { Token = s.Token, FileName = s.Name, Size = s.Size };
+            entry.Platform = PlatformFor(s.Name);
+            State.Entries.Add(entry);
+            State.SelectedId ??= entry.Id;
+            _ = ProcessAsync(entry);
+        }
+    }
+
+    async Task ProcessAsync(StagedEntry entry) {
+        try {
+            await _gate.WaitAsync();
+        }
+        catch (ObjectDisposedException) {
+            return;
+        }
+
+        try {
+            await InvokeAsync(() => {
+                entry.Status = "stripping";
+                StateHasChanged();
+            });
+            _selfRef ??= DotNetObjectReference.Create(this);
+            var mod = await StripModule();
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+            var r = await mod.InvokeAsync<ExtractResult>("analyzeStored", cts.Token,
+                [entry.Token, "/api/tools/extract-proto", _selfRef]);
+            if (r is null or { Ok: false }) {
+                await InvokeAsync(() => {
+                    entry.Status = "error";
+                    entry.Error = r?.Diagnostics ?? "no response";
+                    StateHasChanged();
+                });
+                return;
+            }
+
+            var dropped = false;
+            await InvokeAsync(() => {
+                entry.Result = r with { FileName = entry.FileName };
+                entry.Status = "done";
+                entry.Step = null;
+                if (entry.Result?.FileSha is { Length: > 0 } sha
+                    && State.Entries.FirstOrDefault(x => x != entry && x.Result?.FileSha == sha) is { } dup) {
+                    State.Entries.Remove(entry);
+                    if (State.SelectedId == entry.Id) State.SelectedId = dup.Id;
+                    dropped = true;
+                }
+
+                StateHasChanged();
+            });
+            if (dropped) {
+                await DiscardToken(entry.Token);
+                return;
+            }
+
+            await AfterDone(entry);
+        }
+        catch (Exception ex) {
+            await InvokeAsync(() => {
+                entry.Status = "error";
+                entry.Error = ex.Message;
+                StateHasChanged();
+            });
+        }
+        finally {
+            try {
+                _gate.Release();
+            }
+            catch (ObjectDisposedException) {
+            }
+
+            await DiscardToken(entry.Token);
+            await Rerender();
+        }
+    }
+
+    async Task AfterDone(StagedEntry entry) {
+        await InvokeAsync(() => {
+            entry.Platform = PlatformFor(entry.FileName);
+            entry.AppVersion = entry.Result?.AppVersion ?? "";
+            entry.Build = entry.Result?.Build ?? "";
+            entry.ClientVersionText = entry.Result?.ClientVersion?.ToString() ?? "";
+        });
+        await BackfillBuildAndClientVersion(entry);
+        await CheckOfferable(entry);
+    }
+
+    async Task DiscardToken(int token) {
+        try {
+            var mod = await StripModule();
+            await mod.InvokeVoidAsync("discard", token);
+        }
+        catch {
+        }
+    }
+
+    [JSInvokable]
+    public async Task AnalyzeStep(int token, string step) {
+        var entry = State.Entries.FirstOrDefault(e => e.Token == token);
+        if (entry is null) return;
+        entry.Step = step;
+        if (step.StartsWith("uploading")) entry.Status = "uploading";
+        await Rerender();
+    }
+
+    Task Rerender() {
+        return InvokeAsync(StateHasChanged);
+    }
+
+    void Select(StagedEntry e) {
+        State.SelectedId = e.Id;
+        State.View = "detail";
+    }
+
+    async Task Remove(StagedEntry e) {
+        State.Entries.Remove(e);
+        if (State.CompareA == e.Id) State.CompareA = null;
+        if (State.CompareB == e.Id) State.CompareB = null;
+        if (State.SelectedId == e.Id) State.SelectedId = State.Entries.FirstOrDefault()?.Id;
+        _cmpKey = null;
+        _cmpDiff = null;
+        await DiscardToken(e.Token);
+    }
+
+    void ToggleSlot(StagedEntry e, bool slotA) {
+        if (slotA) State.CompareA = State.CompareA == e.Id ? null : e.Id;
+        else State.CompareB = State.CompareB == e.Id ? null : e.Id;
+        if (!CanCompare && State.View == "compare") State.View = "detail";
+        _cmpKey = null;
+        _cmpDiff = null;
+    }
+
+    async Task CompareToLatest(StagedEntry entry) {
+        if (entry.Result?.Proto is not { Length: > 0 } proto) return;
+        _comparingLatest = true;
+        try {
+            var resp = await Client().GetAsync($"/api/protos/latest?platform={entry.Platform}");
+            LatestDto? latest = null;
+            if (resp.IsSuccessStatusCode) {
+                latest = await resp.Content.ReadFromJsonAsync<LatestDto>(JsonOpts);
+            }
+
+            if (latest is null) {
+                entry.DiffVsLatestLabel = $"No stored {entry.Platform} version to compare against.";
+                entry.DiffVsLatest = null;
+                return;
+            }
+
+            var latestText = await Client().GetStringAsync(
+                $"/api/protos/versions/{entry.Platform}/{Uri.EscapeDataString(latest.Build)}/proto");
+            entry.DiffVsLatest = ProtoDiff.Compute(latestText, proto);
+            entry.DiffVsLatestLabel = $"vs latest {entry.Platform} {latest.AppVersion} (build {latest.Build})";
+        }
+        catch (Exception ex) {
+            entry.DiffVsLatestLabel = $"compare failed: {ex.Message}";
+            entry.DiffVsLatest = null;
+        }
+        finally {
+            _comparingLatest = false;
+        }
+    }
+
+    sealed record LatestDto(string Platform, string AppVersion, string Build);
+
+    ProtoDiffResult? CompareDiff() {
+        var a = State.Find(State.CompareA);
+        var b = State.Find(State.CompareB);
+        if (a?.Result?.Proto is null || b?.Result?.Proto is null) return null;
+        if (_cmpKey == (a.Id, b.Id) && _cmpDiff is not null) return _cmpDiff;
+        _cmpDiff = ProtoDiff.Compute(a.Result.Proto, b.Result.Proto);
+        _cmpKey = (a.Id, b.Id);
+        return _cmpDiff;
+    }
+
+    string StatusChipClass(StagedEntry e) {
+        return e.Status switch {
+            "done" => "wb-chip-done",
+            "error" => "wb-chip-error",
+            _ => ""
+        };
+    }
+
+    async Task CheckOfferable(StagedEntry entry) {
+        if (entry.Result?.ProtoSha is not { Length: > 0 } sha) {
+            await InvokeAsync(() => { entry.Known = entry.Pending = entry.Offerable = false; });
+            return;
+        }
+
+        try {
+            var r = await Client().GetFromJsonAsync<CheckResp>(
+                $"/api/protos/staged/check?platform={Uri.EscapeDataString(entry.Platform)}&appVersion={Uri.EscapeDataString(entry.AppVersion)}&build={Uri.EscapeDataString(entry.Build)}&clientVersion={Uri.EscapeDataString(entry.ClientVersionText)}&protoSha={Uri.EscapeDataString(sha)}",
+                JsonOpts);
+            await InvokeAsync(() => {
+                if (r is null) {
+                    entry.Known = entry.Pending = entry.Offerable = false;
+                } else {
+                    entry.Known = r.KnownCombination;
+                    entry.Pending = r.Pending;
+                    entry.Offerable = !r.KnownCombination && !r.Pending;
+                }
+            });
+        }
+        catch {
+            await InvokeAsync(() => { entry.Known = entry.Pending = entry.Offerable = false; });
+        }
+    }
+
+    async Task Offer(StagedEntry entry) {
+        if (entry.Result?.Proto is null || entry.Result.ProtoSha is null) return;
+        _offerBusy = true;
+        try {
+            var body = new {
+                platform = entry.Platform,
+                appVersion = string.IsNullOrWhiteSpace(entry.AppVersion) ? null : entry.AppVersion,
+                build = string.IsNullOrWhiteSpace(entry.Build) ? null : entry.Build,
+                clientVersion = string.IsNullOrWhiteSpace(entry.ClientVersionText) ? null : entry.ClientVersionText,
+                package = (string?)null,
+                protoSha = entry.Result.ProtoSha,
+                protoText = entry.Result.Proto,
+                messageIndex = (string?)null
+            };
+            var resp = await Client().PostAsJsonAsync("/api/protos/staged/offer", body, JsonOpts);
+            entry.Offered = resp.IsSuccessStatusCode;
+            if (entry.Offered) {
+                entry.Offerable = false;
+                await OnChanged.InvokeAsync();
+            }
+        }
+        catch {
+        }
+        finally {
+            _offerBusy = false;
+        }
+    }
+
+    sealed record CheckResp(bool InRegistry, bool Pending, bool KnownCombination);
+
+    async Task BackfillBuildAndClientVersion(StagedEntry entry) {
+        try {
+            var live = await Client().GetFromJsonAsync<LiveVersionDto>(
+                $"/api/tools/live-version?platform={entry.Platform}", JsonOpts);
+            if (live is { Found: true }) {
+                await InvokeAsync(() => {
+                    if (string.IsNullOrWhiteSpace(entry.Build) && !string.IsNullOrWhiteSpace(live.Build)) entry.Build = live.Build!;
+                    if (string.IsNullOrWhiteSpace(entry.ClientVersionText) && live.ClientVersion is int cv) entry.ClientVersionText = cv.ToString();
+                });
+            }
+        }
+        catch {
+        }
+
+        if ((string.IsNullOrWhiteSpace(entry.Build) || string.IsNullOrWhiteSpace(entry.ClientVersionText))
+            && !string.IsNullOrWhiteSpace(entry.AppVersion)) {
+            try {
+                var all = await Client().GetFromJsonAsync<List<RegRowDto>>("/api/protos/versions", JsonOpts) ?? [];
+                var sameApp = all.Where(r => string.Equals(r.AppVersion, entry.AppVersion, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                await InvokeAsync(() => {
+                    if (string.IsNullOrWhiteSpace(entry.ClientVersionText)) {
+                        var cv = sameApp.Select(r => r.ClientVersion).FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
+                        if (!string.IsNullOrWhiteSpace(cv)) entry.ClientVersionText = cv;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(entry.Build)) {
+                        var b = sameApp.Where(r => string.Equals(r.Platform, entry.Platform, StringComparison.OrdinalIgnoreCase))
+                            .Select(r => r.Build).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+                        if (!string.IsNullOrWhiteSpace(b)) entry.Build = b;
+                    }
+                });
+            }
+            catch {
+            }
+        }
+    }
+
+    static string PlatformFor(string? fileName) {
+        var n = fileName ?? "";
+        var android = n.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
+                      || n.EndsWith(".apkm", StringComparison.OrdinalIgnoreCase)
+                      || n.EndsWith(".xapk", StringComparison.OrdinalIgnoreCase);
+        return android ? "android" : "ios";
+    }
+
+    HttpClient Client() {
+        var c = HttpFactory.CreateClient();
+        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
+        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
+        return c;
+    }
+
+    async Task Download(StagedEntry entry) {
+        if (entry.Result?.Proto is null) return;
+        _download ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/download.js"));
+        await _download.InvokeVoidAsync("text", "ei.proto", entry.Result.Proto);
+    }
+
+    string SizeText(StagedEntry entry) {
+        if (entry.Result?.FileSize is not { } fs) return "-";
+        if (entry.Result.StrippedSize is { } ss && ss != fs) return $"{Mb(fs)} ({Mb(ss)} stripped)";
+        return Mb(fs);
+    }
+
+    static string Mb(long? bytes) {
+        return bytes is { } b ? (b / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB" : "-";
+    }
+
+    static string UploadText(long bytes) {
+        if (bytes >= 1048576) return (bytes / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB";
+        return (bytes / 1024.0).ToString("0.0", CultureInfo.InvariantCulture) + " KB";
+    }
+
+    sealed record LiveVersionDto(bool Found, string? Platform, string? Version, string? Build, int? ClientVersion);
+
+    sealed record RegRowDto(string Platform, string AppVersion, string Build, string? ClientVersion);
+
+    sealed record StashedFile(int Token, string Name, long Size);
+
+    public async ValueTask DisposeAsync() {
+        if (_strip is not null) {
+            try {
+                await _strip.DisposeAsync();
+            }
+            catch (JSDisconnectedException) {
+            }
+        }
+
+        if (_download is not null) {
+            try {
+                await _download.DisposeAsync();
+            }
+            catch (JSDisconnectedException) {
+            }
+        }
+
+        _selfRef?.Dispose();
+        _gate.Dispose();
+    }
+
+}

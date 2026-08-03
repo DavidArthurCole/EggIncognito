@@ -993,10 +993,20 @@ pre.data-text {
 .proto-cmp-chips { @apply flex flex-wrap gap-1.5 mb-2; }
 .proto-chip-add { @apply text-accent border-accent; }
 .proto-chip-rem { @apply text-muted line-through; }
-.proto-diff { @apply max-h-[480px] overflow-auto; }
-.proto-diff .diff-add { @apply text-accent; }
-.proto-diff .diff-rem { @apply text-muted; }
-.proto-diff .diff-hunk { @apply text-fg font-semibold; }
+.pdiff { @apply flex flex-col gap-2 text-xs; }
+.pdiff-summary { @apply text-muted m-0; }
+.pdiff-entry { @apply border border-border rounded-md p-2 bg-panel2; }
+.pdiff-head { @apply flex items-center gap-2 font-mono text-sm break-all; }
+.pdiff-badge { @apply text-[0.65rem] uppercase tracking-wide border border-border rounded px-1 shrink-0; }
+.pdiff-badge-add { @apply text-accent [border-color:var(--color-accent)]; }
+.pdiff-badge-rem { @apply text-muted; }
+.pdiff-badge-ren { @apply text-fg; }
+.pdiff-badge-mod { @apply text-fg; }
+.pdiff-rows { @apply mt-1 font-mono whitespace-pre overflow-x-auto; }
+.pdiff-line-add { @apply text-accent block; }
+.pdiff-line-rem { @apply text-muted block; }
+.pdiff-body { @apply mt-1; }
+.pdiff-body summary { @apply text-xs; }
 
 .protos-filter {
   @apply w-[160px] bg-panel2 text-fg border border-border rounded-md px-2 py-1 text-xs font-mono;
@@ -1111,6 +1121,24 @@ pre.data-text {
 .modal-head { @apply flex items-center justify-between gap-3 px-5 py-3 border-b border-border; }
 .modal-title { @apply text-base font-semibold m-0 text-fg; }
 .modal-body { @apply px-5 py-4 overflow-x-auto; }
+
+.wb-card { @apply flex flex-col max-w-[92rem]; width: 94vw; height: 90vh; }
+.wb-body { @apply flex flex-1 min-h-0; }
+.wb-body.dragging { @apply [outline:2px_dashed_var(--color-accent)] outline-offset-[-6px]; }
+.wb-rail { @apply w-72 shrink-0 border-r border-border overflow-y-auto p-2 flex flex-col gap-2; }
+.wb-rail-empty { @apply border border-dashed border-border rounded-md p-3; }
+.wb-main { @apply flex-1 min-w-0 overflow-y-auto p-4; }
+.wb-tabs { @apply flex items-center gap-2 mb-3; }
+.wb-entry { @apply border border-border rounded-md p-2 cursor-pointer text-xs flex flex-col gap-1; }
+.wb-entry:hover { @apply [border-color:var(--color-accent)]; }
+.wb-entry.selected { @apply [border-color:var(--color-accent)]; }
+.wb-entry-name { @apply font-mono break-all text-fg; }
+.wb-entry-meta { @apply text-muted font-mono text-[0.7rem]; }
+.wb-chip { @apply text-[0.65rem] uppercase tracking-wide border border-border rounded px-1 text-muted; }
+.wb-chip-done { @apply text-accent [border-color:var(--color-accent)]; }
+.wb-chip-error { @apply bg-red-500/15 text-red-400 border-red-500/30 font-semibold; }
+.wb-slot { @apply text-[0.65rem] border border-border rounded px-1 cursor-pointer bg-transparent text-muted; }
+.wb-slot.active { @apply text-accent [border-color:var(--color-accent)]; }
 
 .account-modal { width: fit-content; min-width: min(28rem, 100%); max-width: 100%; }
 @media (min-width: 640px) {

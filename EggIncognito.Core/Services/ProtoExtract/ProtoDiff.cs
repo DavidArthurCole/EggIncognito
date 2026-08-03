@@ -1,230 +1,184 @@
-using System.Text.RegularExpressions;
-
 namespace EggIncognito.Services.ProtoExtract;
 
-public static partial class ProtoDiff {
-    [GeneratedRegex(@"\b(ei|aux)\.")]
-    private static partial Regex NamespaceRe();
+public static class ProtoDiff {
+    private const double RenameThreshold = 0.6;
 
-    [GeneratedRegex(@"^message\s+(\w+)\s*\{")]
-    private static partial Regex MessageOpenRe();
+    public static ProtoDiffResult Compute(string oldProto, string newProto) {
+        var oldRoots = ProtoModelParser.Parse(oldProto);
+        var newRoots = ProtoModelParser.Parse(newProto);
+        var entries = new List<MessageDiff>();
+        DiffScope(oldRoots, newRoots, entries);
+        return new ProtoDiffResult(entries);
+    }
 
-    [GeneratedRegex(@"^(enum|oneof|extend|service)\s+(\w+)\s*\{")]
-    private static partial Regex OtherOpenRe();
+    public static string Diff(string oldProto, string newProto) => RenderText(Compute(oldProto, newProto));
 
-    private static string Normalize(string line) => NamespaceRe().Replace(line, "");
-
-    public static string Diff(string oldProto, string newProto) {
-        var old = Parse(oldProto);
-        var @new = Parse(newProto);
-
-
-        var seen = new HashSet<string>();
-        var paths = new List<string>();
-        foreach (string p in @new.Keys) {
-            paths.Add(p);
-            seen.Add(p);
-        }
-
-        foreach (string p in old.Keys) {
-            if (!seen.Contains(p))
-                paths.Add(p);
-        }
-
+    public static string RenderText(ProtoDiffResult result) {
         var sections = new List<string>();
+        foreach (var e in result.Entries) {
+            string header = e.Kind == MessageDiffKind.Renamed
+                ? $"@@ message {e.OldPath} -> {e.NewPath} @@"
+                : $"@@ message {e.DisplayPath} @@";
 
-        foreach (string path in paths) {
-            var oldLines = old.TryGetValue(path, out var ol) ? ol : [];
-            var newLines = @new.TryGetValue(path, out var nl) ? nl : [];
+            var lines = new List<string>();
+            if (e.Kind == MessageDiffKind.Added) {
+                foreach (string line in e.Body) lines.Add("+" + line.TrimEnd('\n', '\r'));
+            } else if (e.Kind == MessageDiffKind.Removed) {
+                foreach (string line in e.Body) lines.Add("-" + line.TrimEnd('\n', '\r'));
+            } else {
+                foreach (var c in e.FieldChanges.OrderBy(c => c.Number)) {
+                    if (c.Old is not null) lines.Add("-" + c.Old.Raw);
+                    if (c.New is not null) lines.Add("+" + c.New.Raw);
+                }
 
-            var oldNorm = oldLines.Select(Normalize).ToList();
-            var newNorm = newLines.Select(Normalize).ToList();
-
-            if (oldNorm.SequenceEqual(newNorm)) continue;
-
-            var diffLines = new List<string>();
-            foreach ((string tag, int i1, int i2, int j1, int j2) in GetOpcodes(oldNorm, newNorm)) {
-                switch (tag) {
-                    case "equal":
-                        break;
-                    case "insert":
-                        for (int j = j1; j < j2; j++) diffLines.Add("+" + newLines[j].TrimEnd('\n'));
-                        break;
-                    case "delete":
-                        for (int i = i1; i < i2; i++) diffLines.Add("-" + oldLines[i].TrimEnd('\n'));
-                        break;
-                    case "replace":
-                        for (int i = i1; i < i2; i++) diffLines.Add("-" + oldLines[i].TrimEnd('\n'));
-                        for (int j = j1; j < j2; j++) diffLines.Add("+" + newLines[j].TrimEnd('\n'));
-                        break;
+                foreach (var c in e.EnumChanges.OrderBy(c => c.Number)) {
+                    if (c.Old is not null) lines.Add("-" + c.Old.Raw);
+                    if (c.New is not null) lines.Add("+" + c.New.Raw);
                 }
             }
 
-            if (diffLines.Count > 0) {
-                sections.Add($"@@ {path} @@");
-                sections.AddRange(diffLines);
-                sections.Add("");
-            }
+            sections.Add(header);
+            sections.AddRange(lines);
+            sections.Add("");
         }
 
         return string.Join("\n", sections);
     }
 
+    private static void DiffScope(List<ProtoMessage> oldList, List<ProtoMessage> newList, List<MessageDiff> entries) {
+        var newByName = new Dictionary<string, ProtoMessage>();
+        foreach (var m in newList) newByName.TryAdd(m.Name, m);
 
-    private static Dictionary<string, List<string>> Parse(string protoText) {
-        var messages = new Dictionary<string, List<string>>();
-        var stack = new List<(string Kind, string Name, int Depth)>();
-        int depth = 0;
+        var matchedPairs = new List<(ProtoMessage Old, ProtoMessage New, bool Renamed)>();
+        var oldLeftover = new List<ProtoMessage>();
+        var claimedNewNames = new HashSet<string>();
 
-        foreach (string line in SplitKeepEnds(protoText)) {
-            string s = line.Trim();
+        foreach (var om in oldList) {
+            if (newByName.TryGetValue(om.Name, out var nm) && claimedNewNames.Add(nm.Name)) {
+                matchedPairs.Add((om, nm, false));
+            } else {
+                oldLeftover.Add(om);
+            }
+        }
 
-            var m = MessageOpenRe().Match(s);
-            if (m.Success) {
-                stack.Add(("message", m.Groups[1].Value, depth));
-                depth += Count(s, '{') - Count(s, '}');
-                continue;
+        var newLeftover = newList.Where(nm => !claimedNewNames.Contains(nm.Name)).ToList();
+
+        var candidates = new List<(ProtoMessage Old, ProtoMessage New, double Score)>();
+        foreach (var om in oldLeftover) {
+            foreach (var nm in newLeftover) {
+                double score = Similarity(om, nm);
+                if (score >= RenameThreshold) candidates.Add((om, nm, score));
+            }
+        }
+
+        candidates.Sort((a, b) => b.Score.CompareTo(a.Score));
+
+        var claimedOld = new HashSet<ProtoMessage>();
+        var claimedNew = new HashSet<ProtoMessage>();
+        foreach (var c in candidates) {
+            if (claimedOld.Contains(c.Old) || claimedNew.Contains(c.New)) continue;
+            claimedOld.Add(c.Old);
+            claimedNew.Add(c.New);
+            matchedPairs.Add((c.Old, c.New, true));
+        }
+
+        var remainingOld = oldLeftover.Where(m => !claimedOld.Contains(m)).ToList();
+        var remainingNew = newLeftover.Where(m => !claimedNew.Contains(m)).ToList();
+
+        foreach (var (om, nm, renamed) in matchedPairs) {
+            var fieldChanges = DiffFields(om, nm);
+            var enumChanges = DiffEnums(om, nm);
+            if (renamed || fieldChanges.Count > 0 || enumChanges.Count > 0) {
+                entries.Add(new MessageDiff(
+                    renamed ? MessageDiffKind.Renamed : MessageDiffKind.Modified,
+                    om.Path,
+                    nm.Path,
+                    fieldChanges,
+                    enumChanges,
+                    []));
             }
 
-            m = OtherOpenRe().Match(s);
-            if (m.Success) {
-                string? p = Path(stack);
-                if (p is not null) Add(messages, p, line);
-                stack.Add(("other", m.Groups[2].Value, depth));
-                depth += Count(s, '{') - Count(s, '}');
-                continue;
-            }
+            DiffScope(om.Children, nm.Children, entries);
+        }
 
-            if (s == "}") {
-                depth -= 1;
-                if (stack.Count > 0 && stack[^1].Depth == depth) {
-                    (string kind, _, _) = stack[^1];
-                    stack.RemoveAt(stack.Count - 1);
-                    if (kind == "other") {
-                        string? p = Path(stack);
-                        if (p is not null) Add(messages, p, line);
+        foreach (var om in remainingOld) {
+            entries.Add(new MessageDiff(MessageDiffKind.Removed, om.Path, null, [], [], om.BodyLines));
+        }
+
+        foreach (var nm in remainingNew) {
+            entries.Add(new MessageDiff(MessageDiffKind.Added, null, nm.Path, [], [], nm.BodyLines));
+        }
+    }
+
+    private static double Similarity(ProtoMessage a, ProtoMessage b) {
+        if (a.Fields.Count == 0 || b.Fields.Count == 0) return 0;
+        var keys = a.Fields.Select(f => (f.Number, ProtoModelParser.NormalizeType(f.Type))).ToHashSet();
+        int shared = b.Fields.Count(f => keys.Contains((f.Number, ProtoModelParser.NormalizeType(f.Type))));
+        return 2.0 * shared / (a.Fields.Count + b.Fields.Count);
+    }
+
+    private static List<FieldChange> DiffFields(ProtoMessage oldM, ProtoMessage newM) {
+        var oldByNum = new Dictionary<int, ProtoField>();
+        foreach (var f in oldM.Fields) oldByNum.TryAdd(f.Number, f);
+        var newByNum = new Dictionary<int, ProtoField>();
+        foreach (var f in newM.Fields) newByNum.TryAdd(f.Number, f);
+
+        var numbers = oldByNum.Keys.Union(newByNum.Keys).OrderBy(n => n);
+        var changes = new List<FieldChange>();
+        foreach (int n in numbers) {
+            bool hasOld = oldByNum.TryGetValue(n, out var of);
+            bool hasNew = newByNum.TryGetValue(n, out var nf);
+            if (hasOld && !hasNew) {
+                changes.Add(new FieldChange(FieldChangeKind.Removed, n, of, null));
+            } else if (!hasOld && hasNew) {
+                changes.Add(new FieldChange(FieldChangeKind.Added, n, null, nf));
+            } else if (hasOld && hasNew) {
+                bool changed = of!.Name != nf!.Name
+                    || ProtoModelParser.NormalizeType(of.Type) != ProtoModelParser.NormalizeType(nf.Type)
+                    || of.Label != nf.Label;
+                if (changed) changes.Add(new FieldChange(FieldChangeKind.Changed, n, of, nf));
+            }
+        }
+
+        return changes;
+    }
+
+    private static List<EnumValueChange> DiffEnums(ProtoMessage oldM, ProtoMessage newM) {
+        var oldByName = new Dictionary<string, ProtoEnum>();
+        foreach (var e in oldM.Enums) oldByName.TryAdd(e.Name, e);
+        var newByName = new Dictionary<string, ProtoEnum>();
+        foreach (var e in newM.Enums) newByName.TryAdd(e.Name, e);
+
+        var names = oldByName.Keys.Union(newByName.Keys);
+        var changes = new List<EnumValueChange>();
+        foreach (string name in names) {
+            bool hasOld = oldByName.TryGetValue(name, out var oe);
+            bool hasNew = newByName.TryGetValue(name, out var ne);
+            if (hasOld && hasNew) {
+                var oldByNum = new Dictionary<int, ProtoEnumValue>();
+                foreach (var v in oe!.Values) oldByNum.TryAdd(v.Number, v);
+                var newByNum = new Dictionary<int, ProtoEnumValue>();
+                foreach (var v in ne!.Values) newByNum.TryAdd(v.Number, v);
+
+                var numbers = oldByNum.Keys.Union(newByNum.Keys).OrderBy(n => n);
+                foreach (int n in numbers) {
+                    bool ho = oldByNum.TryGetValue(n, out var ov);
+                    bool hn = newByNum.TryGetValue(n, out var nv);
+                    if (ho && !hn) {
+                        changes.Add(new EnumValueChange(FieldChangeKind.Removed, name, n, ov, null));
+                    } else if (!ho && hn) {
+                        changes.Add(new EnumValueChange(FieldChangeKind.Added, name, n, null, nv));
+                    } else if (ho && hn && ov!.Name != nv!.Name) {
+                        changes.Add(new EnumValueChange(FieldChangeKind.Changed, name, n, ov, nv));
                     }
                 }
-
-                continue;
-            }
-
-            depth += Count(s, '{') - Count(s, '}');
-
-            string? path = Path(stack);
-            if (path is not null) Add(messages, path, line);
-        }
-
-        return messages;
-    }
-
-    private static void Add(Dictionary<string, List<string>> messages, string path, string line) {
-        if (!messages.TryGetValue(path, out var list)) {
-            list = [];
-            messages[path] = list;
-        }
-
-        list.Add(line);
-    }
-
-    private static string? Path(List<(string Kind, string Name, int Depth)> stack) {
-        var parts = stack.Where(e => e.Kind == "message").Select(e => e.Name).ToList();
-        return parts.Count == 0
-            ? null
-            : parts.Count == 1
-                ? $"message {parts[0]}"
-                : $"message ({string.Join(".", parts.Take(parts.Count - 1))}.){parts[^1]}";
-    }
-
-    private static int Count(string s, char c) {
-        int n = 0;
-        foreach (char ch in s) {
-            if (ch == c)
-                n++;
-        }
-
-        return n;
-    }
-
-    private static List<string> SplitKeepEnds(string text) {
-        string normalized = text.Replace("\r\n", "\n").Replace("\r", "\n");
-        var result = new List<string>();
-        int start = 0;
-        for (int i = 0; i < normalized.Length; i++) {
-            if (normalized[i] == '\n') {
-                result.Add(normalized.Substring(start, i - start + 1));
-                start = i + 1;
+            } else if (hasOld) {
+                foreach (var v in oe!.Values) changes.Add(new EnumValueChange(FieldChangeKind.Removed, name, v.Number, v, null));
+            } else if (hasNew) {
+                foreach (var v in ne!.Values) changes.Add(new EnumValueChange(FieldChangeKind.Added, name, v.Number, null, v));
             }
         }
 
-        if (start < normalized.Length) result.Add(normalized[start..]);
-        return result;
-    }
-
-
-    private static List<(string Tag, int I1, int I2, int J1, int J2)> GetOpcodes(
-        List<string> a, List<string> b) {
-        var matches = LongestCommonSubsequence(a, b);
-
-        matches.Add((a.Count, b.Count, 0));
-
-        var opcodes = new List<(string, int, int, int, int)>();
-        int i = 0, j = 0;
-        foreach ((int ai, int bj, int size) in matches) {
-            string tag = "";
-            if (i < ai && j < bj) tag = "replace";
-            else if (i < ai) tag = "delete";
-            else if (j < bj) tag = "insert";
-            if (tag.Length > 0) opcodes.Add((tag, i, ai, j, bj));
-            i = ai + size;
-            j = bj + size;
-            if (size > 0) opcodes.Add(("equal", ai, i, bj, j));
-        }
-
-        return opcodes;
-    }
-
-
-    private static List<(int A, int B, int Size)> LongestCommonSubsequence(
-        List<string> a, List<string> b) {
-        int n = a.Count;
-        int m = b.Count;
-        int[,] dp = new int[n + 1, m + 1];
-        for (int i = n - 1; i >= 0; i--) {
-            for (int j = m - 1; j >= 0; j--)
-                dp[i, j] = a[i] == b[j] ? dp[i + 1, j + 1] + 1 : Math.Max(dp[i + 1, j], dp[i, j + 1]);
-        }
-
-        var pairs = new List<(int A, int B)>();
-        int x = 0, y = 0;
-        while (x < n && y < m) {
-            if (a[x] == b[y]) {
-                pairs.Add((x, y));
-                x++;
-                y++;
-            } else if (dp[x + 1, y] >= dp[x, y + 1]) {
-                x++;
-            } else {
-                y++;
-            }
-        }
-
-
-        var blocks = new List<(int A, int B, int Size)>();
-        int k = 0;
-        while (k < pairs.Count) {
-            int startA = pairs[k].A;
-            int startB = pairs[k].B;
-            int size = 1;
-            while (k + 1 < pairs.Count && pairs[k + 1].A == pairs[k].A + 1 && pairs[k + 1].B == pairs[k].B + 1) {
-                size++;
-                k++;
-            }
-
-            blocks.Add((startA, startB, size));
-            k++;
-        }
-
-        return blocks;
+        return changes;
     }
 }

@@ -1,0 +1,89 @@
+@using EggIncognito.Services.ProtoExtract
+@if (Diff is null || Diff.IsEmpty) {
+    <p class="text-muted text-sm m-0">@EmptyText</p>
+} else {
+    <div class="pdiff">
+        <p class="pdiff-summary">
+            @Summary()
+        </p>
+        @foreach (var e in Diff.Entries) {
+            <div class="pdiff-entry">
+                <div class="pdiff-head">
+                    <span class="pdiff-badge @BadgeClass(e.Kind)">@BadgeText(e.Kind)</span>
+                    @if (e.Kind == MessageDiffKind.Renamed) {
+                        <span>@e.OldPath</span>
+                        <span class="text-muted">-&gt;</span>
+                        <span>@e.NewPath</span>
+                    } else {
+                        <span>@e.DisplayPath</span>
+                    }
+                </div>
+                @if (e.Kind is MessageDiffKind.Added or MessageDiffKind.Removed) {
+                    <details class="pdiff-body">
+                        <summary class="text-muted cursor-pointer">@e.Body.Count lines</summary>
+                        <div class="pdiff-rows">
+                            @foreach (var line in e.Body) {
+                                <span class="@(e.Kind == MessageDiffKind.Added ? "pdiff-line-add" : "pdiff-line-rem")">@(e.Kind == MessageDiffKind.Added ? "+" : "-")@line</span>
+                            }
+                        </div>
+                    </details>
+                } else if (e.FieldChanges.Count > 0 || e.EnumChanges.Count > 0) {
+                    <div class="pdiff-rows">
+                        @foreach (var c in e.FieldChanges.OrderBy(c => c.Number)) {
+                            @if (c.Old is not null) {
+                                <span class="pdiff-line-rem">-@c.Old.Raw</span>
+                            }
+
+                            @if (c.New is not null) {
+                                <span class="pdiff-line-add">+@c.New.Raw</span>
+                            }
+                        }
+                        @foreach (var c in e.EnumChanges.OrderBy(c => c.Number)) {
+                            @if (c.Old is not null) {
+                                <span class="pdiff-line-rem">-@c.Old.Raw</span>
+                            }
+
+                            @if (c.New is not null) {
+                                <span class="pdiff-line-add">+@c.New.Raw</span>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public ProtoDiffResult? Diff { get; set; }
+    [Parameter] public string EmptyText { get; set; } = "No differences.";
+
+    string Summary() {
+        var d = Diff!;
+        var parts = new List<string>();
+        if (d.AddedMessages > 0) parts.Add($"{d.AddedMessages} added");
+        if (d.RemovedMessages > 0) parts.Add($"{d.RemovedMessages} removed");
+        if (d.RenamedMessages > 0) parts.Add($"{d.RenamedMessages} renamed");
+        if (d.ModifiedMessages > 0) parts.Add($"{d.ModifiedMessages} modified");
+        return $"{string.Join(", ", parts)} message{(d.Entries.Count == 1 ? "" : "s")}, {d.FieldChangeCount} field change{(d.FieldChangeCount == 1 ? "" : "s")}";
+    }
+
+    static string BadgeText(MessageDiffKind k) {
+        return k switch {
+            MessageDiffKind.Added => "added",
+            MessageDiffKind.Removed => "removed",
+            MessageDiffKind.Renamed => "renamed",
+            _ => "changed"
+        };
+    }
+
+    static string BadgeClass(MessageDiffKind k) {
+        return k switch {
+            MessageDiffKind.Added => "pdiff-badge-add",
+            MessageDiffKind.Removed => "pdiff-badge-rem",
+            MessageDiffKind.Renamed => "pdiff-badge-ren",
+            _ => "pdiff-badge-mod"
+        };
+    }
+
+}

@@ -1,7 +1,6 @@
 @page "/protos/{Platform}/{Build}"
-@using System.Net
-@using System.Text
 @using System.Text.Json
+@using EggIncognito.Services.ProtoExtract
 @rendermode @(RenderMode.InteractiveServer)
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
@@ -76,8 +75,8 @@
                         <span class="proto-cmp-add">@_added.Count message@(_added.Count == 1 ? "" : "s") added</span>
                         <text>, </text>
                         <span class="proto-cmp-rem">@_removed.Count removed</span>
-                        @(_lineAdds + _lineRems > 0
-                            ? $", {_lineAdds + _lineRems} field change{(_lineAdds + _lineRems == 1 ? "" : "s")}"
+                        @(_diff!.FieldChangeCount > 0
+                            ? $", {_diff.FieldChangeCount} field change{(_diff.FieldChangeCount == 1 ? "" : "s")}"
                             : "")
                         <text> vs build </text>
                     } else {
@@ -93,6 +92,17 @@
                         }
                         @if (_added.Count > 30) {
                             <span class="text-muted text-xs">+@(_added.Count - 30) more</span>
+                        }
+                    </div>
+                }
+
+                @if (_renamed.Count > 0) {
+                    <div class="proto-cmp-chips">
+                        @foreach (var r in _renamed.Take(30)) {
+                            <span class="code-chip">@r.OldPath -&gt; @r.NewPath</span>
+                        }
+                        @if (_renamed.Count > 30) {
+                            <span class="text-muted text-xs">+@(_renamed.Count - 30) more</span>
                         }
                     </div>
                 }
@@ -113,7 +123,7 @@
                         @(_showDiff ? "Hide diff" : "View diff")
                     </button>
                     @if (_showDiff) {
-                        <pre class="result-pre proto-diff mt-2">@_diffMarkup</pre>
+                        <ProtoDiffView Diff="_diff"/>
                     }
                 }
             }
@@ -147,15 +157,11 @@
     string? _prevAppVersion;
     List<string> _added = [];
     List<string> _removed = [];
+    List<(string OldPath, string NewPath)> _renamed = [];
+    ProtoDiffResult? _diff;
 
-
-    int _lineAdds;
-    int _lineRems;
-
-    bool HasChanges => _added.Count > 0 || _removed.Count > 0 || _lineAdds > 0 || _lineRems > 0;
+    bool HasChanges => _diff is { IsEmpty: false };
     bool _showDiff;
-    MarkupString _diffMarkup;
-    bool _diffLoaded;
 
     string _baseAddress = "";
     string? _cookie;
@@ -180,11 +186,9 @@
         _prevAppVersion = null;
         _added = [];
         _removed = [];
-        _lineAdds = 0;
-        _lineRems = 0;
+        _renamed = [];
+        _diff = null;
         _showDiff = false;
-        _diffLoaded = false;
-        _diffMarkup = default;
         try {
             _detail = await Client().GetFromJsonAsync<Detail>(
                 $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(Build)}", JsonOpts);
@@ -222,28 +226,19 @@
             _prevBuild = prev.Build;
             _prevAppVersion = prev.AppVersion;
 
-            var prevDetail = await Client().GetFromJsonAsync<Detail>(
-                $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(prev.Build)}", JsonOpts);
-            var prevMsgs = prevDetail is not null && !string.IsNullOrEmpty(prevDetail.Messages)
-                ? ParseMessages(prevDetail.Messages)
-                : [];
-            var prevSet = new HashSet<string>(prevMsgs);
-            var thisSet = new HashSet<string>(_messages);
-            _added = _messages.Where(m => !prevSet.Contains(m)).ToList();
-            _removed = prevMsgs.Where(m => !thisSet.Contains(m)).ToList();
-
-
             try {
-                var diff = await Client().GetStringAsync(
-                    $"/api/protos/diff?from={Uri.EscapeDataString(_prevBuild!)}&to={Uri.EscapeDataString(Build)}&platform={Platform}");
-                foreach (var line in diff.Split('\n')) {
-                    if (line.StartsWith("+++") || line.StartsWith("---")) continue;
-                    if (line.StartsWith('+')) _lineAdds++;
-                    else if (line.StartsWith('-')) _lineRems++;
-                }
+                var prevText = await Client().GetStringAsync(
+                    $"/api/protos/versions/{Platform}/{Uri.EscapeDataString(prev.Build)}/proto");
+                var thisText = await Client().GetStringAsync(ProtoUrl);
+                _protoText = thisText;
+                _diff = ProtoDiff.Compute(prevText, thisText);
+                _added = _diff.Entries.Where(e => e.Kind == MessageDiffKind.Added).Select(e => e.DisplayPath).ToList();
+                _removed = _diff.Entries.Where(e => e.Kind == MessageDiffKind.Removed).Select(e => e.DisplayPath).ToList();
+                _renamed = _diff.Entries.Where(e => e.Kind == MessageDiffKind.Renamed)
+                    .Select(e => (e.OldPath ?? "", e.NewPath ?? "")).ToList();
             }
             catch {
-                /* diff unavailable; message-level counts still show */
+                _diff = null;
             }
         }
         catch {
@@ -298,41 +293,8 @@
         _showProto = true;
     }
 
-    async Task ToggleDiff() {
-        if (_showDiff) {
-            _showDiff = false;
-            return;
-        }
-
-        if (!_diffLoaded) {
-            try {
-                var text = await Client().GetStringAsync(
-                    $"/api/protos/diff?from={Uri.EscapeDataString(_prevBuild!)}&to={Uri.EscapeDataString(Build)}&platform={Platform}");
-                _diffMarkup = ColorizeDiff(text);
-            }
-            catch {
-                _diffMarkup = (MarkupString)"(failed to load diff)";
-            }
-
-            _diffLoaded = true;
-        }
-
-        _showDiff = true;
-    }
-
-
-    static MarkupString ColorizeDiff(string text) {
-        var sb = new StringBuilder();
-        foreach (var line in text.Replace("\r\n", "\n").Split('\n')) {
-            var esc = WebUtility.HtmlEncode(line);
-            if (line.StartsWith('+')) sb.Append("<span class=\"diff-add\">").Append(esc).Append("</span>");
-            else if (line.StartsWith('-')) sb.Append("<span class=\"diff-rem\">").Append(esc).Append("</span>");
-            else if (line.StartsWith("@@")) sb.Append("<span class=\"diff-hunk\">").Append(esc).Append("</span>");
-            else sb.Append(esc);
-            sb.Append('\n');
-        }
-
-        return (MarkupString)sb.ToString();
+    void ToggleDiff() {
+        _showDiff = !_showDiff;
     }
 
     bool _copiedToast;

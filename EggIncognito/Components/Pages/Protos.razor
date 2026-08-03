@@ -12,7 +12,6 @@
 @using EggIncognito.Components.Protos
 @using static Components.Protos.ProtoSelectionBar
 @using static Components.Protos.ProtoEditDialog
-@using static Components.Protos.ProtoDropZone
 @implements IAsyncDisposable
 
 <PageTitle>EggIncognito - Protos & Data</PageTitle>
@@ -77,11 +76,12 @@
 
 <div class="flex flex-col xl:flex-row gap-6 items-start">
     <div class="flex-1 min-w-0 flex flex-col gap-6">
-        <section>
-            <ProtoDropZone OnResult="OnExtracted" CanBatch="_canBatch" OnBatchCompleted="OnMutated"/>
-            @if (_result is not null) {
-                <ProtoAnalysisResult Result="_result"/>
-            }
+        <section class="panel flex flex-row flex-wrap items-center justify-between gap-4">
+            <div class="min-w-0">
+                <h3 class="text-sm font-semibold m-0">Binary analysis</h3>
+                <p class="text-muted text-xs m-0 mt-1">Analyze .ipa, .apk, or bundle files, diff protos, and offer new versions to the registry.</p>
+            </div>
+            <button type="button" class="btn-primary shrink-0" @onclick="@(() => _workbench?.Open())">Analyze binaries</button>
         </section>
 
         <div class="relative">
@@ -154,7 +154,7 @@
                 } else if (_rows.Count == 0) {
                     <div class="reg-empty">
                         <div>No proto versions yet.</div>
-                        <div class="reg-empty-hint">Drop a binary above to analyze one.</div>
+                        <div class="reg-empty-hint">Open the analysis workbench above to add one.</div>
                     </div>
                 } else {
                     <table class="data-table">
@@ -313,6 +313,7 @@
 <LoggedInModal @ref="_apiKeysModal" Title="API keys" LoginPrompt="Log in to manage API keys.">
     <ApiKeysPanel/>
 </LoggedInModal>
+<AnalysisWorkbenchModal @ref="_workbench" OnChanged="OnMutated"/>
 
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -329,13 +330,10 @@
     bool _isAdmin;
     bool _isContributor;
     bool _canWrite;
-    bool _canBatch;
 
 
     string _sortCol = "appVersion";
     bool _sortDesc = true;
-
-    ExtractResult? _result;
 
     bool _addOpen;
     bool _addBusy;
@@ -353,6 +351,7 @@
     StagedReviewPanel? _stagedPanel;
     LoggedInModal? _subscribeModal;
     LoggedInModal? _apiKeysModal;
+    AnalysisWorkbenchModal? _workbench;
 
     string _serverVersion = "";
     string _serverSha = "";
@@ -475,7 +474,6 @@
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         _isContributor = User.IsAtLeast(UserRole.Contributor);
         _canWrite = User.IsAtLeast(UserRole.Contributor);
-        _canBatch = User.IsAuthenticated && (User.IsAtLeast(UserRole.Contributor) || User.IsSupporter);
 
         var b = BuildInfo.FromAssembly("https://github.com/davidarthurcole/EggIncognito");
         _serverVersion = $"v{b.Version}";
@@ -522,11 +520,6 @@
         if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
         return c;
     }
-
-    void OnExtracted(ExtractResult r) {
-        _result = r;
-    }
-
 
     async Task Load(bool background = false) {
         if (!background) _loading = true;

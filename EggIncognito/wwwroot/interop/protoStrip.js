@@ -782,9 +782,9 @@ async function sha256Hex(u8) {
   return s;
 }
 
-async function report(dotnetRef, msg) {
+async function report(dotnetRef, token, msg) {
   if (!dotnetRef) return;
-  try { await dotnetRef.invokeMethodAsync("AnalyzeStep", msg); } catch {}
+  try { await dotnetRef.invokeMethodAsync("AnalyzeStep", token, msg); } catch {}
 }
 
 function sizeText(bytes) {
@@ -801,28 +801,24 @@ async function prepare(file, onStep) {
   const ei = carveDescriptor(soBytes, "ei.proto");
   if (!ei) {
     await step("client carve failed, uploading full file");
-    return { blob: file, name: file.name, fileSize: file.size, strippedSize: so.size };
+    return { blob: file, name: file.name, fileSha: null, fileSize: file.size, strippedSize: so.size };
   }
   const common = carveDescriptor(soBytes, "common.proto");
   const img = loadImage(soBytes);
   const cv = img ? clientVersionFromImage(img) : null;
   await step("reading app metadata");
   const meta = await archiveMeta(file);
+  const fileSha = await sha256Hex(soBytes);
   const manifest = {
     v: 1,
-    fileSha: await sha256Hex(soBytes),
+    fileSha,
     clientVersion: cv,
     ei: toBase64(ei),
     common: common ? toBase64(common) : null,
     appVersion: meta.appVersion,
     build: meta.build
   };
-  return { blob: new Blob([JSON.stringify(manifest)], { type: "application/json" }), name: file.name, fileSize: file.size, strippedSize: so.size };
-}
-
-function inputFiles(inputId) {
-  const el = document.getElementById(inputId);
-  return el?.files ? Array.from(el.files) : [];
+  return { blob: new Blob([JSON.stringify(manifest)], { type: "application/json" }), name: file.name, fileSha, fileSize: file.size, strippedSize: so.size };
 }
 
 async function postForm(endpoint, form) {
@@ -847,38 +843,54 @@ async function postForm(endpoint, form) {
   return json ?? { error: "empty response" };
 }
 
-export async function analyze(inputId, endpoint, dotnetRef) {
+const stash = new Map();
+let nextToken = 1;
+
+export function stashFiles(inputId) {
+  const el = document.getElementById(inputId);
+  const out = [];
+  for (const f of el?.files ?? []) {
+    const token = nextToken++;
+    stash.set(token, f);
+    out.push({ token, name: f.name, size: f.size });
+  }
+  if (el) el.value = "";
+  return out;
+}
+
+export function discard(token) {
+  stash.delete(token);
+}
+
+export async function analyzeStored(token, endpoint, dotnetRef) {
+  const file = stash.get(token);
+  if (!file) return { ok: false, diagnostics: "file no longer available" };
   try {
-    const files = inputFiles(inputId);
-    if (files.length === 0) return { ok: false, diagnostics: "no file selected" };
-    const prep = await prepare(files[0], msg => report(dotnetRef, msg));
+    const prep = await prepare(file, msg => report(dotnetRef, token, msg));
     const form = new FormData();
     form.append("file", prep.blob, prep.name);
-    await report(dotnetRef, `uploading (${sizeText(prep.blob.size)})`);
+    await report(dotnetRef, token, `uploading (${sizeText(prep.blob.size)})`);
     const r = await postForm(endpoint, form);
     if (r?.error) return { ok: false, diagnostics: r.error };
-    return { ...r, fileSize: prep.fileSize, strippedSize: prep.strippedSize, uploadedSize: prep.blob.size };
+    return { ...r, fileName: file.name, fileSha: prep.fileSha, fileSize: prep.fileSize, strippedSize: prep.strippedSize, uploadedSize: prep.blob.size };
   } catch (e) {
     return { ok: false, diagnostics: String(e) };
   }
 }
 
-export async function uploadBatch(inputId, endpoint, dotnetRef) {
-  try {
-    const files = inputFiles(inputId);
-    if (files.length === 0) return { error: "no files selected" };
-    const form = new FormData();
-    let total = 0;
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      await report(dotnetRef, `preparing ${i + 1}/${files.length}: ${file.name}`);
-      const prep = await prepare(file);
-      total += prep.blob.size;
-      form.append("files", prep.blob, prep.name);
-    }
-    await report(dotnetRef, `uploading batch (${files.length} files, ${(total / 1048576).toFixed(1)} MB)`);
-    return await postForm(endpoint, form);
-  } catch (e) {
-    return { error: String(e) };
-  }
+export function wireDrop(containerId, inputId) {
+  const el = document.getElementById(containerId);
+  const input = document.getElementById(inputId);
+  if (!el || !input) return false;
+  const stop = e => { e.preventDefault(); e.stopPropagation(); };
+  el.addEventListener("dragover", e => { stop(e); el.classList.add("dragging"); });
+  el.addEventListener("dragleave", e => { stop(e); el.classList.remove("dragging"); });
+  el.addEventListener("drop", e => {
+    stop(e);
+    el.classList.remove("dragging");
+    if (!e.dataTransfer?.files?.length) return;
+    input.files = e.dataTransfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  return true;
 }

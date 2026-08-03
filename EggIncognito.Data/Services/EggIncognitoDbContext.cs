@@ -33,8 +33,6 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<PeriodicalsSnapshot> PeriodicalsSnapshots => Set<PeriodicalsSnapshot>();
     public DbSet<GameDataDocument> GameDataDocuments => Set<GameDataDocument>();
     public DbSet<StoredBinary> StoredBinaries => Set<StoredBinary>();
-    public DbSet<UploadBatch> UploadBatches => Set<UploadBatch>();
-    public DbSet<UploadBatchItem> UploadBatchItems => Set<UploadBatchItem>();
     public DbSet<AnalyzedFile> AnalyzedFiles => Set<AnalyzedFile>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
@@ -159,15 +157,6 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasIndex(x => new { x.Platform, x.AppVersion }).IsUnique();
             e.HasIndex(x => x.Sha256);
             e.Property(x => x.PulledAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
-        });
-        modelBuilder.Entity<UploadBatch>(e => {
-            e.HasKey(x => x.Id);
-            e.HasIndex(x => x.Status);
-            e.Property(x => x.SubmittedAt).HasDefaultValueSql("now()");
-        });
-        modelBuilder.Entity<UploadBatchItem>(e => {
-            e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.BatchId, x.Status });
         });
         modelBuilder.Entity<AnalyzedFile>(e => {
             e.HasKey(x => x.FileSha);

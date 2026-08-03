@@ -71,7 +71,7 @@ public sealed class DeviceMaintenanceService(
         _firstTick = false;
 
         await EnsureBinaryStoredAsync(sp, ct);
-        await BackfillClientVersionsAsync(latest, sp, ct, force);
+        await BackfillClientVersionsAsync(latest, sp, force, ct);
     }
 
     private bool _firstTick = true;
@@ -89,7 +89,7 @@ public sealed class DeviceMaintenanceService(
     }
 
     private async Task BackfillClientVersionsAsync(
-        Dictionary<string, DeviceProbe> latest, IServiceProvider sp, CancellationToken ct, bool force) {
+        Dictionary<string, DeviceProbe> latest, IServiceProvider sp, bool force, CancellationToken ct) {
         if (sp.GetService(typeof(GameBinaryProvider)) is not GameBinaryProvider binaries) return;
         foreach (var d in config.Devices) {
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
