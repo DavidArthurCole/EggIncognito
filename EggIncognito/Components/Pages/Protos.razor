@@ -83,14 +83,12 @@
             }
         </section>
 
-        <section class="reg-wrap">
-            @if (_canWrite) {
-                <div class="panel mb-3">
-                    <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-sm font-semibold m-0">Add version</h3>
-                        <button type="button" class="btn-mini" @onclick="@(() => _addOpen = !_addOpen)">@(_addOpen ? "Close" : "Add version")</button>
-                    </div>
-                    @if (_addOpen) {
+        <div class="relative">
+            @if (_isAdmin) {
+                <button type="button" class="reg-add-toggle" title="@(_addOpen ? "Close" : "Add version")"
+                        aria-label="Add version" @onclick="@(() => _addOpen = !_addOpen)">@(_addOpen ? "×" : "+")</button>
+                @if (_addOpen) {
+                    <div class="panel mb-3">
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
                             <label class="text-xs text-muted">
                                 Platform
@@ -124,9 +122,10 @@
                             <button type="button" class="btn-primary" disabled="@_addBusy" @onclick="AddVersion">@(_addBusy ? "Saving..." : "Save")</button>
                             <span class="text-xs @(_addMsg == "saved" ? "text-accent" : "text-muted")">@_addMsg</span>
                         </div>
-                    }
-                </div>
+                    </div>
+                }
             }
+            <section class="reg-wrap">
             @if (_isAdmin || _isContributor) {
                 <StagedReviewPanel @ref="_stagedPanel" IsAdmin="_isAdmin" OnChanged="OnMutated"/>
             }
@@ -296,7 +295,8 @@
                     </tbody>
                 </table>
             }
-        </section>
+            </section>
+        </div>
     </div>
     <div class="w-full xl:w-[38%] shrink-0 min-w-0">
         <PeriodicalsPanel/>

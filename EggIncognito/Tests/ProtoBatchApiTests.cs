@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 
 namespace EggIncognito.Tests;
 
@@ -15,7 +16,12 @@ public class ProtoBatchApiTests(SharedAppFactory f) {
 
     private static ProtoBatchController Controller(
         UserRole role, bool supporter = false, bool authenticated = true, string? discordId = "u1") =>
-        new(new EmptyServices(), new FakeUser(role, supporter, authenticated, discordId));
+        new(new EmptyServices(), new FakeUser(role, supporter, authenticated, discordId), Config());
+
+    private static IConfiguration Config(int maxFiles = 50) =>
+        new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
+            ["BatchUpload:MaxFiles"] = maxFiles.ToString()
+        }).Build();
 
     private static int Status(IActionResult r) => ((IStatusCodeActionResult)r).StatusCode ?? 200;
 

@@ -1015,6 +1015,11 @@ pre.data-text {
 .reg-badwarn { @apply inline-block rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide bg-red-500/15 text-red-400 self-start; }
 .reg-empty { @apply flex flex-col items-center justify-center text-center text-muted text-[13px] px-6 py-12 gap-1; }
 .reg-empty-hint { @apply text-xs opacity-80 max-w-prose leading-relaxed; }
+.reg-add-toggle {
+  @apply absolute top-2 right-2 z-10 w-7 h-7 grid place-items-center rounded-md bg-panel2 text-muted
+         cursor-pointer text-lg leading-none border border-border;
+}
+.reg-add-toggle:hover { @apply text-fg border-accent; }
 .admin-panel { @apply mt-6 border border-border rounded-md bg-panel p-4; }
 .admin-panel-head { @apply flex items-center justify-between gap-3 mb-3; }
 .admin-panel-title { @apply text-base m-0 font-semibold text-fg; }

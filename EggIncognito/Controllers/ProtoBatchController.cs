@@ -11,11 +11,13 @@ namespace EggIncognito.Controllers;
 [Route("api/protos/batch")]
 [ApiAccess(ApiAccessLevel.Authenticated)]
 [EnableRateLimiting("write")]
-public sealed class ProtoBatchController(IServiceProvider services, ICurrentUser user) : ControllerBase {
-    private const int MaxFiles = 50;
+public sealed class ProtoBatchController(IServiceProvider services, ICurrentUser user, IConfiguration config)
+    : ControllerBase {
     private const long MaxPerFileBytes = 200_000_000;
     private const long MaxTotalBytes = 1_000_000_000;
     private const string NoDb = "batch upload not available (no DB)";
+
+    private int MaxFiles => config.GetValue("BatchUpload:MaxFiles", 250);
 
     private UploadBatchStore? Store => services.GetService(typeof(UploadBatchStore)) as UploadBatchStore;
 

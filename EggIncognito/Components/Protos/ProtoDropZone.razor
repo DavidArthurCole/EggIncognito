@@ -58,7 +58,6 @@
 
 @code {
 
-    const int MaxBatchFiles = 50;
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     [Parameter] public EventCallback<ExtractResult> OnResult { get; set; }
@@ -105,7 +104,7 @@
 
     void OnFilesSelected(InputFileChangeEventArgs e) {
         _files.Clear();
-        _files.AddRange(e.GetMultipleFiles(500));
+        _files.AddRange(e.GetMultipleFiles(5000));
         _error = "";
         _batchId = null;
         _items.Clear();
@@ -154,11 +153,6 @@
 
     async Task UploadBatch() {
         if (_files.Count == 0) return;
-        if (_files.Count > MaxBatchFiles) {
-            _error = $"max {MaxBatchFiles} files per batch";
-            return;
-        }
-
         _busy = true;
         _error = "";
         try {
