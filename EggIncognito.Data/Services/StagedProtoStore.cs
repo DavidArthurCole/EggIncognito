@@ -122,10 +122,31 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     public Task<int> PendingCountAsync(CancellationToken ct) =>
         db.StagedProtos.CountAsync(s => s.Status == "pending", ct);
 
-    public async Task<(bool inRegistry, bool pending)> CheckAsync(string protoSha, CancellationToken ct) {
+    private static bool FieldEquals(string? a, string? b, bool ignoreCase) {
+        string left = a?.Trim() ?? "";
+        string right = b?.Trim() ?? "";
+        return string.Equals(left, right, ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    public async Task<(bool inRegistry, bool pending, bool knownCombination)> CheckAsync(
+        string? platform, string? appVersion, string? build, string? clientVersion, string protoSha,
+        CancellationToken ct) {
         bool inReg = await ShaInRegistryAsync(protoSha, ct);
         bool pending = await db.StagedProtos.AnyAsync(s => s.ProtoSha == protoSha && s.Status == "pending", ct);
-        return (inReg, pending);
+        bool known = false;
+        if (inReg && !string.IsNullOrWhiteSpace(platform) && !string.IsNullOrWhiteSpace(appVersion)
+            && !string.IsNullOrWhiteSpace(build)) {
+            var rows = await db.ProtoVersions.AsNoTracking()
+                .Where(p => p.ProtoSha == protoSha && p.DeletedAt == null)
+                .Select(p => new { p.Platform, p.AppVersion, p.Build, p.ClientVersion })
+                .ToListAsync(ct);
+            known = rows.Any(p => FieldEquals(p.Platform, platform, true)
+                && FieldEquals(p.AppVersion, appVersion, false)
+                && FieldEquals(p.Build, build, false)
+                && FieldEquals(p.ClientVersion, clientVersion, false));
+        }
+
+        return (inReg, pending, known);
     }
 
     public async Task<ApproveResult> ApproveAsync(

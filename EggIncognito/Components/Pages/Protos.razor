@@ -80,7 +80,7 @@
         <section>
             <ProtoDropZone OnResult="OnExtracted" CanBatch="_canBatch" OnBatchCompleted="OnMutated"/>
             @if (_result is not null) {
-                <ProtoAnalysisResult Result="_result" CanWrite="_canWrite" OnSaved="OnMutated"/>
+                <ProtoAnalysisResult Result="_result"/>
             }
         </section>
 

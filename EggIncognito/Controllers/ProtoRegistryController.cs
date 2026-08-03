@@ -127,10 +127,14 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
     [HttpGet("/api/protos/staged/check")]
     [ApiAccess(ApiAccessLevel.Public)]
-    public async Task<IActionResult> StagedCheck([FromQuery] string protoSha, CancellationToken ct) {
-        if (StagedStore is not { } s) return Ok(new { inRegistry = false, pending = false });
-        (bool inReg, bool pending) = await s.CheckAsync(protoSha, ct);
-        return Ok(new { inRegistry = inReg, pending });
+    public async Task<IActionResult> StagedCheck([FromQuery] string protoSha, [FromQuery] string? platform,
+        [FromQuery] string? appVersion, [FromQuery] string? build, [FromQuery] string? clientVersion,
+        CancellationToken ct) {
+        if (StagedStore is not { } s)
+            return Ok(new { inRegistry = false, pending = false, knownCombination = false });
+        (bool inReg, bool pending, bool known) =
+            await s.CheckAsync(platform, appVersion, build, clientVersion, protoSha, ct);
+        return Ok(new { inRegistry = inReg, pending, knownCombination = known });
     }
 
 

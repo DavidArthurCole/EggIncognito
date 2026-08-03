@@ -5,6 +5,7 @@
         <input type="search" class="data-filter" placeholder="Filter..."
                autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                value="@_filter" @oninput="OnFilterInput"/>
+        @Tools
         <button class="btn-mini data-copy" type="button" @onclick="Copy">
             <Icon Name="@(_copied ? "check" : "copy")" Class="icon-sm"/> @(_copied ? "Copied" : "Copy")
         </button>
@@ -15,6 +16,7 @@
 @code {
     [Parameter] public string? Text { get; set; }
     [Parameter] public string MaxHeight { get; set; } = "";
+    [Parameter] public RenderFragment? Tools { get; set; }
 
     string _filter = "";
     bool _copied;

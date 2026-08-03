@@ -94,7 +94,8 @@ builder.WebHost.ConfigureKestrel((context, opts) => {
 builder.Services.AddControllers(o => o.Filters.Add<ApiAccessFilter>());
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents()
+    .AddHubOptions(o => o.MaximumReceiveMessageSize = 2 * 1024 * 1024);
 
 
 builder.Services.Configure<ForwardedHeadersOptions>(o => {

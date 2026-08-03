@@ -27,6 +27,10 @@
         <button class="btn-primary px-6 shrink-0" disabled="@(_files.Count == 0 || _busy)" @onclick="Submit">@ButtonLabel</button>
     </div>
 
+    @if (_busy && !string.IsNullOrEmpty(_step)) {
+        <div class="text-xs text-muted mt-2">@_step</div>
+    }
+
     @if (!string.IsNullOrEmpty(_error)) {
         <pre class="result-pre">@_error</pre>
     }
@@ -68,6 +72,7 @@
     bool _dragging;
     bool _busy;
     string _error = "";
+    string _step = "";
     readonly List<IBrowserFile> _files = [];
 
     int? _batchId;
@@ -127,16 +132,24 @@
         return BatchMode ? UploadBatch() : Analyze();
     }
 
+    [JSInvokable]
+    public async Task AnalyzeStep(string step) {
+        _step = step;
+        await InvokeAsync(StateHasChanged);
+    }
+
     async Task Analyze() {
         if (_files.Count == 0) return;
         var file = _files[0];
         _busy = true;
         _error = "";
+        _step = "";
+        using var selfRef = DotNetObjectReference.Create(this);
         try {
             var mod = await StripModule();
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
             var data = await mod.InvokeAsync<ExtractResult>("analyze", cts.Token,
-                ["protoFile", "/api/tools/extract-proto"]);
+                ["protoFile", "/api/tools/extract-proto", selfRef]);
             if (data is null) {
                 _error = "no response";
                 return;
@@ -151,6 +164,7 @@
         }
         finally {
             _busy = false;
+            _step = "";
         }
     }
 
@@ -158,11 +172,13 @@
         if (_files.Count == 0) return;
         _busy = true;
         _error = "";
+        _step = "";
+        using var selfRef = DotNetObjectReference.Create(this);
         try {
             var mod = await StripModule();
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(30));
             var res = await mod.InvokeAsync<BatchUploadResult>("uploadBatch", cts.Token,
-                ["protoFile", "/api/protos/batch"]);
+                ["protoFile", "/api/protos/batch", selfRef]);
             if (res?.BatchId is not { } id) {
                 _error = res?.Error ?? "upload failed";
                 return;
@@ -180,29 +196,40 @@
         }
         finally {
             _busy = false;
+            _step = "";
         }
     }
 
     async Task PollAsync(int id) {
-        while (true) {
-            await Task.Delay(1500);
-            try {
-                var view = await Client().GetFromJsonAsync<BatchResponse>($"/api/protos/batch/{id}", JsonOpts);
-                if (view is null) continue;
-                _status = view.Status;
-                _total = view.Total;
-                _processed = view.Processed;
-                _items.Clear();
-                _items.AddRange(view.Items);
-                await InvokeAsync(StateHasChanged);
-                if (view.Status == "done") {
-                    await OnBatchCompleted.InvokeAsync();
+        try {
+            var failures = 0;
+            while (true) {
+                await Task.Delay(1500);
+                try {
+                    var view = await Client().GetFromJsonAsync<BatchResponse>($"/api/protos/batch/{id}", JsonOpts);
+                    if (view is null) continue;
+                    failures = 0;
+                    _status = view.Status;
+                    _total = view.Total;
+                    _processed = view.Processed;
+                    _items.Clear();
+                    _items.AddRange(view.Items);
+                    await InvokeAsync(StateHasChanged);
+                    if (view.Status == "done") {
+                        await OnBatchCompleted.InvokeAsync();
+                        break;
+                    }
+                }
+                catch {
+                    failures++;
+                    if (failures < 3) continue;
+                    _error = "batch status polling failed; refresh to check batch state";
+                    await InvokeAsync(StateHasChanged);
                     break;
                 }
             }
-            catch {
-                break;
-            }
+        }
+        catch {
         }
     }
 
@@ -228,6 +255,7 @@
         public string? FileName { get; init; }
         public long? FileSize { get; init; }
         public long? StrippedSize { get; init; }
+        public long? UploadedSize { get; init; }
     }
 
     sealed record BatchUploadResult(int? BatchId, int? ItemCount, string? Error);
