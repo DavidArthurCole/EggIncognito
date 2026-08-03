@@ -1,6 +1,7 @@
 @* Admin oversight of active capture sessions: list + a kill button per row, polling /api/admin/sessions. *@
 @rendermode @(RenderMode.InteractiveServer)
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 @using System.Text.Json
 @implements IDisposable
 
@@ -80,7 +81,7 @@
 
     async Task<bool> PageVisibleAsync() {
         try {
-            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/visibility.js");
+            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/visibility.js"));
             return await _vis.InvokeAsync<bool>("isVisible");
         }
         catch {

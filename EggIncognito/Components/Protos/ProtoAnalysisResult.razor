@@ -3,6 +3,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 @using System.Net
 @using System.Text.Json
 @implements IAsyncDisposable
@@ -237,14 +238,14 @@
 
     async Task Download() {
         if (Result?.Proto is null) return;
-        _download ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/download.js");
+        _download ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/download.js"));
         await _download.InvokeVoidAsync("text", "ei.proto", Result.Proto);
     }
 
     async Task Copy(string? sha) {
         if (string.IsNullOrEmpty(sha)) return;
         try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
             await _copy.InvokeAsync<bool>("writeText", sha);
         }
         catch {

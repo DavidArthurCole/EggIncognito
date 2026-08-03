@@ -6,6 +6,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 <PageTitle>EggIncognito - @Platform build @Build</PageTitle>
 
@@ -339,7 +340,7 @@
     async Task CopySha() {
         if (_detail is null || string.IsNullOrEmpty(_detail.ProtoSha)) return;
         try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
             await _copy.InvokeAsync<bool>("writeText", _detail.ProtoSha);
             _copiedToast = true;
             StateHasChanged();

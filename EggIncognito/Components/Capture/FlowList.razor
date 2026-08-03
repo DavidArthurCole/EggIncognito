@@ -3,6 +3,7 @@
 @using EggIncognito.Capture
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 <section id="flowsPanel" class="panel">
     <div class="flow-head">
@@ -95,7 +96,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (firstRender) {
             try {
-                _scroll = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/scroll.js");
+                _scroll = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/scroll.js"));
             }
             catch {
                 /* JS unavailable (e.g. test prerender); auto-scroll is best-effort. */

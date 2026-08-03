@@ -5,6 +5,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 @using System.Text
 @using System.Text.Json
 @implements IAsyncDisposable
@@ -299,7 +300,7 @@
         _busy = true;
         _msg = "";
         try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
             await _copy.InvokeAsync<bool>("writeText", MissingReport(rows));
         }
         catch (Exception ex) {

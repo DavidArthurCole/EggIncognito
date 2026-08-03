@@ -3,6 +3,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 <div class="flex flex-col gap-4">
     <div class="apidoc">
@@ -195,7 +196,7 @@
 
     async Task Copy(string text) {
         try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
             await _copy.InvokeAsync<bool>("writeText", text);
             _copied = true;
         }

@@ -2,6 +2,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentUser User
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 @using System.Net
 @using System.Text.Json
 @using EggIncognito.Core.Services.Devices
@@ -217,7 +218,7 @@
 
     async Task<bool> PageVisibleAsync() {
         try {
-            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/visibility.js");
+            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/visibility.js"));
             return await _vis.InvokeAsync<bool>("isVisible");
         }
         catch {

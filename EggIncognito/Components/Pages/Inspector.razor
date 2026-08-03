@@ -16,6 +16,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 <PageTitle>EggIncognito - Transport Inspector</PageTitle>
 
@@ -424,7 +425,7 @@
 
         if (!firstRender) return;
         try {
-            _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/inspectorStore.js");
+            _store = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/inspectorStore.js"));
         }
         catch {
             return;

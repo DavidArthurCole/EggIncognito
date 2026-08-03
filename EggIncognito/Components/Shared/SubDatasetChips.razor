@@ -1,5 +1,6 @@
 @using EggIncognito.Components.Capture
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 <div class="ds-chip-row">
     @foreach (var it in Items) {
@@ -71,7 +72,7 @@
     async Task CopyPath() {
         if (SelectedItem is not { } sel) return;
         try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
             await _copy.InvokeAsync<bool>("writeText", sel.Endpoint);
             _copied = true;
             StateHasChanged();

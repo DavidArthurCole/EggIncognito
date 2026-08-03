@@ -16,6 +16,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IConfiguration Config
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 <PageTitle>EggIncognito - Live Capture</PageTitle>
 
@@ -225,7 +226,7 @@
 
 
         try {
-            _store = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/captureStore.js");
+            _store = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/captureStore.js"));
             _view.RedactionMode = await InvokeOr("getRedactionMode", _view.RedactionMode);
             _view.ShowHeaders = await InvokeOr("getShowHeaders", _view.ShowHeaders);
             _view.AutoScroll = await InvokeOr("getAutoScroll", _view.AutoScroll);

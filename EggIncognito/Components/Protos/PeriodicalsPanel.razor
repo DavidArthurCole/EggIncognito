@@ -5,6 +5,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 @if (!_loaded) {
     <div class="panel text-muted text-sm">Loading…</div>
@@ -554,7 +555,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (_countdown is not null || _events is not { Count: > 0 }) return;
-        _countdown = await JS.InvokeAsync<IJSObjectReference>("import", "./interop/countdown.js");
+        _countdown = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/countdown.js"));
         await _countdown.InvokeVoidAsync("start");
     }
 

@@ -1,6 +1,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 @using System.Text.Json
 @implements IAsyncDisposable
 
@@ -111,7 +112,7 @@
     }
 
     async Task<IJSObjectReference> StripModule() {
-        return _strip ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/protoStrip.js");
+        return _strip ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/protoStrip.js"));
     }
 
     HttpClient Client() {

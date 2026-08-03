@@ -1,5 +1,6 @@
 @using EggIncognito.Components.Capture
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 <div class="@RowClass">
     <div class="ds-head flex items-center justify-between gap-3 cursor-pointer" @onclick="Toggle">
@@ -52,7 +53,7 @@
 
     async Task CopyPath() {
         try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", "./interop/copy.js");
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
             await _copy.InvokeAsync<bool>("writeText", Endpoint);
             _copied = true;
             StateHasChanged();

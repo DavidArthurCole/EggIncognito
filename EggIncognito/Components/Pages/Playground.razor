@@ -578,7 +578,7 @@
         if (!_isAdmin) return;
         if (firstRender) {
             try {
-                _mod = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playground.js?v={InteropVersion()}");
+                _mod = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/playground.js"));
                 await _mod.InvokeVoidAsync("init", _canvas);
                 await EnsureDesigner();
                 await ApplyBackground();
@@ -588,9 +588,9 @@
                 await LoadShellSets();
                 await LoadCatalog();
                 await RefreshDesigns();
-                _autosave = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundAutosave.js?v={InteropVersion()}");
-                _recorder = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundRecorder.js?v={InteropVersion()}");
-                _popoverDragMod = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/popoverDrag.js?v={InteropVersion()}");
+                _autosave = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/playgroundAutosave.js"));
+                _recorder = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/playgroundRecorder.js"));
+                _popoverDragMod = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/popoverDrag.js"));
                 try {
                     _appVersion = (await Client().GetFromJsonAsync<AppVersionDto>("/api/app/version"))?.Version ?? "";
                 }
@@ -624,17 +624,6 @@
 
             _gifDragHandle = null;
         }
-    }
-
-    string InteropVersion() {
-        try {
-            var fi = Env.WebRootFileProvider.GetFileInfo("interop/playground.js");
-            if (fi.Exists) return fi.LastModified.UtcTicks.ToString();
-        }
-        catch {
-        }
-
-        return "1";
     }
 
     HttpClient Client() {
@@ -772,7 +761,7 @@
         if (_mod is not null) await _mod.InvokeVoidAsync("setDesignMode", true);
         if (_designer is null) {
             _selfRef ??= DotNetObjectReference.Create(this);
-            _designer = await JS.InvokeAsync<IJSObjectReference>("import", $"./interop/playgroundDesigner.js?v={InteropVersion()}");
+            _designer = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/playgroundDesigner.js"));
             await _designer.InvokeVoidAsync("initDesigner", _selfRef);
         }
 
