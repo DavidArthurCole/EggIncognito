@@ -4,40 +4,57 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@using System.Globalization
 @using System.Net
 @using System.Text.Json
 @implements IAsyncDisposable
 
 @if (Result is { Ok: true }) {
     <div class="panel">
-        <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-            <h2 class="text-[1.05rem] m-0">Analysis: <span class="font-mono text-fg">@Result.FileName</span></h2>
-            <span class="text-muted text-xs">@Result.Diagnostics</span>
+        <h2 class="text-[1.05rem] m-0">Analysis</h2>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-xs mt-2 mb-3">
+            <div class="flex gap-2 min-w-0">
+                <span class="text-muted shrink-0">File</span>
+                <span class="font-mono truncate">@Result.FileName</span>
+            </div>
+            <div class="flex gap-2 min-w-0">
+                <span class="text-muted shrink-0">App version</span>
+                <span class="font-mono">@(string.IsNullOrWhiteSpace(Result.AppVersion) ? "-" : Result.AppVersion)</span>
+            </div>
+            <div class="flex gap-2 min-w-0">
+                <span class="text-muted shrink-0">Build</span>
+                <span class="font-mono">@(string.IsNullOrWhiteSpace(Result.Build) ? "-" : Result.Build)</span>
+            </div>
+            <div class="flex gap-2 min-w-0">
+                <span class="text-muted shrink-0">Client version</span>
+                <span class="font-mono">@(Result.ClientVersion?.ToString() ?? "-")</span>
+            </div>
+            <div class="flex gap-2 min-w-0">
+                <span class="text-muted shrink-0">Messages</span>
+                <span class="font-mono">@Result.Messages.Count</span>
+            </div>
+            <div class="flex gap-2 min-w-0">
+                <span class="text-muted shrink-0">Size</span>
+                <span class="font-mono">@SizeText()</span>
+            </div>
         </div>
 
-        <div class="flex gap-3 flex-wrap mb-3 text-xs font-mono text-muted">
-            <span>@(Result.Messages.Count) @(Result.Messages.Count == 1 ? "message" : "messages")</span>
-            <span>v @(string.IsNullOrWhiteSpace(Result.AppVersion) ? "-" : Result.AppVersion)</span>
-            <span>build @(string.IsNullOrWhiteSpace(Result.Build) ? "-" : Result.Build)</span>
-            <span>client @(Result.ClientVersion?.ToString() ?? "-")</span>
-            <button type="button" class="cursor-pointer hover:underline" title="Copy full sha" @onclick="@(() => Copy(Result.ProtoSha))">
-                sha @Short(Result.ProtoSha)
-            </button>
-        </div>
-
-        <div class="flex gap-2 flex-wrap mb-3">
+        <div class="flex items-center gap-2 flex-wrap mb-3">
             <button type="button" class="btn-mini" @onclick="Download">Download .proto</button>
             <button type="button" class="btn-mini" disabled="@_comparing" @onclick="CompareToLatest">
                 @(_comparing ? "Comparing..." : "Compare to latest")
             </button>
-            @if (CanWrite) {
-                <button type="button" class="btn-mini" @onclick="@(() => _showSave = !_showSave)">Save to registry</button>
-            }
-            @if (_offerable || _offered) {
-                <button type="button" class="btn-mini" disabled="@(_offerBusy || _offered)" @onclick="Offer">
-                    @(_offered ? "Offered, pending review" : "Offer to registry")
-                </button>
-            }
+            <div class="ml-auto flex gap-2">
+                @if (CanWrite) {
+                    <button type="button" class="btn-mini" @onclick="@(() => _showSave = !_showSave)">Save to registry</button>
+                }
+                @if (_offerable || _offered) {
+                    <button type="button" class="btn-primary" disabled="@(_offerBusy || _offered)" @onclick="Offer">
+                        @(_offered ? "Offered, pending review" : "Offer to registry")
+                    </button>
+                }
+            </div>
         </div>
 
         @if (_compareMsg is not null) {
@@ -89,7 +106,7 @@
             </div>
         }
 
-        <pre class="result-pre max-h-[420px] overflow-auto">@Result.Proto</pre>
+        <CodeTextView Text="@Result.Proto" MaxHeight="420px"/>
     </div>
 }
 
@@ -103,7 +120,6 @@
     string _baseAddress = "";
     string? _cookie;
     IJSObjectReference? _download;
-    IJSObjectReference? _copy;
 
     bool _showSave, _saving;
     string _savePlatform = "ios", _saveAppVersion = "", _saveBuild = "", _saveClientVersion = "", _saveMsg = "";
@@ -242,16 +258,6 @@
         await _download.InvokeVoidAsync("text", "ei.proto", Result.Proto);
     }
 
-    async Task Copy(string? sha) {
-        if (string.IsNullOrEmpty(sha)) return;
-        try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
-            await _copy.InvokeAsync<bool>("writeText", sha);
-        }
-        catch {
-        }
-    }
-
     async Task Save() {
         if (Result?.Proto is null) return;
         if (string.IsNullOrWhiteSpace(_saveAppVersion) || string.IsNullOrWhiteSpace(_saveBuild)) {
@@ -326,21 +332,20 @@
 
     sealed record RegRowDto(string Platform, string AppVersion, string Build, string? ClientVersion);
 
-    static string Short(string? sha) {
-        return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
+    string SizeText() {
+        if (Result?.FileSize is not { } fs) return "-";
+        if (Result.StrippedSize is { } ss && ss != fs) return $"{Mb(fs)} ({Mb(ss)} stripped)";
+        return Mb(fs);
+    }
+
+    static string Mb(long? bytes) {
+        return bytes is { } b ? (b / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB" : "-";
     }
 
     public async ValueTask DisposeAsync() {
         if (_download is not null)
             try {
                 await _download.DisposeAsync();
-            }
-            catch {
-            }
-
-        if (_copy is not null)
-            try {
-                await _copy.DisposeAsync();
             }
             catch {
             }

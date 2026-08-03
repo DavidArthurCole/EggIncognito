@@ -786,7 +786,7 @@ async function prepare(file) {
   const so = await strip(file);
   const soBytes = new Uint8Array(await so.arrayBuffer());
   const ei = carveDescriptor(soBytes, "ei.proto");
-  if (!ei) return { blob: file, name: file.name };
+  if (!ei) return { blob: file, name: file.name, fileSize: file.size, strippedSize: so.size };
   const common = carveDescriptor(soBytes, "common.proto");
   const img = loadImage(soBytes);
   const cv = img ? clientVersionFromImage(img) : null;
@@ -800,7 +800,7 @@ async function prepare(file) {
     appVersion: meta.appVersion,
     build: meta.build
   };
-  return { blob: new Blob([JSON.stringify(manifest)], { type: "application/json" }), name: file.name };
+  return { blob: new Blob([JSON.stringify(manifest)], { type: "application/json" }), name: file.name, fileSize: file.size, strippedSize: so.size };
 }
 
 function inputFiles(inputId) {
@@ -828,7 +828,7 @@ export async function analyze(inputId, endpoint) {
   form.append("file", prep.blob, prep.name);
   const r = await postForm(endpoint, form);
   if (r?.error) return { ok: false, diagnostics: r.error };
-  return r;
+  return { ...r, fileSize: prep.fileSize, strippedSize: prep.strippedSize };
 }
 
 export async function uploadBatch(inputId, endpoint) {
