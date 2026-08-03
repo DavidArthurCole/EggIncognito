@@ -43,6 +43,18 @@ public class CarvedProtoTests {
         Assert.Equal("deadbeef", m!.FileSha);
         Assert.Equal(70123, m.ClientVersion);
         Assert.Equal(EiBase64(), m.Ei);
+        Assert.Null(m.AppVersion);
+        Assert.Null(m.Build);
+    }
+
+    [Fact]
+    public void Manifest_TryParse_BindsArchiveVersionMeta() {
+        string json =
+            $"{{\"v\":1,\"fileSha\":\"x\",\"clientVersion\":1,\"ei\":\"{EiBase64()}\",\"common\":null,\"appVersion\":\"1.35.8\",\"build\":\"111780\"}}";
+        var m = CarvedManifest.TryParse(Encoding.UTF8.GetBytes(json));
+        Assert.NotNull(m);
+        Assert.Equal("1.35.8", m!.AppVersion);
+        Assert.Equal("111780", m.Build);
     }
 
     [Fact]

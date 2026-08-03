@@ -54,6 +54,8 @@ public sealed class BatchUploadProcessor(
                     var extract = manifest is not null
                         ? DescriptorProtoCarver.FromCarvedBase64(manifest.Ei, manifest.Common, manifest.ClientVersion)
                         : SniffExtract(bytes);
+                    if (manifest is not null && extract.Ok)
+                        extract = extract with { AppVersion = manifest.AppVersion, Build = manifest.Build };
                     if (!extract.Ok) {
                         outcome = new UploadBatchStore.ItemOutcome("failed", null, null, null, null,
                             extract.Diagnostics ?? "extraction failed");

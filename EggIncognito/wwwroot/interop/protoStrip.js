@@ -129,6 +129,148 @@ async function strip(blob) {
   }
 }
 
+function axmlReadUtf8Len(b, pos) {
+  const first = b[pos];
+  if ((first & 0x80) !== 0) return [((first & 0x7f) << 8) | b[pos + 1], pos + 2];
+  return [first, pos + 1];
+}
+
+function axmlReadUtf8String(b, pos) {
+  const [, p] = axmlReadUtf8Len(b, pos);
+  const [byteLen, next] = axmlReadUtf8Len(b, p);
+  return new TextDecoder().decode(b.subarray(next, next + byteLen));
+}
+
+function axmlReadUtf16String(b, dv, pos) {
+  let len = u16(dv, pos);
+  let p = pos + 2;
+  if ((len & 0x8000) !== 0) {
+    len = ((len & 0x7fff) << 16) | u16(dv, p);
+    p += 2;
+  }
+  return new TextDecoder("utf-16le").decode(b.subarray(p, p + len * 2));
+}
+
+function axmlStringPool(b, dv, chunkPos) {
+  const stringCount = u32(dv, chunkPos + 8);
+  const flags = u32(dv, chunkPos + 16);
+  const stringsStart = u32(dv, chunkPos + 20);
+  const isUtf8 = (flags & 0x100) !== 0;
+  const offsetsBase = chunkPos + 28;
+  const dataBase = chunkPos + stringsStart;
+  const result = [];
+  for (let i = 0; i < stringCount; i++) {
+    const strPos = dataBase + u32(dv, offsetsBase + i * 4);
+    result.push(isUtf8 ? axmlReadUtf8String(b, strPos) : axmlReadUtf16String(b, dv, strPos));
+  }
+  return result;
+}
+
+function axmlStartElementVersions(dv, chunkPos, headerSize, strings, len) {
+  const ext = chunkPos + headerSize;
+  if (ext + 20 > len) return null;
+  const attrStart = u16(dv, ext + 8);
+  const attrCount = u16(dv, ext + 12);
+  const baseAttr = ext + attrStart;
+  let versionName = null, versionCode = null;
+  for (let a = 0; a < attrCount; a++) {
+    const rec = baseAttr + a * 20;
+    if (rec + 20 > len) break;
+    const nameIdx = u32(dv, rec + 4);
+    const rawValueIdx = u32(dv, rec + 8);
+    const typedValue = u32(dv, rec + 12);
+    const dataType = (typedValue >>> 24) & 0xff;
+    const dataVal = u32(dv, rec + 16);
+    const name = nameIdx < strings.length ? strings[nameIdx] : null;
+    if (name === "versionName" && rawValueIdx < strings.length) versionName = strings[rawValueIdx];
+    if (name === "versionCode" && dataType === 0x10) versionCode = String(dataVal);
+  }
+  return { versionName, versionCode };
+}
+
+function parseAxml(b) {
+  const none = { versionName: null, versionCode: null };
+  try {
+    if (b.length < 8) return none;
+    const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    if (u16(dv, 0) !== 0x0003) return none;
+    let pos = 8;
+    let strings = null;
+    let versionName = null, versionCode = null;
+    while (pos + 8 <= b.length) {
+      const type = u16(dv, pos);
+      const headerSize = u16(dv, pos + 2);
+      const size = u32(dv, pos + 4);
+      if (size < 8 || pos + size > b.length) break;
+      if (type === 0x0001) {
+        strings = axmlStringPool(b, dv, pos);
+      } else if (type === 0x0102 && strings) {
+        const r = axmlStartElementVersions(dv, pos, headerSize, strings, b.length);
+        if (r) {
+          if (versionName === null) versionName = r.versionName;
+          if (versionCode === null) versionCode = r.versionCode;
+          if (versionName !== null && versionCode !== null) break;
+        }
+      }
+      pos += size;
+    }
+    return { versionName, versionCode };
+  } catch {
+    return none;
+  }
+}
+
+function plistShortVersion(text) {
+  const keyTag = "<key>CFBundleShortVersionString</key>";
+  const ki = text.indexOf(keyTag);
+  if (ki < 0) return null;
+  const open = text.indexOf("<string>", ki + keyTag.length);
+  if (open < 0) return null;
+  const start = open + "<string>".length;
+  const close = text.indexOf("</string>", start);
+  if (close < 0) return null;
+  const val = text.slice(start, close).trim();
+  return val.length === 0 ? null : val;
+}
+
+async function archiveMeta(blob) {
+  const none = { appVersion: null, build: null };
+  try {
+    const eocd = await findEocd(blob);
+    if (!eocd) return none;
+    const entries = await centralDir(blob, eocd);
+    if (entries.length === 0) return none;
+
+    const bundle = pickBundle(entries);
+    if (bundle) {
+      const base = entries.find(e => lower(e) === "base.apk" || lower(e).endsWith("/base.apk"));
+      const inner = await entryBlob(blob, base || bundle);
+      if (!inner) return none;
+      return await archiveMeta(inner);
+    }
+
+    const plist = entries.find(e => lower(e).startsWith("payload/") && lower(e).endsWith(".app/info.plist"));
+    if (plist) {
+      const data = await entryBlob(blob, plist);
+      if (!data) return none;
+      const text = new TextDecoder().decode(new Uint8Array(await data.arrayBuffer()));
+      return { appVersion: plistShortVersion(text), build: null };
+    }
+
+    const manifest = entries.find(e => e.name === "AndroidManifest.xml");
+    if (manifest) {
+      const data = await entryBlob(blob, manifest);
+      if (!data) return none;
+      const r = parseAxml(new Uint8Array(await data.arrayBuffer()));
+      return { appVersion: r.versionName, build: r.versionCode };
+    }
+
+    return none;
+  } catch {
+    return none;
+  }
+}
+
 function isElf64Le(b) {
   return b.length >= 64 && b[0] === 0x7f && b[1] === 0x45 && b[2] === 0x4c && b[3] === 0x46
     && b[4] === 2 && b[5] === 1;
@@ -512,12 +654,15 @@ async function prepare(file) {
   const common = carveDescriptor(soBytes, "common.proto");
   const img = loadImage(soBytes);
   const cv = img ? clientVersionArm64(img) : null;
+  const meta = await archiveMeta(file);
   const manifest = {
     v: 1,
     fileSha: await sha256Hex(soBytes),
     clientVersion: cv,
     ei: toBase64(ei),
-    common: common ? toBase64(common) : null
+    common: common ? toBase64(common) : null,
+    appVersion: meta.appVersion,
+    build: meta.build
   };
   return { blob: new Blob([JSON.stringify(manifest)], { type: "application/json" }), name: file.name };
 }

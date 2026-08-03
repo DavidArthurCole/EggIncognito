@@ -20,10 +20,6 @@
                     Copy Missing Info (@_rows.Count(r => r.IsIncomplete))
                 </button>
             }
-            @if (_rows.Count > 0) {
-                <input class="protos-filter ml-auto" style="width:14rem" placeholder="filter repo / sha / version…"
-                       @bind="_filter" @bind:event="oninput"/>
-            }
         </div>
 
         @if (_rows.Count == 0) {
@@ -42,7 +38,7 @@
                 <thead>
                 <tr>
                     <th class="w-8">
-                        <input type="checkbox" checked="@AllShownSelected" @onchange="ToggleAllShown"/>
+                        <input type="checkbox" checked="@AllSelected" @onchange="ToggleAll"/>
                     </th>
                     <th>Source</th>
                     <th>Platform</th>
@@ -55,7 +51,7 @@
                 </tr>
                 </thead>
                 <tbody>
-                @foreach (var r in Shown) {
+                @foreach (var r in _rows) {
                     <tr class="reg-row">
                         <td @onclick:stopPropagation="true">
                             <input type="checkbox" checked="@_selected.Contains(r.Id)" @onchange="@(() => ToggleRow(r.Id))"/>
@@ -113,7 +109,6 @@
 
     List<StagedRow> _rows = [];
     readonly HashSet<int> _selected = [];
-    string _filter = "";
     bool _busy;
     string _msg = "";
     string _baseAddress = "";
@@ -123,17 +118,7 @@
     [Parameter] public bool IsAdmin { get; set; }
 
 
-    List<StagedRow> Shown =>
-        string.IsNullOrWhiteSpace(_filter)
-            ? _rows
-            : _rows.Where(r =>
-                (r.OriginRepo?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
-                || r.ProtoSha.Contains(_filter, StringComparison.OrdinalIgnoreCase)
-                || (r.AppVersion?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
-                || (r.Build?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
-                || (r.Confidence?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
-
-    bool AllShownSelected => Shown.Count > 0 && Shown.All(r => _selected.Contains(r.Id));
+    bool AllSelected => _rows.Count > 0 && _rows.All(r => _selected.Contains(r.Id));
 
     protected override void OnInitialized() {
         var req = HttpContextAccessor.HttpContext?.Request;
@@ -174,12 +159,12 @@
         _selected.Clear();
     }
 
-    void ToggleAllShown(ChangeEventArgs e) {
+    void ToggleAll(ChangeEventArgs e) {
         if (e.Value is true)
-            foreach (var r in Shown)
+            foreach (var r in _rows)
                 _selected.Add(r.Id);
         else
-            foreach (var r in Shown)
+            foreach (var r in _rows)
                 _selected.Remove(r.Id);
     }
 

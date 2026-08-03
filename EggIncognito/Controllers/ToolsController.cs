@@ -111,6 +111,7 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
             : isZip
                 ? ArchiveProtoExtractor.Extract(bytes)
                 : DescriptorProtoCarver.Extract(bytes);
+        if (manifest is not null && r.Ok) r = r with { AppVersion = manifest.AppVersion, Build = manifest.Build };
         if (r.Ok) await RecordAnalyzedAsync(bytes, r, file.FileName, manifest?.FileSha, ct);
         return ExtractResultJson(r);
     }
