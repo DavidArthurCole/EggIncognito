@@ -15,7 +15,10 @@ public sealed class GameBinaryProvider(
     private const string DefaultPlatform = "ios";
     private static readonly Lock LiveGate = new();
     private static readonly Lock CvGate = new();
+    private static readonly Lock StageGate = new();
     private static readonly TimeSpan CvRecheckBackoff = TimeSpan.FromMinutes(15);
+
+    private static (string Version, string Sha)? StagedIos;
 
 #pragma warning disable IDE0028
     private static readonly Dictionary<string, (string Sha, byte[] Bytes, IReadOnlyList<MachoSymbols.Symbol> Syms, bool
@@ -91,15 +94,17 @@ public sealed class GameBinaryProvider(
         return (false, null, null, dev.Version, dev.Diagnostics);
     }
 
-    public async Task<int?> GetClientVersionAsync(string platform, CancellationToken ct) {
+    public async Task<int?> GetClientVersionAsync(string platform, CancellationToken ct, bool force = false) {
         string? installed = (await ResolveVersionAndDeviceAsync(null, platform, ct)).Version;
         if (string.IsNullOrEmpty(installed)) return null;
 
-        lock (CvGate) {
-            if (CvCache.TryGetValue(platform, out var c) &&
-                string.Equals(c.Version, installed, StringComparison.Ordinal) &&
-                (c.ClientVersion is not null || DateTimeOffset.UtcNow - c.CheckedAt < CvRecheckBackoff)) {
-                return c.ClientVersion;
+        if (!force) {
+            lock (CvGate) {
+                if (CvCache.TryGetValue(platform, out var c) &&
+                    string.Equals(c.Version, installed, StringComparison.Ordinal) &&
+                    (c.ClientVersion is not null || DateTimeOffset.UtcNow - c.CheckedAt < CvRecheckBackoff)) {
+                    return c.ClientVersion;
+                }
             }
         }
 
@@ -112,7 +117,7 @@ public sealed class GameBinaryProvider(
             return null;
         }
 
-        int? cv = LibegincClientVersion.Read(bin.Bytes);
+        int? cv = LibegincClientVersion.ReadFromBinary(bin.Bytes, bin.Symbols);
         lock (CvGate) {
             CvCache[platform] = (installed, cv, DateTimeOffset.UtcNow);
         }
@@ -352,6 +357,8 @@ public sealed class GameBinaryProvider(
 
     private async Task PersistPullAsync(string platform, string? version, byte[] bytes, string sha, int nativeCount,
         int effectiveCount, CancellationToken ct) {
+        await StageIosBinaryAsync(platform, bytes, ct);
+
         var store = BinaryStore;
         if (store is null) return;
         if (string.IsNullOrEmpty(version)) return;
@@ -359,6 +366,59 @@ public sealed class GameBinaryProvider(
             await store.PutAsync(platform, version, sha, bytes, nativeCount, effectiveCount, "live", ct);
         } catch (Exception ex) {
             logger.LogWarning(ex, "failed to persist pulled binary {Platform} {Version}", platform, version);
+        }
+    }
+
+    public async Task<(bool Staged, string? Note)> EnsureIosBinaryStagedAsync(CancellationToken ct) {
+        string? stashPath = config["Runner:IosBinaryStashPath"];
+        if (string.IsNullOrEmpty(stashPath)) return (false, "no Runner:IosBinaryStashPath configured");
+
+        string? installed = (await ResolveVersionAndDeviceAsync(null, "ios", ct)).Version;
+        if (string.IsNullOrEmpty(installed)) return (false, "no installed ios version known");
+
+        lock (StageGate) {
+            if (StagedIos is { } s && string.Equals(s.Version, installed, StringComparison.Ordinal)
+                                   && File.Exists(stashPath)) {
+                return (true, $"already staged {installed}");
+            }
+        }
+
+        var bin = await GetExtractionBinaryAsync("ios", ct);
+        if (!bin.Ok || bin.Bytes is null)
+            return (false, $"no ios binary for {installed}: {bin.Diagnostics}");
+        if (!string.Equals(bin.Version, installed, StringComparison.Ordinal))
+            return (false, $"skipping stale ios binary {bin.Version} for installed {installed}");
+
+        return await StageIosBinaryAsync("ios", bin.Bytes, ct)
+            ? (true, $"staged {installed}")
+            : (false, $"stage write failed for {installed}");
+    }
+
+    private async Task<bool> StageIosBinaryAsync(string platform, byte[] bytes, CancellationToken ct) {
+        if (!string.Equals(platform, "ios", StringComparison.OrdinalIgnoreCase)) return false;
+        string? stashPath = config["Runner:IosBinaryStashPath"];
+        if (string.IsNullOrEmpty(stashPath)) return false;
+
+        string? installed = (await ResolveVersionAndDeviceAsync(null, "ios", ct)).Version;
+        string sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        lock (StageGate) {
+            if (StagedIos is { } s && string.Equals(s.Sha, sha, StringComparison.Ordinal) && File.Exists(stashPath))
+                return true;
+        }
+
+        try {
+            string? dir = Path.GetDirectoryName(stashPath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            string tmp = stashPath + ".tmp";
+            await File.WriteAllBytesAsync(tmp, bytes, ct);
+            File.Move(tmp, stashPath, true);
+            lock (StageGate) StagedIos = (installed ?? "", sha);
+            logger.LogInformation("binary store: staged ios binary to {Path} ({Bytes} bytes, sha {Sha})", stashPath,
+                bytes.Length, sha[..12]);
+            return true;
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "binary store: could not stage ios binary to {Path}", stashPath);
+            return false;
         }
     }
 

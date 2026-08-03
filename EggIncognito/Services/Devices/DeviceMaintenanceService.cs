@@ -67,9 +67,14 @@ public sealed class DeviceMaintenanceService(
             logger.LogWarning(ex, "device capture: proxy push tick failed");
         }
 
+        bool force = _firstTick;
+        _firstTick = false;
+
         await EnsureBinaryStoredAsync(sp, ct);
-        await BackfillClientVersionsAsync(latest, sp, ct);
+        await BackfillClientVersionsAsync(latest, sp, ct, force);
     }
+
+    private bool _firstTick = true;
 
     private async Task RefreshStoreCatalogAsync(CancellationToken ct) {
         try {
@@ -84,14 +89,14 @@ public sealed class DeviceMaintenanceService(
     }
 
     private async Task BackfillClientVersionsAsync(
-        Dictionary<string, DeviceProbe> latest, IServiceProvider sp, CancellationToken ct) {
+        Dictionary<string, DeviceProbe> latest, IServiceProvider sp, CancellationToken ct, bool force) {
         if (sp.GetService(typeof(GameBinaryProvider)) is not GameBinaryProvider binaries) return;
         foreach (var d in config.Devices) {
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
             if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledBuild)) continue;
 
             try {
-                int? cv = await binaries.GetClientVersionAsync(d.Platform, ct);
+                int? cv = await binaries.GetClientVersionAsync(d.Platform, ct, force);
                 if (cv is not { } v) continue;
                 await BackfillClientVersionAsync(sp, d, probe.InstalledBuild!, v, ct);
             } catch (OperationCanceledException) {
@@ -133,6 +138,9 @@ public sealed class DeviceMaintenanceService(
                         break;
                 }
             }
+
+            (bool staged, string? stageNote) = await binaries.EnsureIosBinaryStagedAsync(ct);
+            logger.LogDebug("binary store: ios stash {Result} ({Note})", staged ? "staged" : "skipped", stageNote);
         } catch (Exception ex) {
             logger.LogWarning(ex, "binary store: ensure tick threw");
         }

@@ -16,10 +16,16 @@ public static class LibegincClientVersion {
         }
     }
 
-    public static int? ReadFromBinary(byte[] bin) {
+    public static int? ReadFromBinary(byte[] bin) => ReadFromBinary(bin, null);
+
+    public static int? ReadFromBinary(byte[] bin, IReadOnlyList<MachoSymbols.Symbol>? symbols) {
         if (bin is null || bin.Length < 8) return null;
         var img = BinaryImage.Load(bin);
-        if (img is null || !img.TryFindFunc(SymbolNeedles, out var fn)) return null;
+        if (img is null) return null;
+        if (!img.TryFindFunc(SymbolNeedles, out var fn)
+            && (symbols is null || !MachoSymbols.TryFindFunc(symbols, SymbolNeedles, out fn))) {
+            return null;
+        }
         bool arm32 = IsElf32(bin);
         bool thumb = arm32 && (fn.Start & 1) != 0;
         ulong startVa = arm32 ? fn.Start & ~1UL : fn.Start;

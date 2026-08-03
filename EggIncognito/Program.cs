@@ -544,8 +544,8 @@ int androidPollSeconds = builder.Configuration.GetValue<int?>("DeviceUpdate:Andr
                          ?? builder.Configuration.GetValue("DeviceCheck:Android:PollSeconds", 15);
 int androidPollAttempts = builder.Configuration.GetValue<int?>("DeviceUpdate:Android:PollAttempts")
                           ?? builder.Configuration.GetValue("DeviceCheck:Android:PollAttempts", 24);
-int androidUiFirstWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiFirstWaitSeconds", 6);
-int androidUiRetryWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiRetryWaitSeconds", 3);
+int androidUiFirstWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiFirstWaitSeconds", 3);
+int androidUiRetryWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiRetryWaitSeconds", 2);
 builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
     new StoreUpdateOrchestrator(
         new AndroidStoreUpdateDriver(

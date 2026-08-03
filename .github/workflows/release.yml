@@ -37,6 +37,8 @@ jobs:
         rid: [linux-x64, linux-arm64, osx-arm64, win-x64]
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -68,7 +70,6 @@ jobs:
             -p:PublishSingleFile=true \
             -p:NoBrowser=true \
             -p:EmitTypes=false \
-            -p:Version="${TAG#v}" \
             --output "$OUT"
           cp -r EggIncognito/Endpoints "$OUT/Endpoints"
           ARCHIVE="eggincognito-${TAG}-${RID}.tar.gz"

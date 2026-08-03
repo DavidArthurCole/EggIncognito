@@ -33,7 +33,7 @@ public sealed class AndroidStoreUpdateDriver(
         }
 
         progress?.Invoke("Play page open; locating Update button…");
-        for (int tries = 0; tries < 4; tries++) {
+        for (int tries = 0; tries < 3; tries++) {
             int wait = tries == 0 ? opts.UiFirstWaitSeconds : opts.UiRetryWaitSeconds;
             try {
                 if (wait > 0) await Task.Delay(TimeSpan.FromSeconds(wait), ct);
@@ -132,6 +132,6 @@ public sealed class AndroidStoreUpdateDriver(
 
     public sealed record Options(
         string DriveTemplate,
-        int UiFirstWaitSeconds = 6,
-        int UiRetryWaitSeconds = 3);
+        int UiFirstWaitSeconds = 3,
+        int UiRetryWaitSeconds = 2);
 }
