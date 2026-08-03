@@ -338,14 +338,133 @@ function decodeConstReturnArm64(dv, fo, len) {
 
 const SYM_NEEDLE = "GameController20currentClientVersion";
 
-function clientVersionElf64(bytes) {
-  if (!isElf64Le(bytes)) return null;
+const NAME_DECODER = new TextDecoder();
+
+function u32be(dv, p) {
+  return dv.getUint32(p, false);
+}
+
+function readCstr(bytes, at) {
+  return NAME_DECODER.decode(bytes.subarray(at, cstrEnd(bytes, at)));
+}
+
+function machoBaseOf(dv, bytes) {
+  const magic = u32(dv, 0);
+  if (magic === 0xcafebabe || magic === 0xbebafeca) {
+    const nfat = u32be(dv, 4);
+    let e = 8;
+    for (let i = 0; i < nfat; i++) {
+      if (e + 20 > bytes.length) return -1;
+      if (u32be(dv, e) === 0x0100000c) return u32be(dv, e + 8);
+      e += 20;
+    }
+    return -1;
+  }
+  return magic === 0xfeedfacf || magic === 0xcffaedfe ? 0 : -1;
+}
+
+function machoSymbols(dv, bytes, base) {
+  const syms = [];
+  if (base + 32 > bytes.length || u32(dv, base) !== 0xfeedfacf) return syms;
+  const ncmds = u32(dv, base + 16);
+  let lc = base + 32;
+  for (let c = 0; c < ncmds; c++) {
+    if (lc + 8 > bytes.length) break;
+    const cmd = u32(dv, lc), cmdsize = u32(dv, lc + 4);
+    if (cmdsize < 8 || lc + cmdsize > bytes.length) break;
+    if (cmd === 0x02) {
+      const symoff = u32(dv, lc + 8) + base;
+      const nsyms = u32(dv, lc + 12);
+      const stroff = u32(dv, lc + 16) + base;
+      const strsize = u32(dv, lc + 20);
+      for (let i = 0; i < nsyms; i++) {
+        const e = symoff + i * 16;
+        if (e + 16 > bytes.length) break;
+        const strx = u32(dv, e);
+        if (strx === 0 || strx >= strsize) continue;
+        const name = readCstr(bytes, stroff + strx);
+        if (name.length === 0) continue;
+        syms.push({ name, value: u64(dv, e + 8) });
+      }
+    }
+    lc += cmdsize;
+  }
+  return syms;
+}
+
+function machoSections(dv, bytes, base) {
+  const out = [];
+  if (base + 32 > bytes.length || u32(dv, base) !== 0xfeedfacf) return out;
+  const ncmds = u32(dv, base + 16);
+  let lc = base + 32;
+  for (let c = 0; c < ncmds; c++) {
+    if (lc + 8 > bytes.length) break;
+    const cmd = u32(dv, lc), cmdsize = u32(dv, lc + 4);
+    if (cmdsize < 8 || lc + cmdsize > bytes.length) break;
+    if (cmd === 0x19) {
+      const nsects = u32(dv, lc + 64);
+      let sec = lc + 72;
+      for (let s = 0; s < nsects; s++) {
+        if (sec + 80 > bytes.length) break;
+        out.push({ addr: u64(dv, sec + 32), sz: u64(dv, sec + 40), off: u32(dv, sec + 48) + base });
+        sec += 80;
+      }
+    }
+    lc += cmdsize;
+  }
+  return out;
+}
+
+function machoVaToOffset(sections, va) {
+  for (const s of sections) {
+    if (s.sz > 0 && va >= s.addr && va < s.addr + s.sz) return s.off + (va - s.addr);
+  }
+  return -1;
+}
+
+function elf64Image(bytes, dv) {
+  let syms = null, secs = null, segs = null;
+  return {
+    dv, len: bytes.length,
+    symbols() {
+      if (syms === null) syms = elf64Symbols(dv, bytes, bytes.length);
+      return syms;
+    },
+    vaToFileOffset(va) {
+      if (secs === null) secs = elf64Sections(dv, bytes.length);
+      if (segs === null) segs = elf64Segments(dv, bytes.length);
+      return vaToOffset(secs, segs, va);
+    }
+  };
+}
+
+function machoImage(bytes, dv, base) {
+  let syms = null, secs = null;
+  return {
+    dv, len: bytes.length,
+    symbols() {
+      if (syms === null) syms = machoSymbols(dv, bytes, base);
+      return syms;
+    },
+    vaToFileOffset(va) {
+      if (secs === null) secs = machoSections(dv, bytes, base);
+      return machoVaToOffset(secs, va);
+    }
+  };
+}
+
+function loadImage(bytes) {
+  if (bytes.length < 8) return null;
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const len = bytes.length;
-  const syms = elf64Symbols(dv, bytes, len);
+  if (isElf64Le(bytes)) return elf64Image(bytes, dv);
+  const base = machoBaseOf(dv, bytes);
+  return base >= 0 ? machoImage(bytes, dv, base) : null;
+}
+
+function findFuncRange(syms, needle) {
   let hit = null;
   for (const s of syms) {
-    if (s.value !== 0 && s.name.includes(SYM_NEEDLE)) { hit = s; break; }
+    if (s.value !== 0 && s.name.includes(needle)) { hit = s; break; }
   }
   if (!hit) return null;
   const start = hit.value;
@@ -354,12 +473,18 @@ function clientVersionElf64(bytes) {
     if (s.value > start && s.value < end) end = s.value;
   }
   if (end === Number.MAX_SAFE_INTEGER) end = start + 0x4000;
-  const fo = vaToOffset(elf64Sections(dv, len), elf64Segments(dv, len), start);
+  return { start, end };
+}
+
+function clientVersionArm64(img) {
+  const range = findFuncRange(img.symbols(), SYM_NEEDLE);
+  if (!range) return null;
+  const fo = img.vaToFileOffset(range.start);
   if (fo < 0) return null;
-  const span = end > start ? end - start : 16;
+  const span = range.end > range.start ? range.end - range.start : 16;
   const declen = Math.min(span, 64);
-  if (declen < 4 || fo + declen > len) return null;
-  return decodeConstReturnArm64(dv, fo, declen);
+  if (declen < 4 || fo + declen > img.len) return null;
+  return decodeConstReturnArm64(img.dv, fo, declen);
 }
 
 function toBase64(u8) {
@@ -382,10 +507,11 @@ async function sha256Hex(u8) {
 async function prepare(file) {
   const so = await strip(file);
   const soBytes = new Uint8Array(await so.arrayBuffer());
-  if (!isElf64Le(soBytes)) return { blob: so, name: file.name };
+  const img = loadImage(soBytes);
+  if (!img) return { blob: so, name: file.name };
   const ei = carveDescriptor(soBytes, "ei.proto");
   if (!ei) return { blob: so, name: file.name };
-  const cv = clientVersionElf64(soBytes);
+  const cv = clientVersionArm64(img);
   if (cv === null) return { blob: so, name: file.name };
   const common = carveDescriptor(soBytes, "common.proto");
   const manifest = {
