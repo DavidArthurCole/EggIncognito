@@ -276,6 +276,11 @@ function isElf64Le(b) {
     && b[4] === 2 && b[5] === 1;
 }
 
+function isElf32Le(b) {
+  return b.length >= 52 && b[0] === 0x7f && b[1] === 0x45 && b[2] === 0x4c && b[3] === 0x46
+    && b[4] === 1 && b[5] === 1;
+}
+
 function u16(dv, p) {
   return dv.getUint16(p, true);
 }
@@ -382,6 +387,33 @@ function elf64Segments(dv, len) {
   return out;
 }
 
+function elf32Sections(dv, len) {
+  const shoff = u32(dv, 0x20), shentsize = u16(dv, 0x2e), shnum = u16(dv, 0x30);
+  const out = [];
+  if (shentsize < 40 || shnum <= 0) return out;
+  for (let i = 0; i < shnum; i++) {
+    const h = shoff + i * shentsize;
+    if (h < 0 || h + 40 > len) break;
+    const flags = u32(dv, h + 8);
+    if ((flags & 2) === 0) continue;
+    out.push({ addr: u32(dv, h + 12), off: u32(dv, h + 16), sz: u32(dv, h + 20) });
+  }
+  return out;
+}
+
+function elf32Segments(dv, len) {
+  const phoff = u32(dv, 0x1c), phentsize = u16(dv, 0x2a), phnum = u16(dv, 0x2c);
+  const out = [];
+  if (phentsize < 32 || phnum <= 0) return out;
+  for (let i = 0; i < phnum; i++) {
+    const p = phoff + i * phentsize;
+    if (p < 0 || p + 32 > len) break;
+    if (u32(dv, p + 0) !== 1) continue;
+    out.push({ vaddr: u32(dv, p + 8), off: u32(dv, p + 4), filesz: u32(dv, p + 16) });
+  }
+  return out;
+}
+
 function vaToOffset(sections, segments, va) {
   for (const s of sections) {
     if (s.sz > 0 && va >= s.addr && va < s.addr + s.sz) return s.off + (va - s.addr);
@@ -418,6 +450,37 @@ function elf64Symbols(dv, bytes, len) {
       if (nameOff === 0 || nameOff >= strSize) continue;
       const at = strOff + nameOff;
       const name = dec.decode(bytes.subarray(at, cstrEnd(bytes, at)));
+      if (name.length === 0) continue;
+      syms.push({ name, value });
+    }
+  }
+  return syms;
+}
+
+function elf32Symbols(dv, bytes, len) {
+  const shoff = u32(dv, 0x20), shentsize = u16(dv, 0x2e), shnum = u16(dv, 0x30);
+  const syms = [];
+  if (shentsize < 40 || shnum <= 0) return syms;
+  for (let i = 0; i < shnum; i++) {
+    const h = shoff + i * shentsize;
+    if (h < 0 || h + 40 > len) break;
+    const type = u32(dv, h + 4);
+    if (type !== 2 && type !== 11) continue;
+    const tabOff = u32(dv, h + 16), tabSize = u32(dv, h + 20), link = u32(dv, h + 24);
+    let entsize = u32(dv, h + 36);
+    if (entsize < 16) entsize = 16;
+    if (link >= shnum) continue;
+    const lh = shoff + link * shentsize;
+    if (lh < 0 || lh + 40 > len) continue;
+    const strOff = u32(dv, lh + 16), strSize = u32(dv, lh + 20);
+    const count = Math.floor(tabSize / entsize);
+    for (let s = 0; s < count; s++) {
+      const e = tabOff + s * entsize;
+      if (e < 0 || e + 16 > len) break;
+      const nameOff = u32(dv, e + 0);
+      const value = u32(dv, e + 4);
+      if (nameOff === 0 || nameOff >= strSize) continue;
+      const name = readCstr(bytes, strOff + nameOff);
       if (name.length === 0) continue;
       syms.push({ name, value });
     }
@@ -476,6 +539,53 @@ function decodeConstReturnArm64(dv, fo, len) {
   }
   if (w0 === null || w0 < 0 || w0 > 0x7fffffff) return null;
   return Math.floor(w0);
+}
+
+function decodeThumbConstReturn(dv, fo, len) {
+  let r0 = null;
+  for (let p = fo; p + 2 <= fo + len;) {
+    const hw = u16(dv, p);
+    if (hw === 0x4770) break;
+    if ((hw & 0xf800) === 0x2000) {
+      if (((hw >> 8) & 7) === 0) r0 = hw & 0xff;
+      p += 2;
+      continue;
+    }
+    if ((hw & 0xfbf0) === 0xf240 && p + 4 <= fo + len) {
+      const hw2 = u16(dv, p + 2);
+      const i = (hw >> 10) & 1;
+      const imm4 = hw & 0xf;
+      const imm3 = (hw2 >> 12) & 7;
+      const rd = (hw2 >> 8) & 0xf;
+      const imm8 = hw2 & 0xff;
+      if (rd === 0) r0 = (imm4 << 12) | (i << 11) | (imm3 << 8) | imm8;
+      p += 4;
+      continue;
+    }
+    p += 2;
+  }
+  if (r0 === null || r0 < 0 || r0 > 0x7fffffff) return null;
+  return r0;
+}
+
+function decodeArmConstReturn(dv, fo, len) {
+  let r0 = null;
+  for (let p = fo; p + 4 <= fo + len; p += 4) {
+    const ins = u32(dv, p);
+    if ((ins & 0x0fffffff) === 0x012fff1e) break;
+    if ((ins & 0x0fef0000) === 0x03a00000) {
+      const rd = (ins >>> 12) & 0xf;
+      const rot = ((ins >>> 8) & 0xf) * 2;
+      const imm8 = ins & 0xff;
+      const val = rot === 0 ? imm8 : (((imm8 >>> rot) | (imm8 << (32 - rot))) >>> 0);
+      if (rd === 0) r0 = val;
+    } else if ((ins & 0x0ff00000) === 0x03000000) {
+      const rd = (ins >>> 12) & 0xf;
+      if (rd === 0) r0 = (((ins >>> 16) & 0xf) << 12) | (ins & 0xfff);
+    }
+  }
+  if (r0 === null || r0 < 0 || r0 > 0x7fffffff) return null;
+  return r0;
 }
 
 const SYM_NEEDLE = "GameController20currentClientVersion";
@@ -567,7 +677,7 @@ function machoVaToOffset(sections, va) {
 function elf64Image(bytes, dv) {
   let syms = null, secs = null, segs = null;
   return {
-    dv, len: bytes.length,
+    dv, len: bytes.length, arm32: false,
     symbols() {
       if (syms === null) syms = elf64Symbols(dv, bytes, bytes.length);
       return syms;
@@ -580,10 +690,26 @@ function elf64Image(bytes, dv) {
   };
 }
 
+function elf32Image(bytes, dv) {
+  let syms = null, secs = null, segs = null;
+  return {
+    dv, len: bytes.length, arm32: true,
+    symbols() {
+      if (syms === null) syms = elf32Symbols(dv, bytes, bytes.length);
+      return syms;
+    },
+    vaToFileOffset(va) {
+      if (secs === null) secs = elf32Sections(dv, bytes.length);
+      if (segs === null) segs = elf32Segments(dv, bytes.length);
+      return vaToOffset(secs, segs, va);
+    }
+  };
+}
+
 function machoImage(bytes, dv, base) {
   let syms = null, secs = null;
   return {
-    dv, len: bytes.length,
+    dv, len: bytes.length, arm32: false,
     symbols() {
       if (syms === null) syms = machoSymbols(dv, bytes, base);
       return syms;
@@ -599,6 +725,7 @@ function loadImage(bytes) {
   if (bytes.length < 8) return null;
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (isElf64Le(bytes)) return elf64Image(bytes, dv);
+  if (isElf32Le(bytes)) return elf32Image(bytes, dv);
   const base = machoBaseOf(dv, bytes);
   return base >= 0 ? machoImage(bytes, dv, base) : null;
 }
@@ -618,9 +745,18 @@ function findFuncRange(syms, needle) {
   return { start, end };
 }
 
-function clientVersionArm64(img) {
+function clientVersionFromImage(img) {
   const range = findFuncRange(img.symbols(), SYM_NEEDLE);
   if (!range) return null;
+  if (img.arm32) {
+    const thumb = (range.start & 1) !== 0;
+    const startVa = thumb ? range.start - 1 : range.start;
+    const fo = img.vaToFileOffset(startVa);
+    if (fo < 0) return null;
+    const win = Math.min(64, img.len - fo);
+    if (win < 2) return null;
+    return thumb ? decodeThumbConstReturn(img.dv, fo, win) : decodeArmConstReturn(img.dv, fo, win);
+  }
   const fo = img.vaToFileOffset(range.start);
   if (fo < 0) return null;
   const span = range.end > range.start ? range.end - range.start : 16;
@@ -653,7 +789,7 @@ async function prepare(file) {
   if (!ei) return { blob: file, name: file.name };
   const common = carveDescriptor(soBytes, "common.proto");
   const img = loadImage(soBytes);
-  const cv = img ? clientVersionArm64(img) : null;
+  const cv = img ? clientVersionFromImage(img) : null;
   const meta = await archiveMeta(file);
   const manifest = {
     v: 1,
