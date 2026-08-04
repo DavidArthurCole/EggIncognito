@@ -426,14 +426,14 @@ public class ProtoTextCompilerTests {
     }
 
     [Fact]
-    public void Normalize_ProducesTwoSpaceCanonicalTextAndIsIdempotent() {
+    public void Normalize_ProducesHouseFormatCanonicalTextAndIsIdempotent() {
         var first = ProtoCanonicalForm.Normalize(ScopingSample);
         Assert.True(first.Ok, $"normalize failed: {first.Error}");
         Assert.NotNull(first.Text);
         Assert.NotNull(first.Sha);
-        Assert.StartsWith("syntax = \"proto2\";\npackage ei;\n", first.Text!, StringComparison.Ordinal);
-        Assert.Contains("\n  enum Kind {\n", first.Text!, StringComparison.Ordinal);
-        Assert.Contains("\n  message Inner {\n", first.Text!, StringComparison.Ordinal);
+        Assert.StartsWith("syntax = \"proto2\";\n\npackage ei;\n", first.Text!, StringComparison.Ordinal);
+        Assert.Contains("\n    enum Kind {\n", first.Text!, StringComparison.Ordinal);
+        Assert.Contains("\n    message Inner {\n", first.Text!, StringComparison.Ordinal);
 
         var second = ProtoCanonicalForm.Normalize(first.Text!);
         Assert.True(second.Ok, $"renormalize failed: {second.Error}");

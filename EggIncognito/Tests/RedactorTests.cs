@@ -88,7 +88,7 @@ public partial class RedactorTests {
             "setIdentifier", "shellIdentifier", "shellSetIdentifier", "variationIdentifier",
             "decoratorIdentifier", "groupIdentifier", "chickenIdentifier", "hatIdentifier",
 
-            "deviceBucket"
+            "deviceBucket", "deviceLanguage"
         };
 
         var sensitive = Svc.Redactor.SensitiveFieldNames.ToHashSet(StringComparer.Ordinal);

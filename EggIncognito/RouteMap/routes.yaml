@@ -33,6 +33,10 @@ routes:
     requestType: ContractCoopStatusRequest
     responseType: ContractCoopStatusResponse
     responseWrapped: true
+  - path: ei/coop_status_bot
+    requestType: ContractCoopStatusRequest
+    responseType: ContractCoopStatusResponse
+    responseWrapped: false
   - path: ei/create_coop
     requestType: CreateCoopRequest
     responseType: CreateCoopResponse
@@ -257,12 +261,15 @@ routes:
   - path: ei_i18n/get_translation_pack
     request: TranslationPackRequest
     response: TranslationPackResponse
+    responseWrapped: true
   - path: ei_i18n/get_translations
     request: TranslationRequest
     response: TranslationResponse
+    responseWrapped: true
   - path: ei_i18n/get_font_dlc
     request: FontDLCRequest
     response: FontDLCResponse
+    responseWrapped: true
 
 excluded:
   # Endpoints known to exist in the APK but intentionally not mocked.

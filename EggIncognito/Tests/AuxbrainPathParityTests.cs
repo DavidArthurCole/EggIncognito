@@ -20,19 +20,22 @@ public sealed class AuxbrainPathParityTests {
         Path.Combine(RepoRoot(), "EggIncognito", "RouteMap", name);
 
     [Fact]
-    public void EveryRoutesYamlPath_IsAKeyIn_AuxbrainPathsJson() {
+    public void AuxbrainPathsJson_NeverShadows_MockedRoutes() {
         string yamlPath = RouteMapFile("routes.yaml");
         string jsonPath = RouteMapFile("auxbrain-paths.json");
         Assert.True(File.Exists(yamlPath), $"routes.yaml not found at {yamlPath}");
         Assert.True(File.Exists(jsonPath), $"auxbrain-paths.json not found at {jsonPath}");
 
         var routes = RouteCatalog.Parse(File.ReadAllText(yamlPath));
+        var mocked = routes.Select(r => r.Path)
+            .Concat(routes.SelectMany(r => r.Aliases))
+            .ToHashSet(StringComparer.Ordinal);
         using var doc = JsonDocument.Parse(File.ReadAllText(jsonPath));
-        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
 
-        var missing = routes.Select(r => r.Path).Where(p => !keys.Contains(p)).ToList();
-        Assert.True(missing.Count == 0,
-            $"routes.yaml paths missing from auxbrain-paths.json: {string.Join(", ", missing)}");
+        var shadowed = keys.Where(mocked.Contains).ToList();
+        Assert.True(shadowed.Count == 0,
+            $"auxbrain-paths.json entries shadow mocked routes; mocked shapes derive from routes.yaml, delete these: {string.Join(", ", shadowed)}");
     }
 
     [Fact]
