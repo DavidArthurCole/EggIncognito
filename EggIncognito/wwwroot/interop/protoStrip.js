@@ -124,7 +124,10 @@ async function extractForUpload(blob) {
     const inner = await entryBlob(blob, bundle);
     if (!inner) return { binary: blob, meta: null, metaName: null };
     const picked = await extractForUpload(inner);
-    const baseE = entries.find(e => lower(e) === "base.apk" || lower(e).endsWith("/base.apk"));
+    const baseE = entries.find(e => lower(e) === "base.apk" || lower(e).endsWith("/base.apk"))
+      || entries.filter(e => lower(e).endsWith(".apk") && !lower(e).includes("config."))
+        .sort((a, b) => b.compSize - a.compSize)[0]
+      || null;
     if (baseE) {
       const baseBlob = await entryBlob(blob, baseE);
       const m = baseBlob ? await entryByName(baseBlob, "AndroidManifest.xml") : null;
