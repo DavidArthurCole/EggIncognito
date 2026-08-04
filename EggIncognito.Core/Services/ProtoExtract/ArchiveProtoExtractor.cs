@@ -1,6 +1,4 @@
 using System.IO.Compression;
-using System.Net;
-using System.Text;
 
 namespace EggIncognito.Services.ProtoExtract;
 
@@ -72,43 +70,15 @@ public static class ArchiveProtoExtractor {
             var plist = zip.Entries.FirstOrDefault(e =>
                 e.FullName.StartsWith("Payload/", StringComparison.OrdinalIgnoreCase)
                 && e.FullName.EndsWith(".app/Info.plist", StringComparison.OrdinalIgnoreCase));
-            if (plist is not null) {
-                using var es = plist.Open();
-                using var buf = new MemoryStream();
-                es.CopyTo(buf);
-                string text = Encoding.UTF8.GetString(buf.ToArray());
-                string? shortVer = PlistString(text, "CFBundleShortVersionString");
-
-                return (shortVer, null);
-            }
+            if (plist is not null) return AppMetaReader.Read(ReadEntry(plist));
 
             var manifest = zip.GetEntry("AndroidManifest.xml");
-            if (manifest is not null) {
-                using var es = manifest.Open();
-                using var buf = new MemoryStream();
-                es.CopyTo(buf);
-                byte[] axml = buf.ToArray();
-                return (ApkVersionCode.ReadVersionName(axml), ApkVersionCode.ParseAxml(axml));
-            }
+            if (manifest is not null) return AppMetaReader.Read(ReadEntry(manifest));
         } catch {
             /* metadata is best-effort; extraction does not depend on it */
         }
 
         return (null, null);
-    }
-
-
-    private static string? PlistString(string plistXml, string key) {
-        string keyTag = $"<key>{key}</key>";
-        int ki = plistXml.IndexOf(keyTag, StringComparison.Ordinal);
-        if (ki < 0) return null;
-        int open = plistXml.IndexOf("<string>", ki + keyTag.Length, StringComparison.Ordinal);
-        if (open < 0) return null;
-        int start = open + "<string>".Length;
-        int close = plistXml.IndexOf("</string>", start, StringComparison.Ordinal);
-        if (close < 0) return null;
-        string val = plistXml[start..close].Trim();
-        return val.Length == 0 ? null : WebUtility.HtmlDecode(val);
     }
 
 

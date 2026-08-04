@@ -508,6 +508,11 @@ pre.data-text {
          [transition:border-color_.12s,background_.12s,color_.12s];
 }
 .dropzone:hover { @apply text-fg [border-color:var(--color-accent)]; }
+.dropzone-open {
+  @apply flex items-center justify-center w-9 shrink-0 cursor-pointer rounded-lg bg-bg text-muted
+         [border:1.5px_dashed_var(--color-border)] [transition:border-color_.12s,color_.12s];
+}
+.dropzone-open:hover { @apply text-fg [border-color:var(--color-accent)]; }
 .dropzone.dragging { @apply text-fg [border-color:var(--color-accent)] [background:rgba(239,117,89,.06)]; }
 
 #endpointFilter {

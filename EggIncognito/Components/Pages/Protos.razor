@@ -77,15 +77,21 @@
 <div class="flex flex-col xl:flex-row gap-6 items-start">
     <div class="flex-1 min-w-0 flex flex-col gap-6">
         <section class="panel">
-            <label id="protoPageDrop" class="dropzone" for="wbFile">
-                <div class="text-accent" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-                         stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
-                        <path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
-                    </svg>
-                </div>
-                <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop .ipa, .apk, or bundle files here</strong> or click to browse</div>
-            </label>
+            <div class="flex items-stretch gap-2">
+                <label id="protoPageDrop" class="dropzone flex-1 min-w-0" for="wbFile">
+                    <div class="text-accent" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                             stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
+                            <path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+                        </svg>
+                    </div>
+                    <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop .ipa, .apk, or bundle files here</strong> or click to browse</div>
+                </label>
+                <button type="button" class="dropzone-open" title="Open workbench" aria-label="Open workbench"
+                        @onclick="@(() => _workbench?.Open())">
+                    <Icon Name="chevronRight" Class="icon-sm"/>
+                </button>
+            </div>
         </section>
 
         <div class="relative">
@@ -317,9 +323,11 @@
 <LoggedInModal @ref="_apiKeysModal" Title="API keys" LoginPrompt="Log in to manage API keys.">
     <ApiKeysPanel/>
 </LoggedInModal>
-<AnalysisWorkbenchModal OnChanged="OnMutated"/>
+<AnalysisWorkbenchModal @ref="_workbench" OnChanged="OnMutated"/>
 
 @code {
+    AnalysisWorkbenchModal? _workbench;
+
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     List<VersionRow> _rows = [];

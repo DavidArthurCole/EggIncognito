@@ -96,33 +96,37 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
 
     [HttpPost("extract-proto")]
     [RequestSizeLimit(200_000_000)]
-    public async Task<IActionResult> ExtractProto(IFormFile file, CancellationToken ct) {
-        if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
+    public async Task<IActionResult> ExtractProto(IFormFile binary, IFormFile? meta, [FromForm] string? fileName,
+        CancellationToken ct) {
+        if (binary is null || binary.Length == 0) return Ok(new { ok = false, diagnostics = "no binary uploaded" });
 
+        byte[] bin = await ReadFormFileAsync(binary, ct);
+        byte[]? metaBytes = meta is { Length: > 0 } ? await ReadFormFileAsync(meta, ct) : null;
 
+        var r = DescriptorProtoCarver.Extract(bin);
+        if (r.Ok) {
+            (string? appVersion, string? build) = AppMetaReader.Read(metaBytes);
+            r = r with { AppVersion = appVersion, Build = build };
+            await RecordAnalyzedAsync(bin, r, fileName ?? binary.FileName, ct);
+        }
+
+        return ExtractResultJson(r, AnalyzedFileStore.Sha256Hex(bin));
+    }
+
+    private static async Task<byte[]> ReadFormFileAsync(IFormFile file, CancellationToken ct) {
         byte[] bytes = new byte[file.Length];
-        using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
-
-
-        var manifest = CarvedManifest.TryParse(bytes);
-        bool isZip = bytes.Length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04;
-        var r = manifest is not null
-            ? DescriptorProtoCarver.FromCarvedBase64(manifest.Ei, manifest.Common, manifest.ClientVersion)
-            : isZip
-                ? ArchiveProtoExtractor.Extract(bytes)
-                : DescriptorProtoCarver.Extract(bytes);
-        if (manifest is not null && r.Ok) r = r with { AppVersion = manifest.AppVersion, Build = manifest.Build };
-        if (r.Ok) await RecordAnalyzedAsync(bytes, r, file.FileName, manifest?.FileSha, ct);
-        return ExtractResultJson(r);
+        using var dest = new MemoryStream(bytes);
+        await file.CopyToAsync(dest, ct);
+        return bytes;
     }
 
     private async Task RecordAnalyzedAsync(byte[] bytes, DescriptorProtoCarver.ExtractResult r, string? fileName,
-        string? fileSha, CancellationToken ct) {
+        CancellationToken ct) {
         var store = HttpContext.RequestServices.GetService<AnalyzedFileStore>();
         if (store is null) return;
         try {
             await store.RecordAsync(new AnalyzedFileStore.Entry(
-                fileSha ?? AnalyzedFileStore.Sha256Hex(bytes), "analyze", null, r.ProtoSha, r.AppVersion, r.Build,
+                AnalyzedFileStore.Sha256Hex(bytes), "analyze", null, r.ProtoSha, r.AppVersion, r.Build,
                 r.ClientVersion?.ToString(), fileName), ct);
         } catch (DbException) {
         }
@@ -189,7 +193,7 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         return File(r.Glb!, "model/gltf-binary", $"{name}.{r.AnimationName}.glb");
     }
 
-    private OkObjectResult ExtractResultJson(DescriptorProtoCarver.ExtractResult r) =>
+    private OkObjectResult ExtractResultJson(DescriptorProtoCarver.ExtractResult r, string? fileSha = null) =>
         Ok(new {
             ok = r.Ok,
             proto = r.Proto,
@@ -198,7 +202,8 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
             messages = r.Messages,
             appVersion = r.AppVersion,
             build = r.Build,
-            clientVersion = r.ClientVersion
+            clientVersion = r.ClientVersion,
+            fileSha
         });
 
 
