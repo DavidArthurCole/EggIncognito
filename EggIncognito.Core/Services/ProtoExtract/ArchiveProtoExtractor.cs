@@ -45,8 +45,13 @@ public static class ArchiveProtoExtractor {
 
             armApk = ReadEntry(arm);
             var baseEntry = zip.Entries.FirstOrDefault(e =>
-                e.Name.Equals("base.apk", StringComparison.OrdinalIgnoreCase)
-                || e.FullName.EndsWith("/base.apk", StringComparison.OrdinalIgnoreCase));
+                    e.Name.Equals("base.apk", StringComparison.OrdinalIgnoreCase)
+                    || e.FullName.EndsWith("/base.apk", StringComparison.OrdinalIgnoreCase))
+                ?? zip.Entries
+                    .Where(e => e.Name.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
+                                && !e.Name.Contains("config.", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(e => e.Length)
+                    .FirstOrDefault();
             baseApk = baseEntry is null ? null : ReadEntry(baseEntry);
             return armApk.Length > 0;
         } catch {

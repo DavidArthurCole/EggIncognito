@@ -10,6 +10,7 @@ public static class ApkVersionCode {
     private const ushort ResXmlStartElementType = 0x0102;
 
     private const byte TypeIntDec = 0x10;
+    private const byte TypeString = 0x03;
 
     public static string? Read(byte[] apkZipBytes) {
         if (apkZipBytes is null || apkZipBytes.Length == 0) return null;
@@ -99,10 +100,16 @@ public static class ApkVersionCode {
             int rec = baseAttr + a * attrRecordSize;
             if (rec + attrRecordSize > data.Length) break;
             int nameIdx = (int)ReadU32(data, rec + 4);
-            int rawValueIdx = (int)ReadU32(data, rec + 8);
             string? name = nameIdx >= 0 && nameIdx < strings.Length ? strings[nameIdx] : null;
-            if (name == attr && rawValueIdx >= 0 && rawValueIdx < strings.Length)
+            if (name != attr) continue;
+            int rawValueIdx = (int)ReadU32(data, rec + 8);
+            if (rawValueIdx >= 0 && rawValueIdx < strings.Length)
                 return strings[rawValueIdx];
+            byte dataType = (byte)((ReadU32(data, rec + 12) >> 24) & 0xFF);
+            int typedIdx = (int)ReadU32(data, rec + 16);
+            if (dataType == TypeString && typedIdx >= 0 && typedIdx < strings.Length)
+                return strings[typedIdx];
+            return null;
         }
 
         return null;
