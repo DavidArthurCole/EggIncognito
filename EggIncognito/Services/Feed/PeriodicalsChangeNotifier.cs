@@ -1,5 +1,4 @@
-using System.Security.Cryptography;
-using System.Text;
+using EggIncognito.Core;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.DataApi;
@@ -41,7 +40,7 @@ public sealed class PeriodicalsChangeNotifier(
                 string.Join(", ", aspects.AddedContracts), string.Join(", ", aspects.AddedColleggtibles));
         }
 
-        string sha = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(ProtoJson.StripVolatile(json))));
+        string sha = Hashes.Sha256Hex(ProtoJson.StripVolatile(json));
         string pageUrl = PageUrl(config["Feed:PageBaseUrl"]);
         _ = Task.Run(async () => {
             try {

@@ -1,5 +1,7 @@
 
 
+import { get as getRaw, set as setRaw } from "./uiPrefs.js";
+
 const REDACTION_KEY = "capture.redaction";
 const SHOW_HEADERS_KEY = "capture.showHeaders";
 const AUTOSCROLL_KEY = "capture.autoScroll";
@@ -7,13 +9,6 @@ const COMPARE_KEY = "capture.compareToKnown";
 const DEFAULT_FORMAT_KEY = "capture.defaultFormat";
 
 const REDACTION_MODES = new Set(["off", "blur", "redact"]);
-
-function getRaw(key) {
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-function setRaw(key, val) {
-  try { localStorage.setItem(key, val); } catch { /* ignore */ }
-}
 
 export function getRedactionMode() {
   const stored = getRaw(REDACTION_KEY);

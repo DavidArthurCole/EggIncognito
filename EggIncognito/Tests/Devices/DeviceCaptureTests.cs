@@ -6,63 +6,45 @@ using EggIncognito.Services.Devices;
 namespace EggIncognito.Tests.Devices;
 
 public class DeviceCaptureTests {
-    private static string TempDir() {
-        string d = Path.Combine(Path.GetTempPath(), "egi-rinfo-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(d);
-        return d;
-    }
-
     [Fact]
     public void Rinfo_Observe_Then_Latest_RoundTrips_PerDevice() {
-        string dir = TempDir();
-        try {
-            var store = new DeviceRinfoStore(dir);
-            store.Observe("dev-a", new RinfoHarvester.ObservedVersion("IOS", "1.36", "111350", 72),
-                "2026-01-01T00:00:00Z");
-            store.Observe("dev-b", new RinfoHarvester.ObservedVersion("ANDROID", "1.35.7", "111344", 72),
-                "2026-01-01T00:00:00Z");
+        using var tmp = new TempDir();
+        var store = new DeviceRinfoStore(tmp.Path);
+        store.Observe("dev-a", new RinfoHarvester.ObservedVersion("IOS", "1.36", "111350", 72),
+            "2026-01-01T00:00:00Z");
+        store.Observe("dev-b", new RinfoHarvester.ObservedVersion("ANDROID", "1.35.7", "111344", 72),
+            "2026-01-01T00:00:00Z");
 
-            var a = store.Latest("dev-a");
-            var b = store.Latest("dev-b");
-            Assert.Equal("111350", a!.Build);
-            Assert.Equal("ios", a.Platform);
-            Assert.Equal("111344", b!.Build);
-            Assert.Equal("android", b.Platform);
-            Assert.Null(store.Latest("nope"));
-        } finally {
-            Directory.Delete(dir, true);
-        }
+        var a = store.Latest("dev-a");
+        var b = store.Latest("dev-b");
+        Assert.Equal("111350", a!.Build);
+        Assert.Equal("ios", a.Platform);
+        Assert.Equal("111344", b!.Build);
+        Assert.Equal("android", b.Platform);
+        Assert.Null(store.Latest("nope"));
     }
 
     [Fact]
     public void Rinfo_Observe_KeepsPriorNonNull_OnThinnerObservation() {
-        string dir = TempDir();
-        try {
-            var store = new DeviceRinfoStore(dir);
-            store.Observe("d", new RinfoHarvester.ObservedVersion("IOS", "1.36", "111350", 72), "t1");
-            store.Observe("d", new RinfoHarvester.ObservedVersion("IOS", null, null, null), "t2");
+        using var tmp = new TempDir();
+        var store = new DeviceRinfoStore(tmp.Path);
+        store.Observe("d", new RinfoHarvester.ObservedVersion("IOS", "1.36", "111350", 72), "t1");
+        store.Observe("d", new RinfoHarvester.ObservedVersion("IOS", null, null, null), "t2");
 
-            var v = store.Latest("d")!;
-            Assert.Equal("111350", v.Build);
-            Assert.Equal("1.36", v.Version);
-            Assert.Equal(72, v.ClientVersion);
-            Assert.Equal("t2", v.LastSeen);
-        } finally {
-            Directory.Delete(dir, true);
-        }
+        var v = store.Latest("d")!;
+        Assert.Equal("111350", v.Build);
+        Assert.Equal("1.36", v.Version);
+        Assert.Equal(72, v.ClientVersion);
+        Assert.Equal("t2", v.LastSeen);
     }
 
     [Fact]
     public void Rinfo_CorruptFile_ReadsEmpty() {
-        string dir = TempDir();
-        try {
-            File.WriteAllText(Path.Combine(dir, "device-rinfo.json"), "{ not json ]");
-            var store = new DeviceRinfoStore(dir);
-            Assert.Empty(store.Load());
-            Assert.Null(store.Latest("d"));
-        } finally {
-            Directory.Delete(dir, true);
-        }
+        using var tmp = new TempDir();
+        File.WriteAllText(tmp.Combine("device-rinfo.json"), "{ not json ]");
+        var store = new DeviceRinfoStore(tmp.Path);
+        Assert.Empty(store.Load());
+        Assert.Null(store.Latest("d"));
     }
 
     [Fact]

@@ -2,7 +2,11 @@ using Svc = EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class RoutesYamlEditorTests {
+public sealed class RoutesYamlEditorTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
     private const string Sample = """
                                   routes:
                                     # ei/
@@ -30,7 +34,7 @@ public class RoutesYamlEditorTests {
                                           - path: ei/bare
                                       """;
 
-    private static string MakeRepo(string yaml) => TestRepoFixture.MakeRepo(yaml, "ei-edit", false);
+    private string MakeRepo(string yaml) => TestRepoFixture.MakeRepo(_tmp, yaml, false);
 
     private static string Read(string root) =>
         File.ReadAllText(Path.Combine(root, "RouteMap", "routes.yaml"));

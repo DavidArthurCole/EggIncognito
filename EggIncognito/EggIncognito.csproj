@@ -1,22 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk.Web" InitialTargets="BuildStyles">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>preview</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>e7aa6a77-af5b-41a6-90e6-4d9b1e792645</UserSecretsId>
     <DefaultItemExcludes>$(DefaultItemExcludes);Tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EggIdentity.Auth" Version="1.1.3" />
-    <PackageReference Include="EggIdentity.Bot.AdminUi" Version="1.1.3" />
-    <PackageReference Include="EggIdentity.AdminUi" Version="1.1.3" />
-    <PackageReference Include="EggIdentity.Metrics" Version="1.1.3" />
-    <PackageReference Include="EggIdentity.Metrics.AdminUi" Version="1.1.3" />
-    <PackageReference Include="EggIdentity.UI" Version="1.1.3" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
-    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
+    <PackageReference Include="EggIdentity.Bot.AdminUi" />
+    <PackageReference Include="EggIdentity.AdminUi" />
+    <PackageReference Include="EggIdentity.Metrics" />
+    <PackageReference Include="EggIdentity.Metrics.AdminUi" />
+    <PackageReference Include="EggIdentity.UI" />
+    <PackageReference Include="SixLabors.ImageSharp" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,13 +20,16 @@
     <ProjectReference Include="..\EggIncognito.GameData\EggIncognito.GameData.csproj" />
     <ProjectReference Include="..\EggIncognito.Capture\EggIncognito.Capture.csproj" />
     <ProjectReference Include="..\EggIncognito.Data\EggIncognito.Data.csproj" />
-    <ProjectReference Include="..\EggIncognito.DeviceTools\EggIncognito.DeviceTools.csproj" />
     <ProjectReference Include="..\EggIncognito.Bot\EggIncognito.Bot.csproj" />
     <ProjectReference Include="..\EggIncognito.RouteGenerator\EggIncognito.RouteGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <AdditionalFiles Include="RouteMap\routes.yaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="DeviceTools\ios\frida\*.js" />
   </ItemGroup>
 
   <ItemGroup>

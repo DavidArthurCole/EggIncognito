@@ -8,13 +8,12 @@
 @using Ei
 @using Google.Protobuf.Reflection
 @implements IAsyncDisposable
+@inherits SelfCallComponentBase
 @inject IRouteCatalog Catalog
 @inject IProtoReflection Reflection
 @inject IAppMode AppMode
 @inject ICurrentUser User
 @inject ISealedProxy SealedProxy
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 
@@ -154,7 +153,7 @@
                     </button>
                 </div>
                 <div class="sendbar-actions">
-                    <button class="btn-info" disabled="@(_selected is null || _busy)" @onclick="Build">Build</button>
+                    <button class="btn-primary" disabled="@(_selected is null || _busy)" @onclick="Build">Build</button>
                     <button class="btn-primary" disabled="@(_lastBuild is null || _busy)" @onclick="Send">Send</button>
                 </div>
             </div>
@@ -377,17 +376,10 @@
     bool _sealed;
 
 
-    string _baseAddress = "";
-    string? _cookie;
     IJSObjectReference? _store;
 
     protected override void OnInitialized() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
-
+        base.OnInitialized();
 
         _hosted = AppMode.Mode == Services.AppMode.Hosted;
         _liveDisabled = _hosted && !User.IsAuthenticated;
@@ -915,7 +907,7 @@
         }
 
         var basis = _target == "mock"
-            ? _baseAddress
+            ? SelfBaseAddress
             : e.Path.StartsWith("ei_ctx") || e.Path.StartsWith("ei_srv")
                 ? "https://ctx-dot-auxbrainhome.appspot.com"
                 : "https://www.auxbrain.com";
@@ -1065,14 +1057,6 @@
     }
 
 
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
-    }
-
-
     sealed class RinfoDefaults {
         public string EiUserId { get; set; } = "";
         public int ClientVersion { get; set; } = 72;
@@ -1092,14 +1076,8 @@
 
     record StatusResult(List<string> Ok, List<string> Empty, List<string> Missing);
 
-    public async ValueTask DisposeAsync() {
-        if (_store is not null) {
-            try {
-                await _store.DisposeAsync();
-            }
-            catch {
-            }
-        }
+    public ValueTask DisposeAsync() {
+        return _store.DisposeModuleQuietAsync();
     }
 
 }

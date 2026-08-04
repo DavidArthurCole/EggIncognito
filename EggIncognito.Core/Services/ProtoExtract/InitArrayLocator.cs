@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace EggIncognito.Services.ProtoExtract;
 
 public sealed class InitArrayLocator {
@@ -59,7 +57,8 @@ public sealed class InitArrayLocator {
         if (!scan.Ok) return false;
         foreach (var r in scan.Addresses) {
             if (!IsStringSection(r.Section)) continue;
-            if (ReadCstr(r.Va).Contains(needle, StringComparison.OrdinalIgnoreCase)) return true;
+            if (BinaryStrings.ReadCstr(_bin, _img, r.Va, 200).Contains(needle, StringComparison.OrdinalIgnoreCase))
+                return true;
         }
 
         return false;
@@ -79,11 +78,4 @@ public sealed class InitArrayLocator {
 
     private static bool IsStringSection(string name) =>
         name is "__cstring" or ".rodata" or ".data.rel.ro" or "__const";
-
-    private string ReadCstr(ulong va) {
-        if (!_img.TryVaToFileOffset(va, out int fo, out _)) return "";
-        int end = fo;
-        while (end < _bin.Length && _bin[end] != 0 && end - fo < 200) end++;
-        return Encoding.UTF8.GetString(_bin, fo, end - fo);
-    }
 }

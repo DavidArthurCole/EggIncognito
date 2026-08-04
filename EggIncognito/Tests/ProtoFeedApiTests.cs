@@ -18,7 +18,7 @@ public class ProtoFeedApiTests {
 
     private static ProtoFeedController Controller(IServiceProvider services,
         Func<HttpRequestMessage, HttpResponseMessage> respond) =>
-        new(services, new StubHttpFactory(new StubHandler(respond)));
+        new(services, new StubHttpFactory(new StubHttpMessageHandler(respond)));
 
     private static int Status(IActionResult r) => ((IStatusCodeActionResult)r).StatusCode ?? 200;
 
@@ -115,15 +115,6 @@ public class ProtoFeedApiTests {
         string masked = ProtoFeedController.MaskWebhook("https://example.com/hook/SECRETvalue");
         Assert.Equal("...Tvalue", masked);
         Assert.DoesNotContain("SECRETvalue", masked);
-    }
-
-    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
-            Task.FromResult(respond(request));
-    }
-
-    private sealed class StubHttpFactory(HttpMessageHandler handler) : IHttpClientFactory {
-        public HttpClient CreateClient(string name) => new(handler, false);
     }
 
     private sealed class MapServices(Dictionary<Type, object?> map) : IServiceProvider {

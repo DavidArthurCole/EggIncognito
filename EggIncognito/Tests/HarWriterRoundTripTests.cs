@@ -6,7 +6,11 @@ using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
-public class HarWriterRoundTripTests {
+public sealed class HarWriterRoundTripTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
     private const string Slug = "ei/get_periodicals";
 
@@ -21,7 +25,7 @@ public class HarWriterRoundTripTests {
                                   request_unknown:
                                 """;
 
-    private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-har");
+    private string MakeRepo() => TestRepoFixture.MakeRepo(_tmp, Yaml);
 
     private static string ResponseB64() {
         var inner = new PeriodicalsResponse();

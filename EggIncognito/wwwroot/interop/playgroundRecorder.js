@@ -1,6 +1,7 @@
 
 
-function engine() { return globalThis.__pgEngine; }
+import { engine } from './playgroundShared.js';
+
 function designer() { return globalThis.__pgDesigner; }
 
 const GIF_URL = 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js';

@@ -3,19 +3,19 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class LiveVersionStoreTests {
-    private static string TempDir() {
-        string d = Path.Combine(Path.GetTempPath(), "egi-lv-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(d);
-        return d;
-    }
+public sealed class LiveVersionStoreTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
+    private string NewDir() => _tmp.CreateSubdir();
 
     [Fact]
-    public void Load_MissingFile_ReturnsEmpty() => Assert.Empty(new LiveVersionStore(TempDir()).Load());
+    public void Load_MissingFile_ReturnsEmpty() => Assert.Empty(new LiveVersionStore(NewDir()).Load());
 
     [Fact]
     public void Observe_ThenLatest_RoundTrips() {
-        string dir = TempDir();
+        string dir = NewDir();
         var store = new LiveVersionStore(dir);
         store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.6", "111341", 72), "2026-06-16T10:00:00Z");
 
@@ -29,7 +29,7 @@ public class LiveVersionStoreTests {
 
     [Fact]
     public void Observe_LaterThinObservation_KeepsPriorFields() {
-        string dir = TempDir();
+        string dir = NewDir();
         var store = new LiveVersionStore(dir);
         store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.6", "111341", 72), "t1");
 
@@ -44,7 +44,7 @@ public class LiveVersionStoreTests {
 
     [Fact]
     public void Observe_NewerClientVersion_Wins() {
-        string dir = TempDir();
+        string dir = NewDir();
         var store = new LiveVersionStore(dir);
         store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.6", "111341", 72), "t1");
         store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.7", "111343", 73), "t2");
@@ -57,7 +57,7 @@ public class LiveVersionStoreTests {
 
     [Fact]
     public void Observe_SeparatePlatforms_KeptIndependently() {
-        string dir = TempDir();
+        string dir = NewDir();
         var store = new LiveVersionStore(dir);
         store.Observe(new RinfoHarvester.ObservedVersion("IOS", "1.35.6", "111341", 72), "t1");
         store.Observe(new RinfoHarvester.ObservedVersion("ANDROID", "1.35.5", "111334", 71), "t1");
@@ -68,7 +68,7 @@ public class LiveVersionStoreTests {
 
     [Fact]
     public void Observe_NoPlatform_Ignored() {
-        string dir = TempDir();
+        string dir = NewDir();
         var store = new LiveVersionStore(dir);
         store.Observe(new RinfoHarvester.ObservedVersion("", null, null, 72), "t1");
         Assert.Empty(store.Load());
@@ -76,7 +76,7 @@ public class LiveVersionStoreTests {
 
     [Fact]
     public void Load_CorruptFile_ReturnsEmpty() {
-        string dir = TempDir();
+        string dir = NewDir();
         File.WriteAllText(Path.Combine(dir, "live-versions.json"), "{ not json");
         Assert.Empty(new LiveVersionStore(dir).Load());
     }

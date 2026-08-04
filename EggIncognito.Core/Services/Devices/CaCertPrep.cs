@@ -24,8 +24,7 @@ public static class CaCertPrep {
     }
 
 
-    public static string IosCertSha256Hex(X509Certificate2 cert) =>
-        Convert.ToHexString(SHA256.HashData(cert.RawData)).ToLowerInvariant();
+    public static string IosCertSha256Hex(X509Certificate2 cert) => Hashes.Sha256Hex(cert.RawData);
 
 
     public static string IosCertSha1Hex(X509Certificate2 cert) =>

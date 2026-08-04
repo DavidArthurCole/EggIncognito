@@ -7,7 +7,7 @@
         <textarea class="raw-json" spellcheck="false" placeholder="Paste base64 to diagnose..."
               autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
               @bind="_manualB64" @bind:event="oninput" style="min-height: 70px;"></textarea>
-        <button class="btn-info" disabled="@(string.IsNullOrWhiteSpace(_manualB64))" @onclick="RunManual">Diagnose</button>
+        <button class="btn-primary" disabled="@(string.IsNullOrWhiteSpace(_manualB64))" @onclick="RunManual">Diagnose</button>
     </div>
 
     @if (Result is null) {

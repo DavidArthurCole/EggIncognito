@@ -25,7 +25,7 @@ public static class StaticInitCatalogReader {
         var refs = new List<(ulong Va, string Str)>();
         foreach (var a in addresses) {
             if (!IsStringSection(a.Section)) continue;
-            refs.Add((a.Va, ReadCstr(bin, img, a.Va)));
+            refs.Add((a.Va, BinaryStrings.ReadCstr(bin, img, a.Va)));
         }
 
         var kept = new List<(ulong Va, string Str)>();
@@ -88,13 +88,6 @@ public static class StaticInitCatalogReader {
         if (body.Length == 0) return false;
         desc = body;
         return true;
-    }
-
-    private static string ReadCstr(byte[] bin, IBinaryImage? img, ulong va) {
-        if (img is null || !img.TryVaToFileOffset(va, out int fo, out _)) return "";
-        int end = fo;
-        while (end < bin.Length && bin[end] != 0) end++;
-        return Encoding.UTF8.GetString(bin, fo, end - fo);
     }
 
     public readonly record struct Entry(string Id, string? DisplayName, string? Description);

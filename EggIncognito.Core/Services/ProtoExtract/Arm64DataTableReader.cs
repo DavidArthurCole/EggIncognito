@@ -1,4 +1,3 @@
-using Gee.External.Capstone;
 using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract;
@@ -16,16 +15,10 @@ public static class Arm64DataTableReader {
         if (!MachoSymbols.TryFindFunc(syms, nameNeedles, out var fn))
             return new ListResult(false, "", 0, 0, [], $"symbol not found: {string.Join("|", nameNeedles)}");
 
-        ulong slide = textVmAddr - (ulong)textFileOff;
-        long startFile = (long)fn.Start - (long)slide;
-        long len = (long)fn.End - (long)fn.Start;
-        if (startFile < 0 || len <= 0 || startFile + len > bin.Length)
+        if (!Arm64Decode.SliceFunction(bin, fn.Start, fn.End, textVmAddr, textFileOff, out byte[] code, out _))
             return new ListResult(false, fn.Name, fn.Start, fn.End, [], "function bounds out of range");
 
-        byte[] code = new byte[len];
-        Array.Copy(bin, startFile, code, 0, (int)len);
-
-        using var cs = CapstoneDisassembler.CreateArm64Disassembler(Arm64DisassembleMode.LittleEndian);
+        using var cs = Arm64Decode.CreateDisassembler(details: false);
         var list = new List<Insn>();
         foreach (var insn in cs.Disassemble(code, (long)fn.Start)) {
             list.Add(new Insn((ulong)insn.Address, insn.Mnemonic ?? "", insn.Operand ?? ""));
@@ -41,16 +34,10 @@ public static class Arm64DataTableReader {
         if (img is null || !img.TryFindText(out int textFileOff, out _, out ulong textVmAddr))
             return new ListResult(false, "", 0, 0, [], "no __text section");
 
-        ulong slide = textVmAddr - (ulong)textFileOff;
-        long startFile = (long)startVa - (long)slide;
-        long len = (long)endVa - (long)startVa;
-        if (startFile < 0 || len <= 0 || startFile + len > bin.Length)
+        if (!Arm64Decode.SliceFunction(bin, startVa, endVa, textVmAddr, textFileOff, out byte[] code, out _))
             return new ListResult(false, "", startVa, endVa, [], "range out of bounds");
 
-        byte[] code = new byte[len];
-        Array.Copy(bin, startFile, code, 0, (int)len);
-
-        using var cs = CapstoneDisassembler.CreateArm64Disassembler(Arm64DisassembleMode.LittleEndian);
+        using var cs = Arm64Decode.CreateDisassembler(details: false);
         var list = new List<Insn>();
         foreach (var insn in cs.Disassemble(code, (long)startVa)) {
             list.Add(new Insn((ulong)insn.Address, insn.Mnemonic ?? "", insn.Operand ?? ""));
@@ -85,19 +72,12 @@ public static class Arm64DataTableReader {
 
     private static ScanResult ScanCode(byte[] bin, IBinaryImage img, int textFileOff, ulong textVmAddr,
         string label, ulong start, ulong end) {
-        ulong slide = textVmAddr - (ulong)textFileOff;
-        long startFile = (long)start - (long)slide;
-        long len = (long)end - (long)start;
-        if (startFile < 0 || len <= 0 || startFile + len > bin.Length)
+        if (!Arm64Decode.SliceFunction(bin, start, end, textVmAddr, textFileOff, out byte[] code, out _))
             return new ScanResult(false, label, [], "function bounds out of range");
 
-        byte[] code = new byte[len];
-        Array.Copy(bin, startFile, code, 0, (int)len);
+        using var cs = Arm64Decode.CreateDisassembler();
 
-        using var cs = CapstoneDisassembler.CreateArm64Disassembler(Arm64DisassembleMode.LittleEndian);
-        cs.EnableInstructionDetails = true;
-
-        var page = new Dictionary<string, ulong>();
+        var tracker = new Arm64PageTracker();
         var seen = new HashSet<ulong>();
         var addresses = new List<AddressRef>();
 
@@ -111,48 +91,15 @@ public static class Arm64DataTableReader {
             var ops = insn.Details?.Operands;
             if (ops is null) continue;
 
-            string? kept = null;
-            switch (insn.Id) {
-                case Arm64InstructionId.ARM64_INS_ADRP:
-                    if (ops.Length == 2 && ops[0].Type == Arm64OperandType.Register
-                                        && ops[1].Type == Arm64OperandType.Immediate && ops[0].Register is { } adrpRd) {
-                        page[adrpRd.Name] = (ulong)ops[1].Immediate;
-                        kept = adrpRd.Name;
-                    }
-
-                    break;
-
-                case Arm64InstructionId.ARM64_INS_ADD:
-                    if (ops.Length == 3 && ops[0].Register is { } addRd && ops[1].Register is { } addRn
-                        && ops[2].Type == Arm64OperandType.Immediate &&
-                        page.TryGetValue(addRn.Name, out ulong addBase)) {
-                        ulong full = addBase + (ulong)ops[2].Immediate;
-                        page[addRd.Name] = full;
-                        kept = addRd.Name;
-                        Record(full, $"adrp+add @0x{insn.Address:x}");
-                    }
-
-                    break;
-
-                case Arm64InstructionId.ARM64_INS_LDR:
-                case Arm64InstructionId.ARM64_INS_LDUR:
-                    if (ops.Length >= 2 && ops[0].Type == Arm64OperandType.Register
-                                        && ops[^1].Type == Arm64OperandType.Memory
-                                        && ops[^1].Memory?.Base is { } memBase &&
-                                        page.TryGetValue(memBase.Name, out ulong pv)) {
-                        ulong va = pv + (ulong)ops[^1].Memory!.Displacement;
-                        Record(va, $"ldr [{memBase.Name}] @0x{insn.Address:x}");
-                    }
-
-                    break;
+            if (insn.Id is Arm64InstructionId.ARM64_INS_LDR or Arm64InstructionId.ARM64_INS_LDUR
+                && ops.Length >= 2 && ops[0].Type == Arm64OperandType.Register
+                && ops[^1].Type == Arm64OperandType.Memory && ops[^1].Memory?.Base is { } memBase
+                && tracker.TryGet(memBase.Name, out ulong pv)) {
+                ulong va = pv + (ulong)ops[^1].Memory!.Displacement;
+                Record(va, $"ldr [{memBase.Name}] @0x{insn.Address:x}");
             }
 
-            var written = insn.Details?.AllWrittenRegisters;
-            if (written is not null) {
-                foreach (var w in written) {
-                    if (w.Name is { } wn && wn != kept) page.Remove(wn);
-                }
-            }
+            if (tracker.Step(insn) is { } full) Record(full, $"adrp+add @0x{insn.Address:x}");
         }
 
         return new ScanResult(true, label, addresses, "ok");

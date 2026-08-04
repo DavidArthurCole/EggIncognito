@@ -51,7 +51,7 @@
             <button class="btn-primary mt-2" @onclick="Send" disabled="@_busy">@(_busy ? "Sending…" : "Send")</button>
 
             @if (_status is not null) {
-                <div class="mt-2 text-xs @(_ok ? "text-muted" : "err")">@_statusLine</div>
+                <StatusNote Severity="@(_ok ? StatusNote.Kind.Info : StatusNote.Kind.Error)">@_statusLine</StatusNote>
                 @if (_isBinary) {
                     <div class="text-xs text-muted mt-1">Binary response (@_respBytes bytes). <a class="underline" href="@_blobUrl" download="@_downloadName">Download</a></div>
                 } else {

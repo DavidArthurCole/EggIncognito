@@ -1,15 +1,10 @@
 using Discord;
+using EggIncognito.Core;
 
 namespace EggIncognito.Bot;
 
 public static class BotEmbeds {
     private const uint Accent = 0xEF7559;
-
-    private static string Bytes(long n) => n switch {
-        < 1024 => $"{n} B",
-        < 1024 * 1024 => $"{n / 1024.0:0.0} KB",
-        _ => $"{n / (1024.0 * 1024):0.0} MB"
-    };
 
     private static string Up(TimeSpan t) =>
         t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes}m" : $"{t.Minutes}m {t.Seconds}s";
@@ -26,7 +21,7 @@ public static class BotEmbeds {
         if (s.CaptureRunning) {
             b.AddField("Flows", s.FlowsCaptured.ToString(), true)
                 .AddField("Devices", s.DeviceCount.ToString(), true)
-                .AddField("Captured", Bytes(s.BytesCaptured), true);
+                .AddField("Captured", ByteFormat.Humanize(s.BytesCaptured), true);
         }
 
         return b.Build();

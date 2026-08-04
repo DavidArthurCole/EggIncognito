@@ -1,46 +1,44 @@
+using EggIdentity.Contract;
 using EggIncognito.Runner.Adb;
 using EggIncognito.Runner.Extract;
 using EggIncognito.Runner.Runners;
 using EggIncognito.Runner.State;
-using EggIdentity.Contract;
 using Xunit;
 
 namespace EggIncognito.Runner.Tests;
 
-public class AndroidRunnerTests
-{
-    private sealed class FakeAdb : IAdbClient
-    {
+public sealed class AndroidRunnerTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
+    private sealed class FakeAdb : IAdbClient {
         public string Dumpsys = "versionCode=111343\nversionName=1.35.7\n";
         public string DumpsysPackage(string package) => Dumpsys;
-        public string PullArmApk(string package, string destPath)
-        {
+        public string PullArmApk(string package, string destPath) {
             File.WriteAllText(destPath, "apk");
             return destPath;
         }
     }
 
-    private sealed class FakeExtractor : IProtoExtractor
-    {
+    private sealed class FakeExtractor : IProtoExtractor {
         public byte[] Bytes = System.Text.Encoding.UTF8.GetBytes("syntax = \"proto2\";\npackage ei;\n");
         public ProtoExtraction Extract(string apkPath) => new(Bytes, "deadbeef");
     }
 
-    private static AndroidRunner Make(FakeAdb adb, VersionState state, out List<NewVersionEvent> sent)
-    {
+    private AndroidRunner Make(FakeAdb adb, VersionState state, out List<NewVersionEvent> sent) {
         var captured = new List<NewVersionEvent>();
         sent = captured;
-        var cvState = new ClientVersionState(Path.Combine(Path.GetTempPath(), $"cv-{Guid.NewGuid():N}"), null);
+        var cvState = new ClientVersionState(_tmp.Combine($"cv-{Guid.NewGuid():N}"), null);
         return new AndroidRunner(adb, new FakeExtractor(), state, new NullClientVersionReader(), cvState,
-            "com.auxbrain.egginc", Path.GetTempPath(), evt => captured.Add(evt));
+            "com.auxbrain.egginc", _tmp.Path, evt => captured.Add(evt));
     }
 
-    private static VersionState FreshState() =>
-        new(Path.Combine(Path.GetTempPath(), $"st-{Guid.NewGuid():N}"));
+    private VersionState FreshState() =>
+        new(_tmp.Combine($"st-{Guid.NewGuid():N}"));
 
     [Fact]
-    public void NewBuild_Emits_AndSavesState()
-    {
+    public void NewBuild_Emits_AndSavesState() {
         var runner = Make(new FakeAdb(), FreshState(), out var sent);
         var outcome = runner.RunOnce(force: false);
         Assert.True(outcome.Emitted);
@@ -55,8 +53,7 @@ public class AndroidRunnerTests
     }
 
     [Fact]
-    public void SameBuild_NoForce_DoesNotEmit()
-    {
+    public void SameBuild_NoForce_DoesNotEmit() {
         var state = FreshState();
         var runner = Make(new FakeAdb(), state, out var sent);
         runner.RunOnce(force: false);
@@ -67,8 +64,7 @@ public class AndroidRunnerTests
     }
 
     [Fact]
-    public void SameBuild_Force_EmitsAnyway()
-    {
+    public void SameBuild_Force_EmitsAnyway() {
         var state = FreshState();
         var runner = Make(new FakeAdb(), state, out var sent);
         runner.RunOnce(force: false);

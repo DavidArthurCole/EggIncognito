@@ -1,8 +1,7 @@
 @page "/import"
 @using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 
 <PageTitle>EggIncognito - Import</PageTitle>
 <main class="min-h-[calc(100vh-theme(spacing.nav))] px-8 py-10 flex flex-col items-center">
@@ -19,13 +18,7 @@
                    @ondragover:preventDefault="true"
                    @ondrop="() => _dragging = false">
                 <InputFile id="harFile" accept=".har,.mitm,application/json" hidden="hidden" OnChange="OnFileSelected"/>
-                <div class="text-accent" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-                         stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
-                        <path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
-                    </svg>
-                </div>
-                <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop a HAR or .mitm file here</strong> or click to browse</div>
+                <DropZonePrompt Prompt="Drop a HAR or .mitm file here"/>
                 <div id="fileName" class="font-mono text-xs @(_file is null ? "text-muted muted" : "")">@(_file?.Name ?? "No file selected.")</div>
             </label>
 
@@ -52,28 +45,10 @@
     IBrowserFile? _file;
 
 
-    string _baseAddress = "";
-    string? _cookie;
-
-    protected override void OnInitialized() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
-    }
-
     void OnFileSelected(InputFileChangeEventArgs e) {
         _file = e.FileCount > 0 ? e.File : null;
     }
 
-
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
-    }
 
     async Task DoImport() {
         if (_file is null) {

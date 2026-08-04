@@ -1,3 +1,4 @@
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,11 +13,11 @@ public static class StoreAheadCheck {
             .Select(k => k.AppVersion)
             .ToListAsync(ct);
         return versions
-            .OrderByDescending(v => v, Comparer<string>.Create(DeviceProbeRunner.SemverCompare))
+            .OrderByDescending(v => v, Comparer<string>.Create((x, y) => DeviceParsing.CompareVersions(x, y)))
             .FirstOrDefault();
     }
 
     public static bool IsAhead(string? storeLatest, string? installed) =>
         !string.IsNullOrEmpty(storeLatest) && !string.IsNullOrEmpty(installed)
-                                           && DeviceProbeRunner.SemverCompare(storeLatest, installed) > 0;
+                                           && DeviceParsing.CompareVersions(storeLatest, installed) > 0;
 }

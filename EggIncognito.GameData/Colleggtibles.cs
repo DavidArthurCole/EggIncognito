@@ -10,7 +10,7 @@ public interface IColleggtibleCatalog {
     ColleggtibleEgg? Find(string identifier);
 }
 
-public sealed class ColleggtibleCatalog : IColleggtibleCatalog {
+public sealed class ColleggtibleCatalog : GameDataCatalog<ColleggtibleEgg, string>, IColleggtibleCatalog {
     public static readonly IReadOnlyDictionary<string, int> DimensionCodes =
         new Dictionary<string, int>(StringComparer.Ordinal) {
             ["INVALID"] = 0,
@@ -25,23 +25,17 @@ public sealed class ColleggtibleCatalog : IColleggtibleCatalog {
             ["RESEARCH_COST"] = 9
         };
 
-    private readonly Dictionary<string, ColleggtibleEgg> _byId;
-
     private ColleggtibleCatalog(IReadOnlyList<ColleggtibleEgg> eggs, IReadOnlyDictionary<string, string> map,
-        string gameVersion, IReadOnlyDictionary<string, ProvenanceSource> provenance) {
-        Eggs = eggs;
+        string gameVersion, IReadOnlyDictionary<string, ProvenanceSource> provenance)
+        : base(eggs, gameVersion, provenance, e => e.Identifier, StringComparer.Ordinal) {
         ContractEggMap = map;
-        GameVersion = gameVersion;
-        Provenance = provenance;
-        _byId = eggs.ToDictionary(e => e.Identifier, StringComparer.Ordinal);
     }
 
-    public IReadOnlyList<ColleggtibleEgg> Eggs { get; }
+    public IReadOnlyList<ColleggtibleEgg> Eggs => Entries;
     public IReadOnlyDictionary<string, string> ContractEggMap { get; }
-    public string GameVersion { get; }
-    public IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    public string GameVersion => Version;
 
-    public ColleggtibleEgg? Find(string identifier) => _byId.GetValueOrDefault(identifier);
+    public ColleggtibleEgg? Find(string identifier) => FindByKey(identifier);
 
     public static ColleggtibleCatalog Parse(string json) {
         var file = GameDataJson.Deserialize<ColleggtibleDataFile>(json, "Colleggtible catalog");

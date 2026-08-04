@@ -1,5 +1,5 @@
-using System.Security.Cryptography;
 using System.Text;
+using EggIncognito.Core;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
@@ -14,7 +14,7 @@ public class ProtoCleanupParityTests {
         if (!TestFixtureFiles.TryRead("raw_common.proto", out byte[] commonBytes)) return;
 
         string cleaned = ProtoCleanup.Clean(Encoding.UTF8.GetString(eiBytes), Encoding.UTF8.GetString(commonBytes));
-        string sha = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(cleaned))).ToLowerInvariant();
+        string sha = Hashes.Sha256Hex(cleaned);
 
         Assert.Equal(ExpectedSha, sha);
     }

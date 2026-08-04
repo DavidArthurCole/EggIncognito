@@ -9,14 +9,11 @@ public sealed class IosParticleCapturer(SshDeviceConnection conn, string scriptB
     private const string ProcessName = "Egg, Inc.";
 
     public async Task<ParticleCaptureModel.Model?> CaptureAsync(CancellationToken ct) {
-        string? staged = await BuildStagedScriptAsync(ct);
+        string? staged = await ParticleScript.BuildStagedAsync(scriptBody, addrOffset, ct);
         if (staged is null) return null;
 
         bool pushed = await conn.PushFileAsync(staged, RemoteScript, ct);
-        try {
-            File.Delete(staged);
-        } catch {
-        }
+        DeviceShell.TryDelete(staged);
 
         if (!pushed) return null;
 
@@ -31,15 +28,6 @@ public sealed class IosParticleCapturer(SshDeviceConnection conn, string scriptB
         }
 
         return ParticleCaptureModel.Parse(Encoding.UTF8.GetString(ndjson));
-    }
-
-    private async Task<string?> BuildStagedScriptAsync(CancellationToken ct) {
-        string prefix = string.IsNullOrWhiteSpace(addrOffset)
-            ? ""
-            : $"const addrOffset = '{addrOffset.Trim()}';\n";
-        string staged = Path.Combine(Path.GetTempPath(), $"egi-frida-staged-{Guid.NewGuid():N}.js");
-        await File.WriteAllTextAsync(staged, prefix + scriptBody, ct);
-        return staged;
     }
 
     private static string Trunc(string s) => s.Length <= 400 ? s : s[..400];

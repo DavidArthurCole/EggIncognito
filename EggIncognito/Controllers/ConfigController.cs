@@ -24,7 +24,7 @@ public sealed class ConfigController(
     PeriodicalsChangeNotifier notifier,
     DataCatalog catalog,
     ILogger<ConfigController> logger) : ControllerBase {
-    private const string GetConfigUrl = "https://www.auxbrain.com/ei/get_config";
+    private const string GetConfigUrl = AuxbrainHosts.Origin + "/ei/get_config";
 
     [HttpGet]
     public IActionResult List() {

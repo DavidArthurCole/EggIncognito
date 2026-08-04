@@ -3,9 +3,13 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class FileEndpointSourceTests {
-    private static string MakeDir(out string root) {
-        root = Path.Combine(Path.GetTempPath(), $"ei-fsrc-{Guid.NewGuid():N}");
+public sealed class FileEndpointSourceTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
+    private string MakeDir(out string root) {
+        root = _tmp.CreateSubdir();
         Directory.CreateDirectory(Path.Combine(root, "default", "ei"));
         Directory.CreateDirectory(Path.Combine(root, "eids", "EI123", "ei"));
         File.WriteAllText(Path.Combine(root, "default", "ei", "get_periodicals.json"), "{}");

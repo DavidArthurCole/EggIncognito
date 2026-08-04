@@ -28,11 +28,11 @@ public class CarvedProtoTests {
     }
 
     [Fact]
-    public void FromCarvedBase64_ProtoShaMatchesBinaryCarve() {
+    public void FromCarved_ProtoShaMatchesCanonicalNormalize() {
         byte[] ei = Convert.FromBase64String(EiBase64());
         var carved = DescriptorProtoCarver.FromCarved(ei, null, null);
         Assert.True(carved.Ok);
-        Assert.Equal(EggIncognito.Core.ProtoHash.OfDescriptor(ei), carved.ProtoSha);
+        Assert.Equal(ProtoCanonicalForm.Normalize(carved.Proto!).Sha, carved.ProtoSha);
     }
 
     [Fact]

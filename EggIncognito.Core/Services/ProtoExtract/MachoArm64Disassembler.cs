@@ -1,4 +1,3 @@
-using Gee.External.Capstone;
 using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract;
@@ -8,48 +7,26 @@ public static class MachoArm64Disassembler {
     public static AnalysisResult Analyze(byte[] bin, ulong startVa, ulong endVa, ulong textVmAddr, int textFileOff) {
         var floats = new List<FloatConst>();
         var calls = new List<ulong>();
-        ulong slide = textVmAddr - (ulong)textFileOff;
 
-        long startFile = (long)startVa - (long)slide;
-        long len = (long)endVa - (long)startVa;
-        if (startFile < 0 || len <= 0 || startFile + len > bin.Length) return new AnalysisResult(floats, calls);
+        if (!Arm64Decode.SliceFunction(bin, startVa, endVa, textVmAddr, textFileOff, out byte[] code,
+                out ulong slide)) {
+            return new AnalysisResult(floats, calls);
+        }
 
-        byte[] code = new byte[len];
-        Array.Copy(bin, startFile, code, 0, (int)len);
+        using var cs = Arm64Decode.CreateDisassembler();
 
-        using var cs = CapstoneDisassembler.CreateArm64Disassembler(Arm64DisassembleMode.LittleEndian);
-        cs.EnableInstructionDetails = true;
-
-        var page = new Dictionary<string, ulong>();
+        var tracker = new Arm64PageTracker();
         foreach (var insn in cs.Disassemble(code, (long)startVa)) {
             var ops = insn.Details?.Operands;
             if (ops is null) continue;
 
             switch (insn.Id) {
-                case Arm64InstructionId.ARM64_INS_ADRP:
-                    if (ops.Length == 2 && ops[0].Type == Arm64OperandType.Register
-                                        && ops[1].Type == Arm64OperandType.Immediate && ops[0].Register is { } adrpRd) {
-                        page[adrpRd.Name] = (ulong)ops[1].Immediate;
-                    }
-
-                    break;
-
-                case Arm64InstructionId.ARM64_INS_ADD:
-                    if (ops.Length == 3 && ops[0].Register is { } addRd && ops[1].Register is { } addRn
-                        && ops[2].Type == Arm64OperandType.Immediate && page.TryGetValue(addRn.Name, out ulong addBase)) {
-                        page[addRd.Name] = addBase + (ulong)ops[2].Immediate;
-                    } else if (ops.Length >= 1 && ops[0].Register is { } addClobber) {
-                        page.Remove(addClobber.Name);
-                    }
-
-                    break;
-
                 case Arm64InstructionId.ARM64_INS_LDR:
                 case Arm64InstructionId.ARM64_INS_LDUR:
                     if (ops.Length >= 2 && ops[0].Type == Arm64OperandType.Register
                                         && ops[^1].Type == Arm64OperandType.Memory && ops[0].Register is { } rt
                                         && ops[^1].Memory?.Base is { } memBase &&
-                                        page.TryGetValue(memBase.Name, out ulong pv)) {
+                                        tracker.TryGet(memBase.Name, out ulong pv)) {
                         ulong va = pv + (ulong)ops[^1].Memory!.Displacement;
                         long fileOff = (long)va - (long)slide;
                         string name = rt.Name ?? "";
@@ -64,8 +41,6 @@ public static class MachoArm64Disassembler {
                         } else if (name.StartsWith('s') && fileOff >= 0 && fileOff + 4 <= bin.Length) {
                             floats.Add(new FloatConst(va, BitConverter.ToSingle(bin, (int)fileOff), false));
                         }
-                    } else if (ops.Length >= 1 && ops[0].Register is { } ldDst && page.ContainsKey(ldDst.Name)) {
-                        page.Remove(ldDst.Name);
                     }
 
                     break;
@@ -94,6 +69,8 @@ public static class MachoArm64Disassembler {
                         calls.Add((ulong)ops[0].Immediate);
                     break;
             }
+
+            tracker.Step(insn);
         }
 
         return new AnalysisResult(floats, calls);

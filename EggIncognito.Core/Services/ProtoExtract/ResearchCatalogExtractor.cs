@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using static EggIncognito.Services.ProtoExtract.Arm64Operands;
 
 namespace EggIncognito.Services.ProtoExtract;
 
@@ -267,6 +268,19 @@ public static class ResearchCatalogExtractor {
             if (reg.Length >= 2 && reg[0] is 'w' or 'x') regs.Remove((reg[0] == 'w' ? "x" : "w") + reg[1..]);
         }
 
+        bool TryResolveMem(string token, out string baseReg, out long disp) {
+            disp = 0;
+            if (!Arm64Operands.TryMem(token, out baseReg, out ulong off, out string? idx, out int sh)) return false;
+            disp = unchecked((long)off);
+            if (idx is null) return true;
+            if (Get(idx) is { Kind: 'i' } iv) {
+                disp += iv.Imm << sh;
+                return true;
+            }
+
+            return false;
+        }
+
         bool IsCstring(ulong va) =>
             img.TryVaToFileOffset(va, out _, out var owner) && IsCstrSection(owner.Name);
 
@@ -293,7 +307,7 @@ public static class ResearchCatalogExtractor {
         }
 
         void DoStore(string rt, string memToken, bool writeback, string mnemonic) {
-            if (!TryMem(memToken, out string baseReg, out long disp)) return;
+            if (!TryResolveMem(memToken, out string baseReg, out long disp)) return;
             if (baseReg is "sp" or "x29") {
                 if (Get(rt) is { Kind: 's' } spill) frame[(baseReg, disp)] = spill.Src;
                 else frame.Remove((baseReg, disp));
@@ -412,7 +426,7 @@ public static class ResearchCatalogExtractor {
 
                 case "movz":
                     if (ops.Count >= 2 && TryImm(ops[1], out long mz)) {
-                        int shift = ops.Count == 3 ? ParseShift(ops[2]) : 0;
+                        int shift = ShiftOf(ops);
                         Set(ops[0], new RegVal('i', 0, mz << shift, 0, 0, 0));
                     } else if (ops.Count >= 1) {
                         ClobberPair(ops[0]);
@@ -422,7 +436,7 @@ public static class ResearchCatalogExtractor {
 
                 case "movk":
                     if (ops.Count >= 2 && TryImm(ops[1], out long mk) && Get(ops[0]) is { Kind: 'i' } kv) {
-                        int shift = ops.Count == 3 ? ParseShift(ops[2]) : 0;
+                        int shift = ShiftOf(ops);
                         long cleared = kv.Imm & ~(0xFFFFL << shift);
                         Set(ops[0], kv with { Imm = cleared | (mk << shift) });
                     } else if (ops.Count >= 1) {
@@ -455,7 +469,8 @@ public static class ResearchCatalogExtractor {
 
                 case "ldr":
                 case "ldur":
-                    if (ops.Count >= 2 && TryMem(string.Join(", ", ops.Skip(1)), out string lb, out long ldisp)) {
+                    if (ops.Count >= 2 && TryResolveMem(string.Join(", ", ops.Skip(1)), out string lb,
+                            out long ldisp)) {
                         if (lb is "sp" or "x29" && frame.TryGetValue((lb, ldisp), out ulong spilled)) {
                             Set(ops[0], new RegVal('s', 0, 0, 0, 0, spilled));
                             break;
@@ -474,8 +489,8 @@ public static class ResearchCatalogExtractor {
                     break;
 
                 case "ldp":
-                    if (ops.Count >= 3 && TryMem(string.Join(", ", ops.Skip(2)), out string pb, out long pdisp) &&
-                        Get(pb) is { Kind: 'a' } pav) {
+                    if (ops.Count >= 3 && TryResolveMem(string.Join(", ", ops.Skip(2)), out string pb,
+                            out long pdisp) && Get(pb) is { Kind: 'a' } pav) {
                         ulong src = pav.Addr + (ulong)pdisp;
                         if (IsCstring(src)) {
                             Set(ops[0], new RegVal('s', 0, 0, 0, 0, src));
@@ -503,12 +518,12 @@ public static class ResearchCatalogExtractor {
 
                 case "stp":
                     if (ops.Count >= 3 && ops[0][0] is 'q' or 'x' or 'w' or 'd' &&
-                        TryMem(string.Join(", ", ops.Skip(2)), out _, out _)) {
+                        TryResolveMem(string.Join(", ", ops.Skip(2)), out _, out _)) {
                         string mem = string.Join(", ", ops.Skip(2));
                         bool wb = i.Operands.TrimEnd().EndsWith('!');
                         int elem = ops[0][0] == 'q' ? 16 : ops[0][0] == 'w' ? 4 : 8;
                         DoStore(ops[0], mem, wb, "str");
-                        if (TryMem(mem, out string spb, out long spDisp) && Get(spb) is { } spv &&
+                        if (TryResolveMem(mem, out string spb, out long spDisp) && Get(spb) is { } spv &&
                             (spv.Kind == 'a' || spv.Kind == 't')) {
                             long second = (wb ? 0 : spDisp) + elem;
                             var rv2 = ops[1] is "xzr" or "wzr" ? new RegVal('i', 0, 0, 0, 0, 0) : Get(ops[1]);
@@ -744,11 +759,11 @@ public static class ResearchCatalogExtractor {
                     break;
 
                 case "movz" when ops.Count >= 2 && TryImm(ops[1], out long mz):
-                    xImm[ops[0]] = mz << (ops.Count == 3 ? ParseShift(ops[2]) : 0);
+                    xImm[ops[0]] = mz << ShiftOf(ops);
                     break;
 
                 case "movk" when ops.Count >= 2 && TryImm(ops[1], out long mk) && xImm.ContainsKey(ops[0]): {
-                        int shift = ops.Count == 3 ? ParseShift(ops[2]) : 0;
+                        int shift = ShiftOf(ops);
                         xImm[ops[0]] = (xImm[ops[0]] & ~(0xFFFFL << shift)) | (mk << shift);
                         break;
                     }
@@ -1175,65 +1190,11 @@ public static class ResearchCatalogExtractor {
         return float.IsFinite(value);
     }
 
-    private static List<string> SplitOps(string operands) {
-        var result = new List<string>();
-        int depth = 0;
-        int start = 0;
-        for (int i = 0; i < operands.Length; i++) {
-            char c = operands[i];
-            if (c == '[') {
-                depth++;
-            } else if (c == ']') {
-                depth--;
-            } else if (c == ',' && depth == 0) {
-                result.Add(operands[start..i].Trim());
-                start = i + 1;
-            }
-        }
-
-        if (start < operands.Length) result.Add(operands[start..].Trim());
-        return result;
-    }
-
-    private static bool TryImm(string op, out long value) {
-        value = 0;
-        if (!op.StartsWith('#')) return false;
-        string s = op[1..];
-        bool neg = s.StartsWith('-');
-        if (neg) s = s[1..];
-        bool ok = s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-            ? long.TryParse(s[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value)
-            : long.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out value);
-        if (neg) value = -value;
-        return ok;
-    }
-
-    private static bool TryFpImm(string op, out double value) {
-        value = 0;
-        return op.StartsWith('#') &&
-               double.TryParse(op[1..], NumberStyles.Float, CultureInfo.InvariantCulture, out value);
-    }
-
-    private static int ParseShift(string op) {
-        string t = op.Trim();
-        if (!t.StartsWith("lsl", StringComparison.OrdinalIgnoreCase)) return 0;
-        int hash = t.IndexOf('#');
-        return hash >= 0 && int.TryParse(t[(hash + 1)..], NumberStyles.None, CultureInfo.InvariantCulture,
-            out int s)
-            ? s
-            : 0;
-    }
-
     private static bool TryMem(string mem, out string baseReg, out long disp) {
-        baseReg = "";
         disp = 0;
-        string t = mem.Trim().TrimEnd('!').Trim();
-        if (!t.StartsWith('[') || !t.EndsWith(']')) return false;
-        string inner = t[1..^1];
-        var parts = inner.Split(',', StringSplitOptions.TrimEntries);
-        if (parts.Length == 0) return false;
-        baseReg = parts[0];
-        if (parts.Length == 1) return true;
-        return parts.Length == 2 && TryImm(parts[1], out disp);
+        if (!Arm64Operands.TryMem(mem, out baseReg, out ulong off, out string? idx, out _) || idx is not null)
+            return false;
+        disp = unchecked((long)off);
+        return true;
     }
 }

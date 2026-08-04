@@ -1,8 +1,8 @@
+using EggIdentity.Contract;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Runner.Adb;
 using EggIncognito.Runner.Extract;
 using EggIncognito.Runner.State;
-using EggIdentity.Contract;
 
 namespace EggIncognito.Runner.Runners;
 

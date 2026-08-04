@@ -12,22 +12,16 @@ public interface IEggCatalog {
     EggCatalogEntry? Find(int index);
 }
 
-public sealed class EggCatalog : IEggCatalog {
-    private readonly Dictionary<int, EggCatalogEntry> _byIndex;
-
+public sealed class EggCatalog : GameDataCatalog<EggCatalogEntry, int>, IEggCatalog {
     private EggCatalog(IReadOnlyList<EggCatalogEntry> eggs, string binaryVersion,
-        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
-        Eggs = eggs;
-        BinaryVersion = binaryVersion;
-        Provenance = provenance;
-        _byIndex = eggs.ToDictionary(e => e.Index);
+        IReadOnlyDictionary<string, ProvenanceSource> provenance)
+        : base(eggs, binaryVersion, provenance, e => e.Index) {
     }
 
-    public IReadOnlyList<EggCatalogEntry> Eggs { get; }
-    public string BinaryVersion { get; }
-    public IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    public IReadOnlyList<EggCatalogEntry> Eggs => Entries;
+    public string BinaryVersion => Version;
 
-    public EggCatalogEntry? Find(int index) => _byIndex.GetValueOrDefault(index);
+    public EggCatalogEntry? Find(int index) => FindByKey(index);
 
     public static EggCatalog Parse(string json) {
         var file = GameDataJson.Deserialize<EggCatalogDataFile>(json, "Egg catalog");

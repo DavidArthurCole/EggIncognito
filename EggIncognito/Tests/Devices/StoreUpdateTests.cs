@@ -37,7 +37,7 @@ public class StoreUpdateTests {
             attempts);
 
     private static IosStoreCatalog Catalog(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
-        new(new StubHttpFactory(new StubHandler(respond)), NullLogger<IosStoreCatalog>.Instance);
+        new(new StubHttpFactory(new StubHttpMessageHandler(respond)), NullLogger<IosStoreCatalog>.Instance);
 
     private static IosStoreUpdateDriver IosDriver(IosStoreCatalog catalog) =>
         new(new FakeRunner(_ => new ProcessResult(0, "", "")),
@@ -317,15 +317,6 @@ public class StoreUpdateTests {
     private sealed class FakeRunner(Func<string[], ProcessResult> fn) : IProcessRunner {
         public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) =>
             Task.FromResult(fn(args));
-    }
-
-    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
-            Task.FromResult(respond(request));
-    }
-
-    private sealed class StubHttpFactory(HttpMessageHandler handler) : IHttpClientFactory {
-        public HttpClient CreateClient(string name) => new(handler, false);
     }
 
     private sealed class NullScopeFactory : IServiceScopeFactory {

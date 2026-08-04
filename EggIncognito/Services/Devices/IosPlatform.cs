@@ -8,19 +8,9 @@ public sealed class IosPlatform(
     IProcessRunner runner,
     IEnumerable<IDeviceStoreChecker> storeCheckers,
     IEnumerable<IDeviceProxyConfigurator> proxyConfigurators,
-    IEnumerable<IDeviceCaInstaller> caInstallers) : IDevicePlatform {
-    private readonly IDeviceStoreChecker? _store = storeCheckers.FirstOrDefault(s => s.Platform == "ios");
-    private readonly IDeviceProxyConfigurator? _proxy = proxyConfigurators.FirstOrDefault(p => p.Platform == "ios");
-    private readonly IDeviceCaInstaller? _ca = caInstallers.FirstOrDefault(c => c.Platform == "ios");
-
-    public string Platform => "ios";
-
-    public DeviceCapabilities Capabilities =>
-        DeviceCapabilities.BinaryPull | DeviceCapabilities.AssetRead | DeviceCapabilities.Probe |
-        DeviceCapabilities.StoreUpdate | DeviceCapabilities.Proxy | DeviceCapabilities.CaInstall |
-        DeviceCapabilities.AppLifecycle | DeviceCapabilities.ParticleCapture;
-
-    public async Task<DeviceResult<byte[]>> PullAppBinaryAsync(DeviceTarget target, CancellationToken ct) {
+    IEnumerable<IDeviceCaInstaller> caInstallers)
+    : DevicePlatformBase(Platforms.Ios, storeCheckers, proxyConfigurators, caInstallers) {
+    public override async Task<DeviceResult<byte[]>> PullAppBinaryAsync(DeviceTarget target, CancellationToken ct) {
         if (connections.Ios(target.Target) is not { } conn)
             return DeviceResult<byte[]>.Unreachable("ios ssh not configured");
         byte[]? bytes = await new IosBinaryPuller(conn).PullBinaryAsync(target.Package, ct);
@@ -29,8 +19,8 @@ public sealed class IosPlatform(
             : DeviceResult<byte[]>.Success(bytes);
     }
 
-    public async Task<DeviceResult<byte[]>> ReadAssetAsync(DeviceTarget target, DeviceAssetKind kind, string name,
-        CancellationToken ct) {
+    public override async Task<DeviceResult<byte[]>> ReadAssetAsync(DeviceTarget target, DeviceAssetKind kind,
+        string name, CancellationToken ct) {
         if (connections.Ios(target.Target) is not { } conn)
             return DeviceResult<byte[]>.Unreachable("ios ssh not configured");
         var puller = new IosAssetPuller(conn);
@@ -44,8 +34,8 @@ public sealed class IosPlatform(
             : DeviceResult<byte[]>.Success(bytes);
     }
 
-    public async Task<DeviceResult<IReadOnlyList<string>>> ListAssetsAsync(DeviceTarget target, DeviceAssetKind kind,
-        CancellationToken ct) {
+    public override async Task<DeviceResult<IReadOnlyList<string>>> ListAssetsAsync(DeviceTarget target,
+        DeviceAssetKind kind, CancellationToken ct) {
         if (connections.Ios(target.Target) is not { } conn)
             return DeviceResult<IReadOnlyList<string>>.Unreachable("ios ssh not configured");
         var puller = new IosAssetPuller(conn);
@@ -57,39 +47,17 @@ public sealed class IosPlatform(
         return DeviceResult<IReadOnlyList<string>>.Success(names);
     }
 
-    public Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) =>
+    public override Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) =>
         new IosDeviceProbe(runner, target.Target, target.Package).ProbeAsync(ct);
 
-    public Task<StoreCheckResult> DriveStoreUpdateAsync(DeviceTarget target, CancellationToken ct,
-        Action<string>? progress = null) =>
-        _store is null
-            ? Task.FromResult(new StoreCheckResult(false, null, null, false, false, "unsupported",
-                "no ios store checker"))
-            : _store.CheckAndUpdateAsync(target, ct, progress);
-
-    public async Task<DeviceResult> SetProxyAsync(DeviceTarget target, string hostIp, int port, CancellationToken ct) =>
-        _proxy is null
-            ? DeviceResult.Unsupported("no ios proxy configurator")
-            : DeviceResult.From(await _proxy.SetProxyAsync(target, hostIp, port, ct));
-
-    public async Task<DeviceResult> ClearProxyAsync(DeviceTarget target, CancellationToken ct) =>
-        _proxy is null
-            ? DeviceResult.Unsupported("no ios proxy configurator")
-            : DeviceResult.From(await _proxy.ClearProxyAsync(target, ct));
-
-    public async Task<DeviceResult> InstallCaAsync(DeviceTarget target, string caPath, CancellationToken ct) =>
-        _ca is null
-            ? DeviceResult.Unsupported("no ios ca installer")
-            : DeviceResult.From(await _ca.InstallAsync(target, caPath, ct));
-
-    public async Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct) {
+    public override async Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct) {
         if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
             return DeviceResult.Unreachable("ios ssh not configured");
         bool unlocked = await IosEnsureUnlockedAsync(ct);
         return unlocked ? DeviceResult.Success("unlocked") : DeviceResult.Error("could not confirm unlock");
     }
 
-    public async Task<DeviceResult> KillAppAsync(DeviceTarget target, CancellationToken ct) {
+    public override async Task<DeviceResult> KillAppAsync(DeviceTarget target, CancellationToken ct) {
         if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
             return DeviceResult.Unreachable("ios ssh not configured");
         if (connections.Ios() is not { } conn) return DeviceResult.Unreachable("ios ssh not configured");
@@ -100,7 +68,7 @@ public sealed class IosPlatform(
         return DeviceResult.Success("killed");
     }
 
-    public async Task<DeviceResult<ParticleCaptureModel.Model>> CaptureParticlesAsync(DeviceTarget target,
+    public override async Task<DeviceResult<ParticleCaptureModel.Model>> CaptureParticlesAsync(DeviceTarget target,
         string scriptBody, string? addrOffset, CancellationToken ct) {
         if (connections.Ios(target.Target) is not { } conn)
             return DeviceResult<ParticleCaptureModel.Model>.Unreachable("ios ssh not configured");

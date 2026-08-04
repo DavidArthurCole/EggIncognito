@@ -79,7 +79,7 @@ public sealed class DataCatalog {
         ? $"/api/v1/data/{s.Group}/{s.Id}"
         : $"/api/v1/data/{s.Group}/{s.Extends}/{s.Id}";
 
-    public static string EgressUrl(DataSource s) => $"https://www.auxbrain.com/{s.WireRoute}";
+    public static string EgressUrl(DataSource s) => $"{AuxbrainHosts.Origin}/{s.WireRoute}";
 
     private static IReadOnlyList<DataSource> Build() => [
         Wire("get_periodicals", "Periodicals", "Raw get_periodicals response fixture.",

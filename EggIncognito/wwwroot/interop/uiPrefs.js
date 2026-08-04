@@ -4,3 +4,6 @@ export function get(key) {
 export function set(key, val) {
   try { localStorage.setItem(key, val); } catch { }
 }
+export function remove(key) {
+  try { localStorage.removeItem(key); } catch { }
+}

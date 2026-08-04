@@ -3,8 +3,7 @@
    request/response types as cross-links to their object docs, the DB Markdown doc, its tags, and a
    contributor-gated editor. Mirrors ObjectView but keyed on kind="endpoint", key=path. Degrades to empty
    without a DB. *@
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 
 @if (Route is null) {
     <div class="empty-state">
@@ -64,17 +63,6 @@
     List<TagRow> _tags = [];
     string? _loadedFor;
 
-    string _baseAddress = "";
-    string? _cookie;
-
-    protected override void OnInitialized() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
-    }
-
     protected override async Task OnParametersSetAsync() {
         if (Route is null || Route.Path == _loadedFor) return;
         _loadedFor = Route.Path;
@@ -82,13 +70,6 @@
         _tags = [];
         await LoadDoc();
         await LoadTags();
-    }
-
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
     }
 
     async Task LoadDoc() {

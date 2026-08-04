@@ -1,5 +1,6 @@
 using System.Net;
 using EggIdentity.Client;
+using EggIncognito.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,9 +9,9 @@ namespace EggIncognito.Tests;
 
 public sealed class AuthCallbackFactory : EgiTestFactory {
     protected override void Configure(IWebHostBuilder builder) {
-        builder.UseSetting("Identity:ApiUrl", "http://identity.local");
-        builder.UseSetting("Identity:ApiSecret", "test-secret");
-        builder.UseSetting("Identity:WidgetUrl", "http://identity.local");
+        builder.UseSetting(IdentityConfigKeys.ApiUrl, "http://identity.local");
+        builder.UseSetting(IdentityConfigKeys.ApiSecret, "test-secret");
+        builder.UseSetting(IdentityConfigKeys.WidgetUrl, "http://identity.local");
         builder.ConfigureServices(s => s.AddSingleton(_ => StubIdentity()));
     }
 

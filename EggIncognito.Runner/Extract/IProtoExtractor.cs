@@ -1,7 +1,6 @@
 namespace EggIncognito.Runner.Extract;
 
-public interface IProtoExtractor
-{
+public interface IProtoExtractor {
     ProtoExtraction Extract(string apkPath);
 }
 

@@ -2,13 +2,16 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-public class CaptureSessionTests {
-    private static CaptureSession NewSession(out FakeCaptureProxy fake) {
+public sealed class CaptureSessionTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
+    private CaptureSession NewSession(out FakeCaptureProxy fake) {
         var f = new FakeCaptureProxy();
         fake = f;
         string contentRoot = RealContentRoot();
-        string tmp = Path.Combine(Path.GetTempPath(), "egi-cap-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tmp);
+        string tmp = _tmp.CreateSubdir();
         var opts = new CaptureSessionOptions(18080, null, null,
             false, false, tmp, Path.Combine(tmp, "ca.cer"));
         return new CaptureSession(contentRoot, opts, _ => f);

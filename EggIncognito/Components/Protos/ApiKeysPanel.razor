@@ -1,9 +1,6 @@
 @using System.Net
 @using System.Text.Json
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
-@inject IJSRuntime JS
-@inject IWebHostEnvironment Env
+@inherits SelfCallComponentBase
 
 <div class="flex flex-col gap-4">
     <div class="apidoc">
@@ -20,7 +17,7 @@
                 <p class="text-sm mt-0 mb-1 font-semibold">Copy it now - it will not be shown again.</p>
                 <pre class="result-pre">@_minted.Key</pre>
                 <div class="flex items-center gap-3 mt-2">
-                    <button type="button" class="btn-primary" @onclick="() => Copy(_minted.Key)">Copy key</button>
+                    <CopyButton Text="@_minted.Key" ButtonClass="btn-primary" ShowIcon="false" Label="Copy key" ResetDelayMs="0" OnCopied="@(() => _copied = true)"/>
                     <button type="button" class="btn-mini" @onclick="Dismiss">Done</button>
                     @if (_copied) {
                         <span class="text-green-400 text-sm">Copied.</span>
@@ -44,7 +41,7 @@
                 @if (AtCap) {
                     <p class="text-muted text-sm mt-2 mb-0">Key limit reached - revoke a key to mint a new one.</p>
                 } else if (_error is not null) {
-                    <p class="text-err text-sm mt-2 mb-0">@_error</p>
+                    <StatusNote Severity="StatusNote.Kind.Error">@_error</StatusNote>
                 }
             </div>
         }
@@ -94,8 +91,6 @@
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    string _baseAddress = "";
-    string? _cookie;
     string _origin = "https://eggincognito.davidarthurcole.me";
 
     bool _noDb;
@@ -108,25 +103,14 @@
     string? _error;
     Minted? _minted;
     bool _copied;
-    IJSObjectReference? _copy;
 
     int ActiveCount => _keys?.Count(k => !k.Revoked) ?? 0;
 
     bool AtCap => _cap is { } c && ActiveCount >= c;
 
     protected override async Task OnInitializedAsync() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _origin = _baseAddress;
-            _cookie = req.Headers.Cookie;
-        }
-
+        if (!string.IsNullOrEmpty(SelfBaseAddress)) _origin = SelfBaseAddress;
         await LoadKeys();
-    }
-
-    HttpClient Client() {
-        return SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
     }
 
     async Task LoadKeys() {
@@ -192,16 +176,6 @@
         }
 
         _busyRow = false;
-    }
-
-    async Task Copy(string text) {
-        try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
-            await _copy.InvokeAsync<bool>("writeText", text);
-            _copied = true;
-        }
-        catch {
-        }
     }
 
     void Dismiss() {

@@ -1,25 +1,9 @@
-using System.Text.Json;
 using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-public sealed class LiveVersionStore(string capturePath) {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
-    private readonly Lock _gate = new();
-
-    private string FilePath => Path.Combine(capturePath, "live-versions.json");
-
-    public IReadOnlyList<LiveVersion> Load() {
-        try {
-            return !File.Exists(FilePath)
-                ? []
-                : (IReadOnlyList<LiveVersion>)(JsonSerializer.Deserialize<List<LiveVersion>>(File.ReadAllText(FilePath),
-                    Json) ?? []);
-        } catch {
-            return [];
-        }
-    }
-
+public sealed class LiveVersionStore(string capturePath)
+    : JsonListStore<LiveVersion>(capturePath, "live-versions.json") {
     public LiveVersion? Latest(string platform) {
         string key = NormalizePlatform(platform);
         foreach (var v in Load()) {
@@ -34,8 +18,7 @@ public sealed class LiveVersionStore(string capturePath) {
     public void Observe(RinfoHarvester.ObservedVersion v, string nowIso) {
         if (string.IsNullOrEmpty(v.Platform)) return;
         string key = NormalizePlatform(v.Platform);
-        lock (_gate) {
-            var rows = Load().ToList();
+        Mutate(rows => {
             int idx = rows.FindIndex(r => string.Equals(r.Platform, key, StringComparison.OrdinalIgnoreCase));
             var prev = idx >= 0 ? rows[idx] : null;
             var merged = new LiveVersion(
@@ -46,12 +29,7 @@ public sealed class LiveVersionStore(string capturePath) {
                 nowIso);
             if (idx >= 0) rows[idx] = merged;
             else rows.Add(merged);
-            try {
-                Directory.CreateDirectory(capturePath);
-                File.WriteAllText(FilePath, JsonSerializer.Serialize(rows, Json));
-            } catch {
-            }
-        }
+        });
     }
 
 

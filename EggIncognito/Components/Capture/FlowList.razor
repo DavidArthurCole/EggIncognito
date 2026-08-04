@@ -115,14 +115,8 @@
         _lastFlowCount = count;
     }
 
-    public async ValueTask DisposeAsync() {
-        if (_scroll is not null) {
-            try {
-                await _scroll.DisposeAsync();
-            }
-            catch {
-            }
-        }
+    public ValueTask DisposeAsync() {
+        return _scroll.DisposeModuleQuietAsync();
     }
 
     void OnGroupChange(ChangeEventArgs e) => _group = e.Value?.ToString() ?? "";

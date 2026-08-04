@@ -112,23 +112,12 @@ public static class EggCatalogExtractor {
                 : IsName(s.TryInlineString(nameOff));
     }
 
-    private static string? IsName(string s) {
-        if (s.Length < 2 || !char.IsAsciiLetterUpper(s[0])) return null;
-        foreach (char c in s) {
-            if (!char.IsAsciiLetterUpper(c) && !char.IsAsciiDigit(c) && c is not (' ' or '.'))
-                return null;
-        }
+    private static readonly string[] NameSections = ["__cstring", "__const"];
 
-        return s;
-    }
+    private static string? IsName(string s) => BinaryStrings.IsName(s, " .");
 
-    private static string ReadCstr(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va) {
-        if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out var owner)) return "";
-        if (owner.Name is not "__cstring" and not "__const") return "";
-        int end = fo;
-        while (end < bin.Length && bin[end] != 0 && end - fo < 64) end++;
-        return Encoding.UTF8.GetString(bin, fo, end - fo);
-    }
+    private static string ReadCstr(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va)
+        => BinaryStrings.ReadCstr(bin, sections, va, NameSections, 64);
 
     private static bool IsPlausible(double d) => double.IsFinite(d) && Math.Abs(d) is >= 1e-9 and <= 1e18;
 

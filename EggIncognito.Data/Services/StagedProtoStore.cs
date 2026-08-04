@@ -1,5 +1,8 @@
+using System.Text.Json;
 using EggIncognito.Core.Services.Protos;
 using EggIncognito.Data.Models;
+using EggIncognito.Services;
+using EggIncognito.Services.ProtoExtract;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
@@ -105,8 +108,12 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         IReadOnlyList<CrawlManifestReader.CrawlRecord> records, CancellationToken ct) {
         int staged = 0, skipped = 0;
         foreach (var r in records) {
+            var norm = ProtoCanonicalForm.Normalize(r.ProtoText);
+            string sha = norm.Ok ? norm.Sha! : r.ProtoSha;
+            string text = norm.Ok ? norm.Text! : r.ProtoText;
+            string? messageIndex = norm.Ok ? JsonSerializer.Serialize(ProtoTextIndex.Names(text)) : null;
             var outcome = await StageOrReviveAsync(r.Platform, r.AppVersion, r.Build, r.ClientVersion, null,
-                r.ProtoSha, r.ProtoText, null, "crawl", null, r.OriginRepo, r.OriginCommit, r.OriginDate, r.Confidence,
+                sha, text, messageIndex, "crawl", null, r.OriginRepo, r.OriginCommit, r.OriginDate, r.Confidence,
                 ct);
             if (outcome is StageOutcome.Staged or StageOutcome.Revived) staged++;
             else skipped++;

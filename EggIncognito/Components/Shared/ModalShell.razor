@@ -1,0 +1,44 @@
+@if (CloseOnEscape) {
+    <div class="modal-backdrop" @onclick="Close" @onkeydown="OnKeyDown">
+        @Card
+    </div>
+} else {
+    <div class="modal-backdrop" @onclick="Close">
+        @Card
+    </div>
+}
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? TitleId { get; set; }
+    [Parameter] public string? CardClass { get; set; }
+    [Parameter] public bool CloseOnEscape { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public RenderFragment? HeadTools { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    string CardCss => string.IsNullOrEmpty(CardClass) ? "modal-card" : $"modal-card {CardClass}";
+
+    RenderFragment Card => @<div class="@CardCss" role="dialog" aria-modal="true" aria-labelledby="@TitleId" @onclick:stopPropagation="true">
+                               <div class="modal-head">
+                                   <h3 class="modal-title" id="@TitleId">@Title</h3>
+                                   @if (HeadTools is not null) {
+                                       @HeadTools
+                                   } else {
+                                       <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
+                                           <Icon Name="x"/>
+                                       </button>
+                                   }
+                               </div>
+                               @ChildContent
+                           </div>;
+
+    Task Close() {
+        return OnClose.InvokeAsync();
+    }
+
+    Task OnKeyDown(KeyboardEventArgs e) {
+        return e.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
+    }
+
+}

@@ -1,14 +1,10 @@
-@inject IJSRuntime JS
-
 <div class="data-box">
     <div class="data-tools">
         <input type="search" class="data-filter" placeholder="Filter..."
                autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                value="@_filter" @oninput="OnFilterInput"/>
         @Tools
-        <button class="btn-mini data-copy" type="button" @onclick="Copy">
-            <Icon Name="@(_copied ? "check" : "copy")" Class="icon-sm"/> @(_copied ? "Copied" : "Copy")
-        </button>
+        <CopyButton Text="@(Text ?? "")" ButtonClass="btn-mini data-copy" IconClass="icon-sm" Label="Copy" CopiedLabel="Copied"/>
     </div>
     <pre class="data-text" style="@PreStyle">@Shown()</pre>
 </div>
@@ -19,7 +15,6 @@
     [Parameter] public RenderFragment? Tools { get; set; }
 
     string _filter = "";
-    bool _copied;
 
     string? PreStyle => string.IsNullOrEmpty(MaxHeight) ? null : $"max-height:{MaxHeight}";
 
@@ -33,20 +28,6 @@
         if (q.Length == 0) return text;
         var kept = text.Split('\n').Where(l => l.ToLowerInvariant().Contains(q)).ToList();
         return kept.Count > 0 ? string.Join("\n", kept) : "(no lines match)";
-    }
-
-    async Task Copy() {
-        try {
-            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Text ?? "");
-        }
-        catch {
-        }
-
-        _copied = true;
-        StateHasChanged();
-        await Task.Delay(1200);
-        _copied = false;
-        StateHasChanged();
     }
 
 }

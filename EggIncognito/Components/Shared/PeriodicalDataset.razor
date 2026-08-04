@@ -1,6 +1,4 @@
 @using EggIncognito.Components.Capture
-@inject IJSRuntime JS
-@inject IWebHostEnvironment Env
 
 <div class="@RowClass">
     <div class="ds-head flex items-center justify-between gap-3 cursor-pointer" @onclick="Toggle">
@@ -9,9 +7,7 @@
             @Badges
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
-            <button type="button" class="reg-edit-btn" title="@CopyTitle" aria-label="Copy endpoint path" @onclick="CopyPath" @onclick:stopPropagation="true">
-                <Icon Name="@(_copied ? "check" : "copy")"/>
-            </button>
+            <CopyButton Text="@Endpoint" Title="Copy endpoint path" CopiedTitle="Copied" AriaLabel="Copy endpoint path" StopPropagation="true"/>
             <a class="reg-edit-btn" href="@Endpoint" download="@DownloadName" target="_blank" rel="noopener" title="Download JSON" aria-label="Download JSON" @onclick:stopPropagation="true">
                 <Icon Name="download"/>
             </a>
@@ -41,27 +37,10 @@
 
     bool _open;
     string? _json;
-    bool _copied;
-    IJSObjectReference? _copy;
-
-    string CopyTitle => _copied ? "Copied" : "Copy endpoint path";
 
     async Task Toggle() {
         _open = !_open;
         if (_open && _json is null && Fetch is not null) _json = await Fetch(Endpoint);
-    }
-
-    async Task CopyPath() {
-        try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
-            await _copy.InvokeAsync<bool>("writeText", Endpoint);
-            _copied = true;
-            StateHasChanged();
-            await Task.Delay(1200);
-            _copied = false;
-        }
-        catch {
-        }
     }
 
 }

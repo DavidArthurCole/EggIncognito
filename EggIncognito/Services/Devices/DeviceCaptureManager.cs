@@ -77,56 +77,41 @@ public sealed class DeviceCaptureManager(
     private async Task StartOneAsync(DeviceEntry d, int port, CancellationToken ct) {
         try {
             var hub = new CaptureHub();
-            var queue = Channel.CreateUnbounded<CapturedFlow>(new UnboundedChannelOptions { SingleReader = true });
-            var decoder = new FlowDecoder(contentRoot);
-            EndpointExtractor? extractor = null;
-            if (liveRoutes is { Count: > 0 }) {
-                extractor = EndpointExtractor.ForRepo(contentRoot, null, "EI0000000000000000", false);
-                extractor.Quiet = true;
-                extractor.LiveOnly = true;
-                extractor.LiveRoutes = liveRoutes.ToHashSet(StringComparer.Ordinal);
-                extractor.WriteObserver = writeObserver;
-            }
-
-            var processor = new FlowProcessor(extractor, decoder, null, contentRoot);
-            var pump = Task.Run(() => PumpAsync(d.Id, queue, processor, hub), ct);
+            var pipeline = new CapturePipeline(contentRoot, null, false, false, liveRoutes, writeObserver, null);
+            var pump = pipeline.StartPump(hub, Now, null, obs => {
+                Rinfo.Observe(d.Id, obs, DateTimeOffset.UtcNow.ToString("O"));
+                if (_diag.TryGetValue(d.Id, out var dg)) dg.BumpRinfoHarvests();
+            }, ct);
 
             var diag = _diag.GetOrAdd(d.Id, _ => new DeviceCaptureDiag());
 
             var proxy = _proxyFactory(config.Verbose);
             if (config.Verbose)
                 proxy.Trace += line => logger.LogDebug("device capture: {Id} trace: {Line}", d.Id, line);
-            proxy.FlowCaptured += flow => {
-                diag.BumpFlows();
-                queue.Writer.TryWrite(flow);
-            };
-            proxy.ClientConnected += (count, ip) => {
-                diag.BumpClientConnects();
-                hub.RecordConnection(count, ip, Now());
-                logger.LogInformation("device capture: {Id} client connected (active={Count}, ip={Ip})", d.Id, count,
-                    ip ?? "?");
-            };
-            proxy.ClientDisconnected += (count, ip) => hub.RecordDisconnection(count, Now());
-            proxy.AuxbrainConnect += () => {
-                diag.BumpAuxbrainConnects();
-                hub.RecordAuxbrainConnect();
-                logger.LogDebug("device capture: {Id} auxbrain CONNECT decrypted", d.Id);
-            };
-            proxy.DecryptError += msg => {
-                diag.LastDecryptError = msg;
-                hub.RecordDecryptError(msg, Now());
-                logger.LogWarning("device capture: {Id} decrypt error: {Msg}", d.Id, msg);
-            };
-            proxy.TrustRestored += () => {
-                diag.LastDecryptError = null;
-                hub.RecordTrustRestored(Now());
-                logger.LogInformation("device capture: {Id} decryption recovered", d.Id);
-            };
+            pipeline.Attach(proxy, hub, Now,
+                onFlowCaptured: _ => diag.BumpFlows(),
+                onClientConnected: (count, ip) => {
+                    diag.BumpClientConnects();
+                    logger.LogInformation("device capture: {Id} client connected (active={Count}, ip={Ip})", d.Id,
+                        count, ip ?? "?");
+                },
+                onAuxbrainConnect: () => {
+                    diag.BumpAuxbrainConnects();
+                    logger.LogDebug("device capture: {Id} auxbrain CONNECT decrypted", d.Id);
+                },
+                onDecryptError: msg => {
+                    diag.LastDecryptError = msg;
+                    logger.LogWarning("device capture: {Id} decrypt error: {Msg}", d.Id, msg);
+                },
+                onTrustRestored: () => {
+                    diag.LastDecryptError = null;
+                    logger.LogInformation("device capture: {Id} decryption recovered", d.Id);
+                });
             proxy.ConnectSeen += (host, willDecrypt) => diag.NoteConnect(host, willDecrypt);
             await proxy.StartAsync(port, caPath, ct);
             hub.SetProxyState(true, port);
 
-            _captures[d.Id] = new DeviceCapture(proxy, port, queue, pump, hub);
+            _captures[d.Id] = new DeviceCapture(proxy, port, pipeline.Queue, pump, hub);
             logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca}, freshCa={Fresh})",
                 d.Id, port, caPath, proxy.FreshCa);
 
@@ -157,22 +142,6 @@ public sealed class DeviceCaptureManager(
         } catch (Exception ex) {
             logger.LogWarning(ex, "device capture: {Id} CA install threw", d.Id);
             return (false, ex.Message);
-        }
-    }
-
-    private async Task PumpAsync(string deviceId, Channel<CapturedFlow> queue, FlowProcessor processor,
-        CaptureHub hub) {
-        await foreach (var flow in queue.Reader.ReadAllAsync()) {
-            try {
-                var dash = processor.Process(flow);
-                if (dash.Observed is { } obs) {
-                    Rinfo.Observe(deviceId, obs, DateTimeOffset.UtcNow.ToString("O"));
-                    if (_diag.TryGetValue(deviceId, out var dg)) dg.BumpRinfoHarvests();
-                }
-
-                hub.Publish(dash, Now());
-            } catch {
-            }
         }
     }
 

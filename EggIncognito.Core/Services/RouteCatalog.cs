@@ -39,6 +39,9 @@ public sealed partial class RouteCatalog : IRouteCatalog {
     public RouteInfo? Get(string path) =>
         _byPath.GetValueOrDefault(path);
 
+    public static RouteCatalog ForRepo(string contentRoot) =>
+        new(ContentRoot.RoutesYamlPath(contentRoot));
+
     private static string ResolveYamlPath(IConfiguration config) =>
         ContentRoot.ResolveRouteMapFile(config["RoutesYamlPath"], "routes.yaml");
 

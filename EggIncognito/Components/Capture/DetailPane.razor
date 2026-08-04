@@ -1,5 +1,6 @@
 @using System.Text.Json
 @using EggIncognito.Capture
+@using EggIncognito.Core
 @* The detail pane: header (path + status), the known-endpoint card or save-as-endpoint bar + type
    lines, then Request/Response tabs carrying the body (FormatView), URL params, and optional headers. *@
 
@@ -251,15 +252,11 @@
 
         builder.OpenElement(seq++, "div");
         builder.AddAttribute(seq++, "class", "muted image-meta");
-        builder.AddContent(seq, $"{mime}, ~{FormatBytes(bytes)}");
+        builder.AddContent(seq, $"{mime}, ~{ByteFormat.Humanize(bytes, "0.#")}");
         builder.CloseElement();
 
         builder.CloseElement();
     };
-
-    static string FormatBytes(long n) =>
-        n >= 1024 * 1024 ? $"{n / (1024.0 * 1024):0.#} MB" :
-        n >= 1024 ? $"{n / 1024.0:0.#} KB" : $"{n} B";
 
 
     RenderFragment? BuildParams(DashboardFlow flow) {

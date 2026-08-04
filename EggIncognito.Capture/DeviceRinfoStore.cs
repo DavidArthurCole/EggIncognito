@@ -1,27 +1,9 @@
-using System.Text.Json;
 using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-//
-
-public sealed class DeviceRinfoStore(string capturePath) {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
-    private readonly Lock _gate = new();
-
-    private string FilePath => Path.Combine(capturePath, "device-rinfo.json");
-
-    public IReadOnlyList<DeviceRinfo> Load() {
-        try {
-            return !File.Exists(FilePath)
-                ? []
-                : (IReadOnlyList<DeviceRinfo>)(JsonSerializer.Deserialize<List<DeviceRinfo>>(File.ReadAllText(FilePath),
-                    Json) ?? []);
-        } catch {
-            return [];
-        }
-    }
-
+public sealed class DeviceRinfoStore(string capturePath)
+    : JsonListStore<DeviceRinfo>(capturePath, "device-rinfo.json") {
     public DeviceRinfo? Latest(string deviceId) {
         if (string.IsNullOrEmpty(deviceId)) return null;
         foreach (var v in Load()) {
@@ -35,8 +17,7 @@ public sealed class DeviceRinfoStore(string capturePath) {
 
     public void Observe(string deviceId, RinfoHarvester.ObservedVersion v, string nowIso) {
         if (string.IsNullOrEmpty(deviceId)) return;
-        lock (_gate) {
-            var rows = Load().ToList();
+        Mutate(rows => {
             int idx = rows.FindIndex(r => string.Equals(r.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
             var prev = idx >= 0 ? rows[idx] : null;
             var merged = new DeviceRinfo(
@@ -48,12 +29,7 @@ public sealed class DeviceRinfoStore(string capturePath) {
                 nowIso);
             if (idx >= 0) rows[idx] = merged;
             else rows.Add(merged);
-            try {
-                Directory.CreateDirectory(capturePath);
-                File.WriteAllText(FilePath, JsonSerializer.Serialize(rows, Json));
-            } catch {
-            }
-        }
+        });
     }
 }
 

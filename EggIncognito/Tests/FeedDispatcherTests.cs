@@ -148,11 +148,6 @@ public class FeedDispatcherTests {
         }
     }
 
-    private sealed class StubHttpFactory(HttpMessageHandler handler) : IHttpClientFactory {
-        public HttpClient CreateClient(string name) => new(handler, false);
-    }
-
-
     private sealed class FakeStore(params FeedSubscription[] subs) : IFeedSubscriptionStore {
         public List<FeedSubscription> Subs { get; } = [.. subs];
         public List<FeedDelivery> Deliveries { get; } = [];

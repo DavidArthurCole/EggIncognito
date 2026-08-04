@@ -6,7 +6,11 @@ using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
-public class CaptureDashboardTests {
+public sealed class CaptureDashboardTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
     private const string Yaml = """
                                 routes:
                                   # ei/
@@ -144,7 +148,7 @@ public class CaptureDashboardTests {
         Assert.Equal(600, snap[^1].Id);
     }
 
-    private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-dash");
+    private string MakeRepo() => TestRepoFixture.MakeRepo(_tmp, Yaml);
 
     private static string WrappedResponseB64() {
         var inner = new PeriodicalsResponse();

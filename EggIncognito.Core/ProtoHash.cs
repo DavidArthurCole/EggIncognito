@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Ei;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
@@ -7,17 +5,18 @@ using Google.Protobuf.Reflection;
 namespace EggIncognito.Core;
 
 public static class ProtoHash {
-    public static string Of(string protoText) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(protoText))).ToLowerInvariant();
+    public static string Of(string protoText) => Hashes.Sha256Hex(protoText);
 
     public static string OfDescriptor(byte[] fileDescriptorProtoBytes) =>
         HashCanonical(FileDescriptorProto.Parser.ParseFrom(fileDescriptorProtoBytes));
+
+    public static string OfDescriptor(FileDescriptorProto fdp) => HashCanonical(fdp.Clone());
 
     public static string Current() => HashCanonical(AuthenticatedMessage.Descriptor.File.ToProto());
 
     private static string HashCanonical(FileDescriptorProto fdp) {
         Canonicalize(fdp);
-        return Convert.ToHexString(SHA256.HashData(fdp.ToByteArray())).ToLowerInvariant();
+        return Hashes.Sha256Hex(fdp.ToByteArray());
     }
 
     private static void Canonicalize(FileDescriptorProto f) {

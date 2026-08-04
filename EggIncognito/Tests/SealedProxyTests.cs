@@ -114,13 +114,4 @@ public class SealedProxyTests {
             return Task.FromResult(result);
         }
     }
-
-    private sealed class StubHttpFactory : IHttpClientFactory {
-        public string? LastName { get; private set; }
-
-        public HttpClient CreateClient(string name) {
-            LastName = name;
-            return new HttpClient();
-        }
-    }
 }

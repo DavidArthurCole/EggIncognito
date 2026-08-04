@@ -3,8 +3,7 @@
 @page "/data"
 @page "/periodicals"
 @rendermode @(RenderMode.InteractiveServer)
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 @inject ICurrentUser User
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
@@ -79,13 +78,7 @@
         <section class="panel">
             <div class="flex items-stretch gap-2">
                 <label id="protoPageDrop" class="dropzone flex-1 min-w-0" for="wbFile">
-                    <div class="text-accent" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-                             stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
-                            <path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
-                        </svg>
-                    </div>
-                    <div class="text-[0.95rem]"><strong class="text-fg font-semibold">Drop .ipa, .apk, or bundle files here</strong> or click to browse</div>
+                    <DropZonePrompt Prompt="Drop .ipa, .apk, or bundle files here"/>
                 </label>
                 <button type="button" class="dropzone-open" title="Open workbench" aria-label="Open workbench"
                         @onclick="@(() => _workbench?.Open())">
@@ -376,9 +369,6 @@
         }))
         .LastOrDefault();
 
-    string _baseAddress = "";
-    string? _cookie;
-    IJSObjectReference? _copy;
 
     bool AnyFilter => _fPlatform.Length > 0 || _fVersion.Length > 0 || _fBuild.Length > 0
                       || _fClient.Length > 0 || _fSha.Length > 0;
@@ -476,11 +466,7 @@
     }
 
     protected override void OnInitialized() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
+        base.OnInitialized();
 
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         _isContributor = User.IsAtLeast(UserRole.Contributor);
@@ -512,36 +498,21 @@
     }
 
     Timer? _refresh;
-    IJSObjectReference? _vis;
+    PageVisibility? _vis;
     IJSObjectReference? _protoDrop;
 
-    async Task<bool> PageVisibleAsync() {
-        try {
-            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/visibility.js"));
-            return await _vis.InvokeAsync<bool>("isVisible");
-        }
-        catch {
-            return true;
-        }
-    }
+    PageVisibility Vis => _vis ??= new PageVisibility(JS, Env);
 
 
     async Task RefreshAll() {
         if (_loading || _busyMutating) return;
-        if (!await PageVisibleAsync()) return;
+        if (!await Vis.IsVisibleAsync()) return;
         await Load(true);
         if (_stagedPanel is not null) await _stagedPanel.Load();
         StateHasChanged();
     }
 
     bool _busyMutating;
-
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
-    }
 
     async Task Load(bool background = false) {
         if (!background) _loading = true;
@@ -708,42 +679,14 @@
         _ = JS.InvokeVoidAsync("location.assign", href);
     }
 
-    async Task Copy(string sha) {
-        if (string.IsNullOrEmpty(sha)) return;
-        try {
-            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
-            await _copy.InvokeAsync<bool>("writeText", sha);
-        }
-        catch {
-        }
-    }
-
     static string Short(string sha) {
         return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
     }
 
     public async ValueTask DisposeAsync() {
         if (_refresh is not null) await _refresh.DisposeAsync();
-        if (_vis is not null)
-            try {
-                await _vis.DisposeAsync();
-            }
-            catch {
-            }
-
-        if (_copy is not null)
-            try {
-                await _copy.DisposeAsync();
-            }
-            catch {
-            }
-
-        if (_protoDrop is not null)
-            try {
-                await _protoDrop.DisposeAsync();
-            }
-            catch (JSDisconnectedException) {
-            }
+        if (_vis is not null) await _vis.DisposeAsync();
+        await _protoDrop.DisposeModuleAsync();
     }
 
     record VersionRow(

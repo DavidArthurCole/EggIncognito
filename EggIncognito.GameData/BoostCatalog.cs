@@ -16,22 +16,16 @@ public interface IBoostCatalog {
     BoostCatalogEntry? Find(string id);
 }
 
-public sealed class BoostCatalog : IBoostCatalog {
-    private readonly Dictionary<string, BoostCatalogEntry> _byId;
-
+public sealed class BoostCatalog : GameDataCatalog<BoostCatalogEntry, string>, IBoostCatalog {
     private BoostCatalog(IReadOnlyList<BoostCatalogEntry> boosts, string binaryVersion,
-        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
-        Boosts = boosts;
-        BinaryVersion = binaryVersion;
-        Provenance = provenance;
-        _byId = boosts.ToDictionary(b => b.Id, StringComparer.Ordinal);
+        IReadOnlyDictionary<string, ProvenanceSource> provenance)
+        : base(boosts, binaryVersion, provenance, b => b.Id, StringComparer.Ordinal) {
     }
 
-    public IReadOnlyList<BoostCatalogEntry> Boosts { get; }
-    public string BinaryVersion { get; }
-    public IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    public IReadOnlyList<BoostCatalogEntry> Boosts => Entries;
+    public string BinaryVersion => Version;
 
-    public BoostCatalogEntry? Find(string id) => _byId.GetValueOrDefault(id);
+    public BoostCatalogEntry? Find(string id) => FindByKey(id);
 
     public static BoostCatalog Parse(string json) {
         var file = GameDataJson.Deserialize<BoostCatalogDataFile>(json, "Boost catalog");

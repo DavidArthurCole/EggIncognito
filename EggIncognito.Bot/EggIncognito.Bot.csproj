@@ -1,14 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>preview</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="EggIdentity.Contract" Version="1.1.3" />
-    <PackageReference Include="EggIdentity.Bot" Version="1.1.3" />
-    <PackageReference Include="EggIdentity.Db" Version="1.1.3" />
+    <PackageReference Include="EggIdentity.Bot" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EggIncognito.Core\EggIncognito.Core.csproj" />

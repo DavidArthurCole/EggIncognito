@@ -1,7 +1,7 @@
 
 
 
-function engine() { return globalThis.__pgEngine; }
+import { engine, rad } from './playgroundShared.js';
 
 const TC_URL = 'https://esm.sh/three@0.169.0/examples/jsm/controls/TransformControls.js';
 const THREE_URL = 'https://esm.sh/three@0.169.0';
@@ -109,8 +109,7 @@ export function setGizmoVisible(on) {
   if (gizmo) gizmo.getHelper().visible = !!on;
 }
 
-function deg(rad) { return rad * 180 / Math.PI; }
-function rad(d) { return d * Math.PI / 180; }
+function deg(r) { return r * 180 / Math.PI; }
 
 function nudge(key, step) {
   const e = engine();

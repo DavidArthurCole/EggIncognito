@@ -105,23 +105,4 @@ public class DeviceConfigTests {
         Assert.Contains(c.Devices, d => d.Id == "from-file");
         Assert.Contains(c.Devices, d => d.Id == "from-inline");
     }
-
-    private sealed class TempDir : IDisposable {
-        public TempDir() {
-            Directory.CreateDirectory(Path);
-        }
-
-        public string Path { get; } =
-            System.IO.Path.Combine(System.IO.Path.GetTempPath(), "egi-dev-" + Guid.NewGuid().ToString("N"));
-
-        public void Dispose() {
-            try {
-                Directory.Delete(Path, true);
-            } catch {
-            }
-        }
-
-        public void Write(string name, string content) =>
-            File.WriteAllText(System.IO.Path.Combine(Path, name), content);
-    }
 }

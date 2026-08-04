@@ -1,9 +1,9 @@
 @using System.Text
 @using System.Text.Json
 @using EggIncognito.Components.Capture
+@using EggIncognito.Core
 @implements IAsyncDisposable
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 
@@ -51,7 +51,7 @@
                                                            DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc">
                                             <Badges>
                                                 @if (s.Bytes is { } b) {
-                                                    <span class="mono text-muted text-xs">@Kb(b)</span>
+                                                    <span class="mono text-muted text-xs">@ByteFormat.Compact(b)</span>
                                                 }
                                                 @if (s.Meta is { } m && !string.IsNullOrEmpty(m.BinaryVersion)) {
                                                     <span class="ds-meta-chip">v@(m.BinaryVersion)</span>
@@ -223,7 +223,7 @@
         }
 
         @if (_catalogError is not null) {
-            <div class="panel text-err text-sm">Could not load the source catalog: @_catalogError</div>
+            <StatusNote Severity="StatusNote.Kind.Error">Could not load the source catalog: @_catalogError</StatusNote>
         }
     </div>
 }
@@ -241,8 +241,6 @@
     IJSObjectReference? _countdown;
     readonly CaptureViewState _view = new();
     readonly Dictionary<string, string> _fc = new();
-    string _baseAddress = "";
-    string? _cookie;
 
     static readonly (string Key, string Label)[] Groups = [
         ("periodical", "Periodical"),
@@ -250,12 +248,6 @@
     ];
 
     protected override async Task OnInitializedAsync() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
-
         try {
             var fetched = await Client().GetFromJsonAsync<Summary>("/api/periodicals/summary", JsonOpts);
             if (fetched is not null) {
@@ -308,10 +300,6 @@
         }
     }
 
-    HttpClient Client() {
-        return SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
-    }
-
     async Task<string> Fetch(string route) {
         try {
             var res = await Client().GetAsync(route);
@@ -323,12 +311,6 @@
         catch (Exception ex) {
             return ex.Message;
         }
-    }
-
-    static string Kb(long bytes) {
-        if (bytes < 1024) return $"{bytes}B";
-        var kb = bytes / 1024;
-        return kb >= 1000 ? $"{kb / 1000}MB" : $"{kb}KB";
     }
 
     static List<SubDatasetChips.SubDataset> ChipsOf(Source s) {
@@ -559,15 +541,8 @@
         await _countdown.InvokeVoidAsync("start");
     }
 
-    public async ValueTask DisposeAsync() {
-        if (_countdown is not null) {
-            try {
-                await _countdown.InvokeVoidAsync("stop");
-                await _countdown.DisposeAsync();
-            }
-            catch (JSDisconnectedException) {
-            }
-        }
+    public ValueTask DisposeAsync() {
+        return _countdown.DisposeModuleAsync("stop");
     }
 
     record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config, List<FeedInfo> Feeds);

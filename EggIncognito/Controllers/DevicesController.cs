@@ -1,6 +1,5 @@
-using System.Security.Cryptography;
-using System.Text;
 using EggIdentity.Contract;
+using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
@@ -34,7 +33,7 @@ public sealed class DevicesController(
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
 
     private static string DeviceKey(string realId) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(realId)))[..16];
+        Hashes.Sha256HexShort(realId, 16);
 
     private async Task<string?> ResolveDeviceIdAsync(string incoming, CancellationToken ct) {
         if (currentUser.IsAtLeast(UserRole.Admin)) return incoming;
@@ -76,9 +75,9 @@ public sealed class DevicesController(
                 }
 
                 regLatestApp[plat] = extracted.Select(e => e.AppVersion)
-                    .OrderByDescending(v => v, Comparer<string>.Create(DeviceProbeRunner.SemverCompare))
+                    .OrderByDescending(v => v, Comparer<string>.Create((x, y) => DeviceParsing.CompareVersions(x, y)))
                     .FirstOrDefault();
-                regLatestBuild[plat] = plat == "android"
+                regLatestBuild[plat] = Platforms.Matches(plat, Platforms.Android)
                     ? extracted.Select(e => e.Build).Where(b => long.TryParse(b, out _)).OrderByDescending(long.Parse)
                         .FirstOrDefault()
                     : null;
@@ -367,8 +366,7 @@ public sealed class DevicesController(
 
         string appVersion = probe.InstalledAppVersion!;
         string build = carve!.Build;
-        string sha = Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes(carve.Proto)));
+        string sha = carve.ProtoSha ?? Hashes.Sha256Hex(carve.Proto);
 
 
         string? clientVersion = carve.ClientVersion?.ToString();
@@ -428,7 +426,7 @@ public sealed class DevicesController(
                 return (null, StatusCode(500, new { error = $"proto carve failed: {carved.Diagnostics}" }));
             }
 
-            return (new CarveResult(carved.Proto, probe.InstalledBuild!, carved.ClientVersion), null);
+            return (new CarveResult(carved.Proto, probe.InstalledBuild!, carved.ClientVersion, carved.ProtoSha), null);
         }
 
         if (IosConn(device) is not { } conn) {
@@ -467,8 +465,8 @@ public sealed class DevicesController(
 
         string iosBuild = !string.IsNullOrEmpty(probe.InstalledBuild)
             ? probe.InstalledBuild!
-            : Convert.ToHexStringLower(SHA256.HashData(bin))[..16];
-        return (new CarveResult(iosCarve.Proto, iosBuild, LibegincClientVersion.ReadFromBinary(bin)), null);
+            : Hashes.Sha256HexShort(bin, 16);
+        return (new CarveResult(iosCarve.Proto, iosBuild, LibegincClientVersion.ReadFromBinary(bin), iosCarve.ProtoSha), null);
     }
 
 
@@ -671,5 +669,5 @@ public sealed class DevicesController(
             : Ok(new { found = true, v.Platform, v.Version, v.Build, v.ClientVersion, capture });
     }
 
-    private sealed record CarveResult(string Proto, string Build, int? ClientVersion = null);
+    private sealed record CarveResult(string Proto, string Build, int? ClientVersion = null, string? ProtoSha = null);
 }

@@ -33,6 +33,13 @@ public static class DescriptorProtoCarver {
     }
 
 
+    public static string EmitProto(FileDescriptorProto fdp) {
+        var sb = new StringBuilder();
+        EmitFile(fdp, sb);
+        return sb.ToString();
+    }
+
+
     public static ExtractResult FromCarvedBase64(string? eiB64, string? commonB64, int? clientVersion) {
         byte[] ei;
         try {
@@ -63,7 +70,9 @@ public static class DescriptorProtoCarver {
 
         string? commonText = commonBytes is { Length: > 0 } ? EmitProto(commonBytes) : null;
         string proto = commonText is not null ? ProtoCleanup.Clean(eiText, commonText) : eiText;
-        string sha = EggIncognito.Core.ProtoHash.OfDescriptor(eiBytes);
+        var norm = ProtoCanonicalForm.Normalize(proto);
+        if (norm.Ok) proto = norm.Text!;
+        string sha = norm.Ok ? norm.Sha! : EggIncognito.Core.ProtoHash.OfDescriptor(eiBytes);
         var messages = ProtoTextIndex.Names(proto);
 
         var eiFdp = TryParse(eiBytes) ?? new FileDescriptorProto();
@@ -91,7 +100,9 @@ public static class DescriptorProtoCarver {
         string? commonText = common is not null ? EmitProto(common.Bytes) : null;
 
         string proto = commonText is not null ? ProtoCleanup.Clean(eiText, commonText) : eiText;
-        string sha = EggIncognito.Core.ProtoHash.OfDescriptor(ei.Bytes);
+        var norm = ProtoCanonicalForm.Normalize(proto);
+        if (norm.Ok) proto = norm.Text!;
+        string sha = norm.Ok ? norm.Sha! : EggIncognito.Core.ProtoHash.OfDescriptor(ei.Bytes);
         var messages = ProtoTextIndex.Names(proto);
 
         var eiFdp = TryParse(ei.Bytes) ?? new FileDescriptorProto();

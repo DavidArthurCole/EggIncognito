@@ -2,9 +2,8 @@
 @using System.Text.Json
 @using EggIdentity.Bot.AdminUi
 @rendermode @(RenderMode.InteractiveServer)
+@inherits SelfCallComponentBase
 @inject ICurrentUser User
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>EggIncognito - Admin</PageTitle>
 <main id="adminMain" class="px-8 pt-6 pb-8">
@@ -82,24 +81,10 @@
     List<UserRow> _users = [];
 
 
-    string _baseAddress = "";
-    string? _cookie;
-
     protected override async Task OnInitializedAsync() {
         _isAdmin = User.IsAtLeast(UserRole.Admin);
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
-
         if (!_isAdmin) return;
         await LoadUsers();
-    }
-
-
-    HttpClient Client() {
-        return SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
     }
 
     async Task LoadUsers() {

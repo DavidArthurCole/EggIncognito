@@ -3,8 +3,7 @@
 @using System.Text.Json
 @using EggIncognito.Services.ProtoExtract
 @implements IAsyncDisposable
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 @inject ICurrentUser User
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
@@ -156,7 +155,7 @@
                                 <button class="btn-secondary flex-1" disabled="@(_redo.Count == 0)" @onclick="OnRedo" title="Redo (Ctrl+Y)">Redo</button>
                             </div>
                             @if (!string.IsNullOrEmpty(_status)) {
-                                <div class="text-xs @(_error ? "err" : "text-muted")">@_status</div>
+                                <StatusNote Severity="@(_error ? StatusNote.Kind.Error : StatusNote.Kind.Info)">@_status</StatusNote>
                             }
                             <div class="text-xs text-muted">
                                 @if (_elements.Count == 0) {
@@ -560,18 +559,11 @@
     string _status = "";
     string _fatalError = "";
 
-    string _baseAddress = "";
-    string? _cookie;
-
     DesignElement? Selected => _elements.FirstOrDefault(e => e.Id == _selectedElementId);
 
     protected override void OnInitialized() {
+        base.OnInitialized();
         _isAdmin = User.IsAtLeast(UserRole.Admin);
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -615,22 +607,9 @@
             catch {
             }
         } else if (!_gifOpen && _gifDragHandle is not null) {
-            try {
-                await _gifDragHandle.InvokeVoidAsync("dispose");
-                await _gifDragHandle.DisposeAsync();
-            }
-            catch {
-            }
-
+            await _gifDragHandle.DisposeModuleQuietAsync("dispose");
             _gifDragHandle = null;
         }
-    }
-
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
     }
 
     async Task<byte[]?> FetchRaw(string url) {
@@ -2382,66 +2361,12 @@
     record DesignListResult(DesignRow[]? Designs);
 
     public async ValueTask DisposeAsync() {
-        if (_mod is not null) {
-            try {
-                await _mod.InvokeVoidAsync("dispose");
-            }
-            catch {
-            }
-
-            try {
-                await _mod.DisposeAsync();
-            }
-            catch {
-            }
-        }
-
-        if (_designer is not null) {
-            try {
-                await _designer.InvokeVoidAsync("disposeDesigner");
-            }
-            catch {
-            }
-
-            try {
-                await _designer.DisposeAsync();
-            }
-            catch {
-            }
-        }
-
-        if (_autosave is not null) {
-            try {
-                await _autosave.DisposeAsync();
-            }
-            catch {
-            }
-        }
-
-        if (_recorder is not null) {
-            try {
-                await _recorder.DisposeAsync();
-            }
-            catch {
-            }
-        }
-
-        if (_gifDragHandle is not null) {
-            try {
-                await _gifDragHandle.DisposeAsync();
-            }
-            catch {
-            }
-        }
-
-        if (_popoverDragMod is not null) {
-            try {
-                await _popoverDragMod.DisposeAsync();
-            }
-            catch {
-            }
-        }
-
+        await _mod.DisposeModuleQuietAsync("dispose");
+        await _designer.DisposeModuleQuietAsync("disposeDesigner");
+        await _autosave.DisposeModuleQuietAsync();
+        await _recorder.DisposeModuleQuietAsync();
+        await _gifDragHandle.DisposeModuleQuietAsync();
+        await _popoverDragMod.DisposeModuleQuietAsync();
         _autosaveCts?.Cancel();
         _selfRef?.Dispose();
     }

@@ -6,6 +6,7 @@
 
 import { splineLength, sampleSpline, tangentAt } from './playgroundMotion.js';
 import { evalExpr, evalMatrix } from './effectEval.js';
+import { rad } from './playgroundShared.js';
 
 const THREE_URL = 'https://esm.sh/three@0.169.0';
 const GLTF_URL = 'https://esm.sh/three@0.169.0/examples/jsm/loaders/GLTFLoader.js';
@@ -311,8 +312,6 @@ function ensureRunners(g, count, baseScale) {
 }
 
 function easeOut(x) { return 1 - (1 - x) * (1 - x); }
-
-function rad(d) { return (d || 0) * Math.PI / 180; }
 
 
 export function attachEffects(groupId, models) {

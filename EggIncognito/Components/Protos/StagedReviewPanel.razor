@@ -2,8 +2,7 @@
    bulk approve/reject, and inline-edit version fields to fix a crawled null before approving. Approve promotes
    to the live registry; reject hides + blocks re-offer of that sha. *@
 @rendermode @(RenderMode.InteractiveServer)
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 @using System.Text
@@ -125,8 +124,6 @@
     readonly HashSet<int> _selected = [];
     bool _busy;
     Status? _status;
-    string _baseAddress = "";
-    string? _cookie;
 
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public bool IsAdmin { get; set; }
@@ -134,23 +131,8 @@
 
     bool AllSelected => _rows.Count > 0 && _rows.All(r => _selected.Contains(r.Id));
 
-    protected override void OnInitialized() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
-    }
-
     protected override async Task OnInitializedAsync() {
         await Load();
-    }
-
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
     }
 
     public async Task Load() {
@@ -351,13 +333,8 @@
         return CopyAndClear([r]);
     }
 
-    public async ValueTask DisposeAsync() {
-        if (_copy is not null)
-            try {
-                await _copy.DisposeAsync();
-            }
-            catch {
-            }
+    public ValueTask DisposeAsync() {
+        return _copy.DisposeModuleQuietAsync();
     }
 
     sealed record Status(StatusNote.Kind Kind, string Text, BulkApproveResp? Bulk = null);

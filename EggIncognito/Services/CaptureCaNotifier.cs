@@ -59,12 +59,10 @@ public sealed class DiscordCaptureCaNotifier(
 
     private static async Task<string?> OpenDmAsync(HttpClient http, string token, string discordId,
         CancellationToken ct) {
-        using var req = new HttpRequestMessage(HttpMethod.Post, "https://discord.com/api/v10/users/@me/channels") {
-            Content = new StringContent(
+        using var req = DiscordBotApi.Request(HttpMethod.Post, "users/@me/channels", token,
+            new StringContent(
                 JsonSerializer.Serialize(new { recipient_id = discordId }),
-                Encoding.UTF8, "application/json")
-        };
-        req.Headers.TryAddWithoutValidation("Authorization", $"Bot {token}");
+                Encoding.UTF8, "application/json"));
         using var res = await http.SendAsync(req, ct);
         if (!res.IsSuccessStatusCode) return null;
 
@@ -85,11 +83,7 @@ public sealed class DiscordCaptureCaNotifier(
         form.Add(new StringContent(
             JsonSerializer.Serialize(new { content }), Encoding.UTF8, "application/json"), "payload_json");
 
-        using var req = new HttpRequestMessage(HttpMethod.Post,
-            $"https://discord.com/api/v10/channels/{channelId}/messages") {
-            Content = form
-        };
-        req.Headers.TryAddWithoutValidation("Authorization", $"Bot {token}");
+        using var req = DiscordBotApi.Request(HttpMethod.Post, $"channels/{channelId}/messages", token, form);
         using var res = await http.SendAsync(req, ct);
         return res.IsSuccessStatusCode;
     }

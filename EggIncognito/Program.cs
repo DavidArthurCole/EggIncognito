@@ -121,8 +121,7 @@ builder.Services.AddScoped<ShipShellDownloader>();
 builder.Services.AddSingleton<MeshAssetCache>();
 builder.Services.AddSingleton<IconAssetCache>();
 
-builder.Services.AddScoped<IDeviceAssetReader, AndroidDeviceAssetReader>();
-builder.Services.AddScoped<IDeviceAssetReader, IosDeviceAssetReader>();
+builder.Services.AddScoped<IDeviceResolver, DeviceResolver>();
 builder.Services.AddScoped<DeviceAssetService>();
 
 builder.Services.AddScoped<IGameAssetTier, MeshDbTier>();
@@ -205,10 +204,10 @@ if (dbEnabled) {
         new ScopedDbRouteProvider(sp.GetRequiredService<IServiceScopeFactory>()));
 }
 
-string? identityApiUrl = builder.Configuration["Identity:ApiUrl"];
-string? identityApiSecret = builder.Configuration["Identity:ApiSecret"];
+string? identityApiUrl = builder.Configuration[IdentityConfigKeys.ApiUrl];
+string? identityApiSecret = builder.Configuration[IdentityConfigKeys.ApiSecret];
 
-string? identityWidgetUrl = builder.Configuration["Identity:WidgetUrl"];
+string? identityWidgetUrl = builder.Configuration[IdentityConfigKeys.WidgetUrl];
 bool identityApiEnabled = !string.IsNullOrWhiteSpace(identityApiUrl) && !string.IsNullOrWhiteSpace(identityApiSecret);
 if (identityApiEnabled) {
     builder.Services.AddHttpClient<IdentityApiClient>(c => {

@@ -6,8 +6,8 @@ namespace EggIncognito.Tests;
 public class PostmanCollectionTests {
     [Fact]
     public void BuildJson_ProducesNamespaceFoldersAndSimulation() {
-        string dir = Path.Combine(Path.GetTempPath(), "egi-pm-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
+        using var tmp = new TempDir();
+        string dir = tmp.Path;
         File.WriteAllText(Path.Combine(dir, "routes.yaml"), """
                                                             routes:
                                                               - path: ei/alpha

@@ -11,17 +11,20 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-public class CaptureCaNotifierTests {
-    private static CaptureSession FreshCaSession() {
-        string tmp = Path.Combine(Path.GetTempPath(), "egi-cadm-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tmp);
+public sealed class CaptureCaNotifierTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
+    private CaptureSession FreshCaSession() {
+        string tmp = _tmp.CreateSubdir();
         var opts = new CaptureSessionOptions(19090, null, null,
             false, false, tmp,
             Path.Combine(tmp, "ca.cer"), false);
         return new CaptureSession(CaptureSessionManagerTests.RealContentRoot(), opts, _ => new FreshCaProxy());
     }
 
-    private static CaptureSessionManager FreshCaManager() =>
+    private CaptureSessionManager FreshCaManager() =>
         new(HostedCaptureOptions.Defaults(), (_, _) => FreshCaSession());
 
     private static IConfiguration Config(Dictionary<string, string?> values) =>
@@ -48,7 +51,7 @@ public class CaptureCaNotifierTests {
 
     [Fact]
     public async Task DiscordNotifier_FailingHttp_ReturnsFalse() {
-        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
         var notifier = new DiscordCaptureCaNotifier(
             new StubHttpFactory(handler),
             Config(new Dictionary<string, string?> { ["Discord:BotToken"] = "token" }),
@@ -60,7 +63,7 @@ public class CaptureCaNotifierTests {
 
     [Fact]
     public async Task DiscordNotifier_NoToken_ReturnsFalse() {
-        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
         var notifier = new DiscordCaptureCaNotifier(
             new StubHttpFactory(handler),
             Config([]),
@@ -195,14 +198,5 @@ public class CaptureCaNotifierTests {
         public event Action<string, bool>? ConnectSeen;
         public event Action<string>? Trace;
 #pragma warning restore CS0067
-    }
-
-    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
-            Task.FromResult(respond(request));
-    }
-
-    private sealed class StubHttpFactory(HttpMessageHandler handler) : IHttpClientFactory {
-        public HttpClient CreateClient(string name) => new(handler, false);
     }
 }

@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+using EggIncognito.Core;
 using EggIncognito.Services.Assets;
 using EggIncognito.Services.ProtoExtract;
 
@@ -16,7 +16,7 @@ public static class MeshManifest {
                 indexCount = a.Decode.IndexCount,
                 hasEmission = a.Decode.HasEmission,
                 bbox = new { min = new[] { b.Min.X, b.Min.Y, b.Min.Z }, max = new[] { b.Max.X, b.Max.Y, b.Max.Z } },
-                sha256 = Convert.ToHexStringLower(SHA256.HashData(glb)),
+                sha256 = Hashes.Sha256Hex(glb),
                 glbBase64 = Convert.ToBase64String(glb)
             };
         }).ToList();

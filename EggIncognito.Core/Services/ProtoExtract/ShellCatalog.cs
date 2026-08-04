@@ -3,7 +3,7 @@ using Ei;
 namespace EggIncognito.Services.ProtoExtract;
 
 public static class ShellCatalog {
-    private const string CdnBase = "https://www.auxbrain.com/dlc";
+    private const string CdnBase = AuxbrainHosts.Origin + "/dlc";
 
 
     public static readonly IReadOnlyList<double> DefaultChickenAnchor = [0.0, 0.428, -0.11, 1.06];

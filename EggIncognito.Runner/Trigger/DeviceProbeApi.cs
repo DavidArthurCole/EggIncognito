@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
 using EggIncognito.Runner.Data;
@@ -12,7 +10,7 @@ public sealed class DeviceProbeApi(string secret, RunnerDb db, IProcessRunner ru
     private readonly ILogger _logger = logs.CreateLogger("DeviceProbeApi");
 
     public async Task<ProbeApiResult> ProbeOneAsync(string? authorizationHeader, string id, string triggeredBy) {
-        if (!BearerMatches(authorizationHeader)) return new ProbeApiResult(401, id, null, "unauthorized");
+        if (!BearerAuth.Matches(authorizationHeader, secret)) return new ProbeApiResult(401, id, null, "unauthorized");
         using var ctx = db.NewContext();
         var store = new DeviceStatusStore(ctx);
         var device = await store.GetAsync(id, CancellationToken.None);
@@ -26,7 +24,7 @@ public sealed class DeviceProbeApi(string secret, RunnerDb db, IProcessRunner ru
     }
 
     public async Task<ProbeApiResult> ProbeAllAsync(string? authorizationHeader, string triggeredBy) {
-        if (!BearerMatches(authorizationHeader)) return new ProbeApiResult(401, null, null, "unauthorized");
+        if (!BearerAuth.Matches(authorizationHeader, secret)) return new ProbeApiResult(401, null, null, "unauthorized");
         using var ctx = db.NewContext();
         var store = new DeviceStatusStore(ctx);
         var devices = await store.EnabledDevicesAsync(CancellationToken.None);
@@ -52,12 +50,4 @@ public sealed class DeviceProbeApi(string secret, RunnerDb db, IProcessRunner ru
         note = row.Note,
         probedAt = row.ProbedAt,
     };
-
-    private bool BearerMatches(string? header) {
-        const string prefix = "Bearer ";
-        if (header is null || !header.StartsWith(prefix, StringComparison.Ordinal)) return false;
-        var presented = Encoding.UTF8.GetBytes(header[prefix.Length..]);
-        var expected = Encoding.UTF8.GetBytes(secret);
-        return CryptographicOperations.FixedTimeEquals(presented, expected);
-    }
 }

@@ -7,22 +7,16 @@ public interface IDimensionCatalog {
     bool Contains(string id);
 }
 
-public sealed class DimensionCatalog : IDimensionCatalog {
-    private readonly HashSet<string> _ids;
-
+public sealed class DimensionCatalog : GameDataCatalog<string, string>, IDimensionCatalog {
     private DimensionCatalog(IReadOnlyList<string> dimensions, string binaryVersion,
-        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
-        Dimensions = dimensions;
-        BinaryVersion = binaryVersion;
-        Provenance = provenance;
-        _ids = new HashSet<string>(dimensions, StringComparer.Ordinal);
+        IReadOnlyDictionary<string, ProvenanceSource> provenance)
+        : base(dimensions, binaryVersion, provenance, d => d, StringComparer.Ordinal) {
     }
 
-    public IReadOnlyList<string> Dimensions { get; }
-    public string BinaryVersion { get; }
-    public IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    public IReadOnlyList<string> Dimensions => Entries;
+    public string BinaryVersion => Version;
 
-    public bool Contains(string id) => _ids.Contains(id);
+    public bool Contains(string id) => ContainsKey(id);
 
     public static DimensionCatalog Parse(string json) {
         var file = GameDataJson.Deserialize<DimensionCatalogDataFile>(json, "Dimension catalog");

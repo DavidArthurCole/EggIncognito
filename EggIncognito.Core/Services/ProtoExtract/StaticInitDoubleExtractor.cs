@@ -1,6 +1,4 @@
 using System.Globalization;
-using Gee.External.Capstone;
-using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract;
 
@@ -15,26 +13,8 @@ public static class StaticInitDoubleExtractor {
     }
 
     public static Result ExtractRange(byte[] bin, ulong startVa, ulong endVa, int maxInsns = 60000) {
-        var img = BinaryImage.Load(bin);
-        if (img is null || !img.TryFindText(out int textFileOff, out _, out ulong textVmAddr))
-            return new Result(false, [], "range", "no __text");
-        ulong slide = textVmAddr - (ulong)textFileOff;
-        long startFile = (long)startVa - (long)slide;
-        long len = (long)endVa - (long)startVa;
-        if (startFile < 0 || len <= 0 || startFile + len > bin.Length)
-            return new Result(false, [], "range", "range out of bounds");
-
-        byte[] code = new byte[len];
-        Array.Copy(bin, startFile, code, 0, (int)len);
-        using var cs = CapstoneDisassembler.CreateArm64Disassembler(
-            Arm64DisassembleMode.LittleEndian);
-        var insns = new List<Arm64DataTableReader.Insn>();
-        foreach (var ins in cs.Disassemble(code, (long)startVa)) {
-            insns.Add(new Arm64DataTableReader.Insn((ulong)ins.Address, ins.Mnemonic ?? "", ins.Operand ?? ""));
-            if (insns.Count >= maxInsns) break;
-        }
-
-        return Decode(bin, insns, "range");
+        var lst = Arm64DataTableReader.ListRange(bin, startVa, endVa, maxInsns);
+        return !lst.Ok ? new Result(false, [], "range", lst.Diagnostics) : Decode(bin, lst.Instructions, "range");
     }
 
     private static Result Decode(byte[] bin, IReadOnlyList<Arm64DataTableReader.Insn> insns, string symbol) {

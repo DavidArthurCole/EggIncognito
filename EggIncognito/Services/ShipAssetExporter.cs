@@ -1,6 +1,6 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EggIncognito.Core;
 using EggIncognito.Services.Assets;
 using EggIncognito.Services.ProtoExtract;
 
@@ -30,7 +30,7 @@ public static class ShipAssetExporter {
             var b = asset.Decode.Bounds!;
             var entry = new ShipEntry(
                 $"ships/{enumName}.glb",
-                Convert.ToHexStringLower(SHA256.HashData(glb)),
+                Hashes.Sha256Hex(glb),
                 new BBox([b.Min.X, b.Min.Y, b.Min.Z], [b.Max.X, b.Max.Y, b.Max.Z]));
 
             exported.Add(new Exported(enumName, glb, entry));

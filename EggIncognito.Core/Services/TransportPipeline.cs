@@ -1,5 +1,5 @@
-using System.Security.Cryptography;
 using System.Text;
+using EggIncognito.Core;
 using Ei;
 using Google.Protobuf;
 using Microsoft.Extensions.Configuration;
@@ -220,8 +220,7 @@ public sealed class TransportPipeline : ITransportPipeline {
     }
 
     private static string ComputeCode(byte[] messageBytes, string phrase) {
-        byte[] phraseHash = SHA256.HashData(Encoding.UTF8.GetBytes(phrase));
-        byte[] salt = Encoding.ASCII.GetBytes(Convert.ToHexString(phraseHash).ToLowerInvariant());
+        byte[] salt = Encoding.ASCII.GetBytes(Hashes.Sha256Hex(phrase));
 
         const uint magic = 0x3b9af419;
         byte[] mutated = (byte[])messageBytes.Clone();
@@ -232,6 +231,6 @@ public sealed class TransportPipeline : ITransportPipeline {
         byte[] combined = new byte[mutated.Length + salt.Length];
         mutated.CopyTo(combined, 0);
         salt.CopyTo(combined, mutated.Length);
-        return Convert.ToHexString(SHA256.HashData(combined)).ToLowerInvariant();
+        return Hashes.Sha256Hex(combined);
     }
 }

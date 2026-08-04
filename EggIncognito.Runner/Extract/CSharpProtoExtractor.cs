@@ -3,10 +3,8 @@ using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Runner.Extract;
 
-public sealed class CSharpProtoExtractor : IProtoExtractor
-{
-    public ProtoExtraction Extract(string apkPath)
-    {
+public sealed class CSharpProtoExtractor : IProtoExtractor {
+    public ProtoExtraction Extract(string apkPath) {
         var bytes = File.ReadAllBytes(apkPath);
         var r = AndroidProtoExtractor.Extract(bytes);
         if (!r.Ok || r.Proto is null)

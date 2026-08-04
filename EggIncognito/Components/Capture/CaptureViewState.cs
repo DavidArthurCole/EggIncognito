@@ -1,10 +1,12 @@
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using EggIncognito.Core;
+using EggIncognito.Services;
 
 namespace EggIncognito.Components.Capture;
 
 public sealed partial class CaptureViewState {
-    public static readonly Regex EidRe = EidRegex();
+    public static readonly Regex EidRe = EidPattern.Contains;
 
 
     public HashSet<string> SensitiveKeys { get; } = [with(StringComparer.Ordinal), "eiUserId", "userId"];
@@ -79,9 +81,6 @@ public sealed partial class CaptureViewState {
         }
     }
 
-    [GeneratedRegex("EI\\d{10,}", RegexOptions.Compiled)]
-    private static partial Regex EidRegex();
-
     [GeneratedRegex("(/)")]
     private static partial Regex MyRegex();
 }
@@ -94,8 +93,7 @@ public static class CaptureHelpers {
         _ => "status-4xx"
     };
 
-    public static string FormatBytes(long bytes) => bytes < 1024 ? $"{bytes} B" :
-        bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.0} KB" : $"{bytes / (1024.0 * 1024.0):0.0} MB";
+    public static string FormatBytes(long bytes) => ByteFormat.Humanize(bytes);
 
     public static OutcomeMeta? Outcome(string? outcome) => outcome switch {
         "wrote" => new OutcomeMeta("wrote", "good", "New endpoint written to disk (none existed before)."),

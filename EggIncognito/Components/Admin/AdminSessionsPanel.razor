@@ -49,7 +49,7 @@
         </div>
     }
     @if (_msg is not null) {
-        <p class="text-xs text-muted mt-2 mb-0">@_msg</p>
+        <StatusNote>@_msg</StatusNote>
     }
 </section>
 
@@ -70,24 +70,16 @@
     protected override void OnAfterRender(bool firstRender) {
         if (firstRender)
             _timer = new Timer(async _ => await InvokeAsync(async () => {
-                    if (!await PageVisibleAsync()) return;
+                    if (!await Vis.IsVisibleAsync()) return;
                     await Load();
                     StateHasChanged();
                 }),
                 null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
-    IJSObjectReference? _vis;
+    PageVisibility? _vis;
 
-    async Task<bool> PageVisibleAsync() {
-        try {
-            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/visibility.js"));
-            return await _vis.InvokeAsync<bool>("isVisible");
-        }
-        catch {
-            return true;
-        }
-    }
+    PageVisibility Vis => _vis ??= new PageVisibility(JS, Env);
 
     async Task Load() {
         if (ClientFactory is null) return;

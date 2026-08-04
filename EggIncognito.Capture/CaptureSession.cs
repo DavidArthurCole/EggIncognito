@@ -23,8 +23,6 @@ public sealed class CaptureSession(
     string contentRoot,
     CaptureSessionOptions opts,
     Func<bool, ICaptureProxy>? proxyFactory = null) {
-    private const string EidPlaceholder = "EI0000000000000000";
-
     private readonly Lock _gate = new();
 
     private readonly Func<bool, ICaptureProxy> _proxyFactory =
@@ -76,49 +74,22 @@ public sealed class CaptureSession(
 
             var liveVersions = new LiveVersionStore(opts.CapturePath);
 
-
-            if (opts.WriteEndpoints || opts.LiveRoutes.Count > 0) {
-                _extractor = EndpointExtractor.ForRepo(contentRoot, opts.Eid, EidPlaceholder, opts.Overwrite);
-                _extractor.Quiet = true;
-                _extractor.LiveOnly = !opts.WriteEndpoints;
-                _extractor.LiveRoutes = opts.LiveRoutes.ToHashSet(StringComparer.Ordinal);
-                _extractor.WriteObserver = opts.WriteObserver;
-            }
-
             _har = new HarWriter();
-            var decoder = new FlowDecoder(contentRoot);
-            var processor = new FlowProcessor(_extractor, decoder, _har, contentRoot);
-
-            var queue = Channel.CreateUnbounded<CapturedFlow>(new UnboundedChannelOptions { SingleReader = true });
-            _queue = queue;
+            var pipeline = new CapturePipeline(contentRoot, opts.Eid, opts.Overwrite, opts.WriteEndpoints,
+                opts.LiveRoutes, opts.WriteObserver, _har);
+            _extractor = pipeline.Extractor;
+            _queue = pipeline.Queue;
 
             var proxy = _proxyFactory(opts.Verbose);
-            proxy.FlowCaptured += flow => queue.Writer.TryWrite(flow);
-            proxy.ClientConnected += (count, ip) => {
-                _activeClients = count;
-                Hub.RecordConnection(count, ip, Now());
-            };
-            proxy.ClientDisconnected += (count, ip) => {
-                _activeClients = count;
-                Hub.RecordDisconnection(count, Now());
-            };
-            proxy.AuxbrainConnect += () => Hub.RecordAuxbrainConnect();
-            proxy.DecryptError += msg => Hub.RecordDecryptError(msg, Now());
-            proxy.TrustRestored += () => Hub.RecordTrustRestored(Now());
+            pipeline.Attach(proxy, Hub, Now,
+                onClientConnected: (count, _) => _activeClients = count,
+                onClientDisconnected: (count, _) => _activeClients = count);
             _proxy = proxy;
 
-            _consumer = Task.Run(async () => {
-                await foreach (var flow in queue.Reader.ReadAllAsync()) {
-                    LastFlowUtc = DateTimeOffset.UtcNow;
-                    try {
-                        var dash = processor.Process(flow);
-                        if (dash.Observed is { } obs) liveVersions.Observe(obs, DateTimeOffset.UtcNow.ToString("O"));
-                        Hub.Publish(dash, Now());
-                    } catch {
-                        /* a single bad flow must not kill the pump */
-                    }
-                }
-            }, ct);
+            _consumer = pipeline.StartPump(Hub, Now,
+                _ => LastFlowUtc = DateTimeOffset.UtcNow,
+                obs => liveVersions.Observe(obs, DateTimeOffset.UtcNow.ToString("O")),
+                ct);
 
             await proxy.StartAsync(opts.Port, opts.CaPath, ct);
             lock (_gate) State = CaptureState.Running;
@@ -208,7 +179,7 @@ public sealed class CaptureSession(
     public string? SaveEndpoint(string path, string method, int status, string? requestDataB64, string responseB64) {
         var ex = _extractor;
         if (ex is null) return null;
-        string url = $"https://www.auxbrain.com/{path}";
+        string url = $"{AuxbrainHosts.Origin}/{path}";
         string? written = ex.ForceWriteEndpoint(url, method, status, requestDataB64, responseB64);
         ex.Save();
         return written;

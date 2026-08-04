@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 ENV NUGET_PACKAGES=/root/.nuget/packages
 
-COPY nuget.config ./
+COPY nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props ./
 COPY EggIncognito.Core/EggIncognito.Core.csproj EggIncognito.Core/
 COPY EggIncognito.Data/EggIncognito.Data.csproj EggIncognito.Data/
 COPY EggIncognito.Runner/EggIncognito.Runner.csproj EggIncognito.Runner/

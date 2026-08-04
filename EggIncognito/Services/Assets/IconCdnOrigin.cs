@@ -3,7 +3,7 @@ using EggIncognito.Core.Services.Assets;
 namespace EggIncognito.Services.Assets;
 
 public sealed class IconCdnOrigin(IHttpClientFactory httpFactory, ILogger<IconCdnOrigin> logger) : IGameAssetOrigin {
-    private const string ArtifactsBase = "https://www.auxbrain.com/dlc/artifacts/1/";
+    private const string ArtifactsBase = AuxbrainHosts.Origin + "/dlc/artifacts/1/";
 
     public bool Handles(GameAssetKey key) =>
         key.Kind == "icon"

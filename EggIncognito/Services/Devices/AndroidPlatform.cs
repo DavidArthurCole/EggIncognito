@@ -10,29 +10,12 @@ public sealed class AndroidPlatform(
     IEnumerable<IDeviceStoreChecker> storeCheckers,
     IEnumerable<IDeviceProxyConfigurator> proxyConfigurators,
     IEnumerable<IDeviceCaInstaller> caInstallers,
-    ILogger<AndroidPlatform> logger) : IDevicePlatform {
-    private const string Android = "android";
-
-    private readonly IDeviceStoreChecker? _store =
-        storeCheckers.FirstOrDefault(c => string.Equals(c.Platform, Android, StringComparison.OrdinalIgnoreCase));
-
-    private readonly IDeviceProxyConfigurator? _proxy =
-        proxyConfigurators.FirstOrDefault(c => string.Equals(c.Platform, Android, StringComparison.OrdinalIgnoreCase));
-
-    private readonly IDeviceCaInstaller? _ca =
-        caInstallers.FirstOrDefault(c => string.Equals(c.Platform, Android, StringComparison.OrdinalIgnoreCase));
-
+    ILogger<AndroidPlatform> logger)
+    : DevicePlatformBase(Platforms.Android, storeCheckers, proxyConfigurators, caInstallers) {
     private readonly bool _particleCaptureEnabled =
         appConfig.GetValue("DeviceCapture:AndroidParticleCapture", true);
 
-    public string Platform => Android;
-
-    public DeviceCapabilities Capabilities =>
-        DeviceCapabilities.BinaryPull | DeviceCapabilities.AssetRead | DeviceCapabilities.Probe |
-        DeviceCapabilities.StoreUpdate | DeviceCapabilities.Proxy | DeviceCapabilities.CaInstall |
-        DeviceCapabilities.AppLifecycle | DeviceCapabilities.ParticleCapture;
-
-    public async Task<DeviceResult<byte[]>> PullAppBinaryAsync(DeviceTarget target, CancellationToken ct) {
+    public override async Task<DeviceResult<byte[]>> PullAppBinaryAsync(DeviceTarget target, CancellationToken ct) {
         var puller = new DeviceApkPuller(runner);
         byte[]? apk = await puller.PullArmSplitAsync(target.Target, target.Package, ct)
                       ?? await puller.PullBaseSplitAsync(target.Target, target.Package, ct);
@@ -47,8 +30,8 @@ public sealed class AndroidPlatform(
             : DeviceResult<byte[]>.Success(so);
     }
 
-    public async Task<DeviceResult<byte[]>> ReadAssetAsync(DeviceTarget target, DeviceAssetKind kind, string name,
-        CancellationToken ct) {
+    public override async Task<DeviceResult<byte[]>> ReadAssetAsync(DeviceTarget target, DeviceAssetKind kind,
+        string name, CancellationToken ct) {
         byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(target.Target, target.Package, ct);
         byte[]? asset = apk is null
             ? null
@@ -62,8 +45,8 @@ public sealed class AndroidPlatform(
             : DeviceResult<byte[]>.Success(asset);
     }
 
-    public async Task<DeviceResult<IReadOnlyList<string>>> ListAssetsAsync(DeviceTarget target, DeviceAssetKind kind,
-        CancellationToken ct) {
+    public override async Task<DeviceResult<IReadOnlyList<string>>> ListAssetsAsync(DeviceTarget target,
+        DeviceAssetKind kind, CancellationToken ct) {
         byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(target.Target, target.Package, ct);
         if (apk is null) return DeviceResult<IReadOnlyList<string>>.Error("no apk pulled");
         IReadOnlyList<string> stems = kind switch {
@@ -74,43 +57,21 @@ public sealed class AndroidPlatform(
         return DeviceResult<IReadOnlyList<string>>.Success(stems);
     }
 
-    public Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) =>
+    public override Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) =>
         new AdbDeviceProbe(runner, target.Target, target.Package).ProbeAsync(ct);
 
-    public Task<StoreCheckResult> DriveStoreUpdateAsync(DeviceTarget target, CancellationToken ct,
-        Action<string>? progress = null) =>
-        _store is null
-            ? Task.FromResult(new StoreCheckResult(false, null, null, false, false, "unsupported",
-                "no android store checker"))
-            : _store.CheckAndUpdateAsync(target, ct, progress);
-
-    public async Task<DeviceResult> SetProxyAsync(DeviceTarget target, string hostIp, int port, CancellationToken ct) =>
-        _proxy is null
-            ? DeviceResult.Unsupported("no android proxy configurator")
-            : DeviceResult.From(await _proxy.SetProxyAsync(target, hostIp, port, ct));
-
-    public async Task<DeviceResult> ClearProxyAsync(DeviceTarget target, CancellationToken ct) =>
-        _proxy is null
-            ? DeviceResult.Unsupported("no android proxy configurator")
-            : DeviceResult.From(await _proxy.ClearProxyAsync(target, ct));
-
-    public async Task<DeviceResult> InstallCaAsync(DeviceTarget target, string caPath, CancellationToken ct) =>
-        _ca is null
-            ? DeviceResult.Unsupported("no android ca installer")
-            : DeviceResult.From(await _ca.InstallAsync(target, caPath, ct));
-
-    public async Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct) {
+    public override async Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct) {
         await Adb(target.Target, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], ct);
         var r = await Adb(target.Target, ["shell", "wm", "dismiss-keyguard"], ct);
         return r.ExitCode == 0 ? DeviceResult.Success("unlocked") : DeviceResult.Error("unlock failed");
     }
 
-    public async Task<DeviceResult> KillAppAsync(DeviceTarget target, CancellationToken ct) {
+    public override async Task<DeviceResult> KillAppAsync(DeviceTarget target, CancellationToken ct) {
         var r = await Adb(target.Target, ["shell", "am", "force-stop", target.Package], ct);
         return r.ExitCode == 0 ? DeviceResult.Success("killed") : DeviceResult.Error("force-stop failed");
     }
 
-    public async Task<DeviceResult<ParticleCaptureModel.Model>> CaptureParticlesAsync(DeviceTarget target,
+    public override async Task<DeviceResult<ParticleCaptureModel.Model>> CaptureParticlesAsync(DeviceTarget target,
         string scriptBody, string? addrOffset, CancellationToken ct) {
         if (!_particleCaptureEnabled)
             return DeviceResult<ParticleCaptureModel.Model>.Unsupported("android particle capture disabled by config");

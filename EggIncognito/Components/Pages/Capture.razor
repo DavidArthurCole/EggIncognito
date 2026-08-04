@@ -7,13 +7,12 @@
 @using EggIncognito.Services.Devices
 @using static Components.Capture.CaptureNoticesPanel
 @implements IAsyncDisposable
+@inherits SelfCallComponentBase
 @inject CaptureSessionManager Manager
 @inject IServiceProvider Services
 @inject IAppMode AppMode
 @inject ICurrentUser User
 @inject HostedCaptureOptions HostedOptions
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
 @inject IConfiguration Config
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
@@ -142,8 +141,6 @@
     CancellationTokenSource? _loopCts;
     Task? _loopTask;
 
-    string _baseAddress = "";
-    string? _cookie;
     IJSObjectReference? _store;
 
 
@@ -159,12 +156,7 @@
     string? _userId;
 
     protected override void OnInitialized() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
-
+        base.OnInitialized();
 
         _isAuthenticated = User.IsAuthenticated;
         _isSupporter = User.IsSupporter;
@@ -418,13 +410,6 @@
     }
 
 
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
-    }
-
     public async ValueTask DisposeAsync() {
         _loopCts?.Cancel();
         _subscription?.Dispose();
@@ -437,13 +422,7 @@
         }
 
         _loopCts?.Dispose();
-        if (_store is not null) {
-            try {
-                await _store.DisposeAsync();
-            }
-            catch {
-            }
-        }
+        await _store.DisposeModuleQuietAsync();
     }
 
     sealed record ToastItem(int Id, string Severity, string Message, string Timestamp);

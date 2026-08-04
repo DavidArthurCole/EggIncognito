@@ -93,7 +93,7 @@
         </div>
     </div>
     @if (_actionMsg is not null) {
-        <div class="text-xs w-full @(_actionOk ? "text-green-400" : "text-err")">@_actionMsg</div>
+        <StatusNote Severity="@(_actionOk ? StatusNote.Kind.Ok : StatusNote.Kind.Error)">@_actionMsg</StatusNote>
     }
 </div>
 

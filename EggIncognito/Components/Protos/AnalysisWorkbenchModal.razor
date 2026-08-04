@@ -1,12 +1,12 @@
 @rendermode @(RenderMode.InteractiveServer)
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 @inject ICurrentUser User
 @inject AnalysisWorkbenchState State
 @using System.Globalization
 @using System.Text.Json
+@using EggIncognito.Core
 @using EggIncognito.Services.ProtoExtract
 @using EggIncognito.Services.Protos
 @implements IAsyncDisposable
@@ -16,44 +16,43 @@
 @if (_open) {
     var groups = Groups();
     var offerAllCount = groups.Count(CanOffer);
-    <div class="modal-backdrop" @onclick="Close">
-        <div class="modal-card wb-card" @onclick:stopPropagation="true">
-            <div class="modal-head">
-                <h3 class="modal-title">Analysis workbench</h3>
-                <div class="wb-head-tools">
-                    <label for="wbFile" class="btn-mini cursor-pointer m-0">Add files</label>
-                    @if (offerAllCount > 0) {
-                        <button type="button" class="btn-mini" disabled="@_offerBusy" @onclick="@(() => OfferAll(groups))">
-                            <Icon Name="arrow-up" Class="icon-sm"/> Offer all (@offerAllCount)
-                        </button>
-                    }
-                    <button type="button" class="btn-mini" title="Settings" aria-label="Settings"
-                            @onclick="@(() => _settingsOpen = !_settingsOpen)">
-                        <Icon Name="gear" Class="icon-sm"/>
+    <ModalShell Title="Analysis workbench" CardClass="wb-card" OnClose="Close">
+        <HeadTools>
+            <div class="wb-head-tools">
+                <label for="wbFile" class="btn-mini cursor-pointer m-0">Add files</label>
+                @if (offerAllCount > 0) {
+                    <button type="button" class="btn-mini" disabled="@_offerBusy" @onclick="@(() => OfferAll(groups))">
+                        <Icon Name="arrow-up" Class="icon-sm"/> Offer all (@offerAllCount)
                     </button>
-                    @if (_settingsOpen) {
-                        <div class="popover-backdrop" @onclick="@(() => _settingsOpen = false)" @onclick:stopPropagation="true"></div>
-                        <div class="wb-settings" @onclick:stopPropagation="true">
-                            <label class="wb-settings-row">
-                                <span>Name length</span>
-                                <input type="number" class="flow-filter-input" min="8" max="96" @key="_truncInputKey"
-                                       value="@_truncLen" @onchange="OnTruncLenChanged"/>
-                            </label>
-                            <label class="wb-settings-row">
-                                <span>Truncate</span>
-                                <select class="flow-filter-select" value="@_truncMode" @onchange="OnTruncModeChanged">
-                                    <option value="off">off</option>
-                                    <option value="card">card only</option>
-                                    <option value="everywhere">everywhere</option>
-                                </select>
-                            </label>
-                        </div>
-                    }
-                    <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
-                        <Icon Name="x"/>
-                    </button>
-                </div>
+                }
+                <button type="button" class="btn-mini" title="Settings" aria-label="Settings"
+                        @onclick="@(() => _settingsOpen = !_settingsOpen)">
+                    <Icon Name="gear" Class="icon-sm"/>
+                </button>
+                @if (_settingsOpen) {
+                    <div class="popover-backdrop" @onclick="@(() => _settingsOpen = false)" @onclick:stopPropagation="true"></div>
+                    <div class="wb-settings" @onclick:stopPropagation="true">
+                        <label class="wb-settings-row">
+                            <span>Name length</span>
+                            <input type="number" class="flow-filter-input" min="8" max="96" @key="_truncInputKey"
+                                   value="@_truncLen" @onchange="OnTruncLenChanged"/>
+                        </label>
+                        <label class="wb-settings-row">
+                            <span>Truncate</span>
+                            <select class="flow-filter-select" value="@_truncMode" @onchange="OnTruncModeChanged">
+                                <option value="off">off</option>
+                                <option value="card">card only</option>
+                                <option value="everywhere">everywhere</option>
+                            </select>
+                        </label>
+                    </div>
+                }
+                <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
+                    <Icon Name="x"/>
+                </button>
             </div>
+        </HeadTools>
+        <ChildContent>
             <div class="wb-body" id="wbDrop">
                 <aside class="wb-rail">
                     @if (State.Entries.Count == 0) {
@@ -195,8 +194,8 @@
                     }
                 </section>
             </div>
-        </div>
-    </div>
+        </ChildContent>
+    </ModalShell>
 }
 
 @code {
@@ -211,8 +210,6 @@
     bool _cmpBusy;
     int _truncLen = 20;
     string _truncMode = "card";
-    string _baseAddress = "";
-    string? _cookie;
     IJSObjectReference? _strip;
     IJSObjectReference? _download;
     IJSObjectReference? _prefs;
@@ -300,14 +297,6 @@
     void Close() {
         _open = false;
         _settingsOpen = false;
-    }
-
-    protected override void OnInitialized() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -830,13 +819,6 @@
         return android ? "android" : "ios";
     }
 
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
-    }
-
     async Task Download(StagedEntry entry) {
         if (entry.Result?.Proto is null) return;
         _download ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/download.js"));
@@ -845,19 +827,10 @@
 
     static List<string> SizeFlow(ExtractResult r) {
         var parts = new List<string>();
-        if (r.FileSize is { } fs) parts.Add(Mb(fs));
-        if (r.StrippedSize is { } ss) parts.Add(Mb(ss));
-        if (r.UploadedSize is { } us) parts.Add(UploadText(us));
+        if (r.FileSize is { } fs) parts.Add(ByteFormat.Mb(fs, culture: CultureInfo.InvariantCulture));
+        if (r.StrippedSize is { } ss) parts.Add(ByteFormat.Mb(ss, culture: CultureInfo.InvariantCulture));
+        if (r.UploadedSize is { } us) parts.Add(ByteFormat.KbOrMb(us, culture: CultureInfo.InvariantCulture));
         return parts;
-    }
-
-    static string Mb(long? bytes) {
-        return bytes is { } b ? (b / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB" : "-";
-    }
-
-    static string UploadText(long bytes) {
-        if (bytes >= 1048576) return (bytes / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB";
-        return (bytes / 1024.0).ToString("0.0", CultureInfo.InvariantCulture) + " KB";
     }
 
     sealed record LiveVersionDto(bool Found, string? Platform, string? Version, string? Build, int? ClientVersion);
@@ -867,30 +840,9 @@
     sealed record StashedFile(int Token, string Name, long Size);
 
     public async ValueTask DisposeAsync() {
-        if (_strip is not null) {
-            try {
-                await _strip.DisposeAsync();
-            }
-            catch (JSDisconnectedException) {
-            }
-        }
-
-        if (_download is not null) {
-            try {
-                await _download.DisposeAsync();
-            }
-            catch (JSDisconnectedException) {
-            }
-        }
-
-        if (_prefs is not null) {
-            try {
-                await _prefs.DisposeAsync();
-            }
-            catch (JSDisconnectedException) {
-            }
-        }
-
+        await _strip.DisposeModuleAsync();
+        await _download.DisposeModuleAsync();
+        await _prefs.DisposeModuleAsync();
         _selfRef?.Dispose();
         _gate.Dispose();
     }

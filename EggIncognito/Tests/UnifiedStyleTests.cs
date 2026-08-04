@@ -45,7 +45,7 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
                      ".status-2xx", ".status-3xx", ".status-4xx", ".status-5xx",
                      ".jv-string", ".jv-number", ".jv-boolean", ".jv-null",
                      ".toast-info", ".perk-chip", ".admin-panel", ".sub-section",
-                     ".bg-picker", ".picker"
+                     ".bg-picker-input", ".picker"
                  }) {
             Assert.Contains(cls, css);
         }

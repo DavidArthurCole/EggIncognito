@@ -12,22 +12,16 @@ public interface IVehicleCatalog {
     VehicleCatalogEntry? Find(int index);
 }
 
-public sealed class VehicleCatalog : IVehicleCatalog {
-    private readonly Dictionary<int, VehicleCatalogEntry> _byIndex;
-
+public sealed class VehicleCatalog : GameDataCatalog<VehicleCatalogEntry, int>, IVehicleCatalog {
     private VehicleCatalog(IReadOnlyList<VehicleCatalogEntry> vehicles, string binaryVersion,
-        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
-        Vehicles = vehicles;
-        BinaryVersion = binaryVersion;
-        Provenance = provenance;
-        _byIndex = vehicles.ToDictionary(v => v.Index);
+        IReadOnlyDictionary<string, ProvenanceSource> provenance)
+        : base(vehicles, binaryVersion, provenance, v => v.Index) {
     }
 
-    public IReadOnlyList<VehicleCatalogEntry> Vehicles { get; }
-    public string BinaryVersion { get; }
-    public IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    public IReadOnlyList<VehicleCatalogEntry> Vehicles => Entries;
+    public string BinaryVersion => Version;
 
-    public VehicleCatalogEntry? Find(int index) => _byIndex.GetValueOrDefault(index);
+    public VehicleCatalogEntry? Find(int index) => FindByKey(index);
 
     public static VehicleCatalog Parse(string json) {
         var file = GameDataJson.Deserialize<VehicleCatalogDataFile>(json, "Vehicle catalog");

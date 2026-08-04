@@ -2,7 +2,11 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class MergedRouteCatalogTests {
+public sealed class MergedRouteCatalogTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
     private const string YamlText = """
                                     routes:
                                       - path: ei/known
@@ -10,8 +14,8 @@ public class MergedRouteCatalogTests {
                                         response: PeriodicalsResponse
                                     """;
 
-    private static RouteCatalog Yaml(string yaml) {
-        string p = Path.Combine(Path.GetTempPath(), $"ei-routes-{Guid.NewGuid():N}.yaml");
+    private RouteCatalog Yaml(string yaml) {
+        string p = _tmp.Combine($"routes-{Guid.NewGuid():N}.yaml");
         File.WriteAllText(p, yaml);
         return new RouteCatalog(p);
     }

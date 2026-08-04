@@ -1,22 +1,16 @@
 using EggIncognito.Core.Services.Assets;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
-using EggIncognito.Data.Services;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
 
 public sealed class DeviceMeshProvider(
-    IServiceProvider services,
     IProcessRunner runner,
     IDeviceConnectionFactory connections,
+    IDeviceResolver resolver,
     GameAssetProvider assets) {
-    private const string PlatformAndroid = "android";
-    private const string PlatformIos = "ios";
-
-    private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
-
     private static Result Err(int status, string diag) => new(false, null, diag, status);
 
 
@@ -45,11 +39,11 @@ public sealed class DeviceMeshProvider(
 
     private async Task<(byte[]? Rpo, Result? Err)> PullRpoAsync(Device device, string stem, CancellationToken ct) {
         byte[]? rpo;
-        if (device.Platform == PlatformIos) {
+        if (Platforms.Matches(device.Platform, Platforms.Ios)) {
             if (connections.Ios(device.Target) is not { } conn)
                 return (null, Err(503, "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured"));
             rpo = await new IosAssetPuller(conn).PullOneRpoAsync(device.Package, stem, ct);
-        } else if (device.Platform == PlatformAndroid) {
+        } else if (Platforms.Matches(device.Platform, Platforms.Android)) {
             byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
             if (apk is null) return (null, Err(502, "could not pull base.apk from the device"));
             rpo = RpoAssetLister.ReadStem(apk, stem);
@@ -66,14 +60,14 @@ public sealed class DeviceMeshProvider(
         CancellationToken ct) {
         var device = await ResolveDeviceAsync(deviceId, ct);
         if (device is null) return (false, [], "no asset-source device available");
-        if (device.Platform == PlatformIos) {
+        if (Platforms.Matches(device.Platform, Platforms.Ios)) {
             if (connections.Ios(device.Target) is not { } conn)
                 return (false, [], "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured");
             var names = await new IosAssetPuller(conn).ListRposAsync(device.Package, ct);
             return names.Count > 0 ? (true, names, null) : (false, [], "no meshes found on the device bundle");
         }
 
-        if (device.Platform != PlatformAndroid)
+        if (!Platforms.Matches(device.Platform, Platforms.Android))
             return (false, [], $"no mesh listing for platform {device.Platform}");
         byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
         if (apk is null) return (false, [], "could not pull base.apk from the device");
@@ -91,11 +85,10 @@ public sealed class DeviceMeshProvider(
         var device = await ResolveDeviceAsync(deviceId, ct);
         if (device is null) return (false, [], empty, "no asset-source device available");
 
-        (var rpos, string? diag) = device.Platform switch {
-            PlatformAndroid => await PullAndroidRposAsync(device, ct),
-            PlatformIos => await PullIosRposAsync(device, ct),
-            _ => (null, $"no mesh listing for platform {device.Platform}")
-        };
+        (var rpos, string? diag) =
+            Platforms.Matches(device.Platform, Platforms.Android) ? await PullAndroidRposAsync(device, ct)
+            : Platforms.Matches(device.Platform, Platforms.Ios) ? await PullIosRposAsync(device, ct)
+            : (null, $"no mesh listing for platform {device.Platform}");
         if (rpos is null) return (false, [], empty, diag);
 
         var stems = rpos.Keys.OrderBy(s => s, StringComparer.Ordinal).ToList();
@@ -150,17 +143,8 @@ public sealed class DeviceMeshProvider(
     }
 
 
-    private async Task<Device?> ResolveDeviceAsync(string? deviceId, CancellationToken ct) {
-        var store = Store;
-        if (store is null) return null;
-        if (!string.IsNullOrEmpty(deviceId)) return await store.GetAsync(deviceId, ct);
-
-        var devices = await store.EnabledDevicesAsync(ct);
-        if (devices.Count == 0) return null;
-        var latest = (await store.LatestPerDeviceAsync(ct)).ToDictionary(p => p.DeviceId);
-        var reachable = devices.FirstOrDefault(d => latest.TryGetValue(d.Id, out var p) && p.Reachable);
-        return reachable ?? devices[0];
-    }
+    private Task<Device?> ResolveDeviceAsync(string? deviceId, CancellationToken ct) =>
+        resolver.ResolveAsync(new DeviceQuery(deviceId), ct);
 
     public sealed record Result(bool Ok, byte[]? Glb, string? Diagnostics, int Status);
 }

@@ -1,5 +1,4 @@
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 @inject ICurrentUser User
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
@@ -135,8 +134,6 @@
     bool _isAdmin;
     bool _disposed;
     Timer? _timer;
-    string _baseAddress = "";
-    string? _cookie;
 
     bool Busy(string id) {
         return _busy.Contains(id);
@@ -166,33 +163,15 @@
 
     protected override async Task OnInitializedAsync() {
         _isAdmin = User.IsAtLeast(UserRole.Admin);
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
-
         await LoadAsync();
 
 
         _timer = new Timer(async _ => await InvokeAsync(TickAsync), null, 30_000, 30_000);
     }
 
-    HttpClient Client() {
-        return SelfCallClient.Create(HttpFactory, _baseAddress, _cookie);
-    }
+    PageVisibility? _vis;
 
-    IJSObjectReference? _vis;
-
-    async Task<bool> PageVisibleAsync() {
-        try {
-            _vis ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/visibility.js"));
-            return await _vis.InvokeAsync<bool>("isVisible");
-        }
-        catch {
-            return true;
-        }
-    }
+    PageVisibility Vis => _vis ??= new PageVisibility(JS, Env);
 
     protected override Task OnAfterRenderAsync(bool firstRender) {
         if (firstRender) KickReprobe();
@@ -200,7 +179,7 @@
     }
 
     async Task TickAsync() {
-        if (_disposed || !await PageVisibleAsync()) return;
+        if (_disposed || !await Vis.IsVisibleAsync()) return;
         await LoadAsync();
         KickReprobe();
     }

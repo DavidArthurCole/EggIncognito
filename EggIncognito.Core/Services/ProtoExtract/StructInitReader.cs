@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using static EggIncognito.Services.ProtoExtract.Arm64Operands;
 
 namespace EggIncognito.Services.ProtoExtract;
 
@@ -95,7 +96,7 @@ public static class StructInitReader {
             var ops = SplitOps(i.Operands);
 
             if (!TrackedProducers.Contains(i.Mnemonic) && !NonWritingMnemonics.Contains(i.Mnemonic)
-                                                       && ops.Count >= 1 && LooksLikeReg(ops[0])) {
+                                                       && ops.Count >= 1 && LooksLikeGpr(ops[0])) {
                 page.Remove(ops[0]);
                 imm.Remove(RegNum(ops[0]));
             }
@@ -321,98 +322,6 @@ public static class StructInitReader {
             .ToList();
         return new Result(true, structs, $"{structs.Count} struct bases, {structs.Sum(s => s.Bytes.Count)} bytes");
     }
-
-    private static List<string> SplitOps(string operands) {
-        var outp = new List<string>();
-        int depth = 0;
-        int start = 0;
-        for (int k = 0; k < operands.Length; k++) {
-            char c = operands[k];
-            if (c == '[') {
-                depth++;
-            } else if (c == ']') {
-                depth--;
-            } else if (c == ',' && depth == 0) {
-                outp.Add(operands[start..k].Trim());
-                start = k + 1;
-            }
-        }
-
-        if (start < operands.Length) outp.Add(operands[start..].Trim());
-        return outp;
-    }
-
-    private static bool TryImm(string token, out ulong value) {
-        value = 0;
-        string t = token.Trim();
-        if (t.StartsWith('#')) t = t[1..];
-        if (t.EndsWith('!')) t = t[..^1];
-        t = t.Trim();
-        bool neg = t.StartsWith('-');
-        if (neg) t = t[1..];
-        bool ok = t.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-            ? ulong.TryParse(t[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value)
-            : ulong.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-        if (ok && neg) value = (ulong)-(long)value;
-        return ok;
-    }
-
-    private static bool TryMem(string token, out string reg, out ulong off, out string? idxReg, out int idxShift) {
-        reg = "";
-        off = 0;
-        idxReg = null;
-        idxShift = 0;
-        string t = token.Trim();
-        int lb = t.IndexOf('[');
-        int rb = t.IndexOf(']');
-        if (lb < 0 || rb < 0 || rb < lb) return false;
-        string inner = t[(lb + 1)..rb];
-        var parts = SplitOps(inner);
-        if (parts.Count == 0) return false;
-        reg = parts[0].Trim();
-        if (parts.Count >= 2) {
-            string second = parts[1].Trim();
-            if (LooksLikeReg(second)) {
-                idxReg = second;
-                if (parts.Count >= 3) idxShift = ShiftOf([parts[2]]);
-            } else {
-                TryImm(second, out off);
-            }
-        }
-
-        return true;
-    }
-
-    private static int ShiftOf(IReadOnlyList<string> ops) {
-        foreach (string o in ops) {
-            string t = o.Trim();
-            if (t.StartsWith("lsl", StringComparison.OrdinalIgnoreCase) &&
-                TryImm(t[3..].TrimStart('#', ' '), out ulong s)) {
-                return (int)s;
-            }
-        }
-
-        return 0;
-    }
-
-    private static string RegNum(string reg) {
-        string t = reg.Trim();
-        return t.Length > 1 && (t[0] == 'w' || t[0] == 'x') ? t[1..] : t;
-    }
-
-    private static bool IsWriteback(string memToken) => memToken.TrimEnd().EndsWith('!');
-
-    private static bool LooksLikeReg(string tok) =>
-        tok.Length >= 2 && (tok[0] == 'x' || tok[0] == 'w') && char.IsDigit(tok[1]);
-
-    private static bool IsZeroReg(string tok) => tok is "wzr" or "xzr";
-
-    private static bool LooksLikeVecReg(string tok) => tok.Length >= 2 &&
-                                                       (tok[0] == 'q' || tok[0] == 'v' || tok[0] == 'd' ||
-                                                        tok[0] == 's') && char.IsDigit(tok[1]);
-
-    private static int VecWidth(string tok) =>
-        tok.Length >= 1 ? tok[0] switch { 'q' or 'v' => 16, 'd' => 8, 's' => 4, _ => 16 } : 16;
 
     public readonly record struct StructInit(
         ulong BaseVa,

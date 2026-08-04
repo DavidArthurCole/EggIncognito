@@ -1,6 +1,6 @@
 namespace EggIncognito.Runner.Runners;
-public interface IDeviceRunner
-{
+
+public interface IDeviceRunner {
     string Platform { get; }
     RunOutcome RunOnce(bool force);
 }

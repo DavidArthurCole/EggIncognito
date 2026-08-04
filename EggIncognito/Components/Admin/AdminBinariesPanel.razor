@@ -1,4 +1,5 @@
 @using System.Text.Json
+@using EggIncognito.Core
 @rendermode @(RenderMode.InteractiveServer)
 
 <section class="panel mb-4">
@@ -26,7 +27,7 @@
                         <td class="font-medium mono">@b.Version</td>
                         <td class="text-xs">@b.Platform</td>
                         <td class="mono text-xs">@ShaShort(b.Sha256)</td>
-                        <td class="mono text-xs">@SizeMb(b.ByteSize)</td>
+                        <td class="mono text-xs">@ByteFormat.Mb(b.ByteSize, "F1")</td>
                         <td class="mono text-xs">
                             @EffectiveSymbols(b).ToString("N0")
                             @if (b.EffectiveSymbols > b.NativeSymbols) {
@@ -47,7 +48,7 @@
         </div>
     }
     @if (_msg is not null) {
-        <p class="text-xs text-muted mt-2 mb-0">@_msg</p>
+        <StatusNote>@_msg</StatusNote>
     }
 </section>
 
@@ -113,10 +114,6 @@
 
     static string ShaShort(string sha) {
         return sha.Length >= 12 ? sha[..12] : sha;
-    }
-
-    static string SizeMb(long bytes) {
-        return $"{bytes / 1024d / 1024d:F1} MB";
     }
 
     static int EffectiveSymbols(Row b) {

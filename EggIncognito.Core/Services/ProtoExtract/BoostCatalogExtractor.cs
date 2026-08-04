@@ -1,6 +1,6 @@
 using System.Globalization;
-using System.Text;
 using System.Text.RegularExpressions;
+using static EggIncognito.Services.ProtoExtract.Arm64Operands;
 
 namespace EggIncognito.Services.ProtoExtract;
 
@@ -270,14 +270,12 @@ public static partial class BoostCatalogExtractor {
         return true;
     }
 
+    private static readonly string[] DescriptionSections = ["__cstring"];
+
     private static bool TryReadDescription(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va,
         out string desc) {
         desc = "";
-        if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out var owner)) return false;
-        if (owner.Name != "__cstring") return false;
-        int end = fo;
-        while (end < bin.Length && bin[end] != 0) end++;
-        string s = Encoding.UTF8.GetString(bin, fo, end - fo);
+        string s = BinaryStrings.ReadCstr(bin, sections, va, DescriptionSections);
         if (s.Length < 2 || s[0] != '\x1b') return false;
         string body = s[1] == 'z' ? s[2..] : s[1..];
         if (body.Length == 0) return false;
@@ -290,71 +288,6 @@ public static partial class BoostCatalogExtractor {
            || mnemonic.StartsWith("b.", StringComparison.Ordinal)
            || mnemonic.StartsWith("cb", StringComparison.Ordinal)
            || mnemonic.StartsWith("tb", StringComparison.Ordinal);
-
-    private static bool LooksLikeGpr(string tok)
-        => tok.Length >= 2 && (tok[0] == 'x' || tok[0] == 'w') && char.IsDigit(tok[1]);
-
-    private static List<string> SplitOps(string operands) {
-        var outp = new List<string>();
-        int depth = 0;
-        int start = 0;
-        for (int k = 0; k < operands.Length; k++) {
-            char c = operands[k];
-            if (c == '[') {
-                depth++;
-            } else if (c == ']') {
-                depth--;
-            } else if (c == ',' && depth == 0) {
-                outp.Add(operands[start..k].Trim());
-                start = k + 1;
-            }
-        }
-
-        if (start < operands.Length) outp.Add(operands[start..].Trim());
-        return outp;
-    }
-
-    private static bool TryImm(string token, out ulong value) {
-        value = 0;
-        string t = token.Trim();
-        if (t.StartsWith('#')) t = t[1..];
-        if (t.EndsWith('!')) t = t[..^1];
-        t = t.Trim();
-        bool neg = t.StartsWith('-');
-        if (neg) t = t[1..];
-        bool ok = t.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-            ? ulong.TryParse(t[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value)
-            : ulong.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-        if (ok && neg) value = (ulong)-(long)value;
-        return ok;
-    }
-
-    private static bool TryMem(string token, out string reg, out ulong off) {
-        reg = "";
-        off = 0;
-        string t = token.Trim();
-        int lb = t.IndexOf('[');
-        int rb = t.IndexOf(']');
-        if (lb < 0 || rb < 0 || rb < lb) return false;
-        string inner = t[(lb + 1)..rb];
-        var parts = SplitOps(inner);
-        if (parts.Count == 0) return false;
-        reg = parts[0].Trim();
-        if (parts.Count >= 2) TryImm(parts[1], out off);
-        return true;
-    }
-
-    private static int ShiftOf(IReadOnlyList<string> ops) {
-        foreach (string o in ops) {
-            string t = o.Trim();
-            if (t.StartsWith("lsl", StringComparison.OrdinalIgnoreCase) &&
-                TryImm(t[3..].TrimStart('#', ' '), out ulong s)) {
-                return (int)s;
-            }
-        }
-
-        return 0;
-    }
 
     public readonly record struct BoostEntry(string Id, string? DisplayName, string? Description);
 

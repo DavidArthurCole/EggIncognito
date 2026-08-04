@@ -242,6 +242,15 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         return Ok(new { results, binary = binaryNote, missing = store.MissingIds() });
     }
 
+    [HttpPost("protos/realign")]
+    public async Task<IActionResult> RealignProtos([FromQuery] bool dryRun, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        var db = Db;
+        if (db is null) return StatusCode(503, new { error = "no database configured" });
+        var report = await ProtoRealignBackfill.RunAsync(db, dryRun, ct);
+        return Ok(report);
+    }
+
     [HttpPost("gamedata/{id}")]
     [RequestSizeLimit(2_000_000)]
     public async Task<IActionResult> ImportGameDataDocument(string id, CancellationToken ct) {
@@ -349,9 +358,9 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
     public async Task<IActionResult> SetUserRole(string discordId, [FromBody] SetRole body) {
         if (RequireAdmin() is { } no) return no;
         string role = (body.Role ?? "").Trim().ToLowerInvariant();
-        if (role is not ("viewer" or "contributor" or "admin"))
+        if (UserRoles.ToName(UserRoles.Parse(role)) != role)
             return BadRequest(new { error = $"unknown role '{body.Role}'" });
-        if (discordId == currentUser.DiscordId && role != "admin")
+        if (discordId == currentUser.DiscordId && role != UserRoles.ToName(UserRole.Admin))
             return BadRequest(new { error = "cannot remove your own admin role" });
 
         var identity = Identity;

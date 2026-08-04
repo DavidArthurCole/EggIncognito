@@ -1,6 +1,6 @@
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text;
+using EggIncognito.Core;
 using EggIncognito.Services;
 using Ei;
 using Google.Protobuf;
@@ -104,15 +104,14 @@ public class TransportPipelineTests {
 
 
     private static string ExpectedCode(byte[] messageBytes, string phrase) {
-        byte[] phraseHash = SHA256.HashData(Encoding.UTF8.GetBytes(phrase));
-        byte[] saltBytes = Encoding.ASCII.GetBytes(Convert.ToHexString(phraseHash).ToLowerInvariant());
+        byte[] saltBytes = Encoding.ASCII.GetBytes(Hashes.Sha256Hex(phrase));
         const uint magic = 0x3b9af419;
         byte[] mutated = (byte[])messageBytes.Clone();
         mutated[magic % (uint)mutated.Length] = 0x1b;
         byte[] combined = new byte[mutated.Length + saltBytes.Length];
         mutated.CopyTo(combined, 0);
         saltBytes.CopyTo(combined, mutated.Length);
-        return Convert.ToHexString(SHA256.HashData(combined)).ToLowerInvariant();
+        return Hashes.Sha256Hex(combined);
     }
 
     [Fact]

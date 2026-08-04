@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using EggIdentity.Contract;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.DataApi;
 using Microsoft.AspNetCore.Authentication;
@@ -26,7 +27,7 @@ public sealed class ApiKeyAuthenticationHandler(
 
         Claim[] claims = [
             new(AuthClaims.UserIdClaim, row.OwnerUserId.ToString()),
-            new(AuthClaims.RoleClaim, "viewer"),
+            new(AuthClaims.RoleClaim, UserRoles.ToName(UserRole.Viewer)),
             new(ApiKeyGen.Claim, row.Id.ToString(CultureInfo.InvariantCulture))
         ];
         var identity = new ClaimsIdentity(claims, ApiKeyGen.SchemeName);

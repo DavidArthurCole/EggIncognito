@@ -12,22 +12,16 @@ public interface IMissionCatalog {
     MissionCatalogEntry? Find(string id);
 }
 
-public sealed class MissionCatalog : IMissionCatalog {
-    private readonly Dictionary<string, MissionCatalogEntry> _byId;
-
+public sealed class MissionCatalog : GameDataCatalog<MissionCatalogEntry, string>, IMissionCatalog {
     private MissionCatalog(IReadOnlyList<MissionCatalogEntry> missions, string binaryVersion,
-        IReadOnlyDictionary<string, ProvenanceSource> provenance) {
-        Missions = missions;
-        BinaryVersion = binaryVersion;
-        Provenance = provenance;
-        _byId = missions.ToDictionary(m => m.Id, StringComparer.Ordinal);
+        IReadOnlyDictionary<string, ProvenanceSource> provenance)
+        : base(missions, binaryVersion, provenance, m => m.Id, StringComparer.Ordinal) {
     }
 
-    public IReadOnlyList<MissionCatalogEntry> Missions { get; }
-    public string BinaryVersion { get; }
-    public IReadOnlyDictionary<string, ProvenanceSource> Provenance { get; }
+    public IReadOnlyList<MissionCatalogEntry> Missions => Entries;
+    public string BinaryVersion => Version;
 
-    public MissionCatalogEntry? Find(string id) => _byId.GetValueOrDefault(id);
+    public MissionCatalogEntry? Find(string id) => FindByKey(id);
 
     public static MissionCatalog Parse(string json) {
         var file = GameDataJson.Deserialize<MissionCatalogDataFile>(json, "Mission catalog");

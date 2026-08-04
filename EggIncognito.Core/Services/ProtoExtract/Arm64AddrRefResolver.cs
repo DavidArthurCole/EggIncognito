@@ -1,4 +1,3 @@
-using Gee.External.Capstone;
 using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract;
@@ -16,8 +15,7 @@ public static class Arm64AddrRefResolver {
         int textEnd = textFileOff + textSize;
 
         try {
-            using var cs = CapstoneDisassembler.CreateArm64Disassembler(Arm64DisassembleMode.LittleEndian);
-            cs.EnableInstructionDetails = true;
+            using var cs = Arm64Decode.CreateDisassembler();
 
             for (int i = 0; i < starts.Count; i++) {
                 int fnStart = starts[i];
@@ -47,60 +45,30 @@ public static class Arm64AddrRefResolver {
         Array.Copy(bin, fileStart, code, 0, len);
         ulong startVa = (ulong)fileStart + slide;
 
-        var page = new Dictionary<string, ulong>();
+        var tracker = new Arm64PageTracker();
         int hits = 0;
 
         foreach (var insn in cs.Disassemble(code, (long)startVa)) {
             var ops = insn.Details?.Operands;
             if (ops is null) continue;
 
-            switch (insn.Id) {
-                case Arm64InstructionId.ARM64_INS_ADRP:
-                    if (ops.Length == 2 && ops[0].Type == Arm64OperandType.Register
-                                        && ops[1].Type == Arm64OperandType.Immediate && ops[0].Register is { } rd) {
-                        page[rd.Name] = (ulong)ops[1].Immediate;
+            if (insn.Id == Arm64InstructionId.ARM64_INS_LDR
+                && ops.Length >= 2 && ops[0].Type == Arm64OperandType.Register
+                && ops[^1].Type == Arm64OperandType.Memory && ops[^1].Memory?.Base is { } ldrBase
+                && tracker.TryGet(ldrBase.Name, out ulong ldrPage)) {
+                ulong slotVa = ldrPage + (ulong)ops[^1].Memory!.Displacement;
+                long slotFile = (long)slotVa - (long)slide;
+                if (slotFile >= 0 && slotFile + 8 <= bin.Length) {
+                    ulong literal = BitConverter.ToUInt64(bin, (int)slotFile);
+
+                    if (literal == targetVa || (literal & 0x0000_FFFF_FFFF_FFFFUL) ==
+                        (targetVa & 0x0000_FFFF_FFFF_FFFFUL)) {
+                        hits++;
                     }
-
-                    break;
-
-                case Arm64InstructionId.ARM64_INS_ADD:
-                    if (ops.Length == 3 && ops[0].Register is { } addRd && ops[1].Register is { } addRn
-                        && ops[2].Type == Arm64OperandType.Immediate &&
-                        page.TryGetValue(addRn.Name, out ulong addBase)) {
-                        ulong resolved = addBase + (ulong)ops[2].Immediate;
-                        page[addRd.Name] = resolved;
-                        if (resolved == targetVa) hits++;
-                    } else if (ops.Length >= 1 && ops[0].Register is { } addClobber) {
-                        page.Remove(addClobber.Name);
-                    }
-
-                    break;
-
-                case Arm64InstructionId.ARM64_INS_LDR:
-
-
-                    if (ops.Length >= 2 && ops[0].Type == Arm64OperandType.Register
-                                        && ops[^1].Type == Arm64OperandType.Memory && ops[0].Register is { } ldrRt
-                                        && ops[^1].Memory?.Base is { } ldrBase &&
-                                        page.TryGetValue(ldrBase.Name, out ulong ldrPage)) {
-                        ulong slotVa = ldrPage + (ulong)ops[^1].Memory!.Displacement;
-                        long slotFile = (long)slotVa - (long)slide;
-                        if (slotFile >= 0 && slotFile + 8 <= bin.Length) {
-                            ulong literal = BitConverter.ToUInt64(bin, (int)slotFile);
-
-                            if (literal == targetVa || (literal & 0x0000_FFFF_FFFF_FFFFUL) ==
-                                (targetVa & 0x0000_FFFF_FFFF_FFFFUL)) {
-                                hits++;
-                            }
-                        }
-
-                        page.Remove(ldrRt.Name);
-                    } else if (ops.Length >= 1 && ops[0].Register is { } ldrClobber) {
-                        page.Remove(ldrClobber.Name);
-                    }
-
-                    break;
+                }
             }
+
+            if (tracker.Step(insn) is { } resolved && resolved == targetVa) hits++;
         }
 
         return hits;

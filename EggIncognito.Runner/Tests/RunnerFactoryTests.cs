@@ -5,10 +5,13 @@ using Xunit;
 
 namespace EggIncognito.Runner.Tests;
 
-public class RunnerFactoryTests {
-    private static RunnerDeps Deps() {
-        var stash = Path.Combine(Path.GetTempPath(), $"stash-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(stash);
+public sealed class RunnerFactoryTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
+    private RunnerDeps Deps() {
+        string stash = _tmp.CreateSubdir();
         return new RunnerDeps(
             Proto: new StubProtoExtractor(),
             ClientVersion: new NullClientVersionReader(),

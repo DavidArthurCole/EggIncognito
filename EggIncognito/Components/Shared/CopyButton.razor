@@ -1,0 +1,59 @@
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+@implements IAsyncDisposable
+
+<button type="button" class="@ButtonClass" title="@TitleNow" aria-label="@AriaLabel" @onclick="Copy" @onclick:stopPropagation="StopPropagation">
+    @if (ShowIcon && Label is not null) {
+        <Icon Name="@IconName" Class="@IconClass"/>
+        @LabelNow
+    } else if (ShowIcon) {
+        <Icon Name="@IconName" Class="@IconClass"/>
+    } else {
+        @LabelNow
+    }
+</button>
+
+@code {
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public Func<string>? GetText { get; set; }
+    [Parameter] public string ButtonClass { get; set; } = "reg-edit-btn";
+    [Parameter] public string? IconClass { get; set; }
+    [Parameter] public bool ShowIcon { get; set; } = true;
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? CopiedLabel { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? CopiedTitle { get; set; }
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter] public bool StopPropagation { get; set; }
+    [Parameter] public int ResetDelayMs { get; set; } = 1200;
+    [Parameter] public EventCallback OnCopied { get; set; }
+
+    bool _copied;
+    IJSObjectReference? _copy;
+
+    string IconName => _copied ? "check" : "copy";
+    string? LabelNow => _copied ? CopiedLabel ?? Label : Label;
+    string? TitleNow => _copied ? CopiedTitle ?? Title : Title;
+
+    async Task Copy() {
+        try {
+            _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
+            await _copy.InvokeAsync<bool>("writeText", GetText?.Invoke() ?? Text ?? "");
+            _copied = true;
+            StateHasChanged();
+            if (OnCopied.HasDelegate) await OnCopied.InvokeAsync();
+            if (ResetDelayMs > 0) {
+                await Task.Delay(ResetDelayMs);
+                _copied = false;
+                StateHasChanged();
+            }
+        }
+        catch {
+        }
+    }
+
+    public ValueTask DisposeAsync() {
+        return _copy.DisposeModuleQuietAsync();
+    }
+
+}

@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.ProtoExtract;
@@ -50,7 +49,7 @@ public static partial class MissionCatalogExtractor {
 
         foreach (var r in refs) {
             if (!IsStringSection(r.Section)) continue;
-            string raw = ReadCstr(bin, img, r.Va);
+            string raw = BinaryStrings.ReadCstr(bin, img, r.Va, 128);
             if (string.IsNullOrEmpty(raw)) continue;
             string str = StripDescPrefix(raw);
             if (!IsPrintable(str)) continue;
@@ -80,13 +79,6 @@ public static partial class MissionCatalogExtractor {
 
     private static bool IsStringSection(string name) =>
         name is "__cstring" or ".rodata" or ".data.rel.ro" or "__const";
-
-    private static string ReadCstr(byte[] bin, IBinaryImage? img, ulong va) {
-        if (img is null || !img.TryVaToFileOffset(va, out int fo, out _)) return "";
-        int end = fo;
-        while (end < bin.Length && bin[end] != 0 && end - fo < 128) end++;
-        return Encoding.UTF8.GetString(bin, fo, end - fo);
-    }
 
     private static bool IsPrintable(string s) {
         if (s.Length < 2) return false;

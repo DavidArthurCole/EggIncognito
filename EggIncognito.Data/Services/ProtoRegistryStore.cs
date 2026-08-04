@@ -2,6 +2,7 @@ using System.Text.Json;
 using EggIncognito.Core;
 using EggIncognito.Data.Models;
 using EggIncognito.Services;
+using EggIncognito.Services.ProtoExtract;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
@@ -47,16 +48,21 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
 
         if (writeProto && !string.IsNullOrEmpty(protoText)) {
             row.ProtoSha = protoSha ?? "";
-            var pp = await db.ProtoProtos.FirstOrDefaultAsync(x => x.ProtoVersionId == row.Id, ct);
-            if (pp is null) {
-                pp = new ProtoProto { ProtoVersionId = row.Id };
-                db.ProtoProtos.Add(pp);
-            }
-
-            pp.ProtoText = protoText;
-            pp.MessageIndex = messageIndex ?? "[]";
-            await db.SaveChangesAsync(ct);
+            await UpsertProtoProtoAsync(row.Id, protoText, messageIndex ?? "[]", ct);
         }
+    }
+
+    private async Task UpsertProtoProtoAsync(int protoVersionId, string protoText, string? messageIndex,
+        CancellationToken ct) {
+        var pp = await db.ProtoProtos.FirstOrDefaultAsync(x => x.ProtoVersionId == protoVersionId, ct);
+        if (pp is null) {
+            pp = new ProtoProto { ProtoVersionId = protoVersionId };
+            db.ProtoProtos.Add(pp);
+        }
+
+        pp.ProtoText = protoText;
+        pp.MessageIndex = messageIndex ?? JsonSerializer.Serialize(ProtoTextIndex.Names(protoText));
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task<List<(string Platform, string Build, string ProtoText)>> LatestProtoTextsAsync(
@@ -122,17 +128,8 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
 
         await db.SaveChangesAsync(ct);
 
-        if (!string.IsNullOrEmpty(protoText)) {
-            var pp = await db.ProtoProtos.FirstOrDefaultAsync(x => x.ProtoVersionId == row.Id, ct);
-            if (pp is null) {
-                pp = new ProtoProto { ProtoVersionId = row.Id };
-                db.ProtoProtos.Add(pp);
-            }
-
-            pp.ProtoText = protoText;
-            pp.MessageIndex = JsonSerializer.Serialize(ProtoTextIndex.Names(protoText));
-            await db.SaveChangesAsync(ct);
-        }
+        if (!string.IsNullOrEmpty(protoText))
+            await UpsertProtoProtoAsync(row.Id, protoText, null, ct);
 
         bool protoChanged = prevLatest is not null && prevLatest.ProtoSha != protoSha;
         return (row, created, protoChanged);
@@ -251,16 +248,10 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
         if (row is null) return false;
 
-        row.ProtoSha = ProtoHash.Of(protoText);
-        var pp = await db.ProtoProtos.FirstOrDefaultAsync(x => x.ProtoVersionId == row.Id, ct);
-        if (pp is null) {
-            pp = new ProtoProto { ProtoVersionId = row.Id };
-            db.ProtoProtos.Add(pp);
-        }
-
-        pp.ProtoText = protoText;
-        pp.MessageIndex = JsonSerializer.Serialize(ProtoTextIndex.Names(protoText));
-        await db.SaveChangesAsync(ct);
+        var norm = ProtoCanonicalForm.Normalize(protoText);
+        if (norm.Ok) protoText = norm.Text!;
+        row.ProtoSha = norm.Ok ? norm.Sha! : ProtoHash.Of(protoText);
+        await UpsertProtoProtoAsync(row.Id, protoText, null, ct);
         return true;
     }
 

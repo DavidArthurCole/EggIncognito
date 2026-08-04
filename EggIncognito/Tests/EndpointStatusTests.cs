@@ -2,7 +2,11 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class EndpointStatusTests {
+public sealed class EndpointStatusTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
     private static string WriteYaml(string dir) {
         string p = Path.Combine(dir, "routes.yaml");
         File.WriteAllText(p, """
@@ -23,8 +27,8 @@ public class EndpointStatusTests {
         return p;
     }
 
-    private static (string yamlPath, string defaults) MakeRepo() {
-        string dir = Path.Combine(Path.GetTempPath(), "egi-st-" + Guid.NewGuid().ToString("N"));
+    private (string yamlPath, string defaults) MakeRepo() {
+        string dir = _tmp.CreateSubdir();
         string defaults = Path.Combine(dir, "default");
         Directory.CreateDirectory(Path.Combine(defaults, "ei"));
         string yamlPath = WriteYaml(dir);

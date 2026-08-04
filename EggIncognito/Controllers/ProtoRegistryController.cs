@@ -4,6 +4,7 @@ using EggIncognito.Core.Services.Protos;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
+using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -35,10 +36,17 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         }
 
         bool hasProto = !string.IsNullOrWhiteSpace(req.Proto);
-        string sha = hasProto ? ProtoHash.Of(req.Proto!) : "";
+        string? protoText = hasProto ? req.Proto : null;
+        string sha = "";
+        if (hasProto) {
+            var norm = ProtoCanonicalForm.Normalize(req.Proto!);
+            if (norm.Ok) protoText = norm.Text!;
+            sha = norm.Ok ? norm.Sha! : ProtoHash.Of(req.Proto!);
+        }
+
         (var row, bool created, _) = await store.UpsertAsync(
             req.Platform, req.AppVersion, req.Build, req.ClientVersion, req.Package ?? "",
-            sha, "", DateTimeOffset.UtcNow, user.Username, hasProto ? req.Proto : null,
+            sha, "", DateTimeOffset.UtcNow, user.Username, protoText,
             req.Source ?? "upload", ct: ct);
         return Ok(new { ok = true, created, row.Platform, row.Build, protoSha = sha });
     }
@@ -66,8 +74,10 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         if (Require(UserRole.Contributor) is { } no) return no;
         if (Store is not { } store) return StatusCode(503, new { error = NoDb });
         if (string.IsNullOrWhiteSpace(req.Proto)) return StatusCode(400, new { error = "proto required" });
-        string sha = ProtoHash.Of(req.Proto);
-        bool ok = await store.SetProtoAsync(platform, build, req.Proto, ct);
+        var norm = ProtoCanonicalForm.Normalize(req.Proto);
+        string protoText = norm.Ok ? norm.Text! : req.Proto;
+        string sha = norm.Ok ? norm.Sha! : ProtoHash.Of(req.Proto);
+        bool ok = await store.SetProtoAsync(platform, build, protoText, ct);
         return ok ? Ok(new { ok = true, protoSha = sha }) : NotFound();
     }
 

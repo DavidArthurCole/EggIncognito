@@ -5,10 +5,10 @@ namespace EggIncognito.Tests;
 public class ContentRootTests {
     [Fact]
     public void Resolve_PrefersConfiguredPath() {
-        string dir = Path.Combine(Path.GetTempPath(), "egi-cr-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(dir, "RouteMap"));
-        File.WriteAllText(Path.Combine(dir, "RouteMap", "routes.yaml"), "routes:\n");
-        Assert.Equal(dir, ContentRoot.Resolve(dir));
+        using var tmp = new TempDir();
+        Directory.CreateDirectory(tmp.Combine("RouteMap"));
+        File.WriteAllText(tmp.Combine("RouteMap", "routes.yaml"), "routes:\n");
+        Assert.Equal(tmp.Path, ContentRoot.Resolve(tmp.Path));
     }
 
     [Fact]

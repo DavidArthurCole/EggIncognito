@@ -1,7 +1,6 @@
 @using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 
 @if (_done is not null) {
     <div class="sub-done">
@@ -75,7 +74,7 @@
                 @(_busy ? "Sending test..." : "Subscribe")
             </button>
             @if (_error is not null) {
-                <span class="text-err text-sm">@_error</span>
+                <StatusNote Severity="StatusNote.Kind.Error">@_error</StatusNote>
             }
         </div>
     </div>
@@ -95,7 +94,7 @@
         }
 
         @if (_testMsg is not null) {
-            <p class="text-sm mb-2 @(_testOk ? "text-green-400" : "text-err")">@_testMsg</p>
+            <StatusNote Severity="@(_testOk ? StatusNote.Kind.Ok : StatusNote.Kind.Error)">@_testMsg</StatusNote>
         }
 
         <div class="sub-list">
@@ -182,9 +181,6 @@
     string? _error;
     Confirmation? _done;
 
-    string _baseAddress = "";
-    string? _cookie;
-
     List<Sub>? _subs;
     bool _deleting;
     bool _deleted;
@@ -231,14 +227,6 @@
 
     void OnKindChanged() {
         _trigger = CurrentKind?.DefaultTrigger ?? "proto_changed";
-    }
-
-    protected override void OnInitialized() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
     }
 
     protected override async Task OnInitializedAsync() {
@@ -336,13 +324,6 @@
         }
 
         _deleting = false;
-    }
-
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
     }
 
     void Reset() {

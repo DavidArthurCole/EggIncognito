@@ -2,7 +2,11 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-public class CaptureSessionManagerTests {
+public sealed class CaptureSessionManagerTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
     internal static string RealContentRoot() {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null) {
@@ -14,18 +18,17 @@ public class CaptureSessionManagerTests {
         throw new InvalidOperationException("Could not locate the EggIncognito project content root.");
     }
 
-    internal static CaptureSession NewSession(int port, FakeCaptureProxy? fake = null) {
-        string tmp = Path.Combine(Path.GetTempPath(), "egi-mgr-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tmp);
+    internal static CaptureSession NewSession(TempDir tmp, int port, FakeCaptureProxy? fake = null) {
+        string dir = tmp.CreateSubdir();
         var opts = new CaptureSessionOptions(port, null, null,
-            false, false, tmp, Path.Combine(tmp, "ca.cer"),
+            false, false, dir, Path.Combine(dir, "ca.cer"),
             false);
         return new CaptureSession(RealContentRoot(), opts, _ => fake ?? new FakeCaptureProxy());
     }
 
-    private static CaptureSessionManager NewManager(int maxSessions = 10, int poolBase = 24000) =>
+    private CaptureSessionManager NewManager(int maxSessions = 10, int poolBase = 24000) =>
         new(HostedCaptureOptions.Defaults() with { MaxConcurrentSessions = maxSessions, PortPoolBase = poolBase },
-            (key, basePort) => NewSession(key == CaptureSessionManager.LocalKey ? 18080 : basePort));
+            (key, basePort) => NewSession(_tmp, key == CaptureSessionManager.LocalKey ? 18080 : basePort));
 
     [Fact]
     public void TwoKeys_GetDistinctSessions_WithDistinctPorts() {

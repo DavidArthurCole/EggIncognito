@@ -1,7 +1,6 @@
 @using System.Text.Json.Nodes
 @* One request/response data section: format selector (JSON tree/raw, YAML, XML, JS, Hex, Bin), copy
    button, and filter box. RawB64 powers the Hex/Bin views, available even when JSON failed. *@
-@inject IJSRuntime JS
 
 <div class="format-view">
     @if (ShowLabel && !string.IsNullOrEmpty(Label)) {
@@ -19,7 +18,7 @@
             <JsonTree Root="_tree" View="View">
                 <Tools>
                     @FormatSelect()
-                    @CopyButton()
+                    @CopyBtn()
                 </Tools>
             </JsonTree>
         </div>
@@ -34,7 +33,7 @@
                     <input type="search" class="data-filter" placeholder="Filter..."
                            autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
                            value="@_filter" @oninput="OnFilterInput"/>
-                    @CopyButton()
+                    @CopyBtn()
                 </div>
                 <pre class="data-text">@RenderTextBody()</pre>
             </div>
@@ -56,8 +55,6 @@
     bool _showRawBox;
     string _currentFormat = "json-tree";
     string _filter = "";
-    const string _copyLabel = "Copy";
-    bool _copied;
 
     List<string> _formats = [];
     JsonNode? _parsed;
@@ -152,9 +149,7 @@
                                          }
                                      </select>;
 
-    RenderFragment CopyButton() => @<button class="btn-mini data-copy" type="button" @onclick="Copy">
-                                       <Icon Name="@(_copied ? "check" : "copy")" Class="icon-sm"/> @(_copied ? "Copied" : _copyLabel)
-                                   </button>;
+    RenderFragment CopyBtn() => @<CopyButton GetText="CurrentText" ButtonClass="btn-mini data-copy" IconClass="icon-sm" Label="Copy" CopiedLabel="Copied"/>;
 
     string CurrentText() {
         var fmt = _currentFormat;
@@ -162,21 +157,6 @@
         if (CaptureFormat.IsByteFormat(fmt)) return CaptureFormat.BytesToText(RawB64, fmt);
         return CaptureFormat.JsonToText(JsonStr, fmt);
     }
-
-    async Task Copy() {
-        try {
-            await JS.InvokeVoidAsync("navigator.clipboard.writeText", CurrentText());
-        }
-        catch {
-        }
-
-        _copied = true;
-        StateHasChanged();
-        await Task.Delay(1200);
-        _copied = false;
-        StateHasChanged();
-    }
-
 
     RenderFragment RenderTextBody() => builder => {
         var text = CurrentText();

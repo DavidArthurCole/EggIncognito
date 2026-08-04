@@ -4,8 +4,7 @@
    formatting toolbar. Saves through POST /api/docs/doc and uploads images through POST /api/docs/image.
    Blazor cannot read a textarea's selection without JS interop, so toolbar buttons append their markdown
    token to the value instead of wrapping the selection. *@
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 @inject ICurrentUser User
 
 @if (_canEdit) {
@@ -62,16 +61,9 @@
     bool _dirty;
 
 
-    string _baseAddress = "";
-    string? _cookie;
-
     protected override void OnInitialized() {
+        base.OnInitialized();
         _canEdit = User.IsAtLeast(UserRole.Contributor);
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
     }
 
 
@@ -85,13 +77,6 @@
     void OnInput(ChangeEventArgs e) {
         _value = e.Value?.ToString() ?? "";
         _dirty = true;
-    }
-
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
     }
 
     void Insert(string token) {

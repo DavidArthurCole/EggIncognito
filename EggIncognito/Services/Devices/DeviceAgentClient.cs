@@ -25,32 +25,23 @@ public sealed class DeviceAgentClient : IDeviceAgentClient {
 
     public bool Enabled => !string.IsNullOrWhiteSpace(_baseUrl) && _secret.Length > 0;
 
-    public async Task<DeviceProbeDto?> ProbeAsync(string id, CancellationToken ct) {
-        try {
-            using var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/devices/{id}/probe");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _secret);
-            using var resp = await _http.SendAsync(req, ct);
-            if (!resp.IsSuccessStatusCode) return null;
-            return await resp.Content.ReadFromJsonAsync<DeviceProbeDto>(ct);
-        } catch (HttpRequestException) {
-            return null;
-        } catch (OperationCanceledException) when (!ct.IsCancellationRequested) {
-            return null;
-        }
-    }
+    public Task<DeviceProbeDto?> ProbeAsync(string id, CancellationToken ct) =>
+        PostAsync<DeviceProbeDto>($"/devices/{id}/probe", ct);
 
-    public async Task<int> ProbeAllAsync(CancellationToken ct) {
+    public async Task<int> ProbeAllAsync(CancellationToken ct) =>
+        (await PostAsync<ProbeAllResponse>("/devices/probe-all", ct))?.Probed ?? 0;
+
+    private async Task<T?> PostAsync<T>(string path, CancellationToken ct) {
         try {
-            using var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/devices/probe-all");
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}{path}");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _secret);
             using var resp = await _http.SendAsync(req, ct);
-            if (!resp.IsSuccessStatusCode) return 0;
-            var body = await resp.Content.ReadFromJsonAsync<ProbeAllResponse>(ct);
-            return body?.Probed ?? 0;
+            if (!resp.IsSuccessStatusCode) return default;
+            return await resp.Content.ReadFromJsonAsync<T>(ct);
         } catch (HttpRequestException) {
-            return 0;
+            return default;
         } catch (OperationCanceledException) when (!ct.IsCancellationRequested) {
-            return 0;
+            return default;
         }
     }
 

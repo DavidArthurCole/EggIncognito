@@ -5,17 +5,25 @@ using Google.Protobuf;
 
 namespace EggIncognito.Capture;
 
-public sealed class FlowDecoder(string contentRoot) {
-    private readonly HashSet<string> _rawResponsePaths = new(
-        EndpointExtractor.LoadRawResponses(contentRoot).Keys, StringComparer.Ordinal);
+public sealed class FlowDecoder {
+#pragma warning disable IDE0028
+    private readonly HashSet<string> _rawResponsePaths = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _requestTypes = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _requestWrapped = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _responseTypes = new(StringComparer.Ordinal);
+#pragma warning restore IDE0028
 
-    private readonly IReadOnlyDictionary<string, string>
-        _requestTypes = EndpointExtractor.LoadRequestTypes(contentRoot);
+    public FlowDecoder(string contentRoot) : this(RouteCatalog.ForRepo(contentRoot)) {
+    }
 
-    private readonly HashSet<string> _requestWrapped = EndpointExtractor.LoadRequestWrapped(contentRoot);
-
-    private readonly IReadOnlyDictionary<string, string> _responseTypes =
-        EndpointExtractor.LoadEndpointTypes(contentRoot);
+    public FlowDecoder(IRouteCatalog catalog) {
+        foreach (var route in catalog.All()) {
+            if (route.RawResponse is not null) _rawResponsePaths.Add(route.Path);
+            if (route.Request is not null) _requestTypes[route.Path] = route.Request;
+            if (route.RequestWrapped) _requestWrapped.Add(route.Path);
+            if (route.Response is not null) _responseTypes[route.Path] = route.Response;
+        }
+    }
 
     public string? KnownResponseType(string path) =>
         _responseTypes.GetValueOrDefault(path);

@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Security.Cryptography;
+using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
@@ -12,7 +12,7 @@ public sealed class GameBinaryProvider(
     IServiceProvider services,
     IConfiguration config,
     ILogger<GameBinaryProvider> logger) {
-    private const string DefaultPlatform = "ios";
+    private const string DefaultPlatform = Platforms.Ios;
     private static readonly Lock LiveGate = new();
     private static readonly Lock CvGate = new();
     private static readonly Lock StageGate = new();
@@ -30,7 +30,14 @@ public sealed class GameBinaryProvider(
 
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
     private GameBinaryStore? BinaryStore => services.GetService(typeof(GameBinaryStore)) as GameBinaryStore;
-    private IDevicePlatforms? Platforms => services.GetService(typeof(IDevicePlatforms)) as IDevicePlatforms;
+    private IDevicePlatforms? DevicePlatforms => services.GetService(typeof(IDevicePlatforms)) as IDevicePlatforms;
+    private IDeviceResolver? Resolver => services.GetService(typeof(IDeviceResolver)) as IDeviceResolver;
+
+    private SymbolizedBinaryStore SymbolizedStore() {
+        string? dir = config[DecompConfigKeys.SymbolizedIpaDir];
+        if (string.IsNullOrEmpty(dir)) dir = Path.Combine("captures", "ipas");
+        return new SymbolizedBinaryStore(dir);
+    }
 
     public async Task<(bool Ok, byte[]? Bytes, string? Diagnostics)> GetBinaryAsync(string? deviceId,
         CancellationToken ct) {
@@ -42,16 +49,13 @@ public sealed class GameBinaryProvider(
         string? deviceId, CancellationToken ct) {
         string? version = (await ResolveVersionAndDeviceAsync(deviceId, DefaultPlatform, ct)).Version;
 
-        string? overridePath = config["Decomp:BinaryPath"];
+        string? overridePath = config[DecompConfigKeys.BinaryPath];
         if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath)) {
             byte[] bytes = await File.ReadAllBytesAsync(overridePath, ct);
             return (true, bytes, version ?? "unknown", null);
         }
 
-        string? dir = config["Decomp:SymbolizedIpaDir"];
-        if (string.IsNullOrEmpty(dir)) dir = Path.Combine("captures", "ipas");
-        var store = new SymbolizedBinaryStore(dir);
-        var r = store.Get(version);
+        var r = SymbolizedStore().Get(version);
         if (!r.Ok || r.Bytes is null) return (false, null, "", r.Diagnostics);
 
         if (!r.ExactVersion) {
@@ -69,10 +73,10 @@ public sealed class GameBinaryProvider(
     public async Task<(bool Ok, byte[]? Bytes, IReadOnlyList<MachoSymbols.Symbol>? Symbols, string Version, string?
             Diagnostics)>
         GetExtractionBinaryAsync(string platform, CancellationToken ct) {
-        bool isDefault = string.Equals(platform, DefaultPlatform, StringComparison.OrdinalIgnoreCase);
+        bool isDefault = Platforms.Matches(platform, DefaultPlatform);
 
         if (isDefault) {
-            string? overridePath = config["Decomp:BinaryPath"];
+            string? overridePath = config[DecompConfigKeys.BinaryPath];
             if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath)) {
                 byte[] ob = await File.ReadAllBytesAsync(overridePath, ct);
                 string? ov = (await ResolveVersionAndDeviceAsync(null, platform, ct)).Version;
@@ -165,26 +169,14 @@ public sealed class GameBinaryProvider(
         }
 
         candidates.Sort((a, b) => {
-            int cmp = CompareVersions(b.Version, a.Version);
+            int cmp = DeviceParsing.CompareVersions(b.Version, a.Version);
             return cmp != 0 ? cmp : PlatformRank(a.Platform).CompareTo(PlatformRank(b.Platform));
         });
         return candidates;
     }
 
     private static int PlatformRank(string platform) =>
-        string.Equals(platform, DefaultPlatform, StringComparison.OrdinalIgnoreCase) ? 0 : 1;
-
-    private static int CompareVersions(string? a, string? b) {
-        if (Version.TryParse(Normalize(a), out var va) && Version.TryParse(Normalize(b), out var vb))
-            return va.CompareTo(vb);
-        return string.CompareOrdinal(a ?? "", b ?? "");
-    }
-
-    private static string Normalize(string? v) {
-        if (string.IsNullOrWhiteSpace(v)) return "0.0";
-        var parts = v.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length >= 2 ? v : v + ".0";
-    }
+        Platforms.Matches(platform, DefaultPlatform) ? 0 : 1;
 
     public async Task<IReadOnlyList<(string Platform, string Status, string? Version, string? Note)>>
         EnsureAllVersionsStoredAsync(CancellationToken ct) {
@@ -234,8 +226,8 @@ public sealed class GameBinaryProvider(
             return ("store-error", version, ex.Message);
         }
 
-        if (!config.GetValue("Decomp:LiveDevicePull", false))
-            return ("pull-disabled", version, "missing from store; Decomp:LiveDevicePull=false");
+        if (!config.GetValue(DecompConfigKeys.LiveDevicePull, false))
+            return ("pull-disabled", version, $"missing from store; {DecompConfigKeys.LiveDevicePull}=false");
 
         (bool ok, _, _, _, string? diag) = await GetLiveBinaryAsync(platform, ct);
         return ok ? ("pulled", version, diag) : ("pull-failed", version, diag);
@@ -277,10 +269,10 @@ public sealed class GameBinaryProvider(
     public async Task<(bool Ok, byte[]? Bytes, IReadOnlyList<MachoSymbols.Symbol>? Symbols, bool Grafted, string?
             Diagnostics)>
         GetLiveBinaryAsync(string platform, CancellationToken ct) {
-        if (!config.GetValue("Decomp:LiveDevicePull", false))
-            return (false, null, null, false, "live device pull disabled (set Decomp:LiveDevicePull=true)");
+        if (!config.GetValue(DecompConfigKeys.LiveDevicePull, false))
+            return (false, null, null, false, $"live device pull disabled (set {DecompConfigKeys.LiveDevicePull}=true)");
 
-        var platforms = Platforms;
+        var platforms = DevicePlatforms;
         if (platforms is null)
             return (false, null, null, false, "device platform registry unavailable");
 
@@ -288,7 +280,7 @@ public sealed class GameBinaryProvider(
         if (device is null)
             return (false, null, null, false, $"no enabled {platform} device");
 
-        int ttlSeconds = config.GetValue("Decomp:LiveCacheSeconds", 900);
+        int ttlSeconds = config.GetValue(DecompConfigKeys.LiveCacheSeconds, 900);
         lock (LiveGate) {
             if (LiveCache.TryGetValue(platform, out var c) &&
                 DateTimeOffset.UtcNow - c.Pulled < TimeSpan.FromSeconds(ttlSeconds)) {
@@ -313,7 +305,7 @@ public sealed class GameBinaryProvider(
             return (false, null, null, false, "pull returned no binary");
         }
 
-        string sha = Convert.ToHexStringLower(SHA256.HashData(pulled));
+        string sha = Hashes.Sha256Hex(pulled);
         var resolved = ResolveSymbols(pulled);
         string note = $"live pull sha {sha[..12]}; {resolved.Note}";
 
@@ -341,9 +333,7 @@ public sealed class GameBinaryProvider(
                 $"{nativeCount} native ELF symbols (Mach-O stash graft not applicable)");
         }
 
-        string? dir = config["Decomp:SymbolizedIpaDir"];
-        if (string.IsNullOrEmpty(dir)) dir = Path.Combine("captures", "ipas");
-        var refr = new SymbolizedBinaryStore(dir).Get(null);
+        var refr = SymbolizedStore().Get(null);
         if (refr.Ok && refr.Bytes is not null) {
             var report = SymbolRecovery.Recover(refr.Bytes, bytes, []);
             if (report.Symbols.Count > nativeCount) {
@@ -395,12 +385,12 @@ public sealed class GameBinaryProvider(
     }
 
     private async Task<bool> StageIosBinaryAsync(string platform, byte[] bytes, CancellationToken ct) {
-        if (!string.Equals(platform, "ios", StringComparison.OrdinalIgnoreCase)) return false;
+        if (!Platforms.Matches(platform, Platforms.Ios)) return false;
         string? stashPath = config["Runner:IosBinaryStashPath"];
         if (string.IsNullOrEmpty(stashPath)) return false;
 
-        string? installed = (await ResolveVersionAndDeviceAsync(null, "ios", ct)).Version;
-        string sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        string? installed = (await ResolveVersionAndDeviceAsync(null, Platforms.Ios, ct)).Version;
+        string sha = Hashes.Sha256Hex(bytes);
         lock (StageGate) {
             if (StagedIos is { } s && string.Equals(s.Sha, sha, StringComparison.Ordinal) && File.Exists(stashPath))
                 return true;
@@ -424,16 +414,13 @@ public sealed class GameBinaryProvider(
 
     public async Task<(bool Ok, byte[]? RefBytes, byte[]? TargetBytes, string? Diagnostics)> GetRecoveryInputsAsync(
         string? refVersion, string? targetPathOverride, CancellationToken ct) {
-        string? dir = config["Decomp:SymbolizedIpaDir"];
-        if (string.IsNullOrEmpty(dir)) dir = Path.Combine("captures", "ipas");
-        var store = new SymbolizedBinaryStore(dir);
-        var refr = store.Get(refVersion);
+        var refr = SymbolizedStore().Get(refVersion);
         if (!refr.Ok || refr.Bytes is null) return (false, null, null, refr.Diagnostics);
 
-        string? targetPath = targetPathOverride ?? config["Decomp:StrippedTargetPath"];
+        string? targetPath = targetPathOverride ?? config[DecompConfigKeys.StrippedTargetPath];
         if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath)) {
             return (false, refr.Bytes, null,
-                "no stripped target binary; set Decomp:StrippedTargetPath or pass targetPath");
+                $"no stripped target binary; set {DecompConfigKeys.StrippedTargetPath} or pass targetPath");
         }
 
         byte[] targetBytes = await File.ReadAllBytesAsync(targetPath, ct);
@@ -445,10 +432,14 @@ public sealed class GameBinaryProvider(
         var store = Store;
         if (store is null) return (null, null);
         try {
-            var devices = await store.EnabledDevicesAsync(ct);
-            var device = deviceId is null
-                ? devices.FirstOrDefault(d => string.Equals(d.Platform, platform, StringComparison.OrdinalIgnoreCase))
-                : devices.FirstOrDefault(d => d.Id == deviceId);
+            Device? device;
+            if (deviceId is null) {
+                device = Resolver is { } r ? await r.ResolveAsync(new DeviceQuery(Platform: platform), ct) : null;
+            } else {
+                var devices = await store.EnabledDevicesAsync(ct);
+                device = devices.FirstOrDefault(d => d.Id == deviceId);
+            }
+
             if (device is null) {
                 if (deviceId is null) return (null, null);
                 var latestForId = await store.LatestPerDeviceAsync(ct);

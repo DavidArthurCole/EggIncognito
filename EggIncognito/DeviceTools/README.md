@@ -1,6 +1,6 @@
-# EggIncognito.DeviceTools
+# DeviceTools
 
-On-device native tooling for the jailbroken iOS capture/extraction device. The frida scripts are embedded resources served to the app through a typed accessor; the Theos tweak sources ship as project content and build on the device host. The C# compiles in the solution; the `ios/` payloads run on the phone.
+On-device native tooling for the jailbroken iOS capture/extraction device, part of the app project. The frida scripts are embedded resources served through a typed accessor; the Theos tweak sources build on the device host. The `ios/` payloads run on the phone.
 
 ## eggupdate tweak
 

@@ -1,11 +1,12 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text.Json;
+using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services;
 
 public static class SupporterClaims {
-    public const string ClaimType = "egi:supporter";
+    public const string ClaimType = AuthClaims.SupporterClaim;
 
     public static void Stamp(ClaimsIdentity? identity, bool isSupporter) {
         if (identity is null) return;
@@ -66,9 +67,7 @@ public sealed class SupporterStatus(
 
         try {
             var http = httpFactory.CreateClient("discord-api");
-            using var req = new HttpRequestMessage(HttpMethod.Get,
-                $"https://discord.com/api/v10/guilds/{guildId}/members/{discordId}");
-            req.Headers.TryAddWithoutValidation("Authorization", $"Bot {token}");
+            using var req = DiscordBotApi.Request(HttpMethod.Get, $"guilds/{guildId}/members/{discordId}", token);
             using var res = await http.SendAsync(req, ct);
             return res.IsSuccessStatusCode && ParseHasRole(await res.Content.ReadAsStringAsync(ct), roleId);
         } catch (Exception ex) {

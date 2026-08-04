@@ -1,7 +1,6 @@
 namespace EggIncognito.Runner.State;
 
-public sealed class VersionState
-{
+public sealed class VersionState {
     private readonly string _path;
 
     public VersionState(string path) => _path = path;

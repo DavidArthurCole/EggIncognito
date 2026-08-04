@@ -10,14 +10,11 @@ public sealed class AndroidParticleCapturer(AdbDeviceConnection conn, string scr
 
     public async Task<ParticleCaptureModel.Model?> CaptureAsync(CancellationToken ct) {
         try {
-            string? staged = await BuildStagedScriptAsync(ct);
+            string? staged = await ParticleScript.BuildStagedAsync(scriptBody, addrOffset, ct);
             if (staged is null) return null;
 
             bool pushed = await conn.PushFileAsync(staged, RemoteScript, ct);
-            try {
-                File.Delete(staged);
-            } catch {
-            }
+            DeviceShell.TryDelete(staged);
 
             if (!pushed) return null;
 
@@ -30,19 +27,6 @@ public sealed class AndroidParticleCapturer(AdbDeviceConnection conn, string scr
             if (ndjson is null || ndjson.Length == 0) return null;
 
             return ParticleCaptureModel.Parse(Encoding.UTF8.GetString(ndjson));
-        } catch {
-            return null;
-        }
-    }
-
-    private async Task<string?> BuildStagedScriptAsync(CancellationToken ct) {
-        try {
-            string prefix = string.IsNullOrWhiteSpace(addrOffset)
-                ? ""
-                : $"const addrOffset = '{addrOffset.Trim()}';\n";
-            string staged = Path.Combine(Path.GetTempPath(), $"egi-frida-staged-{Guid.NewGuid():N}.js");
-            await File.WriteAllTextAsync(staged, prefix + scriptBody, ct);
-            return staged;
         } catch {
             return null;
         }

@@ -1,7 +1,6 @@
-using System.Security.Cryptography;
-using System.Text;
-using EggIncognito.Services.ProtoExtract;
 using EggIdentity.Contract;
+using EggIncognito.Core.Services.Devices;
+using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Runner.Extract;
 
@@ -10,20 +9,17 @@ public sealed record ExtractResult(int Status, string? Build, string? ProtoSha, 
 public sealed class ApkPureExtractHandler(
     string secret, ApkPureDownloader downloader, IProtoExtractor extractor,
     IClientVersionReader clientVersion, State.ClientVersionState cvState,
-    Func<NewVersionEvent, Task> postEvent) : IDisposable
-{
+    Func<NewVersionEvent, Task> postEvent) : IDisposable {
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public void Dispose() => _lock.Dispose();
 
-    public async Task<ExtractResult> HandleAsync(string? authHeader, string? appVersion)
-    {
-        if (!BearerMatches(authHeader))
+    public async Task<ExtractResult> HandleAsync(string? authHeader, string? appVersion) {
+        if (!BearerAuth.Matches(authHeader, secret))
             return new ExtractResult(401, null, null, "unauthorized", null);
         if (!_lock.Wait(0))
             return new ExtractResult(409, null, null, "an extract is already running", null);
-        try
-        {
+        try {
             if (string.IsNullOrWhiteSpace(appVersion))
                 return new ExtractResult(400, null, null, "appVersion required", null);
 
@@ -34,26 +30,22 @@ public sealed class ApkPureExtractHandler(
             if (armSplit is null)
                 return new ExtractResult(502, null, null, "no arm split in download", null);
 
-            var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".apk");
+            var tmp = DeviceShell.NewTempPath(".apk");
             ProtoExtraction extraction;
             string? cv;
-            try
-            {
+            try {
                 await File.WriteAllBytesAsync(tmp, armSplit);
                 extraction = extractor.Extract(tmp);
                 cv = clientVersion.Read(tmp, cvState.Last());
-            }
-            finally
-            {
-                try { File.Delete(tmp); } catch { }
+            } finally {
+                DeviceShell.TryDelete(tmp);
             }
             if (cv is not null && int.TryParse(cv, out var cvNum)) cvState.Save(cvNum);
 
             var build = ApkVersionCode.Read(armSplit);
             var protoBytes = extraction.ProtoText;
             var protoSha = extraction.ProtoSha;
-            await postEvent(new NewVersionEvent
-            {
+            await postEvent(new NewVersionEvent {
                 Package = "com.auxbrain.egginc",
                 Version = appVersion,
                 AppVersion = appVersion,
@@ -66,20 +58,8 @@ public sealed class ApkPureExtractHandler(
                 DetectedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
             });
             return new ExtractResult(200, build, protoSha, null, "extracted and posted");
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             return new ExtractResult(500, null, null, ex.Message, null);
-        }
-        finally { _lock.Release(); }
-    }
-
-    private bool BearerMatches(string? header)
-    {
-        const string prefix = "Bearer ";
-        if (header is null || !header.StartsWith(prefix, StringComparison.Ordinal)) return false;
-        var presented = Encoding.UTF8.GetBytes(header[prefix.Length..]);
-        var expected = Encoding.UTF8.GetBytes(secret);
-        return CryptographicOperations.FixedTimeEquals(presented, expected);
+        } finally { _lock.Release(); }
     }
 }

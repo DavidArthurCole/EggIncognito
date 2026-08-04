@@ -17,8 +17,9 @@ public class GameBinaryProviderTests {
     [Fact]
     public async Task Extraction_NoDeviceNoStoreNoStash_FailsCleanly() {
         var p = Provider(new Dictionary<string, string?> {
-            ["Decomp:LiveDevicePull"] = "false",
-            ["Decomp:SymbolizedIpaDir"] = Path.Combine(Path.GetTempPath(), "egi-nonexistent-stash-" + Guid.NewGuid())
+            [DecompConfigKeys.LiveDevicePull] = "false",
+            [DecompConfigKeys.SymbolizedIpaDir] =
+                Path.Combine(Path.GetTempPath(), "egi-nonexistent-stash-" + Guid.NewGuid())
         });
 
         (bool ok, byte[]? bin, _, _, string? diag) = await p.GetExtractionBinaryAsync(CancellationToken.None);
@@ -34,7 +35,7 @@ public class GameBinaryProviderTests {
         byte[] payload = [1, 2, 3, 4, 5, 6, 7, 8];
         await File.WriteAllBytesAsync(path, payload);
         try {
-            var p = Provider(new Dictionary<string, string?> { ["Decomp:BinaryPath"] = path });
+            var p = Provider(new Dictionary<string, string?> { [DecompConfigKeys.BinaryPath] = path });
 
             (bool ok, byte[]? bin, _, string version, _) = await p.GetExtractionBinaryAsync(CancellationToken.None);
 

@@ -1,6 +1,8 @@
 namespace EggIncognito.Services;
 
 public static class AuxbrainHosts {
+    public const string Origin = "https://www.auxbrain.com";
+
     private static readonly string[] Suffixes = [
         "auxbrain.com",
         "auxbrainhome.appspot.com"

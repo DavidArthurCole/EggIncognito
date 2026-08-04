@@ -1,6 +1,5 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
+using EggIncognito.Core;
 
 namespace EggIncognito.Services;
 
@@ -33,5 +32,5 @@ public static partial class Redactor {
 
 
     private static string Token(string value) =>
-        "redacted-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..12].ToLowerInvariant();
+        "redacted-" + Hashes.Sha256HexShort(value);
 }

@@ -427,88 +427,37 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     }
 
     public static IReadOnlyDictionary<string, string> LoadEndpointTypes(string contentRoot) =>
-        LoadInnerTypes(contentRoot, "response", "responseType");
+        RouteTypeMap(contentRoot, r => r.Response);
 
     public static IReadOnlyDictionary<string, string> LoadRequestTypes(string contentRoot) =>
-        LoadInnerTypes(contentRoot, "request", "requestType");
+        RouteTypeMap(contentRoot, r => r.Request);
 
 
     public static IReadOnlyDictionary<string, string> LoadRawResponses(string contentRoot) =>
-        LoadInnerTypes(contentRoot, "rawResponse", "rawResponse");
+        RouteTypeMap(contentRoot, r => r.RawResponse);
 
 
     public static HashSet<string> LoadRequestWrapped(string contentRoot) {
-        string yaml = File.ReadAllText(ContentRoot.RoutesYamlPath(contentRoot));
         var result = new HashSet<string>(StringComparer.Ordinal);
-        string? currentPath = null;
-        bool wrapped = false;
-
-        void Flush() {
-            if (currentPath is not null && wrapped) result.Add(currentPath);
-            currentPath = null;
-            wrapped = false;
+        foreach (var r in LoadRoutes(contentRoot)) {
+            if (r.RequestWrapped) result.Add(r.Path);
         }
 
-        foreach (string line in yaml.Split('\n')) {
-            var pathMatch = MyRegex().Match(line);
-            if (pathMatch.Success) {
-                Flush();
-                currentPath = pathMatch.Groups[1].Value.Trim();
-                continue;
-            }
-
-            if (currentPath is null) continue;
-
-            if (RequestWrappedTrueRegex().IsMatch(line)) wrapped = true;
-            else if (RequestTypeAuthenticatedRegex().IsMatch(line)) wrapped = true;
-        }
-
-        Flush();
         return result;
     }
 
 
-    private static Dictionary<string, string> LoadInnerTypes(string contentRoot, string newKey, string legacyKey) {
-        string yaml = File.ReadAllText(ContentRoot.RoutesYamlPath(contentRoot));
+    private static Dictionary<string, string> RouteTypeMap(string contentRoot, Func<RouteInfo, string?> value) {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        string? currentPath = null;
-        string? newVal = null, legacyVal = null;
-
-        void Flush() {
-            if (currentPath is not null) {
-                string? v = newVal ?? legacyVal;
-                if (v is not null && v.Length > 0 && v != "AuthenticatedMessage")
-                    result[currentPath] = v;
-            }
-
-            currentPath = null;
-            newVal = legacyVal = null;
+        foreach (var r in LoadRoutes(contentRoot)) {
+            if (value(r) is { Length: > 0 } v) result[r.Path] = v;
         }
 
-        foreach (string line in yaml.Split('\n')) {
-            var pathMatch = MyRegex().Match(line);
-            if (pathMatch.Success) {
-                Flush();
-                currentPath = pathMatch.Groups[1].Value.Trim();
-                continue;
-            }
-
-            if (currentPath is null) continue;
-
-
-            var m = Regex.Match(line, @"^\s+" + Regex.Escape(newKey) + @":\s*([^#]*?)\s*(?:#.*)?$");
-            if (m.Success) {
-                newVal = m.Groups[1].Value.Trim();
-                continue;
-            }
-
-            m = Regex.Match(line, @"^\s+" + Regex.Escape(legacyKey) + @":\s*([^#]*?)\s*(?:#.*)?$");
-            if (m.Success) legacyVal = m.Groups[1].Value.Trim();
-        }
-
-        Flush();
         return result;
     }
+
+    private static IReadOnlyList<RouteInfo> LoadRoutes(string contentRoot) =>
+        RouteCatalog.ForRepo(contentRoot).All();
 
 
     internal static int CountJsonFields(string json) {
@@ -703,13 +652,4 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
 
     [GeneratedRegex(@"/EI\d+.*$")]
     private static partial Regex EidSuffixRegex();
-
-    [GeneratedRegex(@"^\s+-\s+path:\s+(.+)$")]
-    private static partial Regex MyRegex();
-
-    [GeneratedRegex(@"^\s+requestWrapped:\s*true\s*(?:#.*)?$")]
-    private static partial Regex RequestWrappedTrueRegex();
-
-    [GeneratedRegex(@"^\s+requestType:\s*AuthenticatedMessage\s*(?:#.*)?$")]
-    private static partial Regex RequestTypeAuthenticatedRegex();
 }

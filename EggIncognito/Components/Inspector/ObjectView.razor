@@ -4,8 +4,7 @@
    the endpoints that use the type as request/response (clicking one jumps the builder to it). Degrades
    to empty without a DB: the message list still renders (proto enumeration needs no DB), docs/tags come
    back empty. Mirrors wwwroot/inspector/docs.js. *@
-@inject IHttpClientFactory HttpFactory
-@inject IHttpContextAccessor HttpContextAccessor
+@inherits SelfCallComponentBase
 @inject IRouteCatalog Catalog
 
 @if (string.IsNullOrEmpty(Name)) {
@@ -64,17 +63,6 @@
     List<RouteInfo> _using = [];
     string? _loadedFor;
 
-    string _baseAddress = "";
-    string? _cookie;
-
-    protected override void OnInitialized() {
-        var req = HttpContextAccessor.HttpContext?.Request;
-        if (req is not null) {
-            _baseAddress = $"{req.Scheme}://{req.Host}";
-            _cookie = req.Headers.Cookie;
-        }
-    }
-
     protected override async Task OnParametersSetAsync() {
         if (string.IsNullOrEmpty(Name) || Name == _loadedFor) return;
         _loadedFor = Name;
@@ -83,13 +71,6 @@
         _using = Catalog.All().Where(e => e.Request == Name || e.Response == Name).ToList();
         await LoadDoc();
         await LoadTags();
-    }
-
-    HttpClient Client() {
-        var c = HttpFactory.CreateClient();
-        if (!string.IsNullOrEmpty(_baseAddress)) c.BaseAddress = new Uri(_baseAddress);
-        if (!string.IsNullOrEmpty(_cookie)) c.DefaultRequestHeaders.Add("Cookie", _cookie);
-        return c;
     }
 
     async Task LoadDoc() {

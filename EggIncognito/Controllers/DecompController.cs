@@ -317,12 +317,10 @@ public sealed class DecompController(
     }
 
     private async Task<DeviceTarget?> ResolveDeviceTargetAsync(string? deviceId, string platform, CancellationToken ct) {
-        if (services.GetService(typeof(IDeviceStatusStore)) is not IDeviceStatusStore store) return null;
+        if (services.GetService(typeof(IDeviceResolver)) is not IDeviceResolver resolver) return null;
         try {
-            var devices = await store.EnabledDevicesAsync(ct);
-            var d = deviceId is null
-                ? devices.FirstOrDefault(x => string.Equals(x.Platform, platform, StringComparison.OrdinalIgnoreCase))
-                : devices.FirstOrDefault(x => x.Id == deviceId);
+            var query = deviceId is null ? new DeviceQuery(Platform: platform) : new DeviceQuery(deviceId);
+            var d = await resolver.ResolveAsync(query, ct);
             return d is null ? null : new DeviceTarget(d.Id, d.Platform, d.Target, d.Package);
         } catch {
             return null;

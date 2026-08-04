@@ -1,5 +1,4 @@
 using EggIncognito.Core.Services.Devices;
-using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services.Devices;
 
@@ -9,7 +8,7 @@ public sealed class IosStoreUpdateDriver(
     IosStoreCatalog catalog,
     KnownVersionRecorder knownVersions,
     ILogger<IosStoreUpdateDriver> logger) : IStoreUpdateDriver {
-    public string Platform => "ios";
+    public string Platform => Platforms.Ios;
     public string StoreName => "App Store";
 
     public async Task<string?> ReadInstalledAsync(DeviceTarget target, CancellationToken ct) {
@@ -35,8 +34,8 @@ public sealed class IosStoreUpdateDriver(
         string? latest = await catalog.LatestVersionAsync(opts.AppId, opts.LookupCountry, ct);
         if (latest is null)
             return new StoreProbeOutcome(StoreAvailability.Unknown, null, "App Store lookup unavailable");
-        await knownVersions.RecordAsync("ios", latest, "itunes-lookup", ct);
-        return DeviceProbeRunner.SemverCompare(latest, installed) > 0
+        await knownVersions.RecordAsync(Platforms.Ios, latest, "itunes-lookup", ct);
+        return DeviceParsing.CompareVersions(latest, installed) > 0
             ? new StoreProbeOutcome(StoreAvailability.UpdateOffered, latest, null)
             : new StoreProbeOutcome(StoreAvailability.UpToDate, latest,
                 $"App Store latest {latest}; installed {installed} current");
@@ -70,11 +69,7 @@ public sealed class IosStoreUpdateDriver(
     private bool SshConfigured => !string.IsNullOrEmpty(opts.SshHost) && !string.IsNullOrEmpty(opts.SshKeyPath);
 
     private Task<ProcessResult> SshAsync(string remoteCmd, CancellationToken ct) =>
-        runner.RunAsync("ssh",
-        [
-            "-p", opts.SshPort, "-i", opts.SshKeyPath!, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
-            $"root@{opts.SshHost}", remoteCmd
-        ], ct);
+        runner.RunAsync("ssh", new SshEndpoint(opts.SshHost!, opts.SshPort, opts.SshKeyPath!).SshArgs(remoteCmd), ct);
 
 
     public sealed record Options(

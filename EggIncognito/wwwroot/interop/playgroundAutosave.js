@@ -1,15 +1,14 @@
+import { get, set, remove } from './uiPrefs.js';
 
 const KEY = 'playground.autosave';
 
 export function save(json, version, savedAtMs) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify({ json, version: version || '', savedAt: savedAtMs || 0 }));
-  } catch { /* quota / private mode: skip */ }
+  set(KEY, JSON.stringify({ json, version: version || '', savedAt: savedAtMs || 0 }));
 }
 
 export function load() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = get(KEY);
     if (!raw) return null;
     const rec = JSON.parse(raw);
     if (!rec || typeof rec.json !== 'string') return null;
@@ -20,5 +19,5 @@ export function load() {
 }
 
 export function clear() {
-  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+  remove(KEY);
 }

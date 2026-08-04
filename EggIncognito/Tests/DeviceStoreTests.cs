@@ -2,19 +2,19 @@ using EggIncognito.Capture;
 
 namespace EggIncognito.Tests;
 
-public class DeviceStoreTests {
-    private static string TempDir() {
-        string d = Path.Combine(Path.GetTempPath(), "egi-dev-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(d);
-        return d;
-    }
+public sealed class DeviceStoreTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
+    private string NewDir() => _tmp.CreateSubdir();
 
     [Fact]
-    public void Load_MissingFile_ReturnsEmpty() => Assert.Empty(new DeviceStore(TempDir()).Load());
+    public void Load_MissingFile_ReturnsEmpty() => Assert.Empty(new DeviceStore(NewDir()).Load());
 
     [Fact]
     public void SaveThenLoad_RoundTrips() {
-        string dir = TempDir();
+        string dir = NewDir();
         var store = new DeviceStore(dir);
         var devices = new[] {
             new RememberedDevice("192.168.1.5", "phone.local", "iOS", "1.35.6", "10:00:00", "10:05:00", 7),
@@ -33,7 +33,7 @@ public class DeviceStoreTests {
 
     [Fact]
     public void Save_CapsAtMostRecentByLastSeen() {
-        string dir = TempDir();
+        string dir = NewDir();
         var devices = Enumerable.Range(1, 60)
             .Select(i => new RememberedDevice($"10.0.0.{i}", null, null, null, "t", $"{i:D4}", 1))
             .ToArray();
@@ -47,7 +47,7 @@ public class DeviceStoreTests {
 
     [Fact]
     public void Load_CorruptFile_ReturnsEmpty() {
-        string dir = TempDir();
+        string dir = NewDir();
         File.WriteAllText(Path.Combine(dir, "devices.json"), "{ not json");
         Assert.Empty(new DeviceStore(dir).Load());
     }

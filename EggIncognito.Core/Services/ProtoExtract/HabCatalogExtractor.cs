@@ -99,23 +99,12 @@ public static class HabCatalogExtractor {
         return sb.ToString();
     }
 
-    private static string? IsName(string s) {
-        if (s.Length < 2 || !char.IsAsciiLetterUpper(s[0])) return null;
-        foreach (char c in s) {
-            if (!char.IsAsciiLetterUpper(c) && !char.IsAsciiDigit(c) && c is not (' ' or ',' or '.'))
-                return null;
-        }
+    private static readonly string[] NameSections = ["__cstring", "__const", ".rodata", ".data.rel.ro"];
 
-        return s;
-    }
+    private static string? IsName(string s) => BinaryStrings.IsName(s, " ,.");
 
-    private static string ReadCstr(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va) {
-        if (!MachoSections.TryVaToFileOffset(sections, va, out int fo, out var owner)) return "";
-        if (owner.Name is not ("__cstring" or "__const" or ".rodata" or ".data.rel.ro")) return "";
-        int end = fo;
-        while (end < bin.Length && bin[end] != 0 && end - fo < 64) end++;
-        return Encoding.UTF8.GetString(bin, fo, end - fo);
-    }
+    private static string ReadCstr(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va)
+        => BinaryStrings.ReadCstr(bin, sections, va, NameSections, 64);
 
     private static bool TryReadInt64(Dictionary<ulong, byte> bytes, ulong start, out long value) {
         ulong raw = 0;

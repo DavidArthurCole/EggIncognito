@@ -1,5 +1,7 @@
 
 
+import { get as getRaw, set as setRaw } from "./uiPrefs.js";
+
 const SALT_KEY = "inspector.salt";
 const RINFO_KEY = "inspector.rinfoDefaults";
 const CUSTOM_TARGET_KEY = "inspector.customTarget";
@@ -23,11 +25,12 @@ const RINFO_SEED = {
   debug: false,
 };
 
-function getRaw(key) {
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-function setRaw(key, val) {
-  try { localStorage.setItem(key, val); } catch { /* ignore */ }
+function lruUpsert(list, matches, entry, max) {
+  const next = list.filter((e) => !matches(e));
+  const order = next.reduce((m, e) => Math.max(m, e.order || 0), 0) + 1;
+  next.push({ ...entry, order });
+  next.sort((a, b) => (b.order || 0) - (a.order || 0));
+  return next.slice(0, max);
 }
 
 export function getSalt() { return getRaw(SALT_KEY) || ""; }
@@ -56,24 +59,20 @@ function loadEids() {
 export function rememberEid(value) {
   const eid = String(value || "").trim();
   if (EID_RE.test(eid)) {
-    const list = loadEids().filter((e) => e.eid !== eid);
-    const nextOrder = list.reduce((m, e) => Math.max(m, e.order || 0), 0) + 1;
-    list.push({ eid, order: nextOrder });
-    list.sort((a, b) => b.order - a.order);
-    setRaw(EIDS_KEY, JSON.stringify(list.slice(0, EID_MAX)));
+    setRaw(EIDS_KEY, JSON.stringify(lruUpsert(loadEids(), (e) => e.eid === eid, { eid }, EID_MAX)));
   }
   return recentEids();
 }
 export function rememberEids(values) {
+  let list = loadEids();
+  let changed = false;
   for (const v of values || []) {
     const eid = String(v || "").trim();
     if (!EID_RE.test(eid)) continue;
-    const list = loadEids().filter((e) => e.eid !== eid);
-    const nextOrder = list.reduce((m, e) => Math.max(m, e.order || 0), 0) + 1;
-    list.push({ eid, order: nextOrder });
-    list.sort((a, b) => b.order - a.order);
-    setRaw(EIDS_KEY, JSON.stringify(list.slice(0, EID_MAX)));
+    list = lruUpsert(list, (e) => e.eid === eid, { eid }, EID_MAX);
+    changed = true;
   }
+  if (changed) setRaw(EIDS_KEY, JSON.stringify(list));
   return recentEids();
 }
 
@@ -108,12 +107,12 @@ export function getHistory() {
 
 export function saveHistory(entry) {
   if (!getHistoryEnabled() || !entry || !entry.path) return getHistory();
-  const list = loadHistory().filter(
-    (e) => !(e.path === entry.path && e.fieldsJson === entry.fieldsJson && (e.pathParam || "") === (entry.pathParam || "")));
-  const nextOrder = list.reduce((m, e) => Math.max(m, e.order || 0), 0) + 1;
-  list.push({ ...entry, order: nextOrder });
-  list.sort((a, b) => (b.order || 0) - (a.order || 0));
-  setRaw(HISTORY_KEY, JSON.stringify(list.slice(0, HISTORY_MAX)));
+  const list = lruUpsert(
+    loadHistory(),
+    (e) => e.path === entry.path && e.fieldsJson === entry.fieldsJson && (e.pathParam || "") === (entry.pathParam || ""),
+    entry,
+    HISTORY_MAX);
+  setRaw(HISTORY_KEY, JSON.stringify(list));
   return getHistory();
 }
 

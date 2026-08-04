@@ -4,9 +4,9 @@ using Gee.External.Capstone.Arm64;
 namespace EggIncognito.Services.ProtoExtract;
 
 public static class Arm64Decode {
-    public static CapstoneArm64Disassembler CreateDisassembler() {
+    public static CapstoneArm64Disassembler CreateDisassembler(bool details = true) {
         var cs = CapstoneDisassembler.CreateArm64Disassembler(Arm64DisassembleMode.LittleEndian);
-        cs.EnableInstructionDetails = true;
+        cs.EnableInstructionDetails = details;
         return cs;
     }
 

@@ -6,10 +6,10 @@ using Microsoft.Extensions.Logging;
 namespace EggIncognito.Data.Services;
 
 public static class DeviceProbeRunner {
-    public static IDeviceProbe ProbeFor(Device d, IProcessRunner runner) => d.Platform switch {
-        "ios" => new IosDeviceProbe(runner, d.Target, d.Package),
-        _ => new AdbDeviceProbe(runner, d.Target, d.Package)
-    };
+    public static IDeviceProbe ProbeFor(Device d, IProcessRunner runner) =>
+        Platforms.Matches(d.Platform, Platforms.Ios)
+            ? new IosDeviceProbe(runner, d.Target, d.Package)
+            : new AdbDeviceProbe(runner, d.Target, d.Package);
 
     public static string Classify(Device d, DeviceProbeResult r, string? extractedLatestBuild,
         string? extractedLatestAppVersion)
@@ -21,10 +21,10 @@ public static class DeviceProbeRunner {
         if (!r.Reachable) return "unreachable";
         if (string.IsNullOrEmpty(r.InstalledAppVersion)) return "error";
 
-        if (platform == "ios") {
+        if (Platforms.Matches(platform, Platforms.Ios)) {
             return extractedLatestAppVersion is null
                 ? "new_version"
-                : SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion) > 0
+                : DeviceParsing.CompareVersions(r.InstalledAppVersion!, extractedLatestAppVersion) > 0
                     ? "new_version"
                     : "no_change";
         }
@@ -33,22 +33,9 @@ public static class DeviceProbeRunner {
             ? "new_version"
             : long.TryParse(r.InstalledBuild, out long inst) && long.TryParse(extractedLatestBuild, out long ext)
                 ? inst > ext ? "new_version" : "no_change"
-                : SemverCompare(r.InstalledAppVersion!, extractedLatestAppVersion ?? "") > 0
+                : DeviceParsing.CompareVersions(r.InstalledAppVersion!, extractedLatestAppVersion ?? "") > 0
                     ? "new_version"
                     : "no_change";
-    }
-
-
-    public static int SemverCompare(string a, string b) {
-        string[] pa = a.Split('.');
-        string[] pb = b.Split('.');
-        for (int i = 0; i < Math.Max(pa.Length, pb.Length); i++) {
-            int x = i < pa.Length && int.TryParse(pa[i], out int xi) ? xi : 0;
-            int y = i < pb.Length && int.TryParse(pb[i], out int yi) ? yi : 0;
-            if (x != y) return x.CompareTo(y);
-        }
-
-        return 0;
     }
 
 
@@ -62,12 +49,13 @@ public static class DeviceProbeRunner {
             .Where(p => p.Platform == d.Platform && p.DeletedAt == null)
             .Select(p => new { p.Build, p.AppVersion })
             .ToListAsync(ct);
-        string? latestBuild = d.Platform == "android"
+        string? latestBuild = Platforms.Matches(d.Platform, Platforms.Android)
             ? extracted.Select(e => e.Build).Where(b => long.TryParse(b, out _)).OrderByDescending(long.Parse)
                 .FirstOrDefault()
             : null;
         string? latestAppVersion = extracted.Select(e => e.AppVersion)
-            .OrderByDescending(v => v, Comparer<string>.Create(SemverCompare)).FirstOrDefault();
+            .OrderByDescending(v => v, Comparer<string>.Create((x, y) => DeviceParsing.CompareVersions(x, y)))
+            .FirstOrDefault();
         string? latestAvailable = await db.KnownVersions.AsNoTracking()
             .Where(k => k.Platform == d.Platform)
             .OrderByDescending(k => k.FirstSeen).Select(k => k.AppVersion).FirstOrDefaultAsync(ct);

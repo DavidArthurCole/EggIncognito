@@ -6,7 +6,11 @@ using Google.Protobuf;
 
 namespace EggIncognito.Tests;
 
-public class EndpointExtractorParityTests {
+public sealed class EndpointExtractorParityTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
     private const string Url = "https://www.auxbrain.com/ei/get_periodicals";
     private const string Slug = "ei/get_periodicals";
 
@@ -20,7 +24,7 @@ public class EndpointExtractorParityTests {
                                   request_unknown:
                                 """;
 
-    private static string MakeRepo() => TestRepoFixture.MakeRepo(Yaml, "ei-extract");
+    private string MakeRepo() => TestRepoFixture.MakeRepo(_tmp, Yaml);
 
     private static string WrappedResponseB64() {
         var inner = new PeriodicalsResponse();
@@ -97,7 +101,7 @@ public class EndpointExtractorParityTests {
 
     [Fact]
     public void ForceWriteEndpoint_RegistersUnmappedRequestType() {
-        string root = Path.Combine(Path.GetTempPath(), $"ei-reg-{Guid.NewGuid():N}");
+        string root = _tmp.CreateSubdir();
         Directory.CreateDirectory(Path.Combine(root, "RouteMap"));
         File.WriteAllText(Path.Combine(root, "EggIncognito.slnx"), "<Solution />");
         File.WriteAllText(Path.Combine(root, "RouteMap", "routes.yaml"), """

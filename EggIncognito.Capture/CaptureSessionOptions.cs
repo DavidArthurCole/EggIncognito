@@ -20,7 +20,7 @@ public sealed partial record CaptureSessionOptions(
         if (!string.IsNullOrEmpty(Label))
             name += "_" + SanitizeRegex().Replace(Label, "_");
         if (!string.IsNullOrEmpty(Eid) &&
-            MyRegex().IsMatch(Eid)) {
+            EidPattern.Exact.IsMatch(Eid)) {
             name += "_" + Eid;
         }
 
@@ -29,7 +29,4 @@ public sealed partial record CaptureSessionOptions(
 
     [GeneratedRegex(@"[^A-Za-z0-9._-]")]
     private static partial Regex SanitizeRegex();
-
-    [GeneratedRegex(@"^EI\d{16,}$")]
-    private static partial Regex MyRegex();
 }

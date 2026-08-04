@@ -15,9 +15,9 @@ using CapturePage = EggIncognito.Components.Pages.Capture;
 namespace EggIncognito.Tests;
 
 public class HostedCapturePageTests {
-    private static CaptureSessionManager NewManager() =>
+    private static CaptureSessionManager NewManager(TempDir tmp) =>
         new(HostedCaptureOptions.Defaults(),
-            (key, basePort) => CaptureSessionManagerTests.NewSession(
+            (key, basePort) => CaptureSessionManagerTests.NewSession(tmp,
                 key == CaptureSessionManager.LocalKey ? 18080 : basePort));
 
     private sealed class FakeAppMode(bool canCapture, bool hostedEnabled) : IAppMode {
@@ -88,12 +88,12 @@ public class HostedCapturePageTests {
 
 
     public class Component : BunitContext {
-        private void Wire(bool authed, bool supporter) {
+        private void Wire(TempDir tmp, bool authed, bool supporter) {
             JSInterop.Mode = JSRuntimeMode.Loose;
             Services.AddSingleton<IAppMode>(new FakeAppMode(false, true));
             Services.AddSingleton<ICurrentUser>(new FakeUser(authed, supporter));
             Services.AddSingleton(HostedCaptureOptions.Defaults());
-            Services.AddSingleton(NewManager());
+            Services.AddSingleton(NewManager(tmp));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
             Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
@@ -103,7 +103,8 @@ public class HostedCapturePageTests {
 
         [Fact]
         public void Anonymous_ShowsLoginPrompt() {
-            Wire(false, false);
+            using var tmp = new TempDir();
+            Wire(tmp, false, false);
             var cut = Render<CapturePage>();
             Assert.NotNull(cut.Find("#hostedLogin"));
             Assert.Empty(cut.FindAll("#hostedSetupCard"));
@@ -111,7 +112,8 @@ public class HostedCapturePageTests {
 
         [Fact]
         public void NonSupporter_ShowsPitchWithSupportLink() {
-            Wire(true, false);
+            using var tmp = new TempDir();
+            Wire(tmp, true, false);
             var cut = Render<CapturePage>();
             Assert.NotNull(cut.Find("#hostedPitch"));
             Assert.Contains("href=\"/support\"", cut.Markup);
@@ -120,7 +122,8 @@ public class HostedCapturePageTests {
 
         [Fact]
         public void Supporter_ShowsSetupCard_AndDashboard() {
-            Wire(true, true);
+            using var tmp = new TempDir();
+            Wire(tmp, true, true);
             var cut = Render<CapturePage>();
             Assert.NotNull(cut.Find("#hostedSetupCard"));
             Assert.NotNull(cut.Find("#statsPanel"));
@@ -128,7 +131,8 @@ public class HostedCapturePageTests {
 
         [Fact]
         public void Supporter_SetupCard_ShowsProxyAddress_NoAuthCredentials() {
-            Wire(true, true);
+            using var tmp = new TempDir();
+            Wire(tmp, true, true);
             var cut = Render<CapturePage>();
             string markup = cut.Markup;
 
@@ -148,7 +152,11 @@ public class HostedCapturePageTests {
     }
 
 
-    public class StartGate {
+    public sealed class StartGate : IDisposable {
+        private readonly TempDir _tmp = new();
+
+        public void Dispose() => _tmp.Dispose();
+
         private static CaptureController Controller(
             CaptureSessionManager manager, ICurrentUser user, ISupporterStatus supporters) =>
             new(manager, new FakeAppMode(false, true), user, supporters,
@@ -156,14 +164,14 @@ public class HostedCapturePageTests {
 
         [Fact]
         public async Task Start_Anonymous_Is401() {
-            var r = await Controller(NewManager(), new FakeUser(false, false), new FakeSupporters(true))
+            var r = await Controller(NewManager(_tmp), new FakeUser(false, false), new FakeSupporters(true))
                 .Start(CancellationToken.None);
             Assert.Equal(401, ((IStatusCodeActionResult)r).StatusCode);
         }
 
         [Fact]
         public async Task Start_LiveCheckFails_Is403SupporterRequired() {
-            var r = await Controller(NewManager(), new FakeUser(true, true), new FakeSupporters(false))
+            var r = await Controller(NewManager(_tmp), new FakeUser(true, true), new FakeSupporters(false))
                 .Start(CancellationToken.None);
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
             Assert.Contains("supporter_required", ((ObjectResult)r).Value!.ToString());
@@ -171,7 +179,7 @@ public class HostedCapturePageTests {
 
         [Fact]
         public async Task Start_Supporter_StartsOwnSession() {
-            var manager = NewManager();
+            var manager = NewManager(_tmp);
             var r = await Controller(manager, new FakeUser(true, true), new FakeSupporters(true))
                 .Start(CancellationToken.None);
             Assert.Equal(200, ((IStatusCodeActionResult)r).StatusCode);
@@ -183,15 +191,19 @@ public class HostedCapturePageTests {
 
         [Fact]
         public async Task ProxyAddress_NonSupporter_Is403() {
-            var r = await Controller(NewManager(), new FakeUser(true, false), new FakeSupporters(false))
+            var r = await Controller(NewManager(_tmp), new FakeUser(true, false), new FakeSupporters(false))
                 .ProxyAddress(CancellationToken.None);
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
         }
     }
 
-    public class SaveGate {
-        private static (CaptureController Controller, CaptureSession Session) WithFlowSession(ICurrentUser user) {
-            var manager = NewManager();
+    public sealed class SaveGate : IDisposable {
+        private readonly TempDir _tmp = new();
+
+        public void Dispose() => _tmp.Dispose();
+
+        private (CaptureController Controller, CaptureSession Session) WithFlowSession(ICurrentUser user) {
+            var manager = NewManager(_tmp);
             var session = manager.GetOrCreate("tester");
             var controller = new CaptureController(
                 manager, new FakeAppMode(false, true), user,

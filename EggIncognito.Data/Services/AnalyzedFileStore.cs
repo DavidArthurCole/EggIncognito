@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+using EggIncognito.Core;
 using EggIncognito.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,7 +6,7 @@ namespace EggIncognito.Data.Services;
 
 public sealed class AnalyzedFileStore(EggIncognitoDbContext db) {
     public static string Sha256Hex(byte[] bytes) {
-        return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        return Hashes.Sha256Hex(bytes);
     }
 
     public Task<AnalyzedFile?> FindAsync(string fileSha, CancellationToken ct) {

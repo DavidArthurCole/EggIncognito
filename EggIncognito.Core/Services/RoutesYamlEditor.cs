@@ -8,6 +8,7 @@ public sealed partial class RoutesYamlEditor {
     private readonly List<string> _lines;
     private readonly string _path;
     private DateTime _loadedStampUtc;
+    private Dictionary<string, RouteInfo>? _parsed;
 
     public RoutesYamlEditor(string contentRoot) {
         _path = ContentRoot.RoutesYamlPath(contentRoot);
@@ -47,12 +48,12 @@ public sealed partial class RoutesYamlEditor {
             if (existing.Length > 0 && existing != "AuthenticatedMessage")
                 return false;
             _lines[k] = $"{m.Groups[1].Value}{key}: {value}";
-            Dirty = true;
+            Mutated();
             return true;
         }
 
         Insert(start + 1, $"{FieldIndent(start, end)}{key}: {value}");
-        Dirty = true;
+        Mutated();
         return true;
     }
 
@@ -67,7 +68,7 @@ public sealed partial class RoutesYamlEditor {
         }
 
         Insert(start + 1, $"{FieldIndent(start, end)}{key}: true");
-        Dirty = true;
+        Mutated();
         return true;
     }
 
@@ -80,16 +81,7 @@ public sealed partial class RoutesYamlEditor {
         return HasPathParam(parent) ? parent : path;
     }
 
-    private bool HasPathParam(string path) {
-        (int start, int end) = RouteBlock(path);
-        if (start < 0) return false;
-        for (int k = start + 1; k < end; k++) {
-            if (PathParamRegex().IsMatch(_lines[k]))
-                return true;
-        }
-
-        return false;
-    }
+    private bool HasPathParam(string path) => Info(path)?.PathParam == true;
 
 
     public bool AddRoute(string path, string? request, bool requestWrapped, string response, bool responseWrapped) {
@@ -111,7 +103,7 @@ public sealed partial class RoutesYamlEditor {
         if (responseWrapped) block.Add("    responseWrapped: true");
 
         _lines.InsertRange(insertAt, block);
-        Dirty = true;
+        Mutated();
         return true;
     }
 
@@ -125,7 +117,7 @@ public sealed partial class RoutesYamlEditor {
             var m = MyRegex().Match(_lines[k]);
             if (m.Success && m.Groups[1].Value == path) {
                 _lines.RemoveAt(k);
-                Dirty = true;
+                Mutated();
                 return true;
             }
         }
@@ -142,12 +134,12 @@ public sealed partial class RoutesYamlEditor {
             if (!m.Success) continue;
             if (m.Groups[3].Value.Trim().Length > 0) return false;
             _lines[k] = $"{m.Groups[1].Value}request:  {NoneMarker}";
-            Dirty = true;
+            Mutated();
             return true;
         }
 
         Insert(start + 1, $"{FieldIndent(start, end)}request:  {NoneMarker}");
-        Dirty = true;
+        Mutated();
         return true;
     }
 
@@ -161,24 +153,20 @@ public sealed partial class RoutesYamlEditor {
             }
         }
 
-        return FieldUnresolved(path, "request", "requestType");
+        return Info(path)?.Request is null;
     }
 
-    public bool ResponseUnresolved(string path) => FieldUnresolved(path, "response", "responseType");
+    public bool ResponseUnresolved(string path) => Info(path)?.Response is null;
 
-    private bool FieldUnresolved(string path, string key, string legacy) {
-        (int start, int end) = RouteBlock(path);
-        if (start < 0) return true;
-        for (int k = start + 1; k < end; k++) {
-            var m = Regex.Match(_lines[k],
-                @"^\s*(" + Regex.Escape(key) + "|" + Regex.Escape(legacy) + @"):\s*([^#]*?)\s*(?:#.*)?$");
-            if (m.Success) {
-                string v = m.Groups[2].Value.Trim();
-                return v.Length == 0 || v == "AuthenticatedMessage";
-            }
-        }
+    private RouteInfo? Info(string path) {
+        _parsed ??= RouteCatalog.Parse(string.Join('\n', _lines))
+            .ToDictionary(r => r.Path, StringComparer.Ordinal);
+        return _parsed.GetValueOrDefault(path);
+    }
 
-        return true;
+    private void Mutated() {
+        Dirty = true;
+        _parsed = null;
     }
 
     private void Insert(int index, string line) => _lines.Insert(index, line);
@@ -248,9 +236,6 @@ public sealed partial class RoutesYamlEditor {
         while (at > comment && _lines[at - 1].Trim().Length == 0) at--;
         return at;
     }
-
-    [GeneratedRegex(@"^\s*pathParam:\s*true\s*(?:#.*)?$")]
-    private static partial Regex PathParamRegex();
 
     [GeneratedRegex(@"^\s*-\s+(\S+)\s*(?:#.*)?$")]
     private static partial Regex MyRegex();

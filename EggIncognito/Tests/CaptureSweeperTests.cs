@@ -4,13 +4,16 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
 
-public class CaptureSweeperTests {
+public sealed class CaptureSweeperTests : IDisposable {
     private static readonly DateTimeOffset Now = new(2026, 6, 12, 12, 0, 0, TimeSpan.Zero);
+    private readonly TempDir _tmp = new();
 
-    private static (CaptureSweeper Sweeper, CaptureSessionManager Manager) New() {
+    public void Dispose() => _tmp.Dispose();
+
+    private (CaptureSweeper Sweeper, CaptureSessionManager Manager) New() {
         var opts = HostedCaptureOptions.Defaults();
         var manager = new CaptureSessionManager(opts,
-            (key, basePort) => CaptureSessionManagerTests.NewSession(
+            (key, basePort) => CaptureSessionManagerTests.NewSession(_tmp,
                 key == CaptureSessionManager.LocalKey ? 18080 : basePort));
         var sweeper = new CaptureSweeper(manager, opts, TimeProvider.System,
             NullLogger<CaptureSweeper>.Instance);

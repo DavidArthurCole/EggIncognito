@@ -3,16 +3,13 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>preview</LangVersion>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <Description>Build-time CSS compiler for EggIncognito: scans .razor/.html/.js/.cs content for utility/component class tokens and compiles wwwroot/styles.css via MonorailCss + EggIdentity.Styles.</Description>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MonorailCss" Version="0.1.3" />
-    <PackageReference Include="EggIdentity.Styles" Version="1.1.3" />
+    <PackageReference Include="MonorailCss" />
+    <PackageReference Include="EggIdentity.Styles" />
   </ItemGroup>
 
 </Project>

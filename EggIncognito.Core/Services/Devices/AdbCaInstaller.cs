@@ -50,7 +50,7 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         string certB64 = Convert.ToBase64String(Encoding.ASCII.GetBytes(pem));
 
 
-        string tmpScript = Path.Combine(Path.GetTempPath(), $"eggincognito-ca-{device.Id}.sh");
+        string tmpScript = DeviceShell.NewTempPath(".sh");
         string script = (installScriptTemplate ?? DefaultScript)
             .Replace("{hash}", hash)
             .Replace("{cert_b64}", certB64)
@@ -66,10 +66,7 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
             if (pushScript.ExitCode != 0)
                 return (false, "push script failed: " + DeviceParsing.TrimNote(pushScript.Stderr + pushScript.Stdout));
         } finally {
-            try {
-                File.Delete(tmpScript);
-            } catch {
-            }
+            DeviceShell.TryDelete(tmpScript);
         }
 
 

@@ -2,7 +2,11 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class DocRegistryTests {
+public sealed class DocRegistryTests : IDisposable {
+    private readonly TempDir _tmp = new();
+
+    public void Dispose() => _tmp.Dispose();
+
     private const string YamlText = """
                                     routes:
                                       - path: ei/first_contact_secure
@@ -15,8 +19,8 @@ public class DocRegistryTests {
                                         response: PeriodicalsResponse
                                     """;
 
-    private static DocRegistry Build() {
-        string path = Path.Combine(Path.GetTempPath(), $"ei-docreg-{Guid.NewGuid():N}.yaml");
+    private DocRegistry Build() {
+        string path = _tmp.Combine($"docreg-{Guid.NewGuid():N}.yaml");
         File.WriteAllText(path, YamlText);
         var routes = new RouteCatalog(path);
         return new DocRegistry(new ProtoReflection(), routes);

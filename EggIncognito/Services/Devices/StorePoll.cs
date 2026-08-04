@@ -1,5 +1,4 @@
 using EggIncognito.Core.Services.Devices;
-using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services.Devices;
 
@@ -21,7 +20,7 @@ public static class StorePoll {
             int n = attempt + 1;
             logger.LogInformation("device check-update: {Id} {Label} poll {N}/{Max} installed={Ver}",
                 id, label, n, pollAttempts, now ?? "?");
-            if (now is not null && DeviceProbeRunner.SemverCompare(now, before) > 0) {
+            if (now is not null && DeviceParsing.CompareVersions(now, before) > 0) {
                 progress?.Invoke($"{storeName} installed {now} (was {before})");
                 logger.LogInformation("device check-update: {Id} {Label} climb {Before} -> {After}", id, label, before,
                     now);

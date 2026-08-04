@@ -158,7 +158,7 @@ public sealed partial class EnvRow {
             "version" => !VersionRegex().IsMatch(Value),
             "code" => !MyRegex().IsMatch(Value),
             "select" => Options is not null && !Options.Contains(Value),
-            "eid" => !EidRegex().IsMatch(Value),
+            "eid" => !EidPattern.Exact.IsMatch(Value),
             _ => false
         };
     }
@@ -168,9 +168,6 @@ public sealed partial class EnvRow {
 
     [GeneratedRegex("^[A-Za-z]{2,3}$")]
     private static partial Regex MyRegex();
-
-    [GeneratedRegex(@"^EI\d{10,}$")]
-    private static partial Regex EidRegex();
 }
 
 public static class EnvCollector {
