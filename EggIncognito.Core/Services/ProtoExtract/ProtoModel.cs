@@ -7,13 +7,13 @@ public sealed record ProtoField(string Label, string Type, string Name, int Numb
 
 public sealed record ProtoEnumValue(string Name, int Number, string Raw);
 
-public sealed record ProtoEnum(string Name, List<ProtoEnumValue> Values);
+public sealed record ProtoEnumDef(string Name, List<ProtoEnumValue> Values);
 
 public sealed class ProtoMessage {
     public required string Name { get; init; }
     public required string Path { get; init; }
     public List<ProtoField> Fields { get; } = [];
-    public List<ProtoEnum> Enums { get; } = [];
+    public List<ProtoEnumDef> Enums { get; } = [];
     public List<ProtoMessage> Children { get; } = [];
     public List<string> BodyLines { get; } = [];
 }
@@ -53,7 +53,7 @@ public static partial class ProtoModelParser {
     private sealed class Scope {
         public required ScopeKind Kind { get; init; }
         public ProtoMessage? Message { get; init; }
-        public ProtoEnum? Enum { get; init; }
+        public ProtoEnumDef? Enum { get; init; }
         public required int Depth { get; init; }
     }
 
@@ -85,7 +85,7 @@ public static partial class ProtoModelParser {
 
             var enumMatch = EnumOpenRe().Match(trimmed);
             if (enumMatch.Success && innermostMessage is not null) {
-                var createdEnum = new ProtoEnum(enumMatch.Groups[1].Value, []);
+                var createdEnum = new ProtoEnumDef(enumMatch.Groups[1].Value, []);
                 innermostMessage.Enums.Add(createdEnum);
                 innermostMessage.BodyLines.Add(rawLine);
                 scopes.Add(new Scope { Kind = ScopeKind.Enum, Enum = createdEnum, Depth = depth });

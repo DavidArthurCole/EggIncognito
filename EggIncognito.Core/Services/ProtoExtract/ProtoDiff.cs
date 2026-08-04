@@ -144,9 +144,9 @@ public static class ProtoDiff {
     }
 
     private static List<EnumValueChange> DiffEnums(ProtoMessage oldM, ProtoMessage newM) {
-        var oldByName = new Dictionary<string, ProtoEnum>();
+        var oldByName = new Dictionary<string, ProtoEnumDef>();
         foreach (var e in oldM.Enums) oldByName.TryAdd(e.Name, e);
-        var newByName = new Dictionary<string, ProtoEnum>();
+        var newByName = new Dictionary<string, ProtoEnumDef>();
         foreach (var e in newM.Enums) newByName.TryAdd(e.Name, e);
 
         var names = oldByName.Keys.Union(newByName.Keys);
