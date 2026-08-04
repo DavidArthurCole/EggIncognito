@@ -11,13 +11,13 @@ public sealed record GameAsset(
 
 public interface IGameAssetTier {
     int Priority { get; }
-    bool Handles(GameAssetKey key);
+    bool CanHandle(GameAssetKey key);
     Task<GameAsset?> TryGetAsync(GameAssetKey key, CancellationToken ct);
     Task PutAsync(GameAsset asset, CancellationToken ct);
 }
 
 public interface IGameAssetOrigin {
-    bool Handles(GameAssetKey key);
+    bool CanHandle(GameAssetKey key);
     Task<GameAsset?> FetchAsync(GameAssetKey key, CancellationToken ct);
 }
 
@@ -28,7 +28,7 @@ public sealed class GameAssetProvider(IEnumerable<IGameAssetTier> tiers, IEnumer
     private readonly IReadOnlyList<IGameAssetTier> _tiers = tiers.OrderBy(t => t.Priority).ToList();
 
     public async Task<GameAssetResult> GetAsync(GameAssetKey key, CancellationToken ct) {
-        var applicable = _tiers.Where(t => t.Handles(key)).ToList();
+        var applicable = _tiers.Where(t => t.CanHandle(key)).ToList();
 
         for (int i = 0; i < applicable.Count; i++) {
             var hit = await applicable[i].TryGetAsync(key, ct);
@@ -38,7 +38,7 @@ public sealed class GameAssetProvider(IEnumerable<IGameAssetTier> tiers, IEnumer
             return new GameAssetResult(true, hit, TierName(applicable[i]), null);
         }
 
-        var origin = _origins.FirstOrDefault(o => o.Handles(key));
+        var origin = _origins.FirstOrDefault(o => o.CanHandle(key));
         if (origin is null)
             return new GameAssetResult(false, null, "none", "no cached asset and no origin for this key");
 
@@ -58,7 +58,7 @@ public sealed class GameAssetProvider(IEnumerable<IGameAssetTier> tiers, IEnumer
     }
 
     public async Task<GameAssetResult> GetCachedAsync(GameAssetKey key, CancellationToken ct) {
-        foreach (var tier in _tiers.Where(t => t.Handles(key))) {
+        foreach (var tier in _tiers.Where(t => t.CanHandle(key))) {
             var hit = await tier.TryGetAsync(key, ct);
             if (hit is not null) return new GameAssetResult(true, hit, TierName(tier), null);
         }

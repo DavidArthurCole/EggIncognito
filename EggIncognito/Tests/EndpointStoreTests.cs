@@ -21,7 +21,7 @@ public sealed class EndpointStoreTests : IDisposable {
     [Fact]
     public void ReturnsDefaultInstanceWhenNoEndpoint() {
         var store = CreateStore();
-        var result = store.Get<AuthenticatedMessage>("ei/first_contact_secure");
+        var result = store.Fetch<AuthenticatedMessage>("ei/first_contact_secure");
         Assert.NotNull(result);
         Assert.IsType<AuthenticatedMessage>(result);
     }
@@ -30,7 +30,7 @@ public sealed class EndpointStoreTests : IDisposable {
     public void ReturnsEndpointWhenDefaultExists() {
         WriteEndpoint("default/ei/first_contact_secure.json", "{}");
         var store = CreateStore();
-        var result = store.Get<AuthenticatedMessage>("ei/first_contact_secure");
+        var result = store.Fetch<AuthenticatedMessage>("ei/first_contact_secure");
         Assert.NotNull(result);
     }
 
@@ -41,10 +41,10 @@ public sealed class EndpointStoreTests : IDisposable {
 
         var store = CreateStore();
 
-        var resultDefault = store.Get<PeriodicalsResponse>("ei/get_periodicals");
+        var resultDefault = store.Fetch<PeriodicalsResponse>("ei/get_periodicals");
         Assert.NotNull(resultDefault);
 
-        var resultEid = store.Get<PeriodicalsResponse>("ei/get_periodicals", "EI0000000000000001");
+        var resultEid = store.Fetch<PeriodicalsResponse>("ei/get_periodicals", "EI0000000000000001");
         Assert.NotNull(resultEid);
     }
 
@@ -53,7 +53,7 @@ public sealed class EndpointStoreTests : IDisposable {
         WriteEndpoint("default/ei/get_periodicals.json", "{}");
 
         var store = CreateStore();
-        var result = store.Get<PeriodicalsResponse>("ei/get_periodicals", "EI_NONEXISTENT");
+        var result = store.Fetch<PeriodicalsResponse>("ei/get_periodicals", "EI_NONEXISTENT");
         Assert.NotNull(result);
     }
 
@@ -62,7 +62,7 @@ public sealed class EndpointStoreTests : IDisposable {
         WriteEndpoint("default/ei_afx/launch_mission.json", "{}");
 
         var store = CreateStore();
-        var result = store.Get<MissionResponse>("ei_afx/launch_mission");
+        var result = store.Fetch<MissionResponse>("ei_afx/launch_mission");
         Assert.NotNull(result);
     }
 
@@ -72,7 +72,7 @@ public sealed class EndpointStoreTests : IDisposable {
             new FileEndpointSource(_tmp.Combine("does_not_exist")),
             null,
             NullLogger<EndpointStore>.Instance);
-        var result = store.Get<AuthenticatedMessage>("ei/any");
+        var result = store.Fetch<AuthenticatedMessage>("ei/any");
         Assert.NotNull(result);
     }
 }

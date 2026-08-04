@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using System.Text.Json.Nodes;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
@@ -95,12 +96,12 @@ public sealed class EnumFailover(ILastKnownProtoSource source) : IEnumFailover {
                 if (field.IsRepeated) {
                     if (valNode is JsonArray arr && field.Accessor.GetValue(message) is IList list) {
                         for (int i = 0; i < arr.Count && i < list.Count; i++) {
-                            string? repl = Resolve(field.EnumType, Convert.ToInt32(list[i]), map);
+                            string? repl = Resolve(field.EnumType, Convert.ToInt32(list[i], CultureInfo.InvariantCulture), map);
                             if (repl is not null) arr[i] = JsonValue.Create(repl);
                         }
                     }
                 } else {
-                    string? repl = Resolve(field.EnumType, Convert.ToInt32(field.Accessor.GetValue(message)), map);
+                    string? repl = Resolve(field.EnumType, Convert.ToInt32(field.Accessor.GetValue(message), CultureInfo.InvariantCulture), map);
                     if (repl is not null) obj[field.JsonName] = JsonValue.Create(repl);
                 }
             } else if (field.FieldType is FieldType.Message or FieldType.Group) {

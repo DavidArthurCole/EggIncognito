@@ -28,7 +28,7 @@ public class Arm64SymbolicExecutorTests {
     [Fact]
     public void Fmul_Then_Fadd_BuildsBinaryTree() {
         byte[] code = Words(Fmul(2, 0, 1), Fadd(3, 2, 0), Ret());
-        var seed = new Dictionary<string, ExprNode> { ["s0"] = new Input("t"), ["s1"] = new Const(2) };
+        var seed = new Dictionary<string, ExprNode> { ["s0"] = new Input("t"), ["s1"] = new ConstExpr(2) };
         var res = RunChain(code, seed, (_, _) => null, "s3", out _);
         var b = Assert.IsType<Binary>(ExprNode.Fold(res));
         Assert.Equal(BinOp.Add, b.Op);
@@ -38,7 +38,7 @@ public class Arm64SymbolicExecutorTests {
     public void FmovImm_SetsConst() {
         byte[] code = Words(FmovImm(0, 0x70), Ret());
         var res = RunChain(code, [], (_, _) => null, "s0", out _);
-        Assert.Equal(1.0, Assert.IsType<Const>(ExprNode.Fold(res)).V, 3);
+        Assert.Equal(1.0, Assert.IsType<ConstExpr>(ExprNode.Fold(res)).V, 3);
     }
 
     [Fact]
@@ -63,9 +63,9 @@ public class Arm64SymbolicExecutorTests {
         var fn = new MachoSymbols.FuncRange("f", 0, (ulong)code.Length);
         var r = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(),
             new Dictionary<string, string> { ["x8"] = "ret" }, (_, _) => null);
-        Assert.Equal(2.5, Assert.IsType<Const>(ExprNode.Fold(r.RetVec[0])).V, 3);
-        Assert.Equal(1.0, Assert.IsType<Const>(ExprNode.Fold(r.RetVec[4])).V, 3);
-        Assert.Equal(5.5, Assert.IsType<Const>(ExprNode.Fold(r.RetVec[8])).V, 3);
+        Assert.Equal(2.5, Assert.IsType<ConstExpr>(ExprNode.Fold(r.RetVec[0])).V, 3);
+        Assert.Equal(1.0, Assert.IsType<ConstExpr>(ExprNode.Fold(r.RetVec[4])).V, 3);
+        Assert.Equal(5.5, Assert.IsType<ConstExpr>(ExprNode.Fold(r.RetVec[8])).V, 3);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class Arm64SymbolicExecutorTests {
         var seed = new Dictionary<string, ExprNode> { ["s0"] = new Input("t") };
 
         static ExprNode? resolve(string _, ExprNode[] args) {
-            return new Unary(UnOp.Sin, args.Length > 0 ? args[0] : new Const(0));
+            return new Unary(UnOp.Sin, args.Length > 0 ? args[0] : new ConstExpr(0));
         }
 
         var res = RunChain(code, seed, resolve, "s0", out int opaque);

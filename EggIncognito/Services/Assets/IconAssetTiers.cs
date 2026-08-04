@@ -9,7 +9,7 @@ public sealed class IconDbTier(IServiceProvider services, ILogger<IconDbTier> lo
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
     public int Priority => 0;
 
-    public bool Handles(GameAssetKey key) => key.Kind == "icon";
+    public bool CanHandle(GameAssetKey key) => key.Kind == "icon";
 
     public async Task<GameAsset?> TryGetAsync(GameAssetKey key, CancellationToken ct) {
         var db = Db;
@@ -60,7 +60,7 @@ public sealed class IconDbTier(IServiceProvider services, ILogger<IconDbTier> lo
 public sealed class IconDiskTier(IconAssetCache cache) : IGameAssetTier {
     public int Priority => 10;
 
-    public bool Handles(GameAssetKey key) => key.Kind == "icon";
+    public bool CanHandle(GameAssetKey key) => key.Kind == "icon";
 
     public Task<GameAsset?> TryGetAsync(GameAssetKey key, CancellationToken ct) {
         byte[]? png = cache.TryGet(key.Name);

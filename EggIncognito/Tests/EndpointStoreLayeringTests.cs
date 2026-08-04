@@ -23,7 +23,7 @@ public class EndpointStoreLayeringTests {
     public void FileOnly_BehavesAsBefore() {
         var file = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{}" }, 0);
         var store = Store(file, null);
-        var msg = store.Get<PeriodicalsResponse>("ei/x");
+        var msg = store.Fetch<PeriodicalsResponse>("ei/x");
         Assert.NotNull(msg);
     }
 
@@ -32,7 +32,7 @@ public class EndpointStoreLayeringTests {
         var file = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{}" }, 0);
         var db = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{\"userId\":\"FROM_DB\"}" }, 100);
         var store = Store(file, db);
-        var msg = store.Get<AuthenticatedMessage>("ei/x");
+        var msg = store.Fetch<AuthenticatedMessage>("ei/x");
         Assert.Equal("FROM_DB", msg.UserId);
     }
 
@@ -40,7 +40,7 @@ public class EndpointStoreLayeringTests {
     public void NonGeneric_Get_ByType() {
         var file = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{}" }, 0);
         var store = Store(file, null);
-        var msg = store.Get(typeof(AuthenticatedMessage), "ei/x");
+        var msg = store.Fetch(typeof(AuthenticatedMessage), "ei/x");
         Assert.IsType<AuthenticatedMessage>(msg);
     }
 
@@ -49,7 +49,7 @@ public class EndpointStoreLayeringTests {
         var file = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{}" }, 0);
         var db = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{\"userId\":\"FROM_DB\"}" }, 100);
         var store = Store(file, db);
-        var msg = (AuthenticatedMessage)store.Get(typeof(AuthenticatedMessage), "ei/x");
+        var msg = (AuthenticatedMessage)store.Fetch(typeof(AuthenticatedMessage), "ei/x");
         Assert.Equal("FROM_DB", msg.UserId);
     }
 
@@ -57,7 +57,7 @@ public class EndpointStoreLayeringTests {
     public void Miss_ReturnsDefaultInstance() {
         var file = new FakeSource([], 0);
         var store = Store(file, null);
-        Assert.NotNull(store.Get<PeriodicalsResponse>("ei/none"));
+        Assert.NotNull(store.Fetch<PeriodicalsResponse>("ei/none"));
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class EndpointStoreLayeringTests {
         var logger = new CollectingLogger();
         var store = new EndpointStore(file, factory, logger);
 
-        var msg = store.Get<AuthenticatedMessage>("ei/x");
+        var msg = store.Fetch<AuthenticatedMessage>("ei/x");
 
         Assert.Equal("FROM_FILE", msg.UserId);
         Assert.Contains(LogLevel.Warning, logger.Levels);

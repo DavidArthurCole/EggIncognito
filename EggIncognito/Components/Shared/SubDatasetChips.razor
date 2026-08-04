@@ -1,6 +1,5 @@
 @using EggIncognito.Components.Capture
 @using EggIncognito.Core
-
 <div class="ds-chip-row">
     @foreach (var it in Items) {
         <button type="button" class="ds-chip @(_selected == it.Endpoint ? "ds-chip-on" : "")" @onclick="() => Select(it)">

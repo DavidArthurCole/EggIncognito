@@ -14,7 +14,7 @@ public sealed class BehaviorService : IBehaviorService {
         _behaviors = behaviors.ToList();
     }
 
-    public SimulationBehavior? Get(string name) =>
+    public SimulationBehavior? Find(string name) =>
         _behaviors.FirstOrDefault(b => string.Equals(b.Name, name, StringComparison.OrdinalIgnoreCase));
 
     public IReadOnlyList<SimulationBehavior> All() => _behaviors;

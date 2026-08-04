@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Services;
 
-public static class PostmanCollection {
+public static class PostmanBundle {
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
 
     private static readonly string[] PreRequest = [

@@ -15,7 +15,7 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
             ? await Ssh(
                 ssh.SetTemplate.Replace("{host}", hostIp)
                     .Replace("{port}", port.ToString(CultureInfo.InvariantCulture)), ct)
-            : string.IsNullOrEmpty(ssh.Guid)
+            : string.IsNullOrEmpty(ssh.NetworkServiceGuid)
                 ? (false, "ios proxy needs the network-service guid (DeviceCapture:Ios:NetworkServiceGuid)")
                 : await Ssh(BuildSet(hostIp, port), ct);
     }
@@ -23,7 +23,7 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
     public async Task<(bool Ok, string? Note)> ClearProxyAsync(DeviceTarget device, CancellationToken ct) {
         return !string.IsNullOrEmpty(ssh.ClearTemplate)
             ? await Ssh(ssh.ClearTemplate, ct)
-            : string.IsNullOrEmpty(ssh.Guid)
+            : string.IsNullOrEmpty(ssh.NetworkServiceGuid)
                 ? (false, "ios proxy needs the network-service guid (DeviceCapture:Ios:NetworkServiceGuid)")
                 : await Ssh(BuildClear(), ct);
     }
@@ -34,7 +34,7 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
         string f = ssh.PrefsPlist ?? DefaultPrefs;
 
         string Set(string key, string value, string type) {
-            return $"{p} -key NetworkServices -key {ssh.Guid} -key Proxies -key {key} -value {value} -type {type} {f}";
+            return $"{p} -key NetworkServices -key {ssh.NetworkServiceGuid} -key Proxies -key {key} -value {value} -type {type} {f}";
         }
 
         string portStr = port.ToString(CultureInfo.InvariantCulture);
@@ -48,7 +48,7 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
         string f = ssh.PrefsPlist ?? DefaultPrefs;
 
         string Disable(string key) {
-            return $"{p} -key NetworkServices -key {ssh.Guid} -key Proxies -key {key} -value 0 -type int {f}";
+            return $"{p} -key NetworkServices -key {ssh.NetworkServiceGuid} -key Proxies -key {key} -value 0 -type int {f}";
         }
 
         return $"{Disable("HTTPEnable")}; {Disable("HTTPSEnable")}";
@@ -68,7 +68,7 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
         string? KeyPath,
         string? SetTemplate,
         string? ClearTemplate,
-        string? Guid = null,
+        string? NetworkServiceGuid = null,
         string? PlutilPath = null,
         string? PrefsPlist = null);
 }

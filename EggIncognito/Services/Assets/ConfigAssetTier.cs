@@ -14,7 +14,7 @@ public sealed class ConfigDiskTier(IConfiguration config) : IGameAssetTier {
 
     public int Priority => 10;
 
-    public bool Handles(GameAssetKey key) => key.Kind == "config";
+    public bool CanHandle(GameAssetKey key) => key.Kind == "config";
 
     public Task<GameAsset?> TryGetAsync(GameAssetKey key, CancellationToken ct) {
         string? path = PathFor(key);

@@ -31,7 +31,7 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
 
     [HttpGet("postman-collection")]
     public IActionResult PostmanCollection() {
-        string json = Services.PostmanCollection.BuildJson(YamlPath);
+        string json = Services.PostmanBundle.BuildJson(YamlPath);
         return File(Encoding.UTF8.GetBytes(json), "application/json", "EggIncognito.postman_collection.json");
     }
 

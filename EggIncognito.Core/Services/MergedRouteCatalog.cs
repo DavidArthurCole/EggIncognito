@@ -6,7 +6,7 @@ public interface IDbRouteProvider {
 }
 
 public sealed class MergedRouteCatalog(RouteCatalog yaml, IDbRouteProvider? db) : IRouteCatalog {
-    public RouteInfo? Get(string path) => yaml.Get(path) ?? db?.GetDbRoute(path);
+    public RouteInfo? Resolve(string path) => yaml.Resolve(path) ?? db?.GetDbRoute(path);
 
     public IReadOnlyList<RouteInfo> All() {
         var yamlRoutes = yaml.All();

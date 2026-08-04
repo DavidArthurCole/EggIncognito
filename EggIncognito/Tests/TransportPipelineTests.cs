@@ -295,13 +295,13 @@ public class RouteCatalogTests {
     public void Parse_ReadsOnlyEndpointsSection() {
         var cat = Build();
 
-        Assert.Null(cat.Get("ei/kb"));
+        Assert.Null(cat.Resolve("ei/kb"));
         Assert.Equal(6, cat.All().Count);
     }
 
     [Fact]
     public void Parse_LegacyTypeKeys_HonorExplicitResponseWrapped() {
-        var e = Build().Get("ei/coop_status")!;
+        var e = Build().Resolve("ei/coop_status")!;
         Assert.Equal("ContractCoopStatusRequest", e.Request);
         Assert.Equal("ContractCoopStatusResponse", e.Response);
         Assert.False(e.RequestWrapped);
@@ -310,7 +310,7 @@ public class RouteCatalogTests {
 
     [Fact]
     public void Parse_NewContractsInfoEndpoint_HasCorrectTypes() {
-        var e = Build().Get("ei_ctx/get_contracts_info");
+        var e = Build().Resolve("ei_ctx/get_contracts_info");
         Assert.NotNull(e);
         Assert.Equal("ContractsInfoRequest", e.Request);
         Assert.Equal("ContractsInfoResponse", e.Response);
@@ -320,14 +320,14 @@ public class RouteCatalogTests {
 
     [Fact]
     public void Parse_FirstContact_IsMarkedRequestWrapped() {
-        var e = Build().Get("ei/first_contact_secure")!;
+        var e = Build().Resolve("ei/first_contact_secure")!;
         Assert.True(e.RequestWrapped);
         Assert.True(e.ResponseWrapped);
     }
 
     [Fact]
     public void Parse_SubscriptionStatus_IsPathParamOnlyWithKnownResponse() {
-        var e = Build().Get("ei_srv/subscription_status")!;
+        var e = Build().Resolve("ei_srv/subscription_status")!;
         Assert.True(e.PathParamOnly);
         Assert.True(e.PathParam);
         Assert.Null(e.Request);
@@ -337,7 +337,7 @@ public class RouteCatalogTests {
 
     [Fact]
     public void Parse_LegacyAuthenticatedMessageRequest_NormalizesToWrapped() {
-        var e = Build().Get("ei_ctx/get_contract_evaluation")!;
+        var e = Build().Resolve("ei_ctx/get_contract_evaluation")!;
         Assert.Null(e.Request);
         Assert.True(e.RequestWrapped);
         Assert.Equal("ContractEvaluation", e.Response);
@@ -346,8 +346,8 @@ public class RouteCatalogTests {
     [Fact]
     public void Parse_PathParamAndRawResponse_Captured() {
         var cat = Build();
-        Assert.True(cat.Get("ei_ctx/get_contract_evaluation")!.PathParam);
-        Assert.Equal("OK", cat.Get("ei/process_shells_actions")!.RawResponse);
+        Assert.True(cat.Resolve("ei_ctx/get_contract_evaluation")!.PathParam);
+        Assert.Equal("OK", cat.Resolve("ei/process_shells_actions")!.RawResponse);
     }
 }
 

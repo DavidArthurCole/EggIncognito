@@ -1,8 +1,8 @@
 @page "/playground"
 @rendermode @(RenderMode.InteractiveServer)
+@implements IAsyncDisposable
 @using System.Text.Json
 @using EggIncognito.Services.ProtoExtract
-@implements IAsyncDisposable
 @inherits SelfCallComponentBase
 @inject ICurrentUser User
 @inject IJSRuntime JS

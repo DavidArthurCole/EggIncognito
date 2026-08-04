@@ -27,7 +27,7 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
         if (RequireContributor() is { } no) return no;
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
-        if (routes.Get(body.Path) is null) return BadRequest(new { error = $"unknown route {body.Path}" });
+        if (routes.Resolve(body.Path) is null) return BadRequest(new { error = $"unknown route {body.Path}" });
 
         var existing = await db.StoredEndpoints
             .FirstOrDefaultAsync(e => e.Path == body.Path && e.Eid == body.Eid);
@@ -55,7 +55,7 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
         if (RequireContributor() is { } no) return no;
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
-        if (routes.Get(body.Path) is not null) return Conflict(new { error = $"route {body.Path} already exists" });
+        if (routes.Resolve(body.Path) is not null) return Conflict(new { error = $"route {body.Path} already exists" });
 
         db.StoredRoutes.Add(new StoredRoute {
             Path = body.Path,

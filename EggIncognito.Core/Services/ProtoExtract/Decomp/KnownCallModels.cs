@@ -3,7 +3,7 @@ namespace EggIncognito.Services.ProtoExtract.Decomp;
 public static class KnownCallModels {
     public static ExprNode? Resolve(string mangled, ExprNode[] args) {
         ExprNode A(int i) {
-            return i < args.Length ? args[i] : new Const(0);
+            return i < args.Length ? args[i] : new ConstExpr(0);
         }
 
         if (Has(mangled, "sinf") || Has(mangled, "3sinE") || mangled is "_sin") return new Unary(UnOp.Sin, A(0));

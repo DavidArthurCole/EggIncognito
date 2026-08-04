@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services.ProtoExtract;
@@ -128,7 +129,7 @@ public static partial class ProtoModelParser {
                 if (enumValueMatch.Success) {
                     en.Values.Add(new ProtoEnumValue(
                         enumValueMatch.Groups[1].Value,
-                        int.Parse(enumValueMatch.Groups[2].Value),
+                        int.Parse(enumValueMatch.Groups[2].Value, CultureInfo.InvariantCulture),
                         rawLine.TrimEnd('\n', '\r')));
                 }
 
@@ -158,7 +159,7 @@ public static partial class ProtoModelParser {
                 labeled.Groups[1].Value,
                 labeled.Groups[2].Value,
                 labeled.Groups[3].Value,
-                int.Parse(labeled.Groups[4].Value),
+                int.Parse(labeled.Groups[4].Value, CultureInfo.InvariantCulture),
                 raw));
             return;
         }
@@ -170,7 +171,7 @@ public static partial class ProtoModelParser {
                 "",
                 collapsedType,
                 map.Groups[2].Value,
-                int.Parse(map.Groups[3].Value),
+                int.Parse(map.Groups[3].Value, CultureInfo.InvariantCulture),
                 raw));
             return;
         }
@@ -181,7 +182,7 @@ public static partial class ProtoModelParser {
                 "",
                 bare.Groups[1].Value,
                 bare.Groups[2].Value,
-                int.Parse(bare.Groups[3].Value),
+                int.Parse(bare.Groups[3].Value, CultureInfo.InvariantCulture),
                 raw));
         }
     }

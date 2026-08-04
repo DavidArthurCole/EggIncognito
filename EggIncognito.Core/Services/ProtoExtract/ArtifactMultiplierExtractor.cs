@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace EggIncognito.Services.ProtoExtract;
 
 public static class ArtifactMultiplierExtractor {
@@ -36,7 +38,7 @@ public static class ArtifactMultiplierExtractor {
         string diag = missing.Count == 0
             ? $"{located.Count} __const hits, all {TierMultipliers.Length} multipliers present as f64"
             : $"{located.Count} __const hits; {missing.Count} absent as f64 (likely f32/derived): "
-              + string.Join(",", missing.Select(m => m.ToString("0.##")));
+              + string.Join(",", missing.Select(m => m.ToString("0.##", CultureInfo.InvariantCulture)));
 
         return new Result(false, located, missing, diag);
     }

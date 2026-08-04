@@ -39,11 +39,11 @@ public static class FarmPlacementRecovery {
     private static ExprNode FoldFarmWidth(ExprNode n) {
         return n switch {
             Binary { Op: BinOp.Min } b when IsBound(b.A) && IsBound(b.B) => new Input("farmWidth"),
-            Select s when IsBound(s.A) && IsBound(s.B) => new Input("farmWidth"),
+            SelectExpr s when IsBound(s.A) && IsBound(s.B) => new Input("farmWidth"),
             Field f when IsBoundField(f) => new Input("farmWidth"),
             Unary u => new Unary(u.Op, FoldFarmWidth(u.X)),
             Binary b => new Binary(b.Op, FoldFarmWidth(b.A), FoldFarmWidth(b.B)),
-            Select s => new Select(FoldFarmWidth(s.Cond), FoldFarmWidth(s.A), FoldFarmWidth(s.B)),
+            SelectExpr s => new SelectExpr(FoldFarmWidth(s.Cond), FoldFarmWidth(s.A), FoldFarmWidth(s.B)),
             _ => n
         };
     }

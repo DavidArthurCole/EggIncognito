@@ -189,7 +189,7 @@ public sealed class DecompController(
             if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
             var model = EffectRecovery.Recover(
                 bin, "DrawableGalaxyParticle6updateEf",
-                new Const(27));
+                new ConstExpr(27));
             return Content(model.ToJson().ToJsonString(), "application/json");
         } catch (DllNotFoundException) {
             return Ok(new { ok = false, diagnostics = "arm64 disassembler native lib unavailable" });

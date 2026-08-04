@@ -5,7 +5,7 @@ namespace EggIncognito.Services.Assets;
 public sealed class IconCdnOrigin(IHttpClientFactory httpFactory, ILogger<IconCdnOrigin> logger) : IGameAssetOrigin {
     private const string ArtifactsBase = AuxbrainHosts.Origin + "/dlc/artifacts/1/";
 
-    public bool Handles(GameAssetKey key) =>
+    public bool CanHandle(GameAssetKey key) =>
         key.Kind == "icon"
         && (key.Name.StartsWith("afx_", StringComparison.Ordinal)
             || key.Name.StartsWith("egg_", StringComparison.Ordinal));

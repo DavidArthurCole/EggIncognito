@@ -58,7 +58,7 @@ public sealed class PeriodicalsChangeNotifier(
 
     private PeriodicalsAspectSummary? ComputeAspects(string route, string? previousJson, string json) {
         if (previousJson is null) return null;
-        if (!string.Equals(routes.Get(route)?.Response, PeriodicalsResponse.Descriptor.Name, StringComparison.Ordinal))
+        if (!string.Equals(routes.Resolve(route)?.Response, PeriodicalsResponse.Descriptor.Name, StringComparison.Ordinal))
             return null;
         try {
             var prev = JsonParser.Default.Parse<PeriodicalsResponse>(ProtoJson.StripVolatile(previousJson));
@@ -111,7 +111,7 @@ public sealed class PeriodicalsChangeNotifier(
     private async Task UpsertStoredEndpointAsync(IServiceProvider sp, string route, string json) {
         try {
             if (sp.GetService<EggIncognitoDbContext>() is not { } db) return;
-            string responseType = routes.Get(route)?.Response ?? "";
+            string responseType = routes.Resolve(route)?.Response ?? "";
             var existing = await db.StoredEndpoints
                 .FirstOrDefaultAsync(e => e.Path == route && e.Eid == null);
             if (existing is null) {
@@ -136,7 +136,7 @@ public sealed class PeriodicalsChangeNotifier(
 
     private async Task InsertSnapshotAsync(IServiceProvider sp, string route, string json, string sha) {
         try {
-            if (!string.Equals(routes.Get(route)?.Response, PeriodicalsResponse.Descriptor.Name, StringComparison.Ordinal))
+            if (!string.Equals(routes.Resolve(route)?.Response, PeriodicalsResponse.Descriptor.Name, StringComparison.Ordinal))
                 return;
             if (sp.GetService<EggIncognitoDbContext>() is not { } db) return;
             if (await db.PeriodicalsSnapshots.AnyAsync(s => s.Sha == sha)) return;

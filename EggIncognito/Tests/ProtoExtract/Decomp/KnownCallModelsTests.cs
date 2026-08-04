@@ -18,11 +18,11 @@ public class KnownCallModelsTests {
     public void AddParticle_IsSink_CapturesFirstArg() {
         var transform = new Input("placement");
         var o = Assert.IsType<Opaque>(KnownCallModels.Resolve(
-            "__ZN19ParticleBatchedMesh11addParticleEN5Eigen9TransformIfLi3ELi2ELi0EEEf", [transform, new Const(1)]));
+            "__ZN19ParticleBatchedMesh11addParticleEN5Eigen9TransformIfLi3ELi2ELi0EEEf", [transform, new ConstExpr(1)]));
         Assert.Equal("@sink", o.Call);
         Assert.Equal(transform, o.Args[0]);
     }
 
     [Fact]
-    public void Unknown_ReturnsNull() => Assert.Null(KnownCallModels.Resolve("__ZN3Foo3barEv", [new Const(1)]));
+    public void Unknown_ReturnsNull() => Assert.Null(KnownCallModels.Resolve("__ZN3Foo3barEv", [new ConstExpr(1)]));
 }

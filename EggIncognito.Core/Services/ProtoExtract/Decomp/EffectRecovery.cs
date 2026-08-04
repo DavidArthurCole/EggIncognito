@@ -24,7 +24,7 @@ public static class EffectRecovery {
         if (exec.SinkStackPtr is { } baseOff) {
             var cells = new ExprNode[16];
             for (int i = 0; i < 16; i++)
-                cells[i] = exec.Stack.TryGetValue(baseOff + i * 4, out var c) ? ExprNode.Fold(c) : new Const(0);
+                cells[i] = exec.Stack.TryGetValue(baseOff + i * 4, out var c) ? ExprNode.Fold(c) : new ConstExpr(0);
             placement = new MatrixBuild(cells);
         } else if (exec.SinkArg is not null) {
             placement = ExprNode.Fold(exec.SinkArg);

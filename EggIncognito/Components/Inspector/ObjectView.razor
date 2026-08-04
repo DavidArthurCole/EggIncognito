@@ -1,9 +1,9 @@
-@using System.Text.Json
 @* The Objects (Documentation) surface for a selected proto message type. Shows the rendered DB doc
    (reusing the shared <Markdown> + <MarkdownEditor> components from Phase 3), the subject's tags, and
    the endpoints that use the type as request/response (clicking one jumps the builder to it). Degrades
    to empty without a DB: the message list still renders (proto enumeration needs no DB), docs/tags come
    back empty. Mirrors wwwroot/inspector/docs.js. *@
+@using System.Text.Json
 @inherits SelfCallComponentBase
 @inject IRouteCatalog Catalog
 

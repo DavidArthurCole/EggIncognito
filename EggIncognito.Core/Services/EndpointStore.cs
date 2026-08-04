@@ -9,13 +9,13 @@ public sealed class EndpointStore(
     IEndpointSource fileSource,
     IServiceScopeFactory? scopeFactory,
     ILogger<EndpointStore> logger) : IEndpointStore {
-    public TRes Get<TRes>(string path, string? eid = null) where TRes : IMessage<TRes>, new() {
+    public TRes Fetch<TRes>(string path, string? eid = null) where TRes : IMessage<TRes>, new() {
         byte[]? bytes = LookupBytes(path, eid);
         return bytes is null ? new TRes() : JsonParser.Default.Parse<TRes>(Encoding.UTF8.GetString(bytes));
     }
 
 
-    public IMessage Get(Type messageType, string path, string? eid = null) {
+    public IMessage Fetch(Type messageType, string path, string? eid = null) {
         var instance = (IMessage)Activator.CreateInstance(messageType)!;
         byte[]? bytes = LookupBytes(path, eid);
         return bytes is null ? instance : JsonParser.Default.Parse(Encoding.UTF8.GetString(bytes), instance.Descriptor);
@@ -29,8 +29,7 @@ public sealed class EndpointStore(
                 byte[]? hit = db?.Lookup(path, eid);
                 if (hit is not null) return hit;
             } catch (Exception ex) {
-                logger.LogWarning(ex, "DB endpoint lookup failed for {Path} (eid {Eid}); using file default", path,
-                    eid);
+                logger.LogDbEndpointLookupFailed(ex, path, eid);
             }
         }
 
@@ -40,4 +39,10 @@ public sealed class EndpointStore(
 
 public sealed class DbEndpointSourceMarker(IEndpointSource source) {
     public IEndpointSource Source => source;
+}
+
+internal static partial class EndpointStoreLog {
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning,
+        Message = "DB endpoint lookup failed for {Path} (eid {Eid}); using file default")]
+    internal static partial void LogDbEndpointLookupFailed(this ILogger logger, Exception ex, string path, string? eid);
 }

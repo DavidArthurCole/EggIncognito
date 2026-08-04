@@ -24,20 +24,20 @@ public sealed class MergedRouteCatalogTests : IDisposable {
     public void YamlRoute_WinsOverDb() {
         var dbRoute = new RouteInfo("ei/known", "X", "Y", false, false, null, false, false);
         var merged = new MergedRouteCatalog(Yaml(YamlText), new FakeDb(dbRoute));
-        Assert.Equal("PeriodicalsResponse", merged.Get("ei/known")!.Response);
+        Assert.Equal("PeriodicalsResponse", merged.Resolve("ei/known")!.Response);
     }
 
     [Fact]
     public void DbRoute_FillsNewPath() {
         var dbRoute = new RouteInfo("ei/dbonly", null, "PeriodicalsResponse", false, false, null, false, false);
         var merged = new MergedRouteCatalog(Yaml(YamlText), new FakeDb(dbRoute));
-        Assert.Equal("PeriodicalsResponse", merged.Get("ei/dbonly")!.Response);
+        Assert.Equal("PeriodicalsResponse", merged.Resolve("ei/dbonly")!.Response);
     }
 
     [Fact]
     public void NullDb_IsYamlOnly() {
         var merged = new MergedRouteCatalog(Yaml(YamlText), null);
-        Assert.Null(merged.Get("ei/dbonly"));
+        Assert.Null(merged.Resolve("ei/dbonly"));
         Assert.Single(merged.All());
     }
 

@@ -17,7 +17,7 @@ public sealed record RouteInfo(
 
 public interface IRouteCatalog {
     IReadOnlyList<RouteInfo> All();
-    RouteInfo? Get(string path);
+    RouteInfo? Resolve(string path);
 }
 
 public sealed partial class RouteCatalog : IRouteCatalog {
@@ -36,7 +36,7 @@ public sealed partial class RouteCatalog : IRouteCatalog {
 
     public IReadOnlyList<RouteInfo> All() => _routes;
 
-    public RouteInfo? Get(string path) =>
+    public RouteInfo? Resolve(string path) =>
         _byPath.GetValueOrDefault(path);
 
     public static RouteCatalog ForRepo(string contentRoot) =>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Text.Json;
 
@@ -58,7 +59,7 @@ public static class CrawlManifestReader {
                 NormalizePlatform(r.Platform),
                 trusted ? r.AppVersion : null,
                 trusted ? r.Build : null,
-                trusted ? r.ClientVersion?.ToString() : null,
+                trusted ? r.ClientVersion?.ToString(CultureInfo.InvariantCulture) : null,
                 r.ProtoSha256!, text, r.Repo, r.Commit, r.Date?.ToUniversalTime(),
                 string.IsNullOrEmpty(r.VersionConfidence) ? null : r.VersionConfidence));
         }

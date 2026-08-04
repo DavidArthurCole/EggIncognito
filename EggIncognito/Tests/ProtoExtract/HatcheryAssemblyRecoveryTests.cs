@@ -12,9 +12,9 @@ public class HatcheryAssemblyRecoveryTests {
     [Fact]
     public void Mat4_Translation_ReadsCells12_13_14() {
         var cells = new ExprNode?[16];
-        cells[12] = new Const(13.651);
-        cells[13] = new Const(4.342);
-        cells[14] = new Const(2.968);
+        cells[12] = new ConstExpr(13.651);
+        cells[13] = new ConstExpr(4.342);
+        cells[14] = new ConstExpr(2.968);
         var m = new HatcheryAssemblyRecovery.Mat4(true, "$_2", cells, 0, "ok");
         float[]? t = m.Translation();
         Assert.NotNull(t);
@@ -32,9 +32,9 @@ public class HatcheryAssemblyRecoveryTests {
     [Fact]
     public void Mat4_ToJson_ShapesTranslation() {
         var cells = new ExprNode?[16];
-        cells[12] = new Const(1);
-        cells[13] = new Const(2);
-        cells[14] = new Const(3);
+        cells[12] = new ConstExpr(1);
+        cells[13] = new ConstExpr(2);
+        cells[14] = new ConstExpr(3);
         var json = new HatcheryAssemblyRecovery.Mat4(true, "$_2", cells, 1, "ok").ToJson();
         Assert.True((bool)json["ok"]!);
         Assert.Equal("$_2", (string)json["lambda"]!);

@@ -284,7 +284,7 @@ public sealed class CaptureController(
             return StatusCode(403, new { error = "supporter or contributor role required to save endpoints" });
         if (services.GetService(typeof(EggIncognitoDbContext)) is not EggIncognitoDbContext db)
             return StatusCode(503, new { error = "no database configured" });
-        if (routes.Get(flow.Path) is null) return BadRequest(new { error = $"unknown route {flow.Path}" });
+        if (routes.Resolve(flow.Path) is null) return BadRequest(new { error = $"unknown route {flow.Path}" });
         var decoded = session.Decode(flow.Path, flow.ResponseB64);
         if (decoded.Json is null || decoded.Type is null)
             return StatusCode(409, new { error = "flow could not be decoded" });

@@ -5,7 +5,7 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Services.Assets;
 
 public sealed class MeshDeviceOrigin(DeviceAssetService devices, ILogger<MeshDeviceOrigin> logger) : IGameAssetOrigin {
-    public bool Handles(GameAssetKey key) => key.Kind == "mesh";
+    public bool CanHandle(GameAssetKey key) => key.Kind == "mesh";
 
     public async Task<GameAsset?> FetchAsync(GameAssetKey key, CancellationToken ct) {
         var read = await devices.ReadAsync(key.Platform, DeviceAssetKind.Mesh, key.Name, ct);

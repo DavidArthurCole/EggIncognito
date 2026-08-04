@@ -12,7 +12,7 @@ public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorS
     protected Task<IActionResult> HandleAsync<TRes>(string path, string? data, string? sim = null)
         where TRes : IMessage<TRes>, new() {
         if (sim is not null) {
-            var behavior = behaviors.Get(sim);
+            var behavior = behaviors.Find(sim);
             if (behavior is null) {
                 string[] valid = [.. behaviors.All().Select(b => b.Name)];
                 throw new ApiException(
@@ -36,14 +36,14 @@ public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorS
         }
 
         string? eid = EidExtractor.FromData(data);
-        var response = endpoints.Get<TRes>(path, eid);
+        var response = endpoints.Fetch<TRes>(path, eid);
         string encoded = Convert.ToBase64String(response.ToByteArray());
         return Task.FromResult<IActionResult>(Content(encoded, "text/html"));
     }
 
     protected Task<IActionResult> HandleRawAsync(string body, string? sim = null) {
         if (sim is not null) {
-            var behavior = behaviors.Get(sim);
+            var behavior = behaviors.Find(sim);
             if (behavior is null) {
                 string[] valid = [.. behaviors.All().Select(b => b.Name)];
                 throw new ApiException(

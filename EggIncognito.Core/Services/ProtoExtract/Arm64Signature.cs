@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace EggIncognito.Services.ProtoExtract;
@@ -22,7 +23,7 @@ public static class Arm64Signature {
             for (int byteIdx = 0; byteIdx < 4; byteIdx++) {
                 if (sb.Length > 0) sb.Append(' ');
                 bool keep = !isRel || byteIdx == 3;
-                if (keep) sb.Append(((byte)(w >> (byteIdx * 8))).ToString("x2"));
+                if (keep) sb.Append(((byte)(w >> (byteIdx * 8))).ToString("x2", CultureInfo.InvariantCulture));
                 else sb.Append("??");
             }
         }

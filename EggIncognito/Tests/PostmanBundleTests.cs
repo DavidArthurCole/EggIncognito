@@ -3,7 +3,7 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Tests;
 
-public class PostmanCollectionTests {
+public class PostmanBundleTests {
     [Fact]
     public void BuildJson_ProducesNamespaceFoldersAndSimulation() {
         using var tmp = new TempDir();
@@ -18,7 +18,7 @@ public class PostmanCollectionTests {
                                                                 response: EggIncFirstContactResponse
                                                             """);
 
-        using var doc = JsonDocument.Parse(PostmanCollection.BuildJson(Path.Combine(dir, "routes.yaml")));
+        using var doc = JsonDocument.Parse(PostmanBundle.BuildJson(Path.Combine(dir, "routes.yaml")));
         var root = doc.RootElement;
         Assert.Equal("EggIncognito", root.GetProperty("info").GetProperty("name").GetString());
         var names = root.GetProperty("item").EnumerateArray()

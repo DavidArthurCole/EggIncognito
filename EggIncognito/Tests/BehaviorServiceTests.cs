@@ -10,7 +10,7 @@ public class BehaviorServiceTests {
     [Fact]
     public void Get_KnownName_ReturnsBehavior() {
         var svc = Build();
-        var b = svc.Get("server_error");
+        var b = svc.Find("server_error");
         Assert.NotNull(b);
         Assert.Equal("server_error", b.Name);
         Assert.Equal(500, b.HttpStatus);
@@ -19,14 +19,14 @@ public class BehaviorServiceTests {
     [Fact]
     public void Get_CaseInsensitive_ReturnsBehavior() {
         var svc = Build();
-        Assert.NotNull(svc.Get("SERVER_ERROR"));
-        Assert.NotNull(svc.Get("Server_Error"));
+        Assert.NotNull(svc.Find("SERVER_ERROR"));
+        Assert.NotNull(svc.Find("Server_Error"));
     }
 
     [Fact]
     public void Get_UnknownName_ReturnsNull() {
         var svc = Build();
-        Assert.Null(svc.Get("does_not_exist"));
+        Assert.Null(svc.Find("does_not_exist"));
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class BehaviorServiceTests {
     [Fact]
     public void RateLimited_HasRetryAfterHeader() {
         var svc = Build();
-        var b = svc.Get("rate_limited");
+        var b = svc.Find("rate_limited");
         Assert.NotNull(b?.ExtraHeaders);
         Assert.Equal("60", b.ExtraHeaders!["Retry-After"]);
     }
@@ -72,7 +72,7 @@ public class BehaviorServiceTests {
     [Fact]
     public void Empty_BodyDecodesToValidProto() {
         var svc = Build();
-        var b = svc.Get("empty");
+        var b = svc.Find("empty");
         Assert.NotNull(b?.Body);
         byte[] bytes = Convert.FromBase64String(Encoding.UTF8.GetString(b.Body!()));
         var msg = AuthenticatedMessage.Parser.ParseFrom(bytes);
@@ -82,7 +82,7 @@ public class BehaviorServiceTests {
     [Fact]
     public void Corrupt_BodyIsInvalidBase64() {
         var svc = Build();
-        var b = svc.Get("corrupt");
+        var b = svc.Find("corrupt");
         Assert.NotNull(b?.Body);
         string bodyStr = Encoding.UTF8.GetString(b.Body!());
         Assert.Throws<FormatException>(() => Convert.FromBase64String(bodyStr));

@@ -49,7 +49,7 @@ public class HostedCapturePageTests {
 
     private sealed class FakeRoutes : IRouteCatalog {
         public IReadOnlyList<RouteInfo> All() => [];
-        public RouteInfo? Get(string path) => new(path, null, "PeriodicalsResponse", false, false, null, false, false);
+        public RouteInfo? Resolve(string path) => new(path, null, "PeriodicalsResponse", false, false, null, false, false);
     }
 
 

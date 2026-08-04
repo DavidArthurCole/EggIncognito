@@ -50,7 +50,7 @@ public static class Arm64SymbolicExecutor {
             case Arm64InstructionId.ARM64_INS_FMOV when ops.Length == 2 &&
                                                         ops[1].Type == Arm64OperandType.FloatingPoint &&
                                                         ops[0].Register is { } fi:
-                st.SetScalar(fi.Name, new Const(ops[1].FloatingPoint));
+                st.SetScalar(fi.Name, new ConstExpr(ops[1].FloatingPoint));
                 break;
             case Arm64InstructionId.ARM64_INS_FMOV
                 when ops.Length == 2 && ops[0].Register is { } fd && ops[1].Register is { } fs:
@@ -77,7 +77,7 @@ public static class Arm64SymbolicExecutor {
                 break;
             case Arm64InstructionId.ARM64_INS_FCSEL when ops.Length >= 3 && ops[0].Register is { } cd2:
                 st.SetScalar(cd2.Name,
-                    new Select(new Opaque("cond", []), st.Scalar(RegName(ops, 1)), st.Scalar(RegName(ops, 2))));
+                    new SelectExpr(new Opaque("cond", []), st.Scalar(RegName(ops, 1)), st.Scalar(RegName(ops, 2))));
                 break;
 
             case Arm64InstructionId.ARM64_INS_MOVZ when ops.Length >= 2 && ops[0].Register is { } mz &&
@@ -187,7 +187,7 @@ public static class Arm64SymbolicExecutor {
         public State(IReadOnlyDictionary<string, ExprNode> seed, IReadOnlyDictionary<string, string>? seedBases) {
             foreach ((string k, var v) in seed) _regs[Norm(k)] = v;
             _ptr["sp"] = ("sp", 0);
-            _regs["zr"] = new Const(0);
+            _regs["zr"] = new ConstExpr(0);
             _gp["zr"] = 0;
             if (seedBases is not null) {
                 foreach ((string reg, string name) in seedBases) {
@@ -231,7 +231,7 @@ public static class Arm64SymbolicExecutor {
 
         public void SetGp(string name, long v) {
             _gp[Norm(name)] = v;
-            _regs[Norm(name)] = new Const(ReinterpretFloat(v));
+            _regs[Norm(name)] = new ConstExpr(ReinterpretFloat(v));
         }
 
         public long GpVal(string name) => _gp.GetValueOrDefault(Norm(name), 0);
@@ -276,7 +276,7 @@ public static class Arm64SymbolicExecutor {
         public void SetVec(string name, ExprNode[] lanes) {
             name = Norm(name);
             _vecs[name] = lanes;
-            _regs[name] = new Const(0);
+            _regs[name] = new ConstExpr(0);
         }
 
         public void VecInsert(string d, int di, string s, int si) {

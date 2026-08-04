@@ -13,7 +13,7 @@ public sealed class DynamicMockController(
     AuxbrainSurface surface) : ControllerBase {
     [HttpPost("/{**slug}")]
     public IActionResult Handle(string slug, [FromForm] string? data) {
-        var route = routes.Get(slug);
+        var route = routes.Resolve(slug);
         if (route is not null && Serve(route, data) is { } stored) return stored;
 
 
@@ -25,7 +25,7 @@ public sealed class DynamicMockController(
 
         if (surface.Canonical.TryGetValue(slug, out var c) && c.ResponseType is not null
                                                            && ProtoTypeResolver.Resolve(c.ResponseType) is { } type) {
-            return Encode(endpoints.Get(type, slug, EidExtractor.FromData(data)));
+            return Encode(endpoints.Fetch(type, slug, EidExtractor.FromData(data)));
         }
 
         Response.Headers["x-eggincognito"] = "not-mocked";
@@ -36,7 +36,7 @@ public sealed class DynamicMockController(
     private ContentResult? Serve(RouteInfo route, string? data) {
         if (route.RawResponse is not null) return Content(route.RawResponse, "text/plain");
         var type = ProtoTypeResolver.Resolve(route.Response ?? "AuthenticatedMessage");
-        return type is null ? null : Encode(endpoints.Get(type, route.Path, EidExtractor.FromData(data)));
+        return type is null ? null : Encode(endpoints.Fetch(type, route.Path, EidExtractor.FromData(data)));
     }
 
     private ContentResult Encode(IMessage message) =>

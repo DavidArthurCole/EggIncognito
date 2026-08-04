@@ -1,9 +1,9 @@
-@using System.Net.Http.Headers
-@using System.Text.Json
 @* Contributor edit surface for a subject's Markdown doc: a source textarea, a live preview, and a
    formatting toolbar. Saves through POST /api/docs/doc and uploads images through POST /api/docs/image.
    Blazor cannot read a textarea's selection without JS interop, so toolbar buttons append their markdown
    token to the value instead of wrapping the selection. *@
+@using System.Net.Http.Headers
+@using System.Text.Json
 @inherits SelfCallComponentBase
 @inject ICurrentUser User
 

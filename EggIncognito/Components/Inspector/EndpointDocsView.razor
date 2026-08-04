@@ -1,8 +1,8 @@
-@using System.Text.Json
 @* Proto documentation for a selected endpoint (folded in from the old /docs page). Shows the route's
    request/response types as cross-links to their object docs, the DB Markdown doc, its tags, and a
    contributor-gated editor. Mirrors ObjectView but keyed on kind="endpoint", key=path. Degrades to empty
    without a DB. *@
+@using System.Text.Json
 @inherits SelfCallComponentBase
 
 @if (Route is null) {
