@@ -253,6 +253,18 @@ routes:
     pathParam: true
     pathParamOnly: true
 
+  # ei_i18n/
+  - path: ei_i18n/get_translation_pack
+    request: TranslationPackRequest
+    response: TranslationPackResponse
+  - path: ei_i18n/get_translations
+    request: TranslationRequest
+    response: TranslationResponse
+  - path: ei_i18n/get_font_dlc
+    request: FontDLCRequest
+    response: FontDLCResponse
+
+
 excluded:
   # Endpoints known to exist in the APK but intentionally not mocked.
   # Paths listed here are suppressed from the NEW output of Sync-Endpoints.ps1.
