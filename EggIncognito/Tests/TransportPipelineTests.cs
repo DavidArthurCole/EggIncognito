@@ -58,6 +58,28 @@ public class TransportPipelineTests {
     }
 
     [Fact]
+    public void Decode_WrappedCompressedBody_RouteSaysUnwrapped_FallsBackAndFlagsTheRoute() {
+        byte[] inner = new DailyGiftInfo { CurrentDay = 3 }.ToByteArray();
+        using var buf = new MemoryStream();
+        using (var zl = new ZLibStream(buf, CompressionMode.Compress, true)) {
+            zl.Write(inner);
+        }
+
+        byte[] wire = new AuthenticatedMessage {
+            Message = ByteString.CopyFrom(buf.ToArray()),
+            Compressed = true,
+        }.ToByteArray();
+
+        var decode = Build().Decode(Convert.ToBase64String(wire), DailyGiftInfo.Parser, false);
+
+        Assert.Null(decode.Error);
+        Assert.Contains("\"currentDay\": 3", decode.Json);
+        var envelope = decode.Stages.Single(s => s.Name == "authenticated-message");
+        Assert.Contains("responseWrapped", envelope.Note);
+        Assert.Contains(decode.Stages, s => s.Name == "inflate");
+    }
+
+    [Fact]
     public void Build_WrappedWithSalt_CodeMatchesSeederAlgorithm() {
         const string salt = "parity-salt";
         byte[]? inner = new ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();

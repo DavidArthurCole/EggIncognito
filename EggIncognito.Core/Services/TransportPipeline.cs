@@ -147,6 +147,15 @@ public sealed class TransportPipeline : ITransportPipeline {
                 respBytes.Length, null, null, "see JSON below", RolePayload));
             return new DecodeResult(stages, json, null);
         } catch (Exception ex) {
+            if (responseWrapped == false) {
+                string note = "Response is AuthenticatedMessage-wrapped; this route declares responseWrapped: false. Update the route flag.";
+                var fallback = TryDecodeWrapped(respBytes, responseParser, envelopeNote: note);
+                if (fallback is not null) {
+                    stages.AddRange(fallback.Value.Stages);
+                    return new DecodeResult(stages, fallback.Value.Json, null);
+                }
+            }
+
             return new DecodeResult(stages, null, $"{ex.GetType().Name}: {ex.Message}");
         }
     }
@@ -157,7 +166,7 @@ public sealed class TransportPipeline : ITransportPipeline {
     }
 
     private (IReadOnlyList<TransportStage> Stages, string Json)? TryDecodeWrapped(
-        byte[] respBytes, MessageParser responseParser, bool force = false) {
+        byte[] respBytes, MessageParser responseParser, bool force = false, string? envelopeNote = null) {
         if (!force && !LooksLikeAuthEnvelope(respBytes)) return null;
         try {
             var outer = AuthenticatedMessage.Parser.ParseFrom(respBytes);
@@ -170,7 +179,8 @@ public sealed class TransportPipeline : ITransportPipeline {
 
             var stages = new List<TransportStage> {
                 Stage("authenticated-message",
-                    $"Parsed AuthenticatedMessage (compressed = {outer.Compressed})", messageBytes, role: RoleEnvelope)
+                    $"Parsed AuthenticatedMessage (compressed = {outer.Compressed})", messageBytes,
+                    envelopeNote, RoleEnvelope)
             };
             if (outer.Compressed)
                 stages.Add(Stage("inflate", "Decompressed inner payload (gzip/zlib)", inner, role: RoleEncoding));

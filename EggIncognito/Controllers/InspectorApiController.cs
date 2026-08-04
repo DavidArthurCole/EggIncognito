@@ -144,11 +144,14 @@ public sealed class InspectorApiController(
             decode.Stages,
             json = decode.Json,
             error = decode.Error,
-            resolution = decode.Error is null
-                ? null
-                : "No known response type for this endpoint. Add a `response:` type in routes.yaml so the body can be decoded."
+            resolution = decode.Error is null ? null : DecodeResolution(decode.Error)
         });
     }
+
+    private static string DecodeResolution(string error) =>
+        error.StartsWith("no parser", StringComparison.Ordinal)
+            ? "No response type declared for this endpoint. Set `response:` in routes.yaml."
+            : "The declared shape did not decode. Check the response type and the responseWrapped flag.";
 
     [HttpPost("decode-response")]
     public IActionResult DecodeResponse([FromBody] DecodeResponseRequest body) {
