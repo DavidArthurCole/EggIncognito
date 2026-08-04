@@ -135,7 +135,7 @@
                         <tr>
                             <th class="w-12">Goal</th>
                             @foreach (var g in grades) {
-                                <th>
+                                <th class="text-center">
                                     @if (!string.IsNullOrEmpty(g.GradeIcon)) {
                                         <img src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" style="width:28px;height:28px;object-fit:contain" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
                                         <span style="display:none">@GradeLabel(g.Grade)</span>
@@ -466,8 +466,8 @@
             "EggsOfProphecy" => "Eggs of Prophecy",
             "ShellScript" => "Shell Tickets",
             "PiggyFill" => "Piggy Fill",
-            "ArtifactCase" => "Artifact Case",
-            "Boost" => BoostInfo(g)?.DisplayName ?? Pretty(g.RewardSubType),
+            "ArtifactCase" => "Artifacts",
+            "Boost" => TitleCase(BoostInfo(g)?.DisplayName ?? Pretty(g.RewardSubType)),
             "EpicResearchItem" => Pretty(g.RewardSubType),
             _ => RewardName(g.RewardType, g.RewardSubType, true)
         };
@@ -480,7 +480,7 @@
             "EggsOfProphecy" => one ? "egg of prophecy" : "eggs of prophecy",
             "ShellScript" => one ? "shell ticket" : "shell tickets",
             "PiggyFill" => "added to the piggy bank",
-            "ArtifactCase" => one ? "artifact case" : "artifact cases",
+            "ArtifactCase" => one ? "artifact" : "artifacts",
             "Boost" => one ? "boost" : "boosts",
             "EpicResearchItem" => one ? "level" : "levels",
             "BoostToken" => one ? "boost token" : "boost tokens",
@@ -498,7 +498,7 @@
 
     static string TitleCase(string raw) {
         return string.Join(' ', raw.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(w => char.ToUpperInvariant(w[0]) + w[1..]));
+            .Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
     }
 
     static string Pretty(string raw) {

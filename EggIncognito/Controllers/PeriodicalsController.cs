@@ -94,12 +94,12 @@ public sealed class PeriodicalsController(
     public async Task<IActionResult> Seasons(CancellationToken ct) {
         string? route = catalog.ById("periodical", "season-infos")?.WireRoute;
         if (route is null) return NotFound(new { error = "season source missing" });
-        string path = FixturePath(route);
-        if (!System.IO.File.Exists(path)) return NotFound(new { error = "no season capture on disk" });
+        string? seasonJson = await ResolveRouteJson(route, ct);
+        if (seasonJson is null) return NotFound(new { error = "no season capture available" });
 
         ContractSeasonInfos infos;
         try {
-            infos = ContractSeasonInfos.Parser.ParseJson(System.IO.File.ReadAllText(path));
+            infos = ContractSeasonInfos.Parser.ParseJson(seasonJson);
         } catch (Exception ex) {
             return StatusCode(500, new { error = $"season fixture unreadable: {ex.Message}" });
         }
@@ -277,6 +277,22 @@ public sealed class PeriodicalsController(
         }
 
         return Ok(new { capturedAt, serverTime, events });
+    }
+
+    private async Task<string?> ResolveRouteJson(string route, CancellationToken ct) {
+        if (services.GetService(typeof(EggIncognitoDbContext)) is EggIncognitoDbContext db) {
+            try {
+                var stored = await db.StoredEndpoints
+                    .FirstOrDefaultAsync(s => s.Path == route && s.Eid == null, ct);
+                if (stored is not null) return stored.ResponseJson;
+            } catch {
+            }
+        }
+
+        string path = FixturePath(route);
+        return System.IO.File.Exists(path)
+            ? await System.IO.File.ReadAllTextAsync(path, ct)
+            : null;
     }
 
     private async Task<(string? Json, DateTimeOffset? CapturedAt)> ResolveCurrentJson(string? route, CancellationToken ct) {

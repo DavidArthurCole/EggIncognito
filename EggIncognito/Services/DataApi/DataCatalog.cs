@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using EggIncognito.Core.Services.Assets;
+using EggIncognito.Data.Services;
 using EggIncognito.Services.Assets;
 using Ei;
 using Google.Protobuf;
@@ -56,6 +57,13 @@ public sealed class DataCatalog {
     public IReadOnlyList<string> FeedWireRoutes() =>
         Sources
             .Where(s => s.Feed is not null && s.WireRoute is not null)
+            .Select(s => s.WireRoute!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+    public IReadOnlyList<string> WireRoutes() =>
+        Sources
+            .Where(s => s.WireRoute is not null && s.Provenance == DataProvenance.WireFixture)
             .Select(s => s.WireRoute!)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
@@ -160,13 +168,27 @@ public sealed class DataCatalog {
     }
 
     private static DataPayload? FixtureJson(IServiceProvider services, string route) {
+        string? stored = StoredJson(services, route);
+        if (stored is not null) return DataPayload.Json(stored);
         string path = FixturePath(services, route);
         return File.Exists(path) ? DataPayload.Json(File.ReadAllText(path)) : null;
     }
 
     internal static string? FixtureText(IServiceProvider services, string route) {
+        string? stored = StoredJson(services, route);
+        if (stored is not null) return stored;
         string path = FixturePath(services, route);
         return File.Exists(path) ? File.ReadAllText(path) : null;
+    }
+
+    private static string? StoredJson(IServiceProvider services, string route) {
+        if (services.GetService(typeof(EggIncognitoDbContext)) is not EggIncognitoDbContext db) return null;
+        try {
+            return db.StoredEndpoints
+                .FirstOrDefault(e => e.Path == route && e.Eid == null)?.ResponseJson;
+        } catch {
+            return null;
+        }
     }
 
     private static string? DocText(IServiceProvider services, string id) =>

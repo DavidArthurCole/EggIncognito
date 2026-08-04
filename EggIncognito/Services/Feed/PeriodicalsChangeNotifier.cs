@@ -17,7 +17,19 @@ public sealed class PeriodicalsChangeNotifier(
     ILogger<PeriodicalsChangeNotifier> logger)
     : IEndpointWriteObserver {
     public void OnEndpointWritten(string routePath, string json, string? previousJson = null) {
-        if (catalog.ByWireRoute(routePath)?.Feed is not { } feed) return;
+        if (catalog.ByWireRoute(routePath) is not { } source) return;
+        if (source.Feed is not { } feed) {
+            _ = Task.Run(async () => {
+                try {
+                    using var scope = scopes.CreateScope();
+                    await UpsertStoredEndpointAsync(scope.ServiceProvider, routePath, json);
+                } catch (Exception ex) {
+                    logger.LogWarning(ex, "stored_endpoint upsert for {Route} failed", routePath);
+                }
+            });
+            return;
+        }
+
         var aspects = ComputeAspects(routePath, previousJson, json);
         if (aspects is null) {
             logger.LogInformation("periodicals change detected on {Route} (feed {Feed})", routePath, feed);

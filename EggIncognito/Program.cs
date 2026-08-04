@@ -417,7 +417,7 @@ builder.Services.AddSingleton(sp => {
 
     string contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
     return new CaptureSessionManager(hostedCaptureOpts, (key, basePort) => {
-        var liveRoutes = sp.GetRequiredService<DataCatalog>().FeedWireRoutes();
+        var liveRoutes = sp.GetRequiredService<DataCatalog>().WireRoutes();
         var writeObserver = sp.GetService<PeriodicalsChangeNotifier>();
         if (key == CaptureSessionManager.LocalKey) {
             string capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
@@ -521,7 +521,7 @@ builder.Services.AddSingleton(sp => {
         deviceCaptureConfig, deviceConfig, capturePath, caPath, null, contentRoot,
         sp.GetRequiredService<ILogger<DeviceCaptureManager>>(),
         sp.GetServices<IDeviceCaInstaller>(),
-        sp.GetRequiredService<DataCatalog>().FeedWireRoutes().ToHashSet(StringComparer.Ordinal),
+        sp.GetRequiredService<DataCatalog>().WireRoutes().ToHashSet(StringComparer.Ordinal),
         sp.GetService<PeriodicalsChangeNotifier>());
 });
 builder.Services.AddSingleton<DeviceProxyPusher>();

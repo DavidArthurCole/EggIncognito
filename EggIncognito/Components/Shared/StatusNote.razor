@@ -1,0 +1,27 @@
+<div class="status-note status-note-@Severity.ToString().ToLowerInvariant()" role="status">
+    <Icon Name="@IconFor(Severity)" Class="icon-sm shrink-0"/>
+    <span class="min-w-0">@ChildContent</span>
+</div>
+
+@code {
+
+    public enum Kind {
+        Info,
+        Busy,
+        Ok,
+        Error
+    }
+
+    [Parameter] public Kind Severity { get; set; } = Kind.Info;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    static string IconFor(Kind k) {
+        return k switch {
+            Kind.Ok => "check",
+            Kind.Error => "x",
+            Kind.Busy => "clock",
+            _ => "info"
+        };
+    }
+
+}

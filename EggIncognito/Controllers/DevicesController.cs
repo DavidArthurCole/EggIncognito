@@ -60,6 +60,7 @@ public sealed class DevicesController(
 
         var regLatestApp = new Dictionary<string, string?>();
         var regLatestBuild = new Dictionary<string, string?>();
+        var regClientVersion = new Dictionary<(string Platform, string AppVersion), int>();
         if (db is not null) {
             foreach (string plat in devices.Values.Select(d => d.Platform).Distinct()) {
                 storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, HttpContext.RequestAborted);
@@ -67,8 +68,13 @@ public sealed class DevicesController(
 
                 var extracted = await db.ProtoVersions.AsNoTracking()
                     .Where(v => v.Platform == plat && (v.DeletedAt == null || v.CanonicalId != null))
-                    .Select(v => new { v.Build, v.AppVersion })
+                    .Select(v => new { v.Build, v.AppVersion, v.ClientVersion })
                     .ToListAsync(HttpContext.RequestAborted);
+                foreach (var e in extracted) {
+                    if (!string.IsNullOrEmpty(e.AppVersion) && int.TryParse(e.ClientVersion, out int cvv))
+                        regClientVersion[(plat, e.AppVersion)] = cvv;
+                }
+
                 regLatestApp[plat] = extracted.Select(e => e.AppVersion)
                     .OrderByDescending(v => v, Comparer<string>.Create(DeviceProbeRunner.SemverCompare))
                     .FirstOrDefault();
@@ -99,7 +105,11 @@ public sealed class DevicesController(
                 reachable = p.Reachable,
                 installedAppVersion = p.InstalledAppVersion,
                 installedBuild = p.InstalledBuild,
-                clientVersion = binaries?.CachedClientVersion(d.Platform, p.InstalledAppVersion),
+                clientVersion = binaries?.CachedClientVersion(d.Platform, p.InstalledAppVersion)
+                    ?? (p.InstalledAppVersion is { } iv &&
+                        regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
+                        ? rcv
+                        : (int?)null),
                 latestAvailable = p.LatestAvailable,
                 storeLatest = sl,
                 storeAhead = StoreAheadCheck.IsAhead(sl, p.InstalledAppVersion),

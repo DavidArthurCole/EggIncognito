@@ -163,6 +163,15 @@
 .pill.live { @apply text-ok border-ok; }
 .pill.paused { @apply text-accent border-accent; }
 .status-badge { @apply font-mono text-[11px] font-semibold px-1.5 py-px rounded border border-border; }
+.status-note {
+  @apply mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border bg-panel2 text-xs text-muted;
+}
+.status-note-ok { @apply text-ok [border-color:rgba(94,194,126,.5)] [background:rgba(94,194,126,.07)]; }
+.status-note-error { @apply text-err [border-color:rgba(224,104,95,.5)] [background:rgba(224,104,95,.07)]; }
+.status-note-busy { @apply text-fg; }
+.status-chip { @apply px-1.5 py-px rounded border border-border font-mono text-[11px] text-muted; }
+.status-chip-ok { @apply text-ok [border-color:var(--color-ok)]; }
+.status-chip-err { @apply text-err [border-color:var(--color-err)]; }
 .status-2xx { color: var(--color-ok); border-color: var(--color-ok); }
 .status-3xx { color: var(--color-info); border-color: var(--color-info); }
 .status-4xx, .status-5xx { color: var(--color-err); border-color: var(--color-err); }
