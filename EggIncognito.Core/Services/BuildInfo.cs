@@ -23,8 +23,8 @@ public sealed record BuildInfo(string Version, string Sha, string ShortSha, stri
 
         string buildDate;
         try {
-            string path = asm.Location;
-            if (string.IsNullOrEmpty(path)) path = Environment.ProcessPath ?? string.Empty;
+            string path = Path.Combine(AppContext.BaseDirectory, asm.GetName().Name + ".dll");
+            if (!File.Exists(path)) path = Environment.ProcessPath ?? string.Empty;
             buildDate = string.IsNullOrEmpty(path)
                 ? "unknown"
                 : File.GetLastWriteTimeUtc(path).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
