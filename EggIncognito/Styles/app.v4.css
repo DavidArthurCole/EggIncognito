@@ -1130,7 +1130,7 @@ pre.data-text {
 .wb-main { @apply flex-1 min-w-0 overflow-y-auto p-4; }
 .wb-head-tools { @apply relative flex items-center gap-2; }
 .wb-settings {
-  @apply absolute right-0 top-9 z-10 w-64 flex flex-col gap-2 rounded-md border border-border bg-panel2 p-3
+  @apply absolute right-0 top-9 z-[1050] w-64 flex flex-col gap-2 rounded-md border border-border bg-panel2 p-3
          [box-shadow:0_6px_20px_rgba(0,0,0,.45)];
 }
 .wb-settings-row { @apply flex items-center justify-between gap-2 text-xs text-muted m-0; }
@@ -1161,6 +1161,7 @@ pre.data-text {
 .wb-st-run { @apply text-accent; }
 .wb-st-done { @apply text-ok; }
 .wb-st-err { @apply text-err; }
+.wb-st-offer { @apply text-info; }
 .wb-arrow { @apply text-muted opacity-50 mx-1; }
 .wb-cmp { @apply flex flex-col gap-2 p-2 overflow-x-auto; }
 

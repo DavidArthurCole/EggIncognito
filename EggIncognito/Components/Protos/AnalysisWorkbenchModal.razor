@@ -32,6 +32,7 @@
                         <Icon Name="gear" Class="icon-sm"/>
                     </button>
                     @if (_settingsOpen) {
+                        <div class="popover-backdrop" @onclick="@(() => _settingsOpen = false)" @onclick:stopPropagation="true"></div>
                         <div class="wb-settings" @onclick:stopPropagation="true">
                             <label class="wb-settings-row">
                                 <span>Name length</span>
@@ -61,33 +62,36 @@
                         </div>
                     }
                     @foreach (var e in State.Entries.Where(x => !x.IsAnalyzed)) {
-                        @Card(e, null)
+                        @Card(e, null, false)
                     }
                     @foreach (var g in groups) {
-                        <div class="wb-group @(g.Conflict ? "conflict" : "")">
-                            <div class="wb-group-head">
-                                @Ver(g.Segs)
-                                <Icon Name="@PlatformIcon(g.Platform)" Class="icon-sm"/>
-                                <span class="wb-badge @BadgeClass(g)">@BadgeText(g)</span>
-                                @if (g.Status is { Failed: true }) {
-                                    <button type="button" class="btn-mini ml-auto" title="Retry check" aria-label="Retry check"
-                                            @onclick="@(() => RetryCheck(g))">
-                                        <Icon Name="refresh" Class="icon-sm"/> Retry
-                                    </button>
-                                }
-                                @if (CanOffer(g)) {
-                                    <button type="button" class="btn-mini ml-auto" disabled="@_offerBusy"
-                                            @onclick="@(() => Offer(g))">
-                                        <Icon Name="arrow-up" Class="icon-sm"/> Offer
-                                    </button>
-                                }
+                        @if (g.Members.Count > 1) {
+                            <div class="wb-group @(g.Conflict ? "conflict" : "")">
+                                <div class="wb-group-head">
+                                    @Ver(g.Segs)
+                                    @if (g is { Conflict: false, Status.Offerable: true }) {
+                                        <span title="offerable">
+                                            <Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
+                                        </span>
+                                    } else {
+                                        <span class="wb-badge @BadgeClass(g)">@BadgeText(g)</span>
+                                    }
+                                    @if (g.Status is { Failed: true }) {
+                                        <button type="button" class="btn-mini ml-auto" title="Retry check" aria-label="Retry check"
+                                                @onclick="@(() => RetryCheck(g))">
+                                            <Icon Name="refresh" Class="icon-sm"/> Retry
+                                        </button>
+                                    }
+                                </div>
+                                <div class="wb-group-body">
+                                    @foreach (var e in g.Members) {
+                                        @Card(e, g, true)
+                                    }
+                                </div>
                             </div>
-                            <div class="wb-group-body">
-                                @foreach (var e in g.Members) {
-                                    @Card(e, g)
-                                }
-                            </div>
-                        </div>
+                        } else {
+                            @Card(g.Members[0], g, false)
+                        }
                     }
                 </aside>
                 <section class="wb-main">
@@ -126,6 +130,12 @@
                                 <span class="text-muted">Pick the file to offer in the rail.</span>
                             } else if (selGroup?.Status is { Known: true }) {
                                 <span class="wb-badge wb-badge-known">in registry</span>
+                            } else if (selGroup?.Status is { Failed: true }) {
+                                <span class="wb-badge wb-badge-failed">check failed</span>
+                                <button type="button" class="btn-mini" title="Retry check" aria-label="Retry check"
+                                        @onclick="@(() => RetryCheck(selGroup))">
+                                    <Icon Name="refresh" Class="icon-sm"/> Retry
+                                </button>
                             } else if (selGroup?.Status is { Pending: true } or { Offered: true }) {
                                 <span class="wb-badge wb-badge-pending">pending review</span>
                             } else if (selGroup?.Status is { Offerable: true }) {
@@ -199,7 +209,7 @@
     bool _offerBusy;
     bool _settingsOpen;
     bool _cmpBusy;
-    int _truncLen = 32;
+    int _truncLen = 20;
     string _truncMode = "card";
     string _baseAddress = "";
     string? _cookie;
@@ -227,35 +237,40 @@
                                                           }
                                                       </span>;
 
-    RenderFragment Card(StagedEntry e, OfferGroup? g) => @<div class="wb-entry @(State.SelectedId == e.Id ? "selected" : "")"
-                                                               @key="e.Id" @onclick="@(() => Select(e))">
-                                                             <div class="flex items-start gap-1">
-                                                                 @if (g is { MultiSha: true } grp) {
-                                                                     <input type="radio" class="wb-radio" name="@("wbg-" + grp.Key)"
-                                                                            checked="@(grp.Winner?.Id == e.Id)"
-                                                                            @onclick:stopPropagation="true"
-                                                                            @onchange="@(() => PickWinner(grp, e))"/>
-                                                                 }
-                                                                 <span class="wb-entry-name">@CardName(e.FileName)</span>
-                                                                 <button type="button" class="wb-x" title="Remove" aria-label="Remove"
-                                                                         @onclick:stopPropagation="true" @onclick="@(() => Remove(e))">
-                                                                     <Icon Name="x" Class="icon-sm"/>
-                                                                 </button>
-                                                             </div>
-                                                             @if (e.IsAnalyzed && Segs(e) is { Count: > 0 } vs) {
-                                                                 <div class="text-[0.7rem]">@Ver(vs)</div>
-                                                             }
-                                                             @if (Sha12(e.Result?.ProtoSha) is { Length: > 0 } sha) {
-                                                                 <div class="wb-entry-meta">@sha</div>
-                                                             }
-                                                             <div class="wb-entry-foot">
-                                                                 @if (!e.IsDone && e.Step is { Length: > 0 } step) {
-                                                                     <span class="text-muted text-[0.65rem] truncate">@step</span>
-                                                                 }
-                                                                 <Icon Name="clock" Class="@("icon-sm " + StatusClass(e))"/>
-                                                                 <Icon Name="@PlatformIcon(e.Platform)" Class="icon-sm"/>
-                                                             </div>
-                                                         </div>;
+    RenderFragment Card(StagedEntry e, OfferGroup? g, bool grouped) => @<div class="wb-entry @(State.SelectedId == e.Id ? "selected" : "")"
+                                                                             @key="e.Id" @onclick="@(() => Select(e))">
+                                                                           <div class="flex items-start gap-1">
+                                                                               @if (g is { MultiSha: true } grp) {
+                                                                                   <input type="radio" class="wb-radio" name="@("wbg-" + grp.Key)"
+                                                                                          checked="@(grp.Winner?.Id == e.Id)"
+                                                                                          @onclick:stopPropagation="true"
+                                                                                          @onchange="@(() => PickWinner(grp, e))"/>
+                                                                               }
+                                                                               <span class="wb-entry-name">@CardName(e.FileName)</span>
+                                                                               <button type="button" class="wb-x" title="Remove" aria-label="Remove"
+                                                                                       @onclick:stopPropagation="true" @onclick="@(() => Remove(e))">
+                                                                                   <Icon Name="x" Class="icon-sm"/>
+                                                                               </button>
+                                                                           </div>
+                                                                           @if (!grouped && e.IsAnalyzed && Segs(e) is { Count: > 0 } vs) {
+                                                                               <div class="text-[0.7rem]">@Ver(vs)</div>
+                                                                           }
+                                                                           @if (Sha12(e.Result?.ProtoSha) is { Length: > 0 } sha) {
+                                                                               <div class="wb-entry-meta">@sha</div>
+                                                                           }
+                                                                           <div class="wb-entry-foot">
+                                                                               @if (!e.IsDone && e.Step is { Length: > 0 } step) {
+                                                                                   <span class="text-muted text-[0.65rem] truncate">@step</span>
+                                                                               }
+                                                                               @if (!grouped && g is { Conflict: false, Status.Offerable: true }) {
+                                                                                   <span title="offerable">
+                                                                                       <Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
+                                                                                   </span>
+                                                                               }
+                                                                               <Icon Name="clock" Class="@("icon-sm " + StatusClass(e))"/>
+                                                                               <Icon Name="@PlatformIcon(e.Platform)" Class="icon-sm"/>
+                                                                           </div>
+                                                                       </div>;
 
     RenderFragment ViewerTools(StagedEntry sel, OfferGroup? g) => @<text>
                                                                        <select class="flow-filter-select" value="@_cmpTarget" @onchange="OnCompareTargetChanged">

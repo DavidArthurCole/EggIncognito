@@ -22,11 +22,18 @@ public static class LibegincClientVersion {
         if (bin is null || bin.Length < 8) return null;
         var img = BinaryImage.Load(bin);
         if (img is null) return null;
-        if (!img.TryFindFunc(SymbolNeedles, out var fn)
-            && (symbols is null || !MachoSymbols.TryFindFunc(symbols, SymbolNeedles, out fn))) {
-            return null;
-        }
         bool arm32 = IsElf32(bin);
+
+        if ((img.TryFindFunc(SymbolNeedles, out var fn)
+             || (symbols is not null && MachoSymbols.TryFindFunc(symbols, SymbolNeedles, out fn)))
+            && DecodeGetter(img, bin, fn, arm32) is { } viaSymbol) {
+            return viaSymbol;
+        }
+
+        return arm32 ? null : ScanBasicRequestInfoCv(img);
+    }
+
+    private static int? DecodeGetter(IBinaryImage img, byte[] bin, MachoSymbols.FuncRange fn, bool arm32) {
         bool thumb = arm32 && (fn.Start & 1) != 0;
         ulong startVa = arm32 ? fn.Start & ~1UL : fn.Start;
         if (!img.TryVaToFileOffset(startVa, out int fo, out _)) return null;
@@ -39,6 +46,48 @@ public static class LibegincClientVersion {
         int len = (int)Math.Min(span, 64UL);
         return len < 4 || fo < 0 || fo + len > bin.Length ? null : DecodeConstReturn(bin, fo, len);
     }
+
+    private const int CvFieldOffset = 0x38;
+    private const int HasBitsFieldOffset = 0x10;
+    private const int HasBitsMask = 0x12;
+    private const int MaxClientVersion = 500;
+
+    private static int? ScanBasicRequestInfoCv(IBinaryImage img) {
+        if (!img.TryFindText(out int fo, out int size, out _)) return null;
+        byte[] b = img.Bytes;
+        long end = Math.Min((long)fo + size, b.Length);
+        if (fo < 0 || end - fo < 20) return null;
+
+        for (long p = fo; p + 20 <= end; p += 4) {
+            uint mov = Word(b, p);
+            if ((mov & 0xFFE00000) != 0x52800000) continue;
+            int cvReg = (int)(mov & 0x1F);
+            int cv = (int)((mov >> 5) & 0xFFFF);
+            if (cv is < 1 or > MaxClientVersion) continue;
+
+            uint strCv = Word(b, p + 4);
+            if ((strCv & 0xFFC00000) != 0xB9000000) continue;
+            if (((strCv >> 10) & 0xFFF) != CvFieldOffset / 4) continue;
+            if ((int)(strCv & 0x1F) != cvReg) continue;
+            int baseReg = (int)((strCv >> 5) & 0x1F);
+
+            uint movMask = Word(b, p + 8);
+            if ((movMask & 0xFFE00000) != 0x52800000) continue;
+            if (((movMask >> 5) & 0xFFFF) != HasBitsMask) continue;
+
+            uint strHas = Word(b, p + 16);
+            if ((strHas & 0xFFC00000) != 0xB9000000) continue;
+            if (((strHas >> 10) & 0xFFF) != HasBitsFieldOffset / 4) continue;
+            if ((int)((strHas >> 5) & 0x1F) != baseReg) continue;
+
+            return cv;
+        }
+
+        return null;
+    }
+
+    private static uint Word(byte[] b, long p) =>
+        (uint)(b[p] | (b[p + 1] << 8) | (b[p + 2] << 16) | (b[p + 3] << 24));
 
     private static bool IsElf32(byte[] b) =>
         b is { Length: >= 8 } && b[0] == 0x7F && b[1] == (byte)'E' && b[2] == (byte)'L' && b[3] == (byte)'F' && b[4] == 1;
