@@ -446,5 +446,26 @@
     "requestWrapped": false,
     "responseWrapped": true,
     "pathParam": true
+  },
+  "ei_i18n/get_translation_pack": {
+    "requestType": "TranslationPackRequest",
+    "responseType": "TranslationPackResponse",
+    "requestWrapped": false,
+    "responseWrapped": false,
+    "pathParam": false
+  },
+  "ei_i18n/get_translations": {
+    "requestType": "TranslationRequest",
+    "responseType": "TranslationResponse",
+    "requestWrapped": false,
+    "responseWrapped": false,
+    "pathParam": false
+  },
+  "ei_i18n/get_font_dlc": {
+    "requestType": "FontDLCRequest",
+    "responseType": "FontDLCResponse",
+    "requestWrapped": false,
+    "responseWrapped": false,
+    "pathParam": false
   }
 }
