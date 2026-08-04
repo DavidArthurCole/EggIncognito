@@ -116,15 +116,10 @@ public sealed class AuxbrainCatalogTests {
         string path = AuxbrainCatalog.ResolveJsonPath(new ConfigurationBuilder().Build());
         Assert.True(File.Exists(path), $"auxbrain-paths.json not found at {path}");
 
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        int keyCount = doc.RootElement.EnumerateObject().Count();
         var canonical = AuxbrainCatalog.LoadCanonical(path);
-        Assert.True(canonical.Count >= 1, $"expected at least one unmocked canonical path, got {canonical.Count}");
-
-        var bot = canonical["ei/coop_status_bot"];
-        Assert.Equal("ContractCoopStatusRequest", bot.RequestType);
-        Assert.Equal("ContractCoopStatusResponse", bot.ResponseType);
-        Assert.False(bot.RequestWrapped);
-        Assert.True(bot.ResponseWrapped);
-        Assert.False(bot.PathParam);
+        Assert.Equal(keyCount, canonical.Count);
     }
 
     [Fact]

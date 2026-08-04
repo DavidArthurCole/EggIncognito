@@ -139,25 +139,40 @@ public sealed class TransportPipeline : ITransportPipeline {
             }
         }
 
+        DecodeResult? WrappedFallback() {
+            if (responseWrapped != false) return null;
+            string note = "Response is AuthenticatedMessage-wrapped; this route declares responseWrapped: false. Update the route flag.";
+            var fallback = TryDecodeWrapped(respBytes, responseParser, envelopeNote: note);
+            if (fallback is null) return null;
+            stages.AddRange(fallback.Value.Stages);
+            return new DecodeResult(stages, fallback.Value.Json, null);
+        }
+
         try {
             var msg = responseParser.ParseFrom(respBytes);
+            if (respBytes.Length > 0 && !HasAnyKnownField(msg) && WrappedFallback() is { } rescuedEmpty)
+                return rescuedEmpty;
+
             string? json = FormatJson(msg);
             stages.Add(new TransportStage("proto-decode",
                 "Parsed bytes directly as the endpoint's response message (unwrapped - e.g. EggIncognito mock)",
                 respBytes.Length, null, null, "see JSON below", RolePayload));
             return new DecodeResult(stages, json, null);
         } catch (Exception ex) {
-            if (responseWrapped == false) {
-                string note = "Response is AuthenticatedMessage-wrapped; this route declares responseWrapped: false. Update the route flag.";
-                var fallback = TryDecodeWrapped(respBytes, responseParser, envelopeNote: note);
-                if (fallback is not null) {
-                    stages.AddRange(fallback.Value.Stages);
-                    return new DecodeResult(stages, fallback.Value.Json, null);
-                }
-            }
-
-            return new DecodeResult(stages, null, $"{ex.GetType().Name}: {ex.Message}");
+            return WrappedFallback() ?? new DecodeResult(stages, null, $"{ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    private static bool HasAnyKnownField(IMessage msg) {
+        foreach (var f in msg.Descriptor.Fields.InFieldNumberOrder()) {
+            if (f.IsRepeated) {
+                if (f.Accessor.GetValue(msg) is System.Collections.ICollection { Count: > 0 }) return true;
+            } else if (f.Accessor.HasValue(msg)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private string FormatJson(IMessage msg) {
