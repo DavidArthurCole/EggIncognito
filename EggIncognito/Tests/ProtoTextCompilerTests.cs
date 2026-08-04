@@ -4,6 +4,73 @@ using Google.Protobuf.Reflection;
 namespace EggIncognito.Tests;
 
 public class ProtoTextCompilerTests {
+    private const string MultiLineFieldSample = """
+        syntax = "proto2";
+        package ei;
+        message Misc {
+            optional uint64 last_prestige_alert_soul_eggs_DEPRECATED = 10
+                [default = 45];
+            optional int32
+                split_decl = 11;
+        }
+        """;
+
+    private const string ShadowedReferenceSample = """
+        syntax = "proto2";
+        package ei;
+        message Backup {
+            message MissionInfo {
+                optional string id = 1;
+            }
+            message Artifacts {
+                optional MissionInfo.Spaceship last_fueled_ship = 9;
+            }
+        }
+        message MissionInfo {
+            enum Spaceship {
+                CHICKEN_ONE = 0;
+            }
+        }
+        """;
+
+    [Fact]
+    public void MultiLine_Declarations_Are_Joined() {
+        var fdp = ProtoTextCompiler.Compile(MultiLineFieldSample);
+        var m = Assert.Single(fdp.MessageType);
+        Assert.Equal(2, m.Field.Count);
+        Assert.Equal("45", m.Field[0].DefaultValue);
+        Assert.Equal("split_decl", m.Field[1].Name);
+    }
+
+    [Fact]
+    public void Shadowed_Reference_Resolves_Outward_When_Commit_Fails() {
+        var fdp = ProtoTextCompiler.Compile(ShadowedReferenceSample);
+        var artifacts = fdp.MessageType[0].NestedType.First(n => n.Name == "Artifacts");
+        Assert.Equal(".ei.MissionInfo.Spaceship", artifacts.Field[0].TypeName);
+    }
+
+    [Fact]
+    public void Shadowed_Reference_Prefers_Committed_Scope_When_It_Resolves() {
+        const string p = """
+            syntax = "proto2";
+            package ei;
+            message Backup {
+                message MissionInfo {
+                    optional string id = 1;
+                }
+                message Artifacts {
+                    optional MissionInfo info = 1;
+                }
+            }
+            message MissionInfo {
+                optional bool other = 1;
+            }
+            """;
+        var fdp = ProtoTextCompiler.Compile(p);
+        var artifacts = fdp.MessageType[0].NestedType.First(n => n.Name == "Artifacts");
+        Assert.Equal(".ei.Backup.MissionInfo", artifacts.Field[0].TypeName);
+    }
+
     private const string LabelSample = """
         syntax = "proto2";
         package ei;

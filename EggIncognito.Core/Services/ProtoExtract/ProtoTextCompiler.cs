@@ -58,7 +58,7 @@ public static partial class ProtoTextCompiler {
     public static FileDescriptorProto Compile(string protoText) {
         ArgumentNullException.ThrowIfNull(protoText);
 
-        string[] lines = SplitLines(StripComments(protoText));
+        var lines = JoinLogicalLines(SplitLines(StripComments(protoText)));
         var symbols = new Dictionary<string, SymbolKind>(StringComparer.Ordinal);
         List<MessageNode> rootMessages = [];
         List<EnumNode> rootEnums = [];
@@ -66,10 +66,8 @@ public static partial class ProtoTextCompiler {
         string syntax = "proto2";
         string package = "";
 
-        for (int i = 0; i < lines.Length; i++) {
-            int lineNo = i + 1;
-            string trimmed = lines[i].Trim();
-            if (trimmed.Length == 0) continue;
+        for (int i = 0; i < lines.Count; i++) {
+            (string trimmed, int lineNo) = lines[i];
 
             if (trimmed[0] == '}') {
                 int at = 0;
@@ -160,7 +158,7 @@ public static partial class ProtoTextCompiler {
             });
         }
 
-        if (frames.Count > 0) throw new FormatException($"line {lines.Length}: unbalanced braces, {frames.Count} block(s) never closed");
+        if (frames.Count > 0) throw new FormatException($"line {(lines.Count > 0 ? lines[^1].Line : 0)}: unbalanced braces, {frames.Count} block(s) never closed");
         if (rootMessages.Count == 0 && rootEnums.Count == 0) throw new FormatException("no messages or enums");
 
         AddPackageSymbols(package, symbols);
@@ -219,25 +217,54 @@ public static partial class ProtoTextCompiler {
 
     private static string? ResolveTypeName(string scope, string type, Dictionary<string, SymbolKind> symbols) {
         if (type.Length > 0 && type[0] == '.') return symbols.ContainsKey(type) ? type : null;
+        return ResolveWalk(scope, type, symbols, true) ?? ResolveWalk(scope, type, symbols, false);
+    }
 
+    private static string? ResolveWalk(string scope, string type, Dictionary<string, SymbolKind> symbols, bool commitToFirstMatch) {
         string[] parts = type.Split('.');
         string current = scope;
         while (true) {
             string candidate = Qualify(current, parts[0]);
             if (symbols.ContainsKey(candidate)) {
                 string full = candidate;
+                bool resolved = true;
                 for (int i = 1; i < parts.Length; i++) {
                     full = Qualify(full, parts[i]);
-                    if (!symbols.ContainsKey(full)) return null;
+                    if (!symbols.ContainsKey(full)) {
+                        resolved = false;
+                        break;
+                    }
                 }
 
-                return full;
+                if (resolved) return full;
+                if (commitToFirstMatch) return null;
             }
 
             if (current.Length == 0) return null;
             int cut = current.LastIndexOf('.');
             current = cut <= 0 ? "" : current[..cut];
         }
+    }
+
+    private static List<(string Text, int Line)> JoinLogicalLines(string[] raw) {
+        var logical = new List<(string Text, int Line)>();
+        var buf = new StringBuilder();
+        int bufLine = 0;
+        for (int i = 0; i < raw.Length; i++) {
+            string t = raw[i].Trim();
+            if (t.Length == 0) continue;
+            if (buf.Length == 0) bufLine = i + 1;
+            else buf.Append(' ');
+            buf.Append(t);
+            char last = buf[^1];
+            if (last is ';' or '{' or '}') {
+                logical.Add((buf.ToString(), bufLine));
+                buf.Clear();
+            }
+        }
+
+        if (buf.Length > 0) logical.Add((buf.ToString(), bufLine));
+        return logical;
     }
 
     private static void AddPackageSymbols(string package, Dictionary<string, SymbolKind> symbols) {
