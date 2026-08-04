@@ -38,7 +38,10 @@ public static class ProtoRealignBackfill {
             var pp = await db.ProtoProtos.FirstOrDefaultAsync(p => p.ProtoVersionId == versionId, ct);
             if (pp is null) continue;
             var version = await db.ProtoVersions.FirstOrDefaultAsync(v => v.Id == versionId, ct);
-            if (version is null) continue;
+            if (version is null) {
+                db.ChangeTracker.Clear();
+                continue;
+            }
 
             string key = $"{version.Platform}/{version.Build}";
             string oldSha = version.ProtoSha;
@@ -47,6 +50,7 @@ public static class ProtoRealignBackfill {
                 scanned++;
                 failed++;
                 failedRows.Add(new RowOutcome("registry", key, oldSha, null, "failed", norm.Error));
+                db.ChangeTracker.Clear();
                 continue;
             }
 
@@ -55,6 +59,7 @@ public static class ProtoRealignBackfill {
             if (norm.Sha == version.ProtoSha && norm.Text == pp.ProtoText && MessageIndexMatches(pp.MessageIndex, names)) {
                 scanned++;
                 alreadyCanonical++;
+                db.ChangeTracker.Clear();
                 continue;
             }
 
@@ -67,11 +72,10 @@ public static class ProtoRealignBackfill {
                 try {
                     await db.SaveChangesAsync(ct);
                 } catch (DbUpdateException ex) {
-                    db.Entry(version).State = EntityState.Detached;
-                    db.Entry(pp).State = EntityState.Detached;
                     scanned++;
                     failed++;
                     failedRows.Add(new RowOutcome("registry", key, oldSha, norm.Sha, "failed", ex.Message));
+                    db.ChangeTracker.Clear();
                     continue;
                 }
             }
@@ -79,6 +83,7 @@ public static class ProtoRealignBackfill {
             scanned++;
             updated++;
             updatedRows.Add(new RowOutcome("registry", key, oldSha, norm.Sha, "updated", null));
+            db.ChangeTracker.Clear();
         }
 
         var stagedIds = await db.StagedProtos.AsNoTracking()
@@ -96,6 +101,7 @@ public static class ProtoRealignBackfill {
                 scanned++;
                 failed++;
                 failedRows.Add(new RowOutcome("staged", key, oldSha, null, "failed", norm.Error));
+                db.ChangeTracker.Clear();
                 continue;
             }
 
@@ -104,6 +110,7 @@ public static class ProtoRealignBackfill {
             if (norm.Sha == row.ProtoSha && norm.Text == row.ProtoText && MessageIndexMatches(row.MessageIndex, names)) {
                 scanned++;
                 alreadyCanonical++;
+                db.ChangeTracker.Clear();
                 continue;
             }
 
@@ -116,10 +123,10 @@ public static class ProtoRealignBackfill {
                 try {
                     await db.SaveChangesAsync(ct);
                 } catch (DbUpdateException ex) {
-                    db.Entry(row).State = EntityState.Detached;
                     scanned++;
                     failed++;
                     failedRows.Add(new RowOutcome("staged", key, oldSha, norm.Sha, "failed", ex.Message));
+                    db.ChangeTracker.Clear();
                     continue;
                 }
             }
@@ -127,6 +134,7 @@ public static class ProtoRealignBackfill {
             scanned++;
             updated++;
             updatedRows.Add(new RowOutcome("staged", key, oldSha, norm.Sha, "updated", null));
+            db.ChangeTracker.Clear();
         }
 
         if (shaMap.Count > 0) {
@@ -139,14 +147,18 @@ public static class ProtoRealignBackfill {
             foreach (string fileSha in analyzedIds) {
                 if (!dryRun) {
                     var af = await db.AnalyzedFiles.FirstOrDefaultAsync(a => a.FileSha == fileSha, ct);
-                    if (af?.ProtoSha is null || !shaMap.TryGetValue(af.ProtoSha, out string? newSha)) continue;
+                    if (af?.ProtoSha is null || !shaMap.TryGetValue(af.ProtoSha, out string? newSha)) {
+                        db.ChangeTracker.Clear();
+                        continue;
+                    }
                     af.ProtoSha = newSha;
                     try {
                         await db.SaveChangesAsync(ct);
                     } catch (DbUpdateException) {
-                        db.Entry(af).State = EntityState.Detached;
+                        db.ChangeTracker.Clear();
                         continue;
                     }
+                    db.ChangeTracker.Clear();
                 }
 
                 remapped++;

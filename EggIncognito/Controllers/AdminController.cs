@@ -243,11 +243,11 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
     }
 
     [HttpPost("protos/realign")]
-    public async Task<IActionResult> RealignProtos([FromQuery] bool dryRun, CancellationToken ct) {
+    public async Task<IActionResult> RealignProtos([FromQuery] bool confirm, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
-        var report = await ProtoRealignBackfill.RunAsync(db, dryRun, ct);
+        var report = await ProtoRealignBackfill.RunAsync(db, !confirm, ct);
         return Ok(report);
     }
 

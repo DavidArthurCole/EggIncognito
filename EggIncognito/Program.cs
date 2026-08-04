@@ -345,6 +345,14 @@ if (!string.IsNullOrWhiteSpace(eventSecret)) {
             string? protoText = string.IsNullOrEmpty(evt.ProtoTextB64)
                 ? null
                 : Encoding.UTF8.GetString(Convert.FromBase64String(evt.ProtoTextB64));
+            string protoSha = evt.ProtoSha;
+            if (protoText is not null) {
+                var norm = EggIncognito.Services.ProtoExtract.ProtoCanonicalForm.Normalize(protoText);
+                if (norm.Ok) {
+                    protoText = norm.Text!;
+                    protoSha = norm.Sha!;
+                }
+            }
 
             string? appVersion = string.IsNullOrEmpty(evt.AppVersion) ? evt.Version : evt.AppVersion;
             string? build = string.IsNullOrEmpty(evt.Build) ? evt.Version : evt.Build;
@@ -352,7 +360,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret)) {
 
             string platform = evt.Platform ?? "android";
             (var row, bool created, bool protoChanged) = await store.UpsertAsync(
-                platform, appVersion, build, evt.ClientVersion, evt.Package, evt.ProtoSha, evt.ApkRef,
+                platform, appVersion, build, evt.ClientVersion, evt.Package, protoSha, evt.ApkRef,
                 DateTimeOffset.TryParse(evt.DetectedAt, out var dt) ? dt : DateTimeOffset.UtcNow,
                 null, protoText, ct: ct);
 
@@ -364,7 +372,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret)) {
                     cfg?["Feed:PageBaseUrl"], platform, build);
                 await dispatcher.DispatchAsync(new ProtoBuildEvent(
                     row.Id, platform, appVersion, build, evt.ClientVersion,
-                    evt.ProtoSha, created, protoChanged, pageUrl), ct);
+                    protoSha, created, protoChanged, pageUrl), ct);
             }
         }
 
