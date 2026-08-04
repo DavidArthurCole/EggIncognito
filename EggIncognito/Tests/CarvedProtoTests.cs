@@ -22,6 +22,55 @@ public class CarvedProtoTests {
     }
 
     [Fact]
+    public void EmitProto_HouseFormat_RelativeNames_EnumsAfterMessages() {
+        var fdp = new FileDescriptorProto { Name = "ei.proto", Syntax = "proto2", Package = "ei" };
+        var backup = new DescriptorProto { Name = "Backup" };
+        backup.NestedType.Add(new DescriptorProto {
+            Name = "Settings",
+            Field = { new FieldDescriptorProto {
+                Name = "sfx", Number = 1,
+                Label = FieldDescriptorProto.Types.Label.Optional,
+                Type = FieldDescriptorProto.Types.Type.Bool,
+            } },
+        });
+        backup.Field.Add(new FieldDescriptorProto {
+            Name = "settings", Number = 4,
+            Label = FieldDescriptorProto.Types.Label.Optional,
+            Type = FieldDescriptorProto.Types.Type.Message, TypeName = ".ei.Backup.Settings",
+        });
+        backup.Field.Add(new FieldDescriptorProto {
+            Name = "platform", Number = 5,
+            Label = FieldDescriptorProto.Types.Label.Optional,
+            Type = FieldDescriptorProto.Types.Type.Enum, TypeName = ".ei.Platform",
+        });
+        fdp.MessageType.Add(backup);
+        fdp.EnumType.Add(new EnumDescriptorProto {
+            Name = "Platform",
+            Value = { new EnumValueDescriptorProto { Name = "UNKNOWN_PLATFORM", Number = 0 } },
+        });
+
+        const string expected =
+            "syntax = \"proto2\";\n" +
+            "\n" +
+            "package ei;\n" +
+            "\n" +
+            "message Backup {\n" +
+            "    message Settings {\n" +
+            "        optional bool sfx = 1;\n" +
+            "    }\n" +
+            "\n" +
+            "    optional Settings settings = 4;\n" +
+            "    optional Platform platform = 5;\n" +
+            "}\n" +
+            "\n" +
+            "enum Platform {\n" +
+            "    UNKNOWN_PLATFORM = 0;\n" +
+            "}\n";
+
+        Assert.Equal(expected, DescriptorProtoCarver.EmitProto(fdp));
+    }
+
+    [Fact]
     public void FromCarvedBase64_InvalidBase64_Fails() {
         var r = DescriptorProtoCarver.FromCarvedBase64("not base64!!!", null, null);
         Assert.False(r.Ok);

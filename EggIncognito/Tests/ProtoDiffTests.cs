@@ -18,6 +18,22 @@ public class ProtoDiffTests {
     }
 
     [Fact]
+    public void Qualified_Vs_Relative_Nested_Type_Is_Empty() {
+        const string oldP = "message Backup {\n    optional Settings settings = 4;\n    message Settings {\n        optional bool sfx = 1;\n    }\n}\n";
+        const string newP = "message Backup {\n    message Settings {\n        optional bool sfx = 1;\n    }\n\n    optional ei.Backup.Settings settings = 4;\n}\n";
+        Assert.True(ProtoDiff.Compute(oldP, newP).IsEmpty);
+    }
+
+    [Fact]
+    public void Different_Scope_Same_Leaf_Parent_Mismatch_Is_Changed() {
+        const string oldP = "message Foo {\n    optional ei.Alpha.Status s = 1;\n}\n";
+        const string newP = "message Foo {\n    optional ei.Beta.Status s = 1;\n}\n";
+        var e = Assert.Single(ProtoDiff.Compute(oldP, newP).Entries);
+        var c = Assert.Single(e.FieldChanges);
+        Assert.Equal(FieldChangeKind.Changed, c.Kind);
+    }
+
+    [Fact]
     public void Added_Field_By_Number() {
         const string oldP = "message Foo {\n    optional uint32 a = 1;\n}\n";
         const string newP = "message Foo {\n    optional uint32 a = 1;\n    optional uint32 b = 2;\n}\n";

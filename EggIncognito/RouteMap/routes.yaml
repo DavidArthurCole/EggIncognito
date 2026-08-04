@@ -260,10 +260,6 @@ routes:
   - path: ei_i18n/get_translations
     request: TranslationRequest
     response: TranslationResponse
-  - path: ei_i18n/get_font_dlc
-    request: FontDLCRequest
-    response: FontDLCResponse
-
 
 excluded:
   # Endpoints known to exist in the APK but intentionally not mocked.

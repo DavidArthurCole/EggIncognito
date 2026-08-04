@@ -112,9 +112,22 @@ public static class ProtoDiff {
 
     private static double Similarity(ProtoMessage a, ProtoMessage b) {
         if (a.Fields.Count == 0 || b.Fields.Count == 0) return 0;
-        var keys = a.Fields.Select(f => (f.Number, ProtoModelParser.NormalizeType(f.Type))).ToHashSet();
-        int shared = b.Fields.Count(f => keys.Contains((f.Number, ProtoModelParser.NormalizeType(f.Type))));
+        var keys = a.Fields.Select(f => (f.Number, LeafType(f.Type))).ToHashSet();
+        int shared = b.Fields.Count(f => keys.Contains((f.Number, LeafType(f.Type))));
         return 2.0 * shared / (a.Fields.Count + b.Fields.Count);
+    }
+
+    private static bool TypesMatch(string a, string b) {
+        string na = ProtoModelParser.NormalizeType(a);
+        string nb = ProtoModelParser.NormalizeType(b);
+        if (na == nb) return true;
+        return na.EndsWith("." + nb, StringComparison.Ordinal) || nb.EndsWith("." + na, StringComparison.Ordinal);
+    }
+
+    private static string LeafType(string type) {
+        string n = ProtoModelParser.NormalizeType(type);
+        int i = n.LastIndexOf('.');
+        return i < 0 ? n : n[(i + 1)..];
     }
 
     private static List<FieldChange> DiffFields(ProtoMessage oldM, ProtoMessage newM) {
@@ -134,7 +147,7 @@ public static class ProtoDiff {
                 changes.Add(new FieldChange(FieldChangeKind.Added, n, null, nf));
             } else if (hasOld && hasNew) {
                 bool changed = of!.Name != nf!.Name
-                    || ProtoModelParser.NormalizeType(of.Type) != ProtoModelParser.NormalizeType(nf.Type)
+                    || !TypesMatch(of.Type, nf.Type)
                     || of.Label != nf.Label;
                 if (changed) changes.Add(new FieldChange(FieldChangeKind.Changed, n, of, nf));
             }

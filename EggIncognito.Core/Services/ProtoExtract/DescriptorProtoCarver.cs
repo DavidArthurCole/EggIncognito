@@ -185,64 +185,147 @@ public static class DescriptorProtoCarver {
 
     private static void EmitFile(FileDescriptorProto f, StringBuilder sb) {
         sb.Append("syntax = \"").Append(string.IsNullOrEmpty(f.Syntax) ? "proto2" : f.Syntax).Append("\";\n");
-        if (!string.IsNullOrEmpty(f.Package)) sb.Append("package ").Append(f.Package).Append(";\n");
-        foreach (string? dep in f.Dependency) sb.Append("import \"").Append(dep).Append("\";\n");
-        sb.Append('\n');
-        foreach (var en in f.EnumType) EmitEnum(en, sb, 0);
-        foreach (var m in f.MessageType) EmitMessage(m, sb, 0);
+        if (!string.IsNullOrEmpty(f.Package)) sb.Append("\npackage ").Append(f.Package).Append(";\n");
+        if (f.Dependency.Count > 0) {
+            sb.Append('\n');
+            foreach (string? dep in f.Dependency) sb.Append("import \"").Append(dep).Append("\";\n");
+        }
+
+        var symbols = CollectSymbols(f);
+        string root = string.IsNullOrEmpty(f.Package) ? "" : "." + f.Package;
+        foreach (var m in f.MessageType) {
+            sb.Append('\n');
+            EmitMessage(m, sb, 0, root, symbols);
+        }
+
+        foreach (var en in f.EnumType) {
+            sb.Append('\n');
+            EmitEnum(en, sb, 0);
+        }
     }
 
-    private static void EmitMessage(DescriptorProto m, StringBuilder sb, int indent) {
-        string pad = new(' ', indent * 2);
+    private static void EmitMessage(DescriptorProto m, StringBuilder sb, int indent, string parentScope, HashSet<string> symbols) {
+        string pad = new(' ', indent * 4);
+        string self = parentScope + "." + m.Name;
         sb.Append(pad).Append("message ").Append(m.Name).Append(" {\n");
-        foreach (var en in m.EnumType) EmitEnum(en, sb, indent + 1);
-        foreach (var nested in m.NestedType) EmitMessage(nested, sb, indent + 1);
-        string p2 = new(' ', (indent + 1) * 2);
-        foreach (var fld in m.Field) {
-            string label = fld.Label switch {
-                FieldDescriptorProto.Types.Label.Required => "required",
-                FieldDescriptorProto.Types.Label.Repeated => "repeated",
-                _ => "optional"
-            };
-            string def = fld.HasDefaultValue ? $" [default = {fld.DefaultValue}]" : "";
-            sb.Append(p2).Append(label).Append(' ').Append(TypeName(fld)).Append(' ')
-                .Append(fld.Name).Append(" = ").Append(fld.Number).Append(def).Append(";\n");
+        bool any = false;
+        foreach (var en in m.EnumType) {
+            if (any) sb.Append('\n');
+            EmitEnum(en, sb, indent + 1);
+            any = true;
+        }
+
+        foreach (var nested in m.NestedType) {
+            if (any) sb.Append('\n');
+            EmitMessage(nested, sb, indent + 1, self, symbols);
+            any = true;
+        }
+
+        if (m.Field.Count > 0) {
+            if (any) sb.Append('\n');
+            string p2 = new(' ', (indent + 1) * 4);
+            foreach (var fld in m.Field) {
+                string label = fld.Label switch {
+                    FieldDescriptorProto.Types.Label.Required => "required",
+                    FieldDescriptorProto.Types.Label.Repeated => "repeated",
+                    _ => "optional"
+                };
+                string def = fld.HasDefaultValue ? $" [default = {fld.DefaultValue}]" : "";
+                sb.Append(p2).Append(label).Append(' ').Append(TypeName(fld, self, symbols)).Append(' ')
+                    .Append(fld.Name).Append(" = ").Append(fld.Number).Append(def).Append(";\n");
+            }
         }
 
         sb.Append(pad).Append("}\n");
     }
 
     private static void EmitEnum(EnumDescriptorProto e, StringBuilder sb, int indent) {
-        string pad = new(' ', indent * 2);
+        string pad = new(' ', indent * 4);
         sb.Append(pad).Append("enum ").Append(e.Name).Append(" {\n");
-        string p2 = new(' ', (indent + 1) * 2);
+        string p2 = new(' ', (indent + 1) * 4);
         foreach (var v in e.Value)
             sb.Append(p2).Append(v.Name).Append(" = ").Append(v.Number).Append(";\n");
         sb.Append(pad).Append("}\n");
     }
 
+    private static HashSet<string> CollectSymbols(FileDescriptorProto f) {
+        var symbols = new HashSet<string>(StringComparer.Ordinal);
+        string root = "";
+        if (!string.IsNullOrEmpty(f.Package)) {
+            foreach (string part in f.Package.Split('.')) {
+                root += "." + part;
+                symbols.Add(root);
+            }
+        }
 
-    private static string TypeName(FieldDescriptorProto f) {
-        return f.Type is FieldDescriptorProto.Types.Type.Message or FieldDescriptorProto.Types.Type.Enum
-            ? f.TypeName.TrimStart('.')
-            : f.Type switch {
-                FieldDescriptorProto.Types.Type.Double => "double",
-                FieldDescriptorProto.Types.Type.Float => "float",
-                FieldDescriptorProto.Types.Type.Int64 => "int64",
-                FieldDescriptorProto.Types.Type.Uint64 => "uint64",
-                FieldDescriptorProto.Types.Type.Int32 => "int32",
-                FieldDescriptorProto.Types.Type.Fixed64 => "fixed64",
-                FieldDescriptorProto.Types.Type.Fixed32 => "fixed32",
-                FieldDescriptorProto.Types.Type.Bool => "bool",
-                FieldDescriptorProto.Types.Type.String => "string",
-                FieldDescriptorProto.Types.Type.Bytes => "bytes",
-                FieldDescriptorProto.Types.Type.Uint32 => "uint32",
-                FieldDescriptorProto.Types.Type.Sfixed32 => "sfixed32",
-                FieldDescriptorProto.Types.Type.Sfixed64 => "sfixed64",
-                FieldDescriptorProto.Types.Type.Sint32 => "sint32",
-                FieldDescriptorProto.Types.Type.Sint64 => "sint64",
-                _ => "bytes"
-            };
+        foreach (var m in f.MessageType) AddMessageSymbols(m, root, symbols);
+        foreach (var en in f.EnumType) symbols.Add(root + "." + en.Name);
+        return symbols;
+    }
+
+    private static void AddMessageSymbols(DescriptorProto m, string scope, HashSet<string> symbols) {
+        string self = scope + "." + m.Name;
+        symbols.Add(self);
+        foreach (var en in m.EnumType) symbols.Add(self + "." + en.Name);
+        foreach (var nested in m.NestedType) AddMessageSymbols(nested, self, symbols);
+    }
+
+    private static string? Resolve(string scope, string type, HashSet<string> symbols) {
+        string[] parts = type.Split('.');
+        string current = scope;
+        while (true) {
+            string candidate = current + "." + parts[0];
+            if (symbols.Contains(candidate)) {
+                string full = candidate;
+                for (int i = 1; i < parts.Length; i++) {
+                    full += "." + parts[i];
+                    if (!symbols.Contains(full)) return null;
+                }
+
+                return full;
+            }
+
+            if (current.Length == 0) return null;
+            int cut = current.LastIndexOf('.');
+            current = cut <= 0 ? "" : current[..cut];
+        }
+    }
+
+    private static string TypeName(FieldDescriptorProto f, string scope, HashSet<string> symbols) {
+        if (f.Type is not (FieldDescriptorProto.Types.Type.Message or FieldDescriptorProto.Types.Type.Enum)) {
+            return ScalarName(f.Type);
+        }
+
+        string target = f.TypeName;
+        if (string.IsNullOrEmpty(target) || target[0] != '.') return target.TrimStart('.');
+        string[] segs = target[1..].Split('.');
+        for (int i = segs.Length - 1; i >= 0; i--) {
+            string candidate = string.Join('.', segs[i..]);
+            if (Resolve(scope, candidate, symbols) == target) return candidate;
+        }
+
+        return target.TrimStart('.');
+    }
+
+    private static string ScalarName(FieldDescriptorProto.Types.Type t) {
+        return t switch {
+            FieldDescriptorProto.Types.Type.Double => "double",
+            FieldDescriptorProto.Types.Type.Float => "float",
+            FieldDescriptorProto.Types.Type.Int64 => "int64",
+            FieldDescriptorProto.Types.Type.Uint64 => "uint64",
+            FieldDescriptorProto.Types.Type.Int32 => "int32",
+            FieldDescriptorProto.Types.Type.Fixed64 => "fixed64",
+            FieldDescriptorProto.Types.Type.Fixed32 => "fixed32",
+            FieldDescriptorProto.Types.Type.Bool => "bool",
+            FieldDescriptorProto.Types.Type.String => "string",
+            FieldDescriptorProto.Types.Type.Bytes => "bytes",
+            FieldDescriptorProto.Types.Type.Uint32 => "uint32",
+            FieldDescriptorProto.Types.Type.Sfixed32 => "sfixed32",
+            FieldDescriptorProto.Types.Type.Sfixed64 => "sfixed64",
+            FieldDescriptorProto.Types.Type.Sint32 => "sint32",
+            FieldDescriptorProto.Types.Type.Sint64 => "sint64",
+            _ => "bytes"
+        };
     }
 
     public sealed record CarvedDescriptor(string Name, int FileOffset, byte[] Bytes);
