@@ -38,7 +38,7 @@ RUN --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
     set -eux; \
     STAMP=""; \
     [ -n "$GIT_SHA" ] && STAMP="$STAMP -p:SourceRevisionId=$GIT_SHA"; \
-    [ -n "$APP_VERSION" ] && STAMP="$STAMP -p:Version=$APP_VERSION"; \
+    [ -n "$APP_VERSION" ] && STAMP="$STAMP -p:MinVerVersionOverride=$APP_VERSION"; \
     dotnet publish EggIncognito/EggIncognito.csproj -c Release -o /app/publish \
         -p:EmitTypes=false $STAMP; \
     test -s /app/publish/wwwroot/styles.css; \
