@@ -60,6 +60,32 @@ public sealed class AndroidPlatform(
     public override Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) =>
         new AdbDeviceProbe(runner, target.Target, target.Package).ProbeAsync(ct);
 
+    public override async Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct) {
+        try {
+            await Adb(target.Target, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], ct);
+            await Adb(target.Target, ["shell", "wm", "dismiss-keyguard"], ct);
+            await Adb(target.Target, ["shell", "svc", "power", "stayon", "true"], ct);
+            var stop = await Adb(target.Target, ["shell", "am", "force-stop", target.Package], ct);
+            if (stop.ExitCode != 0) {
+                logger.LogWarning("android: {Id} force-stop failed: {Note}",
+                    target.Id, DeviceParsing.TrimNote(stop.Stderr + stop.Stdout));
+            }
+
+            var launch = await Adb(target.Target,
+                ["shell", "monkey", "-p", target.Package, "-c", "android.intent.category.LAUNCHER", "1"], ct);
+            return launch.ExitCode == 0 ? DeviceResult.Success("restarted") : DeviceResult.Error("launch failed");
+        } catch (Exception ex) {
+            logger.LogDebug(ex, "android: {Id} restart failed (non-fatal)", target.Id);
+            return DeviceResult.Error(ex.Message);
+        }
+    }
+
+    public override async Task<DeviceResult> LockAsync(DeviceTarget target, CancellationToken ct) {
+        await Adb(target.Target, ["shell", "svc", "power", "stayon", "false"], ct);
+        var r = await Adb(target.Target, ["shell", "input", "keyevent", "KEYCODE_SLEEP"], ct);
+        return r.ExitCode == 0 ? DeviceResult.Success("locked") : DeviceResult.Error("lock failed");
+    }
+
     public override async Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct) {
         await Adb(target.Target, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], ct);
         var r = await Adb(target.Target, ["shell", "wm", "dismiss-keyguard"], ct);

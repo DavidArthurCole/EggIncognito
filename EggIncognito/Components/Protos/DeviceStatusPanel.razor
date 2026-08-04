@@ -61,6 +61,9 @@
                         <button class="icon-btn icon-btn-sm" disabled="@busy" title="Check this device's store for an update now" @onclick="() => CheckUpdate(d.Id)">
                             <Icon Name="@(busy ? "clock" : "refresh")"/>
                         </button>
+                        <button class="icon-btn icon-btn-sm" disabled="@busy" title="Restart Egg Inc to force an auxbrain call" @onclick="() => RestartApp(d.Id)">
+                            <Icon Name="@(busy ? "clock" : "play")"/>
+                        </button>
                     }
                 </div>
             }
@@ -233,6 +236,55 @@
 
     Task Save(string id) {
         return Act(id, $"/api/devices/{id}/save", "pulling + extracting...", "installed to registry", OnSaved);
+    }
+
+
+    async Task RestartApp(string id) {
+        _busy.Add(id);
+        AddLog(id, "restarting app...");
+        StateHasChanged();
+        try {
+            var resp = await Client().PostAsync($"/api/devices/{id}/restart-app", null);
+            if (resp.IsSuccessStatusCode) {
+                AddLog(id, "launched, waiting for API call...");
+                await InvokeAsync(StateHasChanged);
+                var captured = false;
+                for (var i = 0; i < 8 && !_disposed; i++) {
+                    await Task.Delay(2000);
+                    if (await LiveClientVersion(id) is not null) {
+                        captured = true;
+                        break;
+                    }
+                }
+
+                AddLog(id, captured ? "clientVersion captured" : "no clientVersion captured (timed out)", !captured);
+                await LoadAsync();
+            } else {
+                AddLog(id, await ReadError(resp), true);
+            }
+        }
+        catch (Exception ex) {
+            AddLog(id, ex.Message, true);
+        }
+        finally {
+            _busy.Remove(id);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+
+    async Task<int?> LiveClientVersion(string id) {
+        try {
+            var resp = await Client().GetAsync($"/api/devices/{id}/live");
+            if (!resp.IsSuccessStatusCode) return null;
+            var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            return body.TryGetProperty("clientVersion", out var cv) && cv.ValueKind == JsonValueKind.Number
+                ? cv.GetInt32()
+                : null;
+        }
+        catch {
+            return null;
+        }
     }
 
 

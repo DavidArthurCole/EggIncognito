@@ -13,5 +13,6 @@ public interface IStoreUpdateDriver {
     Task PrepareAsync(DeviceTarget target, CancellationToken ct);
     Task<StoreProbeOutcome> ProbeStoreAsync(DeviceTarget target, string installed, Action<string>? progress, CancellationToken ct);
     Task<TriggerOutcome> TriggerInstallAsync(DeviceTarget target, Action<string>? progress, CancellationToken ct);
+    Task<bool> ProbeInstallCompleteAsync(DeviceTarget target, CancellationToken ct) => Task.FromResult(false);
     Task CleanupAsync(DeviceTarget target, CancellationToken ct);
 }

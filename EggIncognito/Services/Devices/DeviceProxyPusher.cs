@@ -1,3 +1,4 @@
+using EggIncognito.Capture;
 using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices;
@@ -46,5 +47,55 @@ public sealed class DeviceProxyPusher(
         if (res.Ok) logger.LogInformation("device capture: {Id} proxy -> {Host}:{Port}", d.Id, host, port);
         else logger.LogWarning("device capture: {Id} proxy push failed: {Note}", d.Id, res.Note);
         return (res.Ok, res.Note);
+    }
+
+
+    public DeviceRinfo? LastRinfo(string deviceId) => manager.Rinfo.Latest(deviceId);
+
+    public async Task<DeviceRinfo?> ForceHarvestAsync(DeviceEntry d, TimeSpan timeout, CancellationToken ct) {
+        var before = manager.Rinfo.Latest(d.Id);
+        await RestartAppAsync(d, ct);
+
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        DeviceRinfo? result = null;
+        while (DateTimeOffset.UtcNow < deadline) {
+            try {
+                await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            } catch (OperationCanceledException) {
+                break;
+            }
+
+            var now = manager.Rinfo.Latest(d.Id);
+            if (now is not null && (before is null || now.LastSeen != before.LastSeen)) {
+                result = now;
+                break;
+            }
+        }
+
+        try {
+            await LockDeviceAsync(d, ct);
+        } catch (Exception ex) {
+            logger.LogDebug(ex, "device {Id} relock failed (non-fatal)", d.Id);
+        }
+
+        return result ?? manager.Rinfo.Latest(d.Id);
+    }
+
+
+    public async Task<(bool Ok, string? Note)> LockDeviceAsync(DeviceEntry d, CancellationToken ct) {
+        var res = await platforms.For(d.Platform).LockAsync(TargetOf(d), ct);
+        return (res.Ok, res.Note);
+    }
+
+
+    public async Task<(bool Ok, string? Note)> RestartAppAsync(DeviceEntry d, CancellationToken ct) {
+        try {
+            var res = await platforms.For(d.Platform).RestartAppAsync(TargetOf(d), ct);
+            logger.LogInformation("device capture: {Id} app restart ({Outcome}): {Note}", d.Id, res.Outcome, res.Note);
+            return (res.Ok, res.Note);
+        } catch (Exception ex) {
+            logger.LogDebug(ex, "device capture: {Id} app restart failed (non-fatal)", d.Id);
+            return (false, ex.Message);
+        }
     }
 }

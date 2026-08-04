@@ -56,7 +56,8 @@ public sealed class StoreUpdateOrchestrator(
             progress?.Invoke(
                 $"install triggered; waiting for {driver.StoreName} to install (up to {opts.PollAttempts * opts.PollSeconds}s)…");
             var result = await StorePoll.WaitForClimbAsync(device.Id, driver.Platform, driver.StoreName, before,
-                c => driver.ReadInstalledAsync(device, c), opts.PollSeconds, opts.PollAttempts, logger, progress, ct);
+                c => driver.ReadInstalledAsync(device, c), opts.PollSeconds, opts.PollAttempts, logger, progress, ct,
+                c => driver.ProbeInstallCompleteAsync(device, c));
             if (result is { Installed: true, InstalledAfter: not null }) {
                 await knownVersions.RecordAsync(driver.Platform, result.InstalledAfter, "device-climb",
                     CancellationToken.None);

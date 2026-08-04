@@ -76,6 +76,14 @@ public sealed class AndroidStoreUpdateDriver(
         return new TriggerOutcome(true, null);
     }
 
+    public async Task<bool> ProbeInstallCompleteAsync(DeviceTarget target, CancellationToken ct) {
+        string? xml = await DumpUiAsync(target, ct);
+        if (xml is null) return false;
+        return (HasButton(xml, "Play") || HasButton(xml, "Open"))
+               && HasButton(xml, "Uninstall")
+               && FindUpdateButtonCenter(xml) is null;
+    }
+
     public async Task CleanupAsync(DeviceTarget target, CancellationToken ct) {
         try {
             await Shell(target, "input keyevent KEYCODE_HOME", ct);

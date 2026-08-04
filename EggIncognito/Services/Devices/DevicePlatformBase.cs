@@ -56,6 +56,8 @@ public abstract class DevicePlatformBase : IDevicePlatform {
         CancellationToken ct);
 
     public abstract Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct);
+    public abstract Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct);
+    public abstract Task<DeviceResult> LockAsync(DeviceTarget target, CancellationToken ct);
     public abstract Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct);
     public abstract Task<DeviceResult> KillAppAsync(DeviceTarget target, CancellationToken ct);
 

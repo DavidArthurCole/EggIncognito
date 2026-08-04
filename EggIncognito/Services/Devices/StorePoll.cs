@@ -7,7 +7,8 @@ public static class StorePoll {
         string id, string label, string storeName, string before,
         Func<CancellationToken, Task<string?>> readInstalled,
         int pollSeconds, int pollAttempts, ILogger logger,
-        Action<string>? progress, CancellationToken ct) {
+        Action<string>? progress, CancellationToken ct,
+        Func<CancellationToken, Task<bool>>? storeConfirmsInstalled = null) {
         for (int attempt = 0; attempt < pollAttempts; attempt++) {
             if (ct.IsCancellationRequested) break;
             try {
@@ -25,6 +26,16 @@ public static class StorePoll {
                 logger.LogInformation("device check-update: {Id} {Label} climb {Before} -> {After}", id, label, before,
                     now);
                 return new StoreCheckResult(true, before, now, true, true, "updated", $"updated {before} -> {now}");
+            }
+
+            if (storeConfirmsInstalled is not null && await storeConfirmsInstalled(ct)) {
+                string? confirmed = now ?? before;
+                progress?.Invoke($"{storeName} reports install complete (installed {confirmed})");
+                logger.LogInformation(
+                    "device check-update: {Id} {Label} store-confirmed complete {Before} -> {After}",
+                    id, label, before, confirmed);
+                return new StoreCheckResult(true, before, confirmed, true, true, "updated",
+                    $"{storeName} page reports install complete ({before} -> {confirmed})");
             }
 
             progress?.Invoke($"waiting for {storeName} install… {n * pollSeconds}s elapsed (no change yet)");

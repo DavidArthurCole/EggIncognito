@@ -20,6 +20,8 @@ public interface IDevicePlatform {
     Task<DeviceResult> ClearProxyAsync(DeviceTarget target, CancellationToken ct);
     Task<DeviceResult> InstallCaAsync(DeviceTarget target, string caPath, CancellationToken ct);
 
+    Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct);
+    Task<DeviceResult> LockAsync(DeviceTarget target, CancellationToken ct);
     Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct);
     Task<DeviceResult> KillAppAsync(DeviceTarget target, CancellationToken ct);
 
@@ -72,6 +74,12 @@ public sealed class NullDevicePlatform : IDevicePlatform {
         Task.FromResult(DeviceResult.Unsupported(Note(target)));
 
     public Task<DeviceResult> InstallCaAsync(DeviceTarget target, string caPath, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Unsupported(Note(target)));
+
+    public Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Unsupported(Note(target)));
+
+    public Task<DeviceResult> LockAsync(DeviceTarget target, CancellationToken ct) =>
         Task.FromResult(DeviceResult.Unsupported(Note(target)));
 
     public Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct) =>

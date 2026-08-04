@@ -369,9 +369,10 @@ public sealed class DevicesController(
         string sha = carve.ProtoSha ?? Hashes.Sha256Hex(carve.Proto);
 
 
-        string? clientVersion = carve.ClientVersion?.ToString();
+        string? clientVersion = carve.ClientVersion?.ToString()
+                                ?? await HarvestClientVersionAsync(device, HttpContext.RequestAborted);
         logger.LogInformation("device save: {Id} clientVersion={Cv} (source={Src})", id, clientVersion ?? "(none)",
-            carve.ClientVersion is not null ? "binary" : "none");
+            carve.ClientVersion is not null ? "binary" : "harvest");
 
         try {
             (var row, bool created, bool protoChanged) = await registry.UpsertAsync(
@@ -467,6 +468,20 @@ public sealed class DevicesController(
             ? probe.InstalledBuild!
             : Hashes.Sha256HexShort(bin, 16);
         return (new CarveResult(iosCarve.Proto, iosBuild, LibegincClientVersion.ReadFromBinary(bin), iosCarve.ProtoSha), null);
+    }
+
+
+    private async Task<string?> HarvestClientVersionAsync(Device device, CancellationToken ct) {
+        if (services.GetService(typeof(DeviceProxyPusher)) is not DeviceProxyPusher pusher ||
+            services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg) {
+            return null;
+        }
+
+        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == device.Id);
+        if (entry is null) return null;
+
+        var rinfo = await pusher.ForceHarvestAsync(entry, TimeSpan.FromSeconds(5), ct);
+        return rinfo?.ClientVersion?.ToString();
     }
 
 
@@ -641,6 +656,25 @@ public sealed class DevicesController(
 
         bool deleted = cache.Delete(device.Platform, stem);
         return Ok(new { ok = deleted, deleted });
+    }
+
+
+    [HttpPost("{id}/restart-app")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> RestartApp(string id) {
+        if (RequireAdmin() is { } no) return no;
+        if (services.GetService(typeof(DeviceProxyPusher))
+                is not DeviceProxyPusher pusher
+            || services.GetService(typeof(DeviceConfig))
+                is not DeviceConfig devCfg) {
+            return StatusCode(503, new { error = "device capture not configured" });
+        }
+
+        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
+        if (entry is null) return NotFound(new { error = "unknown device" });
+
+        (bool ok, string? note) = await pusher.RestartAppAsync(entry, HttpContext.RequestAborted);
+        return ok ? Ok(new { restarted = true, note }) : StatusCode(502, new { error = note ?? "restart failed" });
     }
 
 
