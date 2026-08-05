@@ -1,9 +1,11 @@
 @* The middle flow list: row construction (time, path, known dot, outcome tag, status badge, type
    chips), filters (group/path/type), select, and device-aware empty state. *@
+@using System.Globalization
 @using EggIncognito.Capture
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject IServiceProvider Services
 
 <section id="flowsPanel" class="panel">
     <div class="flow-head">
@@ -12,11 +14,9 @@
             <span class="flow-filters-label">Filters</span>
             <select class="flow-filter-select" title="API group" value="@_group" @onchange="OnGroupChange">
                 <option value="">All groups</option>
-                <option value="ei">ei</option>
-                <option value="ei_afx">ei_afx</option>
-                <option value="ei_ctx">ei_ctx</option>
-                <option value="ei_data">ei_data</option>
-                <option value="ei_srv">ei_srv</option>
+                @foreach (var g in GroupOptions()) {
+                    <option value="@g">@g</option>
+                }
             </select>
             <div class="flow-combo">
                 <input class="flow-filter-input" type="search" placeholder="path..." autocomplete="off"
@@ -52,7 +52,9 @@
                     </div>
                 }
             </div>
-            <button type="button" class="btn-mini" title="Reset all filters" @onclick="ClearFilters">Clear filters</button>
+            <button type="button" class="icon-btn icon-btn-sm" title="Reset all filters" aria-label="Reset all filters" @onclick="ClearFilters">
+                <Icon Name="x"/>
+            </button>
         </div>
     </div>
     <div id="flowList" class="flow-list" @ref="_listRef">
@@ -70,7 +72,23 @@
                 }
             </div>
         } else {
-            @foreach (var flow in Flows) {
+            TimeSpan? prevTime = null;
+            var first = true;
+            foreach (var flow in Flows) {
+                var t = ParseTime(flow.Timestamp);
+                if (!Filtering && !first && prevTime is { } p && t is { } cur) {
+                    var gap = cur - p;
+                    if (gap < TimeSpan.Zero) gap += TimeSpan.FromDays(1);
+                    if (gap >= BurstGap) {
+                        <div class="flow-burst-sep">
+                            <span>@flow.Timestamp</span>
+                            <span class="burst-gap">+@FormatGap(gap)</span>
+                        </div>
+                    }
+                }
+
+                if (t is not null) prevTime = t;
+                first = false;
                 @Row(flow)
             }
         }
@@ -84,10 +102,20 @@
     [Parameter] public CaptureViewState View { get; set; } = new();
     [Parameter] public EventCallback<long> OnSelect { get; set; }
 
+    static readonly TimeSpan BurstGap = TimeSpan.FromSeconds(3);
+
     string _group = "";
     string _pathFilter = "";
     string _typeFilter = "";
     string? _openCombo;
+
+    bool Filtering => !string.IsNullOrEmpty(_group) || !string.IsNullOrEmpty(_pathFilter) || !string.IsNullOrEmpty(_typeFilter);
+
+    static TimeSpan? ParseTime(string? ts) =>
+        TimeSpan.TryParseExact(ts, @"hh\:mm\:ss", CultureInfo.InvariantCulture, out var t) ? t : null;
+
+    static string FormatGap(TimeSpan gap) =>
+        gap >= TimeSpan.FromMinutes(1) ? $"{(int)gap.TotalMinutes}m {gap.Seconds}s" : $"{(int)gap.TotalSeconds}s";
 
     ElementReference _listRef;
     IJSObjectReference? _scroll;
@@ -141,6 +169,18 @@
         _openCombo = null;
     }
 
+    IEnumerable<string> GroupOptions() {
+        var set = new SortedSet<string>(StringComparer.Ordinal);
+        if (Services.GetService(typeof(AuxbrainSurface)) is AuxbrainSurface surface) set.UnionWith(surface.Namespaces);
+        foreach (var f in Flows) {
+            var p = f.Path ?? "";
+            var i = p.IndexOf('/');
+            if (i > 0) set.Add(p[..i]);
+        }
+
+        return set;
+    }
+
     IEnumerable<string> PathOptions() {
         var seen = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var f in Flows)
@@ -179,32 +219,31 @@
 
     RenderFragment Row(DashboardFlow flow) => @<div class="flow-row @(SelectedId == flow.Id ? "active" : "") @(Matches(flow) ? "" : "filtered-out")"
                                                     @onclick="@(() => OnSelect.InvokeAsync(flow.Id))">
-                                                  <div class="frow-top">
-                                                      @{
-                                                          var noReqBody = string.IsNullOrEmpty(flow.RequestDataB64);
-                                                          var outcome = View.CompareToKnown ? CaptureHelpers.Outcome(flow.Outcome) : null;
-                                                      }
-                                                      <span class="ftime">@flow.Timestamp</span>
-                                                      <span class="fpath" title="@flow.Path">@flow.Path</span>
-                                                      @if (flow.Known || flow.Saved) {
-                                                          <span class="known-dot" title="@KnownDotTitle(flow)"></span>
-                                                      }
-                                                      @if (outcome is not null) {
-                                                          @OutcomeTag(flow, outcome)
-                                                      }
-                                                      <span class="status-badge @CaptureHelpers.StatusClass(flow.Status)">@flow.Status</span>
-                                                  </div>
-                                                  <div class="frow-types">
-                                                      <span class="type-chip @(flow.RequestType is null ? "unknown" : "")"
-                                                            title="@(flow.RequestType ?? (noReqBody ? "no request body" : "unknown request type"))">
-                                                          @(flow.RequestType ?? (noReqBody ? "(none)" : "(unknown)"))
-                                                      </span>
+                                                  @{
+                                                      var noReqBody = string.IsNullOrEmpty(flow.RequestDataB64);
+                                                      var outcome = View.CompareToKnown ? CaptureHelpers.Outcome(flow.Outcome) : null;
+                                                      var reqType = flow.RequestType ?? (noReqBody ? "(none)" : "(unknown)");
+                                                      var respType = flow.ResponseType ?? "(unknown)";
+                                                  }
+                                                  <span class="fseq">#@flow.Id</span>
+                                                  <span class="ftime">@flow.Timestamp</span>
+                                                  <span class="fpath" title="@flow.Path">@flow.Path</span>
+                                                  <span class="ftypes" title="@($"{reqType} › {respType}")">
+                                                      <span class="@(flow.RequestType is null ? "unknown" : "")">@reqType</span>
                                                       <span class="type-arrow">›</span>
-                                                      <span class="type-chip @(flow.ResponseType is null ? "unknown" : "")"
-                                                            title="@(flow.ResponseType ?? "unknown response type")">
-                                                          @(flow.ResponseType ?? "(unknown)")
-                                                      </span>
-                                                  </div>
+                                                      <span class="@(flow.ResponseType is null ? "unknown" : "")">@respType</span>
+                                                  </span>
+                                                  @if (flow.Known || flow.Saved) {
+                                                      <span class="known-dot" title="@KnownDotTitle(flow)"></span>
+                                                  }
+                                                  @if (outcome is not null) {
+                                                      @OutcomeTag(flow, outcome)
+                                                  }
+                                                  @if (flow.Status is >= 200 and < 300) {
+                                                      <span class="status-dot" title="HTTP @flow.Status"></span>
+                                                  } else {
+                                                      <span class="status-badge @CaptureHelpers.StatusClass(flow.Status)">@flow.Status</span>
+                                                  }
                                               </div>;
 
     static string KnownDotTitle(DashboardFlow flow) {

@@ -736,18 +736,21 @@ pre.data-text {
 .forensics-wire { @apply text-muted ml-1; }
 .forensics-flag { @apply text-err text-[10px] uppercase ml-1.5 border border-err rounded px-1; }
 .hex-error { @apply text-err font-bold; }
-.flow-row { @apply flex flex-col gap-[3px] px-2 py-1.5 rounded cursor-pointer [border:1px_solid_transparent]; }
+.flow-row { @apply flex items-center gap-2 px-2 py-1 rounded cursor-pointer [border:1px_solid_transparent]; }
 .flow-row:hover { @apply bg-panel2; }
 .flow-row.active { @apply bg-panel2 border-accent; }
 .flow-row.filtered-out { display: none; }
-.frow-top { @apply flex items-center gap-2; }
-.flow-row .ftime { @apply text-muted font-mono text-[11px]; }
+.flow-row .fseq { @apply text-muted opacity-50 font-mono text-[10px] min-w-[2rem] text-right flex-none; }
+.flow-row .ftime { @apply text-muted font-mono text-[11px] flex-none; }
 .known-dot { @apply w-2 h-2 rounded-full bg-ok flex-none; }
-.frow-types { @apply flex items-center gap-1 font-mono text-[10px] text-muted min-w-0; }
-.type-chip { @apply overflow-hidden text-ellipsis whitespace-nowrap [max-width:47%]; }
-.type-chip.unknown { @apply italic opacity-70; }
-.type-arrow { @apply text-muted opacity-60 flex-none text-xs; }
-.flow-row .fpath { @apply font-mono text-xs flex-1 overflow-hidden text-ellipsis whitespace-nowrap; }
+.ftypes { @apply flex-1 min-w-0 font-mono text-[10px] text-muted overflow-hidden text-ellipsis whitespace-nowrap; }
+.ftypes .unknown { @apply italic opacity-70; }
+.type-arrow { @apply text-muted opacity-60 text-xs; }
+.status-dot { @apply w-2 h-2 rounded-full flex-none; border: 1px solid var(--color-ok); }
+.flow-burst-sep { @apply flex items-center gap-2 mt-2 mb-0.5 px-2 font-mono text-[10px] text-muted; }
+.flow-burst-sep::after { content: ""; flex: 1; border-top: 1px solid var(--color-border); }
+.burst-gap { @apply opacity-60; }
+.flow-row .fpath { @apply font-mono text-xs flex-none max-w-[50%] overflow-hidden text-ellipsis whitespace-nowrap; }
 
 #detail { overflow: auto; flex: 1 1 0%; padding-right: 0.75rem; scrollbar-gutter: stable; }
 .detail-head { @apply font-mono text-[13px] mb-3; }
