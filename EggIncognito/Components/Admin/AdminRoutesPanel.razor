@@ -208,7 +208,7 @@
     }
 
     static string EffectiveLabel(bool? v) {
-        return v is { } b ? (b ? "true" : "false") : "-";
+        return v is { } b ? b ? "true" : "false" : "-";
     }
 
     static bool? ParseTriState(string v) {
@@ -229,9 +229,9 @@
         _msg = null;
         _draftRequest = row.Override?.Request ?? "";
         _draftResponse = row.Override?.Response ?? "";
-        _draftRequestWrapped = row.Override?.RequestWrapped is { } rw ? (rw ? "true" : "false") : "inherit";
-        _draftResponseWrapped = row.Override?.ResponseWrapped is { } sw ? (sw ? "true" : "false") : "inherit";
-        _draftPathParam = row.Override?.PathParam is { } pp ? (pp ? "true" : "false") : "inherit";
+        _draftRequestWrapped = row.Override?.RequestWrapped is { } rw ? rw ? "true" : "false" : "inherit";
+        _draftResponseWrapped = row.Override?.ResponseWrapped is { } sw ? sw ? "true" : "false" : "inherit";
+        _draftPathParam = row.Override?.PathParam is { } pp ? pp ? "true" : "false" : "inherit";
     }
 
     async Task LoadMessages() {
