@@ -9,7 +9,15 @@ permissions:
   packages: write
 
 jobs:
+  ci:
+    uses: DavidArthurCole/EggIdentity/.github/workflows/dotnet-ci.yml@main
+    with:
+      solution: EggIncognito.slnx
+      packages-auth: true
+    secrets: inherit
+
   create-release:
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: softprops/action-gh-release@v3
@@ -17,6 +25,7 @@ jobs:
           generate_release_notes: true
 
   nuget:
+    needs: ci
     uses: DavidArthurCole/EggIdentity/.github/workflows/nuget-publish.yml@main
     permissions:
       contents: read
@@ -111,6 +120,7 @@ jobs:
           files: SHA256SUMS
 
   docker:
+    needs: ci
     uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
@@ -123,6 +133,7 @@ jobs:
     secrets: inherit
 
   docker-runner:
+    needs: ci
     uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read

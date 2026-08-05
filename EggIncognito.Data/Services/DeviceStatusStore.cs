@@ -124,7 +124,7 @@ public sealed class DeviceStatusStore(EggIncognitoDbContext db) : IDeviceStatusS
                 : await db.DeviceProbes.AsNoTracking().Where(p => p.DeviceId == id && !p.Reachable).CountAsync(ct);
         }
 
-        return enabledIds.Select(id => new DeviceProbeStats(
+        return [.. enabledIds.Select(id => new DeviceProbeStats(
             id,
             totalsMap.TryGetValue(id, out var t) ? t.Total : 0,
             totalsMap.TryGetValue(id, out var t2) ? t2.Reachable : 0,
@@ -132,6 +132,6 @@ public sealed class DeviceStatusStore(EggIncognitoDbContext db) : IDeviceStatusS
             lastFailureMap.TryGetValue(id, out var lf) ? lf : null,
             consecutiveFailures.GetValueOrDefault(id),
             resultCounts.Where(r => r.DeviceId == id)
-                .ToDictionary(r => r.Result, r => r.Count))).ToList();
+                .ToDictionary(r => r.Result, r => r.Count)))];
     }
 }
