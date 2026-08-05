@@ -171,6 +171,23 @@ public sealed class RouteAdminControllerTests : IDisposable {
         Assert.Contains("\"field\":\"new\"", json);
     }
 
+    [Fact]
+    public void ListBinary_EditedRoute_DriftSuppressed() {
+        var routes = new FakeCatalog();
+        var binaryRoute = new BinaryRouteInfo("ei/known", "getKnown", "X", "Y", true, false, "1.37",
+            DateTimeOffset.UnixEpoch);
+        var services = new ServiceCollection()
+            .AddSingleton<IBinaryRouteProvider>(new FakeBinary(binaryRoute))
+            .AddSingleton<IRouteOverrideProvider>(new FakeOverrides(Override("ei/known", response: "Y")))
+            .BuildServiceProvider();
+
+        var result = Assert.IsType<OkObjectResult>(Controller(routes, YamlWith("ei/known"), services).ListBinary());
+        string json = Json(result.Value);
+
+        Assert.Contains("\"driftCount\":0", json);
+        Assert.DoesNotContain("\"field\":\"requestWrapped\"", json);
+    }
+
     private sealed class FakeCatalog(params RouteInfo[] routes) : IRouteCatalog {
         private readonly Dictionary<string, RouteInfo> _map = routes.ToDictionary(r => r.Path, StringComparer.Ordinal);
         public IReadOnlyList<RouteInfo> All() => routes;

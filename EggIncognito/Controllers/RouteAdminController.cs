@@ -69,7 +69,11 @@ public sealed class RouteAdminController(
 
         var rows = binary.AllBinaryRoutes();
         var nonBinaryEffective = new OverlayRouteCatalog(new MergedRouteCatalog(yamlRoutes, DbRoutes), Overrides).All();
-        var drift = RouteDrift.Compute(nonBinaryEffective, rows);
+        var edited = new HashSet<string>(
+            Overrides?.Snapshot().Keys ?? [], StringComparer.Ordinal);
+        var drift = RouteDrift.Compute(nonBinaryEffective, rows)
+            .Where(d => d.Field == "new" || !edited.Contains(d.Path))
+            .ToList();
         DateTimeOffset? lastRefresh = rows.Count == 0 ? null : rows.Max(r => r.RefreshedAt);
         string? binaryVersion = rows.Count == 0 ? null : rows[0].BinaryVersion;
 

@@ -49,7 +49,7 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         var identity = Identity;
         if (identity is null) return StatusCode(503, new { error = "identity api not configured" });
         var users = await identity.ListAdminUsersAsync(HttpContext.RequestAborted);
-        var rows = users.Select(u => new { u.DiscordId, u.Username, u.Role, u.LastLoginAt });
+        var rows = users.Select(u => new { u.DiscordId, u.Username, u.Role, u.Providers, u.LastLoginAt });
         return Ok(rows);
     }
 

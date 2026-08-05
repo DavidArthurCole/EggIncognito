@@ -37,14 +37,25 @@
                         <table class="data-table admin-users-table">
                             <thead>
                             <tr>
-                                <th>User</th><th>Discord ID</th><th>Role</th><th>Last login</th>
+                                <th>User</th><th>OIDC Sources</th><th>Role</th><th>Last login</th>
                             </tr>
                             </thead>
                             <tbody>
                             @foreach (var u in _users) {
                                 <tr>
                                     <td class="font-medium">@u.Username</td>
-                                    <td class="mono text-muted text-xs">@u.DiscordId</td>
+                                    <td>
+                                        @{ var provs = u.Providers ?? []; }
+                                        <div class="oidc-sources">
+                                            @if (provs.Count == 0) {
+                                                <span class="text-muted text-xs">none</span>
+                                            } else {
+                                                @foreach (var p in provs) {
+                                                    <span class="oidc-icon" title="@p">@((MarkupString)ProviderGlyph(p))</span>
+                                                }
+                                            }
+                                        </div>
+                                    </td>
                                     <td>
                                         <select class="reg-filter-input w-auto" value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
                                             @foreach (var role in Roles) {
@@ -133,7 +144,18 @@
         }
     }
 
-    record UserRow(string DiscordId, string Username, string Role, DateTimeOffset LastLoginAt);
+    static string ProviderGlyph(string provider) {
+        var path = provider switch {
+            "discord" => "<path d=\"M20.317 4.369A19.79 19.79 0 0 0 16.558 3.2a13.9 13.9 0 0 0-.617 1.267 18.27 18.27 0 0 0-5.885 0A13.9 13.9 0 0 0 9.44 3.2 19.74 19.74 0 0 0 5.678 4.37C1.856 10.06.826 15.606 1.34 21.075a19.9 19.9 0 0 0 6.073 3.07c.492-.672.93-1.387 1.307-2.138a12.9 12.9 0 0 1-2.06-.99c.173-.126.342-.258.505-.393a14.2 14.2 0 0 0 12.147 0c.165.14.334.272.505.393-.658.39-1.35.722-2.063.99.377.75.815 1.465 1.307 2.137a19.84 19.84 0 0 0 6.075-3.07c.604-6.34-1.03-11.834-4.32-16.705zM8.02 17.33c-1.183 0-2.157-1.085-2.157-2.42 0-1.334.955-2.42 2.157-2.42 1.21 0 2.176 1.096 2.157 2.42 0 1.335-.955 2.42-2.157 2.42zm7.975 0c-1.183 0-2.157-1.085-2.157-2.42 0-1.334.955-2.42 2.157-2.42 1.21 0 2.176 1.096 2.157 2.42 0 1.335-.946 2.42-2.157 2.42z\"/>",
+            "google" => "<path d=\"M12 11v2.8h4.6c-.2 1.2-1.4 3.5-4.6 3.5-2.8 0-5-2.3-5-5.1s2.2-5.1 5-5.1c1.6 0 2.6.7 3.2 1.2l2.2-2.1C16 3.9 14.2 3 12 3 7.6 3 4 6.6 4 11s3.6 8 8 8c4.6 0 7.6-3.2 7.6-7.8 0-.5 0-.9-.1-1.2H12z\"/>",
+            "microsoft" => "<path d=\"M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z\"/>",
+            "github" => "<path d=\"M12 1.5A10.5 10.5 0 0 0 8.68 22c.52.1.71-.23.71-.5 0-.25-.01-1.08-.02-1.96-2.89.63-3.5-1.23-3.5-1.23-.47-1.2-1.15-1.52-1.15-1.52-.94-.64.07-.63.07-.63 1.04.07 1.59 1.07 1.59 1.07.93 1.59 2.44 1.13 3.03.87.09-.68.36-1.13.66-1.39-2.31-.26-4.74-1.16-4.74-5.14 0-1.14.4-2.06 1.07-2.79-.11-.26-.46-1.31.1-2.72 0 0 .87-.28 2.85 1.07a9.9 9.9 0 0 1 5.2 0c1.98-1.35 2.85-1.07 2.85-1.07.56 1.41.21 2.46.1 2.72.67.73 1.07 1.65 1.07 2.79 0 3.99-2.43 4.87-4.75 5.13.37.32.7.95.7 1.92 0 1.39-.01 2.51-.01 2.85 0 .28.19.61.72.5A10.5 10.5 0 0 0 12 1.5z\"/>",
+            _ => "<circle cx=\"12\" cy=\"12\" r=\"6\"/>"
+        };
+        return $"<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" width=\"14\" height=\"14\" aria-hidden=\"true\" style=\"display:block\">{path}</svg>";
+    }
+
+    record UserRow(string DiscordId, string Username, string Role, List<string>? Providers, DateTimeOffset LastLoginAt);
 
     record SetRoleResult(string DiscordId, string Role);
 

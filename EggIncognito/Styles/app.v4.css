@@ -1059,6 +1059,10 @@ pre.data-text {
 .admin-grid { @apply grid gap-4 items-start lg:grid-cols-2; }
 .admin-col-left, .admin-col-right { @apply min-w-0; }
 .admin-users-scroll { @apply max-h-[36rem] overflow-y-auto; }
+.admin-routes-scroll { @apply max-h-[34rem] overflow-y-auto; }
+.oidc-sources { @apply flex items-center gap-1.5; }
+.oidc-icon { @apply inline-flex items-center text-muted; }
+.oidc-icon:hover { @apply text-fg; }
 
 .skm {
   margin-bottom: 1rem;
@@ -1084,8 +1088,10 @@ pre.data-text {
 .skm-tab-on { border-color: var(--color-accent); color: var(--color-accent); }
 .skm-spacer { flex: 1 1 0%; }
 .skm-table { width: 100%; font-size: 0.75rem; color: var(--color-muted); font-variant-numeric: tabular-nums; border: 1px solid var(--color-border); border-radius: 0.375rem; border-collapse: collapse; overflow: hidden; }
-.skm-table thead th { position: sticky; top: 0; z-index: 10; background-color: var(--color-panel0); text-align: left; padding: 0.25rem 0.5rem; white-space: nowrap; }
-.skm-table td { padding: 0.25rem 0.5rem; white-space: nowrap; }
+.skm-table thead, .skm-table tbody tr { display: table; width: 100%; table-layout: fixed; }
+.skm-table tbody { display: block; max-height: 22rem; overflow-y: auto; }
+.skm-table thead th { background-color: var(--color-panel0); text-align: left; padding: 0.25rem 0.5rem; white-space: nowrap; }
+.skm-table td { padding: 0.25rem 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .skm-table tbody tr { border-top: 1px solid var(--color-border); }
 .skm-table tbody tr:hover { background-color: var(--color-panel2); }
 .skm-num { text-align: right; font-variant-numeric: tabular-nums; }

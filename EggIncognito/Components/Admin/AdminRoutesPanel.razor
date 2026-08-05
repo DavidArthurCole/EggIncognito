@@ -33,7 +33,7 @@
     } else if (FilteredRows().Count == 0) {
         <p class="text-muted text-sm m-0">No routes match this filter.</p>
     } else {
-        <div class="reg-wrap">
+        <div class="reg-wrap admin-routes-scroll">
             <table class="data-table">
                 <thead>
                 <tr>
@@ -223,6 +223,10 @@
 
         _expandedPath = row.Path;
         _msg = null;
+        SeedDrafts(row);
+    }
+
+    void SeedDrafts(RouteRow row) {
         _draftRequest = row.Override?.Request ?? row.Effective?.Request ?? "";
         _draftResponse = row.Override?.Response ?? row.Effective?.Response ?? "";
         _draftRequestWrapped = Bool(row.Override?.RequestWrapped ?? row.Effective?.RequestWrapped);
@@ -363,9 +367,12 @@
                 d.Field == "responseWrapped" ? value : current?.ResponseWrapped ?? eff?.ResponseWrapped,
                 current?.PathParam ?? eff?.PathParam);
             var res = await ClientFactory().PutAsJsonAsync($"/api/admin/routes/{d.Path}", body, JsonOpts);
-            _msg = res.IsSuccessStatusCode ? $"applied {d.Field} drift for {d.Path}" : $"apply failed ({(int)res.StatusCode})";
+            _msg = res.IsSuccessStatusCode ? $"applied {d.Field} for {d.Path}" : $"apply failed ({(int)res.StatusCode})";
             await LoadRoutes();
             await LoadBinary();
+            if (_expandedPath == d.Path && _rows.FirstOrDefault(r => r.Path == d.Path) is { } fresh) {
+                SeedDrafts(fresh);
+            }
         }
         catch (Exception ex) {
             _msg = $"apply error: {ex.Message}";
