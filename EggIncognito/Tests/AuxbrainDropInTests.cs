@@ -100,6 +100,28 @@ public class AuxbrainDropInTests(EggIncApiFactory factory) {
         }
     }
 
+    [Fact]
+    public async Task NamespaceIndex_UnknownEiNamespace_Returns404() {
+        var resp = await _client.GetAsync("/ei_nope");
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Landing_ListsEveryCatalogNamespace() {
+        string body = await _client.GetStringAsync("/api");
+        var resp = await _client.GetAsync("/api/catalog");
+        resp.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        var namespaces = doc.RootElement.EnumerateArray()
+            .Select(e => e.GetProperty("namespace").GetString()!)
+            .Distinct()
+            .ToList();
+        Assert.NotEmpty(namespaces);
+        foreach (string ns in namespaces) {
+            Assert.Contains($"<a href=\"/{ns}\">/{ns}</a>", body);
+        }
+    }
+
     [Theory]
     [InlineData("/api")]
     [InlineData("/api/reference")]

@@ -549,6 +549,7 @@ pre.data-text {
 .inspector-main { @apply grid-cols-1; }
 .capture-body { @apply grid grid-cols-1 flex-1 min-h-0; }
 .capture-topbar { @apply relative z-30 flex flex-row flex-wrap items-center gap-x-5 gap-y-3 overflow-visible; }
+.panel.capture-topbar { @apply flex-row; }
 .capture-topbar-btns { @apply flex items-center gap-1.5; }
 .capture-topbar-spacer { @apply flex-1 min-w-[1rem]; }
 .capture-device { @apply flex flex-col leading-tight; }

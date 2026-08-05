@@ -9,7 +9,7 @@ namespace EggIncognito.Controllers;
 [EnableRateLimiting("read")]
 [ApiAccess(ApiAccessLevel.Public)]
 public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBase {
-    private const string LandingHtml = """
+    private const string LandingTemplate = """
                                        <!doctype html>
                                        <html lang="en">
                                        <head>
@@ -41,9 +41,7 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
                                        <li><a href="/inspector">/inspector</a> build, sign, send, and decode requests</li>
                                        <li><a href="/docs">/docs</a> message and endpoint documentation</li>
                                        </ul>
-                                       <p>Namespace indexes: <a href="/ei">/ei</a> <a href="/ei_afx">/ei_afx</a>
-                                       <a href="/ei_ctx">/ei_ctx</a> <a href="/ei_data">/ei_data</a>
-                                       <a href="/ei_srv">/ei_srv</a></p>
+                                       <p>Namespace indexes: NAMESPACE_LINKS</p>
                                        </body>
                                        </html>
                                        """;
@@ -66,7 +64,11 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
                                          """;
 
     [HttpGet("/api")]
-    public ContentResult Landing() => Content(LandingHtml, "text/html");
+    public ContentResult Landing() {
+        string links = string.Join(" ", surface.Namespaces.Order(StringComparer.Ordinal)
+            .Select(ns => $"<a href=\"/{ns}\">/{ns}</a>"));
+        return Content(LandingTemplate.Replace("NAMESPACE_LINKS", links), "text/html");
+    }
 
     [HttpGet("/api/openapi.json")]
     public ContentResult OpenApi() {
@@ -84,13 +86,9 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
     }
 
 
-    [HttpGet("/ei")]
-    [HttpGet("/ei_afx")]
-    [HttpGet("/ei_ctx")]
-    [HttpGet("/ei_data")]
-    [HttpGet("/ei_srv")]
-    public IActionResult NamespaceIndex() {
-        string ns = Request.Path.Value!.Trim('/');
+    [HttpGet("/{ns:regex(^ei(_[[a-z0-9]]+)?$)}")]
+    public IActionResult NamespaceIndex(string ns) {
+        if (!surface.Namespaces.Contains(ns)) return NotFound();
         Response.Headers.CacheControl = "public, max-age=300";
         return Ok(new {
             @namespace = ns,

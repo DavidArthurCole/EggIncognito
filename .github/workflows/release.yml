@@ -146,3 +146,19 @@ jobs:
       build-args: GITHUB_PACKAGES_USER=${{ github.actor }}
       cache-scope: runner
     secrets: inherit
+
+  fast-deploy:
+    uses: DavidArthurCole/EggIdentity/.github/workflows/fast-deploy-trigger.yml@main
+    with:
+      app: EggIncognito
+      agent-url: https://eggidentity.davidarthurcole.me/agent
+    secrets:
+      deploy-secret: ${{ secrets.EGI_DEPLOY_AGENT_SECRET }}
+
+  fast-deploy-runner:
+    uses: DavidArthurCole/EggIdentity/.github/workflows/fast-deploy-trigger.yml@main
+    with:
+      app: EggIncognitoRunner
+      agent-url: https://eggidentity.davidarthurcole.me/agent
+    secrets:
+      deploy-secret: ${{ secrets.EGI_RUNNER_DEPLOY_AGENT_SECRET }}
