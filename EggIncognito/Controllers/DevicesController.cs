@@ -60,6 +60,7 @@ public sealed class DevicesController(
         var regLatestApp = new Dictionary<string, string?>();
         var regLatestBuild = new Dictionary<string, string?>();
         var regClientVersion = new Dictionary<(string Platform, string AppVersion), int>();
+        var regBuildClientVersion = new Dictionary<(string Platform, string Build), int>();
         if (db is not null) {
             foreach (string plat in devices.Values.Select(d => d.Platform).Distinct()) {
                 storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, HttpContext.RequestAborted);
@@ -69,9 +70,11 @@ public sealed class DevicesController(
                     .Where(v => v.Platform == plat && (v.DeletedAt == null || v.CanonicalId != null))
                     .Select(v => new { v.Build, v.AppVersion, v.ClientVersion })
                     .ToListAsync(HttpContext.RequestAborted);
-                foreach (var e in extracted) {
-                    if (!string.IsNullOrEmpty(e.AppVersion) && int.TryParse(e.ClientVersion, out int cvv))
-                        regClientVersion[(plat, e.AppVersion)] = cvv;
+                foreach (var e in extracted.OrderBy(v => v.Build,
+                             Comparer<string>.Create((x, y) => DeviceParsing.CompareVersions(x, y)))) {
+                    if (!int.TryParse(e.ClientVersion, out int cvv)) continue;
+                    if (!string.IsNullOrEmpty(e.AppVersion)) regClientVersion[(plat, e.AppVersion)] = cvv;
+                    if (!string.IsNullOrEmpty(e.Build)) regBuildClientVersion[(plat, e.Build)] = cvv;
                 }
 
                 regLatestApp[plat] = extracted.Select(e => e.AppVersion)
@@ -105,10 +108,13 @@ public sealed class DevicesController(
                 installedAppVersion = p.InstalledAppVersion,
                 installedBuild = p.InstalledBuild,
                 clientVersion = binaries?.CachedClientVersion(d.Platform, p.InstalledAppVersion)
-                    ?? (p.InstalledAppVersion is { } iv &&
-                        regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
-                        ? rcv
-                        : (int?)null),
+                    ?? (p.InstalledBuild is { } ib &&
+                        regBuildClientVersion.TryGetValue((d.Platform, ib), out int bcv)
+                        ? bcv
+                        : p.InstalledAppVersion is { } iv &&
+                          regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
+                            ? rcv
+                            : (int?)null),
                 latestAvailable = p.LatestAvailable,
                 storeLatest = sl,
                 storeAhead = StoreAheadCheck.IsAhead(sl, p.InstalledAppVersion),

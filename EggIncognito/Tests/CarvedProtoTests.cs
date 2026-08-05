@@ -34,14 +34,18 @@ public class CarvedProtoTests {
             } },
         });
         backup.Field.Add(new FieldDescriptorProto {
-            Name = "settings", Number = 4,
+            Name = "settings",
+            Number = 4,
             Label = FieldDescriptorProto.Types.Label.Optional,
-            Type = FieldDescriptorProto.Types.Type.Message, TypeName = ".ei.Backup.Settings",
+            Type = FieldDescriptorProto.Types.Type.Message,
+            TypeName = ".ei.Backup.Settings",
         });
         backup.Field.Add(new FieldDescriptorProto {
-            Name = "platform", Number = 5,
+            Name = "platform",
+            Number = 5,
             Label = FieldDescriptorProto.Types.Label.Optional,
-            Type = FieldDescriptorProto.Types.Type.Enum, TypeName = ".ei.Platform",
+            Type = FieldDescriptorProto.Types.Type.Enum,
+            TypeName = ".ei.Platform",
         });
         fdp.MessageType.Add(backup);
         fdp.EnumType.Add(new EnumDescriptorProto {

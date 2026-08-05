@@ -1,7 +1,7 @@
-@using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@using System.Text.Json
 @implements IDisposable
 
 <section class="panel mb-4">
@@ -81,7 +81,9 @@
                         <div class="reg-wrap mt-1.5">
                             <table class="data-table">
                                 <thead>
-                                <tr><th>Time</th><th>Reachable</th><th>Result</th><th>Trigger</th><th>Note</th></tr>
+                                <tr>
+                                    <th>Time</th><th>Reachable</th><th>Result</th><th>Trigger</th><th>Note</th>
+                                </tr>
                                 </thead>
                                 <tbody>
                                 @foreach (var p in d.ProbeHistory) {
@@ -102,7 +104,9 @@
                         <div class="reg-wrap mt-1.5">
                             <table class="data-table">
                                 <thead>
-                                <tr><th>Time</th><th>Status</th><th>From</th><th>To</th><th>Trigger</th><th>Note</th></tr>
+                                <tr>
+                                    <th>Time</th><th>Status</th><th>From</th><th>To</th><th>Trigger</th><th>Note</th>
+                                </tr>
                                 </thead>
                                 <tbody>
                                 @foreach (var u in d.Updates.Recent) {
@@ -159,7 +163,7 @@
     }
 
     async Task OnWindowChanged(ChangeEventArgs e) {
-        if (int.TryParse(e.Value?.ToString(), out int h)) _hours = h;
+        if (int.TryParse(e.Value?.ToString(), out var h)) _hours = h;
         await Load();
     }
 
@@ -305,4 +309,5 @@
     record VerdictInfo(string Label, string Color, string Detail);
 
     record RinfoInfo(string? Version, string? Build, int? ClientVersion, string LastSeen);
+
 }

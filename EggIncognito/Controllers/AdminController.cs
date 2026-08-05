@@ -163,15 +163,18 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         var regLatestApp = new Dictionary<string, string?>();
         var storeLatest = new Dictionary<string, string?>();
         var regClientVersion = new Dictionary<(string Platform, string AppVersion), int>();
+        var regBuildClientVersion = new Dictionary<(string Platform, string Build), int>();
         foreach (string plat in devices.Select(d => d.Platform).Distinct()) {
             storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, ct);
             var extracted = await db.ProtoVersions.AsNoTracking()
                 .Where(v => v.Platform == plat && (v.DeletedAt == null || v.CanonicalId != null))
-                .Select(v => new { v.AppVersion, v.ClientVersion })
+                .Select(v => new { v.Build, v.AppVersion, v.ClientVersion })
                 .ToListAsync(ct);
-            foreach (var e in extracted) {
-                if (!string.IsNullOrEmpty(e.AppVersion) && int.TryParse(e.ClientVersion, out int cvv))
-                    regClientVersion[(plat, e.AppVersion)] = cvv;
+            foreach (var e in extracted.OrderBy(v => v.Build,
+                         Comparer<string>.Create((x, y) => DeviceParsing.CompareVersions(x, y)))) {
+                if (!int.TryParse(e.ClientVersion, out int cvv)) continue;
+                if (!string.IsNullOrEmpty(e.AppVersion)) regClientVersion[(plat, e.AppVersion)] = cvv;
+                if (!string.IsNullOrEmpty(e.Build)) regBuildClientVersion[(plat, e.Build)] = cvv;
             }
 
             regLatestApp[plat] = extracted.Select(e => e.AppVersion)
@@ -199,9 +202,11 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
             string? sl = storeLatest.GetValueOrDefault(d.Platform);
             string? installedAppVersion = probe?.InstalledAppVersion;
             int? clientVersion = binaries?.CachedClientVersion(d.Platform, installedAppVersion)
-                ?? (installedAppVersion is { } iv && regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
-                    ? rcv
-                    : (int?)null);
+                ?? (probe?.InstalledBuild is { } ib && regBuildClientVersion.TryGetValue((d.Platform, ib), out int bcv)
+                    ? bcv
+                    : installedAppVersion is { } iv && regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
+                        ? rcv
+                        : (int?)null);
 
             object? capture = null;
             object? rinfo = null;
