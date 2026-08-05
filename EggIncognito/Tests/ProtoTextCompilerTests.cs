@@ -451,6 +451,54 @@ public class ProtoTextCompilerTests {
     }
 
     [Fact]
+    public void Normalize_LegacySplitFileText_MergesCommonAndResolvesAux() {
+        const string legacy = """
+            syntax = "proto2";
+
+            package ei;
+
+            import "common.proto";
+
+            message M {
+                optional aux.Platform platform = 1;
+                optional aux.DeviceFormFactor form_factor = 2;
+                optional aux.AdNetwork ad_network = 3;
+            }
+            """;
+
+        var result = ProtoCanonicalForm.Normalize(legacy);
+        Assert.True(result.Ok, $"normalize failed: {result.Error}");
+        Assert.NotNull(result.Text);
+        Assert.NotNull(result.Sha);
+        Assert.DoesNotContain("aux.", result.Text!, StringComparison.Ordinal);
+        Assert.DoesNotContain("import", result.Text!, StringComparison.Ordinal);
+        Assert.Contains("enum Platform {", result.Text!, StringComparison.Ordinal);
+        Assert.Contains("DROID = 2;", result.Text!, StringComparison.Ordinal);
+        Assert.Contains("optional Platform platform = 1;", result.Text!, StringComparison.Ordinal);
+
+        var renorm = ProtoCanonicalForm.Normalize(result.Text!);
+        Assert.True(renorm.Ok, $"renormalize failed: {renorm.Error}");
+        Assert.Equal(result.Text, renorm.Text);
+        Assert.Equal(result.Sha, renorm.Sha);
+    }
+
+    [Fact]
+    public void Normalize_NonAuxUnresolvedType_StillFails() {
+        const string text = """
+            syntax = "proto2";
+            package ei;
+            message M {
+                optional auxiliary.Thing t = 1;
+            }
+            """;
+
+        var result = ProtoCanonicalForm.Normalize(text);
+        Assert.False(result.Ok);
+        Assert.Null(result.Sha);
+        Assert.Contains("auxiliary.Thing", result.Error!, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Normalize_RepoEiProto_MatchesCompiledDescriptorHash() {
         string text = ReadRepoEiProto();
         Assert.False(string.IsNullOrEmpty(text), "repo ei.proto not found next to the test assembly or in the source tree");

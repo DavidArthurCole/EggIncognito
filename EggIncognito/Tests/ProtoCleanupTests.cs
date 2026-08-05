@@ -67,6 +67,20 @@ public class ProtoCleanupTests {
     }
 
     [Fact]
+    public void MergeLegacyCommon_InjectsGameCommonBody() {
+        string result = ProtoCleanup.MergeLegacyCommon(Ei);
+
+        Assert.DoesNotContain("import \"common.proto\"", result);
+        Assert.DoesNotContain("aux.", result);
+        Assert.Contains("enum Platform {", result);
+        Assert.Contains("DROID = 2;", result);
+        Assert.Contains("enum DeviceFormFactor {", result);
+        Assert.Contains("enum AdNetwork {", result);
+        Assert.Contains("APPLOVIN = 6;", result);
+        Assert.Contains("Platform platform = 3;", result);
+    }
+
+    [Fact]
     public void Clean_NoCommonBody_LeavesEiMinusImportAndAux() {
         const string ei = "package ei;\nmessage M { optional aux.X x = 1; }\n";
         string result = ProtoCleanup.Clean(ei, "syntax\npackage aux;\n\n");

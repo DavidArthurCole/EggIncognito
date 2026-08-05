@@ -1,6 +1,35 @@
 namespace EggIncognito.Services.ProtoExtract;
 
 public static class ProtoCleanup {
+    private const string LegacyCommonProto =
+        "syntax = \"proto2\";\n" +
+        "\n" +
+        "package aux;\n" +
+        "\n" +
+        "enum Platform {\n" +
+        "    UNKNOWN_PLATFORM = 0;\n" +
+        "    IOS = 1;\n" +
+        "    DROID = 2;\n" +
+        "}\n" +
+        "\n" +
+        "enum DeviceFormFactor {\n" +
+        "    UNKNOWN_DEVICE = 0;\n" +
+        "    PHONE = 1;\n" +
+        "    TABLET = 2;\n" +
+        "}\n" +
+        "\n" +
+        "enum AdNetwork {\n" +
+        "    VUNGLE = 0;\n" +
+        "    CHARTBOOST = 1;\n" +
+        "    AD_COLONY = 2;\n" +
+        "    HYPER_MX = 3;\n" +
+        "    UNITY = 4;\n" +
+        "    FACEBOOK = 5;\n" +
+        "    APPLOVIN = 6;\n" +
+        "}\n";
+
+    public static string MergeLegacyCommon(string eiProto) => Clean(eiProto, LegacyCommonProto);
+
     public static string Clean(string eiProto, string commonProto) {
         var commonLines = SplitKeepEnds(commonProto);
         commonLines = [.. commonLines.Skip(3)];

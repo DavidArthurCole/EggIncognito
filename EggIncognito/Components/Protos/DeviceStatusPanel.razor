@@ -11,7 +11,7 @@
         <h3 class="text-sm font-semibold my-0">Devices</h3>
         @if (_isAdmin) {
             <button class="icon-btn icon-btn-sm relative" title="Device activity log" @onclick="ToggleLog">
-                <Icon Name="history"/>
+                <Icon Name="log"/>
                 @if (!_logOpen && _unread > 0) {
                     <span class="dev-log-badge">@_unread</span>
                 }
@@ -52,18 +52,23 @@
                         </div>
                     </div>
                     @if (_isAdmin) {
-                        @if (d.Result == "new_version") {
-                            <button class="icon-btn icon-btn-sm" disabled="@busy" title="Install this version into the proto registry" @onclick="() => Save(d.Id)">
-                                <Icon Name="@(busy ? "clock" : "download")"/>
-                            </button>
-                        }
+                        <div class="flex items-center gap-1 shrink-0">
+                            @if (d.Result == "new_version") {
+                                <button class="icon-btn icon-btn-sm" disabled="@busy" title="Install this version into the proto registry" @onclick="() => Save(d.Id)">
+                                    <Icon Name="@(busy ? "clock" : "download")"/>
+                                </button>
+                            }
 
-                        <button class="icon-btn icon-btn-sm" disabled="@busy" title="Check this device's store for an update now" @onclick="() => CheckUpdate(d.Id)">
-                            <Icon Name="@(busy ? "clock" : "refresh")"/>
-                        </button>
-                        <button class="icon-btn icon-btn-sm" disabled="@busy" title="Restart Egg Inc to force an auxbrain call" @onclick="() => RestartApp(d.Id)">
-                            <Icon Name="@(busy ? "clock" : "play")"/>
-                        </button>
+                            <button class="icon-btn icon-btn-sm" disabled="@busy" title="Check this device's store for an update now" @onclick="() => CheckUpdate(d.Id)">
+                                <Icon Name="@(busy ? "clock" : "refresh")"/>
+                            </button>
+                            <button class="icon-btn icon-btn-sm" disabled="@busy" title="Restart Egg Inc to force an auxbrain call" @onclick="() => RestartApp(d.Id)">
+                                <Icon Name="@(busy ? "clock" : "play")"/>
+                            </button>
+                            <a class="icon-btn icon-btn-sm" href="/capture/device/@d.Id" title="Open live capture session">
+                                <Icon Name="activity"/>
+                            </a>
+                        </div>
                     }
                 </div>
             }

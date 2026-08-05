@@ -2,6 +2,17 @@ namespace EggIncognito.Services.ProtoExtract;
 
 public static class ProtoCanonicalForm {
     public static NormalizeResult Normalize(string protoText) {
+        var result = NormalizeOnce(protoText);
+        if (result.Ok) return result;
+        if (result.Error?.Contains("unresolved type 'aux.", StringComparison.Ordinal) == true) {
+            var repaired = NormalizeOnce(ProtoCleanup.MergeLegacyCommon(protoText));
+            if (repaired.Ok) return repaired;
+        }
+
+        return result;
+    }
+
+    private static NormalizeResult NormalizeOnce(string protoText) {
         try {
             var first = ProtoTextCompiler.Compile(protoText);
             string text1 = DescriptorProtoCarver.EmitProto(first);
