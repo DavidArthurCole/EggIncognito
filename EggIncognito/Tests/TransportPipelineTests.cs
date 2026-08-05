@@ -77,6 +77,22 @@ public class TransportPipelineTests {
         var envelope = decode.Stages.Single(s => s.Name == "authenticated-message");
         Assert.Contains("responseWrapped", envelope.Note);
         Assert.Contains(decode.Stages, s => s.Name == "inflate");
+        Assert.True(decode.WrappedMismatch);
+    }
+
+    [Fact]
+    public void Decode_StraightWrappedResponse_DoesNotFlagMismatch() {
+        var pipe = Build();
+        var response = new ContractsInfoResponse { ServerTime = 99.0 };
+        var wrapped = new AuthenticatedMessage {
+            Message = ByteString.CopyFrom(response.ToByteArray())
+        };
+        string b64 = Convert.ToBase64String(wrapped.ToByteArray());
+
+        var result = pipe.Decode(b64, ContractsInfoResponse.Parser, true);
+
+        Assert.Null(result.Error);
+        Assert.False(result.WrappedMismatch);
     }
 
     [Fact]

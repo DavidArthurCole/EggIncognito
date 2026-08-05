@@ -1173,3 +1173,16 @@ pre.data-text {
 .pg-palette { @apply absolute bottom-3 right-3 z-20 w-[280px] max-h-[60%] flex flex-col bg-panel border border-border rounded-md shadow-xl overflow-hidden; }
 .pg-palette-head { @apply flex items-center justify-between px-3 py-2 bg-panel2 border-b border-border text-[12px] uppercase tracking-[0.05em] text-muted; }
 .pg-palette-body { @apply p-2 flex flex-col gap-2 overflow-auto; }
+
+.badge-override { @apply text-accent border-accent; }
+.badge-db { @apply text-info border-info; }
+.badge-binary { @apply text-ok border-ok; }
+.badge-orphan { @apply text-err border-err; }
+
+.data-table tbody tr.route-drift-row { @apply [background:rgba(239,117,89,.1)]; }
+.routes-binary-status { @apply flex items-center justify-between gap-3 mb-2 text-xs flex-wrap; }
+.routes-editor { @apply flex flex-col gap-2 p-1; }
+.routes-editor-fields { @apply flex flex-wrap gap-3; }
+.routes-editor-field { @apply flex flex-col gap-1 text-xs text-muted; }
+.routes-drift-row { @apply flex items-center gap-2 text-xs flex-wrap; }
+

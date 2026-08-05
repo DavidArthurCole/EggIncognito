@@ -1,4 +1,3 @@
-using System.Text.Json;
 using EggIncognito.RouteGenerator;
 using EggIncognito.Services;
 
@@ -18,32 +17,6 @@ public sealed class AuxbrainPathParityTests {
 
     private static string RouteMapFile(string name) =>
         Path.Combine(RepoRoot(), "EggIncognito", "RouteMap", name);
-
-    [Fact]
-    public void AuxbrainPathsJson_NeverShadows_MockedRoutes() {
-        string yamlPath = RouteMapFile("routes.yaml");
-        string jsonPath = RouteMapFile("auxbrain-paths.json");
-        Assert.True(File.Exists(yamlPath), $"routes.yaml not found at {yamlPath}");
-        Assert.True(File.Exists(jsonPath), $"auxbrain-paths.json not found at {jsonPath}");
-
-        var routes = RouteCatalog.Parse(File.ReadAllText(yamlPath));
-        var mocked = routes.Select(r => r.Path)
-            .Concat(routes.SelectMany(r => r.Aliases))
-            .ToHashSet(StringComparer.Ordinal);
-        using var doc = JsonDocument.Parse(File.ReadAllText(jsonPath));
-        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
-
-        var shadowed = keys.Where(mocked.Contains).ToList();
-        Assert.True(shadowed.Count == 0,
-            $"auxbrain-paths.json entries shadow mocked routes; mocked shapes derive from routes.yaml, delete these: {string.Join(", ", shadowed)}");
-    }
-
-    [Fact]
-    public void AuxbrainPathsJson_KeysAreSorted() {
-        using var doc = JsonDocument.Parse(File.ReadAllText(RouteMapFile("auxbrain-paths.json")));
-        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
-        Assert.Equal(keys.OrderBy(k => k, StringComparer.Ordinal), keys);
-    }
 
     [Fact]
     public void Aliases_ParsedByCatalog_IgnoredByGenerator() {

@@ -22,12 +22,6 @@ public sealed class DynamicMockController(
 
         if (!surface.IsKnownNamespace(slug)) return NotFound();
 
-
-        if (surface.Canonical.TryGetValue(slug, out var c) && c.ResponseType is not null
-                                                           && ProtoTypeResolver.Resolve(c.ResponseType) is { } type) {
-            return Encode(endpoints.Fetch(type, slug, EidExtractor.FromData(data)));
-        }
-
         Response.Headers["x-eggincognito"] = "not-mocked";
         return Ok(new { notMocked = true, path = slug });
     }

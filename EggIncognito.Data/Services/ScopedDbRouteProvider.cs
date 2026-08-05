@@ -13,4 +13,7 @@ public sealed class ScopedDbRouteProvider(IServiceScopeFactory scopeFactory) : I
         using var scope = scopeFactory.CreateScope();
         return scope.ServiceProvider.GetRequiredService<DbRouteProvider>().AllDbRoutes();
     }
+
+    public void Invalidate() {
+    }
 }

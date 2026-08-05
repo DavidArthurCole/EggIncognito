@@ -2,20 +2,17 @@ namespace EggIncognito.Services;
 
 public sealed class AuxbrainSurface {
     private readonly Lazy<IReadOnlyDictionary<string, RouteInfo>> _aliases;
-    private readonly Lazy<IReadOnlyDictionary<string, CanonicalPath>> _canonical;
     private readonly Lazy<IReadOnlyList<AuxbrainEntry>> _entries;
     private readonly Lazy<IReadOnlySet<string>> _namespaces;
     private readonly Lazy<string> _openApiJson;
 
     public AuxbrainSurface(RouteCatalog routes, IProtoReflection reflection, IConfiguration config) {
-        _canonical = new Lazy<IReadOnlyDictionary<string, CanonicalPath>>(() =>
-            AuxbrainCatalog.LoadCanonical(AuxbrainCatalog.ResolveJsonPath(config)));
         _entries = new Lazy<IReadOnlyList<AuxbrainEntry>>(() => {
             string root = ContentRoot.Resolve(config["ContentRoot"]);
             var status = EndpointStatus.Classify(
                 Path.Combine(root, "RouteMap", "routes.yaml"),
                 Path.Combine(root, "Endpoints", "default"));
-            return AuxbrainCatalog.Build(routes.All(), _canonical.Value, status);
+            return AuxbrainCatalog.Build(routes.All(), status);
         });
         _namespaces = new Lazy<IReadOnlySet<string>>(() =>
             _entries.Value.Select(e => e.Namespace).ToHashSet(StringComparer.Ordinal));
@@ -32,7 +29,6 @@ public sealed class AuxbrainSurface {
         });
     }
 
-    public IReadOnlyDictionary<string, CanonicalPath> Canonical => _canonical.Value;
     public IReadOnlyList<AuxbrainEntry> Entries => _entries.Value;
     public IReadOnlySet<string> Namespaces => _namespaces.Value;
     public string OpenApiJson => _openApiJson.Value;

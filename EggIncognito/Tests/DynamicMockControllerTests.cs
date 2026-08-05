@@ -19,6 +19,8 @@ public sealed class DynamicMockFactory : EgiTestFactory {
         private readonly RouteInfo _r = new("ei/dbonly", null, "PeriodicalsResponse", false, false, null, false, false);
         public RouteInfo? GetDbRoute(string path) => path == "ei/dbonly" ? _r : null;
         public IReadOnlyList<RouteInfo> AllDbRoutes() => [_r];
+        public void Invalidate() {
+        }
     }
 }
 

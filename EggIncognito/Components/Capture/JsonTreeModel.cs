@@ -6,6 +6,7 @@ namespace EggIncognito.Components.Capture;
 public sealed class TreeNode {
     public const int DefaultDepth = 1;
     public const int SmallChildLimit = 5;
+    public const int LargeChildLimit = 100;
     public const int ValueClamp = 200;
 
 
@@ -46,7 +47,7 @@ public sealed class TreeNode {
         : $"{{...}} {ChildCount} {(ChildCount == 1 ? "key" : "keys")}";
 
 
-    public bool ShouldDefaultExpand() => Depth <= DefaultDepth || ChildCount < SmallChildLimit;
+    public bool ShouldDefaultExpand() => (Depth <= DefaultDepth || ChildCount < SmallChildLimit) && ChildCount <= LargeChildLimit;
 
 
     public static TreeNode? Parse(string? jsonStr) {

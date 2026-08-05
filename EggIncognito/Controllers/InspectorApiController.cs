@@ -144,7 +144,8 @@ public sealed class InspectorApiController(
             decode.Stages,
             json = decode.Json,
             error = decode.Error,
-            resolution = decode.Error is null ? null : DecodeResolution(decode.Error)
+            resolution = decode.Error is null ? null : DecodeResolution(decode.Error),
+            wrappedMismatch = decode.WrappedMismatch
         });
     }
 
@@ -157,7 +158,7 @@ public sealed class InspectorApiController(
     public IActionResult DecodeResponse([FromBody] DecodeResponseRequest body) {
         var parser = body.ResponseType is not null ? reflection.FindParser(body.ResponseType) : null;
         var decode = pipeline.Decode(body.RawBase64, parser, body.ResponseWrapped);
-        return Ok(new { decode.Stages, json = decode.Json, error = decode.Error });
+        return Ok(new { decode.Stages, json = decode.Json, error = decode.Error, wrappedMismatch = decode.WrappedMismatch });
     }
 
 

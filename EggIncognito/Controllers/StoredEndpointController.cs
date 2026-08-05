@@ -16,6 +16,8 @@ namespace EggIncognito.Controllers;
 public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceProvider services) : ControllerBase {
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
+    private IDbRouteProvider? DbRoutes => services.GetService(typeof(IDbRouteProvider)) as IDbRouteProvider;
+
     private ObjectResult? RequireContributor() =>
         currentUser.IsAtLeast(UserRole.Contributor)
             ? null
@@ -51,11 +53,13 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
     }
 
     [HttpPost("route")]
-    public async Task<IActionResult> AddRouteAsync([FromBody] AddRoute body, [FromServices] IRouteCatalog routes) {
+    public async Task<IActionResult> AddRouteAsync([FromBody] AddRoute body, [FromServices] RouteCatalog yamlRoutes) {
         if (RequireContributor() is { } no) return no;
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
-        if (routes.Resolve(body.Path) is not null) return Conflict(new { error = $"route {body.Path} already exists" });
+        if (yamlRoutes.Resolve(body.Path) is not null ||
+            await db.StoredRoutes.AsNoTracking().AnyAsync(r => r.Path == body.Path))
+            return Conflict(new { error = $"route {body.Path} already exists" });
 
         db.StoredRoutes.Add(new StoredRoute {
             Path = body.Path,
@@ -69,7 +73,12 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
             Source = "db",
             OwnerUserId = currentUser.UserId
         });
-        await db.SaveChangesAsync();
+        try {
+            await db.SaveChangesAsync();
+        } catch (DbUpdateException) {
+            return Conflict(new { error = $"route {body.Path} already exists" });
+        }
+        DbRoutes?.Invalidate();
         return Ok(new { added = body.Path });
     }
 

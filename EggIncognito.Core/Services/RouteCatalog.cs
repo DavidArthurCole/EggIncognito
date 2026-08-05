@@ -29,12 +29,16 @@ public sealed partial class RouteCatalog : IRouteCatalog {
     }
 
     internal RouteCatalog(string yamlPath) {
-        var list = File.Exists(yamlPath) ? Parse(File.ReadAllText(yamlPath)) : [];
+        string text = File.Exists(yamlPath) ? File.ReadAllText(yamlPath) : "";
+        var list = text.Length == 0 ? [] : Parse(text);
         _routes = list;
         _byPath = list.ToDictionary(e => e.Path, StringComparer.Ordinal);
+        ExcludedPaths = text.Length == 0 ? [] : ParseExcluded(text);
     }
 
     public IReadOnlyList<RouteInfo> All() => _routes;
+
+    public IReadOnlyList<string> ExcludedPaths { get; }
 
     public RouteInfo? Resolve(string path) =>
         _byPath.GetValueOrDefault(path);
@@ -125,6 +129,28 @@ public sealed partial class RouteCatalog : IRouteCatalog {
         } else if (V("aliases") is not null) {
             b.InAliases = true;
         }
+    }
+
+    internal static List<string> ParseExcluded(string yaml) {
+        var result = new List<string>();
+        bool inExcluded = false;
+
+        foreach (string rawLine in yaml.Split('\n')) {
+            string line = rawLine.TrimEnd('\r');
+
+            var topKey = TopKeyRegex().Match(line);
+            if (topKey.Success) {
+                inExcluded = topKey.Groups[1].Value == "excluded";
+                continue;
+            }
+
+            if (!inExcluded) continue;
+
+            var item = AliasItemRegex().Match(line);
+            if (item.Success && item.Groups[1].Value.Length > 0) result.Add(item.Groups[1].Value);
+        }
+
+        return result;
     }
 
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;

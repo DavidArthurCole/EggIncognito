@@ -25,6 +25,9 @@ public sealed class DbRouteProvider(EggIncognitoDbContext db, ILogger<DbRoutePro
         }
     }
 
+    public void Invalidate() {
+    }
+
     private static RouteInfo ToInfo(StoredRoute r) => new(
         r.Path, r.RequestType, r.ResponseType, r.RequestWrapped, r.ResponseWrapped,
         r.RawResponse, r.PathParam, r.PathParamOnly);

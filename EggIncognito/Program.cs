@@ -138,6 +138,7 @@ builder.Services.AddScoped<DeviceMeshProvider>();
 
 builder.Services.AddScoped<GameBinaryProvider>();
 builder.Services.AddScoped<GameDataRebuilder>();
+builder.Services.AddScoped<EndpointCatalogRebuilder>();
 
 builder.Services.AddSingleton<GameConfigStore>();
 builder.Services.AddSingleton<PeriodicalsChangeNotifier>();
@@ -181,9 +182,12 @@ builder.Services.AddSingleton<IEndpointStore>(sp => {
 builder.Services.AddSingleton<RouteCatalog>();
 builder.Services.AddSingleton<AuxbrainSurface>();
 builder.Services.AddSingleton<IRouteCatalog>(sp =>
-    new MergedRouteCatalog(
-        sp.GetRequiredService<RouteCatalog>(),
-        dbEnabled ? sp.GetRequiredService<IDbRouteProvider>() : null));
+    new OverlayRouteCatalog(
+        new MergedRouteCatalog(
+            sp.GetRequiredService<RouteCatalog>(),
+            dbEnabled ? sp.GetRequiredService<IDbRouteProvider>() : null,
+            dbEnabled ? sp.GetRequiredService<IBinaryRouteProvider>() : null),
+        dbEnabled ? sp.GetRequiredService<IRouteOverrideProvider>() : null));
 
 if (dbEnabled) {
     builder.Services.AddDbContextPool<EggIncognitoDbContext>(o => o.UseNpgsql(pgConn));
@@ -201,7 +205,20 @@ if (dbEnabled) {
 
     builder.Services.AddScoped<DbRouteProvider>();
     builder.Services.AddSingleton<IDbRouteProvider>(sp =>
-        new ScopedDbRouteProvider(sp.GetRequiredService<IServiceScopeFactory>()));
+        new CachedDbRouteProvider(
+            new ScopedDbRouteProvider(sp.GetRequiredService<IServiceScopeFactory>()),
+            TimeSpan.FromSeconds(15)));
+
+    builder.Services.AddScoped<BinaryRouteProvider>();
+    builder.Services.AddSingleton<IBinaryRouteProvider>(sp =>
+        new CachedBinaryRouteProvider(
+            new ScopedBinaryRouteProvider(sp.GetRequiredService<IServiceScopeFactory>()),
+            TimeSpan.FromSeconds(15)));
+
+    builder.Services.AddSingleton<IRouteOverrideProvider>(sp =>
+        new CachedRouteOverrideProvider(
+            () => RouteOverrideFetch.All(sp.GetRequiredService<IServiceScopeFactory>()),
+            TimeSpan.FromSeconds(15)));
 }
 
 string? identityApiUrl = builder.Configuration[IdentityConfigKeys.ApiUrl];
@@ -423,6 +440,7 @@ builder.Services.AddSingleton(sp => {
 
 
     string contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
+    var routeCatalog = sp.GetRequiredService<IRouteCatalog>();
     return new CaptureSessionManager(hostedCaptureOpts, (key, basePort) => {
         var liveRoutes = sp.GetRequiredService<DataCatalog>().WireRoutes();
         var writeObserver = sp.GetService<PeriodicalsChangeNotifier>();
@@ -438,7 +456,7 @@ builder.Services.AddSingleton(sp => {
                 capturePath,
                 caPath,
                 WriteObserver: writeObserver) { LiveRoutes = liveRoutes };
-            return new CaptureSession(contentRoot, opts);
+            return new CaptureSession(contentRoot, opts, catalog: routeCatalog);
         }
 
 
@@ -453,7 +471,7 @@ builder.Services.AddSingleton(sp => {
             verbose => new NativeCaptureProxy(verbose) {
                 LanForwarderEnabled = false,
                 TrustCaInOsStore = false
-            });
+            }, routeCatalog);
     });
 });
 builder.Services.AddSingleton(sp =>
@@ -493,6 +511,8 @@ if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService<DeviceMaintenanceService>();
 if (dbEnabled)
     builder.Services.AddHostedService<GameDataAutoRebuildService>();
+if (dbEnabled)
+    builder.Services.AddHostedService<EndpointCatalogAutoRefreshService>();
 
 
 var deviceCaptureConfig = DeviceCaptureConfig.Bind(builder.Configuration);
@@ -529,7 +549,8 @@ builder.Services.AddSingleton(sp => {
         sp.GetRequiredService<ILogger<DeviceCaptureManager>>(),
         sp.GetServices<IDeviceCaInstaller>(),
         sp.GetRequiredService<DataCatalog>().WireRoutes().ToHashSet(StringComparer.Ordinal),
-        sp.GetService<PeriodicalsChangeNotifier>());
+        sp.GetService<PeriodicalsChangeNotifier>(),
+        sp.GetRequiredService<IRouteCatalog>());
 });
 builder.Services.AddSingleton<DeviceProxyPusher>();
 if (deviceCaptureConfig.Enabled && deviceConfig.Devices.Count > 0)

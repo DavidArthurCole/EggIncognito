@@ -22,7 +22,8 @@ public sealed record CaptureSessionStatus(
 public sealed class CaptureSession(
     string contentRoot,
     CaptureSessionOptions opts,
-    Func<bool, ICaptureProxy>? proxyFactory = null) {
+    Func<bool, ICaptureProxy>? proxyFactory = null,
+    IRouteCatalog? catalog = null) {
     private readonly Lock _gate = new();
 
     private readonly Func<bool, ICaptureProxy> _proxyFactory =
@@ -76,7 +77,7 @@ public sealed class CaptureSession(
 
             _har = new HarWriter();
             var pipeline = new CapturePipeline(contentRoot, opts.Eid, opts.Overwrite, opts.WriteEndpoints,
-                opts.LiveRoutes, opts.WriteObserver, _har);
+                opts.LiveRoutes, opts.WriteObserver, _har, catalog);
             _extractor = pipeline.Extractor;
             _queue = pipeline.Queue;
 
@@ -170,7 +171,7 @@ public sealed class CaptureSession(
 
 
     public (string? Json, string? Type, bool Known) Decode(string path, string responseB64) {
-        var decoder = new FlowDecoder(contentRoot);
+        var decoder = catalog is null ? new FlowDecoder(contentRoot) : new FlowDecoder(catalog);
         var r = decoder.DecodeResponse(path, responseB64);
         return (r.Json, r.Type, r.Known);
     }

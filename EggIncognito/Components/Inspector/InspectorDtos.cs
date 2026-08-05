@@ -18,7 +18,8 @@ public sealed record SendResponse(
     List<TransportStage>? Stages,
     string? Json,
     string? Error,
-    string? Resolution);
+    string? Resolution,
+    bool WrappedMismatch = false);
 
 public sealed record DiagnoseDto(
     bool Ok,

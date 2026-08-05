@@ -96,16 +96,6 @@ public sealed class OpenApiBuilderTests {
     }
 
     [Fact]
-    public void NotMockedEntry_GetsVendorExtension() {
-        using var doc = Build(
-            Entry("ei/coop_status_bot", "ContractCoopStatusRequest", "ContractCoopStatusResponse",
-                responseWrapped: true, status: AuxbrainStatus.NotMocked));
-        var op = doc.RootElement.GetProperty("paths").GetProperty("/ei/coop_status_bot").GetProperty("post");
-        Assert.Equal("not-mocked", op.GetProperty("x-eggincognito-status").GetString());
-        Assert.True(op.GetProperty("x-eggincognito-response-wrapped").GetBoolean());
-    }
-
-    [Fact]
     public void WrappedEntry_DocumentsSigningInDescriptions() {
         using var doc = Build(
             Entry("ei/first_contact_secure", requestWrapped: true, responseWrapped: true));
@@ -149,12 +139,10 @@ public sealed class OpenApiBuilderTests {
     public void FullRealCatalog_Builds_AndEveryRefResolves() {
         string root = RepoRoot();
         string yamlPath = Path.Combine(root, "EggIncognito", "RouteMap", "routes.yaml");
-        string jsonPath = Path.Combine(root, "EggIncognito", "RouteMap", "auxbrain-paths.json");
         string defaultsDir = Path.Combine(root, "EggIncognito", "Endpoints", "default");
 
         var entries = AuxbrainCatalog.Build(
             new RouteCatalog(yamlPath).All(),
-            AuxbrainCatalog.LoadCanonical(jsonPath),
             EndpointStatus.Classify(yamlPath, defaultsDir));
         Assert.True(entries.Count >= 64, $"expected >= 64 catalog entries, got {entries.Count}");
 

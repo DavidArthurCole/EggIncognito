@@ -7,7 +7,8 @@ public sealed class CapturePipeline {
     public const string EidPlaceholder = "EI0000000000000000";
 
     public CapturePipeline(string contentRoot, string? eid, bool overwrite, bool writeEndpoints,
-        IReadOnlyCollection<string>? liveRoutes, IEndpointWriteObserver? writeObserver, HarWriter? har) {
+        IReadOnlyCollection<string>? liveRoutes, IEndpointWriteObserver? writeObserver, HarWriter? har,
+        IRouteCatalog? catalog = null) {
         var routes = liveRoutes ?? [];
         if (writeEndpoints || routes.Count > 0) {
             Extractor = EndpointExtractor.ForRepo(contentRoot, eid, EidPlaceholder, overwrite);
@@ -17,7 +18,7 @@ public sealed class CapturePipeline {
             Extractor.WriteObserver = writeObserver;
         }
 
-        Decoder = new FlowDecoder(contentRoot);
+        Decoder = catalog is null ? new FlowDecoder(contentRoot) : new FlowDecoder(catalog);
         Processor = new FlowProcessor(Extractor, Decoder, har, contentRoot);
         Queue = Channel.CreateUnbounded<CapturedFlow>(new UnboundedChannelOptions { SingleReader = true });
     }

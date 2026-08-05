@@ -118,20 +118,23 @@ routes:
     response:  # NEEDS CAPTURE - wrapped; ack or unknown body
     responseWrapped: true
   - path: ei/process_shells_actions
-    requestType: ShellsActionBatch
+    request: ShellsActionBatch
+    requestWrapped: true
     rawResponse: "OK"
   - path: ei/submit_to_showcase
     request: SubmitShellShowcaseRequest
     response:  # ack - AuthenticatedMessage-wrapped, no meaningful body
     responseWrapped: true
   - path: ei/sync_path_of_virtue
-    requestType: SyncPathOfVirtueRequest
+    request: SyncPathOfVirtueRequest
+    requestWrapped: true
     responseType: SyncPathOfVirtueResponse
   - path: ei/update_coop_permissions
     requestType: UpdateCoopPermissionsRequest
     responseType: UpdateCoopPermissionsResponse
   - path: ei/update_coop_status
-    requestType: ContractCoopStatusUpdateRequest
+    request: ContractCoopStatusUpdateRequest
+    requestWrapped: true
     responseType: ContractCoopStatusUpdateResponse
     aliases:
       - ei/update_coop_status_secure
@@ -177,7 +180,8 @@ routes:
     response: AuthenticateArtifactResponse
     responseWrapped: true
   - path: ei_afx/get_active_missions_v2
-    requestType: GetActiveMissionsRequest
+    request: GetActiveMissionsRequest
+    requestWrapped: true
     responseType: GetActiveMissionsResponse
   - path: ei_afx/launch_mission
     requestType: MissionRequest
@@ -225,21 +229,26 @@ routes:
     response: ContractSeasonInfos
     responseWrapped: true
   - path: ei_ctx/get_contracts_info
-    requestType: ContractsInfoRequest
+    request: ContractsInfoRequest
+    requestWrapped: true
     responseType: ContractsInfoResponse
   - path: ei_ctx/get_contract_info
-    requestType: ContractsInfoRequest
+    request: ContractsInfoRequest
+    requestWrapped: true
     responseType: ContractsInfoResponse
 
   # ei_data/
   - path: ei_data/log_actions
-    requestType: GenericActionBatchRequest
+    request: GenericActionBatchRequest
+    requestWrapped: true
     rawResponse: "SUCCESS"
   - path: ei_data/log_contract_action
-    requestType: ContractAction
+    request: ContractAction
+    requestWrapped: true
     rawResponse: "SUCCESS"
   - path: ei_data/log_currency_flow
-    requestType: CurrencyFlowBatchRequest
+    request: CurrencyFlowBatchRequest
+    requestWrapped: true
     rawResponse: "SUCCESS"
   - path: ei_data/log_purchase
     requestType: VerifyPurchaseRequest
@@ -260,10 +269,12 @@ routes:
   # ei_i18n/
   - path: ei_i18n/get_translation_pack
     request: TranslationPackRequest
+    requestWrapped: true
     response: TranslationPackResponse
     responseWrapped: true
   - path: ei_i18n/get_translations
     request: TranslationRequest
+    requestWrapped: true
     response: TranslationResponse
     responseWrapped: true
   - path: ei_i18n/get_font_dlc
@@ -272,14 +283,10 @@ routes:
     responseWrapped: true
 
 excluded:
-  # Endpoints known to exist in the APK but intentionally not mocked.
-  # Paths listed here are suppressed from the NEW output of Sync-Endpoints.ps1.
-  # excluded
-  - ei/kb # False flag from https://auxbrain.com/ei/kb
-  - ei_afx/zoom_zoom # Pretty sure this is kev's endpoint to insta-complete missions? no docs or references afaik
+  - ei/kb
+  - ei_afx/zoom_zoom
 
-  # Paths listed below here will eventually be mocked, but do not have data captured get.
-  # missing_endpoints
+missing_endpoints:
   - ei/has_voted
   - ei/shell_showcase_view_poll
   - ei/confirm_gift_delivery

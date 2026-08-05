@@ -8,6 +8,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     : DbContext(options), IDataProtectionKeyContext {
     public DbSet<StoredEndpoint> StoredEndpoints => Set<StoredEndpoint>();
     public DbSet<StoredRoute> StoredRoutes => Set<StoredRoute>();
+    public DbSet<RouteOverride> RouteOverrides => Set<RouteOverride>();
+    public DbSet<RouteBinaryCatalog> RouteBinaryCatalogs => Set<RouteBinaryCatalog>();
     public DbSet<Doc> Docs => Set<Doc>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<SubjectTag> SubjectTags => Set<SubjectTag>();
@@ -48,6 +50,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             r.HasIndex(x => x.Source);
             r.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
+        modelBuilder.Entity<RouteOverride>(r => r.HasKey(x => x.Path));
+        modelBuilder.Entity<RouteBinaryCatalog>(r => r.HasKey(x => x.Path));
         modelBuilder.Entity<Doc>(d => {
             d.HasIndex(x => new { x.SubjectKind, x.SubjectKey }).IsUnique();
             d.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();

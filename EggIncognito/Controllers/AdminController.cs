@@ -418,6 +418,7 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         if (row.Source != "db") return BadRequest(new { error = "cannot delete a yaml-sourced route" });
         db.StoredRoutes.Remove(row);
         await db.SaveChangesAsync();
+        (services.GetService(typeof(IDbRouteProvider)) as IDbRouteProvider)?.Invalidate();
         return Ok(new { deleted = id });
     }
 

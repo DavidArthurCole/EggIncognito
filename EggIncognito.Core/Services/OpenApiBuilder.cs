@@ -10,9 +10,7 @@ public static class OpenApiBuilder {
         "application/x-www-form-urlencoded body where data is a base64-encoded protobuf message. " +
         "Signing is permissive: the mock accepts unsigned requests. The real API requires the " +
         "request to be wrapped in a signed AuthenticatedMessage on routes marked " +
-        "x-eggincognito-request-wrapped. Routes marked x-eggincognito-status: not-mocked exist on " +
-        "the real API but have no canned response here yet. Build, sign, and decode requests " +
-        "interactively at /inspector.";
+        "x-eggincognito-request-wrapped. Build, sign, and decode requests interactively at /inspector.";
 
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
 
@@ -91,10 +89,7 @@ public static class OpenApiBuilder {
             (var t, true) => $"Response: {t}, AuthenticatedMessage-wrapped on the real API.",
             (var t, false) => $"Response: {t}."
         };
-        string status = e.Status == AuxbrainStatus.NotMocked
-            ? " Real API path with no mock yet."
-            : "";
-        return req + " " + res + status;
+        return req + " " + res;
     }
 
     private static JsonObject RequestBody(AuxbrainEntry e) {

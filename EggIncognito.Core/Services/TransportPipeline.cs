@@ -24,7 +24,8 @@ public sealed record BuildResult(
 public sealed record DecodeResult(
     IReadOnlyList<TransportStage> Stages,
     string? Json,
-    string? Error);
+    string? Error,
+    bool WrappedMismatch = false);
 
 public interface ITransportPipeline {
     bool CanSign { get; }
@@ -145,7 +146,7 @@ public sealed class TransportPipeline : ITransportPipeline {
             var fallback = TryDecodeWrapped(respBytes, responseParser, envelopeNote: note);
             if (fallback is null) return null;
             stages.AddRange(fallback.Value.Stages);
-            return new DecodeResult(stages, fallback.Value.Json, null);
+            return new DecodeResult(stages, fallback.Value.Json, null, WrappedMismatch: true);
         }
 
         try {

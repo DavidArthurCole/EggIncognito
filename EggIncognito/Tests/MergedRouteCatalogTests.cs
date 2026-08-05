@@ -48,9 +48,45 @@ public sealed class MergedRouteCatalogTests : IDisposable {
         Assert.Equal(2, merged.All().Count);
     }
 
+    [Fact]
+    public void YamlRoute_WinsOverBinary() {
+        var binaryRoute = new BinaryRouteInfo("ei/known", "getKnown", "X", "Y", false, false, "1.0",
+            DateTimeOffset.UnixEpoch);
+        var merged = new MergedRouteCatalog(Yaml(YamlText), null, new FakeBinary(binaryRoute));
+        Assert.Equal("PeriodicalsResponse", merged.Resolve("ei/known")!.Response);
+    }
+
+    [Fact]
+    public void DbRoute_WinsOverBinary() {
+        var dbRoute = new RouteInfo("ei/shared", "X", "FromDb", false, false, null, false, false);
+        var binaryRoute = new BinaryRouteInfo("ei/shared", "getShared", "X", "FromBinary", false, false, "1.0",
+            DateTimeOffset.UnixEpoch);
+        var merged = new MergedRouteCatalog(Yaml(YamlText), new FakeDb(dbRoute), new FakeBinary(binaryRoute));
+        Assert.Equal("FromDb", merged.Resolve("ei/shared")!.Response);
+    }
+
+    [Fact]
+    public void BinaryOnlyRoute_AppearsInAll() {
+        var binaryRoute = new BinaryRouteInfo("ei/binaryonly", "getBinaryOnly", "X", "Y", false, false, "1.0",
+            DateTimeOffset.UnixEpoch);
+        var merged = new MergedRouteCatalog(Yaml(YamlText), null, new FakeBinary(binaryRoute));
+        Assert.Equal(2, merged.All().Count);
+        Assert.Equal("Y", merged.Resolve("ei/binaryonly")!.Response);
+    }
+
     private sealed class FakeDb(params RouteInfo[] routes) : IDbRouteProvider {
         private readonly Dictionary<string, RouteInfo> _map = routes.ToDictionary(r => r.Path);
         public RouteInfo? GetDbRoute(string path) => _map.GetValueOrDefault(path);
         public IReadOnlyList<RouteInfo> AllDbRoutes() => routes;
+        public void Invalidate() {
+        }
+    }
+
+    private sealed class FakeBinary(params BinaryRouteInfo[] routes) : IBinaryRouteProvider {
+        private readonly Dictionary<string, BinaryRouteInfo> _map = routes.ToDictionary(r => r.Path);
+        public BinaryRouteInfo? GetBinaryRoute(string path) => _map.GetValueOrDefault(path);
+        public IReadOnlyList<BinaryRouteInfo> AllBinaryRoutes() => routes;
+        public void Invalidate() {
+        }
     }
 }

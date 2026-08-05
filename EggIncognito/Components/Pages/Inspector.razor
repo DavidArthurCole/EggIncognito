@@ -221,7 +221,7 @@
                 @if (_resultTab == 0) {
                     <Pipeline Stages="_buildStages"/>
                 } else if (_resultTab == 1) {
-                    <ResponsePanel Response="_response"/>
+                    <ResponsePanel Response="_response" IsAdmin="_isAdmin" FixBusy="_fixWrappedBusy" OnFixWrapped="FixWrapped"/>
                     <pre class="settings-out">@_saveOut</pre>
                 } else if (_resultTab == 2) {
                     <Forensics Result="_diagnosis" RootType="@(_selected?.Response)" ClientFactory="Client"/>
@@ -370,6 +370,8 @@
     bool _liveDisabled;
     bool _canSaveDb;
     bool _hosted;
+    bool _isAdmin;
+    bool _fixWrappedBusy;
 
 
     bool _sealedAvailable;
@@ -387,6 +389,8 @@
 
         _canSaveDb = AppMode.Mode != Services.AppMode.Hosted
                      || User.IsAtLeast(UserRole.Contributor);
+
+        _isAdmin = User.IsAtLeast(UserRole.Admin);
 
 
         _sealedAvailable = SealedProxy.IsConfigured && User.IsSupporter;
@@ -956,6 +960,57 @@
         }
     }
 
+    async Task FixWrapped() {
+        var e = _selected;
+        if (e is null || _response is null) return;
+
+        _fixWrappedBusy = true;
+        try {
+            var rows = await Client().GetFromJsonAsync<List<RouteAdminRow>>("/api/admin/routes", JsonOpts);
+            var current = rows?.FirstOrDefault(r => r.Path == e.Path)?.Override;
+            var res = await Client().PutAsJsonAsync($"/api/admin/routes/{e.Path}",
+                new {
+                    request = current?.Request,
+                    response = current?.Response,
+                    requestWrapped = current?.RequestWrapped,
+                    responseWrapped = true,
+                    pathParam = current?.PathParam
+                }, JsonOpts);
+            if (!res.IsSuccessStatusCode) {
+                _response = _response with { Error = $"failed to set responseWrapped: HTTP {(int)res.StatusCode}" };
+                return;
+            }
+
+            var fresh = Catalog.Resolve(e.Path) ?? e;
+            _selected = fresh;
+            await RedecodeAfterFix(fresh);
+        }
+        catch (Exception ex) {
+            _response = _response with { Error = "failed to set responseWrapped: " + ex.Message };
+        }
+        finally {
+            _fixWrappedBusy = false;
+        }
+    }
+
+    async Task RedecodeAfterFix(RouteInfo e) {
+        if (_response?.RawBase64 is null) return;
+        try {
+            var res = await Client().PostAsJsonAsync("/api/inspector/decode-response",
+                new { rawBase64 = _response.RawBase64, responseType = e.Response, responseWrapped = (bool?)null }, JsonOpts);
+            var dec = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
+            _response = _response with {
+                Stages = dec?.Stages,
+                Json = dec?.Json,
+                Error = dec?.Error,
+                WrappedMismatch = dec?.WrappedMismatch ?? false
+            };
+        }
+        catch (Exception ex) {
+            _response = _response with { Error = "redecode failed: " + ex.Message };
+        }
+    }
+
 
     async Task SendCustom(RouteInfo e) {
         if (string.IsNullOrEmpty(_customTarget)) {
@@ -999,7 +1054,7 @@
             var res = await Client().PostAsJsonAsync("/api/inspector/decode-response",
                 new { rawBase64 = raw, responseType = e.Response, responseWrapped = e.ResponseWrapped }, JsonOpts);
             var dec = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
-            _response = new SendResponse(200, raw, dec?.Stages, dec?.Json, dec?.Error, null);
+            _response = new SendResponse(200, raw, dec?.Stages, dec?.Json, dec?.Error, null, dec?.WrappedMismatch ?? false);
             await MaybeDiagnose();
         }
         catch (Exception ex) {
@@ -1075,6 +1130,10 @@
         .ToArray();
 
     record StatusResult(List<string> Ok, List<string> Empty, List<string> Missing);
+
+    record RouteAdminRow(string Path, RouteOverrideDto? Override);
+
+    record RouteOverrideDto(string? Request, string? Response, bool? RequestWrapped, bool? ResponseWrapped, bool? PathParam);
 
     public ValueTask DisposeAsync() {
         return _store.DisposeModuleQuietAsync();

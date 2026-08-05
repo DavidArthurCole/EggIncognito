@@ -1,0 +1,417 @@
+@using System.Text.Json
+@rendermode @(RenderMode.InteractiveServer)
+
+<section class="panel mb-4">
+    <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Routes</h2>
+        <span class="text-muted text-xs">@FilteredRows().Count of @_rows.Count</span>
+    </div>
+
+    @if (_binaryUnavailable) {
+        <p class="text-muted text-xs m-0 mb-2">Binary route status unavailable (no database).</p>
+    } else if (_binary is not null) {
+        <div class="routes-binary-status">
+            <span class="text-muted">
+                last refresh @(_binary.LastRefresh is { } lr ? lr.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "never")
+                &middot; binary @(_binary.BinaryVersion ?? "-")
+                &middot; @_binary.Discovered discovered / @_binary.NewCount new / @_binary.DriftCount drift
+            </span>
+            <button type="button" class="btn-mini" disabled="@_refreshing" @onclick="RefreshBinary">@(_refreshing ? "Refreshing..." : "Refresh now")</button>
+        </div>
+    }
+
+    <input type="search" class="reg-filter-input mb-2" placeholder="filter by path..." value="@_filter" @oninput="OnFilter"/>
+
+    <datalist id="routeMessageTypes">
+        @foreach (var m in _messages) {
+            <option value="@m"/>
+        }
+    </datalist>
+
+    @if (_loading) {
+        <p class="text-muted text-sm m-0">Loading routes...</p>
+    } else if (FilteredRows().Count == 0) {
+        <p class="text-muted text-sm m-0">No routes match this filter.</p>
+    } else {
+        <div class="reg-wrap">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th>Path</th><th></th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in FilteredRows()) {
+                    var drift = DriftFor(row.Path);
+                    <tr class="reg-row cursor-pointer @(drift.Count > 0 ? "route-drift-row" : "")" @onclick="() => ToggleExpand(row)">
+                        <td class="mono text-xs">@row.Path</td>
+                        <td>
+                            <div class="flex gap-1">
+                                @if (row.Override is not null) {
+                                    <span class="badge badge-override">override</span>
+                                }
+                                @if (row.Source == "db") {
+                                    <span class="badge badge-db">db</span>
+                                }
+                                @if (IsInBinary(row.Path)) {
+                                    <span class="badge badge-binary">binary</span>
+                                }
+                                @if (row.Source == "orphan") {
+                                    <span class="badge badge-orphan">orphan</span>
+                                }
+                            </div>
+                        </td>
+                        <td class="text-muted text-xs">@(drift.Count > 0 ? "drift" : "")</td>
+                    </tr>
+                    @if (_expandedPath == row.Path) {
+                        <tr class="reg-edit-row">
+                            <td colspan="3">
+                                <div class="routes-editor">
+                                    @if (row.Source == "yaml") {
+                                        <p class="text-muted text-xs m-0">Mock serving follows the yaml codegen for this route. This override only affects Inspector, capture decode, and docs.</p>
+                                    }
+                                    @if (row.Source == "orphan") {
+                                        <p class="text-muted text-xs m-0">No matching route in yaml or the db catalog. Only Clear is available.</p>
+                                    }
+                                    <div class="routes-editor-fields">
+                                        <label class="routes-editor-field">
+                                            Request type
+                                            <input class="reg-filter-input w-auto" list="routeMessageTypes" value="@_draftRequest" @oninput="OnDraftRequest"/>
+                                        </label>
+                                        <label class="routes-editor-field">
+                                            Response type
+                                            <input class="reg-filter-input w-auto" list="routeMessageTypes" value="@_draftResponse" @oninput="OnDraftResponse"/>
+                                        </label>
+                                        <label class="routes-editor-field">
+                                            Request wrapped
+                                            <select class="reg-filter-input w-auto" value="@_draftRequestWrapped" @onchange="OnDraftRequestWrapped">
+                                                <option value="inherit">inherit (@EffectiveLabel(row.Effective?.RequestWrapped))</option>
+                                                <option value="true">true</option>
+                                                <option value="false">false</option>
+                                            </select>
+                                        </label>
+                                        <label class="routes-editor-field">
+                                            Response wrapped
+                                            <select class="reg-filter-input w-auto" value="@_draftResponseWrapped" @onchange="OnDraftResponseWrapped">
+                                                <option value="inherit">inherit (@EffectiveLabel(row.Effective?.ResponseWrapped))</option>
+                                                <option value="true">true</option>
+                                                <option value="false">false</option>
+                                            </select>
+                                        </label>
+                                        <label class="routes-editor-field">
+                                            Path param
+                                            <select class="reg-filter-input w-auto" value="@_draftPathParam" @onchange="OnDraftPathParam">
+                                                <option value="inherit">inherit (@EffectiveLabel(row.Effective?.PathParam))</option>
+                                                <option value="true">true</option>
+                                                <option value="false">false</option>
+                                            </select>
+                                        </label>
+                                    </div>
+                                    @if (drift.Count > 0) {
+                                        <div class="flex flex-col gap-1">
+                                            @foreach (var d in drift) {
+                                                <div class="routes-drift-row">
+                                                    <span class="badge @(d.Reliable ? "badge-override" : "badge-db")">@(d.Reliable ? "drift" : "advisory")</span>
+                                                    <span class="text-muted">@d.Field: effective @(d.EffectiveValue ?? "-") vs binary @(d.BinaryValue ?? "-")</span>
+                                                    <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => ApplyDrift(d)">Apply as override</button>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    <div class="flex gap-1">
+                                        @if (row.Source != "orphan") {
+                                            <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => Save(row)">Save</button>
+                                        }
+                                        @if (row.Override is not null) {
+                                            <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Clear(row.Path)">Clear</button>
+                                        }
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (_msg is not null) {
+        <StatusNote>@_msg</StatusNote>
+    }
+</section>
+
+@code {
+    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
+
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    List<RouteRow> _rows = [];
+    List<string> _messages = [];
+    BinaryStatus? _binary;
+    bool _binaryUnavailable;
+    bool _loading = true;
+    bool _busy;
+    bool _refreshing;
+    string _filter = "";
+    string? _msg;
+    string? _expandedPath;
+
+    string _draftRequest = "";
+    string _draftResponse = "";
+    string _draftRequestWrapped = "inherit";
+    string _draftResponseWrapped = "inherit";
+    string _draftPathParam = "inherit";
+
+    protected override async Task OnInitializedAsync() {
+        await LoadMessages();
+        await LoadRoutes();
+        await LoadBinary();
+    }
+
+    void OnFilter(ChangeEventArgs e) {
+        _filter = e.Value?.ToString() ?? "";
+    }
+
+    void OnDraftRequest(ChangeEventArgs e) {
+        _draftRequest = e.Value?.ToString() ?? "";
+    }
+
+    void OnDraftResponse(ChangeEventArgs e) {
+        _draftResponse = e.Value?.ToString() ?? "";
+    }
+
+    void OnDraftRequestWrapped(ChangeEventArgs e) {
+        _draftRequestWrapped = e.Value?.ToString() ?? "inherit";
+    }
+
+    void OnDraftResponseWrapped(ChangeEventArgs e) {
+        _draftResponseWrapped = e.Value?.ToString() ?? "inherit";
+    }
+
+    void OnDraftPathParam(ChangeEventArgs e) {
+        _draftPathParam = e.Value?.ToString() ?? "inherit";
+    }
+
+    List<RouteRow> FilteredRows() {
+        if (string.IsNullOrEmpty(_filter)) return _rows;
+        return _rows.Where(r => r.Path.Contains(_filter, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    List<DriftRow> DriftFor(string path) {
+        if (_binary is null) return [];
+        return _binary.Drift.Where(d => d.Path == path && d.Field != "new").ToList();
+    }
+
+    bool IsInBinary(string path) {
+        return _binary?.Rows.Any(r => r.Path == path) ?? false;
+    }
+
+    static string EffectiveLabel(bool? v) {
+        return v is { } b ? (b ? "true" : "false") : "-";
+    }
+
+    static bool? ParseTriState(string v) {
+        return v switch {
+            "true" => true,
+            "false" => false,
+            _ => null
+        };
+    }
+
+    void ToggleExpand(RouteRow row) {
+        if (_expandedPath == row.Path) {
+            _expandedPath = null;
+            return;
+        }
+
+        _expandedPath = row.Path;
+        _msg = null;
+        _draftRequest = row.Override?.Request ?? "";
+        _draftResponse = row.Override?.Response ?? "";
+        _draftRequestWrapped = row.Override?.RequestWrapped is { } rw ? (rw ? "true" : "false") : "inherit";
+        _draftResponseWrapped = row.Override?.ResponseWrapped is { } sw ? (sw ? "true" : "false") : "inherit";
+        _draftPathParam = row.Override?.PathParam is { } pp ? (pp ? "true" : "false") : "inherit";
+    }
+
+    async Task LoadMessages() {
+        if (ClientFactory is null) return;
+        try {
+            _messages = await ClientFactory().GetFromJsonAsync<List<string>>("/api/inspector/messages", JsonOpts) ?? [];
+        }
+        catch {
+        }
+    }
+
+    async Task LoadRoutes() {
+        if (ClientFactory is null) return;
+        try {
+            _rows = await ClientFactory().GetFromJsonAsync<List<RouteRow>>("/api/admin/routes", JsonOpts) ?? [];
+        }
+        catch (Exception ex) {
+            _msg = $"load routes failed: {ex.Message}";
+        }
+
+        _loading = false;
+    }
+
+    async Task LoadBinary() {
+        if (ClientFactory is null) return;
+        _binaryUnavailable = false;
+        try {
+            var res = await ClientFactory().GetAsync("/api/admin/routes/binary");
+            if ((int)res.StatusCode == 503) {
+                _binaryUnavailable = true;
+                _binary = null;
+                return;
+            }
+
+            _binary = res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BinaryStatus>(JsonOpts) : null;
+        }
+        catch {
+            _binary = null;
+        }
+    }
+
+    async Task RefreshBinary() {
+        if (ClientFactory is null) return;
+        _refreshing = true;
+        _msg = null;
+        StateHasChanged();
+        try {
+            var res = await ClientFactory().PostAsync("/api/admin/routes/binary/refresh", null);
+            if ((int)res.StatusCode == 503) {
+                _msg = "refresh unavailable (no database)";
+            } else if (res.IsSuccessStatusCode) {
+                var d = await res.Content.ReadFromJsonAsync<RefreshResult>(JsonOpts);
+                _msg = d is null
+                    ? "refresh complete"
+                    : $"refresh complete: {d.Discovered} discovered, {d.New} new, {d.DriftCount} drift" +
+                      (string.IsNullOrEmpty(d.Note) ? "" : $" ({d.Note})");
+            } else {
+                _msg = $"refresh failed ({(int)res.StatusCode})";
+            }
+
+            await LoadBinary();
+            await LoadRoutes();
+        }
+        catch (Exception ex) {
+            _msg = $"refresh error: {ex.Message}";
+        }
+
+        _refreshing = false;
+    }
+
+    async Task Save(RouteRow row) {
+        if (ClientFactory is null) return;
+        var body = new UpsertBody(
+            string.IsNullOrWhiteSpace(_draftRequest) ? null : _draftRequest,
+            string.IsNullOrWhiteSpace(_draftResponse) ? null : _draftResponse,
+            ParseTriState(_draftRequestWrapped),
+            ParseTriState(_draftResponseWrapped),
+            ParseTriState(_draftPathParam));
+
+        if (body.Request is null && body.Response is null && body.RequestWrapped is null
+            && body.ResponseWrapped is null && body.PathParam is null) {
+            _msg = "nothing to save; set at least one field or use Clear";
+            return;
+        }
+
+        _busy = true;
+        _msg = null;
+        try {
+            var res = await ClientFactory().PutAsJsonAsync($"/api/admin/routes/{row.Path}", body, JsonOpts);
+            _msg = res.IsSuccessStatusCode ? $"saved {row.Path}" : $"save failed ({(int)res.StatusCode})";
+            if (res.IsSuccessStatusCode) _expandedPath = null;
+            await LoadRoutes();
+            await LoadBinary();
+        }
+        catch (Exception ex) {
+            _msg = $"save error: {ex.Message}";
+        }
+
+        _busy = false;
+    }
+
+    async Task Clear(string path) {
+        if (ClientFactory is null) return;
+        _busy = true;
+        _msg = null;
+        try {
+            var res = await ClientFactory().DeleteAsync($"/api/admin/routes/{path}");
+            _msg = res.IsSuccessStatusCode ? $"cleared {path}" : $"clear failed ({(int)res.StatusCode})";
+            if (res.IsSuccessStatusCode) _expandedPath = null;
+            await LoadRoutes();
+            await LoadBinary();
+        }
+        catch (Exception ex) {
+            _msg = $"clear error: {ex.Message}";
+        }
+
+        _busy = false;
+    }
+
+    async Task ApplyDrift(DriftRow d) {
+        if (ClientFactory is null || d.BinaryValue is null) return;
+        _busy = true;
+        _msg = null;
+        try {
+            var value = bool.Parse(d.BinaryValue);
+            var current = _rows.FirstOrDefault(r => r.Path == d.Path)?.Override;
+            var body = new UpsertBody(
+                current?.Request,
+                current?.Response,
+                d.Field == "requestWrapped" ? value : current?.RequestWrapped,
+                d.Field == "responseWrapped" ? value : current?.ResponseWrapped,
+                current?.PathParam);
+            var res = await ClientFactory().PutAsJsonAsync($"/api/admin/routes/{d.Path}", body, JsonOpts);
+            _msg = res.IsSuccessStatusCode ? $"applied {d.Field} drift for {d.Path}" : $"apply failed ({(int)res.StatusCode})";
+            await LoadRoutes();
+            await LoadBinary();
+        }
+        catch (Exception ex) {
+            _msg = $"apply error: {ex.Message}";
+        }
+
+        _busy = false;
+    }
+
+    record RouteRow(string Path, string Source, EffectiveInfo? Effective, OverrideInfo? Override);
+
+    record EffectiveInfo(string? Request, string? Response, bool RequestWrapped, bool ResponseWrapped, bool PathParam);
+
+    record OverrideInfo(
+        string? Request,
+        string? Response,
+        bool? RequestWrapped,
+        bool? ResponseWrapped,
+        bool? PathParam,
+        DateTimeOffset UpdatedAt,
+        Guid? UpdatedBy);
+
+    record BinaryStatus(
+        DateTimeOffset? LastRefresh,
+        string? BinaryVersion,
+        int Discovered,
+        int NewCount,
+        int DriftCount,
+        List<BinaryRow> Rows,
+        List<DriftRow> Drift);
+
+    record BinaryRow(
+        string Path,
+        string? Method,
+        string? Request,
+        string? Response,
+        bool RequestWrapped,
+        bool ResponseWrapped,
+        string? BinaryVersion,
+        DateTimeOffset RefreshedAt);
+
+    record DriftRow(string Path, string Field, string? EffectiveValue, string? BinaryValue, bool Reliable);
+
+    record RefreshResult(int Discovered, int New, int DriftCount, string? BinaryVersion, string? Note);
+
+    record UpsertBody(string? Request, string? Response, bool? RequestWrapped, bool? ResponseWrapped, bool? PathParam);
+
+}

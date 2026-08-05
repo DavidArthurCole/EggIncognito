@@ -30,6 +30,18 @@
         }
     }
 
+    @if (Response.WrappedMismatch) {
+        <div class="error-fix">
+            <span class="fix-label">Route mismatch:</span>
+            This route declares responseWrapped: false, but the response is AuthenticatedMessage-wrapped.
+            @if (IsAdmin) {
+                <button type="button" class="btn-mini" disabled="@FixBusy" @onclick="@(() => OnFixWrapped.InvokeAsync())">
+                    @(FixBusy ? "Setting..." : "Set responseWrapped: true")
+                </button>
+            }
+        </div>
+    }
+
     @if (!string.IsNullOrEmpty(Response.Json) || !string.IsNullOrEmpty(Response.RawBase64)) {
         <FormatView Label="Response" JsonStr="@Response.Json" RawB64="@Response.RawBase64"
                     View="_view" FormatChoice="_formatChoice" EmptyNote="(no decoded response body)"/>
@@ -38,6 +50,9 @@
 
 @code {
     [Parameter] public SendResponse? Response { get; set; }
+    [Parameter] public bool IsAdmin { get; set; }
+    [Parameter] public bool FixBusy { get; set; }
+    [Parameter] public EventCallback OnFixWrapped { get; set; }
 
     readonly CaptureViewState _view = new();
     readonly Dictionary<string, string> _formatChoice = new();
