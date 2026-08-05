@@ -250,20 +250,43 @@ public static partial class ProtoTextCompiler {
         var logical = new List<(string Text, int Line)>();
         var buf = new StringBuilder();
         int bufLine = 0;
+        bool inString = false;
         for (int i = 0; i < raw.Length; i++) {
-            string t = raw[i].Trim();
-            if (t.Length == 0) continue;
-            if (buf.Length == 0) bufLine = i + 1;
-            else buf.Append(' ');
-            buf.Append(t);
-            char last = buf[^1];
-            if (last is ';' or '{' or '}') {
-                logical.Add((buf.ToString(), bufLine));
-                buf.Clear();
+            string line = raw[i];
+            for (int j = 0; j < line.Length; j++) {
+                char c = line[j];
+                if (inString) {
+                    buf.Append(c);
+                    if (c == '\\' && j + 1 < line.Length) {
+                        buf.Append(line[++j]);
+                        continue;
+                    }
+
+                    if (c == '"') inString = false;
+                    continue;
+                }
+
+                if (char.IsWhiteSpace(c)) {
+                    if (buf.Length > 0 && buf[^1] != ' ') buf.Append(' ');
+                    continue;
+                }
+
+                if (buf.Length == 0) bufLine = i + 1;
+
+                if (c == '"') inString = true;
+                buf.Append(c);
+                if (c is ';' or '{' or '}') {
+                    string tok = buf.ToString().Trim();
+                    if (tok.Length > 0) logical.Add((tok, bufLine));
+                    buf.Clear();
+                }
             }
+
+            if (buf.Length > 0 && buf[^1] != ' ') buf.Append(' ');
         }
 
-        if (buf.Length > 0) logical.Add((buf.ToString(), bufLine));
+        string tail = buf.ToString().Trim();
+        if (tail.Length > 0) logical.Add((tail, bufLine));
         return logical;
     }
 

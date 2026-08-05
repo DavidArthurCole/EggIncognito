@@ -4,7 +4,9 @@ public static class ProtoCanonicalForm {
     public static NormalizeResult Normalize(string protoText) {
         var result = NormalizeOnce(protoText);
         if (result.Ok) return result;
-        if (result.Error?.Contains("unresolved type 'aux.", StringComparison.Ordinal) == true) {
+        if (result.Error is { } err
+            && (err.Contains("unresolved type 'aux.", StringComparison.Ordinal)
+                || err.Contains("unresolved type '.aux.", StringComparison.Ordinal))) {
             var repaired = NormalizeOnce(ProtoCleanup.MergeLegacyCommon(protoText));
             if (repaired.Ok) return repaired;
         }

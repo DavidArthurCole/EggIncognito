@@ -20,12 +20,20 @@
                     <MessageConfigEditor/>
                 </section>
 
+                <AdminDevicesPanel ClientFactory="Client"/>
+
+                <AdminRoutesPanel ClientFactory="Client"/>
+            </div>
+
+            <div class="admin-col-right">
+                <TrafficPanel RefreshIntervalSeconds="5"/>
+
                 <section class="panel mb-4">
                     <div class="admin-panel-head">
                         <h2 class="admin-panel-title">Users</h2>
                         <span class="text-muted text-xs">@_users.Count total</span>
                     </div>
-                    <div class="reg-wrap">
+                    <div class="reg-wrap admin-users-scroll">
                         <table class="data-table admin-users-table">
                             <thead>
                             <tr>
@@ -51,14 +59,6 @@
                         </table>
                     </div>
                 </section>
-
-                <AdminDevicesPanel ClientFactory="Client"/>
-
-                <AdminRoutesPanel ClientFactory="Client"/>
-            </div>
-
-            <div class="admin-col-right">
-                <TrafficPanel RefreshIntervalSeconds="5"/>
 
                 <AdminSessionsPanel ClientFactory="Client"/>
 

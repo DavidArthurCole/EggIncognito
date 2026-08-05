@@ -45,7 +45,7 @@ public static class ProtoCleanup {
         if (packageIndex >= 0 && commonLines.Count > 0)
             lines.InsertRange(packageIndex + 1, commonLines);
 
-        lines = [.. lines.Select(l => l.Replace("aux.", ""))];
+        lines = [.. lines.Select(l => l.Replace(".aux.", "").Replace("aux.", ""))];
 
         return string.Concat(lines);
     }

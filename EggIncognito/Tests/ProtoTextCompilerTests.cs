@@ -318,7 +318,7 @@ public class ProtoTextCompilerTests {
     }
 
     [Fact]
-    public void Compile_DeclarationAfterCloseBrace_Throws() {
+    public void Compile_OneLineMessageAfterCloseBrace_ParsesBothMessages() {
         const string text = """
             syntax = "proto2";
             package ei;
@@ -327,12 +327,42 @@ public class ProtoTextCompilerTests {
             } message N { optional int32 b = 1; }
             """;
 
-        var ex = Assert.Throws<FormatException>(() => ProtoTextCompiler.Compile(text));
-        Assert.Contains("line 5", ex.Message, StringComparison.Ordinal);
+        var fdp = ProtoTextCompiler.Compile(text);
+        Assert.Equal(["M", "N"], [.. fdp.MessageType.Select(m => m.Name)]);
+        Assert.Equal(["a"], [.. fdp.MessageType[0].Field.Select(f => f.Name)]);
+        Assert.Equal(["b"], [.. fdp.MessageType[1].Field.Select(f => f.Name)]);
     }
 
     [Fact]
-    public void Normalize_DeclarationAfterCloseBrace_ReportsError() {
+    public void Compile_OneLineMessageWithBody_ParsesField() {
+        const string text = """
+            syntax = "proto2";
+            package ei;
+            enum AdNetwork { VUNGLE = 0; }
+            message EggIncAdConfig { repeated AdNetwork network_priority = 1; }
+            """;
+
+        var fdp = ProtoTextCompiler.Compile(text);
+        var msg = fdp.MessageType.Single(m => m.Name == "EggIncAdConfig");
+        Assert.Equal("network_priority", msg.Field[0].Name);
+        Assert.Equal(FieldDescriptorProto.Types.Label.Repeated, msg.Field[0].Label);
+    }
+
+    [Fact]
+    public void Compile_OneLineEnumWithValues_ParsesEveryValue() {
+        const string text = """
+            syntax = "proto2";
+            package ei;
+            enum Platform { UNKNOWN_PLATFORM = 0; IOS = 1; DROID = 2; }
+            """;
+
+        var fdp = ProtoTextCompiler.Compile(text);
+        var e = fdp.EnumType.Single(x => x.Name == "Platform");
+        Assert.Equal(["UNKNOWN_PLATFORM", "IOS", "DROID"], [.. e.Value.Select(v => v.Name)]);
+    }
+
+    [Fact]
+    public void Normalize_OneLineMessageAfterCloseBrace_NormalizesToMultiLine() {
         const string text = """
             syntax = "proto2";
             package ei;
@@ -342,8 +372,15 @@ public class ProtoTextCompilerTests {
             """;
 
         var result = ProtoCanonicalForm.Normalize(text);
-        Assert.False(result.Ok);
-        Assert.Null(result.Sha);
+        Assert.True(result.Ok, $"normalize failed: {result.Error}");
+        Assert.NotNull(result.Sha);
+        Assert.Contains("message M {", result.Text!, StringComparison.Ordinal);
+        Assert.Contains("message N {", result.Text!, StringComparison.Ordinal);
+
+        var renorm = ProtoCanonicalForm.Normalize(result.Text!);
+        Assert.True(renorm.Ok, $"renormalize failed: {renorm.Error}");
+        Assert.Equal(result.Text, renorm.Text);
+        Assert.Equal(result.Sha, renorm.Sha);
     }
 
     [Fact]

@@ -48,7 +48,7 @@
                         <td>
                             <div class="flex gap-1">
                                 @if (row.Override is not null) {
-                                    <span class="badge badge-override">override</span>
+                                    <span class="badge badge-override">edited</span>
                                 }
                                 @if (row.Source == "db") {
                                     <span class="badge badge-db">db</span>
@@ -67,11 +67,10 @@
                         <tr class="reg-edit-row">
                             <td colspan="3">
                                 <div class="routes-editor">
-                                    @if (row.Source == "yaml") {
-                                        <p class="text-muted text-xs m-0">Mock serving follows the yaml codegen for this route. This override only affects Inspector, capture decode, and docs.</p>
-                                    }
-                                    @if (row.Source == "orphan") {
-                                        <p class="text-muted text-xs m-0">No matching route in yaml or the db catalog. Only Clear is available.</p>
+                                    @if (row.Source != "orphan") {
+                                        <p class="text-muted text-xs m-0">Saving persists this route definition to the database. It drives Inspector, capture decode, and docs.</p>
+                                    } else {
+                                        <p class="text-muted text-xs m-0">No matching route in yaml or the db catalog. Only Reset is available.</p>
                                     }
                                     <div class="routes-editor-fields">
                                         <label class="routes-editor-field">
@@ -85,7 +84,6 @@
                                         <label class="routes-editor-field">
                                             Request wrapped
                                             <select class="reg-filter-input w-auto" value="@_draftRequestWrapped" @onchange="OnDraftRequestWrapped">
-                                                <option value="inherit">inherit (@EffectiveLabel(row.Effective?.RequestWrapped))</option>
                                                 <option value="true">true</option>
                                                 <option value="false">false</option>
                                             </select>
@@ -93,7 +91,6 @@
                                         <label class="routes-editor-field">
                                             Response wrapped
                                             <select class="reg-filter-input w-auto" value="@_draftResponseWrapped" @onchange="OnDraftResponseWrapped">
-                                                <option value="inherit">inherit (@EffectiveLabel(row.Effective?.ResponseWrapped))</option>
                                                 <option value="true">true</option>
                                                 <option value="false">false</option>
                                             </select>
@@ -101,7 +98,6 @@
                                         <label class="routes-editor-field">
                                             Path param
                                             <select class="reg-filter-input w-auto" value="@_draftPathParam" @onchange="OnDraftPathParam">
-                                                <option value="inherit">inherit (@EffectiveLabel(row.Effective?.PathParam))</option>
                                                 <option value="true">true</option>
                                                 <option value="false">false</option>
                                             </select>
@@ -113,7 +109,7 @@
                                                 <div class="routes-drift-row">
                                                     <span class="badge @(d.Reliable ? "badge-override" : "badge-db")">@(d.Reliable ? "drift" : "advisory")</span>
                                                     <span class="text-muted">@d.Field: effective @(d.EffectiveValue ?? "-") vs binary @(d.BinaryValue ?? "-")</span>
-                                                    <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => ApplyDrift(d)">Apply as override</button>
+                                                    <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => ApplyDrift(d)">Apply</button>
                                                 </div>
                                             }
                                         </div>
@@ -123,7 +119,7 @@
                                             <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => Save(row)">Save</button>
                                         }
                                         @if (row.Override is not null) {
-                                            <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Clear(row.Path)">Clear</button>
+                                            <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Clear(row.Path)">Reset</button>
                                         }
                                     </div>
                                 </div>
@@ -159,9 +155,9 @@
 
     string _draftRequest = "";
     string _draftResponse = "";
-    string _draftRequestWrapped = "inherit";
-    string _draftResponseWrapped = "inherit";
-    string _draftPathParam = "inherit";
+    string _draftRequestWrapped = "false";
+    string _draftResponseWrapped = "false";
+    string _draftPathParam = "false";
 
     protected override async Task OnInitializedAsync() {
         await LoadMessages();
@@ -182,15 +178,15 @@
     }
 
     void OnDraftRequestWrapped(ChangeEventArgs e) {
-        _draftRequestWrapped = e.Value?.ToString() ?? "inherit";
+        _draftRequestWrapped = e.Value?.ToString() ?? "false";
     }
 
     void OnDraftResponseWrapped(ChangeEventArgs e) {
-        _draftResponseWrapped = e.Value?.ToString() ?? "inherit";
+        _draftResponseWrapped = e.Value?.ToString() ?? "false";
     }
 
     void OnDraftPathParam(ChangeEventArgs e) {
-        _draftPathParam = e.Value?.ToString() ?? "inherit";
+        _draftPathParam = e.Value?.ToString() ?? "false";
     }
 
     List<RouteRow> FilteredRows() {
@@ -207,8 +203,8 @@
         return _binary?.Rows.Any(r => r.Path == path) ?? false;
     }
 
-    static string EffectiveLabel(bool? v) {
-        return v is { } b ? b ? "true" : "false" : "-";
+    static string Bool(bool? v) {
+        return v == true ? "true" : "false";
     }
 
     static bool? ParseTriState(string v) {
@@ -227,11 +223,11 @@
 
         _expandedPath = row.Path;
         _msg = null;
-        _draftRequest = row.Override?.Request ?? "";
-        _draftResponse = row.Override?.Response ?? "";
-        _draftRequestWrapped = row.Override?.RequestWrapped is { } rw ? rw ? "true" : "false" : "inherit";
-        _draftResponseWrapped = row.Override?.ResponseWrapped is { } sw ? sw ? "true" : "false" : "inherit";
-        _draftPathParam = row.Override?.PathParam is { } pp ? pp ? "true" : "false" : "inherit";
+        _draftRequest = row.Override?.Request ?? row.Effective?.Request ?? "";
+        _draftResponse = row.Override?.Response ?? row.Effective?.Response ?? "";
+        _draftRequestWrapped = Bool(row.Override?.RequestWrapped ?? row.Effective?.RequestWrapped);
+        _draftResponseWrapped = Bool(row.Override?.ResponseWrapped ?? row.Effective?.ResponseWrapped);
+        _draftPathParam = Bool(row.Override?.PathParam ?? row.Effective?.PathParam);
     }
 
     async Task LoadMessages() {
@@ -313,7 +309,7 @@
 
         if (body.Request is null && body.Response is null && body.RequestWrapped is null
             && body.ResponseWrapped is null && body.PathParam is null) {
-            _msg = "nothing to save; set at least one field or use Clear";
+            _msg = "nothing to save; set at least one field or use Reset";
             return;
         }
 
@@ -357,13 +353,15 @@
         _msg = null;
         try {
             var value = bool.Parse(d.BinaryValue);
-            var current = _rows.FirstOrDefault(r => r.Path == d.Path)?.Override;
+            var row = _rows.FirstOrDefault(r => r.Path == d.Path);
+            var current = row?.Override;
+            var eff = row?.Effective;
             var body = new UpsertBody(
-                current?.Request,
-                current?.Response,
-                d.Field == "requestWrapped" ? value : current?.RequestWrapped,
-                d.Field == "responseWrapped" ? value : current?.ResponseWrapped,
-                current?.PathParam);
+                current?.Request ?? eff?.Request,
+                current?.Response ?? eff?.Response,
+                d.Field == "requestWrapped" ? value : current?.RequestWrapped ?? eff?.RequestWrapped,
+                d.Field == "responseWrapped" ? value : current?.ResponseWrapped ?? eff?.ResponseWrapped,
+                current?.PathParam ?? eff?.PathParam);
             var res = await ClientFactory().PutAsJsonAsync($"/api/admin/routes/{d.Path}", body, JsonOpts);
             _msg = res.IsSuccessStatusCode ? $"applied {d.Field} drift for {d.Path}" : $"apply failed ({(int)res.StatusCode})";
             await LoadRoutes();

@@ -1058,6 +1058,37 @@ pre.data-text {
 
 .admin-grid { @apply grid gap-4 items-start lg:grid-cols-2; }
 .admin-col-left, .admin-col-right { @apply min-w-0; }
+.admin-users-scroll { @apply max-h-[36rem] overflow-y-auto; }
+
+.skm {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border: 1px solid #40404b;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  background-image: linear-gradient(180deg, #2a2a31 0%, #232329 100%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 6px 18px -8px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+.skm-muted { color: var(--color-muted); font-size: 0.875rem; line-height: 1.25rem; margin: 0; }
+.skm-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+@media (min-width: 640px) { .skm-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.skm-tile { display: flex; flex-direction: column; gap: 0.125rem; background-color: var(--color-panel2); border: 1px solid var(--color-border); border-radius: 0.375rem; padding: 0.5rem 0.75rem; }
+.skm-tile-n { font-size: 1.125rem; line-height: 1; font-weight: 600; color: var(--color-fg); font-variant-numeric: tabular-nums; }
+.skm-tile-l { font-size: 11px; text-transform: uppercase; letter-spacing: 0.025em; color: var(--color-muted); }
+.skm-spark { display: block; width: 100%; height: 2.5rem; color: var(--color-accent); margin-bottom: 0.75rem; }
+.skm-warn { color: var(--color-err); font-size: 0.75rem; line-height: 1rem; margin: 0 0 0.5rem; }
+.skm-tabs { display: flex; align-items: center; gap: 0.25rem; margin-bottom: 0.5rem; }
+.skm-tab, .skm-refresh { background-color: var(--color-panel2); border: 1px solid var(--color-border); color: var(--color-muted); border-radius: 0.25rem; padding: 0 0.625rem; height: 1.75rem; font-size: 0.75rem; line-height: 1; cursor: pointer; }
+.skm-refresh { color: var(--color-fg); }
+.skm-tab:hover, .skm-refresh:hover { border-color: var(--color-accent); color: var(--color-fg); }
+.skm-tab-on { border-color: var(--color-accent); color: var(--color-accent); }
+.skm-spacer { flex: 1 1 0%; }
+.skm-table { width: 100%; font-size: 0.75rem; color: var(--color-muted); font-variant-numeric: tabular-nums; border: 1px solid var(--color-border); border-radius: 0.375rem; border-collapse: collapse; overflow: hidden; }
+.skm-table thead th { position: sticky; top: 0; z-index: 10; background-color: var(--color-panel0); text-align: left; padding: 0.25rem 0.5rem; white-space: nowrap; }
+.skm-table td { padding: 0.25rem 0.5rem; white-space: nowrap; }
+.skm-table tbody tr { border-top: 1px solid var(--color-border); }
+.skm-table tbody tr:hover { background-color: var(--color-panel2); }
+.skm-num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .sess-kind { @apply border; }
 .sess-kind-user { @apply text-accent border-accent; }
