@@ -86,7 +86,7 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
     }
 
 
-    [HttpGet("/{ns:regex(^ei(_[[a-z0-9]]+)?$)}")]
+    [HttpGet("/{ns:eins}")]
     public IActionResult NamespaceIndex(string ns) {
         if (!surface.Namespaces.Contains(ns)) return NotFound();
         Response.Headers.CacheControl = "public, max-age=300";
