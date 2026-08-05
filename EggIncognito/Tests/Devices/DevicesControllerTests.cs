@@ -176,6 +176,9 @@ public class DevicesControllerTests {
 
         public Task<List<DeviceUpdate>> UpdateHistoryAsync(string deviceId, int n, CancellationToken ct = default) =>
             Task.FromResult(new List<DeviceUpdate>());
+
+        public Task<List<DeviceProbeStats>> ProbeStatsAsync(TimeSpan window, CancellationToken ct = default) =>
+            Task.FromResult(new List<DeviceProbeStats>());
     }
 
     private sealed class FakeUser(UserRole role) : ICurrentUser {

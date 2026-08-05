@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using EggIdentity.Client;
 using EggIdentity.Contract;
 using EggIncognito.Capture;
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.GameData;
@@ -36,6 +37,8 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
     private IdentityApiClient? Identity => services.GetService(typeof(IdentityApiClient)) as IdentityApiClient;
 
     private ApiKeyStore? Keys => services.GetService(typeof(ApiKeyStore)) as ApiKeyStore;
+
+    private IDeviceStatusStore? DeviceStore => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
 
     private ObjectResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
@@ -136,6 +139,163 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
                     decryptErr = diag.LastDecryptError is null ? 0 : 1
                 };
             }));
+        }
+
+        return Ok(rows);
+    }
+
+    [HttpGet("devices/stats")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> DeviceStats([FromQuery] int hours = 24, CancellationToken ct = default) {
+        if (RequireAdmin() is { } no) return no;
+        var store = DeviceStore;
+        var db = Db;
+        if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
+
+        int clampedHours = Math.Clamp(hours, 1, 168);
+        var window = TimeSpan.FromHours(clampedHours);
+
+        var devices = await store.EnabledDevicesAsync(ct);
+        var latest = (await store.LatestPerDeviceAsync(ct)).ToDictionary(p => p.DeviceId);
+        var stats = (await store.ProbeStatsAsync(window, ct)).ToDictionary(s => s.DeviceId);
+        var updatesLatest = (await store.LatestUpdatePerDeviceAsync(ct)).ToDictionary(u => u.DeviceId);
+
+        var regLatestApp = new Dictionary<string, string?>();
+        var storeLatest = new Dictionary<string, string?>();
+        var regClientVersion = new Dictionary<(string Platform, string AppVersion), int>();
+        foreach (string plat in devices.Select(d => d.Platform).Distinct()) {
+            storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, ct);
+            var extracted = await db.ProtoVersions.AsNoTracking()
+                .Where(v => v.Platform == plat && (v.DeletedAt == null || v.CanonicalId != null))
+                .Select(v => new { v.AppVersion, v.ClientVersion })
+                .ToListAsync(ct);
+            foreach (var e in extracted) {
+                if (!string.IsNullOrEmpty(e.AppVersion) && int.TryParse(e.ClientVersion, out int cvv))
+                    regClientVersion[(plat, e.AppVersion)] = cvv;
+            }
+
+            regLatestApp[plat] = extracted.Select(e => e.AppVersion)
+                .OrderByDescending(v => v, Comparer<string>.Create((x, y) => DeviceParsing.CompareVersions(x, y)))
+                .FirstOrDefault();
+        }
+
+        var binaries = services.GetService(typeof(GameBinaryProvider)) as GameBinaryProvider;
+        DeviceCaptureManager? mgr =
+            services.GetService(typeof(DeviceCaptureManager)) is DeviceCaptureManager m
+            && services.GetService(typeof(DeviceConfig)) is DeviceConfig
+                ? m
+                : null;
+
+        var rows = new List<object>();
+        foreach (var d in devices) {
+            latest.TryGetValue(d.Id, out var probe);
+            var s = stats.TryGetValue(d.Id, out var st)
+                ? st
+                : new DeviceProbeStats(d.Id, 0, 0, null, null, 0, new Dictionary<string, int>());
+            updatesLatest.TryGetValue(d.Id, out var lastUpdate);
+            var updateHistory = await store.UpdateHistoryAsync(d.Id, 5, ct);
+            var probeHistory = await store.HistoryAsync(d.Id, 10, ct);
+
+            string? sl = storeLatest.GetValueOrDefault(d.Platform);
+            string? installedAppVersion = probe?.InstalledAppVersion;
+            int? clientVersion = binaries?.CachedClientVersion(d.Platform, installedAppVersion)
+                ?? (installedAppVersion is { } iv && regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
+                    ? rcv
+                    : (int?)null);
+
+            object? capture = null;
+            object? rinfo = null;
+            if (mgr is not null) {
+                var diag = mgr.DiagFor(d.Id);
+                int port = mgr.PortFor(d.Id);
+                var counters = new DeviceCaptureVerdict.Counters(
+                    port != 0, port, diag.ClientConnects, diag.AuxbrainConnects, diag.Flows,
+                    diag.RinfoHarvests, diag.LastDecryptError);
+                var verdict = DeviceCaptureVerdict.For(counters);
+                capture = new {
+                    listening = counters.Listening,
+                    port,
+                    clientConnects = diag.ClientConnects,
+                    auxbrainConnects = diag.AuxbrainConnects,
+                    flows = diag.Flows,
+                    rinfoHarvests = diag.RinfoHarvests,
+                    lastDecryptError = diag.LastDecryptError,
+                    verdict = new { label = verdict.Label, color = verdict.Color, detail = verdict.Detail }
+                };
+                var v = mgr.Rinfo.Latest(d.Id);
+                if (v is not null) {
+                    rinfo = new { version = v.Version, build = v.Build, clientVersion = v.ClientVersion, lastSeen = v.LastSeen };
+                }
+            }
+
+            int reachablePct = s.Total == 0 ? 0 : (int)Math.Round(100.0 * s.ReachableCount / s.Total);
+
+            rows.Add(new {
+                id = d.Id,
+                platform = d.Platform,
+                label = d.Label,
+                target = d.Target,
+                package = d.Package,
+                enabled = d.Enabled,
+                latestProbe = probe is null
+                    ? null
+                    : new {
+                        probedAt = probe.ProbedAt,
+                        reachable = probe.Reachable,
+                        installedAppVersion = probe.InstalledAppVersion,
+                        installedBuild = probe.InstalledBuild,
+                        result = probe.Result,
+                        triggeredBy = probe.TriggeredBy,
+                        note = probe.Note
+                    },
+                stats = new {
+                    windowHours = clampedHours,
+                    total = s.Total,
+                    reachableCount = s.ReachableCount,
+                    reachablePct,
+                    lastSuccessAt = s.LastSuccessAt,
+                    lastFailureAt = s.LastFailureAt,
+                    consecutiveFailures = s.ConsecutiveFailures,
+                    resultCounts = s.ResultCounts
+                },
+                versions = new {
+                    installed = installedAppVersion,
+                    installedBuild = probe?.InstalledBuild,
+                    registryLatest = regLatestApp.GetValueOrDefault(d.Platform),
+                    storeLatest = sl,
+                    storeAhead = StoreAheadCheck.IsAhead(sl, installedAppVersion),
+                    clientVersion
+                },
+                updates = new {
+                    latest = lastUpdate is null
+                        ? null
+                        : new {
+                            attemptedAt = lastUpdate.AttemptedAt,
+                            fromVersion = lastUpdate.FromVersion,
+                            toVersion = lastUpdate.ToVersion,
+                            status = lastUpdate.Status,
+                            note = lastUpdate.Note,
+                            triggeredBy = lastUpdate.TriggeredBy
+                        },
+                    recent = updateHistory.Select(u => new {
+                        attemptedAt = u.AttemptedAt,
+                        fromVersion = u.FromVersion,
+                        toVersion = u.ToVersion,
+                        status = u.Status,
+                        note = u.Note,
+                        triggeredBy = u.TriggeredBy
+                    })
+                },
+                probeHistory = probeHistory.Select(p => new {
+                    probedAt = p.ProbedAt,
+                    reachable = p.Reachable,
+                    result = p.Result,
+                    triggeredBy = p.TriggeredBy,
+                    note = p.Note
+                }),
+                capture,
+                rinfo
+            });
         }
 
         return Ok(rows);
