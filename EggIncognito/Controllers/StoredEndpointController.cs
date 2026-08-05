@@ -58,8 +58,9 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
         if (yamlRoutes.Resolve(body.Path) is not null ||
-            await db.StoredRoutes.AsNoTracking().AnyAsync(r => r.Path == body.Path))
+            await db.StoredRoutes.AsNoTracking().AnyAsync(r => r.Path == body.Path)) {
             return Conflict(new { error = $"route {body.Path} already exists" });
+        }
 
         db.StoredRoutes.Add(new StoredRoute {
             Path = body.Path,
