@@ -33,8 +33,9 @@ public sealed class StagedEntry {
     public bool IsAnalyzed => IsDone && Result is { Ok: true };
 }
 
-public sealed record GroupStatus(bool Known, bool Pending, bool Offered, bool Failed = false) {
-    public bool Offerable => !Known && !Pending && !Offered && !Failed;
+public sealed record GroupStatus(
+    bool Known, bool Pending, bool Offered, bool Failed = false, bool InRegistry = false) {
+    public bool Offerable => !Known && !InRegistry && !Pending && !Offered && !Failed;
 }
 
 public sealed class AnalysisWorkbenchState {

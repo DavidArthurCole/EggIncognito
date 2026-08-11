@@ -129,6 +129,9 @@
                                 <span class="text-muted">Pick the file to offer in the rail.</span>
                             } else if (selGroup?.Status is { Known: true }) {
                                 <span class="wb-badge wb-badge-known">in registry</span>
+                            } else if (selGroup?.Status is { InRegistry: true }) {
+                                <span class="wb-badge wb-badge-known">sha in registry</span>
+                                <span class="text-muted">This proto text is already stored under different version metadata.</span>
                             } else if (selGroup?.Status is { Failed: true }) {
                                 <span class="wb-badge wb-badge-failed">check failed</span>
                                 <button type="button" class="btn-mini" title="Retry check" aria-label="Retry check"
@@ -573,6 +576,7 @@
         return g.Status switch {
             { Failed: true } => "check failed",
             { Known: true } => "in registry",
+            { InRegistry: true } => "sha in registry",
             { Pending: true } or { Offered: true } => "pending",
             { Offerable: true } => "offerable",
             _ => "checking"
@@ -583,7 +587,7 @@
         if (g.Conflict) return "wb-badge-conflict";
         return g.Status switch {
             { Failed: true } => "wb-badge-failed",
-            { Known: true } => "wb-badge-known",
+            { Known: true } or { InRegistry: true } => "wb-badge-known",
             { Pending: true } or { Offered: true } => "wb-badge-pending",
             { Offerable: true } => "wb-badge-open",
             _ => ""
@@ -615,7 +619,7 @@
                     $"/api/protos/staged/check?platform={Uri.EscapeDataString(g.Platform)}&appVersion={Uri.EscapeDataString(g.AppVersion)}&build={Uri.EscapeDataString(g.Build)}&clientVersion={Uri.EscapeDataString(g.ClientVersionText)}&protoSha={Uri.EscapeDataString(g.Sha ?? "")}",
                     JsonOpts);
                 await InvokeAsync(() => State.GroupStatuses[sk] = r is not null
-                    ? new GroupStatus(r.KnownCombination, r.Pending, false)
+                    ? new GroupStatus(r.KnownCombination, r.Pending, false, false, r.InRegistry)
                     : new GroupStatus(false, false, false, true));
             }
             catch {
@@ -658,8 +662,9 @@
             };
             var resp = await Client().PostAsJsonAsync("/api/protos/staged/offer", body, JsonOpts);
             if (!resp.IsSuccessStatusCode) return;
+            var outcome = await resp.Content.ReadFromJsonAsync<OfferResp>(JsonOpts);
             await InvokeAsync(() => {
-                if (g.StatusKey is { } sk) State.GroupStatuses[sk] = new GroupStatus(false, true, true);
+                if (g.StatusKey is { } sk) State.GroupStatuses[sk] = StatusOf(outcome?.Result);
             });
             await OnChanged.InvokeAsync();
         }
@@ -670,7 +675,17 @@
         }
     }
 
+    static GroupStatus StatusOf(string? offerResult) {
+        return offerResult switch {
+            "alreadyinregistry" => new GroupStatus(true, false, false, false, true),
+            "alreadypending" => new GroupStatus(false, true, false),
+            _ => new GroupStatus(false, true, true)
+        };
+    }
+
     sealed record CheckResp(bool InRegistry, bool Pending, bool KnownCombination);
+
+    sealed record OfferResp(string? Result);
 
     sealed record CmpMeta(string Platform, string AppVersion, string Build, string ClientVersion, string ProtoSha, string Label);
 

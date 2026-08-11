@@ -15,12 +15,7 @@
     <div class="flex flex-col gap-6">
         @if (_events is { Count: > 0 }) {
             <section class="panel">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-semibold m-0">Current events</h3>
-                    @if (_capturedAt is { } cap) {
-                        <span class="text-muted text-xs">captured @Ago(cap)</span>
-                    }
-                </div>
+                <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
                 <div class="flex flex-wrap gap-1.5">
                     @foreach (var e in _events) {
                         <span class="event-pill @(RemainingSeconds(e) <= 0 ? "ended" : "")">
@@ -243,7 +238,6 @@
     List<Season>? _seasons;
     int _seasonIx;
     List<EventRow>? _events;
-    DateTimeOffset? _capturedAt;
     IJSObjectReference? _countdown;
     readonly CaptureViewState _view = new();
     readonly Dictionary<string, string> _fc = new();
@@ -267,7 +261,6 @@
             var cur = await Client().GetFromJsonAsync<EventsResponse>("/api/periodicals/current", JsonOpts);
             if (cur is not null) {
                 _events = cur.Events;
-                _capturedAt = cur.CapturedAt;
             }
         }
         catch {
@@ -533,14 +526,6 @@
     static double RemainingSeconds(EventRow e) {
         if (e.EndTime is not { } end || end <= 0) return 0;
         return end - DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-    }
-
-    static string Ago(DateTimeOffset at) {
-        var d = DateTimeOffset.UtcNow - at;
-        if (d < TimeSpan.FromMinutes(1)) return "just now";
-        if (d < TimeSpan.FromHours(1)) return $"{(int)d.TotalMinutes}m ago";
-        if (d < TimeSpan.FromDays(1)) return $"{(int)d.TotalHours}h ago";
-        return $"{(int)d.TotalDays}d ago";
     }
 
     static string RemainingLabel(EventRow e) {

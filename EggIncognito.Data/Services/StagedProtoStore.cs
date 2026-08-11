@@ -129,10 +129,11 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     public Task<int> PendingCountAsync(CancellationToken ct) =>
         db.StagedProtos.CountAsync(s => s.Status == "pending", ct);
 
-    private static bool FieldEquals(string? a, string? b, bool ignoreCase) {
+    public static bool FieldCompatible(string? a, string? b) {
         string left = a?.Trim() ?? "";
         string right = b?.Trim() ?? "";
-        return string.Equals(left, right, ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        return left.Length == 0 || right.Length == 0
+                                || string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<(bool inRegistry, bool pending, bool knownCombination)> CheckAsync(
@@ -141,16 +142,15 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         bool inReg = await ShaInRegistryAsync(protoSha, ct);
         bool pending = await db.StagedProtos.AnyAsync(s => s.ProtoSha == protoSha && s.Status == "pending", ct);
         bool known = false;
-        if (inReg && !string.IsNullOrWhiteSpace(platform) && !string.IsNullOrWhiteSpace(appVersion)
-            && !string.IsNullOrWhiteSpace(build)) {
+        if (inReg) {
             var rows = await db.ProtoVersions.AsNoTracking()
                 .Where(p => p.ProtoSha == protoSha && p.DeletedAt == null)
                 .Select(p => new { p.Platform, p.AppVersion, p.Build, p.ClientVersion })
                 .ToListAsync(ct);
-            known = rows.Any(p => FieldEquals(p.Platform, platform, true)
-                && FieldEquals(p.AppVersion, appVersion, false)
-                && FieldEquals(p.Build, build, false)
-                && FieldEquals(p.ClientVersion, clientVersion, false));
+            known = rows.Any(p => FieldCompatible(p.Platform, platform)
+                                  && FieldCompatible(p.AppVersion, appVersion)
+                                  && FieldCompatible(p.Build, build)
+                                  && FieldCompatible(p.ClientVersion, clientVersion));
         }
 
         return (inReg, pending, known);
