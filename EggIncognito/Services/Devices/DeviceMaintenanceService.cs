@@ -14,10 +14,13 @@ public sealed class DeviceMaintenanceService(
     IEnumerable<IDeviceStoreChecker> storeCheckers,
     IConfiguration appConfig,
     IosStoreCatalog catalog,
+    AndroidStoreCatalog androidCatalog,
     KnownVersionRecorder knownVersions,
     ILogger<DeviceMaintenanceService> logger) : BackgroundService {
     private static readonly TimeSpan ClimbHarvestBackoff = TimeSpan.FromMinutes(30);
     private readonly bool _syncEnabled = appConfig.GetValue("DeviceSync:Enabled", false);
+    private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(config.HarvestIntervalMinutes);
+    private readonly TimeSpan _refreshSettle = TimeSpan.FromSeconds(config.HarvestSettleSeconds);
     private readonly TimeSpan _noOpRetryBackoff =
         TimeSpan.FromMinutes(appConfig.GetValue("DeviceSync:RetryBackoffMinutes", 360));
     private readonly TimeSpan _storeProbeInterval =
@@ -31,6 +34,8 @@ public sealed class DeviceMaintenanceService(
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DateTimeOffset> _lastStoreProbe =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTimeOffset> _lastRefreshHarvest =
+        new(StringComparer.OrdinalIgnoreCase);
 #pragma warning restore IDE0028
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
@@ -43,8 +48,10 @@ public sealed class DeviceMaintenanceService(
         try {
             await StartupHarvestAsync(stoppingToken);
             await StoreSyncAllAsync(stoppingToken);
-            while (await timer.WaitForNextTickAsync(stoppingToken))
+            while (await timer.WaitForNextTickAsync(stoppingToken)) {
+                await RefreshCapturesAsync(stoppingToken);
                 await StoreSyncAllAsync(stoppingToken);
+            }
         } catch (OperationCanceledException) {
             /* shutdown */
         }
@@ -53,7 +60,7 @@ public sealed class DeviceMaintenanceService(
     private async Task StartupHarvestAsync(CancellationToken ct) {
         foreach (var d in config.Devices) {
             try {
-                var rinfo = await proxyPusher.ForceHarvestAsync(d, TimeSpan.FromSeconds(25), ct);
+                var rinfo = await HarvestAsync(d, TimeSpan.FromSeconds(25), ct);
                 logger.LogInformation("device capture: {Id} startup harvest -> {Cv}",
                     d.Id, rinfo?.ClientVersion is { } cv ? $"clientVersion {cv}" : "no rinfo (will retry on demand)");
             } catch (OperationCanceledException) {
@@ -62,6 +69,31 @@ public sealed class DeviceMaintenanceService(
                 logger.LogWarning(ex, "device capture: {Id} startup harvest threw", d.Id);
             }
         }
+    }
+
+    internal async Task RefreshCapturesAsync(CancellationToken ct) {
+        if (_refreshInterval <= TimeSpan.Zero) return;
+        foreach (var d in config.Devices) {
+            if (_lastRefreshHarvest.TryGetValue(d.Id, out var last) && time.GetUtcNow() - last < _refreshInterval)
+                continue;
+
+            try {
+                logger.LogInformation("device capture: {Id} scheduled capture refresh (every {Minutes} min)",
+                    d.Id, _refreshInterval.TotalMinutes);
+                var rinfo = await HarvestAsync(d, TimeSpan.FromSeconds(40), ct);
+                logger.LogInformation("device capture: {Id} refresh harvest -> {Cv}",
+                    d.Id, rinfo?.ClientVersion is { } cv ? $"clientVersion {cv}" : "no rinfo");
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "device capture: {Id} refresh harvest threw", d.Id);
+            }
+        }
+    }
+
+    private async Task<DeviceRinfo?> HarvestAsync(DeviceEntry d, TimeSpan timeout, CancellationToken ct) {
+        _lastRefreshHarvest[d.Id] = time.GetUtcNow();
+        return await proxyPusher.ForceHarvestAsync(d, timeout, ct, _refreshSettle);
     }
 
     internal async Task StoreSyncAllAsync(CancellationToken ct) {
@@ -101,9 +133,22 @@ public sealed class DeviceMaintenanceService(
             string? country = appConfig["DeviceUpdate:Ios:LookupCountry"];
             string? storeLatest = await catalog.LatestVersionAsync(appId, country, ct);
             if (storeLatest is not null)
-                await knownVersions.RecordAsync("ios", storeLatest, "itunes-lookup", ct);
+                await knownVersions.RecordAsync(Platforms.Ios, storeLatest, "itunes-lookup", ct);
         } catch (Exception ex) {
-            logger.LogWarning(ex, "device sync: store catalog refresh threw");
+            logger.LogWarning(ex, "device sync: ios store catalog refresh threw");
+        }
+
+        try {
+            string? package = config.Devices
+                .FirstOrDefault(d => Platforms.Matches(d.Platform, Platforms.Android))?.Package;
+            if (package is null) return;
+            string? playLatest = await androidCatalog.LatestVersionAsync(
+                package, appConfig["DeviceUpdate:Android:LookupCountry"],
+                appConfig["DeviceUpdate:Android:LookupLocale"] ?? "en", ct);
+            if (playLatest is not null)
+                await knownVersions.RecordAsync(Platforms.Android, playLatest, "play-scrape", ct);
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "device sync: play store catalog refresh threw");
         }
     }
 
@@ -130,7 +175,7 @@ public sealed class DeviceMaintenanceService(
                 logger.LogInformation(
                     "device capture: {Id} installed build {Build} not yet harvested (had {Prev}); launching app for fresh capture",
                     d.Id, probe.InstalledBuild, harvested?.Build ?? "none");
-                var rinfo = await proxyPusher.ForceHarvestAsync(d, TimeSpan.FromSeconds(40), ct);
+                var rinfo = await HarvestAsync(d, TimeSpan.FromSeconds(40), ct);
                 await BackfillClientVersionAsync(sp, d, probe.InstalledBuild!, rinfo, ct);
             } catch (OperationCanceledException) {
                 throw;

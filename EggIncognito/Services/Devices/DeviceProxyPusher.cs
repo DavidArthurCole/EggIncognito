@@ -52,7 +52,8 @@ public sealed class DeviceProxyPusher(
 
     public DeviceRinfo? LastRinfo(string deviceId) => manager.Rinfo.Latest(deviceId);
 
-    public async Task<DeviceRinfo?> ForceHarvestAsync(DeviceEntry d, TimeSpan timeout, CancellationToken ct) {
+    public async Task<DeviceRinfo?> ForceHarvestAsync(
+        DeviceEntry d, TimeSpan timeout, CancellationToken ct, TimeSpan settle = default) {
         var before = manager.Rinfo.Latest(d.Id);
         await RestartAppAsync(d, ct);
 
@@ -69,6 +70,13 @@ public sealed class DeviceProxyPusher(
             if (now is not null && (before is null || now.LastSeen != before.LastSeen)) {
                 result = now;
                 break;
+            }
+        }
+
+        if (settle > TimeSpan.Zero) {
+            try {
+                await Task.Delay(settle, ct);
+            } catch (OperationCanceledException) {
             }
         }
 

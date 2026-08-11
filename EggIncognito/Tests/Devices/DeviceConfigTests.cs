@@ -12,7 +12,19 @@ public class DeviceConfigTests {
         var c = DeviceConfig.Bind(Cfg([]));
         Assert.True(c.Enabled);
         Assert.Equal(30, c.IntervalMinutes);
+        Assert.Equal(120, c.HarvestIntervalMinutes);
+        Assert.Equal(10, c.HarvestSettleSeconds);
         Assert.Empty(c.Devices);
+    }
+
+    [Fact]
+    public void Bind_HarvestKnobs_Override() {
+        var c = DeviceConfig.Bind(Cfg(new Dictionary<string, string?> {
+            ["DevicePolling:HarvestIntervalMinutes"] = "45",
+            ["DevicePolling:HarvestSettleSeconds"] = "3"
+        }));
+        Assert.Equal(45, c.HarvestIntervalMinutes);
+        Assert.Equal(3, c.HarvestSettleSeconds);
     }
 
     [Fact]

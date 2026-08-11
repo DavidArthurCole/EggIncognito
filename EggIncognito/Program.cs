@@ -559,8 +559,15 @@ if (deviceCaptureConfig.Enabled && deviceConfig.Devices.Count > 0)
 
 
 builder.Services.AddHttpClient("itunes", c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient("play", c => {
+    c.Timeout = TimeSpan.FromSeconds(15);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36");
+    c.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
+});
 builder.Services.AddSingleton<KnownVersionRecorder>();
 builder.Services.AddSingleton<IosStoreCatalog>();
+builder.Services.AddSingleton<AndroidStoreCatalog>();
 builder.Services.AddSingleton<IDeviceJobTracker,
     DeviceJobTracker>();
 
@@ -573,11 +580,16 @@ int androidPollAttempts = builder.Configuration.GetValue<int?>("DeviceUpdate:And
                           ?? builder.Configuration.GetValue("DeviceCheck:Android:PollAttempts", 24);
 int androidUiFirstWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiFirstWaitSeconds", 3);
 int androidUiRetryWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiRetryWaitSeconds", 2);
+string? androidLookupCountry = builder.Configuration["DeviceUpdate:Android:LookupCountry"];
+string? androidLookupLocale = builder.Configuration["DeviceUpdate:Android:LookupLocale"] ?? "en";
 builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
     new StoreUpdateOrchestrator(
         new AndroidStoreUpdateDriver(
             sp.GetRequiredService<IProcessRunner>(),
-            new AndroidStoreUpdateDriver.Options(androidDrive, androidUiFirstWait, androidUiRetryWait),
+            new AndroidStoreUpdateDriver.Options(androidDrive, androidUiFirstWait, androidUiRetryWait,
+                androidLookupCountry, androidLookupLocale),
+            sp.GetRequiredService<AndroidStoreCatalog>(),
+            sp.GetRequiredService<KnownVersionRecorder>(),
             sp.GetRequiredService<ILogger<AndroidStoreUpdateDriver>>()),
         new StoreUpdateOrchestrator.Options(androidPollSeconds, androidPollAttempts),
         sp.GetRequiredService<KnownVersionRecorder>(),

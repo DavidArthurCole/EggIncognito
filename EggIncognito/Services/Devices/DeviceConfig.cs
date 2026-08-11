@@ -5,6 +5,8 @@ namespace EggIncognito.Services.Devices;
 public sealed record DeviceConfig {
     public bool Enabled { get; init; } = true;
     public int IntervalMinutes { get; init; } = 30;
+    public int HarvestIntervalMinutes { get; init; } = 120;
+    public int HarvestSettleSeconds { get; init; } = 10;
     public IReadOnlyList<DeviceEntry> Devices { get; init; } = [];
 
     public static DeviceConfig Bind(IConfiguration config) {
@@ -16,6 +18,8 @@ public sealed record DeviceConfig {
         return new DeviceConfig {
             Enabled = poll.GetValue("Enabled", true),
             IntervalMinutes = poll.GetValue("IntervalMinutes", 30),
+            HarvestIntervalMinutes = poll.GetValue("HarvestIntervalMinutes", 120),
+            HarvestSettleSeconds = poll.GetValue("HarvestSettleSeconds", 10),
             Devices = Merge(fromDir, inline)
         };
     }

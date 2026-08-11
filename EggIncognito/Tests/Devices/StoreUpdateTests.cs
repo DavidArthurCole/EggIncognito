@@ -30,11 +30,24 @@ public class StoreUpdateTests {
     private static StoreUpdateOrchestrator Orchestrator(IStoreUpdateDriver driver, int attempts = 3) =>
         new(driver, new StoreUpdateOrchestrator.Options(0, attempts), Recorder(), NullLogger.Instance);
 
+    private static AndroidStoreCatalog PlayCatalog(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
+        new(new StubHttpFactory(new StubHttpMessageHandler(respond)), NullLogger<AndroidStoreCatalog>.Instance);
+
+    private static AndroidStoreCatalog NoPlayCatalog() =>
+        PlayCatalog(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+    private static AndroidStoreUpdateDriver AndroidDriver(FakeRunner runner, AndroidStoreCatalog catalog) =>
+        new(runner, new AndroidStoreUpdateDriver.Options("am start {package}", 0, 0),
+            catalog, Recorder(), NullLogger<AndroidStoreUpdateDriver>.Instance);
+
     private static StoreUpdateOrchestrator AndroidOrchestrator(FakeRunner runner, int attempts = 3) =>
-        Orchestrator(new AndroidStoreUpdateDriver(runner,
-                new AndroidStoreUpdateDriver.Options("am start {package}", 0, 0),
-                NullLogger<AndroidStoreUpdateDriver>.Instance),
-            attempts);
+        Orchestrator(AndroidDriver(runner, NoPlayCatalog()), attempts);
+
+    private static HttpResponseMessage Html(string body) =>
+        new(HttpStatusCode.OK) { Content = new StringContent(body) };
+
+    private static string PlayPage(string version) =>
+        $"<html>null,null,[[[\"{version}\"]],[[[\"Aug 1, 2026\"]]]]</html>";
 
     private static IosStoreCatalog Catalog(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
         new(new StubHttpFactory(new StubHttpMessageHandler(respond)), NullLogger<IosStoreCatalog>.Instance);
@@ -227,6 +240,90 @@ public class StoreUpdateTests {
     [Fact]
     public void FindUpdateButtonCenter_NoUpdate_ReturnsNull() =>
         Assert.Null(AndroidStoreUpdateDriver.FindUpdateButtonCenter(UiNoUpdate));
+
+    [Fact]
+    public void PlayCatalog_ParsesVersionToken() =>
+        Assert.Equal("1.37", AndroidStoreCatalog.ParseVersion(PlayPage("1.37")));
+
+    [Fact]
+    public void PlayCatalog_ParsesThreePartVersion() =>
+        Assert.Equal("1.37.2", AndroidStoreCatalog.ParseVersion(PlayPage("1.37.2")));
+
+    [Fact]
+    public void PlayCatalog_NoToken_ReturnsNull() =>
+        Assert.Null(AndroidStoreCatalog.ParseVersion("<html>Varies with device</html>"));
+
+    [Fact]
+    public async Task PlayCatalog_HttpError_ReturnsNull() {
+        var catalog = PlayCatalog(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        Assert.Null(await catalog.LatestVersionAsync("com.auxbrain.egginc", null, "en", default));
+    }
+
+    [Fact]
+    public async Task PlayCatalog_SendsLocaleAndCountry() {
+        Uri? seen = null;
+        var catalog = PlayCatalog(req => {
+            seen = req.RequestUri;
+            return Html(PlayPage("1.37"));
+        });
+
+        Assert.Equal("1.37", await catalog.LatestVersionAsync("com.auxbrain.egginc", "US", "en", default));
+        Assert.Contains("id=com.auxbrain.egginc", seen!.Query, StringComparison.Ordinal);
+        Assert.Contains("hl=en", seen.Query, StringComparison.Ordinal);
+        Assert.Contains("gl=US", seen.Query, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AndroidProbe_PlayMatchesInstalled_UpToDateWithoutUi() {
+        bool touchedDevice = false;
+        var runner = new FakeRunner(_ => {
+            touchedDevice = true;
+            return new ProcessResult(0, "", "");
+        });
+        var driver = AndroidDriver(runner, PlayCatalog(_ => Html(PlayPage("1.37"))));
+
+        var probe = await driver.ProbeStoreAsync(AndroidTarget, "1.37", null, default);
+
+        Assert.Equal(StoreAvailability.UpToDate, probe.Availability);
+        Assert.Equal("1.37", probe.StoreVersion);
+        Assert.False(touchedDevice);
+    }
+
+    [Fact]
+    public async Task AndroidProbe_PlayAhead_UpdateOfferedWithStoreVersion() {
+        var runner = new FakeRunner(args =>
+            args.Any(a => a.Contains("cat")) ? new ProcessResult(0, UiWithUpdate, "") : new ProcessResult(0, "", ""));
+        var driver = AndroidDriver(runner, PlayCatalog(_ => Html(PlayPage("1.37"))));
+
+        var probe = await driver.ProbeStoreAsync(AndroidTarget, "1.36", null, default);
+
+        Assert.Equal(StoreAvailability.UpdateOffered, probe.Availability);
+        Assert.Equal("1.37", probe.StoreVersion);
+    }
+
+    [Fact]
+    public async Task AndroidProbe_PlayAheadButNoButton_ManualNeeded() {
+        var runner = new FakeRunner(args =>
+            args.Any(a => a.Contains("cat")) ? new ProcessResult(0, UiNoUpdate, "") : new ProcessResult(0, "", ""));
+        var driver = AndroidDriver(runner, PlayCatalog(_ => Html(PlayPage("1.37"))));
+
+        var probe = await driver.ProbeStoreAsync(AndroidTarget, "1.36", null, default);
+
+        Assert.Equal(StoreAvailability.ManualNeeded, probe.Availability);
+        Assert.Equal("1.37", probe.StoreVersion);
+    }
+
+    [Fact]
+    public async Task AndroidProbe_PlayUnavailable_FallsBackToUi() {
+        var runner = new FakeRunner(args =>
+            args.Any(a => a.Contains("cat")) ? new ProcessResult(0, UiNoUpdate, "") : new ProcessResult(0, "", ""));
+        var driver = AndroidDriver(runner, NoPlayCatalog());
+
+        var probe = await driver.ProbeStoreAsync(AndroidTarget, "1.36", null, default);
+
+        Assert.Equal(StoreAvailability.UpToDate, probe.Availability);
+        Assert.Null(probe.StoreVersion);
+    }
 
     [Fact]
     public async Task Catalog_ValidLookup_ReturnsVersion() {

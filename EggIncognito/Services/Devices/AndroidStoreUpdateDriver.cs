@@ -5,8 +5,10 @@ namespace EggIncognito.Services.Devices;
 public sealed class AndroidStoreUpdateDriver(
     IProcessRunner runner,
     AndroidStoreUpdateDriver.Options opts,
+    AndroidStoreCatalog catalog,
+    KnownVersionRecorder knownVersions,
     ILogger<AndroidStoreUpdateDriver> logger) : IStoreUpdateDriver {
-    public string Platform => "android";
+    public string Platform => Platforms.Android;
     public string StoreName => "Play";
 
     public async Task<string?> ReadInstalledAsync(DeviceTarget target, CancellationToken ct) {
@@ -25,10 +27,26 @@ public sealed class AndroidStoreUpdateDriver(
 
     public async Task<StoreProbeOutcome> ProbeStoreAsync(
         DeviceTarget target, string installed, Action<string>? progress, CancellationToken ct) {
+        string? latest = await catalog.LatestVersionAsync(target.Package, opts.LookupCountry, opts.LookupLocale, ct);
+        if (latest is not null) {
+            await knownVersions.RecordAsync(Platforms.Android, latest, "play-scrape", ct);
+            if (DeviceParsing.CompareVersions(latest, installed) <= 0) {
+                return new StoreProbeOutcome(StoreAvailability.UpToDate, latest,
+                    $"Play latest {latest}; installed {installed} current");
+            }
+
+            progress?.Invoke($"Play lists {latest} (installed {installed}); opening the Play page…");
+        }
+
+        return await ProbeViaUiAsync(target, latest, progress, ct);
+    }
+
+    private async Task<StoreProbeOutcome> ProbeViaUiAsync(
+        DeviceTarget target, string? latest, Action<string>? progress, CancellationToken ct) {
         string deepLink = opts.DriveTemplate.Replace("{package}", target.Package);
         var open = await Shell(target, deepLink, ct);
         if (open.ExitCode != 0) {
-            return new StoreProbeOutcome(StoreAvailability.Unknown, null,
+            return new StoreProbeOutcome(StoreAvailability.Unknown, latest,
                 $"open page: {DeviceParsing.TrimNote(open.Stderr + open.Stdout)}");
         }
 
@@ -45,18 +63,23 @@ public sealed class AndroidStoreUpdateDriver(
             if (xml is null) continue;
 
             if (FindUpdateButtonCenter(xml) is not null)
-                return new StoreProbeOutcome(StoreAvailability.UpdateOffered, null, null);
+                return new StoreProbeOutcome(StoreAvailability.UpdateOffered, latest, null);
 
             if (HasButton(xml, "Open") || HasButton(xml, "Uninstall")) {
-                return AdvertisesUpdate(xml)
-                    ? new StoreProbeOutcome(StoreAvailability.ManualNeeded, null,
-                        "Play advertises an update but no auto-tappable Update button (major update?); needs manual update")
-                    : new StoreProbeOutcome(StoreAvailability.UpToDate, null,
-                        "no Update button on the Play page (already current, or update not yet offered)");
+                if (AdvertisesUpdate(xml)) {
+                    return new StoreProbeOutcome(StoreAvailability.ManualNeeded, latest,
+                        "Play advertises an update but no auto-tappable Update button (major update?); needs manual update");
+                }
+
+                return latest is null
+                    ? new StoreProbeOutcome(StoreAvailability.UpToDate, null,
+                        "no Update button on the Play page (already current, or update not yet offered)")
+                    : new StoreProbeOutcome(StoreAvailability.ManualNeeded, latest,
+                        $"Play lists {latest} but this device has no Update button yet (staged rollout); needs manual update");
             }
         }
 
-        return new StoreProbeOutcome(StoreAvailability.Unknown, null,
+        return new StoreProbeOutcome(StoreAvailability.Unknown, latest,
             "Play page did not load an Update/Open/Uninstall button (store may be offline or slow)");
     }
 
@@ -141,5 +164,7 @@ public sealed class AndroidStoreUpdateDriver(
     public sealed record Options(
         string DriveTemplate,
         int UiFirstWaitSeconds = 3,
-        int UiRetryWaitSeconds = 2);
+        int UiRetryWaitSeconds = 2,
+        string? LookupCountry = null,
+        string? LookupLocale = null);
 }
