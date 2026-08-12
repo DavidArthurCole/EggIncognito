@@ -23,14 +23,34 @@ public class FarmShowcaseCorpusTests {
 
     [Fact]
     public void SomeFarms_StyleThemselvesWithShellSetsAlone() {
-        var setOnly = Showcase.Value.Presets
-            .Where(p => p.Config.ShellConfigs.Count == 0)
-            .ToList();
-        Assert.Equal(25, setOnly.Count);
-        Assert.All(setOnly, p => Assert.True(p.Config.ShellSetConfigs.Count > 0
-                                             || p.Config.ChickenConfigs.Count > 0
-                                             || p.Config.GroupConfigs.Count > 0
-                                             || p.Config.LightingConfig is not null));
+        var noShellConfigs = Showcase.Value.Presets.Where(p => p.Config.ShellConfigs.Count == 0).ToList();
+        Assert.Equal(25, noShellConfigs.Count);
+
+        var styled = noShellConfigs.Where(p => !FarmStateBuilder.CarriesNoAppearance(p.Config)).ToList();
+        Assert.Equal(23, styled.Count);
+        Assert.All(styled, p => Assert.True(p.Config.ShellSetConfigs.Count > 0
+                                            || p.Config.ChickenConfigs.Count > 0
+                                            || p.Config.GroupConfigs.Count > 0
+                                            || p.Config.LightingConfig is not null));
+    }
+
+    [Fact]
+    public void BlankListings_InferNothingAndStillPlaceTheFixedSlots() {
+        var blank = Showcase.Value.Presets.Where(p => FarmStateBuilder.CarriesNoAppearance(p.Config)).ToList();
+        Assert.Equal(2, blank.Count);
+
+        foreach (var preset in blank) {
+            var state = FarmStateBuilder.FromConfiguration(preset.Config);
+            Assert.False(state.HabTiersInferred);
+            Assert.False(state.SiloCountInferred);
+            Assert.All(state.Habs, t => Assert.Equal(FarmState.EmptyHabTier, t));
+            Assert.Equal(0, state.SilosOwned);
+
+            var placements = FarmPlacementEngine.Place(state, Data).Placements;
+            Assert.DoesNotContain(placements, p => p.Element == FarmElement.HenHouse);
+            Assert.DoesNotContain(placements, p => p.Element == FarmElement.Silo);
+            Assert.Contains(placements, p => p.Element == FarmElement.Ground);
+        }
     }
 
     [Fact]

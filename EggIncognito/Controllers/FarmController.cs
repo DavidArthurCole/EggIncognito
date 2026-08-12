@@ -184,6 +184,11 @@ public sealed class FarmController(
                       + "state panel because hab width drives the row positions");
         }
 
+        if (state.Appearance is { } appearance && FarmStateBuilder.CarriesNoAppearance(appearance)) {
+            notes.Add("this listing carries no appearance at all: no shell, shell-set, group, chicken or lighting "
+                      + "configuration, so the farm renders empty with default shells");
+        }
+
         return notes.Count == 0 ? null : string.Join("; ", notes);
     }
 

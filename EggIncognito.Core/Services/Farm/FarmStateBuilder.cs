@@ -94,6 +94,12 @@ public static class FarmStateBuilder {
         };
     }
 
+    public static bool CarriesNoAppearance(ShellDB.Types.FarmConfiguration? config) =>
+        config is null
+        || (config.ShellConfigs.Count == 0 && config.ShellSetConfigs.Count == 0
+            && config.GroupConfigs.Count == 0 && config.ChickenConfigs.Count == 0
+            && config.LockedElements.Count == 0 && config.LightingConfig is null);
+
     public static bool IsSilo(AssetType t) =>
         t is AssetType.Silo0Small or AssetType.Silo0Med or AssetType.Silo0Large
             or AssetType.Silo1Small or AssetType.Silo1Med or AssetType.Silo1Large or AssetType.SiloAll;
