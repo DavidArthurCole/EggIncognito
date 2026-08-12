@@ -173,10 +173,14 @@ public class FarmShowcaseCorpusTests {
     public void StateBuilder_ReadsHabTiersOffTheAssetType() {
         var config = new ShellDB.Types.FarmConfiguration();
         config.ShellConfigs.Add(new ShellDB.Types.ShellConfiguration {
-            AssetType = AssetType.ChickenUniverse, Index = 0, ShellIdentifier = "x"
+            AssetType = AssetType.ChickenUniverse,
+            Index = 0,
+            ShellIdentifier = "x"
         });
         config.ShellConfigs.Add(new ShellDB.Types.ShellConfiguration {
-            AssetType = AssetType.Coop, Index = 2, ShellIdentifier = "y"
+            AssetType = AssetType.Coop,
+            Index = 2,
+            ShellIdentifier = "y"
         });
 
         var state = FarmStateBuilder.FromConfiguration(config);
@@ -191,7 +195,9 @@ public class FarmShowcaseCorpusTests {
         var config = new ShellDB.Types.FarmConfiguration();
         for (uint i = 0; i < 6; i++) {
             config.ShellConfigs.Add(new ShellDB.Types.ShellConfiguration {
-                AssetType = AssetType.Silo1Large, Index = i, ShellIdentifier = "s"
+                AssetType = AssetType.Silo1Large,
+                Index = i,
+                ShellIdentifier = "s"
             });
         }
 
@@ -206,7 +212,9 @@ public class FarmShowcaseCorpusTests {
         foreach (var t in (AssetType[])[AssetType.Depot7, AssetType.Lab6, AssetType.Hoa3,
                      AssetType.MissionControl3, AssetType.FuelTank4, AssetType.HatcheryDarkMatter]) {
             config.ShellConfigs.Add(new ShellDB.Types.ShellConfiguration {
-                AssetType = t, Index = 0, ShellIdentifier = "z"
+                AssetType = t,
+                Index = 0,
+                ShellIdentifier = "z"
             });
         }
 
@@ -224,10 +232,14 @@ public class FarmShowcaseCorpusTests {
     public void SubPieceRows_DoNotOverwriteThePrimaryHatchery() {
         var config = new ShellDB.Types.FarmConfiguration();
         config.ShellConfigs.Add(new ShellDB.Types.ShellConfiguration {
-            AssetType = AssetType.HatcheryDarkMatter, Index = 0, ShellIdentifier = "a"
+            AssetType = AssetType.HatcheryDarkMatter,
+            Index = 0,
+            ShellIdentifier = "a"
         });
         config.ShellConfigs.Add(new ShellDB.Types.ShellConfiguration {
-            AssetType = AssetType.HatcheryDarkMatterRing1, Index = 0, ShellIdentifier = "a"
+            AssetType = AssetType.HatcheryDarkMatterRing1,
+            Index = 0,
+            ShellIdentifier = "a"
         });
 
         var state = FarmStateBuilder.FromConfiguration(config);

@@ -106,7 +106,9 @@ public sealed class FarmController(
             platform,
             binaryVersion = data.BinaryVersion,
             extents = new {
-                layout.Extents.Lab, layout.Extents.Depot, layout.Extents.Hatchery,
+                layout.Extents.Lab,
+                layout.Extents.Depot,
+                layout.Extents.Hatchery,
                 layout.Extents.HatcheryResolved
             },
             state = Describe(state),
@@ -219,9 +221,16 @@ public sealed class FarmController(
         var chicken = ChickenPiece(state, catalog);
         return new {
             road = new {
-                data.Road.SpawnX, data.Road.RoadY, data.Road.RoadZ, data.Road.DepotStopX, data.Road.DespawnX,
-                data.Road.FollowGap, data.Road.MaxSpeedMult, data.Road.RoundTripSeconds,
-                data.Road.HyperloopVehicleIndex, data.Road.EmptyVehicleIndex
+                data.Road.SpawnX,
+                data.Road.RoadY,
+                data.Road.RoadZ,
+                data.Road.DepotStopX,
+                data.Road.DespawnX,
+                data.Road.FollowGap,
+                data.Road.MaxSpeedMult,
+                data.Road.RoundTripSeconds,
+                data.Road.HyperloopVehicleIndex,
+                data.Road.EmptyVehicleIndex
             },
             vehicles,
             vehicleMeshDiagnostics = vehicles.Count == 0
@@ -283,22 +292,22 @@ public sealed class FarmController(
 
     private static object Row(string key, FarmPlacement p, FarmElement element, AssetType? assetType, string stem,
         string? shellIdentifier, string meshUrl, PlacementProvenance provenance) => new {
-        key,
-        element = element.ToString(),
-        assetType = assetType?.ToString(),
-        p.Index,
-        pos = new { p.Pos.X, p.Pos.Y, p.Pos.Z },
-        rotDeg = new { p.RotDeg.X, p.RotDeg.Y, p.RotDeg.Z },
-        p.Scale,
-        stem,
-        shellIdentifier,
-        meshUrl,
-        provenance = new {
-            origin = provenance.Origin.ToString(),
-            provenance.Locator,
-            provenance.Method
-        }
-    };
+            key,
+            element = element.ToString(),
+            assetType = assetType?.ToString(),
+            p.Index,
+            pos = new { p.Pos.X, p.Pos.Y, p.Pos.Z },
+            rotDeg = new { p.RotDeg.X, p.RotDeg.Y, p.RotDeg.Z },
+            p.Scale,
+            stem,
+            shellIdentifier,
+            meshUrl,
+            provenance = new {
+                origin = provenance.Origin.ToString(),
+                provenance.Locator,
+                provenance.Method
+            }
+        };
 
     private (FarmState? State, string? Diagnostics) BuildState(FarmLayoutRequest req) {
         if (!string.IsNullOrWhiteSpace(req.ShowcaseId)) {
