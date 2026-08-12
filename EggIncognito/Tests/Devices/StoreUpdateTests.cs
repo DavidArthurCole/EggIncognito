@@ -274,19 +274,27 @@ public class StoreUpdateTests {
     }
 
     [Fact]
-    public async Task AndroidProbe_PlayMatchesInstalled_UpToDateWithoutUi() {
-        bool touchedDevice = false;
-        var runner = new FakeRunner(_ => {
-            touchedDevice = true;
-            return new ProcessResult(0, "", "");
-        });
+    public async Task AndroidProbe_PlayMatchesButDeviceOffersUpdate_UpdateOffered() {
+        var runner = new FakeRunner(args =>
+            args.Any(a => a.Contains("cat")) ? new ProcessResult(0, UiWithUpdate, "") : new ProcessResult(0, "", ""));
+        var driver = AndroidDriver(runner, PlayCatalog(_ => Html(PlayPage("1.37"))));
+
+        var probe = await driver.ProbeStoreAsync(AndroidTarget, "1.37", null, default);
+
+        Assert.Equal(StoreAvailability.UpdateOffered, probe.Availability);
+        Assert.Equal("1.37", probe.StoreVersion);
+    }
+
+    [Fact]
+    public async Task AndroidProbe_PlayMatchesAndNoUpdateButton_UpToDate() {
+        var runner = new FakeRunner(args =>
+            args.Any(a => a.Contains("cat")) ? new ProcessResult(0, UiNoUpdate, "") : new ProcessResult(0, "", ""));
         var driver = AndroidDriver(runner, PlayCatalog(_ => Html(PlayPage("1.37"))));
 
         var probe = await driver.ProbeStoreAsync(AndroidTarget, "1.37", null, default);
 
         Assert.Equal(StoreAvailability.UpToDate, probe.Availability);
         Assert.Equal("1.37", probe.StoreVersion);
-        Assert.False(touchedDevice);
     }
 
     [Fact]

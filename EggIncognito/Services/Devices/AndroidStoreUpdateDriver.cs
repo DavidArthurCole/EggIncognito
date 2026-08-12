@@ -28,21 +28,20 @@ public sealed class AndroidStoreUpdateDriver(
     public async Task<StoreProbeOutcome> ProbeStoreAsync(
         DeviceTarget target, string installed, Action<string>? progress, CancellationToken ct) {
         string? latest = await catalog.LatestVersionAsync(target.Package, opts.LookupCountry, opts.LookupLocale, ct);
+        bool storeAhead = false;
         if (latest is not null) {
             await knownVersions.RecordAsync(Platforms.Android, latest, "play-scrape", ct);
-            if (DeviceParsing.CompareVersions(latest, installed) <= 0) {
-                return new StoreProbeOutcome(StoreAvailability.UpToDate, latest,
-                    $"Play latest {latest}; installed {installed} current");
-            }
-
-            progress?.Invoke($"Play lists {latest} (installed {installed}); opening the Play page…");
+            storeAhead = DeviceParsing.CompareVersions(latest, installed) > 0;
+            progress?.Invoke(storeAhead
+                ? $"Play lists {latest} (installed {installed}); opening the Play page…"
+                : $"Play lists {latest}; version name matches, asking the device…");
         }
 
-        return await ProbeViaUiAsync(target, latest, progress, ct);
+        return await ProbeViaUiAsync(target, latest, storeAhead, progress, ct);
     }
 
     private async Task<StoreProbeOutcome> ProbeViaUiAsync(
-        DeviceTarget target, string? latest, Action<string>? progress, CancellationToken ct) {
+        DeviceTarget target, string? latest, bool storeAhead, Action<string>? progress, CancellationToken ct) {
         string deepLink = opts.DriveTemplate.Replace("{package}", target.Package);
         var open = await Shell(target, deepLink, ct);
         if (open.ExitCode != 0) {
@@ -71,11 +70,11 @@ public sealed class AndroidStoreUpdateDriver(
                         "Play advertises an update but no auto-tappable Update button (major update?); needs manual update");
                 }
 
-                return latest is null
-                    ? new StoreProbeOutcome(StoreAvailability.UpToDate, null,
-                        "no Update button on the Play page (already current, or update not yet offered)")
-                    : new StoreProbeOutcome(StoreAvailability.ManualNeeded, latest,
-                        $"Play lists {latest} but this device has no Update button yet (staged rollout); needs manual update");
+                return storeAhead
+                    ? new StoreProbeOutcome(StoreAvailability.ManualNeeded, latest,
+                        $"Play lists {latest} but this device has no Update button yet (staged rollout); needs manual update")
+                    : new StoreProbeOutcome(StoreAvailability.UpToDate, latest,
+                        "no Update button on the Play page (already current, or update not yet offered)");
             }
         }
 
