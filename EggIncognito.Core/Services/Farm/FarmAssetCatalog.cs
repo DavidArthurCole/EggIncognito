@@ -30,16 +30,16 @@ public sealed class FarmAssetCatalog {
     private static readonly FarmShellRef[] NoShells = [];
     private static readonly string[] NoIdentifiers = [];
 
-    private static readonly ConditionalWeakTable<DLCCatalog, FarmAssetCatalog> Instances = new();
+    private static readonly ConditionalWeakTable<DLCCatalog, FarmAssetCatalog> Instances = [];
 
     private static readonly Dictionary<FarmElement, IReadOnlyList<AssetType>> TypesByElement = BuildTypesByElement();
 
     public static readonly FarmAssetCatalog Empty = new(new DLCCatalog());
 
-    private readonly Dictionary<string, ShellEntry> _byIdentifier = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ShellEntry> _byIdentifier = [with(StringComparer.Ordinal)];
     private readonly Dictionary<AssetType, List<FarmShellRef>> _shellsByType = [];
     private readonly Dictionary<AssetType, string> _baseStems = [];
-    private readonly Dictionary<string, AssetType> _typeByStem = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AssetType> _typeByStem = [with(StringComparer.Ordinal)];
     private readonly Dictionary<AssetType, IReadOnlyList<AssetType>> _subPieceTypes = [];
     private readonly Dictionary<AssetType, IReadOnlyList<string>> _defaultShells = [];
     private readonly List<AssetType> _knownTypes = [];
@@ -233,7 +233,7 @@ public sealed class FarmAssetCatalog {
     private static void AddVote(Dictionary<AssetType, Dictionary<string, int>> votes, AssetType type, string stem) {
         if (stem.Length == 0) return;
         if (!votes.TryGetValue(type, out var counts)) {
-            votes[type] = counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            votes[type] = counts = [with(StringComparer.Ordinal)];
         }
 
         counts[stem] = counts.GetValueOrDefault(stem) + 1;

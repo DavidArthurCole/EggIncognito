@@ -132,7 +132,7 @@ public class FarmPlacementEngineTests {
     public void Place_EmitsGroundHardscapeAndMailboxAtTheOrigin() {
         var placements = FarmPlacementEngine.Place(Universe(), Data).Placements;
         foreach (var type in (AssetType[])[AssetType.Ground, AssetType.Hardscape, AssetType.Mailbox]) {
-            var p = Assert.Single(placements.Where(x => x.AssetType == type));
+            var p = Assert.Single(placements, x => x.AssetType == type);
             Assert.Equal(Vec3.Zero, p.Pos);
             Assert.Equal(1f, p.Scale);
         }

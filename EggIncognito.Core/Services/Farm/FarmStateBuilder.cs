@@ -30,7 +30,7 @@ public static class FarmStateBuilder {
             int raw = (int)type;
 
             if (raw is >= (int)AssetType.Coop and <= (int)AssetType.ChickenUniverse) {
-                if (index >= 0 && index < FarmState.HabSlots) habs[index] = raw - 1;
+                if (index is >= 0 and < FarmState.HabSlots) habs[index] = raw - 1;
                 continue;
             }
 

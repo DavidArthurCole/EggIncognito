@@ -57,7 +57,7 @@ public static class FarmPlacementExtractor {
     private const ulong DepotFocusYzAdrp = 0x10008fbc0;
 
     private const ulong HoaFloorAt = 0x1000a4738;
-    private const ulong HoaHomeOffsetAt = 0x1000a4744;
+    private const ulong HoaHomeOffsetAt = 0x1000a4740;
     private const ulong HoaAltOffsetAt = 0x1000a475c;
     private const ulong HoaZAdrp = 0x1000a4774;
 

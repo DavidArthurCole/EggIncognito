@@ -14,10 +14,11 @@ public class FarmShowcaseCorpusTests {
             "Endpoints", "default", "ei", "get_shell_showcase.json")));
 
     [Fact]
-    public void Showcase_ParsesTwoHundredFarms() {
+    public void Showcase_DeduplicatesTheThreeBucketsById() {
         var result = Showcase.Value;
         Assert.True(result.Ok, result.Diagnostics);
-        Assert.Equal(200, result.Presets.Count);
+        Assert.Equal(141, result.Presets.Count);
+        Assert.Equal(result.Presets.Count, result.Presets.Select(p => p.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.All(result.Presets, p => Assert.NotEmpty(p.Config.ShellConfigs));
     }
 

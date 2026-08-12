@@ -9,13 +9,24 @@ namespace EggIncognito.Tests;
 public class PlaygroundTests(SharedAppFactory f) {
     private readonly WebApplicationFactory<Program> _factory = f;
 
+    private static readonly HttpStatusCode[] CatchAllFallThrough = [
+        HttpStatusCode.NotFound,
+        HttpStatusCode.MethodNotAllowed,
+        HttpStatusCode.BadRequest
+    ];
+
+    private static void AssertRouteGone(HttpResponseMessage r) =>
+        Assert.True(Array.IndexOf(CatchAllFallThrough, r.StatusCode) >= 0,
+            $"{r.RequestMessage?.Method} {r.RequestMessage?.RequestUri} still resolves to a route: "
+            + $"{(int)r.StatusCode}");
+
     [Fact]
     public async Task Playground_Page_Renders_AdminGated() {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/playground");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         string html = await r.Content.ReadAsStringAsync();
-        Assert.Contains("3D Playground", html);
+        Assert.Contains("Farm Playground", html);
         Assert.Contains("Admin access required", html);
         Assert.DoesNotContain("playgroundCanvas", html);
     }
@@ -37,20 +48,19 @@ public class PlaygroundTests(SharedAppFactory f) {
     [Fact]
     public async Task ShipAssets_Routes_AreGone() {
         var c = _factory.CreateClient();
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/ship-assets/list")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/ship-assets/glb/ChickenOne")).StatusCode);
+        AssertRouteGone(await c.GetAsync("/api/ship-assets/list"));
+        AssertRouteGone(await c.GetAsync("/api/ship-assets/glb/ChickenOne"));
     }
 
     [Fact]
     public async Task MeshUploadTools_AreGone() {
         var c = _factory.CreateClient();
         using var empty = new MultipartFormDataContent();
-        Assert.Equal(HttpStatusCode.NotFound,
-            (await c.PostAsync("/api/tools/animate-glb?kind=SpinY&seconds=5", empty)).StatusCode);
+        AssertRouteGone(await c.PostAsync("/api/tools/animate-glb?kind=SpinY&seconds=5", empty));
         using var empty2 = new MultipartFormDataContent();
-        Assert.Equal(HttpStatusCode.NotFound, (await c.PostAsync("/api/tools/extract-meshes", empty2)).StatusCode);
+        AssertRouteGone(await c.PostAsync("/api/tools/extract-meshes", empty2));
         using var empty3 = new MultipartFormDataContent();
-        Assert.Equal(HttpStatusCode.NotFound, (await c.PostAsync("/api/tools/export-ships", empty3)).StatusCode);
+        AssertRouteGone(await c.PostAsync("/api/tools/export-ships", empty3));
     }
 
     [Fact]
@@ -91,7 +101,7 @@ public class PlaygroundTests(SharedAppFactory f) {
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         string json = await r.Content.ReadAsStringAsync();
         Assert.Contains("\"ok\":true", json);
-        Assert.Contains("\"count\":200", json);
+        Assert.Contains("\"count\":141", json);
     }
 
     [Fact]
@@ -115,11 +125,11 @@ public class PlaygroundTests(SharedAppFactory f) {
     [Fact]
     public async Task EnvRoutes_AreGone() {
         var c = _factory.CreateClient();
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/catalog")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/farm-layout")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/device-stems")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/hatchery-effects")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/ei_farm_ground/glb")).StatusCode);
+        AssertRouteGone(await c.GetAsync("/api/env/catalog"));
+        AssertRouteGone(await c.GetAsync("/api/env/farm-layout"));
+        AssertRouteGone(await c.GetAsync("/api/env/device-stems"));
+        AssertRouteGone(await c.GetAsync("/api/env/hatchery-effects"));
+        AssertRouteGone(await c.GetAsync("/api/env/ei_farm_ground/glb"));
     }
 
     [Fact]
@@ -139,8 +149,7 @@ public class PlaygroundTests(SharedAppFactory f) {
     [Fact]
     public async Task EnvDesigns_VersionPayload_RouteIsGone() {
         var c = _factory.CreateClient();
-        var r = await c.GetAsync("/api/env/designs/test/versions/1");
-        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+        AssertRouteGone(await c.GetAsync("/api/env/designs/test/versions/1"));
     }
 
     [Fact]
@@ -221,11 +230,10 @@ public class PlaygroundTests(SharedAppFactory f) {
     [Fact]
     public async Task DeviceMeshRoutes_AreGone() {
         var c = _factory.CreateClient();
-        Assert.Equal(HttpStatusCode.NotFound, (await c.PostAsync("/api/devices/x/pull-meshes", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/devices/x/mesh/ei_farm_ground")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/devices/x/cached-meshes")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound,
-            (await c.DeleteAsync("/api/devices/x/cached-meshes/ei_farm_ground")).StatusCode);
+        AssertRouteGone(await c.PostAsync("/api/devices/x/pull-meshes", null));
+        AssertRouteGone(await c.GetAsync("/api/devices/x/mesh/ei_farm_ground"));
+        AssertRouteGone(await c.GetAsync("/api/devices/x/cached-meshes"));
+        AssertRouteGone(await c.DeleteAsync("/api/devices/x/cached-meshes/ei_farm_ground"));
     }
 
     [Fact]

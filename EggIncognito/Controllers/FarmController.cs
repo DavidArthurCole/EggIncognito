@@ -234,7 +234,8 @@ public sealed class FarmController(
         string? identifier = state.Appearance?.ChickenConfigs
             .Select(c => c.ChickenIdentifier)
             .FirstOrDefault(id => !string.IsNullOrEmpty(id));
-        return catalog.ResolveSlot(AssetType.Chicken, identifier).FirstOrDefault();
+        var pieces = catalog.ResolveSlot(AssetType.Chicken, identifier);
+        return pieces.Count > 0 ? pieces[0] : null;
     }
 
     private static void Emit(List<object> rows, List<string> skipped, HashSet<string> seen,

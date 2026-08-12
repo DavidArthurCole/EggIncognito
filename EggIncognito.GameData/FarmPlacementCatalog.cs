@@ -226,7 +226,7 @@ public static class FarmPlacementCatalog {
         };
     }
 
-    private static IReadOnlyDictionary<string, PlacementProvenance> MapProvenance(
+    private static Dictionary<string, PlacementProvenance> MapProvenance(
         IReadOnlyDictionary<string, ProvenanceSource>? source) {
         var map = new Dictionary<string, PlacementProvenance>(StringComparer.Ordinal);
         if (source is null) return map;
