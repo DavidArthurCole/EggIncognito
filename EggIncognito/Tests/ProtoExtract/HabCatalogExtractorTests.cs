@@ -3,6 +3,19 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Tests.ProtoExtract;
 
 public class HabCatalogExtractorTests {
+    private static readonly long[] ExpectedCapacities = [
+        250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000,
+        1_000_000, 2_000_000, 5_000_000, 10_000_000, 25_000_000, 50_000_000, 100_000_000, 600_000_000
+    ];
+
+    private static readonly double[] ExpectedWidths = [
+        3, 4, 4.5, 4.5, 4.5, 5, 5.5, 12.2, 12.5, 7.5, 15.5, 9.5, 16.5, 8.2, 12, 17, 14, 11, 9.5
+    ];
+
+    private static readonly double[] ExpectedExtents = [
+        5, 6, 9, 10, 15, 25, 25, 25, 20, 20, 25, 15, 25, 15, 18, 25, 25, 25, 20
+    ];
+
     [Fact]
     public void Extract_DecodesAllNineteenHabs() {
         if (!BinaryFixture.TryLoad(out var bin)) return;
@@ -30,12 +43,37 @@ public class HabCatalogExtractorTests {
     }
 
     [Fact]
-    public void Extract_CapacitiesMatchHabCapacityExtractor() {
+    public void Extract_DecodesOrderedCapacitySequence() {
         if (!BinaryFixture.TryLoad(out var bin)) return;
-        var catalog = HabCatalogExtractor.Extract(bin);
-        var caps = HabCapacityExtractor.Extract(bin);
-        Assert.True(catalog.Ok, catalog.Diagnostics);
-        Assert.True(caps.Ok, caps.Diagnostics);
-        Assert.Equal(caps.Capacities, catalog.Entries.Select(e => e.Capacity));
+        var r = HabCatalogExtractor.Extract(bin);
+        Assert.True(r.Ok, r.Diagnostics);
+        Assert.Equal(ExpectedCapacities, r.Entries.Select(e => e.Capacity));
+    }
+
+    [Fact]
+    public void Extract_DecodesWidthTable() {
+        if (!BinaryFixture.TryLoad(out var bin)) return;
+        var r = HabCatalogExtractor.Extract(bin);
+        Assert.True(r.Ok, r.Diagnostics);
+        Assert.Equal(ExpectedWidths.Length, r.Entries.Count);
+        for (int i = 0; i < ExpectedWidths.Length; i++) Assert.Equal(ExpectedWidths[i], r.Entries[i].Width, 6);
+    }
+
+    [Fact]
+    public void Extract_DecodesExtentTable() {
+        if (!BinaryFixture.TryLoad(out var bin)) return;
+        var r = HabCatalogExtractor.Extract(bin);
+        Assert.True(r.Ok, r.Diagnostics);
+        Assert.Equal(ExpectedExtents.Length, r.Entries.Count);
+        for (int i = 0; i < ExpectedExtents.Length; i++) Assert.Equal(ExpectedExtents[i], r.Entries[i].Extent, 6);
+    }
+
+    [Fact]
+    public void Extract_DepthIsUniformExceptChickenUniverse() {
+        if (!BinaryFixture.TryLoad(out var bin)) return;
+        var r = HabCatalogExtractor.Extract(bin);
+        Assert.True(r.Ok, r.Diagnostics);
+        for (int i = 0; i < 18; i++) Assert.Equal(2.2, r.Entries[i].Depth, 5);
+        Assert.Equal(4.0, r.Entries[18].Depth, 5);
     }
 }

@@ -6,6 +6,8 @@ public static class VehicleCatalogExtractor {
     private const long Stride = 0xF0;
     private const long ElfStride = 0x140;
     private const long CapacityOff = 0x18;
+    private const long LengthOff = 0xE0;
+    private const long ElfLengthOff = 0x130;
 
     public static Result Read(byte[] bin, string initSymbol = InitSymbol) {
         var img = BinaryImage.Load(bin);
@@ -16,7 +18,7 @@ public static class VehicleCatalogExtractor {
         IReadOnlyList<MachoSections.Section> sections, string initSymbol = InitSymbol) {
         if (BinaryImage.Load(bin) is ElfImage) return ReadElf(bin);
         var scan = StructInitReader.ReadWith(bin, syms, initSymbol);
-        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Build(bin, sections, scan, Stride);
+        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Build(bin, sections, scan, Stride, LengthOff);
     }
 
     private static Result ReadElf(byte[] bin) {
@@ -27,7 +29,7 @@ public static class VehicleCatalogExtractor {
         foreach ((ulong s0, ulong e0) in loc.LocateAllByString(SignatureString)) {
             var scan = StructInitReader.ReadRange(bin, s0, e0);
             if (!scan.Ok) continue;
-            var built = Build(bin, sections, scan, ElfStride);
+            var built = Build(bin, sections, scan, ElfStride, ElfLengthOff);
             if (built.Entries.Count > best.Entries.Count) best = built;
         }
 
@@ -35,7 +37,7 @@ public static class VehicleCatalogExtractor {
     }
 
     private static Result Build(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
-        StructInitReader.Result scan, long stride) {
+        StructInitReader.Result scan, long stride, long lengthOff) {
         if (scan.Structs.Count == 0) return new Result(false, [], "no struct bases");
 
         var s = MergeByAbsoluteVa(scan.Structs);
@@ -43,7 +45,8 @@ public static class VehicleCatalogExtractor {
         for (int i = 0; ; i++) {
             long slot = i * stride;
             if (!s.TryInt(slot + CapacityOff, 8, out long capacity) || !IsPlausibleCapacity(capacity)) break;
-            entries.Add(new VehicleEntry(i, ResolveName(bin, sections, s, slot), capacity));
+            entries.Add(new VehicleEntry(i, ResolveName(bin, sections, s, slot), capacity,
+                ReadLength(s, slot + lengthOff)));
         }
 
         return new Result(true, entries, $"{entries.Count} vehicles, {entries.Count(e => e.Name is not null)} named");
@@ -79,6 +82,9 @@ public static class VehicleCatalogExtractor {
             : IsName(s.TryInlineString(off));
     }
 
+    private static double ReadLength(StructInitReader.StructInit s, long offset)
+        => s.TryFloat64(offset, out double v) && double.IsFinite(v) && v is > 0 and < 1000 ? v : 0;
+
     private static bool IsPlausibleCapacity(long c) => c is > 0 and <= 1_000_000_000_000;
 
     private static readonly string[] NameSections = ["__cstring", "__const", ".rodata", ".data.rel.ro"];
@@ -88,7 +94,7 @@ public static class VehicleCatalogExtractor {
     private static string ReadCstr(byte[] bin, IReadOnlyList<MachoSections.Section> sections, ulong va)
         => BinaryStrings.ReadCstr(bin, sections, va, NameSections, 64);
 
-    public readonly record struct VehicleEntry(int Index, string? Name, long Capacity);
+    public readonly record struct VehicleEntry(int Index, string? Name, long Capacity, double Length = 0);
 
     public readonly record struct Result(bool Ok, IReadOnlyList<VehicleEntry> Entries, string Diagnostics);
 }

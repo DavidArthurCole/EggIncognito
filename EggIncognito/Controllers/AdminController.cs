@@ -389,7 +389,7 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         if (Db is null) return StatusCode(503, new { error = "no database configured" });
         var store = services.GetRequiredService<GameDataStore>();
         var rows = store.List().ToDictionary(d => d.Id, StringComparer.Ordinal);
-        var documents = GameDataProvider.DocumentIds
+        var documents = GameDataProvider.ImportableIds
             .Select(id => rows.TryGetValue(id, out var doc)
                 ? new { id, present = true, updatedAt = (DateTimeOffset?)doc.UpdatedAt, bytes = (int?)doc.Bytes }
                 : new { id, present = false, updatedAt = (DateTimeOffset?)null, bytes = (int?)null })
@@ -422,7 +422,7 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         if (RequireAdmin() is { } no) return no;
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
-        if (!GameDataProvider.DocumentIds.Contains(id)) return NotFound(new { error = "unknown document id" });
+        if (!GameDataProvider.ImportableIds.Contains(id)) return NotFound(new { error = "unknown document id" });
 
         string json;
         using (var reader = new StreamReader(Request.Body)) json = await reader.ReadToEndAsync(ct);

@@ -68,6 +68,10 @@ public sealed class GameDataProvider(
         "vehicles"
     ];
 
+    public static readonly ImmutableArray<string> AuxiliaryDocumentIds = ["farm-placement"];
+
+    public static readonly ImmutableArray<string> ImportableIds = [.. DocumentIds, .. AuxiliaryDocumentIds];
+
     public static GameDataProvider FromDocuments(IReadOnlyDictionary<string, string> docs) {
         return new GameDataProvider([
                 new BoostFamily(EffectDataLoader.Parse(Doc(docs, "boosts"))),
@@ -94,6 +98,7 @@ public sealed class GameDataProvider(
             "dimensions" => DimensionCatalog.Parse(json),
             "missions" => MissionCatalog.Parse(json),
             "vehicles" => VehicleCatalog.Parse(json),
+            FarmPlacementCatalog.DocumentId => FarmPlacementCatalog.Parse(json),
             _ => throw new GameDataSchemaException($"Unknown game data document id '{id}'.")
         });
     }

@@ -12,6 +12,11 @@ public sealed record RebuildDocResult(string Id, string Status, int? Count, int?
 public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvider binaries) {
     private static readonly string[] Unbuildable = ["boosts", "artifacts"];
 
+    private static readonly string[] BinaryDocIds = [
+        "boost-catalog", "missions", "eggs", "vehicles", "dimensions", "research", "habs",
+        FarmPlacementCatalog.DocumentId
+    ];
+
     private sealed record Candidate(string Platform, string Version, byte[] Bin,
         IReadOnlyList<MachoSymbols.Symbol> Syms, IReadOnlyList<MachoSections.Section> Sections, bool IsElf);
 
@@ -27,7 +32,7 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
         }).ToList();
 
         if (candidates.Count == 0) {
-            foreach (string id in (string[])["boost-catalog", "missions", "eggs", "vehicles", "dimensions", "research", "habs"])
+            foreach (string id in BinaryDocIds)
                 results.Add(new RebuildDocResult(id, "skipped", null, null, "no extraction binary available"));
         } else {
             await LandBestAsync(results, "boost-catalog", candidates, c => {
@@ -80,6 +85,20 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
                 var r = HabCatalogExtractor.ExtractWith(c.Bin, c.Syms, c.Sections);
                 if (!r.Ok || r.Entries.Count == 0) return null;
                 var doc = GameDataDocBuilders.BuildHabs(r.Entries, c.Version);
+                return (doc.Json, doc.Count, SkipNote(doc.Skipped, "nameless"));
+            }, ct);
+
+            await LandBestAsync(results, FarmPlacementCatalog.DocumentId, candidates, c => {
+                var habs = HabCatalogExtractor.ExtractWith(c.Bin, c.Syms, c.Sections);
+                var eggs = EggCatalogExtractor.ExtractAuto(c.Bin);
+                var vehicles = VehicleCatalogExtractor.ReadWith(c.Bin, c.Syms, c.Sections);
+                if (!habs.Ok || !eggs.Ok || !vehicles.Ok) return null;
+
+                var placement = FarmPlacementExtractor.Extract(c.Bin, habs.Entries, eggs.Entries, vehicles.Entries,
+                    c.Version);
+                if (!placement.Ok) throw new InvalidOperationException(placement.Diagnostics);
+
+                var doc = GameDataDocBuilders.BuildFarmPlacement(placement.Data, c.Version);
                 return (doc.Json, doc.Count, SkipNote(doc.Skipped, "nameless"));
             }, ct);
         }

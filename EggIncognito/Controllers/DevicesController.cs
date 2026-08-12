@@ -4,7 +4,6 @@ using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
-using EggIncognito.Services.Assets;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Feed;
@@ -137,6 +136,7 @@ public sealed class DevicesController(
     }
 
     [HttpGet("{id}/history")]
+    [ApiAccess(ApiAccessLevel.Admin)]
     public async Task<IActionResult> History(string id, [FromQuery] int n = 20) {
         if (RequireAdmin() is { } no) return no;
         var store = Store;
@@ -154,6 +154,7 @@ public sealed class DevicesController(
     }
 
     [HttpPost("{id}/refresh")]
+    [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Refresh(string id) {
         if (RequireAdmin() is { } no) return no;
@@ -208,6 +209,7 @@ public sealed class DevicesController(
 
 
     [HttpPost("refresh-all")]
+    [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> RefreshAll() {
         if (RequireAdmin() is { } no) return no;
@@ -243,6 +245,7 @@ public sealed class DevicesController(
 
 
     [HttpPost("{id}/check-update")]
+    [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> CheckUpdate(string id) {
         if (RequireAdmin() is { } no) return no;
@@ -321,6 +324,7 @@ public sealed class DevicesController(
 
 
     [HttpGet("{id}/check-status")]
+    [ApiAccess(ApiAccessLevel.Admin)]
     public IActionResult CheckStatus(string id) {
         if (RequireAdmin() is { } no) return no;
         var s = jobs.Get(id);
@@ -338,6 +342,7 @@ public sealed class DevicesController(
 
 
     [HttpPost("{id}/save")]
+    [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Save(string id) {
         if (RequireAdmin() is { } no) return no;
@@ -495,44 +500,8 @@ public sealed class DevicesController(
         ((IDeviceConnectionFactory)services.GetRequiredService(typeof(IDeviceConnectionFactory))).Ios(device.Target);
 
 
-    [HttpPost("{id}/pull-meshes")]
-    [EnableRateLimiting("write")]
-    public async Task<IActionResult> PullMeshes(string id, [FromQuery] bool export = false,
-        [FromQuery] string? build = null) {
-        if (RequireAdmin() is { } no) return no;
-        var store = Store;
-        if (store is null) return StatusCode(503, new { error = "no database configured" });
-
-        var device = await store.GetAsync(id);
-        if (device is null) return NotFound(new { error = "unknown device" });
-        if (device.Platform is not (PlatformAndroid or PlatformIos))
-            return StatusCode(501, new { error = $"no mesh puller for platform {device.Platform}" });
-
-        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
-        var ct = HttpContext.RequestAborted;
-
-        RpoAssetExtractor.ExtractResult extract;
-        if (device.Platform == PlatformAndroid) {
-            byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
-            if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
-            extract = RpoAssetExtractor.Extract(apk);
-        } else {
-            if (IosConn(device) is not { } conn)
-                return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
-            byte[]? tar = await new IosAssetPuller(conn).PullRposTarAsync(device.Package, ct);
-            if (tar is null)
-                return StatusCode(502, new { error = "could not pull the rpos meshes from the device over ssh" });
-            var entries = TarReader.Read(tar)
-                .Select(e => (e.Name, e.Bytes));
-            extract = RpoAssetExtractor.FromEntries(entries);
-        }
-
-
-        return Ok(export ? MeshManifest.Ships(extract, build, false, null) : MeshManifest.From(extract));
-    }
-
-
     [HttpGet("{id}/list-meshes")]
+    [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> ListMeshes(string id) {
         if (RequireAdmin() is { } no) return no;
@@ -562,31 +531,8 @@ public sealed class DevicesController(
     }
 
 
-    [HttpGet("{id}/mesh/{stem}")]
-    [EnableRateLimiting("read")]
-    public async Task<IActionResult> Mesh(string id, string stem, [FromQuery] string? animate,
-        [FromQuery] float seconds) {
-        if (RequireAdmin() is { } no) return no;
-        var ct = HttpContext.RequestAborted;
-
-
-        var provider = (DeviceMeshProvider)services.GetRequiredService(typeof(DeviceMeshProvider));
-        var res = await provider.GetGlbAsync(stem, id, ct);
-        if (!res.Ok) return StatusCode(res.Status, new { error = res.Diagnostics });
-        byte[] glb = res.Glb!;
-
-        if (!string.IsNullOrEmpty(animate)) {
-            var opts = new GltfAnimator.Options(
-                GltfAnimator.ParseKind(animate), seconds > 0 ? seconds : 6f);
-            var anim = GltfAnimator.Animate(glb, opts);
-            if (anim.Ok) glb = anim.Glb!;
-        }
-
-        return File(glb, "model/gltf-binary", $"{stem}.glb");
-    }
-
-
     [HttpPost("{id}/precache-meshes")]
+    [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> PrecacheMeshes(string id) {
         if (RequireAdmin() is { } no) return no;
@@ -632,40 +578,8 @@ public sealed class DevicesController(
     }
 
 
-    [HttpGet("{id}/cached-meshes")]
-    [EnableRateLimiting("read")]
-    public async Task<IActionResult> CachedMeshes(string id) {
-        if (RequireAdmin() is { } no) return no;
-        var device = await Store?.GetAsync(id)!;
-        if (device is null) return NotFound(new { error = "unknown device" });
-        if (services.GetService(typeof(MeshAssetCache)) is not MeshAssetCache cache || !cache.Enabled)
-            return Ok(new { enabled = false, meshes = Array.Empty<object>() });
-        var meshes = cache.List(device.Platform)
-            .Select(m => new { stem = m.Stem, bytes = m.Bytes, cachedAt = m.CachedAt });
-        return Ok(new { enabled = true, platform = device.Platform, meshes });
-    }
-
-
-    [HttpDelete("{id}/cached-meshes/{stem}")]
-    [EnableRateLimiting("write")]
-    public async Task<IActionResult> DeleteCachedMesh(string id, string stem) {
-        if (RequireAdmin() is { } no) return no;
-        var device = await Store?.GetAsync(id)!;
-        if (device is null) return NotFound(new { error = "unknown device" });
-        if (services.GetService(typeof(MeshAssetCache)) is not MeshAssetCache cache || !cache.Enabled)
-            return StatusCode(503, new { error = "mesh cache not configured" });
-
-        if (stem == "*") {
-            int n = cache.Clear(device.Platform);
-            return Ok(new { ok = true, cleared = n });
-        }
-
-        bool deleted = cache.Delete(device.Platform, stem);
-        return Ok(new { ok = deleted, deleted });
-    }
-
-
     [HttpPost("{id}/restart-app")]
+    [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> RestartApp(string id) {
         if (RequireAdmin() is { } no) return no;

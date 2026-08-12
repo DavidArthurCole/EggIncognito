@@ -3,7 +3,6 @@ using System.Text;
 using EggIncognito.Capture;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
-using EggIncognito.Services.Assets;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
@@ -132,66 +131,6 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
         }
     }
 
-
-    [HttpPost("extract-meshes")]
-    [RequestSizeLimit(200_000_000)]
-    public async Task<IActionResult> ExtractMeshes(IFormFile file, CancellationToken ct) {
-        if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
-        byte[] bytes = new byte[file.Length];
-        using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
-
-        var r = RpoAssetExtractor.Extract(bytes);
-        return Ok(MeshManifest.From(r));
-    }
-
-
-    [HttpPost("export-ships")]
-    [RequestSizeLimit(200_000_000)]
-    public async Task<IActionResult> ExportShips(IFormFile file, [FromQuery] string? build, [FromQuery] bool write,
-        [FromQuery] string? animate, [FromQuery] float seconds, CancellationToken ct) {
-        if (file is null || file.Length == 0) return Ok(new { ok = false, diagnostics = "no file uploaded" });
-        byte[] bytes = new byte[file.Length];
-        using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
-
-        var anim = string.IsNullOrEmpty(animate)
-            ? null
-            : new GltfAnimator.Options(GltfAnimator.ParseKind(animate), seconds > 0 ? seconds : 6f);
-
-        var r = RpoAssetExtractor.Extract(bytes);
-        (bool wrote, string? dir) = await MaybeWriteAsync(r, build, write, anim, ct);
-        return Ok(MeshManifest.Ships(r, build, wrote, dir, anim));
-    }
-
-
-    private async Task<(bool, string?)> MaybeWriteAsync(
-        RpoAssetExtractor.ExtractResult r, string? build, bool write,
-        GltfAnimator.Options? animate, CancellationToken ct) {
-        if (!write) return (false, null);
-        string? dir = config["ShipAssets:OutputDir"];
-        if (string.IsNullOrEmpty(dir)) return (false, null);
-        var export = ShipAssetExporter.Build(r, build, animate);
-        if (export.Ships.Count == 0) return (false, null);
-        await ShipAssetExporter.WriteToAsync(export, dir, ct);
-        return (true, dir);
-    }
-
-
-    [HttpPost("animate-glb")]
-    [RequestSizeLimit(100_000_000)]
-    public async Task<IActionResult> AnimateGlb(IFormFile file, [FromQuery] string? kind, [FromQuery] float seconds,
-        CancellationToken ct) {
-        if (file is null || file.Length == 0) return BadRequest(new { ok = false, diagnostics = "no file uploaded" });
-        byte[] bytes = new byte[file.Length];
-        using (var dest = new MemoryStream(bytes)) await file.CopyToAsync(dest, ct);
-
-        var opts = new GltfAnimator.Options(
-            GltfAnimator.ParseKind(kind), seconds > 0 ? seconds : 6f);
-        var r = GltfAnimator.Animate(bytes, opts);
-        if (!r.Ok) return Ok(new { ok = false, diagnostics = r.Diagnostics });
-
-        string name = Path.GetFileNameWithoutExtension(file.FileName) is { Length: > 0 } n ? n : "model";
-        return File(r.Glb!, "model/gltf-binary", $"{name}.{r.AnimationName}.glb");
-    }
 
     private OkObjectResult ExtractResultJson(DescriptorProtoCarver.ExtractResult r, string? fileSha = null) =>
         Ok(new {

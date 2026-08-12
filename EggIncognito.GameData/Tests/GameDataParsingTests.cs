@@ -133,6 +133,18 @@ public sealed class GameDataParsingTests {
     }
 
     [Fact]
+    public void ImportableIds_extends_DocumentIds_without_gating_the_provider() {
+        foreach (string id in GameDataProvider.DocumentIds) Assert.Contains(id, GameDataProvider.ImportableIds);
+        foreach (string id in GameDataProvider.AuxiliaryDocumentIds) {
+            Assert.Contains(id, GameDataProvider.ImportableIds);
+            Assert.DoesNotContain(id, GameDataProvider.DocumentIds);
+        }
+
+        Assert.Equal(GameDataProvider.DocumentIds.Length + GameDataProvider.AuxiliaryDocumentIds.Length,
+            GameDataProvider.ImportableIds.Length);
+    }
+
+    [Fact]
     public void Validate_accepts_every_synthetic_document() {
         foreach ((string id, string json) in AllDocs()) GameDataProvider.Validate(id, json);
     }

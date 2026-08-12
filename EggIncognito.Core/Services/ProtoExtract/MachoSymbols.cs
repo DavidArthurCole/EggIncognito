@@ -49,35 +49,71 @@ public static class MachoSymbols {
 
     public static bool TryFindFunc(IReadOnlyList<Symbol> syms, string[] needles, out FuncRange range) {
         range = default;
+        if (syms is null || needles is null || needles.Length == 0) return false;
+
+        bool wantLocal = needles.Any(IsLocalEntity);
         Symbol? hit = null;
+        int bestRank = int.MinValue;
+
         foreach (var s in syms) {
             if (s.Value == 0 || string.IsNullOrEmpty(s.Name)) continue;
-            bool all = true;
-            foreach (string n in needles) {
-                if (!s.Name.Contains(n)) {
-                    all = false;
-                    break;
-                }
-            }
+            if (!MatchesAll(s.Name, needles)) continue;
 
-            if (all) {
+            int rank = Rank(s.Name, needles, wantLocal);
+            if (hit is null || rank > bestRank || (rank == bestRank && IsBetterTieBreak(s, hit.Value))) {
                 hit = s;
-                break;
+                bestRank = rank;
             }
         }
 
         if (hit is null) return false;
+        range = new FuncRange(hit.Value.Name, hit.Value.Value, EndOf(syms, hit.Value.Value));
+        return true;
+    }
 
-        ulong start = hit.Value.Value;
+
+    public static bool TryResolveVa(IReadOnlyList<Symbol> syms, ulong va, out FuncRange range, out ulong offset)
+        => Index.Build(syms).TryResolve(va, out range, out offset);
+
+    private static bool MatchesAll(string name, string[] needles) {
+        foreach (string n in needles) {
+            if (!name.Contains(n, StringComparison.Ordinal)) return false;
+        }
+
+        return true;
+    }
+
+    private static int Rank(string name, string[] needles, bool wantLocal) {
+        foreach (string n in needles) {
+            if (string.Equals(name, n, StringComparison.Ordinal)) return 2;
+            if (string.Equals(name, "_" + n, StringComparison.Ordinal)) return 2;
+        }
+
+        return wantLocal || !IsLocalEntity(name) ? 1 : 0;
+    }
+
+    private static bool IsBetterTieBreak(Symbol candidate, Symbol current) {
+        if (candidate.Name.Length != current.Name.Length) return candidate.Name.Length < current.Name.Length;
+        return candidate.Value < current.Value;
+    }
+
+
+    public static bool IsLocalEntity(string name) {
+        if (string.IsNullOrEmpty(name)) return false;
+        if (name.Contains("$_", StringComparison.Ordinal)) return true;
+        if (name.Contains("_block_invoke", StringComparison.Ordinal)) return true;
+        string t = name.Length > 1 && name[0] == '_' ? name[1..] : name;
+        return t.StartsWith("_ZZ", StringComparison.Ordinal);
+    }
+
+    private static ulong EndOf(IReadOnlyList<Symbol> syms, ulong start) {
         ulong end = ulong.MaxValue;
         foreach (var s in syms) {
             if (s.Value > start && s.Value < end)
                 end = s.Value;
         }
 
-        if (end == ulong.MaxValue) end = start + 0x4000;
-        range = new FuncRange(hit.Value.Name, start, end);
-        return true;
+        return end == ulong.MaxValue ? start + 0x4000 : end;
     }
 
     private static void ReadNlist(byte[] bin, uint symoff, uint nsyms, uint stroff, uint strsize, List<Symbol> outp) {
@@ -133,4 +169,57 @@ public static class MachoSymbols {
 
 
     public readonly record struct FuncRange(string Name, ulong Start, ulong End);
+
+
+    public sealed class Index {
+        private readonly ulong[] _starts;
+        private readonly string[] _names;
+
+        private Index(ulong[] starts, string[] names) {
+            _starts = starts;
+            _names = names;
+        }
+
+        public static Index Build(IReadOnlyList<Symbol> syms) {
+            var best = new Dictionary<ulong, string>();
+            foreach (var s in syms) {
+                if (s.Value == 0 || string.IsNullOrEmpty(s.Name)) continue;
+                if (!best.TryGetValue(s.Value, out string? cur) || PrefersOver(s.Name, cur))
+                    best[s.Value] = s.Name;
+            }
+
+            ulong[] starts = [.. best.Keys.OrderBy(v => v)];
+            string[] names = new string[starts.Length];
+            for (int i = 0; i < starts.Length; i++) names[i] = best[starts[i]];
+            return new Index(starts, names);
+        }
+
+        private static bool PrefersOver(string candidate, string current) {
+            bool cl = IsLocalEntity(candidate);
+            bool ul = IsLocalEntity(current);
+            if (cl != ul) return !cl;
+            return candidate.Length < current.Length;
+        }
+
+        public bool TryResolve(ulong va, out FuncRange range, out ulong offset) {
+            range = default;
+            offset = 0;
+            int lo = 0;
+            int hi = _starts.Length;
+            while (lo < hi) {
+                int mid = (lo + hi) / 2;
+                if (_starts[mid] <= va) lo = mid + 1;
+                else hi = mid;
+            }
+
+            if (lo == 0) return false;
+            int i = lo - 1;
+            ulong end = i + 1 < _starts.Length ? _starts[i + 1] : _starts[i] + 0x4000;
+            range = new FuncRange(_names[i], _starts[i], end);
+            offset = va - _starts[i];
+            return true;
+        }
+
+        public string NameOf(ulong va) => TryResolve(va, out var r, out _) ? r.Name : "";
+    }
 }

@@ -3,7 +3,13 @@ using System.Text.Json.Nodes;
 namespace EggIncognito.Services.ProtoExtract.Decomp;
 
 public static class FarmPlacementRecovery {
-    private static readonly long[] FarmWidthFields = [0x3d0, 0x3d4, 0x3d8];
+    private static readonly long[] BuildingExtentFields = [0x3d0, 0x3d4, 0x3d8];
+
+    private static readonly Dictionary<long, string> ExtentNames = new() {
+        [0x3d0] = "labExtent",
+        [0x3d4] = "depotExtent",
+        [0x3d8] = "hatcheryExtent"
+    };
 
     public static Vec3Model Recover(byte[] bin, string needle) {
         if (bin is null || bin.Length < 64)
@@ -19,12 +25,12 @@ public static class FarmPlacementRecovery {
             return new Vec3Model(false, fn.Name, null, null, null, 0, "function range out of bounds");
 
 
-        var bases = new Dictionary<string, string> { ["x0"] = "gc", ["x8"] = "ret" };
+        var bases = new Dictionary<string, string> { ["x0"] = "fs", ["x1"] = "gc", ["x8"] = "ret" };
         var exec = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(), bases,
             KnownCallModels.Resolve);
 
         ExprNode? Axis(long off) {
-            return exec.RetVec.TryGetValue(off, out var e) ? FoldFarmWidth(ExprNode.Fold(e)) : null;
+            return exec.RetVec.TryGetValue(off, out var e) ? NameExtents(ExprNode.Fold(e)) : null;
         }
 
         var x = Axis(0);
@@ -36,20 +42,18 @@ public static class FarmPlacementRecovery {
     }
 
 
-    private static ExprNode FoldFarmWidth(ExprNode n) {
+    private static ExprNode NameExtents(ExprNode n) {
         return n switch {
-            Binary { Op: BinOp.Min } b when IsBound(b.A) && IsBound(b.B) => new Input("farmWidth"),
-            SelectExpr s when IsBound(s.A) && IsBound(s.B) => new Input("farmWidth"),
-            Field f when IsBoundField(f) => new Input("farmWidth"),
-            Unary u => new Unary(u.Op, FoldFarmWidth(u.X)),
-            Binary b => new Binary(b.Op, FoldFarmWidth(b.A), FoldFarmWidth(b.B)),
-            SelectExpr s => new SelectExpr(FoldFarmWidth(s.Cond), FoldFarmWidth(s.A), FoldFarmWidth(s.B)),
+            Field f when IsExtentField(f) => new Input(ExtentNames[f.Offset]),
+            Unary u => new Unary(u.Op, NameExtents(u.X)),
+            Binary b => new Binary(b.Op, NameExtents(b.A), NameExtents(b.B)),
+            SelectExpr s => new SelectExpr(NameExtents(s.Cond), NameExtents(s.A), NameExtents(s.B)),
             _ => n
         };
     }
 
-    private static bool IsBound(ExprNode n) => n is Field f && IsBoundField(f);
-    private static bool IsBoundField(Field f) => f.Base == "gc" && Array.IndexOf(FarmWidthFields, f.Offset) >= 0;
+    private static bool IsExtentField(Field f) =>
+        f.Base == "fs" && Array.IndexOf(BuildingExtentFields, f.Offset) >= 0;
 
     public readonly record struct Vec3Model(
         bool Ok,

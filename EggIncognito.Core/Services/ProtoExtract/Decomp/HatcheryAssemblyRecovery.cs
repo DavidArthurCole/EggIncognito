@@ -4,7 +4,8 @@ namespace EggIncognito.Services.ProtoExtract.Decomp;
 
 public static class HatcheryAssemblyRecovery {
     private static readonly IReadOnlyDictionary<string, double> Empty = new Dictionary<string, double>();
-    private static readonly string[] sourceArray = ["$_2", "$_3", "$_5"];
+    private const string AnchorLambda = "$_2";
+    private static readonly string[] sourceArray = [AnchorLambda, "$_3", "$_5"];
 
     private static string MatrixLambdaNeedle(string tag) =>
         $"updateHatcheryEP14GameControllerbE3{tag}FN5Eigen6MatrixIfLi4ELi4ELi0ELi4ELi4EEEvEEclEv";
@@ -15,29 +16,15 @@ public static class HatcheryAssemblyRecovery {
             return new Assembly(false, null, [], default, "no __text");
         var syms = MachoSymbols.Read(bin);
 
-        float[]? anchor = RecoverAnchor(bin, syms);
-
         var transforms = sourceArray.Select(tag => RecoverMatrix(bin, syms, tvm, tfo, tag))
             .ToList();
 
         var timing = RecoverTiming(bin, syms, tvm, tfo);
 
-        bool ok = anchor is not null || transforms.Any(t => t.Ok);
+        float[]? anchor = transforms.FirstOrDefault(t => t.Lambda == AnchorLambda).Translation();
+
+        bool ok = transforms.Any(t => t.Ok);
         return new Assembly(ok, anchor, transforms, timing, ok ? "ok" : "nothing recovered");
-    }
-
-
-    private static float[]? RecoverAnchor(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms) {
-        var ex = FunctionConstantExtractor.ExtractWith(bin, syms, ["FarmScene14updateHatcheryEP14GameControllerb"]);
-        if (!ex.Ok) return null;
-        var f = ex.Floats;
-        for (int i = 0; i + 2 < f.Count; i++) {
-            double x = f[i], y = f[i + 1], z = f[i + 2];
-            if (x is > 4 and < 40 && Math.Abs(y) < 20 && Math.Abs(z) < 20)
-                return [(float)x, (float)y, (float)z];
-        }
-
-        return null;
     }
 
 

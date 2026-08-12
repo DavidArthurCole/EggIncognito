@@ -1,4 +1,5 @@
 using System.Text.Json;
+using EggIncognito.Core.Services.Farm;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
@@ -191,6 +192,114 @@ public static class GameDataDocBuilders {
 
         return sb.ToString();
     }
+
+    public static DocResult BuildFarmPlacement(FarmPlacementData data, string binaryVersion) {
+        var skipped = data.Habs.Where(h => string.IsNullOrEmpty(h.Name))
+            .Select(h => "hab " + h.Index.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .Concat(data.Eggs.Where(e => string.IsNullOrEmpty(e.Name))
+                .Select(e => "egg " + e.Index.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+            .ToList();
+
+        var trophyGeometry = data.Trophy;
+        var roadGeometry = data.Road;
+        var doc = new {
+            habs = data.Habs.Select(h => new {
+                index = h.Index,
+                name = h.Name,
+                width = h.Width,
+                extent = h.Extent,
+                depth = h.Depth
+            }).ToArray(),
+            habRow = new { anchorX = data.HabAnchorX, y = data.HabRowY, z = data.HabRowZ, gap = data.HabGap },
+            silos = new {
+                stepX = data.SiloStepX,
+                baseX = data.SiloBaseX,
+                y = data.SiloY,
+                zEven = data.SiloZEven,
+                zOdd = data.SiloZOdd
+            },
+            trophy = new {
+                casePos = Vector(trophyGeometry.CasePos),
+                columnStepX = trophyGeometry.ColumnStepX,
+                originX = trophyGeometry.OriginX,
+                rowStepY = trophyGeometry.RowStepY,
+                originY = trophyGeometry.OriginY,
+                rowStepZ = trophyGeometry.RowStepZ,
+                originZ = trophyGeometry.OriginZ,
+                columns = trophyGeometry.Columns,
+                count = trophyGeometry.Count,
+                bonusScale = trophyGeometry.BonusScale,
+                bonusPos = Vector(trophyGeometry.BonusPos)
+            },
+            labExtents = data.LabExtents,
+            depotExtents = data.DepotExtents,
+            eggs = data.Eggs.Select(e => new {
+                index = e.Index,
+                name = e.Name,
+                hatcheryExtent = e.HatcheryExtent
+            }).ToArray(),
+            missionControlPose = data.MissionControlPose.Select(Vector).ToArray(),
+            fuelTankSpacing = data.FuelTankSpacing,
+            singletons = new {
+                floor = data.SingletonFloor,
+                hoaHomeOffset = data.HoaHomeOffset,
+                hoaAltOffset = data.HoaAltOffset,
+                hoaZ = data.HoaZ,
+                missionControlOffset = data.MissionControlOffset,
+                fuelTankBaseOffset = data.FuelTankBaseOffset,
+                fuelTankLockedExtra = data.FuelTankLockedExtra,
+                fuelTankZUnlocked = data.FuelTankZUnlocked,
+                fuelTankZLocked = data.FuelTankZLocked
+            },
+            camera = new {
+                distance = data.CameraDistance,
+                height = data.CameraHeight,
+                staticFocus = data.CameraStaticFocus.Select(Vector).ToArray(),
+                habFocusOffset = Vector(data.HabFocusOffset),
+                labFocusBase = Vector(data.LabFocusBase),
+                depotFocusBase = Vector(data.DepotFocusBase),
+                hatcheryFocusBase = Vector(data.HatcheryFocusBase),
+                fuelTankFocusOffset = Vector(data.FuelTankFocusOffset),
+                focusExtentPivot = data.FocusExtentPivot,
+                focusExtentScale = data.FocusExtentScale,
+                hoaFocusExtra = data.HoaFocusExtra,
+                uiDivisor = data.CameraUiDivisor,
+                uiHeightScale = data.CameraUiHeightScale,
+                uiDistanceScale = data.CameraUiDistanceScale
+            },
+            vehicles = data.Vehicles.Select(v => new { index = v.Index, name = v.Name, length = v.Length })
+                .ToArray(),
+            road = new {
+                spawnX = roadGeometry.SpawnX,
+                roadZ = roadGeometry.RoadZ,
+                roadY = roadGeometry.RoadY,
+                depotStopX = roadGeometry.DepotStopX,
+                despawnX = roadGeometry.DespawnX,
+                followGap = roadGeometry.FollowGap,
+                maxSpeedMult = roadGeometry.MaxSpeedMult,
+                roundTripSeconds = roadGeometry.RoundTripSeconds,
+                hyperloopVehicleIndex = roadGeometry.HyperloopVehicleIndex,
+                emptyVehicleIndex = roadGeometry.EmptyVehicleIndex
+            },
+            binaryVersion,
+            provenance = data.Provenance.ToDictionary(p => p.Key,
+                p => new BoostCatalogBuilder.ProvenanceSource(OriginName(p.Value.Origin), p.Value.Locator,
+                    p.Value.Method ?? "decoded"), StringComparer.Ordinal)
+        };
+        return new DocResult(JsonSerializer.Serialize(doc, CamelJson), data.Habs.Count, skipped);
+    }
+
+    private sealed record VectorRow(float X, float Y, float Z);
+
+    private static VectorRow Vector(Vec3 v) => new(v.X, v.Y, v.Z);
+
+    private static string OriginName(PlacementOrigin origin) => origin switch {
+        PlacementOrigin.Binary => "binary",
+        PlacementOrigin.Config => "config",
+        PlacementOrigin.Fixture => "fixture",
+        PlacementOrigin.Derived => "derived",
+        _ => "authored"
+    };
 
     public static DocResult BuildDimensions(IReadOnlyList<string> ids, string binaryVersion) {
         var doc = new {

@@ -161,6 +161,7 @@ builder.Services.AddSingleton<IAppMode, AppModeService>();
 builder.Services.AddSingleton<IBehaviorService, BehaviorService>();
 builder.Services.AddSingleton<IProtoReflection, ProtoReflection>();
 builder.Services.AddSingleton<GameDataStore>();
+builder.Services.AddSingleton<FarmPlacementDataProvider>();
 builder.Services.AddSingleton<IDocRegistry, DocRegistry>();
 builder.Services.AddSingleton<ILastKnownProtoSource, LastKnownProtoSource>();
 builder.Services.AddSingleton<IEnumFailover, EnumFailover>();

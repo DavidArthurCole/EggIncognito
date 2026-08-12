@@ -139,6 +139,10 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.DesignId, x.VersionNo }).IsUnique();
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+            e.HasOne<EnvDesign>()
+                .WithMany()
+                .HasForeignKey(x => x.DesignId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<ApiKey>(e => {
             e.HasKey(x => x.Id);

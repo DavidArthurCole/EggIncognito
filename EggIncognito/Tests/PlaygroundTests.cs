@@ -1,11 +1,7 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
-using EggIncognito.Services.ProtoExtract;
-using EggIncognito.Tests.ProtoExtract;
 using Microsoft.AspNetCore.Mvc.Testing;
-using SharpGLTF.Schema2;
 
 namespace EggIncognito.Tests;
 
@@ -35,49 +31,26 @@ public class PlaygroundTests(SharedAppFactory f) {
     public async Task Devices_ListMeshes_RequiresAdmin() {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/devices/some-device/list-meshes");
-
-        Assert.True(
-            r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
-                or HttpStatusCode.ServiceUnavailable,
-            $"expected 401/403/503, got {(int)r.StatusCode}");
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
     [Fact]
-    public async Task ShipAssets_List_Responds() {
+    public async Task ShipAssets_Routes_AreGone() {
         var c = _factory.CreateClient();
-        var r = await c.GetAsync("/api/ship-assets/list");
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-
-        var body = await r.Content.ReadFromJsonAsync<ListResult>();
-        Assert.NotNull(body);
-        Assert.NotNull(body.Ships);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/ship-assets/list")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/ship-assets/glb/ChickenOne")).StatusCode);
     }
 
     [Fact]
-    public async Task AnimateGlb_RoundTripsThroughEndpoint() {
-        byte[] glb = RpoMeshDecoder.Decode(SampleRpo.Build(), "Endpoint").Glb!;
-
+    public async Task MeshUploadTools_AreGone() {
         var c = _factory.CreateClient();
-        using var content = new MultipartFormDataContent();
-        var part = new ByteArrayContent(glb);
-        part.Headers.ContentType = new MediaTypeHeaderValue("model/gltf-binary");
-        content.Add(part, "file", "ship.glb");
-
-        var r = await c.PostAsync("/api/tools/animate-glb?kind=SpinY&seconds=5", content);
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        Assert.Equal("model/gltf-binary", r.Content.Headers.ContentType?.MediaType);
-
-        byte[] outGlb = await r.Content.ReadAsByteArrayAsync();
-
-        var model = ModelRoot.ParseGLB(outGlb);
-        Assert.Single(model.LogicalAnimations);
-    }
-
-    [Fact]
-    public async Task Glb_UnknownShip_Is404() {
-        var c = _factory.CreateClient();
-        var r = await c.GetAsync("/api/ship-assets/glb/NotAShip");
-        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+        using var empty = new MultipartFormDataContent();
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await c.PostAsync("/api/tools/animate-glb?kind=SpinY&seconds=5", empty)).StatusCode);
+        using var empty2 = new MultipartFormDataContent();
+        Assert.Equal(HttpStatusCode.NotFound, (await c.PostAsync("/api/tools/extract-meshes", empty2)).StatusCode);
+        using var empty3 = new MultipartFormDataContent();
+        Assert.Equal(HttpStatusCode.NotFound, (await c.PostAsync("/api/tools/export-ships", empty3)).StatusCode);
     }
 
     [Fact]
@@ -102,23 +75,72 @@ public class PlaygroundTests(SharedAppFactory f) {
     }
 
     [Fact]
-    public async Task EnvCatalog_ReturnsPiecesAndHabs() {
+    public async Task FarmCatalog_Responds() {
         var c = _factory.CreateClient();
-        var r = await c.GetAsync("/api/env/catalog");
+        var r = await c.GetAsync("/api/farm/catalog?platform=ios");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         string json = await r.Content.ReadAsStringAsync();
-        Assert.Contains("ei_silo_0_large", json);
-        Assert.Contains("\"habs\"", json);
-        Assert.Contains("hab_eggtopia", json);
-        Assert.DoesNotContain("\"presets\"", json);
+        Assert.Contains("\"ok\"", json);
+        Assert.Contains("\"platform\":\"ios\"", json);
     }
 
     [Fact]
-    public async Task EnvDesigns_List_PublicReturnsArrayShape() {
+    public async Task FarmShowcase_ListsTheFixturePresets() {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/farm/showcase");
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        string json = await r.Content.ReadAsStringAsync();
+        Assert.Contains("\"ok\":true", json);
+        Assert.Contains("\"count\":200", json);
+    }
+
+    [Fact]
+    public async Task FarmLayout_WithoutInputs_ReportsWhatIsMissing() {
+        var c = _factory.CreateClient();
+        var r = await c.PostAsJsonAsync("/api/farm/layout", new { });
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        string json = await r.Content.ReadAsStringAsync();
+        Assert.Contains("\"ok\":false", json);
+        Assert.Contains("\"diagnostics\"", json);
+    }
+
+    [Fact]
+    public async Task FarmMesh_RejectsATraversalStem() {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/farm/mesh/..%2Fegginc");
+        Assert.True(r.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
+            $"expected the stem guard to reject, got {(int)r.StatusCode}");
+    }
+
+    [Fact]
+    public async Task EnvRoutes_AreGone() {
+        var c = _factory.CreateClient();
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/catalog")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/farm-layout")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/device-stems")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/hatchery-effects")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/env/ei_farm_ground/glb")).StatusCode);
+    }
+
+    [Fact]
+    public async Task EnvDesigns_List_RequiresContributor() {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/env/designs");
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        Assert.Contains("designs", await r.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task EnvDesigns_Read_RequiresContributor() {
+        var c = _factory.CreateClient();
+        Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync("/api/env/designs/test")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync("/api/env/designs/test/versions")).StatusCode);
+    }
+
+    [Fact]
+    public async Task EnvDesigns_VersionPayload_RouteIsGone() {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/env/designs/test/versions/1");
+        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 
     [Fact]
@@ -126,23 +148,13 @@ public class PlaygroundTests(SharedAppFactory f) {
         var c = _factory.CreateClient();
         var body = new StringContent("{\"payload\":\"{}\"}", Encoding.UTF8, "application/json");
         var r = await c.PutAsync("/api/env/designs/test", body);
-
-        Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
-            $"expected 403/503, got {(int)r.StatusCode}");
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
     [Fact]
     public async Task EnvDesigns_Delete_RequiresContributor() {
         var c = _factory.CreateClient();
         var r = await c.DeleteAsync("/api/env/designs/test");
-        Assert.True(r.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable,
-            $"expected 403/503, got {(int)r.StatusCode}");
-    }
-
-    [Fact]
-    public async Task EnvGlb_RequiresAdmin() {
-        var c = _factory.CreateClient();
-        var r = await c.GetAsync("/api/env/ei_farm_ground/glb");
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
@@ -203,8 +215,17 @@ public class PlaygroundTests(SharedAppFactory f) {
     public async Task Precache_RequiresAdmin() {
         var c = _factory.CreateClient();
         var r = await c.PostAsync("/api/devices/x/precache-meshes", null);
-        Assert.True(r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
-            or HttpStatusCode.ServiceUnavailable);
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeviceMeshRoutes_AreGone() {
+        var c = _factory.CreateClient();
+        Assert.Equal(HttpStatusCode.NotFound, (await c.PostAsync("/api/devices/x/pull-meshes", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/devices/x/mesh/ei_farm_ground")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/devices/x/cached-meshes")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await c.DeleteAsync("/api/devices/x/cached-meshes/ei_farm_ground")).StatusCode);
     }
 
     [Fact]
@@ -224,6 +245,4 @@ public class PlaygroundTests(SharedAppFactory f) {
 
         Assert.DoesNotContain(">Periodicals</button>", html);
     }
-
-    private sealed record ListResult(string[]? Ships);
 }

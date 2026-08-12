@@ -11,6 +11,7 @@ namespace EggIncognito.Services.DataApi;
 public sealed class DataCatalog {
     public const string PeriodicalsRoute = "ei/get_periodicals";
     internal const string ConfigRoute = "ei/get_config";
+    internal const string ShowcaseRoute = "ei/get_shell_showcase";
 
     private static readonly JsonSerializerOptions SnakeJson = new() {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,

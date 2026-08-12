@@ -5,6 +5,12 @@ namespace EggIncognito.Services.ProtoExtract;
 public static class EggCatalogExtractor {
     public const string SignatureString = "A regular egg. Edible and incredible.";
     private const long ValueFromNameDelta = 0x30;
+    private const long ElfHatcheryFromRecord = 0xf0;
+    private const long MachoRecordStride = 0x110;
+    private const long MachoHatcheryFromRecord = 0xb8;
+    private const long MachoFirstHatcheryFromBase = 0x40;
+    private const long MachoSecondNameFromBase = 0x98;
+    private const long MachoChainedNameFromBase = -0x40;
 
     public static Result Read(byte[] bin, string initSymbol = "__GLOBAL__sub_I_eggdata.cpp") {
         var img = BinaryImage.Load(bin);
@@ -51,7 +57,11 @@ public static class EggCatalogExtractor {
             .Select(g => g.Key).FirstOrDefault() ?? "";
         var eggs = found.Where(f => f.Section == primary).OrderBy(f => f.Va).ToList();
         var entries = new List<EggEntry>(eggs.Count);
-        for (int i = 0; i < eggs.Count; i++) entries.Add(new EggEntry(i, eggs[i].Name, eggs[i].Value));
+        for (int i = 0; i < eggs.Count; i++) {
+            entries.Add(new EggEntry(i, eggs[i].Name, eggs[i].Value,
+                ReadFlatFloat32(flat, eggs[i].Va + (ulong)ElfHatcheryFromRecord)));
+        }
+
         return new Result(true, entries,
             $"{entries.Count} eggs (elf {primary}), {entries.Count(e => e.Name is not null)} named");
     }
@@ -85,19 +95,45 @@ public static class EggCatalogExtractor {
         return double.IsFinite(value);
     }
 
+    private static double ReadFlatFloat32(Dictionary<ulong, byte> flat, ulong va) {
+        uint raw = 0;
+        for (int k = 0; k < 4; k++) {
+            if (!flat.TryGetValue(va + (ulong)k, out byte b)) return 0;
+            raw |= (uint)b << (k * 8);
+        }
+
+        float v = BitConverter.Int32BitsToSingle((int)raw);
+        return float.IsFinite(v) && v >= 0 ? v : 0;
+    }
+
     public static Result ReadWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms,
         IReadOnlyList<MachoSections.Section> sections, string initSymbol = "__GLOBAL__sub_I_eggdata.cpp") {
         var scan = StructInitReader.ReadWith(bin, syms, initSymbol);
         if (!scan.Ok) return new Result(false, [], scan.Diagnostics);
 
-        var entries = new List<EggEntry>();
-        for (int i = 0; i < scan.Structs.Count; i++) {
-            var s = scan.Structs[i];
-            long valueOff = i == 0 ? 0x30L : -0x10L;
-            if (!s.TryFloat64(valueOff, out double value) || !IsPlausible(value)) break;
+        var flat = new Dictionary<ulong, byte>();
+        foreach (var st in scan.Structs) {
+            foreach ((long off, byte b) in st.Bytes) flat[st.BaseVa + (ulong)off] = b;
+        }
 
-            long nameOff = i == 0 ? 0x00L : -0x40L;
-            entries.Add(new EggEntry(i, ResolveName(bin, sections, s, nameOff), value));
+        var entries = new List<EggEntry>();
+        if (scan.Structs.Count == 0) return new Result(true, entries, "0 eggs, 0 named");
+
+        ulong recordBase = scan.Structs[0].BaseVa;
+        for (int i = 0; i <= scan.Structs.Count; i++) {
+            var s = scan.Structs[i <= 1 ? 0 : i - 1];
+            long nameOff = i switch {
+                0 => 0L,
+                1 => MachoSecondNameFromBase,
+                _ => MachoChainedNameFromBase
+            };
+            if (!s.TryFloat64(nameOff + ValueFromNameDelta, out double value) || !IsPlausible(value)) break;
+
+            ulong extentVa = i == 0
+                ? recordBase + (ulong)MachoFirstHatcheryFromBase
+                : recordBase + (ulong)((i * MachoRecordStride) + MachoHatcheryFromRecord);
+            entries.Add(new EggEntry(i, ResolveName(bin, sections, s, nameOff), value,
+                ReadFlatFloat32(flat, extentVa)));
         }
 
         return new Result(true, entries, $"{entries.Count} eggs, {entries.Count(e => e.Name is not null)} named");
@@ -121,7 +157,7 @@ public static class EggCatalogExtractor {
 
     private static bool IsPlausible(double d) => double.IsFinite(d) && Math.Abs(d) is >= 1e-9 and <= 1e18;
 
-    public readonly record struct EggEntry(int Index, string? Name, double BaseValue);
+    public readonly record struct EggEntry(int Index, string? Name, double BaseValue, double HatcheryExtent = 0);
 
     public readonly record struct Result(bool Ok, IReadOnlyList<EggEntry> Entries, string Diagnostics);
 }

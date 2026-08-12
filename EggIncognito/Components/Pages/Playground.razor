@@ -1,452 +1,353 @@
 @page "/playground"
 @rendermode @(RenderMode.InteractiveServer)
 @implements IAsyncDisposable
+@using System.Globalization
+@using System.Text
 @using System.Text.Json
-@using EggIncognito.Services.ProtoExtract
+@using System.Text.Json.Nodes
+@using EggIncognito.Core.Services.Farm
+@using Ei
+@using Google.Protobuf
 @inherits SelfCallComponentBase
 @inject ICurrentUser User
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 
-<PageTitle>EggIncognito - 3D Playground</PageTitle>
+<PageTitle>EggIncognito - Farm Playground</PageTitle>
 
 @if (!_isAdmin) {
     <main class="px-8 pt-6 pb-8 max-w-[1100px]">
-        <h1 class="text-[1.3rem] mt-0 mb-4">3D Playground</h1>
+        <h1 class="text-[1.3rem] mt-0 mb-4">Farm Playground</h1>
         <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft"/></div>
     </main>
 } else {
     <main class="px-8 pt-6 pb-8" @onclick="CloseMenus">
-    <h1 class="text-[1.3rem] mt-0 mb-1">3D Playground</h1>
-    <p class="text-muted text-xs mb-4">
-        Free-place game elements: add habs, silos, chickens and shells, drag the gizmo to arrange them, light the
-        scene, and save named designs. Drag to orbit, scroll to zoom.
-    </p>
+        <h1 class="text-[1.3rem] mt-0 mb-1">Farm Playground</h1>
+        <p class="text-muted text-xs mb-4">
+            A farm is a fixed slot graph, not a scene. Set the farm state, dress it with shells, or load one of the
+            showcase farms; every coordinate comes from the placement engine. Drag to orbit, scroll to zoom.
+        </p>
 
-    <div class="flex gap-4 flex-wrap">
-    <section class="panel flex-1 min-w-[480px]" style="overflow: visible;">
-        <div class="canvas-wrap relative">
-            <canvas @ref="_canvas" id="playgroundCanvas"></canvas>
+        <div class="flex gap-4 flex-wrap">
+            <section class="panel flex-1 min-w-[480px]" style="overflow: visible;">
+                <div class="canvas-wrap relative">
+                    <canvas @ref="_canvas" id="playgroundCanvas"></canvas>
 
-            <div class="pg-menubar" @onclick:stopPropagation="true">
-                <div class="relative">
-                    <button class="pg-menu-btn @(_fileMenuOpen ? "active" : "")" @onclick="ToggleFileMenu">File ▾</button>
-                    @if (_fileMenuOpen) {
-                        <div class="pg-menu">
-                            <button class="pg-menu-item" @onclick="MenuNew">New</button>
-                            <button class="pg-menu-item" @onclick="MenuSave" disabled="@SaveDisabled">Save</button>
-                            <button class="pg-menu-item" @onclick="MenuSaveAs">Save As…</button>
-                            <button class="pg-menu-item" @onclick="MenuReload" disabled="@(string.IsNullOrEmpty(_currentDesign))">Reload</button>
-                            <div class="pg-menu-sep"></div>
-                            <div class="pg-menu-label">Open</div>
-                            @if (_savedDesigns.Count == 0) {
-                                <div class="pg-menu-item text-muted">No saved designs</div>
-                            }
-                            @foreach (var n in _savedDesigns) {
-                                <button class="pg-menu-item" @onclick="() => MenuOpen(n)">@n@(n == _currentDesign ? " ✓" : "")</button>
-                            }
-                            @if (!string.IsNullOrEmpty(_currentDesign) && _versions.Count > 0) {
-                                <div class="pg-menu-sep"></div>
-                                <div class="pg-menu-label">History (v@_currentVersion)</div>
-                                @foreach (var v in _versions) {
-                                    <button class="pg-menu-item" disabled="@(v.VersionNo == _currentVersion)" @onclick="() => MenuRollback(v.VersionNo)">
-                                        v@(v.VersionNo)@(v.VersionNo == _currentVersion ? " (current)" : "")@(string.IsNullOrEmpty(v.Note) ? "" : $": {v.Note}")
-                                    </button>
-                                }
-
-                                <div class="pg-menu-sep"></div>
-                                <button class="pg-menu-item text-red-400" @onclick="MenuDelete">Delete this design</button>
-                            }
-                        </div>
-                    }
-                </div>
-                <div class="relative">
-                    <button class="pg-menu-btn @(_toolsMenuOpen ? "active" : "")" @onclick="ToggleToolsMenu">Tools ▾</button>
-                    @if (_toolsMenuOpen) {
-                        <div class="pg-menu">
-                            <button class="pg-menu-item" @onclick="OpenGifTool">Record loop GIF…</button>
-                        </div>
-                    }
-                </div>
-                <div class="relative">
-                    <button class="pg-menu-btn @(_viewMenuOpen ? "active" : "")" @onclick="ToggleViewMenu">View ▾</button>
-                    @if (_viewMenuOpen) {
-                        <div class="pg-menu">
-                            <button class="pg-menu-item" @onclick="MenuResetView">Reset view</button>
-                        </div>
-                    }
-                </div>
-                <div class="ml-2 text-[11px] text-muted truncate">
-                    @(string.IsNullOrEmpty(_currentDesign) ? "Untitled" : _currentDesign)@(_dirty ? " •" : "")
-                </div>
-            </div>
-
-            @if (_namePromptOpen) {
-                <div class="pg-popover" style="left: 50%; top: 60px; transform: translateX(-50%);" @onclick:stopPropagation="true">
-                    <div class="pg-popover-head">
-                        <span>@(_namePromptIsSaveAs ? "Save As" : "Name design")</span>
-                        <button class="element-del" @onclick="() => _namePromptOpen = false">×</button>
-                    </div>
-                    <div class="pg-popover-body">
-                        <input class="reg-filter-input w-full" placeholder="Design name…" value="@_designName" @oninput="OnDesignNameInput" @ref="_nameInputRef"/>
-                        <input class="reg-filter-input w-full" placeholder="Version note (optional)…" value="@_versionNote" @oninput="e => _versionNote = e.Value?.ToString() ?? string.Empty"/>
-                        <button class="btn-primary" @onclick="ConfirmNamePrompt" disabled="@(string.IsNullOrWhiteSpace(_designName))">Save</button>
-                    </div>
-                </div>
-            }
-
-            @if (_designMode) {
-                <div class="pg-palette" @onclick:stopPropagation="true">
-                    <div class="pg-palette-head">
-                        <span>Add element</span>
-                        <button class="element-del" @onclick="() => _paletteOpen = !_paletteOpen">@(_paletteOpen ? "▾" : "▸")</button>
-                    </div>
-                    @if (_paletteOpen) {
-                        <div class="pg-palette-body">
-                            <div class="settings-seg">
-                                <button class="seg-btn @(_pickerTab == "building" ? "active" : "")" @onclick='() => _pickerTab = "building"'>Buildings</button>
-                                <button class="seg-btn @(_pickerTab == "chicken" ? "active" : "")" @onclick='() => _pickerTab = "chicken"'>Chicken</button>
-                                <button class="seg-btn @(_pickerTab == "actor" ? "active" : "")" @onclick='() => _pickerTab = "actor"'>Actors</button>
-                            </div>
-                            <div class="picker-body">
-                                @if (_pickerTab == "building") {
-                                    @if (_catalogPieces.Count == 0) {
-                                        <div class="text-xs text-muted">Catalog empty.</div>
+                    <div class="pg-menubar" @onclick:stopPropagation="true">
+                        <div class="relative">
+                            <button class="pg-menu-btn @(_fileMenuOpen ? "active" : "")" @onclick="ToggleFileMenu">File</button>
+                            @if (_fileMenuOpen) {
+                                <div class="pg-menu">
+                                    <button class="pg-menu-item" @onclick="MenuNew">New</button>
+                                    <button class="pg-menu-item" @onclick="MenuSave" disabled="@SaveDisabled">Save</button>
+                                    <button class="pg-menu-item" @onclick="MenuSaveAs">Save As</button>
+                                    <button class="pg-menu-item" @onclick="MenuReload" disabled="@(string.IsNullOrEmpty(_currentDesign))">Reload</button>
+                                    <div class="pg-menu-sep"></div>
+                                    <div class="pg-menu-label">Open</div>
+                                    @if (_savedDesigns.Count == 0) {
+                                        <div class="pg-menu-item text-muted">No saved designs</div>
                                     }
-
-                                    @foreach (var grp in _catalogPieces.Where(p => p.Group != "Vehicles" && p.Group != "Ships").GroupBy(p => p.Group)) {
-                                        <div class="picker-group-title">@grp.Key</div>
-                                        @foreach (var entry in FamilyPickerEntries(grp)) {
-                                            var reason = PlacementBlockedReason(entry.Piece);
-                                            <button class="picker-item" @onclick='() => AddElement("env", entry.Piece.Stem, entry.Piece.Label)' disabled="@(reason is not null)">@entry.Display@(reason is null ? "" : $" ({reason})")</button>
+                                    @foreach (var n in _savedDesigns) {
+                                        <button class="pg-menu-item" @onclick="() => MenuOpen(n)">@n@(n == _currentDesign ? " (open)" : "")</button>
+                                    }
+                                    @if (!string.IsNullOrEmpty(_currentDesign) && _versions.Count > 0) {
+                                        <div class="pg-menu-sep"></div>
+                                        <div class="pg-menu-label">History (v@_currentVersion)</div>
+                                        @foreach (var v in _versions) {
+                                            <button class="pg-menu-item" disabled="@(v.VersionNo == _currentVersion)" @onclick="() => MenuRollback(v.VersionNo)">
+                                                v@(v.VersionNo)@(v.VersionNo == _currentVersion ? " (current)" : "")@(string.IsNullOrEmpty(v.Note) ? "" : $": {v.Note}")
+                                            </button>
                                         }
+                                        <div class="pg-menu-sep"></div>
+                                        <button class="pg-menu-item text-red-400" @onclick="MenuDelete">Delete this design</button>
                                     }
-                                } else if (_pickerTab == "actor") {
-                                    <div class="picker-group-title">Chicken</div>
-                                    @if (_chickens.Count > 0) {
-                                        var firstChick = _chickens[0];
-                                        <button class="picker-item" @onclick='() => AddActor("chicken", firstChick.Identifier, "Running chicken")'>Running chicken</button>
-                                    } else {
-                                        <div class="text-xs text-muted">No chickens (ingest a config in Admin).</div>
-                                    }
-
-                                    <div class="picker-group-title">Vehicles</div>
-                                    @foreach (var v in _catalogPieces.Where(p => p.Group == "Vehicles")) {
-                                        <button class="picker-item" @onclick='() => AddActor("vehicle", v.Stem, v.Label)'>@v.Label</button>
-                                    }
-
-                                    <div class="picker-group-title">Rocket</div>
-                                    @foreach (var s in _catalogPieces.Where(p => p.Group == "Ships")) {
-                                        <button class="picker-item" @onclick='() => AddActor("rocket", s.Stem, s.Label)'>@s.Label</button>
-                                    }
-                                } else {
-                                    @if (_chickens.Count == 0) {
-                                        <div class="text-xs text-muted">No chickens (ingest a config in Admin).</div>
-                                    }
-
-                                    @foreach (var c in _chickens) {
-                                        <button class="picker-item" @onclick='() => AddElement("chicken", c.Identifier, c.Name ?? c.Identifier)'>@(c.Name ?? c.Identifier)</button>
-                                    }
-                                }
-                            </div>
-                            <button class="btn-secondary w-full" @onclick="AutoArrangeFarm" disabled="@_busy">Auto-arrange farm</button>
-                            <div class="flex gap-2">
-                                <button class="btn-secondary flex-1" disabled="@(_undo.Count == 0)" @onclick="OnUndo" title="Undo (Ctrl+Z)">Undo</button>
-                                <button class="btn-secondary flex-1" disabled="@(_redo.Count == 0)" @onclick="OnRedo" title="Redo (Ctrl+Y)">Redo</button>
-                            </div>
-                            @if (!string.IsNullOrEmpty(_status)) {
-                                <StatusNote Severity="@(_error ? StatusNote.Kind.Error : StatusNote.Kind.Info)">@_status</StatusNote>
+                                </div>
                             }
-                            <div class="text-xs text-muted">
-                                @if (_elements.Count == 0) {
-                                    <span>No elements yet.</span>
-                                } else {
-                                    <span>@_elements.Count element(s). Click one to select.</span>
-                                }
+                        </div>
+                        <div class="relative">
+                            <button class="pg-menu-btn @(_toolsMenuOpen ? "active" : "")" @onclick="ToggleToolsMenu">Tools</button>
+                            @if (_toolsMenuOpen) {
+                                <div class="pg-menu">
+                                    <button class="pg-menu-item" @onclick="OpenGifTool">Record loop GIF</button>
+                                    <button class="pg-menu-item" @onclick="MenuRebuild" disabled="@_busy">Rebuild farm</button>
+                                </div>
+                            }
+                        </div>
+                        <div class="relative">
+                            <button class="pg-menu-btn @(_viewMenuOpen ? "active" : "")" @onclick="ToggleViewMenu">View</button>
+                            @if (_viewMenuOpen) {
+                                <div class="pg-menu">
+                                    <button class="pg-menu-item" @onclick="MenuResetView">Reset view</button>
+                                    <button class="pg-menu-item" @onclick="MenuTogglePlaying">@(_playing ? "Pause motion" : "Play motion")</button>
+                                </div>
+                            }
+                        </div>
+                        <div class="ml-2 text-[11px] text-muted truncate">
+                            @(string.IsNullOrEmpty(_currentDesign) ? "Untitled" : _currentDesign)@(_dirty ? " (unsaved)" : "")
+                        </div>
+                    </div>
+
+                    @if (_namePromptOpen) {
+                        <div class="pg-popover" style="left: 50%; top: 60px; transform: translateX(-50%);" @onclick:stopPropagation="true">
+                            <div class="pg-popover-head">
+                                <span>@(_namePromptIsSaveAs ? "Save As" : "Name design")</span>
+                                <button class="element-del" @onclick="() => _namePromptOpen = false">x</button>
+                            </div>
+                            <div class="pg-popover-body">
+                                <input class="reg-filter-input w-full" placeholder="Design name" value="@_designName" @oninput="OnDesignNameInput"/>
+                                <input class="reg-filter-input w-full" placeholder="Version note (optional)" value="@_versionNote" @oninput="e => _versionNote = e.Value?.ToString() ?? string.Empty"/>
+                                <button class="btn-primary" @onclick="ConfirmNamePrompt" disabled="@(string.IsNullOrWhiteSpace(_designName))">Save</button>
                             </div>
                         </div>
                     }
-                </div>
-            }
 
-            @if (_gifOpen) {
-                <div class="pg-popover" style="left: 50%; top: 40%; transform: translateX(-50%);" @ref="_gifPopoverRef" @onclick:stopPropagation="true">
-                    <div class="pg-popover-head" @ref="_gifPopoverHeadRef">
-                        <span>Record loop GIF</span>
-                        <button class="element-del" @onclick="CloseGifTool">×</button>
-                    </div>
-                    <div class="pg-popover-body">
-                        <label class="light-field">
-                            <span>FPS</span>
-                            <input type="number" min="5" max="30" class="reg-filter-input w-[70px]" @bind="_gifFps"/>
-                        </label>
-                        <label class="light-field">
-                            <span>Size</span>
-                            <select class="reg-filter-input w-full" @bind="_gifMaxWidth">
-                                <option value="0">Full</option>
-                                <option value="640">Medium (640)</option>
-                                <option value="400">Small (400)</option>
-                            </select>
-                        </label>
-                        <button class="btn-secondary" @onclick="RecordGif" disabled="@(!_anyAnimated || _recording)">
-                            @(_recording ? "Recording…" : "Record GIF")
-                        </button>
-                        @if (!_anyAnimated) {
-                            <div class="text-muted">Set an animation on an element to record.</div>
-                        }
-                        @if (_recording) {
-                            <div class="text-muted">@_recordStage @($"{_recordFraction * 100:0}%")</div>
-                        }
-                    </div>
-                </div>
-            }
-
-            @if (!string.IsNullOrEmpty(_fatalError)) {
-                <div class="canvas-error-overlay">
-                    <div class="canvas-error-box">
-                        <div class="font-semibold mb-1">Playground error</div>
-                        <div class="text-xs mb-3">@_fatalError</div>
-                        <button class="btn-secondary" @onclick="DismissFatal">Dismiss</button>
-                    </div>
-                </div>
-            }
-        </div>
-    </section>
-
-    <section class="w-[340px] flex flex-col gap-2 self-start max-h-[85vh] overflow-auto">
-        <div class="designer-section">
-            <div class="designer-section-head">Scene</div>
-            <div class="designer-section-body flex flex-col gap-3">
-                <label class="block text-xs">
-                    Grid size
-                    <select class="reg-filter-input w-full" @onchange="OnGridSizeChanged">
-                        <option value="0.25" selected="@(_gridSize == 0.25f)">0.25</option>
-                        <option value="0.5" selected="@(_gridSize == 0.5f)">0.5</option>
-                        <option value="1" selected="@(_gridSize == 1f)">1</option>
-                        <option value="2" selected="@(_gridSize == 2f)">2</option>
-                    </select>
-                </label>
-                @if (_showAdjustHint) {
-                    <div class="text-xs text-amber-400">Placement adjusted@(_lastAdjustReason switch { "blocked" or "occupied" => " (blocked: no free space)", "outside-zone" => " (reverted: outside any zone)", _ => "" }).</div>
-                }
-            </div>
-        </div>
-
-        <div class="designer-section">
-            <div class="designer-section-head">Lighting + Colors</div>
-            <div class="designer-section-body grid grid-cols-2 gap-3 text-xs">
-                <label class="light-field">
-                    <span>Background</span>
-                    <span class="flex items-center gap-2">
-                        <input type="color" class="bg-picker-input" @bind="_bgColor" @bind:event="oninput" @bind:after="ApplyBackground" disabled="@_bgTransparent"/>
-                        <label class="settings-check">
-                            <input type="checkbox" @bind="_bgTransparent" @bind:after="ApplyBackground"/><span class="text-muted ml-1">None</span>
-                        </label>
-                    </span>
-                </label>
-                <div></div>
-                <label class="light-field">
-                    <span>Sun azimuth</span><input type="range" min="0" max="360" class="w-full" @bind="_lighting.SunAzimuthDeg" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-                <label class="light-field">
-                    <span>Sun elevation</span><input type="range" min="0" max="90" class="w-full" @bind="_lighting.SunElevationDeg" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-                <label class="light-field">
-                    <span>Sun color</span><input type="color" class="bg-picker-input" @bind="_lighting.SunColor" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-                <label class="light-field">
-                    <span>Sun intensity</span><input type="range" min="0" max="3" step="0.05" class="w-full" @bind="_lighting.SunIntensity" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-                <label class="light-field">
-                    <span>Ambient fill</span><input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-                <label class="light-field">
-                    <span>Sky fill</span><input type="range" min="0" max="2" step="0.05" class="w-full" @bind="_lighting.HemiIntensity" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-                <label class="light-field">
-                    <span>Emission (vibrancy)</span><input type="range" min="0" max="1.5" step="0.05" class="w-full" @bind="_lighting.Emission" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-                <label class="light-field">
-                    <span>Tone mapping</span>
-                    <select class="reg-filter-input w-full" @bind="_lighting.ToneMapping" @bind:after="ApplyLighting">
-                        <option value="none">None (punchy)</option>
-                        <option value="linear">Linear</option>
-                        <option value="aces">ACES filmic</option>
-                        <option value="reinhard">Reinhard</option>
-                        <option value="cineon">Cineon</option>
-                    </select>
-                </label>
-                <label class="light-field">
-                    <span>Exposure</span><input type="range" min="0.1" max="3" step="0.05" class="w-full" @bind="_lighting.Exposure" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-                <label class="light-field">
-                    <span>Fog color</span><input type="color" class="bg-picker-input" @bind="_lighting.FogColor" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-                <label class="light-field">
-                    <span>Fog density</span><input type="range" min="0" max="0.03" step="0.0005" class="w-full" @bind="_lighting.FogDensity" @bind:event="oninput" @bind:after="ApplyLighting"/>
-                </label>
-            </div>
-        </div>
-
-    </section>
-
-    @if (_designMode) {
-        <section class="w-[300px] flex flex-col gap-2 self-start max-h-[85vh] overflow-auto">
-            @if (Selected is { } sel) {
-                <div class="designer-section">
-                    <div class="designer-section-head">Selected: @sel.Label</div>
-                    <div class="designer-section-body text-xs flex flex-col gap-2">
-                        <div class="flex gap-2">
-                            <button class="btn-secondary flex-1" @onclick='() => SetGizmoMode("translate")'>Move</button>
-                            <button class="btn-secondary flex-1" @onclick='() => SetGizmoMode("rotate")'>Rotate</button>
-                        </div>
-                        @TransformFields(sel)
-                        @if (_familyOptions.Count > 1) {
-                            <label class="block">
-                                Variation
-                                <select class="reg-filter-input w-full" @bind="sel.Ref" @bind:after="() => SwapVariation(sel)">
-                                    @foreach (var f in _familyOptions) {
-                                        <option value="@f.Stem">@f.Label</option>
-                                    }
-                                </select>
-                            </label>
-                        }
-                        @if (sel.Kind != "actor") {
-                            <label class="block">
-                                Animation
-                                <select class="reg-filter-input w-full" @bind="sel.Anim" @bind:after="() => OnAnimChanged(sel)">
-                                    <option value="none">None</option>
-                                    <option value="SpinY">Spin (Y)</option>
-                                    <option value="SpinZ">Spin (Z)</option>
-                                    <option value="HoverSpin">Hover + spin</option>
-                                </select>
-                            </label>
-                            @if (sel.HasEffects) {
-                                <label class="settings-check mt-1">
-                                    <input type="checkbox" checked="@sel.Effect" @onchange="e => OnEffectToggled(sel, e.Value is true)"/>
-                                    <span class="ml-2">Extracted effects (@sel.EffectCount)</span>
+                    @if (_gifOpen) {
+                        <div class="pg-popover" style="left: 50%; top: 40%; transform: translateX(-50%);" @ref="_gifPopoverRef" @onclick:stopPropagation="true">
+                            <div class="pg-popover-head" @ref="_gifPopoverHeadRef">
+                                <span>Record loop GIF</span>
+                                <button class="element-del" @onclick="CloseGifTool">x</button>
+                            </div>
+                            <div class="pg-popover-body">
+                                <label class="light-field">
+                                    <span>FPS</span>
+                                    <input type="number" min="5" max="30" class="reg-filter-input w-[70px]" @bind="_gifFps"/>
                                 </label>
-                            }
-                        }
-                        @if (sel.Kind == "actor" && sel.Motion is { } mo) {
-                            <div class="text-xs text-muted">Motion: @mo.Kind</div>
-                            @if (mo.Kind == "path") {
-                                <label class="block">
-                                    Speed
-                                    <input type="range" min="0.5" max="12" step="0.5" class="w-full" @bind="mo.Speed" @bind:event="oninput" @bind:after="() => PushElementMotion(sel)"/>
-                                </label>
-                                <label class="block">
-                                    Loop
-                                    <select class="reg-filter-input w-full" @bind="mo.Loop" @bind:after="() => PushElementMotion(sel)">
-                                        <option value="cycle">Cycle</option>
-                                        <option value="pingpong">Ping-pong</option>
+                                <label class="light-field">
+                                    <span>Size</span>
+                                    <select class="reg-filter-input w-full" @bind="_gifMaxWidth">
+                                        <option value="0">Full</option>
+                                        <option value="640">Medium (640)</option>
+                                        <option value="400">Small (400)</option>
                                     </select>
                                 </label>
-                                @if (sel.Actor == "chicken") {
-                                    <label class="block">
-                                        Chickens running
-                                        <input type="number" min="1" max="50" class="reg-filter-input w-[80px]" @bind="mo.Count" @bind:after="() => PushElementMotion(sel)"/>
-                                    </label>
+                                <button class="btn-secondary" @onclick="RecordGif" disabled="@(!_anyAnimated || _recording)">
+                                    @(_recording ? "Recording" : "Record GIF")
+                                </button>
+                                @if (!_anyAnimated) {
+                                    <div class="text-muted">Nothing is moving. Raise the chicken count or hire vehicles first.</div>
                                 }
-
-                                @if (sel.Actor == "vehicle") {
-                                    <label class="block">
-                                        Vehicles
-                                        <input type="number" min="1" max="20" class="reg-filter-input w-[80px]" @bind="mo.Count" @bind:after="() => PushElementMotion(sel)"/>
-                                    </label>
-                                    <label class="block">
-                                        Depot stop (s)
-                                        <input type="range" min="0" max="5" step="0.5" class="w-full" @bind="mo.StopSeconds" @bind:event="oninput" @bind:after="() => PushElementMotion(sel)"/>
-                                    </label>
+                                @if (_recording) {
+                                    <div class="text-muted">@_recordStage @($"{_recordFraction * 100:0}%")</div>
                                 }
-                            } else {
-                                <label class="block">
-                                    Launch height
-                                    <input type="range" min="4" max="40" step="1" class="w-full" @bind="mo.Height" @bind:event="oninput" @bind:after="() => PushElementMotion(sel)"/>
-                                </label>
-                                <label class="block">
-                                    Period (s)
-                                    <input type="range" min="2" max="15" step="0.5" class="w-full" @bind="mo.Period" @bind:event="oninput" @bind:after="() => PushElementMotion(sel)"/>
-                                </label>
-                            }
-                        }
-                        @if (sel.Kind is "env" or "shell") {
-                            <label class="block">
-                                Shell
-                                <select class="reg-filter-input w-full" @bind="sel.Shell" @bind:after="OnShellChanged">
-                                    <option value="">Base mesh</option>
-                                    @foreach (var s in ShellsForAssetTypeOf(sel)) {
-                                        <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option>
-                                    }
-                                </select>
-                            </label>
-                        }
-                        @if (sel.Kind == "chicken") {
-                            <label class="block">
-                                Skin
-                                <select class="reg-filter-input w-full" @bind="sel.Ref" @bind:after="() => OnChickenSkinChanged(sel)">
-                                    @foreach (var c in _chickens) {
-                                        <option value="@c.Identifier">@(c.Name ?? c.Identifier)</option>
-                                    }
-                                </select>
-                            </label>
-                            <label class="block">
-                                Hat
-                                <select class="reg-filter-input w-full" @bind="sel.Hat" @bind:after="() => OnHatChanged(sel)">
-                                    <option value="">No hat</option>
-                                    @foreach (var h in _hats) {
-                                        <option value="@h.Identifier">@(h.Name ?? h.Identifier)</option>
-                                    }
-                                </select>
-                            </label>
-                        }
-                        <div class="border-t border-border mt-1 pt-2">
-                            @if (_confirmDeleteId == sel.Id) {
-                                <div class="text-xs text-muted mb-1">Delete @sel.Label?</div>
-                                <div class="flex gap-2">
-                                    <button class="btn-danger flex-1" @onclick="() => ConfirmDelete(sel)">Delete</button>
-                                    <button class="btn-secondary flex-1" @onclick="() => _confirmDeleteId = null">Cancel</button>
-                                </div>
-                            } else {
-                                <button class="btn-secondary w-full" @onclick="() => _confirmDeleteId = sel.Id">Delete element</button>
-                            }
+                            </div>
                         </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_fatalError)) {
+                        <div class="canvas-error-overlay">
+                            <div class="canvas-error-box">
+                                <div class="font-semibold mb-1">Playground error</div>
+                                <div class="text-xs mb-3">@_fatalError</div>
+                                <button class="btn-secondary" @onclick="DismissFatal">Dismiss</button>
+                            </div>
+                        </div>
+                    } else if (_layoutFailed) {
+                        <div class="canvas-error-overlay">
+                            <div class="canvas-error-box">
+                                <div class="font-semibold mb-1">No farm to draw</div>
+                                <div class="text-xs mb-3">@(_diagnostics ?? "the layout API returned no placements")</div>
+                                <button class="btn-secondary" @onclick="MenuRebuild" disabled="@_busy">Rebuild</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(_status)) {
+                    <StatusNote Severity="@(_error ? StatusNote.Kind.Error : StatusNote.Kind.Info)">@_status</StatusNote>
+                }
+            </section>
+
+            <section class="w-[340px] flex flex-col gap-2 self-start max-h-[85vh] overflow-auto">
+                <div class="designer-section">
+                    <div class="designer-section-head">Farm state</div>
+                    <div class="designer-section-body flex flex-col gap-3 text-xs">
+                        <div class="picker-group-title">Hab slots</div>
+                        @for (int i = 0; i < FarmState.HabSlots; i++) {
+                            int slot = i;
+                            <label class="light-field">
+                                <span>Slot @slot</span>
+                                <select class="reg-filter-input w-full" value="@HabTier(slot)" @onchange="e => SetHab(slot, e)">
+                                    <option value="@FarmState.EmptyHabTier">Empty</option>
+                                    @foreach (var opt in TierOptions("HenHouse", 19)) {
+                                        <option value="@opt.Value">@opt.Label</option>
+                                    }
+                                </select>
+                            </label>
+                        }
+
+                        <div class="picker-group-title">Silos</div>
+                        <label class="light-field">
+                            <span>Owned (@_state.SilosOwned)</span>
+                            <input type="range" min="0" max="@FarmState.MaxSilos" class="w-full" @bind="_state.SilosOwned" @bind:event="oninput" @bind:after="QueueApply"/>
+                        </label>
+                        <label class="light-field">
+                            <span>Silo asset</span>
+                            <select class="reg-filter-input w-full" @bind="_state.SiloAssetType" @bind:after="QueueApply">
+                                @foreach (var opt in TierOptions("Silo", 6)) {
+                                    <option value="@opt.Label">@opt.Label</option>
+                                }
+                            </select>
+                        </label>
+
+                        <div class="picker-group-title">Buildings</div>
+                        <label class="light-field">
+                            <span>Egg</span>
+                            <select class="reg-filter-input w-full" @bind="_state.EggType" @bind:after="QueueApply">
+                                @foreach (string egg in EggOptions()) {
+                                    <option value="@egg">@egg</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="light-field">
+                            <span>Lab</span>
+                            <select class="reg-filter-input w-full" @bind="_state.LabTier" @bind:after="QueueApply">
+                                @foreach (var opt in TierOptions("Lab", 6)) {
+                                    <option value="@opt.Value">@opt.Label</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="light-field">
+                            <span>Depot</span>
+                            <select class="reg-filter-input w-full" @bind="_state.DepotTier" @bind:after="QueueApply">
+                                @foreach (var opt in TierOptions("Depot", 7)) {
+                                    <option value="@opt.Value">@opt.Label</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="light-field">
+                            <span>Artifact hall</span>
+                            <select class="reg-filter-input w-full" @bind="_state.HoaTier" @bind:after="QueueApply">
+                                @foreach (var opt in TierOptions("Hoa", 3)) {
+                                    <option value="@opt.Value">@opt.Label</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="light-field">
+                            <span>Mission control</span>
+                            <select class="reg-filter-input w-full" @bind="_state.MissionControlLevel" @bind:after="QueueApply">
+                                @foreach (var opt in TierOptions("MissionControl", 3)) {
+                                    <option value="@opt.Value">@opt.Label</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="light-field">
+                            <span>Fuel tank</span>
+                            <select class="reg-filter-input w-full" @bind="_state.FuelTankTier" @bind:after="QueueApply">
+                                @foreach (var opt in TierOptions("FuelTank", 4)) {
+                                    <option value="@opt.Value">@opt.Label</option>
+                                }
+                            </select>
+                        </label>
+
+                        <div class="picker-group-title">Flags</div>
+                        <label class="settings-check">
+                            <input type="checkbox" @bind="_state.HyperloopStation" @bind:after="QueueApply"/><span class="ml-1">Hyperloop station</span>
+                        </label>
+                        <label class="settings-check">
+                            <input type="checkbox" @bind="_state.HyperloopUnderConstruction" @bind:after="QueueApply"/><span class="ml-1">Hyperloop under construction</span>
+                        </label>
+                        <label class="settings-check">
+                            <input type="checkbox" @bind="_state.ArtifactsEnabled" @bind:after="QueueApply"/><span class="ml-1">Artifacts enabled</span>
+                        </label>
+                        <label class="settings-check">
+                            <input type="checkbox" @bind="_state.HomeFarm" @bind:after="QueueApply"/><span class="ml-1">Home farm</span>
+                        </label>
+                        <label class="settings-check">
+                            <input type="checkbox" @bind="_state.FuelTankUnlocked" @bind:after="QueueApply"/><span class="ml-1">Fuel tank unlocked</span>
+                        </label>
+                        <label class="settings-check">
+                            <input type="checkbox" @bind="_state.HasUnreadMail" @bind:after="QueueApply"/><span class="ml-1">Unread mail</span>
+                        </label>
+
+                        <div class="picker-group-title">Chickens</div>
+                        <label class="light-field">
+                            <span>Running (@_chickenCount)</span>
+                            <input type="range" min="0" max="200" class="w-full" @bind="_chickenCount" @bind:event="oninput" @bind:after="QueueApply"/>
+                        </label>
+                        <div class="text-muted">The game spawns chickens on tap, so the count is a viewer control, not saved state.</div>
+
+                        <button class="btn-secondary w-full" @onclick="MenuRebuild" disabled="@_busy">Rebuild farm</button>
                     </div>
                 </div>
-            }
 
-            @if (_shellSets.Count > 0 || _decorators.Count > 0) {
                 <div class="designer-section">
-                    <button class="designer-section-head flex w-full items-center justify-between" @onclick="() => _shellSetsOpen = !_shellSetsOpen">
-                        <span>Shell sets</span>
-                        <span class="text-muted">@(_shellSetsOpen ? "▾" : "▸")</span>
+                    <button class="designer-section-head flex w-full items-center justify-between" @onclick="() => _presetsOpen = !_presetsOpen">
+                        <span>Presets (@_presets.Count)</span>
+                        <span class="text-muted">@(_presetsOpen ? "open" : "closed")</span>
                     </button>
-                    @if (_shellSetsOpen) {
-                        <div class="designer-section-body text-xs flex flex-col gap-2">
-                            <label class="block">
-                                Apply mode
-                                <select class="reg-filter-input w-full" @bind="_setApplyMode">
-                                    <option value="all">All matching elements</option>
-                                    <option value="selected">Selected element only</option>
-                                </select>
-                            </label>
-                            @if (_shellSets.Count > 0) {
-                                <input class="reg-filter-input w-full" placeholder="Search shell sets…" value="@_shellSetSearch" @oninput="e => _shellSetSearch = e.Value?.ToString() ?? string.Empty"/>
-                                <div class="flex flex-col gap-1 max-h-60 overflow-auto">
-                                    @foreach (var set in FilteredShellSets()) {
-                                        <button class="btn-secondary text-left" @onclick="() => ApplyShellSet(set)">
-                                            @(set.Name ?? set.Identifier) <span class="text-muted">(@(set.Members?.Length ?? 0))</span>
+                    @if (_presetsOpen) {
+                        <div class="designer-section-body flex flex-col gap-2 text-xs">
+                            @if (!string.IsNullOrEmpty(_showcaseDiagnostics)) {
+                                <StatusNote Severity="StatusNote.Kind.Error">@_showcaseDiagnostics</StatusNote>
+                            }
+                            @if (_presets.Count > 0) {
+                                <input class="reg-filter-input w-full" placeholder="Search showcase farms" value="@_presetSearch" @oninput="e => _presetSearch = e.Value?.ToString() ?? string.Empty"/>
+                                <div class="picker-body">
+                                    @foreach (var p in FilteredPresets()) {
+                                        <button class="picker-item" disabled="@_busy" @onclick="() => LoadPreset(p.Id)">
+                                            @(p.Name ?? p.Id) <span class="text-muted">(@p.Bucket)</span>
                                         </button>
-                                    }
-                                    @if (!FilteredShellSets().Any()) {
-                                        <div class="text-muted">No matches.</div>
                                     }
                                 </div>
                             }
+                            @if (!string.IsNullOrEmpty(_presetId)) {
+                                <div class="text-muted">Loaded from showcase @_presetId.</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <section class="w-[320px] flex flex-col gap-2 self-start max-h-[85vh] overflow-auto">
+                <div class="designer-section">
+                    <div class="designer-section-head">Appearance</div>
+                    <div class="designer-section-body flex flex-col gap-3 text-xs">
+                        <div class="settings-seg">
+                            <button class="seg-btn @(_appearanceTab == "shells" ? "active" : "")" @onclick='() => _appearanceTab = "shells"'>Shells</button>
+                            <button class="seg-btn @(_appearanceTab == "sets" ? "active" : "")" @onclick='() => _appearanceTab = "sets"'>Sets</button>
+                            <button class="seg-btn @(_appearanceTab == "chickens" ? "active" : "")" @onclick='() => _appearanceTab = "chickens"'>Chickens</button>
+                            <button class="seg-btn @(_appearanceTab == "lighting" ? "active" : "")" @onclick='() => _appearanceTab = "lighting"'>Light</button>
+                        </div>
+
+                        @if (_appearanceTab == "shells") {
+                            @if (_slots.Count == 0) {
+                                <div class="text-muted">No slots yet. Build a farm first.</div>
+                            }
+                            <div class="max-h-96 overflow-auto flex flex-col gap-2">
+                                @foreach (var bucket in _slots.GroupBy(s => s.Element)) {
+                                    <div class="picker-group-title">@bucket.Key</div>
+                                    @foreach (var slot in bucket) {
+                                        <label class="light-field">
+                                            <span>@slot.AssetType @(slot.Index > 0 ? $"#{slot.Index}" : "")</span>
+                                            <select class="reg-filter-input w-full" value="@ShellOf(slot)" @onchange="e => SetShell(SlotKey(slot), e)">
+                                                <option value="">Base mesh</option>
+                                                @foreach (var s in ShellsFor(slot.AssetType)) {
+                                                    <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option>
+                                                }
+                                            </select>
+                                        </label>
+                                    }
+                                }
+                            </div>
+                        } else if (_appearanceTab == "sets") {
+                            @if (_slots.Count == 0) {
+                                <div class="text-muted">No slots yet. Build a farm first.</div>
+                            }
+                            @foreach (string element in ElementsWithSets()) {
+                                <label class="light-field">
+                                    <span>@element</span>
+                                    <select class="reg-filter-input w-full" value="@_setByElement.GetValueOrDefault(element)" @onchange="e => SetElementSet(element, e)">
+                                        <option value="">Default shells</option>
+                                        @foreach (string id in SetIdsForElement(element)) {
+                                            <option value="@id">@id</option>
+                                        }
+                                    </select>
+                                </label>
+                            }
                             @if (_decorators.Count > 0) {
-                                <label class="block">
-                                    Farm decorator
-                                    <select class="reg-filter-input w-full" @bind="_decoratorId" @bind:after="ApplyDecorator">
+                                <label class="light-field">
+                                    <span>Farm decorator</span>
+                                    <select class="reg-filter-input w-full" value="@_decoratorId" @onchange="SetDecorator">
                                         <option value="">None</option>
                                         @foreach (var d in _decorators) {
                                             <option value="@d.Identifier">@(d.Name ?? d.Identifier)</option>
@@ -454,103 +355,237 @@
                                     </select>
                                 </label>
                             }
-                        </div>
-                    }
+                        } else if (_appearanceTab == "chickens") {
+                            @if (_chickens.Count == 0) {
+                                <div class="text-muted">No chicken objects. Ingest a config in Admin.</div>
+                            }
+                            <label class="light-field">
+                                <span>Chicken</span>
+                                <select class="reg-filter-input w-full" value="@_chickenId" @onchange="SetChicken">
+                                    <option value="">Default chicken</option>
+                                    @foreach (var c in _chickens) {
+                                        <option value="@c.Identifier">@(c.Name ?? c.Identifier)</option>
+                                    }
+                                </select>
+                            </label>
+                            <label class="light-field">
+                                <span>Hat</span>
+                                <select class="reg-filter-input w-full" value="@_hatId" @onchange="SetHat">
+                                    <option value="">No hat</option>
+                                    @foreach (var h in _hats) {
+                                        <option value="@h.Identifier">@(h.Name ?? h.Identifier)</option>
+                                    }
+                                </select>
+                            </label>
+                            <div class="text-muted">Hats are stored in the farm configuration; the renderer draws the chicken body only.</div>
+                        } else {
+                            <label class="settings-check">
+                                <input type="checkbox" @bind="_lighting.Enabled" @bind:after="PushLighting"/><span class="ml-1">Custom lighting saved with the farm</span>
+                            </label>
+                            <div class="picker-group-title">light_dir</div>
+                            <div class="flex gap-1">
+                                <input type="number" step="0.05" class="reg-filter-input w-full min-w-0" @bind="_lighting.DirX" @bind:after="PushLighting"/>
+                                <input type="number" step="0.05" class="reg-filter-input w-full min-w-0" @bind="_lighting.DirY" @bind:after="PushLighting"/>
+                                <input type="number" step="0.05" class="reg-filter-input w-full min-w-0" @bind="_lighting.DirZ" @bind:after="PushLighting"/>
+                            </div>
+                            <label class="light-field">
+                                <span>light_direct_color</span>
+                                <input type="color" class="bg-picker-input" @bind="_lighting.DirectColor" @bind:event="oninput" @bind:after="PushLighting"/>
+                            </label>
+                            <label class="light-field">
+                                <span>light_direct_intensity @(_lighting.DirectIntensity.ToString("0.00", CultureInfo.InvariantCulture))</span>
+                                <input type="range" min="0" max="4" step="0.05" class="w-full" @bind="_lighting.DirectIntensity" @bind:event="oninput" @bind:after="PushLighting"/>
+                            </label>
+                            <label class="light-field">
+                                <span>light_ambient_color</span>
+                                <input type="color" class="bg-picker-input" @bind="_lighting.AmbientColor" @bind:event="oninput" @bind:after="PushLighting"/>
+                            </label>
+                            <label class="light-field">
+                                <span>light_ambient_intensity @(_lighting.AmbientIntensity.ToString("0.00", CultureInfo.InvariantCulture))</span>
+                                <input type="range" min="0" max="4" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="PushLighting"/>
+                            </label>
+                            <label class="light-field">
+                                <span>fog_color</span>
+                                <input type="color" class="bg-picker-input" @bind="_lighting.FogColor" @bind:event="oninput" @bind:after="PushLighting"/>
+                            </label>
+                            <label class="light-field">
+                                <span>fog_near</span>
+                                <input type="number" step="1" class="reg-filter-input w-full" @bind="_lighting.FogNear" @bind:after="PushLighting"/>
+                            </label>
+                            <label class="light-field">
+                                <span>fog_far</span>
+                                <input type="number" step="1" class="reg-filter-input w-full" @bind="_lighting.FogFar" @bind:after="PushLighting"/>
+                            </label>
+                            <label class="light-field">
+                                <span>fog_density @(_lighting.FogDensity.ToString("0.0000", CultureInfo.InvariantCulture))</span>
+                                <input type="range" min="0" max="0.05" step="0.0005" class="w-full" @bind="_lighting.FogDensity" @bind:event="oninput" @bind:after="PushLighting"/>
+                            </label>
+                            <div class="picker-group-title">Viewer</div>
+                            <label class="light-field">
+                                <span>Background</span>
+                                <span class="flex items-center gap-2">
+                                    <input type="color" class="bg-picker-input" @bind="_bgColor" @bind:event="oninput" @bind:after="ApplyBackground" disabled="@_bgTransparent"/>
+                                    <label class="settings-check">
+                                        <input type="checkbox" @bind="_bgTransparent" @bind:after="ApplyBackground"/><span class="text-muted ml-1">None</span>
+                                    </label>
+                                </span>
+                            </label>
+                        }
+                    </div>
                 </div>
-            }
-        </section>
-    }
-    </div>
+
+                <div class="designer-section">
+                    <div class="designer-section-head">Placements</div>
+                    <div class="designer-section-body flex flex-col gap-2 text-xs">
+                        <div class="text-muted">
+                            @_placements.Length placed@(string.IsNullOrEmpty(_binaryVersion) ? "" : $" from binary {_binaryVersion}")
+                        </div>
+                        @if (_extents is { } ext) {
+                            <div class="text-muted">extents lab @ext.Lab / depot @ext.Depot / hatchery @ext.Hatchery</div>
+                        }
+                        <div class="tag-chips">
+                            @foreach (var g in OriginCounts()) {
+                                <span class="@OriginChipClass(g.Key)">@g.Key @g.Value</span>
+                            }
+                        </div>
+                        @if (AuthoredCount > 0) {
+                            <StatusNote Severity="StatusNote.Kind.Error">
+                                @AuthoredCount placement(s) still carry authored coordinates. They must be replaced by an
+                                extraction before the replica is trustworthy.
+                            </StatusNote>
+                        }
+                        @if (!string.IsNullOrEmpty(_diagnostics)) {
+                            <StatusNote Severity="StatusNote.Kind.Error">@_diagnostics</StatusNote>
+                        }
+                        @if (_unresolved.Length > 0) {
+                            <div class="picker-group-title">Unresolved slots</div>
+                            <div class="tag-chips">
+                                @foreach (var u in _unresolved) {
+                                    <span class="tag-chip">@u</span>
+                                }
+                            </div>
+                            <div class="text-muted">No shell in the catalog resolves these asset types, so no mesh was drawn.</div>
+                        }
+                        @if (_skipped.Length > 0) {
+                            <div class="picker-group-title">Skipped meshes</div>
+                            <div class="tag-chips">
+                                @foreach (var s in _skipped) {
+                                    <span class="tag-chip">@s.Key (@s.Reason)</span>
+                                }
+                            </div>
+                        }
+                        @if (_placements.Length > 0) {
+                            <div class="picker-group-title">Slots (click to focus)</div>
+                            <div class="picker-body">
+                                @foreach (var p in _placements) {
+                                    <button class="picker-item flex items-center justify-between gap-2" title="@ProvenanceTip(p)" @onclick="() => FocusPlacement(p.Key)">
+                                        <span class="truncate">@p.Key</span>
+                                        <span class="@OriginChipClass(p.Provenance?.Origin)">@(p.Provenance?.Origin ?? "?")</span>
+                                    </button>
+                                }
+                            </div>
+                        }
+
+                        <div class="picker-group-title">Camera</div>
+                        <label class="light-field">
+                            <span>Element</span>
+                            <select class="reg-filter-input w-full" @bind="_cameraElement">
+                                @foreach (var e in CameraElements()) {
+                                    <option value="@e">@e</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="light-field">
+                            <span>Index</span>
+                            <input type="number" min="0" max="9" class="reg-filter-input w-[80px]" @bind="_cameraIndex"/>
+                        </label>
+                        <button class="btn-secondary w-full" @onclick="ApplyCamera" disabled="@_busy">Frame element</button>
+                        @if (!string.IsNullOrEmpty(_cameraLocator)) {
+                            <div class="text-muted truncate" title="@_cameraLocator">@_cameraLocator</div>
+                        }
+                        <button class="btn-secondary w-full" @onclick="MenuResetView">Reset view</button>
+                    </div>
+                </div>
+            </section>
+        </div>
     </main>
 }
 
 @code {
+    const string MeshPlatform = "ios";
+
     bool _isAdmin;
     ElementReference _canvas;
     IJSObjectReference? _mod;
-    IJSObjectReference? _designer;
     IJSObjectReference? _autosave;
     IJSObjectReference? _recorder;
-
+    IJSObjectReference? _popoverDragMod;
+    IJSObjectReference? _gifDragHandle;
+    DotNetObjectReference<Playground>? _selfRef;
 
     bool _fileMenuOpen;
     bool _toolsMenuOpen;
     bool _viewMenuOpen;
-    bool _paletteOpen = true;
     bool _gifOpen;
     bool _namePromptOpen;
     bool _namePromptIsSaveAs;
+    bool _presetsOpen = true;
+    string _appearanceTab = "shells";
+
     ElementReference _gifPopoverRef;
     ElementReference _gifPopoverHeadRef;
-    ElementReference _nameInputRef;
-    IJSObjectReference? _popoverDragMod;
-    IJSObjectReference? _gifDragHandle;
     int _gifFps = 20;
     int _gifMaxWidth;
     bool _recording;
     string _recordStage = "";
     double _recordFraction;
     bool _anyAnimated;
-    DotNetObjectReference<Playground>? _selfRef;
+    bool _playing = true;
+
     string _appVersion = "";
     CancellationTokenSource? _autosaveCts;
+    CancellationTokenSource? _applyCts;
+    CancellationTokenSource? _statusCts;
+    bool _suppressAutosave;
 
-    const string ShellPlatform = "ios";
+    FarmStateModel _state = new();
+    LightingModel _lighting = new();
+    readonly Dictionary<string, string> _shells = new(StringComparer.Ordinal);
+    readonly Dictionary<string, string> _setByElement = new(StringComparer.Ordinal);
+    string? _decoratorId;
+    string? _chickenId;
+    string? _hatId;
+    int _chickenCount;
+    string? _presetId;
 
+    List<CatalogElement> _catalogElements = [];
+    List<PresetRow> _presets = [];
     List<ShellObjRow> _chickens = [];
     List<ShellObjRow> _hats = [];
-    List<ShellRow> _allShells = [];
-    List<EnvPieceRow> _catalogPieces = [];
-
-
-    const bool _designMode = true;
-    readonly List<DesignElement> _elements = [];
-    string? _selectedElementId;
-
-
-    float _gridSize = 1f;
-    LightingState _lighting = new();
-    int _elementSeq;
-
-    readonly Stack<List<DesignElement>> _undo = new();
-    readonly Stack<List<DesignElement>> _redo = new();
-    const int HistoryCap = 50;
-    bool _restoringHistory;
-
-    string? _decoratorId;
-    string _setApplyMode = "all";
-    List<ShellSetRow> _shellSets = [];
     List<ShellSetRow> _decorators = [];
-    bool _shellSetsOpen;
-    string _shellSetSearch = "";
+    string _presetSearch = "";
+    string? _showcaseDiagnostics;
 
-    IEnumerable<ShellSetRow> FilteredShellSets() {
-        return string.IsNullOrWhiteSpace(_shellSetSearch)
-            ? _shellSets
-            : _shellSets.Where(s => ((s.Name ?? s.Identifier) ?? "").Contains(_shellSetSearch, StringComparison.OrdinalIgnoreCase));
-    }
+    PlacementDto[] _placements = [];
+    List<SlotRef> _slots = [];
+    string[] _unresolved = [];
+    SkipRow[] _skipped = [];
+    ExtentsDto? _extents;
+    string? _binaryVersion;
+    string? _diagnostics;
+    bool _layoutFailed;
 
-    string _pickerTab = "building";
-    List<FamilyOption> _familyOptions = [];
-    string? _confirmDeleteId;
+    string _cameraElement = "HenHouse";
+    int _cameraIndex;
+    string? _cameraLocator;
 
     string _designName = "";
-    string _selectedDesign = "";
-    List<string> _savedDesigns = [];
-
-
     string _currentDesign = "";
     int _currentVersion;
     string _versionNote = "";
     bool _dirty;
+    List<string> _savedDesigns = [];
     List<DesignVersionRow> _versions = [];
-
-    bool SaveDisabled =>
-        _busy || (string.IsNullOrEmpty(_currentDesign) && string.IsNullOrWhiteSpace(_designName));
-
-    record DesignVersionRow(int VersionNo, string? Note, DateTimeOffset CreatedAt, Guid? AuthorUserId, int? RolledBackFrom);
-
-    record DesignVersionsResult(DesignVersionRow[]? Versions);
 
     string _bgColor = "#1a1a1f";
     bool _bgTransparent = true;
@@ -559,7 +594,9 @@
     string _status = "";
     string _fatalError = "";
 
-    DesignElement? Selected => _elements.FirstOrDefault(e => e.Id == _selectedElementId);
+    bool SaveDisabled => _busy || (string.IsNullOrEmpty(_currentDesign) && string.IsNullOrWhiteSpace(_designName));
+
+    int AuthoredCount => _placements.Count(p => p.Provenance?.Origin == nameof(PlacementOrigin.Authored));
 
     protected override void OnInitialized() {
         base.OnInitialized();
@@ -571,18 +608,25 @@
         if (firstRender) {
             try {
                 _mod = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/playground.js"));
-                await _mod.InvokeVoidAsync("init", _canvas);
-                await EnsureDesigner();
+                bool ready = await _mod.InvokeAsync<bool>("init", _canvas);
+                if (!ready) {
+                    FatalError("WebGL is unavailable in this browser, so the farm cannot be drawn.");
+                    return;
+                }
+
+                await _mod.InvokeVoidAsync("setPlaying", true);
                 await ApplyBackground();
-                await ApplyLighting();
-                await LoadShellObjects();
-                await LoadShells();
-                await LoadShellSets();
-                await LoadCatalog();
-                await RefreshDesigns();
+                await _mod.InvokeVoidAsync("setLighting", LightingPayload());
+
                 _autosave = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/playgroundAutosave.js"));
                 _recorder = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/playgroundRecorder.js"));
                 _popoverDragMod = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/popoverDrag.js"));
+
+                await LoadCatalog();
+                await LoadShowcase();
+                await LoadShellObjects();
+                await LoadDecorators();
+                await RefreshDesigns();
                 try {
                     _appVersion = (await Client().GetFromJsonAsync<AppVersionDto>("/api/app/version"))?.Version ?? "";
                 }
@@ -590,7 +634,7 @@
                     _appVersion = "";
                 }
 
-                await TryRestoreAutosave();
+                if (!await TryRestoreAutosave()) await ApplyLayout(false);
             }
             catch (Exception ex) {
                 FatalError($"3D init failed: {ex.Message}");
@@ -598,7 +642,6 @@
 
             return;
         }
-
 
         if (_gifOpen && _gifDragHandle is null && _popoverDragMod is not null) {
             try {
@@ -612,18 +655,488 @@
         }
     }
 
-    async Task<byte[]?> FetchRaw(string url) {
-        return await FetchRaw(url, CancellationToken.None);
+    async Task LoadCatalog() {
+        try {
+            var res = await Client().GetFromJsonAsync<CatalogResult>($"/api/farm/catalog?platform={MeshPlatform}");
+            _catalogElements = res?.Elements?.ToList() ?? [];
+            if (res is { Ok: false }) Fail(res.Diagnostics ?? "no asset catalog stored");
+        }
+        catch {
+            _catalogElements = [];
+        }
     }
 
-    async Task<byte[]?> FetchRaw(string url, CancellationToken ct) {
-        var res = await Client().GetAsync(url, ct);
-        if (!res.IsSuccessStatusCode) {
-            Fail($"load failed: HTTP {(int)res.StatusCode}");
-            return null;
+    async Task LoadShowcase() {
+        try {
+            var res = await Client().GetFromJsonAsync<ShowcaseResult>("/api/farm/showcase");
+            _presets = res?.Presets?.ToList() ?? [];
+            _showcaseDiagnostics = res is { Ok: false } ? res.Diagnostics : null;
+        }
+        catch (Exception ex) {
+            _presets = [];
+            _showcaseDiagnostics = ex.Message;
+        }
+    }
+
+    async Task LoadShellObjects() {
+        try {
+            _chickens = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={MeshPlatform}&type=chicken"))?.Objects?.ToList() ?? [];
+            _hats = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={MeshPlatform}&type=hat"))?.Objects?.ToList() ?? [];
+        }
+        catch {
+            _chickens = [];
+            _hats = [];
+        }
+    }
+
+    async Task LoadDecorators() {
+        try {
+            var res = await Client().GetFromJsonAsync<ShellSetsResult>($"/api/shells/sets?platform={MeshPlatform}");
+            _decorators = res?.Decorators?.ToList() ?? [];
+        }
+        catch {
+            _decorators = [];
+        }
+    }
+
+    IEnumerable<PresetRow> FilteredPresets() {
+        var rows = string.IsNullOrWhiteSpace(_presetSearch)
+            ? _presets
+            : _presets.Where(p => ((p.Name ?? p.Id) ?? "").Contains(_presetSearch, StringComparison.OrdinalIgnoreCase));
+        return rows.Take(60);
+    }
+
+    async Task LoadPreset(string id) {
+        _presetId = id;
+        await ApplyLayout(true);
+    }
+
+    async Task ApplyLayout(bool fromPreset) {
+        if (_mod is null) return;
+        _applyCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _applyCts = cts;
+        var ct = cts.Token;
+
+        _busy = true;
+        Status("Building farm");
+        try {
+            var body = new StringContent(RequestNode(fromPreset).ToJsonString(), Encoding.UTF8, "application/json");
+            var res = await Client().PostAsync("/api/farm/layout", body, ct);
+            if (!res.IsSuccessStatusCode) {
+                await LayoutGone($"layout failed: HTTP {(int)res.StatusCode}");
+                return;
+            }
+
+            var layout = await res.Content.ReadFromJsonAsync<LayoutResult>(ct);
+            if (layout is null || !layout.Ok) {
+                await LayoutGone(layout?.Diagnostics ?? "the layout API returned no data");
+                return;
+            }
+
+            if (ct.IsCancellationRequested) return;
+
+            _layoutFailed = false;
+            _diagnostics = layout.Diagnostics;
+            _placements = layout.Placements ?? [];
+            _unresolved = layout.Unresolved ?? [];
+            _extents = layout.Extents;
+            _binaryVersion = layout.BinaryVersion;
+            RebuildSlots();
+            if (fromPreset) HydrateFromLayout(layout);
+
+            await _mod.InvokeVoidAsync("setLighting", ct, LightingPayload());
+            var farm = await _mod.InvokeAsync<SetFarmResult?>("setFarm", ct, new object[] { _placements });
+            _skipped = farm?.Skipped ?? [];
+            if (layout.Motion is { } motion) await _mod.InvokeVoidAsync("setMotion", ct, motion);
+            await _mod.InvokeVoidAsync("setPlaying", ct, _playing);
+            await RefreshAnimatedFlag();
+            Status($"Placed {farm?.Loaded ?? 0} of {_placements.Length} slots.");
+        }
+        catch (OperationCanceledException) {
+        }
+        catch (Exception ex) {
+            await LayoutGone(ex.Message);
+        }
+        finally {
+            _busy = false;
+            Autosave();
+            StateHasChanged();
+        }
+    }
+
+    async Task LayoutGone(string diagnostics) {
+        _layoutFailed = true;
+        _diagnostics = diagnostics;
+        _placements = [];
+        _slots = [];
+        _unresolved = [];
+        _skipped = [];
+        _extents = null;
+        Fail(diagnostics);
+        if (_mod is null) return;
+        try {
+            await _mod.InvokeVoidAsync("clearFarm");
+        }
+        catch {
+        }
+    }
+
+    JsonObject RequestNode(bool fromPreset) {
+        var node = new JsonObject {
+            ["platform"] = MeshPlatform,
+            ["chickenCount"] = _chickenCount
+        };
+        if (fromPreset && !string.IsNullOrEmpty(_presetId)) {
+            node["showcaseId"] = _presetId;
+            return node;
         }
 
-        return await res.Content.ReadAsByteArrayAsync(ct);
+        node["farmConfig"] = JsonNode.Parse(ConfigJson());
+        node["state"] = StateNode();
+        return node;
+    }
+
+    JsonObject StateNode() {
+        var habs = new JsonArray();
+        for (int i = 0; i < FarmState.HabSlots; i++) habs.Add(HabTier(i));
+        return new JsonObject {
+            ["habs"] = habs,
+            ["silosOwned"] = _state.SilosOwned,
+            ["siloAssetType"] = _state.SiloAssetType,
+            ["eggType"] = _state.EggType,
+            ["labTier"] = _state.LabTier,
+            ["depotTier"] = _state.DepotTier,
+            ["hoaTier"] = _state.HoaTier,
+            ["missionControlLevel"] = _state.MissionControlLevel,
+            ["fuelTankTier"] = _state.FuelTankTier,
+            ["hyperloopStation"] = _state.HyperloopStation,
+            ["hyperloopUnderConstruction"] = _state.HyperloopUnderConstruction,
+            ["artifactsEnabled"] = _state.ArtifactsEnabled,
+            ["homeFarm"] = _state.HomeFarm,
+            ["fuelTankUnlocked"] = _state.FuelTankUnlocked,
+            ["hasUnreadMail"] = _state.HasUnreadMail
+        };
+    }
+
+    string ConfigJson() {
+        return JsonFormatter.Default.Format(BuildConfig());
+    }
+
+    ShellDB.Types.FarmConfiguration BuildConfig() {
+        var cfg = new ShellDB.Types.FarmConfiguration();
+        foreach (var pair in _shells.OrderBy(k => k.Key, StringComparer.Ordinal)) {
+            if (string.IsNullOrEmpty(pair.Value)) continue;
+            if (!SplitSlot(pair.Key, out var type, out int index)) continue;
+            cfg.ShellConfigs.Add(new ShellDB.Types.ShellConfiguration {
+                AssetType = type, Index = (uint)index, ShellIdentifier = pair.Value
+            });
+        }
+
+        foreach (string element in ElementNames()) {
+            string? set = _setByElement.GetValueOrDefault(element);
+            if (string.IsNullOrEmpty(set) && string.IsNullOrEmpty(_decoratorId)) continue;
+            if (!Enum.TryParse<ShellDB.Types.FarmElement>(element, out var parsed)) continue;
+            var entry = new ShellDB.Types.ShellSetConfiguration { Element = parsed, Index = 0 };
+            if (!string.IsNullOrEmpty(set)) entry.ShellSetIdentifier = set;
+            if (!string.IsNullOrEmpty(_decoratorId)) entry.DecoratorIdentifier = _decoratorId;
+            cfg.ShellSetConfigs.Add(entry);
+        }
+
+        if (!string.IsNullOrEmpty(_chickenId)) {
+            var chicken = new ShellDB.Types.ChickenConfig { ChickenIdentifier = _chickenId };
+            if (!string.IsNullOrEmpty(_hatId)) chicken.HatIdentifier = _hatId;
+            cfg.ChickenConfigs.Add(chicken);
+        }
+
+        cfg.LightingConfigEnabled = _lighting.Enabled;
+        cfg.LightingConfig = new ShellDB.Types.LightingConfig {
+            LightDir = new Vector3 { X = _lighting.DirX, Y = _lighting.DirY, Z = _lighting.DirZ },
+            LightDirectColor = ColorVec(_lighting.DirectColor),
+            LightDirectIntensity = _lighting.DirectIntensity,
+            LightAmbientColor = ColorVec(_lighting.AmbientColor),
+            LightAmbientIntensity = _lighting.AmbientIntensity,
+            FogColor = ColorVec(_lighting.FogColor),
+            FogNear = _lighting.FogNear,
+            FogFar = _lighting.FogFar,
+            FogDensity = _lighting.FogDensity
+        };
+        return cfg;
+    }
+
+    void HydrateFromConfig(ShellDB.Types.FarmConfiguration cfg) {
+        _shells.Clear();
+        foreach (var c in cfg.ShellConfigs) {
+            if (string.IsNullOrEmpty(c.ShellIdentifier)) continue;
+            _shells[$"{c.AssetType}:{c.Index}"] = c.ShellIdentifier;
+        }
+
+        _setByElement.Clear();
+        _decoratorId = null;
+        foreach (var s in cfg.ShellSetConfigs) {
+            if (!string.IsNullOrEmpty(s.ShellSetIdentifier)) _setByElement[s.Element.ToString()] = s.ShellSetIdentifier;
+            if (!string.IsNullOrEmpty(s.DecoratorIdentifier)) _decoratorId = s.DecoratorIdentifier;
+        }
+
+        var chicken = cfg.ChickenConfigs.FirstOrDefault();
+        _chickenId = chicken is null || string.IsNullOrEmpty(chicken.ChickenIdentifier) ? null : chicken.ChickenIdentifier;
+        _hatId = chicken is null || string.IsNullOrEmpty(chicken.HatIdentifier) ? null : chicken.HatIdentifier;
+        _lighting.Enabled = cfg.LightingConfigEnabled;
+        if (cfg.LightingConfig is { } light) {
+            if (light.LightDir is { } dir) {
+                _lighting.DirX = dir.X;
+                _lighting.DirY = dir.Y;
+                _lighting.DirZ = dir.Z;
+            }
+
+            if (light.LightDirectColor is { } dc) _lighting.DirectColor = Hex(dc.X, dc.Y, dc.Z);
+            if (light.LightAmbientColor is { } ac) _lighting.AmbientColor = Hex(ac.X, ac.Y, ac.Z);
+            if (light.FogColor is { } fc) _lighting.FogColor = Hex(fc.X, fc.Y, fc.Z);
+            _lighting.DirectIntensity = light.LightDirectIntensity;
+            _lighting.AmbientIntensity = light.LightAmbientIntensity;
+            _lighting.FogNear = light.FogNear;
+            _lighting.FogFar = light.FogFar;
+            _lighting.FogDensity = light.FogDensity;
+        }
+    }
+
+    void HydrateFromLayout(LayoutResult layout) {
+        if (layout.State is { } s) {
+            for (int i = 0; i < FarmState.HabSlots; i++)
+                _state.Habs[i] = s.Habs is { Length: > 0 } && i < s.Habs.Length ? s.Habs[i] : FarmState.EmptyHabTier;
+            _state.SilosOwned = s.SilosOwned;
+            if (!string.IsNullOrEmpty(s.SiloAssetType)) _state.SiloAssetType = s.SiloAssetType;
+            if (!string.IsNullOrEmpty(s.EggType)) _state.EggType = s.EggType;
+            _state.LabTier = s.LabTier;
+            _state.DepotTier = s.DepotTier;
+            _state.HoaTier = s.HoaTier;
+            _state.MissionControlLevel = s.MissionControlLevel;
+            _state.FuelTankTier = s.FuelTankTier;
+            _state.HyperloopStation = s.HyperloopStation;
+            _state.ArtifactsEnabled = s.ArtifactsEnabled;
+            _state.HomeFarm = s.HomeFarm;
+            _state.FuelTankUnlocked = s.FuelTankUnlocked;
+            _state.HasUnreadMail = s.HasUnreadMail;
+        }
+
+        _shells.Clear();
+        _setByElement.Clear();
+        foreach (var p in _placements) {
+            if (p.AssetType is null || string.IsNullOrEmpty(p.ShellIdentifier)) continue;
+            _shells[$"{p.AssetType}:{p.Index}"] = p.ShellIdentifier;
+        }
+
+        if (layout.Lighting is { } lighting) {
+            _lighting.Enabled = lighting.Enabled;
+            if (lighting.LightDir is { } dir) {
+                _lighting.DirX = dir.X;
+                _lighting.DirY = dir.Y;
+                _lighting.DirZ = dir.Z;
+            }
+
+            if (lighting.LightDirectColor is { } dc) _lighting.DirectColor = Hex(dc.X, dc.Y, dc.Z);
+            if (lighting.LightAmbientColor is { } ac) _lighting.AmbientColor = Hex(ac.X, ac.Y, ac.Z);
+            if (lighting.FogColor is { } fc) _lighting.FogColor = Hex(fc.X, fc.Y, fc.Z);
+            _lighting.DirectIntensity = lighting.LightDirectIntensity;
+            _lighting.AmbientIntensity = lighting.LightAmbientIntensity;
+            _lighting.FogNear = lighting.FogNear;
+            _lighting.FogFar = lighting.FogFar;
+            _lighting.FogDensity = lighting.FogDensity;
+        }
+    }
+
+    void RebuildSlots() {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var slots = new List<SlotRef>();
+        foreach (var p in _placements) {
+            if (p.AssetType is null || p.Element is null) continue;
+            var slot = new SlotRef(p.Element, p.AssetType, p.Index);
+            if (seen.Add(SlotKey(slot))) slots.Add(slot);
+        }
+
+        _slots = slots;
+    }
+
+    IEnumerable<string> ElementNames() {
+        var fromSlots = _slots.Select(s => s.Element).Distinct(StringComparer.Ordinal).ToList();
+        return fromSlots.Count > 0 ? fromSlots : _setByElement.Keys;
+    }
+
+    IEnumerable<string> ElementsWithSets() => ElementNames().Where(e => SetIdsForElement(e).Any());
+
+    IEnumerable<SlotRef> SlotsOf(string element) =>
+        _slots.Where(s => string.Equals(s.Element, element, StringComparison.Ordinal));
+
+    static string SlotKey(SlotRef slot) => $"{slot.AssetType}:{slot.Index}";
+
+    string ShellOf(SlotRef slot) => _shells.GetValueOrDefault(SlotKey(slot)) ?? "";
+
+    IReadOnlyList<CatalogShell> ShellsFor(string assetType) {
+        foreach (var element in _catalogElements) {
+            foreach (var type in element.AssetTypes ?? []) {
+                if (string.Equals(type.AssetType, assetType, StringComparison.Ordinal)) return type.Shells ?? [];
+            }
+        }
+
+        return [];
+    }
+
+    IEnumerable<string> SetIdsForElement(string element) =>
+        SlotsOf(element)
+            .SelectMany(s => ShellsFor(s.AssetType))
+            .Select(s => s.SetIdentifier)
+            .Where(id => !string.IsNullOrEmpty(id))
+            .Select(id => id!)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal);
+
+    IReadOnlyList<CatalogAssetType> AssetTypesOf(string element) {
+        foreach (var e in _catalogElements) {
+            if (string.Equals(e.Element, element, StringComparison.Ordinal)) return e.AssetTypes ?? [];
+        }
+
+        return [];
+    }
+
+    IReadOnlyList<TierOption> TierOptions(string element, int fallbackCount) {
+        var types = AssetTypesOf(element);
+        if (types.Count == 0) {
+            var generated = new List<TierOption>();
+            for (int i = 0; i < fallbackCount; i++) generated.Add(new TierOption(i, $"tier {i}"));
+            return generated;
+        }
+
+        var options = new List<TierOption>();
+        for (int i = 0; i < types.Count; i++) options.Add(new TierOption(i, types[i].AssetType));
+        return options;
+    }
+
+    IReadOnlyList<string> EggOptions() {
+        const string prefix = "Hatchery";
+        var types = AssetTypesOf("Hatchery");
+        var subPieces = types.SelectMany(t => t.SubPieces ?? []).ToHashSet(StringComparer.Ordinal);
+        var options = new List<string>();
+        foreach (var type in types) {
+            if (subPieces.Contains(type.AssetType)) continue;
+            if (!type.AssetType.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            string egg = type.AssetType[prefix.Length..];
+            if (egg.Length == 0 || string.Equals(egg, "Custom", StringComparison.Ordinal)) continue;
+            options.Add(egg);
+        }
+
+        if (options.Count == 0) options.Add("Edible");
+        return options;
+    }
+
+    static IReadOnlyList<string> CameraElements() {
+        var names = new List<string>();
+        foreach (var e in Enum.GetValues<ShellDB.Types.FarmElement>()) {
+            if (e is ShellDB.Types.FarmElement.Unknown or ShellDB.Types.FarmElement.Chicken or ShellDB.Types.FarmElement.Hat) continue;
+            names.Add(e.ToString());
+        }
+
+        return names;
+    }
+
+    int HabTier(int slot) => slot >= 0 && slot < _state.Habs.Length ? _state.Habs[slot] : FarmState.EmptyHabTier;
+
+    static int[] NormalizeHabs(int[]? source) {
+        var habs = new int[FarmState.HabSlots];
+        for (int i = 0; i < habs.Length; i++)
+            habs[i] = source is not null && i < source.Length ? source[i] : FarmState.EmptyHabTier;
+        return habs;
+    }
+
+    void SetHab(int slot, ChangeEventArgs e) {
+        if (slot >= 0 && slot < _state.Habs.Length && int.TryParse(e.Value?.ToString(), out int tier))
+            _state.Habs[slot] = tier;
+        QueueApply();
+    }
+
+    void SetShell(string slotKey, ChangeEventArgs e) {
+        string value = e.Value?.ToString() ?? "";
+        if (string.IsNullOrEmpty(value)) _shells.Remove(slotKey);
+        else _shells[slotKey] = value;
+        QueueApply();
+    }
+
+    void SetElementSet(string element, ChangeEventArgs e) {
+        string value = e.Value?.ToString() ?? "";
+        if (string.IsNullOrEmpty(value)) {
+            _setByElement.Remove(element);
+            foreach (var slot in SlotsOf(element)) _shells.Remove(SlotKey(slot));
+        } else {
+            _setByElement[element] = value;
+            foreach (var slot in SlotsOf(element)) {
+                var match = ShellsFor(slot.AssetType)
+                    .FirstOrDefault(s => string.Equals(s.SetIdentifier, value, StringComparison.Ordinal));
+                if (match is not null) _shells[SlotKey(slot)] = match.Identifier;
+            }
+        }
+
+        QueueApply();
+    }
+
+    void SetDecorator(ChangeEventArgs e) {
+        string value = e.Value?.ToString() ?? "";
+        _decoratorId = string.IsNullOrEmpty(value) ? null : value;
+        var deco = _decorators.FirstOrDefault(d => string.Equals(d.Identifier, _decoratorId, StringComparison.Ordinal));
+        var members = deco?.Members;
+        if (members is not null) {
+            foreach (var member in members) {
+                foreach (var slot in _slots) {
+                    if (string.Equals(slot.AssetType, member.AssetType, StringComparison.OrdinalIgnoreCase))
+                        _shells[SlotKey(slot)] = member.Identifier;
+                }
+            }
+        }
+
+        QueueApply();
+    }
+
+    void SetChicken(ChangeEventArgs e) {
+        string value = e.Value?.ToString() ?? "";
+        _chickenId = string.IsNullOrEmpty(value) ? null : value;
+        QueueApply();
+    }
+
+    void SetHat(ChangeEventArgs e) {
+        string value = e.Value?.ToString() ?? "";
+        _hatId = string.IsNullOrEmpty(value) ? null : value;
+        QueueApply();
+    }
+
+    void QueueApply() {
+        _dirty = true;
+        _applyCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _applyCts = cts;
+        _ = Task.Delay(400, cts.Token).ContinueWith(async t => {
+            if (t.IsCanceled) return;
+            await InvokeAsync(() => ApplyLayout(false));
+        }, TaskScheduler.Default);
+    }
+
+    async Task MenuRebuild() {
+        CloseMenus();
+        await ApplyLayout(false);
+    }
+
+    object LightingPayload() => new {
+        lightDir = new[] { _lighting.DirX, _lighting.DirY, _lighting.DirZ },
+        lightDirectColor = Rgb(_lighting.DirectColor),
+        lightDirectIntensity = _lighting.DirectIntensity,
+        lightAmbientColor = Rgb(_lighting.AmbientColor),
+        lightAmbientIntensity = _lighting.AmbientIntensity,
+        fogColor = Rgb(_lighting.FogColor),
+        fogNear = _lighting.FogNear,
+        fogFar = _lighting.FogFar,
+        fogDensity = _lighting.FogDensity
+    };
+
+    async Task PushLighting() {
+        if (_mod is not null) await _mod.InvokeVoidAsync("setLighting", LightingPayload());
+        Autosave();
     }
 
     async Task ApplyBackground() {
@@ -631,12 +1144,32 @@
         Autosave();
     }
 
-    async Task ApplyElementAnimation(DesignElement el) {
-        if (_mod is not null) await _mod.InvokeVoidAsync("setGroupAnimation", el.Id, el.Anim);
-        Autosave();
-        await RefreshAnimatedFlag();
+    async Task FocusPlacement(string key) {
+        if (_mod is not null) await _mod.InvokeVoidAsync("focusOn", key);
     }
 
+    async Task ApplyCamera() {
+        if (_mod is null) return;
+        try {
+            var shot = await Client().GetFromJsonAsync<CameraResult>(
+                $"/api/farm/camera?element={Uri.EscapeDataString(_cameraElement)}&index={_cameraIndex}");
+            if (shot is null || !shot.Ok) {
+                Fail(shot?.Diagnostics ?? "camera lookup failed");
+                return;
+            }
+
+            _cameraLocator = shot.Locator;
+            float[] focus = shot.Focus is { } f ? [f.X, f.Y, f.Z] : [0f, 0f, 0f];
+            await _mod.InvokeVoidAsync("setCamera", focus, shot.Distance, shot.Height);
+        }
+        catch (Exception ex) {
+            Fail(ex.Message);
+        }
+    }
+
+    async Task ResetView() {
+        if (_mod is not null) await _mod.InvokeVoidAsync("resetView");
+    }
 
     async Task RefreshAnimatedFlag() {
         if (_mod is null) return;
@@ -646,8 +1179,6 @@
         catch {
             _anyAnimated = false;
         }
-
-        StateHasChanged();
     }
 
     [JSInvokable]
@@ -679,1208 +1210,10 @@
         }
     }
 
-    async Task ApplyLighting() {
-        if (_mod is null) return;
-        await _mod.InvokeVoidAsync("setLighting", new {
-            sun = new { azimuthDeg = _lighting.SunAzimuthDeg, elevationDeg = _lighting.SunElevationDeg, color = _lighting.SunColor, intensity = _lighting.SunIntensity },
-            fog = new { color = _lighting.FogColor, density = _lighting.FogDensity },
-            toneMapping = _lighting.ToneMapping, exposure = _lighting.Exposure,
-            ambient = _lighting.AmbientIntensity, hemi = _lighting.HemiIntensity,
-            emissive = _lighting.Emission
-        });
-        Autosave();
-    }
-
     void OnDesignNameInput(ChangeEventArgs e) {
         _designName = e.Value?.ToString() ?? "";
         StateHasChanged();
     }
-
-    async Task ResetView() {
-        if (_mod is not null) await _mod.InvokeVoidAsync("resetView");
-    }
-
-    async Task LoadShellObjects() {
-        try {
-            _chickens = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={ShellPlatform}&type=chicken"))?.Objects?.ToList() ?? [];
-            _hats = (await Client().GetFromJsonAsync<ShellObjResult>($"/api/shells/objects?platform={ShellPlatform}&type=hat"))?.Objects?.ToList() ?? [];
-        }
-        catch {
-            _chickens = [];
-            _hats = [];
-        }
-
-        StateHasChanged();
-    }
-
-    async Task LoadShells() {
-        try {
-            var res = await Client().GetFromJsonAsync<ShellListResult>($"/api/shells?platform={ShellPlatform}");
-            _allShells = res?.Shells?.ToList() ?? [];
-        }
-        catch {
-            _allShells = [];
-        }
-
-        StateHasChanged();
-    }
-
-    async Task LoadCatalog() {
-        try {
-            var res = await Client().GetFromJsonAsync<EnvCatalogResult>("/api/env/catalog");
-            _catalogPieces = res?.Pieces?.ToList() ?? [];
-        }
-        catch {
-            _catalogPieces = [];
-        }
-    }
-
-
-    async Task EnsureDesigner() {
-        if (_mod is not null) await _mod.InvokeVoidAsync("setDesignMode", true);
-        if (_designer is null) {
-            _selfRef ??= DotNetObjectReference.Create(this);
-            _designer = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/playgroundDesigner.js"));
-            await _designer.InvokeVoidAsync("initDesigner", _selfRef);
-        }
-
-        _ = FetchHatcheryDump();
-    }
-
-
-    [JSInvokable]
-    public async Task OnGizmoTransform(string id, double[] pos, double[] rotDeg, double scale) {
-        var el = _elements.FirstOrDefault(e => e.Id == id);
-        if (el is not null) {
-            el.Pos = [(float)pos[0], (float)pos[1], (float)pos[2]];
-            el.RotDeg = [(float)rotDeg[0], (float)rotDeg[1], (float)rotDeg[2]];
-            el.Scale = (float)scale;
-
-
-            if (el.Kind != "actor") await RederiveActors();
-            await InvokeAsync(StateHasChanged);
-            Autosave();
-        }
-    }
-
-
-    [JSInvokable]
-    public Task OnPlacementBlocked(string reason = "blocked") {
-        _lastAdjustReason = reason;
-        _ = ShowAdjustHint();
-        return Task.CompletedTask;
-    }
-
-
-    string? _lastAdjustReason;
-    bool _showAdjustHint;
-
-    async Task ShowAdjustHint() {
-        _showAdjustHint = true;
-        await InvokeAsync(StateHasChanged);
-        await Task.Delay(1600);
-        _showAdjustHint = false;
-        await InvokeAsync(StateHasChanged);
-    }
-
-
-    [JSInvokable]
-    public async Task OnPickElement(string? id) {
-        _selectedElementId = id is not null && _elements.Any(e => e.Id == id) ? id : null;
-        _confirmDeleteId = null;
-        await LoadFamilyOptions();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    string NextElementId() {
-        return $"el{++_elementSeq}";
-    }
-
-
-    string? ElementGlbUrl(DesignElement el) {
-        return el.Kind switch {
-            "env" => $"/api/env/{Uri.EscapeDataString(el.Shell ?? el.Ref)}/glb",
-            "shell" => $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(el.Shell ?? el.Ref)}/glb",
-            "chicken" => $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(el.Ref)}/glb",
-            "mesh" => $"/api/env/{Uri.EscapeDataString(el.Ref)}/glb",
-            "actor" => el.Actor == "chicken"
-                ? $"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(el.Ref)}/glb"
-                : $"/api/env/{Uri.EscapeDataString(el.Ref)}/glb",
-            _ => null
-        };
-    }
-
-
-    async Task PushElementMotion(DesignElement el) {
-        if (_mod is null) return;
-        object? motion = el.Kind == "actor" && el.Motion is not null
-            ? new {
-                kind = el.Motion.Kind, path = el.Motion.Path, speed = el.Motion.Speed,
-                loop = el.Motion.Loop, facePath = el.Motion.FacePath, faceOffset = el.Motion.FaceOffset,
-                height = el.Motion.Height, period = el.Motion.Period, count = el.Motion.Count,
-                stopSeconds = el.Motion.StopSeconds, vehicle = el.Motion.Vehicle,
-                depotX = el.Motion.DepotX, depotZ = el.Motion.DepotZ
-            }
-            : null;
-        await _mod.InvokeVoidAsync("setGroupMotion", el.Id, motion);
-        await RefreshAnimatedFlag();
-    }
-
-
-    async Task<MotionState> DeriveMotion(DesignElement actor) {
-        if (actor.Actor == "rocket") {
-            var mc = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_mission_control"));
-            var pos = mc?.Pos ?? [16f, 0f, 9f];
-            if (mc is null) Status("Place a mission control to launch the rocket from it.");
-            else {
-                actor.Pos = [pos[0], pos[1], pos[2]];
-                actor.RotDeg = [0f, mc.RotDeg[1], 0f];
-            }
-
-            return new MotionState { Kind = "launch", Path = PlaygroundPaths.LaunchPath(pos, 12f), Height = 12f, Period = 6f };
-        }
-
-        if (actor.Actor == "vehicle") {
-            var xs = _elements.Where(e => e.Kind != "actor").Select(e => e.Pos[0]).ToList();
-            var minX = xs.Count > 0 ? xs.Min() - 6f : -20f;
-            var maxX = xs.Count > 0 ? xs.Max() + 6f : 20f;
-
-
-            var depot = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_depot"));
-            var depotX = depot?.Pos[0];
-            var depotZ = depot?.Pos[2];
-            if (depot is not null && _mod is not null) {
-                try {
-                    var foot = await _mod.InvokeAsync<GroupFootprintDto?>("getGroupFootprint", depot.Id);
-                    if (foot is not null) {
-                        depotX = depot.Pos[0] + (foot.MinX + foot.MaxX) / 2f;
-                        depotZ = depot.Pos[2] + foot.MaxZ;
-                    }
-                }
-                catch {
-                    /* fall back to the authored corner if the group is not yet rendered */
-                }
-            }
-
-
-            return new MotionState {
-                Kind = "path", Path = PlaygroundPaths.RoadPath(maxX, minX), Speed = 6f,
-                Loop = "cycle", FacePath = true, FaceOffset = MathF.PI / 2f,
-                Count = actor.Motion?.Count is > 0 ? actor.Motion.Count : 1,
-                StopSeconds = actor.Motion?.StopSeconds ?? 0f,
-                Vehicle = true,
-                DepotX = depotX,
-                DepotZ = depotZ
-            };
-        }
-
-
-        var count = actor.Motion?.Count is > 0 ? actor.Motion.Count : 1;
-        var hatch = _elements.FirstOrDefault(e => e.Kind == "env" && e.Ref.StartsWith("ei_hatchery"));
-        var habs = _elements.Where(e => e.Kind == "env" && EnvCatalog.AssetTypeOf(e.Ref) is { } at && IsHab(at)).ToList();
-        if (hatch is null || habs.Count == 0) {
-            Status("Place a hatchery and a hab to route the chicken.");
-            return new MotionState { Kind = "path", Path = [[0f, 0f, 2f], [4f, 0f, -8f]], Speed = 2f, Loop = "cycle", FacePath = true, Count = count };
-        }
-
-        var nearest = habs.OrderBy(h => Dist2(h.Pos, hatch.Pos)).First();
-        return new MotionState { Kind = "path", Path = PlaygroundPaths.ChickenRun(hatch.Pos, nearest.Pos), Speed = 2.5f, Loop = "cycle", FacePath = true, Count = count };
-    }
-
-    static bool IsHab(string assetType) {
-        return assetType is "Coop" or "Shack" or "SuperShack" or "ShortHouse"
-            or "TheStandard" or "LongHouse" or "DoubleDecker" or "Warehouse" or "Center" or "Bunker" or "Eggkea"
-            or "Hab1K" or "Hangar" or "Tower" or "Hab10K" or "Eggtopia" or "Monolith" or "PlanetPortal" or "ChickenUniverse";
-    }
-
-
-    static bool IsTerrain(string stem) {
-        return stem is "ei_farm_ground" or "ei_farm" or "ei_farm_hardscape"
-            or "ei_farm_misc" or "ei_chicken_display_ground";
-    }
-
-    static float Dist2(float[] a, float[] b) {
-        var dx = a[0] - b[0];
-        var dz = a[2] - b[2];
-        return dx * dx + dz * dz;
-    }
-
-
-    async Task AddActor(string actorType, string meshRef, string label) {
-        if (actorType == "rocket") {
-            var existing = _elements.FirstOrDefault(e => e.Kind == "actor" && e.Actor == "rocket");
-            if (existing is not null) {
-                await SelectElement(existing.Id);
-                StateHasChanged();
-                return;
-            }
-        }
-
-        PushHistory();
-        var el = new DesignElement { Id = NextElementId(), Kind = "actor", Actor = actorType, Ref = meshRef, Label = label };
-        el.Motion = await DeriveMotion(el);
-        _elements.Add(el);
-        await RenderElement(el);
-        await SelectElement(el.Id);
-        StateHasChanged();
-    }
-
-
-    async Task RederiveActors() {
-        foreach (var a in _elements.Where(e => e.Kind == "actor").ToList()) {
-            a.Motion = await DeriveMotion(a);
-            if (a.Actor == "rocket") await PushElementTransform(a);
-            await PushElementMotion(a);
-        }
-    }
-
-
-    async Task RenderElement(DesignElement el) {
-        if (_mod is null) return;
-        var url = ElementGlbUrl(el);
-        if (url is null) return;
-        var glb = await FetchRaw(url);
-        if (glb is null) return;
-
-        if (el.Kind == "chicken" && !string.IsNullOrEmpty(el.Hat)) {
-            var hat = await FetchRaw($"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(el.Hat)}/glb");
-            var anchor = _chickens.FirstOrDefault(c => c.Identifier == el.Ref)?.Anchor ?? [];
-            await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb),
-                new { hatBase64 = hat is null ? null : Convert.ToBase64String(hat), anchor });
-        } else {
-            var stem = el.Shell ?? el.Ref;
-            var leftPin = IsZoneCorePinned(stem);
-            await _mod.InvokeAsync<string[]>("addGroup", el.Id, Convert.ToBase64String(glb),
-                new { recenter = el.Recenter, recenterX = leftPin ? "min" : "center", snapBase = !IsTerrain(stem), terrain = IsTerrain(stem) });
-        }
-
-        await PushElementTransform(el);
-        await ApplyElementAnimation(el);
-        await PushElementMotion(el);
-        await ApplyEffect(el);
-        Autosave();
-    }
-
-
-    async Task PushElementTransform(DesignElement el) {
-        if (_mod is not null)
-            await _mod.InvokeVoidAsync("setGroupTransform", el.Id, el.Pos, el.RotDeg, el.Scale);
-        if (_designer is not null && _selectedElementId == el.Id)
-            await _designer.InvokeVoidAsync("selectElement", el.Id);
-        Autosave();
-    }
-
-    async Task SelectElement(string id) {
-        _selectedElementId = id;
-        _confirmDeleteId = null;
-        if (_designer is not null) await _designer.InvokeVoidAsync("selectElement", id);
-        await LoadFamilyOptions();
-        StateHasChanged();
-    }
-
-
-    async Task LoadFamilyOptions() {
-        _familyOptions = [];
-        if (Selected is { Kind: "env" } sel && !string.IsNullOrEmpty(sel.Ref)) {
-            try {
-                var res = await Client().GetFromJsonAsync<FamilyResult>($"/api/env/family/{Uri.EscapeDataString(sel.Ref)}");
-                _familyOptions = res?.Family?.ToList() ?? [];
-            }
-            catch {
-                _familyOptions = [];
-            }
-        }
-    }
-
-
-    async Task SwapVariation(DesignElement sel) {
-        PushHistory();
-        var opt = _familyOptions.FirstOrDefault(f => f.Stem == sel.Ref);
-        if (opt is not null) sel.Label = opt.Label;
-        await RenderElement(sel);
-
-        await RunDomino(sel.Id);
-        await SelectElement(sel.Id);
-    }
-
-
-    async Task RunDomino(string changedId) {
-        if (_mod is null) return;
-        var cell = _gridSize;
-        try {
-            var boxes = await _mod.InvokeAsync<DominoBoxes>("gridBoxesForDomino", changedId, cell);
-            if (boxes?.Changed is null || boxes.Others is null || boxes.Others.Length == 0) return;
-
-            GridBoxOf(boxes.Changed, out var changed);
-            var others = boxes.Others.Select(b => {
-                GridBoxOf(b, out var g);
-                return g;
-            }).ToList();
-            var moves = PlacementSolver.DominoNudge(changed, others);
-            if (moves.Count == 0) return;
-
-            var payload = moves.Select(m => new { id = m.Id, deltaCol = m.DeltaCol, deltaRow = m.DeltaRow }).ToArray();
-            var moved = await _mod.InvokeAsync<MovedElement[]>("applyDominoMoves", new object[] { payload, cell });
-            foreach (var mv in moved ?? []) {
-                var el = _elements.FirstOrDefault(e => e.Id == mv.Id);
-                if (el is not null && mv.Pos is { Length: 3 }) el.Pos = [mv.Pos[0], mv.Pos[1], mv.Pos[2]];
-            }
-
-            await RederiveActors();
-            Autosave();
-        }
-        catch {
-            /* a domino failure must never break the swap or the scene */
-        }
-    }
-
-    static void GridBoxOf(DominoBox b, out PlacementSolver.GridBox g) {
-        g = new PlacementSolver.GridBox(b.Id, b.Col, b.Row, b.SpanC, b.SpanR);
-    }
-
-    public sealed class DominoBoxes {
-        public DominoBox? Changed { get; set; }
-        public DominoBox[]? Others { get; set; }
-    }
-
-    public sealed class DominoBox {
-        public string Id { get; set; } = "";
-        public int Col { get; set; }
-        public int Row { get; set; }
-        public int SpanC { get; set; }
-        public int SpanR { get; set; }
-    }
-
-    public sealed class MovedElement {
-        public string Id { get; set; } = "";
-        public float[]? Pos { get; set; }
-    }
-
-
-    async Task ConfirmDelete(DesignElement el) {
-        _confirmDeleteId = null;
-        await DeleteElement(el);
-    }
-
-    async Task DeleteElement(DesignElement el) {
-        PushHistory();
-        _elements.Remove(el);
-        if (_selectedElementId == el.Id) {
-            _selectedElementId = null;
-            if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
-        }
-
-        if (_mod is not null) await _mod.InvokeVoidAsync("removeGroup", el.Id);
-        StateHasChanged();
-        Autosave();
-    }
-
-    List<DesignElement> CloneElements() {
-        return _elements.Select(e => new DesignElement {
-            Id = e.Id, Kind = e.Kind, Ref = e.Ref, Label = e.Label, Hat = e.Hat, Shell = e.Shell, Recenter = e.Recenter, Effect = e.Effect, HasEffects = e.HasEffects, EffectCount = e.EffectCount,
-            Pos = [e.Pos[0], e.Pos[1], e.Pos[2]], RotDeg = [e.RotDeg[0], e.RotDeg[1], e.RotDeg[2]],
-            Scale = e.Scale, Anim = e.Anim, Actor = e.Actor,
-            Motion = e.Motion is null
-                ? null
-                : new MotionState {
-                    Kind = e.Motion.Kind, Path = e.Motion.Path.Select(w => (float[])w.Clone()).ToArray(),
-                    Speed = e.Motion.Speed, Loop = e.Motion.Loop, FacePath = e.Motion.FacePath, FaceOffset = e.Motion.FaceOffset,
-                    Height = e.Motion.Height, Period = e.Motion.Period, Count = e.Motion.Count, StopSeconds = e.Motion.StopSeconds
-                }
-        }).ToList();
-    }
-
-
-    void PushHistory() {
-        if (_restoringHistory) return;
-        _undo.Push(CloneElements());
-        if (_undo.Count > HistoryCap) {
-            var keep = _undo.Take(HistoryCap).ToArray();
-            _undo.Clear();
-            for (var i = keep.Length - 1; i >= 0; i--) _undo.Push(keep[i]);
-        }
-
-        _redo.Clear();
-    }
-
-    [JSInvokable]
-    public Task OnGizmoDragStart() {
-        PushHistory();
-        return Task.CompletedTask;
-    }
-
-    [JSInvokable]
-    public async Task OnUndo() {
-        if (_undo.Count == 0) return;
-        _redo.Push(CloneElements());
-        await ApplyHistorySnapshot(_undo.Pop());
-    }
-
-    [JSInvokable]
-    public async Task OnRedo() {
-        if (_redo.Count == 0) return;
-        _undo.Push(CloneElements());
-        await ApplyHistorySnapshot(_redo.Pop());
-    }
-
-
-    async Task ApplyHistorySnapshot(List<DesignElement> snapshot) {
-        if (_mod is null) return;
-        _restoringHistory = true;
-        try {
-            var keepSel = _selectedElementId;
-            var byId = _elements.ToDictionary(e => e.Id);
-            var snapIds = snapshot.Select(s => s.Id).ToHashSet();
-
-            foreach (var live in _elements.ToList())
-                if (!snapIds.Contains(live.Id)) {
-                    await _mod.InvokeVoidAsync("removeGroup", live.Id);
-                    _elements.Remove(live);
-                }
-
-            foreach (var snap in snapshot) {
-                if (!byId.TryGetValue(snap.Id, out var live)) {
-                    _elements.Add(snap);
-                    await RenderElement(snap);
-                    continue;
-                }
-
-                var meshChanged = !MeshIdentical(live, snap);
-                CopyInto(live, snap);
-                if (meshChanged) await RenderElement(live);
-                else await PushElementTransform(live);
-            }
-
-            _selectedElementId = null;
-            if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
-            if (keepSel is not null && _elements.Any(e => e.Id == keepSel)) await SelectElement(keepSel);
-            await RefreshAnimatedFlag();
-        }
-        finally {
-            _restoringHistory = false;
-        }
-
-        StateHasChanged();
-        Autosave();
-    }
-
-
-    static bool MeshIdentical(DesignElement a, DesignElement b) {
-        return a.Kind == b.Kind && a.Ref == b.Ref && a.Hat == b.Hat && a.Shell == b.Shell && a.Actor == b.Actor;
-    }
-
-
-    static void CopyInto(DesignElement live, DesignElement snap) {
-        live.Kind = snap.Kind;
-        live.Ref = snap.Ref;
-        live.Label = snap.Label;
-        live.Hat = snap.Hat;
-        live.Shell = snap.Shell;
-        live.Pos = [snap.Pos[0], snap.Pos[1], snap.Pos[2]];
-        live.RotDeg = [snap.RotDeg[0], snap.RotDeg[1], snap.RotDeg[2]];
-        live.Scale = snap.Scale;
-        live.Anim = snap.Anim;
-        live.Actor = snap.Actor;
-        live.Motion = snap.Motion;
-        live.Recenter = snap.Recenter;
-        live.Effect = snap.Effect;
-        live.HasEffects = snap.HasEffects;
-        live.EffectCount = snap.EffectCount;
-    }
-
-
-    CancellationTokenSource? _arrangeCts;
-
-    async Task AutoArrangeFarm() {
-        if (_mod is null) return;
-        _arrangeCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        _arrangeCts = cts;
-        var ct = cts.Token;
-        _busy = true;
-        Status("Arranging farm…");
-        _suppressAutosave = true;
-        try {
-            FarmLayoutResult? layout;
-            try {
-                layout = await Client().GetFromJsonAsync<FarmLayoutResult>("/api/env/farm-layout", ct);
-            }
-            catch (OperationCanceledException) {
-                return;
-            }
-            catch (Exception ex) {
-                Fail($"layout fetch failed: {ex.Message}");
-                return;
-            }
-
-            var placed = layout?.Elements ?? [];
-            if (placed.Length == 0) {
-                Fail("no layout returned");
-                return;
-            }
-
-            foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
-            _elements.Clear();
-            _selectedElementId = null;
-            if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
-
-
-            var newEls = placed.Select(pl => new DesignElement {
-                Id = NextElementId(), Kind = "env", Ref = pl.Stem, Label = pl.Label,
-                Pos = pl.Pos, RotDeg = [0, pl.RotY, 0], Scale = pl.Scale <= 0 ? 1 : pl.Scale,
-                Recenter = pl.Recenter
-            }).ToList();
-
-            await RenderElementsBatch(newEls, ct);
-            if (ct.IsCancellationRequested) return;
-
-
-            await RepackCoreZones();
-            await RespaceHabs();
-
-            foreach (var el in _elements.ToList()) {
-                if (ct.IsCancellationRequested) return;
-                await ApplyEffect(el);
-            }
-
-            await ResetView();
-            Status($"Arranged {_elements.Count} elements.");
-        }
-        catch (OperationCanceledException) {
-        }
-        catch (Exception ex) {
-            Fail(ex.Message);
-        }
-        finally {
-            _suppressAutosave = false;
-            if (!ct.IsCancellationRequested) Autosave();
-            _busy = false;
-            StateHasChanged();
-        }
-    }
-
-
-    static readonly string[][] ZoneRowFamilies = [["lab", "hoa"], ["hatchery", "mission", "fuel"], ["depot"]];
-
-    public sealed class ZoneRowPackResult {
-        public float[][] Positions { get; set; } = [];
-        public float NextBackEdgeZ { get; set; }
-    }
-
-
-    const float RoadClearZ = PlaygroundPaths.RoadZ - 1.5f;
-
-    async Task RepackCoreZones() {
-        if (_mod is null) return;
-        var backEdgeZ = ZoneLayout.BackRowZ;
-        for (var rowIndex = 0; rowIndex < ZoneRowFamilies.Length; rowIndex++) {
-            var families = ZoneRowFamilies[rowIndex];
-            var famSet = new HashSet<string>(families, StringComparer.Ordinal);
-            var row = _elements
-                .Where(e => e.Kind == "env")
-                .Select(e => (el: e, fam: _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family ?? ""))
-                .Where(t => famSet.Contains(t.fam))
-                .OrderBy(t => Array.IndexOf(families, t.fam))
-                .Select(t => t.el)
-                .ToList();
-            if (row.Count == 0) continue;
-            var ids = row.Select(e => e.Id).ToArray();
-            var result = await _mod.InvokeAsync<ZoneRowPackResult>(
-                "repackZoneRow", ids, ZoneLayout.CoreLeftX,
-                backEdgeZ, ZoneLayout.ZoneGapX,
-                ZoneLayout.ZoneGapX);
-
-
-            var isLastRow = rowIndex == ZoneRowFamilies.Length - 1;
-            if (isLastRow && result.NextBackEdgeZ - ZoneLayout.ZoneGapX > RoadClearZ) {
-                var realFrontZ = result.NextBackEdgeZ - ZoneLayout.ZoneGapX;
-                var overflow = realFrontZ - RoadClearZ;
-                result = await _mod.InvokeAsync<ZoneRowPackResult>(
-                    "repackZoneRow", ids, ZoneLayout.CoreLeftX,
-                    backEdgeZ - overflow, ZoneLayout.ZoneGapX,
-                    ZoneLayout.ZoneGapX);
-            }
-
-            for (var i = 0; i < row.Count && i < result.Positions.Length; i++)
-                row[i].Pos = [result.Positions[i][0], row[i].Pos[1], result.Positions[i][1]];
-            backEdgeZ = result.NextBackEdgeZ;
-        }
-    }
-
-
-    async Task RespaceHabs() {
-        if (_mod is null) return;
-        var habs = _elements
-            .Where(e => e.Kind == "env" && _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family == "hab")
-            .OrderBy(e => e.Pos[0])
-            .ToList();
-        if (habs.Count == 0) return;
-        var ids = habs.Select(h => h.Id).ToArray();
-        var positions = await _mod.InvokeAsync<float[][]>(
-            "respaceHabRow", ids,
-            FarmLayout.HabGap,
-            FarmLayout.HabHalfStep,
-            FarmLayout.HabRowZ);
-        for (var i = 0; i < habs.Count && i < positions.Length; i++)
-            habs[i].Pos = [positions[i][0], habs[i].Pos[1], positions[i][1]];
-    }
-
-
-    static readonly HashSet<string> SingleInstanceFamilies = new(StringComparer.Ordinal)
-        { "lab", "mission", "hoa", "hatchery", "trophy", "depot", "fuel" };
-
-    const int MaxHabs = 4;
-    const int MaxSilos = 10;
-
-    static bool IsSilo(string stem) {
-        return stem.StartsWith("ei_silo", StringComparison.Ordinal);
-    }
-
-
-    static bool IsZoneCorePinned(string stem) {
-        return stem.StartsWith("ei_lab", StringComparison.Ordinal) || stem.StartsWith("ei_hoa", StringComparison.Ordinal)
-                                                                   || stem.StartsWith("ei_afx_construction", StringComparison.Ordinal) || stem.StartsWith("ei_hatchery_", StringComparison.Ordinal)
-                                                                   || stem.StartsWith("ei_mission_control", StringComparison.Ordinal) || stem.StartsWith("ei_fuel_tank", StringComparison.Ordinal)
-                                                                   || stem.StartsWith("ei_depot", StringComparison.Ordinal);
-    }
-
-    int CountFamily(string family) {
-        return _elements.Count(e =>
-            e.Kind == "env" && _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family == family);
-    }
-
-    int CountHabs() {
-        return CountFamily("hab");
-    }
-
-    int CountSilos() {
-        return _elements.Count(e => e.Kind == "env" && IsSilo(e.Ref));
-    }
-
-
-    string? PlacementBlockedReason(EnvPieceRow p) {
-        if (!string.IsNullOrEmpty(p.Family) && SingleInstanceFamilies.Contains(p.Family) && CountFamily(p.Family) >= 1)
-            return "placed";
-        if (p.Family == "hab" && CountHabs() >= MaxHabs) return "max " + MaxHabs;
-        if (IsSilo(p.Stem) && CountSilos() >= MaxSilos) return "max " + MaxSilos;
-        if (p.Singleton && _elements.Any(e => e.Kind == "env" && e.Ref == p.Stem)) return "placed";
-        return null;
-    }
-
-
-    readonly record struct PickerEntry(EnvPieceRow Piece, string Display);
-
-    IEnumerable<PickerEntry> FamilyPickerEntries(IEnumerable<EnvPieceRow> group) {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var p in group) {
-            if (string.IsNullOrEmpty(p.Family)) {
-                yield return new PickerEntry(p, p.Label);
-                continue;
-            }
-
-            if (!seen.Add(p.Family)) continue;
-
-            var top = _catalogPieces.Last(q => q.Family == p.Family);
-            yield return new PickerEntry(top, FamilyDisplayName(p.Family, top.Label));
-        }
-    }
-
-    static string FamilyDisplayName(string family, string fallbackLabel) {
-        return family switch {
-            "hab" => "Hab", "depot" => "Depot", "fuel" => "Fuel tank", "lab" => "Research lab",
-            "mission" => "Mission control", "hoa" => "Artifact hall", "trophy" => "Trophy case",
-            "hatchery" => "Hatchery", _ => StripTier(fallbackLabel)
-        };
-    }
-
-    static string StripTier(string label) {
-        var i = label.LastIndexOf(" (", StringComparison.Ordinal);
-        return i > 0 ? label[..i] : label;
-    }
-
-
-    async Task AddElement(string kind, string id, string label) {
-        if (kind == "env") {
-            var piece = _catalogPieces.FirstOrDefault(p => p.Stem == id);
-            if (piece is not null && PlacementBlockedReason(piece) is not null) {
-                var dup = _elements.FirstOrDefault(e => e.Kind == "env"
-                                                        && (e.Ref == id || (!string.IsNullOrEmpty(piece.Family) && _catalogPieces.FirstOrDefault(p => p.Stem == e.Ref)?.Family == piece.Family)));
-                if (dup is not null) await SelectElement(dup.Id);
-                StateHasChanged();
-                return;
-            }
-        }
-
-        PushHistory();
-
-
-        var el = new DesignElement { Id = NextElementId(), Kind = kind, Ref = id, Label = label, Recenter = kind == "env" };
-        _elements.Add(el);
-        await RenderElement(el);
-        await SelectElement(el.Id);
-        StateHasChanged();
-    }
-
-    async Task ReshellSelected() {
-        if (Selected is { } sel) await RenderAndReselect(sel);
-    }
-
-
-    async Task OnAnimChanged(DesignElement sel) {
-        PushHistory();
-        await ApplyElementAnimation(sel);
-    }
-
-
-    async Task OnEffectToggled(DesignElement sel, bool on) {
-        PushHistory();
-        sel.Effect = on;
-        await ApplyEffect(sel);
-        StateHasChanged();
-    }
-
-
-    async Task ApplyEffect(DesignElement el) {
-        if (_mod is null || el.Kind != "env") return;
-
-        if (el.Ref.StartsWith("ei_hatchery", StringComparison.Ordinal)) {
-            await ApplyHatcheryParts(el);
-            return;
-        }
-
-        try {
-            var res = await Client().GetFromJsonAsync<JsonElement>($"/api/decomp/building-effects?stem={Uri.EscapeDataString(el.Ref)}");
-            var hasEffects = res.TryGetProperty("effects", out var effects) && effects.ValueKind == JsonValueKind.Array && effects.GetArrayLength() > 0;
-            el.HasEffects = hasEffects;
-            el.EffectCount = hasEffects ? effects.GetArrayLength() : 0;
-            await _mod.InvokeVoidAsync("attachEffects", el.Id, el.Effect && hasEffects ? effects : null);
-        }
-        catch {
-            el.HasEffects = false;
-            el.EffectCount = 0;
-            await _mod.InvokeVoidAsync("attachEffects", el.Id, null);
-        }
-
-        StateHasChanged();
-    }
-
-
-    async Task ApplyHatcheryParts(DesignElement el) {
-        if (_mod is null) return;
-        try {
-            var tier = HatcheryTierOf(el.Ref);
-
-
-            var dump = await FetchHatcheryDump();
-            var floating = new List<string>();
-            if (dump is { } d && d.TryGetProperty("tiers", out var tiers) && tiers.ValueKind == JsonValueKind.Array)
-                foreach (var t in tiers.EnumerateArray())
-                    if (t.TryGetProperty("tier", out var tn) && tn.GetString() == tier
-                                                             && t.TryGetProperty("floating", out var fl) && fl.ValueKind == JsonValueKind.Array)
-                        foreach (var f in fl.EnumerateArray())
-                            if (f.GetString() is { } s)
-                                floating.Add(s);
-
-            el.HasEffects = floating.Count > 0;
-            el.EffectCount = floating.Count;
-
-            if (!el.Effect || floating.Count == 0) {
-                await _mod.InvokeVoidAsync("clearHatcheryParts", el.Id);
-                StateHasChanged();
-                return;
-            }
-
-
-            if (!_hatcheryModelCache.TryGetValue(tier, out var model)) {
-                model = await BuildHatcheryModel(tier, floating, dump);
-                _hatcheryModelCache[tier] = model;
-            }
-
-            await _mod.InvokeVoidAsync("attachHatcheryParts", el.Id, model);
-        }
-        catch {
-            el.HasEffects = false;
-            el.EffectCount = 0;
-            await _mod.InvokeVoidAsync("clearHatcheryParts", el.Id);
-        }
-
-        StateHasChanged();
-    }
-
-
-    JsonElement? _hatcheryDump;
-    Task<JsonElement?>? _hatcheryDumpTask;
-    readonly Dictionary<string, object?> _hatcheryModelCache = new(StringComparer.Ordinal);
-
-    Task<JsonElement?> FetchHatcheryDump() {
-        if (_hatcheryDump is not null) return Task.FromResult(_hatcheryDump);
-        return _hatcheryDumpTask ??= FetchHatcheryDumpUncached();
-    }
-
-    async Task<JsonElement?> FetchHatcheryDumpUncached() {
-        try {
-            var d = await Client().GetFromJsonAsync<JsonElement>("/api/env/hatchery-dump");
-            _hatcheryDump = d;
-            return d;
-        }
-        catch {
-            return null;
-        }
-        finally {
-            _hatcheryDumpTask = null;
-        }
-    }
-
-
-    async Task<object?> BuildHatcheryModel(string tier, List<string> floating, JsonElement? dump) {
-        float[] orb = [0f, 2.15f, 0f];
-
-        const int probeCount = 12;
-        var orbitRadius = 0f;
-        var orbitSpeed = 0.5f;
-        float beamInterval = 0f, beamDuration = 0.2f;
-        var beamRandom = false;
-
-        if (dump is { } d && d.TryGetProperty("assembly", out var asmEl)) {
-            if (asmEl.TryGetProperty("timing", out var tm) && tm.ValueKind == JsonValueKind.Object) {
-                if (tm.TryGetProperty("smoothDuration", out var sd) && sd.ValueKind == JsonValueKind.Number) {
-                    var dur = (float)sd.GetDouble();
-                    if (dur > 0.01f) {
-                        orbitSpeed = (float)(Math.PI / 2 / dur);
-                        beamDuration = dur;
-                    }
-                }
-
-
-                if (tm.TryGetProperty("waitFor", out var wf) && wf.ValueKind == JsonValueKind.Number) {
-                    var w = (float)wf.GetDouble();
-                    if (w > 0.001f) {
-                        beamInterval = w;
-                        beamRandom = false;
-                    }
-                } else if (tm.TryGetProperty("waitForRandom", out var wr) && wr.ValueKind == JsonValueKind.True) {
-                    beamRandom = true;
-                    if (beamInterval <= 0f) beamInterval = Math.Max(beamDuration, 1f);
-                }
-            }
-
-            if (asmEl.TryGetProperty("transforms", out var tr) && tr.ValueKind == JsonValueKind.Array
-                                                               && asmEl.TryGetProperty("anchor", out var a2) && a2.ValueKind == JsonValueKind.Array && a2.GetArrayLength() == 3) {
-                foreach (var t in tr.EnumerateArray())
-                    if (t.TryGetProperty("translation", out var tl) && tl.ValueKind == JsonValueKind.Array && tl.GetArrayLength() == 3) {
-                        var dx = tl[0].GetDouble() - a2[0].GetDouble();
-                        var dz = tl[2].GetDouble() - a2[2].GetDouble();
-                        var r = (float)Math.Sqrt(dx * dx + dz * dz);
-                        if (r > orbitRadius) orbitRadius = r;
-                    }
-            }
-        }
-
-
-        var fullBounds = HatcheryFullBounds(tier, dump);
-
-
-        float[] bodyShift = [0f, 0f, 0f];
-        if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyB))
-            bodyShift = [-bodyB.MinX, -bodyB.MinY, -(bodyB.MinZ + bodyB.MaxZ) * 0.5f];
-
-
-        var domeRadius = 1.5f;
-        if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bForOrb)) {
-            var h = bForOrb.MaxY - bForOrb.MinY;
-            var cx = (bForOrb.MinX + bForOrb.MaxX) * 0.5f + bodyShift[0];
-            var cz = (bForOrb.MinZ + bForOrb.MaxZ) * 0.5f + bodyShift[2];
-            orb = [cx, h * 0.62f, cz];
-            domeRadius = Math.Clamp(h * 0.30f, 0.8f, 2.5f);
-        }
-
-
-        float bodyCx = 0f, bodyCy = 0f, bodyCz = 0f;
-        if (fullBounds.TryGetValue($"ei_hatchery_{tier}", out var bodyForOff)) {
-            bodyCx = (bodyForOff.MinX + bodyForOff.MaxX) * 0.5f;
-            bodyCy = (bodyForOff.MinY + bodyForOff.MaxY) * 0.5f;
-            bodyCz = (bodyForOff.MinZ + bodyForOff.MaxZ) * 0.5f;
-        }
-
-        var pieces = new List<object>();
-        foreach (var stem in floating) {
-            if (!fullBounds.TryGetValue(stem, out var bb)) continue;
-            var role = HatcheryPieceClassifier.Classify(bb);
-            var glb = await FetchRaw($"/api/env/{Uri.EscapeDataString(stem)}/glb");
-            if (glb is null) continue;
-
-
-            float[] offset = [(bb.MinX + bb.MaxX) * 0.5f - bodyCx, (bb.MinY + bb.MaxY) * 0.5f - bodyCy, (bb.MinZ + bb.MaxZ) * 0.5f - bodyCz];
-            pieces.Add(new {
-                glb = Convert.ToBase64String(glb),
-                role = role.ToString(),
-                worldPlaced = role == HatcheryPieceClassifier.Role.WorldPlaced,
-                offset,
-
-                capstone = role == HatcheryPieceClassifier.Role.Orb && floating.Count == 1,
-
-                size = Math.Max(bb.ExtentX, bb.ExtentZ) * 0.5f
-            });
-        }
-
-
-        if (orbitRadius <= 0f)
-            orbitRadius = domeRadius + 0.8f;
-
-        return new {
-            orb,
-            orbYFrac = 0.78f,
-            pieces,
-            probeCount,
-            orbitSpeed,
-            orbitRadius,
-            orbitRadiusApprox = true,
-            beam = new { fireInterval = beamInterval, fireDuration = beamDuration, fireRandom = beamRandom }
-        };
-    }
-
-
-    Dictionary<string, HatcheryPieceClassifier.Bounds> HatcheryFullBounds(string tier, JsonElement? dump) {
-        var map = new Dictionary<string, HatcheryPieceClassifier.Bounds>(StringComparer.Ordinal);
-        if (dump is not { } d || !d.TryGetProperty("tiers", out var tiers) || tiers.ValueKind != JsonValueKind.Array) return map;
-        foreach (var t in tiers.EnumerateArray()) {
-            if (!t.TryGetProperty("tier", out var tn) || tn.GetString() != tier) continue;
-            if (!t.TryGetProperty("pieces", out var pcs) || pcs.ValueKind != JsonValueKind.Array) continue;
-            foreach (var p in pcs.EnumerateArray()) {
-                if (!p.TryGetProperty("stem", out var sn) || sn.GetString() is not { } stem) continue;
-                if (!p.TryGetProperty("bounds", out var bd) || bd.ValueKind != JsonValueKind.Object) continue;
-                if (!bd.TryGetProperty("min", out var mn) || !bd.TryGetProperty("max", out var mx)) continue;
-                map[stem] = new HatcheryPieceClassifier.Bounds(
-                    (float)mn[0].GetDouble(), (float)mn[1].GetDouble(), (float)mn[2].GetDouble(),
-                    (float)mx[0].GetDouble(), (float)mx[1].GetDouble(), (float)mx[2].GetDouble());
-            }
-        }
-
-        return map;
-    }
-
-
-    static string HatcheryTierOf(string stem) {
-        const string prefix = "ei_hatchery_";
-        return stem.StartsWith(prefix, StringComparison.Ordinal) ? stem[prefix.Length..] : stem;
-    }
-
-    async Task OnShellChanged() {
-        PushHistory();
-        await ReshellSelected();
-    }
-
-    async Task OnHatChanged(DesignElement sel) {
-        PushHistory();
-        await RenderAndReselect(sel);
-    }
-
-    async Task OnChickenSkinChanged(DesignElement sel) {
-        PushHistory();
-        var c = _chickens.FirstOrDefault(x => x.Identifier == sel.Ref);
-        if (c is not null) sel.Label = c.Name ?? c.Identifier;
-        await RenderAndReselect(sel);
-    }
-
-    async Task LoadShellSets() {
-        try {
-            var res = await Client().GetFromJsonAsync<ShellSetsResult>($"/api/shells/sets?platform={ShellPlatform}");
-            _shellSets = res?.Sets?.ToList() ?? [];
-            _decorators = res?.Decorators?.ToList() ?? [];
-        }
-        catch {
-            _shellSets = [];
-            _decorators = [];
-        }
-    }
-
-
-    async Task ApplyShellSet(ShellSetRow set) {
-        var members = set.Members ?? [];
-        if (members.Length == 0) return;
-        var targets = _setApplyMode == "selected"
-            ? Selected is { } s ? new[] { s } : []
-            : _elements.ToArray();
-        if (targets.Length == 0) return;
-        PushHistory();
-        foreach (var el in targets) {
-            var at = EnvCatalog.AssetTypeOf(el.Ref);
-            if (at is null) continue;
-            var member = members.FirstOrDefault(m => string.Equals(m.AssetType, at, StringComparison.OrdinalIgnoreCase));
-            if (member is null) continue;
-            el.Shell = member.Identifier;
-            await RenderElement(el);
-        }
-
-        if (_selectedElementId is not null) await SelectElement(_selectedElementId);
-        Status($"Applied set \"{set.Name ?? set.Identifier}\".");
-    }
-
-
-    async Task ApplyDecorator() {
-        PushHistory();
-        var deco = _decorators.FirstOrDefault(d => d.Identifier == _decoratorId);
-        if (deco is not null) {
-            var members = deco.Members ?? [];
-            foreach (var el in _elements.ToArray()) {
-                var at = EnvCatalog.AssetTypeOf(el.Ref);
-                if (at is null) continue;
-                var member = members.FirstOrDefault(m => string.Equals(m.AssetType, at, StringComparison.OrdinalIgnoreCase));
-                if (member is null) continue;
-                el.Shell = member.Identifier;
-                await RenderElement(el);
-            }
-
-            if (_selectedElementId is not null) await SelectElement(_selectedElementId);
-        }
-
-        Autosave();
-    }
-
-    async Task RenderAndReselect(DesignElement el) {
-        await RenderElement(el);
-        await SelectElement(el.Id);
-    }
-
-
-    IEnumerable<ShellRow> ShellsForAssetTypeOf(DesignElement el) {
-        return _allShells;
-    }
-
-    async Task SetGizmoMode(string mode) {
-        if (_designer is not null) await _designer.InvokeVoidAsync("setGizmoMode", mode);
-    }
-
-    async Task OnGridSizeChanged(ChangeEventArgs e) {
-        var size = float.TryParse(e.Value?.ToString(), out var v) ? v : 1f;
-        _gridSize = size > 0 ? size : 1f;
-        await ApplyGridSettings();
-    }
-
-
-    async Task ApplyGridSettings() {
-        var cell = _gridSize;
-        if (_mod is not null) await _mod.InvokeVoidAsync("setGrid", cell);
-        if (_designer is not null) await _designer.InvokeVoidAsync("setGridSnap", cell);
-    }
-
-
-    RenderFragment TransformFields(DesignElement el) {
-        return builder => {
-            var seq = 0;
-
-            void Axis(string ph, Func<float> get, Action<float> set) {
-                builder.OpenElement(seq++, "input");
-                builder.AddAttribute(seq++, "type", "number");
-                builder.AddAttribute(seq++, "step", "0.1");
-                builder.AddAttribute(seq++, "placeholder", ph);
-                builder.AddAttribute(seq++, "class", "reg-filter-input w-full min-w-0 px-1");
-                builder.AddAttribute(seq++, "value", get());
-                builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, async e => {
-                    PushHistory();
-                    set(float.TryParse(e.Value?.ToString(), out var v) ? v : 0);
-                    await PushElementTransform(el);
-                }));
-                builder.CloseElement();
-            }
-
-            void Row(string label, params (string Ph, Func<float> Get, Action<float> Set)[] axes) {
-                builder.OpenElement(seq++, "div");
-                builder.AddAttribute(seq++, "class", "flex items-center gap-1 mt-1");
-                builder.OpenElement(seq++, "span");
-                builder.AddAttribute(seq++, "class", "text-muted w-8 shrink-0");
-                builder.AddContent(seq++, label);
-                builder.CloseElement();
-                foreach (var (ph, get, set) in axes) Axis(ph, get, set);
-                builder.CloseElement();
-            }
-
-            Row("Pos", ("X", () => el.Pos[0], v => el.Pos[0] = v), ("Y", () => el.Pos[1], v => el.Pos[1] = v), ("Z", () => el.Pos[2], v => el.Pos[2] = v));
-            Row("Rot", ("X", () => el.RotDeg[0], v => el.RotDeg[0] = v), ("Y", () => el.RotDeg[1], v => el.RotDeg[1] = v), ("Z", () => el.RotDeg[2], v => el.RotDeg[2] = v));
-            Row("Scale", ("", () => el.Scale, v => el.Scale = v <= 0 ? 1 : v));
-        };
-    }
-
-
-    async Task SaveDesign() {
-        var name = string.IsNullOrEmpty(_currentDesign) ? _designName.Trim() : _currentDesign;
-        if (string.IsNullOrWhiteSpace(name)) return;
-        var payload = new DesignPayload {
-            Background = _bgColor, BackgroundTransparent = _bgTransparent,
-            Lighting = _lighting, Elements = _elements.ToList(), DecoratorId = _decoratorId
-        };
-        var json = JsonSerializer.Serialize(payload);
-        var res = await Client().PutAsJsonAsync($"/api/env/designs/{Uri.EscapeDataString(name)}",
-            new { payload = json, note = string.IsNullOrWhiteSpace(_versionNote) ? null : _versionNote.Trim() });
-        if (res.IsSuccessStatusCode) {
-            var body = await res.Content.ReadFromJsonAsync<SaveResult>();
-            _currentDesign = name;
-            _currentVersion = body?.Version ?? _currentVersion + 1;
-            _designName = "";
-            _versionNote = "";
-            _dirty = false;
-            Status($"Saved \"{name}\" v{_currentVersion}.");
-            await RefreshDesigns();
-            await LoadVersions();
-            if (_autosave is not null) {
-                try {
-                    await _autosave.InvokeVoidAsync("clear");
-                }
-                catch {
-                }
-            }
-        } else Fail($"save failed: HTTP {(int)res.StatusCode}");
-    }
-
-    record SaveResult(string Saved, int Version);
-
-    async Task LoadDesign() {
-        if (string.IsNullOrEmpty(_selectedDesign) || _mod is null) return;
-        Status("Loading design…");
-        try {
-            var json = await Client().GetStringAsync($"/api/env/designs/{Uri.EscapeDataString(_selectedDesign)}");
-            var payload = JsonSerializer.Deserialize<DesignPayload>(json);
-            if (payload is null) {
-                Fail("design is corrupt");
-                return;
-            }
-
-            await RestoreFromPayload(payload);
-            _currentDesign = _selectedDesign;
-            _selectedDesign = "";
-            _dirty = false;
-            await LoadVersions();
-            _currentVersion = _versions.Count > 0 ? _versions[0].VersionNo : 0;
-            Status($"Loaded \"{_currentDesign}\" v{_currentVersion}.");
-        }
-        catch (Exception ex) {
-            Fail(ex.Message);
-        }
-    }
-
-
-    async Task NewDesign() {
-        _arrangeCts?.Cancel();
-        _suppressAutosave = false;
-        _busy = false;
-        if (_mod is not null) {
-            try {
-                await _mod.InvokeVoidAsync("setPlaying", false);
-            }
-            catch {
-            }
-        }
-
-        await ClearScene();
-        _currentDesign = "";
-        _currentVersion = 0;
-        _versions = [];
-        _designName = "";
-        _versionNote = "";
-        _dirty = false;
-        Status("New design.");
-    }
-
 
     void ToggleFileMenu() {
         _fileMenuOpen = !_fileMenuOpen;
@@ -1911,11 +1244,16 @@
         await ResetView();
     }
 
+    async Task MenuTogglePlaying() {
+        CloseMenus();
+        _playing = !_playing;
+        if (_mod is not null) await _mod.InvokeVoidAsync("setPlaying", _playing);
+    }
+
     async Task MenuNew() {
         CloseMenus();
         await NewDesign();
     }
-
 
     async Task MenuSave() {
         CloseMenus();
@@ -1938,7 +1276,6 @@
         _namePromptOpen = true;
     }
 
-
     async Task ConfirmNamePrompt() {
         if (string.IsNullOrWhiteSpace(_designName)) return;
         _namePromptOpen = false;
@@ -1953,33 +1290,12 @@
 
     async Task MenuOpen(string name) {
         CloseMenus();
-        _selectedDesign = name;
-        await LoadDesign();
+        await LoadDesign(name);
     }
-
 
     async Task MenuReload() {
         CloseMenus();
-        if (string.IsNullOrEmpty(_currentDesign)) return;
-        var name = _currentDesign;
-        try {
-            var json = await Client().GetStringAsync($"/api/env/designs/{Uri.EscapeDataString(name)}");
-            var payload = JsonSerializer.Deserialize<DesignPayload>(json);
-            if (payload is null) {
-                Fail("design is corrupt");
-                return;
-            }
-
-            await RestoreFromPayload(payload);
-            _currentDesign = name;
-            _dirty = false;
-            await LoadVersions();
-            _currentVersion = _versions.Count > 0 ? _versions[0].VersionNo : 0;
-            Status($"Reloaded \"{name}\".");
-        }
-        catch (Exception ex) {
-            Fail(ex.Message);
-        }
+        if (!string.IsNullOrEmpty(_currentDesign)) await LoadDesign(_currentDesign);
     }
 
     async Task MenuRollback(int versionNo) {
@@ -2001,6 +1317,117 @@
         _gifOpen = false;
     }
 
+    FarmDesignPayload BuildPayload() => new() {
+        Platform = MeshPlatform,
+        State = _state,
+        ChickenCount = _chickenCount,
+        ShowcaseId = _presetId,
+        Background = _bgColor,
+        BackgroundTransparent = _bgTransparent,
+        FarmConfig = JsonNode.Parse(ConfigJson())
+    };
+
+    async Task RestoreFromPayload(FarmDesignPayload payload) {
+        _suppressAutosave = true;
+        try {
+            _state = payload.State ?? new FarmStateModel();
+            _state.Habs = NormalizeHabs(_state.Habs);
+            if (string.IsNullOrEmpty(_state.SiloAssetType)) _state.SiloAssetType = "Silo0Small";
+            if (string.IsNullOrEmpty(_state.EggType)) _state.EggType = "Edible";
+            _chickenCount = payload.ChickenCount;
+            _presetId = payload.ShowcaseId;
+            if (!string.IsNullOrEmpty(payload.Background)) _bgColor = payload.Background;
+            _bgTransparent = payload.BackgroundTransparent;
+
+            if (payload.FarmConfig is { } config) {
+                try {
+                    HydrateFromConfig(ShellDB.Types.FarmConfiguration.Parser.ParseJson(config.ToJsonString()));
+                }
+                catch (InvalidProtocolBufferException) {
+                    Fail("saved farm configuration is not a valid ShellDB.FarmConfiguration");
+                }
+            }
+
+            await ApplyBackground();
+        }
+        finally {
+            _suppressAutosave = false;
+        }
+
+        await ApplyLayout(false);
+    }
+
+    async Task SaveDesign() {
+        string name = string.IsNullOrEmpty(_currentDesign) ? _designName.Trim() : _currentDesign;
+        if (string.IsNullOrWhiteSpace(name)) return;
+        string json = JsonSerializer.Serialize(BuildPayload());
+        var res = await Client().PutAsJsonAsync($"/api/env/designs/{Uri.EscapeDataString(name)}",
+            new { payload = json, note = string.IsNullOrWhiteSpace(_versionNote) ? null : _versionNote.Trim() });
+        if (!res.IsSuccessStatusCode) {
+            Fail($"save failed: HTTP {(int)res.StatusCode}");
+            return;
+        }
+
+        var body = await res.Content.ReadFromJsonAsync<SaveResult>();
+        _currentDesign = name;
+        _currentVersion = body?.Version ?? _currentVersion + 1;
+        _designName = "";
+        _versionNote = "";
+        _dirty = false;
+        Status($"Saved \"{name}\" v{_currentVersion}.");
+        await RefreshDesigns();
+        await LoadVersions();
+        if (_autosave is not null) {
+            try {
+                await _autosave.InvokeVoidAsync("clear");
+            }
+            catch {
+            }
+        }
+    }
+
+    async Task LoadDesign(string name) {
+        Status("Loading design");
+        try {
+            string json = await Client().GetStringAsync($"/api/env/designs/{Uri.EscapeDataString(name)}");
+            var payload = JsonSerializer.Deserialize<FarmDesignPayload>(json);
+            if (payload is null) {
+                Fail("design is corrupt");
+                return;
+            }
+
+            await RestoreFromPayload(payload);
+            _currentDesign = name;
+            _dirty = false;
+            await LoadVersions();
+            _currentVersion = _versions.Count > 0 ? _versions[0].VersionNo : 0;
+            Status($"Loaded \"{name}\" v{_currentVersion}.");
+        }
+        catch (Exception ex) {
+            Fail(ex.Message);
+        }
+    }
+
+    async Task NewDesign() {
+        _shells.Clear();
+        _setByElement.Clear();
+        _state = new FarmStateModel();
+        _lighting = new LightingModel();
+        _decoratorId = null;
+        _chickenId = null;
+        _hatId = null;
+        _presetId = null;
+        _chickenCount = 0;
+        _currentDesign = "";
+        _currentVersion = 0;
+        _versions = [];
+        _designName = "";
+        _versionNote = "";
+        _dirty = false;
+        Status("New design.");
+        await ApplyLayout(false);
+    }
+
     async Task LoadVersions() {
         if (string.IsNullOrEmpty(_currentDesign)) {
             _versions = [];
@@ -2017,7 +1444,6 @@
         }
     }
 
-
     async Task RollbackTo(int versionNo) {
         if (string.IsNullOrEmpty(_currentDesign)) return;
         try {
@@ -2029,8 +1455,8 @@
             }
 
             var body = await res.Content.ReadFromJsonAsync<RollbackResult>();
-            var json = await Client().GetStringAsync($"/api/env/designs/{Uri.EscapeDataString(_currentDesign)}");
-            var payload = JsonSerializer.Deserialize<DesignPayload>(json);
+            string json = await Client().GetStringAsync($"/api/env/designs/{Uri.EscapeDataString(_currentDesign)}");
+            var payload = JsonSerializer.Deserialize<FarmDesignPayload>(json);
             if (payload is not null) await RestoreFromPayload(payload);
             _currentVersion = body?.NewVersion ?? _currentVersion;
             _dirty = false;
@@ -2040,158 +1466,6 @@
         catch (Exception ex) {
             Fail(ex.Message);
         }
-    }
-
-    record RollbackResult(string RolledBack, int FromVersion, int NewVersion);
-
-
-    async Task ClearScene() {
-        if (_mod is null) return;
-        foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
-        _elements.Clear();
-        _selectedElementId = null;
-        if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
-    }
-
-
-    async Task TryRestoreAutosave() {
-        if (_autosave is null || _mod is null) return;
-        AutosaveRecord? rec;
-        try {
-            rec = await _autosave.InvokeAsync<AutosaveRecord?>("load");
-        }
-        catch {
-            rec = null;
-        }
-
-        if (rec is null || string.IsNullOrEmpty(rec.Json)) return;
-        if (!AutosaveRecency.IsFresh(rec.SavedAt, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())) {
-            await _autosave.InvokeVoidAsync("clear");
-            return;
-        }
-
-        try {
-            var payload = JsonSerializer.Deserialize<DesignPayload>(rec.Json);
-            if (payload is not null) {
-                await RestoreFromPayload(payload);
-                Status("Restored your unsaved design.");
-            }
-        }
-        catch {
-            /* corrupt autosave: ignore */
-        }
-        finally {
-            await _autosave.InvokeVoidAsync("clear");
-        }
-    }
-
-
-    bool _suppressAutosave;
-
-    void Autosave() {
-        _dirty = true;
-        if (_suppressAutosave) return;
-        _autosaveCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        _autosaveCts = cts;
-        _ = Task.Delay(750, cts.Token).ContinueWith(async t => {
-            if (t.IsCanceled || _autosave is null) return;
-            var payload = new DesignPayload {
-                Background = _bgColor, BackgroundTransparent = _bgTransparent,
-                Lighting = _lighting, Elements = _elements.ToList(), DecoratorId = _decoratorId
-            };
-            var json = JsonSerializer.Serialize(payload);
-            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            try {
-                await _autosave.InvokeVoidAsync("save", json, _appVersion, now);
-            }
-            catch {
-                /* ignore */
-            }
-        }, TaskScheduler.Default);
-    }
-
-    sealed class AutosaveRecord {
-        public string Json { get; } = "";
-        public string Version { get; set; } = "";
-        public long SavedAt { get; set; }
-    }
-
-    record AppVersionDto(string Version, string Sha);
-
-
-    async Task RestoreFromPayload(DesignPayload payload) {
-        if (_mod is null) return;
-        foreach (var el in _elements.ToList()) await _mod.InvokeVoidAsync("removeGroup", el.Id);
-        _elements.Clear();
-        _selectedElementId = null;
-        if (_designer is not null) await _designer.InvokeVoidAsync("deselect");
-
-        _bgColor = string.IsNullOrEmpty(payload.Background) ? _bgColor : payload.Background;
-        _bgTransparent = payload.BackgroundTransparent;
-        _lighting = payload.Lighting ?? new LightingState();
-        _decoratorId = payload.DecoratorId;
-        await ApplyBackground();
-        await ApplyLighting();
-
-        foreach (var el in payload.Elements)
-            _elementSeq = Math.Max(_elementSeq, ParseSeq(el.Id));
-        var added = await RenderElementsBatch(payload.Elements);
-        foreach (var el in added) {
-            await ApplyElementAnimation(el);
-            await PushElementMotion(el);
-            await ApplyEffect(el);
-        }
-
-        await ResetView();
-        await RefreshAnimatedFlag();
-    }
-
-
-    async Task<List<DesignElement>> RenderElementsBatch(IReadOnlyList<DesignElement> elements, CancellationToken ct = default) {
-        if (_mod is null || elements.Count == 0) return [];
-
-        var fetches = elements.Select(async el => {
-            var url = ElementGlbUrl(el);
-            var glb = url is null ? null : await FetchRaw(url, ct);
-            byte[]? hat = null;
-            if (el.Kind == "chicken" && !string.IsNullOrEmpty(el.Hat))
-                hat = await FetchRaw($"/api/shells/{ShellPlatform}/{Uri.EscapeDataString(el.Hat)}/glb", ct);
-            return (el, glb, hat);
-        }).ToList();
-        var fetched = await Task.WhenAll(fetches);
-        if (ct.IsCancellationRequested) return [];
-
-        var items = new List<object>();
-        var added = new List<DesignElement>();
-        foreach (var (el, glb, hat) in fetched) {
-            if (glb is null) continue;
-            _elements.Add(el);
-            added.Add(el);
-            object opts;
-            if (el.Kind == "chicken" && !string.IsNullOrEmpty(el.Hat)) {
-                var anchor = _chickens.FirstOrDefault(c => c.Identifier == el.Ref)?.Anchor ?? [];
-                opts = new { hatBase64 = hat is null ? null : Convert.ToBase64String(hat), anchor };
-            } else {
-                var stem = el.Shell ?? el.Ref;
-                var leftPin = IsZoneCorePinned(stem);
-                opts = new { recenter = el.Recenter, recenterX = leftPin ? "min" : "center", snapBase = !IsTerrain(stem), terrain = IsTerrain(stem) };
-            }
-
-            items.Add(new {
-                id = el.Id,
-                glbBase64 = Convert.ToBase64String(glb),
-                opts,
-                transform = new { pos = el.Pos, rotDeg = el.RotDeg, scale = el.Scale }
-            });
-        }
-
-        await _mod.InvokeVoidAsync("addGroupsBatch", ct, items);
-        return added;
-    }
-
-    static int ParseSeq(string id) {
-        return int.TryParse(id.TrimStart('e', 'l'), out var n) ? n : 0;
     }
 
     async Task DeleteDesign() {
@@ -2211,12 +1485,59 @@
         catch {
             _savedDesigns = [];
         }
-
-        StateHasChanged();
     }
 
-    CancellationTokenSource? _statusCts;
+    async Task<bool> TryRestoreAutosave() {
+        if (_autosave is null || _mod is null) return false;
+        AutosaveRecord? rec;
+        try {
+            rec = await _autosave.InvokeAsync<AutosaveRecord?>("load");
+        }
+        catch {
+            rec = null;
+        }
 
+        if (rec is null || string.IsNullOrEmpty(rec.Json)) return false;
+        if (!AutosaveRecency.IsFresh(rec.SavedAt, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())) {
+            await _autosave.InvokeVoidAsync("clear");
+            return false;
+        }
+
+        bool restored = false;
+        try {
+            var payload = JsonSerializer.Deserialize<FarmDesignPayload>(rec.Json);
+            if (payload is not null) {
+                await RestoreFromPayload(payload);
+                restored = true;
+                Status("Restored your unsaved farm.");
+            }
+        }
+        catch (JsonException) {
+        }
+        finally {
+            await _autosave.InvokeVoidAsync("clear");
+        }
+
+        return restored;
+    }
+
+    void Autosave() {
+        _dirty = true;
+        if (_suppressAutosave) return;
+        _autosaveCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _autosaveCts = cts;
+        string json = JsonSerializer.Serialize(BuildPayload());
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        _ = Task.Delay(750, cts.Token).ContinueWith(async t => {
+            if (t.IsCanceled || _autosave is null) return;
+            try {
+                await _autosave.InvokeVoidAsync("save", json, _appVersion, now);
+            }
+            catch {
+            }
+        }, TaskScheduler.Default);
+    }
 
     void Status(string s) {
         _error = false;
@@ -2240,7 +1561,6 @@
         StateHasChanged();
     }
 
-
     void FatalError(string s) {
         _fatalError = s;
         StateHasChanged();
@@ -2251,123 +1571,226 @@
         StateHasChanged();
     }
 
-    public sealed class DesignElement {
-        public string Id { get; set; } = "";
-        public string Kind { get; set; } = "env";
-        public string Ref { get; set; } = "";
-        public string Label { get; set; } = "";
-        public string? Hat { get; set; }
-        public string? Shell { get; set; }
-        public float[] Pos { get; set; } = [0, 0, 0];
-        public float[] RotDeg { get; set; } = [0, 0, 0];
-        public float Scale { get; set; } = 1f;
-        public string Anim { get; set; } = "none";
-        public string Actor { get; set; } = "";
-        public MotionState? Motion { get; set; }
-        public bool Recenter { get; set; }
-        public bool Effect { get; set; }
-        public bool HasEffects { get; set; }
-        public int EffectCount { get; set; }
+    IEnumerable<KeyValuePair<string, int>> OriginCounts() =>
+        _placements
+            .GroupBy(p => p.Provenance?.Origin ?? "unknown", StringComparer.Ordinal)
+            .OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new KeyValuePair<string, int>(g.Key, g.Count()));
+
+    static string OriginChipClass(string? origin) => origin switch {
+        nameof(PlacementOrigin.Binary) => "status-chip status-chip-ok",
+        nameof(PlacementOrigin.Authored) => "status-chip status-chip-err",
+        _ => "status-chip"
+    };
+
+    static string ProvenanceTip(PlacementDto p) {
+        var prov = p.Provenance;
+        var parts = new List<string> { $"origin: {prov?.Origin ?? "unknown"}" };
+        if (prov is not null && !string.IsNullOrEmpty(prov.Locator)) parts.Add($"locator: {prov.Locator}");
+        if (prov is not null && !string.IsNullOrEmpty(prov.Method)) parts.Add($"method: {prov.Method}");
+        if (!string.IsNullOrEmpty(p.Stem)) parts.Add($"mesh: {p.Stem}");
+        if (p.Pos is { } pos) {
+            parts.Add(string.Create(CultureInfo.InvariantCulture, $"pos: {pos.X:0.###}, {pos.Y:0.###}, {pos.Z:0.###}"));
+        }
+
+        return string.Join("\n", parts);
     }
 
-    public sealed class MotionState {
-        public string Kind { get; set; } = "path";
-        public float[][] Path { get; set; } = [];
-        public float Speed { get; set; } = 3f;
-        public string Loop { get; set; } = "cycle";
-        public bool FacePath { get; set; } = true;
-        public float FaceOffset { get; set; }
-        public float Height { get; set; } = 12f;
-        public float Period { get; set; } = 6f;
-        public int Count { get; set; } = 1;
-        public float StopSeconds { get; set; }
-        public bool Vehicle { get; set; }
-        public float? DepotX { get; set; }
-        public float? DepotZ { get; set; }
+    static bool SplitSlot(string key, out ShellSpec.Types.AssetType type, out int index) {
+        type = ShellSpec.Types.AssetType.Unknown;
+        index = 0;
+        int cut = key.LastIndexOf(':');
+        return cut > 0
+               && Enum.TryParse(key[..cut], out type)
+               && int.TryParse(key[(cut + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out index);
     }
 
-
-    public sealed class GroupFootprintDto {
-        public float MinX { get; set; }
-        public float MaxX { get; set; }
-        public float MinZ { get; set; }
-        public float MaxZ { get; set; }
+    static Vector4 ColorVec(string hex) {
+        float[] rgb = Rgb(hex);
+        return new Vector4 { X = rgb[0], Y = rgb[1], Z = rgb[2], W = 1f };
     }
 
-    public sealed class LightingState {
-        public float SunAzimuthDeg { get; set; } = 45;
-        public float SunElevationDeg { get; set; } = 55;
-        public string SunColor { get; set; } = "#ffffff";
-        public float SunIntensity { get; set; } = 1.0f;
-        public string ToneMapping { get; set; } = "none";
-        public float Exposure { get; set; } = 1.0f;
+    static float[] Rgb(string? hex) {
+        if (hex is { Length: 7 } && hex[0] == '#'
+            && int.TryParse(hex[1..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int v)) {
+            return [((v >> 16) & 0xFF) / 255f, ((v >> 8) & 0xFF) / 255f, (v & 0xFF) / 255f];
+        }
+
+        return [1f, 1f, 1f];
+    }
+
+    static string Hex(float r, float g, float b) => $"#{Chan(r):x2}{Chan(g):x2}{Chan(b):x2}";
+
+    static int Chan(float v) => Math.Clamp((int)MathF.Round(v * 255f), 0, 255);
+
+    public sealed class FarmStateModel {
+        public int[] Habs { get; set; } = [0, FarmState.EmptyHabTier, FarmState.EmptyHabTier, FarmState.EmptyHabTier];
+        public int SilosOwned { get; set; }
+        public string SiloAssetType { get; set; } = "Silo0Small";
+        public string EggType { get; set; } = "Edible";
+        public int LabTier { get; set; }
+        public int DepotTier { get; set; }
+        public int HoaTier { get; set; }
+        public int MissionControlLevel { get; set; }
+        public int FuelTankTier { get; set; }
+        public bool HyperloopStation { get; set; }
+        public bool HyperloopUnderConstruction { get; set; }
+        public bool ArtifactsEnabled { get; set; }
+        public bool HomeFarm { get; set; } = true;
+        public bool FuelTankUnlocked { get; set; }
+        public bool HasUnreadMail { get; set; }
+    }
+
+    public sealed class LightingModel {
+        public bool Enabled { get; set; }
+        public float DirX { get; set; } = 0.5f;
+        public float DirY { get; set; } = 0.8f;
+        public float DirZ { get; set; } = 0.5f;
+        public string DirectColor { get; set; } = "#ffffff";
+        public float DirectIntensity { get; set; } = 1.0f;
+        public string AmbientColor { get; set; } = "#ffffff";
         public float AmbientIntensity { get; set; } = 0.55f;
-        public float HemiIntensity { get; set; } = 0.5f;
-        public float Emission { get; set; } = 0.25f;
         public string FogColor { get; set; } = "#1a1a1f";
+        public float FogNear { get; set; }
+        public float FogFar { get; set; }
         public float FogDensity { get; set; }
     }
 
-    public sealed class DesignPayload {
-        public string Background { get; set; } = "";
+    public sealed class FarmDesignPayload {
+        public int Schema { get; set; } = 2;
+        public string Platform { get; set; } = MeshPlatform;
+        public FarmStateModel? State { get; set; }
+        public JsonNode? FarmConfig { get; set; }
+        public int ChickenCount { get; set; }
+        public string? ShowcaseId { get; set; }
+        public string Background { get; set; } = "#1a1a1f";
         public bool BackgroundTransparent { get; set; } = true;
-        public LightingState Lighting { get; set; } = new();
-        public List<DesignElement> Elements { get; set; } = [];
-        public string? DecoratorId { get; set; }
     }
 
-    sealed class ShellSetsResult {
-        public bool Ok { get; set; }
-        public ShellSetRow[]? Sets { get; set; }
-        public ShellSetRow[]? Decorators { get; set; }
+    sealed class AutosaveRecord {
+        public string Json { get; set; } = "";
+        public string Version { get; set; } = "";
+        public long SavedAt { get; set; }
     }
 
-    public sealed class ShellSetRow {
-        public string Identifier { get; set; } = "";
-        public string? Name { get; set; }
-        public bool Decorator { get; set; }
-        public ShellSetMember[]? Members { get; set; }
-    }
+    readonly record struct SlotRef(string Element, string AssetType, int Index);
 
-    public sealed class ShellSetMember {
-        public string Identifier { get; set; } = "";
-        public string AssetType { get; set; } = "";
-    }
+    readonly record struct TierOption(int Value, string Label);
 
-    record ShellRow(string Identifier, string? Name, string AssetType, string Url, bool ModifiedGeometry);
+    record CatalogShell(string Identifier, string? Name, string? SetIdentifier);
 
-    record ShellListResult(bool Ok, string[]? AssetTypes, ShellRow[]? Shells);
+    record CatalogAssetType(string AssetType, string? BaseStem, string[]? SubPieces, CatalogShell[]? Shells);
 
-    record ShellObjRow(string Identifier, string? Name, string AssetType, string Url, float[]? Anchor, bool NoHats) {
-        public float[] Anchor { get; } = Anchor ?? [];
-    }
+    record CatalogElement(string Element, CatalogAssetType[]? AssetTypes);
+
+    record CatalogResult(bool Ok, string? Platform, int AssetTypeCount, CatalogElement[]? Elements, string? Diagnostics);
+
+    record PresetRow(string Id, string? Name, string Bucket);
+
+    record ShowcaseResult(bool Ok, int Count, PresetRow[]? Presets, string? Diagnostics);
+
+    record Vec3Dto(float X, float Y, float Z);
+
+    record Vec4Dto(float X, float Y, float Z, float W);
+
+    record ProvenanceDto(string? Origin, string? Locator, string? Method);
+
+    record PlacementDto(
+        string Key,
+        string? Element,
+        string? AssetType,
+        int Index,
+        Vec3Dto? Pos,
+        Vec3Dto? RotDeg,
+        float Scale,
+        string? Stem,
+        string? ShellIdentifier,
+        string? MeshUrl,
+        ProvenanceDto? Provenance);
+
+    record ExtentsDto(float Lab, float Depot, float Hatchery);
+
+    record LayoutStateDto(
+        int[]? Habs,
+        int SilosOwned,
+        string? SiloAssetType,
+        string? EggType,
+        string? HatcheryAssetType,
+        int LabTier,
+        int DepotTier,
+        int HoaTier,
+        int MissionControlLevel,
+        int FuelTankTier,
+        bool HyperloopStation,
+        bool ArtifactsEnabled,
+        bool HomeFarm,
+        bool FuelTankUnlocked,
+        bool HasUnreadMail);
+
+    record LightingDto(
+        bool Enabled,
+        Vec3Dto? LightDir,
+        Vec4Dto? LightDirectColor,
+        float LightDirectIntensity,
+        Vec4Dto? LightAmbientColor,
+        float LightAmbientIntensity,
+        Vec4Dto? FogColor,
+        float FogNear,
+        float FogFar,
+        float FogDensity);
+
+    record LayoutResult(
+        bool Ok,
+        string? Platform,
+        string? BinaryVersion,
+        ExtentsDto? Extents,
+        LayoutStateDto? State,
+        LightingDto? Lighting,
+        PlacementDto[]? Placements,
+        JsonElement? Motion,
+        string[]? Unresolved,
+        string? Diagnostics);
+
+    record CameraResult(bool Ok, string? Element, int Index, Vec3Dto? Focus, float Distance, float Height,
+        string? Locator, string? Diagnostics);
+
+    record SkipRow(string? Key, string? Element, string? Stem, string? Reason);
+
+    record SetFarmResult(int Loaded, SkipRow[]? Skipped);
+
+    record ShellObjRow(string Identifier, string? Name, string AssetType, string Url, float[]? Anchor, bool NoHats);
 
     record ShellObjResult(bool Ok, ShellObjRow[]? Objects);
 
-    record EnvPieceRow(string Stem, string Label, string Group, bool Singleton = false, string Family = "");
+    record ShellSetMember(string Identifier, string AssetType);
 
-    record EnvCatalogResult(EnvPieceRow[]? Pieces, EnvPieceRow[]? Habs);
+    record ShellSetRow(string Identifier, string? Name, bool Decorator, ShellSetMember[]? Members);
 
-    record FamilyOption(string Stem, string Label);
+    record ShellSetsResult(bool Ok, ShellSetRow[]? Decorators);
 
-    record FamilyResult(FamilyOption[]? Family);
+    record DesignVersionRow(int VersionNo, string? Note, DateTimeOffset CreatedAt, Guid? AuthorUserId, int? RolledBackFrom);
 
-    record FarmPlaced(string Stem, string Label, float[] Pos, float RotY, float Scale, bool Recenter);
-
-    record FarmLayoutResult(FarmPlaced[]? Elements);
+    record DesignVersionsResult(DesignVersionRow[]? Versions);
 
     record DesignRow(string Name, DateTimeOffset UpdatedAt, Guid? Owner);
 
     record DesignListResult(DesignRow[]? Designs);
 
+    record SaveResult(string Saved, int Version);
+
+    record RollbackResult(string RolledBack, int FromVersion, int NewVersion);
+
+    record AppVersionDto(string Version, string Sha);
+
     public async ValueTask DisposeAsync() {
+        _applyCts?.Cancel();
+        _autosaveCts?.Cancel();
+        _statusCts?.Cancel();
         await _mod.DisposeModuleQuietAsync("dispose");
-        await _designer.DisposeModuleQuietAsync("disposeDesigner");
         await _autosave.DisposeModuleQuietAsync();
         await _recorder.DisposeModuleQuietAsync();
-        await _gifDragHandle.DisposeModuleQuietAsync();
+        await _gifDragHandle.DisposeModuleQuietAsync("dispose");
         await _popoverDragMod.DisposeModuleQuietAsync();
-        _autosaveCts?.Cancel();
         _selfRef?.Dispose();
     }
 

@@ -5,9 +5,10 @@ namespace EggIncognito.Services.ProtoExtract;
 public static class HabCatalogExtractor {
     public const string InitSymbol = "__GLOBAL__sub_I_habdata";
     public const string SignatureString = "PLANET PORTAL";
-    private const long Stride = 0x158;
-    private const long ElfStride = 0x1e0;
     private const long CapacityOffset = 0x18;
+
+    private static readonly Layout MachoLayout = new(0x158, 0x138, 0x140, 0x148);
+    private static readonly Layout ElfLayout = new(0x1e0, 0x1c0, 0x1c8, 0x1d0);
 
     private static readonly long[] ExpectedCapacities = [
         250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000,
@@ -23,7 +24,7 @@ public static class HabCatalogExtractor {
         IReadOnlyList<MachoSections.Section> sections) {
         if (BinaryImage.Load(bin) is ElfImage) return ExtractElf(bin);
         var scan = StructInitReader.ReadWith(bin, syms, InitSymbol);
-        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Build(bin, sections, scan, Stride);
+        return !scan.Ok ? new Result(false, [], scan.Diagnostics) : Build(bin, sections, scan, MachoLayout);
     }
 
     private static Result ExtractElf(byte[] bin) {
@@ -33,7 +34,7 @@ public static class HabCatalogExtractor {
         foreach ((ulong s0, ulong e0) in loc.LocateAllByString(SignatureString)) {
             var scan = StructInitReader.ReadRange(bin, s0, e0);
             if (!scan.Ok) continue;
-            var built = Build(bin, sections, scan, ElfStride);
+            var built = Build(bin, sections, scan, ElfLayout);
             if (built.Ok) return built;
         }
 
@@ -41,7 +42,7 @@ public static class HabCatalogExtractor {
     }
 
     private static Result Build(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
-        StructInitReader.Result scan, long stride) {
+        StructInitReader.Result scan, Layout layout) {
         var bytes = new Dictionary<ulong, byte>();
         var ptrs = new Dictionary<ulong, ulong>();
         var tpls = new Dictionary<ulong, ulong>();
@@ -54,7 +55,7 @@ public static class HabCatalogExtractor {
         foreach (var s in scan.Structs) {
             if (!TryReadInt64(bytes, s.BaseVa + CapacityOffset, out long first) || first != ExpectedCapacities[0])
                 continue;
-            if (TryReadBlock(bin, sections, bytes, ptrs, tpls, s.BaseVa, stride, out var entries))
+            if (TryReadBlock(bin, sections, bytes, ptrs, tpls, s.BaseVa, layout, out var entries))
                 return new Result(true, entries, $"{entries.Count} habs, {entries.Count(e => e.Name is not null)} named");
         }
 
@@ -63,13 +64,16 @@ public static class HabCatalogExtractor {
 
     private static bool TryReadBlock(byte[] bin, IReadOnlyList<MachoSections.Section> sections,
         Dictionary<ulong, byte> bytes, Dictionary<ulong, ulong> ptrs, Dictionary<ulong, ulong> tpls,
-        ulong blockBase, long stride, out List<HabEntry> entries) {
+        ulong blockBase, Layout layout, out List<HabEntry> entries) {
         entries = [];
         for (int i = 0; i < ExpectedCapacities.Length; i++) {
-            ulong rec = blockBase + (ulong)(i * stride);
+            ulong rec = blockBase + (ulong)(i * layout.Stride);
             if (!TryReadInt64(bytes, rec + CapacityOffset, out long cap) || cap != ExpectedCapacities[i])
                 return false;
-            entries.Add(new HabEntry(i, ResolveName(bin, sections, bytes, ptrs, tpls, rec), cap));
+            entries.Add(new HabEntry(i, ResolveName(bin, sections, bytes, ptrs, tpls, rec), cap,
+                ReadFloat64(bytes, rec + (ulong)layout.WidthOffset),
+                ReadFloat64(bytes, rec + (ulong)layout.ExtentOffset),
+                ReadFloat32(bytes, rec + (ulong)layout.DepthOffset)));
         }
 
         return true;
@@ -107,21 +111,41 @@ public static class HabCatalogExtractor {
         => BinaryStrings.ReadCstr(bin, sections, va, NameSections, 64);
 
     private static bool TryReadInt64(Dictionary<ulong, byte> bytes, ulong start, out long value) {
-        ulong raw = 0;
-        for (int k = 0; k < 8; k++) {
+        bool ok = TryReadRaw(bytes, start, 8, out ulong raw);
+        value = ok ? (long)raw : 0;
+        return ok;
+    }
+
+    private static double ReadFloat64(Dictionary<ulong, byte> bytes, ulong start) {
+        if (!TryReadRaw(bytes, start, 8, out ulong raw)) return 0;
+        double v = BitConverter.Int64BitsToDouble((long)raw);
+        return double.IsFinite(v) ? v : 0;
+    }
+
+    private static double ReadFloat32(Dictionary<ulong, byte> bytes, ulong start) {
+        if (!TryReadRaw(bytes, start, 4, out ulong raw)) return 0;
+        float v = BitConverter.Int32BitsToSingle((int)raw);
+        return float.IsFinite(v) ? v : 0;
+    }
+
+    private static bool TryReadRaw(Dictionary<ulong, byte> bytes, ulong start, int width, out ulong value) {
+        value = 0;
+        for (int k = 0; k < width; k++) {
             if (!bytes.TryGetValue(start + (ulong)k, out byte b)) {
                 value = 0;
                 return false;
             }
 
-            raw |= (ulong)b << (k * 8);
+            value |= (ulong)b << (k * 8);
         }
 
-        value = (long)raw;
         return true;
     }
 
-    public readonly record struct HabEntry(int Index, string? Name, long Capacity);
+    private readonly record struct Layout(long Stride, long WidthOffset, long ExtentOffset, long DepthOffset);
+
+    public readonly record struct HabEntry(int Index, string? Name, long Capacity, double Width = 0,
+        double Extent = 0, double Depth = 0);
 
     public readonly record struct Result(bool Ok, IReadOnlyList<HabEntry> Entries, string Diagnostics);
 }

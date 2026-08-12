@@ -16,7 +16,7 @@ public static class ShellCatalog {
         foreach (var s in catalog.Shells) {
             var piece = s.PrimaryPiece ?? s.Pieces.FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
-            string? url = Url(dlc);
+            string? url = AssetUrl(dlc);
             if (url is null) continue;
             shells.Add(new Shell(s.Identifier ?? "", NullIfEmpty(s.Name), AssetTypeName(piece.AssetType),
                 url, NullIfEmpty(dlc.Checksum), s.ModifiedGeometry, NullIfEmpty(s.SetIdentifier)));
@@ -25,7 +25,7 @@ public static class ShellCatalog {
         foreach (var o in catalog.ShellObjects) {
             var piece = o.Pieces.Where(p => p.Dlc is not null).OrderBy(p => p.Lod).FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
-            string? url = Url(dlc);
+            string? url = AssetUrl(dlc);
             if (url is null) continue;
             shells.Add(new Shell(o.Identifier ?? "", NullIfEmpty(o.Name), AssetTypeName(o.AssetType),
                 url, NullIfEmpty(dlc.Checksum), false));
@@ -49,7 +49,7 @@ public static class ShellCatalog {
         foreach (var o in catalog.ShellObjects) {
             var piece = o.Pieces.Where(p => p.Dlc is not null).OrderBy(p => p.Lod).FirstOrDefault();
             if (piece?.Dlc is not { } dlc) continue;
-            string? url = Url(dlc);
+            string? url = AssetUrl(dlc);
             if (url is null) continue;
             bool isChicken = o.AssetType == ShellSpec.Types.AssetType.Chicken;
             var anchor = o.Metadata.Count > 0
@@ -95,7 +95,8 @@ public static class ShellCatalog {
         return result;
     }
 
-    private static string? Url(DLCItem dlc) {
+    public static string? AssetUrl(DLCItem? dlc) {
+        if (dlc is null) return null;
         if (!string.IsNullOrEmpty(dlc.Url)) return dlc.Url;
         if (string.IsNullOrEmpty(dlc.Directory) || string.IsNullOrEmpty(dlc.Name)) return null;
         string? ext = string.IsNullOrEmpty(dlc.Ext) ? "rpoz" : dlc.Ext;
