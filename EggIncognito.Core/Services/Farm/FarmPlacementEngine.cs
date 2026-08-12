@@ -19,6 +19,13 @@ public static class FarmPlacementEngine {
 
     private const string BakedGeometry = "no transform lambda installed; geometry baked in the rpo";
 
+    private const string InferredHabTier =
+        "the appearance carries no shell_configs, so slot occupancy came from shell_set_configs and the hab tier "
+        + "is a placeholder; hab width drives X, so these positions are not the game's";
+
+    private const string InferredSiloTier =
+        "silo count came from shell_set_configs because the appearance carries no shell_configs";
+
     public static readonly string[] TrophyStems =
         ["ei_bronze_trophy", "ei_silver_trophy", "ei_gold_trophy", "ei_plat_trophy", "ei_diamond_trophy"];
 
@@ -109,19 +116,23 @@ public static class FarmPlacementEngine {
     }
 
     private static void AddHabs(List<FarmPlacement> list, FarmState state, FarmPlacementData data) {
+        var provenance = state.HabTiersInferred
+            ? PlacementProvenance.Authored(InferredHabTier)
+            : PlacementProvenance.FromBinary(HabLocator);
         for (int slot = 0; slot < FarmState.HabSlots; slot++) {
             if (!state.HabOccupied(slot)) continue;
             var type = (AssetType)(state.HabTier(slot) + 1);
-            list.Add(FarmPlacement.At(FarmElement.HenHouse, type, slot, HabPosition(state, data, slot),
-                PlacementProvenance.FromBinary(HabLocator)));
+            list.Add(FarmPlacement.At(FarmElement.HenHouse, type, slot, HabPosition(state, data, slot), provenance));
         }
     }
 
     private static void AddSilos(List<FarmPlacement> list, FarmState state, FarmPlacementData data) {
+        var provenance = state.SiloCountInferred
+            ? PlacementProvenance.Authored(InferredSiloTier)
+            : PlacementProvenance.FromBinary(SiloLocator);
         int count = Math.Clamp(state.SilosOwned, 0, FarmState.MaxSilos);
         for (int i = 0; i < count; i++) {
-            list.Add(FarmPlacement.At(FarmElement.Silo, state.SiloAssetType, i, SiloPosition(data, i),
-                PlacementProvenance.FromBinary(SiloLocator)));
+            list.Add(FarmPlacement.At(FarmElement.Silo, state.SiloAssetType, i, SiloPosition(data, i), provenance));
         }
     }
 

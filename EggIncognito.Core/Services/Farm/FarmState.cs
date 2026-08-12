@@ -4,11 +4,14 @@ namespace EggIncognito.Core.Services.Farm;
 
 public sealed record FarmState {
     public const int EmptyHabTier = 19;
+    public const int PlaceholderHabTier = 0;
     public const int HabSlots = 4;
     public const int MaxSilos = 10;
 
     public IReadOnlyList<int> Habs { get; init; } = [EmptyHabTier, EmptyHabTier, EmptyHabTier, EmptyHabTier];
+    public bool HabTiersInferred { get; init; }
     public int SilosOwned { get; init; }
+    public bool SiloCountInferred { get; init; }
     public ShellSpec.Types.AssetType SiloAssetType { get; init; } = ShellSpec.Types.AssetType.Silo0Small;
 
     public Egg EggType { get; init; } = Egg.Edible;

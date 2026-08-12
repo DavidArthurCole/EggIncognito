@@ -61,9 +61,25 @@ public static class FarmStateBuilder {
             }
         }
 
+        bool habsInferred = false;
+        bool silosInferred = false;
+        foreach (var s in config.ShellSetConfigs) {
+            int index = (int)s.Index;
+            if (s.Element == ShellDB.Types.FarmElement.HenHouse && index is >= 0 and < FarmState.HabSlots) {
+                if (habs[index] != FarmState.EmptyHabTier) continue;
+                habs[index] = FarmState.PlaceholderHabTier;
+                habsInferred = true;
+            } else if (s.Element == ShellDB.Types.FarmElement.Silo && !sawSilo && index >= silos) {
+                silos = index + 1;
+                silosInferred = true;
+            }
+        }
+
         return state with {
             Habs = habs,
+            HabTiersInferred = habsInferred,
             SilosOwned = silos,
+            SiloCountInferred = silosInferred,
             SiloAssetType = sawSilo ? siloType : state.SiloAssetType,
             LabTier = lab,
             DepotTier = depot,

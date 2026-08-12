@@ -19,7 +19,50 @@ public class FarmShowcaseCorpusTests {
         Assert.True(result.Ok, result.Diagnostics);
         Assert.Equal(141, result.Presets.Count);
         Assert.Equal(result.Presets.Count, result.Presets.Select(p => p.Id).Distinct(StringComparer.Ordinal).Count());
-        Assert.All(result.Presets, p => Assert.NotEmpty(p.Config.ShellConfigs));
+    }
+
+    [Fact]
+    public void SomeFarms_StyleThemselvesWithShellSetsAlone() {
+        var setOnly = Showcase.Value.Presets
+            .Where(p => p.Config.ShellConfigs.Count == 0)
+            .ToList();
+        Assert.Equal(25, setOnly.Count);
+        Assert.All(setOnly, p => Assert.True(p.Config.ShellSetConfigs.Count > 0
+                                             || p.Config.ChickenConfigs.Count > 0
+                                             || p.Config.GroupConfigs.Count > 0
+                                             || p.Config.LightingConfig is not null));
+    }
+
+    [Fact]
+    public void ShellSetOnlyFarms_InferOccupancyAndSayTheTierIsAPlaceholder() {
+        var setOnly = Showcase.Value.Presets.First(p =>
+            p.Config.ShellConfigs.Count == 0
+            && p.Config.ShellSetConfigs.Any(s => s.Element == FarmElement.HenHouse));
+
+        var state = FarmStateBuilder.FromConfiguration(setOnly.Config);
+        Assert.True(state.HabTiersInferred);
+        Assert.Contains(state.Habs, t => t != FarmState.EmptyHabTier);
+
+        var habs = FarmPlacementEngine.Place(state, Data).Placements
+            .Where(p => p.Element == FarmElement.HenHouse)
+            .ToList();
+        Assert.NotEmpty(habs);
+        Assert.All(habs, p => Assert.Equal(PlacementOrigin.Authored, p.Provenance.Origin));
+    }
+
+    [Fact]
+    public void ShellConfigFarms_KeepBinaryProvenanceOnHabs() {
+        var withConfigs = Showcase.Value.Presets.First(p =>
+            p.Config.ShellConfigs.Any(c => FarmAssetCatalog.ElementOf(c.AssetType) == FarmElement.HenHouse));
+
+        var state = FarmStateBuilder.FromConfiguration(withConfigs.Config);
+        Assert.False(state.HabTiersInferred);
+
+        var habs = FarmPlacementEngine.Place(state, Data).Placements
+            .Where(p => p.Element == FarmElement.HenHouse)
+            .ToList();
+        Assert.NotEmpty(habs);
+        Assert.All(habs, p => Assert.Equal(PlacementOrigin.Binary, p.Provenance.Origin));
     }
 
     [Fact]

@@ -179,6 +179,11 @@ public sealed class FarmController(
                       + "fall back to the depot extent alone");
         }
 
+        if (state.HabTiersInferred) {
+            notes.Add("this appearance carries no shell_configs, so hab tiers are unknown; set them in the farm "
+                      + "state panel because hab width drives the row positions");
+        }
+
         return notes.Count == 0 ? null : string.Join("; ", notes);
     }
 
@@ -349,7 +354,9 @@ public sealed class FarmController(
 
     private static object Describe(FarmState s) => new {
         habs = s.Habs,
+        s.HabTiersInferred,
         s.SilosOwned,
+        s.SiloCountInferred,
         siloAssetType = s.SiloAssetType.ToString(),
         eggType = s.EggType.ToString(),
         hatcheryAssetType = s.HatcheryAssetType.ToString(),
