@@ -1,8 +1,7 @@
 @page "/admin"
 @rendermode @(RenderMode.InteractiveServer)
-@using System.Text.Json
 @using EggIdentity.Bot.AdminUi
-@inherits SelfCallComponentBase
+@inherits BrowserApiComponentBase
 @inject ICurrentUser User
 
 <PageTitle>EggIncognito - Admin</PageTitle>
@@ -20,9 +19,9 @@
                     <MessageConfigEditor/>
                 </section>
 
-                <AdminDevicesPanel ClientFactory="Client"/>
+                <AdminDevicesPanel/>
 
-                <AdminRoutesPanel ClientFactory="Client"/>
+                <AdminRoutesPanel/>
             </div>
 
             <div class="admin-col-right">
@@ -71,13 +70,13 @@
                     </div>
                 </section>
 
-                <AdminSessionsPanel ClientFactory="Client"/>
+                <AdminSessionsPanel/>
 
-                <AdminApiKeysPanel ClientFactory="Client"/>
+                <AdminApiKeysPanel/>
 
-                <AdminBinariesPanel ClientFactory="Client"/>
+                <AdminBinariesPanel/>
 
-                <AdminConsolePanel ClientFactory="Client"/>
+                <AdminConsolePanel/>
 
                 @if (!string.IsNullOrEmpty(_log)) {
                     <pre id="log" class="result-pre">@_log</pre>
@@ -89,59 +88,40 @@
 
 @code {
     static readonly string[] Roles = Enum.GetValues<UserRole>().Select(UserRoles.ToName).ToArray();
-    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     bool _isAdmin;
     string _log = "";
     List<UserRow> _users = [];
 
 
-    protected override async Task OnInitializedAsync() {
+    protected override void OnInitialized() {
         _isAdmin = User.IsAtLeast(UserRole.Admin);
+    }
+
+    protected override async Task OnApiReadyAsync() {
         if (!_isAdmin) return;
         await LoadUsers();
     }
 
     async Task LoadUsers() {
-        try {
-            var res = await Client().GetAsync("/api/admin/users");
-            _users = res.IsSuccessStatusCode
-                ? await res.Content.ReadFromJsonAsync<List<UserRow>>(JsonOpts) ?? []
-                : [];
-        }
-        catch (Exception ex) {
-            _users = [];
-            _log = $"load users failed: {ex.Message}";
-        }
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/admin/users");
+        _users = res.Ok ? res.Json<List<UserRow>>() ?? [] : [];
+        if (!res.Ok) _log = $"load users failed: {res.Describe()}";
     }
 
     async Task SetRole(string discordId, string? role) {
-        if (string.IsNullOrEmpty(role)) return;
-        try {
-            var res = await Client().PostAsJsonAsync($"/api/admin/users/{discordId}/role", new { role });
-            if (res.IsSuccessStatusCode) {
-                var d = await res.Content.ReadFromJsonAsync<SetRoleResult>(JsonOpts);
-                var i = _users.FindIndex(x => x.DiscordId == discordId);
-                if (i >= 0 && d is not null) _users[i] = _users[i] with { Role = d.Role };
-                _log = $"set {discordId} -> {d?.Role}";
-            } else {
-                var d = await ReadError(res);
-                _log = d ?? $"HTTP {(int)res.StatusCode}";
-            }
+        if (Api is null || string.IsNullOrEmpty(role)) return;
+        var res = await Api.PostJsonAsync($"/api/admin/users/{discordId}/role", new { role });
+        if (!res.Ok) {
+            _log = res.Describe();
+            return;
         }
-        catch (Exception ex) {
-            _log = ex.Message;
-        }
-    }
 
-    static async Task<string?> ReadError(HttpResponseMessage res) {
-        try {
-            var d = await res.Content.ReadFromJsonAsync<ErrorResult>(JsonOpts);
-            return d?.Error;
-        }
-        catch {
-            return null;
-        }
+        var d = res.Json<SetRoleResult>();
+        var i = _users.FindIndex(x => x.DiscordId == discordId);
+        if (i >= 0 && d is not null) _users[i] = _users[i] with { Role = d.Role };
+        _log = $"set {discordId} -> {d?.Role}";
     }
 
     static string ProviderGlyph(string provider) {
@@ -158,7 +138,5 @@
     record UserRow(string DiscordId, string Username, string Role, List<string>? Providers, DateTimeOffset LastLoginAt);
 
     record SetRoleResult(string DiscordId, string Role);
-
-    record ErrorResult(string Error);
 
 }

@@ -1,5 +1,5 @@
-@using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
+@inherits BrowserApiComponentBase
 
 <section class="panel mb-4">
     <div class="admin-panel-head">
@@ -138,10 +138,6 @@
 </section>
 
 @code {
-    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
-
-    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-
     List<RouteRow> _rows = [];
     List<string> _messages = [];
     BinaryStatus? _binary;
@@ -159,7 +155,7 @@
     string _draftResponseWrapped = "false";
     string _draftPathParam = "false";
 
-    protected override async Task OnInitializedAsync() {
+    protected override async Task OnApiReadyAsync() {
         await LoadMessages();
         await LoadRoutes();
         await LoadBinary();
@@ -235,75 +231,58 @@
     }
 
     async Task LoadMessages() {
-        if (ClientFactory is null) return;
-        try {
-            _messages = await ClientFactory().GetFromJsonAsync<List<string>>("/api/inspector/messages", JsonOpts) ?? [];
-        }
-        catch {
-        }
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/inspector/messages");
+        if (res.Ok) _messages = res.Json<List<string>>() ?? [];
     }
 
     async Task LoadRoutes() {
-        if (ClientFactory is null) return;
-        try {
-            _rows = await ClientFactory().GetFromJsonAsync<List<RouteRow>>("/api/admin/routes", JsonOpts) ?? [];
-        }
-        catch (Exception ex) {
-            _msg = $"load routes failed: {ex.Message}";
-        }
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/admin/routes");
+        if (res.Ok) _rows = res.Json<List<RouteRow>>() ?? [];
+        else _msg = $"load routes failed: {res.Describe()}";
 
         _loading = false;
     }
 
     async Task LoadBinary() {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _binaryUnavailable = false;
-        try {
-            var res = await ClientFactory().GetAsync("/api/admin/routes/binary");
-            if ((int)res.StatusCode == 503) {
-                _binaryUnavailable = true;
-                _binary = null;
-                return;
-            }
-
-            _binary = res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<BinaryStatus>(JsonOpts) : null;
-        }
-        catch {
+        var res = await Api.GetAsync("/api/admin/routes/binary");
+        if (res.Status == 503) {
+            _binaryUnavailable = true;
             _binary = null;
+            return;
         }
+
+        _binary = res.Ok ? res.Json<BinaryStatus>() : null;
     }
 
     async Task RefreshBinary() {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _refreshing = true;
         _msg = null;
         StateHasChanged();
-        try {
-            var res = await ClientFactory().PostAsync("/api/admin/routes/binary/refresh", null);
-            if ((int)res.StatusCode == 503) {
-                _msg = "refresh unavailable (no database)";
-            } else if (res.IsSuccessStatusCode) {
-                var d = await res.Content.ReadFromJsonAsync<RefreshResult>(JsonOpts);
-                _msg = d is null
-                    ? "refresh complete"
-                    : $"refresh complete: {d.Discovered} discovered, {d.New} new, {d.DriftCount} drift" +
-                      (string.IsNullOrEmpty(d.Note) ? "" : $" ({d.Note})");
-            } else {
-                _msg = $"refresh failed ({(int)res.StatusCode})";
-            }
-
-            await LoadBinary();
-            await LoadRoutes();
-        }
-        catch (Exception ex) {
-            _msg = $"refresh error: {ex.Message}";
+        var res = await Api.PostAsync("/api/admin/routes/binary/refresh");
+        if (res.Status == 503) {
+            _msg = "refresh unavailable (no database)";
+        } else if (res.Ok) {
+            var d = res.Json<RefreshResult>();
+            _msg = d is null
+                ? "refresh complete"
+                : $"refresh complete: {d.Discovered} discovered, {d.New} new, {d.DriftCount} drift" +
+                  (string.IsNullOrEmpty(d.Note) ? "" : $" ({d.Note})");
+        } else {
+            _msg = $"refresh failed: {res.Describe()}";
         }
 
+        await LoadBinary();
+        await LoadRoutes();
         _refreshing = false;
     }
 
     async Task Save(RouteRow row) {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         var body = new UpsertBody(
             string.IsNullOrWhiteSpace(_draftRequest) ? null : _draftRequest,
             string.IsNullOrWhiteSpace(_draftResponse) ? null : _draftResponse,
@@ -319,63 +298,45 @@
 
         _busy = true;
         _msg = null;
-        try {
-            var res = await ClientFactory().PutAsJsonAsync($"/api/admin/routes/{row.Path}", body, JsonOpts);
-            _msg = res.IsSuccessStatusCode ? $"saved {row.Path}" : $"save failed ({(int)res.StatusCode})";
-            if (res.IsSuccessStatusCode) _expandedPath = null;
-            await LoadRoutes();
-            await LoadBinary();
-        }
-        catch (Exception ex) {
-            _msg = $"save error: {ex.Message}";
-        }
-
+        var res = await Api.PutJsonAsync($"/api/admin/routes/{row.Path}", body);
+        _msg = res.Ok ? $"saved {row.Path}" : $"save failed: {res.Describe()}";
+        if (res.Ok) _expandedPath = null;
+        await LoadRoutes();
+        await LoadBinary();
         _busy = false;
     }
 
     async Task Clear(string path) {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _busy = true;
         _msg = null;
-        try {
-            var res = await ClientFactory().DeleteAsync($"/api/admin/routes/{path}");
-            _msg = res.IsSuccessStatusCode ? $"cleared {path}" : $"clear failed ({(int)res.StatusCode})";
-            if (res.IsSuccessStatusCode) _expandedPath = null;
-            await LoadRoutes();
-            await LoadBinary();
-        }
-        catch (Exception ex) {
-            _msg = $"clear error: {ex.Message}";
-        }
-
+        var res = await Api.DeleteAsync($"/api/admin/routes/{path}");
+        _msg = res.Ok ? $"cleared {path}" : $"clear failed: {res.Describe()}";
+        if (res.Ok) _expandedPath = null;
+        await LoadRoutes();
+        await LoadBinary();
         _busy = false;
     }
 
     async Task ApplyDrift(DriftRow d) {
-        if (ClientFactory is null || d.BinaryValue is null) return;
+        if (Api is null || d.BinaryValue is null || !bool.TryParse(d.BinaryValue, out var value)) return;
         _busy = true;
         _msg = null;
-        try {
-            var value = bool.Parse(d.BinaryValue);
-            var row = _rows.FirstOrDefault(r => r.Path == d.Path);
-            var current = row?.Override;
-            var eff = row?.Effective;
-            var body = new UpsertBody(
-                current?.Request ?? eff?.Request,
-                current?.Response ?? eff?.Response,
-                d.Field == "requestWrapped" ? value : current?.RequestWrapped ?? eff?.RequestWrapped,
-                d.Field == "responseWrapped" ? value : current?.ResponseWrapped ?? eff?.ResponseWrapped,
-                current?.PathParam ?? eff?.PathParam);
-            var res = await ClientFactory().PutAsJsonAsync($"/api/admin/routes/{d.Path}", body, JsonOpts);
-            _msg = res.IsSuccessStatusCode ? $"applied {d.Field} for {d.Path}" : $"apply failed ({(int)res.StatusCode})";
-            await LoadRoutes();
-            await LoadBinary();
-            if (_expandedPath == d.Path && _rows.FirstOrDefault(r => r.Path == d.Path) is { } fresh) {
-                SeedDrafts(fresh);
-            }
-        }
-        catch (Exception ex) {
-            _msg = $"apply error: {ex.Message}";
+        var row = _rows.FirstOrDefault(r => r.Path == d.Path);
+        var current = row?.Override;
+        var eff = row?.Effective;
+        var body = new UpsertBody(
+            current?.Request ?? eff?.Request,
+            current?.Response ?? eff?.Response,
+            d.Field == "requestWrapped" ? value : current?.RequestWrapped ?? eff?.RequestWrapped,
+            d.Field == "responseWrapped" ? value : current?.ResponseWrapped ?? eff?.ResponseWrapped,
+            current?.PathParam ?? eff?.PathParam);
+        var res = await Api.PutJsonAsync($"/api/admin/routes/{d.Path}", body);
+        _msg = res.Ok ? $"applied {d.Field} for {d.Path}" : $"apply failed: {res.Describe()}";
+        await LoadRoutes();
+        await LoadBinary();
+        if (_expandedPath == d.Path && _rows.FirstOrDefault(r => r.Path == d.Path) is { } fresh) {
+            SeedDrafts(fresh);
         }
 
         _busy = false;

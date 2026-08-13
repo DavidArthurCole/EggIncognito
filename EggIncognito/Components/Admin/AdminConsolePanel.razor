@@ -1,6 +1,6 @@
-@using System.Text
-@using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
+@using System.Text.Json
+@inherits BrowserApiComponentBase
 
 <section class="panel mb-4">
     <div class="admin-panel-head">
@@ -63,8 +63,6 @@
 </section>
 
 @code {
-    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
-
     List<Endpoint> _endpoints = [];
     Endpoint? _selected;
 
@@ -81,15 +79,10 @@
     string? _blobUrl;
     string? _downloadName;
 
-    protected override async Task OnInitializedAsync() {
-        if (ClientFactory is null) return;
-        try {
-            var res = await ClientFactory().GetFromJsonAsync<EndpointList>("/api/console/endpoints");
-            _endpoints = res?.Endpoints?.ToList() ?? [];
-        }
-        catch {
-            _endpoints = [];
-        }
+    protected override async Task OnApiReadyAsync() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/console/endpoints");
+        _endpoints = res.Ok ? res.Json<EndpointList>()?.Endpoints?.ToList() ?? [] : [];
     }
 
     IEnumerable<IGrouping<string, Endpoint>> Grouped() {
@@ -139,55 +132,41 @@
     }
 
     async Task Send() {
-        if (_selected is null || ClientFactory is null) return;
+        if (_selected is null || Api is null) return;
         _busy = true;
         _status = null;
         _isBinary = false;
         _blobUrl = null;
-        try {
-            var route = _selected.Route;
-            var query = new List<string>();
-            foreach (var p in _selected.Query) {
-                var v = _paramValues.GetValueOrDefault(p.Name) ?? "";
-                if (p.Source == "Path") route = route.Replace($"{{{p.Name}}}", Uri.EscapeDataString(v));
-                else if (!string.IsNullOrEmpty(v)) query.Add($"{Uri.EscapeDataString(p.Name)}={Uri.EscapeDataString(v)}");
-            }
 
-            if (query.Count > 0) route += "?" + string.Join("&", query);
-
-            var req = new HttpRequestMessage(new HttpMethod(_selected.Method), route);
-            if (_selected.HasFile && _fileBytes is not null) {
-                var mp = new MultipartFormDataContent();
-                mp.Add(new ByteArrayContent(_fileBytes), "file", _fileName ?? "file");
-                req.Content = mp;
-            } else if (_selected.HasBody && !string.IsNullOrWhiteSpace(_body)) {
-                req.Content = new StringContent(_body, Encoding.UTF8, "application/json");
-            }
-
-            var res = await ClientFactory().SendAsync(req);
-            _status = (int)res.StatusCode;
-            _ok = res.IsSuccessStatusCode;
-            var ctype = res.Content.Headers.ContentType?.MediaType ?? "";
-            _statusLine = $"HTTP {_status} {res.ReasonPhrase} ({ctype})";
-
-            if (ctype.StartsWith("application/json") || ctype.StartsWith("text/")) {
-                _response = Pretty(await res.Content.ReadAsStringAsync());
-            } else {
-                var bytes = await res.Content.ReadAsByteArrayAsync();
-                _respBytes = bytes.Length;
-                _isBinary = true;
-                _blobUrl = $"data:{ctype};base64,{Convert.ToBase64String(bytes)}";
-                _downloadName = res.Content.Headers.ContentDisposition?.FileName?.Trim('"') ?? "response.bin";
-            }
+        var route = _selected.Route;
+        var query = new List<string>();
+        foreach (var p in _selected.Query) {
+            var v = _paramValues.GetValueOrDefault(p.Name) ?? "";
+            if (p.Source == "Path") route = route.Replace($"{{{p.Name}}}", Uri.EscapeDataString(v));
+            else if (!string.IsNullOrEmpty(v)) query.Add($"{Uri.EscapeDataString(p.Name)}={Uri.EscapeDataString(v)}");
         }
-        catch (Exception ex) {
-            _ok = false;
-            _statusLine = ex.Message;
-            _response = "";
+
+        if (query.Count > 0) route += "?" + string.Join("&", query);
+
+        var res = _selected.HasFile && _fileBytes is not null
+            ? await Api.SendFileAsync(_selected.Method, route, "file", _fileName ?? "file", _fileBytes)
+            : await Api.SendAsync(_selected.Method, route,
+                _selected.HasBody && !string.IsNullOrWhiteSpace(_body) ? _body : null);
+
+        _status = res.Status;
+        _ok = res.Ok;
+        _statusLine = res.Status == 0 ? res.Body : $"HTTP {res.Status} ({res.ContentType})";
+
+        if (res.Binary) {
+            _respBytes = res.ByteSize;
+            _isBinary = true;
+            _blobUrl = $"data:{res.ContentType};base64,{res.Body}";
+            _downloadName = res.FileName ?? "response.bin";
+        } else {
+            _response = res.Status == 0 ? "" : Pretty(res.Body);
         }
-        finally {
-            _busy = false;
-        }
+
+        _busy = false;
     }
 
     static string Pretty(string json) {

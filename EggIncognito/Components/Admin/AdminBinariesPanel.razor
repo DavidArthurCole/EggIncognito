@@ -1,6 +1,6 @@
-@using System.Text.Json
-@using EggIncognito.Core
 @rendermode @(RenderMode.InteractiveServer)
+@using EggIncognito.Core
+@inherits BrowserApiComponentBase
 
 <section class="panel mb-4">
     <div class="admin-panel-head">
@@ -53,61 +53,46 @@
 </section>
 
 @code {
-    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
-
-    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-
     List<Row> _rows = [];
     bool _busy;
     string? _msg;
 
-    protected override async Task OnInitializedAsync() {
+    protected override async Task OnApiReadyAsync() {
         await Load();
     }
 
     async Task Load() {
-        if (ClientFactory is null) return;
-        try {
-            var res = await ClientFactory().GetFromJsonAsync<ListResult>("/api/decomp/stored-binaries", JsonOpts);
-            _rows = res?.Binaries ?? [];
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/decomp/stored-binaries");
+        if (!res.Ok) {
+            _msg = $"load failed: {res.Describe()}";
+            return;
         }
-        catch (Exception ex) {
-            _msg = $"load failed: {ex.Message}";
-        }
+
+        _rows = res.Json<ListResult>()?.Binaries ?? [];
     }
 
     async Task PokeHarvest() {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _busy = true;
         _msg = "queued a harvest on the device agent...";
         StateHasChanged();
-        try {
-            var res = await ClientFactory().PostAsync("/api/devices/poke-all", null);
-            _msg = res.IsSuccessStatusCode
-                ? "harvest queued; binaries land here once the agent finishes"
-                : $"poke failed (HTTP {(int)res.StatusCode})";
-            await Load();
-        }
-        catch (Exception ex) {
-            _msg = $"poke error: {ex.Message}";
-        }
-
+        var res = await Api.PostAsync("/api/devices/poke-all");
+        _msg = res.Ok
+            ? "harvest queued; binaries land here once the agent finishes"
+            : $"poke failed: {res.Describe()}";
+        await Load();
         _busy = false;
     }
 
     async Task Delete(string platform, string version) {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _busy = true;
         _msg = null;
-        try {
-            var res = await ClientFactory().DeleteAsync($"/api/decomp/stored-binaries/{Uri.EscapeDataString(platform)}/{Uri.EscapeDataString(version)}");
-            _msg = res.IsSuccessStatusCode ? $"deleted {platform} {version}" : $"delete failed ({(int)res.StatusCode})";
-            await Load();
-        }
-        catch (Exception ex) {
-            _msg = $"delete error: {ex.Message}";
-        }
-
+        var res = await Api.DeleteAsync(
+            $"/api/decomp/stored-binaries/{Uri.EscapeDataString(platform)}/{Uri.EscapeDataString(version)}");
+        _msg = res.Ok ? $"deleted {platform} {version}" : $"delete failed: {res.Describe()}";
+        await Load();
         _busy = false;
     }
 

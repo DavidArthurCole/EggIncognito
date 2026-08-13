@@ -32,6 +32,7 @@ public class AdminPageTests {
 
     public class Component : BunitContext {
         private void Wire(UserRole role) {
+            JSInterop.Mode = JSRuntimeMode.Loose;
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
@@ -53,7 +54,7 @@ public class AdminPageTests {
             var cut = Render<Admin>();
             Assert.Empty(cut.FindAll("#denied"));
             Assert.Contains("Users", cut.Markup);
-            Assert.NotNull(cut.Find("#log"));
+            Assert.NotNull(cut.WaitForElement("#log"));
         }
     }
 

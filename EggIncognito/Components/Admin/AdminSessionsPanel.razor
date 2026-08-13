@@ -1,8 +1,6 @@
 @* Admin oversight of active capture sessions: list + a kill button per row, polling /api/admin/sessions. *@
 @rendermode @(RenderMode.InteractiveServer)
-@inject IJSRuntime JS
-@inject IWebHostEnvironment Env
-@using System.Text.Json
+@inherits BrowserApiComponentBase
 @implements IDisposable
 
 <section class="panel mb-4">
@@ -54,55 +52,38 @@
 </section>
 
 @code {
-    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
-
-    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-
     List<Row> _rows = [];
     bool _busy;
     string? _msg;
     Timer? _timer;
 
-    protected override async Task OnInitializedAsync() {
+    protected override async Task OnApiReadyAsync() {
         await Load();
-    }
-
-    protected override void OnAfterRender(bool firstRender) {
-        if (firstRender)
-            _timer = new Timer(async _ => await InvokeAsync(async () => {
-                    if (!await Vis.IsVisibleAsync()) return;
-                    await Load();
-                    StateHasChanged();
-                }),
-                null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+        _timer = new Timer(async _ => await InvokeAsync(async () => {
+                if (!await Vis.IsVisibleAsync()) return;
+                await Load();
+                StateHasChanged();
+            }),
+            null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
     PageVisibility? _vis;
 
-    PageVisibility Vis => _vis ??= new PageVisibility(JS, Env);
+    PageVisibility Vis => _vis ??= new PageVisibility(Js, Env);
 
     async Task Load() {
-        if (ClientFactory is null) return;
-        try {
-            _rows = await ClientFactory().GetFromJsonAsync<List<Row>>("/api/admin/sessions", JsonOpts) ?? [];
-        }
-        catch {
-        }
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/admin/sessions");
+        if (res.Ok) _rows = res.Json<List<Row>>() ?? [];
     }
 
     async Task Kill(string key) {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _busy = true;
         _msg = null;
-        try {
-            var res = await ClientFactory().DeleteAsync($"/api/admin/sessions/{Uri.EscapeDataString(key)}");
-            _msg = res.IsSuccessStatusCode ? $"killed {Label(key)}" : $"kill failed ({(int)res.StatusCode})";
-            await Load();
-        }
-        catch (Exception ex) {
-            _msg = $"kill error: {ex.Message}";
-        }
-
+        var res = await Api.DeleteAsync($"/api/admin/sessions/{Uri.EscapeDataString(key)}");
+        _msg = res.Ok ? $"killed {Label(key)}" : $"kill failed: {res.Describe()}";
+        await Load();
         _busy = false;
     }
 

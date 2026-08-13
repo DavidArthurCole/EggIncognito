@@ -1,5 +1,5 @@
-@using System.Text.Json
 @rendermode @(RenderMode.InteractiveServer)
+@inherits BrowserApiComponentBase
 
 <section class="panel mb-4">
     <div class="admin-panel-head">
@@ -47,56 +47,37 @@
 </section>
 
 @code {
-    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
-
-    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-
     List<Row> _rows = [];
     bool _busy;
     string? _msg;
 
-    protected override async Task OnInitializedAsync() {
+    protected override async Task OnApiReadyAsync() {
         await Load();
     }
 
     async Task Load() {
-        if (ClientFactory is null) return;
-        try {
-            _rows = await ClientFactory().GetFromJsonAsync<List<Row>>("/api/admin/api-keys", JsonOpts) ?? [];
-        }
-        catch {
-        }
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/admin/api-keys");
+        if (res.Ok) _rows = res.Json<List<Row>>() ?? [];
     }
 
     async Task Revoke(long id) {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _busy = true;
         _msg = null;
-        try {
-            var res = await ClientFactory().DeleteAsync($"/api/admin/api-keys/{id}");
-            _msg = res.IsSuccessStatusCode ? $"revoked key {id}" : $"revoke failed ({(int)res.StatusCode})";
-            await Load();
-        }
-        catch (Exception ex) {
-            _msg = $"revoke error: {ex.Message}";
-        }
-
+        var res = await Api.DeleteAsync($"/api/admin/api-keys/{id}");
+        _msg = res.Ok ? $"revoked key {id}" : $"revoke failed: {res.Describe()}";
+        await Load();
         _busy = false;
     }
 
     async Task Delete(long id) {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _busy = true;
         _msg = null;
-        try {
-            var res = await ClientFactory().DeleteAsync($"/api/admin/api-keys/{id}/purge");
-            _msg = res.IsSuccessStatusCode ? $"deleted key {id}" : $"delete failed ({(int)res.StatusCode})";
-            await Load();
-        }
-        catch (Exception ex) {
-            _msg = $"delete error: {ex.Message}";
-        }
-
+        var res = await Api.DeleteAsync($"/api/admin/api-keys/{id}/purge");
+        _msg = res.Ok ? $"deleted key {id}" : $"delete failed: {res.Describe()}";
+        await Load();
         _busy = false;
     }
 

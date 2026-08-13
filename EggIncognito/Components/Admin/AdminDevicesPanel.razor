@@ -1,7 +1,5 @@
 @rendermode @(RenderMode.InteractiveServer)
-@inject IJSRuntime JS
-@inject IWebHostEnvironment Env
-@using System.Text.Json
+@inherits BrowserApiComponentBase
 @implements IDisposable
 
 <section class="panel mb-4">
@@ -133,10 +131,6 @@
 </section>
 
 @code {
-    [Parameter] public Func<HttpClient>? ClientFactory { get; set; }
-
-    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-
     List<DeviceStatsRow> _rows = [];
     readonly HashSet<string> _probeBusy = [];
     readonly HashSet<string> _probesOpen = [];
@@ -147,14 +141,14 @@
     string? _msg;
     Timer? _timer;
 
-    protected override async Task OnInitializedAsync() {
+    protected override async Task OnApiReadyAsync() {
         await Load();
         _timer = new Timer(async _ => await InvokeAsync(TickAsync), null, 30_000, 30_000);
     }
 
     PageVisibility? _vis;
 
-    PageVisibility Vis => _vis ??= new PageVisibility(JS, Env);
+    PageVisibility Vis => _vis ??= new PageVisibility(Js, Env);
 
     async Task TickAsync() {
         if (_disposed || !await Vis.IsVisibleAsync()) return;
@@ -168,15 +162,11 @@
     }
 
     async Task Load() {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _busy = true;
-        try {
-            _rows = await ClientFactory().GetFromJsonAsync<List<DeviceStatsRow>>(
-                $"/api/admin/devices/stats?hours={_hours}", JsonOpts) ?? [];
-        }
-        catch (Exception ex) {
-            _msg = $"load failed: {ex.Message}";
-        }
+        var res = await Api.GetAsync($"/api/admin/devices/stats?hours={_hours}");
+        if (res.Ok) _rows = res.Json<List<DeviceStatsRow>>() ?? [];
+        else _msg = $"load failed: {res.Describe()}";
 
         _busy = false;
         StateHasChanged();
@@ -203,19 +193,13 @@
     }
 
     async Task ProbeNow(string id) {
-        if (ClientFactory is null) return;
+        if (Api is null) return;
         _probeBusy.Add(id);
         _msg = null;
         StateHasChanged();
-        try {
-            var res = await ClientFactory().PostAsync($"/api/devices/{id}/refresh", null);
-            _msg = res.IsSuccessStatusCode ? $"probed {id}" : $"probe failed ({(int)res.StatusCode})";
-            await Load();
-        }
-        catch (Exception ex) {
-            _msg = $"probe error: {ex.Message}";
-        }
-
+        var res = await Api.PostAsync($"/api/devices/{id}/refresh");
+        _msg = res.Ok ? $"probed {id}" : $"probe failed: {res.Describe()}";
+        await Load();
         _probeBusy.Remove(id);
         StateHasChanged();
     }
