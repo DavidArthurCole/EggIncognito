@@ -78,9 +78,9 @@ public sealed class DeviceHarvester(
             }
 
             if (pulled.FailedPulls > 0) {
-                string note = $"{pulled.FailedPulls} of {pulled.Present.Count} pulls failed, {wrote} written";
-                log.Add(Row(target.Id, state.Revision, entry, "failed", note, bytes, fp.Value));
-                logger.LogWarning("harvest {Device} entry {Entry}: {Note}", target.Id, entry.Name, note);
+                string pullNote = $"{pulled.FailedPulls} of {pulled.Present.Count} pulls failed, {wrote} written";
+                log.Add(Row(target.Id, state.Revision, entry, "failed", pullNote, bytes, fp.Value));
+                logger.LogWarning("harvest {Device} entry {Entry}: {Note}", target.Id, entry.Name, pullNote);
                 failed++;
                 continue;
             }
